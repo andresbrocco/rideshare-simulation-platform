@@ -29,6 +29,9 @@ dev = [
     "types-redis==4.6.0.20241004",
 ]
 
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
