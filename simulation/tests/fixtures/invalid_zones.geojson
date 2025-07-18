@@ -1,0 +1,56 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "zone_id": "valid_zone",
+        "name": "Valid Zone",
+        "demand_multiplier": 1.2,
+        "surge_sensitivity": 1.1
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-46.6500, -23.5500],
+            [-46.6500, -23.5600],
+            [-46.6400, -23.5600],
+            [-46.6400, -23.5500],
+            [-46.6500, -23.5500]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "No Zone ID",
+        "demand_multiplier": 1.0
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-46.6600, -23.5600],
+            [-46.6600, -23.5700],
+            [-46.6500, -23.5700],
+            [-46.6500, -23.5600],
+            [-46.6600, -23.5600]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zone_id": "invalid_geometry",
+        "name": "Invalid Geometry Type"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-46.6500, -23.5500]
+      }
+    }
+  ]
+}
