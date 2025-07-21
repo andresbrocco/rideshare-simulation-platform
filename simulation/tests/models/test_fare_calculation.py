@@ -1,6 +1,6 @@
 import pytest
 
-from simulation.src.fare import FareBreakdown, FareCalculator
+from src.fare import FareBreakdown, FareCalculator
 
 
 class TestFareCalculator:

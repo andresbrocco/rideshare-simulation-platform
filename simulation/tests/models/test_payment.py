@@ -3,7 +3,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from simulation.src.payment import Payment
+from src.payment import Payment
 
 
 class TestPayment:

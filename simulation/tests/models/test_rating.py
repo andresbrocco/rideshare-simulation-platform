@@ -3,7 +3,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from simulation.src.rating import Rating
+from src.rating import Rating
 
 
 class TestRating:
