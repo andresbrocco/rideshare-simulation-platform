@@ -24,22 +24,22 @@ def zone_service(zone_loader):
 
 class TestPointInsideZone:
     def test_point_inside_zone(self, zone_service):
-        """Point clearly inside pinheiros zone"""
+        """Point clearly inside PIN (Pinheiros) zone"""
         lat, lon = -23.5650, -46.6950
         zone_id = zone_service.get_zone_id(lat, lon)
-        assert zone_id == "pinheiros"
+        assert zone_id == "PIN"
 
-    def test_point_inside_vila_madalena(self, zone_service):
-        """Point clearly inside vila_madalena zone"""
-        lat, lon = -23.5550, -46.6850
+    def test_point_inside_bela_vista(self, zone_service):
+        """Point clearly inside BVI (Bela Vista) zone"""
+        lat, lon = -23.5600, -46.6500
         zone_id = zone_service.get_zone_id(lat, lon)
-        assert zone_id == "vila_madalena"
+        assert zone_id == "BVI"
 
-    def test_point_inside_centro(self, zone_service):
-        """Point clearly inside centro zone"""
-        lat, lon = -23.5450, -46.6350
+    def test_point_inside_se(self, zone_service):
+        """Point clearly inside SEE (Sé) zone"""
+        lat, lon = -23.5500, -46.6350
         zone_id = zone_service.get_zone_id(lat, lon)
-        assert zone_id == "centro"
+        assert zone_id == "SEE"
 
 
 class TestPointOnBorder:
@@ -47,7 +47,7 @@ class TestPointOnBorder:
         """Point on zone border falls back to nearest centroid"""
         lat, lon = -23.5600, -46.6900
         zone_id = zone_service.get_zone_id(lat, lon)
-        assert zone_id in ["pinheiros", "vila_madalena"]
+        assert zone_id in ["PIN", "BVI", "SEE"]
 
 
 class TestPointOutsideAllZones:
@@ -55,13 +55,13 @@ class TestPointOutsideAllZones:
         """Point outside all zones but within 50km returns nearest"""
         lat, lon = -23.5300, -46.6500
         zone_id = zone_service.get_zone_id(lat, lon)
-        assert zone_id in ["pinheiros", "vila_madalena", "centro"]
+        assert zone_id in ["PIN", "BVI", "SEE"]
 
     def test_point_slightly_outside_zones(self, zone_service):
         """Point just outside mapped area returns nearest centroid"""
         lat, lon = -23.5000, -46.6000
         zone_id = zone_service.get_zone_id(lat, lon)
-        assert zone_id in ["pinheiros", "vila_madalena", "centro"]
+        assert zone_id in ["PIN", "BVI", "SEE"]
 
 
 class TestInvalidCoordinates:
@@ -82,13 +82,15 @@ class TestInvalidCoordinates:
 class TestCentroidDistanceCalculation:
     def test_centroid_distance_calculation(self, zone_service):
         """Verify Haversine distance calculation accuracy"""
-        zone = zone_service.zone_loader.get_zone("pinheiros")
+        zone = zone_service.zone_loader.get_zone("PIN")
         centroid_lat, centroid_lon = zone.centroid[1], zone.centroid[0]
 
         # Point 1km away (approximately)
         lat, lon = centroid_lat + 0.009, centroid_lon
 
-        distance = zone_service._calculate_distance(lat, lon, centroid_lat, centroid_lon)
+        distance = zone_service._calculate_distance(
+            lat, lon, centroid_lat, centroid_lon
+        )
 
         assert 0.9 < distance < 1.1
 
@@ -132,21 +134,21 @@ class TestBatchZoneAssignment:
     def test_batch_zone_assignment(self, zone_service):
         """Assigns zones for multiple coordinates"""
         coords = [
-            (-23.5650, -46.6950),  # pinheiros
-            (-23.5550, -46.6850),  # vila_madalena
-            (-23.5450, -46.6350),  # centro
-            (-23.5650, -46.6950),  # pinheiros again
-            (-23.5550, -46.6850),  # vila_madalena again
+            (-23.5650, -46.6950),  # PIN (Pinheiros)
+            (-23.5600, -46.6500),  # BVI (Bela Vista)
+            (-23.5500, -46.6350),  # SEE (Sé)
+            (-23.5650, -46.6950),  # PIN again
+            (-23.5600, -46.6500),  # BVI again
         ]
 
         zone_ids = zone_service.get_zone_batch(coords)
 
         assert len(zone_ids) == 5
-        assert zone_ids[0] == "pinheiros"
-        assert zone_ids[1] == "vila_madalena"
-        assert zone_ids[2] == "centro"
-        assert zone_ids[3] == "pinheiros"
-        assert zone_ids[4] == "vila_madalena"
+        assert zone_ids[0] == "PIN"
+        assert zone_ids[1] == "BVI"
+        assert zone_ids[2] == "SEE"
+        assert zone_ids[3] == "PIN"
+        assert zone_ids[4] == "BVI"
 
     def test_batch_with_invalid_coord(self, zone_service):
         """Batch assignment raises error on first invalid coord"""
@@ -164,9 +166,9 @@ class TestRealSaoPauloCoords:
     def test_zone_assignment_sao_paulo_coords(self, zone_service):
         """Real Sao Paulo coordinates get assigned correctly"""
         test_cases = [
-            ((-23.5650, -46.6950), "pinheiros"),
-            ((-23.5550, -46.6850), "vila_madalena"),
-            ((-23.5450, -46.6350), "centro"),
+            ((-23.5650, -46.6950), "PIN"),
+            ((-23.5600, -46.6500), "BVI"),
+            ((-23.5500, -46.6350), "SEE"),
         ]
 
         for (lat, lon), expected_zone in test_cases:

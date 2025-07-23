@@ -21,10 +21,10 @@ def invalid_zones_path():
 class TestZoneModel:
     def test_zone_model_valid(self):
         zone = Zone(
-            zone_id="pinheiros",
-            name="Pinheiros",
-            demand_multiplier=1.3,
-            surge_sensitivity=1.2,
+            zone_id="PIN",
+            name="PINHEIROS",
+            demand_multiplier=1.7,
+            surge_sensitivity=0.9,
             geometry=[
                 (-46.7000, -23.5600),
                 (-46.7000, -23.5700),
@@ -35,10 +35,10 @@ class TestZoneModel:
             centroid=(-46.6950, -23.5650),
         )
 
-        assert zone.zone_id == "pinheiros"
-        assert zone.name == "Pinheiros"
-        assert zone.demand_multiplier == 1.3
-        assert zone.surge_sensitivity == 1.2
+        assert zone.zone_id == "PIN"
+        assert zone.name == "PINHEIROS"
+        assert zone.demand_multiplier == 1.7
+        assert zone.surge_sensitivity == 0.9
         assert len(zone.geometry) == 5
         assert zone.centroid == (-46.6950, -23.5650)
 
@@ -117,10 +117,10 @@ class TestGeoJSONParsing:
         feature = {
             "type": "Feature",
             "properties": {
-                "zone_id": "pinheiros",
-                "name": "Pinheiros",
-                "demand_multiplier": 1.3,
-                "surge_sensitivity": 1.2,
+                "zone_id": "PIN",
+                "name": "PINHEIROS",
+                "demand_multiplier": 1.7,
+                "surge_sensitivity": 0.9,
             },
             "geometry": {
                 "type": "Polygon",
@@ -138,10 +138,10 @@ class TestGeoJSONParsing:
 
         zone = ZoneLoader._parse_feature(feature)
 
-        assert zone.zone_id == "pinheiros"
-        assert zone.name == "Pinheiros"
-        assert zone.demand_multiplier == 1.3
-        assert zone.surge_sensitivity == 1.2
+        assert zone.zone_id == "PIN"
+        assert zone.name == "PINHEIROS"
+        assert zone.demand_multiplier == 1.7
+        assert zone.surge_sensitivity == 0.9
         assert len(zone.geometry) == 5
 
     def test_invalid_polygon_geometry(self):
@@ -167,9 +167,9 @@ class TestZoneLoader:
         zones = loader.get_all_zones()
 
         assert len(zones) == 3
-        assert "pinheiros" in [z.zone_id for z in zones]
-        assert "vila_madalena" in [z.zone_id for z in zones]
-        assert "centro" in [z.zone_id for z in zones]
+        assert "PIN" in [z.zone_id for z in zones]
+        assert "BVI" in [z.zone_id for z in zones]
+        assert "SEE" in [z.zone_id for z in zones]
 
     def test_zone_loader_filters_invalid(self, invalid_zones_path):
         loader = ZoneLoader(invalid_zones_path)
@@ -181,10 +181,10 @@ class TestZoneLoader:
     def test_zone_by_id_lookup(self, sample_zones_path):
         loader = ZoneLoader(sample_zones_path)
 
-        zone = loader.get_zone("pinheiros")
+        zone = loader.get_zone("PIN")
         assert zone is not None
-        assert zone.zone_id == "pinheiros"
-        assert zone.name == "Pinheiros"
+        assert zone.zone_id == "PIN"
+        assert zone.name == "PINHEIROS"
 
         zone = loader.get_zone("nonexistent")
         assert zone is None
@@ -192,17 +192,17 @@ class TestZoneLoader:
     def test_zone_properties_loaded_correctly(self, sample_zones_path):
         loader = ZoneLoader(sample_zones_path)
 
-        pinheiros = loader.get_zone("pinheiros")
-        assert pinheiros.demand_multiplier == 1.3
-        assert pinheiros.surge_sensitivity == 1.2
+        pinheiros = loader.get_zone("PIN")
+        assert pinheiros.demand_multiplier == 1.7
+        assert pinheiros.surge_sensitivity == 0.9
 
-        vila_madalena = loader.get_zone("vila_madalena")
-        assert vila_madalena.demand_multiplier == 1.5
-        assert vila_madalena.surge_sensitivity == 1.8
+        bela_vista = loader.get_zone("BVI")
+        assert bela_vista.demand_multiplier == 1.3
+        assert bela_vista.surge_sensitivity == 1.1
 
-        centro = loader.get_zone("centro")
-        assert centro.demand_multiplier == 1.0
-        assert centro.surge_sensitivity == 1.0
+        se = loader.get_zone("SEE")
+        assert se.demand_multiplier == 1.3
+        assert se.surge_sensitivity == 1.1
 
     def test_zone_centroid_within_bounds(self, sample_zones_path):
         loader = ZoneLoader(sample_zones_path)
