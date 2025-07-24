@@ -1,5 +1,6 @@
 """Trip state machine and models."""
 
+from datetime import datetime
 from enum import Enum
 from typing import Literal
 
@@ -61,6 +62,10 @@ class Trip(BaseModel):
     cancelled_by: Literal["rider", "driver", "system"] | None = None
     cancellation_reason: str | None = None
     cancellation_stage: str | None = None
+    requested_at: datetime | None = None
+    matched_at: datetime | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
 
     def transition_to(self, new_state: TripState) -> None:
         """Transition to a new state with validation."""

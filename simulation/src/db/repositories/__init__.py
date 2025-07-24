@@ -2,5 +2,6 @@
 
 from .driver_repository import DriverRepository
 from .rider_repository import RiderRepository
+from .trip_repository import TripRepository
 
-__all__ = ["DriverRepository", "RiderRepository"]
+__all__ = ["DriverRepository", "RiderRepository", "TripRepository"]
