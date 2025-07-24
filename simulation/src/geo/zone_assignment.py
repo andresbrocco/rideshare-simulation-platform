@@ -1,5 +1,7 @@
 import math
+from collections import OrderedDict
 
+import h3
 from shapely.geometry import Point, Polygon
 
 from .zones import ZoneLoader
@@ -14,11 +16,17 @@ class InvalidCoordinatesError(Exception):
 class ZoneAssignmentService:
     """Assigns geographic coordinates to zones using point-in-polygon and nearest centroid fallback"""
 
-    def __init__(self, zone_loader: ZoneLoader):
+    def __init__(self, zone_loader: ZoneLoader, maxsize: int = 50000):
         self.zone_loader = zone_loader
-        self._cache: dict[str, str] = {}
+        self.maxsize = maxsize
+        self._cache: OrderedDict[str, str] = OrderedDict()
         self._polygons: dict[str, Polygon] = {}
         self._build_polygons()
+
+        # Statistics
+        self.requests = 0
+        self.hits = 0
+        self.misses = 0
 
     def _build_polygons(self) -> None:
         """Pre-build Shapely polygons for all zones"""
@@ -26,15 +34,27 @@ class ZoneAssignmentService:
             # Zone.geometry stores (lon, lat) tuples
             self._polygons[zone.zone_id] = Polygon(zone.geometry)
 
+    def _generate_cache_key(self, lat: float, lon: float) -> str:
+        """Generate H3 cell ID as cache key (resolution 9, ~174m edge)"""
+        return h3.latlng_to_cell(lat, lon, 9)
+
     def get_zone_id(self, lat: float, lon: float) -> str:
         """Get zone ID for given coordinates"""
-        cache_key = f"{lat:.6f},{lon:.6f}"
+        self.requests += 1
+        cache_key = self._generate_cache_key(lat, lon)
 
         if cache_key in self._cache:
+            self.hits += 1
+            self._cache.move_to_end(cache_key)
             return self._cache[cache_key]
 
+        self.misses += 1
         zone_id = self._find_zone(lat, lon)
         self._cache[cache_key] = zone_id
+
+        if len(self._cache) > self.maxsize:
+            self._cache.popitem(last=False)
+
         return zone_id
 
     def _find_zone(self, lat: float, lon: float) -> str:
@@ -93,3 +113,21 @@ class ZoneAssignmentService:
     def get_zone_batch(self, coords: list[tuple[float, float]]) -> list[str]:
         """Assign zones for multiple coordinates"""
         return [self.get_zone_id(lat, lon) for lat, lon in coords]
+
+    def get_cache_stats(self) -> dict[str, float | int]:
+        """Return cache statistics"""
+        hit_rate = self.hits / self.requests if self.requests > 0 else 0.0
+        return {
+            "requests": self.requests,
+            "hits": self.hits,
+            "misses": self.misses,
+            "hit_rate": hit_rate,
+            "cache_size": len(self._cache),
+        }
+
+    def clear_cache(self) -> None:
+        """Clear cache and reset statistics"""
+        self._cache.clear()
+        self.requests = 0
+        self.hits = 0
+        self.misses = 0

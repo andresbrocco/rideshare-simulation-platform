@@ -1,6 +1,7 @@
 import time
 from pathlib import Path
 
+import h3
 import pytest
 
 from src.geo.zone_assignment import InvalidCoordinatesError, ZoneAssignmentService
@@ -88,9 +89,7 @@ class TestCentroidDistanceCalculation:
         # Point 1km away (approximately)
         lat, lon = centroid_lat + 0.009, centroid_lon
 
-        distance = zone_service._calculate_distance(
-            lat, lon, centroid_lat, centroid_lon
-        )
+        distance = zone_service._calculate_distance(lat, lon, centroid_lat, centroid_lon)
 
         assert 0.9 < distance < 1.1
 
@@ -111,7 +110,7 @@ class TestCachePerformance:
             zone_service.get_zone_id(lat, lon)
         cached_time = time.perf_counter() - start
 
-        zone_service._cache.clear()
+        zone_service.clear_cache()
 
         start = time.perf_counter()
         for _ in range(100):
@@ -174,3 +173,109 @@ class TestRealSaoPauloCoords:
         for (lat, lon), expected_zone in test_cases:
             zone_id = zone_service.get_zone_id(lat, lon)
             assert zone_id == expected_zone
+
+
+class TestH3CacheKeyGeneration:
+    def test_h3_cache_key_format(self, zone_service):
+        """Cache key is H3 cell ID at resolution 9"""
+        lat, lon = -23.5650, -46.6950
+        key = zone_service._generate_cache_key(lat, lon)
+
+        assert isinstance(key, str)
+        assert len(key) == 15
+
+    def test_nearby_coords_same_h3_cell_cache_hit(self, zone_service):
+        """Coordinates ~50m apart map to same H3 cell and hit cache"""
+        lat1, lon1 = -23.5650, -46.6950
+        lat2, lon2 = -23.5651, -46.6951
+
+        h3_1 = h3.latlng_to_cell(lat1, lon1, 9)
+        h3_2 = h3.latlng_to_cell(lat2, lon2, 9)
+        assert h3_1 == h3_2
+
+        zone_service.get_zone_id(lat1, lon1)
+        stats_1 = zone_service.get_cache_stats()
+        assert stats_1["misses"] == 1
+        assert stats_1["hits"] == 0
+
+        zone_service.get_zone_id(lat2, lon2)
+        stats_2 = zone_service.get_cache_stats()
+        assert stats_2["misses"] == 1
+        assert stats_2["hits"] == 1
+
+    def test_distant_coords_different_h3_cells_cache_miss(self, zone_service):
+        """Coordinates ~500m apart map to different H3 cells"""
+        lat1, lon1 = -23.5650, -46.6950
+        lat2, lon2 = -23.5700, -46.7000
+
+        h3_1 = h3.latlng_to_cell(lat1, lon1, 9)
+        h3_2 = h3.latlng_to_cell(lat2, lon2, 9)
+        assert h3_1 != h3_2
+
+        zone_service.get_zone_id(lat1, lon1)
+        zone_service.get_zone_id(lat2, lon2)
+
+        stats = zone_service.get_cache_stats()
+        assert stats["misses"] == 2
+
+
+class TestLRUEviction:
+    def test_lru_eviction_when_cache_full(self, zone_loader):
+        """LRU eviction removes oldest entries when cache exceeds maxsize"""
+        service = ZoneAssignmentService(zone_loader, maxsize=3)
+
+        coords = [
+            (-23.5650, -46.6950),
+            (-23.5800, -46.7100),
+            (-23.5550, -46.6850),
+            (-23.5700, -46.7000),
+        ]
+
+        for lat, lon in coords[:3]:
+            service.get_zone_id(lat, lon)
+
+        assert service.get_cache_stats()["cache_size"] == 3
+
+        service.get_zone_id(coords[3][0], coords[3][1])
+        assert service.get_cache_stats()["cache_size"] == 3
+
+        service.get_zone_id(coords[0][0], coords[0][1])
+        stats = service.get_cache_stats()
+        assert stats["misses"] == 5
+
+
+class TestCacheStatistics:
+    def test_cache_stats_tracking(self, zone_service):
+        """Statistics track requests, hits, misses correctly"""
+        lat, lon = -23.5650, -46.6950
+
+        zone_service.get_zone_id(lat, lon)
+        stats = zone_service.get_cache_stats()
+        assert stats["requests"] == 1
+        assert stats["misses"] == 1
+        assert stats["hits"] == 0
+        assert stats["hit_rate"] == 0.0
+
+        zone_service.get_zone_id(lat, lon)
+        stats = zone_service.get_cache_stats()
+        assert stats["requests"] == 2
+        assert stats["hits"] == 1
+        assert stats["misses"] == 1
+        assert stats["hit_rate"] == 0.5
+
+    def test_cache_clear_resets_stats(self, zone_service):
+        """clear_cache resets cache and all statistics"""
+        zone_service.get_zone_id(-23.5650, -46.6950)
+        zone_service.get_zone_id(-23.5650, -46.6950)
+
+        stats_before = zone_service.get_cache_stats()
+        assert stats_before["requests"] == 2
+        assert stats_before["cache_size"] > 0
+
+        zone_service.clear_cache()
+
+        stats_after = zone_service.get_cache_stats()
+        assert stats_after["requests"] == 0
+        assert stats_after["hits"] == 0
+        assert stats_after["misses"] == 0
+        assert stats_after["cache_size"] == 0
