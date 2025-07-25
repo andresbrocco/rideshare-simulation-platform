@@ -1,9 +1,11 @@
 """SQLAlchemy ORM models for simulation persistence."""
 
-from datetime import UTC, datetime
+from datetime import datetime
 
 from sqlalchemy import Float, Index, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+from .utils import utc_now
 
 
 class Base(DeclarativeBase):
@@ -20,10 +22,10 @@ class Driver(Base):
     active_trip: Mapped[str | None] = mapped_column(String, nullable=True)
     current_rating: Mapped[float] = mapped_column(Float, default=5.0)
     rating_count: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
+    created_at: Mapped[datetime] = mapped_column(default=lambda: utc_now())
     updated_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(UTC),
-        onupdate=lambda: datetime.now(UTC),
+        default=lambda: utc_now(),
+        onupdate=lambda: utc_now(),
     )
 
     __table_args__ = (Index("idx_driver_status", "status"),)
@@ -39,10 +41,10 @@ class Rider(Base):
     active_trip: Mapped[str | None] = mapped_column(String, nullable=True)
     current_rating: Mapped[float] = mapped_column(Float, default=5.0)
     rating_count: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
+    created_at: Mapped[datetime] = mapped_column(default=lambda: utc_now())
     updated_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(UTC),
-        onupdate=lambda: datetime.now(UTC),
+        default=lambda: utc_now(),
+        onupdate=lambda: utc_now(),
     )
 
     __table_args__ = (Index("idx_rider_status", "status"),)
@@ -70,8 +72,8 @@ class Trip(Base):
     started_at: Mapped[datetime | None] = mapped_column(nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(UTC),
-        onupdate=lambda: datetime.now(UTC),
+        default=lambda: utc_now(),
+        onupdate=lambda: utc_now(),
     )
 
     __table_args__ = (
@@ -87,6 +89,20 @@ class SimulationMetadata(Base):
     key: Mapped[str] = mapped_column(String, primary_key=True)
     value: Mapped[str] = mapped_column(String, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(UTC),
-        onupdate=lambda: datetime.now(UTC),
+        default=lambda: utc_now(),
+        onupdate=lambda: utc_now(),
     )
+
+
+class RouteCache(Base):
+    __tablename__ = "route_cache"
+
+    cache_key: Mapped[str] = mapped_column(String, primary_key=True)
+    origin_h3: Mapped[str] = mapped_column(String, nullable=False)
+    dest_h3: Mapped[str] = mapped_column(String, nullable=False)
+    distance: Mapped[float] = mapped_column(Float, nullable=False)
+    duration: Mapped[float] = mapped_column(Float, nullable=False)
+    polyline: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=lambda: utc_now())
+
+    __table_args__ = (Index("idx_route_cache_created", "created_at"),)

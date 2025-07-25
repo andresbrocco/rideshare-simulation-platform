@@ -1,13 +1,12 @@
 """Trip repository for CRUD operations with state tracking."""
 
-from datetime import UTC, datetime
-
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ...trip import Trip as TripDomain
 from ...trip import TripState
 from ..schema import Trip
+from ..utils import utc_now
 
 TERMINAL_STATES = {TripState.COMPLETED.value, TripState.CANCELLED.value}
 
@@ -32,7 +31,7 @@ class TripRepository:
         """Create a new trip in REQUESTED state."""
         pickup_lat, pickup_lon = pickup_location
         dropoff_lat, dropoff_lon = dropoff_location
-        now = datetime.now(UTC)
+        now = utc_now()
 
         trip = Trip(
             trip_id=trip_id,
@@ -71,7 +70,7 @@ class TripRepository:
             return
 
         trip.state = new_state.value
-        now = datetime.now(UTC)
+        now = utc_now()
 
         if new_state == TripState.OFFER_SENT:
             trip.offer_sequence += 1
