@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rideshare-platform.example.com/schemas/trip_event.json",
+  "title": "Trip Event",
+  "description": "Event for trip state transitions",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "timestamp",
+    "trip_id",
+    "rider_id",
+    "pickup_location",
+    "dropoff_location",
+    "pickup_zone_id",
+    "dropoff_zone_id",
+    "surge_multiplier",
+    "fare"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for this event"
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "trip.requested",
+        "trip.offer_sent",
+        "trip.matched",
+        "trip.driver_en_route",
+        "trip.driver_arrived",
+        "trip.started",
+        "trip.completed",
+        "trip.cancelled",
+        "trip.offer_expired",
+        "trip.offer_rejected"
+      ],
+      "description": "Type of trip state transition"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of the event"
+    },
+    "trip_id": {
+      "type": "string",
+      "description": "Unique identifier for the trip"
+    },
+    "rider_id": {
+      "type": "string",
+      "description": "Unique identifier for the rider"
+    },
+    "driver_id": {
+      "type": ["string", "null"],
+      "description": "Unique identifier for the driver (null if not yet assigned)"
+    },
+    "pickup_location": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 2,
+      "maxItems": 2,
+      "description": "Pickup coordinates [latitude, longitude]"
+    },
+    "dropoff_location": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 2,
+      "maxItems": 2,
+      "description": "Dropoff coordinates [latitude, longitude]"
+    },
+    "pickup_zone_id": {
+      "type": "string",
+      "description": "Zone ID for pickup location"
+    },
+    "dropoff_zone_id": {
+      "type": "string",
+      "description": "Zone ID for dropoff location"
+    },
+    "surge_multiplier": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Surge pricing multiplier"
+    },
+    "fare": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Trip fare amount"
+    },
+    "offer_sequence": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "description": "Sequence number for driver offers (starts at 1)"
+    },
+    "cancelled_by": {
+      "type": ["string", "null"],
+      "enum": ["rider", "driver", null],
+      "description": "Who cancelled the trip (rider or driver)"
+    },
+    "cancellation_reason": {
+      "type": ["string", "null"],
+      "description": "Reason for cancellation"
+    },
+    "cancellation_stage": {
+      "type": ["string", "null"],
+      "description": "Trip stage when cancellation occurred"
+    }
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rideshare-platform.example.com/schemas/gps_ping_event.json",
+  "title": "GPS Ping Event",
+  "description": "GPS location ping from driver or rider",
+  "type": "object",
+  "required": [
+    "event_id",
+    "entity_type",
+    "entity_id",
+    "timestamp",
+    "location",
+    "accuracy"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for this event"
+    },
+    "entity_type": {
+      "type": "string",
+      "enum": ["driver", "rider"],
+      "description": "Type of entity sending the ping"
+    },
+    "entity_id": {
+      "type": "string",
+      "description": "Unique identifier for the entity (driver or rider)"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of the ping"
+    },
+    "location": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 2,
+      "maxItems": 2,
+      "description": "GPS coordinates [latitude, longitude]"
+    },
+    "heading": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 359,
+      "description": "Heading in degrees (0-359)"
+    },
+    "speed": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "description": "Speed in km/h"
+    },
+    "accuracy": {
+      "type": "number",
+      "minimum": 0,
+      "description": "GPS accuracy in meters"
+    },
+    "trip_id": {
+      "type": ["string", "null"],
+      "format": "uuid",
+      "description": "Associated trip ID if entity is on a trip"
+    }
+  }
+}

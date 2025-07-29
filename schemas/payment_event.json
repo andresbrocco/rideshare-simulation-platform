@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rideshare-platform.example.com/schemas/payment_event.json",
+  "title": "Payment Event",
+  "description": "Payment processing event",
+  "type": "object",
+  "required": [
+    "event_id",
+    "payment_id",
+    "trip_id",
+    "timestamp",
+    "rider_id",
+    "driver_id",
+    "payment_method_type",
+    "payment_method_masked",
+    "fare_amount",
+    "platform_fee_percentage",
+    "platform_fee_amount",
+    "driver_payout_amount"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for this event"
+    },
+    "payment_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for the payment"
+    },
+    "trip_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Trip identifier"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of the payment"
+    },
+    "rider_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Rider identifier"
+    },
+    "driver_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Driver identifier"
+    },
+    "payment_method_type": {
+      "type": "string",
+      "enum": ["credit_card", "digital_wallet"],
+      "description": "Type of payment method"
+    },
+    "payment_method_masked": {
+      "type": "string",
+      "description": "Masked payment method identifier"
+    },
+    "fare_amount": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Total fare amount"
+    },
+    "platform_fee_percentage": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Platform fee as a percentage (0.0-1.0)"
+    },
+    "platform_fee_amount": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Platform fee amount in currency"
+    },
+    "driver_payout_amount": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Amount paid out to driver"
+    }
+  }
+}

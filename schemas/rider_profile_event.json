@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rideshare-platform.example.com/schemas/rider_profile_event.json",
+  "title": "Rider Profile Event",
+  "description": "Rider profile creation or update",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "rider_id",
+    "timestamp",
+    "first_name",
+    "last_name",
+    "email",
+    "phone",
+    "home_location",
+    "payment_method_type",
+    "payment_method_masked"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for this event"
+    },
+    "event_type": {
+      "type": "string",
+      "enum": ["rider.created", "rider.updated"],
+      "description": "Type of profile event"
+    },
+    "rider_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for the rider"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of the event"
+    },
+    "first_name": {
+      "type": "string",
+      "description": "Rider's first name"
+    },
+    "last_name": {
+      "type": "string",
+      "description": "Rider's last name"
+    },
+    "email": {
+      "type": "string",
+      "description": "Rider's email address"
+    },
+    "phone": {
+      "type": "string",
+      "description": "Rider's phone number"
+    },
+    "home_location": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 2,
+      "maxItems": 2,
+      "description": "Rider's home location [latitude, longitude]"
+    },
+    "payment_method_type": {
+      "type": "string",
+      "enum": ["credit_card", "digital_wallet"],
+      "description": "Type of payment method"
+    },
+    "payment_method_masked": {
+      "type": "string",
+      "description": "Masked payment method identifier"
+    },
+    "behavior_factor": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Behavioral factor (only in rider.created events)"
+    }
+  }
+}
