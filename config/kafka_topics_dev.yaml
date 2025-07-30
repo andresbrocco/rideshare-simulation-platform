@@ -1,0 +1,75 @@
+# Kafka Topic Configuration - Development Environment
+# Lower partition counts for local testing and reduced overhead.
+
+topics:
+  # Trip events - all events for a trip are ordered by trip_id
+  - name: trips
+    partitions: 4
+    replication_factor: 3
+    partition_key: trip_id
+    config:
+      retention.ms: 604800000  # 7 days
+      cleanup.policy: delete
+
+  # GPS pings - high volume, ordered by entity_id (driver or rider)
+  - name: gps-pings
+    partitions: 8
+    replication_factor: 3
+    partition_key: entity_id
+    config:
+      retention.ms: 604800000
+      cleanup.policy: delete
+
+  # Driver status changes - ordered by driver_id
+  - name: driver-status
+    partitions: 2
+    replication_factor: 3
+    partition_key: driver_id
+    config:
+      retention.ms: 604800000
+      cleanup.policy: delete
+
+  # Surge pricing updates - ordered by zone_id
+  - name: surge-updates
+    partitions: 2
+    replication_factor: 3
+    partition_key: zone_id
+    config:
+      retention.ms: 604800000
+      cleanup.policy: delete
+
+  # Ratings - grouped by trip_id
+  - name: ratings
+    partitions: 2
+    replication_factor: 3
+    partition_key: trip_id
+    config:
+      retention.ms: 604800000
+      cleanup.policy: delete
+
+  # Payments - one per trip, keyed by trip_id
+  - name: payments
+    partitions: 2
+    replication_factor: 3
+    partition_key: trip_id
+    config:
+      retention.ms: 604800000
+      cleanup.policy: delete
+
+  # Driver profiles - SCD Type 2 updates, ordered by driver_id
+  - name: driver-profiles
+    partitions: 1
+    replication_factor: 3
+    partition_key: driver_id
+    config:
+      retention.ms: 604800000
+      cleanup.policy: delete
+
+  # Rider profiles - SCD Type 2 updates, ordered by rider_id
+  - name: rider-profiles
+    partitions: 1
+    replication_factor: 3
+    partition_key: rider_id
+    config:
+      retention.ms: 604800000
+      cleanup.policy: delete

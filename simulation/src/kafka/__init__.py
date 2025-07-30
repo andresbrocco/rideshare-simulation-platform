@@ -1,4 +1,5 @@
 from .data_corruption import CorruptionType, DataCorruptor, get_corruptor
+from .partitioning import get_partition_key, get_partition_key_field
 from .producer import KafkaProducer
 from .schema_registry import SchemaRegistry
 from .serialization import (
@@ -28,4 +29,6 @@ __all__ = [
     "DataCorruptor",
     "CorruptionType",
     "get_corruptor",
+    "get_partition_key",
+    "get_partition_key_field",
 ]

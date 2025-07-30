@@ -1,0 +1,77 @@
+# Kafka Topic Configuration - Production Environment
+# Higher partition counts for parallelism and throughput.
+
+topics:
+  # Trip events - all events for a trip are ordered by trip_id
+  # 16 partitions allows parallel processing of different trips
+  - name: trips
+    partitions: 16
+    replication_factor: 3
+    partition_key: trip_id
+    config:
+      retention.ms: 2592000000  # 30 days
+      cleanup.policy: delete
+
+  # GPS pings - highest volume topic, partitioned by entity_id
+  # 32 partitions for maximum parallelism on ping processing
+  - name: gps-pings
+    partitions: 32
+    replication_factor: 3
+    partition_key: entity_id
+    config:
+      retention.ms: 2592000000
+      cleanup.policy: delete
+
+  # Driver status changes - ordered by driver_id
+  - name: driver-status
+    partitions: 8
+    replication_factor: 3
+    partition_key: driver_id
+    config:
+      retention.ms: 2592000000
+      cleanup.policy: delete
+
+  # Surge pricing updates - ordered by zone_id
+  - name: surge-updates
+    partitions: 8
+    replication_factor: 3
+    partition_key: zone_id
+    config:
+      retention.ms: 2592000000
+      cleanup.policy: delete
+
+  # Ratings - grouped by trip_id
+  - name: ratings
+    partitions: 8
+    replication_factor: 3
+    partition_key: trip_id
+    config:
+      retention.ms: 2592000000
+      cleanup.policy: delete
+
+  # Payments - one per trip, keyed by trip_id
+  - name: payments
+    partitions: 8
+    replication_factor: 3
+    partition_key: trip_id
+    config:
+      retention.ms: 2592000000
+      cleanup.policy: delete
+
+  # Driver profiles - SCD Type 2 updates, ordered by driver_id
+  - name: driver-profiles
+    partitions: 4
+    replication_factor: 3
+    partition_key: driver_id
+    config:
+      retention.ms: 2592000000
+      cleanup.policy: delete
+
+  # Rider profiles - SCD Type 2 updates, ordered by rider_id
+  - name: rider-profiles
+    partitions: 4
+    replication_factor: 3
+    partition_key: rider_id
+    config:
+      retention.ms: 2592000000
+      cleanup.policy: delete
