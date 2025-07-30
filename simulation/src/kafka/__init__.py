@@ -1,3 +1,4 @@
+from .data_corruption import CorruptionType, DataCorruptor, get_corruptor
 from .producer import KafkaProducer
 from .schema_registry import SchemaRegistry
 from .serialization import (
@@ -24,4 +25,7 @@ __all__ = [
     "PaymentEventSerializer",
     "DriverProfileEventSerializer",
     "RiderProfileEventSerializer",
+    "DataCorruptor",
+    "CorruptionType",
+    "get_corruptor",
 ]

@@ -1,9 +1,11 @@
+import json
 import uuid
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
 
+from src.kafka.data_corruption import DataCorruptor, get_corruptor
 from src.kafka.schema_registry import SchemaRegistry
 
 
@@ -15,6 +17,7 @@ class EventSerializer:
         self.schema_path = Path(schema_path)
         self._schema_registered = False
         self._schema_str: str | None = None
+        self._corruptor: DataCorruptor | None = None
 
     def serialize(self, event: BaseModel) -> dict[str, Any]:
         if not self._schema_registered:
@@ -33,6 +36,23 @@ class EventSerializer:
         self.schema_registry.validate_message(event_dict, self._schema_str)
 
         return event_dict
+
+    def serialize_for_kafka(self, event: BaseModel, topic: str) -> tuple[str, bool]:
+        """Serialize event for Kafka, potentially applying corruption.
+
+        Returns:
+            Tuple of (json_string, is_corrupted)
+        """
+        if self._corruptor is None:
+            self._corruptor = get_corruptor()
+
+        valid_dict = self.serialize(event)
+
+        if self._corruptor.should_corrupt():
+            corrupted_payload, _ = self._corruptor.corrupt(valid_dict, topic)
+            return corrupted_payload, True
+
+        return json.dumps(valid_dict), False
 
     def _register_schema(self) -> None:
         self._schema_str = self.schema_path.read_text()
