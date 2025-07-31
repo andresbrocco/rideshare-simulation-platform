@@ -2,11 +2,11 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 import redis.asyncio as aioredis
 from redis.exceptions import ConnectionError
-from simulation.src.pubsub.channels import ALL_CHANNELS
-from simulation.src.redis.publisher import RedisPublisher
+
+from pubsub.channels import ALL_CHANNELS
+from redis_client.publisher import RedisPublisher
 
 
 @pytest.fixture

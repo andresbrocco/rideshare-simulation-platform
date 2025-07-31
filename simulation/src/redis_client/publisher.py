@@ -3,7 +3,8 @@ import logging
 
 import redis.asyncio as aioredis
 from redis.exceptions import ConnectionError
-from simulation.src.pubsub.channels import ALL_CHANNELS
+
+from pubsub.channels import ALL_CHANNELS
 
 logger = logging.getLogger(__name__)
 
