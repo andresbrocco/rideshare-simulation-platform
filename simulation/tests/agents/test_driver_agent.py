@@ -4,42 +4,19 @@ from unittest.mock import Mock
 import pytest
 import simpy
 
-from agents.dna import DriverDNA, ShiftPreference
-from agents.driver_agent import DriverAgent
+from src.agents.dna import DriverDNA, ShiftPreference
+from src.agents.driver_agent import DriverAgent
+from tests.factories import DNAFactory
 
 
 @pytest.fixture
-def driver_dna():
-    return DriverDNA(
-        acceptance_rate=0.85,
-        cancellation_tendency=0.05,
-        service_quality=0.9,
-        response_time=5.0,
-        min_rider_rating=3.5,
-        home_location=(-23.55, -46.63),
-        preferred_zones=["zone_1", "zone_2"],
-        shift_preference=ShiftPreference.MORNING,
-        avg_hours_per_day=8,
-        avg_days_per_week=5,
-        vehicle_make="Toyota",
-        vehicle_model="Corolla",
-        vehicle_year=2020,
-        license_plate="ABC-1234",
-        first_name="João",
-        last_name="Silva",
-        email="joao@example.com",
-        phone="+5511999999999",
-    )
+def driver_dna(dna_factory: DNAFactory):
+    return dna_factory.driver_dna()
 
 
 @pytest.fixture
 def simpy_env():
     return simpy.Environment()
-
-
-@pytest.fixture
-def mock_kafka_producer():
-    return Mock()
 
 
 @pytest.fixture
@@ -72,29 +49,13 @@ class TestDriverAgentInit:
 
 
 class TestDriverDNAImmutability:
-    def test_driver_dna_immutability(self, driver_agent, driver_dna):
+    def test_driver_dna_immutability(self, driver_agent, driver_dna, dna_factory: DNAFactory):
         original_acceptance = driver_dna.acceptance_rate
         # Attempting to assign new DNA should not change it
         with pytest.raises(AttributeError):
-            driver_agent.dna = DriverDNA(
+            driver_agent.dna = dna_factory.driver_dna(
                 acceptance_rate=0.5,
-                cancellation_tendency=0.1,
-                service_quality=0.5,
-                response_time=10.0,
-                min_rider_rating=4.0,
-                home_location=(-23.55, -46.63),
-                preferred_zones=["zone_3"],
                 shift_preference=ShiftPreference.NIGHT,
-                avg_hours_per_day=4,
-                avg_days_per_week=3,
-                vehicle_make="Honda",
-                vehicle_model="Civic",
-                vehicle_year=2019,
-                license_plate="XYZ-9999",
-                first_name="Maria",
-                last_name="Santos",
-                email="maria@example.com",
-                phone="+5511888888888",
             )
         # Original DNA should be unchanged
         assert driver_agent.dna.acceptance_rate == original_acceptance

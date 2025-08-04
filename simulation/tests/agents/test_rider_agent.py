@@ -4,40 +4,25 @@ from unittest.mock import Mock
 import pytest
 import simpy
 
-from agents.dna import RiderDNA
-from agents.rider_agent import RiderAgent
+from src.agents.dna import RiderDNA
+from src.agents.rider_agent import RiderAgent
+from tests.factories import DNAFactory
 
 
 @pytest.fixture
-def rider_dna():
-    return RiderDNA(
-        behavior_factor=0.7,
-        patience_threshold=180,
-        max_surge_multiplier=2.0,
-        avg_rides_per_week=5,
+def rider_dna(dna_factory: DNAFactory):
+    return dna_factory.rider_dna(
         frequent_destinations=[
             {"name": "work", "coordinates": (-23.56, -46.65), "weight": 0.6},
             {"name": "gym", "coordinates": (-23.54, -46.62), "weight": 0.3},
             {"name": "mall", "coordinates": (-23.55, -46.64), "weight": 0.1},
         ],
-        home_location=(-23.55, -46.63),
-        first_name="Maria",
-        last_name="Santos",
-        email="maria@example.com",
-        phone="+5511888888888",
-        payment_method_type="credit_card",
-        payment_method_masked="**** **** **** 1234",
     )
 
 
 @pytest.fixture
 def simpy_env():
     return simpy.Environment()
-
-
-@pytest.fixture
-def mock_kafka_producer():
-    return Mock()
 
 
 @pytest.fixture
@@ -70,25 +55,12 @@ class TestRiderAgentInit:
 
 
 class TestRiderDNAImmutability:
-    def test_rider_dna_immutability(self, rider_agent, rider_dna):
+    def test_rider_dna_immutability(self, rider_agent, rider_dna, dna_factory: DNAFactory):
         original_behavior = rider_dna.behavior_factor
         with pytest.raises(AttributeError):
-            rider_agent.dna = RiderDNA(
+            rider_agent.dna = dna_factory.rider_dna(
                 behavior_factor=0.3,
                 patience_threshold=200,
-                max_surge_multiplier=1.5,
-                avg_rides_per_week=3,
-                frequent_destinations=[
-                    {"name": "office", "coordinates": (-23.56, -46.65), "weight": 0.5},
-                    {"name": "home", "coordinates": (-23.55, -46.63), "weight": 0.5},
-                ],
-                home_location=(-23.55, -46.63),
-                first_name="Ana",
-                last_name="Costa",
-                email="ana@example.com",
-                phone="+5511777777777",
-                payment_method_type="debit_card",
-                payment_method_masked="**** **** **** 5678",
             )
         assert rider_agent.dna.behavior_factor == original_behavior
 

@@ -10,6 +10,7 @@ from src.agents.dna import DriverDNA, RiderDNA, ShiftPreference
 from src.db.database import init_database
 from src.db.schema import Driver, Rider, SimulationMetadata, Trip
 from src.trip import TripState
+from tests.factories import DNAFactory
 
 
 class TestDatabaseCreation:
@@ -128,29 +129,13 @@ class TestMetadataTable:
 class TestDriverDNASerialization:
     """Test driver DNA JSON serialization."""
 
-    def test_driver_dna_json_serialization(self, temp_sqlite_db):
+    def test_driver_dna_json_serialization(self, temp_sqlite_db, dna_factory: DNAFactory):
         """Stores DriverDNA as JSON."""
         session_maker = init_database(str(temp_sqlite_db))
 
-        driver_dna = DriverDNA(
+        driver_dna = dna_factory.driver_dna(
             acceptance_rate=0.85,
-            cancellation_tendency=0.05,
             service_quality=0.92,
-            response_time=5.0,
-            min_rider_rating=3.5,
-            home_location=(-23.5505, -46.6333),
-            preferred_zones=["zone_1", "zone_2"],
-            shift_preference=ShiftPreference.MORNING,
-            avg_hours_per_day=8,
-            avg_days_per_week=5,
-            vehicle_make="Toyota",
-            vehicle_model="Corolla",
-            vehicle_year=2020,
-            license_plate="ABC-1234",
-            first_name="João",
-            last_name="Silva",
-            email="joao.silva@email.com",
-            phone="+5511987654321",
         )
 
         driver = Driver(
@@ -170,33 +155,19 @@ class TestDriverDNASerialization:
 
             retrieved_dna = DriverDNA.model_validate_json(retrieved.dna_json)
             assert retrieved_dna.acceptance_rate == 0.85
-            assert retrieved_dna.first_name == "João"
-            assert retrieved_dna.vehicle_make == "Toyota"
+            assert retrieved_dna.first_name == driver_dna.first_name
+            assert retrieved_dna.vehicle_make == driver_dna.vehicle_make
 
 
 class TestRiderDNASerialization:
     """Test rider DNA JSON serialization."""
 
-    def test_rider_dna_json_serialization(self, temp_sqlite_db):
+    def test_rider_dna_json_serialization(self, temp_sqlite_db, dna_factory: DNAFactory):
         """Stores RiderDNA as JSON."""
         session_maker = init_database(str(temp_sqlite_db))
 
-        rider_dna = RiderDNA(
+        rider_dna = dna_factory.rider_dna(
             behavior_factor=0.75,
-            patience_threshold=180,
-            max_surge_multiplier=2.0,
-            avg_rides_per_week=5,
-            frequent_destinations=[
-                {"name": "Work", "coordinates": (-23.5629, -46.6544)},
-                {"name": "Home", "coordinates": (-23.5505, -46.6333)},
-            ],
-            home_location=(-23.5505, -46.6333),
-            first_name="Maria",
-            last_name="Santos",
-            email="maria.santos@email.com",
-            phone="+5511912345678",
-            payment_method_type="credit_card",
-            payment_method_masked="**** 1234",
         )
 
         rider = Rider(
@@ -216,37 +187,18 @@ class TestRiderDNASerialization:
 
             retrieved_dna = RiderDNA.model_validate_json(retrieved.dna_json)
             assert retrieved_dna.behavior_factor == 0.75
-            assert retrieved_dna.first_name == "Maria"
-            assert retrieved_dna.payment_method_type == "credit_card"
+            assert retrieved_dna.first_name == rider_dna.first_name
+            assert retrieved_dna.payment_method_type == rider_dna.payment_method_type
 
 
 class TestDriverLocationStorage:
     """Test driver location tuple storage."""
 
-    def test_driver_location_tuple_storage(self, temp_sqlite_db):
+    def test_driver_location_tuple_storage(self, temp_sqlite_db, dna_factory: DNAFactory):
         """Stores location as lat/lon tuple."""
         session_maker = init_database(str(temp_sqlite_db))
 
-        driver_dna = DriverDNA(
-            acceptance_rate=0.9,
-            cancellation_tendency=0.03,
-            service_quality=0.95,
-            response_time=4.0,
-            min_rider_rating=4.0,
-            home_location=(-23.5505, -46.6333),
-            preferred_zones=["zone_1"],
-            shift_preference=ShiftPreference.AFTERNOON,
-            avg_hours_per_day=10,
-            avg_days_per_week=6,
-            vehicle_make="Honda",
-            vehicle_model="Civic",
-            vehicle_year=2021,
-            license_plate="XYZ-5678",
-            first_name="Carlos",
-            last_name="Oliveira",
-            email="carlos@email.com",
-            phone="+5511999887766",
-        )
+        driver_dna = dna_factory.driver_dna()
 
         driver = Driver(
             id="d2",

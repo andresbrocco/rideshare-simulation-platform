@@ -7,31 +7,19 @@ from src.agents.dna import RiderDNA
 from src.db.database import init_database
 from src.db.repositories.rider_repository import RiderRepository
 from src.db.schema import Rider
+from tests.factories import DNAFactory
 
 
 class TestRiderRepository:
     """Test rider repository CRUD operations."""
 
-    def test_create_rider(self, temp_sqlite_db):
+    def test_create_rider(self, temp_sqlite_db, dna_factory: DNAFactory):
         """Creates rider with DNA."""
         session_maker = init_database(str(temp_sqlite_db))
 
-        rider_dna = RiderDNA(
+        rider_dna = dna_factory.rider_dna(
             behavior_factor=0.75,
-            patience_threshold=180,
-            max_surge_multiplier=2.0,
-            avg_rides_per_week=5,
-            frequent_destinations=[
-                {"name": "Work", "coordinates": (-23.5629, -46.6544)},
-                {"name": "Home", "coordinates": (-23.5505, -46.6333)},
-            ],
             home_location=(-23.5505, -46.6333),
-            first_name="Maria",
-            last_name="Santos",
-            email="maria.santos@email.com",
-            phone="+5511912345678",
-            payment_method_type="credit_card",
-            payment_method_masked="**** 1234",
         )
 
         with session_maker() as session:
@@ -48,29 +36,13 @@ class TestRiderRepository:
 
             retrieved_dna = RiderDNA.model_validate_json(rider.dna_json)
             assert retrieved_dna.behavior_factor == 0.75
-            assert retrieved_dna.first_name == "Maria"
+            assert retrieved_dna.first_name == rider_dna.first_name
 
-    def test_get_rider_by_id(self, temp_sqlite_db):
+    def test_get_rider_by_id(self, temp_sqlite_db, dna_factory: DNAFactory):
         """Retrieves rider by ID."""
         session_maker = init_database(str(temp_sqlite_db))
 
-        rider_dna = RiderDNA(
-            behavior_factor=0.8,
-            patience_threshold=200,
-            max_surge_multiplier=1.8,
-            avg_rides_per_week=3,
-            frequent_destinations=[
-                {"name": "Work", "coordinates": (-23.5629, -46.6544)},
-                {"name": "Mall", "coordinates": (-23.5505, -46.6333)},
-            ],
-            home_location=(-23.5505, -46.6333),
-            first_name="José",
-            last_name="Lima",
-            email="jose.lima@email.com",
-            phone="+5511923456789",
-            payment_method_type="debit_card",
-            payment_method_masked="**** 5678",
-        )
+        rider_dna = dna_factory.rider_dna()
 
         with session_maker() as session:
             repo = RiderRepository(session)
@@ -92,27 +64,11 @@ class TestRiderRepository:
             rider = repo.get("nonexistent")
             assert rider is None
 
-    def test_update_rider_location(self, temp_sqlite_db):
+    def test_update_rider_location(self, temp_sqlite_db, dna_factory: DNAFactory):
         """Updates rider location only."""
         session_maker = init_database(str(temp_sqlite_db))
 
-        rider_dna = RiderDNA(
-            behavior_factor=0.7,
-            patience_threshold=150,
-            max_surge_multiplier=2.5,
-            avg_rides_per_week=7,
-            frequent_destinations=[
-                {"name": "Work", "coordinates": (-23.5629, -46.6544)},
-                {"name": "Gym", "coordinates": (-23.5505, -46.6333)},
-            ],
-            home_location=(-23.5505, -46.6333),
-            first_name="Paula",
-            last_name="Rocha",
-            email="paula@email.com",
-            phone="+5511934567890",
-            payment_method_type="credit_card",
-            payment_method_masked="**** 9012",
-        )
+        rider_dna = dna_factory.rider_dna(behavior_factor=0.7)
 
         with session_maker() as session:
             repo = RiderRepository(session)
@@ -131,27 +87,11 @@ class TestRiderRepository:
             retrieved_dna = RiderDNA.model_validate_json(rider.dna_json)
             assert retrieved_dna.behavior_factor == 0.7
 
-    def test_update_rider_status(self, temp_sqlite_db):
+    def test_update_rider_status(self, temp_sqlite_db, dna_factory: DNAFactory):
         """Updates rider status."""
         session_maker = init_database(str(temp_sqlite_db))
 
-        rider_dna = RiderDNA(
-            behavior_factor=0.85,
-            patience_threshold=220,
-            max_surge_multiplier=1.5,
-            avg_rides_per_week=4,
-            frequent_destinations=[
-                {"name": "Work", "coordinates": (-23.5629, -46.6544)},
-                {"name": "School", "coordinates": (-23.5505, -46.6333)},
-            ],
-            home_location=(-23.5505, -46.6333),
-            first_name="Fernanda",
-            last_name="Dias",
-            email="fernanda@email.com",
-            phone="+5511945678901",
-            payment_method_type="pix",
-            payment_method_masked="***@bank.com",
-        )
+        rider_dna = dna_factory.rider_dna(behavior_factor=0.85)
 
         with session_maker() as session:
             repo = RiderRepository(session)
@@ -170,27 +110,11 @@ class TestRiderRepository:
             retrieved_dna = RiderDNA.model_validate_json(rider.dna_json)
             assert retrieved_dna.behavior_factor == 0.85
 
-    def test_update_rider_rating(self, temp_sqlite_db):
+    def test_update_rider_rating(self, temp_sqlite_db, dna_factory: DNAFactory):
         """Updates rider rating (DNA unchanged)."""
         session_maker = init_database(str(temp_sqlite_db))
 
-        rider_dna = RiderDNA(
-            behavior_factor=0.9,
-            patience_threshold=240,
-            max_surge_multiplier=2.2,
-            avg_rides_per_week=6,
-            frequent_destinations=[
-                {"name": "Work", "coordinates": (-23.5629, -46.6544)},
-                {"name": "Airport", "coordinates": (-23.5505, -46.6333)},
-            ],
-            home_location=(-23.5505, -46.6333),
-            first_name="Ricardo",
-            last_name="Mendes",
-            email="ricardo@email.com",
-            phone="+5511956789012",
-            payment_method_type="credit_card",
-            payment_method_masked="**** 3456",
-        )
+        rider_dna = dna_factory.rider_dna(behavior_factor=0.9)
 
         with session_maker() as session:
             repo = RiderRepository(session)
@@ -210,27 +134,11 @@ class TestRiderRepository:
             retrieved_dna = RiderDNA.model_validate_json(rider.dna_json)
             assert retrieved_dna.behavior_factor == 0.9
 
-    def test_update_rider_active_trip(self, temp_sqlite_db):
+    def test_update_rider_active_trip(self, temp_sqlite_db, dna_factory: DNAFactory):
         """Links rider to active trip."""
         session_maker = init_database(str(temp_sqlite_db))
 
-        rider_dna = RiderDNA(
-            behavior_factor=0.78,
-            patience_threshold=190,
-            max_surge_multiplier=1.9,
-            avg_rides_per_week=4,
-            frequent_destinations=[
-                {"name": "Work", "coordinates": (-23.5629, -46.6544)},
-                {"name": "Home", "coordinates": (-23.5505, -46.6333)},
-            ],
-            home_location=(-23.5505, -46.6333),
-            first_name="Camila",
-            last_name="Souza",
-            email="camila@email.com",
-            phone="+5511967890123",
-            payment_method_type="debit_card",
-            payment_method_masked="**** 7890",
-        )
+        rider_dna = dna_factory.rider_dna()
 
         with session_maker() as session:
             repo = RiderRepository(session)
@@ -246,27 +154,11 @@ class TestRiderRepository:
             rider = session.get(Rider, "r6")
             assert rider.active_trip == "trip789"
 
-    def test_clear_rider_active_trip(self, temp_sqlite_db):
+    def test_clear_rider_active_trip(self, temp_sqlite_db, dna_factory: DNAFactory):
         """Clears rider active trip."""
         session_maker = init_database(str(temp_sqlite_db))
 
-        rider_dna = RiderDNA(
-            behavior_factor=0.82,
-            patience_threshold=210,
-            max_surge_multiplier=2.1,
-            avg_rides_per_week=5,
-            frequent_destinations=[
-                {"name": "Work", "coordinates": (-23.5629, -46.6544)},
-                {"name": "Home", "coordinates": (-23.5505, -46.6333)},
-            ],
-            home_location=(-23.5505, -46.6333),
-            first_name="Thiago",
-            last_name="Pereira",
-            email="thiago@email.com",
-            phone="+5511978901234",
-            payment_method_type="pix",
-            payment_method_masked="***@pix.com",
-        )
+        rider_dna = dna_factory.rider_dna()
 
         with session_maker() as session:
             repo = RiderRepository(session)
@@ -283,28 +175,14 @@ class TestRiderRepository:
             rider = session.get(Rider, "r7")
             assert rider.active_trip is None
 
-    def test_batch_create_riders(self, temp_sqlite_db):
+    def test_batch_create_riders(self, temp_sqlite_db, dna_factory: DNAFactory):
         """Creates multiple riders at once (50)."""
         session_maker = init_database(str(temp_sqlite_db))
 
         riders = []
         for i in range(50):
-            rider_dna = RiderDNA(
+            rider_dna = dna_factory.rider_dna(
                 behavior_factor=0.7 + (i % 30) * 0.01,
-                patience_threshold=180,
-                max_surge_multiplier=2.0,
-                avg_rides_per_week=5,
-                frequent_destinations=[
-                    {"name": "Work", "coordinates": (-23.5629, -46.6544)},
-                    {"name": "Home", "coordinates": (-23.5505, -46.6333)},
-                ],
-                home_location=(-23.5505, -46.6333),
-                first_name=f"Rider{i}",
-                last_name="Test",
-                email=f"rider{i}@email.com",
-                phone=f"+551191234{i:04d}",
-                payment_method_type="credit_card",
-                payment_method_masked=f"**** {i:04d}",
             )
             riders.append((f"r{i}", rider_dna))
 
@@ -319,28 +197,12 @@ class TestRiderRepository:
             all_riders = result.scalars().all()
             assert len(all_riders) == 50
 
-    def test_list_riders_by_status(self, temp_sqlite_db):
+    def test_list_riders_by_status(self, temp_sqlite_db, dna_factory: DNAFactory):
         """Queries riders by status."""
         session_maker = init_database(str(temp_sqlite_db))
 
         for i in range(5):
-            rider_dna = RiderDNA(
-                behavior_factor=0.75,
-                patience_threshold=180,
-                max_surge_multiplier=2.0,
-                avg_rides_per_week=5,
-                frequent_destinations=[
-                    {"name": "Work", "coordinates": (-23.5629, -46.6544)},
-                    {"name": "Home", "coordinates": (-23.5505, -46.6333)},
-                ],
-                home_location=(-23.5505, -46.6333),
-                first_name=f"StatusTest{i}",
-                last_name="Rider",
-                email=f"statustest{i}@email.com",
-                phone=f"+551198765{i:04d}",
-                payment_method_type="credit_card",
-                payment_method_masked=f"**** {i:04d}",
-            )
+            rider_dna = dna_factory.rider_dna()
 
             with session_maker() as session:
                 repo = RiderRepository(session)

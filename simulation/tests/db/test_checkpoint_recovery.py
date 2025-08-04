@@ -12,51 +12,7 @@ from src.db.repositories.rider_repository import RiderRepository
 from src.db.repositories.route_cache_repository import RouteCacheRepository
 from src.db.repositories.trip_repository import TripRepository
 from src.trip import TripState
-
-
-def make_driver_dna(home_lat=-23.55, home_lon=-46.63) -> DriverDNA:
-    """Create a test DriverDNA."""
-    return DriverDNA(
-        acceptance_rate=0.85,
-        cancellation_tendency=0.05,
-        service_quality=0.9,
-        response_time=5.0,
-        min_rider_rating=3.5,
-        home_location=(home_lat, home_lon),
-        preferred_zones=["zone_1", "zone_2"],
-        shift_preference=ShiftPreference.MORNING,
-        avg_hours_per_day=8,
-        avg_days_per_week=5,
-        vehicle_make="Toyota",
-        vehicle_model="Corolla",
-        vehicle_year=2020,
-        license_plate="ABC1234",
-        first_name="Test",
-        last_name="Driver",
-        email="driver@test.com",
-        phone="+5511999999999",
-    )
-
-
-def make_rider_dna(home_lat=-23.55, home_lon=-46.63) -> RiderDNA:
-    """Create a test RiderDNA."""
-    return RiderDNA(
-        behavior_factor=0.7,
-        patience_threshold=180,
-        max_surge_multiplier=2.0,
-        avg_rides_per_week=5,
-        frequent_destinations=[
-            {"name": "Work", "coordinates": (home_lat + 0.01, home_lon + 0.01)},
-            {"name": "Gym", "coordinates": (home_lat - 0.01, home_lon - 0.01)},
-        ],
-        home_location=(home_lat, home_lon),
-        first_name="Test",
-        last_name="Rider",
-        email="rider@test.com",
-        phone="+5511888888888",
-        payment_method_type="credit_card",
-        payment_method_masked="**** 1234",
-    )
+from tests.factories import DNAFactory
 
 
 class TestCheckpointMetadata:
@@ -112,11 +68,18 @@ class TestCheckpointMetadata:
 class TestCheckpointAgents:
     """Tests for checkpoint agent persistence."""
 
-    def test_create_checkpoint_all_agents(self, temp_sqlite_db):
+    def test_create_checkpoint_all_agents(self, temp_sqlite_db, dna_factory: DNAFactory):
         """Saves all drivers and riders to checkpoint."""
         session_maker = init_database(str(temp_sqlite_db))
-        drivers = [("d1", make_driver_dna()), ("d2", make_driver_dna())]
-        riders = [("r1", make_rider_dna()), ("r2", make_rider_dna()), ("r3", make_rider_dna())]
+        drivers = [
+            ("d1", dna_factory.driver_dna()),
+            ("d2", dna_factory.driver_dna()),
+        ]
+        riders = [
+            ("r1", dna_factory.rider_dna()),
+            ("r2", dna_factory.rider_dna()),
+            ("r3", dna_factory.rider_dna()),
+        ]
 
         with session_maker() as session:
             manager = CheckpointManager(session)
@@ -146,11 +109,11 @@ class TestCheckpointAgents:
             assert r2 is not None
             assert r3 is not None
 
-    def test_load_checkpoint_agents(self, temp_sqlite_db):
+    def test_load_checkpoint_agents(self, temp_sqlite_db, dna_factory: DNAFactory):
         """Restores all agents with deserialized DNA."""
         session_maker = init_database(str(temp_sqlite_db))
-        driver_dna = make_driver_dna()
-        rider_dna = make_rider_dna()
+        driver_dna = dna_factory.driver_dna(acceptance_rate=0.85)
+        rider_dna = dna_factory.rider_dna(patience_threshold=180)
 
         with session_maker() as session:
             manager = CheckpointManager(session)
@@ -334,10 +297,10 @@ class TestCheckpointRouteCache:
 class TestCheckpointAtomicity:
     """Tests for checkpoint atomicity."""
 
-    def test_create_checkpoint_atomic(self, temp_sqlite_db):
+    def test_create_checkpoint_atomic(self, temp_sqlite_db, dna_factory: DNAFactory):
         """Checkpoint is atomic - all or nothing."""
         session_maker = init_database(str(temp_sqlite_db))
-        drivers = [("d1", make_driver_dna())]
+        drivers = [("d1", dna_factory.driver_dna())]
 
         with session_maker() as session:
             manager = CheckpointManager(session)
@@ -545,7 +508,7 @@ class TestCleanVsDirtyCheckpoint:
 class TestCheckpointRecovery:
     """Tests for checkpoint recovery scenarios."""
 
-    def test_resume_from_clean_checkpoint(self, temp_sqlite_db):
+    def test_resume_from_clean_checkpoint(self, temp_sqlite_db, dna_factory: DNAFactory):
         """Resumes from clean checkpoint without warnings."""
         session_maker = init_database(str(temp_sqlite_db))
 
@@ -555,8 +518,8 @@ class TestCheckpointRecovery:
                 current_time=50000.0,
                 speed_multiplier=100,
                 status="PAUSED",
-                drivers=[("d1", make_driver_dna())],
-                riders=[("r1", make_rider_dna())],
+                drivers=[("d1", dna_factory.driver_dna())],
+                riders=[("r1", dna_factory.rider_dna())],
                 route_cache={"h3_x|h3_y": {"distance": 500.0, "duration": 150.0, "polyline": None}},
             )
             session.commit()

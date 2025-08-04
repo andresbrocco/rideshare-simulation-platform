@@ -94,7 +94,7 @@ def test_driver_name_from_pool():
 
 def test_driver_email_phone_generated():
     """Test email has valid format and phone has 11 digits."""
-    email_pattern = re.compile(r"^[\w.]+@[\w.]+\.\w+$")
+    email_pattern = re.compile(r"^[\w.-]+@[\w.-]+\.\w+$")
     phone_pattern = re.compile(r"^11\d{9}$")
 
     for _ in range(20):
@@ -248,7 +248,7 @@ def test_rider_name_from_pool():
 
 def test_rider_email_phone_generated():
     """Test email has valid format and phone has 11 digits."""
-    email_pattern = re.compile(r"^[\w.]+@[\w.]+\.\w+$")
+    email_pattern = re.compile(r"^[\w.-]+@[\w.-]+\.\w+$")
     phone_pattern = re.compile(r"^11\d{9}$")
 
     for _ in range(20):

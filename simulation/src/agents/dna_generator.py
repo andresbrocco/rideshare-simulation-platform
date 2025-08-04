@@ -1,134 +1,27 @@
 """DNA generators for creating synthetic driver and rider profiles."""
 
+from __future__ import annotations
+
 import math
 import random
+from typing import TYPE_CHECKING
 
 from agents.dna import DriverDNA, RiderDNA, ShiftPreference, haversine_distance
+from agents.faker_provider import create_faker_instance
 
-FIRST_NAMES = [
-    "João",
-    "Maria",
-    "José",
-    "Ana",
-    "Carlos",
-    "Patricia",
-    "Pedro",
-    "Mariana",
-    "Lucas",
-    "Juliana",
-    "Paulo",
-    "Fernanda",
-    "Rafael",
-    "Camila",
-    "Marcos",
-    "Amanda",
-    "Bruno",
-    "Gabriela",
-    "Felipe",
-    "Isabella",
-    "Rodrigo",
-    "Larissa",
-    "Diego",
-    "Beatriz",
-    "Thiago",
-    "Leticia",
-    "Gustavo",
-    "Raquel",
-    "Leonardo",
-    "Carla",
-    "André",
-    "Vanessa",
-    "Daniel",
-    "Priscila",
-    "Fernando",
-    "Renata",
-    "Henrique",
-    "Natália",
-    "Vinicius",
-    "Mônica",
-    "Eduardo",
-    "Cristina",
-    "Ricardo",
-    "Claudia",
-    "Marcelo",
-    "Sandra",
-    "Alexandre",
-    "Tatiana",
-    "Roberto",
-    "Adriana",
-]
+if TYPE_CHECKING:
+    from faker.proxy import Faker
 
-LAST_NAMES = [
-    "Silva",
-    "Santos",
-    "Oliveira",
-    "Souza",
-    "Pereira",
-    "Costa",
-    "Rodrigues",
-    "Almeida",
-    "Nascimento",
-    "Lima",
-    "Araújo",
-    "Fernandes",
-    "Carvalho",
-    "Gomes",
-    "Martins",
-    "Rocha",
-    "Ribeiro",
-    "Alves",
-    "Monteiro",
-    "Mendes",
-    "Barros",
-    "Freitas",
-    "Barbosa",
-    "Pinto",
-    "Moreira",
-    "Cavalcanti",
-    "Dias",
-    "Castro",
-    "Campos",
-    "Cardoso",
-    "Silva",
-    "Reis",
-    "Teixeira",
-    "Santos",
-    "Duarte",
-    "Machado",
-    "Nunes",
-    "Lopes",
-    "Soares",
-    "Vieira",
-    "Melo",
-    "Correia",
-    "Garcia",
-    "Ferreira",
-    "Azevedo",
-    "Ramos",
-    "Moura",
-    "Xavier",
-    "Aguiar",
-    "Borges",
-]
+# Module-level faker instance for production (unseeded for variety)
+_faker: Faker = create_faker_instance()
 
-VEHICLE_DATA = {
-    "Volkswagen": ["Gol", "Polo", "Voyage", "Fox"],
-    "Fiat": ["Uno", "Palio", "Argo", "Mobi"],
-    "Chevrolet": ["Onix", "Prisma", "Cruze"],
-    "Toyota": ["Corolla", "Etios"],
-    "Honda": ["Civic", "Fit"],
-    "Hyundai": ["HB20", "Creta"],
-}
-
-EMAIL_DOMAINS = ["gmail.com", "hotmail.com", "yahoo.com.br"]
-
+# Geographic bounds for Sao Paulo
 SAO_PAULO_LAT_MIN = -24.0
 SAO_PAULO_LAT_MAX = -23.0
 SAO_PAULO_LON_MIN = -47.0
 SAO_PAULO_LON_MAX = -46.0
 
-DIGITAL_WALLETS = ["Pix", "PicPay", "Mercado Pago", "Nubank", "PayPal"]
-
+# Time affinity patterns for rider destinations
 TIME_AFFINITY_PATTERNS = [
     [7, 8, 9],  # Morning commute
     [17, 18, 19],  # Evening return
@@ -136,47 +29,17 @@ TIME_AFFINITY_PATTERNS = [
 ]
 
 
-def _clean_name_for_email(name: str) -> str:
-    """Remove accents from name for email address."""
-    return (
-        name.lower()
-        .replace("á", "a")
-        .replace("é", "e")
-        .replace("í", "i")
-        .replace("ó", "o")
-        .replace("ú", "u")
-        .replace("ã", "a")
-        .replace("õ", "o")
-        .replace("ç", "c")
-        .replace("â", "a")
-        .replace("ê", "e")
-        .replace("ô", "o")
-    )
+def generate_driver_dna(faker: Faker | None = None) -> DriverDNA:
+    """Generate random driver DNA with realistic Brazilian driver profile.
 
+    Args:
+        faker: Optional Faker instance. Uses module-level instance if not provided.
+               Pass a seeded Faker for deterministic output.
 
-def generate_license_plate() -> str:
-    """Generate Brazilian license plate (old or new Mercosul format)."""
-    if random.choice([True, False]):
-        # Old format: ABC-1234
-        letters = "".join(random.choices("ABCDEFGHIJKLMNOPQRSTUVWXYZ", k=3))
-        numbers = "".join(random.choices("0123456789", k=4))
-        return f"{letters}-{numbers}"
-    else:
-        # New Mercosul: ABC1D23
-        letters1 = "".join(random.choices("ABCDEFGHIJKLMNOPQRSTUVWXYZ", k=3))
-        digit1 = random.choice("0123456789")
-        letter2 = random.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-        digits2 = "".join(random.choices("0123456789", k=2))
-        return f"{letters1}{digit1}{letter2}{digits2}"
-
-
-def generate_phone() -> str:
-    """Generate Brazilian mobile phone number (11 digits, starting with 11 and 9)."""
-    return "11" + "9" + "".join(random.choices("0123456789", k=8))
-
-
-def generate_driver_dna() -> DriverDNA:
-    """Generate random driver DNA with realistic Brazilian driver profile."""
+    Returns:
+        DriverDNA with randomly generated attributes.
+    """
+    fake = faker or _faker
 
     # Behavioral parameters (immutable)
     acceptance_rate = random.uniform(0.7, 0.95)
@@ -214,24 +77,18 @@ def generate_driver_dna() -> DriverDNA:
     avg_hours_per_day = random.randint(4, 12)
     avg_days_per_week = random.randint(3, 7)
 
-    # Vehicle info
-    vehicle_make = random.choice(list(VEHICLE_DATA.keys()))
-    vehicle_model = random.choice(VEHICLE_DATA[vehicle_make])
-    vehicle_year = random.randint(2015, 2025)
-    license_plate = generate_license_plate()
+    # Vehicle info from Faker
+    vehicle = fake.vehicle_br()
+    vehicle_make = vehicle["make"]
+    vehicle_model = vehicle["model"]
+    vehicle_year = vehicle["year"]
+    license_plate = fake.license_plate_br()
 
-    # Personal info
-    first_name = random.choice(FIRST_NAMES)
-    last_name = random.choice(LAST_NAMES)
-
-    # Email
-    first_clean = _clean_name_for_email(first_name)
-    last_clean = _clean_name_for_email(last_name)
-    domain = random.choice(EMAIL_DOMAINS)
-    random_suffix = random.randint(1, 9999)
-    email = f"{first_clean}.{last_clean}{random_suffix}@{domain}"
-
-    phone = generate_phone()
+    # Personal info from Faker
+    first_name = fake.first_name()
+    last_name = fake.last_name()
+    email = fake.email()
+    phone = fake.phone_br_mobile_sp()
 
     return DriverDNA(
         acceptance_rate=acceptance_rate,
@@ -329,8 +186,17 @@ def _generate_frequent_destinations(
     return destinations
 
 
-def generate_rider_dna() -> RiderDNA:
-    """Generate random rider DNA with realistic Brazilian rider profile."""
+def generate_rider_dna(faker: Faker | None = None) -> RiderDNA:
+    """Generate random rider DNA with realistic Brazilian rider profile.
+
+    Args:
+        faker: Optional Faker instance. Uses module-level instance if not provided.
+               Pass a seeded Faker for deterministic output.
+
+    Returns:
+        RiderDNA with randomly generated attributes.
+    """
+    fake = faker or _faker
 
     # Home location
     home_lat = random.uniform(SAO_PAULO_LAT_MIN, SAO_PAULO_LAT_MAX)
@@ -349,26 +215,16 @@ def generate_rider_dna() -> RiderDNA:
     num_destinations = random.randint(2, 5)
     frequent_destinations = _generate_frequent_destinations(home_lat, home_lon, num_destinations)
 
-    # Personal info
-    first_name = random.choice(FIRST_NAMES)
-    last_name = random.choice(LAST_NAMES)
+    # Personal info from Faker
+    first_name = fake.first_name()
+    last_name = fake.last_name()
+    email = fake.email()
+    phone = fake.phone_br_mobile_sp()
 
-    # Email
-    first_clean = _clean_name_for_email(first_name)
-    last_clean = _clean_name_for_email(last_name)
-    domain = random.choice(EMAIL_DOMAINS)
-    random_suffix = random.randint(1, 9999)
-    email = f"{first_clean}.{last_clean}{random_suffix}@{domain}"
-
-    phone = generate_phone()
-
-    # Payment method (70% credit card, 30% digital wallet)
-    if random.random() < 0.7:
-        payment_method_type = "credit_card"
-        payment_method_masked = "****" + "".join(random.choices("0123456789", k=4))
-    else:
-        payment_method_type = "digital_wallet"
-        payment_method_masked = random.choice(DIGITAL_WALLETS)
+    # Payment method from Faker
+    payment = fake.payment_method_br()
+    payment_method_type = payment["type"]
+    payment_method_masked = payment["masked"]
 
     return RiderDNA(
         behavior_factor=behavior_factor,
