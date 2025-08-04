@@ -2,14 +2,18 @@
 
 import random
 from collections.abc import Generator
+from datetime import UTC, datetime
 
 import simpy
 
 from agents.dna import RiderDNA
+from agents.event_emitter import GPS_PING_INTERVAL, EventEmitter
+from events.schemas import GPSPingEvent, RiderProfileEvent
 from kafka.producer import KafkaProducer
+from redis_client.publisher import RedisPublisher
 
 
-class RiderAgent:
+class RiderAgent(EventEmitter):
     """SimPy process representing a rider with DNA-based behavior."""
 
     def __init__(
@@ -18,11 +22,13 @@ class RiderAgent:
         dna: RiderDNA,
         env: simpy.Environment,
         kafka_producer: KafkaProducer | None,
+        redis_publisher: RedisPublisher | None = None,
     ):
+        EventEmitter.__init__(self, kafka_producer, redis_publisher)
+
         self._rider_id = rider_id
         self._dna = dna
         self._env = env
-        self._kafka_producer = kafka_producer
 
         # Runtime state
         self._status = "idle"
@@ -30,6 +36,8 @@ class RiderAgent:
         self._active_trip: str | None = None
         self._current_rating = 5.0
         self._rating_count = 0
+
+        self._emit_creation_event()
 
     @property
     def rider_id(self) -> str:
@@ -96,6 +104,102 @@ class RiderAgent:
         selected = random.choices(destinations, weights=weights, k=1)[0]
         return tuple(selected["coordinates"])
 
+    def _emit_creation_event(self) -> None:
+        """Emit rider.created event on initialization."""
+        import asyncio
+
+        event = RiderProfileEvent(
+            event_type="rider.created",
+            rider_id=self._rider_id,
+            timestamp=datetime.now(UTC).isoformat(),
+            first_name=self._dna.first_name,
+            last_name=self._dna.last_name,
+            email=self._dna.email,
+            phone=self._dna.phone,
+            home_location=self._dna.home_location,
+            payment_method_type=self._dna.payment_method_type,
+            payment_method_masked=self._dna.payment_method_masked,
+            behavior_factor=self._dna.behavior_factor,
+        )
+
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(
+                    self._emit_event(
+                        event=event,
+                        kafka_topic="rider-profiles",
+                        partition_key=self._rider_id,
+                        redis_channel="rider-updates",
+                    )
+                )
+            else:
+                loop.run_until_complete(
+                    self._emit_event(
+                        event=event,
+                        kafka_topic="rider-profiles",
+                        partition_key=self._rider_id,
+                        redis_channel="rider-updates",
+                    )
+                )
+        except RuntimeError:
+            asyncio.run(
+                self._emit_event(
+                    event=event,
+                    kafka_topic="rider-profiles",
+                    partition_key=self._rider_id,
+                    redis_channel="rider-updates",
+                )
+            )
+
     def run(self) -> Generator[simpy.Event]:
-        """SimPy process entry point (placeholder for behavior loop)."""
-        yield self._env.timeout(0)
+        """SimPy process entry point with GPS ping loop."""
+        import asyncio
+
+        while True:
+            if self._status == "in_trip":
+                if self._location:
+                    event = GPSPingEvent(
+                        entity_type="rider",
+                        entity_id=self._rider_id,
+                        timestamp=datetime.now(UTC).isoformat(),
+                        location=self._location,
+                        heading=None,
+                        speed=None,
+                        accuracy=5.0,
+                        trip_id=self._active_trip,
+                    )
+
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            asyncio.create_task(
+                                self._emit_event(
+                                    event=event,
+                                    kafka_topic="gps-pings",
+                                    partition_key=self._rider_id,
+                                    redis_channel="rider-updates",
+                                )
+                            )
+                        else:
+                            loop.run_until_complete(
+                                self._emit_event(
+                                    event=event,
+                                    kafka_topic="gps-pings",
+                                    partition_key=self._rider_id,
+                                    redis_channel="rider-updates",
+                                )
+                            )
+                    except RuntimeError:
+                        asyncio.run(
+                            self._emit_event(
+                                event=event,
+                                kafka_topic="gps-pings",
+                                partition_key=self._rider_id,
+                                redis_channel="rider-updates",
+                            )
+                        )
+
+                yield self._env.timeout(GPS_PING_INTERVAL)
+            else:
+                yield self._env.timeout(GPS_PING_INTERVAL)

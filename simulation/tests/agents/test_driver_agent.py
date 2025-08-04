@@ -21,12 +21,14 @@ def simpy_env():
 
 @pytest.fixture
 def driver_agent(simpy_env, driver_dna, mock_kafka_producer):
-    return DriverAgent(
+    agent = DriverAgent(
         driver_id="driver_001",
         dna=driver_dna,
         env=simpy_env,
         kafka_producer=mock_kafka_producer,
     )
+    mock_kafka_producer.reset_mock()
+    return agent
 
 
 class TestDriverAgentInit:

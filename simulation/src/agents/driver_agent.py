@@ -1,6 +1,7 @@
 """Driver agent base class for SimPy simulation."""
 
 import json
+import random
 from collections.abc import Generator
 from datetime import UTC, datetime
 from uuid import uuid4
@@ -8,10 +9,13 @@ from uuid import uuid4
 import simpy
 
 from agents.dna import DriverDNA
+from agents.event_emitter import GPS_PING_INTERVAL, EventEmitter
+from events.schemas import DriverProfileEvent, GPSPingEvent
 from kafka.producer import KafkaProducer
+from redis_client.publisher import RedisPublisher
 
 
-class DriverAgent:
+class DriverAgent(EventEmitter):
     """SimPy process representing a driver with DNA-based behavior."""
 
     def __init__(
@@ -20,11 +24,13 @@ class DriverAgent:
         dna: DriverDNA,
         env: simpy.Environment,
         kafka_producer: KafkaProducer | None,
+        redis_publisher: RedisPublisher | None = None,
     ):
+        EventEmitter.__init__(self, kafka_producer, redis_publisher)
+
         self._driver_id = driver_id
         self._dna = dna
         self._env = env
-        self._kafka_producer = kafka_producer
 
         # Runtime state
         self._status = "offline"
@@ -32,6 +38,8 @@ class DriverAgent:
         self._active_trip: str | None = None
         self._current_rating = 5.0
         self._rating_count = 0
+
+        self._emit_creation_event()
 
     @property
     def driver_id(self) -> str:
@@ -110,6 +118,57 @@ class DriverAgent:
         )
         self._rating_count += 1
 
+    def _emit_creation_event(self) -> None:
+        """Emit driver.created event on initialization."""
+        import asyncio
+
+        event = DriverProfileEvent(
+            event_type="driver.created",
+            driver_id=self._driver_id,
+            timestamp=datetime.now(UTC).isoformat(),
+            first_name=self._dna.first_name,
+            last_name=self._dna.last_name,
+            email=self._dna.email,
+            phone=self._dna.phone,
+            home_location=self._dna.home_location,
+            preferred_zones=self._dna.preferred_zones,
+            shift_preference=self._dna.shift_preference.value,
+            vehicle_make=self._dna.vehicle_make,
+            vehicle_model=self._dna.vehicle_model,
+            vehicle_year=self._dna.vehicle_year,
+            license_plate=self._dna.license_plate,
+        )
+
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(
+                    self._emit_event(
+                        event=event,
+                        kafka_topic="driver-profiles",
+                        partition_key=self._driver_id,
+                        redis_channel="driver-updates",
+                    )
+                )
+            else:
+                loop.run_until_complete(
+                    self._emit_event(
+                        event=event,
+                        kafka_topic="driver-profiles",
+                        partition_key=self._driver_id,
+                        redis_channel="driver-updates",
+                    )
+                )
+        except RuntimeError:
+            asyncio.run(
+                self._emit_event(
+                    event=event,
+                    kafka_topic="driver-profiles",
+                    partition_key=self._driver_id,
+                    redis_channel="driver-updates",
+                )
+            )
+
     def _emit_status_event(self, previous_status: str, new_status: str, trigger: str) -> None:
         """Emit driver status event to Kafka."""
         if self._kafka_producer is None:
@@ -132,5 +191,53 @@ class DriverAgent:
         )
 
     def run(self) -> Generator[simpy.Event]:
-        """SimPy process entry point (placeholder for behavior loop)."""
-        yield self._env.timeout(0)
+        """SimPy process entry point with GPS ping loop."""
+        import asyncio
+
+        while True:
+            if self._status in ("online", "busy", "en_route_pickup", "en_route_destination"):
+                if self._location:
+                    event = GPSPingEvent(
+                        entity_type="driver",
+                        entity_id=self._driver_id,
+                        timestamp=datetime.now(UTC).isoformat(),
+                        location=self._location,
+                        heading=random.uniform(0, 360),
+                        speed=random.uniform(20, 60),
+                        accuracy=5.0,
+                        trip_id=self._active_trip,
+                    )
+
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            asyncio.create_task(
+                                self._emit_event(
+                                    event=event,
+                                    kafka_topic="gps-pings",
+                                    partition_key=self._driver_id,
+                                    redis_channel="driver-updates",
+                                )
+                            )
+                        else:
+                            loop.run_until_complete(
+                                self._emit_event(
+                                    event=event,
+                                    kafka_topic="gps-pings",
+                                    partition_key=self._driver_id,
+                                    redis_channel="driver-updates",
+                                )
+                            )
+                    except RuntimeError:
+                        asyncio.run(
+                            self._emit_event(
+                                event=event,
+                                kafka_topic="gps-pings",
+                                partition_key=self._driver_id,
+                                redis_channel="driver-updates",
+                            )
+                        )
+
+                yield self._env.timeout(GPS_PING_INTERVAL)
+            else:
+                yield self._env.timeout(GPS_PING_INTERVAL)
