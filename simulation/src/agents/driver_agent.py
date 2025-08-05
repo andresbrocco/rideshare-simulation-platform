@@ -1,9 +1,11 @@
 """Driver agent base class for SimPy simulation."""
 
 import json
+import logging
 import random
 from collections.abc import Generator
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import simpy
@@ -13,6 +15,11 @@ from agents.event_emitter import GPS_PING_INTERVAL, EventEmitter
 from events.schemas import DriverProfileEvent, GPSPingEvent
 from kafka.producer import KafkaProducer
 from redis_client.publisher import RedisPublisher
+
+if TYPE_CHECKING:
+    from db.repositories.driver_repository import DriverRepository
+
+logger = logging.getLogger(__name__)
 
 
 class DriverAgent(EventEmitter):
@@ -25,12 +32,14 @@ class DriverAgent(EventEmitter):
         env: simpy.Environment,
         kafka_producer: KafkaProducer | None,
         redis_publisher: RedisPublisher | None = None,
+        driver_repository: "DriverRepository | None" = None,
     ):
         EventEmitter.__init__(self, kafka_producer, redis_publisher)
 
         self._driver_id = driver_id
         self._dna = dna
         self._env = env
+        self._driver_repository = driver_repository
 
         # Runtime state
         self._status = "offline"
@@ -38,6 +47,12 @@ class DriverAgent(EventEmitter):
         self._active_trip: str | None = None
         self._current_rating = 5.0
         self._rating_count = 0
+
+        if self._driver_repository:
+            try:
+                self._driver_repository.create(driver_id, dna)
+            except Exception as e:
+                logger.error(f"Failed to persist driver {driver_id} on creation: {e}")
 
         self._emit_creation_event()
 
@@ -73,12 +88,26 @@ class DriverAgent(EventEmitter):
         """Transition from offline to online."""
         previous_status = self._status
         self._status = "online"
+
+        if self._driver_repository:
+            try:
+                self._driver_repository.update_status(self._driver_id, self._status)
+            except Exception as e:
+                logger.error(f"Failed to persist status for driver {self._driver_id}: {e}")
+
         self._emit_status_event(previous_status, self._status, "go_online")
 
     def go_offline(self) -> None:
         """Transition to offline."""
         previous_status = self._status
         self._status = "offline"
+
+        if self._driver_repository:
+            try:
+                self._driver_repository.update_status(self._driver_id, self._status)
+            except Exception as e:
+                logger.error(f"Failed to persist status for driver {self._driver_id}: {e}")
+
         self._emit_status_event(previous_status, self._status, "go_offline")
 
     def accept_trip(self, trip_id: str) -> None:
@@ -86,18 +115,40 @@ class DriverAgent(EventEmitter):
         previous_status = self._status
         self._status = "busy"
         self._active_trip = trip_id
+
+        if self._driver_repository:
+            try:
+                self._driver_repository.update_status(self._driver_id, self._status)
+                self._driver_repository.update_active_trip(self._driver_id, trip_id)
+            except Exception as e:
+                logger.error(f"Failed to persist trip acceptance for driver {self._driver_id}: {e}")
+
         self._emit_status_event(previous_status, self._status, "accept_trip")
 
     def start_pickup(self) -> None:
         """Start driving to pickup location."""
         previous_status = self._status
         self._status = "en_route_pickup"
+
+        if self._driver_repository:
+            try:
+                self._driver_repository.update_status(self._driver_id, self._status)
+            except Exception as e:
+                logger.error(f"Failed to persist status for driver {self._driver_id}: {e}")
+
         self._emit_status_event(previous_status, self._status, "start_pickup")
 
     def start_trip(self) -> None:
         """Start the trip after rider pickup."""
         previous_status = self._status
         self._status = "en_route_destination"
+
+        if self._driver_repository:
+            try:
+                self._driver_repository.update_status(self._driver_id, self._status)
+            except Exception as e:
+                logger.error(f"Failed to persist status for driver {self._driver_id}: {e}")
+
         self._emit_status_event(previous_status, self._status, "start_trip")
 
     def complete_trip(self) -> None:
@@ -105,11 +156,25 @@ class DriverAgent(EventEmitter):
         previous_status = self._status
         self._status = "online"
         self._active_trip = None
+
+        if self._driver_repository:
+            try:
+                self._driver_repository.update_status(self._driver_id, self._status)
+                self._driver_repository.update_active_trip(self._driver_id, None)
+            except Exception as e:
+                logger.error(f"Failed to persist trip completion for driver {self._driver_id}: {e}")
+
         self._emit_status_event(previous_status, self._status, "complete_trip")
 
     def update_location(self, lat: float, lon: float) -> None:
         """Update current location without emitting event."""
         self._location = (lat, lon)
+
+        if self._driver_repository:
+            try:
+                self._driver_repository.update_location(self._driver_id, (lat, lon))
+            except Exception as e:
+                logger.error(f"Failed to persist location for driver {self._driver_id}: {e}")
 
     def update_rating(self, new_rating: int) -> None:
         """Update rolling average rating."""
@@ -117,6 +182,14 @@ class DriverAgent(EventEmitter):
             self._rating_count + 1
         )
         self._rating_count += 1
+
+        if self._driver_repository:
+            try:
+                self._driver_repository.update_rating(
+                    self._driver_id, self._current_rating, self._rating_count
+                )
+            except Exception as e:
+                logger.error(f"Failed to persist rating for driver {self._driver_id}: {e}")
 
     def _emit_creation_event(self) -> None:
         """Emit driver.created event on initialization."""
@@ -241,3 +314,36 @@ class DriverAgent(EventEmitter):
                 yield self._env.timeout(GPS_PING_INTERVAL)
             else:
                 yield self._env.timeout(GPS_PING_INTERVAL)
+
+    @classmethod
+    def from_database(
+        cls,
+        driver_id: str,
+        driver_repository: "DriverRepository",
+        env: simpy.Environment,
+        kafka_producer: KafkaProducer | None,
+        redis_publisher: RedisPublisher | None = None,
+    ) -> "DriverAgent":
+        """Load driver agent from database."""
+        driver = driver_repository.get(driver_id)
+        if driver is None:
+            raise ValueError(f"Driver {driver_id} not found in database")
+
+        dna = DriverDNA.model_validate_json(driver.dna_json)
+
+        agent = cls.__new__(cls)
+        EventEmitter.__init__(agent, kafka_producer, redis_publisher)
+
+        agent._driver_id = driver_id
+        agent._dna = dna
+        agent._env = env
+        agent._driver_repository = driver_repository
+
+        agent._status = driver.status
+        lat, lon = map(float, driver.current_location.split(","))
+        agent._location = (lat, lon)
+        agent._active_trip = driver.active_trip
+        agent._current_rating = driver.current_rating
+        agent._rating_count = driver.rating_count
+
+        return agent

@@ -1,8 +1,10 @@
 """Rider agent base class for SimPy simulation."""
 
+import logging
 import random
 from collections.abc import Generator
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 import simpy
 
@@ -11,6 +13,11 @@ from agents.event_emitter import GPS_PING_INTERVAL, EventEmitter
 from events.schemas import GPSPingEvent, RiderProfileEvent
 from kafka.producer import KafkaProducer
 from redis_client.publisher import RedisPublisher
+
+if TYPE_CHECKING:
+    from db.repositories.rider_repository import RiderRepository
+
+logger = logging.getLogger(__name__)
 
 
 class RiderAgent(EventEmitter):
@@ -23,12 +30,14 @@ class RiderAgent(EventEmitter):
         env: simpy.Environment,
         kafka_producer: KafkaProducer | None,
         redis_publisher: RedisPublisher | None = None,
+        rider_repository: "RiderRepository | None" = None,
     ):
         EventEmitter.__init__(self, kafka_producer, redis_publisher)
 
         self._rider_id = rider_id
         self._dna = dna
         self._env = env
+        self._rider_repository = rider_repository
 
         # Runtime state
         self._status = "idle"
@@ -36,6 +45,12 @@ class RiderAgent(EventEmitter):
         self._active_trip: str | None = None
         self._current_rating = 5.0
         self._rating_count = 0
+
+        if self._rider_repository:
+            try:
+                self._rider_repository.create(rider_id, dna)
+            except Exception as e:
+                logger.error(f"Failed to persist rider {rider_id} on creation: {e}")
 
         self._emit_creation_event()
 
@@ -72,23 +87,56 @@ class RiderAgent(EventEmitter):
         self._status = "waiting"
         self._active_trip = trip_id
 
+        if self._rider_repository:
+            try:
+                self._rider_repository.update_status(self._rider_id, self._status)
+                self._rider_repository.update_active_trip(self._rider_id, trip_id)
+            except Exception as e:
+                logger.error(f"Failed to persist trip request for rider {self._rider_id}: {e}")
+
     def start_trip(self) -> None:
         """Transition from waiting to in_trip."""
         self._status = "in_trip"
+
+        if self._rider_repository:
+            try:
+                self._rider_repository.update_status(self._rider_id, self._status)
+            except Exception as e:
+                logger.error(f"Failed to persist status for rider {self._rider_id}: {e}")
 
     def complete_trip(self) -> None:
         """Transition from in_trip to idle, clear active trip."""
         self._status = "idle"
         self._active_trip = None
 
+        if self._rider_repository:
+            try:
+                self._rider_repository.update_status(self._rider_id, self._status)
+                self._rider_repository.update_active_trip(self._rider_id, None)
+            except Exception as e:
+                logger.error(f"Failed to persist trip completion for rider {self._rider_id}: {e}")
+
     def cancel_trip(self) -> None:
         """Transition from waiting to idle, clear active trip."""
         self._status = "idle"
         self._active_trip = None
 
+        if self._rider_repository:
+            try:
+                self._rider_repository.update_status(self._rider_id, self._status)
+                self._rider_repository.update_active_trip(self._rider_id, None)
+            except Exception as e:
+                logger.error(f"Failed to persist trip cancellation for rider {self._rider_id}: {e}")
+
     def update_location(self, lat: float, lon: float) -> None:
         """Update current location."""
         self._location = (lat, lon)
+
+        if self._rider_repository:
+            try:
+                self._rider_repository.update_location(self._rider_id, (lat, lon))
+            except Exception as e:
+                logger.error(f"Failed to persist location for rider {self._rider_id}: {e}")
 
     def update_rating(self, new_rating: int) -> None:
         """Update rolling average rating."""
@@ -96,6 +144,14 @@ class RiderAgent(EventEmitter):
             self._rating_count + 1
         )
         self._rating_count += 1
+
+        if self._rider_repository:
+            try:
+                self._rider_repository.update_rating(
+                    self._rider_id, self._current_rating, self._rating_count
+                )
+            except Exception as e:
+                logger.error(f"Failed to persist rating for rider {self._rider_id}: {e}")
 
     def select_destination(self) -> tuple[float, float]:
         """Select destination from DNA frequent destinations using weighted random choice."""
@@ -203,3 +259,36 @@ class RiderAgent(EventEmitter):
                 yield self._env.timeout(GPS_PING_INTERVAL)
             else:
                 yield self._env.timeout(GPS_PING_INTERVAL)
+
+    @classmethod
+    def from_database(
+        cls,
+        rider_id: str,
+        rider_repository: "RiderRepository",
+        env: simpy.Environment,
+        kafka_producer: KafkaProducer | None,
+        redis_publisher: RedisPublisher | None = None,
+    ) -> "RiderAgent":
+        """Load rider agent from database."""
+        rider = rider_repository.get(rider_id)
+        if rider is None:
+            raise ValueError(f"Rider {rider_id} not found in database")
+
+        dna = RiderDNA.model_validate_json(rider.dna_json)
+
+        agent = cls.__new__(cls)
+        EventEmitter.__init__(agent, kafka_producer, redis_publisher)
+
+        agent._rider_id = rider_id
+        agent._dna = dna
+        agent._env = env
+        agent._rider_repository = rider_repository
+
+        agent._status = rider.status
+        lat, lon = map(float, rider.current_location.split(","))
+        agent._location = (lat, lon)
+        agent._active_trip = rider.active_trip
+        agent._current_rating = rider.current_rating
+        agent._rating_count = rider.rating_count
+
+        return agent
