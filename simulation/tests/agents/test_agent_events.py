@@ -24,7 +24,7 @@ def driver_dna():
         preferred_zones=["zone1", "zone2"],
         shift_preference="morning",
         avg_hours_per_day=8,
-        avg_days_per_week=5,
+        avg_days_per_week=7,
         vehicle_make="Toyota",
         vehicle_model="Corolla",
         vehicle_year=2020,
@@ -149,22 +149,21 @@ def test_driver_gps_ping_emission(driver_dna, mock_kafka_producer, mock_redis_pu
     env = simpy.Environment()
     driver = DriverAgent("driver1", driver_dna, env, mock_kafka_producer, mock_redis_publisher)
     driver.update_location(-23.55, -46.63)
-    driver.go_online()
 
     mock_kafka_producer.reset_mock()
     mock_redis_publisher.reset_mock()
 
     env.process(driver.run())
-    env.run(until=10)
+    env.run(until=12 * 3600)
 
     produce_calls = [
         call
         for call in mock_kafka_producer.produce.call_args_list
         if call.kwargs.get("topic") == "gps-pings"
     ]
-    assert len(produce_calls) == 2
+    assert len(produce_calls) >= 2
 
-    for call in produce_calls:
+    for call in produce_calls[:2]:
         event_json = call.kwargs["value"]
         event = json.loads(event_json)
         assert event["entity_type"] == "driver"
@@ -227,20 +226,19 @@ def test_driver_gps_includes_heading_speed(driver_dna, mock_kafka_producer, mock
     env = simpy.Environment()
     driver = DriverAgent("driver1", driver_dna, env, mock_kafka_producer, mock_redis_publisher)
     driver.update_location(-23.55, -46.63)
-    driver.go_online()
 
     mock_kafka_producer.reset_mock()
     mock_redis_publisher.reset_mock()
 
     env.process(driver.run())
-    env.run(until=5)
+    env.run(until=12 * 3600)
 
     produce_calls = [
         call
         for call in mock_kafka_producer.produce.call_args_list
         if call.kwargs.get("topic") == "gps-pings"
     ]
-    assert len(produce_calls) == 1
+    assert len(produce_calls) >= 1
 
     event_json = produce_calls[0].kwargs["value"]
     event = json.loads(event_json)
@@ -278,13 +276,12 @@ def test_kafka_partition_key_driver(driver_dna, mock_kafka_producer, mock_redis_
     env = simpy.Environment()
     driver = DriverAgent("driver1", driver_dna, env, mock_kafka_producer, mock_redis_publisher)
     driver.update_location(-23.55, -46.63)
-    driver.go_online()
 
     mock_kafka_producer.reset_mock()
     mock_redis_publisher.reset_mock()
 
     env.process(driver.run())
-    env.run(until=5)
+    env.run(until=12 * 3600)
 
     produce_calls = [
         call
@@ -336,12 +333,11 @@ async def test_redis_filtered_events(driver_dna, mock_kafka_producer, mock_redis
     assert len(driver_create_calls) == 1
 
     driver.update_location(-23.55, -46.63)
-    driver.go_online()
 
     mock_redis_publisher.reset_mock()
 
     env.process(driver.run())
-    env.run(until=5)
+    env.run(until=12 * 3600)
 
     await asyncio.sleep(0.01)
 
@@ -350,7 +346,7 @@ async def test_redis_filtered_events(driver_dna, mock_kafka_producer, mock_redis
         for call in mock_redis_publisher.publish.call_args_list
         if call.kwargs.get("channel") == "driver-updates"
     ]
-    assert len(gps_calls) == 1
+    assert len(gps_calls) >= 1
 
 
 def test_event_timestamp_utc(driver_dna, mock_kafka_producer, mock_redis_publisher):

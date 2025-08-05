@@ -263,12 +263,35 @@ class DriverAgent(EventEmitter):
             value=json.dumps(event),
         )
 
-    def run(self) -> Generator[simpy.Event]:
-        """SimPy process entry point with GPS ping loop."""
+    def _calculate_shift_start_time(self) -> float:
+        """Calculate shift start time in seconds based on shift preference."""
+        shift_windows = {
+            "morning": (6, 10),
+            "afternoon": (12, 16),
+            "evening": (17, 21),
+            "night": (22, 26),
+            "flexible": (0, 24),
+        }
+
+        start_hour, end_hour = shift_windows[self._dna.shift_preference.value]
+        base_hour = random.uniform(start_hour, end_hour)
+        randomization = random.uniform(-0.5, 0.5)
+
+        shift_start_hour = (base_hour + randomization) % 24
+        return shift_start_hour * 3600
+
+    def _get_active_days(self) -> set[int]:
+        """Get set of active day numbers (0-6) based on avg_days_per_week."""
+        all_days = list(range(7))
+        random.shuffle(all_days)
+        return set(all_days[: self._dna.avg_days_per_week])
+
+    def _emit_gps_ping(self) -> Generator[simpy.Event]:
+        """GPS ping loop that runs while driver is online."""
         import asyncio
 
-        while True:
-            if self._status in ("online", "busy", "en_route_pickup", "en_route_destination"):
+        try:
+            while self._status in ("online", "busy", "en_route_pickup", "en_route_destination"):
                 if self._location:
                     event = GPSPingEvent(
                         entity_type="driver",
@@ -312,8 +335,44 @@ class DriverAgent(EventEmitter):
                         )
 
                 yield self._env.timeout(GPS_PING_INTERVAL)
+        except simpy.Interrupt:
+            pass
+
+    def run(self) -> Generator[simpy.Event]:
+        """SimPy process managing shift lifecycle and GPS pings."""
+        active_days = self._get_active_days()
+
+        while True:
+            current_day = int(self._env.now // (24 * 3600)) % 7
+            time_of_day = self._env.now % (24 * 3600)
+
+            if current_day in active_days:
+                shift_start = self._calculate_shift_start_time()
+
+                if time_of_day < shift_start:
+                    yield self._env.timeout(shift_start - time_of_day)
+
+                self.go_online()
+                gps_process = self._env.process(self._emit_gps_ping())
+
+                shift_duration = self._dna.avg_hours_per_day * 3600
+                yield self._env.timeout(shift_duration)
+
+                while self._active_trip is not None:
+                    yield self._env.timeout(30)
+
+                if gps_process.is_alive:
+                    gps_process.interrupt()
+
+                self.go_offline()
+
+                time_until_next_day = (24 * 3600) - (self._env.now % (24 * 3600))
+                if time_until_next_day > 0:
+                    yield self._env.timeout(time_until_next_day)
             else:
-                yield self._env.timeout(GPS_PING_INTERVAL)
+                time_until_next_day = (24 * 3600) - time_of_day
+                if time_until_next_day > 0:
+                    yield self._env.timeout(time_until_next_day)
 
     @classmethod
     def from_database(
