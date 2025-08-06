@@ -52,6 +52,7 @@ def generate_driver_dna(faker: Faker | None = None) -> DriverDNA:
     response_time = max(3.0, min(12.0, random.gauss(6.0, 2.0)))
 
     min_rider_rating = random.uniform(3.0, 4.5)
+    surge_acceptance_modifier = random.uniform(1.2, 1.8)
 
     # Home location
     home_lat = random.uniform(SAO_PAULO_LAT_MIN, SAO_PAULO_LAT_MAX)
@@ -96,6 +97,7 @@ def generate_driver_dna(faker: Faker | None = None) -> DriverDNA:
         service_quality=service_quality,
         response_time=response_time,
         min_rider_rating=min_rider_rating,
+        surge_acceptance_modifier=surge_acceptance_modifier,
         home_location=home_location,
         preferred_zones=preferred_zones,
         shift_preference=shift_preference,

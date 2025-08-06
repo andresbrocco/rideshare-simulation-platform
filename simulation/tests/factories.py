@@ -43,6 +43,7 @@ class DNAFactory:
             "service_quality": 0.9,
             "response_time": 5.0,
             "min_rider_rating": 3.5,
+            "surge_acceptance_modifier": 1.5,
             # Profile attributes
             "home_location": (-23.55, -46.63),
             "preferred_zones": ["zone_1", "zone_2"],

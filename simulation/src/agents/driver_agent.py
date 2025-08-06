@@ -191,6 +191,41 @@ class DriverAgent(EventEmitter):
             except Exception as e:
                 logger.error(f"Failed to persist rating for driver {self._driver_id}: {e}")
 
+    def process_ride_offer(self, offer: dict) -> Generator[simpy.Event, None, bool]:
+        """Process ride offer and decide accept/reject."""
+        base_delay = self._dna.response_time
+        variance = random.uniform(-2.0, 2.0)
+        response_delay = max(0, min(14.9, base_delay + variance))
+
+        yield self._env.timeout(response_delay)
+
+        base_rate = self._dna.acceptance_rate
+        surge = offer.get("surge_multiplier", 1.0)
+
+        if surge > 1.0:
+            modifier = self._dna.surge_acceptance_modifier
+            adjusted_rate = base_rate * (1 + (surge - 1) * modifier)
+        else:
+            adjusted_rate = base_rate
+
+        rider_rating = offer.get("rider_rating", 5.0)
+        min_rating = self._dna.min_rider_rating
+
+        if rider_rating < min_rating:
+            rating_multiplier = rider_rating / min_rating
+            adjusted_rate = adjusted_rate * rating_multiplier
+
+        adjusted_rate = min(1.0, adjusted_rate)
+
+        accept = random.random() < adjusted_rate
+
+        if accept:
+            self.accept_trip(offer["trip_id"])
+            self.start_pickup()
+            return True
+        else:
+            return False
+
     def _emit_creation_event(self) -> None:
         """Emit driver.created event on initialization."""
         import asyncio

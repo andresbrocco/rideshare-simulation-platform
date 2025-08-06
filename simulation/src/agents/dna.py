@@ -51,6 +51,7 @@ class DriverDNA(BaseModel):
     service_quality: float = Field(ge=0.0, le=1.0)
     response_time: float = Field(ge=3.0, le=12.0)
     min_rider_rating: float = Field(ge=1.0, le=5.0)
+    surge_acceptance_modifier: float = Field(ge=1.0, le=2.0)
 
     # Profile attributes (mutable via profile events)
     home_location: tuple[float, float]
