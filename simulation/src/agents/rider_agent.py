@@ -209,13 +209,16 @@ class RiderAgent(EventEmitter):
             )
 
     def run(self) -> Generator[simpy.Event]:
-        """SimPy process entry point with GPS ping loop."""
+        """SimPy process entry point with request lifecycle."""
         import asyncio
+        import uuid
+
+        from events.schemas import TripEvent
 
         while True:
             if self._status == "in_trip":
                 if self._location:
-                    event = GPSPingEvent(
+                    gps_event = GPSPingEvent(
                         entity_type="rider",
                         entity_id=self._rider_id,
                         timestamp=datetime.now(UTC).isoformat(),
@@ -231,7 +234,7 @@ class RiderAgent(EventEmitter):
                         if loop.is_running():
                             asyncio.create_task(
                                 self._emit_event(
-                                    event=event,
+                                    event=gps_event,
                                     kafka_topic="gps-pings",
                                     partition_key=self._rider_id,
                                     redis_channel="rider-updates",
@@ -240,7 +243,7 @@ class RiderAgent(EventEmitter):
                         else:
                             loop.run_until_complete(
                                 self._emit_event(
-                                    event=event,
+                                    event=gps_event,
                                     kafka_topic="gps-pings",
                                     partition_key=self._rider_id,
                                     redis_channel="rider-updates",
@@ -249,7 +252,7 @@ class RiderAgent(EventEmitter):
                     except RuntimeError:
                         asyncio.run(
                             self._emit_event(
-                                event=event,
+                                event=gps_event,
                                 kafka_topic="gps-pings",
                                 partition_key=self._rider_id,
                                 redis_channel="rider-updates",
@@ -257,7 +260,127 @@ class RiderAgent(EventEmitter):
                         )
 
                 yield self._env.timeout(GPS_PING_INTERVAL)
-            else:
+                continue
+
+            if self._status != "idle":
+                yield self._env.timeout(GPS_PING_INTERVAL)
+                continue
+
+            interval_hours = (7 * 24) / self._dna.avg_rides_per_week
+            variance = random.uniform(0.8, 1.2)
+            wait_time = interval_hours * 3600 * variance
+
+            yield self._env.timeout(wait_time)
+
+            if self._location is None:
+                continue
+
+            destination = self.select_destination()
+            trip_id = str(uuid.uuid4())
+
+            self.request_trip(trip_id)
+
+            match_timeout = self._env.now + self._dna.patience_threshold
+
+            while self._env.now < match_timeout:
+                if self._status == "in_trip":
+                    break
+
+                yield self._env.timeout(1)
+
+            if self._status == "waiting":
+                self.cancel_trip()
+
+                event = TripEvent(
+                    event_type="trip.cancelled",
+                    trip_id=trip_id,
+                    timestamp=datetime.now(UTC).isoformat(),
+                    rider_id=self._rider_id,
+                    driver_id=None,
+                    pickup_location=self._location,
+                    dropoff_location=destination,
+                    pickup_zone_id="unknown",
+                    dropoff_zone_id="unknown",
+                    surge_multiplier=1.0,
+                    fare=0.0,
+                    cancelled_by="rider",
+                    cancellation_reason="patience_timeout",
+                )
+
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        asyncio.create_task(
+                            self._emit_event(
+                                event=event,
+                                kafka_topic="trips",
+                                partition_key=trip_id,
+                                redis_channel="trip-updates",
+                            )
+                        )
+                    else:
+                        loop.run_until_complete(
+                            self._emit_event(
+                                event=event,
+                                kafka_topic="trips",
+                                partition_key=trip_id,
+                                redis_channel="trip-updates",
+                            )
+                        )
+                except RuntimeError:
+                    asyncio.run(
+                        self._emit_event(
+                            event=event,
+                            kafka_topic="trips",
+                            partition_key=trip_id,
+                            redis_channel="trip-updates",
+                        )
+                    )
+                continue
+
+            while self._status == "in_trip":
+                if self._location:
+                    gps_event = GPSPingEvent(
+                        entity_type="rider",
+                        entity_id=self._rider_id,
+                        timestamp=datetime.now(UTC).isoformat(),
+                        location=self._location,
+                        heading=None,
+                        speed=None,
+                        accuracy=5.0,
+                        trip_id=self._active_trip,
+                    )
+
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            asyncio.create_task(
+                                self._emit_event(
+                                    event=gps_event,
+                                    kafka_topic="gps-pings",
+                                    partition_key=self._rider_id,
+                                    redis_channel="rider-updates",
+                                )
+                            )
+                        else:
+                            loop.run_until_complete(
+                                self._emit_event(
+                                    event=gps_event,
+                                    kafka_topic="gps-pings",
+                                    partition_key=self._rider_id,
+                                    redis_channel="rider-updates",
+                                )
+                            )
+                    except RuntimeError:
+                        asyncio.run(
+                            self._emit_event(
+                                event=gps_event,
+                                kafka_topic="gps-pings",
+                                partition_key=self._rider_id,
+                                redis_channel="rider-updates",
+                            )
+                        )
+
                 yield self._env.timeout(GPS_PING_INTERVAL)
 
     @classmethod
