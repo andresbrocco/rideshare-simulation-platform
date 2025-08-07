@@ -154,11 +154,57 @@ class RiderAgent(EventEmitter):
                 logger.error(f"Failed to persist rating for rider {self._rider_id}: {e}")
 
     def select_destination(self) -> tuple[float, float]:
-        """Select destination from DNA frequent destinations using weighted random choice."""
+        """Select destination based on location and time with weighted probabilities."""
+        from agents.dna import haversine_distance
+
+        at_home = False
+        if self._location:
+            distance_to_home = haversine_distance(
+                self._location[0],
+                self._location[1],
+                self._dna.home_location[0],
+                self._dna.home_location[1],
+            )
+            at_home = distance_to_home < 0.1
+
+        if at_home:
+            choice = random.random()
+            if choice < 0.8:
+                return self._select_weighted_frequent_destination()
+            else:
+                return self._generate_random_location()
+        else:
+            choice = random.random()
+            if choice < 0.6:
+                return self._dna.home_location
+            elif choice < 0.9:
+                return self._select_weighted_frequent_destination()
+            else:
+                return self._generate_random_location()
+
+    def _select_weighted_frequent_destination(self) -> tuple[float, float]:
+        """Select from frequent destinations with time affinity weighting."""
         destinations = self._dna.frequent_destinations
-        weights = [d["weight"] for d in destinations]
-        selected = random.choices(destinations, weights=weights, k=1)[0]
+        current_hour = int((self._env.now % 86400) / 3600)
+
+        weights = []
+        for dest in destinations:
+            weight = dest["weight"]
+            if dest.get("time_affinity") and current_hour in dest["time_affinity"]:
+                weight *= 2
+            weights.append(weight)
+
+        total_weight = sum(weights)
+        normalized_weights = [w / total_weight for w in weights]
+
+        selected = random.choices(destinations, weights=normalized_weights, k=1)[0]
         return tuple(selected["coordinates"])
+
+    def _generate_random_location(self) -> tuple[float, float]:
+        """Generate random location within Sao Paulo bounds."""
+        lat = random.uniform(-23.80, -23.35)
+        lon = random.uniform(-46.85, -46.35)
+        return (lat, lon)
 
     def _emit_creation_event(self) -> None:
         """Emit rider.created event on initialization."""

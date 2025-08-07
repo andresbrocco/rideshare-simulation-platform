@@ -121,17 +121,15 @@ class TestRiderSimpyProcess:
 class TestRiderDestinationSelection:
     def test_rider_frequent_destination_selection(self, rider_agent, rider_dna):
         random.seed(42)
+        rider_agent.update_location(*rider_dna.home_location)
 
         selected_coords = []
         for _ in range(100):
             coords = rider_agent.select_destination()
             selected_coords.append(coords)
 
-        valid_coords = [d["coordinates"] for d in rider_dna.frequent_destinations]
-        for coords in selected_coords:
-            assert tuple(coords) in [tuple(c) for c in valid_coords]
+        valid_coords = [tuple(d["coordinates"]) for d in rider_dna.frequent_destinations]
+        frequent_count = sum(1 for c in selected_coords if tuple(c) in valid_coords)
 
-        work_coords = (-23.56, -46.65)
-        work_count = sum(1 for c in selected_coords if tuple(c) == work_coords)
-        # With weight 0.6, expect roughly 60 out of 100
-        assert 40 < work_count < 80
+        # From home: expect ~80% frequent destinations
+        assert frequent_count > 60
