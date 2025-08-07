@@ -206,6 +206,35 @@ class RiderAgent(EventEmitter):
         lon = random.uniform(-46.85, -46.35)
         return (lat, lon)
 
+    def on_match_found(self, trip, driver_id: str) -> None:
+        """Handle match found notification."""
+        self.request_trip(trip.trip_id)
+
+    def on_no_drivers_available(self, trip_id: str) -> None:
+        """Handle no drivers available notification."""
+        pass
+
+    def on_trip_cancelled(self, trip) -> None:
+        """Handle trip cancellation notification."""
+        if self._status != "idle":
+            self.cancel_trip()
+
+    def on_driver_en_route(self, trip) -> None:
+        """Handle driver en route notification."""
+        pass
+
+    def on_driver_arrived(self, trip) -> None:
+        """Handle driver arrival notification."""
+        pass
+
+    def on_trip_started(self, trip) -> None:
+        """Handle trip started notification."""
+        pass
+
+    def on_trip_completed(self, trip) -> None:
+        """Handle trip completion notification."""
+        pass
+
     def _emit_creation_event(self) -> None:
         """Emit rider.created event on initialization."""
         import asyncio

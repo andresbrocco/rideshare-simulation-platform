@@ -226,6 +226,41 @@ class DriverAgent(EventEmitter):
         else:
             return False
 
+    def receive_offer(self, offer: dict) -> bool:
+        """Decide whether to accept or reject offer based on acceptance rate."""
+        base_rate = self._dna.acceptance_rate
+        surge = offer.get("surge_multiplier", 1.0)
+
+        if surge > 1.0:
+            modifier = self._dna.surge_acceptance_modifier
+            adjusted_rate = base_rate * (1 + (surge - 1) * modifier)
+        else:
+            adjusted_rate = base_rate
+
+        rider_rating = offer.get("rider_rating", 5.0)
+        min_rating = self._dna.min_rider_rating
+
+        if rider_rating < min_rating:
+            rating_multiplier = rider_rating / min_rating
+            adjusted_rate = adjusted_rate * rating_multiplier
+
+        adjusted_rate = min(1.0, adjusted_rate)
+
+        return random.random() < adjusted_rate
+
+    def on_trip_cancelled(self, trip) -> None:
+        """Handle trip cancellation notification."""
+        if self._status != "offline":
+            self.complete_trip()
+
+    def on_trip_started(self, trip) -> None:
+        """Handle trip started notification."""
+        pass
+
+    def on_trip_completed(self, trip) -> None:
+        """Handle trip completion notification."""
+        pass
+
     def _emit_creation_event(self) -> None:
         """Emit driver.created event on initialization."""
         import asyncio
