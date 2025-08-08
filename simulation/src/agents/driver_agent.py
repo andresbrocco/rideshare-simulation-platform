@@ -12,12 +12,15 @@ import simpy
 
 from agents.dna import DriverDNA
 from agents.event_emitter import GPS_PING_INTERVAL, EventEmitter
-from events.schemas import DriverProfileEvent, GPSPingEvent
+from agents.rating_logic import generate_rating_value, should_submit_rating
+from events.schemas import DriverProfileEvent, GPSPingEvent, RatingEvent
 from kafka.producer import KafkaProducer
 from redis_client.publisher import RedisPublisher
 
 if TYPE_CHECKING:
+    from agents.rider_agent import RiderAgent
     from db.repositories.driver_repository import DriverRepository
+    from trip import Trip
 
 logger = logging.getLogger(__name__)
 
@@ -190,6 +193,43 @@ class DriverAgent(EventEmitter):
                 )
             except Exception as e:
                 logger.error(f"Failed to persist rating for driver {self._driver_id}: {e}")
+
+    def submit_rating_for_trip(self, trip: "Trip", rider: "RiderAgent") -> int | None:
+        """Submit rating for rider after trip completion."""
+        from trip import TripState
+
+        if trip.state != TripState.COMPLETED:
+            return None
+
+        rating_value = generate_rating_value(rider.dna.behavior_factor, "behavior_factor")
+
+        if not should_submit_rating(rating_value):
+            return None
+
+        rider.update_rating(rating_value)
+        self._emit_rating_event(trip.trip_id, rider.rider_id, rating_value)
+        return rating_value
+
+    def _emit_rating_event(self, trip_id: str, ratee_id: str, rating_value: int) -> None:
+        """Emit rating event to Kafka."""
+        if self._kafka_producer is None:
+            return
+
+        event = RatingEvent(
+            trip_id=trip_id,
+            timestamp=datetime.now(UTC).isoformat(),
+            rater_type="driver",
+            rater_id=self._driver_id,
+            ratee_type="rider",
+            ratee_id=ratee_id,
+            rating=rating_value,
+        )
+
+        self._kafka_producer.produce(
+            topic="ratings",
+            key=trip_id,
+            value=event,
+        )
 
     def process_ride_offer(self, offer: dict) -> Generator[simpy.Event, None, bool]:
         """Process ride offer and decide accept/reject."""

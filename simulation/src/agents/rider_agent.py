@@ -10,12 +10,15 @@ import simpy
 
 from agents.dna import RiderDNA
 from agents.event_emitter import GPS_PING_INTERVAL, EventEmitter
-from events.schemas import GPSPingEvent, RiderProfileEvent
+from agents.rating_logic import generate_rating_value, should_submit_rating
+from events.schemas import GPSPingEvent, RatingEvent, RiderProfileEvent
 from kafka.producer import KafkaProducer
 from redis_client.publisher import RedisPublisher
 
 if TYPE_CHECKING:
+    from agents.driver_agent import DriverAgent
     from db.repositories.rider_repository import RiderRepository
+    from trip import Trip
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +155,45 @@ class RiderAgent(EventEmitter):
                 )
             except Exception as e:
                 logger.error(f"Failed to persist rating for rider {self._rider_id}: {e}")
+
+    def submit_rating_for_trip(self, trip: "Trip", driver: "DriverAgent") -> int | None:
+        """Submit rating for driver after trip completion."""
+        from trip import TripState
+
+        if trip.state != TripState.COMPLETED:
+            return None
+
+        rating_value = generate_rating_value(driver.dna.service_quality, "service_quality")
+
+        if not should_submit_rating(rating_value):
+            return None
+
+        driver.update_rating(rating_value)
+        self._emit_rating_event(trip.trip_id, driver.driver_id, rating_value)
+        return rating_value
+
+    def _emit_rating_event(self, trip_id: str, ratee_id: str, rating_value: int) -> None:
+        """Emit rating event to Kafka."""
+        from datetime import UTC, datetime
+
+        if self._kafka_producer is None:
+            return
+
+        event = RatingEvent(
+            trip_id=trip_id,
+            timestamp=datetime.now(UTC).isoformat(),
+            rater_type="rider",
+            rater_id=self._rider_id,
+            ratee_type="driver",
+            ratee_id=ratee_id,
+            rating=rating_value,
+        )
+
+        self._kafka_producer.produce(
+            topic="ratings",
+            key=trip_id,
+            value=event,
+        )
 
     def select_destination(self) -> tuple[float, float]:
         """Select destination based on location and time with weighted probabilities."""
