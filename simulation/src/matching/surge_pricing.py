@@ -1,0 +1,84 @@
+from datetime import UTC, datetime
+
+from src.events.schemas import SurgeUpdateEvent
+from src.geo.zones import ZoneLoader
+from src.matching.driver_registry import DriverRegistry
+
+
+class SurgePricingCalculator:
+    def __init__(
+        self,
+        env,
+        zone_loader: ZoneLoader,
+        driver_registry: DriverRegistry,
+        kafka_producer=None,
+        update_interval_seconds: int = 60,
+    ):
+        self.env = env
+        self.zone_loader = zone_loader
+        self.driver_registry = driver_registry
+        self.kafka_producer = kafka_producer
+        self.update_interval_seconds = update_interval_seconds
+
+        self.current_surge: dict[str, float] = {}
+        self.pending_requests: dict[str, int] = {}
+
+        self.env.process(self._surge_calculation_loop())
+
+    def _surge_calculation_loop(self):
+        while True:
+            self._calculate_surge_all_zones()
+            yield self.env.timeout(self.update_interval_seconds)
+
+    def _calculate_surge_all_zones(self):
+        zones = self.zone_loader.get_all_zones()
+        for zone in zones:
+            self._calculate_zone_surge(zone.zone_id)
+
+    def _calculate_zone_surge(self, zone_id: str):
+        pending = self.pending_requests.get(zone_id, 0)
+        available = self.driver_registry.get_zone_driver_count(zone_id, "online")
+
+        if available == 0:
+            new_multiplier = 2.5 if pending > 0 else 1.0
+        else:
+            ratio = pending / available
+            new_multiplier = self._calculate_multiplier(ratio)
+
+        self._update_zone_surge(zone_id, new_multiplier, available, pending)
+
+    def _calculate_multiplier(self, ratio: float) -> float:
+        if ratio <= 1.0:
+            return 1.0
+        elif ratio <= 2.0:
+            return 1.0 + (ratio - 1.0) * 0.5
+        elif ratio <= 3.0:
+            return 1.5 + (ratio - 2.0) * 1.0
+        else:
+            return 2.5
+
+    def _update_zone_surge(
+        self, zone_id: str, new_multiplier: float, available_drivers: int, pending_requests: int
+    ):
+        old_multiplier = self.current_surge.get(zone_id, 1.0)
+
+        if new_multiplier != old_multiplier:
+            if self.kafka_producer:
+                event = SurgeUpdateEvent(
+                    zone_id=zone_id,
+                    timestamp=datetime.now(UTC).isoformat(),
+                    previous_multiplier=old_multiplier,
+                    new_multiplier=new_multiplier,
+                    available_drivers=available_drivers,
+                    pending_requests=pending_requests,
+                    calculation_window_seconds=self.update_interval_seconds,
+                )
+                self.kafka_producer.produce(topic="surge-updates", value=event)
+
+            self.current_surge[zone_id] = new_multiplier
+
+    def get_surge(self, zone_id: str) -> float:
+        return self.current_surge.get(zone_id, 1.0)
+
+    def set_pending_requests(self, zone_id: str, count: int):
+        self.pending_requests[zone_id] = count
