@@ -1,6 +1,6 @@
 """SimPy environment orchestrator for rideshare simulation."""
 
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
@@ -38,15 +38,60 @@ class TimeManager:
     """Manages simulation time conversions."""
 
     def __init__(self, simulation_start_time: datetime, env: simpy.Environment):
-        self._simulation_start_time = simulation_start_time
+        self._simulation_start_time = simulation_start_time.astimezone(UTC)
         self._env = env
 
     def current_time(self) -> datetime:
         """Convert SimPy now to datetime."""
-        from datetime import timedelta
-
         elapsed_seconds = int(self._env.now)
         return self._simulation_start_time + timedelta(seconds=elapsed_seconds)
+
+    def format_timestamp(self, dt: datetime | None = None) -> str:
+        """Format datetime as ISO 8601 UTC string."""
+        if dt is None:
+            dt = self.current_time()
+        return dt.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def to_datetime(self, simulated_seconds: float) -> datetime:
+        """Convert SimPy seconds to datetime."""
+        return self._simulation_start_time + timedelta(seconds=simulated_seconds)
+
+    def to_seconds(self, dt: datetime) -> float:
+        """Convert datetime to SimPy seconds since start."""
+        delta = dt.astimezone(UTC) - self._simulation_start_time
+        return delta.total_seconds()
+
+    def elapsed_time(self) -> timedelta:
+        """Returns elapsed simulation time."""
+        return timedelta(seconds=self._env.now)
+
+    def current_day(self) -> int:
+        """Returns 0-indexed day number."""
+        return int(self._env.now // 86400)
+
+    def time_of_day(self) -> int:
+        """Returns seconds since midnight (0-86399)."""
+        return int(self._env.now % 86400)
+
+    def is_business_hours(self) -> bool:
+        """Returns True if current time is 9 AM - 6 PM, Monday-Friday."""
+        current = self.current_time()
+        weekday = current.weekday()
+        hour = current.hour
+        return 0 <= weekday <= 4 and 9 <= hour < 18
+
+    def format_duration(self, seconds: float) -> str:
+        """Format seconds as human-readable duration."""
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = int(seconds % 60)
+
+        if hours > 0:
+            return f"{hours}h {minutes}m {secs}s"
+        elif minutes > 0:
+            return f"{minutes}m {secs}s"
+        else:
+            return f"{secs}s"
 
 
 class SimulationEngine:
@@ -136,10 +181,7 @@ class SimulationEngine:
 
     def current_time(self) -> datetime:
         """Get current simulated time as datetime."""
-        elapsed_seconds = int(self._env.now)
-        from datetime import timedelta
-
-        return self._time_manager._simulation_start_time + timedelta(seconds=elapsed_seconds)
+        return self._time_manager.current_time()
 
     async def request_match(
         self,
