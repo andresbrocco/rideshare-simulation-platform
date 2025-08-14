@@ -122,6 +122,7 @@ class SimulationEngine:
 
         self._time_manager = TimeManager(simulation_start_time, self._env)
         self._speed_multiplier = 100
+        self._drain_process: simpy.Process | None = None
 
     @property
     def state(self) -> SimulationState:
@@ -220,6 +221,11 @@ class SimulationEngine:
                 value=event,
             )
 
+    def pause(self) -> None:
+        """Initiate two-phase pause: RUNNING -> DRAINING -> PAUSED."""
+        self.transition_state(SimulationState.DRAINING)
+        self._drain_process = self._env.process(self._run_drain_process())  # type: ignore[no-untyped-call]
+
     def resume(self) -> None:
         """Transition from PAUSED to RUNNING."""
         self.transition_state(SimulationState.RUNNING)
@@ -241,6 +247,9 @@ class SimulationEngine:
         fare: float,
     ) -> "Trip | None":
         """Delegate to matching server."""
+        if self._state in {SimulationState.DRAINING, SimulationState.PAUSED}:
+            raise ValueError("Simulation is pausing")
+
         return await self._matching_server.request_match(
             rider_id=rider_id,
             pickup_location=pickup_location,
@@ -263,13 +272,13 @@ class SimulationEngine:
 
     def _start_periodic_processes(self) -> None:
         """Start surge updates and GPS pings."""
-        surge_process = self._env.process(self._surge_update_process())
+        surge_process = self._env.process(self._surge_update_process())  # type: ignore[no-untyped-call]
         self._periodic_processes.append(surge_process)
 
-        gps_process = self._env.process(self._gps_ping_process())
+        gps_process = self._env.process(self._gps_ping_process())  # type: ignore[no-untyped-call]
         self._periodic_processes.append(gps_process)
 
-    def _surge_update_process(self):
+    def _surge_update_process(self):  # type: ignore[no-untyped-def]
         """Recalculate surge every 60 simulated seconds."""
         while True:
             if hasattr(self._matching_server, "update_surge_pricing"):
@@ -289,7 +298,7 @@ class SimulationEngine:
 
             yield self._env.timeout(60)
 
-    def _gps_ping_process(self):
+    def _gps_ping_process(self):  # type: ignore[no-untyped-def]
         """Emit GPS pings for online drivers every 5 seconds."""
         while True:
             yield self._env.timeout(5)
@@ -309,6 +318,95 @@ class SimulationEngine:
                         key=driver.driver_id,
                         value=event,
                     )
+
+    def _get_in_flight_trips(self) -> list["Trip"]:
+        """Get trips in non-terminal states."""
+        from src.db.repositories.trip_repository import TripRepository
+
+        with self._sqlite_db.session() as session:
+            repo = TripRepository(session)
+            return repo.list_in_flight()
+
+    def _run_drain_process(self):  # type: ignore[no-untyped-def]
+        """Monitor quiescence and transition to PAUSED."""
+        timeout_at = self._env.now + 600
+        trigger = "quiescence_achieved"
+
+        while True:
+            in_flight = self._get_in_flight_trips()
+            if len(in_flight) == 0:
+                trigger = "quiescence_achieved"
+                break
+
+            if self._env.now >= timeout_at:
+                trigger = "drain_timeout"
+                self._force_cancel_trips(in_flight)
+                break
+
+            yield self._env.timeout(5)
+
+        self._transition_to_paused(trigger)
+
+    def _force_cancel_trips(self, trips: list["Trip"]) -> None:
+        """Force-cancel all in-flight trips."""
+        from src.db.repositories.trip_repository import TripRepository
+        from src.trip import TripState
+
+        with self._sqlite_db.session() as session:
+            repo = TripRepository(session)
+            for trip in trips:
+                self._force_cancel_trip(trip)
+                repo.update_state(
+                    trip_id=trip.trip_id,
+                    new_state=TripState.CANCELLED,
+                    cancelled_by="system",
+                    cancellation_reason="system_pause",
+                    cancellation_stage=trip.state.name.lower(),
+                )
+
+                if self._kafka_producer:
+                    event = {
+                        "event_id": str(uuid4()),
+                        "event_type": "trip.cancelled",
+                        "timestamp": datetime.now(UTC).isoformat(),
+                        "trip_id": trip.trip_id,
+                        "cancelled_by": "system",
+                        "cancellation_reason": "system_pause",
+                        "cancellation_stage": trip.state.name.lower(),
+                    }
+                    self._kafka_producer.produce(
+                        topic="trips",
+                        key=trip.trip_id,
+                        value=event,
+                    )
+            session.commit()
+
+    def _force_cancel_trip(self, trip: "Trip") -> None:
+        """Cancel a single trip with system metadata."""
+        trip.cancel(by="system", reason="system_pause", stage=trip.state.name.lower())
+
+    def _transition_to_paused(self, trigger: str) -> None:
+        """Complete pause sequence and emit event."""
+        old_state = self._state
+        self._state = SimulationState.PAUSED
+
+        if self._kafka_producer:
+            event = {
+                "event_id": str(uuid4()),
+                "event_type": "simulation.paused",
+                "timestamp": datetime.now(UTC).isoformat(),
+                "previous_state": old_state.value,
+                "new_state": self._state.value,
+                "trigger": trigger,
+                "in_flight_trips": 0,
+                "active_drivers": self.active_driver_count,
+                "active_riders": self.active_rider_count,
+            }
+            self._kafka_producer.produce(
+                topic="simulation-control",
+                key="engine",
+                value=event,
+            )
 
     def _emit_control_event(self, event_type: str, old_state: SimulationState) -> None:
         """Emit simulation control event."""
