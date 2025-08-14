@@ -1,5 +1,6 @@
 """SimPy environment orchestrator for rideshare simulation."""
 
+import time
 from datetime import UTC, datetime, timedelta, timezone
 from enum import Enum
 from typing import TYPE_CHECKING, Any
@@ -120,10 +121,15 @@ class SimulationEngine:
         self._periodic_processes: list[simpy.Process] = []
 
         self._time_manager = TimeManager(simulation_start_time, self._env)
+        self._speed_multiplier = 100
 
     @property
     def state(self) -> SimulationState:
         return self._state
+
+    @property
+    def speed_multiplier(self) -> int:
+        return self._speed_multiplier
 
     @property
     def active_driver_count(self) -> int:
@@ -171,7 +177,48 @@ class SimulationEngine:
     def step(self, seconds: int) -> None:
         """Advance simulation by specified seconds."""
         target_time = self._env.now + seconds
-        self._env.run(until=target_time)
+
+        if self._speed_multiplier == 100:
+            self._env.run(until=target_time)
+            return
+
+        start_wall = time.perf_counter()
+        start_sim = self._env.now
+        step_size = 1
+
+        while self._env.now < target_time:
+            next_step = min(self._env.now + step_size, target_time)
+            self._env.run(until=next_step)
+
+            elapsed_wall = time.perf_counter() - start_wall
+            elapsed_sim = self._env.now - start_sim
+            target_wall = elapsed_sim / self._speed_multiplier
+            sleep_time = target_wall - elapsed_wall
+
+            if sleep_time > 0.01:
+                time.sleep(sleep_time)
+
+    def set_speed(self, multiplier: int) -> None:
+        """Change simulation speed (1x, 10x, or 100x)."""
+        if multiplier not in (1, 10, 100):
+            raise ValueError("Speed multiplier must be 1, 10, or 100")
+
+        previous_speed = self._speed_multiplier
+        self._speed_multiplier = multiplier
+
+        if self._kafka_producer:
+            event = {
+                "event_id": str(uuid4()),
+                "event_type": "simulation.speed_changed",
+                "timestamp": datetime.now(UTC).isoformat(),
+                "previous_speed": previous_speed,
+                "new_speed": multiplier,
+            }
+            self._kafka_producer.produce(
+                topic="simulation-control",
+                key="engine",
+                value=event,
+            )
 
     def resume(self) -> None:
         """Transition from PAUSED to RUNNING."""
