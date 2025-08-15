@@ -17,6 +17,10 @@ if TYPE_CHECKING:
     from redis_client.publisher import RedisPublisher
     from trip import Trip
 
+from engine.agent_factory import AgentFactory
+
+__all__ = ["SimulationEngine", "SimulationState", "TimeManager", "AgentFactory"]
+
 
 class SimulationState(str, Enum):
     """Simulation states."""
