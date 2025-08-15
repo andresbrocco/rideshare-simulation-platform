@@ -8,6 +8,7 @@ import pytest
 import simpy
 
 from src.engine import SimulationEngine
+from tests.engine.conftest import create_mock_sqlite_db
 
 
 @pytest.fixture
@@ -18,7 +19,7 @@ def mock_dependencies():
         "kafka_producer": Mock(),
         "redis_client": Mock(),
         "osrm_client": Mock(),
-        "sqlite_db": Mock(),
+        "sqlite_db": create_mock_sqlite_db(),
         "simulation_start_time": datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
     }
 

@@ -8,6 +8,7 @@ import pytest
 import simpy
 
 from engine import SimulationEngine, SimulationState
+from tests.engine.conftest import create_mock_sqlite_db
 
 
 class TestSimulationEngineInit:
@@ -17,7 +18,7 @@ class TestSimulationEngineInit:
         kafka_producer = Mock()
         redis_client = Mock()
         osrm_client = Mock()
-        sqlite_db = Mock()
+        sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
             matching_server=matching_server,
@@ -42,7 +43,7 @@ class TestSimulationEngineStateTransitions:
         kafka_producer = Mock()
         redis_client = Mock()
         osrm_client = Mock()
-        sqlite_db = Mock()
+        sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
             matching_server=matching_server,
@@ -63,7 +64,7 @@ class TestSimulationEngineStateTransitions:
         kafka_producer.produce = Mock()
         redis_client = Mock()
         osrm_client = Mock()
-        sqlite_db = Mock()
+        sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
             matching_server=matching_server,
@@ -87,7 +88,7 @@ class TestSimulationEngineStateTransitions:
         kafka_producer = Mock()
         redis_client = Mock()
         osrm_client = Mock()
-        sqlite_db = Mock()
+        sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
             matching_server=matching_server,
@@ -110,7 +111,7 @@ class TestSimulationEngineStateTransitions:
         kafka_producer = Mock()
         redis_client = Mock()
         osrm_client = Mock()
-        sqlite_db = Mock()
+        sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
             matching_server=matching_server,
@@ -135,7 +136,7 @@ class TestSimulationEngineAgentRegistration:
         kafka_producer = Mock()
         redis_client = Mock()
         osrm_client = Mock()
-        sqlite_db = Mock()
+        sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
             matching_server=matching_server,
@@ -160,7 +161,7 @@ class TestSimulationEngineAgentRegistration:
         kafka_producer = Mock()
         redis_client = Mock()
         osrm_client = Mock()
-        sqlite_db = Mock()
+        sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
             matching_server=matching_server,
@@ -187,7 +188,7 @@ class TestSimulationEngineAgentProcesses:
         kafka_producer = Mock()
         redis_client = Mock()
         osrm_client = Mock()
-        sqlite_db = Mock()
+        sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
             matching_server=matching_server,
@@ -251,7 +252,7 @@ class TestSimulationEngineStep:
         kafka_producer = Mock()
         redis_client = Mock()
         osrm_client = Mock()
-        sqlite_db = Mock()
+        sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
             matching_server=matching_server,
@@ -280,7 +281,7 @@ class TestSimulationEngineMatchingIntegration:
         kafka_producer = Mock()
         redis_client = Mock()
         osrm_client = Mock()
-        sqlite_db = Mock()
+        sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
             matching_server=matching_server,
@@ -313,7 +314,7 @@ class TestSimulationEnginePeriodicProcesses:
         kafka_producer.produce = Mock()
         redis_client = Mock()
         osrm_client = Mock()
-        sqlite_db = Mock()
+        sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
             matching_server=matching_server,
@@ -337,7 +338,7 @@ class TestSimulationEnginePeriodicProcesses:
         kafka_producer.produce = Mock()
         redis_client = Mock()
         osrm_client = Mock()
-        sqlite_db = Mock()
+        sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
             matching_server=matching_server,
@@ -379,7 +380,7 @@ class TestSimulationEngineTime:
         kafka_producer = Mock()
         redis_client = Mock()
         osrm_client = Mock()
-        sqlite_db = Mock()
+        sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
             matching_server=matching_server,
@@ -406,7 +407,7 @@ class TestSimulationEngineActiveCounts:
         kafka_producer = Mock()
         redis_client = Mock()
         osrm_client = Mock()
-        sqlite_db = Mock()
+        sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
             matching_server=matching_server,

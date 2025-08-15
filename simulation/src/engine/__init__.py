@@ -144,7 +144,7 @@ class SimulationEngine:
             1 for rider in self._active_riders.values() if rider.status in ("waiting", "in_trip")
         )
 
-    def transition_state(self, new_state: SimulationState) -> None:
+    def transition_state(self, new_state: SimulationState, trigger: str = "user_request") -> None:
         """Validate and execute state transition."""
         if new_state not in VALID_STATE_TRANSITIONS.get(self._state, set()):
             raise ValueError(
@@ -153,7 +153,7 @@ class SimulationEngine:
 
         old_state = self._state
         self._state = new_state
-        self._emit_control_event(f"simulation.{new_state.value}", old_state)
+        self._emit_control_event(f"simulation.{new_state.value}", old_state, trigger)
 
     def register_driver(self, driver: "DriverAgent") -> None:
         """Add driver to active registry."""
@@ -167,7 +167,7 @@ class SimulationEngine:
         """Transition to RUNNING and launch all processes."""
         old_state = self._state
         self._state = SimulationState.RUNNING
-        self._emit_control_event("simulation.started", old_state)
+        self._emit_control_event("simulation.started", old_state, "user_request")
         self._start_agent_processes()
         self._start_periodic_processes()
 
@@ -211,9 +211,16 @@ class SimulationEngine:
             event = {
                 "event_id": str(uuid4()),
                 "event_type": "simulation.speed_changed",
-                "timestamp": datetime.now(UTC).isoformat(),
+                "timestamp": self._time_manager.format_timestamp(),
+                "previous_state": self._state.value,
+                "new_state": self._state.value,
+                "speed_multiplier": multiplier,
+                "trigger": "user_request",
                 "previous_speed": previous_speed,
                 "new_speed": multiplier,
+                "active_drivers": self.active_driver_count,
+                "active_riders": self.active_rider_count,
+                "in_flight_trips": len(self._get_in_flight_trips()),
             }
             self._kafka_producer.produce(
                 topic="simulation-control",
@@ -223,12 +230,22 @@ class SimulationEngine:
 
     def pause(self) -> None:
         """Initiate two-phase pause: RUNNING -> DRAINING -> PAUSED."""
-        self.transition_state(SimulationState.DRAINING)
+        if SimulationState.DRAINING not in VALID_STATE_TRANSITIONS.get(self._state, set()):
+            raise ValueError(f"Invalid state transition from {self._state.value} to draining")
+
+        old_state = self._state
+        self._state = SimulationState.DRAINING
+        self._emit_control_event("simulation.draining", old_state, "user_request")
         self._drain_process = self._env.process(self._run_drain_process())  # type: ignore[no-untyped-call]
 
     def resume(self) -> None:
         """Transition from PAUSED to RUNNING."""
-        self.transition_state(SimulationState.RUNNING)
+        if SimulationState.RUNNING not in VALID_STATE_TRANSITIONS.get(self._state, set()):
+            raise ValueError(f"Invalid state transition from {self._state.value} to running")
+
+        old_state = self._state
+        self._state = SimulationState.RUNNING
+        self._emit_control_event("simulation.resumed", old_state, "user_request")
         self._start_agent_processes()
         self._start_periodic_processes()
 
@@ -389,26 +406,11 @@ class SimulationEngine:
         """Complete pause sequence and emit event."""
         old_state = self._state
         self._state = SimulationState.PAUSED
+        self._emit_control_event("simulation.paused", old_state, trigger)
 
-        if self._kafka_producer:
-            event = {
-                "event_id": str(uuid4()),
-                "event_type": "simulation.paused",
-                "timestamp": datetime.now(UTC).isoformat(),
-                "previous_state": old_state.value,
-                "new_state": self._state.value,
-                "trigger": trigger,
-                "in_flight_trips": 0,
-                "active_drivers": self.active_driver_count,
-                "active_riders": self.active_rider_count,
-            }
-            self._kafka_producer.produce(
-                topic="simulation-control",
-                key="engine",
-                value=event,
-            )
-
-    def _emit_control_event(self, event_type: str, old_state: SimulationState) -> None:
+    def _emit_control_event(
+        self, event_type: str, old_state: SimulationState, trigger: str
+    ) -> None:
         """Emit simulation control event."""
         if not self._kafka_producer:
             return
@@ -416,9 +418,14 @@ class SimulationEngine:
         event = {
             "event_id": str(uuid4()),
             "event_type": event_type,
-            "timestamp": datetime.now(UTC).isoformat(),
+            "timestamp": self._time_manager.format_timestamp(),
             "previous_state": old_state.value,
             "new_state": self._state.value,
+            "speed_multiplier": self._speed_multiplier,
+            "trigger": trigger,
+            "active_drivers": self.active_driver_count,
+            "active_riders": self.active_rider_count,
+            "in_flight_trips": len(self._get_in_flight_trips()),
         }
 
         self._kafka_producer.produce(

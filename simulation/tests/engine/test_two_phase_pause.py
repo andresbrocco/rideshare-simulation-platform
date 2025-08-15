@@ -35,16 +35,6 @@ def mock_osrm_client():
 
 
 @pytest.fixture
-def mock_sqlite_db():
-    db = Mock()
-    session_mock = Mock()
-    session_mock.__enter__ = Mock(return_value=session_mock)
-    session_mock.__exit__ = Mock(return_value=None)
-    db.session = Mock(return_value=session_mock)
-    return db
-
-
-@pytest.fixture
 def simulation_start_time():
     return datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC)
 
