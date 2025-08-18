@@ -8,6 +8,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from redis.asyncio import Redis
 
+from src.routes import simulation
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -71,6 +73,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+app.include_router(simulation.router, prefix="/simulation", tags=["simulation"])
 
 
 @app.get("/health")
