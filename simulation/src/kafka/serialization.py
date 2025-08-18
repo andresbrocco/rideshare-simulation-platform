@@ -5,8 +5,8 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from src.kafka.data_corruption import DataCorruptor, get_corruptor
-from src.kafka.schema_registry import SchemaRegistry
+from kafka.data_corruption import DataCorruptor, get_corruptor
+from kafka.schema_registry import SchemaRegistry
 
 
 class EventSerializer:
@@ -93,7 +93,9 @@ class PaymentEventSerializer(EventSerializer):
 
 class DriverProfileEventSerializer(EventSerializer):
     def __init__(self, schema_registry: SchemaRegistry, schema_base_path: Path) -> None:
-        super().__init__(schema_registry, schema_base_path / "driver_profile_event.json")
+        super().__init__(
+            schema_registry, schema_base_path / "driver_profile_event.json"
+        )
 
 
 class RiderProfileEventSerializer(EventSerializer):
