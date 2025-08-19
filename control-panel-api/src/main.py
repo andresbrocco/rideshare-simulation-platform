@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from redis.asyncio import Redis
 
-from src.routes import agents, simulation
+from src.routes import agents, metrics, simulation
 
 
 @asynccontextmanager
@@ -85,6 +85,7 @@ app.add_middleware(
 
 app.include_router(simulation.router, prefix="/simulation", tags=["simulation"])
 app.include_router(agents.router, prefix="/agents", tags=["agents"])
+app.include_router(metrics.router, prefix="/metrics", tags=["metrics"])
 
 
 @app.get("/health")
