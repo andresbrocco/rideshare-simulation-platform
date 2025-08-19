@@ -4,11 +4,12 @@ from datetime import UTC, datetime
 
 from confluent_kafka import Producer
 from engine import SimulationEngine
+from engine.agent_factory import AgentFactory
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from redis.asyncio import Redis
 
-from src.routes import simulation
+from src.routes import agents, simulation
 
 
 @asynccontextmanager
@@ -44,9 +45,16 @@ async def lifespan(app: FastAPI):
         simulation_start_time=simulation_start_time,
     )
 
+    agent_factory = AgentFactory(
+        simulation_engine=engine,
+        sqlite_db=None,
+        kafka_producer=kafka_producer,
+    )
+
     app.state.engine = engine
     app.state.kafka_producer = kafka_producer
     app.state.redis_client = redis_client
+    app.state.agent_factory = agent_factory
 
     yield
 
@@ -76,6 +84,7 @@ app.add_middleware(
 
 
 app.include_router(simulation.router, prefix="/simulation", tags=["simulation"])
+app.include_router(agents.router, prefix="/agents", tags=["agents"])
 
 
 @app.get("/health")
