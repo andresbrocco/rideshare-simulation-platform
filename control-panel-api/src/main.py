@@ -9,8 +9,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from redis.asyncio import Redis
 
+from src.redis_subscriber import RedisSubscriber
 from src.routes import agents, metrics, simulation
 from src.snapshots import StateSnapshotManager
+from src.websocket import manager as connection_manager
 from src.websocket import router as websocket_router
 
 
@@ -54,14 +56,20 @@ async def lifespan(app: FastAPI):
     )
 
     snapshot_manager = StateSnapshotManager(redis_client)
+    subscriber = RedisSubscriber(redis_client, connection_manager)
 
     app.state.engine = engine
     app.state.kafka_producer = kafka_producer
     app.state.redis_client = redis_client
     app.state.agent_factory = agent_factory
     app.state.snapshot_manager = snapshot_manager
+    app.state.subscriber = subscriber
+
+    await subscriber.start()
 
     yield
+
+    await subscriber.stop()
 
     if engine.state.value == "running":
         engine.stop()
