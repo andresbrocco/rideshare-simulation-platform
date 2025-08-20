@@ -10,6 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from redis.asyncio import Redis
 
 from src.routes import agents, metrics, simulation
+from src.snapshots import StateSnapshotManager
+from src.websocket import router as websocket_router
 
 
 @asynccontextmanager
@@ -51,10 +53,13 @@ async def lifespan(app: FastAPI):
         kafka_producer=kafka_producer,
     )
 
+    snapshot_manager = StateSnapshotManager(redis_client)
+
     app.state.engine = engine
     app.state.kafka_producer = kafka_producer
     app.state.redis_client = redis_client
     app.state.agent_factory = agent_factory
+    app.state.snapshot_manager = snapshot_manager
 
     yield
 
@@ -86,6 +91,7 @@ app.add_middleware(
 app.include_router(simulation.router, prefix="/simulation", tags=["simulation"])
 app.include_router(agents.router, prefix="/agents", tags=["agents"])
 app.include_router(metrics.router, prefix="/metrics", tags=["metrics"])
+app.include_router(websocket_router)
 
 
 @app.get("/health")
