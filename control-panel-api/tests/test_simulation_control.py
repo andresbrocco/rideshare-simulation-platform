@@ -55,109 +55,114 @@ def mock_simulation_engine():
 
 @pytest.fixture
 def test_client(mock_kafka_producer, mock_redis_client, mock_simulation_engine):
-    with patch("src.main.Producer", return_value=mock_kafka_producer):
-        with patch("src.main.Redis", return_value=mock_redis_client):
-            with patch(
-                "src.main.SimulationEngine", return_value=mock_simulation_engine
-            ):
-                from src.main import app
+    with patch.dict("os.environ", {"API_KEY": "test-api-key"}):
+        with patch("src.main.Producer", return_value=mock_kafka_producer):
+            with patch("src.main.Redis", return_value=mock_redis_client):
+                with patch(
+                    "src.main.SimulationEngine", return_value=mock_simulation_engine
+                ):
+                    from src.main import app
 
-                app.state.engine = mock_simulation_engine
-                yield TestClient(app)
+                    app.state.engine = mock_simulation_engine
+                    yield TestClient(app)
 
 
-def test_start_simulation(test_client, mock_simulation_engine):
+def test_start_simulation(test_client, mock_simulation_engine, auth_headers):
     """Starts simulation from STOPPED."""
     mock_simulation_engine.state.value = "stopped"
 
-    response = test_client.post("/simulation/start")
+    response = test_client.post("/simulation/start", headers=auth_headers)
 
     assert response.status_code == 200
     assert response.json()["status"] == "started"
     mock_simulation_engine.start.assert_called_once()
 
 
-def test_start_already_running(test_client, mock_simulation_engine):
+def test_start_already_running(test_client, mock_simulation_engine, auth_headers):
     """Rejects start when already RUNNING."""
     mock_simulation_engine.state.value = "running"
 
-    response = test_client.post("/simulation/start")
+    response = test_client.post("/simulation/start", headers=auth_headers)
 
     assert response.status_code == 400
     assert "already running" in response.json()["detail"].lower()
 
 
-def test_pause_simulation(test_client, mock_simulation_engine):
+def test_pause_simulation(test_client, mock_simulation_engine, auth_headers):
     """Initiates two-phase pause."""
     mock_simulation_engine.state.value = "running"
 
-    response = test_client.post("/simulation/pause")
+    response = test_client.post("/simulation/pause", headers=auth_headers)
 
     assert response.status_code == 200
     assert response.json()["status"] == "pausing"
     mock_simulation_engine.pause.assert_called_once()
 
 
-def test_pause_not_running(test_client, mock_simulation_engine):
+def test_pause_not_running(test_client, mock_simulation_engine, auth_headers):
     """Rejects pause when not RUNNING."""
     mock_simulation_engine.state.value = "stopped"
 
-    response = test_client.post("/simulation/pause")
+    response = test_client.post("/simulation/pause", headers=auth_headers)
 
     assert response.status_code == 400
     assert "not running" in response.json()["detail"].lower()
 
 
-def test_resume_simulation(test_client, mock_simulation_engine):
+def test_resume_simulation(test_client, mock_simulation_engine, auth_headers):
     """Resumes from PAUSED state."""
     mock_simulation_engine.state.value = "paused"
 
-    response = test_client.post("/simulation/resume")
+    response = test_client.post("/simulation/resume", headers=auth_headers)
 
     assert response.status_code == 200
     assert response.json()["status"] == "resumed"
     mock_simulation_engine.resume.assert_called_once()
 
 
-def test_resume_not_paused(test_client, mock_simulation_engine):
+def test_resume_not_paused(test_client, mock_simulation_engine, auth_headers):
     """Rejects resume when not PAUSED."""
     mock_simulation_engine.state.value = "running"
 
-    response = test_client.post("/simulation/resume")
+    response = test_client.post("/simulation/resume", headers=auth_headers)
 
     assert response.status_code == 400
     assert "not paused" in response.json()["detail"].lower()
 
 
-def test_reset_simulation(test_client, mock_simulation_engine):
+def test_reset_simulation(test_client, mock_simulation_engine, auth_headers):
     """Resets to initial state."""
     mock_simulation_engine.state.value = "running"
     mock_simulation_engine.reset = Mock()
 
-    response = test_client.post("/simulation/reset")
+    response = test_client.post("/simulation/reset", headers=auth_headers)
 
     assert response.status_code == 200
     assert response.json()["status"] == "reset"
 
 
-def test_change_speed_valid(test_client, mock_simulation_engine):
+def test_change_speed_valid(test_client, mock_simulation_engine, auth_headers):
     """Changes speed multiplier."""
-    response = test_client.put("/simulation/speed", json={"multiplier": 10})
+    response = test_client.put(
+        "/simulation/speed", json={"multiplier": 10}, headers=auth_headers
+    )
 
     assert response.status_code == 200
     assert response.json()["speed"] == 10
     mock_simulation_engine.set_speed.assert_called_once_with(10)
 
 
-def test_change_speed_invalid(test_client, mock_simulation_engine):
+def test_change_speed_invalid(test_client, mock_simulation_engine, auth_headers):
     """Rejects invalid multiplier."""
-    response = test_client.put("/simulation/speed", json={"multiplier": 5})
+    response = test_client.put(
+        "/simulation/speed", json={"multiplier": 5}, headers=auth_headers
+    )
 
     assert response.status_code == 400
     assert "1, 10, or 100" in response.json()["detail"]
 
 
-def test_get_status(test_client, mock_simulation_engine):
+def test_get_status(test_client, mock_simulation_engine, auth_headers):
     """Returns current simulation state."""
     mock_simulation_engine.state.value = "running"
     mock_simulation_engine.speed_multiplier = 10
@@ -165,7 +170,7 @@ def test_get_status(test_client, mock_simulation_engine):
     mock_simulation_engine.active_rider_count = 10
     mock_simulation_engine._get_in_flight_trips.return_value = [1, 2, 3]
 
-    response = test_client.get("/simulation/status")
+    response = test_client.get("/simulation/status", headers=auth_headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -174,14 +179,14 @@ def test_get_status(test_client, mock_simulation_engine):
     assert "current_time" in data
 
 
-def test_get_status_includes_counts(test_client, mock_simulation_engine):
+def test_get_status_includes_counts(test_client, mock_simulation_engine, auth_headers):
     """Status includes agent counts."""
     mock_simulation_engine.state.value = "running"
     mock_simulation_engine.active_driver_count = 5
     mock_simulation_engine.active_rider_count = 10
     mock_simulation_engine._get_in_flight_trips.return_value = [1, 2, 3]
 
-    response = test_client.get("/simulation/status")
+    response = test_client.get("/simulation/status", headers=auth_headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -190,22 +195,22 @@ def test_get_status_includes_counts(test_client, mock_simulation_engine):
     assert data["active_trips_count"] == 3
 
 
-def test_stop_simulation(test_client, mock_simulation_engine):
+def test_stop_simulation(test_client, mock_simulation_engine, auth_headers):
     """Stops running simulation."""
     mock_simulation_engine.state.value = "running"
 
-    response = test_client.post("/simulation/stop")
+    response = test_client.post("/simulation/stop", headers=auth_headers)
 
     assert response.status_code == 200
     assert response.json()["status"] == "stopped"
     mock_simulation_engine.stop.assert_called_once()
 
 
-def test_stop_already_stopped(test_client, mock_simulation_engine):
+def test_stop_already_stopped(test_client, mock_simulation_engine, auth_headers):
     """Rejects stop when already STOPPED."""
     mock_simulation_engine.state.value = "stopped"
 
-    response = test_client.post("/simulation/stop")
+    response = test_client.post("/simulation/stop", headers=auth_headers)
 
     assert response.status_code == 400
     assert "already stopped" in response.json()["detail"].lower()

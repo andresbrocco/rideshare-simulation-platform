@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from src.auth import verify_api_key
 from src.models.agents import (
     AgentCreateRequest,
     DriversCreateResponse,
     RidersCreateResponse,
 )
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(verify_api_key)])
 
 
 def get_agent_factory(request: Request):

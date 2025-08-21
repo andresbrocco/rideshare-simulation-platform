@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from src.auth import verify_api_key
 from src.models.simulation import (
     ControlResponse,
     SimulationStatusResponse,
@@ -10,7 +11,7 @@ from src.models.simulation import (
     SpeedChangeResponse,
 )
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(verify_api_key)])
 
 _simulation_start_wall_time: float | None = None
 

@@ -3,6 +3,7 @@ from typing import Callable
 
 from fastapi import APIRouter, Depends, Request
 
+from src.auth import verify_api_key
 from src.models.metrics import (
     DriverMetrics,
     OverviewMetrics,
@@ -10,7 +11,7 @@ from src.models.metrics import (
     ZoneMetrics,
 )
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(verify_api_key)])
 
 CACHE_TTL = 5
 _metrics_cache: dict = {}

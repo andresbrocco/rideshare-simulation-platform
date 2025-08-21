@@ -67,26 +67,27 @@ def mock_driver_registry():
 def test_client(
     mock_kafka_producer, mock_redis_client, mock_simulation_engine, mock_driver_registry
 ):
-    with patch("src.main.Producer", return_value=mock_kafka_producer):
-        with patch("src.main.Redis", return_value=mock_redis_client):
-            with patch(
-                "src.main.SimulationEngine", return_value=mock_simulation_engine
-            ):
-                from src.main import app
+    with patch.dict("os.environ", {"API_KEY": "test-api-key"}):
+        with patch("src.main.Producer", return_value=mock_kafka_producer):
+            with patch("src.main.Redis", return_value=mock_redis_client):
+                with patch(
+                    "src.main.SimulationEngine", return_value=mock_simulation_engine
+                ):
+                    from src.main import app
 
-                app.state.engine = mock_simulation_engine
-                app.state.driver_registry = mock_driver_registry
-                yield TestClient(app)
+                    app.state.engine = mock_simulation_engine
+                    app.state.driver_registry = mock_driver_registry
+                    yield TestClient(app)
 
 
 def test_get_overview_metrics(
-    test_client, mock_simulation_engine, mock_driver_registry
+    test_client, mock_simulation_engine, mock_driver_registry, auth_headers
 ):
     """Returns total counts."""
     mock_simulation_engine.active_driver_count = 10
     mock_simulation_engine.active_rider_count = 5
 
-    response = test_client.get("/metrics/overview")
+    response = test_client.get("/metrics/overview", headers=auth_headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -95,9 +96,9 @@ def test_get_overview_metrics(
     assert "active_trips" in data
 
 
-def test_overview_includes_all_fields(test_client):
+def test_overview_includes_all_fields(test_client, auth_headers):
     """All required fields present."""
-    response = test_client.get("/metrics/overview")
+    response = test_client.get("/metrics/overview", headers=auth_headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -109,18 +110,18 @@ def test_overview_includes_all_fields(test_client):
     assert "completed_trips_today" in data
 
 
-def test_get_zone_metrics(test_client):
+def test_get_zone_metrics(test_client, auth_headers):
     """Returns per-zone metrics."""
-    response = test_client.get("/metrics/zones")
+    response = test_client.get("/metrics/zones", headers=auth_headers)
 
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, list)
 
 
-def test_zone_metrics_includes_surge(test_client):
+def test_zone_metrics_includes_surge(test_client, auth_headers):
     """Zone metrics include surge."""
-    response = test_client.get("/metrics/zones")
+    response = test_client.get("/metrics/zones", headers=auth_headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -128,9 +129,9 @@ def test_zone_metrics_includes_surge(test_client):
         assert "surge_multiplier" in data[0]
 
 
-def test_zone_metrics_includes_supply(test_client):
+def test_zone_metrics_includes_supply(test_client, auth_headers):
     """Zone metrics include drivers."""
-    response = test_client.get("/metrics/zones")
+    response = test_client.get("/metrics/zones", headers=auth_headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -138,9 +139,9 @@ def test_zone_metrics_includes_supply(test_client):
         assert "online_drivers" in data[0]
 
 
-def test_zone_metrics_includes_demand(test_client):
+def test_zone_metrics_includes_demand(test_client, auth_headers):
     """Zone metrics include waiting riders."""
-    response = test_client.get("/metrics/zones")
+    response = test_client.get("/metrics/zones", headers=auth_headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -148,9 +149,9 @@ def test_zone_metrics_includes_demand(test_client):
         assert "waiting_riders" in data[0]
 
 
-def test_get_trip_metrics(test_client):
+def test_get_trip_metrics(test_client, auth_headers):
     """Returns trip statistics."""
-    response = test_client.get("/metrics/trips")
+    response = test_client.get("/metrics/trips", headers=auth_headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -159,9 +160,9 @@ def test_get_trip_metrics(test_client):
     assert "avg_fare" in data
 
 
-def test_trip_metrics_avg_fare(test_client):
+def test_trip_metrics_avg_fare(test_client, auth_headers):
     """Calculates average fare."""
-    response = test_client.get("/metrics/trips")
+    response = test_client.get("/metrics/trips", headers=auth_headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -169,9 +170,9 @@ def test_trip_metrics_avg_fare(test_client):
     assert isinstance(data["avg_fare"], (int, float))
 
 
-def test_get_driver_metrics(test_client, mock_driver_registry):
+def test_get_driver_metrics(test_client, mock_driver_registry, auth_headers):
     """Returns driver status counts."""
-    response = test_client.get("/metrics/drivers")
+    response = test_client.get("/metrics/drivers", headers=auth_headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -183,9 +184,9 @@ def test_get_driver_metrics(test_client, mock_driver_registry):
     assert "total" in data
 
 
-def test_driver_metrics_sum_to_total(test_client, mock_driver_registry):
+def test_driver_metrics_sum_to_total(test_client, mock_driver_registry, auth_headers):
     """Status counts sum to total."""
-    response = test_client.get("/metrics/drivers")
+    response = test_client.get("/metrics/drivers", headers=auth_headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -200,26 +201,26 @@ def test_driver_metrics_sum_to_total(test_client, mock_driver_registry):
     assert status_sum == total
 
 
-def test_metrics_caching(test_client):
+def test_metrics_caching(test_client, auth_headers):
     """Caches metrics briefly."""
-    response1 = test_client.get("/metrics/overview")
-    response2 = test_client.get("/metrics/overview")
+    response1 = test_client.get("/metrics/overview", headers=auth_headers)
+    response2 = test_client.get("/metrics/overview", headers=auth_headers)
 
     assert response1.status_code == 200
     assert response2.status_code == 200
     assert response1.json() == response2.json()
 
 
-def test_metrics_cache_expiry(test_client, mock_simulation_engine):
+def test_metrics_cache_expiry(test_client, mock_simulation_engine, auth_headers):
     """Cache expires after TTL."""
-    response1 = test_client.get("/metrics/overview")
+    response1 = test_client.get("/metrics/overview", headers=auth_headers)
     assert response1.status_code == 200
     data1 = response1.json()
 
     time.sleep(6)
 
     mock_simulation_engine.active_driver_count = 99
-    response2 = test_client.get("/metrics/overview")
+    response2 = test_client.get("/metrics/overview", headers=auth_headers)
     assert response2.status_code == 200
     data2 = response2.json()
 
