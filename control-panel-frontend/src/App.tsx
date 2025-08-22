@@ -1,13 +1,20 @@
 import { useState } from 'react';
+import LoginScreen from './components/LoginScreen';
 import './App.css';
 
 function App() {
-  const [apiKey] = useState<string | null>(sessionStorage.getItem('api_key'));
+  const [apiKey, setApiKey] = useState<string | null>(() => {
+    return sessionStorage.getItem('apiKey');
+  });
+
+  const handleLogin = (key: string) => {
+    setApiKey(key);
+  };
 
   return (
     <div className="App">
       <h1>Rideshare Simulation Control Panel</h1>
-      {!apiKey ? <div>Login screen placeholder</div> : <div>Dashboard placeholder</div>}
+      {!apiKey ? <LoginScreen onLogin={handleLogin} /> : <div>Dashboard placeholder</div>}
     </div>
   );
 }

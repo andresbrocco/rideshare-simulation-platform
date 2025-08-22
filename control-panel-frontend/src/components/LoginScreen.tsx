@@ -6,12 +6,37 @@ interface LoginScreenProps {
 
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [apiKey, setApiKey] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (apiKey.trim()) {
-      onLogin(apiKey);
+    if (!apiKey.trim()) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/health`, {
+        headers: { 'X-API-Key': apiKey },
+      });
+
+      if (response.ok) {
+        sessionStorage.setItem('apiKey', apiKey);
+        onLogin(apiKey);
+      } else {
+        setError('Invalid API key. Please check and try again.');
+      }
+    } catch {
+      setError('Failed to connect to the server. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setApiKey(e.target.value);
+    if (error) setError(null);
   };
 
   return (
@@ -26,13 +51,26 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             id="apiKey"
             type="password"
             value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="Enter your API key"
+            onChange={handleInputChange}
+            placeholder="Enter API Key"
             style={{ width: '100%', padding: '8px', fontSize: '16px' }}
           />
         </div>
-        <button type="submit" style={{ width: '100%', padding: '10px', fontSize: '16px' }}>
-          Login
+        {error && (
+          <div style={{ color: 'red', marginBottom: '16px', fontSize: '14px' }}>{error}</div>
+        )}
+        <button
+          type="submit"
+          disabled={!apiKey.trim() || isLoading}
+          style={{
+            width: '100%',
+            padding: '10px',
+            fontSize: '16px',
+            cursor: !apiKey.trim() || isLoading ? 'not-allowed' : 'pointer',
+            opacity: !apiKey.trim() || isLoading ? 0.6 : 1,
+          }}
+        >
+          {isLoading ? 'Connecting...' : 'Connect'}
         </button>
       </form>
     </div>
