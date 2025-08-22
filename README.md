@@ -28,12 +28,17 @@ Edit `.env` and set the following required variables:
 **API Authentication**
 - `API_KEY` - Generate a secure key with: `openssl rand -hex 32`
 
+**Control Panel Frontend**
+- `VITE_API_URL` - Backend API URL (default: http://localhost:8000)
+- `VITE_WS_URL` - WebSocket URL for real-time updates (default: ws://localhost:8000/ws)
+
 **Optional Variables (have sensible defaults)**
 - `SIM_SPEED_MULTIPLIER` - Simulation speed (default: 1)
 - `SIM_LOG_LEVEL` - Logging level (default: INFO)
 - `REDIS_HOST` - Redis hostname (default: localhost)
 - `OSRM_BASE_URL` - OSRM routing service (default: http://localhost:5000)
 - `AWS_REGION` - AWS region (default: us-east-1)
+- `CORS_ORIGINS` - CORS allowed origins (default: http://localhost:5173,http://localhost:3000)
 
 ### 3. Local Development
 

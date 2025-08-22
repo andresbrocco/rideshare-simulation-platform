@@ -1,8 +1,9 @@
-import os
 from typing import Set
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from fastapi.websockets import WebSocketState
+
+from src.settings import get_settings
 
 router = APIRouter()
 
@@ -35,9 +36,9 @@ manager = ConnectionManager()
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     api_key = websocket.query_params.get("api_key")
-    expected_key = os.getenv("API_KEY", "test123")
+    settings = get_settings()
 
-    if not api_key or api_key != expected_key:
+    if not api_key or api_key != settings.api.key:
         await websocket.close(code=1008)
         return
 

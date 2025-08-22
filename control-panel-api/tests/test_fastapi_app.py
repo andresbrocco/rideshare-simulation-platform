@@ -84,14 +84,15 @@ async def test_lifespan_shutdown(
 
 
 def test_health_endpoint_returns_ok():
-    """Health check returns 200 OK."""
-    from src.main import app
+    """Health check returns 200 OK with valid API key."""
+    with patch.dict("os.environ", {"API_KEY": "test-key"}):
+        from src.main import app
 
-    client = TestClient(app)
-    response = client.get("/health")
+        client = TestClient(app)
+        response = client.get("/health", headers={"X-API-Key": "test-key"})
 
-    assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok"}
 
 
 def test_cors_configured():
@@ -128,14 +129,15 @@ async def test_engine_dependency(
                     assert engine is mock_simulation_engine
 
 
-def test_health_endpoint_no_auth():
-    """Health endpoint bypasses auth."""
-    from src.main import app
+def test_health_endpoint_requires_auth():
+    """Health endpoint requires auth."""
+    with patch.dict("os.environ", {"API_KEY": "test-key"}):
+        from src.main import app
 
-    client = TestClient(app)
-    response = client.get("/health")
+        client = TestClient(app)
+        response = client.get("/health")
 
-    assert response.status_code == 200
+        assert response.status_code == 422
 
 
 @pytest.mark.asyncio

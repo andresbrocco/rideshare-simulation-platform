@@ -89,9 +89,12 @@ def test_missing_api_key(test_client):
     assert response.status_code == 422
 
 
-def test_health_endpoint_no_auth(test_client):
-    """Health endpoint bypasses auth."""
+def test_health_endpoint_requires_auth(test_client):
+    """Health endpoint requires auth."""
     response = test_client.get("/health")
+    assert response.status_code == 422
+
+    response = test_client.get("/health", headers={"X-API-Key": "test-api-key"})
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
 

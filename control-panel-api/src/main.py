@@ -1,16 +1,17 @@
-import os
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
 from confluent_kafka import Producer
 from engine import SimulationEngine
 from engine.agent_factory import AgentFactory
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from redis.asyncio import Redis
 
+from src.auth import verify_api_key
 from src.redis_subscriber import RedisSubscriber
 from src.routes import agents, metrics, simulation
+from src.settings import get_settings
 from src.snapshots import StateSnapshotManager
 from src.websocket import manager as connection_manager
 from src.websocket import router as websocket_router
@@ -19,22 +20,24 @@ from src.websocket import router as websocket_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application startup and shutdown."""
+    settings = get_settings()
+
     kafka_config = {
-        "bootstrap.servers": os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"),
-        "security.protocol": os.getenv("KAFKA_SECURITY_PROTOCOL", "PLAINTEXT"),
+        "bootstrap.servers": settings.kafka.bootstrap_servers,
+        "security.protocol": settings.kafka.security_protocol,
     }
 
-    if os.getenv("KAFKA_SASL_USERNAME"):
-        kafka_config["sasl.mechanisms"] = "PLAIN"
-        kafka_config["sasl.username"] = os.getenv("KAFKA_SASL_USERNAME")
-        kafka_config["sasl.password"] = os.getenv("KAFKA_SASL_PASSWORD")
+    if settings.kafka.sasl_username:
+        kafka_config["sasl.mechanisms"] = settings.kafka.sasl_mechanisms
+        kafka_config["sasl.username"] = settings.kafka.sasl_username
+        kafka_config["sasl.password"] = settings.kafka.sasl_password
 
     kafka_producer = Producer(kafka_config)
 
     redis_client = Redis(
-        host=os.getenv("REDIS_HOST", "localhost"),
-        port=int(os.getenv("REDIS_PORT", "6379")),
-        password=os.getenv("REDIS_PASSWORD"),
+        host=settings.redis.host,
+        port=settings.redis.port,
+        password=settings.redis.password,
         decode_responses=True,
     )
 
@@ -85,7 +88,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+settings = get_settings()
+origins = settings.cors.origins.split(",")
 
 app.add_middleware(
     CORSMiddleware,
@@ -102,7 +106,7 @@ app.include_router(metrics.router, prefix="/metrics", tags=["metrics"])
 app.include_router(websocket_router)
 
 
-@app.get("/health")
+@app.get("/health", dependencies=[Depends(verify_api_key)])
 async def health_check():
     """Health check endpoint for monitoring."""
     return {"status": "ok"}

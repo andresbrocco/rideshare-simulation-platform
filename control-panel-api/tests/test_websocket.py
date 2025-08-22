@@ -75,116 +75,108 @@ def test_client(
     mock_simulation_engine,
     mock_snapshot_manager,
 ):
-    with patch("main.Producer", return_value=mock_kafka_producer):
-        with patch("main.Redis", return_value=mock_redis_client):
-            with patch("main.SimulationEngine", return_value=mock_simulation_engine):
+    with patch.dict("os.environ", {"API_KEY": "test-api-key"}):
+        with patch("main.Producer", return_value=mock_kafka_producer):
+            with patch("main.Redis", return_value=mock_redis_client):
                 with patch(
-                    "main.StateSnapshotManager", return_value=mock_snapshot_manager
+                    "main.SimulationEngine", return_value=mock_simulation_engine
                 ):
-                    from main import app
+                    with patch(
+                        "main.StateSnapshotManager", return_value=mock_snapshot_manager
+                    ):
+                        from main import app
 
-                    app.state.engine = mock_simulation_engine
-                    app.state.snapshot_manager = mock_snapshot_manager
-                    yield TestClient(app)
+                        app.state.engine = mock_simulation_engine
+                        app.state.snapshot_manager = mock_snapshot_manager
+                        yield TestClient(app)
 
 
 def test_websocket_connect_success(test_client, mock_snapshot_manager):
     """Successfully connects with valid API key."""
-    with patch("os.getenv", return_value="test123"):
-        with test_client.websocket_connect("/ws?api_key=test123") as websocket:
-            data = websocket.receive_json()
-            assert data["type"] == "snapshot"
-            assert "drivers" in data["data"]
-            assert "trips" in data["data"]
-            assert "surge" in data["data"]
+    with test_client.websocket_connect("/ws?api_key=test-api-key") as websocket:
+        data = websocket.receive_json()
+        assert data["type"] == "snapshot"
+        assert "drivers" in data["data"]
+        assert "trips" in data["data"]
+        assert "surge" in data["data"]
 
 
 def test_websocket_connect_invalid_key(test_client):
     """Rejects connection with invalid API key."""
-    with patch("os.getenv", return_value="test123"):
-        with pytest.raises(Exception):
-            with test_client.websocket_connect("/ws?api_key=wrong"):
-                pass
+    with pytest.raises(Exception):
+        with test_client.websocket_connect("/ws?api_key=wrong"):
+            pass
 
 
 def test_websocket_connect_missing_key(test_client):
     """Rejects connection with missing API key."""
-    with patch("os.getenv", return_value="test123"):
-        with pytest.raises(Exception):
-            with test_client.websocket_connect("/ws"):
-                pass
+    with pytest.raises(Exception):
+        with test_client.websocket_connect("/ws"):
+            pass
 
 
 def test_websocket_sends_snapshot(test_client, mock_snapshot_manager):
     """Sends snapshot immediately on connection."""
-    with patch("os.getenv", return_value="test123"):
-        with test_client.websocket_connect("/ws?api_key=test123") as websocket:
-            data = websocket.receive_json()
-            assert data["type"] == "snapshot"
-            mock_snapshot_manager.get_snapshot.assert_called_once()
+    with test_client.websocket_connect("/ws?api_key=test-api-key") as websocket:
+        data = websocket.receive_json()
+        assert data["type"] == "snapshot"
+        mock_snapshot_manager.get_snapshot.assert_called_once()
 
 
 def test_websocket_snapshot_includes_drivers(test_client, mock_snapshot_manager):
     """Snapshot includes driver data."""
-    with patch("os.getenv", return_value="test123"):
-        with test_client.websocket_connect("/ws?api_key=test123") as websocket:
-            data = websocket.receive_json()
-            assert len(data["data"]["drivers"]) == 1
-            assert data["data"]["drivers"][0]["driver_id"] == "driver-1"
+    with test_client.websocket_connect("/ws?api_key=test-api-key") as websocket:
+        data = websocket.receive_json()
+        assert len(data["data"]["drivers"]) == 1
+        assert data["data"]["drivers"][0]["driver_id"] == "driver-1"
 
 
 def test_websocket_snapshot_includes_trips(test_client, mock_snapshot_manager):
     """Snapshot includes trip data."""
-    with patch("os.getenv", return_value="test123"):
-        with test_client.websocket_connect("/ws?api_key=test123") as websocket:
-            data = websocket.receive_json()
-            assert len(data["data"]["trips"]) == 1
-            assert data["data"]["trips"][0]["trip_id"] == "trip-1"
+    with test_client.websocket_connect("/ws?api_key=test-api-key") as websocket:
+        data = websocket.receive_json()
+        assert len(data["data"]["trips"]) == 1
+        assert data["data"]["trips"][0]["trip_id"] == "trip-1"
 
 
 def test_websocket_snapshot_includes_surge(test_client, mock_snapshot_manager):
     """Snapshot includes surge pricing data."""
-    with patch("os.getenv", return_value="test123"):
-        with test_client.websocket_connect("/ws?api_key=test123") as websocket:
-            data = websocket.receive_json()
-            assert data["data"]["surge"]["zone-1"] == 1.5
-            assert data["data"]["surge"]["zone-2"] == 1.0
+    with test_client.websocket_connect("/ws?api_key=test-api-key") as websocket:
+        data = websocket.receive_json()
+        assert data["data"]["surge"]["zone-1"] == 1.5
+        assert data["data"]["surge"]["zone-2"] == 1.0
 
 
 def test_websocket_streams_updates(test_client, mock_snapshot_manager):
     """WebSocket can send and receive messages."""
-    with patch("os.getenv", return_value="test123"):
-        with test_client.websocket_connect("/ws?api_key=test123") as websocket:
-            data = websocket.receive_json()
-            assert data["type"] == "snapshot"
+    with test_client.websocket_connect("/ws?api_key=test-api-key") as websocket:
+        data = websocket.receive_json()
+        assert data["type"] == "snapshot"
 
 
 def test_websocket_multiple_clients(test_client, mock_snapshot_manager):
     """Supports multiple concurrent WebSocket clients."""
-    with patch("os.getenv", return_value="test123"):
-        with test_client.websocket_connect("/ws?api_key=test123") as ws1:
-            with test_client.websocket_connect("/ws?api_key=test123") as ws2:
-                data1 = ws1.receive_json()
-                data2 = ws2.receive_json()
-                assert data1["type"] == "snapshot"
-                assert data2["type"] == "snapshot"
+    with test_client.websocket_connect("/ws?api_key=test-api-key") as ws1:
+        with test_client.websocket_connect("/ws?api_key=test-api-key") as ws2:
+            data1 = ws1.receive_json()
+            data2 = ws2.receive_json()
+            assert data1["type"] == "snapshot"
+            assert data2["type"] == "snapshot"
 
 
 def test_websocket_disconnect_graceful(test_client, mock_snapshot_manager):
     """Handles client disconnection gracefully."""
-    with patch("os.getenv", return_value="test123"):
-        with test_client.websocket_connect("/ws?api_key=test123") as websocket:
-            data = websocket.receive_json()
-            assert data["type"] == "snapshot"
+    with test_client.websocket_connect("/ws?api_key=test-api-key") as websocket:
+        data = websocket.receive_json()
+        assert data["type"] == "snapshot"
 
 
 def test_websocket_reconnect(test_client, mock_snapshot_manager):
     """Client can reconnect after disconnection."""
-    with patch("os.getenv", return_value="test123"):
-        with test_client.websocket_connect("/ws?api_key=test123") as websocket:
-            data = websocket.receive_json()
-            assert data["type"] == "snapshot"
+    with test_client.websocket_connect("/ws?api_key=test-api-key") as websocket:
+        data = websocket.receive_json()
+        assert data["type"] == "snapshot"
 
-        with test_client.websocket_connect("/ws?api_key=test123") as websocket:
-            data = websocket.receive_json()
-            assert data["type"] == "snapshot"
+    with test_client.websocket_connect("/ws?api_key=test-api-key") as websocket:
+        data = websocket.receive_json()
+        assert data["type"] == "snapshot"
