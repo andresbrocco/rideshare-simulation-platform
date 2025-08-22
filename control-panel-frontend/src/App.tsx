@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import LoginScreen from './components/LoginScreen';
+import Map from './components/Map';
 import './App.css';
 
 function App() {
@@ -13,8 +14,14 @@ function App() {
 
   return (
     <div className="App">
-      <h1>Rideshare Simulation Control Panel</h1>
-      {!apiKey ? <LoginScreen onLogin={handleLogin} /> : <div>Dashboard placeholder</div>}
+      {!apiKey ? (
+        <>
+          <h1>Rideshare Simulation Control Panel</h1>
+          <LoginScreen onLogin={handleLogin} />
+        </>
+      ) : (
+        <Map layers={[]} />
+      )}
     </div>
   );
 }

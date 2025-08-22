@@ -1,28 +1,47 @@
-import { useState } from 'react';
-import Map from 'react-map-gl/maplibre';
+import { useState, useRef } from 'react';
+import { Map as MapGL } from 'react-map-gl/maplibre';
+import type { MapRef } from 'react-map-gl/maplibre';
 import DeckGL from '@deck.gl/react';
-import type { ViewState } from '../types/simulation';
+import type { Layer } from '@deck.gl/core';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import styles from './Map.module.css';
 
-const INITIAL_VIEW_STATE: ViewState = {
-  longitude: -46.6333,
-  latitude: -23.5505,
-  zoom: 11,
-  pitch: 0,
-  bearing: 0,
-};
+interface MapProps {
+  layers?: Layer[];
+}
 
-export default function MapView() {
-  const [viewState, setViewState] = useState(INITIAL_VIEW_STATE);
+interface ViewState {
+  latitude: number;
+  longitude: number;
+  zoom: number;
+  pitch: number;
+  bearing: number;
+}
+
+export default function Map({ layers = [] }: MapProps) {
+  const mapRef = useRef<MapRef>(null);
+  const [viewState, setViewState] = useState<ViewState>({
+    latitude: -23.55,
+    longitude: -46.63,
+    zoom: 11,
+    pitch: 0,
+    bearing: 0,
+  });
 
   return (
-    <DeckGL
-      viewState={viewState}
-      onViewStateChange={({ viewState }) => setViewState(viewState as ViewState)}
-      controller={true}
-      layers={[]}
-      style={{ position: 'relative', width: '100%', height: '100vh' }}
-    >
-      <Map mapStyle="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json" />
-    </DeckGL>
+    <div className={styles['map-container']}>
+      <DeckGL
+        viewState={viewState}
+        onViewStateChange={({ viewState: newViewState }) => setViewState(newViewState as ViewState)}
+        layers={layers}
+        controller={true}
+      >
+        <MapGL
+          ref={mapRef}
+          mapStyle="https://demotiles.maplibre.org/style.json"
+          attributionControl={true}
+        />
+      </DeckGL>
+    </div>
   );
 }
