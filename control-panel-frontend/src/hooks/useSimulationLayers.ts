@@ -1,12 +1,13 @@
 import { useMemo } from 'react';
 import type { Layer } from '@deck.gl/core';
-import type { Driver, Rider, Trip, GPSTrail } from '../types/api';
+import type { Driver, Rider, Trip, GPSTrail, ZoneData, DemandPoint } from '../types/api';
 import {
   createDriverLayer,
   createRiderLayer,
   createTripsLayer,
   createPathLayer,
 } from '../layers/agentLayers';
+import { createZoneLayer, createHeatmapLayer } from '../layers/zoneLayers';
 
 interface UseSimulationLayersProps {
   drivers: Driver[];
@@ -14,6 +15,10 @@ interface UseSimulationLayersProps {
   trips: Trip[];
   trails: GPSTrail[];
   currentTime: number;
+  zoneData?: ZoneData[];
+  demandPoints?: DemandPoint[];
+  showZones?: boolean;
+  showHeatmap?: boolean;
 }
 
 export function useSimulationLayers({
@@ -22,13 +27,29 @@ export function useSimulationLayers({
   trips,
   trails,
   currentTime,
+  zoneData = [],
+  demandPoints = [],
+  showZones = true,
+  showHeatmap = false,
 }: UseSimulationLayersProps): Layer[] {
   return useMemo(() => {
-    return [
+    const layers: Layer[] = [];
+
+    if (zoneData.length > 0) {
+      layers.push(createZoneLayer(zoneData, showZones));
+    }
+
+    if (demandPoints.length > 0) {
+      layers.push(createHeatmapLayer(demandPoints, showHeatmap));
+    }
+
+    layers.push(
       createTripsLayer(trails, currentTime),
       createPathLayer(trips),
       createDriverLayer(drivers),
-      createRiderLayer(riders),
-    ];
-  }, [drivers, riders, trips, trails, currentTime]);
+      createRiderLayer(riders)
+    );
+
+    return layers;
+  }, [drivers, riders, trips, trails, currentTime, zoneData, demandPoints, showZones, showHeatmap]);
 }

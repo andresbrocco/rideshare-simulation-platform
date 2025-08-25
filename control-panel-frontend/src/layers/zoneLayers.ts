@@ -1,23 +1,59 @@
 import { PolygonLayer } from '@deck.gl/layers';
+import { HeatmapLayer } from '@deck.gl/aggregation-layers';
+import type { ZoneData, DemandPoint } from '../types/api';
+import { surgeToColor, getSurgeOpacity } from '../utils/colorScale';
 
-interface Zone {
-  id: string;
-  coordinates: number[][][];
-}
-
-export function createZoneLayer(zones: Zone[], surgeData: Record<string, number>) {
+export function createZoneLayer(zones: ZoneData[], visible: boolean) {
   return new PolygonLayer({
     id: 'zones',
     data: zones,
-    getPolygon: (d: Zone) => d.coordinates,
-    getFillColor: (d: Zone) => {
-      const surge = surgeData[d.id] || 1.0;
-      const intensity = Math.min((surge - 1.0) / 1.5, 1.0);
-      return [255 * intensity, 0, 0, 80];
-    },
-    getLineColor: [80, 80, 80, 200],
-    getLineWidth: 20,
-    lineWidthMinPixels: 1,
     pickable: true,
+    stroked: true,
+    filled: true,
+    visible,
+    lineWidthMinPixels: 2,
+    getPolygon: (d: ZoneData) => d.feature.geometry.coordinates,
+    getFillColor: (d: ZoneData) => {
+      const rgb = surgeToColor(d.surge);
+      const opacity = getSurgeOpacity(d.surge);
+      return [...rgb, Math.round(opacity * 255)];
+    },
+    getLineColor: [255, 255, 255, 100],
+    updateTriggers: {
+      getFillColor: [zones.map((z) => z.surge)],
+    },
   });
+}
+
+export function createHeatmapLayer(demandPoints: DemandPoint[], visible: boolean) {
+  return new HeatmapLayer({
+    id: 'demand-heatmap',
+    data: demandPoints,
+    visible,
+    radiusPixels: 60,
+    getPosition: (d: DemandPoint) => [d.longitude, d.latitude],
+    getWeight: (d: DemandPoint) => d.weight,
+    colorRange: [
+      [255, 255, 178],
+      [254, 217, 118],
+      [254, 178, 76],
+      [253, 141, 60],
+      [240, 59, 32],
+      [189, 0, 38],
+    ],
+  });
+}
+
+export function getZoneTooltipData(zone: ZoneData): string {
+  const { name, subprefecture } = zone.feature.properties;
+  const { surge, driver_count } = zone;
+
+  return `
+    <div>
+      <strong>${name}</strong>
+      ${subprefecture ? `<br/>${subprefecture}` : ''}
+      <br/>Surge: ${surge.toFixed(1)}x
+      <br/>Drivers: ${driver_count}
+    </div>
+  `;
 }

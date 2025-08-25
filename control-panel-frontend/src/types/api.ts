@@ -63,3 +63,30 @@ export interface GPSTrail {
   id: string;
   path: [number, number, number][];
 }
+
+export interface ZoneFeature {
+  type: 'Feature';
+  properties: {
+    name: string;
+    zone_id: string;
+    subprefecture?: string;
+    demand_multiplier?: number;
+    surge_sensitivity?: number;
+  };
+  geometry: {
+    type: 'Polygon';
+    coordinates: number[][][];
+  };
+}
+
+export interface ZoneData {
+  feature: ZoneFeature;
+  surge: number;
+  driver_count: number;
+}
+
+export interface DemandPoint {
+  latitude: number;
+  longitude: number;
+  weight: number;
+}
