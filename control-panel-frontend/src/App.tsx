@@ -1,11 +1,23 @@
 import { useState } from 'react';
 import LoginScreen from './components/LoginScreen';
 import Map from './components/Map';
+import { useSimulationState } from './hooks/useSimulationState';
+import { useSimulationLayers } from './hooks/useSimulationLayers';
 import './App.css';
 
 function App() {
   const [apiKey, setApiKey] = useState<string | null>(() => {
     return sessionStorage.getItem('apiKey');
+  });
+
+  const { drivers, riders, trips } = useSimulationState();
+
+  const layers = useSimulationLayers({
+    drivers,
+    riders,
+    trips,
+    trails: [],
+    currentTime: 0,
   });
 
   const handleLogin = (key: string) => {
@@ -20,7 +32,7 @@ function App() {
           <LoginScreen onLogin={handleLogin} />
         </>
       ) : (
-        <Map layers={[]} />
+        <Map layers={layers} />
       )}
     </div>
   );
