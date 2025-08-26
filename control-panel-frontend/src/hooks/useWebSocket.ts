@@ -19,10 +19,12 @@ export function useWebSocket({
 }: UseWebSocketOptions) {
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const onMessageRef = useRef(onMessage);
   const onOpenRef = useRef(onOpen);
   const onCloseRef = useRef(onClose);
   const onErrorRef = useRef(onError);
+  const connectRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     onMessageRef.current = onMessage;
@@ -32,35 +34,49 @@ export function useWebSocket({
   });
 
   useEffect(() => {
-    const ws = new WebSocket(`${url}?api_key=${apiKey}`);
-    wsRef.current = ws;
+    const doConnect = () => {
+      const ws = new WebSocket(`${url}?api_key=${apiKey}`);
+      wsRef.current = ws;
 
-    ws.onopen = () => {
-      setIsConnected(true);
-      onOpenRef.current?.();
+      ws.onopen = () => {
+        setIsConnected(true);
+        onOpenRef.current?.();
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          onMessageRef.current(data);
+        } catch (error) {
+          console.error('Failed to parse WebSocket message:', error);
+        }
+      };
+
+      ws.onclose = () => {
+        setIsConnected(false);
+        onCloseRef.current?.();
+
+        reconnectTimeoutRef.current = setTimeout(() => {
+          connectRef.current();
+        }, 3000);
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        onErrorRef.current?.(error);
+      };
     };
 
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        onMessageRef.current(data);
-      } catch (error) {
-        console.error('Failed to parse WebSocket message:', error);
-      }
-    };
-
-    ws.onclose = () => {
-      setIsConnected(false);
-      onCloseRef.current?.();
-    };
-
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      onErrorRef.current?.(error);
-    };
+    connectRef.current = doConnect;
+    doConnect();
 
     return () => {
-      ws.close();
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
     };
   }, [url, apiKey]);
 
