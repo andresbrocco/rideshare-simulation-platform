@@ -1,0 +1,78 @@
+# Git
+.git
+.gitignore
+
+# Documentation (keep README for potential container docs)
+*.md
+!README.md
+
+# Environment files (loaded via docker-compose, not copied)
+.env
+.env.local
+.env.*
+
+# Python virtual environments
+**/venv/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.Python
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.coverage
+**/htmlcov/
+**/*.egg-info/
+
+# Node.js
+**/node_modules/
+**/.npm/
+
+# Build outputs
+**/dist/
+**/build/
+**/.vite/
+
+# IDE
+.vscode/
+.idea/
+**/*.swp
+**/*.swo
+.claude/
+
+# Testing
+**/coverage/
+**/.nyc_output/
+
+# Implementation plan (not needed in containers)
+.implementation/
+
+# OS files
+**/.DS_Store
+**/Thumbs.db
+
+# Logs
+**/*.log
+**/logs/
+
+# Terraform
+terraform/
+
+# Airflow (separate deployment)
+airflow_dags/
+
+# DBT (separate deployment)
+dbt/
+
+# Great Expectations (separate deployment)
+great_expectations/
+
+# Looker (separate deployment)
+looker/
+
+# Integration tests (run separately)
+tests/integration/
+
+# Example files
+**/examples/

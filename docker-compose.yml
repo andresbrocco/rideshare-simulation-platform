@@ -1,0 +1,154 @@
+services:
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: rideshare-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - rideshare-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  redis:
+    image: redis:8.0-alpine
+    container_name: rideshare-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - rideshare-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  osrm:
+    build:
+      context: .
+      dockerfile: docker/osrm.Dockerfile
+    container_name: rideshare-osrm
+    ports:
+      - "5000:5000"
+    volumes:
+      - osrm-data:/data
+    networks:
+      - rideshare-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  control-panel-api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+      target: development
+    container_name: rideshare-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./control-panel-api/src:/app/src:ro
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_SECURITY_PROTOCOL=PLAINTEXT
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+      - REDIS_SSL=false
+      - OSRM_BASE_URL=http://osrm:5000
+      - CORS_ORIGINS=http://localhost:3000
+      - API_KEY=${API_KEY:-dev-api-key-change-in-production}
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - rideshare-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  simulation:
+    build:
+      context: .
+      dockerfile: docker/simulation.Dockerfile
+      target: development
+    container_name: rideshare-simulation
+    volumes:
+      - ./simulation/src:/app/src:ro
+      - ./data:/app/data:ro
+    environment:
+      - SIM_SPEED_MULTIPLIER=${SIM_SPEED_MULTIPLIER:-1}
+      - SIM_LOG_LEVEL=${SIM_LOG_LEVEL:-INFO}
+      - SIM_CHECKPOINT_INTERVAL=${SIM_CHECKPOINT_INTERVAL:-300}
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_SECURITY_PROTOCOL=PLAINTEXT
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+      - REDIS_SSL=false
+      - OSRM_BASE_URL=http://osrm:5000
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      osrm:
+        condition: service_healthy
+    networks:
+      - rideshare-network
+
+  control-panel-frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+      target: development
+    container_name: rideshare-frontend
+    ports:
+      - "3000:5173"
+    volumes:
+      - ./control-panel-frontend/src:/app/src:ro
+      - ./control-panel-frontend/public:/app/public:ro
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - VITE_WS_URL=ws://localhost:8000/ws
+    depends_on:
+      - control-panel-api
+    networks:
+      - rideshare-network
+
+networks:
+  rideshare-network:
+    driver: bridge
+    name: rideshare-network
+
+volumes:
+  kafka-data:
+  redis-data:
+  osrm-data:
