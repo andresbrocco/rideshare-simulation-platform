@@ -24,22 +24,27 @@ FROM base AS development
 # Copy dependency files first for layer caching
 COPY simulation/pyproject.toml simulation/pyproject.toml
 
-# Install dependencies including dev
+# Create src directory placeholder for editable install
+RUN mkdir -p simulation/src
+
+# Install dependencies including dev (editable install for development)
 RUN cd simulation && uv pip install --system -e ".[dev]"
 
 # Create directories for mounted volumes
-RUN mkdir -p simulation/src data && chown -R simuser:simuser /app
+RUN mkdir -p data db && chown -R simuser:simuser /app
 
 USER simuser
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONPATH=/app/src
 
 # Expose API port
 EXPOSE 8000
 
 # Source mounted via docker-compose volume
-CMD ["python", "-m", "src.main"]
+WORKDIR /app/src
+CMD ["python", "main.py"]
 
 # Production stage - optimized for size
 FROM base AS production
