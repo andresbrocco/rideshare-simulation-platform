@@ -1,10 +1,11 @@
 import time
-from typing import Callable
+from collections.abc import Callable
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Request
 
-from src.auth import verify_api_key
-from src.models.metrics import (
+from api.auth import verify_api_key
+from api.models.metrics import (
     DriverMetrics,
     OverviewMetrics,
     TripMetrics,
@@ -17,14 +18,18 @@ CACHE_TTL = 5
 _metrics_cache: dict = {}
 
 
-def get_engine(request: Request):
+def get_engine(request: Request) -> Any:
     return request.app.state.engine
 
 
-def get_driver_registry(request: Request):
+def get_driver_registry(request: Request) -> Any:
     if hasattr(request.app.state, "driver_registry"):
         return request.app.state.driver_registry
     return None
+
+
+EngineDep = Annotated[Any, Depends(get_engine)]
+DriverRegistryDep = Annotated[Any, Depends(get_driver_registry)]
 
 
 def _get_cached_or_compute(cache_key: str, compute_func: Callable):
@@ -40,18 +45,12 @@ def _get_cached_or_compute(cache_key: str, compute_func: Callable):
 
 
 @router.get("/overview", response_model=OverviewMetrics)
-def get_overview_metrics(
-    engine=Depends(get_engine), driver_registry=Depends(get_driver_registry)
-):
+def get_overview_metrics(engine: EngineDep, driver_registry: DriverRegistryDep):
     """Returns overview metrics with total counts."""
 
     def compute():
-        total_drivers = (
-            len(engine._active_drivers) if hasattr(engine, "_active_drivers") else 0
-        )
-        total_riders = (
-            len(engine._active_riders) if hasattr(engine, "_active_riders") else 0
-        )
+        total_drivers = len(engine._active_drivers) if hasattr(engine, "_active_drivers") else 0
+        total_riders = len(engine._active_riders) if hasattr(engine, "_active_riders") else 0
 
         online_drivers = 0
         if driver_registry:
@@ -60,9 +59,7 @@ def get_overview_metrics(
         waiting_riders = sum(
             1
             for rider in (
-                engine._active_riders.values()
-                if hasattr(engine, "_active_riders")
-                else []
+                engine._active_riders.values() if hasattr(engine, "_active_riders") else []
             )
             if hasattr(rider, "status") and rider.status == "waiting"
         )
@@ -84,9 +81,7 @@ def get_overview_metrics(
 
 
 @router.get("/zones", response_model=list[ZoneMetrics])
-def get_zone_metrics(
-    engine=Depends(get_engine), driver_registry=Depends(get_driver_registry)
-):
+def get_zone_metrics(engine: EngineDep, driver_registry: DriverRegistryDep):
     """Returns per-zone metrics with supply, demand, and surge."""
 
     def compute():
@@ -96,9 +91,7 @@ def get_zone_metrics(
         for zone_id in zone_ids:
             online_drivers = 0
             if driver_registry:
-                online_drivers = driver_registry.get_zone_driver_count(
-                    zone_id, "online"
-                )
+                online_drivers = driver_registry.get_zone_driver_count(zone_id, "online")
 
             waiting_riders = 0
             if hasattr(engine, "_active_riders"):
@@ -128,7 +121,7 @@ def get_zone_metrics(
 
 
 @router.get("/trips", response_model=TripMetrics)
-def get_trip_metrics(engine=Depends(get_engine)):
+def get_trip_metrics(engine: EngineDep):
     """Returns trip statistics including active, completed, and averages."""
 
     def compute():
@@ -148,7 +141,7 @@ def get_trip_metrics(engine=Depends(get_engine)):
 
 
 @router.get("/drivers", response_model=DriverMetrics)
-def get_driver_metrics(driver_registry=Depends(get_driver_registry)):
+def get_driver_metrics(driver_registry: DriverRegistryDep):
     """Returns driver status counts."""
 
     def compute():

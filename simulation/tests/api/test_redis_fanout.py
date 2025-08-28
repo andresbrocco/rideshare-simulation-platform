@@ -1,15 +1,12 @@
 import asyncio
-import sys
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-sys.modules["engine"] = MagicMock()
-sys.modules["engine.agent_factory"] = MagicMock()
-
 
 @pytest.fixture
 def mock_connection_manager():
+    """Mock WebSocket connection manager."""
     manager = AsyncMock()
     manager.broadcast = AsyncMock()
     manager.active_connections = set()
@@ -17,7 +14,8 @@ def mock_connection_manager():
 
 
 @pytest.fixture
-def mock_redis_client():
+def mock_redis_client_for_pubsub():
+    """Mock Redis client for pubsub tests."""
     return MagicMock()
 
 
@@ -39,14 +37,14 @@ def create_pubsub_mock(messages):
 
 
 @pytest.mark.asyncio
-async def test_redis_subscribe_on_startup(mock_redis_client, mock_connection_manager):
+async def test_redis_subscribe_on_startup(mock_redis_client_for_pubsub, mock_connection_manager):
     """Subscribes to all channels on startup."""
     pubsub = create_pubsub_mock([])
-    mock_redis_client.pubsub.return_value = pubsub
+    mock_redis_client_for_pubsub.pubsub.return_value = pubsub
 
-    from src.redis_subscriber import RedisSubscriber
+    from api.redis_subscriber import RedisSubscriber
 
-    subscriber = RedisSubscriber(mock_redis_client, mock_connection_manager)
+    subscriber = RedisSubscriber(mock_redis_client_for_pubsub, mock_connection_manager)
 
     await subscriber.start()
     await asyncio.sleep(0.02)
@@ -59,83 +57,75 @@ async def test_redis_subscribe_on_startup(mock_redis_client, mock_connection_man
 
 
 @pytest.mark.asyncio
-async def test_fanout_driver_update(mock_redis_client, mock_connection_manager):
+async def test_fanout_driver_update(mock_redis_client_for_pubsub, mock_connection_manager):
     """Fans out driver update to all clients."""
-    messages = [
-        {"type": "message", "data": '{"driver_id": "d123", "status": "online"}'}
-    ]
+    messages = [{"type": "message", "data": '{"driver_id": "d123", "status": "online"}'}]
     pubsub = create_pubsub_mock(messages)
-    mock_redis_client.pubsub.return_value = pubsub
+    mock_redis_client_for_pubsub.pubsub.return_value = pubsub
 
-    from src.redis_subscriber import RedisSubscriber
+    from api.redis_subscriber import RedisSubscriber
 
-    subscriber = RedisSubscriber(mock_redis_client, mock_connection_manager)
+    subscriber = RedisSubscriber(mock_redis_client_for_pubsub, mock_connection_manager)
 
     await subscriber.start()
     await asyncio.sleep(0.02)
 
-    mock_connection_manager.broadcast.assert_called_with(
-        {"driver_id": "d123", "status": "online"}
-    )
+    mock_connection_manager.broadcast.assert_called_with({"driver_id": "d123", "status": "online"})
 
     await subscriber.stop()
 
 
 @pytest.mark.asyncio
-async def test_fanout_trip_update(mock_redis_client, mock_connection_manager):
+async def test_fanout_trip_update(mock_redis_client_for_pubsub, mock_connection_manager):
     """Fans out trip update to all clients."""
     messages = [{"type": "message", "data": '{"trip_id": "t456", "state": "STARTED"}'}]
     pubsub = create_pubsub_mock(messages)
-    mock_redis_client.pubsub.return_value = pubsub
+    mock_redis_client_for_pubsub.pubsub.return_value = pubsub
 
-    from src.redis_subscriber import RedisSubscriber
+    from api.redis_subscriber import RedisSubscriber
 
-    subscriber = RedisSubscriber(mock_redis_client, mock_connection_manager)
+    subscriber = RedisSubscriber(mock_redis_client_for_pubsub, mock_connection_manager)
 
     await subscriber.start()
     await asyncio.sleep(0.02)
 
-    mock_connection_manager.broadcast.assert_called_with(
-        {"trip_id": "t456", "state": "STARTED"}
-    )
+    mock_connection_manager.broadcast.assert_called_with({"trip_id": "t456", "state": "STARTED"})
 
     await subscriber.stop()
 
 
 @pytest.mark.asyncio
-async def test_fanout_surge_update(mock_redis_client, mock_connection_manager):
+async def test_fanout_surge_update(mock_redis_client_for_pubsub, mock_connection_manager):
     """Fans out surge update to all clients."""
     messages = [{"type": "message", "data": '{"zone_id": "z1", "multiplier": 1.5}'}]
     pubsub = create_pubsub_mock(messages)
-    mock_redis_client.pubsub.return_value = pubsub
+    mock_redis_client_for_pubsub.pubsub.return_value = pubsub
 
-    from src.redis_subscriber import RedisSubscriber
+    from api.redis_subscriber import RedisSubscriber
 
-    subscriber = RedisSubscriber(mock_redis_client, mock_connection_manager)
+    subscriber = RedisSubscriber(mock_redis_client_for_pubsub, mock_connection_manager)
 
     await subscriber.start()
     await asyncio.sleep(0.02)
 
-    mock_connection_manager.broadcast.assert_called_with(
-        {"zone_id": "z1", "multiplier": 1.5}
-    )
+    mock_connection_manager.broadcast.assert_called_with({"zone_id": "z1", "multiplier": 1.5})
 
     await subscriber.stop()
 
 
 @pytest.mark.asyncio
-async def test_fanout_multiple_clients(mock_redis_client, mock_connection_manager):
+async def test_fanout_multiple_clients(mock_redis_client_for_pubsub, mock_connection_manager):
     """Broadcasts to all connected clients."""
     ws1, ws2, ws3 = AsyncMock(), AsyncMock(), AsyncMock()
     mock_connection_manager.active_connections = {ws1, ws2, ws3}
 
     messages = [{"type": "message", "data": '{"test": "data"}'}]
     pubsub = create_pubsub_mock(messages)
-    mock_redis_client.pubsub.return_value = pubsub
+    mock_redis_client_for_pubsub.pubsub.return_value = pubsub
 
-    from src.redis_subscriber import RedisSubscriber
+    from api.redis_subscriber import RedisSubscriber
 
-    subscriber = RedisSubscriber(mock_redis_client, mock_connection_manager)
+    subscriber = RedisSubscriber(mock_redis_client_for_pubsub, mock_connection_manager)
 
     await subscriber.start()
     await asyncio.sleep(0.02)
@@ -146,9 +136,7 @@ async def test_fanout_multiple_clients(mock_redis_client, mock_connection_manage
 
 
 @pytest.mark.asyncio
-async def test_redis_reconnect_on_disconnect(
-    mock_redis_client, mock_connection_manager
-):
+async def test_redis_reconnect_on_disconnect(mock_redis_client_for_pubsub, mock_connection_manager):
     """Reconnects after connection loss."""
     import redis.asyncio as redis
 
@@ -169,11 +157,11 @@ async def test_redis_reconnect_on_disconnect(
         pubsub.listen = mock_listen
         return pubsub
 
-    mock_redis_client.pubsub = create_pubsub
+    mock_redis_client_for_pubsub.pubsub = create_pubsub
 
-    from src.redis_subscriber import RedisSubscriber
+    from api.redis_subscriber import RedisSubscriber
 
-    subscriber = RedisSubscriber(mock_redis_client, mock_connection_manager)
+    subscriber = RedisSubscriber(mock_redis_client_for_pubsub, mock_connection_manager)
     subscriber.reconnect_delay = 0.01
 
     await subscriber.start()
@@ -185,7 +173,7 @@ async def test_redis_reconnect_on_disconnect(
 
 
 @pytest.mark.asyncio
-async def test_parse_redis_message(mock_redis_client, mock_connection_manager):
+async def test_parse_redis_message(mock_redis_client_for_pubsub, mock_connection_manager):
     """Parses JSON from Redis message."""
     messages = [
         {
@@ -194,11 +182,11 @@ async def test_parse_redis_message(mock_redis_client, mock_connection_manager):
         }
     ]
     pubsub = create_pubsub_mock(messages)
-    mock_redis_client.pubsub.return_value = pubsub
+    mock_redis_client_for_pubsub.pubsub.return_value = pubsub
 
-    from src.redis_subscriber import RedisSubscriber
+    from api.redis_subscriber import RedisSubscriber
 
-    subscriber = RedisSubscriber(mock_redis_client, mock_connection_manager)
+    subscriber = RedisSubscriber(mock_redis_client_for_pubsub, mock_connection_manager)
 
     await subscriber.start()
     await asyncio.sleep(0.02)
@@ -210,11 +198,11 @@ async def test_parse_redis_message(mock_redis_client, mock_connection_manager):
 
 
 @pytest.mark.asyncio
-async def test_subscription_task_lifecycle(mock_redis_client, mock_connection_manager):
+async def test_subscription_task_lifecycle(mock_redis_client_for_pubsub, mock_connection_manager):
     """Task starts on startup and stops on shutdown."""
     pubsub = MagicMock()
     pubsub.subscribe = AsyncMock()
-    mock_redis_client.pubsub.return_value = pubsub
+    mock_redis_client_for_pubsub.pubsub.return_value = pubsub
 
     async def mock_listen():
         while True:
@@ -223,9 +211,9 @@ async def test_subscription_task_lifecycle(mock_redis_client, mock_connection_ma
 
     pubsub.listen = mock_listen
 
-    from src.redis_subscriber import RedisSubscriber
+    from api.redis_subscriber import RedisSubscriber
 
-    subscriber = RedisSubscriber(mock_redis_client, mock_connection_manager)
+    subscriber = RedisSubscriber(mock_redis_client_for_pubsub, mock_connection_manager)
 
     assert subscriber.task is None
 
@@ -238,18 +226,18 @@ async def test_subscription_task_lifecycle(mock_redis_client, mock_connection_ma
 
 
 @pytest.mark.asyncio
-async def test_ignore_malformed_messages(mock_redis_client, mock_connection_manager):
+async def test_ignore_malformed_messages(mock_redis_client_for_pubsub, mock_connection_manager):
     """Ignores invalid JSON without crashing."""
     messages = [
         {"type": "message", "data": "not valid json"},
         {"type": "message", "data": '{"valid": "json"}'},
     ]
     pubsub = create_pubsub_mock(messages)
-    mock_redis_client.pubsub.return_value = pubsub
+    mock_redis_client_for_pubsub.pubsub.return_value = pubsub
 
-    from src.redis_subscriber import RedisSubscriber
+    from api.redis_subscriber import RedisSubscriber
 
-    subscriber = RedisSubscriber(mock_redis_client, mock_connection_manager)
+    subscriber = RedisSubscriber(mock_redis_client_for_pubsub, mock_connection_manager)
 
     await subscriber.start()
     await asyncio.sleep(0.02)
@@ -261,7 +249,7 @@ async def test_ignore_malformed_messages(mock_redis_client, mock_connection_mana
 
 @pytest.mark.asyncio
 async def test_client_disconnect_during_fanout(
-    mock_redis_client, mock_connection_manager
+    mock_redis_client_for_pubsub, mock_connection_manager
 ):
     """Handles client disconnect during send gracefully."""
     broadcast_calls = [0]
@@ -278,11 +266,11 @@ async def test_client_disconnect_during_fanout(
         {"type": "message", "data": '{"after": "error"}'},
     ]
     pubsub = create_pubsub_mock(messages)
-    mock_redis_client.pubsub.return_value = pubsub
+    mock_redis_client_for_pubsub.pubsub.return_value = pubsub
 
-    from src.redis_subscriber import RedisSubscriber
+    from api.redis_subscriber import RedisSubscriber
 
-    subscriber = RedisSubscriber(mock_redis_client, mock_connection_manager)
+    subscriber = RedisSubscriber(mock_redis_client_for_pubsub, mock_connection_manager)
 
     await subscriber.start()
     await asyncio.sleep(0.05)

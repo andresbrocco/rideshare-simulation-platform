@@ -1,70 +1,16 @@
-import sys
 from datetime import UTC, datetime
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock
 
 import pytest
-from fastapi.testclient import TestClient
-
-sys.modules["engine"] = MagicMock()
-sys.modules["engine.agent_factory"] = MagicMock()
-
-
-class MockSimulationState:
-    STOPPED = "stopped"
-    RUNNING = "running"
-    DRAINING = "draining"
-    PAUSED = "paused"
-
-
-sys.modules["engine"].SimulationState = MockSimulationState
 
 
 @pytest.fixture
-def mock_kafka_producer():
-    producer = Mock()
-    producer.flush = Mock()
-    return producer
-
-
-@pytest.fixture
-def mock_redis_client():
-    from unittest.mock import AsyncMock
-
-    client = AsyncMock()
-    client.close = AsyncMock()
-    return client
-
-
-@pytest.fixture
-def mock_simulation_engine():
-    engine = Mock()
-    engine.state = Mock()
-    engine.state.value = "stopped"
-    engine.speed_multiplier = 1
-    engine.active_driver_count = 5
-    engine.active_rider_count = 10
-    engine.current_time.return_value = datetime(2025, 8, 18, 15, 0, 0, tzinfo=UTC)
-    engine._get_in_flight_trips = Mock(return_value=[])
-    engine.start = Mock()
-    engine.stop = Mock()
-    engine.pause = Mock()
-    engine.resume = Mock()
-    engine.set_speed = Mock()
-    return engine
-
-
-@pytest.fixture
-def test_client(mock_kafka_producer, mock_redis_client, mock_simulation_engine):
-    with patch.dict("os.environ", {"API_KEY": "test-api-key"}):
-        with patch("src.main.Producer", return_value=mock_kafka_producer):
-            with patch("src.main.Redis", return_value=mock_redis_client):
-                with patch(
-                    "src.main.SimulationEngine", return_value=mock_simulation_engine
-                ):
-                    from src.main import app
-
-                    app.state.engine = mock_simulation_engine
-                    yield TestClient(app)
+def mock_simulation_engine_with_time(mock_simulation_engine):
+    """Simulation engine with time configured."""
+    mock_simulation_engine.current_time.return_value = datetime(2025, 8, 18, 15, 0, 0, tzinfo=UTC)
+    mock_simulation_engine.active_driver_count = 5
+    mock_simulation_engine.active_rider_count = 10
+    return mock_simulation_engine
 
 
 def test_start_simulation(test_client, mock_simulation_engine, auth_headers):
@@ -143,9 +89,7 @@ def test_reset_simulation(test_client, mock_simulation_engine, auth_headers):
 
 def test_change_speed_valid(test_client, mock_simulation_engine, auth_headers):
     """Changes speed multiplier."""
-    response = test_client.put(
-        "/simulation/speed", json={"multiplier": 10}, headers=auth_headers
-    )
+    response = test_client.put("/simulation/speed", json={"multiplier": 10}, headers=auth_headers)
 
     assert response.status_code == 200
     assert response.json()["speed"] == 10
@@ -154,9 +98,7 @@ def test_change_speed_valid(test_client, mock_simulation_engine, auth_headers):
 
 def test_change_speed_invalid(test_client, mock_simulation_engine, auth_headers):
     """Rejects invalid multiplier."""
-    response = test_client.put(
-        "/simulation/speed", json={"multiplier": 5}, headers=auth_headers
-    )
+    response = test_client.put("/simulation/speed", json={"multiplier": 5}, headers=auth_headers)
 
     assert response.status_code == 400
     assert "1, 10, or 100" in response.json()["detail"]

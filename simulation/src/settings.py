@@ -13,26 +13,19 @@ class SimulationSettings(BaseSettings):
 
 
 class KafkaSettings(BaseSettings):
-    bootstrap_servers: str
-    security_protocol: str = "SASL_SSL"
+    bootstrap_servers: str = "localhost:9092"
+    security_protocol: str = "PLAINTEXT"
     sasl_mechanisms: str = "PLAIN"
-    sasl_username: str
-    sasl_password: str
-    schema_registry_url: str
-    schema_registry_basic_auth_user_info: str
+    sasl_username: str = ""
+    sasl_password: str = ""
+    schema_registry_url: str = ""
+    schema_registry_basic_auth_user_info: str = ""
 
     model_config = SettingsConfigDict(env_prefix="KAFKA_")
 
-    @field_validator("bootstrap_servers")
-    @classmethod
-    def validate_bootstrap_servers(cls, v: str) -> str:
-        if not v or not v.strip():
-            raise ValueError("Bootstrap servers cannot be empty")
-        return v
-
 
 class RedisSettings(BaseSettings):
-    host: str
+    host: str = "localhost"
     port: int = 6379
     password: str | None = None
     ssl: bool = False
@@ -54,8 +47,8 @@ class OSRMSettings(BaseSettings):
 
 
 class DatabricksSettings(BaseSettings):
-    host: str
-    token: str
+    host: str = ""
+    token: str = ""
     catalog: str = "rideshare"
 
     model_config = SettingsConfigDict(env_prefix="DATABRICKS_")
@@ -63,9 +56,9 @@ class DatabricksSettings(BaseSettings):
     @field_validator("host")
     @classmethod
     def validate_host(cls, v: str) -> str:
-        if not v.startswith("https://"):
+        if v and not v.startswith("https://"):
             raise ValueError("Databricks host must start with https://")
-        return v.rstrip("/")
+        return v.rstrip("/") if v else v
 
 
 class AWSSettings(BaseSettings):
@@ -77,9 +70,15 @@ class AWSSettings(BaseSettings):
 
 
 class APISettings(BaseSettings):
-    key: str
+    key: str = ""
 
     model_config = SettingsConfigDict(env_prefix="API_")
+
+
+class CORSSettings(BaseSettings):
+    origins: str = "http://localhost:5173,http://localhost:3000"
+
+    model_config = SettingsConfigDict(env_prefix="CORS_")
 
 
 class Settings(BaseSettings):
@@ -90,6 +89,7 @@ class Settings(BaseSettings):
     databricks: DatabricksSettings = Field(default_factory=DatabricksSettings)  # type: ignore[arg-type]
     aws: AWSSettings = Field(default_factory=AWSSettings)
     api: APISettings = Field(default_factory=APISettings)  # type: ignore[arg-type]
+    cors: CORSSettings = Field(default_factory=CORSSettings)
 
     model_config = SettingsConfigDict(
         env_nested_delimiter="__",

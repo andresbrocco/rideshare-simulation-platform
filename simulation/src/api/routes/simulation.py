@@ -1,10 +1,11 @@
 import time
 from datetime import UTC, datetime
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from src.auth import verify_api_key
-from src.models.simulation import (
+from api.auth import verify_api_key
+from api.models.simulation import (
     ControlResponse,
     SimulationStatusResponse,
     SpeedChangeRequest,
@@ -16,12 +17,15 @@ router = APIRouter(dependencies=[Depends(verify_api_key)])
 _simulation_start_wall_time: float | None = None
 
 
-def get_engine(request: Request):
+def get_engine(request: Request) -> Any:
     return request.app.state.engine
 
 
+EngineDep = Annotated[Any, Depends(get_engine)]
+
+
 @router.post("/start", response_model=ControlResponse)
-def start_simulation(engine=Depends(get_engine)):
+def start_simulation(engine: EngineDep):
     """Start the simulation."""
     if engine.state.value == "running":
         raise HTTPException(status_code=400, detail="Simulation already running")
@@ -34,7 +38,7 @@ def start_simulation(engine=Depends(get_engine)):
 
 
 @router.post("/pause", response_model=ControlResponse)
-def pause_simulation(engine=Depends(get_engine)):
+def pause_simulation(engine: EngineDep):
     """Initiate two-phase pause (draining then paused)."""
     if engine.state.value != "running":
         raise HTTPException(status_code=400, detail="Simulation not running")
@@ -44,7 +48,7 @@ def pause_simulation(engine=Depends(get_engine)):
 
 
 @router.post("/resume", response_model=ControlResponse)
-def resume_simulation(engine=Depends(get_engine)):
+def resume_simulation(engine: EngineDep):
     """Resume from paused state."""
     if engine.state.value != "paused":
         raise HTTPException(status_code=400, detail="Simulation not paused")
@@ -54,7 +58,7 @@ def resume_simulation(engine=Depends(get_engine)):
 
 
 @router.post("/stop", response_model=ControlResponse)
-def stop_simulation(engine=Depends(get_engine)):
+def stop_simulation(engine: EngineDep):
     """Stop the simulation."""
     if engine.state.value == "stopped":
         raise HTTPException(status_code=400, detail="Simulation already stopped")
@@ -64,7 +68,7 @@ def stop_simulation(engine=Depends(get_engine)):
 
 
 @router.post("/reset", response_model=ControlResponse)
-def reset_simulation(engine=Depends(get_engine)):
+def reset_simulation(engine: EngineDep):
     """Reset simulation to initial state."""
     if hasattr(engine, "reset"):
         engine.reset()
@@ -79,19 +83,17 @@ def reset_simulation(engine=Depends(get_engine)):
 
 
 @router.put("/speed", response_model=SpeedChangeResponse)
-def change_speed(request: SpeedChangeRequest, engine=Depends(get_engine)):
+def change_speed(request: SpeedChangeRequest, engine: EngineDep):
     """Change simulation speed multiplier (1, 10, or 100)."""
     if request.multiplier not in (1, 10, 100):
-        raise HTTPException(
-            status_code=400, detail="Invalid multiplier. Must be 1, 10, or 100"
-        )
+        raise HTTPException(status_code=400, detail="Invalid multiplier. Must be 1, 10, or 100")
 
     engine.set_speed(request.multiplier)
     return SpeedChangeResponse(speed=request.multiplier)
 
 
 @router.get("/status", response_model=SimulationStatusResponse)
-def get_status(engine=Depends(get_engine)):
+def get_status(engine: EngineDep):
     """Get current simulation status."""
     current_time = engine.current_time()
     if isinstance(current_time, datetime):

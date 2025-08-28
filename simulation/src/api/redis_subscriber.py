@@ -1,6 +1,7 @@
 """Redis pub/sub subscriber for WebSocket fan-out."""
 
 import asyncio
+import contextlib
 import json
 import logging
 
@@ -30,10 +31,8 @@ class RedisSubscriber:
     async def stop(self):
         if self.task:
             self.task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self.task
-            except asyncio.CancelledError:
-                pass
 
     async def _subscribe_and_fanout(self):
         while True:
@@ -47,16 +46,12 @@ class RedisSubscriber:
                             data = json.loads(message["data"])
                             await self.connection_manager.broadcast(data)
                         except json.JSONDecodeError:
-                            logger.warning(
-                                f"Invalid JSON from Redis: {message['data']}"
-                            )
+                            logger.warning(f"Invalid JSON from Redis: {message['data']}")
                         except Exception as e:
                             logger.warning(f"Error broadcasting message: {e}")
 
             except redis.ConnectionError:
-                logger.error(
-                    f"Redis disconnected, reconnecting in {self.reconnect_delay}s..."
-                )
+                logger.error(f"Redis disconnected, reconnecting in {self.reconnect_delay}s...")
                 await asyncio.sleep(self.reconnect_delay)
             except asyncio.CancelledError:
                 break

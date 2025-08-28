@@ -1,12 +1,13 @@
 # Base stage - common dependencies
 FROM python:3.13-slim AS base
 
-# Install system dependencies required for confluent-kafka and shapely
+# Install system dependencies for confluent-kafka, shapely, and curl for healthcheck
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     librdkafka-dev \
     libgeos-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
@@ -34,6 +35,9 @@ USER simuser
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
+# Expose API port
+EXPOSE 8000
+
 # Source mounted via docker-compose volume
 CMD ["python", "-m", "src.main"]
 
@@ -53,5 +57,11 @@ USER simuser
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+
+EXPOSE 8000
+
+# Health check for container orchestration
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 \
+    CMD curl -f http://localhost:8000/health || exit 1
 
 CMD ["python", "-m", "src.main"]

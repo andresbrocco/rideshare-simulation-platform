@@ -43,35 +43,32 @@ class TestSimulationSettings:
 
 
 class TestKafkaSettings:
-    def test_required_fields(self):
-        with pytest.raises(ValidationError):
-            KafkaSettings()
+    def test_defaults(self):
+        settings = KafkaSettings()
+        assert settings.bootstrap_servers == "localhost:9092"
+        assert settings.security_protocol == "PLAINTEXT"
+        assert settings.sasl_username == ""
+        assert settings.sasl_password == ""
 
     def test_valid_config(self):
         settings = KafkaSettings(
-            bootstrap_servers="localhost:9092",
+            bootstrap_servers="kafka.example.com:9092",
             sasl_username="key",
             sasl_password="secret",
             schema_registry_url="http://localhost:8081",
             schema_registry_basic_auth_user_info="key:secret",
         )
-        assert settings.bootstrap_servers == "localhost:9092"
-        assert settings.security_protocol == "SASL_SSL"
+        assert settings.bootstrap_servers == "kafka.example.com:9092"
 
-    def test_empty_bootstrap_servers(self):
-        with pytest.raises(ValidationError):
-            KafkaSettings(
-                bootstrap_servers="",
-                sasl_username="key",
-                sasl_password="secret",
-                schema_registry_url="http://localhost:8081",
-                schema_registry_basic_auth_user_info="key:secret",
-            )
+    def test_env_override(self, monkeypatch):
+        monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", "custom:9092")
+        settings = KafkaSettings()
+        assert settings.bootstrap_servers == "custom:9092"
 
 
 class TestRedisSettings:
     def test_defaults(self):
-        settings = RedisSettings(host="localhost")
+        settings = RedisSettings()
         assert settings.host == "localhost"
         assert settings.port == 6379
         assert settings.password is None
@@ -98,9 +95,11 @@ class TestOSRMSettings:
 
 
 class TestDatabricksSettings:
-    def test_required_fields(self):
-        with pytest.raises(ValidationError):
-            DatabricksSettings()
+    def test_defaults(self):
+        settings = DatabricksSettings()
+        assert settings.host == ""
+        assert settings.token == ""
+        assert settings.catalog == "rideshare"
 
     def test_valid_config(self):
         settings = DatabricksSettings(
@@ -127,9 +126,9 @@ class TestAWSSettings:
 
 
 class TestAPISettings:
-    def test_required_key(self):
-        with pytest.raises(ValidationError):
-            APISettings()
+    def test_defaults(self):
+        settings = APISettings()
+        assert settings.key == ""
 
     def test_valid_key(self):
         settings = APISettings(key="my-secret-key")
