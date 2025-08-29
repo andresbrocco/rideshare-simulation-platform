@@ -467,26 +467,12 @@ class RiderAgent(EventEmitter):
                     )
                 )
 
-            # Trigger matching through the simulation engine
+            # Trigger matching through the simulation engine (thread-safe)
             if self._simulation_engine:
-                try:
-                    loop = asyncio.get_event_loop()
-                    match_coro = self._simulation_engine.request_match(
-                        rider_id=self._rider_id,
-                        pickup_location=self._location,
-                        dropoff_location=destination,
-                        pickup_zone_id=pickup_zone_id,
-                        dropoff_zone_id=dropoff_zone_id,
-                        surge_multiplier=surge_multiplier,
-                        fare=fare,
-                    )
-                    if loop.is_running():
-                        asyncio.create_task(match_coro)
-                    else:
-                        loop.run_until_complete(match_coro)
-                except RuntimeError:
-                    asyncio.run(
-                        self._simulation_engine.request_match(
+                main_loop = self._simulation_engine.get_event_loop()
+                if main_loop is not None:
+                    try:
+                        match_coro = self._simulation_engine.request_match(
                             rider_id=self._rider_id,
                             pickup_location=self._location,
                             dropoff_location=destination,
@@ -495,10 +481,15 @@ class RiderAgent(EventEmitter):
                             surge_multiplier=surge_multiplier,
                             fare=fare,
                         )
-                    )
-                except ValueError as e:
-                    # Simulation is pausing
-                    logger.warning(f"Cannot request match: {e}")
+                        # Schedule coroutine on main thread's event loop from SimPy thread
+                        asyncio.run_coroutine_threadsafe(match_coro, main_loop)
+                    except ValueError as e:
+                        # Simulation is pausing
+                        logger.warning(f"Cannot request match: {e}")
+                    except Exception as e:
+                        logger.error(f"Failed to request match: {e}")
+                else:
+                    logger.warning("Event loop not available, cannot request match")
 
             match_timeout = self._env.now + self._dna.patience_threshold
 

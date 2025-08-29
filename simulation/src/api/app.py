@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import logging
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
@@ -19,6 +20,8 @@ from settings import get_settings
 if TYPE_CHECKING:
     from engine import SimulationEngine
     from engine.agent_factory import AgentFactory
+
+logger = logging.getLogger(__name__)
 
 
 class StatusBroadcaster:
@@ -55,7 +58,7 @@ class StatusBroadcaster:
             except asyncio.CancelledError:
                 break
             except Exception:
-                pass  # Silently continue on errors
+                logger.exception("Error in status broadcast loop")
 
 
 def create_app(
@@ -68,6 +71,11 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         """Manage application startup and shutdown."""
+        # Store event loop reference for thread-safe async calls from SimPy
+        import asyncio
+
+        engine.set_event_loop(asyncio.get_running_loop())
+
         snapshot_manager = StateSnapshotManager(redis_client)
         subscriber = RedisSubscriber(redis_client, connection_manager)
         broadcaster = StatusBroadcaster(engine, connection_manager, snapshot_manager)

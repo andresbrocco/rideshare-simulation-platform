@@ -34,6 +34,11 @@ export function useWebSocket({
   });
 
   useEffect(() => {
+    // Don't attempt connection without a valid API key
+    if (!apiKey) {
+      return;
+    }
+
     isCleanedUpRef.current = false;
 
     const doConnect = () => {

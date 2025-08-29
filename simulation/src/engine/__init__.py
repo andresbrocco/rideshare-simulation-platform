@@ -1,5 +1,6 @@
 """SimPy environment orchestrator for rideshare simulation."""
 
+import asyncio
 import time
 from datetime import UTC, datetime, timedelta, timezone
 from enum import Enum
@@ -127,6 +128,7 @@ class SimulationEngine:
         self._time_manager = TimeManager(simulation_start_time, self._env)
         self._speed_multiplier = 100
         self._drain_process: simpy.Process | None = None
+        self._event_loop: asyncio.AbstractEventLoop | None = None
 
     @property
     def state(self) -> SimulationState:
@@ -147,6 +149,14 @@ class SimulationEngine:
         return sum(
             1 for rider in self._active_riders.values() if rider.status in ("waiting", "in_trip")
         )
+
+    def set_event_loop(self, loop: asyncio.AbstractEventLoop) -> None:
+        """Store reference to the main asyncio event loop for thread-safe async calls."""
+        self._event_loop = loop
+
+    def get_event_loop(self) -> asyncio.AbstractEventLoop | None:
+        """Get the main asyncio event loop for thread-safe async calls from SimPy thread."""
+        return self._event_loop
 
     def transition_state(self, new_state: SimulationState, trigger: str = "user_request") -> None:
         """Validate and execute state transition."""

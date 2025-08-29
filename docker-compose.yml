@@ -5,6 +5,10 @@ services:
     ports:
       - "9092:9092"
     environment:
+      # JVM flags for ARM/Apple Silicon stability
+      KAFKA_OPTS: "-XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35 -XX:+ExplicitGCInvokesConcurrent"
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
+
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_LISTENERS: PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092
