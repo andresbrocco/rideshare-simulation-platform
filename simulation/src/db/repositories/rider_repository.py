@@ -3,7 +3,8 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ...agents.dna import RiderDNA
+from agents.dna import RiderDNA
+
 from ..schema import Rider
 
 

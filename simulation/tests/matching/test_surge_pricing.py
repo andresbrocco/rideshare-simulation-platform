@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import pytest
 import simpy
 
-from src.events.schemas import SurgeUpdateEvent
+from events.schemas import SurgeUpdateEvent
 from src.geo.zones import Zone
 from src.matching.driver_registry import DriverRegistry
 from src.matching.surge_pricing import SurgePricingCalculator

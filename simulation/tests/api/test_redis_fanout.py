@@ -58,8 +58,14 @@ async def test_redis_subscribe_on_startup(mock_redis_client_for_pubsub, mock_con
 
 @pytest.mark.asyncio
 async def test_fanout_driver_update(mock_redis_client_for_pubsub, mock_connection_manager):
-    """Fans out driver update to all clients."""
-    messages = [{"type": "message", "data": '{"driver_id": "d123", "status": "online"}'}]
+    """Fans out driver update to all clients (transformed to frontend format)."""
+    messages = [
+        {
+            "type": "message",
+            "channel": "driver-updates",
+            "data": '{"driver_id": "d123", "status": "online", "location": [0, 0]}',
+        }
+    ]
     pubsub = create_pubsub_mock(messages)
     mock_redis_client_for_pubsub.pubsub.return_value = pubsub
 
@@ -70,15 +76,33 @@ async def test_fanout_driver_update(mock_redis_client_for_pubsub, mock_connectio
     await subscriber.start()
     await asyncio.sleep(0.02)
 
-    mock_connection_manager.broadcast.assert_called_with({"driver_id": "d123", "status": "online"})
+    mock_connection_manager.broadcast.assert_called_with(
+        {
+            "type": "driver_update",
+            "data": {
+                "id": "d123",
+                "latitude": 0,
+                "longitude": 0,
+                "status": "online",
+                "rating": 5.0,
+                "zone": "unknown",
+            },
+        }
+    )
 
     await subscriber.stop()
 
 
 @pytest.mark.asyncio
 async def test_fanout_trip_update(mock_redis_client_for_pubsub, mock_connection_manager):
-    """Fans out trip update to all clients."""
-    messages = [{"type": "message", "data": '{"trip_id": "t456", "state": "STARTED"}'}]
+    """Fans out trip update to all clients (transformed to frontend format)."""
+    messages = [
+        {
+            "type": "message",
+            "channel": "trip-updates",
+            "data": '{"trip_id": "t456", "state": "STARTED", "driver_id": "d1", "rider_id": "r1", "pickup_location": [1, 2], "dropoff_location": [3, 4]}',
+        }
+    ]
     pubsub = create_pubsub_mock(messages)
     mock_redis_client_for_pubsub.pubsub.return_value = pubsub
 
@@ -89,15 +113,32 @@ async def test_fanout_trip_update(mock_redis_client_for_pubsub, mock_connection_
     await subscriber.start()
     await asyncio.sleep(0.02)
 
-    mock_connection_manager.broadcast.assert_called_with({"trip_id": "t456", "state": "STARTED"})
+    mock_connection_manager.broadcast.assert_called_with(
+        {
+            "type": "trip_update",
+            "data": {
+                "id": "t456",
+                "status": "STARTED",
+                "driver_id": "d1",
+                "rider_id": "r1",
+                "route": {"pickup": [1, 2], "dropoff": [3, 4]},
+            },
+        }
+    )
 
     await subscriber.stop()
 
 
 @pytest.mark.asyncio
 async def test_fanout_surge_update(mock_redis_client_for_pubsub, mock_connection_manager):
-    """Fans out surge update to all clients."""
-    messages = [{"type": "message", "data": '{"zone_id": "z1", "multiplier": 1.5}'}]
+    """Fans out surge update to all clients (transformed to frontend format)."""
+    messages = [
+        {
+            "type": "message",
+            "channel": "surge-updates",
+            "data": '{"zone_id": "z1", "multiplier": 1.5}',
+        }
+    ]
     pubsub = create_pubsub_mock(messages)
     mock_redis_client_for_pubsub.pubsub.return_value = pubsub
 
@@ -108,18 +149,26 @@ async def test_fanout_surge_update(mock_redis_client_for_pubsub, mock_connection
     await subscriber.start()
     await asyncio.sleep(0.02)
 
-    mock_connection_manager.broadcast.assert_called_with({"zone_id": "z1", "multiplier": 1.5})
+    mock_connection_manager.broadcast.assert_called_with(
+        {"type": "surge_update", "data": {"zone": "z1", "multiplier": 1.5}}
+    )
 
     await subscriber.stop()
 
 
 @pytest.mark.asyncio
 async def test_fanout_multiple_clients(mock_redis_client_for_pubsub, mock_connection_manager):
-    """Broadcasts to all connected clients."""
+    """Broadcasts to all connected clients (transformed to frontend format)."""
     ws1, ws2, ws3 = AsyncMock(), AsyncMock(), AsyncMock()
     mock_connection_manager.active_connections = {ws1, ws2, ws3}
 
-    messages = [{"type": "message", "data": '{"test": "data"}'}]
+    messages = [
+        {
+            "type": "message",
+            "channel": "driver-updates",
+            "data": '{"driver_id": "test", "status": "online", "location": [0, 0]}',
+        }
+    ]
     pubsub = create_pubsub_mock(messages)
     mock_redis_client_for_pubsub.pubsub.return_value = pubsub
 
@@ -130,7 +179,10 @@ async def test_fanout_multiple_clients(mock_redis_client_for_pubsub, mock_connec
     await subscriber.start()
     await asyncio.sleep(0.02)
 
-    mock_connection_manager.broadcast.assert_called_once_with({"test": "data"})
+    # Verify broadcast was called with transformed format
+    mock_connection_manager.broadcast.assert_called_once()
+    call_args = mock_connection_manager.broadcast.call_args[0][0]
+    assert call_args["type"] == "driver_update"
 
     await subscriber.stop()
 
@@ -174,10 +226,11 @@ async def test_redis_reconnect_on_disconnect(mock_redis_client_for_pubsub, mock_
 
 @pytest.mark.asyncio
 async def test_parse_redis_message(mock_redis_client_for_pubsub, mock_connection_manager):
-    """Parses JSON from Redis message."""
+    """Parses JSON from Redis message and transforms to frontend format."""
     messages = [
         {
             "type": "message",
+            "channel": "driver-updates",
             "data": '{"driver_id": "d1", "location": [1.0, 2.0], "status": "online"}',
         }
     ]
@@ -191,7 +244,17 @@ async def test_parse_redis_message(mock_redis_client_for_pubsub, mock_connection
     await subscriber.start()
     await asyncio.sleep(0.02)
 
-    expected = {"driver_id": "d1", "location": [1.0, 2.0], "status": "online"}
+    expected = {
+        "type": "driver_update",
+        "data": {
+            "id": "d1",
+            "latitude": 1.0,
+            "longitude": 2.0,
+            "status": "online",
+            "rating": 5.0,
+            "zone": "unknown",
+        },
+    }
     mock_connection_manager.broadcast.assert_called_with(expected)
 
     await subscriber.stop()
@@ -229,8 +292,12 @@ async def test_subscription_task_lifecycle(mock_redis_client_for_pubsub, mock_co
 async def test_ignore_malformed_messages(mock_redis_client_for_pubsub, mock_connection_manager):
     """Ignores invalid JSON without crashing."""
     messages = [
-        {"type": "message", "data": "not valid json"},
-        {"type": "message", "data": '{"valid": "json"}'},
+        {"type": "message", "channel": "driver-updates", "data": "not valid json"},
+        {
+            "type": "message",
+            "channel": "driver-updates",
+            "data": '{"driver_id": "valid", "status": "online", "location": [0, 0]}',
+        },
     ]
     pubsub = create_pubsub_mock(messages)
     mock_redis_client_for_pubsub.pubsub.return_value = pubsub
@@ -242,7 +309,11 @@ async def test_ignore_malformed_messages(mock_redis_client_for_pubsub, mock_conn
     await subscriber.start()
     await asyncio.sleep(0.02)
 
-    mock_connection_manager.broadcast.assert_called_once_with({"valid": "json"})
+    # Verify only valid message was broadcast (transformed)
+    mock_connection_manager.broadcast.assert_called_once()
+    call_args = mock_connection_manager.broadcast.call_args[0][0]
+    assert call_args["type"] == "driver_update"
+    assert call_args["data"]["id"] == "valid"
 
     await subscriber.stop()
 
@@ -262,8 +333,16 @@ async def test_client_disconnect_during_fanout(
     mock_connection_manager.broadcast = broadcast_with_error
 
     messages = [
-        {"type": "message", "data": '{"test": "data"}'},
-        {"type": "message", "data": '{"after": "error"}'},
+        {
+            "type": "message",
+            "channel": "driver-updates",
+            "data": '{"driver_id": "test1", "status": "online", "location": [0, 0]}',
+        },
+        {
+            "type": "message",
+            "channel": "driver-updates",
+            "data": '{"driver_id": "test2", "status": "online", "location": [0, 0]}',
+        },
     ]
     pubsub = create_pubsub_mock(messages)
     mock_redis_client_for_pubsub.pubsub.return_value = pubsub

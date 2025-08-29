@@ -20,6 +20,8 @@ from redis_client.publisher import RedisPublisher
 if TYPE_CHECKING:
     from agents.rider_agent import RiderAgent
     from db.repositories.driver_repository import DriverRepository
+    from geo.zones import ZoneLoader
+    from matching.agent_registry_manager import AgentRegistryManager
     from trip import Trip
 
 logger = logging.getLogger(__name__)
@@ -36,6 +38,8 @@ class DriverAgent(EventEmitter):
         kafka_producer: KafkaProducer | None,
         redis_publisher: RedisPublisher | None = None,
         driver_repository: "DriverRepository | None" = None,
+        registry_manager: "AgentRegistryManager | None" = None,
+        zone_loader: "ZoneLoader | None" = None,
     ):
         EventEmitter.__init__(self, kafka_producer, redis_publisher)
 
@@ -43,6 +47,8 @@ class DriverAgent(EventEmitter):
         self._dna = dna
         self._env = env
         self._driver_repository = driver_repository
+        self._registry_manager = registry_manager
+        self._zone_loader = zone_loader
 
         # Runtime state
         self._status = "offline"
@@ -92,11 +98,22 @@ class DriverAgent(EventEmitter):
         previous_status = self._status
         self._status = "online"
 
+        # Set initial random location in São Paulo if not already set
+        if self._location is None:
+            lat = random.uniform(-23.65, -23.45)
+            lon = random.uniform(-46.75, -46.55)
+            self._location = (lat, lon)
+
         if self._driver_repository:
             try:
                 self._driver_repository.update_status(self._driver_id, self._status)
             except Exception as e:
                 logger.error(f"Failed to persist status for driver {self._driver_id}: {e}")
+
+        # Notify registry manager that driver went online
+        if self._registry_manager and self._location:
+            zone_id = self._determine_zone(self._location)
+            self._registry_manager.driver_went_online(self._driver_id, self._location, zone_id)
 
         self._emit_status_event(previous_status, self._status, "go_online")
 
@@ -110,6 +127,10 @@ class DriverAgent(EventEmitter):
                 self._driver_repository.update_status(self._driver_id, self._status)
             except Exception as e:
                 logger.error(f"Failed to persist status for driver {self._driver_id}: {e}")
+
+        # Notify registry manager that driver went offline
+        if self._registry_manager:
+            self._registry_manager.driver_went_offline(self._driver_id)
 
         self._emit_status_event(previous_status, self._status, "go_offline")
 
@@ -125,6 +146,10 @@ class DriverAgent(EventEmitter):
                 self._driver_repository.update_active_trip(self._driver_id, trip_id)
             except Exception as e:
                 logger.error(f"Failed to persist trip acceptance for driver {self._driver_id}: {e}")
+
+        # Notify registry manager of status change
+        if self._registry_manager:
+            self._registry_manager.driver_status_changed(self._driver_id, self._status)
 
         self._emit_status_event(previous_status, self._status, "accept_trip")
 
@@ -178,6 +203,11 @@ class DriverAgent(EventEmitter):
                 self._driver_repository.update_location(self._driver_id, (lat, lon))
             except Exception as e:
                 logger.error(f"Failed to persist location for driver {self._driver_id}: {e}")
+
+        # Notify registry manager of location update
+        if self._registry_manager:
+            zone_id = self._determine_zone((lat, lon))
+            self._registry_manager.driver_location_updated(self._driver_id, (lat, lon), zone_id)
 
     def update_rating(self, new_rating: int) -> None:
         """Update rolling average rating."""
@@ -483,6 +513,20 @@ class DriverAgent(EventEmitter):
                 time_until_next_day = (24 * 3600) - time_of_day
                 if time_until_next_day > 0:
                     yield self._env.timeout(time_until_next_day)
+
+    def _determine_zone(self, location: tuple[float, float]) -> str | None:
+        """Determine the zone ID for a given location.
+
+        Args:
+            location: (lat, lon) tuple
+
+        Returns:
+            Zone ID if found, None otherwise
+        """
+        if not self._zone_loader:
+            return None
+        lat, lon = location
+        return self._zone_loader.find_zone_for_location(lat, lon)
 
     @classmethod
     def from_database(

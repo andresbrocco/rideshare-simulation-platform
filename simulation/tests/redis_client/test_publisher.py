@@ -1,8 +1,8 @@
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-import redis.asyncio as aioredis
+import redis
 from redis.exceptions import ConnectionError
 
 from pubsub.channels import ALL_CHANNELS
@@ -21,15 +21,15 @@ def redis_config():
 
 @pytest.fixture
 def mock_redis():
-    mock = AsyncMock(spec=aioredis.Redis)
-    mock.publish = AsyncMock(return_value=1)
-    mock.close = AsyncMock()
+    mock = MagicMock(spec=redis.Redis)
+    mock.publish = MagicMock(return_value=1)
+    mock.close = MagicMock()
     return mock
 
 
 @pytest.mark.asyncio
 async def test_publisher_init(redis_config):
-    with patch("redis.asyncio.Redis") as mock_redis_cls:
+    with patch("redis.Redis") as mock_redis_cls:
         publisher = RedisPublisher(redis_config)
 
         assert publisher is not None
@@ -44,7 +44,7 @@ async def test_publisher_init(redis_config):
 
 @pytest.mark.asyncio
 async def test_publisher_publish_success(redis_config, mock_redis):
-    with patch("redis.asyncio.Redis", return_value=mock_redis):
+    with patch("redis.Redis", return_value=mock_redis):
         publisher = RedisPublisher(redis_config)
 
         message = {"driver_id": "D123", "status": "available"}
@@ -58,7 +58,7 @@ async def test_publisher_publish_success(redis_config, mock_redis):
 
 @pytest.mark.asyncio
 async def test_publisher_publish_json_serialization(redis_config, mock_redis):
-    with patch("redis.asyncio.Redis", return_value=mock_redis):
+    with patch("redis.Redis", return_value=mock_redis):
         publisher = RedisPublisher(redis_config)
 
         message = {
@@ -81,7 +81,7 @@ async def test_publisher_publish_json_serialization(redis_config, mock_redis):
 async def test_publisher_connection_error(redis_config, mock_redis, caplog):
     mock_redis.publish.side_effect = ConnectionError("Connection refused")
 
-    with patch("redis.asyncio.Redis", return_value=mock_redis):
+    with patch("redis.Redis", return_value=mock_redis):
         publisher = RedisPublisher(redis_config)
 
         await publisher.publish("driver-updates", {"driver_id": "D123"})
@@ -97,7 +97,7 @@ async def test_publisher_reconnect_on_failure(redis_config, mock_redis):
         1,
     ]
 
-    with patch("redis.asyncio.Redis", return_value=mock_redis):
+    with patch("redis.Redis", return_value=mock_redis):
         publisher = RedisPublisher(redis_config)
 
         await publisher.publish("driver-updates", {"driver_id": "D123"})
@@ -109,17 +109,17 @@ async def test_publisher_reconnect_on_failure(redis_config, mock_redis):
 
 @pytest.mark.asyncio
 async def test_publisher_close(redis_config, mock_redis):
-    with patch("redis.asyncio.Redis", return_value=mock_redis):
+    with patch("redis.Redis", return_value=mock_redis):
         publisher = RedisPublisher(redis_config)
 
-        await publisher.close()
+        publisher.close()  # Sync method - no await
 
         mock_redis.close.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_publisher_valid_channels(redis_config, mock_redis):
-    with patch("redis.asyncio.Redis", return_value=mock_redis):
+    with patch("redis.Redis", return_value=mock_redis):
         publisher = RedisPublisher(redis_config)
 
         for channel in ALL_CHANNELS:
@@ -130,7 +130,7 @@ async def test_publisher_valid_channels(redis_config, mock_redis):
 
 @pytest.mark.asyncio
 async def test_publisher_invalid_channel(redis_config, mock_redis):
-    with patch("redis.asyncio.Redis", return_value=mock_redis):
+    with patch("redis.Redis", return_value=mock_redis):
         publisher = RedisPublisher(redis_config)
 
         with pytest.raises(ValueError) as exc_info:

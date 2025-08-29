@@ -1,18 +1,19 @@
 """Shared fixtures for engine tests."""
 
+from contextlib import contextmanager
 from unittest.mock import MagicMock, Mock
 
 import pytest
 
 
 def create_mock_sqlite_db():
-    """Create a mock SQLite database with proper context manager support."""
-    db = Mock()
-    session_mock = MagicMock()
+    """Create a mock SQLite database with proper context manager support.
 
-    # Mock the session context manager
-    session_mock.__enter__ = Mock(return_value=session_mock)
-    session_mock.__exit__ = Mock(return_value=None)
+    The sqlite_db is used as a callable that returns a context manager:
+    with sqlite_db() as session:
+        ...
+    """
+    session_mock = MagicMock()
 
     # Mock the execute method to return empty results
     result_mock = Mock()
@@ -21,8 +22,12 @@ def create_mock_sqlite_db():
     result_mock.scalars = Mock(return_value=scalars_mock)
     session_mock.execute = Mock(return_value=result_mock)
 
-    db.session = Mock(return_value=session_mock)
-    return db
+    # Create a context manager that yields the session mock
+    @contextmanager
+    def session_factory():
+        yield session_mock
+
+    return session_factory
 
 
 @pytest.fixture

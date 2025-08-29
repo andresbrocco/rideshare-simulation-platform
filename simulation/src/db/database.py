@@ -1,5 +1,6 @@
 """Database engine initialization and connection management."""
 
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import create_engine
@@ -10,6 +11,10 @@ from .schema import Base, SimulationMetadata
 
 def init_database(db_path: str) -> sessionmaker[Any]:
     """Initialize database and return session factory."""
+    # Ensure parent directory exists
+    db_dir = Path(db_path).parent
+    db_dir.mkdir(parents=True, exist_ok=True)
+
     engine = create_engine(
         f"sqlite:///{db_path}",
         echo=False,

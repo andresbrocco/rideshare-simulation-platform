@@ -3,8 +3,9 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ...trip import Trip as TripDomain
-from ...trip import TripState
+from trip import Trip as TripDomain
+from trip import TripState
+
 from ..schema import Trip
 from ..utils import utc_now
 
