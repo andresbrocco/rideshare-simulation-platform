@@ -104,6 +104,10 @@ export function useSimulationState() {
     []
   );
 
+  const handleSimulationStatus = useCallback((data: SimulationStatus) => {
+    setState((prev) => ({ ...prev, status: data }));
+  }, []);
+
   const handleMessage = useCallback(
     (message: WebSocketMessage) => {
       switch (message.type) {
@@ -125,9 +129,12 @@ export function useSimulationState() {
         case 'gps_ping':
           handleGPSPing(message);
           break;
+        case 'simulation_status':
+          handleSimulationStatus(message.data);
+          break;
       }
     },
-    [handleSnapshot, handleUpdate, handleGPSPing]
+    [handleSnapshot, handleUpdate, handleGPSPing, handleSimulationStatus]
   );
 
   const handleConnect = useCallback(() => {
@@ -139,6 +146,10 @@ export function useSimulationState() {
       ...prev,
       connected: false,
     }));
+  }, []);
+
+  const setStatus = useCallback((status: SimulationStatus) => {
+    setState((prev) => ({ ...prev, status }));
   }, []);
 
   return {
@@ -154,5 +165,6 @@ export function useSimulationState() {
     handleDisconnect,
     handleSnapshot,
     handleUpdate,
+    setStatus,
   };
 }

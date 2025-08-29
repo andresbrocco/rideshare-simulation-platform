@@ -24,7 +24,7 @@ export function useWebSocket({
   const onOpenRef = useRef(onOpen);
   const onCloseRef = useRef(onClose);
   const onErrorRef = useRef(onError);
-  const connectRef = useRef<() => void>(() => {});
+  const isCleanedUpRef = useRef(false);
 
   useEffect(() => {
     onMessageRef.current = onMessage;
@@ -34,16 +34,26 @@ export function useWebSocket({
   });
 
   useEffect(() => {
+    isCleanedUpRef.current = false;
+
     const doConnect = () => {
+      // Don't connect if effect was cleaned up
+      if (isCleanedUpRef.current) return;
+
       const ws = new WebSocket(`${url}?api_key=${apiKey}`);
       wsRef.current = ws;
 
       ws.onopen = () => {
+        if (isCleanedUpRef.current) {
+          ws.close();
+          return;
+        }
         setIsConnected(true);
         onOpenRef.current?.();
       };
 
       ws.onmessage = (event) => {
+        if (isCleanedUpRef.current) return;
         try {
           const data = JSON.parse(event.data);
           onMessageRef.current(data);
@@ -53,29 +63,33 @@ export function useWebSocket({
       };
 
       ws.onclose = () => {
+        if (isCleanedUpRef.current) return;
         setIsConnected(false);
         onCloseRef.current?.();
 
         reconnectTimeoutRef.current = setTimeout(() => {
-          connectRef.current();
+          doConnect();
         }, 3000);
       };
 
       ws.onerror = (error) => {
+        if (isCleanedUpRef.current) return;
         console.error('WebSocket error:', error);
         onErrorRef.current?.(error);
       };
     };
 
-    connectRef.current = doConnect;
     doConnect();
 
     return () => {
+      isCleanedUpRef.current = true;
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
       }
       if (wsRef.current) {
         wsRef.current.close();
+        wsRef.current = null;
       }
     };
   }, [url, apiKey]);

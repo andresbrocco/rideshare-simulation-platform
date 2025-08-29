@@ -42,10 +42,16 @@ export interface GPSPing {
   };
 }
 
+export interface SimulationStatusUpdate {
+  type: 'simulation_status';
+  data: SimulationStatus;
+}
+
 export type WebSocketMessage =
   | StateSnapshot
   | DriverUpdate
   | RiderUpdate
   | TripUpdate
   | SurgeUpdate
-  | GPSPing;
+  | GPSPing
+  | SimulationStatusUpdate;

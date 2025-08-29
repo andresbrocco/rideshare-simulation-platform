@@ -6,16 +6,26 @@ import styles from './ControlPanel.module.css';
 
 interface ControlPanelProps {
   status: SimulationStatus;
+  driverCount?: number;
+  riderCount?: number;
+  tripCount?: number;
+  onStatusUpdate?: (status: SimulationStatus) => void;
 }
 
-export default function ControlPanel({ status }: ControlPanelProps) {
+export default function ControlPanel({
+  status,
+  driverCount: realTimeDriverCount,
+  riderCount: realTimeRiderCount,
+  tripCount: realTimeTripCount,
+  onStatusUpdate,
+}: ControlPanelProps) {
   const [driverCount, setDriverCount] = useState(10);
   const [riderCount, setRiderCount] = useState(5);
 
   const { startSimulation, pauseSimulation, resetSimulation, setSpeed, addDrivers, addRiders } =
-    useSimulationControl();
+    useSimulationControl(onStatusUpdate);
 
-  const isRunning = status.state === 'RUNNING';
+  const isRunning = status.state === 'running';
 
   const handleSpeedChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const multiplier = parseInt(e.target.value);
@@ -32,11 +42,11 @@ export default function ControlPanel({ status }: ControlPanelProps) {
 
   const getStatusColor = () => {
     switch (status.state) {
-      case 'RUNNING':
+      case 'running':
         return styles.statusRunning;
-      case 'PAUSED':
+      case 'paused':
         return styles.statusPaused;
-      case 'DRAINING':
+      case 'draining':
         return styles.statusPaused;
       default:
         return styles.statusStopped;
@@ -124,7 +134,12 @@ export default function ControlPanel({ status }: ControlPanelProps) {
         </div>
       </div>
 
-      <StatsPanel status={status} />
+      <StatsPanel
+        status={status}
+        driverCount={realTimeDriverCount}
+        riderCount={realTimeRiderCount}
+        tripCount={realTimeTripCount}
+      />
     </div>
   );
 }

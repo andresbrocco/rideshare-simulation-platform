@@ -23,6 +23,7 @@ function App() {
     handleMessage,
     handleConnect,
     handleDisconnect,
+    setStatus,
   } = useSimulationState();
 
   const wsUrl = import.meta.env.VITE_WS_URL;
@@ -58,7 +59,15 @@ function App() {
       ) : (
         <>
           <Map layers={layers} />
-          {status && <ControlPanel status={status} />}
+          {status && (
+            <ControlPanel
+              status={status}
+              driverCount={drivers.length}
+              riderCount={riders.length}
+              tripCount={trips.length}
+              onStatusUpdate={setStatus}
+            />
+          )}
           {!connected && (
             <div
               style={{

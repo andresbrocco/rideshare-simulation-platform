@@ -1,5 +1,5 @@
 export interface SimulationStatus {
-  state: 'STOPPED' | 'RUNNING' | 'DRAINING' | 'PAUSED';
+  state: 'stopped' | 'running' | 'draining' | 'paused';
   speed_multiplier: number;
   current_time: string;
   drivers_count: number;
