@@ -1,5 +1,7 @@
 """FastAPI application factory for simulation control panel."""
 
+import asyncio
+import contextlib
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
@@ -19,6 +21,43 @@ if TYPE_CHECKING:
     from engine.agent_factory import AgentFactory
 
 
+class StatusBroadcaster:
+    """Periodically broadcasts simulation status to WebSocket clients."""
+
+    def __init__(self, engine: "SimulationEngine", connection_manager, snapshot_manager):
+        self._engine = engine
+        self._connection_manager = connection_manager
+        self._snapshot_manager = snapshot_manager
+        self._task = None
+        self._interval = 1.0  # seconds
+
+    async def start(self):
+        self._task = asyncio.create_task(self._broadcast_loop())
+
+    async def stop(self):
+        if self._task:
+            self._task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._task
+
+    async def _broadcast_loop(self):
+        while True:
+            try:
+                await asyncio.sleep(self._interval)
+                if self._connection_manager.active_connections:
+                    snapshot = await self._snapshot_manager.get_snapshot(engine=self._engine)
+                    await self._connection_manager.broadcast(
+                        {
+                            "type": "simulation_status",
+                            "data": snapshot.get("simulation", {}),
+                        }
+                    )
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                pass  # Silently continue on errors
+
+
 def create_app(
     engine: "SimulationEngine",
     agent_factory: "AgentFactory",
@@ -31,12 +70,16 @@ def create_app(
         """Manage application startup and shutdown."""
         snapshot_manager = StateSnapshotManager(redis_client)
         subscriber = RedisSubscriber(redis_client, connection_manager)
+        broadcaster = StatusBroadcaster(engine, connection_manager, snapshot_manager)
 
         app.state.snapshot_manager = snapshot_manager
         app.state.subscriber = subscriber
+        app.state.broadcaster = broadcaster
 
         await subscriber.start()
+        await broadcaster.start()
         yield
+        await broadcaster.stop()
         await subscriber.stop()
 
     app = FastAPI(

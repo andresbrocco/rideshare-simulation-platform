@@ -44,7 +44,8 @@ async def websocket_endpoint(websocket: WebSocket):
 
     try:
         snapshot_manager = websocket.app.state.snapshot_manager
-        snapshot = await snapshot_manager.get_snapshot()
+        engine = websocket.app.state.engine
+        snapshot = await snapshot_manager.get_snapshot(engine=engine)
 
         await manager.send_message(websocket, {"type": "snapshot", "data": snapshot})
 
