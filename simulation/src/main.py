@@ -24,6 +24,7 @@ from engine.agent_factory import AgentFactory
 from geo.osrm_client import OSRMClient
 from geo.zones import ZoneLoader
 from kafka.producer import KafkaProducer
+from matching.agent_registry_manager import AgentRegistryManager
 from matching.driver_geospatial_index import DriverGeospatialIndex
 from matching.driver_registry import DriverRegistry
 from matching.matching_server import MatchingServer
@@ -64,7 +65,8 @@ class SimulationRunner:
     def _run_loop(self):
         """Main simulation loop - advances simulation time."""
         while self._running:
-            if self._engine.state.value == "running":
+            # Step simulation when running or draining (drain process needs env to advance)
+            if self._engine.state.value in ("running", "draining"):
                 self._engine.step(10)
             time.sleep(0.1)
 
@@ -126,7 +128,7 @@ def main():
 
     # Initialize SimPy environment and database
     env = simpy.Environment()
-    session_factory = init_database("data/db/simulation.db")
+    session_factory = init_database("/app/db/simulation.db")
 
     # Initialize external service clients
     osrm_client = OSRMClient(settings.osrm.base_url)
@@ -144,27 +146,41 @@ def main():
     logger.info("Async Redis client configured")
 
     # Load geographic data
-    zone_loader = ZoneLoader("data/sao-paulo/zones.geojson")
+    zone_loader = ZoneLoader("/app/data/sao-paulo/zones.geojson")
 
     # Initialize matching components
     driver_registry = DriverRegistry()
     driver_index = DriverGeospatialIndex()
-    agent_registry: dict = {}
-    notification_dispatch = NotificationDispatch(agent_registry)
 
-    # Initialize surge pricing calculator (starts its own SimPy process)
-    _ = SurgePricingCalculator(
-        env=env,
-        zone_loader=zone_loader,
-        driver_registry=driver_registry,
-        kafka_producer=kafka_producer,
-    )
-
+    # Create matching server first (with placeholder notification_dispatch)
     matching_server = MatchingServer(
         env=env,
         driver_index=driver_index,
-        notification_dispatch=notification_dispatch,
+        notification_dispatch=None,  # Will be set after registry_manager is created
         osrm_client=osrm_client,
+        kafka_producer=kafka_producer,
+        registry_manager=None,  # Will be set after registry_manager is created
+    )
+
+    # Create AgentRegistryManager
+    registry_manager = AgentRegistryManager(
+        driver_index=driver_index,
+        driver_registry=driver_registry,
+        matching_server=matching_server,
+    )
+
+    # Create NotificationDispatch with registry_manager
+    notification_dispatch = NotificationDispatch(registry_manager)
+
+    # Wire notification_dispatch and registry_manager into matching_server
+    matching_server._notification_dispatch = notification_dispatch
+    matching_server._registry_manager = registry_manager
+
+    # Initialize surge pricing calculator (starts its own SimPy process)
+    surge_calculator = SurgePricingCalculator(
+        env=env,
+        zone_loader=zone_loader,
+        driver_registry=driver_registry,
         kafka_producer=kafka_producer,
     )
 
@@ -179,11 +195,15 @@ def main():
         simulation_start_time=simulation_start_time,
     )
 
-    # Initialize agent factory
+    # Initialize agent factory with all dependencies
     agent_factory = AgentFactory(
         simulation_engine=engine,
         sqlite_db=session_factory,
         kafka_producer=kafka_producer,
+        registry_manager=registry_manager,
+        zone_loader=zone_loader,
+        osrm_client=osrm_client,
+        surge_calculator=surge_calculator,
     )
 
     logger.info(f"Simulation engine initialized (speed: {settings.simulation.speed_multiplier}x)")

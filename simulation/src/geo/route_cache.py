@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 import h3
 
-from src.geo.osrm_client import OSRMClient, RouteResponse
+from geo.osrm_client import OSRMClient, RouteResponse
 
 
 class RouteCacheService:

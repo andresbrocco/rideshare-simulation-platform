@@ -38,7 +38,7 @@ class EventEmitter:
             return
 
         try:
-            message = event.model_dump()
+            message = event.model_dump(mode="json")
             await self._redis_publisher.publish(channel=channel, message=message)
         except Exception as e:
             logger.error(f"Failed to emit event to Redis channel {channel}: {e}")

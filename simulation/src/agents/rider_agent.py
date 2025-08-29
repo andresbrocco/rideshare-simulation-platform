@@ -1,5 +1,6 @@
 """Rider agent base class for SimPy simulation."""
 
+import asyncio
 import logging
 import random
 from collections.abc import Generator
@@ -18,6 +19,10 @@ from redis_client.publisher import RedisPublisher
 if TYPE_CHECKING:
     from agents.driver_agent import DriverAgent
     from db.repositories.rider_repository import RiderRepository
+    from engine import SimulationEngine
+    from geo.osrm_client import OSRMClient
+    from geo.zones import ZoneLoader
+    from matching.surge_pricing import SurgePricingCalculator
     from trip import Trip
 
 logger = logging.getLogger(__name__)
@@ -34,6 +39,10 @@ class RiderAgent(EventEmitter):
         kafka_producer: KafkaProducer | None,
         redis_publisher: RedisPublisher | None = None,
         rider_repository: "RiderRepository | None" = None,
+        simulation_engine: "SimulationEngine | None" = None,
+        zone_loader: "ZoneLoader | None" = None,
+        osrm_client: "OSRMClient | None" = None,
+        surge_calculator: "SurgePricingCalculator | None" = None,
     ):
         EventEmitter.__init__(self, kafka_producer, redis_publisher)
 
@@ -41,6 +50,10 @@ class RiderAgent(EventEmitter):
         self._dna = dna
         self._env = env
         self._rider_repository = rider_repository
+        self._simulation_engine = simulation_engine
+        self._zone_loader = zone_loader
+        self._osrm_client = osrm_client
+        self._surge_calculator = surge_calculator
 
         # Runtime state
         self._status = "idle"
@@ -332,6 +345,12 @@ class RiderAgent(EventEmitter):
 
         from events.schemas import TripEvent
 
+        # Set initial random location in São Paulo if not already set
+        if self._location is None:
+            lat = random.uniform(-23.65, -23.45)
+            lon = random.uniform(-46.75, -46.55)
+            self._location = (lat, lon)
+
         while True:
             if self._status == "in_trip":
                 if self._location:
@@ -396,6 +415,90 @@ class RiderAgent(EventEmitter):
             trip_id = str(uuid.uuid4())
 
             self.request_trip(trip_id)
+
+            # Determine zones and calculate fare
+            pickup_zone_id = self._determine_zone(self._location) or "unknown"
+            dropoff_zone_id = self._determine_zone(destination) or "unknown"
+            surge_multiplier = self._get_surge(pickup_zone_id)
+            fare = self._calculate_fare(self._location, destination, surge_multiplier)
+
+            # Emit trip.requested event
+            trip_event = TripEvent(
+                event_type="trip.requested",
+                trip_id=trip_id,
+                timestamp=datetime.now(UTC).isoformat(),
+                rider_id=self._rider_id,
+                driver_id=None,
+                pickup_location=self._location,
+                dropoff_location=destination,
+                pickup_zone_id=pickup_zone_id,
+                dropoff_zone_id=dropoff_zone_id,
+                surge_multiplier=surge_multiplier,
+                fare=fare,
+            )
+
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.create_task(
+                        self._emit_event(
+                            event=trip_event,
+                            kafka_topic="trips",
+                            partition_key=trip_id,
+                            redis_channel="trip-updates",
+                        )
+                    )
+                else:
+                    loop.run_until_complete(
+                        self._emit_event(
+                            event=trip_event,
+                            kafka_topic="trips",
+                            partition_key=trip_id,
+                            redis_channel="trip-updates",
+                        )
+                    )
+            except RuntimeError:
+                asyncio.run(
+                    self._emit_event(
+                        event=trip_event,
+                        kafka_topic="trips",
+                        partition_key=trip_id,
+                        redis_channel="trip-updates",
+                    )
+                )
+
+            # Trigger matching through the simulation engine
+            if self._simulation_engine:
+                try:
+                    loop = asyncio.get_event_loop()
+                    match_coro = self._simulation_engine.request_match(
+                        rider_id=self._rider_id,
+                        pickup_location=self._location,
+                        dropoff_location=destination,
+                        pickup_zone_id=pickup_zone_id,
+                        dropoff_zone_id=dropoff_zone_id,
+                        surge_multiplier=surge_multiplier,
+                        fare=fare,
+                    )
+                    if loop.is_running():
+                        asyncio.create_task(match_coro)
+                    else:
+                        loop.run_until_complete(match_coro)
+                except RuntimeError:
+                    asyncio.run(
+                        self._simulation_engine.request_match(
+                            rider_id=self._rider_id,
+                            pickup_location=self._location,
+                            dropoff_location=destination,
+                            pickup_zone_id=pickup_zone_id,
+                            dropoff_zone_id=dropoff_zone_id,
+                            surge_multiplier=surge_multiplier,
+                            fare=fare,
+                        )
+                    )
+                except ValueError as e:
+                    # Simulation is pausing
+                    logger.warning(f"Cannot request match: {e}")
 
             match_timeout = self._env.now + self._dna.patience_threshold
 
@@ -499,6 +602,96 @@ class RiderAgent(EventEmitter):
                         )
 
                 yield self._env.timeout(GPS_PING_INTERVAL)
+
+    def _determine_zone(self, location: tuple[float, float]) -> str | None:
+        """Determine the zone ID for a given location.
+
+        Args:
+            location: (lat, lon) tuple
+
+        Returns:
+            Zone ID if found, None otherwise
+        """
+        if not self._zone_loader:
+            return None
+        lat, lon = location
+        return self._zone_loader.find_zone_for_location(lat, lon)
+
+    def _get_surge(self, zone_id: str) -> float:
+        """Get current surge multiplier for a zone.
+
+        Args:
+            zone_id: The zone ID to get surge for
+
+        Returns:
+            Surge multiplier (defaults to 1.0 if unavailable)
+        """
+        if not self._surge_calculator:
+            return 1.0
+        return self._surge_calculator.get_surge(zone_id)
+
+    def _calculate_fare(
+        self,
+        pickup: tuple[float, float],
+        dropoff: tuple[float, float],
+        surge_multiplier: float,
+    ) -> float:
+        """Calculate fare for a trip.
+
+        Args:
+            pickup: (lat, lon) of pickup location
+            dropoff: (lat, lon) of dropoff location
+            surge_multiplier: Current surge multiplier
+
+        Returns:
+            Calculated fare amount
+        """
+        # Base fare calculation
+        BASE_FARE = 5.0  # BRL
+        PER_KM_RATE = 2.5  # BRL per km
+        PER_MINUTE_RATE = 0.5  # BRL per minute
+
+        # Calculate distance using OSRM if available, otherwise Haversine
+        if self._osrm_client:
+            try:
+                route = asyncio.run(self._osrm_client.get_route(pickup, dropoff))
+                distance_km = route.distance_meters / 1000
+                duration_minutes = route.duration_seconds / 60
+            except Exception:
+                # Fallback to Haversine estimate
+                distance_km = self._haversine_distance(pickup[0], pickup[1], dropoff[0], dropoff[1])
+                # Estimate duration based on average city speed (25 km/h)
+                duration_minutes = (distance_km / 25) * 60
+        else:
+            distance_km = self._haversine_distance(pickup[0], pickup[1], dropoff[0], dropoff[1])
+            duration_minutes = (distance_km / 25) * 60
+
+        # Calculate total fare
+        fare = BASE_FARE + (distance_km * PER_KM_RATE) + (duration_minutes * PER_MINUTE_RATE)
+        fare = fare * surge_multiplier
+
+        # Round to 2 decimal places
+        return round(fare, 2)
+
+    @staticmethod
+    def _haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+        """Calculate distance between two points in kilometers using Haversine formula."""
+        import math
+
+        R = 6371  # Earth radius in km
+
+        lat1_rad = math.radians(lat1)
+        lat2_rad = math.radians(lat2)
+        delta_lat = math.radians(lat2 - lat1)
+        delta_lon = math.radians(lon2 - lon1)
+
+        a = (
+            math.sin(delta_lat / 2) ** 2
+            + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(delta_lon / 2) ** 2
+        )
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+        return R * c
 
     @classmethod
     def from_database(

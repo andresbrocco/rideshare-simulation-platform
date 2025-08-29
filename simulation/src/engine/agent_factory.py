@@ -9,7 +9,11 @@ from agents.rider_agent import RiderAgent
 
 if TYPE_CHECKING:
     from engine import SimulationEngine
+    from geo.osrm_client import OSRMClient
+    from geo.zones import ZoneLoader
     from kafka.producer import KafkaProducer
+    from matching.agent_registry_manager import AgentRegistryManager
+    from matching.surge_pricing import SurgePricingCalculator
 
 
 class AgentFactory:
@@ -20,11 +24,19 @@ class AgentFactory:
         simulation_engine: "SimulationEngine",
         sqlite_db,
         kafka_producer: "KafkaProducer | None",
+        registry_manager: "AgentRegistryManager | None" = None,
+        zone_loader: "ZoneLoader | None" = None,
+        osrm_client: "OSRMClient | None" = None,
+        surge_calculator: "SurgePricingCalculator | None" = None,
     ):
         self._simulation_engine = simulation_engine
         self._sqlite_db = sqlite_db
         self._kafka_producer = kafka_producer
         self._redis_publisher = getattr(simulation_engine, "_redis_client", None)
+        self._registry_manager = registry_manager
+        self._zone_loader = zone_loader
+        self._osrm_client = osrm_client
+        self._surge_calculator = surge_calculator
 
         self._max_drivers = 2000
         self._max_riders = 10000
@@ -45,9 +57,15 @@ class AgentFactory:
                 kafka_producer=self._kafka_producer,
                 redis_publisher=self._redis_publisher,
                 driver_repository=None,
+                registry_manager=self._registry_manager,
+                zone_loader=self._zone_loader,
             )
 
             self._simulation_engine.register_driver(agent)
+
+            # Register in AgentRegistryManager
+            if self._registry_manager:
+                self._registry_manager.register_driver(agent)
 
             if self._simulation_engine.state.value == "running":
                 process = self._simulation_engine._env.process(agent.run())
@@ -73,9 +91,17 @@ class AgentFactory:
                 kafka_producer=self._kafka_producer,
                 redis_publisher=self._redis_publisher,
                 rider_repository=None,
+                simulation_engine=self._simulation_engine,
+                zone_loader=self._zone_loader,
+                osrm_client=self._osrm_client,
+                surge_calculator=self._surge_calculator,
             )
 
             self._simulation_engine.register_rider(agent)
+
+            # Register in AgentRegistryManager
+            if self._registry_manager:
+                self._registry_manager.register_rider(agent)
 
             if self._simulation_engine.state.value == "running":
                 process = self._simulation_engine._env.process(agent.run())

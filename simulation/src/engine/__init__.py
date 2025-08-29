@@ -342,9 +342,9 @@ class SimulationEngine:
 
     def _get_in_flight_trips(self) -> list["Trip"]:
         """Get trips in non-terminal states."""
-        from src.db.repositories.trip_repository import TripRepository
+        from db.repositories.trip_repository import TripRepository
 
-        with self._sqlite_db.session() as session:
+        with self._sqlite_db() as session:
             repo = TripRepository(session)
             return repo.list_in_flight()
 
@@ -370,10 +370,10 @@ class SimulationEngine:
 
     def _force_cancel_trips(self, trips: list["Trip"]) -> None:
         """Force-cancel all in-flight trips."""
-        from src.db.repositories.trip_repository import TripRepository
-        from src.trip import TripState
+        from db.repositories.trip_repository import TripRepository
+        from trip import TripState
 
-        with self._sqlite_db.session() as session:
+        with self._sqlite_db() as session:
             repo = TripRepository(session)
             for trip in trips:
                 self._force_cancel_trip(trip)

@@ -8,11 +8,13 @@ import simpy
 
 from matching.driver_geospatial_index import DriverGeospatialIndex
 from trip import Trip, TripState
+from trips.trip_executor import TripExecutor
 
 if TYPE_CHECKING:
     from agents.driver_agent import DriverAgent
     from geo.osrm_client import OSRMClient
     from kafka.producer import KafkaProducer
+    from matching.agent_registry_manager import AgentRegistryManager
 
 
 class MatchingServer:
@@ -25,12 +27,14 @@ class MatchingServer:
         notification_dispatch: Any,
         osrm_client: "OSRMClient",
         kafka_producer: "KafkaProducer | None" = None,
+        registry_manager: "AgentRegistryManager | None" = None,
     ):
         self._env = env
         self._driver_index = driver_index
         self._notification_dispatch = notification_dispatch
         self._osrm_client = osrm_client
         self._kafka_producer = kafka_producer
+        self._registry_manager = registry_manager
         self._pending_offers: dict[str, dict] = {}
         self._drivers: dict[str, DriverAgent] = {}
 
@@ -167,6 +171,10 @@ class MatchingServer:
                 trip.transition_to(TripState.MATCHED)
                 trip.matched_at = datetime.now(UTC)
                 self._emit_matched_event(trip)
+
+                # Start trip execution
+                self._start_trip_execution(driver, trip)
+
                 return trip
 
             # Transition to rejected for next offer
@@ -174,6 +182,32 @@ class MatchingServer:
 
         self._emit_no_drivers_event(trip.trip_id, trip.rider_id)
         return None
+
+    def _start_trip_execution(self, driver: "DriverAgent", trip: Trip) -> None:
+        """Start the TripExecutor for a matched trip.
+
+        Args:
+            driver: The matched driver
+            trip: The matched trip
+        """
+        if not self._registry_manager:
+            return
+
+        rider = self._registry_manager.get_rider(trip.rider_id)
+        if not rider:
+            return
+
+        executor = TripExecutor(
+            env=self._env,
+            driver=driver,
+            rider=rider,
+            trip=trip,
+            osrm_client=self._osrm_client,
+            kafka_producer=self._kafka_producer,
+        )
+
+        # Start the trip execution as a SimPy process
+        self._env.process(executor.execute())
 
     def send_offer(
         self,
