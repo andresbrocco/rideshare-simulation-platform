@@ -46,9 +46,10 @@ class TestRiderAgentInit:
         assert agent.rider_id == "rider_001"
         assert agent.dna == rider_dna
 
-    def test_rider_initial_state(self, rider_agent):
+    def test_rider_initial_state(self, rider_agent, rider_dna):
         assert rider_agent.status == "idle"
-        assert rider_agent.location is None
+        # Location is now set from DNA home_location on creation
+        assert rider_agent.location == rider_dna.home_location
         assert rider_agent.active_trip is None
         assert rider_agent.current_rating == 5.0
         assert rider_agent.rating_count == 0

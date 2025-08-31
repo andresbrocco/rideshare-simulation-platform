@@ -15,11 +15,19 @@ if TYPE_CHECKING:
 # Module-level faker instance for production (unseeded for variety)
 _faker: Faker = create_faker_instance()
 
-# Geographic bounds for Sao Paulo
-SAO_PAULO_LAT_MIN = -24.0
-SAO_PAULO_LAT_MAX = -23.0
-SAO_PAULO_LON_MIN = -47.0
-SAO_PAULO_LON_MAX = -46.0
+# Geographic bounds for Sao Paulo - matching actual districts from zones.geojson
+SAO_PAULO_LAT_MIN = -23.75
+SAO_PAULO_LAT_MAX = -23.40
+SAO_PAULO_LON_MIN = -46.85
+SAO_PAULO_LON_MAX = -46.35
+
+# Shared bounds dict for import by other modules
+SAO_PAULO_BOUNDS = {
+    "lat_min": SAO_PAULO_LAT_MIN,
+    "lat_max": SAO_PAULO_LAT_MAX,
+    "lon_min": SAO_PAULO_LON_MIN,
+    "lon_max": SAO_PAULO_LON_MAX,
+}
 
 # Time affinity patterns for rider destinations
 TIME_AFFINITY_PATTERNS = [

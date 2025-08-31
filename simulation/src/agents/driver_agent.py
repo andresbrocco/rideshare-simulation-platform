@@ -11,6 +11,7 @@ from uuid import uuid4
 import simpy
 
 from agents.dna import DriverDNA
+from agents.dna_generator import SAO_PAULO_BOUNDS
 from agents.event_emitter import GPS_PING_INTERVAL, EventEmitter
 from agents.rating_logic import generate_rating_value, should_submit_rating
 from events.schemas import DriverProfileEvent, GPSPingEvent, RatingEvent
@@ -40,6 +41,7 @@ class DriverAgent(EventEmitter):
         driver_repository: "DriverRepository | None" = None,
         registry_manager: "AgentRegistryManager | None" = None,
         zone_loader: "ZoneLoader | None" = None,
+        immediate_online: bool = False,
     ):
         EventEmitter.__init__(self, kafka_producer, redis_publisher)
 
@@ -49,10 +51,12 @@ class DriverAgent(EventEmitter):
         self._driver_repository = driver_repository
         self._registry_manager = registry_manager
         self._zone_loader = zone_loader
+        self._immediate_online = immediate_online
 
         # Runtime state
         self._status = "offline"
-        self._location: tuple[float, float] | None = None
+        # Set initial location from DNA home_location for immediate visibility
+        self._location: tuple[float, float] | None = dna.home_location
         self._active_trip: str | None = None
         self._current_rating = 5.0
         self._rating_count = 0
@@ -100,8 +104,8 @@ class DriverAgent(EventEmitter):
 
         # Set initial random location in São Paulo if not already set
         if self._location is None:
-            lat = random.uniform(-23.65, -23.45)
-            lon = random.uniform(-46.75, -46.55)
+            lat = random.uniform(SAO_PAULO_BOUNDS["lat_min"], SAO_PAULO_BOUNDS["lat_max"])
+            lon = random.uniform(SAO_PAULO_BOUNDS["lon_min"], SAO_PAULO_BOUNDS["lon_max"])
             self._location = (lat, lon)
 
         if self._driver_repository:
@@ -164,6 +168,10 @@ class DriverAgent(EventEmitter):
             except Exception as e:
                 logger.error(f"Failed to persist status for driver {self._driver_id}: {e}")
 
+        # Notify registry manager of status change
+        if self._registry_manager:
+            self._registry_manager.driver_status_changed(self._driver_id, self._status)
+
         self._emit_status_event(previous_status, self._status, "start_pickup")
 
     def start_trip(self) -> None:
@@ -176,6 +184,10 @@ class DriverAgent(EventEmitter):
                 self._driver_repository.update_status(self._driver_id, self._status)
             except Exception as e:
                 logger.error(f"Failed to persist status for driver {self._driver_id}: {e}")
+
+        # Notify registry manager of status change
+        if self._registry_manager:
+            self._registry_manager.driver_status_changed(self._driver_id, self._status)
 
         self._emit_status_event(previous_status, self._status, "start_trip")
 
@@ -191,6 +203,10 @@ class DriverAgent(EventEmitter):
                 self._driver_repository.update_active_trip(self._driver_id, None)
             except Exception as e:
                 logger.error(f"Failed to persist trip completion for driver {self._driver_id}: {e}")
+
+        # Notify registry manager of status change
+        if self._registry_manager:
+            self._registry_manager.driver_status_changed(self._driver_id, self._status)
 
         self._emit_status_event(previous_status, self._status, "complete_trip")
 
@@ -297,7 +313,10 @@ class DriverAgent(EventEmitter):
             return False
 
     def receive_offer(self, offer: dict) -> bool:
-        """Decide whether to accept or reject offer based on acceptance rate."""
+        """Decide whether to accept or reject offer based on acceptance rate.
+
+        If accepted, updates driver status to busy via accept_trip().
+        """
         base_rate = self._dna.acceptance_rate
         surge = offer.get("surge_multiplier", 1.0)
 
@@ -316,7 +335,10 @@ class DriverAgent(EventEmitter):
 
         adjusted_rate = min(1.0, adjusted_rate)
 
-        return random.random() < adjusted_rate
+        if random.random() < adjusted_rate:
+            self.accept_trip(offer["trip_id"])
+            return True
+        return False
 
     def on_trip_cancelled(self, trip) -> None:
         """Handle trip cancellation notification."""
@@ -480,6 +502,19 @@ class DriverAgent(EventEmitter):
 
     def run(self) -> Generator[simpy.Event]:
         """SimPy process managing shift lifecycle and GPS pings."""
+        # Immediate mode: go online right away without shift scheduling
+        if self._immediate_online:
+            self.go_online()
+            gps_process = self._env.process(self._emit_gps_ping())
+
+            # Stay online indefinitely in immediate mode
+            while True:
+                yield self._env.timeout(60)  # Check every minute
+                # Restart GPS process if it died
+                if not gps_process.is_alive and self._status != "offline":
+                    gps_process = self._env.process(self._emit_gps_ping())
+
+        # Normal shift-based mode
         active_days = self._get_active_days()
 
         while True:

@@ -34,11 +34,12 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
 
 def validate_sao_paulo_coordinates(coords: tuple[float, float]) -> tuple[float, float]:
     """Validate coordinates are within Sao Paulo bounds."""
+    # Bounds matching actual districts from zones.geojson
     lat, lon = coords
-    if not (-24.0 <= lat <= -23.0):
-        raise ValueError(f"Latitude {lat} outside Sao Paulo bounds (-24.0 to -23.0)")
-    if not (-47.0 <= lon <= -46.0):
-        raise ValueError(f"Longitude {lon} outside Sao Paulo bounds (-47.0 to -46.0)")
+    if not (-23.75 <= lat <= -23.40):
+        raise ValueError(f"Latitude {lat} outside Sao Paulo bounds (-23.75 to -23.40)")
+    if not (-46.85 <= lon <= -46.35):
+        raise ValueError(f"Longitude {lon} outside Sao Paulo bounds (-46.85 to -46.35)")
     return coords
 
 

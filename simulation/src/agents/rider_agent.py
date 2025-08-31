@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 import simpy
 
 from agents.dna import RiderDNA
+from agents.dna_generator import SAO_PAULO_BOUNDS
 from agents.event_emitter import GPS_PING_INTERVAL, EventEmitter
 from agents.rating_logic import generate_rating_value, should_submit_rating
 from events.schemas import GPSPingEvent, RatingEvent, RiderProfileEvent
@@ -43,6 +44,7 @@ class RiderAgent(EventEmitter):
         zone_loader: "ZoneLoader | None" = None,
         osrm_client: "OSRMClient | None" = None,
         surge_calculator: "SurgePricingCalculator | None" = None,
+        immediate_first_trip: bool = False,
     ):
         EventEmitter.__init__(self, kafka_producer, redis_publisher)
 
@@ -54,10 +56,13 @@ class RiderAgent(EventEmitter):
         self._zone_loader = zone_loader
         self._osrm_client = osrm_client
         self._surge_calculator = surge_calculator
+        self._immediate_first_trip = immediate_first_trip
+        self._first_trip_done = False
 
         # Runtime state
         self._status = "idle"
-        self._location: tuple[float, float] | None = None
+        # Set initial location from DNA home_location for immediate visibility
+        self._location: tuple[float, float] | None = dna.home_location
         self._active_trip: str | None = None
         self._current_rating = 5.0
         self._rating_count = 0
@@ -257,8 +262,8 @@ class RiderAgent(EventEmitter):
 
     def _generate_random_location(self) -> tuple[float, float]:
         """Generate random location within Sao Paulo bounds."""
-        lat = random.uniform(-23.80, -23.35)
-        lon = random.uniform(-46.85, -46.35)
+        lat = random.uniform(SAO_PAULO_BOUNDS["lat_min"], SAO_PAULO_BOUNDS["lat_max"])
+        lon = random.uniform(SAO_PAULO_BOUNDS["lon_min"], SAO_PAULO_BOUNDS["lon_max"])
         return (lat, lon)
 
     def on_match_found(self, trip, driver_id: str) -> None:
@@ -347,8 +352,8 @@ class RiderAgent(EventEmitter):
 
         # Set initial random location in São Paulo if not already set
         if self._location is None:
-            lat = random.uniform(-23.65, -23.45)
-            lon = random.uniform(-46.75, -46.55)
+            lat = random.uniform(SAO_PAULO_BOUNDS["lat_min"], SAO_PAULO_BOUNDS["lat_max"])
+            lon = random.uniform(SAO_PAULO_BOUNDS["lon_min"], SAO_PAULO_BOUNDS["lon_max"])
             self._location = (lat, lon)
 
         while True:
@@ -402,11 +407,16 @@ class RiderAgent(EventEmitter):
                 yield self._env.timeout(GPS_PING_INTERVAL)
                 continue
 
-            interval_hours = (7 * 24) / self._dna.avg_rides_per_week
-            variance = random.uniform(0.8, 1.2)
-            wait_time = interval_hours * 3600 * variance
-
-            yield self._env.timeout(wait_time)
+            # Skip initial wait if immediate_first_trip=True (for first trip only)
+            if self._immediate_first_trip and not self._first_trip_done:
+                self._first_trip_done = True
+                # Small delay to let simulation stabilize
+                yield self._env.timeout(1)
+            else:
+                interval_hours = (7 * 24) / self._dna.avg_rides_per_week
+                variance = random.uniform(0.8, 1.2)
+                wait_time = interval_hours * 3600 * variance
+                yield self._env.timeout(wait_time)
 
             if self._location is None:
                 continue
@@ -418,6 +428,10 @@ class RiderAgent(EventEmitter):
 
             # Determine zones and calculate fare
             pickup_zone_id = self._determine_zone(self._location) or "unknown"
+
+            # Track pending request for surge calculation
+            if self._surge_calculator and pickup_zone_id != "unknown":
+                self._surge_calculator.increment_pending_request(pickup_zone_id)
             dropoff_zone_id = self._determine_zone(destination) or "unknown"
             surge_multiplier = self._get_surge(pickup_zone_id)
             fare = self._calculate_fare(self._location, destination, surge_multiplier)
@@ -480,6 +494,7 @@ class RiderAgent(EventEmitter):
                             dropoff_zone_id=dropoff_zone_id,
                             surge_multiplier=surge_multiplier,
                             fare=fare,
+                            trip_id=trip_id,
                         )
                         # Schedule coroutine on main thread's event loop from SimPy thread
                         asyncio.run_coroutine_threadsafe(match_coro, main_loop)
@@ -502,6 +517,10 @@ class RiderAgent(EventEmitter):
             if self._status == "waiting":
                 self.cancel_trip()
 
+                # Decrement pending request count for surge calculation
+                if self._surge_calculator and pickup_zone_id != "unknown":
+                    self._surge_calculator.decrement_pending_request(pickup_zone_id)
+
                 event = TripEvent(
                     event_type="trip.cancelled",
                     trip_id=trip_id,
@@ -510,10 +529,10 @@ class RiderAgent(EventEmitter):
                     driver_id=None,
                     pickup_location=self._location,
                     dropoff_location=destination,
-                    pickup_zone_id="unknown",
-                    dropoff_zone_id="unknown",
-                    surge_multiplier=1.0,
-                    fare=0.0,
+                    pickup_zone_id=pickup_zone_id,
+                    dropoff_zone_id=dropoff_zone_id,
+                    surge_multiplier=surge_multiplier,
+                    fare=fare,
                     cancelled_by="rider",
                     cancellation_reason="patience_timeout",
                 )

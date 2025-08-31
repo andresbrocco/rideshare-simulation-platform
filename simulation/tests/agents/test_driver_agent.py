@@ -42,9 +42,10 @@ class TestDriverAgentInit:
         assert agent.driver_id == "driver_001"
         assert agent.dna == driver_dna
 
-    def test_driver_initial_state(self, driver_agent):
+    def test_driver_initial_state(self, driver_agent, driver_dna):
         assert driver_agent.status == "offline"
-        assert driver_agent.location is None
+        # Location is now set from DNA home_location on creation
+        assert driver_agent.location == driver_dna.home_location
         assert driver_agent.active_trip is None
         assert driver_agent.current_rating == 5.0
         assert driver_agent.rating_count == 0
