@@ -40,11 +40,28 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
   };
 
   return (
-    <div style={{ maxWidth: '400px', margin: '100px auto', padding: '20px' }}>
-      <h2>Login</h2>
+    <div
+      style={{
+        maxWidth: '400px',
+        margin: '100px auto',
+        padding: '24px',
+        background: 'var(--bg-secondary)',
+        borderRadius: '8px',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
+      }}
+    >
+      <h2 style={{ color: 'var(--text-primary)', marginBottom: '24px' }}>Login</h2>
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: '16px' }}>
-          <label htmlFor="apiKey" style={{ display: 'block', marginBottom: '8px' }}>
+          <label
+            htmlFor="apiKey"
+            style={{
+              display: 'block',
+              marginBottom: '8px',
+              color: 'var(--text-secondary)',
+              fontSize: '14px',
+            }}
+          >
             API Key
           </label>
           <input
@@ -53,21 +70,44 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             value={apiKey}
             onChange={handleInputChange}
             placeholder="Enter API Key"
-            style={{ width: '100%', padding: '8px', fontSize: '16px' }}
+            style={{
+              width: '100%',
+              padding: '10px',
+              fontSize: '16px',
+              background: 'var(--bg-surface)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '4px',
+            }}
           />
         </div>
         {error && (
-          <div style={{ color: 'red', marginBottom: '16px', fontSize: '14px' }}>{error}</div>
+          <div
+            style={{
+              color: 'var(--accent-red)',
+              marginBottom: '16px',
+              fontSize: '14px',
+              padding: '8px',
+              background: 'rgba(239, 68, 68, 0.1)',
+              borderRadius: '4px',
+            }}
+          >
+            {error}
+          </div>
         )}
         <button
           type="submit"
           disabled={!apiKey.trim() || isLoading}
           style={{
             width: '100%',
-            padding: '10px',
+            padding: '12px',
             fontSize: '16px',
             cursor: !apiKey.trim() || isLoading ? 'not-allowed' : 'pointer',
-            opacity: !apiKey.trim() || isLoading ? 0.6 : 1,
+            background: !apiKey.trim() || isLoading ? '#4b5563' : 'var(--accent-blue)',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            fontWeight: '500',
           }}
         >
           {isLoading ? 'Connecting...' : 'Connect'}

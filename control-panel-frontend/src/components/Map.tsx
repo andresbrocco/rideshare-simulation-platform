@@ -38,7 +38,7 @@ export default function Map({ layers = [] }: MapProps) {
       >
         <MapGL
           ref={mapRef}
-          mapStyle="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
+          mapStyle="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
           attributionControl={true}
         />
       </DeckGL>
