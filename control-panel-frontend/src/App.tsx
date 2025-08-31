@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import LoginScreen from './components/LoginScreen';
 import Map from './components/Map';
+import MapErrorBoundary from './components/MapErrorBoundary';
 import ControlPanel from './components/ControlPanel';
 import LayerControls from './components/LayerControls';
 import { useSimulationState } from './hooks/useSimulationState';
@@ -63,7 +64,9 @@ function App() {
         </>
       ) : (
         <>
-          <Map layers={layers} />
+          <MapErrorBoundary>
+            <Map layers={layers} />
+          </MapErrorBoundary>
           {status && (
             <ControlPanel
               status={status}

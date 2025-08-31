@@ -6,6 +6,7 @@ class OverviewMetrics(BaseModel):
     online_drivers: int
     total_riders: int
     waiting_riders: int
+    in_transit_riders: int
     active_trips: int
     completed_trips_today: int
 

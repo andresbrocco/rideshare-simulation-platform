@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Map as MapGL } from 'react-map-gl/maplibre';
 import type { MapRef } from 'react-map-gl/maplibre';
 import DeckGL from '@deck.gl/react';
@@ -28,6 +28,12 @@ export default function Map({ layers = [] }: MapProps) {
     bearing: 0,
   });
 
+  const handleWebGLError = useCallback((error: Error) => {
+    console.error('DeckGL WebGL error:', error);
+    // Re-throw to trigger error boundary
+    throw error;
+  }, []);
+
   return (
     <div className={styles['map-container']}>
       <DeckGL
@@ -35,6 +41,7 @@ export default function Map({ layers = [] }: MapProps) {
         onViewStateChange={({ viewState: newViewState }) => setViewState(newViewState as ViewState)}
         layers={layers}
         controller={true}
+        onError={handleWebGLError}
       >
         <MapGL
           ref={mapRef}

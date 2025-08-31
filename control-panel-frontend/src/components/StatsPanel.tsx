@@ -72,11 +72,7 @@ export default function StatsPanel({
               <Tooltip text="Number of riders currently in a vehicle">
                 <span className={styles.statLabel}>In Transit:</span>
               </Tooltip>
-              <span className={styles.statValue}>
-                {overviewMetrics
-                  ? overviewMetrics.total_riders - overviewMetrics.waiting_riders
-                  : '-'}
-              </span>
+              <span className={styles.statValue}>{overviewMetrics?.in_transit_riders ?? '-'}</span>
             </div>
           </div>
         </div>

@@ -64,6 +64,14 @@ def get_overview_metrics(engine: EngineDep, driver_registry: DriverRegistryDep):
             if hasattr(rider, "status") and rider.status == "waiting"
         )
 
+        in_transit_riders = sum(
+            1
+            for rider in (
+                engine._active_riders.values() if hasattr(engine, "_active_riders") else []
+            )
+            if hasattr(rider, "status") and rider.status == "in_trip"
+        )
+
         active_trips = 0
         if hasattr(engine, "_get_in_flight_trips"):
             active_trips = len(engine._get_in_flight_trips())
@@ -73,6 +81,7 @@ def get_overview_metrics(engine: EngineDep, driver_registry: DriverRegistryDep):
             online_drivers=online_drivers,
             total_riders=total_riders,
             waiting_riders=waiting_riders,
+            in_transit_riders=in_transit_riders,
             active_trips=active_trips,
             completed_trips_today=0,
         )

@@ -113,6 +113,7 @@ export interface OverviewMetrics {
   online_drivers: number;
   total_riders: number;
   waiting_riders: number;
+  in_transit_riders: number;
   active_trips: number;
   completed_trips_today: number;
 }
