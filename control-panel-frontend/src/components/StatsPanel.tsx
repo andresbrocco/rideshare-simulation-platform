@@ -1,4 +1,5 @@
 import type { SimulationStatus } from '../types/api';
+import Tooltip from './Tooltip';
 import styles from './ControlPanel.module.css';
 
 interface StatsPanelProps {
@@ -24,15 +25,21 @@ export default function StatsPanel({
       <h3>Statistics</h3>
       <div className={styles.stats}>
         <div className={styles.statItem}>
-          <span className={styles.statLabel}>Drivers:</span>
+          <Tooltip text="Total number of driver agents in the simulation">
+            <span className={styles.statLabel}>Drivers:</span>
+          </Tooltip>
           <span className={styles.statValue}>{displayDriverCount}</span>
         </div>
         <div className={styles.statItem}>
-          <span className={styles.statLabel}>Riders:</span>
+          <Tooltip text="Total number of rider agents requesting rides">
+            <span className={styles.statLabel}>Riders:</span>
+          </Tooltip>
           <span className={styles.statValue}>{displayRiderCount}</span>
         </div>
         <div className={styles.statItem}>
-          <span className={styles.statLabel}>Active Trips:</span>
+          <Tooltip text="Number of trips currently in progress">
+            <span className={styles.statLabel}>Active Trips:</span>
+          </Tooltip>
           <span className={styles.statValue}>{displayTripCount}</span>
         </div>
       </div>

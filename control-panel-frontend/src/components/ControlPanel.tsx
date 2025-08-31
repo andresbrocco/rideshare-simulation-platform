@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useSimulationControl } from '../hooks/useSimulationControl';
 import StatsPanel from './StatsPanel';
+import Tooltip from './Tooltip';
 import type { SimulationStatus } from '../types/api';
 import styles from './ControlPanel.module.css';
 
@@ -53,11 +54,28 @@ export default function ControlPanel({
     }
   };
 
+  const getStatusTooltip = () => {
+    switch (status.state) {
+      case 'running':
+        return 'Simulation is actively running';
+      case 'paused':
+        return 'Simulation is paused';
+      case 'draining':
+        return 'Completing in-flight trips before pause';
+      case 'stopped':
+        return 'Simulation is stopped';
+      default:
+        return 'Simulation status';
+    }
+  };
+
   return (
     <div className={styles.container}>
       <div className={styles.header}>
         <h2>Simulation Control</h2>
-        <div className={`${styles.statusBadge} ${getStatusColor()}`}>{status.state}</div>
+        <Tooltip text={getStatusTooltip()}>
+          <div className={`${styles.statusBadge} ${getStatusColor()}`}>{status.state}</div>
+        </Tooltip>
       </div>
 
       <div className={styles.section}>
@@ -70,15 +88,21 @@ export default function ControlPanel({
       <div className={styles.section}>
         <h3>Controls</h3>
         <div className={styles.buttonGroup}>
-          <button onClick={startSimulation} disabled={isRunning} className={styles.button}>
-            Play
-          </button>
-          <button onClick={pauseSimulation} disabled={!isRunning} className={styles.button}>
-            Pause
-          </button>
-          <button onClick={resetSimulation} className={styles.button}>
-            Reset
-          </button>
+          <Tooltip text="Start or resume the simulation">
+            <button onClick={startSimulation} disabled={isRunning} className={styles.button}>
+              Play
+            </button>
+          </Tooltip>
+          <Tooltip text="Pause simulation (in-flight trips complete first)">
+            <button onClick={pauseSimulation} disabled={!isRunning} className={styles.button}>
+              Pause
+            </button>
+          </Tooltip>
+          <Tooltip text="Stop and reset to initial state">
+            <button onClick={resetSimulation} className={styles.button}>
+              Reset
+            </button>
+          </Tooltip>
         </div>
       </div>
 
@@ -86,16 +110,18 @@ export default function ControlPanel({
         <label htmlFor="speed-select" className={styles.label}>
           Speed:
         </label>
-        <select
-          id="speed-select"
-          value={status.speed_multiplier}
-          onChange={handleSpeedChange}
-          className={styles.select}
-        >
-          <option value="1">1x</option>
-          <option value="10">10x</option>
-          <option value="100">100x</option>
-        </select>
+        <Tooltip text="Control simulation time speed (1x = real-time)">
+          <select
+            id="speed-select"
+            value={status.speed_multiplier}
+            onChange={handleSpeedChange}
+            className={styles.select}
+          >
+            <option value="1">1x</option>
+            <option value="10">10x</option>
+            <option value="100">100x</option>
+          </select>
+        </Tooltip>
       </div>
 
       <div className={styles.section}>
