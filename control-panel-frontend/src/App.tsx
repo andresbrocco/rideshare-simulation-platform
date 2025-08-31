@@ -2,16 +2,20 @@ import { useState } from 'react';
 import LoginScreen from './components/LoginScreen';
 import Map from './components/Map';
 import ControlPanel from './components/ControlPanel';
+import LayerControls from './components/LayerControls';
 import { useSimulationState } from './hooks/useSimulationState';
 import { useSimulationLayers } from './hooks/useSimulationLayers';
 import { useWebSocket } from './hooks/useWebSocket';
 import type { WebSocketMessage } from './types/websocket';
+import { DEFAULT_VISIBILITY, type LayerVisibility } from './types/layers';
 import './App.css';
 
 function App() {
   const [apiKey, setApiKey] = useState<string | null>(() => {
     return sessionStorage.getItem('apiKey');
   });
+
+  const [layerVisibility, setLayerVisibility] = useState<LayerVisibility>(DEFAULT_VISIBILITY);
 
   const {
     drivers,
@@ -42,6 +46,7 @@ function App() {
     trips,
     trails: gpsTrails,
     currentTime: status?.uptime_seconds || 0,
+    layerVisibility,
   });
 
   const handleLogin = (key: string) => {
@@ -68,6 +73,7 @@ function App() {
               onStatusUpdate={setStatus}
             />
           )}
+          <LayerControls visibility={layerVisibility} onChange={setLayerVisibility} />
           {!connected && (
             <div
               style={{

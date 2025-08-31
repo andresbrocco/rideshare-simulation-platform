@@ -133,8 +133,8 @@ def get_trip_metrics(engine: EngineDep):
             active_trips=active_trips,
             completed_today=0,
             cancelled_today=0,
-            avg_fare=25.50,
-            avg_duration_minutes=15.5,
+            avg_fare=0.0,
+            avg_duration_minutes=0.0,
         )
 
     return _get_cached_or_compute("trips", compute)
