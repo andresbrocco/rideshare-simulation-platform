@@ -91,7 +91,7 @@ services:
       - REDIS_SSL=false
       - OSRM_BASE_URL=https://router.project-osrm.org
       - API_KEY=${API_KEY:-dev-api-key-change-in-production}
-      - CORS_ORIGINS=http://localhost:3000
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:5173
     depends_on:
       kafka:
         condition: service_healthy

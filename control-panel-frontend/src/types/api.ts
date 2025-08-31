@@ -90,3 +90,29 @@ export interface DemandPoint {
   longitude: number;
   weight: number;
 }
+
+export interface DriverMetrics {
+  online: number;
+  offline: number;
+  busy: number;
+  en_route_pickup: number;
+  en_route_destination: number;
+  total: number;
+}
+
+export interface TripMetrics {
+  active_trips: number;
+  completed_today: number;
+  cancelled_today: number;
+  avg_fare: number;
+  avg_duration_minutes: number;
+}
+
+export interface OverviewMetrics {
+  total_drivers: number;
+  online_drivers: number;
+  total_riders: number;
+  waiting_riders: number;
+  active_trips: number;
+  completed_trips_today: number;
+}

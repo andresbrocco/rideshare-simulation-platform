@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useSimulationControl } from '../hooks/useSimulationControl';
+import { useMetrics } from '../hooks/useMetrics';
 import StatsPanel from './StatsPanel';
 import Tooltip from './Tooltip';
 import type { SimulationStatus } from '../types/api';
@@ -25,6 +26,8 @@ export default function ControlPanel({
 
   const { startSimulation, pauseSimulation, resetSimulation, setSpeed, addDrivers, addRiders } =
     useSimulationControl(onStatusUpdate);
+
+  const { driverMetrics, tripMetrics, overviewMetrics } = useMetrics();
 
   const isRunning = status.state === 'running';
 
@@ -165,6 +168,9 @@ export default function ControlPanel({
         driverCount={realTimeDriverCount}
         riderCount={realTimeRiderCount}
         tripCount={realTimeTripCount}
+        driverMetrics={driverMetrics}
+        tripMetrics={tripMetrics}
+        overviewMetrics={overviewMetrics}
       />
     </div>
   );

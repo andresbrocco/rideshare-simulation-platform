@@ -174,3 +174,30 @@
   font-weight: 600;
   color: var(--text-primary);
 }
+
+.statsSubsection {
+  margin-bottom: 12px;
+}
+
+.statsSubsection:last-child {
+  margin-bottom: 0;
+}
+
+.statsSubtitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 16px;
+}
+
+.statsGrid .statItem {
+  padding: 4px 0;
+}
