@@ -15,6 +15,7 @@ from tests.engine.conftest import create_mock_sqlite_db
 def mock_dependencies():
     """Create mock dependencies for engine."""
     return {
+        "env": simpy.Environment(),
         "matching_server": Mock(),
         "kafka_producer": Mock(),
         "redis_client": Mock(),

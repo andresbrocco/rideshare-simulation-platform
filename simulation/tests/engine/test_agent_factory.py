@@ -242,17 +242,19 @@ def test_rider_profile_events_emitted(
 
 
 @patch("engine.agent_factory.generate_driver_dna")
-def test_agents_started_if_running(
+def test_agents_registered_but_not_started_immediately(
     mock_gen_dna, agent_factory, mock_simulation_engine, sample_driver_dna
 ):
-    """Starts processes if engine is RUNNING."""
+    """Registers agents but defers process start to engine's step() for thread safety."""
     mock_gen_dna.return_value = sample_driver_dna
     mock_simulation_engine.state = SimulationState.RUNNING
 
     agent_factory.create_drivers(1)
 
-    # Verify env.process was called
-    assert mock_simulation_engine._env.process.call_count == 1
+    # Verify agent was registered
+    assert mock_simulation_engine.register_driver.call_count == 1
+    # Process is NOT started directly by factory - it's picked up by engine on next step()
+    mock_simulation_engine._env.process.assert_not_called()
 
 
 @patch("engine.agent_factory.generate_driver_dna")

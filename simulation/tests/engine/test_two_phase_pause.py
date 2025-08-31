@@ -49,6 +49,7 @@ def engine(
     simulation_start_time,
 ):
     return SimulationEngine(
+        env=simpy.Environment(),
         matching_server=mock_matching_server,
         kafka_producer=mock_kafka_producer,
         redis_client=mock_redis_client,

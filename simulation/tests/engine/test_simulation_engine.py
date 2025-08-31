@@ -14,6 +14,7 @@ from tests.engine.conftest import create_mock_sqlite_db
 class TestSimulationEngineInit:
     def test_engine_init(self):
         """Creates SimulationEngine with initial state."""
+        env = simpy.Environment()
         matching_server = Mock()
         kafka_producer = Mock()
         redis_client = Mock()
@@ -21,6 +22,7 @@ class TestSimulationEngineInit:
         sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
+            env=env,
             matching_server=matching_server,
             kafka_producer=kafka_producer,
             redis_client=redis_client,
@@ -30,7 +32,7 @@ class TestSimulationEngineInit:
         )
 
         assert engine.state == SimulationState.STOPPED
-        assert isinstance(engine._env, simpy.Environment)
+        assert engine._env is env
         assert engine._matching_server == matching_server
         assert len(engine._active_drivers) == 0
         assert len(engine._active_riders) == 0
@@ -46,6 +48,7 @@ class TestSimulationEngineStateTransitions:
         sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
+            env=simpy.Environment(),
             matching_server=matching_server,
             kafka_producer=kafka_producer,
             redis_client=redis_client,
@@ -67,6 +70,7 @@ class TestSimulationEngineStateTransitions:
         sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
+            env=simpy.Environment(),
             matching_server=matching_server,
             kafka_producer=kafka_producer,
             redis_client=redis_client,
@@ -91,6 +95,7 @@ class TestSimulationEngineStateTransitions:
         sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
+            env=simpy.Environment(),
             matching_server=matching_server,
             kafka_producer=kafka_producer,
             redis_client=redis_client,
@@ -114,6 +119,7 @@ class TestSimulationEngineStateTransitions:
         sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
+            env=simpy.Environment(),
             matching_server=matching_server,
             kafka_producer=kafka_producer,
             redis_client=redis_client,
@@ -139,6 +145,7 @@ class TestSimulationEngineAgentRegistration:
         sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
+            env=simpy.Environment(),
             matching_server=matching_server,
             kafka_producer=kafka_producer,
             redis_client=redis_client,
@@ -164,6 +171,7 @@ class TestSimulationEngineAgentRegistration:
         sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
+            env=simpy.Environment(),
             matching_server=matching_server,
             kafka_producer=kafka_producer,
             redis_client=redis_client,
@@ -191,6 +199,7 @@ class TestSimulationEngineAgentProcesses:
         sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
+            env=simpy.Environment(),
             matching_server=matching_server,
             kafka_producer=kafka_producer,
             redis_client=redis_client,
@@ -255,6 +264,7 @@ class TestSimulationEngineStep:
         sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
+            env=simpy.Environment(),
             matching_server=matching_server,
             kafka_producer=kafka_producer,
             redis_client=redis_client,
@@ -284,6 +294,7 @@ class TestSimulationEngineMatchingIntegration:
         sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
+            env=simpy.Environment(),
             matching_server=matching_server,
             kafka_producer=kafka_producer,
             redis_client=redis_client,
@@ -317,6 +328,7 @@ class TestSimulationEnginePeriodicProcesses:
         sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
+            env=simpy.Environment(),
             matching_server=matching_server,
             kafka_producer=kafka_producer,
             redis_client=redis_client,
@@ -331,46 +343,10 @@ class TestSimulationEnginePeriodicProcesses:
         # Should have called surge update 3 times (at 60, 120, 180)
         assert matching_server.update_surge_pricing.call_count >= 3
 
-    def test_engine_periodic_gps_pings(self):
-        """GPS pings emitted for online drivers."""
-        matching_server = Mock()
-        kafka_producer = Mock()
-        kafka_producer.produce = Mock()
-        redis_client = Mock()
-        osrm_client = Mock()
-        sqlite_db = create_mock_sqlite_db()
-
-        engine = SimulationEngine(
-            matching_server=matching_server,
-            kafka_producer=kafka_producer,
-            redis_client=redis_client,
-            osrm_client=osrm_client,
-            sqlite_db=sqlite_db,
-            simulation_start_time=datetime(2025, 1, 15, 10, 0, 0, tzinfo=UTC),
-        )
-
-        def dummy_generator(env):
-            while True:
-                yield env.timeout(1000)
-
-        driver = Mock()
-        driver.driver_id = "driver_123"
-        driver.status = "online"
-        driver.location = (-23.55, -46.63)
-        driver.active_trip = None
-        driver.run = Mock(return_value=dummy_generator(engine._env))
-
-        engine.register_driver(driver)
-        engine.start()
-        engine.step(seconds=30)
-
-        # Should have emitted GPS pings (every 5 seconds = 6 times in 30 seconds)
-        gps_calls = [
-            call
-            for call in kafka_producer.produce.call_args_list
-            if call[1]["topic"] == "gps-pings"
-        ]
-        assert len(gps_calls) >= 5
+    # Note: test_engine_periodic_gps_pings was removed because GPS pings
+    # are now emitted by each driver's own process, not by the engine.
+    # This avoids duplicate GPS ping events and provides more accurate
+    # status tracking (covers online, busy, en_route_pickup, en_route_destination).
 
 
 class TestSimulationEngineTime:
@@ -383,6 +359,7 @@ class TestSimulationEngineTime:
         sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
+            env=simpy.Environment(),
             matching_server=matching_server,
             kafka_producer=kafka_producer,
             redis_client=redis_client,
@@ -410,6 +387,7 @@ class TestSimulationEngineActiveCounts:
         sqlite_db = create_mock_sqlite_db()
 
         engine = SimulationEngine(
+            env=simpy.Environment(),
             matching_server=matching_server,
             kafka_producer=kafka_producer,
             redis_client=redis_client,

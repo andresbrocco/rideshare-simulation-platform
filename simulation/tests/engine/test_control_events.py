@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 from uuid import UUID
 
 import pytest
+import simpy
 
 from src.engine import SimulationEngine, SimulationState
 
@@ -48,6 +49,7 @@ def engine(
     simulation_start_time,
 ):
     return SimulationEngine(
+        env=simpy.Environment(),
         matching_server=mock_matching_server,
         kafka_producer=mock_kafka_producer,
         redis_client=mock_redis_client,
@@ -236,6 +238,7 @@ def test_event_includes_active_counts(mock_kafka_producer, mock_sqlite_db):
     from src.agents.rider_agent import RiderAgent
 
     engine = SimulationEngine(
+        env=simpy.Environment(),
         matching_server=Mock(),
         kafka_producer=mock_kafka_producer,
         redis_client=Mock(),

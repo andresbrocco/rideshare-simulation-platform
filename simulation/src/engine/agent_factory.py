@@ -59,6 +59,7 @@ class AgentFactory:
                 driver_repository=None,
                 registry_manager=self._registry_manager,
                 zone_loader=self._zone_loader,
+                immediate_online=True,  # Go online immediately when created dynamically
             )
 
             self._simulation_engine.register_driver(agent)
@@ -67,9 +68,8 @@ class AgentFactory:
             if self._registry_manager:
                 self._registry_manager.register_driver(agent)
 
-            if self._simulation_engine.state.value == "running":
-                process = self._simulation_engine._env.process(agent.run())
-                self._simulation_engine._agent_processes.append(process)
+            # Agent is registered but process not started yet
+            # Engine will pick up pending agents on next step cycle (thread-safe)
 
             created_ids.append(driver_id)
 
@@ -95,6 +95,7 @@ class AgentFactory:
                 zone_loader=self._zone_loader,
                 osrm_client=self._osrm_client,
                 surge_calculator=self._surge_calculator,
+                immediate_first_trip=True,  # Request trip immediately
             )
 
             self._simulation_engine.register_rider(agent)
@@ -103,9 +104,8 @@ class AgentFactory:
             if self._registry_manager:
                 self._registry_manager.register_rider(agent)
 
-            if self._simulation_engine.state.value == "running":
-                process = self._simulation_engine._env.process(agent.run())
-                self._simulation_engine._agent_processes.append(process)
+            # Agent is registered but process not started yet
+            # Engine will pick up pending agents on next step cycle (thread-safe)
 
             created_ids.append(rider_id)
 

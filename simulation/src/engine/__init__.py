@@ -105,6 +105,7 @@ class SimulationEngine:
 
     def __init__(
         self,
+        env: simpy.Environment,
         matching_server: "MatchingServer",
         kafka_producer: "KafkaProducer | None",
         redis_client: "RedisPublisher | None",
@@ -112,7 +113,7 @@ class SimulationEngine:
         sqlite_db: Any,
         simulation_start_time: datetime,
     ):
-        self._env = simpy.Environment()
+        self._env = env
         self._state = SimulationState.STOPPED
         self._matching_server = matching_server
         self._kafka_producer = kafka_producer
@@ -191,6 +192,13 @@ class SimulationEngine:
 
     def step(self, seconds: int) -> None:
         """Advance simulation by specified seconds."""
+        # Start processes for any pending agents (thread-safe approach)
+        self._start_pending_agents()
+
+        # Start any pending trip executions (thread-safe approach for matches made from async context)
+        if hasattr(self._matching_server, "start_pending_trip_executions"):
+            self._matching_server.start_pending_trip_executions()
+
         target_time = self._env.now + seconds
 
         if self._speed_multiplier == 100:
@@ -276,6 +284,7 @@ class SimulationEngine:
         dropoff_zone_id: str,
         surge_multiplier: float,
         fare: float,
+        trip_id: str | None = None,
     ) -> "Trip | None":
         """Delegate to matching server."""
         if self._state in {SimulationState.DRAINING, SimulationState.PAUSED}:
@@ -289,6 +298,7 @@ class SimulationEngine:
             dropoff_zone_id=dropoff_zone_id,
             surge_multiplier=surge_multiplier,
             fare=fare,
+            trip_id=trip_id,
         )
 
     def _start_agent_processes(self) -> None:
@@ -296,18 +306,39 @@ class SimulationEngine:
         for driver in self._active_drivers.values():
             process = self._env.process(driver.run())
             self._agent_processes.append(process)
+            driver._process_started = True  # type: ignore[attr-defined]
 
         for rider in self._active_riders.values():
             process = self._env.process(rider.run())
             self._agent_processes.append(process)
+            rider._process_started = True  # type: ignore[attr-defined]
+
+    def _start_pending_agents(self) -> None:
+        """Start run() processes for agents that don't have one yet.
+
+        This is called at the start of each step() to safely start agents
+        that were created from the API thread while simulation is running.
+        """
+        for driver in self._active_drivers.values():
+            if not getattr(driver, "_process_started", False):
+                process = self._env.process(driver.run())
+                self._agent_processes.append(process)
+                driver._process_started = True  # type: ignore[attr-defined]
+
+        for rider in self._active_riders.values():
+            if not getattr(rider, "_process_started", False):
+                process = self._env.process(rider.run())
+                self._agent_processes.append(process)
+                rider._process_started = True  # type: ignore[attr-defined]
 
     def _start_periodic_processes(self) -> None:
-        """Start surge updates and GPS pings."""
+        """Start surge updates.
+
+        Note: GPS pings are handled by each driver's own _emit_gps_ping() process
+        which tracks all relevant statuses accurately (online, busy, en_route_pickup, en_route_destination).
+        """
         surge_process = self._env.process(self._surge_update_process())  # type: ignore[no-untyped-call]
         self._periodic_processes.append(surge_process)
-
-        gps_process = self._env.process(self._gps_ping_process())  # type: ignore[no-untyped-call]
-        self._periodic_processes.append(gps_process)
 
     def _surge_update_process(self):  # type: ignore[no-untyped-def]
         """Recalculate surge every 60 simulated seconds."""
@@ -329,34 +360,14 @@ class SimulationEngine:
 
             yield self._env.timeout(60)
 
-    def _gps_ping_process(self):  # type: ignore[no-untyped-def]
-        """Emit GPS pings for online drivers every 5 seconds."""
-        while True:
-            yield self._env.timeout(5)
-
-            for driver in self._active_drivers.values():
-                if driver.status == "online" and driver.location and self._kafka_producer:
-                    event = {
-                        "event_id": str(uuid4()),
-                        "entity_type": "driver",
-                        "entity_id": driver.driver_id,
-                        "timestamp": datetime.now(UTC).isoformat(),
-                        "location": list(driver.location),
-                        "trip_id": driver.active_trip,
-                    }
-                    self._kafka_producer.produce(
-                        topic="gps-pings",
-                        key=driver.driver_id,
-                        value=event,
-                    )
-
     def _get_in_flight_trips(self) -> list["Trip"]:
-        """Get trips in non-terminal states."""
-        from db.repositories.trip_repository import TripRepository
-
-        with self._sqlite_db() as session:
-            repo = TripRepository(session)
-            return repo.list_in_flight()
+        """Get trips in non-terminal states from MatchingServer."""
+        if hasattr(self._matching_server, "get_active_trips"):
+            trips = self._matching_server.get_active_trips()
+            # Handle mock objects in tests
+            if isinstance(trips, list):
+                return trips
+        return []
 
     def _run_drain_process(self):  # type: ignore[no-untyped-def]
         """Monitor quiescence and transition to PAUSED."""
