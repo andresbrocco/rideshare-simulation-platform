@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import LoginScreen from './components/LoginScreen';
 import Map from './components/Map';
 import MapErrorBoundary from './components/MapErrorBoundary';
@@ -7,7 +7,9 @@ import LayerControls from './components/LayerControls';
 import { useSimulationState } from './hooks/useSimulationState';
 import { useSimulationLayers } from './hooks/useSimulationLayers';
 import { useWebSocket } from './hooks/useWebSocket';
+import { useZones } from './hooks/useZones';
 import type { WebSocketMessage } from './types/websocket';
+import type { ZoneData } from './types/api';
 import { DEFAULT_VISIBILITY, type LayerVisibility } from './types/layers';
 import './App.css';
 
@@ -31,6 +33,18 @@ function App() {
     setStatus,
   } = useSimulationState();
 
+  const { zones } = useZones();
+
+  // Transform zone features to ZoneData with default values
+  // Real-time surge data would come from WebSocket updates
+  const zoneData: ZoneData[] = useMemo(() => {
+    return zones.map((feature) => ({
+      feature,
+      surge: 1.0,
+      driver_count: 0,
+    }));
+  }, [zones]);
+
   const wsUrl = import.meta.env.VITE_WS_URL;
 
   useWebSocket({
@@ -48,6 +62,7 @@ function App() {
     trails: gpsTrails,
     currentTime: status?.uptime_seconds || 0,
     layerVisibility,
+    zoneData,
   });
 
   const handleLogin = (key: string) => {
