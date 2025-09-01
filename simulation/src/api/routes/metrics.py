@@ -76,6 +76,14 @@ def get_overview_metrics(engine: EngineDep, driver_registry: DriverRegistryDep):
         if hasattr(engine, "_get_in_flight_trips"):
             active_trips = len(engine._get_in_flight_trips())
 
+        # Get completed trips count from matching server
+        completed_trips_today = 0
+        if hasattr(engine, "_matching_server") and engine._matching_server:
+            matching_server = engine._matching_server
+            if hasattr(matching_server, "get_trip_stats"):
+                stats = matching_server.get_trip_stats()
+                completed_trips_today = stats.get("completed_count", 0)
+
         return OverviewMetrics(
             total_drivers=total_drivers,
             online_drivers=online_drivers,
@@ -83,7 +91,7 @@ def get_overview_metrics(engine: EngineDep, driver_registry: DriverRegistryDep):
             waiting_riders=waiting_riders,
             in_transit_riders=in_transit_riders,
             active_trips=active_trips,
-            completed_trips_today=0,
+            completed_trips_today=completed_trips_today,
         )
 
     return _get_cached_or_compute("overview", compute)
@@ -138,12 +146,27 @@ def get_trip_metrics(engine: EngineDep):
         if hasattr(engine, "_get_in_flight_trips"):
             active_trips = len(engine._get_in_flight_trips())
 
+        # Get trip stats from matching server
+        completed_today = 0
+        cancelled_today = 0
+        avg_fare = 0.0
+        avg_duration_minutes = 0.0
+
+        if hasattr(engine, "_matching_server") and engine._matching_server:
+            matching_server = engine._matching_server
+            if hasattr(matching_server, "get_trip_stats"):
+                stats = matching_server.get_trip_stats()
+                completed_today = stats.get("completed_count", 0)
+                cancelled_today = stats.get("cancelled_count", 0)
+                avg_fare = stats.get("avg_fare", 0.0)
+                avg_duration_minutes = stats.get("avg_duration_minutes", 0.0)
+
         return TripMetrics(
             active_trips=active_trips,
-            completed_today=0,
-            cancelled_today=0,
-            avg_fare=0.0,
-            avg_duration_minutes=0.0,
+            completed_today=completed_today,
+            cancelled_today=cancelled_today,
+            avg_fare=avg_fare,
+            avg_duration_minutes=avg_duration_minutes,
         )
 
     return _get_cached_or_compute("trips", compute)

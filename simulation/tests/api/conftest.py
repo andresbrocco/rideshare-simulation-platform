@@ -62,7 +62,22 @@ def mock_redis_client():
 
 
 @pytest.fixture
-def mock_simulation_engine():
+def mock_matching_server():
+    """Mock matching server for metrics tests."""
+    server = Mock()
+    server.get_trip_stats = Mock(
+        return_value={
+            "completed_count": 0,
+            "cancelled_count": 0,
+            "avg_fare": 0.0,
+            "avg_duration_minutes": 0.0,
+        }
+    )
+    return server
+
+
+@pytest.fixture
+def mock_simulation_engine(mock_matching_server):
     """Mock simulation engine for API tests."""
     engine = Mock()
     engine.state = Mock()
@@ -73,6 +88,7 @@ def mock_simulation_engine():
     engine._active_drivers = []
     engine._active_riders = []
     engine._get_in_flight_trips = Mock(return_value=[])
+    engine._matching_server = mock_matching_server
     engine.start = Mock()
     engine.stop = Mock()
     engine.pause = Mock()

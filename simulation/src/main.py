@@ -160,6 +160,7 @@ def main():
         osrm_client=osrm_client,
         kafka_producer=kafka_producer,
         registry_manager=None,  # Will be set after registry_manager is created
+        redis_publisher=redis_publisher,  # For real-time trip updates
     )
 
     # Create AgentRegistryManager
@@ -184,9 +185,10 @@ def main():
         kafka_producer=kafka_producer,
     )
 
-    # Initialize simulation engine
+    # Initialize simulation engine with shared SimPy environment
     simulation_start_time = datetime.now(UTC)
     engine = SimulationEngine(
+        env=env,
         matching_server=matching_server,
         kafka_producer=kafka_producer,
         redis_client=redis_publisher,

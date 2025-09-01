@@ -25,7 +25,7 @@ repos:
     rev: v1.14.1
     hooks:
       - id: mypy
-        additional_dependencies: [types-redis==4.6.0.20241004, pydantic==2.12.5]
+        additional_dependencies: [types-redis==4.6.0.20241004, types-requests>=2.31.0, pydantic==2.12.5]
         args: [--ignore-missing-imports, --explicit-package-bases]
         files: ^simulation/src/
 
