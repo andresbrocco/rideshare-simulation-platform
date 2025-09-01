@@ -1,6 +1,7 @@
 """Trip execution coordinator managing the full trip lifecycle."""
 
 import asyncio
+import logging
 import random
 from collections.abc import Generator
 from datetime import UTC, datetime
@@ -9,14 +10,19 @@ from uuid import uuid4
 
 import simpy
 
+# Note: asyncio is still used for Redis publishing, but OSRM calls now use synchronous requests
 from events.schemas import GPSPingEvent, PaymentEvent, TripEvent
 from trip import Trip, TripState
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from agents.driver_agent import DriverAgent
     from agents.rider_agent import RiderAgent
     from geo.osrm_client import OSRMClient
     from kafka.producer import KafkaProducer
+    from matching.matching_server import MatchingServer
+    from redis_client.publisher import RedisPublisher
 
 
 class TripExecutor:
@@ -30,6 +36,8 @@ class TripExecutor:
         trip: Trip,
         osrm_client: "OSRMClient",
         kafka_producer: "KafkaProducer | None",
+        redis_publisher: "RedisPublisher | None" = None,
+        matching_server: "MatchingServer | None" = None,
         wait_timeout: int = 300,
         rider_boards: bool = True,
         rider_cancels_mid_trip: bool = False,
@@ -40,43 +48,73 @@ class TripExecutor:
         self._trip = trip
         self._osrm_client = osrm_client
         self._kafka_producer = kafka_producer
+        self._redis_publisher = redis_publisher
+        self._matching_server = matching_server
         self._wait_timeout = wait_timeout
         self._rider_boards = rider_boards
         self._rider_cancels_mid_trip = rider_cancels_mid_trip
 
     def execute(self) -> Generator[simpy.Event]:
         """Execute the full trip flow."""
-        yield from self._drive_to_pickup()
+        print(f"DEBUG: TripExecutor.execute() started for trip {self._trip.trip_id}", flush=True)
+        logger.info(f"TripExecutor.execute() started for trip {self._trip.trip_id}")
+        try:
+            logger.info(f"Trip {self._trip.trip_id}: Starting drive to pickup")
+            yield from self._drive_to_pickup()
 
-        if self._trip.state == TripState.CANCELLED:
-            return
+            if self._trip.state == TripState.CANCELLED:
+                logger.info(f"Trip {self._trip.trip_id}: Cancelled during pickup drive")
+                return
 
-        yield from self._wait_for_rider()
+            logger.info(f"Trip {self._trip.trip_id}: Waiting for rider")
+            yield from self._wait_for_rider()
 
-        if self._trip.state == TripState.CANCELLED:
-            return
+            if self._trip.state == TripState.CANCELLED:
+                logger.info(f"Trip {self._trip.trip_id}: Cancelled while waiting for rider")
+                return
 
-        yield from self._start_trip()
+            logger.info(f"Trip {self._trip.trip_id}: Starting trip")
+            yield from self._start_trip()
 
-        yield from self._drive_to_destination()
+            logger.info(f"Trip {self._trip.trip_id}: Driving to destination")
+            yield from self._drive_to_destination()
 
-        if self._trip.state == TripState.CANCELLED:
-            return
+            if self._trip.state == TripState.CANCELLED:
+                logger.info(f"Trip {self._trip.trip_id}: Cancelled during drive to destination")
+                return
 
-        yield from self._complete_trip()
+            logger.info(f"Trip {self._trip.trip_id}: Completing trip")
+            yield from self._complete_trip()
+            logger.info(f"Trip {self._trip.trip_id}: Trip completed successfully!")
+        except Exception as e:
+            logger.error(f"TripExecutor error for trip {self._trip.trip_id}: {e}", exc_info=True)
 
     def _drive_to_pickup(self) -> Generator[simpy.Event]:
         """Drive from current location to pickup."""
+        logger.info(
+            f"Trip {self._trip.trip_id}: _drive_to_pickup - transitioning to DRIVER_EN_ROUTE"
+        )
         self._trip.transition_to(TripState.DRIVER_EN_ROUTE)
         self._driver.start_pickup()
         self._emit_trip_event("trip.driver_en_route")
         self._rider.on_driver_en_route(self._trip)
 
-        route = asyncio.run(
-            self._osrm_client.get_route(self._driver.location, self._trip.pickup_location)
+        logger.info(
+            f"Trip {self._trip.trip_id}: Fetching route from {self._driver.location} to {self._trip.pickup_location}"
         )
+        try:
+            route = self._osrm_client.get_route_sync(
+                self._driver.location, self._trip.pickup_location
+            )
+            logger.info(
+                f"Trip {self._trip.trip_id}: Route fetched - duration={route.duration_seconds}s, distance={route.distance_meters}m"
+            )
+        except Exception as e:
+            logger.error(f"Trip {self._trip.trip_id}: OSRM route fetch failed: {e}", exc_info=True)
+            raise
 
         duration = route.duration_seconds
+        logger.info(f"Trip {self._trip.trip_id}: Starting simulated drive to pickup ({duration}s)")
         yield from self._simulate_drive(route.geometry, duration)
 
     def _wait_for_rider(self) -> Generator[simpy.Event]:
@@ -92,6 +130,9 @@ class TripExecutor:
             self._emit_trip_event("trip.cancelled")
             self._driver.complete_trip()
             self._rider.cancel_trip()
+            # Remove from active trips tracking and record cancellation
+            if self._matching_server:
+                self._matching_server.complete_trip(self._trip.trip_id, self._trip)
             return
 
         yield self._env.timeout(30)
@@ -108,8 +149,8 @@ class TripExecutor:
 
     def _drive_to_destination(self) -> Generator[simpy.Event]:
         """Drive from pickup to destination."""
-        route = asyncio.run(
-            self._osrm_client.get_route(self._trip.pickup_location, self._trip.dropoff_location)
+        route = self._osrm_client.get_route_sync(
+            self._trip.pickup_location, self._trip.dropoff_location
         )
 
         duration = route.duration_seconds
@@ -117,19 +158,29 @@ class TripExecutor:
 
     def _complete_trip(self) -> Generator[simpy.Event]:
         """Complete trip and emit events."""
+        logger.info(f"Trip {self._trip.trip_id}: _complete_trip - transitioning to COMPLETED")
         self._trip.transition_to(TripState.COMPLETED)
+        self._trip.completed_at = datetime.now(UTC)
         self._driver.update_location(*self._trip.dropoff_location)
         self._rider.update_location(*self._trip.dropoff_location)
 
+        logger.info(f"Trip {self._trip.trip_id}: Emitting completion events")
         self._emit_trip_event("trip.completed")
         self._emit_payment_event()
 
+        logger.info(f"Trip {self._trip.trip_id}: Updating driver and rider status")
         self._driver.complete_trip()
         self._rider.complete_trip()
 
         self._driver.on_trip_completed(self._trip)
         self._rider.on_trip_completed(self._trip)
 
+        # Remove from active trips tracking and record completion
+        if self._matching_server:
+            logger.info(f"Trip {self._trip.trip_id}: Removing from active trips")
+            self._matching_server.complete_trip(self._trip.trip_id, self._trip)
+
+        logger.info(f"Trip {self._trip.trip_id}: Trip execution finished")
         yield self._env.timeout(0)
 
     def _simulate_drive(
@@ -146,6 +197,9 @@ class TripExecutor:
                 self._emit_trip_event("trip.cancelled")
                 self._driver.complete_trip()
                 self._rider.cancel_trip()
+                # Remove from active trips tracking and record cancellation
+                if self._matching_server:
+                    self._matching_server.complete_trip(self._trip.trip_id, self._trip)
                 return
 
             progress = (i + 1) / max(num_intervals, 1)
@@ -161,10 +215,7 @@ class TripExecutor:
             yield self._env.timeout(time_per_interval)
 
     def _emit_trip_event(self, event_type: str) -> None:
-        """Emit trip state transition event."""
-        if not self._kafka_producer:
-            return
-
+        """Emit trip state transition event to Kafka and Redis."""
         event = TripEvent(
             event_type=event_type,
             trip_id=self._trip.trip_id,
@@ -182,11 +233,39 @@ class TripExecutor:
             cancellation_stage=self._trip.cancellation_stage,
         )
 
-        self._kafka_producer.produce(
-            topic="trips",
-            key=self._trip.trip_id,
-            value=event,
-        )
+        # Emit to Kafka (source of truth for data pipelines)
+        if self._kafka_producer:
+            self._kafka_producer.produce(
+                topic="trips",
+                key=self._trip.trip_id,
+                value=event,
+            )
+
+        # Emit to Redis for real-time frontend updates
+        if self._redis_publisher:
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.create_task(
+                        self._redis_publisher.publish(
+                            channel="trip-updates",
+                            message=event.model_dump(mode="json"),
+                        )
+                    )
+                else:
+                    loop.run_until_complete(
+                        self._redis_publisher.publish(
+                            channel="trip-updates",
+                            message=event.model_dump(mode="json"),
+                        )
+                    )
+            except RuntimeError:
+                asyncio.run(
+                    self._redis_publisher.publish(
+                        channel="trip-updates",
+                        message=event.model_dump(mode="json"),
+                    )
+                )
 
     def _emit_payment_event(self) -> None:
         """Emit payment processed event."""

@@ -87,7 +87,21 @@ def mock_osrm_client():
             osrm_code="Ok",
         )
 
+    def mock_get_route_sync(origin, destination):
+        """Synchronous version for use in SimPy thread."""
+        return RouteResponse(
+            distance_meters=5000.0,
+            duration_seconds=600.0,
+            geometry=[
+                origin,
+                ((origin[0] + destination[0]) / 2, (origin[1] + destination[1]) / 2),
+                destination,
+            ],
+            osrm_code="Ok",
+        )
+
     client.get_route = AsyncMock(side_effect=mock_get_route)
+    client.get_route_sync = Mock(side_effect=mock_get_route_sync)
     return client
 
 
@@ -310,7 +324,8 @@ class TestTripTiming:
 
         elapsed = simpy_env.now - start_time
         assert elapsed > 0
-        assert mock_osrm_client.get_route.call_count >= 2
+        # Uses get_route_sync for synchronous OSRM calls in SimPy thread
+        assert mock_osrm_client.get_route_sync.call_count >= 2
 
     def test_trip_timing_trip_drive(self, simpy_env, trip_executor):
         start_time = simpy_env.now
