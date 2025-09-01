@@ -4,6 +4,7 @@ import Map from './components/Map';
 import MapErrorBoundary from './components/MapErrorBoundary';
 import ControlPanel from './components/ControlPanel';
 import LayerControls from './components/LayerControls';
+import InspectorPopup, { type InspectedEntity } from './components/InspectorPopup';
 import { useSimulationState } from './hooks/useSimulationState';
 import { useSimulationLayers } from './hooks/useSimulationLayers';
 import { useWebSocket } from './hooks/useWebSocket';
@@ -19,6 +20,8 @@ function App() {
   });
 
   const [layerVisibility, setLayerVisibility] = useState<LayerVisibility>(DEFAULT_VISIBILITY);
+  const [inspectedEntity, setInspectedEntity] = useState<InspectedEntity>(null);
+  const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
 
   const {
     drivers,
@@ -70,6 +73,15 @@ function App() {
     sessionStorage.setItem('apiKey', key);
   };
 
+  const handleEntityClick = (entity: InspectedEntity, x: number, y: number) => {
+    setInspectedEntity(entity);
+    setPopupPosition({ x, y });
+  };
+
+  const handleClosePopup = () => {
+    setInspectedEntity(null);
+  };
+
   return (
     <div className="App">
       {!apiKey ? (
@@ -80,7 +92,7 @@ function App() {
       ) : (
         <>
           <MapErrorBoundary>
-            <Map layers={layers} />
+            <Map layers={layers} onEntityClick={handleEntityClick} />
           </MapErrorBoundary>
           {status && (
             <ControlPanel
@@ -92,6 +104,14 @@ function App() {
             />
           )}
           <LayerControls visibility={layerVisibility} onChange={setLayerVisibility} />
+          {inspectedEntity && (
+            <InspectorPopup
+              entity={inspectedEntity}
+              x={popupPosition.x}
+              y={popupPosition.y}
+              onClose={handleClosePopup}
+            />
+          )}
           {!connected && (
             <div
               style={{

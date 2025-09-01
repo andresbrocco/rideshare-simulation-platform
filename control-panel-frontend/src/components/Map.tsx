@@ -3,11 +3,14 @@ import { Map as MapGL } from 'react-map-gl/maplibre';
 import type { MapRef } from 'react-map-gl/maplibre';
 import DeckGL from '@deck.gl/react';
 import type { Layer } from '@deck.gl/core';
+import type { PickingInfo } from '@deck.gl/core';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import styles from './Map.module.css';
+import type { InspectedEntity } from './InspectorPopup';
 
 interface MapProps {
   layers?: Layer[];
+  onEntityClick?: (entity: InspectedEntity, x: number, y: number) => void;
 }
 
 interface ViewState {
@@ -18,7 +21,7 @@ interface ViewState {
   bearing: number;
 }
 
-export default function Map({ layers = [] }: MapProps) {
+export default function Map({ layers = [], onEntityClick }: MapProps) {
   const mapRef = useRef<MapRef>(null);
   const [viewState, setViewState] = useState<ViewState>({
     latitude: -23.55,
@@ -34,6 +37,25 @@ export default function Map({ layers = [] }: MapProps) {
     throw error;
   }, []);
 
+  const handleClick = useCallback(
+    (info: PickingInfo) => {
+      if (!onEntityClick) return;
+
+      if (info.object) {
+        const { object, layer } = info;
+
+        if (layer && layer.id === 'zones') {
+          onEntityClick({ type: 'zone', data: object }, info.x, info.y);
+        } else if (layer && layer.id === 'drivers') {
+          onEntityClick({ type: 'driver', data: object }, info.x, info.y);
+        } else if (layer && layer.id === 'riders') {
+          onEntityClick({ type: 'rider', data: object }, info.x, info.y);
+        }
+      }
+    },
+    [onEntityClick]
+  );
+
   return (
     <div className={styles['map-container']}>
       <DeckGL
@@ -42,6 +64,7 @@ export default function Map({ layers = [] }: MapProps) {
         layers={layers}
         controller={true}
         onError={handleWebGLError}
+        onClick={handleClick}
       >
         <MapGL
           ref={mapRef}
