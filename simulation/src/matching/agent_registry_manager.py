@@ -1,6 +1,9 @@
 """Unified facade for managing all agent registries."""
 
+import logging
 from typing import TYPE_CHECKING, Any
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from agents.driver_agent import DriverAgent
@@ -98,7 +101,9 @@ class AgentRegistryManager:
             zone_id: The zone the driver is in (optional)
         """
         lat, lon = location
+        logger.info(f"Driver {driver_id} going online at ({lat}, {lon}), zone={zone_id}")
         self._driver_index.add_driver(driver_id, lat, lon, "online")
+        logger.info(f"Driver index now has {len(self._driver_index._driver_locations)} drivers")
         self._driver_registry.register_driver(
             driver_id=driver_id,
             status="online",

@@ -73,7 +73,7 @@ class SurgePricingCalculator:
                     pending_requests=pending_requests,
                     calculation_window_seconds=self.update_interval_seconds,
                 )
-                self.kafka_producer.produce(topic="surge-updates", value=event)
+                self.kafka_producer.produce(topic="surge-updates", key=zone_id, value=event)
 
             self.current_surge[zone_id] = new_multiplier
 
@@ -82,3 +82,18 @@ class SurgePricingCalculator:
 
     def set_pending_requests(self, zone_id: str, count: int):
         self.pending_requests[zone_id] = count
+
+    def increment_pending_request(self, zone_id: str) -> None:
+        """Increment pending request count for a zone.
+
+        Called when a rider requests a trip in this zone.
+        """
+        self.pending_requests[zone_id] = self.pending_requests.get(zone_id, 0) + 1
+
+    def decrement_pending_request(self, zone_id: str) -> None:
+        """Decrement pending request count for a zone.
+
+        Called when a trip is matched, completed, or cancelled.
+        """
+        if zone_id in self.pending_requests and self.pending_requests[zone_id] > 0:
+            self.pending_requests[zone_id] -= 1
