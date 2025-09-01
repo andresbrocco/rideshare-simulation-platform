@@ -5,7 +5,7 @@ WORKDIR /app
 
 COPY control-panel-frontend/package*.json ./
 
-RUN npm install
+RUN npm install --force
 
 EXPOSE 5173
 
@@ -18,7 +18,7 @@ WORKDIR /app
 
 COPY control-panel-frontend/package*.json ./
 
-RUN npm ci
+RUN npm install --force
 
 COPY control-panel-frontend/ .
 

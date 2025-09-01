@@ -41,6 +41,8 @@ build/
 .terraform.lock.hcl
 
 # Data
+# Ignore OSM files except the pre-processed Sao Paulo metro file tracked via Git LFS
 data/osrm/*.osm.pbf
+!data/osrm/sao-paulo-metro.osm.pbf
 *.db
 *.sqlite
