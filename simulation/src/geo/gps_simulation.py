@@ -1,18 +1,27 @@
 import math
 import random
 
+from geo.distance import haversine_distance_m
+
 
 class GPSSimulator:
     def __init__(self, noise_meters: float = 10.0, dropout_probability: float = 0.05):
         self.noise_meters = noise_meters
         self.dropout_probability = dropout_probability
 
-    def add_noise(self, lat: float, lon: float) -> tuple[float, float]:
+    def add_noise(
+        self, lat: float, lon: float, max_noise_meters: float = 15.0
+    ) -> tuple[float, float]:
         if self.noise_meters == 0:
             return lat, lon
 
-        noise_lat = random.gauss(0, self.noise_meters)
-        noise_lon = random.gauss(0, self.noise_meters)
+        # Generate Gaussian noise and clamp to max value
+        noise_lat = max(
+            -max_noise_meters, min(max_noise_meters, random.gauss(0, self.noise_meters))
+        )
+        noise_lon = max(
+            -max_noise_meters, min(max_noise_meters, random.gauss(0, self.noise_meters))
+        )
 
         lat_offset = noise_lat / 111000
         lon_offset = noise_lon / (111000 * math.cos(math.radians(lat)))
@@ -33,7 +42,9 @@ class GPSSimulator:
         distances = []
         total_distance = 0.0
         for i in range(len(polyline) - 1):
-            d = self._haversine_distance(polyline[i], polyline[i + 1])
+            d = haversine_distance_m(
+                polyline[i][0], polyline[i][1], polyline[i + 1][0], polyline[i + 1][1]
+            )
             distances.append(d)
             total_distance += d
 
@@ -73,21 +84,6 @@ class GPSSimulator:
         base_accuracy = self.noise_meters
         variation = random.uniform(-0.2, 0.2)
         return base_accuracy * (1 + variation)
-
-    def _haversine_distance(
-        self, coord1: tuple[float, float], coord2: tuple[float, float]
-    ) -> float:
-        lat1, lon1 = math.radians(coord1[0]), math.radians(coord1[1])
-        lat2, lon2 = math.radians(coord2[0]), math.radians(coord2[1])
-
-        dlat = lat2 - lat1
-        dlon = lon2 - lon1
-
-        a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
-        c = 2 * math.asin(math.sqrt(a))
-        r = 6371000
-
-        return c * r
 
     def _interpolate_segment(
         self,

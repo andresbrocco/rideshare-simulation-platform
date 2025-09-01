@@ -1,10 +1,11 @@
 import json
 import logging
-import math
 from pathlib import Path
 
 from pydantic import BaseModel, Field
 from shapely.geometry import Point, Polygon
+
+from geo.distance import haversine_distance_km
 
 logger = logging.getLogger(__name__)
 
@@ -134,27 +135,9 @@ class ZoneLoader:
 
         for zone in self._zones.values():
             centroid_lon, centroid_lat = zone.centroid
-            distance = self._haversine_distance(lat, lon, centroid_lat, centroid_lon)
+            distance = haversine_distance_km(lat, lon, centroid_lat, centroid_lon)
             if distance < min_distance:
                 min_distance = distance
                 nearest_zone_id = zone.zone_id
 
         return nearest_zone_id
-
-    @staticmethod
-    def _haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-        """Calculate distance between two points in kilometers using Haversine formula."""
-        R = 6371  # Earth radius in km
-
-        lat1_rad = math.radians(lat1)
-        lat2_rad = math.radians(lat2)
-        delta_lat = math.radians(lat2 - lat1)
-        delta_lon = math.radians(lon2 - lon1)
-
-        a = (
-            math.sin(delta_lat / 2) ** 2
-            + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(delta_lon / 2) ** 2
-        )
-        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-
-        return R * c

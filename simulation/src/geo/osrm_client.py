@@ -1,7 +1,11 @@
+import time
+
 import httpx
 import polyline
 import requests
 from pydantic import BaseModel
+
+from metrics import get_metrics_collector
 
 
 class RouteResponse(BaseModel):
@@ -87,28 +91,40 @@ class OSRMClient:
         )
         params = {"overview": "full", "geometries": "polyline"}
 
+        start_time = time.perf_counter()
+        collector = get_metrics_collector()
         try:
             response = requests.get(url, params=params, timeout=self.timeout)
 
             if response.status_code >= 500:
+                collector.record_error("osrm", f"server_error_{response.status_code}")
                 raise OSRMServiceError(f"OSRM server error: {response.status_code}")
 
             data = response.json()
 
             if data.get("code") == "NoRoute":
+                collector.record_error("osrm", "no_route")
                 raise NoRouteFoundError("No route found between coordinates")
 
             route = data["routes"][0]
-            return RouteResponse(
+            result = RouteResponse(
                 distance_meters=float(route["distance"]),
                 duration_seconds=float(route["duration"]),
                 geometry=decode_polyline(route["geometry"]),
                 osrm_code=data["code"],
             )
 
+            # Record successful latency
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            collector.record_latency("osrm", latency_ms)
+
+            return result
+
         except requests.Timeout as e:
+            collector.record_error("osrm", "timeout")
             raise OSRMTimeoutError(f"Request timed out after {self.timeout}s") from e
         except requests.RequestException as e:
+            collector.record_error("osrm", "network_error")
             raise OSRMServiceError(f"Network error: {e}") from e
 
     def _generate_cache_key(
