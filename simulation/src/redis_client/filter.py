@@ -1,8 +1,10 @@
 """Event filtering for Redis pub/sub visualization."""
 
 from events.schemas import (
+    DriverProfileEvent,
     DriverStatusEvent,
     GPSPingEvent,
+    RiderProfileEvent,
     SurgeUpdateEvent,
     TripEvent,
 )
@@ -23,7 +25,14 @@ class EventFilter:
 
     def should_publish(self, event) -> bool:
         """Return True if event should be published to Redis."""
-        if isinstance(event, GPSPingEvent | DriverStatusEvent | SurgeUpdateEvent):
+        if isinstance(
+            event,
+            GPSPingEvent
+            | DriverStatusEvent
+            | DriverProfileEvent
+            | RiderProfileEvent
+            | SurgeUpdateEvent,
+        ):
             return True
 
         if isinstance(event, TripEvent):
@@ -94,5 +103,25 @@ class EventFilter:
                 timestamp=event.timestamp,
             )
             return CHANNEL_SURGE_UPDATES, message
+
+        if isinstance(event, DriverProfileEvent):
+            message = DriverUpdateMessage(
+                driver_id=event.driver_id,
+                location=event.home_location,
+                heading=None,
+                status="offline",
+                trip_id=None,
+                timestamp=event.timestamp,
+            )
+            return CHANNEL_DRIVER_UPDATES, message
+
+        if isinstance(event, RiderProfileEvent):
+            message = RiderUpdateMessage(
+                rider_id=event.rider_id,
+                location=event.home_location,
+                trip_id=None,
+                timestamp=event.timestamp,
+            )
+            return CHANNEL_RIDER_UPDATES, message
 
         raise ValueError(f"Cannot transform event of type {type(event)}")

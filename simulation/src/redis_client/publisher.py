@@ -4,6 +4,7 @@ import logging
 import redis
 from redis.exceptions import ConnectionError
 
+from metrics import get_metrics_collector
 from pubsub.channels import ALL_CHANNELS
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,7 @@ class RedisPublisher:
             json_message = json.dumps(message)
             self._client.publish(channel, json_message)
         except ConnectionError as e:
+            get_metrics_collector().record_error("redis", "connection_error")
             logger.error(f"Failed to publish to channel {channel}: {e}")
 
     async def publish(self, channel: str, message: dict) -> None:

@@ -224,7 +224,8 @@ def test_payment_event_should_not_publish(event_filter, timestamp):
     assert event_filter.should_publish(event) is False
 
 
-def test_profile_event_should_not_publish(event_filter, timestamp):
+def test_driver_profile_event_should_publish(event_filter, timestamp):
+    """Driver profile events should be published for immediate map visibility."""
     event = DriverProfileEvent(
         event_type="driver.created",
         driver_id="driver-1",
@@ -241,7 +242,24 @@ def test_profile_event_should_not_publish(event_filter, timestamp):
         vehicle_year=2020,
         license_plate="ABC-1234",
     )
-    assert event_filter.should_publish(event) is False
+    assert event_filter.should_publish(event) is True
+
+
+def test_rider_profile_event_should_publish(event_filter, timestamp):
+    """Rider profile events should be published for immediate map visibility."""
+    event = RiderProfileEvent(
+        event_type="rider.created",
+        rider_id="rider-1",
+        timestamp=timestamp,
+        first_name="Maria",
+        last_name="Santos",
+        email="maria@example.com",
+        phone="+5511912345678",
+        home_location=(-23.5600, -46.6400),
+        payment_method_type="credit_card",
+        payment_method_masked="****1234",
+    )
+    assert event_filter.should_publish(event) is True
 
 
 def test_transform_gps_to_driver_update(event_filter, timestamp):
@@ -306,4 +324,56 @@ def test_transform_trip_to_trip_update(event_filter, timestamp):
     assert message.rider_id == "rider-1"
     assert message.fare == 25.50
     assert message.surge_multiplier == 1.2
+    assert message.timestamp == timestamp
+
+
+def test_transform_driver_profile_to_driver_update(event_filter, timestamp):
+    """Driver profile events should transform to DriverUpdateMessage at home location."""
+    event = DriverProfileEvent(
+        event_type="driver.created",
+        driver_id="driver-1",
+        timestamp=timestamp,
+        first_name="João",
+        last_name="Silva",
+        email="joao@example.com",
+        phone="+5511987654321",
+        home_location=(-23.5505, -46.6333),
+        preferred_zones=["zone-1", "zone-2"],
+        shift_preference="morning",
+        vehicle_make="Toyota",
+        vehicle_model="Corolla",
+        vehicle_year=2020,
+        license_plate="ABC-1234",
+    )
+    channel, message = event_filter.transform(event)
+    assert channel == CHANNEL_DRIVER_UPDATES
+    assert isinstance(message, DriverUpdateMessage)
+    assert message.driver_id == "driver-1"
+    assert message.location == (-23.5505, -46.6333)
+    assert message.heading is None
+    assert message.status == "offline"
+    assert message.trip_id is None
+    assert message.timestamp == timestamp
+
+
+def test_transform_rider_profile_to_rider_update(event_filter, timestamp):
+    """Rider profile events should transform to RiderUpdateMessage at home location."""
+    event = RiderProfileEvent(
+        event_type="rider.created",
+        rider_id="rider-1",
+        timestamp=timestamp,
+        first_name="Maria",
+        last_name="Santos",
+        email="maria@example.com",
+        phone="+5511912345678",
+        home_location=(-23.5600, -46.6400),
+        payment_method_type="credit_card",
+        payment_method_masked="****1234",
+    )
+    channel, message = event_filter.transform(event)
+    assert channel == CHANNEL_RIDER_UPDATES
+    assert isinstance(message, RiderUpdateMessage)
+    assert message.rider_id == "rider-1"
+    assert message.location == (-23.5600, -46.6400)
+    assert message.trip_id is None
     assert message.timestamp == timestamp

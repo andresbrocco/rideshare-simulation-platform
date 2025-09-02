@@ -28,11 +28,11 @@ class DriverUpdateMessage(BaseModel):
 
 
 class RiderUpdateMessage(BaseModel):
-    """Rider location update during active trips."""
+    """Rider location update for visualization."""
 
     rider_id: str
     location: tuple[float, float]
-    trip_id: str
+    trip_id: str | None
     timestamp: str
 
 
