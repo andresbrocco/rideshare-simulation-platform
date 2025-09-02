@@ -85,8 +85,8 @@ def sample_rider_dna():
         max_surge_multiplier=2.0,
         avg_rides_per_week=5,
         frequent_destinations=[
-            {"coordinates": (-23.5600, -46.6400), "weight": 0.5, "time_affinity": [7, 8, 9]},
-            {"coordinates": (-23.5400, -46.6200), "weight": 0.5, "time_affinity": None},
+            {"coordinates": (-23.56, -46.65), "weight": 0.5, "time_affinity": [7, 8, 9]},
+            {"coordinates": (-23.54, -46.62), "weight": 0.5, "time_affinity": None},
         ],
         home_location=(-23.5505, -46.6333),
         first_name="Maria",

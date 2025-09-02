@@ -127,7 +127,7 @@ class SimulationEngine:
         self._periodic_processes: list[simpy.Process] = []
 
         self._time_manager = TimeManager(simulation_start_time, self._env)
-        self._speed_multiplier = 100
+        self._speed_multiplier = 1
         self._drain_process: simpy.Process | None = None
         self._event_loop: asyncio.AbstractEventLoop | None = None
 
@@ -222,9 +222,9 @@ class SimulationEngine:
                 time.sleep(sleep_time)
 
     def set_speed(self, multiplier: int) -> None:
-        """Change simulation speed (1x, 10x, or 100x)."""
-        if multiplier not in (1, 10, 100):
-            raise ValueError("Speed multiplier must be 1, 10, or 100")
+        """Change simulation speed (any positive integer)."""
+        if multiplier < 1:
+            raise ValueError("Speed multiplier must be a positive integer")
 
         previous_speed = self._speed_multiplier
         self._speed_multiplier = multiplier
@@ -458,3 +458,52 @@ class SimulationEngine:
             key="engine",
             value=event,
         )
+
+    def reset(self) -> None:
+        """Reset simulation to clean initial state, clearing all data."""
+        old_state = self._state
+
+        # Stop if running
+        if self._state != SimulationState.STOPPED:
+            self._state = SimulationState.STOPPED
+
+        # Clear agent registries
+        self._active_drivers.clear()
+        self._active_riders.clear()
+        self._agent_processes.clear()
+        self._periodic_processes.clear()
+        self._drain_process = None
+
+        # Create fresh SimPy environment
+        self._env = simpy.Environment()
+
+        # Reset time manager with fresh env
+        simulation_start_time = datetime.now(UTC)
+        self._time_manager = TimeManager(simulation_start_time, self._env)
+
+        # Clear matching server state and update its environment reference
+        if hasattr(self._matching_server, "clear"):
+            self._matching_server.clear()
+        # Update matching server's environment reference to the new one
+        if hasattr(self._matching_server, "_env"):
+            self._matching_server._env = self._env
+
+        # Clear database
+        if self._sqlite_db:
+            self._clear_database()
+
+        # Emit reset event
+        self._emit_control_event("simulation.reset", old_state, "user_request")
+
+    def _clear_database(self) -> None:
+        """Clear all simulation data from SQLite."""
+        from sqlalchemy import text
+
+        with self._sqlite_db() as session:
+            # Clear all tables
+            session.execute(text("DELETE FROM trips"))
+            session.execute(text("DELETE FROM drivers"))
+            session.execute(text("DELETE FROM riders"))
+            session.execute(text("DELETE FROM route_cache"))
+            session.execute(text("DELETE FROM simulation_metadata"))
+            session.commit()

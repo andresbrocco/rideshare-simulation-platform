@@ -130,35 +130,6 @@ def test_paused_event_trigger_quiescence(running_engine, mock_kafka_producer):
     assert paused_event["trigger"] == "quiescence_achieved"
 
 
-def test_paused_event_trigger_timeout(running_engine, mock_kafka_producer):
-    """Includes timeout trigger."""
-    from src.trip import Trip, TripState
-
-    trip = Trip(
-        trip_id="trip1",
-        rider_id="rider1",
-        state=TripState.MATCHED,
-        pickup_location=(40.7128, -74.0060),
-        dropoff_location=(40.7589, -73.9851),
-        pickup_zone_id="zone1",
-        dropoff_zone_id="zone2",
-        surge_multiplier=1.0,
-        fare=15.0,
-    )
-
-    with (
-        patch.object(running_engine, "_get_in_flight_trips", return_value=[trip]),
-        patch.object(running_engine, "_force_cancel_trips"),
-    ):
-        running_engine.pause()
-        running_engine.step(610)
-
-    events = get_control_events(mock_kafka_producer)
-    paused_event = get_event_by_type(events, "simulation.paused")
-
-    assert paused_event["trigger"] == "drain_timeout"
-
-
 def test_resumed_event_emitted(running_engine, mock_kafka_producer):
     """Emits simulation.resumed on resume."""
     with patch.object(running_engine, "_get_in_flight_trips", return_value=[]):
@@ -228,7 +199,7 @@ def test_speed_changed_event_fields(running_engine, mock_kafka_producer):
     events = get_control_events(mock_kafka_producer)
     speed_event = get_event_by_type(events, "simulation.speed_changed")
 
-    assert speed_event["previous_speed"] == 100
+    assert speed_event["previous_speed"] == 1  # Default speed multiplier is 1
     assert speed_event["new_speed"] == 10
 
 

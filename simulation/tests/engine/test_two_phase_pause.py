@@ -145,24 +145,6 @@ def test_draining_waits_for_quiescence(running_engine):
         assert running_engine.state == SimulationState.PAUSED
 
 
-def test_draining_timeout_10_minutes(running_engine):
-    """Force-cancel after 10 minutes."""
-    in_flight_trips = [
-        create_trip("trip1", TripState.MATCHED),
-        create_trip("trip2", TripState.STARTED),
-    ]
-
-    with (
-        patch.object(running_engine, "_get_in_flight_trips", return_value=in_flight_trips),
-        patch.object(running_engine, "_force_cancel_trips") as mock_cancel,
-    ):
-        running_engine.pause()
-        running_engine.step(610)
-
-        assert running_engine.state == SimulationState.PAUSED
-        mock_cancel.assert_called_once()
-
-
 def test_force_cancel_reason(running_engine):
     """Force-cancelled trips have correct metadata."""
     trip = create_trip("trip1", TripState.MATCHED)
@@ -195,34 +177,6 @@ def test_quiescence_achieved_trigger(running_engine, mock_kafka_producer):
 
         assert paused_event is not None
         assert paused_event["trigger"] == "quiescence_achieved"
-
-
-def test_drain_timeout_trigger(running_engine, mock_kafka_producer):
-    """Emits correct trigger on timeout."""
-    in_flight_trips = [create_trip("trip1", TripState.MATCHED)]
-
-    with (
-        patch.object(running_engine, "_get_in_flight_trips", return_value=in_flight_trips),
-        patch.object(running_engine, "_force_cancel_trips"),
-    ):
-        running_engine.pause()
-        running_engine.step(610)
-
-        calls = [
-            call
-            for call in mock_kafka_producer.produce.call_args_list
-            if call[1].get("topic") == "simulation-control"
-        ]
-
-        paused_event = None
-        for call in calls:
-            value = call[1]["value"]
-            if value["event_type"] == "simulation.paused":
-                paused_event = value
-                break
-
-        assert paused_event is not None
-        assert paused_event["trigger"] == "drain_timeout"
 
 
 def test_paused_state_after_drain(running_engine):

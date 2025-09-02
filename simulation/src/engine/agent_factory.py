@@ -1,8 +1,10 @@
 """Factory for dynamic agent creation."""
 
-from typing import TYPE_CHECKING
+import random
+from typing import TYPE_CHECKING, Any, cast
 from uuid import uuid4
 
+from agents.dna import DriverDNA, RiderDNA
 from agents.dna_generator import generate_driver_dna, generate_rider_dna
 from agents.driver_agent import DriverAgent
 from agents.rider_agent import RiderAgent
@@ -59,7 +61,7 @@ class AgentFactory:
                 driver_repository=None,
                 registry_manager=self._registry_manager,
                 zone_loader=self._zone_loader,
-                immediate_online=True,  # Go online immediately when created dynamically
+                immediate_online=True,  # Start online immediately
             )
 
             self._simulation_engine.register_driver(agent)
@@ -95,7 +97,7 @@ class AgentFactory:
                 zone_loader=self._zone_loader,
                 osrm_client=self._osrm_client,
                 surge_calculator=self._surge_calculator,
-                immediate_first_trip=True,  # Request trip immediately
+                immediate_first_trip=False,  # Follow DNA avg_rides_per_week schedule
             )
 
             self._simulation_engine.register_rider(agent)
@@ -126,3 +128,240 @@ class AgentFactory:
             raise ValueError(
                 f"Rider capacity limit exceeded: {current_count} + {count} > {self._max_riders}"
             )
+
+    def _get_random_location_in_zone(self, zone_id: str) -> tuple[float, float] | None:
+        """Get a random location within a zone.
+
+        Uses the zone's centroid with a small random offset (~500m).
+
+        Args:
+            zone_id: The zone ID to place the agent in
+
+        Returns:
+            (lat, lon) tuple or None if zone not found
+        """
+        if not self._zone_loader:
+            return None
+
+        zone = self._zone_loader.get_zone(zone_id)
+        if not zone:
+            return None
+
+        # Use zone centroid with small random offset
+        centroid = zone.centroid
+        # centroid is (lon, lat) from GeoJSON convention
+        centroid_lon, centroid_lat = centroid
+
+        # Add small random offset (up to ~500m = 0.005 degrees)
+        lat = centroid_lat + random.uniform(-0.005, 0.005)
+        lon = centroid_lon + random.uniform(-0.005, 0.005)
+
+        return (lat, lon)
+
+    def _generate_destinations_for_home(
+        self, home_lat: float, home_lon: float
+    ) -> list[dict[str, Any]]:
+        """Generate frequent destinations near a home location.
+
+        Args:
+            home_lat: Home latitude
+            home_lon: Home longitude
+
+        Returns:
+            List of destination dictionaries
+        """
+        from agents.dna_generator import SAO_PAULO_BOUNDS
+
+        num_destinations = random.randint(2, 5)
+        destinations: list[dict[str, Any]] = []
+        total_weight = 0.0
+
+        for _ in range(num_destinations):
+            # Generate destination within 0.8-20km of home
+            distance_factor = random.uniform(0.01, 0.15)
+            lat_offset = random.uniform(-distance_factor, distance_factor)
+            lon_offset = random.uniform(-distance_factor, distance_factor)
+
+            dest_lat = home_lat + lat_offset
+            dest_lon = home_lon + lon_offset
+
+            # Clamp to Sao Paulo bounds
+            dest_lat = max(SAO_PAULO_BOUNDS["lat_min"], min(SAO_PAULO_BOUNDS["lat_max"], dest_lat))
+            dest_lon = max(SAO_PAULO_BOUNDS["lon_min"], min(SAO_PAULO_BOUNDS["lon_max"], dest_lon))
+
+            weight = random.random()
+            total_weight += weight
+
+            # Optional time affinity
+            time_affinity = None
+            if random.random() < 0.4:
+                affinity_type = random.choice(["morning_commute", "evening_return", "leisure"])
+                if affinity_type == "morning_commute":
+                    time_affinity = list(range(7, 10))
+                elif affinity_type == "evening_return":
+                    time_affinity = list(range(17, 20))
+                else:
+                    time_affinity = list(range(10, 23))
+
+            dest = {
+                "coordinates": (dest_lat, dest_lon),
+                "weight": weight,
+            }
+            if time_affinity:
+                dest["time_affinity"] = time_affinity
+
+            destinations.append(dest)
+
+        # Normalize weights
+        for dest in destinations:
+            dest["weight"] = cast(float, dest["weight"]) / total_weight
+
+        return destinations
+
+    # --- Puppet Agent Creation Methods ---
+
+    def create_puppet_driver(
+        self,
+        location: tuple[float, float],
+        dna_override: dict[str, Any] | None = None,
+        zone_id: str | None = None,
+        ephemeral: bool = True,
+    ) -> str:
+        """Create a puppet driver at the specified location.
+
+        Puppet drivers:
+        - Start in 'offline' status
+        - Emit GPS pings but take no autonomous actions
+        - All state transitions triggered via API
+        - Support optional DNA overrides for testing specific behaviors
+
+        Args:
+            location: (lat, lon) tuple for initial position
+            dna_override: Optional partial DNA fields to override
+            zone_id: If provided, place agent at random location within this zone
+            ephemeral: If True, skip SQLite persistence (in-memory only)
+
+        Returns:
+            The driver_id of the created puppet agent
+        """
+        self._check_driver_capacity(1)
+
+        # Generate DNA with home_location set to the specified location
+        base_dna = generate_driver_dna()
+        dna_dict = base_dna.model_dump()
+        dna_dict["home_location"] = location
+
+        # Handle zone-based placement
+        if zone_id:
+            zone_location = self._get_random_location_in_zone(zone_id)
+            if zone_location:
+                dna_dict["home_location"] = zone_location
+
+        # Apply explicit overrides (takes precedence over zone)
+        if dna_override:
+            for key, value in dna_override.items():
+                if value is not None and key != "zone_id":
+                    dna_dict[key] = value
+
+        dna = DriverDNA.model_validate(dna_dict)
+        driver_id = str(uuid4())
+
+        agent = DriverAgent(
+            driver_id=driver_id,
+            dna=dna,
+            env=self._simulation_engine._env,
+            kafka_producer=self._kafka_producer,
+            redis_publisher=self._redis_publisher,
+            driver_repository=None,
+            registry_manager=self._registry_manager,
+            zone_loader=self._zone_loader,
+            immediate_online=False,  # Puppet stays offline until API call
+            puppet=True,  # Enable puppet mode
+        )
+        agent._is_ephemeral = ephemeral
+        agent._is_puppet = True
+
+        self._simulation_engine.register_driver(agent)
+
+        if self._registry_manager:
+            self._registry_manager.register_driver(agent)
+
+        return driver_id
+
+    def create_puppet_rider(
+        self,
+        location: tuple[float, float],
+        dna_override: dict[str, Any] | None = None,
+        zone_id: str | None = None,
+        ephemeral: bool = True,
+    ) -> str:
+        """Create a puppet rider at the specified location.
+
+        Puppet riders:
+        - Start in 'offline' status
+        - Emit GPS pings but take no autonomous actions
+        - All state transitions triggered via API
+        - Support optional DNA overrides for testing specific behaviors
+
+        Args:
+            location: (lat, lon) tuple for initial position
+            dna_override: Optional partial DNA fields to override
+            zone_id: If provided, place agent at random location within this zone
+            ephemeral: If True, skip SQLite persistence (in-memory only)
+
+        Returns:
+            The rider_id of the created puppet agent
+        """
+        self._check_rider_capacity(1)
+
+        # Generate DNA with home_location set to the specified location
+        base_dna = generate_rider_dna()
+        dna_dict = base_dna.model_dump()
+        dna_dict["home_location"] = location
+        # Regenerate frequent_destinations based on new home location
+        dna_dict["frequent_destinations"] = self._generate_destinations_for_home(
+            location[0], location[1]
+        )
+
+        # Handle zone-based placement
+        if zone_id:
+            zone_location = self._get_random_location_in_zone(zone_id)
+            if zone_location:
+                dna_dict["home_location"] = zone_location
+                # Regenerate frequent_destinations based on zone location
+                dna_dict["frequent_destinations"] = self._generate_destinations_for_home(
+                    zone_location[0], zone_location[1]
+                )
+
+        # Apply explicit overrides (takes precedence over zone)
+        if dna_override:
+            for key, value in dna_override.items():
+                if value is not None and key != "zone_id":
+                    dna_dict[key] = value
+
+        dna = RiderDNA.model_validate(dna_dict)
+        rider_id = str(uuid4())
+
+        agent = RiderAgent(
+            rider_id=rider_id,
+            dna=dna,
+            env=self._simulation_engine._env,
+            kafka_producer=self._kafka_producer,
+            redis_publisher=self._redis_publisher,
+            rider_repository=None,
+            simulation_engine=self._simulation_engine,
+            zone_loader=self._zone_loader,
+            osrm_client=self._osrm_client,
+            surge_calculator=self._surge_calculator,
+            immediate_first_trip=False,  # Puppet waits for API call
+            puppet=True,  # Enable puppet mode
+        )
+        agent._is_ephemeral = ephemeral
+        agent._is_puppet = True
+
+        self._simulation_engine.register_rider(agent)
+
+        if self._registry_manager:
+            self._registry_manager.register_rider(agent)
+
+        return rider_id

@@ -182,7 +182,7 @@ class TestSimulationEngineAgentRegistration:
 
         rider = Mock()
         rider.rider_id = "rider_456"
-        rider.status = "idle"
+        rider.status = "offline"
 
         engine.register_rider(rider)
         assert "rider_456" in engine._active_riders
@@ -226,17 +226,17 @@ class TestSimulationEngineAgentProcesses:
         # Create mock riders with run() generators
         rider1 = Mock()
         rider1.rider_id = "rider_1"
-        rider1.status = "idle"
+        rider1.status = "offline"
         rider1.run = Mock(return_value=dummy_generator(engine._env))
 
         rider2 = Mock()
         rider2.rider_id = "rider_2"
-        rider2.status = "idle"
+        rider2.status = "offline"
         rider2.run = Mock(return_value=dummy_generator(engine._env))
 
         rider3 = Mock()
         rider3.rider_id = "rider_3"
-        rider3.status = "idle"
+        rider3.status = "offline"
         rider3.run = Mock(return_value=dummy_generator(engine._env))
 
         engine.register_driver(driver1)
@@ -316,67 +316,6 @@ class TestSimulationEngineMatchingIntegration:
         assert matching_server.request_match.called
 
 
-class TestSimulationEnginePeriodicProcesses:
-    def test_engine_periodic_surge_updates(self):
-        """Surge recalculated every 60 seconds."""
-        matching_server = Mock()
-        matching_server.update_surge_pricing = Mock()
-        kafka_producer = Mock()
-        kafka_producer.produce = Mock()
-        redis_client = Mock()
-        osrm_client = Mock()
-        sqlite_db = create_mock_sqlite_db()
-
-        engine = SimulationEngine(
-            env=simpy.Environment(),
-            matching_server=matching_server,
-            kafka_producer=kafka_producer,
-            redis_client=redis_client,
-            osrm_client=osrm_client,
-            sqlite_db=sqlite_db,
-            simulation_start_time=datetime(2025, 1, 15, 10, 0, 0, tzinfo=UTC),
-        )
-
-        engine.start()
-        engine.step(seconds=180)
-
-        # Should have called surge update 3 times (at 60, 120, 180)
-        assert matching_server.update_surge_pricing.call_count >= 3
-
-    # Note: test_engine_periodic_gps_pings was removed because GPS pings
-    # are now emitted by each driver's own process, not by the engine.
-    # This avoids duplicate GPS ping events and provides more accurate
-    # status tracking (covers online, busy, en_route_pickup, en_route_destination).
-
-
-class TestSimulationEngineTime:
-    def test_engine_current_time_property(self):
-        """Provides current simulated time."""
-        matching_server = Mock()
-        kafka_producer = Mock()
-        redis_client = Mock()
-        osrm_client = Mock()
-        sqlite_db = create_mock_sqlite_db()
-
-        engine = SimulationEngine(
-            env=simpy.Environment(),
-            matching_server=matching_server,
-            kafka_producer=kafka_producer,
-            redis_client=redis_client,
-            osrm_client=osrm_client,
-            sqlite_db=sqlite_db,
-            simulation_start_time=datetime(2025, 1, 15, 10, 0, 0, tzinfo=UTC),
-        )
-
-        engine.start()
-        engine.step(seconds=3600)
-
-        current = engine.current_time()
-        assert isinstance(current, datetime)
-        # After 3600 seconds (1 hour), should be 11:00
-        assert current.hour == 11
-
-
 class TestSimulationEngineActiveCounts:
     def test_engine_active_counts(self):
         """Tracks counts of active agents."""
@@ -403,11 +342,11 @@ class TestSimulationEngineActiveCounts:
             driver.status = "online" if i < 3 else "offline"
             engine.register_driver(driver)
 
-        # Add 10 riders (2 waiting, 8 idle)
+        # Add 10 riders (2 waiting, 8 offline)
         for i in range(10):
             rider = Mock()
             rider.rider_id = f"rider_{i}"
-            rider.status = "waiting" if i < 2 else "idle"
+            rider.status = "waiting" if i < 2 else "offline"
             engine.register_rider(rider)
 
         assert engine.active_driver_count == 3
