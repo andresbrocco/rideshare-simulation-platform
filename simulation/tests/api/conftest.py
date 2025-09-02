@@ -71,6 +71,17 @@ def mock_matching_server():
             "cancelled_count": 0,
             "avg_fare": 0.0,
             "avg_duration_minutes": 0.0,
+            "avg_wait_seconds": 0.0,
+            "avg_pickup_seconds": 0.0,
+            "active_count": 0,
+        }
+    )
+    server.get_matching_stats = Mock(
+        return_value={
+            "offers_sent": 0,
+            "offers_accepted": 0,
+            "offers_rejected": 0,
+            "offers_expired": 0,
         }
     )
     return server

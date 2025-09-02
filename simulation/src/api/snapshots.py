@@ -3,10 +3,22 @@ from typing import TYPE_CHECKING, Any
 
 import redis.asyncio as aioredis
 
+from trip import TripState
+
 if TYPE_CHECKING:
     from engine import SimulationEngine
 
 logger = logging.getLogger(__name__)
+
+# Trip states that should show routes on the map
+ACTIVE_TRIP_STATES = {
+    TripState.REQUESTED,  # Show pending route (orange)
+    TripState.OFFER_SENT,  # Show pending route (orange)
+    TripState.MATCHED,  # Show pending route (orange) - brief transition state
+    TripState.DRIVER_EN_ROUTE,  # Show pickup route (cyan dashed)
+    TripState.DRIVER_ARRIVED,  # Show pickup route (cyan dashed)
+    TripState.STARTED,  # Show trip route (cyan solid)
+}
 
 
 class StateSnapshotManager:
@@ -31,12 +43,21 @@ class StateSnapshotManager:
                         "status": driver.status,
                         "rating": driver.current_rating,
                         "zone": getattr(driver, "_current_zone", "unknown"),
+                        "heading": getattr(driver, "_heading", 0),
                     }
                 )
         return drivers
 
     def _get_riders_from_engine(self, engine: "SimulationEngine") -> list[dict]:
         """Extract rider state from engine's in-memory registry."""
+        # Build a map of rider_id -> trip for quick lookup
+        rider_trip_map: dict[str, Any] = {}
+        if hasattr(engine, "_matching_server") and hasattr(
+            engine._matching_server, "get_active_trips"
+        ):
+            for trip in engine._matching_server.get_active_trips():
+                rider_trip_map[trip.rider_id] = trip
+
         riders = []
         for rider in engine._active_riders.values():
             if rider.location:
@@ -44,9 +65,17 @@ class StateSnapshotManager:
                     "id": rider.rider_id,
                     "latitude": rider.location[0],
                     "longitude": rider.location[1],
-                    "status": "waiting" if rider.status == "idle" else rider.status,
+                    "status": rider.status,
                     "rating": rider.current_rating,
                 }
+                # Add trip_state from active trip if available
+                if rider.rider_id in rider_trip_map:
+                    trip = rider_trip_map[rider.rider_id]
+                    rider_data["trip_state"] = (
+                        trip.state.value if hasattr(trip.state, "value") else str(trip.state)
+                    )
+                else:
+                    rider_data["trip_state"] = "offline"
                 # Add destination if available
                 if hasattr(rider, "_destination") and rider._destination:
                     rider_data["destination_latitude"] = rider._destination[0]
@@ -55,44 +84,60 @@ class StateSnapshotManager:
         return riders
 
     def _get_trips_from_engine(self, engine: "SimulationEngine") -> list[dict]:
-        """Extract active trip state from engine."""
-        trips = []
-        # Get in-flight trips from the database
-        try:
-            from db.repositories.trip_repository import TripRepository
+        """Extract active trip state from engine's in-memory store.
 
-            with engine._sqlite_db() as session:
-                repo = TripRepository(session)
-                in_flight = repo.list_in_flight()
-                for trip in in_flight:
-                    trips.append(
-                        {
-                            "id": trip.trip_id,
-                            "driver_id": trip.driver_id,
-                            "rider_id": trip.rider_id,
-                            "pickup_latitude": (
-                                trip.pickup_location[0] if trip.pickup_location else 0
-                            ),
-                            "pickup_longitude": (
-                                trip.pickup_location[1] if trip.pickup_location else 0
-                            ),
-                            "dropoff_latitude": (
-                                trip.dropoff_location[0] if trip.dropoff_location else 0
-                            ),
-                            "dropoff_longitude": (
-                                trip.dropoff_location[1] if trip.dropoff_location else 0
-                            ),
-                            "route": trip.route or [],
-                            "status": (
-                                trip.state.value
-                                if hasattr(trip.state, "value")
-                                else str(trip.state)
-                            ),
-                        }
-                    )
+        Only includes trips in active states (DRIVER_EN_ROUTE, DRIVER_ARRIVED, STARTED)
+        to show routes on the map.
+        """
+        trips = []
+        # Get in-memory trips from matching server (where routes are stored)
+        try:
+            if hasattr(engine, "_matching_server") and hasattr(
+                engine._matching_server, "get_active_trips"
+            ):
+                all_trips = engine._matching_server.get_active_trips()
+                for trip in all_trips:
+                    # Only include trips in active states for route visualization
+                    if trip.state in ACTIVE_TRIP_STATES:
+                        trips.append(
+                            {
+                                "id": trip.trip_id,
+                                "driver_id": trip.driver_id,
+                                "rider_id": trip.rider_id,
+                                "pickup_latitude": (
+                                    trip.pickup_location[0] if trip.pickup_location else 0
+                                ),
+                                "pickup_longitude": (
+                                    trip.pickup_location[1] if trip.pickup_location else 0
+                                ),
+                                "dropoff_latitude": (
+                                    trip.dropoff_location[0] if trip.dropoff_location else 0
+                                ),
+                                "dropoff_longitude": (
+                                    trip.dropoff_location[1] if trip.dropoff_location else 0
+                                ),
+                                "route": trip.route or [],
+                                "pickup_route": trip.pickup_route or [],
+                                "route_progress_index": trip.route_progress_index,
+                                "pickup_route_progress_index": trip.pickup_route_progress_index,
+                                "status": (
+                                    trip.state.value
+                                    if hasattr(trip.state, "value")
+                                    else str(trip.state)
+                                ),
+                            }
+                        )
         except Exception as e:
             logger.error(f"Failed to get trips from engine: {e}")
         return trips
+
+    def _get_surge_from_engine(self, engine: "SimulationEngine") -> dict[str, float]:
+        """Extract current surge multipliers from engine's surge calculator."""
+        if hasattr(engine, "_matching_server") and engine._matching_server:
+            surge_calc = getattr(engine._matching_server, "_surge_calculator", None)
+            if surge_calc and hasattr(surge_calc, "current_surge"):
+                return dict(surge_calc.current_surge)
+        return {}
 
     async def get_snapshot(self, engine: "SimulationEngine | None" = None) -> dict:
         """Build snapshot from engine's in-memory state."""
@@ -108,6 +153,7 @@ class StateSnapshotManager:
         drivers = self._get_drivers_from_engine(engine)
         riders = self._get_riders_from_engine(engine)
         trips = self._get_trips_from_engine(engine)
+        surge = self._get_surge_from_engine(engine)
 
         current_time = engine.current_time() if callable(engine.current_time) else None
 
@@ -115,7 +161,7 @@ class StateSnapshotManager:
             "drivers": drivers,
             "riders": riders,
             "trips": trips,
-            "surge": {},
+            "surge": surge,
             "simulation": {
                 "state": engine.state.value,
                 "speed_multiplier": engine.speed_multiplier,

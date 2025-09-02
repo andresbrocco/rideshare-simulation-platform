@@ -3,15 +3,20 @@
 import asyncio
 import contextlib
 import logging
+import time
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Literal
 
-from fastapi import FastAPI
+import httpx
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from redis.asyncio import Redis
 
+from api.auth import verify_api_key
+from api.models.health import DetailedHealthResponse, ServiceHealth, StreamProcessorHealth
 from api.redis_subscriber import RedisSubscriber
-from api.routes import agents, metrics, simulation
+from api.routes import agents, metrics, puppet, simulation
 from api.snapshots import StateSnapshotManager
 from api.websocket import manager as connection_manager
 from api.websocket import router as websocket_router
@@ -65,8 +70,18 @@ def create_app(
     engine: "SimulationEngine",
     agent_factory: "AgentFactory",
     redis_client: Redis,
+    zone_loader=None,
+    matching_server=None,
 ) -> FastAPI:
-    """Create FastAPI application with injected dependencies."""
+    """Create FastAPI application with injected dependencies.
+
+    Args:
+        engine: SimulationEngine instance
+        agent_factory: AgentFactory for creating agents
+        redis_client: Async Redis client for real-time updates
+        zone_loader: ZoneLoader for geographic zone lookups (optional)
+        matching_server: MatchingServer for trip matching (optional)
+    """
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -98,9 +113,13 @@ def create_app(
     )
 
     # Set core dependencies immediately (not in lifespan) so they're available for testing
-    app.state.engine = engine
+    app.state.simulation_engine = engine
+    app.state.engine = engine  # Keep for backward compatibility
     app.state.redis_client = redis_client
     app.state.agent_factory = agent_factory
+    app.state.zone_loader = zone_loader
+    app.state.matching_server = matching_server
+    app.state.connection_manager = connection_manager
 
     settings = get_settings()
     origins = settings.cors.origins.split(",")
@@ -115,12 +134,244 @@ def create_app(
 
     app.include_router(simulation.router, prefix="/simulation", tags=["simulation"])
     app.include_router(agents.router, prefix="/agents", tags=["agents"])
+    app.include_router(puppet.router, prefix="/agents", tags=["puppet"])
     app.include_router(metrics.router, prefix="/metrics", tags=["metrics"])
     app.include_router(websocket_router)
 
     @app.get("/health")
     async def health_check():
-        """Health check endpoint for monitoring."""
+        """Health check endpoint for monitoring (unauthenticated for infrastructure)."""
         return {"status": "ok"}
+
+    @app.get("/auth/validate")
+    async def validate_api_key_endpoint(_: str = Depends(verify_api_key)):
+        """Validate API key for login.
+
+        This endpoint requires a valid API key and returns 200 if valid.
+        Used by the frontend login screen to validate credentials.
+        Returns 401 if the API key is invalid.
+        """
+        return {"status": "authenticated"}
+
+    def _determine_status(
+        latency_ms: float | None,
+        threshold_degraded: float = 100,
+        threshold_unhealthy: float = 500,
+    ) -> Literal["healthy", "degraded", "unhealthy"]:
+        """Determine service status based on latency thresholds."""
+        if latency_ms is None:
+            return "unhealthy"
+        if latency_ms < threshold_degraded:
+            return "healthy"
+        if latency_ms < threshold_unhealthy:
+            return "degraded"
+        return "unhealthy"
+
+    @app.get("/health/detailed", response_model=DetailedHealthResponse)
+    async def detailed_health_check():
+        """Detailed health check for all services with latency metrics."""
+
+        async def check_redis() -> ServiceHealth:
+            """Check Redis health via PING command."""
+            redis_client = app.state.redis_client
+            try:
+                start = time.perf_counter()
+                await redis_client.ping()
+                latency_ms = (time.perf_counter() - start) * 1000
+                return ServiceHealth(
+                    status=_determine_status(latency_ms),
+                    latency_ms=round(latency_ms, 2),
+                    message="Connected",
+                )
+            except Exception as e:
+                return ServiceHealth(
+                    status="unhealthy",
+                    latency_ms=None,
+                    message=f"Connection failed: {str(e)[:50]}",
+                )
+
+        async def check_osrm() -> ServiceHealth:
+            """Check OSRM health via test route request."""
+            settings = get_settings()
+            # Use a simple route in Sao Paulo for health check
+            test_url = (
+                f"{settings.osrm.base_url}/route/v1/driving/-46.6388,-23.5475;-46.6355,-23.5505"
+            )
+
+            try:
+                start = time.perf_counter()
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    response = await client.get(test_url, params={"overview": "false"})
+                    latency_ms = (time.perf_counter() - start) * 1000
+
+                    if response.status_code == 200:
+                        return ServiceHealth(
+                            status=_determine_status(latency_ms),
+                            latency_ms=round(latency_ms, 2),
+                            message="Routing available",
+                        )
+                    else:
+                        return ServiceHealth(
+                            status="degraded",
+                            latency_ms=round(latency_ms, 2),
+                            message=f"HTTP {response.status_code}",
+                        )
+            except httpx.TimeoutException:
+                return ServiceHealth(
+                    status="unhealthy",
+                    latency_ms=None,
+                    message="Request timed out",
+                )
+            except Exception as e:
+                return ServiceHealth(
+                    status="unhealthy",
+                    latency_ms=None,
+                    message=f"Connection failed: {str(e)[:50]}",
+                )
+
+        async def check_kafka() -> ServiceHealth:
+            """Check Kafka health via metadata query."""
+            from confluent_kafka.admin import AdminClient
+
+            settings = get_settings()
+
+            try:
+                start = time.perf_counter()
+                admin_config = {
+                    "bootstrap.servers": settings.kafka.bootstrap_servers,
+                    "socket.timeout.ms": 5000,
+                }
+                if settings.kafka.security_protocol != "PLAINTEXT":
+                    admin_config.update(
+                        {
+                            "security.protocol": settings.kafka.security_protocol,
+                            "sasl.mechanisms": settings.kafka.sasl_mechanisms,
+                            "sasl.username": settings.kafka.sasl_username,
+                            "sasl.password": settings.kafka.sasl_password,
+                        }
+                    )
+
+                admin = AdminClient(admin_config)
+                # list_topics() is blocking, run in executor
+                loop = asyncio.get_running_loop()
+                metadata = await loop.run_in_executor(None, lambda: admin.list_topics(timeout=5.0))
+                latency_ms = (time.perf_counter() - start) * 1000
+
+                broker_count = len(metadata.brokers)
+                return ServiceHealth(
+                    status=_determine_status(latency_ms),
+                    latency_ms=round(latency_ms, 2),
+                    message=f"{broker_count} broker(s) available",
+                )
+            except Exception as e:
+                return ServiceHealth(
+                    status="unhealthy",
+                    latency_ms=None,
+                    message=f"Connection failed: {str(e)[:50]}",
+                )
+
+        def check_simulation_engine() -> ServiceHealth:
+            """Check simulation engine health."""
+            engine = app.state.simulation_engine
+
+            try:
+                start = time.perf_counter()
+                # Check if engine exists and has valid state
+                if engine is None:
+                    return ServiceHealth(
+                        status="unhealthy",
+                        latency_ms=None,
+                        message="Engine not initialized",
+                    )
+
+                state = engine.state.value
+                # Check if SimPy environment is valid
+                _ = engine._env.now
+                latency_ms = (time.perf_counter() - start) * 1000
+
+                return ServiceHealth(
+                    status="healthy",
+                    latency_ms=round(latency_ms, 2),
+                    message=f"State: {state}",
+                )
+            except Exception as e:
+                return ServiceHealth(
+                    status="unhealthy",
+                    latency_ms=None,
+                    message=f"Error: {str(e)[:50]}",
+                )
+
+        async def check_stream_processor() -> StreamProcessorHealth:
+            """Check stream processor health via its HTTP API."""
+            # Use internal Docker network URL
+            stream_processor_url = "http://stream-processor:8080/health"
+
+            try:
+                start = time.perf_counter()
+                async with httpx.AsyncClient(timeout=3.0) as client:
+                    response = await client.get(stream_processor_url)
+                    latency_ms = (time.perf_counter() - start) * 1000
+
+                    if response.status_code == 200:
+                        data = response.json()
+                        return StreamProcessorHealth(
+                            status=data.get("status", "unhealthy"),
+                            latency_ms=round(latency_ms, 2),
+                            message=data.get("message"),
+                            kafka_connected=data.get("kafka_connected"),
+                            redis_connected=data.get("redis_connected"),
+                        )
+                    else:
+                        return StreamProcessorHealth(
+                            status="degraded",
+                            latency_ms=round(latency_ms, 2),
+                            message=f"HTTP {response.status_code}",
+                        )
+            except httpx.TimeoutException:
+                return StreamProcessorHealth(
+                    status="unhealthy",
+                    latency_ms=None,
+                    message="Request timed out",
+                )
+            except Exception as e:
+                return StreamProcessorHealth(
+                    status="unhealthy",
+                    latency_ms=None,
+                    message=f"Connection failed: {str(e)[:50]}",
+                )
+
+        # Run all checks concurrently
+        redis_health, osrm_health, kafka_health, stream_processor_health = await asyncio.gather(
+            check_redis(),
+            check_osrm(),
+            check_kafka(),
+            check_stream_processor(),
+        )
+        engine_health = check_simulation_engine()
+
+        # Determine overall status (stream_processor is optional, don't affect overall)
+        core_statuses = [
+            redis_health.status,
+            osrm_health.status,
+            kafka_health.status,
+            engine_health.status,
+        ]
+
+        if all(s == "healthy" for s in core_statuses):
+            overall = "healthy"
+        elif any(s == "unhealthy" for s in core_statuses):
+            overall = "unhealthy"
+        else:
+            overall = "degraded"
+
+        return DetailedHealthResponse(
+            overall_status=overall,
+            redis=redis_health,
+            osrm=osrm_health,
+            kafka=kafka_health,
+            simulation_engine=engine_health,
+            stream_processor=stream_processor_health,
+            timestamp=datetime.now(UTC).isoformat(),
+        )
 
     return app

@@ -97,11 +97,11 @@ def test_change_speed_valid(test_client, mock_simulation_engine, auth_headers):
 
 
 def test_change_speed_invalid(test_client, mock_simulation_engine, auth_headers):
-    """Rejects invalid multiplier."""
-    response = test_client.put("/simulation/speed", json={"multiplier": 5}, headers=auth_headers)
+    """Rejects invalid multiplier (must be positive integer)."""
+    response = test_client.put("/simulation/speed", json={"multiplier": 0}, headers=auth_headers)
 
     assert response.status_code == 400
-    assert "1, 10, or 100" in response.json()["detail"]
+    assert "positive integer" in response.json()["detail"]
 
 
 def test_get_status(test_client, mock_simulation_engine, auth_headers):

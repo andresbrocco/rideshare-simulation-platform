@@ -2,7 +2,7 @@ import time
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 
 from api.auth import verify_api_key
 from api.models.simulation import (
@@ -67,26 +67,45 @@ def stop_simulation(engine: EngineDep):
     return ControlResponse(status="stopped")
 
 
-@router.post("/reset", response_model=ControlResponse)
-def reset_simulation(engine: EngineDep):
-    """Reset simulation to initial state."""
-    if hasattr(engine, "reset"):
-        engine.reset()
-    else:
-        if engine.state.value != "stopped":
-            engine.stop()
+async def _broadcast_reset(connection_manager) -> None:
+    """Broadcast reset message to all WebSocket clients."""
+    await connection_manager.broadcast({"type": "simulation_reset", "data": {}})
 
+
+@router.post("/reset", response_model=ControlResponse)
+def reset_simulation(request: Request, engine: EngineDep, background_tasks: BackgroundTasks):
+    """Reset simulation to initial state, clearing all data."""
+    # Call engine reset (handles most clearing including database)
+    engine.reset()
+
+    # Clear components not accessible from engine
+    driver_registry = getattr(request.app.state, "driver_registry", None)
+    surge_calculator = getattr(request.app.state, "surge_calculator", None)
+
+    if driver_registry and hasattr(driver_registry, "clear"):
+        driver_registry.clear()
+    if surge_calculator and hasattr(surge_calculator, "clear"):
+        surge_calculator.clear()
+
+    # Reset API-level state
     global _simulation_start_wall_time
     _simulation_start_wall_time = None
 
-    return ControlResponse(status="reset")
+    # Broadcast reset message to WebSocket clients
+    connection_manager = getattr(request.app.state, "connection_manager", None)
+    if connection_manager:
+        background_tasks.add_task(_broadcast_reset, connection_manager)
+
+    return ControlResponse(status="reset", message="Simulation reset to initial state")
 
 
 @router.put("/speed", response_model=SpeedChangeResponse)
 def change_speed(request: SpeedChangeRequest, engine: EngineDep):
-    """Change simulation speed multiplier (1, 10, or 100)."""
-    if request.multiplier not in (1, 10, 100):
-        raise HTTPException(status_code=400, detail="Invalid multiplier. Must be 1, 10, or 100")
+    """Change simulation speed multiplier (any positive integer)."""
+    if request.multiplier < 1:
+        raise HTTPException(
+            status_code=400, detail="Invalid multiplier. Must be a positive integer"
+        )
 
     engine.set_speed(request.multiplier)
     return SpeedChangeResponse(speed=request.multiplier)
