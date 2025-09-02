@@ -5,9 +5,23 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class SimulationSettings(BaseSettings):
-    speed_multiplier: int = Field(default=1, ge=1, le=100)
+    speed_multiplier: int = Field(default=1, ge=1, le=1024)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     checkpoint_interval: int = Field(default=300, ge=60)
+
+    # GPS-based arrival detection
+    arrival_proximity_threshold_m: float = Field(
+        default=50.0,
+        ge=10.0,
+        le=500.0,
+        description="Distance in meters at which driver is considered arrived at pickup/dropoff",
+    )
+    arrival_timeout_multiplier: float = Field(
+        default=2.0,
+        ge=1.0,
+        le=5.0,
+        description="Multiplier for OSRM duration as fallback timeout for arrival",
+    )
 
     model_config = SettingsConfigDict(env_prefix="SIM_")
 
@@ -81,6 +95,14 @@ class CORSSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="CORS_")
 
 
+class PerformanceSettings(BaseSettings):
+    enabled: bool = True
+    sample_interval_seconds: float = 1.0
+    history_window_seconds: int = 60
+
+    model_config = SettingsConfigDict(env_prefix="PERF_")
+
+
 class Settings(BaseSettings):
     simulation: SimulationSettings = Field(default_factory=SimulationSettings)
     kafka: KafkaSettings = Field(default_factory=KafkaSettings)  # type: ignore[arg-type]
@@ -90,6 +112,7 @@ class Settings(BaseSettings):
     aws: AWSSettings = Field(default_factory=AWSSettings)
     api: APISettings = Field(default_factory=APISettings)  # type: ignore[arg-type]
     cors: CORSSettings = Field(default_factory=CORSSettings)
+    performance: PerformanceSettings = Field(default_factory=PerformanceSettings)
 
     model_config = SettingsConfigDict(
         env_nested_delimiter="__",

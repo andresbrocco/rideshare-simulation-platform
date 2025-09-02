@@ -127,8 +127,11 @@ def main():
     logger.info("Starting unified simulation service...")
 
     # Initialize SimPy environment and database
+    import os
+
+    db_path = os.environ.get("SIM_DB_PATH", "./db/simulation.db")
     env = simpy.Environment()
-    session_factory = init_database("/app/db/simulation.db")
+    session_factory = init_database(db_path)
 
     # Initialize external service clients
     osrm_client = OSRMClient(settings.osrm.base_url)
@@ -146,7 +149,8 @@ def main():
     logger.info("Async Redis client configured")
 
     # Load geographic data
-    zone_loader = ZoneLoader("/app/data/sao-paulo/zones.geojson")
+    zones_path = os.environ.get("ZONES_PATH", "../data/sao-paulo/zones.geojson")
+    zone_loader = ZoneLoader(zones_path)
 
     # Initialize matching components
     driver_registry = DriverRegistry()
@@ -183,7 +187,11 @@ def main():
         zone_loader=zone_loader,
         driver_registry=driver_registry,
         kafka_producer=kafka_producer,
+        redis_publisher=redis_publisher,
     )
+
+    # Wire surge calculator into matching server
+    matching_server._surge_calculator = surge_calculator
 
     # Initialize simulation engine with shared SimPy environment
     simulation_start_time = datetime.now(UTC)
@@ -215,10 +223,13 @@ def main():
         engine=engine,
         agent_factory=agent_factory,
         redis_client=async_redis_client,
+        zone_loader=zone_loader,
+        matching_server=matching_server,
     )
 
-    # Add driver registry to app state for metrics
+    # Add driver registry and surge calculator to app state for metrics and reset
     app.state.driver_registry = driver_registry
+    app.state.surge_calculator = surge_calculator
 
     # Start simulation loop in background
     sim_runner = SimulationRunner(engine)
