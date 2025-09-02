@@ -21,7 +21,7 @@ class RiderRepository:
             id=rider_id,
             dna_json=dna.model_dump_json(),
             current_location=f"{lat},{lon}",
-            status="idle",
+            status="offline",
         )
         self.session.add(rider)
 
@@ -64,7 +64,7 @@ class RiderRepository:
                 id=rider_id,
                 dna_json=dna.model_dump_json(),
                 current_location=f"{lat},{lon}",
-                status="idle",
+                status="offline",
             )
             rider_objects.append(rider)
         self.session.add_all(rider_objects)

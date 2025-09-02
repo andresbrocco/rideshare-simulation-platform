@@ -31,7 +31,7 @@ class TestRiderRepository:
             rider = session.get(Rider, "r1")
             assert rider is not None
             assert rider.id == "r1"
-            assert rider.status == "idle"
+            assert rider.status == "offline"
             assert rider.current_location == "-23.5505,-46.6333"
 
             retrieved_dna = RiderDNA.model_validate_json(rider.dna_json)
@@ -216,5 +216,5 @@ class TestRiderRepository:
             waiting_riders = repo.list_by_status("waiting")
             assert len(waiting_riders) == 2
 
-            idle_riders = repo.list_by_status("idle")
-            assert len(idle_riders) == 3
+            offline_riders = repo.list_by_status("offline")
+            assert len(offline_riders) == 3

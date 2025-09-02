@@ -174,7 +174,7 @@ class TestRiderDNASerialization:
             id="r1",
             dna_json=rider_dna.model_dump_json(),
             current_location="-23.5505,-46.6333",
-            status="idle",
+            status="offline",
         )
 
         with session_maker() as session:
