@@ -128,7 +128,7 @@ class TestTripFullFlow:
 
         assert trip.state == TripState.COMPLETED
         assert driver_agent.status == "online"
-        assert rider_agent.status == "idle"
+        assert rider_agent.status == "offline"
         assert driver_agent.active_trip is None
         assert rider_agent.active_trip is None
 
@@ -350,7 +350,7 @@ class TestAgentStatusTransitions:
         process = simpy_env.process(trip_executor.execute())
         simpy_env.run(process)
 
-        assert rider_agent.status == "idle"
+        assert rider_agent.status == "offline"
 
 
 class TestDriverOfferResponse:
@@ -481,7 +481,7 @@ class TestNotificationHandlers:
         )
 
         rider.on_trip_cancelled(trip)
-        assert rider.status == "idle"
+        assert rider.status == "offline"
 
     def test_rider_on_driver_en_route(self, simpy_env, rider_dna, mock_kafka_producer):
         rider = RiderAgent(

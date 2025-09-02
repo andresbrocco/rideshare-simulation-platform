@@ -40,6 +40,16 @@ class AgentRegistryManager:
         self._agents[driver.driver_id] = driver
         self._matching_server.register_driver(driver)
 
+        # Register in driver registry with offline status so all drivers are counted
+        # from creation. Status will be updated when driver goes online.
+        if driver.location:
+            self._driver_registry.register_driver(
+                driver_id=driver.driver_id,
+                status="offline",
+                zone_id=None,
+                location=driver.location,
+            )
+
     def register_rider(self, rider: "RiderAgent") -> None:
         """Register a rider agent in the agents dict.
 
@@ -104,12 +114,12 @@ class AgentRegistryManager:
         logger.info(f"Driver {driver_id} going online at ({lat}, {lon}), zone={zone_id}")
         self._driver_index.add_driver(driver_id, lat, lon, "online")
         logger.info(f"Driver index now has {len(self._driver_index._driver_locations)} drivers")
-        self._driver_registry.register_driver(
-            driver_id=driver_id,
-            status="online",
-            zone_id=zone_id,
-            location=location,
-        )
+
+        # Update status from offline to online (driver was registered as offline in register_driver())
+        self._driver_registry.update_driver_status(driver_id, "online")
+        self._driver_registry.update_driver_location(driver_id, location)
+        if zone_id:
+            self._driver_registry.update_driver_zone(driver_id, zone_id)
 
     def driver_went_offline(self, driver_id: str) -> None:
         """Update registries when a driver goes offline.

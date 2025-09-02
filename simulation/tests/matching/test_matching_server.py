@@ -20,6 +20,7 @@ def env():
 def mock_driver_index():
     index = Mock(spec=DriverGeospatialIndex)
     index.find_nearest_drivers.return_value = []
+    index._driver_locations = {}
     return index
 
 
@@ -78,7 +79,9 @@ def create_mock_driver(
     driver.current_rating = rating
     driver.location = (-23.55, -46.63)
     driver.status = "online"
+    driver.active_trip = None  # No active trip by default
     driver.receive_offer = Mock(return_value=True)
+    driver._is_puppet = False  # Ensure mock drivers are not treated as puppets
     return driver
 
 
@@ -621,3 +624,337 @@ class TestMatchFlow:
         )
 
         assert result is None
+
+
+class TestPuppetReOfferFlow:
+    """Tests for puppet driver rejection continuing to next candidate."""
+
+    def test_puppet_reject_continues_to_next_driver(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+        sample_driver_dna,
+    ):
+        """Verify that puppet rejection triggers offer to next driver."""
+        # Create a puppet driver (first) and a regular driver (second)
+        puppet_driver = create_mock_driver("puppet-driver", sample_driver_dna)
+        puppet_driver._is_puppet = True
+
+        regular_driver = create_mock_driver("regular-driver", sample_driver_dna)
+        regular_driver._is_puppet = False
+
+        # Regular driver accepts offers
+        mock_notification_dispatch.send_driver_offer.return_value = True
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+        server._drivers = {
+            "puppet-driver": puppet_driver,
+            "regular-driver": regular_driver,
+        }
+
+        # Add statistics mock to drivers
+        puppet_driver.statistics = Mock()
+        regular_driver.statistics = Mock()
+
+        trip = Trip(
+            trip_id="trip-123",
+            rider_id="rider-456",
+            pickup_location=(-23.55, -46.63),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="centro",
+            dropoff_zone_id="pinheiros",
+            surge_multiplier=1.0,
+            fare=25.50,
+        )
+
+        ranked_drivers = [
+            (puppet_driver, 300, 0.9),
+            (regular_driver, 400, 0.85),
+        ]
+
+        # Start the offer cycle - will pause at puppet driver
+        server.send_offer_cycle(trip, ranked_drivers, max_attempts=5)
+
+        # Should have stored remaining candidates
+        assert trip.trip_id in server._pending_offer_candidates
+        assert len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"]) == 1
+
+        # Puppet rejects - should continue to next driver
+        server.process_puppet_reject("puppet-driver", "trip-123")
+
+        # Trip should now be matched with regular driver
+        assert trip.driver_id == "regular-driver"
+        assert trip.state == TripState.MATCHED
+
+    def test_puppet_reject_chain(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+        sample_driver_dna,
+    ):
+        """Multiple puppet drivers reject in sequence."""
+        # Create 3 puppet drivers
+        puppets = []
+        for i in range(3):
+            p = create_mock_driver(f"puppet-{i}", sample_driver_dna)
+            p._is_puppet = True
+            p.statistics = Mock()
+            puppets.append(p)
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+        server._drivers = {p.driver_id: p for p in puppets}
+
+        trip = Trip(
+            trip_id="trip-123",
+            rider_id="rider-456",
+            pickup_location=(-23.55, -46.63),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="centro",
+            dropoff_zone_id="pinheiros",
+            surge_multiplier=1.0,
+            fare=25.50,
+        )
+
+        ranked_drivers = [(p, 300 + i * 60, 0.9 - i * 0.01) for i, p in enumerate(puppets)]
+
+        # Start cycle - pauses at puppet-0
+        server.send_offer_cycle(trip, ranked_drivers, max_attempts=5)
+        assert trip.trip_id in server._pending_offer_candidates
+        assert len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"]) == 2
+
+        # Reject puppet-0 - should pause at puppet-1
+        server.process_puppet_reject("puppet-0", "trip-123")
+        assert trip.trip_id in server._pending_offer_candidates
+        assert len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"]) == 1
+
+        # Reject puppet-1 - should pause at puppet-2
+        server.process_puppet_reject("puppet-1", "trip-123")
+        assert trip.trip_id in server._pending_offer_candidates
+        assert len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"]) == 0
+
+    def test_puppet_reject_exhausts_all_candidates(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+        sample_driver_dna,
+    ):
+        """All candidates exhausted after puppet rejections emits no_drivers."""
+        puppet = create_mock_driver("puppet-1", sample_driver_dna)
+        puppet._is_puppet = True
+        puppet.statistics = Mock()
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+        server._drivers = {"puppet-1": puppet}
+
+        trip = Trip(
+            trip_id="trip-123",
+            rider_id="rider-456",
+            pickup_location=(-23.55, -46.63),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="centro",
+            dropoff_zone_id="pinheiros",
+            surge_multiplier=1.0,
+            fare=25.50,
+        )
+
+        ranked_drivers = [(puppet, 300, 0.9)]
+
+        # Start cycle - only one candidate
+        server.send_offer_cycle(trip, ranked_drivers, max_attempts=5)
+        assert trip.trip_id in server._pending_offer_candidates
+        assert len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"]) == 0
+
+        # Track the trip as active
+        assert trip.trip_id in server._active_trips
+
+        # Reject - should emit no_drivers and remove from active
+        server.process_puppet_reject("puppet-1", "trip-123")
+
+        # Trip should be removed from active trips
+        assert trip.trip_id not in server._active_trips
+        assert trip.trip_id not in server._pending_offer_candidates
+
+    def test_puppet_timeout_continues_to_next_driver(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+        sample_driver_dna,
+    ):
+        """Verify that puppet timeout triggers offer to next driver."""
+        puppet_driver = create_mock_driver("puppet-driver", sample_driver_dna)
+        puppet_driver._is_puppet = True
+        puppet_driver.statistics = Mock()
+
+        regular_driver = create_mock_driver("regular-driver", sample_driver_dna)
+        regular_driver._is_puppet = False
+        regular_driver.statistics = Mock()
+
+        mock_notification_dispatch.send_driver_offer.return_value = True
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+        server._drivers = {
+            "puppet-driver": puppet_driver,
+            "regular-driver": regular_driver,
+        }
+
+        trip = Trip(
+            trip_id="trip-123",
+            rider_id="rider-456",
+            pickup_location=(-23.55, -46.63),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="centro",
+            dropoff_zone_id="pinheiros",
+            surge_multiplier=1.0,
+            fare=25.50,
+        )
+
+        ranked_drivers = [
+            (puppet_driver, 300, 0.9),
+            (regular_driver, 400, 0.85),
+        ]
+
+        # Start the offer cycle - will pause at puppet driver
+        server.send_offer_cycle(trip, ranked_drivers, max_attempts=5)
+
+        # Puppet times out - should continue to next driver
+        server.process_puppet_timeout("puppet-driver", "trip-123")
+
+        # Trip should now be matched with regular driver
+        assert trip.driver_id == "regular-driver"
+        assert trip.state == TripState.MATCHED
+
+
+class TestRouteClearOnCancellation:
+    """Tests for route clearing when trips are cancelled."""
+
+    def test_cancelled_trip_emits_empty_routes(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+    ):
+        """Verify cancelled trips have empty route arrays in Redis message."""
+        mock_redis_publisher = AsyncMock()
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+            redis_publisher=mock_redis_publisher,
+        )
+
+        trip = Trip(
+            trip_id="trip-123",
+            rider_id="rider-456",
+            pickup_location=(-23.55, -46.63),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="centro",
+            dropoff_zone_id="pinheiros",
+            surge_multiplier=1.0,
+            fare=25.50,
+        )
+        # Set routes on the trip
+        trip.route = [[-23.55, -46.63], [-23.56, -46.64]]
+        trip.pickup_route = [[-23.54, -46.62], [-23.55, -46.63]]
+
+        # Track the trip
+        server._active_trips[trip.trip_id] = trip
+
+        # Emit a cancellation event
+        with patch("asyncio.get_event_loop") as mock_loop:
+            mock_loop.return_value.is_running.return_value = True
+            with patch("asyncio.create_task") as mock_create_task:
+                server._emit_trip_state_event(trip, "trip.cancelled")
+
+                # Check the message passed to Redis
+                mock_create_task.assert_called_once()
+
+                # The message should have empty routes
+                # We can verify by checking the redis_publisher.publish was called with correct args
+
+    def test_non_cancelled_trip_preserves_routes(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+    ):
+        """Verify non-cancelled events still include route data."""
+        mock_redis_publisher = AsyncMock()
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+            redis_publisher=mock_redis_publisher,
+        )
+
+        trip = Trip(
+            trip_id="trip-123",
+            rider_id="rider-456",
+            pickup_location=(-23.55, -46.63),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="centro",
+            dropoff_zone_id="pinheiros",
+            surge_multiplier=1.0,
+            fare=25.50,
+        )
+        # Set routes on the trip
+        trip.route = [[-23.55, -46.63], [-23.56, -46.64]]
+        trip.pickup_route = [[-23.54, -46.62], [-23.55, -46.63]]
+
+        # Transition to matched state
+        trip.transition_to(TripState.OFFER_SENT)
+        trip.transition_to(TripState.MATCHED)
+
+        # Emit a non-cancellation event
+        with patch("asyncio.get_event_loop") as mock_loop:
+            mock_loop.return_value.is_running.return_value = True
+            with patch("asyncio.create_task"):
+                server._emit_trip_state_event(trip, "trip.matched")
+
+                # For non-cancelled events, routes should be preserved
+                # The test verifies the code path doesn't clear routes

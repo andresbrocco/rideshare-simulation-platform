@@ -118,3 +118,15 @@ class DriverRegistry:
 
     def get_all_status_counts(self) -> dict[str, int]:
         return self._status_counts.copy()
+
+    def clear(self) -> None:
+        """Clear all registry state for simulation reset."""
+        self._drivers.clear()
+        self._status_counts = {
+            "online": 0,
+            "offline": 0,
+            "busy": 0,
+            "en_route_pickup": 0,
+            "en_route_destination": 0,
+        }
+        self._zone_status_counts.clear()
