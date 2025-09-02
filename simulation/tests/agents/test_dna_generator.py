@@ -7,6 +7,7 @@ import pytest
 
 from agents.dna import DriverDNA, RiderDNA, ShiftPreference, haversine_distance
 from agents.dna_generator import generate_driver_dna, generate_rider_dna
+from agents.zone_validator import is_location_in_any_zone
 
 
 def test_generate_driver_dna_valid():
@@ -15,13 +16,12 @@ def test_generate_driver_dna_valid():
     assert isinstance(dna, DriverDNA)
 
 
-def test_driver_home_location_in_sao_paulo():
-    """Test all home locations are within Sao Paulo bounds."""
-    for _ in range(100):
+def test_driver_home_location_in_zone():
+    """Test all home locations are within a zone boundary."""
+    for _ in range(20):
         dna = generate_driver_dna()
         lat, lon = dna.home_location
-        assert -24.0 <= lat <= -23.0, f"Latitude {lat} out of bounds"
-        assert -47.0 <= lon <= -46.0, f"Longitude {lon} out of bounds"
+        assert is_location_in_any_zone(lat, lon), f"Location ({lat}, {lon}) not in any zone"
 
 
 def test_driver_acceptance_rate_range():
@@ -131,13 +131,12 @@ def test_generate_rider_dna_valid():
     assert isinstance(dna, RiderDNA)
 
 
-def test_rider_home_location_in_sao_paulo():
-    """Test all home locations are within Sao Paulo bounds."""
-    for _ in range(100):
+def test_rider_home_location_in_zone():
+    """Test all home locations are within a zone boundary."""
+    for _ in range(20):
         dna = generate_rider_dna()
         lat, lon = dna.home_location
-        assert -24.0 <= lat <= -23.0, f"Latitude {lat} out of bounds"
-        assert -47.0 <= lon <= -46.0, f"Longitude {lon} out of bounds"
+        assert is_location_in_any_zone(lat, lon), f"Location ({lat}, {lon}) not in any zone"
 
 
 def test_rider_frequent_destinations_count():

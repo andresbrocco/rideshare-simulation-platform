@@ -33,13 +33,15 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
 
 
 def validate_sao_paulo_coordinates(coords: tuple[float, float]) -> tuple[float, float]:
-    """Validate coordinates are within Sao Paulo bounds."""
-    # Bounds matching actual districts from zones.geojson
+    """Validate coordinates fall within a São Paulo zone boundary.
+
+    Uses strict point-in-polygon check against all 96 district zones.
+    """
+    from agents.zone_validator import is_location_in_any_zone
+
     lat, lon = coords
-    if not (-23.75 <= lat <= -23.40):
-        raise ValueError(f"Latitude {lat} outside Sao Paulo bounds (-23.75 to -23.40)")
-    if not (-46.85 <= lon <= -46.35):
-        raise ValueError(f"Longitude {lon} outside Sao Paulo bounds (-46.85 to -46.35)")
+    if not is_location_in_any_zone(lat, lon):
+        raise ValueError(f"Location ({lat}, {lon}) is not within any São Paulo zone boundary")
     return coords
 
 
@@ -98,6 +100,21 @@ class RiderDNA(BaseModel):
     @classmethod
     def validate_home_location(cls, v: tuple[float, float]) -> tuple[float, float]:
         return validate_sao_paulo_coordinates(v)
+
+    @field_validator("frequent_destinations")
+    @classmethod
+    def validate_destinations_in_zone(cls, v: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Validate destinations are inside a São Paulo zone."""
+        from agents.zone_validator import is_location_in_any_zone
+
+        for dest in v:
+            dest_lat, dest_lon = dest["coordinates"]
+            if not is_location_in_any_zone(dest_lat, dest_lon):
+                raise ValueError(
+                    f"Destination {dest['coordinates']} is not within any São Paulo zone boundary"
+                )
+
+        return v
 
     @field_validator("frequent_destinations")
     @classmethod

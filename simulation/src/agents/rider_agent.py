@@ -10,9 +10,10 @@ from typing import TYPE_CHECKING
 import simpy
 
 from agents.dna import RiderDNA
-from agents.dna_generator import SAO_PAULO_BOUNDS
-from agents.event_emitter import GPS_PING_INTERVAL, EventEmitter
+from agents.event_emitter import GPS_PING_INTERVAL_MOVING, EventEmitter
+from agents.next_action import NextAction, NextActionType
 from agents.rating_logic import generate_rating_value, should_submit_rating
+from agents.statistics import RiderStatistics
 from events.schemas import GPSPingEvent, RatingEvent, RiderProfileEvent
 from kafka.producer import KafkaProducer
 from redis_client.publisher import RedisPublisher
@@ -45,6 +46,7 @@ class RiderAgent(EventEmitter):
         osrm_client: "OSRMClient | None" = None,
         surge_calculator: "SurgePricingCalculator | None" = None,
         immediate_first_trip: bool = False,
+        puppet: bool = False,
     ):
         EventEmitter.__init__(self, kafka_producer, redis_publisher)
 
@@ -58,14 +60,17 @@ class RiderAgent(EventEmitter):
         self._surge_calculator = surge_calculator
         self._immediate_first_trip = immediate_first_trip
         self._first_trip_done = False
+        self._is_puppet = puppet
 
         # Runtime state
-        self._status = "idle"
+        self._status = "offline"
         # Set initial location from DNA home_location for immediate visibility
         self._location: tuple[float, float] | None = dna.home_location
         self._active_trip: str | None = None
         self._current_rating = 5.0
         self._rating_count = 0
+        self._statistics = RiderStatistics()  # Session-only stats
+        self._next_action: NextAction | None = None  # Scheduled next action
 
         if self._rider_repository:
             try:
@@ -103,10 +108,19 @@ class RiderAgent(EventEmitter):
     def rating_count(self) -> int:
         return self._rating_count
 
+    @property
+    def statistics(self) -> RiderStatistics:
+        return self._statistics
+
+    @property
+    def next_action(self) -> NextAction | None:
+        return self._next_action
+
     def request_trip(self, trip_id: str) -> None:
-        """Transition from idle to waiting, set active trip."""
+        """Transition from offline to waiting, set active trip."""
         self._status = "waiting"
         self._active_trip = trip_id
+        self._statistics.record_trip_requested()
 
         if self._rider_repository:
             try:
@@ -126,8 +140,8 @@ class RiderAgent(EventEmitter):
                 logger.error(f"Failed to persist status for rider {self._rider_id}: {e}")
 
     def complete_trip(self) -> None:
-        """Transition from in_trip to idle, clear active trip."""
-        self._status = "idle"
+        """Transition from in_trip to offline, clear active trip."""
+        self._status = "offline"
         self._active_trip = None
 
         if self._rider_repository:
@@ -138,8 +152,8 @@ class RiderAgent(EventEmitter):
                 logger.error(f"Failed to persist trip completion for rider {self._rider_id}: {e}")
 
     def cancel_trip(self) -> None:
-        """Transition from waiting to idle, clear active trip."""
-        self._status = "idle"
+        """Transition from waiting to offline, clear active trip."""
+        self._status = "offline"
         self._active_trip = None
 
         if self._rider_repository:
@@ -187,6 +201,7 @@ class RiderAgent(EventEmitter):
             return None
 
         driver.update_rating(rating_value)
+        self._statistics.record_rating_given(rating_value)
         self._emit_rating_event(trip.trip_id, driver.driver_id, rating_value)
         return rating_value
 
@@ -261,10 +276,10 @@ class RiderAgent(EventEmitter):
         return tuple(selected["coordinates"])
 
     def _generate_random_location(self) -> tuple[float, float]:
-        """Generate random location within Sao Paulo bounds."""
-        lat = random.uniform(SAO_PAULO_BOUNDS["lat_min"], SAO_PAULO_BOUNDS["lat_max"])
-        lon = random.uniform(SAO_PAULO_BOUNDS["lon_min"], SAO_PAULO_BOUNDS["lon_max"])
-        return (lat, lon)
+        """Generate random location within a valid São Paulo zone."""
+        from agents.zone_validator import get_random_location_in_zones
+
+        return get_random_location_in_zones()
 
     def on_match_found(self, trip, driver_id: str) -> None:
         """Handle match found notification."""
@@ -276,12 +291,23 @@ class RiderAgent(EventEmitter):
 
     def on_trip_cancelled(self, trip) -> None:
         """Handle trip cancellation notification."""
-        if self._status != "idle":
+        if self._status != "offline":
             self.cancel_trip()
 
     def on_driver_en_route(self, trip) -> None:
-        """Handle driver en route notification."""
-        pass
+        """Handle driver en route notification.
+
+        Transition from waiting to in_trip so the patience timeout
+        doesn't cancel the trip while the driver is on the way.
+        """
+        if self._status == "waiting":
+            self._status = "in_trip"
+
+            if self._rider_repository:
+                try:
+                    self._rider_repository.update_status(self._rider_id, self._status)
+                except Exception as e:
+                    logger.error(f"Failed to persist status for rider {self._rider_id}: {e}")
 
     def on_driver_arrived(self, trip) -> None:
         """Handle driver arrival notification."""
@@ -343,6 +369,57 @@ class RiderAgent(EventEmitter):
                 )
             )
 
+        # NOTE: Direct Redis publishing disabled - using Kafka → Stream Processor → Redis path
+        # See stream-processor service for event routing
+
+    def _emit_puppet_gps_ping(self) -> None:
+        """Emit a single GPS ping for puppet rider."""
+        import asyncio
+
+        if self._location is None:
+            return
+
+        gps_event = GPSPingEvent(
+            entity_type="rider",
+            entity_id=self._rider_id,
+            timestamp=datetime.now(UTC).isoformat(),
+            location=self._location,
+            heading=None,
+            speed=None,
+            accuracy=5.0,
+            trip_id=self._active_trip,
+        )
+
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(
+                    self._emit_event(
+                        event=gps_event,
+                        kafka_topic="gps-pings",
+                        partition_key=self._rider_id,
+                        redis_channel="rider-updates",
+                    )
+                )
+            else:
+                loop.run_until_complete(
+                    self._emit_event(
+                        event=gps_event,
+                        kafka_topic="gps-pings",
+                        partition_key=self._rider_id,
+                        redis_channel="rider-updates",
+                    )
+                )
+        except RuntimeError:
+            asyncio.run(
+                self._emit_event(
+                    event=gps_event,
+                    kafka_topic="gps-pings",
+                    partition_key=self._rider_id,
+                    redis_channel="rider-updates",
+                )
+            )
+
     def run(self) -> Generator[simpy.Event]:
         """SimPy process entry point with request lifecycle."""
         import asyncio
@@ -350,11 +427,16 @@ class RiderAgent(EventEmitter):
 
         from events.schemas import TripEvent
 
+        # Puppet mode: only emit GPS pings, no autonomous actions
+        if self._is_puppet:
+            while True:
+                self._emit_puppet_gps_ping()
+                yield self._env.timeout(GPS_PING_INTERVAL_MOVING)
+            return
+
         # Set initial random location in São Paulo if not already set
         if self._location is None:
-            lat = random.uniform(SAO_PAULO_BOUNDS["lat_min"], SAO_PAULO_BOUNDS["lat_max"])
-            lon = random.uniform(SAO_PAULO_BOUNDS["lon_min"], SAO_PAULO_BOUNDS["lon_max"])
-            self._location = (lat, lon)
+            self._location = self._generate_random_location()
 
         while True:
             if self._status == "in_trip":
@@ -400,11 +482,11 @@ class RiderAgent(EventEmitter):
                             )
                         )
 
-                yield self._env.timeout(GPS_PING_INTERVAL)
+                yield self._env.timeout(GPS_PING_INTERVAL_MOVING)
                 continue
 
-            if self._status != "idle":
-                yield self._env.timeout(GPS_PING_INTERVAL)
+            if self._status != "offline":
+                yield self._env.timeout(GPS_PING_INTERVAL_MOVING)
                 continue
 
             # Skip initial wait if immediate_first_trip=True (for first trip only)
@@ -416,6 +498,18 @@ class RiderAgent(EventEmitter):
                 interval_hours = (7 * 24) / self._dna.avg_rides_per_week
                 variance = random.uniform(0.8, 1.2)
                 wait_time = interval_hours * 3600 * variance
+
+                # First trip: randomize within interval so riders spread out
+                if not self._first_trip_done:
+                    self._first_trip_done = True
+                    wait_time = random.uniform(0, wait_time)
+
+                # Track: waiting to request next ride
+                self._next_action = NextAction(
+                    action_type=NextActionType.REQUEST_RIDE,
+                    scheduled_at=self._env.now + wait_time,
+                    description="Request next ride",
+                )
                 yield self._env.timeout(wait_time)
 
             if self._location is None:
@@ -508,18 +602,34 @@ class RiderAgent(EventEmitter):
 
             match_timeout = self._env.now + self._dna.patience_threshold
 
+            # Track: waiting for match with patience timeout
+            self._next_action = NextAction(
+                action_type=NextActionType.PATIENCE_TIMEOUT,
+                scheduled_at=match_timeout,
+                description="Cancel if no driver matched",
+            )
+
             while self._env.now < match_timeout:
                 if self._status == "in_trip":
+                    self._next_action = None  # Clear - trip started
                     break
 
                 yield self._env.timeout(1)
 
             if self._status == "waiting":
+                self._next_action = None  # Clear - cancelling trip
                 self.cancel_trip()
+                self.statistics.record_request_timed_out()
 
                 # Decrement pending request count for surge calculation
                 if self._surge_calculator and pickup_zone_id != "unknown":
                     self._surge_calculator.decrement_pending_request(pickup_zone_id)
+
+                # Cancel trip in matching server to clean up _active_trips
+                if self._simulation_engine and hasattr(self._simulation_engine, "_matching_server"):
+                    matching_server = self._simulation_engine._matching_server
+                    if matching_server:
+                        matching_server.cancel_trip(trip_id, "rider", "patience_timeout")
 
                 event = TripEvent(
                     event_type="trip.cancelled",
@@ -611,7 +721,7 @@ class RiderAgent(EventEmitter):
                             )
                         )
 
-                yield self._env.timeout(GPS_PING_INTERVAL)
+                yield self._env.timeout(GPS_PING_INTERVAL_MOVING)
 
     def _determine_zone(self, location: tuple[float, float]) -> str | None:
         """Determine the zone ID for a given location.
@@ -703,6 +813,42 @@ class RiderAgent(EventEmitter):
 
         return R * c
 
+    @property
+    def is_ephemeral(self) -> bool:
+        """Check if this is an ephemeral (non-persisted) agent."""
+        return getattr(self, "_is_ephemeral", False)
+
+    @property
+    def is_puppet(self) -> bool:
+        """Check if this is a puppet (manually controlled) agent."""
+        return getattr(self, "_is_puppet", False)
+
+    def get_state(self, zone_loader: "ZoneLoader | None" = None) -> dict:
+        """Extract full agent state for API inspection.
+
+        Args:
+            zone_loader: Optional zone loader to determine current zone
+
+        Returns:
+            Dictionary containing rider state
+        """
+        zone_id = None
+        loader = zone_loader or self._zone_loader
+        if loader and self._location:
+            zone_id = loader.find_zone_for_location(self._location[0], self._location[1])
+
+        return {
+            "rider_id": self._rider_id,
+            "status": self._status,
+            "location": self._location,
+            "current_rating": self._current_rating,
+            "rating_count": self._rating_count,
+            "active_trip": self._active_trip,
+            "zone_id": zone_id,
+            "is_ephemeral": self.is_ephemeral,
+            "is_puppet": self.is_puppet,
+        }
+
     @classmethod
     def from_database(
         cls,
@@ -733,5 +879,6 @@ class RiderAgent(EventEmitter):
         agent._active_trip = rider.active_trip
         agent._current_rating = rider.current_rating
         agent._rating_count = rider.rating_count
+        agent._statistics = RiderStatistics()  # Session-only, not persisted
 
         return agent

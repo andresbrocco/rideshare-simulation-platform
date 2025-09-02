@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from src.agents.dna import DriverDNA, RiderDNA
+from agents.dna import DriverDNA, RiderDNA
 from tests.factories import DNAFactory
 
 
@@ -15,7 +15,7 @@ class TestDriverDNA:
         dna = dna_factory.driver_dna()
         assert 0.0 <= dna.acceptance_rate <= 1.0
         assert 0.0 <= dna.service_quality <= 1.0
-        assert dna.home_location == (-23.55, -46.63)
+        assert dna.home_location == (-23.56, -46.65)  # Inside BVI zone
         assert dna.vehicle_make is not None
 
     def test_driver_dna_immutable_fields(self, dna_factory: DNAFactory):
@@ -25,9 +25,9 @@ class TestDriverDNA:
         assert dna.service_quality == 0.9
 
     def test_driver_dna_home_location_validation(self, dna_factory: DNAFactory):
-        """Validates home coordinates within Sao Paulo bounds."""
-        dna = dna_factory.driver_dna(home_location=(-23.55, -46.63))
-        assert dna.home_location == (-23.55, -46.63)
+        """Validates home coordinates within a zone."""
+        dna = dna_factory.driver_dna(home_location=(-23.56, -46.65))  # Inside BVI
+        assert dna.home_location == (-23.56, -46.65)
 
     def test_driver_dna_invalid_coordinates(self, dna_factory: DNAFactory):
         """Rejects coordinates outside bounds."""
@@ -62,9 +62,10 @@ class TestRiderDNA:
 
     def test_rider_dna_frequent_destinations(self, dna_factory: DNAFactory):
         """Validates frequent destinations structure."""
+        # Destinations inside PIN and SEE zones from sample_zones.geojson
         destinations = [
-            {"coordinates": (-23.56, -46.64), "weight": 0.6},
-            {"coordinates": (-23.54, -46.62), "weight": 0.4},
+            {"coordinates": (-23.565, -46.695), "weight": 0.6},  # Inside PIN
+            {"coordinates": (-23.55, -46.635), "weight": 0.4},  # Inside SEE
         ]
         dna = dna_factory.rider_dna(frequent_destinations=destinations)
         assert len(dna.frequent_destinations) == 2
@@ -91,3 +92,14 @@ class TestRiderDNA:
         """Validates behavior_factor in [0.0, 1.0]."""
         dna = dna_factory.rider_dna(behavior_factor=0.75)
         assert dna.behavior_factor == 0.75
+
+    def test_rider_dna_destination_outside_zone(self, dna_factory: DNAFactory):
+        """Rejects destinations outside all zone boundaries."""
+        # Coordinates outside any São Paulo zone (in the ocean)
+        out_of_zone_destinations = [
+            {"coordinates": (-23.56, -46.50), "weight": 0.5},  # Outside zones
+            {"coordinates": (-23.55, -46.51), "weight": 0.5},  # Outside zones
+        ]
+        with pytest.raises(ValidationError) as exc_info:
+            dna_factory.rider_dna(frequent_destinations=out_of_zone_destinations)
+        assert "not within any São Paulo zone boundary" in str(exc_info.value)

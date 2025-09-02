@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from agents.dna import DriverDNA, RiderDNA, ShiftPreference, haversine_distance
 from agents.faker_provider import create_faker_instance
+from agents.zone_validator import get_random_location_in_zones, is_location_in_any_zone
 
 if TYPE_CHECKING:
     from faker.proxy import Faker
@@ -62,10 +63,8 @@ def generate_driver_dna(faker: Faker | None = None) -> DriverDNA:
     min_rider_rating = random.uniform(3.0, 4.5)
     surge_acceptance_modifier = random.uniform(1.2, 1.8)
 
-    # Home location
-    home_lat = random.uniform(SAO_PAULO_LAT_MIN, SAO_PAULO_LAT_MAX)
-    home_lon = random.uniform(SAO_PAULO_LON_MIN, SAO_PAULO_LON_MAX)
-    home_location = (home_lat, home_lon)
+    # Home location (must be inside a zone)
+    home_location = get_random_location_in_zones()
 
     # Preferred zones (placeholder for now)
     num_zones = random.randint(1, 3)
@@ -125,7 +124,7 @@ def generate_driver_dna(faker: Faker | None = None) -> DriverDNA:
 def _generate_destination_near(
     home_lat: float, home_lon: float, min_km: float = 0.8, max_km: float = 20.0
 ) -> tuple[float, float] | None:
-    """Generate random coordinates within min_km-max_km of home, within Sao Paulo bounds."""
+    """Generate random coordinates within min_km-max_km of home, inside a zone."""
     # Generate random bearing and distance
     bearing = random.uniform(0, 2 * math.pi)
     distance = random.uniform(min_km, max_km)
@@ -138,10 +137,8 @@ def _generate_destination_near(
     new_lat = home_lat + delta_lat
     new_lon = home_lon + delta_lon
 
-    # Check bounds
-    if not (SAO_PAULO_LAT_MIN <= new_lat <= SAO_PAULO_LAT_MAX):
-        return None
-    if not (SAO_PAULO_LON_MIN <= new_lon <= SAO_PAULO_LON_MAX):
+    # Check if location is inside any zone
+    if not is_location_in_any_zone(new_lat, new_lon):
         return None
 
     # Verify actual distance is within limits
@@ -155,22 +152,19 @@ def _generate_destination_near(
 def _generate_frequent_destinations(
     home_lat: float, home_lon: float, count: int, min_km: float = 0.8, max_km: float = 20.0
 ) -> list[dict]:
-    """Generate frequent destinations within min_km-max_km of home."""
+    """Generate frequent destinations within min_km-max_km of home, inside zones."""
     destinations: list[dict] = []
 
     for _ in range(count):
         coords = None
-        for _ in range(10):  # Max 10 retries
+        for _ in range(50):  # Max 50 retries for zone-based validation
             coords = _generate_destination_near(home_lat, home_lon, min_km, max_km)
             if coords:
                 break
 
         if not coords:
-            # Fallback: generate at minimum distance in random direction
-            bearing = random.uniform(0, 2 * math.pi)
-            delta_lat = (min_km * math.cos(bearing)) / 111.0
-            delta_lon = (min_km * math.sin(bearing)) / (111.0 * math.cos(math.radians(home_lat)))
-            coords = (home_lat + delta_lat, home_lon + delta_lon)
+            # Fallback: use a random zone location (may not be near home, but valid)
+            coords = get_random_location_in_zones()
 
         # Random weight (will be normalized later)
         weight = random.uniform(0.1, 0.5)
@@ -208,10 +202,9 @@ def generate_rider_dna(faker: Faker | None = None) -> RiderDNA:
     """
     fake = faker or _faker
 
-    # Home location
-    home_lat = random.uniform(SAO_PAULO_LAT_MIN, SAO_PAULO_LAT_MAX)
-    home_lon = random.uniform(SAO_PAULO_LON_MIN, SAO_PAULO_LON_MAX)
-    home_location = (home_lat, home_lon)
+    # Home location (must be inside a zone)
+    home_location = get_random_location_in_zones()
+    home_lat, home_lon = home_location
 
     # Behavioral parameters (immutable)
     # Behavior factor skewed toward higher values (most riders are well-behaved)

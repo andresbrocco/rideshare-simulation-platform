@@ -1,14 +1,40 @@
+import os
+
+# Set GPS ping intervals before any agent imports to speed up tests.
+# The default intervals create too many SimPy events during long simulations.
+# 60 seconds is sufficient for testing GPS ping emission.
+os.environ.setdefault("GPS_PING_INTERVAL_MOVING", "60")
+os.environ.setdefault("GPS_PING_INTERVAL_IDLE", "60")
+
+from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import Mock
 
 import pytest
 
-from src.agents.dna import DriverDNA, RiderDNA
-from src.agents.faker_provider import create_faker_instance
+from agents.dna import DriverDNA, RiderDNA
+from agents.faker_provider import create_faker_instance
+from agents.zone_validator import reset_zone_loader, set_zones_path
 from tests.factories import DNAFactory
 
 if TYPE_CHECKING:
     from faker.proxy import Faker
+
+
+@pytest.fixture
+def sample_zones_path() -> Path:
+    """Path to the sample zones fixture file."""
+    return Path(__file__).parent / "fixtures" / "sample_zones.geojson"
+
+
+@pytest.fixture(autouse=True)
+def setup_zone_validator(sample_zones_path: Path):
+    """Set up zone validator with test fixtures and reset after each test."""
+    # Reset first in case previous test left cached loader
+    reset_zone_loader()
+    set_zones_path(sample_zones_path)
+    yield
+    reset_zone_loader()
 
 
 @pytest.fixture

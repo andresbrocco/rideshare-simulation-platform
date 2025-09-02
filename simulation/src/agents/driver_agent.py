@@ -12,9 +12,16 @@ import simpy
 
 from agents.dna import DriverDNA
 from agents.dna_generator import SAO_PAULO_BOUNDS
-from agents.event_emitter import GPS_PING_INTERVAL, EventEmitter
+from agents.event_emitter import (
+    GPS_PING_INTERVAL_IDLE,
+    GPS_PING_INTERVAL_MOVING,
+    EventEmitter,
+)
+from agents.next_action import NextAction, NextActionType
 from agents.rating_logic import generate_rating_value, should_submit_rating
+from agents.statistics import DriverStatistics
 from events.schemas import DriverProfileEvent, GPSPingEvent, RatingEvent
+from geo.gps_simulation import GPSSimulator
 from kafka.producer import KafkaProducer
 from redis_client.publisher import RedisPublisher
 
@@ -42,6 +49,7 @@ class DriverAgent(EventEmitter):
         registry_manager: "AgentRegistryManager | None" = None,
         zone_loader: "ZoneLoader | None" = None,
         immediate_online: bool = False,
+        puppet: bool = False,
     ):
         EventEmitter.__init__(self, kafka_producer, redis_publisher)
 
@@ -52,6 +60,7 @@ class DriverAgent(EventEmitter):
         self._registry_manager = registry_manager
         self._zone_loader = zone_loader
         self._immediate_online = immediate_online
+        self._is_puppet = puppet
 
         # Runtime state
         self._status = "offline"
@@ -60,6 +69,9 @@ class DriverAgent(EventEmitter):
         self._active_trip: str | None = None
         self._current_rating = 5.0
         self._rating_count = 0
+        self._heading: float = 0.0  # Direction in degrees (0 = North, clockwise)
+        self._statistics = DriverStatistics()  # Session-only stats
+        self._next_action: NextAction | None = None  # Scheduled next action
 
         if self._driver_repository:
             try:
@@ -68,6 +80,12 @@ class DriverAgent(EventEmitter):
                 logger.error(f"Failed to persist driver {driver_id} on creation: {e}")
 
         self._emit_creation_event()
+
+        # For immediate_online drivers, emit initial events for fast UI updates
+        # This allows frontend to show driver on map before run() process starts
+        if self._immediate_online and self._location:
+            self._emit_initial_gps_ping()
+            self._emit_initial_status_preview()
 
     @property
     def driver_id(self) -> str:
@@ -96,6 +114,18 @@ class DriverAgent(EventEmitter):
     @property
     def rating_count(self) -> int:
         return self._rating_count
+
+    @property
+    def heading(self) -> float:
+        return self._heading
+
+    @property
+    def statistics(self) -> DriverStatistics:
+        return self._statistics
+
+    @property
+    def next_action(self) -> NextAction | None:
+        return self._next_action
 
     def go_online(self) -> None:
         """Transition from offline to online."""
@@ -210,8 +240,24 @@ class DriverAgent(EventEmitter):
 
         self._emit_status_event(previous_status, self._status, "complete_trip")
 
-    def update_location(self, lat: float, lon: float) -> None:
-        """Update current location without emitting event."""
+    def update_location(self, lat: float, lon: float, heading: float | None = None) -> None:
+        """Update current location and optionally heading.
+
+        Args:
+            lat: Latitude coordinate
+            lon: Longitude coordinate
+            heading: Optional heading in degrees. If provided, uses this value.
+                     If None, calculates heading from previous location.
+        """
+        if heading is not None:
+            self._heading = heading
+        elif self._location is not None:
+            gps = GPSSimulator(noise_meters=0)
+            calculated = gps.calculate_heading(self._location, (lat, lon))
+            # Only update heading if position actually changed (avoid 0 from same-point calculation)
+            if self._location != (lat, lon):
+                self._heading = calculated
+
         self._location = (lat, lon)
 
         if self._driver_repository:
@@ -253,6 +299,7 @@ class DriverAgent(EventEmitter):
             return None
 
         rider.update_rating(rating_value)
+        self._statistics.record_rating_given(rating_value)
         self._emit_rating_event(trip.trip_id, rider.rider_id, rating_value)
         return rating_value
 
@@ -404,10 +451,79 @@ class DriverAgent(EventEmitter):
                 )
             )
 
-    def _emit_status_event(self, previous_status: str, new_status: str, trigger: str) -> None:
-        """Emit driver status event to Kafka."""
-        if self._kafka_producer is None:
+    def _emit_initial_gps_ping(self) -> None:
+        """Emit a single GPS ping immediately on creation for map visibility.
+
+        This is called before run() starts to reduce latency between
+        clicking 'Add Drivers' and seeing drivers on the map.
+        """
+        import asyncio
+        import inspect
+
+        if self._location is None:
             return
+
+        event = GPSPingEvent(
+            entity_type="driver",
+            entity_id=self._driver_id,
+            timestamp=datetime.now(UTC).isoformat(),
+            location=self._location,
+            heading=self._heading,
+            speed=0.0,  # Stationary on creation
+            accuracy=5.0,
+            trip_id=None,
+        )
+
+        coro = self._emit_event(
+            event=event,
+            kafka_topic="gps-pings",
+            partition_key=self._driver_id,
+            redis_channel="driver-updates",
+        )
+
+        # Handle case where _emit_event returns a mock in tests
+        if not inspect.iscoroutine(coro):
+            return
+
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(coro)
+            else:
+                loop.run_until_complete(coro)
+        except RuntimeError:
+            asyncio.run(coro)
+
+    def _emit_initial_status_preview(self) -> None:
+        """Emit status event immediately on creation for frontend visibility.
+
+        This is a 'preview' showing the driver as online before run() starts.
+        The actual go_online() in run() will update registries and emit another event.
+        """
+
+        event = {
+            "event_id": str(uuid4()),
+            "driver_id": self._driver_id,
+            "timestamp": datetime.now(UTC).isoformat(),
+            "previous_status": "offline",
+            "new_status": "online",
+            "trigger": "creation_preview",
+            "location": list(self._location) if self._location else [0.0, 0.0],
+        }
+
+        # Emit to Kafka
+        if self._kafka_producer is not None:
+            self._kafka_producer.produce(
+                topic="driver-status",
+                key=self._driver_id,
+                value=json.dumps(event),
+            )
+
+        # NOTE: Direct Redis publishing disabled - using Kafka → Stream Processor → Redis path
+        # See stream-processor service for event routing
+
+    def _emit_status_event(self, previous_status: str, new_status: str, trigger: str) -> None:
+        """Emit driver status event to Kafka and Redis."""
 
         event = {
             "event_id": str(uuid4()),
@@ -419,11 +535,47 @@ class DriverAgent(EventEmitter):
             "location": list(self._location) if self._location else [0.0, 0.0],
         }
 
-        self._kafka_producer.produce(
-            topic="driver-status",
-            key=self._driver_id,
-            value=json.dumps(event),
-        )
+        # Emit to Kafka
+        if self._kafka_producer is not None:
+            self._kafka_producer.produce(
+                topic="driver-status",
+                key=self._driver_id,
+                value=json.dumps(event),
+            )
+
+        # NOTE: Direct Redis publishing disabled - testing Kafka → Stream Processor → Redis path
+        # If this works, remove this commented block entirely
+        # if self._redis_publisher is not None:
+        #     redis_message = {
+        #         "driver_id": self._driver_id,
+        #         "status": new_status,
+        #         "location": list(self._location) if self._location else [0.0, 0.0],
+        #         "rating": self._current_rating,
+        #         "heading": self._heading,
+        #     }
+        #     try:
+        #         loop = asyncio.get_event_loop()
+        #         if loop.is_running():
+        #             asyncio.create_task(
+        #                 self._redis_publisher.publish(
+        #                     channel="driver-updates",
+        #                     message=redis_message,
+        #                 )
+        #             )
+        #         else:
+        #             loop.run_until_complete(
+        #                 self._redis_publisher.publish(
+        #                     channel="driver-updates",
+        #                     message=redis_message,
+        #                 )
+        #             )
+        #     except RuntimeError:
+        #         asyncio.run(
+        #             self._redis_publisher.publish(
+        #                 channel="driver-updates",
+        #                 message=redis_message,
+        #             )
+        #         )
 
     def _calculate_shift_start_time(self) -> float:
         """Calculate shift start time in seconds based on shift preference."""
@@ -448,19 +600,36 @@ class DriverAgent(EventEmitter):
         random.shuffle(all_days)
         return set(all_days[: self._dna.avg_days_per_week])
 
+    def _get_gps_interval(self) -> int:
+        """Return GPS ping interval based on current status.
+
+        Moving drivers (busy, en_route_pickup, en_route_destination) ping more frequently
+        to support accurate arrival detection and smooth visualization.
+        Idle drivers (online) ping less frequently to reduce load.
+        """
+        if self._status in ("busy", "en_route_pickup", "en_route_destination"):
+            return GPS_PING_INTERVAL_MOVING
+        else:  # online
+            return GPS_PING_INTERVAL_IDLE
+
     def _emit_gps_ping(self) -> Generator[simpy.Event]:
         """GPS ping loop that runs while driver is online."""
         import asyncio
 
         try:
-            while self._status in ("online", "busy", "en_route_pickup", "en_route_destination"):
+            while self._status in (
+                "online",
+                "busy",
+                "en_route_pickup",
+                "en_route_destination",
+            ):
                 if self._location:
                     event = GPSPingEvent(
                         entity_type="driver",
                         entity_id=self._driver_id,
                         timestamp=datetime.now(UTC).isoformat(),
                         location=self._location,
-                        heading=random.uniform(0, 360),
+                        heading=self._heading,
                         speed=random.uniform(20, 60),
                         accuracy=5.0,
                         trip_id=self._active_trip,
@@ -496,23 +665,60 @@ class DriverAgent(EventEmitter):
                             )
                         )
 
-                yield self._env.timeout(GPS_PING_INTERVAL)
+                yield self._env.timeout(self._get_gps_interval())
         except simpy.Interrupt:
             pass
 
     def run(self) -> Generator[simpy.Event]:
         """SimPy process managing shift lifecycle and GPS pings."""
-        # Immediate mode: go online right away without shift scheduling
-        if self._immediate_online:
-            self.go_online()
-            gps_process = self._env.process(self._emit_gps_ping())
-
-            # Stay online indefinitely in immediate mode
+        # Puppet mode: only emit GPS pings, no autonomous actions
+        if self._is_puppet:
+            gps_process = None
             while True:
-                yield self._env.timeout(60)  # Check every minute
-                # Restart GPS process if it died
-                if not gps_process.is_alive and self._status != "offline":
+                # Start/restart GPS process when not offline
+                if self._status != "offline" and (gps_process is None or not gps_process.is_alive):
                     gps_process = self._env.process(self._emit_gps_ping())
+                yield self._env.timeout(self._get_gps_interval())
+            return
+
+        # Immediate mode: go online right away, then follow shift lifecycle
+        if self._immediate_online:
+            while True:
+                self.go_online()
+                gps_process = self._env.process(self._emit_gps_ping())
+
+                # Schedule shift end based on DNA
+                shift_duration = self._dna.avg_hours_per_day * 3600
+                self._next_action = NextAction(
+                    action_type=NextActionType.GO_OFFLINE,
+                    scheduled_at=self._env.now + shift_duration,
+                    description="Shift ends",
+                )
+                yield self._env.timeout(shift_duration)
+
+                # Wait for active trip to complete before going offline
+                while self._active_trip is not None:
+                    self._next_action = NextAction(
+                        action_type=NextActionType.GO_OFFLINE,
+                        scheduled_at=self._env.now + 30,
+                        description="Finishing trip, then going offline",
+                    )
+                    yield self._env.timeout(30)
+
+                if gps_process.is_alive:
+                    gps_process.interrupt()
+
+                self._next_action = None
+                self.go_offline()
+
+                # Rest period before next shift (use avg_hours as proxy, min 4 hours)
+                rest_duration = max(4 * 3600, (24 - self._dna.avg_hours_per_day) * 3600)
+                self._next_action = NextAction(
+                    action_type=NextActionType.GO_ONLINE,
+                    scheduled_at=self._env.now + rest_duration,
+                    description="Next shift starts",
+                )
+                yield self._env.timeout(rest_duration)
 
         # Normal shift-based mode
         active_days = self._get_active_days()
@@ -525,28 +731,60 @@ class DriverAgent(EventEmitter):
                 shift_start = self._calculate_shift_start_time()
 
                 if time_of_day < shift_start:
+                    # Track: waiting to go online for shift start
+                    self._next_action = NextAction(
+                        action_type=NextActionType.GO_ONLINE,
+                        scheduled_at=self._env.now + (shift_start - time_of_day),
+                        description="Shift starts",
+                    )
                     yield self._env.timeout(shift_start - time_of_day)
 
+                self._next_action = None  # Clear while transitioning
                 self.go_online()
                 gps_process = self._env.process(self._emit_gps_ping())
 
                 shift_duration = self._dna.avg_hours_per_day * 3600
+                # Track: waiting to go offline at shift end
+                self._next_action = NextAction(
+                    action_type=NextActionType.GO_OFFLINE,
+                    scheduled_at=self._env.now + shift_duration,
+                    description="Shift ends",
+                )
                 yield self._env.timeout(shift_duration)
 
+                # Waiting for active trip to complete before going offline
                 while self._active_trip is not None:
+                    self._next_action = NextAction(
+                        action_type=NextActionType.GO_OFFLINE,
+                        scheduled_at=self._env.now + 30,
+                        description="Finishing trip, then going offline",
+                    )
                     yield self._env.timeout(30)
 
                 if gps_process.is_alive:
                     gps_process.interrupt()
 
+                self._next_action = None  # Clear while transitioning
                 self.go_offline()
 
                 time_until_next_day = (24 * 3600) - (self._env.now % (24 * 3600))
                 if time_until_next_day > 0:
+                    # Track: waiting for next day to start shift
+                    self._next_action = NextAction(
+                        action_type=NextActionType.GO_ONLINE,
+                        scheduled_at=self._env.now + time_until_next_day,
+                        description="Next shift starts tomorrow",
+                    )
                     yield self._env.timeout(time_until_next_day)
             else:
                 time_until_next_day = (24 * 3600) - time_of_day
                 if time_until_next_day > 0:
+                    # Track: not active today, waiting for next day
+                    self._next_action = NextAction(
+                        action_type=NextActionType.GO_ONLINE,
+                        scheduled_at=self._env.now + time_until_next_day,
+                        description="Not active today, waiting for next day",
+                    )
                     yield self._env.timeout(time_until_next_day)
 
     def _determine_zone(self, location: tuple[float, float]) -> str | None:
@@ -562,6 +800,42 @@ class DriverAgent(EventEmitter):
             return None
         lat, lon = location
         return self._zone_loader.find_zone_for_location(lat, lon)
+
+    @property
+    def is_ephemeral(self) -> bool:
+        """Check if this is an ephemeral (non-persisted) agent."""
+        return getattr(self, "_is_ephemeral", False)
+
+    @property
+    def is_puppet(self) -> bool:
+        """Check if this is a puppet (manually controlled) agent."""
+        return getattr(self, "_is_puppet", False)
+
+    def get_state(self, zone_loader: "ZoneLoader | None" = None) -> dict:
+        """Extract full agent state for API inspection.
+
+        Args:
+            zone_loader: Optional zone loader to determine current zone
+
+        Returns:
+            Dictionary containing driver state
+        """
+        zone_id = None
+        loader = zone_loader or self._zone_loader
+        if loader and self._location:
+            zone_id = loader.find_zone_for_location(self._location[0], self._location[1])
+
+        return {
+            "driver_id": self._driver_id,
+            "status": self._status,
+            "location": self._location,
+            "current_rating": self._current_rating,
+            "rating_count": self._rating_count,
+            "active_trip": self._active_trip,
+            "zone_id": zone_id,
+            "is_ephemeral": self.is_ephemeral,
+            "is_puppet": self.is_puppet,
+        }
 
     @classmethod
     def from_database(
@@ -593,5 +867,6 @@ class DriverAgent(EventEmitter):
         agent._active_trip = driver.active_trip
         agent._current_rating = driver.current_rating
         agent._rating_count = driver.rating_count
+        agent._statistics = DriverStatistics()  # Session-only, not persisted
 
         return agent

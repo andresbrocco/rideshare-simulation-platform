@@ -5,8 +5,8 @@ from __future__ import annotations
 import random
 from typing import Any
 
-from src.agents.dna import DriverDNA, RiderDNA, ShiftPreference
-from src.agents.faker_provider import create_faker_instance
+from agents.dna import DriverDNA, RiderDNA, ShiftPreference
+from agents.faker_provider import create_faker_instance
 
 
 class DNAFactory:
@@ -45,8 +45,9 @@ class DNAFactory:
             "min_rider_rating": 3.5,
             "surge_acceptance_modifier": 1.5,
             # Profile attributes
-            "home_location": (-23.55, -46.63),
-            "preferred_zones": ["zone_1", "zone_2"],
+            # Coordinates inside BVI zone from sample_zones.geojson
+            "home_location": (-23.56, -46.65),
+            "preferred_zones": ["BVI", "PIN"],
             "shift_preference": ShiftPreference.MORNING,
             "avg_hours_per_day": 8,
             "avg_days_per_week": 5,
@@ -71,8 +72,8 @@ class DNAFactory:
         Returns:
             RiderDNA instance with defaults or overridden values.
         """
-        home_location = overrides.get("home_location", (-23.55, -46.63))
-        home_lat, home_lon = home_location
+        # Default home in BVI zone from sample_zones.geojson
+        home_location = overrides.get("home_location", (-23.56, -46.65))
 
         payment = self.fake.payment_method_br()
 
@@ -82,9 +83,10 @@ class DNAFactory:
             "patience_threshold": 180,
             "max_surge_multiplier": 2.0,
             "avg_rides_per_week": 5,
+            # Destinations in PIN and SEE zones from sample_zones.geojson
             "frequent_destinations": [
-                {"coordinates": (home_lat + 0.01, home_lon + 0.01), "weight": 0.6},
-                {"coordinates": (home_lat - 0.01, home_lon - 0.01), "weight": 0.4},
+                {"coordinates": (-23.565, -46.695), "weight": 0.6},  # Inside PIN
+                {"coordinates": (-23.55, -46.635), "weight": 0.4},  # Inside SEE
             ],
             # Profile attributes
             "home_location": home_location,
