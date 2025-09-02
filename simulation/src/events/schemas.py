@@ -34,6 +34,12 @@ class TripEvent(BaseModel):
     cancelled_by: str | None = None
     cancellation_reason: str | None = None
     cancellation_stage: str | None = None
+    # Route data for frontend visualization
+    route: list[tuple[float, float]] | None = None
+    pickup_route: list[tuple[float, float]] | None = None
+    # Route progress indices for efficient updates (index into route geometry)
+    route_progress_index: int | None = None
+    pickup_route_progress_index: int | None = None
 
 
 class GPSPingEvent(BaseModel):
@@ -48,6 +54,10 @@ class GPSPingEvent(BaseModel):
     speed: float | None
     accuracy: float
     trip_id: str | None
+    trip_state: str | None = None  # For rider GPS pings during active trips
+    # Route progress indices for frontend visualization
+    route_progress_index: int | None = None
+    pickup_route_progress_index: int | None = None
 
 
 class DriverStatusEvent(BaseModel):

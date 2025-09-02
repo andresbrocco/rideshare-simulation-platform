@@ -12,6 +12,8 @@ import simpy
 
 # Note: asyncio is still used for Redis publishing, but OSRM calls now use synchronous requests
 from events.schemas import GPSPingEvent, PaymentEvent, TripEvent
+from geo.distance import is_within_proximity
+from settings import SimulationSettings
 from trip import Trip, TripState
 
 logger = logging.getLogger(__name__)
@@ -38,6 +40,7 @@ class TripExecutor:
         kafka_producer: "KafkaProducer | None",
         redis_publisher: "RedisPublisher | None" = None,
         matching_server: "MatchingServer | None" = None,
+        settings: SimulationSettings | None = None,
         wait_timeout: int = 300,
         rider_boards: bool = True,
         rider_cancels_mid_trip: bool = False,
@@ -50,6 +53,7 @@ class TripExecutor:
         self._kafka_producer = kafka_producer
         self._redis_publisher = redis_publisher
         self._matching_server = matching_server
+        self._settings = settings or SimulationSettings()
         self._wait_timeout = wait_timeout
         self._rider_boards = rider_boards
         self._rider_cancels_mid_trip = rider_cancels_mid_trip
@@ -96,9 +100,8 @@ class TripExecutor:
         )
         self._trip.transition_to(TripState.DRIVER_EN_ROUTE)
         self._driver.start_pickup()
-        self._emit_trip_event("trip.driver_en_route")
-        self._rider.on_driver_en_route(self._trip)
 
+        # Fetch route BEFORE emitting event so pickup_route is included in WebSocket update
         logger.info(
             f"Trip {self._trip.trip_id}: Fetching route from {self._driver.location} to {self._trip.pickup_location}"
         )
@@ -106,21 +109,39 @@ class TripExecutor:
             route = self._osrm_client.get_route_sync(
                 self._driver.location, self._trip.pickup_location
             )
+            # Store pickup route for visualization
+            self._trip.pickup_route = route.geometry
             logger.info(
-                f"Trip {self._trip.trip_id}: Route fetched - duration={route.duration_seconds}s, distance={route.distance_meters}m"
+                f"Trip {self._trip.trip_id}: Pickup route fetched - duration={route.duration_seconds}s, distance={route.distance_meters}m, points={len(route.geometry)}"
             )
         except Exception as e:
             logger.error(f"Trip {self._trip.trip_id}: OSRM route fetch failed: {e}", exc_info=True)
             raise
 
+        # Now emit event with pickup_route populated
+        self._emit_trip_event("trip.driver_en_route")
+        self._rider.on_driver_en_route(self._trip)
+
         duration = route.duration_seconds
         logger.info(f"Trip {self._trip.trip_id}: Starting simulated drive to pickup ({duration}s)")
-        yield from self._simulate_drive(route.geometry, duration)
+        yield from self._simulate_drive(
+            geometry=route.geometry,
+            duration=duration,
+            destination=self._trip.pickup_location,
+            check_proximity=True,
+        )
 
     def _wait_for_rider(self) -> Generator[simpy.Event]:
         """Wait at pickup location for rider."""
         self._trip.transition_to(TripState.DRIVER_ARRIVED)
+        self._trip.driver_arrived_at = datetime.now(UTC)
         self._driver.update_location(*self._trip.pickup_location)
+
+        # Mark pickup route as complete for visualization
+        # This ensures progress shows 100% even when arriving via proximity detection
+        if self._trip.pickup_route:
+            self._trip.pickup_route_progress_index = len(self._trip.pickup_route) - 1
+
         self._emit_trip_event("trip.driver_arrived")
         self._rider.on_driver_arrived(self._trip)
 
@@ -130,6 +151,9 @@ class TripExecutor:
             self._emit_trip_event("trip.cancelled")
             self._driver.complete_trip()
             self._rider.cancel_trip()
+            # Track cancellation stats
+            self._driver.statistics.record_trip_cancelled()
+            self._rider.statistics.record_trip_cancelled()
             # Remove from active trips tracking and record cancellation
             if self._matching_server:
                 self._matching_server.complete_trip(self._trip.trip_id, self._trip)
@@ -153,8 +177,17 @@ class TripExecutor:
             self._trip.pickup_location, self._trip.dropoff_location
         )
 
+        # Store route on trip for visualization
+        self._trip.route = route.geometry
+
         duration = route.duration_seconds
-        yield from self._simulate_drive(route.geometry, duration, check_rider_cancel=True)
+        yield from self._simulate_drive(
+            geometry=route.geometry,
+            duration=duration,
+            destination=self._trip.dropoff_location,
+            check_proximity=True,
+            check_rider_cancel=True,
+        )
 
     def _complete_trip(self) -> Generator[simpy.Event]:
         """Complete trip and emit events."""
@@ -172,6 +205,9 @@ class TripExecutor:
         self._driver.complete_trip()
         self._rider.complete_trip()
 
+        # Record trip completion statistics
+        self._record_completion_stats()
+
         self._driver.on_trip_completed(self._trip)
         self._rider.on_trip_completed(self._trip)
 
@@ -183,13 +219,73 @@ class TripExecutor:
         logger.info(f"Trip {self._trip.trip_id}: Trip execution finished")
         yield self._env.timeout(0)
 
+    def _record_completion_stats(self) -> None:
+        """Record trip completion statistics for driver and rider."""
+        fare = self._trip.fare or 0.0
+        had_surge = self._trip.surge_multiplier > 1.0
+
+        # Calculate timing
+        pickup_time_seconds = 0.0
+        wait_time_seconds = 0.0
+        trip_duration_seconds = 0.0
+
+        if self._trip.matched_at and self._trip.driver_arrived_at:
+            pickup_time_seconds = (
+                self._trip.driver_arrived_at - self._trip.matched_at
+            ).total_seconds()
+
+        if self._trip.requested_at and self._trip.matched_at:
+            wait_time_seconds = (self._trip.matched_at - self._trip.requested_at).total_seconds()
+
+        if self._trip.started_at and self._trip.completed_at:
+            trip_duration_seconds = (
+                self._trip.completed_at - self._trip.started_at
+            ).total_seconds()
+
+        # Record driver statistics
+        self._driver.statistics.record_trip_completed(
+            fare=fare,
+            pickup_time_seconds=pickup_time_seconds,
+            trip_duration_seconds=trip_duration_seconds,
+        )
+
+        # Record rider statistics
+        self._rider.statistics.record_trip_completed(
+            fare=fare,
+            wait_time_seconds=wait_time_seconds,
+            pickup_wait_seconds=pickup_time_seconds,
+            had_surge=had_surge,
+        )
+
     def _simulate_drive(
-        self, geometry: list[tuple[float, float]], duration: float, check_rider_cancel: bool = False
+        self,
+        geometry: list[tuple[float, float]],
+        duration: float,
+        destination: tuple[float, float] | None = None,
+        check_proximity: bool = False,
+        check_rider_cancel: bool = False,
     ) -> Generator[simpy.Event]:
-        """Simulate driving along route with GPS updates."""
-        gps_interval = 30
+        """Simulate driving along route with GPS updates and optional proximity detection.
+
+        Args:
+            geometry: List of (lat, lon) coordinates representing the route
+            duration: Expected duration in seconds from OSRM
+            destination: Optional (lat, lon) for proximity-based arrival detection
+            check_proximity: If True, check distance to destination at each update
+            check_rider_cancel: If True, handle mid-trip rider cancellation
+
+        Yields:
+            SimPy timeout events for each GPS interval
+
+        Note:
+            When check_proximity is True and the driver is within the configured
+            arrival_proximity_threshold_m of the destination, the drive ends early.
+            This enables GPS-based arrival detection rather than purely time-based.
+        """
+        gps_interval = 1
         num_intervals = int(duration / gps_interval)
         time_per_interval = duration / max(num_intervals, 1)
+        proximity_threshold = self._settings.arrival_proximity_threshold_m
 
         for i in range(num_intervals):
             if check_rider_cancel and self._rider_cancels_mid_trip and i == num_intervals // 2:
@@ -197,6 +293,9 @@ class TripExecutor:
                 self._emit_trip_event("trip.cancelled")
                 self._driver.complete_trip()
                 self._rider.cancel_trip()
+                # Track cancellation stats
+                self._driver.statistics.record_trip_cancelled()
+                self._rider.statistics.record_trip_cancelled()
                 # Remove from active trips tracking and record cancellation
                 if self._matching_server:
                     self._matching_server.complete_trip(self._trip.trip_id, self._trip)
@@ -206,11 +305,48 @@ class TripExecutor:
             idx = int(progress * (len(geometry) - 1))
             current_pos = geometry[min(idx, len(geometry) - 1)]
 
-            self._driver.update_location(*current_pos)
+            # Calculate heading from route direction (current → next point)
+            next_idx = min(idx + 1, len(geometry) - 1)
+            if idx != next_idx:
+                from geo.gps_simulation import GPSSimulator
+
+                gps = GPSSimulator(noise_meters=0)
+                route_heading = gps.calculate_heading(current_pos, geometry[next_idx])
+            else:
+                # At end of route, preserve last heading
+                route_heading = self._driver.heading
+
+            # Track route progress for frontend visualization
+            if self._trip.state == TripState.STARTED:
+                self._trip.route_progress_index = idx
+            elif self._trip.state == TripState.DRIVER_EN_ROUTE:
+                self._trip.pickup_route_progress_index = idx
+
+            self._driver.update_location(*current_pos, heading=route_heading)
             if self._trip.state == TripState.STARTED:
                 self._rider.update_location(*current_pos)
 
             self._emit_gps_ping(self._driver.driver_id, "driver", current_pos)
+            if self._trip.state == TripState.STARTED:
+                self._emit_gps_ping(self._rider.rider_id, "rider", current_pos)
+
+            # GPS-based proximity detection for arrival
+            if (
+                check_proximity
+                and destination
+                and is_within_proximity(
+                    current_pos[0],
+                    current_pos[1],
+                    destination[0],
+                    destination[1],
+                    proximity_threshold,
+                )
+            ):
+                logger.info(
+                    f"Trip {self._trip.trip_id}: Arrived early via proximity detection "
+                    f"(within {proximity_threshold}m of destination)"
+                )
+                return  # Exit early - arrived via proximity
 
             yield self._env.timeout(time_per_interval)
 
@@ -231,6 +367,10 @@ class TripExecutor:
             cancelled_by=self._trip.cancelled_by,
             cancellation_reason=self._trip.cancellation_reason,
             cancellation_stage=self._trip.cancellation_stage,
+            route=self._trip.route,
+            pickup_route=self._trip.pickup_route,
+            route_progress_index=self._trip.route_progress_index,
+            pickup_route_progress_index=self._trip.pickup_route_progress_index,
         )
 
         # Emit to Kafka (source of truth for data pipelines)
@@ -295,23 +435,47 @@ class TripExecutor:
     def _emit_gps_ping(
         self, entity_id: str, entity_type: str, location: tuple[float, float]
     ) -> None:
-        """Emit GPS ping event."""
-        if not self._kafka_producer:
-            return
+        """Emit GPS ping event to Kafka and Redis."""
+        # Include trip_state for riders to enable redundant state sync
+        trip_state = None
+        if entity_type == "rider":
+            trip_state = self._trip.state.value
+
+        # Include route progress indices for driver GPS pings (for frontend visualization)
+        route_progress_idx = None
+        pickup_route_progress_idx = None
+        if entity_type == "driver":
+            if self._trip.state == TripState.STARTED:
+                route_progress_idx = self._trip.route_progress_index
+            elif self._trip.state == TripState.DRIVER_EN_ROUTE:
+                pickup_route_progress_idx = self._trip.pickup_route_progress_index
 
         event = GPSPingEvent(
             entity_type=entity_type,
             entity_id=entity_id,
             timestamp=datetime.now(UTC).isoformat(),
             location=location,
-            heading=random.uniform(0, 360),
+            heading=self._driver.heading,
             speed=random.uniform(20, 60),
             accuracy=5.0,
             trip_id=self._trip.trip_id,
+            trip_state=trip_state,
+            route_progress_index=route_progress_idx,
+            pickup_route_progress_index=pickup_route_progress_idx,
         )
 
-        self._kafka_producer.produce(
-            topic="gps-pings",
-            key=entity_id,
-            value=event,
-        )
+        # Emit to Kafka (source of truth for data pipelines)
+        if self._kafka_producer:
+            self._kafka_producer.produce(
+                topic="gps-pings",
+                key=entity_id,
+                value=event,
+            )
+
+        # Emit to Redis for real-time frontend updates
+        if self._redis_publisher:
+            channel = "driver-updates" if entity_type == "driver" else "rider-updates"
+            try:
+                self._redis_publisher.publish_sync(channel, event.model_dump(mode="json"))
+            except Exception as e:
+                logger.warning(f"Failed to publish GPS ping to Redis: {e}")

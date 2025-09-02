@@ -64,8 +64,15 @@ class Trip(BaseModel):
     cancellation_stage: str | None = None
     requested_at: datetime | None = None
     matched_at: datetime | None = None
+    driver_arrived_at: datetime | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
+    # Route coordinates for visualization (not persisted to database)
+    route: list[tuple[float, float]] | None = None
+    pickup_route: list[tuple[float, float]] | None = None  # Driver → pickup route
+    # Route progress indices for efficient frontend updates
+    route_progress_index: int = 0
+    pickup_route_progress_index: int = 0
 
     def transition_to(self, new_state: TripState) -> None:
         """Transition to a new state with validation."""
