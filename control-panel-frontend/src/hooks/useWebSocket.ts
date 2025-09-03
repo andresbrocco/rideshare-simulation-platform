@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 
 interface UseWebSocketOptions {
   url: string;
@@ -26,7 +26,10 @@ export function useWebSocket({
   const onErrorRef = useRef(onError);
   const isCleanedUpRef = useRef(false);
 
-  useEffect(() => {
+  // Update refs in useLayoutEffect (runs before regular useEffect)
+  // This ensures the refs have the latest callbacks when the WebSocket
+  // connection effect runs and receives messages
+  useLayoutEffect(() => {
     onMessageRef.current = onMessage;
     onOpenRef.current = onOpen;
     onCloseRef.current = onClose;

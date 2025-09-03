@@ -68,6 +68,11 @@ export function useSimulationControl(onStatusUpdate?: (status: SimulationStatus)
     await fetchStatus();
   };
 
+  const resumeSimulation = async () => {
+    await apiCall('/simulation/resume', 'POST');
+    await fetchStatus();
+  };
+
   const resetSimulation = async () => {
     await apiCall('/simulation/reset', 'POST');
     await fetchStatus();
@@ -75,6 +80,7 @@ export function useSimulationControl(onStatusUpdate?: (status: SimulationStatus)
 
   const setSpeed = async (multiplier: number) => {
     await apiCall('/simulation/speed', 'PUT', { multiplier });
+    await fetchStatus();
   };
 
   const addDrivers = async (count: number) => {
@@ -85,13 +91,192 @@ export function useSimulationControl(onStatusUpdate?: (status: SimulationStatus)
     await apiCall('/agents/riders', 'POST', { count });
   };
 
+  const addPuppetAgent = async (
+    type: 'driver' | 'rider',
+    location: [number, number] // [lat, lon]
+  ): Promise<string | null> => {
+    const endpoint = type === 'driver' ? '/agents/puppet/drivers' : '/agents/puppet/riders';
+    const body = {
+      location,
+    };
+
+    try {
+      const response = await apiCall(endpoint, 'POST', body);
+      const data = await response.json();
+      return data.driver_id || data.rider_id || null;
+    } catch {
+      return null;
+    }
+  };
+
+  const toggleDriverStatus = async (driverId: string, goOnline: boolean): Promise<void> => {
+    await apiCall(`/agents/drivers/${driverId}/status`, 'PUT', { go_online: goOnline });
+  };
+
+  const requestRiderTrip = async (
+    riderId: string,
+    destination: [number, number]
+  ): Promise<{ trip_id: string; estimated_fare: number; surge_multiplier: number } | null> => {
+    try {
+      const response = await apiCall(`/agents/riders/${riderId}/request-trip`, 'POST', {
+        destination,
+      });
+      return await response.json();
+    } catch {
+      return null;
+    }
+  };
+
+  // --- Puppet Driver Actions ---
+
+  const acceptOffer = async (driverId: string): Promise<boolean> => {
+    try {
+      await apiCall(`/agents/puppet/drivers/${driverId}/accept-offer`, 'POST');
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const rejectOffer = async (driverId: string): Promise<boolean> => {
+    try {
+      await apiCall(`/agents/puppet/drivers/${driverId}/reject-offer`, 'POST');
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const arriveAtPickup = async (driverId: string): Promise<boolean> => {
+    try {
+      await apiCall(`/agents/puppet/drivers/${driverId}/arrive-pickup`, 'POST');
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const startTrip = async (driverId: string): Promise<boolean> => {
+    try {
+      await apiCall(`/agents/puppet/drivers/${driverId}/start-trip`, 'POST');
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const completeTrip = async (driverId: string): Promise<boolean> => {
+    try {
+      await apiCall(`/agents/puppet/drivers/${driverId}/complete-trip`, 'POST');
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const cancelDriverTrip = async (driverId: string): Promise<boolean> => {
+    try {
+      await apiCall(`/agents/puppet/drivers/${driverId}/cancel-trip`, 'POST');
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  // --- Puppet Rider Actions ---
+
+  const cancelRiderTrip = async (riderId: string): Promise<boolean> => {
+    try {
+      await apiCall(`/agents/puppet/riders/${riderId}/cancel-trip`, 'POST');
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  // --- Testing Control Actions ---
+
+  const updateDriverRating = async (driverId: string, rating: number): Promise<boolean> => {
+    try {
+      await apiCall(`/agents/puppet/drivers/${driverId}/rating`, 'PUT', { rating });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const updateRiderRating = async (riderId: string, rating: number): Promise<boolean> => {
+    try {
+      await apiCall(`/agents/puppet/riders/${riderId}/rating`, 'PUT', { rating });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const teleportDriver = async (driverId: string, location: [number, number]): Promise<boolean> => {
+    try {
+      await apiCall(`/agents/puppet/drivers/${driverId}/location`, 'PUT', { location });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const teleportRider = async (riderId: string, location: [number, number]): Promise<boolean> => {
+    try {
+      await apiCall(`/agents/puppet/riders/${riderId}/location`, 'PUT', { location });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const forceOfferTimeout = async (driverId: string): Promise<boolean> => {
+    try {
+      await apiCall(`/agents/puppet/drivers/${driverId}/force-offer-timeout`, 'POST');
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const forcePatienceTimeout = async (riderId: string): Promise<boolean> => {
+    try {
+      await apiCall(`/agents/puppet/riders/${riderId}/force-patience-timeout`, 'POST');
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   return {
     startSimulation,
     pauseSimulation,
+    resumeSimulation,
     resetSimulation,
     setSpeed,
     addDrivers,
     addRiders,
+    addPuppetAgent,
+    toggleDriverStatus,
+    requestRiderTrip,
+    // Puppet driver actions
+    acceptOffer,
+    rejectOffer,
+    arriveAtPickup,
+    startTrip,
+    completeTrip,
+    cancelDriverTrip,
+    // Puppet rider actions
+    cancelRiderTrip,
+    // Testing controls
+    updateDriverRating,
+    updateRiderRating,
+    teleportDriver,
+    teleportRider,
+    forceOfferTimeout,
+    forcePatienceTimeout,
     loading,
     error,
   };

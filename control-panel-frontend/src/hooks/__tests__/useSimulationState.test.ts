@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useSimulationState } from '../useSimulationState';
 import type {
@@ -11,6 +11,15 @@ import type {
 } from '../../types/websocket';
 
 describe('useSimulationState', () => {
+  // Use fake timers for GPS ping batching tests
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('initializes with empty state', () => {
     const { result } = renderHook(() => useSimulationState());
 
@@ -19,7 +28,6 @@ describe('useSimulationState', () => {
     expect(result.current.trips).toEqual([]);
     expect(result.current.surge).toEqual({});
     expect(result.current.status).toBeNull();
-    expect(result.current.gpsTrails).toEqual([]);
     expect(result.current.connected).toBe(false);
   });
 
@@ -338,13 +346,24 @@ describe('useSimulationState', () => {
     expect(result.current.surge).toEqual({ z1: 2.5 });
   });
 
-  it('handles GPS ping message', () => {
+  it('handles gps_ping for driver position update', () => {
     const { result } = renderHook(() => useSimulationState());
 
+    // First, set up initial driver via snapshot
     const snapshot: StateSnapshot = {
       type: 'snapshot',
       data: {
-        drivers: [],
+        drivers: [
+          {
+            id: 'd1',
+            latitude: -23.5,
+            longitude: -46.6,
+            status: 'online',
+            rating: 4.5,
+            zone: 'z1',
+            heading: 0,
+          },
+        ],
         riders: [],
         trips: [],
         surge: {},
@@ -352,10 +371,10 @@ describe('useSimulationState', () => {
           state: 'RUNNING',
           speed_multiplier: 1,
           current_time: '2024-01-01T00:00:00',
-          drivers_count: 0,
+          drivers_count: 1,
           riders_count: 0,
           active_trips_count: 0,
-          uptime_seconds: 100,
+          uptime_seconds: 0,
         },
       },
     };
@@ -364,35 +383,41 @@ describe('useSimulationState', () => {
       result.current.handleMessage(snapshot);
     });
 
+    expect(result.current.drivers[0].latitude).toBe(-23.5);
+    expect(result.current.drivers[0].longitude).toBe(-46.6);
+
+    // Now send GPS ping to update position
     const gpsPing: GPSPing = {
       type: 'gps_ping',
       data: {
-        entity_id: 'd1',
+        id: 'd1',
         entity_type: 'driver',
-        latitude: -23.5,
-        longitude: -46.6,
-        timestamp: 100,
+        latitude: -23.55,
+        longitude: -46.65,
+        heading: 90,
       },
     };
 
     act(() => {
       result.current.handleMessage(gpsPing);
+      // Advance timers to flush the GPS buffer
+      vi.advanceTimersByTime(100);
     });
 
-    expect(result.current.gpsTrails).toHaveLength(1);
-    expect(result.current.gpsTrails[0].id).toBe('d1');
-    expect(result.current.gpsTrails[0].path).toHaveLength(1);
-    expect(result.current.gpsTrails[0].path[0]).toEqual([-46.6, -23.5, 100]);
+    expect(result.current.drivers[0].latitude).toBe(-23.55);
+    expect(result.current.drivers[0].longitude).toBe(-46.65);
+    expect(result.current.drivers[0].heading).toBe(90);
   });
 
-  it('accumulates GPS pings for same entity', () => {
+  it('handles gps_ping for rider position update', () => {
     const { result } = renderHook(() => useSimulationState());
 
+    // First, set up initial rider via snapshot
     const snapshot: StateSnapshot = {
       type: 'snapshot',
       data: {
         drivers: [],
-        riders: [],
+        riders: [{ id: 'r1', latitude: -23.5, longitude: -46.6, status: 'waiting' }],
         trips: [],
         surge: {},
         simulation: {
@@ -400,9 +425,9 @@ describe('useSimulationState', () => {
           speed_multiplier: 1,
           current_time: '2024-01-01T00:00:00',
           drivers_count: 0,
-          riders_count: 0,
+          riders_count: 1,
           active_trips_count: 0,
-          uptime_seconds: 200,
+          uptime_seconds: 0,
         },
       },
     };
@@ -411,162 +436,162 @@ describe('useSimulationState', () => {
       result.current.handleMessage(snapshot);
     });
 
-    const ping1: GPSPing = {
-      type: 'gps_ping',
-      data: {
-        entity_id: 'd1',
-        entity_type: 'driver',
-        latitude: -23.5,
-        longitude: -46.6,
-        timestamp: 100,
-      },
-    };
+    expect(result.current.riders[0].latitude).toBe(-23.5);
+    expect(result.current.riders[0].longitude).toBe(-46.6);
 
-    const ping2: GPSPing = {
-      type: 'gps_ping',
-      data: {
-        entity_id: 'd1',
-        entity_type: 'driver',
-        latitude: -23.6,
-        longitude: -46.7,
-        timestamp: 150,
-      },
-    };
-
-    act(() => {
-      result.current.handleMessage(ping1);
-      result.current.handleMessage(ping2);
-    });
-
-    expect(result.current.gpsTrails).toHaveLength(1);
-    expect(result.current.gpsTrails[0].path).toHaveLength(2);
-  });
-
-  it('maintains 5-minute sliding window for GPS trails', () => {
-    const { result } = renderHook(() => useSimulationState());
-
-    const snapshot: StateSnapshot = {
-      type: 'snapshot',
-      data: {
-        drivers: [],
-        riders: [],
-        trips: [],
-        surge: {},
-        simulation: {
-          state: 'RUNNING',
-          speed_multiplier: 1,
-          current_time: '2024-01-01T00:00:00',
-          drivers_count: 0,
-          riders_count: 0,
-          active_trips_count: 0,
-          uptime_seconds: 500,
-        },
-      },
-    };
-
-    act(() => {
-      result.current.handleMessage(snapshot);
-    });
-
-    const oldPing: GPSPing = {
-      type: 'gps_ping',
-      data: {
-        entity_id: 'd1',
-        entity_type: 'driver',
-        latitude: -23.5,
-        longitude: -46.6,
-        timestamp: 100,
-      },
-    };
-
-    const recentPing: GPSPing = {
-      type: 'gps_ping',
-      data: {
-        entity_id: 'd1',
-        entity_type: 'driver',
-        latitude: -23.6,
-        longitude: -46.7,
-        timestamp: 450,
-      },
-    };
-
-    act(() => {
-      result.current.handleMessage(oldPing);
-      result.current.handleMessage(recentPing);
-    });
-
-    expect(result.current.gpsTrails).toHaveLength(1);
-    expect(result.current.gpsTrails[0].path).toHaveLength(1);
-    expect(result.current.gpsTrails[0].path[0][2]).toBe(450);
-  });
-
-  it('clears GPS trails on new snapshot', () => {
-    const { result } = renderHook(() => useSimulationState());
-
-    const snapshot1: StateSnapshot = {
-      type: 'snapshot',
-      data: {
-        drivers: [],
-        riders: [],
-        trips: [],
-        surge: {},
-        simulation: {
-          state: 'RUNNING',
-          speed_multiplier: 1,
-          current_time: '2024-01-01T00:00:00',
-          drivers_count: 0,
-          riders_count: 0,
-          active_trips_count: 0,
-          uptime_seconds: 100,
-        },
-      },
-    };
-
-    act(() => {
-      result.current.handleMessage(snapshot1);
-    });
-
+    // Now send GPS ping to update position
     const gpsPing: GPSPing = {
       type: 'gps_ping',
       data: {
-        entity_id: 'd1',
-        entity_type: 'driver',
-        latitude: -23.5,
-        longitude: -46.6,
-        timestamp: 100,
+        id: 'r1',
+        entity_type: 'rider',
+        latitude: -23.55,
+        longitude: -46.65,
       },
     };
 
     act(() => {
       result.current.handleMessage(gpsPing);
+      // Advance timers to flush the GPS buffer
+      vi.advanceTimersByTime(100);
     });
 
-    expect(result.current.gpsTrails).toHaveLength(1);
+    expect(result.current.riders[0].latitude).toBe(-23.55);
+    expect(result.current.riders[0].longitude).toBe(-46.65);
+  });
 
-    const snapshot2: StateSnapshot = {
+  it('ignores gps_ping for unknown entities', () => {
+    const { result } = renderHook(() => useSimulationState());
+
+    // Send GPS ping for non-existent driver
+    const gpsPing: GPSPing = {
+      type: 'gps_ping',
+      data: {
+        id: 'unknown-driver',
+        entity_type: 'driver',
+        latitude: -23.55,
+        longitude: -46.65,
+        heading: 90,
+      },
+    };
+
+    act(() => {
+      result.current.handleMessage(gpsPing);
+      // Advance timers to flush the GPS buffer
+      vi.advanceTimersByTime(100);
+    });
+
+    // State should remain unchanged
+    expect(result.current.drivers).toHaveLength(0);
+  });
+
+  it('updates rider trip_state from gps_ping', () => {
+    const { result } = renderHook(() => useSimulationState());
+
+    // Set up initial rider via snapshot
+    const snapshot: StateSnapshot = {
       type: 'snapshot',
       data: {
         drivers: [],
-        riders: [],
+        riders: [
+          { id: 'r1', latitude: -23.5, longitude: -46.6, status: 'waiting', trip_state: 'offline' },
+        ],
         trips: [],
         surge: {},
         simulation: {
           state: 'RUNNING',
           speed_multiplier: 1,
-          current_time: '2024-01-01T00:01:00',
+          current_time: '2024-01-01T00:00:00',
           drivers_count: 0,
-          riders_count: 0,
+          riders_count: 1,
           active_trips_count: 0,
-          uptime_seconds: 160,
+          uptime_seconds: 0,
         },
       },
     };
 
     act(() => {
-      result.current.handleMessage(snapshot2);
+      result.current.handleMessage(snapshot);
     });
 
-    expect(result.current.gpsTrails).toHaveLength(0);
+    expect(result.current.riders[0].trip_state).toBe('offline');
+
+    // GPS ping with trip_state should update rider's trip_state
+    const gpsPing: GPSPing = {
+      type: 'gps_ping',
+      data: {
+        id: 'r1',
+        entity_type: 'rider',
+        latitude: -23.55,
+        longitude: -46.65,
+        trip_state: 'started',
+      },
+    };
+
+    act(() => {
+      result.current.handleMessage(gpsPing);
+      // Advance timers to flush the GPS buffer
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(result.current.riders[0].latitude).toBe(-23.55);
+    expect(result.current.riders[0].longitude).toBe(-46.65);
+    expect(result.current.riders[0].trip_state).toBe('started');
+  });
+
+  it('preserves rider trip_state when gps_ping has no trip_state', () => {
+    const { result } = renderHook(() => useSimulationState());
+
+    // Set up initial rider with trip_state via snapshot
+    const snapshot: StateSnapshot = {
+      type: 'snapshot',
+      data: {
+        drivers: [],
+        riders: [
+          { id: 'r1', latitude: -23.5, longitude: -46.6, status: 'in_trip', trip_state: 'started' },
+        ],
+        trips: [],
+        surge: {},
+        simulation: {
+          state: 'RUNNING',
+          speed_multiplier: 1,
+          current_time: '2024-01-01T00:00:00',
+          drivers_count: 0,
+          riders_count: 1,
+          active_trips_count: 0,
+          uptime_seconds: 0,
+        },
+      },
+    };
+
+    act(() => {
+      result.current.handleMessage(snapshot);
+    });
+
+    expect(result.current.riders[0].trip_state).toBe('started');
+
+    // GPS ping without trip_state should preserve existing trip_state
+    const gpsPing: GPSPing = {
+      type: 'gps_ping',
+      data: {
+        id: 'r1',
+        entity_type: 'rider',
+        latitude: -23.55,
+        longitude: -46.65,
+        // No trip_state provided
+      },
+    };
+
+    act(() => {
+      result.current.handleMessage(gpsPing);
+      // Advance timers to flush the GPS buffer
+      vi.advanceTimersByTime(100);
+    });
+
+    // Position should update but trip_state should be preserved
+    expect(result.current.riders[0].latitude).toBe(-23.55);
+    expect(result.current.riders[0].longitude).toBe(-46.65);
+    expect(result.current.riders[0].trip_state).toBe('started');
   });
 
   it('handles connect event', () => {
@@ -593,5 +618,206 @@ describe('useSimulationState', () => {
     });
 
     expect(result.current.connected).toBe(false);
+  });
+
+  // GPS Ping Batching Tests
+  describe('GPS ping batching', () => {
+    it('batches multiple GPS pings within buffer window', () => {
+      const { result } = renderHook(() => useSimulationState());
+
+      // Set up initial driver via snapshot
+      const snapshot: StateSnapshot = {
+        type: 'snapshot',
+        data: {
+          drivers: [
+            {
+              id: 'd1',
+              latitude: -23.5,
+              longitude: -46.6,
+              status: 'online',
+              rating: 4.5,
+              zone: 'z1',
+            },
+          ],
+          riders: [],
+          trips: [],
+          surge: {},
+          simulation: {
+            state: 'RUNNING',
+            speed_multiplier: 1,
+            current_time: '2024-01-01T00:00:00',
+            drivers_count: 1,
+            riders_count: 0,
+            active_trips_count: 0,
+            uptime_seconds: 0,
+          },
+        },
+      };
+
+      act(() => {
+        result.current.handleMessage(snapshot);
+      });
+
+      // Send multiple GPS pings rapidly
+      act(() => {
+        result.current.handleMessage({
+          type: 'gps_ping',
+          data: { id: 'd1', entity_type: 'driver', latitude: 1, longitude: 1 },
+        } as GPSPing);
+        result.current.handleMessage({
+          type: 'gps_ping',
+          data: { id: 'd1', entity_type: 'driver', latitude: 2, longitude: 2 },
+        } as GPSPing);
+        result.current.handleMessage({
+          type: 'gps_ping',
+          data: { id: 'd1', entity_type: 'driver', latitude: 3, longitude: 3 },
+        } as GPSPing);
+      });
+
+      // Before flush: position should still be original
+      expect(result.current.drivers[0].latitude).toBe(-23.5);
+
+      // After timer: should have final position (last ping wins)
+      act(() => {
+        vi.advanceTimersByTime(100);
+      });
+
+      expect(result.current.drivers[0].latitude).toBe(3);
+      expect(result.current.drivers[0].longitude).toBe(3);
+    });
+
+    it('handles mixed driver and rider pings in same batch', () => {
+      const { result } = renderHook(() => useSimulationState());
+
+      // Set up initial state
+      const snapshot: StateSnapshot = {
+        type: 'snapshot',
+        data: {
+          drivers: [
+            {
+              id: 'd1',
+              latitude: -23.5,
+              longitude: -46.6,
+              status: 'online',
+              rating: 4.5,
+              zone: 'z1',
+            },
+          ],
+          riders: [{ id: 'r1', latitude: -23.5, longitude: -46.6, status: 'waiting' }],
+          trips: [],
+          surge: {},
+          simulation: {
+            state: 'RUNNING',
+            speed_multiplier: 1,
+            current_time: '2024-01-01T00:00:00',
+            drivers_count: 1,
+            riders_count: 1,
+            active_trips_count: 0,
+            uptime_seconds: 0,
+          },
+        },
+      };
+
+      act(() => {
+        result.current.handleMessage(snapshot);
+      });
+
+      // Send mixed driver and rider pings
+      act(() => {
+        result.current.handleMessage({
+          type: 'gps_ping',
+          data: { id: 'd1', entity_type: 'driver', latitude: 1, longitude: 1 },
+        } as GPSPing);
+        result.current.handleMessage({
+          type: 'gps_ping',
+          data: { id: 'r1', entity_type: 'rider', latitude: 2, longitude: 2 },
+        } as GPSPing);
+      });
+
+      // Flush buffer
+      act(() => {
+        vi.advanceTimersByTime(100);
+      });
+
+      // Both should be updated
+      expect(result.current.drivers[0].latitude).toBe(1);
+      expect(result.current.drivers[0].longitude).toBe(1);
+      expect(result.current.riders[0].latitude).toBe(2);
+      expect(result.current.riders[0].longitude).toBe(2);
+    });
+
+    it('updates trip progress from batched GPS pings', () => {
+      const { result } = renderHook(() => useSimulationState());
+
+      // Set up initial state with driver and active trip
+      const snapshot: StateSnapshot = {
+        type: 'snapshot',
+        data: {
+          drivers: [
+            {
+              id: 'd1',
+              latitude: -23.5,
+              longitude: -46.6,
+              status: 'en_route_destination',
+              rating: 4.5,
+              zone: 'z1',
+            },
+          ],
+          riders: [],
+          trips: [
+            {
+              id: 't1',
+              driver_id: 'd1',
+              rider_id: 'r1',
+              pickup_latitude: -23.5,
+              pickup_longitude: -46.6,
+              dropoff_latitude: -23.6,
+              dropoff_longitude: -46.7,
+              route: [
+                [-46.6, -23.5],
+                [-46.7, -23.6],
+              ],
+              status: 'started',
+              route_progress_index: 0,
+            },
+          ],
+          surge: {},
+          simulation: {
+            state: 'RUNNING',
+            speed_multiplier: 1,
+            current_time: '2024-01-01T00:00:00',
+            drivers_count: 1,
+            riders_count: 0,
+            active_trips_count: 1,
+            uptime_seconds: 0,
+          },
+        },
+      };
+
+      act(() => {
+        result.current.handleMessage(snapshot);
+      });
+
+      expect(result.current.trips[0].route_progress_index).toBe(0);
+
+      // Send GPS ping with route progress
+      act(() => {
+        result.current.handleMessage({
+          type: 'gps_ping',
+          data: {
+            id: 'd1',
+            entity_type: 'driver',
+            latitude: -23.55,
+            longitude: -46.65,
+            trip_id: 't1',
+            route_progress_index: 5,
+          },
+        } as GPSPing);
+        vi.advanceTimersByTime(100);
+      });
+
+      expect(result.current.drivers[0].latitude).toBe(-23.55);
+      expect(result.current.trips[0].route_progress_index).toBe(5);
+    });
   });
 });

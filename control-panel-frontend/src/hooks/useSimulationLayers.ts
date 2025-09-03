@@ -1,15 +1,26 @@
 import { useMemo } from 'react';
 import type { Layer } from '@deck.gl/core';
-import type { Driver, Rider, Trip, GPSTrail, ZoneData, DemandPoint } from '../types/api';
+import type { Driver, Rider, Trip, ZoneData, DemandPoint } from '../types/api';
 import type { LayerVisibility } from '../types/layers';
+import { calculateZoomScale } from '../utils/zoomScale';
 import {
   createOnlineDriversLayer,
   createOfflineDriversLayer,
   createBusyDriversLayer,
+  createEnRoutePickupDriversLayer,
+  createWithPassengerDriversLayer,
+  createOfflineRidersLayer,
   createWaitingRidersLayer,
+  createMatchedRidersLayer,
+  createEnRouteRidersLayer,
+  createArrivedRidersLayer,
   createInTransitRidersLayer,
-  createTripsLayer,
-  createPathLayer,
+  createPendingRouteLayer,
+  createCompletedPickupRouteLayer,
+  createRemainingPickupRouteLayer,
+  createCompletedTripRouteLayer,
+  createRemainingTripRouteLayer,
+  createDestinationFlagLayer,
   createDriverLayer,
   createRiderLayer,
 } from '../layers/agentLayers';
@@ -19,27 +30,32 @@ interface UseSimulationLayersProps {
   drivers: Driver[];
   riders: Rider[];
   trips: Trip[];
-  trails: GPSTrail[];
-  currentTime: number;
   zoneData?: ZoneData[];
   demandPoints?: DemandPoint[];
   layerVisibility?: LayerVisibility;
+  zoom?: number;
 }
 
 export function useSimulationLayers({
   drivers,
   riders,
   trips,
-  trails,
-  currentTime,
   zoneData = [],
   demandPoints = [],
   layerVisibility,
+  zoom = 11,
 }: UseSimulationLayersProps): Layer[] {
   return useMemo(() => {
+    const scaleFactor = calculateZoomScale(zoom);
     const layers: Layer[] = [];
 
+    // DEBUG: Log rider count and sample rider
+    if (riders.length > 0) {
+      console.log(`[DEBUG] useSimulationLayers: ${riders.length} riders, sample:`, riders[0]);
+    }
+
     if (layerVisibility) {
+      // Add zone layer first (lowest pick priority)
       if (layerVisibility.zoneBoundaries && zoneData.length > 0) {
         layers.push(createZoneLayer(zoneData, true));
       }
@@ -48,32 +64,78 @@ export function useSimulationLayers({
         layers.push(createHeatmapLayer(demandPoints, true));
       }
 
-      if (layerVisibility.gpsTrails) {
-        layers.push(createTripsLayer(trails, currentTime, true));
+      // Route layers (ordered: pending -> pickup trail -> pickup remaining -> trip trail -> trip remaining)
+      // Faded trails render first (behind), then solid remaining routes on top
+      if (layerVisibility.pendingRoutes) {
+        layers.push(createPendingRouteLayer(trips, true, scaleFactor));
+      }
+
+      if (layerVisibility.pickupRoutes) {
+        // Completed portion (faded trail behind driver)
+        layers.push(createCompletedPickupRouteLayer(trips, true, scaleFactor));
+        // Remaining portion (solid ahead of driver)
+        layers.push(createRemainingPickupRouteLayer(trips, true, scaleFactor));
       }
 
       if (layerVisibility.tripRoutes) {
-        layers.push(createPathLayer(trips, true));
+        // Completed portion (faded trail behind driver)
+        layers.push(createCompletedTripRouteLayer(trips, true, scaleFactor));
+        // Remaining portion (solid ahead of driver)
+        layers.push(createRemainingTripRouteLayer(trips, true, scaleFactor));
+        // Destination flag at dropoff location
+        layers.push(createDestinationFlagLayer(trips, true, scaleFactor));
       }
 
-      if (layerVisibility.onlineDrivers) {
-        layers.push(createOnlineDriversLayer(drivers));
-      }
-
+      // Add agent layers last (highest pick priority) so clicking on agents works
+      // Driver layers (ordered by visual priority - active on top)
       if (layerVisibility.offlineDrivers) {
-        layers.push(createOfflineDriversLayer(drivers));
+        layers.push(createOfflineDriversLayer(drivers, scaleFactor));
       }
 
       if (layerVisibility.busyDrivers) {
-        layers.push(createBusyDriversLayer(drivers));
+        layers.push(createBusyDriversLayer(drivers, scaleFactor));
+      }
+
+      if (layerVisibility.enRoutePickupDrivers) {
+        layers.push(createEnRoutePickupDriversLayer(drivers, scaleFactor));
+      }
+
+      if (layerVisibility.withPassengerDrivers) {
+        layers.push(createWithPassengerDriversLayer(drivers, scaleFactor));
+      }
+
+      if (layerVisibility.onlineDrivers) {
+        layers.push(createOnlineDriversLayer(drivers, scaleFactor));
+      }
+
+      // Rider layers (ordered by visual priority - active on top)
+      if (layerVisibility.offlineRiders) {
+        const offlineLayer = createOfflineRidersLayer(riders, scaleFactor);
+        console.log(
+          `[DEBUG] offlineRiders layer data count:`,
+          offlineLayer.props.data?.length ?? 0
+        );
+        layers.push(offlineLayer);
       }
 
       if (layerVisibility.waitingRiders) {
-        layers.push(createWaitingRidersLayer(riders));
+        layers.push(createWaitingRidersLayer(riders, scaleFactor));
+      }
+
+      if (layerVisibility.matchedRiders) {
+        layers.push(createMatchedRidersLayer(riders, scaleFactor));
+      }
+
+      if (layerVisibility.enRouteRiders) {
+        layers.push(createEnRouteRidersLayer(riders, scaleFactor));
+      }
+
+      if (layerVisibility.arrivedRiders) {
+        layers.push(createArrivedRidersLayer(riders, scaleFactor));
       }
 
       if (layerVisibility.inTransitRiders) {
-        layers.push(createInTransitRidersLayer(riders));
+        layers.push(createInTransitRidersLayer(riders, scaleFactor));
       }
     } else {
       if (zoneData.length > 0) {
@@ -85,13 +147,17 @@ export function useSimulationLayers({
       }
 
       layers.push(
-        createTripsLayer(trails, currentTime),
-        createPathLayer(trips),
-        createDriverLayer(drivers),
-        createRiderLayer(riders)
+        createPendingRouteLayer(trips, true, scaleFactor),
+        createCompletedPickupRouteLayer(trips, true, scaleFactor),
+        createRemainingPickupRouteLayer(trips, true, scaleFactor),
+        createCompletedTripRouteLayer(trips, true, scaleFactor),
+        createRemainingTripRouteLayer(trips, true, scaleFactor),
+        createDestinationFlagLayer(trips, true, scaleFactor),
+        ...createDriverLayer(drivers, scaleFactor),
+        ...createRiderLayer(riders, scaleFactor)
       );
     }
 
     return layers;
-  }, [drivers, riders, trips, trails, currentTime, zoneData, demandPoints, layerVisibility]);
+  }, [drivers, riders, trips, zoneData, demandPoints, layerVisibility, zoom]);
 }

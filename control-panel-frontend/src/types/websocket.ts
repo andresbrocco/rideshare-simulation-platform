@@ -1,4 +1,4 @@
-import type { Driver, Rider, Trip, SimulationStatus } from './api';
+import type { Driver, Rider, Trip, SimulationStatus, TripStateValue } from './api';
 
 export interface StateSnapshot {
   type: 'snapshot';
@@ -34,17 +34,28 @@ export interface SurgeUpdate {
 export interface GPSPing {
   type: 'gps_ping';
   data: {
-    entity_id: string;
+    id: string;
     entity_type: 'driver' | 'rider';
     latitude: number;
     longitude: number;
-    timestamp: number;
+    heading?: number;
+    timestamp?: number;
+    trip_state?: TripStateValue; // For rider GPS pings during active trips
+    // Route progress for driver GPS pings during trips
+    trip_id?: string;
+    route_progress_index?: number;
+    pickup_route_progress_index?: number;
   };
 }
 
 export interface SimulationStatusUpdate {
   type: 'simulation_status';
   data: SimulationStatus;
+}
+
+export interface SimulationReset {
+  type: 'simulation_reset';
+  data: Record<string, never>;
 }
 
 export type WebSocketMessage =
@@ -54,4 +65,5 @@ export type WebSocketMessage =
   | TripUpdate
   | SurgeUpdate
   | GPSPing
-  | SimulationStatusUpdate;
+  | SimulationStatusUpdate
+  | SimulationReset;
