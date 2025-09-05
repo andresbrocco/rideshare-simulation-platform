@@ -13,7 +13,6 @@ describe('LayerControls', () => {
       waitingRiders: true,
       inTransitRiders: true,
       tripRoutes: true,
-      gpsTrails: true,
       zoneBoundaries: true,
       surgeHeatmap: false,
     };
@@ -26,7 +25,6 @@ describe('LayerControls', () => {
     expect(screen.getByLabelText(/waiting riders/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/in-transit riders/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/trip routes/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/gps trails/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/zone boundaries/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/surge heatmap/i)).toBeInTheDocument();
   });
@@ -40,7 +38,6 @@ describe('LayerControls', () => {
       waitingRiders: true,
       inTransitRiders: true,
       tripRoutes: true,
-      gpsTrails: true,
       zoneBoundaries: true,
       surgeHeatmap: false,
     };
@@ -53,7 +50,6 @@ describe('LayerControls', () => {
     expect(screen.getByLabelText(/waiting riders/i)).toBeChecked();
     expect(screen.getByLabelText(/in-transit riders/i)).toBeChecked();
     expect(screen.getByLabelText(/trip routes/i)).toBeChecked();
-    expect(screen.getByLabelText(/gps trails/i)).toBeChecked();
     expect(screen.getByLabelText(/zone boundaries/i)).toBeChecked();
     expect(screen.getByLabelText(/surge heatmap/i)).not.toBeChecked();
   });
@@ -68,7 +64,6 @@ describe('LayerControls', () => {
       waitingRiders: true,
       inTransitRiders: true,
       tripRoutes: true,
-      gpsTrails: true,
       zoneBoundaries: true,
       surgeHeatmap: false,
     };
@@ -94,7 +89,6 @@ describe('LayerControls', () => {
       waitingRiders: true,
       inTransitRiders: true,
       tripRoutes: true,
-      gpsTrails: true,
       zoneBoundaries: true,
       surgeHeatmap: false,
     };
@@ -111,7 +105,6 @@ describe('LayerControls', () => {
       waitingRiders: false,
       inTransitRiders: false,
       tripRoutes: false,
-      gpsTrails: false,
       zoneBoundaries: false,
       surgeHeatmap: false,
     });
@@ -127,7 +120,6 @@ describe('LayerControls', () => {
       waitingRiders: true,
       inTransitRiders: true,
       tripRoutes: true,
-      gpsTrails: true,
       zoneBoundaries: true,
       surgeHeatmap: false,
     };

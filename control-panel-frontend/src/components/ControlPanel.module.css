@@ -8,7 +8,7 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   padding: 20px;
   z-index: 1000;
-  max-height: calc(100vh - 40px);
+  max-height: calc(100vh - 60px);
   overflow-y: auto;
 }
 
@@ -200,4 +200,55 @@
 
 .statsGrid .statItem {
   padding: 4px 0;
+}
+
+/* Preset buttons for puppet agents */
+.presetGroup {
+  margin-bottom: 12px;
+}
+
+.presetGroup:last-child {
+  margin-bottom: 0;
+}
+
+.presetLabel {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.presetButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.presetButton {
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.presetButton:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: var(--accent-blue);
+}
+
+/* Puppet agent buttons */
+.puppetButtons {
+  display: flex;
+  gap: 8px;
+}
+
+.puppetButtons .button {
+  flex: 1;
 }

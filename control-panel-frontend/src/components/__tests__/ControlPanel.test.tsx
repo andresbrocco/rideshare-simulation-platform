@@ -84,7 +84,7 @@ describe('ControlPanel', () => {
     render(<ControlPanel status={mockStatus} />);
 
     const speedSelect = screen.getByLabelText(/speed/i);
-    await user.selectOptions(speedSelect, '10');
+    await user.selectOptions(speedSelect, '2');
 
     expect(global.fetch).toHaveBeenCalledWith('http://localhost:8000/simulation/speed', {
       method: 'PUT',
@@ -92,7 +92,7 @@ describe('ControlPanel', () => {
         'Content-Type': 'application/json',
         'X-API-Key': 'test-api-key',
       },
-      body: JSON.stringify({ multiplier: 10 }),
+      body: JSON.stringify({ multiplier: 2 }),
     });
   });
 
@@ -102,10 +102,10 @@ describe('ControlPanel', () => {
     const speedSelect = screen.getByLabelText(/speed/i) as HTMLSelectElement;
     const options = Array.from(speedSelect.options).map((o) => o.value);
 
-    expect(options).toEqual(['1', '10', '100']);
+    expect(options).toEqual(['1', '2', '4', '8', '16', '32']);
   });
 
-  it('test_agent_creation_drivers', async () => {
+  it('autonomous_agent_creation_drivers', async () => {
     const user = userEvent.setup();
     (global.fetch as Mock).mockResolvedValueOnce({ ok: true });
 
@@ -128,7 +128,7 @@ describe('ControlPanel', () => {
     });
   });
 
-  it('test_agent_creation_riders', async () => {
+  it('autonomous_agent_creation_riders', async () => {
     const user = userEvent.setup();
     (global.fetch as Mock).mockResolvedValueOnce({ ok: true });
 

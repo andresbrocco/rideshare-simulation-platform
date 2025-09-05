@@ -10,6 +10,11 @@
   outline: none;
 }
 
+/* Ensure MapLibre attribution stays above deck.gl canvas */
+.map-container :global(.maplibregl-ctrl-bottom-right) {
+  z-index: 1;
+}
+
 .map-error {
   display: flex;
   flex-direction: column;

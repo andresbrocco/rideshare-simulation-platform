@@ -102,7 +102,7 @@ describe('LoginScreen', () => {
     resolvePromise!({ ok: true });
   });
 
-  it('calls health endpoint on submit', async () => {
+  it('calls auth/validate endpoint on submit', async () => {
     const user = userEvent.setup();
     (global.fetch as Mock).mockResolvedValueOnce({
       ok: true,
@@ -117,7 +117,7 @@ describe('LoginScreen', () => {
     await user.click(button);
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith('http://localhost:8000/health', {
+      expect(global.fetch).toHaveBeenCalledWith('http://localhost:8000/auth/validate', {
         headers: { 'X-API-Key': 'test-key' },
       });
     });

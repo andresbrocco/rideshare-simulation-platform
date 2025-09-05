@@ -1,9 +1,16 @@
 import { useState } from 'react';
 import { useSimulationControl } from '../hooks/useSimulationControl';
 import { useMetrics } from '../hooks/useMetrics';
+import { useInfrastructure } from '../hooks/useInfrastructure';
+import { usePerformanceMetrics } from '../hooks/usePerformanceMetrics';
 import StatsPanel from './StatsPanel';
+import InfrastructurePanel from './InfrastructurePanel';
+import PerformancePanel from './PerformancePanel';
 import Tooltip from './Tooltip';
+import ConfirmModal from './ConfirmModal';
 import type { SimulationStatus } from '../types/api';
+import type { PlacementMode } from '../constants/dnaPresets';
+import { formatDuration } from '../utils/formatDuration';
 import styles from './ControlPanel.module.css';
 
 interface ControlPanelProps {
@@ -12,6 +19,7 @@ interface ControlPanelProps {
   riderCount?: number;
   tripCount?: number;
   onStatusUpdate?: (status: SimulationStatus) => void;
+  onStartPlacement?: (mode: PlacementMode) => void;
 }
 
 export default function ControlPanel({
@@ -20,14 +28,36 @@ export default function ControlPanel({
   riderCount: realTimeRiderCount,
   tripCount: realTimeTripCount,
   onStatusUpdate,
+  onStartPlacement,
 }: ControlPanelProps) {
   const [driverCount, setDriverCount] = useState(10);
-  const [riderCount, setRiderCount] = useState(5);
+  const [riderCount, setRiderCount] = useState(50);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
-  const { startSimulation, pauseSimulation, resetSimulation, setSpeed, addDrivers, addRiders } =
-    useSimulationControl(onStatusUpdate);
+  const {
+    startSimulation,
+    pauseSimulation,
+    resumeSimulation,
+    resetSimulation,
+    setSpeed,
+    addDrivers,
+    addRiders,
+  } = useSimulationControl(onStatusUpdate);
 
-  const { driverMetrics, tripMetrics, overviewMetrics } = useMetrics();
+  const { driverMetrics, tripMetrics, overviewMetrics, riderMetrics } = useMetrics();
+  const {
+    data: infraData,
+    loading: infraLoading,
+    error: infraError,
+    refresh: refreshInfra,
+  } = useInfrastructure();
+  const {
+    metrics: perfMetrics,
+    frontendMetrics,
+    loading: perfLoading,
+    error: perfError,
+    refresh: refreshPerf,
+  } = usePerformanceMetrics();
 
   const isRunning = status.state === 'running';
 
@@ -85,24 +115,34 @@ export default function ControlPanel({
         <div className={styles.timeDisplay}>
           <span className={styles.label}>Current Time:</span>
           <span className={styles.value}>{new Date(status.current_time).toLocaleString()}</span>
+          <span className={styles.label}>Elapsed:</span>
+          <span className={styles.value}>{formatDuration(status.uptime_seconds)}</span>
         </div>
       </div>
 
       <div className={styles.section}>
         <h3>Controls</h3>
         <div className={styles.buttonGroup}>
-          <Tooltip text="Start or resume the simulation">
-            <button onClick={startSimulation} disabled={isRunning} className={styles.button}>
-              Play
-            </button>
-          </Tooltip>
+          {status.state === 'paused' ? (
+            <Tooltip text="Resume the paused simulation">
+              <button onClick={resumeSimulation} className={styles.button}>
+                Resume
+              </button>
+            </Tooltip>
+          ) : (
+            <Tooltip text="Start the simulation">
+              <button onClick={startSimulation} disabled={isRunning} className={styles.button}>
+                Play
+              </button>
+            </Tooltip>
+          )}
           <Tooltip text="Pause simulation (in-flight trips complete first)">
             <button onClick={pauseSimulation} disabled={!isRunning} className={styles.button}>
               Pause
             </button>
           </Tooltip>
           <Tooltip text="Stop and reset to initial state">
-            <button onClick={resetSimulation} className={styles.button}>
+            <button onClick={() => setShowResetConfirm(true)} className={styles.button}>
               Reset
             </button>
           </Tooltip>
@@ -121,8 +161,16 @@ export default function ControlPanel({
             className={styles.select}
           >
             <option value="1">1x</option>
-            <option value="10">10x</option>
-            <option value="100">100x</option>
+            <option value="2">2x</option>
+            <option value="4">4x</option>
+            <option value="8">8x</option>
+            <option value="16">16x</option>
+            <option value="32">32x</option>
+            <option value="64">64x</option>
+            <option value="128">128x</option>
+            <option value="256">256x</option>
+            <option value="512">512x</option>
+            <option value="1024">1024x</option>
           </select>
         </Tooltip>
       </div>
@@ -163,6 +211,27 @@ export default function ControlPanel({
         </div>
       </div>
 
+      {onStartPlacement && (
+        <div className={styles.section}>
+          <h3>Add Puppet Agent</h3>
+          <div className={styles.puppetButtons}>
+            <Tooltip text="Create a puppet driver that you control manually">
+              <button
+                className={styles.button}
+                onClick={() => onStartPlacement({ type: 'driver' })}
+              >
+                Add Puppet Driver
+              </button>
+            </Tooltip>
+            <Tooltip text="Create a puppet rider that you control manually">
+              <button className={styles.button} onClick={() => onStartPlacement({ type: 'rider' })}>
+                Add Puppet Rider
+              </button>
+            </Tooltip>
+          </div>
+        </div>
+      )}
+
       <StatsPanel
         status={status}
         driverCount={realTimeDriverCount}
@@ -171,6 +240,36 @@ export default function ControlPanel({
         driverMetrics={driverMetrics}
         tripMetrics={tripMetrics}
         overviewMetrics={overviewMetrics}
+        riderMetrics={riderMetrics}
+      />
+
+      <InfrastructurePanel
+        data={infraData}
+        loading={infraLoading}
+        error={infraError}
+        onRefresh={refreshInfra}
+      />
+
+      <PerformancePanel
+        metrics={perfMetrics}
+        frontendMetrics={frontendMetrics}
+        loading={perfLoading}
+        error={perfError}
+        onRefresh={refreshPerf}
+      />
+
+      <ConfirmModal
+        isOpen={showResetConfirm}
+        title="Reset Simulation?"
+        message="This will clear ALL simulation data including agents, trips, and route cache. This action cannot be undone."
+        confirmText="Reset Everything"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={() => {
+          setShowResetConfirm(false);
+          resetSimulation();
+        }}
+        onCancel={() => setShowResetConfirm(false)}
       />
     </div>
   );
