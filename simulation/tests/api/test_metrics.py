@@ -185,16 +185,25 @@ def test_metrics_cache_expiry(
     test_client_with_registry, mock_simulation_engine_with_data, auth_headers
 ):
     """Cache expires after TTL."""
-    response1 = test_client_with_registry.get("/metrics/overview", headers=auth_headers)
-    assert response1.status_code == 200
-    _ = response1.json()
+    from unittest.mock import patch
 
-    time.sleep(6)
+    # Clear cache before test
+    from api.routes import metrics
 
+    metrics._metrics_cache.clear()
+
+    # First request at time 0
+    with patch.object(time, "time", return_value=1000.0):
+        response1 = test_client_with_registry.get("/metrics/overview", headers=auth_headers)
+        assert response1.status_code == 200
+        _ = response1.json()
+
+    # Second request after TTL expired (6 seconds later)
     mock_simulation_engine_with_data.active_driver_count = 99
-    response2 = test_client_with_registry.get("/metrics/overview", headers=auth_headers)
-    assert response2.status_code == 200
-    _ = response2.json()
+    with patch.object(time, "time", return_value=1006.0):
+        response2 = test_client_with_registry.get("/metrics/overview", headers=auth_headers)
+        assert response2.status_code == 200
+        _ = response2.json()
 
     # Cache test - verifies that the cache mechanism doesn't crash after TTL expiry
     assert True

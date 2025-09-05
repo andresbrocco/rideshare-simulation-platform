@@ -252,7 +252,7 @@ class TestRiderPersistence:
         rider = db_session.get(Rider, "rider_001")
         assert rider is not None
         assert rider.id == "rider_001"
-        assert rider.status == "idle"
+        assert rider.status == "offline"
         assert rider.current_location == "-23.55,-46.63"
 
         retrieved_dna = RiderDNA.model_validate_json(rider.dna_json)

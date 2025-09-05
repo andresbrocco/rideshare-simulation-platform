@@ -40,8 +40,8 @@ def test_create_drivers_max_count(test_client, mock_agent_factory, auth_headers)
 
 
 def test_create_drivers_exceeds_max(test_client, mock_agent_factory, auth_headers):
-    """Rejects count > 100."""
-    response = test_client.post("/agents/drivers", json={"count": 101}, headers=auth_headers)
+    """Rejects count > 500."""
+    response = test_client.post("/agents/drivers", json={"count": 501}, headers=auth_headers)
 
     assert response.status_code == 422
     mock_agent_factory.create_drivers.assert_not_called()

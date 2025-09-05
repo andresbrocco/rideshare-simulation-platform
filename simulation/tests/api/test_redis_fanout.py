@@ -86,6 +86,7 @@ async def test_fanout_driver_update(mock_redis_client_for_pubsub, mock_connectio
                 "status": "online",
                 "rating": 5.0,
                 "zone": "unknown",
+                "heading": 0,
             },
         }
     )
@@ -121,7 +122,14 @@ async def test_fanout_trip_update(mock_redis_client_for_pubsub, mock_connection_
                 "status": "STARTED",
                 "driver_id": "d1",
                 "rider_id": "r1",
-                "route": {"pickup": [1, 2], "dropoff": [3, 4]},
+                "pickup_latitude": 1,
+                "pickup_longitude": 2,
+                "dropoff_latitude": 3,
+                "dropoff_longitude": 4,
+                "route": [],
+                "pickup_route": [],
+                "route_progress_index": None,
+                "pickup_route_progress_index": None,
             },
         }
     )
@@ -136,7 +144,7 @@ async def test_fanout_surge_update(mock_redis_client_for_pubsub, mock_connection
         {
             "type": "message",
             "channel": "surge-updates",
-            "data": '{"zone_id": "z1", "multiplier": 1.5}',
+            "data": '{"zone_id": "z1", "new_multiplier": 1.5}',
         }
     ]
     pubsub = create_pubsub_mock(messages)
@@ -253,6 +261,7 @@ async def test_parse_redis_message(mock_redis_client_for_pubsub, mock_connection
             "status": "online",
             "rating": 5.0,
             "zone": "unknown",
+            "heading": 0,
         },
     }
     mock_connection_manager.broadcast.assert_called_with(expected)

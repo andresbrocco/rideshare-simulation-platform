@@ -45,8 +45,8 @@ def create_rider_dna(behavior_factor: float = 0.7) -> RiderDNA:
         max_surge_multiplier=2.0,
         avg_rides_per_week=10,
         frequent_destinations=[
-            {"coordinates": (-23.56, -46.64), "weight": 0.6},
-            {"coordinates": (-23.57, -46.65), "weight": 0.4},
+            {"coordinates": (-23.56, -46.65), "weight": 0.6},
+            {"coordinates": (-23.57, -46.69), "weight": 0.4},
         ],
         home_location=(-23.55, -46.63),
         first_name="Maria",
