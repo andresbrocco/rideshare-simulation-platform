@@ -1,0 +1,248 @@
+.container {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.refreshButton {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.refreshButton:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.refreshButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.collapseButton {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px;
+  transition: color 0.2s;
+}
+
+.collapseButton:hover {
+  color: var(--text-primary);
+}
+
+.overallIndicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.content {
+  animation: fadeIn 0.2s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Service Grid */
+.serviceGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+/* Service Card */
+.serviceCard {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.serviceName {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.statusIndicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  cursor: help;
+}
+
+/* Status Colors */
+.statusHealthy,
+.overallHealthy {
+  background-color: var(--accent-green);
+  box-shadow: 0 0 6px var(--accent-green);
+}
+
+.statusDegraded,
+.overallDegraded {
+  background-color: var(--accent-orange);
+  box-shadow: 0 0 6px var(--accent-orange);
+}
+
+.statusUnhealthy,
+.overallUnhealthy {
+  background-color: var(--accent-red);
+  box-shadow: 0 0 6px var(--accent-red);
+}
+
+.statusStopped,
+.overallStopped,
+.statusUnknown,
+.overallUnknown {
+  background-color: #6b7280;
+  box-shadow: 0 0 6px #6b7280;
+}
+
+/* Metric Row */
+.metricRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.metricLabel {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.metricValue {
+  font-size: 10px;
+  font-family: monospace;
+  color: var(--text-secondary);
+}
+
+/* Progress Bars */
+.progressRow {
+  margin-bottom: 6px;
+}
+
+.progressRow:last-child {
+  margin-bottom: 0;
+}
+
+.progressHeader {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 3px;
+}
+
+.progressLabel {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.progressValue {
+  font-size: 10px;
+  font-family: monospace;
+  color: var(--text-secondary);
+}
+
+.progressTrack {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.progressGreen {
+  background: var(--accent-green);
+}
+
+.progressOrange {
+  background: var(--accent-orange);
+}
+
+.progressRed {
+  background: var(--accent-red);
+}
+
+/* Messages */
+.errorMessage {
+  font-size: 12px;
+  color: var(--accent-orange);
+  padding: 8px;
+  background: rgba(245, 158, 11, 0.1);
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.warningMessage {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-style: italic;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 4px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.timestamp {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: right;
+  margin-top: 8px;
+  opacity: 0.7;
+}

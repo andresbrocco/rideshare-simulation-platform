@@ -1,0 +1,73 @@
+.section {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.section h4 {
+  margin: 0 0 8px 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #888;
+  font-weight: 600;
+}
+
+.actionCard {
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.actionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.actionIcon {
+  font-size: 18px;
+}
+
+.actionLabel {
+  font-size: 14px;
+  font-weight: 500;
+  color: #e0e0e0;
+}
+
+.timestamp {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.timestampLabel {
+  font-size: 12px;
+  color: #888;
+}
+
+.timestampValue {
+  font-size: 20px;
+  font-weight: 700;
+  color: #60a5fa;
+  font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
+}
+
+.description {
+  font-size: 12px;
+  color: #999;
+  margin-top: 8px;
+}
+
+.noAction {
+  color: #666;
+  font-size: 13px;
+  font-style: italic;
+}
+
+.puppetMessage {
+  color: #ff9800;
+  font-size: 13px;
+}
