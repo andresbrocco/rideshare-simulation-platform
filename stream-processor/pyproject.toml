@@ -1,0 +1,26 @@
+[project]
+name = "stream-processor"
+version = "0.1.0"
+description = "Kafka to Redis stream processor for rideshare simulation"
+requires-python = ">=3.11"
+dependencies = [
+    "confluent-kafka>=2.6.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.7.0",
+    "redis>=5.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
