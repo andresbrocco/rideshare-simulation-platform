@@ -921,16 +921,13 @@ class TestRouteClearOnCancellation:
         server._active_trips[trip.trip_id] = trip
 
         # Emit a cancellation event
-        with patch("asyncio.get_event_loop") as mock_loop:
-            mock_loop.return_value.is_running.return_value = True
-            with patch("asyncio.create_task") as mock_create_task:
-                server._emit_trip_state_event(trip, "trip.cancelled")
+        with patch("matching.matching_server.run_coroutine_safe") as mock_run_safe:
+            server._emit_trip_state_event(trip, "trip.cancelled")
 
-                # Check the message passed to Redis
-                mock_create_task.assert_called_once()
-
-                # The message should have empty routes
-                # We can verify by checking the redis_publisher.publish was called with correct args
+            mock_run_safe.assert_called_once()
+            # Verify fallback_sync=True was passed
+            _, kwargs = mock_run_safe.call_args
+            assert kwargs.get("fallback_sync") is True
 
     def test_non_cancelled_trip_preserves_routes(
         self,
@@ -971,10 +968,10 @@ class TestRouteClearOnCancellation:
         trip.transition_to(TripState.MATCHED)
 
         # Emit a non-cancellation event
-        with patch("asyncio.get_event_loop") as mock_loop:
-            mock_loop.return_value.is_running.return_value = True
-            with patch("asyncio.create_task"):
-                server._emit_trip_state_event(trip, "trip.matched")
+        with patch("matching.matching_server.run_coroutine_safe") as mock_run_safe:
+            server._emit_trip_state_event(trip, "trip.matched")
 
-                # For non-cancelled events, routes should be preserved
-                # The test verifies the code path doesn't clear routes
+            mock_run_safe.assert_called_once()
+            # Verify fallback_sync=True was passed
+            _, kwargs = mock_run_safe.call_args
+            assert kwargs.get("fallback_sync") is True

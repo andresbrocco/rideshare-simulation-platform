@@ -62,6 +62,7 @@ class AgentFactory:
                 registry_manager=self._registry_manager,
                 zone_loader=self._zone_loader,
                 immediate_online=True,  # Start online immediately
+                simulation_engine=self._simulation_engine,
             )
 
             self._simulation_engine.register_driver(agent)
@@ -277,6 +278,7 @@ class AgentFactory:
             zone_loader=self._zone_loader,
             immediate_online=False,  # Puppet stays offline until API call
             puppet=True,  # Enable puppet mode
+            simulation_engine=self._simulation_engine,
         )
         agent._is_ephemeral = ephemeral
         agent._is_puppet = True

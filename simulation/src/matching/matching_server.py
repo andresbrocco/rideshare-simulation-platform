@@ -13,12 +13,14 @@ from puppet.drive_controller import PuppetDriveController
 from settings import Settings
 from trip import Trip, TripState
 from trips.trip_executor import TripExecutor
+from utils.async_helpers import run_coroutine_safe
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from agents.driver_agent import DriverAgent
     from agents.rider_agent import RiderAgent
+    from engine.simulation_engine import SimulationEngine
     from geo.osrm_client import OSRMClient, RouteResponse
     from kafka.producer import KafkaProducer
     from matching.agent_registry_manager import AgentRegistryManager
@@ -40,6 +42,7 @@ class MatchingServer:
         redis_publisher: "RedisPublisher | None" = None,
         surge_calculator: "SurgePricingCalculator | None" = None,
         settings: Settings | None = None,
+        simulation_engine: "SimulationEngine | None" = None,
     ):
         self._env = env
         self._driver_index = driver_index
@@ -50,6 +53,7 @@ class MatchingServer:
         self._redis_publisher = redis_publisher
         self._surge_calculator = surge_calculator
         self._settings = settings or Settings()
+        self._simulation_engine = simulation_engine
         self._pending_offers: dict[str, dict] = {}
         # Store remaining candidates when puppet driver gets offer (for continuation after rejection)
         # Maps trip_id -> {"remaining_drivers": [...], "current_attempt": int, "max_attempts": int}
@@ -537,6 +541,7 @@ class MatchingServer:
             redis_publisher=self._redis_publisher,
             matching_server=self,
             settings=self._settings,
+            simulation_engine=self._simulation_engine,
         )
 
         # Start the trip execution as a SimPy process
@@ -1039,31 +1044,27 @@ class MatchingServer:
 
         # Also publish to Redis for real-time updates
         if self._redis_publisher:
-            import asyncio
-
-            # Clear routes for cancelled trips so frontend removes pending route visualization
             is_cancelled = event_type == "trip.cancelled"
-
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    asyncio.create_task(
-                        self._redis_publisher.publish(
-                            channel="trip-updates",
-                            message={
-                                "id": trip.trip_id,
-                                "status": trip.state.value,
-                                "driver_id": trip.driver_id,
-                                "rider_id": trip.rider_id,
-                                "pickup_location": trip.pickup_location,
-                                "dropoff_location": trip.dropoff_location,
-                                "route": [] if is_cancelled else (trip.route or []),
-                                "pickup_route": [] if is_cancelled else (trip.pickup_route or []),
-                            },
-                        )
-                    )
-            except RuntimeError:
-                pass
+            main_loop = None
+            if self._simulation_engine:
+                main_loop = self._simulation_engine.get_event_loop()
+            run_coroutine_safe(
+                self._redis_publisher.publish(
+                    channel="trip-updates",
+                    message={
+                        "id": trip.trip_id,
+                        "status": trip.state.value,
+                        "driver_id": trip.driver_id,
+                        "rider_id": trip.rider_id,
+                        "pickup_location": trip.pickup_location,
+                        "dropoff_location": trip.dropoff_location,
+                        "route": [] if is_cancelled else (trip.route or []),
+                        "pickup_route": [] if is_cancelled else (trip.pickup_route or []),
+                    },
+                ),
+                main_loop,
+                fallback_sync=True,
+            )
 
     # --- Puppet Drive Control Methods ---
 

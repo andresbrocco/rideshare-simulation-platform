@@ -1,6 +1,5 @@
 """Trip execution coordinator managing the full trip lifecycle."""
 
-import asyncio
 import logging
 import random
 from collections.abc import Generator
@@ -10,17 +9,18 @@ from uuid import uuid4
 
 import simpy
 
-# Note: asyncio is still used for Redis publishing, but OSRM calls now use synchronous requests
 from events.schemas import GPSPingEvent, PaymentEvent, TripEvent
 from geo.distance import is_within_proximity
 from settings import SimulationSettings
 from trip import Trip, TripState
+from utils.async_helpers import run_coroutine_safe
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from agents.driver_agent import DriverAgent
     from agents.rider_agent import RiderAgent
+    from engine import SimulationEngine
     from geo.osrm_client import OSRMClient
     from kafka.producer import KafkaProducer
     from matching.matching_server import MatchingServer
@@ -44,6 +44,7 @@ class TripExecutor:
         wait_timeout: int = 300,
         rider_boards: bool = True,
         rider_cancels_mid_trip: bool = False,
+        simulation_engine: "SimulationEngine | None" = None,
     ):
         self._env = env
         self._driver = driver
@@ -57,6 +58,7 @@ class TripExecutor:
         self._wait_timeout = wait_timeout
         self._rider_boards = rider_boards
         self._rider_cancels_mid_trip = rider_cancels_mid_trip
+        self._simulation_engine = simulation_engine
 
     def execute(self) -> Generator[simpy.Event]:
         """Execute the full trip flow."""
@@ -383,29 +385,17 @@ class TripExecutor:
 
         # Emit to Redis for real-time frontend updates
         if self._redis_publisher:
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    asyncio.create_task(
-                        self._redis_publisher.publish(
-                            channel="trip-updates",
-                            message=event.model_dump(mode="json"),
-                        )
-                    )
-                else:
-                    loop.run_until_complete(
-                        self._redis_publisher.publish(
-                            channel="trip-updates",
-                            message=event.model_dump(mode="json"),
-                        )
-                    )
-            except RuntimeError:
-                asyncio.run(
-                    self._redis_publisher.publish(
-                        channel="trip-updates",
-                        message=event.model_dump(mode="json"),
-                    )
-                )
+            main_loop = None
+            if self._simulation_engine:
+                main_loop = self._simulation_engine.get_event_loop()
+            run_coroutine_safe(
+                self._redis_publisher.publish(
+                    channel="trip-updates",
+                    message=event.model_dump(mode="json"),
+                ),
+                main_loop,
+                fallback_sync=True,
+            )
 
     def _emit_payment_event(self) -> None:
         """Emit payment processed event."""

@@ -24,10 +24,12 @@ from events.schemas import DriverProfileEvent, GPSPingEvent, RatingEvent
 from geo.gps_simulation import GPSSimulator
 from kafka.producer import KafkaProducer
 from redis_client.publisher import RedisPublisher
+from utils.async_helpers import run_coroutine_safe
 
 if TYPE_CHECKING:
     from agents.rider_agent import RiderAgent
     from db.repositories.driver_repository import DriverRepository
+    from engine import SimulationEngine
     from geo.zones import ZoneLoader
     from matching.agent_registry_manager import AgentRegistryManager
     from trip import Trip
@@ -48,6 +50,7 @@ class DriverAgent(EventEmitter):
         driver_repository: "DriverRepository | None" = None,
         registry_manager: "AgentRegistryManager | None" = None,
         zone_loader: "ZoneLoader | None" = None,
+        simulation_engine: "SimulationEngine | None" = None,
         immediate_online: bool = False,
         puppet: bool = False,
     ):
@@ -59,6 +62,7 @@ class DriverAgent(EventEmitter):
         self._driver_repository = driver_repository
         self._registry_manager = registry_manager
         self._zone_loader = zone_loader
+        self._simulation_engine = simulation_engine
         self._immediate_online = immediate_online
         self._is_puppet = puppet
 
@@ -402,8 +406,6 @@ class DriverAgent(EventEmitter):
 
     def _emit_creation_event(self) -> None:
         """Emit driver.created event on initialization."""
-        import asyncio
-
         event = DriverProfileEvent(
             event_type="driver.created",
             driver_id=self._driver_id,
@@ -421,45 +423,22 @@ class DriverAgent(EventEmitter):
             license_plate=self._dna.license_plate,
         )
 
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.create_task(
-                    self._emit_event(
-                        event=event,
-                        kafka_topic="driver-profiles",
-                        partition_key=self._driver_id,
-                        redis_channel="driver-updates",
-                    )
-                )
-            else:
-                loop.run_until_complete(
-                    self._emit_event(
-                        event=event,
-                        kafka_topic="driver-profiles",
-                        partition_key=self._driver_id,
-                        redis_channel="driver-updates",
-                    )
-                )
-        except RuntimeError:
-            asyncio.run(
-                self._emit_event(
-                    event=event,
-                    kafka_topic="driver-profiles",
-                    partition_key=self._driver_id,
-                    redis_channel="driver-updates",
-                )
-            )
+        main_loop = None
+        if self._simulation_engine:
+            main_loop = self._simulation_engine.get_event_loop()
+        run_coroutine_safe(
+            self._emit_event(
+                event=event,
+                kafka_topic="driver-profiles",
+                partition_key=self._driver_id,
+                redis_channel="driver-updates",
+            ),
+            main_loop,
+            fallback_sync=True,
+        )
 
     def _emit_initial_gps_ping(self) -> None:
-        """Emit a single GPS ping immediately on creation for map visibility.
-
-        This is called before run() starts to reduce latency between
-        clicking 'Add Drivers' and seeing drivers on the map.
-        """
-        import asyncio
-        import inspect
-
+        """Emit a single GPS ping immediately on creation for map visibility."""
         if self._location is None:
             return
 
@@ -469,30 +448,24 @@ class DriverAgent(EventEmitter):
             timestamp=datetime.now(UTC).isoformat(),
             location=self._location,
             heading=self._heading,
-            speed=0.0,  # Stationary on creation
+            speed=0.0,
             accuracy=5.0,
             trip_id=None,
         )
 
-        coro = self._emit_event(
-            event=event,
-            kafka_topic="gps-pings",
-            partition_key=self._driver_id,
-            redis_channel="driver-updates",
+        main_loop = None
+        if self._simulation_engine:
+            main_loop = self._simulation_engine.get_event_loop()
+        run_coroutine_safe(
+            self._emit_event(
+                event=event,
+                kafka_topic="gps-pings",
+                partition_key=self._driver_id,
+                redis_channel="driver-updates",
+            ),
+            main_loop,
+            fallback_sync=True,
         )
-
-        # Handle case where _emit_event returns a mock in tests
-        if not inspect.iscoroutine(coro):
-            return
-
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.create_task(coro)
-            else:
-                loop.run_until_complete(coro)
-        except RuntimeError:
-            asyncio.run(coro)
 
     def _emit_initial_status_preview(self) -> None:
         """Emit status event immediately on creation for frontend visibility.
@@ -614,8 +587,6 @@ class DriverAgent(EventEmitter):
 
     def _emit_gps_ping(self) -> Generator[simpy.Event]:
         """GPS ping loop that runs while driver is online."""
-        import asyncio
-
         try:
             while self._status in (
                 "online",
@@ -635,35 +606,19 @@ class DriverAgent(EventEmitter):
                         trip_id=self._active_trip,
                     )
 
-                    try:
-                        loop = asyncio.get_event_loop()
-                        if loop.is_running():
-                            asyncio.create_task(
-                                self._emit_event(
-                                    event=event,
-                                    kafka_topic="gps-pings",
-                                    partition_key=self._driver_id,
-                                    redis_channel="driver-updates",
-                                )
-                            )
-                        else:
-                            loop.run_until_complete(
-                                self._emit_event(
-                                    event=event,
-                                    kafka_topic="gps-pings",
-                                    partition_key=self._driver_id,
-                                    redis_channel="driver-updates",
-                                )
-                            )
-                    except RuntimeError:
-                        asyncio.run(
-                            self._emit_event(
-                                event=event,
-                                kafka_topic="gps-pings",
-                                partition_key=self._driver_id,
-                                redis_channel="driver-updates",
-                            )
-                        )
+                    main_loop = None
+                    if self._simulation_engine:
+                        main_loop = self._simulation_engine.get_event_loop()
+                    run_coroutine_safe(
+                        self._emit_event(
+                            event=event,
+                            kafka_topic="gps-pings",
+                            partition_key=self._driver_id,
+                            redis_channel="driver-updates",
+                        ),
+                        main_loop,
+                        fallback_sync=True,
+                    )
 
                 yield self._env.timeout(self._get_gps_interval())
         except simpy.Interrupt:

@@ -17,6 +17,7 @@ from agents.statistics import RiderStatistics
 from events.schemas import GPSPingEvent, RatingEvent, RiderProfileEvent
 from kafka.producer import KafkaProducer
 from redis_client.publisher import RedisPublisher
+from utils.async_helpers import run_coroutine_safe
 
 if TYPE_CHECKING:
     from agents.driver_agent import DriverAgent
@@ -323,8 +324,6 @@ class RiderAgent(EventEmitter):
 
     def _emit_creation_event(self) -> None:
         """Emit rider.created event on initialization."""
-        import asyncio
-
         event = RiderProfileEvent(
             event_type="rider.created",
             rider_id=self._rider_id,
@@ -339,43 +338,25 @@ class RiderAgent(EventEmitter):
             behavior_factor=self._dna.behavior_factor,
         )
 
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.create_task(
-                    self._emit_event(
-                        event=event,
-                        kafka_topic="rider-profiles",
-                        partition_key=self._rider_id,
-                        redis_channel="rider-updates",
-                    )
-                )
-            else:
-                loop.run_until_complete(
-                    self._emit_event(
-                        event=event,
-                        kafka_topic="rider-profiles",
-                        partition_key=self._rider_id,
-                        redis_channel="rider-updates",
-                    )
-                )
-        except RuntimeError:
-            asyncio.run(
-                self._emit_event(
-                    event=event,
-                    kafka_topic="rider-profiles",
-                    partition_key=self._rider_id,
-                    redis_channel="rider-updates",
-                )
-            )
+        main_loop = None
+        if self._simulation_engine:
+            main_loop = self._simulation_engine.get_event_loop()
+        run_coroutine_safe(
+            self._emit_event(
+                event=event,
+                kafka_topic="rider-profiles",
+                partition_key=self._rider_id,
+                redis_channel="rider-updates",
+            ),
+            main_loop,
+            fallback_sync=True,
+        )
 
         # NOTE: Direct Redis publishing disabled - using Kafka → Stream Processor → Redis path
         # See stream-processor service for event routing
 
     def _emit_puppet_gps_ping(self) -> None:
         """Emit a single GPS ping for puppet rider."""
-        import asyncio
-
         if self._location is None:
             return
 
@@ -390,39 +371,22 @@ class RiderAgent(EventEmitter):
             trip_id=self._active_trip,
         )
 
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.create_task(
-                    self._emit_event(
-                        event=gps_event,
-                        kafka_topic="gps-pings",
-                        partition_key=self._rider_id,
-                        redis_channel="rider-updates",
-                    )
-                )
-            else:
-                loop.run_until_complete(
-                    self._emit_event(
-                        event=gps_event,
-                        kafka_topic="gps-pings",
-                        partition_key=self._rider_id,
-                        redis_channel="rider-updates",
-                    )
-                )
-        except RuntimeError:
-            asyncio.run(
-                self._emit_event(
-                    event=gps_event,
-                    kafka_topic="gps-pings",
-                    partition_key=self._rider_id,
-                    redis_channel="rider-updates",
-                )
-            )
+        main_loop = None
+        if self._simulation_engine:
+            main_loop = self._simulation_engine.get_event_loop()
+        run_coroutine_safe(
+            self._emit_event(
+                event=gps_event,
+                kafka_topic="gps-pings",
+                partition_key=self._rider_id,
+                redis_channel="rider-updates",
+            ),
+            main_loop,
+            fallback_sync=True,
+        )
 
     def run(self) -> Generator[simpy.Event]:
         """SimPy process entry point with request lifecycle."""
-        import asyncio
         import uuid
 
         from events.schemas import TripEvent
@@ -452,35 +416,19 @@ class RiderAgent(EventEmitter):
                         trip_id=self._active_trip,
                     )
 
-                    try:
-                        loop = asyncio.get_event_loop()
-                        if loop.is_running():
-                            asyncio.create_task(
-                                self._emit_event(
-                                    event=gps_event,
-                                    kafka_topic="gps-pings",
-                                    partition_key=self._rider_id,
-                                    redis_channel="rider-updates",
-                                )
-                            )
-                        else:
-                            loop.run_until_complete(
-                                self._emit_event(
-                                    event=gps_event,
-                                    kafka_topic="gps-pings",
-                                    partition_key=self._rider_id,
-                                    redis_channel="rider-updates",
-                                )
-                            )
-                    except RuntimeError:
-                        asyncio.run(
-                            self._emit_event(
-                                event=gps_event,
-                                kafka_topic="gps-pings",
-                                partition_key=self._rider_id,
-                                redis_channel="rider-updates",
-                            )
-                        )
+                    main_loop = None
+                    if self._simulation_engine:
+                        main_loop = self._simulation_engine.get_event_loop()
+                    run_coroutine_safe(
+                        self._emit_event(
+                            event=gps_event,
+                            kafka_topic="gps-pings",
+                            partition_key=self._rider_id,
+                            redis_channel="rider-updates",
+                        ),
+                        main_loop,
+                        fallback_sync=True,
+                    )
 
                 yield self._env.timeout(GPS_PING_INTERVAL_MOVING)
                 continue
@@ -545,35 +493,19 @@ class RiderAgent(EventEmitter):
                 fare=fare,
             )
 
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    asyncio.create_task(
-                        self._emit_event(
-                            event=trip_event,
-                            kafka_topic="trips",
-                            partition_key=trip_id,
-                            redis_channel="trip-updates",
-                        )
-                    )
-                else:
-                    loop.run_until_complete(
-                        self._emit_event(
-                            event=trip_event,
-                            kafka_topic="trips",
-                            partition_key=trip_id,
-                            redis_channel="trip-updates",
-                        )
-                    )
-            except RuntimeError:
-                asyncio.run(
-                    self._emit_event(
-                        event=trip_event,
-                        kafka_topic="trips",
-                        partition_key=trip_id,
-                        redis_channel="trip-updates",
-                    )
-                )
+            main_loop = None
+            if self._simulation_engine:
+                main_loop = self._simulation_engine.get_event_loop()
+            run_coroutine_safe(
+                self._emit_event(
+                    event=trip_event,
+                    kafka_topic="trips",
+                    partition_key=trip_id,
+                    redis_channel="trip-updates",
+                ),
+                main_loop,
+                fallback_sync=True,
+            )
 
             # Trigger matching through the simulation engine (thread-safe)
             if self._simulation_engine:
@@ -647,35 +579,19 @@ class RiderAgent(EventEmitter):
                     cancellation_reason="patience_timeout",
                 )
 
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        asyncio.create_task(
-                            self._emit_event(
-                                event=event,
-                                kafka_topic="trips",
-                                partition_key=trip_id,
-                                redis_channel="trip-updates",
-                            )
-                        )
-                    else:
-                        loop.run_until_complete(
-                            self._emit_event(
-                                event=event,
-                                kafka_topic="trips",
-                                partition_key=trip_id,
-                                redis_channel="trip-updates",
-                            )
-                        )
-                except RuntimeError:
-                    asyncio.run(
-                        self._emit_event(
-                            event=event,
-                            kafka_topic="trips",
-                            partition_key=trip_id,
-                            redis_channel="trip-updates",
-                        )
-                    )
+                main_loop = None
+                if self._simulation_engine:
+                    main_loop = self._simulation_engine.get_event_loop()
+                run_coroutine_safe(
+                    self._emit_event(
+                        event=event,
+                        kafka_topic="trips",
+                        partition_key=trip_id,
+                        redis_channel="trip-updates",
+                    ),
+                    main_loop,
+                    fallback_sync=True,
+                )
                 continue
 
             while self._status == "in_trip":
@@ -691,35 +607,19 @@ class RiderAgent(EventEmitter):
                         trip_id=self._active_trip,
                     )
 
-                    try:
-                        loop = asyncio.get_event_loop()
-                        if loop.is_running():
-                            asyncio.create_task(
-                                self._emit_event(
-                                    event=gps_event,
-                                    kafka_topic="gps-pings",
-                                    partition_key=self._rider_id,
-                                    redis_channel="rider-updates",
-                                )
-                            )
-                        else:
-                            loop.run_until_complete(
-                                self._emit_event(
-                                    event=gps_event,
-                                    kafka_topic="gps-pings",
-                                    partition_key=self._rider_id,
-                                    redis_channel="rider-updates",
-                                )
-                            )
-                    except RuntimeError:
-                        asyncio.run(
-                            self._emit_event(
-                                event=gps_event,
-                                kafka_topic="gps-pings",
-                                partition_key=self._rider_id,
-                                redis_channel="rider-updates",
-                            )
-                        )
+                    main_loop = None
+                    if self._simulation_engine:
+                        main_loop = self._simulation_engine.get_event_loop()
+                    run_coroutine_safe(
+                        self._emit_event(
+                            event=gps_event,
+                            kafka_topic="gps-pings",
+                            partition_key=self._rider_id,
+                            redis_channel="rider-updates",
+                        ),
+                        main_loop,
+                        fallback_sync=True,
+                    )
 
                 yield self._env.timeout(GPS_PING_INTERVAL_MOVING)
 
