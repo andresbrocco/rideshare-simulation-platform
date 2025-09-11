@@ -354,11 +354,11 @@ class TestAgentStatusTransitions:
 
 
 class TestDriverOfferResponse:
-    def test_driver_receive_offer_accepts(self, simpy_env, driver_dna, mock_kafka_producer):
-        driver_dna.acceptance_rate = 1.0
+    def test_driver_receive_offer_accepts(self, simpy_env, dna_factory, mock_kafka_producer):
+        accepting_dna = dna_factory.driver_dna(acceptance_rate=1.0)
         driver = DriverAgent(
             driver_id="driver_002",
-            dna=driver_dna,
+            dna=accepting_dna,
             env=simpy_env,
             kafka_producer=mock_kafka_producer,
         )
@@ -374,11 +374,11 @@ class TestDriverOfferResponse:
 
         assert accepts is True
 
-    def test_driver_receive_offer_rejects(self, simpy_env, driver_dna, mock_kafka_producer):
-        driver_dna.acceptance_rate = 0.0
+    def test_driver_receive_offer_rejects(self, simpy_env, dna_factory, mock_kafka_producer):
+        rejecting_dna = dna_factory.driver_dna(acceptance_rate=0.0)
         driver = DriverAgent(
             driver_id="driver_003",
-            dna=driver_dna,
+            dna=rejecting_dna,
             env=simpy_env,
             kafka_producer=mock_kafka_producer,
         )

@@ -199,6 +199,31 @@ class TestFindNearbyDrivers:
         assert result[0][0].driver_id == "driver-1"
 
 
+def create_dna_with_acceptance_rate(acceptance_rate: float) -> DriverDNA:
+    """Create a DriverDNA instance with a specific acceptance rate."""
+    return DriverDNA(
+        acceptance_rate=acceptance_rate,
+        cancellation_tendency=0.1,
+        service_quality=0.9,
+        response_time=5.0,
+        min_rider_rating=3.5,
+        surge_acceptance_modifier=1.3,
+        home_location=(-23.55, -46.63),
+        preferred_zones=["centro", "pinheiros"],
+        shift_preference=ShiftPreference.MORNING,
+        avg_hours_per_day=8,
+        avg_days_per_week=5,
+        vehicle_make="Toyota",
+        vehicle_model="Corolla",
+        vehicle_year=2020,
+        license_plate="ABC-1234",
+        first_name="Carlos",
+        last_name="Silva",
+        email="carlos@test.com",
+        phone="+5511999999999",
+    )
+
+
 class TestRankDrivers:
     def test_rank_drivers_by_composite_score(
         self,
@@ -207,13 +232,12 @@ class TestRankDrivers:
         mock_notification_dispatch,
         mock_osrm_client,
         mock_kafka_producer,
-        sample_driver_dna,
     ):
-        driver1 = create_mock_driver("driver-1", sample_driver_dna, rating=4.0)
-        driver1.dna.acceptance_rate = 0.7
+        dna1 = create_dna_with_acceptance_rate(0.7)
+        dna2 = create_dna_with_acceptance_rate(0.9)
 
-        driver2 = create_mock_driver("driver-2", sample_driver_dna, rating=4.8)
-        driver2.dna.acceptance_rate = 0.9
+        driver1 = create_mock_driver("driver-1", dna1, rating=4.0)
+        driver2 = create_mock_driver("driver-2", dna2, rating=4.8)
 
         server = MatchingServer(
             env=env,
@@ -241,11 +265,7 @@ class TestRankDrivers:
         mock_notification_dispatch,
         mock_osrm_client,
         mock_kafka_producer,
-        sample_driver_dna,
     ):
-        driver = create_mock_driver("driver-1", sample_driver_dna, rating=4.5)
-        driver.dna.acceptance_rate = 0.8
-
         server = MatchingServer(
             env=env,
             driver_index=mock_driver_index,

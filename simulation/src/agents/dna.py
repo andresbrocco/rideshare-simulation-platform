@@ -4,7 +4,7 @@ from enum import Enum
 from math import asin, cos, radians, sin, sqrt
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ShiftPreference(str, Enum):
@@ -48,6 +48,8 @@ def validate_sao_paulo_coordinates(coords: tuple[float, float]) -> tuple[float, 
 class DriverDNA(BaseModel):
     """Driver behavioral and profile DNA."""
 
+    model_config = ConfigDict(frozen=True)
+
     # Behavioral parameters (immutable)
     acceptance_rate: float = Field(ge=0.0, le=1.0)
     cancellation_tendency: float = Field(ge=0.0, le=1.0)
@@ -79,6 +81,8 @@ class DriverDNA(BaseModel):
 
 class RiderDNA(BaseModel):
     """Rider behavioral and profile DNA."""
+
+    model_config = ConfigDict(frozen=True)
 
     # Behavioral parameters (immutable)
     behavior_factor: float = Field(ge=0.0, le=1.0)
