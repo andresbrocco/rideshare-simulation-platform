@@ -255,29 +255,13 @@ class TestSimulationEngineAgentProcesses:
 
 
 class TestSimulationEngineStep:
-    def test_engine_step_advances_simulation(self):
+    def test_engine_step_advances_simulation(self, fast_engine):
         """Advances simulation by time step."""
-        matching_server = Mock()
-        kafka_producer = Mock()
-        redis_client = Mock()
-        osrm_client = Mock()
-        sqlite_db = create_mock_sqlite_db()
+        fast_engine.start()
+        initial_time = fast_engine._env.now
 
-        engine = SimulationEngine(
-            env=simpy.Environment(),
-            matching_server=matching_server,
-            kafka_producer=kafka_producer,
-            redis_client=redis_client,
-            osrm_client=osrm_client,
-            sqlite_db=sqlite_db,
-            simulation_start_time=datetime(2025, 1, 15, 10, 0, 0, tzinfo=UTC),
-        )
-
-        engine.start()
-        initial_time = engine._env.now
-
-        engine.step(seconds=60)
-        assert engine._env.now == initial_time + 60
+        fast_engine.step(seconds=60)
+        assert fast_engine._env.now == initial_time + 60
 
 
 class TestSimulationEngineMatchingIntegration:

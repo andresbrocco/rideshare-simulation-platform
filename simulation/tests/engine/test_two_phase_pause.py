@@ -121,7 +121,7 @@ def test_draining_tracks_in_flight_trips(running_engine):
         assert count == 2
 
 
-def test_draining_waits_for_quiescence(running_engine):
+def test_draining_waits_for_quiescence(fast_running_engine):
     """Waits for all trips to complete."""
     in_flight_trips = [
         create_trip("trip1", TripState.MATCHED),
@@ -138,11 +138,11 @@ def test_draining_waits_for_quiescence(running_engine):
             return in_flight_trips
         return completed_trips
 
-    with patch.object(running_engine, "_get_in_flight_trips", side_effect=mock_get_trips):
-        running_engine.pause()
-        running_engine.step(15)
+    with patch.object(fast_running_engine, "_get_in_flight_trips", side_effect=mock_get_trips):
+        fast_running_engine.pause()
+        fast_running_engine.step(15)
 
-        assert running_engine.state == SimulationState.PAUSED
+        assert fast_running_engine.state == SimulationState.PAUSED
 
 
 def test_force_cancel_reason(running_engine):
@@ -156,15 +156,16 @@ def test_force_cancel_reason(running_engine):
     assert trip.cancellation_reason == "system_pause"
 
 
-def test_quiescence_achieved_trigger(running_engine, mock_kafka_producer):
+def test_quiescence_achieved_trigger(fast_running_engine):
     """Emits correct trigger on natural completion."""
-    with patch.object(running_engine, "_get_in_flight_trips", return_value=[]):
-        running_engine.pause()
-        running_engine.step(1)
+    with patch.object(fast_running_engine, "_get_in_flight_trips", return_value=[]):
+        fast_running_engine.pause()
+        fast_running_engine.step(1)
 
+        kafka_producer = fast_running_engine._kafka_producer
         calls = [
             call
-            for call in mock_kafka_producer.produce.call_args_list
+            for call in kafka_producer.produce.call_args_list
             if call[1].get("topic") == "simulation-control"
         ]
 
@@ -179,24 +180,25 @@ def test_quiescence_achieved_trigger(running_engine, mock_kafka_producer):
         assert paused_event["trigger"] == "quiescence_achieved"
 
 
-def test_paused_state_after_drain(running_engine):
+def test_paused_state_after_drain(fast_running_engine):
     """Transitions to PAUSED after drain."""
-    with patch.object(running_engine, "_get_in_flight_trips", return_value=[]):
-        running_engine.pause()
-        running_engine.step(1)
+    with patch.object(fast_running_engine, "_get_in_flight_trips", return_value=[]):
+        fast_running_engine.pause()
+        fast_running_engine.step(1)
 
-        assert running_engine.state == SimulationState.PAUSED
+        assert fast_running_engine.state == SimulationState.PAUSED
 
 
-def test_paused_emits_event(running_engine, mock_kafka_producer):
+def test_paused_emits_event(fast_running_engine):
     """Emits simulation.paused event."""
-    with patch.object(running_engine, "_get_in_flight_trips", return_value=[]):
-        running_engine.pause()
-        running_engine.step(1)
+    with patch.object(fast_running_engine, "_get_in_flight_trips", return_value=[]):
+        fast_running_engine.pause()
+        fast_running_engine.step(1)
 
+        kafka_producer = fast_running_engine._kafka_producer
         calls = [
             call
-            for call in mock_kafka_producer.produce.call_args_list
+            for call in kafka_producer.produce.call_args_list
             if call[1].get("topic") == "simulation-control"
         ]
 
@@ -211,29 +213,29 @@ def test_paused_emits_event(running_engine, mock_kafka_producer):
         assert paused_event["in_flight_trips"] == 0
 
 
-def test_resume_from_paused(running_engine):
+def test_resume_from_paused(fast_running_engine):
     """Resume transitions back to RUNNING."""
-    with patch.object(running_engine, "_get_in_flight_trips", return_value=[]):
-        running_engine.pause()
-        running_engine.step(1)
+    with patch.object(fast_running_engine, "_get_in_flight_trips", return_value=[]):
+        fast_running_engine.pause()
+        fast_running_engine.step(1)
 
-        assert running_engine.state == SimulationState.PAUSED
+        assert fast_running_engine.state == SimulationState.PAUSED
 
-        running_engine.resume()
-        assert running_engine.state == SimulationState.RUNNING
+        fast_running_engine.resume()
+        assert fast_running_engine.state == SimulationState.RUNNING
 
 
-def test_resume_restarts_processes(running_engine):
+def test_resume_restarts_processes(fast_running_engine):
     """Restarts agent processes on resume."""
-    with patch.object(running_engine, "_get_in_flight_trips", return_value=[]):
-        running_engine.pause()
-        running_engine.step(1)
+    with patch.object(fast_running_engine, "_get_in_flight_trips", return_value=[]):
+        fast_running_engine.pause()
+        fast_running_engine.step(1)
 
-        initial_process_count = len(running_engine._agent_processes)
+        initial_process_count = len(fast_running_engine._agent_processes)
 
-        running_engine.resume()
+        fast_running_engine.resume()
 
-        resumed_process_count = len(running_engine._agent_processes)
+        resumed_process_count = len(fast_running_engine._agent_processes)
         assert resumed_process_count == initial_process_count * 2
 
 

@@ -105,59 +105,59 @@ def test_started_event_fields(engine, mock_kafka_producer):
     assert started_event["trigger"] == "user_request"
 
 
-def test_paused_event_emitted(running_engine, mock_kafka_producer):
+def test_paused_event_emitted(fast_running_engine):
     """Emits simulation.paused on pause."""
-    with patch.object(running_engine, "_get_in_flight_trips", return_value=[]):
-        running_engine.pause()
-        running_engine.step(1)
+    with patch.object(fast_running_engine, "_get_in_flight_trips", return_value=[]):
+        fast_running_engine.pause()
+        fast_running_engine.step(1)
 
-    events = get_control_events(mock_kafka_producer)
+    events = get_control_events(fast_running_engine._kafka_producer)
     paused_event = get_event_by_type(events, "simulation.paused")
 
     assert paused_event is not None
     assert paused_event["event_type"] == "simulation.paused"
 
 
-def test_paused_event_trigger_quiescence(running_engine, mock_kafka_producer):
+def test_paused_event_trigger_quiescence(fast_running_engine):
     """Includes quiescence trigger."""
-    with patch.object(running_engine, "_get_in_flight_trips", return_value=[]):
-        running_engine.pause()
-        running_engine.step(1)
+    with patch.object(fast_running_engine, "_get_in_flight_trips", return_value=[]):
+        fast_running_engine.pause()
+        fast_running_engine.step(1)
 
-    events = get_control_events(mock_kafka_producer)
+    events = get_control_events(fast_running_engine._kafka_producer)
     paused_event = get_event_by_type(events, "simulation.paused")
 
     assert paused_event["trigger"] == "quiescence_achieved"
 
 
-def test_resumed_event_emitted(running_engine, mock_kafka_producer):
+def test_resumed_event_emitted(fast_running_engine):
     """Emits simulation.resumed on resume."""
-    with patch.object(running_engine, "_get_in_flight_trips", return_value=[]):
-        running_engine.pause()
-        running_engine.step(1)
+    with patch.object(fast_running_engine, "_get_in_flight_trips", return_value=[]):
+        fast_running_engine.pause()
+        fast_running_engine.step(1)
 
-    mock_kafka_producer.produce.reset_mock()
+    fast_running_engine._kafka_producer.produce.reset_mock()
 
-    running_engine.resume()
+    fast_running_engine.resume()
 
-    events = get_control_events(mock_kafka_producer)
+    events = get_control_events(fast_running_engine._kafka_producer)
     resumed_event = get_event_by_type(events, "simulation.resumed")
 
     assert resumed_event is not None
     assert resumed_event["event_type"] == "simulation.resumed"
 
 
-def test_resumed_event_fields(running_engine, mock_kafka_producer):
+def test_resumed_event_fields(fast_running_engine):
     """Includes correct fields."""
-    with patch.object(running_engine, "_get_in_flight_trips", return_value=[]):
-        running_engine.pause()
-        running_engine.step(1)
+    with patch.object(fast_running_engine, "_get_in_flight_trips", return_value=[]):
+        fast_running_engine.pause()
+        fast_running_engine.step(1)
 
-    mock_kafka_producer.produce.reset_mock()
+    fast_running_engine._kafka_producer.produce.reset_mock()
 
-    running_engine.resume()
+    fast_running_engine.resume()
 
-    events = get_control_events(mock_kafka_producer)
+    events = get_control_events(fast_running_engine._kafka_producer)
     resumed_event = get_event_by_type(events, "simulation.resumed")
 
     assert resumed_event["previous_state"] == "paused"
@@ -241,7 +241,7 @@ def test_event_includes_active_counts(mock_kafka_producer, mock_sqlite_db):
     assert started_event["active_riders"] == 3
 
 
-def test_event_includes_in_flight_trips(running_engine, mock_kafka_producer):
+def test_event_includes_in_flight_trips(fast_running_engine):
     """Includes in-flight trip count."""
     from src.trip import Trip, TripState
 
@@ -260,11 +260,11 @@ def test_event_includes_in_flight_trips(running_engine, mock_kafka_producer):
         for i in range(7)
     ]
 
-    with patch.object(running_engine, "_get_in_flight_trips", return_value=trips):
-        running_engine.pause()
-        running_engine.step(1)
+    with patch.object(fast_running_engine, "_get_in_flight_trips", return_value=trips):
+        fast_running_engine.pause()
+        fast_running_engine.step(1)
 
-    events = get_control_events(mock_kafka_producer)
+    events = get_control_events(fast_running_engine._kafka_producer)
 
     # Check draining event has in_flight_trips
     draining_event = get_event_by_type(events, "simulation.draining")
@@ -305,17 +305,17 @@ def test_event_published_to_kafka(engine, mock_kafka_producer):
         assert call[1]["topic"] == "simulation-control"
 
 
-def test_event_unique_id(engine, mock_kafka_producer):
+def test_event_unique_id(fast_engine):
     """Each event has unique ID."""
-    engine.start()
+    fast_engine.start()
 
-    with patch.object(engine, "_get_in_flight_trips", return_value=[]):
-        engine.pause()
-        engine.step(1)
+    with patch.object(fast_engine, "_get_in_flight_trips", return_value=[]):
+        fast_engine.pause()
+        fast_engine.step(1)
 
-    engine.resume()
+    fast_engine.resume()
 
-    events = get_control_events(mock_kafka_producer)
+    events = get_control_events(fast_engine._kafka_producer)
 
     event_ids = [event["event_id"] for event in events]
 
