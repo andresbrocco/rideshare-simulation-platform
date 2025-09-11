@@ -103,6 +103,28 @@ class PerformanceSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="PERF_")
 
 
+class MatchingSettings(BaseSettings):
+    """Driver ranking and matching configuration."""
+
+    ranking_eta_weight: float = Field(default=0.5, ge=0.0, le=1.0)
+    ranking_rating_weight: float = Field(default=0.3, ge=0.0, le=1.0)
+    ranking_acceptance_weight: float = Field(default=0.2, ge=0.0, le=1.0)
+
+    model_config = SettingsConfigDict(env_prefix="MATCHING_")
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        weights_sum = (
+            self.ranking_eta_weight + self.ranking_rating_weight + self.ranking_acceptance_weight
+        )
+        if not (0.99 <= weights_sum <= 1.01):
+            raise ValueError(
+                f"Ranking weights must sum to 1.0, got {weights_sum}. "
+                f"(ETA: {self.ranking_eta_weight}, Rating: {self.ranking_rating_weight}, "
+                f"Acceptance: {self.ranking_acceptance_weight})"
+            )
+
+
 class Settings(BaseSettings):
     simulation: SimulationSettings = Field(default_factory=SimulationSettings)
     kafka: KafkaSettings = Field(default_factory=KafkaSettings)  # type: ignore[arg-type]
@@ -113,6 +135,7 @@ class Settings(BaseSettings):
     api: APISettings = Field(default_factory=APISettings)  # type: ignore[arg-type]
     cors: CORSSettings = Field(default_factory=CORSSettings)
     performance: PerformanceSettings = Field(default_factory=PerformanceSettings)
+    matching: MatchingSettings = Field(default_factory=MatchingSettings)
 
     model_config = SettingsConfigDict(
         env_nested_delimiter="__",

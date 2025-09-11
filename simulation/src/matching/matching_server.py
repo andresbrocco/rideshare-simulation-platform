@@ -10,7 +10,7 @@ import simpy
 
 from matching.driver_geospatial_index import DriverGeospatialIndex
 from puppet.drive_controller import PuppetDriveController
-from settings import SimulationSettings
+from settings import Settings
 from trip import Trip, TripState
 from trips.trip_executor import TripExecutor
 
@@ -39,7 +39,7 @@ class MatchingServer:
         registry_manager: "AgentRegistryManager | None" = None,
         redis_publisher: "RedisPublisher | None" = None,
         surge_calculator: "SurgePricingCalculator | None" = None,
-        settings: SimulationSettings | None = None,
+        settings: Settings | None = None,
     ):
         self._env = env
         self._driver_index = driver_index
@@ -49,7 +49,7 @@ class MatchingServer:
         self._registry_manager = registry_manager
         self._redis_publisher = redis_publisher
         self._surge_calculator = surge_calculator
-        self._settings = settings or SimulationSettings()
+        self._settings = settings or Settings()
         self._pending_offers: dict[str, dict] = {}
         # Store remaining candidates when puppet driver gets offer (for continuation after rejection)
         # Maps trip_id -> {"remaining_drivers": [...], "current_attempt": int, "max_attempts": int}
@@ -323,8 +323,13 @@ class MatchingServer:
         # Acceptance rate is already 0.0-1.0
         acceptance_normalized = acceptance_rate
 
-        # Composite score: ETA 50%, rating 30%, acceptance 20%
-        score = eta_normalized * 0.5 + rating_normalized * 0.3 + acceptance_normalized * 0.2
+        # Composite score using configurable weights
+        weights = self._settings.matching
+        score = (
+            eta_normalized * weights.ranking_eta_weight
+            + rating_normalized * weights.ranking_rating_weight
+            + acceptance_normalized * weights.ranking_acceptance_weight
+        )
         return score
 
     def send_offer_cycle(
