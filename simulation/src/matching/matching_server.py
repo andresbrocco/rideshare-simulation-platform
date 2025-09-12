@@ -13,7 +13,6 @@ from puppet.drive_controller import PuppetDriveController
 from settings import Settings
 from trip import Trip, TripState
 from trips.trip_executor import TripExecutor
-from utils.async_helpers import run_coroutine_safe
 
 logger = logging.getLogger(__name__)
 
@@ -198,24 +197,6 @@ class MatchingServer:
             route_response = await self._osrm_client.get_route(pickup_location, dropoff_location)
             trip.route = route_response.geometry
             logger.info(f"Trip {trip.trip_id}: Computed route with {len(trip.route)} points")
-
-            # Push route to frontend immediately for pending route visualization
-            if self._redis_publisher:
-                await self._redis_publisher.publish(
-                    channel="trip-updates",
-                    message={
-                        "id": trip.trip_id,
-                        "trip_id": trip.trip_id,
-                        "status": "requested",
-                        "event_type": "trip.requested",
-                        "rider_id": rider_id,
-                        "driver_id": None,
-                        "pickup_location": pickup_location,
-                        "dropoff_location": dropoff_location,
-                        "route": trip.route,
-                        "pickup_route": [],
-                    },
-                )
         except Exception as e:
             logger.warning(f"Trip {trip.trip_id}: Could not fetch route at request time: {e}")
 
@@ -1041,30 +1022,6 @@ class MatchingServer:
             key=trip.trip_id,
             value=event,
         )
-
-        # Also publish to Redis for real-time updates
-        if self._redis_publisher:
-            is_cancelled = event_type == "trip.cancelled"
-            main_loop = None
-            if self._simulation_engine:
-                main_loop = self._simulation_engine.get_event_loop()
-            run_coroutine_safe(
-                self._redis_publisher.publish(
-                    channel="trip-updates",
-                    message={
-                        "id": trip.trip_id,
-                        "status": trip.state.value,
-                        "driver_id": trip.driver_id,
-                        "rider_id": trip.rider_id,
-                        "pickup_location": trip.pickup_location,
-                        "dropoff_location": trip.dropoff_location,
-                        "route": [] if is_cancelled else (trip.route or []),
-                        "pickup_route": [] if is_cancelled else (trip.pickup_route or []),
-                    },
-                ),
-                main_loop,
-                fallback_sync=True,
-            )
 
     # --- Puppet Drive Control Methods ---
 

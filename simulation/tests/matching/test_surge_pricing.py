@@ -301,3 +301,88 @@ def test_get_current_surge(env, mock_zone_loader, driver_registry):
     env.run(until=60)
 
     assert calculator.get_surge("pinheiros") == 1.5
+
+
+class TestSurgePricingKafkaOnly:
+    """Tests to verify SurgePricingCalculator emits to Kafka only, not Redis.
+
+    FINDING-002 states that 5 locations still publish directly to Redis,
+    causing duplicate messages. SurgePricingCalculator is one of these.
+    The fix is to have it emit to Kafka only.
+    """
+
+    def test_surge_update_emits_to_kafka_only(
+        self, env, mock_zone_loader, driver_registry, mock_kafka_producer
+    ):
+        """Verify surge updates go to Kafka only, not Redis.
+
+        After the fix, SurgePricingCalculator should only emit surge events
+        to Kafka. The Redis publisher parameter should be removed or ignored.
+        The API layer's filtered fanout handles Redis distribution.
+        """
+        mock_redis_publisher = MagicMock()
+
+        calculator = SurgePricingCalculator(
+            env=env,
+            zone_loader=mock_zone_loader,
+            driver_registry=driver_registry,
+            kafka_producer=mock_kafka_producer,
+            redis_publisher=mock_redis_publisher,  # Should NOT be used
+        )
+
+        # Set up conditions that will trigger a surge update
+        for i in range(10):
+            driver_registry.register_driver(f"driver{i}", "online", zone_id="pinheiros")
+
+        calculator.set_pending_requests("pinheiros", 20)  # Creates 2:1 ratio = 1.5x surge
+
+        # Run simulation to trigger surge calculation
+        env.run(until=60)
+
+        # Verify Kafka was called for surge update
+        assert mock_kafka_producer.produce.called, "Surge events should be sent to Kafka"
+
+        kafka_calls = mock_kafka_producer.produce.call_args_list
+        surge_kafka_calls = [
+            call for call in kafka_calls if call[1].get("topic") == "surge-updates"
+        ]
+        assert len(surge_kafka_calls) > 0, "Surge events should go to surge-updates topic"
+
+        # Verify Redis was NOT called for surge updates
+        # After the fix, redis_publisher.publish_sync should not be called
+        redis_sync_calls = mock_redis_publisher.publish_sync.call_args_list
+
+        assert len(redis_sync_calls) == 0, (
+            "Surge updates should NOT be published directly to Redis. "
+            "They should flow through Kafka -> API layer -> Redis fanout."
+        )
+
+    def test_surge_calculator_works_without_redis_publisher(
+        self, env, mock_zone_loader, driver_registry, mock_kafka_producer
+    ):
+        """Verify SurgePricingCalculator works correctly with redis_publisher=None.
+
+        After the consolidation, redis_publisher should be optional and
+        the calculator should work correctly without it.
+        """
+        calculator = SurgePricingCalculator(
+            env=env,
+            zone_loader=mock_zone_loader,
+            driver_registry=driver_registry,
+            kafka_producer=mock_kafka_producer,
+            redis_publisher=None,  # No Redis publisher
+        )
+
+        for i in range(10):
+            driver_registry.register_driver(f"driver{i}", "online", zone_id="pinheiros")
+
+        calculator.set_pending_requests("pinheiros", 20)
+
+        # Should not raise any errors
+        env.run(until=60)
+
+        # Surge should be calculated correctly
+        assert calculator.get_surge("pinheiros") == 1.5
+
+        # Kafka should have received the event
+        assert mock_kafka_producer.produce.called

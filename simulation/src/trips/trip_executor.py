@@ -13,7 +13,6 @@ from events.schemas import GPSPingEvent, PaymentEvent, TripEvent
 from geo.distance import is_within_proximity
 from settings import SimulationSettings
 from trip import Trip, TripState
-from utils.async_helpers import run_coroutine_safe
 
 logger = logging.getLogger(__name__)
 
@@ -383,20 +382,6 @@ class TripExecutor:
                 value=event,
             )
 
-        # Emit to Redis for real-time frontend updates
-        if self._redis_publisher:
-            main_loop = None
-            if self._simulation_engine:
-                main_loop = self._simulation_engine.get_event_loop()
-            run_coroutine_safe(
-                self._redis_publisher.publish(
-                    channel="trip-updates",
-                    message=event.model_dump(mode="json"),
-                ),
-                main_loop,
-                fallback_sync=True,
-            )
-
     def _emit_payment_event(self) -> None:
         """Emit payment processed event."""
         if not self._kafka_producer:
@@ -461,11 +446,3 @@ class TripExecutor:
                 key=entity_id,
                 value=event,
             )
-
-        # Emit to Redis for real-time frontend updates
-        if self._redis_publisher:
-            channel = "driver-updates" if entity_type == "driver" else "rider-updates"
-            try:
-                self._redis_publisher.publish_sync(channel, event.model_dump(mode="json"))
-            except Exception as e:
-                logger.warning(f"Failed to publish GPS ping to Redis: {e}")

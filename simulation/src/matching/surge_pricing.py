@@ -3,7 +3,6 @@ from datetime import UTC, datetime
 from events.schemas import SurgeUpdateEvent
 from geo.zones import ZoneLoader
 from matching.driver_registry import DriverRegistry
-from pubsub.channels import CHANNEL_SURGE_UPDATES
 
 
 class SurgePricingCalculator:
@@ -79,17 +78,6 @@ class SurgePricingCalculator:
                     calculation_window_seconds=self.update_interval_seconds,
                 )
                 self.kafka_producer.produce(topic="surge-updates", key=zone_id, value=event)
-
-            if self.redis_publisher:
-                redis_message = {
-                    "zone_id": zone_id,
-                    "previous_multiplier": old_multiplier,
-                    "new_multiplier": new_multiplier,
-                    "driver_count": available_drivers,
-                    "request_count": pending_requests,
-                    "timestamp": timestamp,
-                }
-                self.redis_publisher.publish_sync(CHANNEL_SURGE_UPDATES, redis_message)
 
             self.current_surge[zone_id] = new_multiplier
 

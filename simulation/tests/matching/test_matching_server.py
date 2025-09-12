@@ -880,10 +880,15 @@ class TestPuppetReOfferFlow:
         assert trip.state == TripState.MATCHED
 
 
-class TestRouteClearOnCancellation:
-    """Tests for route clearing when trips are cancelled."""
+class TestMatchingServerKafkaOnly:
+    """Tests to verify MatchingServer emits trip state events to Kafka only, not Redis.
 
-    def test_cancelled_trip_emits_empty_routes(
+    FINDING-002 states that 5 locations still publish directly to Redis,
+    causing duplicate messages. MatchingServer._emit_trip_state_event is one of these.
+    The fix is to have it emit to Kafka only.
+    """
+
+    def test_matching_server_trip_state_emits_kafka_only(
         self,
         env,
         mock_driver_index,
@@ -891,7 +896,110 @@ class TestRouteClearOnCancellation:
         mock_osrm_client,
         mock_kafka_producer,
     ):
-        """Verify cancelled trips have empty route arrays in Redis message."""
+        """Verify _emit_trip_state_event uses Kafka only, not Redis.
+
+        After the fix, MatchingServer should only emit trip state events
+        to Kafka. The Redis publisher parameter should not be used for
+        trip state events - the API layer handles Redis distribution.
+        """
+        mock_redis_publisher = AsyncMock()
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+            redis_publisher=mock_redis_publisher,  # Should NOT be used for trip events
+        )
+
+        trip = Trip(
+            trip_id="trip-kafka-only-test",
+            rider_id="rider-456",
+            pickup_location=(-23.55, -46.63),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="centro",
+            dropoff_zone_id="pinheiros",
+            surge_multiplier=1.0,
+            fare=25.50,
+        )
+
+        # Emit a trip state event
+        server._emit_trip_state_event(trip, "trip.matched")
+
+        # Verify Kafka was called
+        assert mock_kafka_producer.produce.called, "Trip state events should be sent to Kafka"
+
+        kafka_calls = mock_kafka_producer.produce.call_args_list
+        trip_kafka_calls = [call for call in kafka_calls if call[1].get("topic") == "trips"]
+        assert len(trip_kafka_calls) > 0, "Trip state events should go to trips topic"
+
+        # Verify Redis was NOT called for trip state events
+        # After the fix, redis_publisher.publish should not be called
+        redis_calls = mock_redis_publisher.publish.call_args_list
+
+        assert len(redis_calls) == 0, (
+            "Trip state events should NOT be published directly to Redis. "
+            "They should flow through Kafka -> API layer -> Redis fanout."
+        )
+
+    def test_matching_server_works_without_redis_publisher(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+    ):
+        """Verify MatchingServer works correctly with redis_publisher=None.
+
+        After the consolidation, redis_publisher should be optional and
+        the server should work correctly without it for trip state events.
+        """
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+            redis_publisher=None,  # No Redis publisher
+        )
+
+        trip = Trip(
+            trip_id="trip-no-redis-test",
+            rider_id="rider-789",
+            pickup_location=(-23.55, -46.63),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="centro",
+            dropoff_zone_id="pinheiros",
+            surge_multiplier=1.0,
+            fare=25.50,
+        )
+
+        # Should not raise any errors
+        server._emit_trip_state_event(trip, "trip.completed")
+
+        # Kafka should have received the event
+        assert mock_kafka_producer.produce.called
+
+
+class TestRouteClearOnCancellation:
+    """Tests for route clearing when trips are cancelled.
+
+    Note: After consolidation (FINDING-002 fix), trip state events are emitted
+    to Kafka only - not directly to Redis. Route clearing logic now happens
+    in the API layer's filtered fanout mechanism.
+    """
+
+    def test_cancelled_trip_emits_to_kafka(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+    ):
+        """Verify cancelled trips emit events to Kafka."""
         mock_redis_publisher = AsyncMock()
 
         server = MatchingServer(
@@ -921,15 +1029,21 @@ class TestRouteClearOnCancellation:
         server._active_trips[trip.trip_id] = trip
 
         # Emit a cancellation event
-        with patch("matching.matching_server.run_coroutine_safe") as mock_run_safe:
-            server._emit_trip_state_event(trip, "trip.cancelled")
+        server._emit_trip_state_event(trip, "trip.cancelled")
 
-            mock_run_safe.assert_called_once()
-            # Verify fallback_sync=True was passed
-            _, kwargs = mock_run_safe.call_args
-            assert kwargs.get("fallback_sync") is True
+        # Verify Kafka was called
+        assert mock_kafka_producer.produce.called
+        kafka_calls = [
+            call
+            for call in mock_kafka_producer.produce.call_args_list
+            if call[1].get("topic") == "trips"
+        ]
+        assert len(kafka_calls) > 0
 
-    def test_non_cancelled_trip_preserves_routes(
+        # Verify Redis was NOT called (consolidation fix)
+        assert not mock_redis_publisher.publish.called
+
+    def test_non_cancelled_trip_emits_to_kafka(
         self,
         env,
         mock_driver_index,
@@ -937,7 +1051,7 @@ class TestRouteClearOnCancellation:
         mock_osrm_client,
         mock_kafka_producer,
     ):
-        """Verify non-cancelled events still include route data."""
+        """Verify non-cancelled events emit to Kafka."""
         mock_redis_publisher = AsyncMock()
 
         server = MatchingServer(
@@ -968,10 +1082,16 @@ class TestRouteClearOnCancellation:
         trip.transition_to(TripState.MATCHED)
 
         # Emit a non-cancellation event
-        with patch("matching.matching_server.run_coroutine_safe") as mock_run_safe:
-            server._emit_trip_state_event(trip, "trip.matched")
+        server._emit_trip_state_event(trip, "trip.matched")
 
-            mock_run_safe.assert_called_once()
-            # Verify fallback_sync=True was passed
-            _, kwargs = mock_run_safe.call_args
-            assert kwargs.get("fallback_sync") is True
+        # Verify Kafka was called
+        assert mock_kafka_producer.produce.called
+        kafka_calls = [
+            call
+            for call in mock_kafka_producer.produce.call_args_list
+            if call[1].get("topic") == "trips"
+        ]
+        assert len(kafka_calls) > 0
+
+        # Verify Redis was NOT called (consolidation fix)
+        assert not mock_redis_publisher.publish.called

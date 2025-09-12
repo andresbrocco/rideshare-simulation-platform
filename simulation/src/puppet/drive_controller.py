@@ -180,12 +180,3 @@ class PuppetDriveController:
                 )
             except Exception as e:
                 logger.warning(f"Failed to publish GPS ping to Kafka: {e}")
-
-        if self._redis_publisher:
-            try:
-                self._redis_publisher.publish_sync(
-                    "driver-updates",
-                    event.model_dump(mode="json"),
-                )
-            except Exception as e:
-                logger.warning(f"Failed to publish GPS ping to Redis: {e}")
