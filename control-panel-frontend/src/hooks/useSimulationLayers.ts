@@ -49,11 +49,6 @@ export function useSimulationLayers({
     const scaleFactor = calculateZoomScale(zoom);
     const layers: Layer[] = [];
 
-    // DEBUG: Log rider count and sample rider
-    if (riders.length > 0) {
-      console.log(`[DEBUG] useSimulationLayers: ${riders.length} riders, sample:`, riders[0]);
-    }
-
     if (layerVisibility) {
       // Add zone layer first (lowest pick priority)
       if (layerVisibility.zoneBoundaries && zoneData.length > 0) {
@@ -110,12 +105,7 @@ export function useSimulationLayers({
 
       // Rider layers (ordered by visual priority - active on top)
       if (layerVisibility.offlineRiders) {
-        const offlineLayer = createOfflineRidersLayer(riders, scaleFactor);
-        console.log(
-          `[DEBUG] offlineRiders layer data count:`,
-          offlineLayer.props.data?.length ?? 0
-        );
-        layers.push(offlineLayer);
+        layers.push(createOfflineRidersLayer(riders, scaleFactor));
       }
 
       if (layerVisibility.waitingRiders) {
