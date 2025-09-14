@@ -3,6 +3,10 @@
 import json
 import logging
 
+from pydantic import ValidationError
+
+from ..events.schemas import TripEvent
+from ..metrics import get_metrics_collector
 from .base_handler import BaseHandler
 
 logger = logging.getLogger(__name__)
@@ -20,29 +24,22 @@ class TripHandler(BaseHandler):
         self.messages_processed = 0
 
     def handle(self, message: bytes) -> list[tuple[str, dict]]:
-        """Process a trip event message.
-
-        Immediately emits to the trip-updates channel.
-
-        Args:
-            message: Raw trip event message bytes.
-
-        Returns:
-            List with single (channel, event) tuple.
-        """
+        """Process a trip event message."""
         try:
-            event = json.loads(message)
-            self.messages_processed += 1
-
-            # Emit immediately to trip-updates channel
-            return [("trip-updates", event)]
-
+            raw = json.loads(message)
+            validated = TripEvent.model_validate(raw)
+            event = validated.model_dump(mode="json")
+        except ValidationError as e:
+            logger.warning(f"Trip validation error: {e}")
+            get_metrics_collector().record_validation_error("trip")
+            return []
         except json.JSONDecodeError as e:
             logger.warning(f"Failed to parse trip event: {e}")
+            get_metrics_collector().record_validation_error("trip")
             return []
-        except Exception as e:
-            logger.error(f"Error processing trip event: {e}")
-            return []
+
+        self.messages_processed += 1
+        return [("trip-updates", event)]
 
     def flush(self) -> list[tuple[str, dict]]:
         """No buffering for trip events."""

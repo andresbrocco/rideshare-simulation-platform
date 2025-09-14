@@ -34,17 +34,14 @@ class RedisSink:
         port: int = 6379,
         password: str | None = None,
         db: int = 0,
+        max_retries: int = 3,
+        retry_delay: float = 0.1,
     ):
-        """Initialize Redis sink.
-
-        Args:
-            host: Redis host.
-            port: Redis port.
-            password: Redis password (optional).
-            db: Redis database number.
-        """
+        """Initialize Redis sink."""
         self.host = host
         self.port = port
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
 
         self._client = redis.Redis(
             host=host,
@@ -60,44 +57,42 @@ class RedisSink:
         self.total_latency_ms = 0.0
 
     def publish(self, channel: str, event: dict) -> bool:
-        """Publish an event to a Redis channel.
-
-        Args:
-            channel: Redis channel name.
-            event: Event dictionary to publish.
-
-        Returns:
-            True if published successfully, False otherwise.
-        """
+        """Publish an event to a Redis channel with retry logic."""
         if channel not in self.VALID_CHANNELS:
             logger.warning(f"Invalid channel: {channel}")
             return False
 
-        try:
-            start_time = time.perf_counter()
-            json_message = json.dumps(event)
-            self._client.publish(channel, json_message)
-            latency_ms = (time.perf_counter() - start_time) * 1000
+        for attempt in range(self.max_retries):
+            try:
+                return self._publish_once(channel, event)
+            except (redis.ConnectionError, redis.TimeoutError) as e:
+                if attempt < self.max_retries - 1:
+                    delay = self.retry_delay * (2**attempt)
+                    logger.warning(f"Retry {attempt + 1} for {channel}: {e}")
+                    get_metrics_collector().record_retry()
+                    time.sleep(delay)
+                else:
+                    logger.error(f"All retries exhausted for {channel}: {e}")
+                    self.publish_errors += 1
+                    get_metrics_collector().record_publish_error()
+                    return False
 
-            self.messages_published += 1
-            self.total_latency_ms += latency_ms
+        return False
 
-            # Record metrics for monitoring
-            collector = get_metrics_collector()
-            collector.record_publish(latency_ms)
+    def _publish_once(self, channel: str, event: dict) -> bool:
+        """Publish a single event without retry."""
+        start_time = time.perf_counter()
+        json_message = json.dumps(event)
+        self._client.publish(channel, json_message)
+        latency_ms = (time.perf_counter() - start_time) * 1000
 
-            return True
+        self.messages_published += 1
+        self.total_latency_ms += latency_ms
 
-        except redis.ConnectionError as e:
-            logger.error(f"Redis connection error publishing to {channel}: {e}")
-            self.publish_errors += 1
-            get_metrics_collector().record_publish_error()
-            return False
-        except Exception as e:
-            logger.error(f"Error publishing to {channel}: {e}")
-            self.publish_errors += 1
-            get_metrics_collector().record_publish_error()
-            return False
+        collector = get_metrics_collector()
+        collector.record_publish(latency_ms)
+
+        return True
 
     def publish_batch(self, events: list[tuple[str, dict]]) -> int:
         """Publish multiple events.

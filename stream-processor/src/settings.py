@@ -10,10 +10,11 @@ class KafkaSettings(BaseSettings):
     bootstrap_servers: str = "localhost:9092"
     group_id: str = "stream-processor"
     auto_offset_reset: str = "latest"
-    enable_auto_commit: bool = True
+    enable_auto_commit: bool = False
     auto_commit_interval_ms: int = 5000
     session_timeout_ms: int = 30000
     max_poll_interval_ms: int = 300000
+    batch_commit_size: int = 100
 
     model_config = SettingsConfigDict(env_prefix="KAFKA_")
 
@@ -74,6 +75,10 @@ class ProcessorSettings(BaseSettings):
     trips_enabled: bool = True
     driver_status_enabled: bool = True
     surge_enabled: bool = True
+
+    # Retry settings
+    max_retries: int = 3
+    retry_backoff_base_ms: int = 100
 
     model_config = SettingsConfigDict(env_prefix="PROCESSOR_")
 

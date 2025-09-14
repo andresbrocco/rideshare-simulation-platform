@@ -4,6 +4,10 @@ import json
 import logging
 from collections import defaultdict
 
+from pydantic import ValidationError
+
+from ..events.schemas import GPSPingEvent
+from ..metrics import get_metrics_collector
 from .base_handler import BaseHandler
 
 logger = logging.getLogger(__name__)
@@ -54,48 +58,34 @@ class GPSHandler(BaseHandler):
         return True
 
     def handle(self, message: bytes) -> list[tuple[str, dict]]:
-        """Process a GPS ping message.
-
-        For "latest" strategy, updates window state but doesn't emit.
-        For "sample" strategy, may emit immediately if counter reached.
-
-        Args:
-            message: Raw GPS ping message bytes.
-
-        Returns:
-            Empty list for "latest" strategy.
-            May return events for "sample" strategy.
-        """
+        """Process a GPS ping message."""
         try:
-            event = json.loads(message)
-            entity_id = event.get("entity_id")
-            if not entity_id:
-                logger.warning("GPS event missing entity_id")
-                return []
-
-            self.messages_received += 1
-
-            if self.strategy == "latest":
-                # Keep only the latest position for each entity
-                self.window_state[entity_id] = event
-                return []
-
-            elif self.strategy == "sample":
-                # Emit 1-in-N messages
-                self.sample_counters[entity_id] += 1
-                if self.sample_counters[entity_id] >= self.sample_rate:
-                    self.sample_counters[entity_id] = 0
-                    self.window_state[entity_id] = event
-                return []
-
+            raw = json.loads(message)
+            validated = GPSPingEvent.model_validate(raw)
+            event = validated.model_dump(mode="json")
+        except ValidationError as e:
+            logger.warning(f"GPS validation error: {e}")
+            get_metrics_collector().record_validation_error("gps")
             return []
-
         except json.JSONDecodeError as e:
             logger.warning(f"Failed to parse GPS event: {e}")
+            get_metrics_collector().record_validation_error("gps")
             return []
-        except Exception as e:
-            logger.error(f"Error processing GPS event: {e}")
+
+        entity_id = event.get("entity_id")
+        self.messages_received += 1
+
+        if self.strategy == "latest":
+            self.window_state[entity_id] = event
             return []
+        elif self.strategy == "sample":
+            self.sample_counters[entity_id] += 1
+            if self.sample_counters[entity_id] >= self.sample_rate:
+                self.sample_counters[entity_id] = 0
+                self.window_state[entity_id] = event
+            return []
+
+        return []
 
     def flush(self) -> list[tuple[str, dict]]:
         """Flush the current window and return aggregated events.

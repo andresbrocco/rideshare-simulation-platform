@@ -59,6 +59,9 @@ class MetricsCollector:
         self._messages_consumed = 0
         self._messages_published = 0
         self._publish_errors = 0
+        self._validation_errors = 0
+        self._retries = 0
+        self._commits = 0
 
         # Rolling windows for rate calculation
         self._consume_timestamps: deque[float] = deque()
@@ -105,6 +108,21 @@ class MetricsCollector:
         with self._lock:
             self._gps_received += received
             self._gps_emitted += emitted
+
+    def record_validation_error(self, handler_type: str) -> None:
+        """Record a validation error."""
+        with self._lock:
+            self._validation_errors += 1
+
+    def record_retry(self) -> None:
+        """Record a Redis publish retry."""
+        with self._lock:
+            self._retries += 1
+
+    def record_commit(self) -> None:
+        """Record a Kafka offset commit."""
+        with self._lock:
+            self._commits += 1
 
     def register_health_callback(self, name: str, callback: Callable[[], bool]) -> None:
         """Register a health check callback."""

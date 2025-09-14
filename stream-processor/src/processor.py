@@ -85,6 +85,12 @@ class StreamProcessor:
         self._prev_gps_received = 0
         self._prev_gps_emitted = 0
 
+        # Manual commit tracking
+        self._pending_commits = 0
+        batch_size = getattr(settings.kafka, "batch_commit_size", 1)
+        # Handle MagicMock or other non-int values from tests
+        self._batch_commit_size = batch_size if isinstance(batch_size, int) else 1
+
         # Register health callbacks with metrics collector
         collector = get_metrics_collector()
         collector.register_health_callback("redis", self._redis_sink.ping)
@@ -227,11 +233,7 @@ class StreamProcessor:
         self.running = False
 
     def _process_message(self, msg: Any) -> None:
-        """Process a single Kafka message.
-
-        Args:
-            msg: Kafka message object.
-        """
+        """Process a single Kafka message."""
         topic = msg.topic()
         handler_key = self.TOPIC_HANDLERS.get(topic)
 
@@ -254,8 +256,21 @@ class StreamProcessor:
                 published = self._redis_sink.publish_batch(results)
                 self.messages_published += published
 
+                # Track commits if auto_commit is disabled
+                if not self.settings.kafka.enable_auto_commit and published > 0:
+                    self._pending_commits += 1
+                    if self._pending_commits >= self._batch_commit_size:
+                        self._commit_offsets()
+
         except Exception as e:
             logger.error(f"Error processing message from {topic}: {e}")
+
+    def _commit_offsets(self) -> None:
+        """Commit pending Kafka offsets."""
+        if self._pending_commits > 0:
+            self._consumer.commit()
+            get_metrics_collector().record_commit()
+            self._pending_commits = 0
 
     def _maybe_flush_windows(self) -> None:
         """Flush windowed handlers if window duration has elapsed."""
@@ -302,6 +317,10 @@ class StreamProcessor:
 
         # Flush any remaining windowed state
         self._flush_all_windows()
+
+        # Commit any pending offsets before closing
+        if not self.settings.kafka.enable_auto_commit:
+            self._commit_offsets()
 
         # Close connections
         try:
