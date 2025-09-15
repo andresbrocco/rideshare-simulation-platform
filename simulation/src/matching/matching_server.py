@@ -28,7 +28,12 @@ if TYPE_CHECKING:
 
 
 class MatchingServer:
-    """Coordinates driver-rider matching with composite scoring."""
+    """Coordinates driver-rider matching with composite scoring.
+
+    Thread-safe: Shared state (active trips, pending offers, counters) is
+    protected by an RLock for concurrent access from the SimPy background
+    thread and FastAPI main thread.
+    """
 
     def __init__(
         self,
@@ -64,8 +69,8 @@ class MatchingServer:
         # Trip completion tracking
         self._completed_trips: list[Trip] = []
         self._cancelled_trips: list[Trip] = []
-        # Thread-safe driver reservation to prevent double-matching
-        self._matching_lock = threading.Lock()
+        # Thread-safe state protection (RLock allows nested acquisition)
+        self._state_lock = threading.RLock()
         self._reserved_drivers: set[str] = set()  # Drivers currently receiving offers
         # Matching outcome tracking
         self._offers_sent: int = 0
@@ -83,7 +88,8 @@ class MatchingServer:
 
     def get_active_trips(self) -> list[Trip]:
         """Get all active (non-completed/cancelled) trips."""
-        return list(self._active_trips.values())
+        with self._state_lock:
+            return list(self._active_trips.values())
 
     def complete_trip(self, trip_id: str, trip: "Trip | None" = None) -> None:
         """Remove trip from active tracking and record completion/cancellation.
@@ -92,28 +98,32 @@ class MatchingServer:
             trip_id: The trip ID to complete
             trip: Optional trip object with final state for tracking
         """
-        removed_trip = self._active_trips.pop(trip_id, None)
+        with self._state_lock:
+            removed_trip = self._active_trips.pop(trip_id, None)
 
-        # Use provided trip or the removed one for tracking
-        tracking_trip = trip or removed_trip
-        if tracking_trip:
-            if tracking_trip.state.value == "cancelled":
-                self._cancelled_trips.append(tracking_trip)
-            elif tracking_trip.state.value == "completed":
-                self._completed_trips.append(tracking_trip)
+            # Use provided trip or the removed one for tracking
+            tracking_trip = trip or removed_trip
+            if tracking_trip:
+                if tracking_trip.state.value == "cancelled":
+                    self._cancelled_trips.append(tracking_trip)
+                elif tracking_trip.state.value == "completed":
+                    self._completed_trips.append(tracking_trip)
 
     def get_completed_trips(self) -> list["Trip"]:
         """Get all completed trips."""
-        return self._completed_trips.copy()
+        with self._state_lock:
+            return self._completed_trips.copy()
 
     def get_cancelled_trips(self) -> list["Trip"]:
         """Get all cancelled trips."""
-        return self._cancelled_trips.copy()
+        with self._state_lock:
+            return self._cancelled_trips.copy()
 
     def get_trip_stats(self) -> dict:
         """Get trip statistics for metrics."""
-        completed = self._completed_trips
-        cancelled = self._cancelled_trips
+        with self._state_lock:
+            completed = list(self._completed_trips)
+            cancelled = list(self._cancelled_trips)
 
         total_fare = sum(t.fare for t in completed if t.fare)
         avg_fare = total_fare / len(completed) if completed else 0.0
@@ -159,12 +169,13 @@ class MatchingServer:
 
     def get_matching_stats(self) -> dict:
         """Get matching outcome statistics for metrics."""
-        return {
-            "offers_sent": self._offers_sent,
-            "offers_accepted": self._offers_accepted,
-            "offers_rejected": self._offers_rejected,
-            "offers_expired": self._offers_expired,
-        }
+        with self._state_lock:
+            return {
+                "offers_sent": self._offers_sent,
+                "offers_accepted": self._offers_accepted,
+                "offers_rejected": self._offers_rejected,
+                "offers_expired": self._offers_expired,
+            }
 
     async def request_match(
         self,
@@ -476,7 +487,8 @@ class MatchingServer:
 
         logger = logging.getLogger(__name__)
         logger.info(f"Queueing trip execution for trip {trip.trip_id}")
-        self._pending_trip_executions.append((driver, trip))
+        with self._state_lock:
+            self._pending_trip_executions.append((driver, trip))
 
     def start_pending_trip_executions(self) -> None:
         """Start any pending trip executions. Must be called from SimPy thread.
@@ -487,10 +499,13 @@ class MatchingServer:
         import logging
 
         logger = logging.getLogger(__name__)
-        if self._pending_trip_executions:
-            logger.info(f"Starting {len(self._pending_trip_executions)} pending trip executions")
-        while self._pending_trip_executions:
-            driver, trip = self._pending_trip_executions.pop(0)
+        with self._state_lock:
+            pending = list(self._pending_trip_executions)
+            self._pending_trip_executions.clear()
+
+        if pending:
+            logger.info(f"Starting {len(pending)} pending trip executions")
+        for driver, trip in pending:
             logger.info(f"Starting TripExecutor for trip {trip.trip_id}")
             self._start_trip_execution_internal(driver, trip)
 
@@ -540,7 +555,7 @@ class MatchingServer:
         driver_id = driver.driver_id
 
         # Atomic check-and-reserve to prevent double-matching
-        with self._matching_lock:
+        with self._state_lock:
             # Skip if driver already reserved or in a trip
             if driver_id in self._reserved_drivers:
                 logger.warning(f"Driver {driver_id} already reserved, skipping")
@@ -594,7 +609,7 @@ class MatchingServer:
             # Release reservation regardless of accept/reject outcome
             # For accepted: driver will be tracked via active_trip, not reservation
             # For rejected: driver goes back to available pool
-            with self._matching_lock:
+            with self._state_lock:
                 self._reserved_drivers.discard(driver_id)
                 if not accepted:
                     self._driver_index.update_driver_status(driver_id, "online")
@@ -603,7 +618,7 @@ class MatchingServer:
 
         except Exception:
             # Release reservation on error
-            with self._matching_lock:
+            with self._state_lock:
                 self._reserved_drivers.discard(driver_id)
                 self._driver_index.update_driver_status(driver_id, "online")
             raise
@@ -675,34 +690,36 @@ class MatchingServer:
 
     def clear(self) -> None:
         """Clear all matching server state for simulation reset."""
-        # Stop any active puppet drives
-        for controller in self._puppet_drives.values():
-            controller.stop()
-        self._puppet_drives.clear()
+        with self._state_lock:
+            # Stop any active puppet drives
+            for controller in self._puppet_drives.values():
+                controller.stop()
+            self._puppet_drives.clear()
 
-        self._active_trips.clear()
-        self._completed_trips.clear()
-        self._cancelled_trips.clear()
-        self._pending_offers.clear()
-        self._pending_offer_candidates.clear()
-        self._pending_trip_executions.clear()
-        self._drivers.clear()
-        self._reserved_drivers.clear()
-        # Reset matching counters
-        self._offers_sent = 0
-        self._offers_accepted = 0
-        self._offers_rejected = 0
-        self._offers_expired = 0
+            self._active_trips.clear()
+            self._completed_trips.clear()
+            self._cancelled_trips.clear()
+            self._pending_offers.clear()
+            self._pending_offer_candidates.clear()
+            self._pending_trip_executions.clear()
+            self._drivers.clear()
+            self._reserved_drivers.clear()
+            # Reset matching counters
+            self._offers_sent = 0
+            self._offers_accepted = 0
+            self._offers_rejected = 0
+            self._offers_expired = 0
 
-        # Clear the geospatial index
-        if hasattr(self._driver_index, "clear"):
-            self._driver_index.clear()
+            # Clear the geospatial index
+            if hasattr(self._driver_index, "clear"):
+                self._driver_index.clear()
 
     # --- Puppet Agent Helper Methods ---
 
     def get_pending_offer_for_driver(self, driver_id: str) -> dict | None:
         """Get the pending trip offer for a specific driver."""
-        return self._pending_offers.get(driver_id)
+        with self._state_lock:
+            return self._pending_offers.get(driver_id)
 
     def process_puppet_accept(self, driver_id: str, trip_id: str) -> None:
         """Process offer acceptance for a puppet driver.
@@ -716,7 +733,7 @@ class MatchingServer:
         trip = self._active_trips.get(trip_id)
         if not trip:
             # Trip gone, release driver reservation and restore status
-            with self._matching_lock:
+            with self._state_lock:
                 self._reserved_drivers.discard(driver_id)
                 self._driver_index.update_driver_status(driver_id, "online")
             return
@@ -730,7 +747,7 @@ class MatchingServer:
         driver.statistics.record_offer_accepted()
 
         # Clear reservation (driver is now in active trip)
-        with self._matching_lock:
+        with self._state_lock:
             self._reserved_drivers.discard(driver_id)
 
         # Update trip state
@@ -765,7 +782,7 @@ class MatchingServer:
             driver.statistics.record_offer_rejected()
 
         # Release reservation and restore driver to matchable status
-        with self._matching_lock:
+        with self._state_lock:
             self._reserved_drivers.discard(driver_id)
             self._driver_index.update_driver_status(driver_id, "online")
 
@@ -814,7 +831,7 @@ class MatchingServer:
             driver.statistics.record_offer_expired()
 
         # Release reservation and restore driver to matchable status
-        with self._matching_lock:
+        with self._state_lock:
             self._reserved_drivers.discard(driver_id)
             self._driver_index.update_driver_status(driver_id, "online")
 
