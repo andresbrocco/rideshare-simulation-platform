@@ -11,6 +11,7 @@ import { useSimulationLayers } from './hooks/useSimulationLayers';
 import { useSimulationControl } from './hooks/useSimulationControl';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useZones } from './hooks/useZones';
+import { Toaster } from './lib/toast.ts';
 import type { WebSocketMessage } from './types/websocket';
 import type { ZoneData } from './types/api';
 import { DEFAULT_VISIBILITY, type LayerVisibility } from './types/layers';
@@ -138,6 +139,7 @@ function App() {
 
   return (
     <div className="App">
+      <Toaster position="top-right" />
       {!apiKey ? (
         <>
           <h1>Rideshare Simulation Control Panel</h1>

@@ -26,8 +26,19 @@ class ZoneLoader:
         self._load_zones()
 
     def _load_zones(self) -> None:
-        with open(self.geojson_path) as f:
-            geojson = json.load(f)
+        if not self.geojson_path.exists():
+            logger.error(f"Zone file not found: {self.geojson_path}")
+            return
+
+        try:
+            with open(self.geojson_path) as f:
+                geojson = json.load(f)
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in zone file {self.geojson_path}: {e}")
+            return
+        except OSError as e:
+            logger.error(f"Failed to read zone file {self.geojson_path}: {e}")
+            return
 
         if geojson.get("type") != "FeatureCollection":
             logger.warning(f"Expected FeatureCollection, got {geojson.get('type')}")

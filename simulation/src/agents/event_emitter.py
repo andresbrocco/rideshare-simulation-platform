@@ -55,7 +55,11 @@ class EventEmitter:
             collector.record_latency("kafka", latency_ms)
         except Exception as e:
             collector.record_error("kafka", type(e).__name__)
-            logger.error(f"Failed to emit event to Kafka topic {topic}: {e}")
+            logger.error(
+                f"Failed to emit event to Kafka topic {topic}: {e}",
+                extra={"topic": topic, "key": key, "event_type": type(event).__name__},
+                exc_info=True,
+            )
 
     async def _emit_event(
         self,

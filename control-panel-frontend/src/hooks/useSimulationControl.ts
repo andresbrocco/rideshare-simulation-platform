@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import type { SimulationStatus } from '../types/api';
+import { showToast } from '../lib/toast';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -59,36 +60,78 @@ export function useSimulationControl(onStatusUpdate?: (status: SimulationStatus)
   }, [onStatusUpdate]);
 
   const startSimulation = async () => {
-    await apiCall('/simulation/start', 'POST');
-    await fetchStatus();
+    try {
+      await apiCall('/simulation/start', 'POST');
+      await fetchStatus();
+      showToast.success('Simulation started');
+    } catch (err) {
+      showToast.error(err);
+      throw err;
+    }
   };
 
   const pauseSimulation = async () => {
-    await apiCall('/simulation/pause', 'POST');
-    await fetchStatus();
+    try {
+      await apiCall('/simulation/pause', 'POST');
+      await fetchStatus();
+      showToast.success('Simulation paused');
+    } catch (err) {
+      showToast.error(err);
+      throw err;
+    }
   };
 
   const resumeSimulation = async () => {
-    await apiCall('/simulation/resume', 'POST');
-    await fetchStatus();
+    try {
+      await apiCall('/simulation/resume', 'POST');
+      await fetchStatus();
+      showToast.success('Simulation resumed');
+    } catch (err) {
+      showToast.error(err);
+      throw err;
+    }
   };
 
   const resetSimulation = async () => {
-    await apiCall('/simulation/reset', 'POST');
-    await fetchStatus();
+    try {
+      await apiCall('/simulation/reset', 'POST');
+      await fetchStatus();
+      showToast.success('Simulation reset');
+    } catch (err) {
+      showToast.error(err);
+      throw err;
+    }
   };
 
   const setSpeed = async (multiplier: number) => {
-    await apiCall('/simulation/speed', 'PUT', { multiplier });
-    await fetchStatus();
+    try {
+      await apiCall('/simulation/speed', 'PUT', { multiplier });
+      await fetchStatus();
+      showToast.success(`Speed set to ${multiplier}x`);
+    } catch (err) {
+      showToast.error(err);
+      throw err;
+    }
   };
 
   const addDrivers = async (count: number) => {
-    await apiCall('/agents/drivers', 'POST', { count });
+    try {
+      await apiCall('/agents/drivers', 'POST', { count });
+      showToast.success(`Added ${count} driver${count !== 1 ? 's' : ''}`);
+    } catch (err) {
+      showToast.error(err);
+      throw err;
+    }
   };
 
   const addRiders = async (count: number) => {
-    await apiCall('/agents/riders', 'POST', { count });
+    try {
+      await apiCall('/agents/riders', 'POST', { count });
+      showToast.success(`Added ${count} rider${count !== 1 ? 's' : ''}`);
+    } catch (err) {
+      showToast.error(err);
+      throw err;
+    }
   };
 
   const addPuppetAgent = async (
@@ -103,14 +146,23 @@ export function useSimulationControl(onStatusUpdate?: (status: SimulationStatus)
     try {
       const response = await apiCall(endpoint, 'POST', body);
       const data = await response.json();
-      return data.driver_id || data.rider_id || null;
+      const id = data.driver_id || data.rider_id || null;
+      showToast.success(`Puppet ${type} created`);
+      return id;
     } catch {
+      showToast.error(`Failed to create puppet ${type}`);
       return null;
     }
   };
 
   const toggleDriverStatus = async (driverId: string, goOnline: boolean): Promise<void> => {
-    await apiCall(`/agents/drivers/${driverId}/status`, 'PUT', { go_online: goOnline });
+    try {
+      await apiCall(`/agents/drivers/${driverId}/status`, 'PUT', { go_online: goOnline });
+      showToast.success(goOnline ? 'Driver is now online' : 'Driver is now offline');
+    } catch (err) {
+      showToast.error(err);
+      throw err;
+    }
   };
 
   const requestRiderTrip = async (
@@ -121,8 +173,11 @@ export function useSimulationControl(onStatusUpdate?: (status: SimulationStatus)
       const response = await apiCall(`/agents/riders/${riderId}/request-trip`, 'POST', {
         destination,
       });
-      return await response.json();
+      const data = await response.json();
+      showToast.success('Trip requested');
+      return data;
     } catch {
+      showToast.error('Failed to request trip');
       return null;
     }
   };
@@ -132,8 +187,10 @@ export function useSimulationControl(onStatusUpdate?: (status: SimulationStatus)
   const acceptOffer = async (driverId: string): Promise<boolean> => {
     try {
       await apiCall(`/agents/puppet/drivers/${driverId}/accept-offer`, 'POST');
+      showToast.success('Offer accepted');
       return true;
     } catch {
+      showToast.error('Failed to accept offer');
       return false;
     }
   };
@@ -141,8 +198,10 @@ export function useSimulationControl(onStatusUpdate?: (status: SimulationStatus)
   const rejectOffer = async (driverId: string): Promise<boolean> => {
     try {
       await apiCall(`/agents/puppet/drivers/${driverId}/reject-offer`, 'POST');
+      showToast.success('Offer rejected');
       return true;
     } catch {
+      showToast.error('Failed to reject offer');
       return false;
     }
   };
@@ -150,8 +209,10 @@ export function useSimulationControl(onStatusUpdate?: (status: SimulationStatus)
   const arriveAtPickup = async (driverId: string): Promise<boolean> => {
     try {
       await apiCall(`/agents/puppet/drivers/${driverId}/arrive-pickup`, 'POST');
+      showToast.success('Arrived at pickup');
       return true;
     } catch {
+      showToast.error('Failed to mark arrival');
       return false;
     }
   };
@@ -159,8 +220,10 @@ export function useSimulationControl(onStatusUpdate?: (status: SimulationStatus)
   const startTrip = async (driverId: string): Promise<boolean> => {
     try {
       await apiCall(`/agents/puppet/drivers/${driverId}/start-trip`, 'POST');
+      showToast.success('Trip started');
       return true;
     } catch {
+      showToast.error('Failed to start trip');
       return false;
     }
   };
@@ -168,8 +231,10 @@ export function useSimulationControl(onStatusUpdate?: (status: SimulationStatus)
   const completeTrip = async (driverId: string): Promise<boolean> => {
     try {
       await apiCall(`/agents/puppet/drivers/${driverId}/complete-trip`, 'POST');
+      showToast.success('Trip completed');
       return true;
     } catch {
+      showToast.error('Failed to complete trip');
       return false;
     }
   };
@@ -177,8 +242,10 @@ export function useSimulationControl(onStatusUpdate?: (status: SimulationStatus)
   const cancelDriverTrip = async (driverId: string): Promise<boolean> => {
     try {
       await apiCall(`/agents/puppet/drivers/${driverId}/cancel-trip`, 'POST');
+      showToast.success('Trip cancelled');
       return true;
     } catch {
+      showToast.error('Failed to cancel trip');
       return false;
     }
   };
@@ -188,8 +255,10 @@ export function useSimulationControl(onStatusUpdate?: (status: SimulationStatus)
   const cancelRiderTrip = async (riderId: string): Promise<boolean> => {
     try {
       await apiCall(`/agents/puppet/riders/${riderId}/cancel-trip`, 'POST');
+      showToast.success('Trip cancelled');
       return true;
     } catch {
+      showToast.error('Failed to cancel trip');
       return false;
     }
   };
@@ -199,8 +268,10 @@ export function useSimulationControl(onStatusUpdate?: (status: SimulationStatus)
   const updateDriverRating = async (driverId: string, rating: number): Promise<boolean> => {
     try {
       await apiCall(`/agents/puppet/drivers/${driverId}/rating`, 'PUT', { rating });
+      showToast.success('Driver rating updated');
       return true;
     } catch {
+      showToast.error('Failed to update driver rating');
       return false;
     }
   };
@@ -208,8 +279,10 @@ export function useSimulationControl(onStatusUpdate?: (status: SimulationStatus)
   const updateRiderRating = async (riderId: string, rating: number): Promise<boolean> => {
     try {
       await apiCall(`/agents/puppet/riders/${riderId}/rating`, 'PUT', { rating });
+      showToast.success('Rider rating updated');
       return true;
     } catch {
+      showToast.error('Failed to update rider rating');
       return false;
     }
   };
@@ -217,8 +290,10 @@ export function useSimulationControl(onStatusUpdate?: (status: SimulationStatus)
   const teleportDriver = async (driverId: string, location: [number, number]): Promise<boolean> => {
     try {
       await apiCall(`/agents/puppet/drivers/${driverId}/location`, 'PUT', { location });
+      showToast.success('Driver location updated');
       return true;
     } catch {
+      showToast.error('Failed to update driver location');
       return false;
     }
   };
@@ -226,8 +301,10 @@ export function useSimulationControl(onStatusUpdate?: (status: SimulationStatus)
   const teleportRider = async (riderId: string, location: [number, number]): Promise<boolean> => {
     try {
       await apiCall(`/agents/puppet/riders/${riderId}/location`, 'PUT', { location });
+      showToast.success('Rider location updated');
       return true;
     } catch {
+      showToast.error('Failed to update rider location');
       return false;
     }
   };
@@ -235,8 +312,10 @@ export function useSimulationControl(onStatusUpdate?: (status: SimulationStatus)
   const forceOfferTimeout = async (driverId: string): Promise<boolean> => {
     try {
       await apiCall(`/agents/puppet/drivers/${driverId}/force-offer-timeout`, 'POST');
+      showToast.success('Offer timeout forced');
       return true;
     } catch {
+      showToast.error('Failed to force offer timeout');
       return false;
     }
   };
@@ -244,8 +323,10 @@ export function useSimulationControl(onStatusUpdate?: (status: SimulationStatus)
   const forcePatienceTimeout = async (riderId: string): Promise<boolean> => {
     try {
       await apiCall(`/agents/puppet/riders/${riderId}/force-patience-timeout`, 'POST');
+      showToast.success('Patience timeout forced');
       return true;
     } catch {
+      showToast.error('Failed to force patience timeout');
       return false;
     }
   };
