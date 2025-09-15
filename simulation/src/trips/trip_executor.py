@@ -11,6 +11,7 @@ import simpy
 
 from events.schemas import GPSPingEvent, PaymentEvent, TripEvent
 from geo.distance import is_within_proximity
+from geo.osrm_client import OSRMServiceError, RouteResponse
 from settings import SimulationSettings
 from trip import Trip, TripState
 
@@ -92,7 +93,29 @@ class TripExecutor:
             yield from self._complete_trip()
             logger.info(f"Trip {self._trip.trip_id}: Trip completed successfully!")
         except Exception as e:
-            logger.error(f"TripExecutor error for trip {self._trip.trip_id}: {e}", exc_info=True)
+            # Handle OSRM-specific errors by class name to avoid module identity issues
+            error_name = type(e).__name__
+            if error_name == "NoRouteFoundError":
+                self._cleanup_failed_trip(
+                    reason="no_route_found",
+                    stage=self._determine_current_stage(),
+                    error=e,
+                )
+            elif error_name in ("OSRMTimeoutError", "OSRMServiceError"):
+                self._cleanup_failed_trip(
+                    reason="osrm_service_error",
+                    stage=self._determine_current_stage(),
+                    error=e,
+                )
+            else:
+                logger.error(
+                    f"TripExecutor error for trip {self._trip.trip_id}: {e}", exc_info=True
+                )
+                self._cleanup_failed_trip(
+                    reason="unexpected_error",
+                    stage=self._determine_current_stage(),
+                    error=e,
+                )
 
     def _drive_to_pickup(self) -> Generator[simpy.Event]:
         """Drive from current location to pickup."""
@@ -102,22 +125,18 @@ class TripExecutor:
         self._trip.transition_to(TripState.DRIVER_EN_ROUTE)
         self._driver.start_pickup()
 
-        # Fetch route BEFORE emitting event so pickup_route is included in WebSocket update
+        # Fetch route with retry logic
         logger.info(
             f"Trip {self._trip.trip_id}: Fetching route from {self._driver.location} to {self._trip.pickup_location}"
         )
-        try:
-            route = self._osrm_client.get_route_sync(
-                self._driver.location, self._trip.pickup_location
-            )
-            # Store pickup route for visualization
-            self._trip.pickup_route = route.geometry
-            logger.info(
-                f"Trip {self._trip.trip_id}: Pickup route fetched - duration={route.duration_seconds}s, distance={route.distance_meters}m, points={len(route.geometry)}"
-            )
-        except Exception as e:
-            logger.error(f"Trip {self._trip.trip_id}: OSRM route fetch failed: {e}", exc_info=True)
-            raise
+        route = yield from self._get_route_with_retry(
+            self._driver.location, self._trip.pickup_location
+        )
+        # Store pickup route for visualization
+        self._trip.pickup_route = route.geometry
+        logger.info(
+            f"Trip {self._trip.trip_id}: Pickup route fetched - duration={route.duration_seconds}s, distance={route.distance_meters}m, points={len(route.geometry)}"
+        )
 
         # Now emit event with pickup_route populated
         self._emit_trip_event("trip.driver_en_route")
@@ -174,7 +193,7 @@ class TripExecutor:
 
     def _drive_to_destination(self) -> Generator[simpy.Event]:
         """Drive from pickup to destination."""
-        route = self._osrm_client.get_route_sync(
+        route = yield from self._get_route_with_retry(
             self._trip.pickup_location, self._trip.dropoff_location
         )
 
@@ -257,6 +276,82 @@ class TripExecutor:
             pickup_wait_seconds=pickup_time_seconds,
             had_surge=had_surge,
         )
+
+    def _get_route_with_retry(
+        self,
+        origin: tuple[float, float],
+        destination: tuple[float, float],
+    ) -> Generator[simpy.Event, None, RouteResponse]:
+        """Get route with exponential backoff retry logic."""
+        max_attempts = self._settings.osrm_max_retries + 1
+        base_delay = self._settings.osrm_retry_base_delay
+        multiplier = self._settings.osrm_retry_multiplier
+
+        for attempt in range(max_attempts):
+            try:
+                return self._osrm_client.get_route_sync(origin, destination)
+            except Exception as e:
+                error_name = type(e).__name__
+                if error_name == "NoRouteFoundError":
+                    raise  # Non-retryable
+                elif error_name in ("OSRMTimeoutError", "OSRMServiceError"):
+                    if attempt == max_attempts - 1:
+                        raise
+                    delay = base_delay * (multiplier**attempt)
+                    logger.warning(
+                        f"Trip {self._trip.trip_id}: OSRM failed (attempt {attempt + 1}/{max_attempts}), "
+                        f"retrying in {delay}s: {e}"
+                    )
+                    yield self._env.timeout(delay)
+                else:
+                    raise  # Unknown exception, don't retry
+
+        # Should never reach here, but satisfy type checker
+        raise OSRMServiceError("Max retries exceeded")
+
+    def _determine_current_stage(self) -> str:
+        """Determine current trip stage based on state."""
+        state_to_stage = {
+            TripState.REQUESTED: "requested",
+            TripState.OFFER_SENT: "matching",
+            TripState.MATCHED: "matched",
+            TripState.DRIVER_EN_ROUTE: "pickup",
+            TripState.DRIVER_ARRIVED: "pickup",
+            TripState.STARTED: "in_transit",
+        }
+        return state_to_stage.get(self._trip.state, "unknown")
+
+    def _cleanup_failed_trip(
+        self,
+        reason: str,
+        stage: str,
+        error: Exception | None = None,
+    ) -> None:
+        """Clean up trip state after unrecoverable failure."""
+        logger.error(
+            f"Trip {self._trip.trip_id}: Cleaning up failed trip - reason={reason}, stage={stage}"
+        )
+
+        # Cancel trip if not already terminal
+        if self._trip.state not in {TripState.COMPLETED, TripState.CANCELLED}:
+            self._trip.cancel(by="system", reason=reason, stage=stage)
+            self._emit_trip_event("trip.cancelled")
+
+        # Release driver back to online
+        if self._driver.status != "offline":
+            self._driver.complete_trip()
+
+        # Release rider back to offline
+        if self._rider.status != "offline":
+            self._rider.cancel_trip()
+
+        # Record failure statistics
+        self._driver.statistics.record_trip_cancelled()
+        self._rider.statistics.record_trip_cancelled()
+
+        # Clean up matching server
+        if self._matching_server:
+            self._matching_server.complete_trip(self._trip.trip_id, self._trip)
 
     def _simulate_drive(
         self,
