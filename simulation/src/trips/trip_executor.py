@@ -9,6 +9,7 @@ from uuid import uuid4
 
 import simpy
 
+from core.exceptions import PermanentError, TransientError
 from events.schemas import GPSPingEvent, PaymentEvent, TripEvent
 from geo.distance import is_within_proximity
 from geo.osrm_client import OSRMServiceError, RouteResponse
@@ -92,30 +93,28 @@ class TripExecutor:
             logger.info(f"Trip {self._trip.trip_id}: Completing trip")
             yield from self._complete_trip()
             logger.info(f"Trip {self._trip.trip_id}: Trip completed successfully!")
+        except PermanentError as e:
+            # Non-retryable errors (validation, not found, etc.)
+            self._cleanup_failed_trip(
+                reason="permanent_error",
+                stage=self._determine_current_stage(),
+                error=e,
+            )
+        except TransientError as e:
+            # Retryable errors (network, service unavailable)
+            # Note: retries already handled in _get_route_with_retry
+            self._cleanup_failed_trip(
+                reason="transient_error",
+                stage=self._determine_current_stage(),
+                error=e,
+            )
         except Exception as e:
-            # Handle OSRM-specific errors by class name to avoid module identity issues
-            error_name = type(e).__name__
-            if error_name == "NoRouteFoundError":
-                self._cleanup_failed_trip(
-                    reason="no_route_found",
-                    stage=self._determine_current_stage(),
-                    error=e,
-                )
-            elif error_name in ("OSRMTimeoutError", "OSRMServiceError"):
-                self._cleanup_failed_trip(
-                    reason="osrm_service_error",
-                    stage=self._determine_current_stage(),
-                    error=e,
-                )
-            else:
-                logger.error(
-                    f"TripExecutor error for trip {self._trip.trip_id}: {e}", exc_info=True
-                )
-                self._cleanup_failed_trip(
-                    reason="unexpected_error",
-                    stage=self._determine_current_stage(),
-                    error=e,
-                )
+            logger.exception(f"Unexpected error in trip {self._trip.trip_id}")
+            self._cleanup_failed_trip(
+                reason="unexpected_error",
+                stage=self._determine_current_stage(),
+                error=e,
+            )
 
     def _drive_to_pickup(self) -> Generator[simpy.Event]:
         """Drive from current location to pickup."""
@@ -290,21 +289,18 @@ class TripExecutor:
         for attempt in range(max_attempts):
             try:
                 return self._osrm_client.get_route_sync(origin, destination)
-            except Exception as e:
-                error_name = type(e).__name__
-                if error_name == "NoRouteFoundError":
-                    raise  # Non-retryable
-                elif error_name in ("OSRMTimeoutError", "OSRMServiceError"):
-                    if attempt == max_attempts - 1:
-                        raise
-                    delay = base_delay * (multiplier**attempt)
-                    logger.warning(
-                        f"Trip {self._trip.trip_id}: OSRM failed (attempt {attempt + 1}/{max_attempts}), "
-                        f"retrying in {delay}s: {e}"
-                    )
-                    yield self._env.timeout(delay)
-                else:
-                    raise  # Unknown exception, don't retry
+            except PermanentError:
+                raise  # Non-retryable (e.g., NoRouteFoundError)
+            except TransientError as e:
+                # Retryable (e.g., OSRMTimeoutError, OSRMServiceError)
+                if attempt == max_attempts - 1:
+                    raise
+                delay = base_delay * (multiplier**attempt)
+                logger.warning(
+                    f"Trip {self._trip.trip_id}: OSRM failed (attempt {attempt + 1}/{max_attempts}), "
+                    f"retrying in {delay}s: {e}"
+                )
+                yield self._env.timeout(delay)
 
         # Should never reach here, but satisfy type checker
         raise OSRMServiceError("Max retries exceeded")

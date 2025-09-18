@@ -5,6 +5,11 @@ import polyline
 import requests
 from pydantic import BaseModel
 
+from core.exceptions import (
+    NetworkError,
+    ServiceUnavailableError,
+    ValidationError,
+)
 from metrics import get_metrics_collector
 
 
@@ -15,15 +20,21 @@ class RouteResponse(BaseModel):
     osrm_code: str
 
 
-class NoRouteFoundError(Exception):
+class NoRouteFoundError(ValidationError):
+    """No route found between coordinates. Inherits from ValidationError (non-retryable)."""
+
     pass
 
 
-class OSRMServiceError(Exception):
+class OSRMServiceError(ServiceUnavailableError):
+    """OSRM service error (5xx). Inherits from ServiceUnavailableError (retryable)."""
+
     pass
 
 
-class OSRMTimeoutError(Exception):
+class OSRMTimeoutError(NetworkError):
+    """OSRM request timeout. Inherits from NetworkError (retryable)."""
+
     pass
 
 

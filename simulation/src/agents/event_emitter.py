@@ -15,6 +15,7 @@ import time
 
 from pydantic import BaseModel
 
+from core.exceptions import NetworkError
 from kafka.producer import KafkaProducer
 from metrics import get_metrics_collector
 
@@ -53,12 +54,15 @@ class EventEmitter:
             self._kafka_producer.produce(topic=topic, key=key, value=json_str)
             latency_ms = (time.perf_counter() - start_time) * 1000
             collector.record_latency("kafka", latency_ms)
+        except NetworkError as e:
+            # Transient network errors - log and continue (fire-and-forget for non-critical events)
+            collector.record_error("kafka", "network_error")
+            logger.warning(f"Kafka emit failed for {topic}: {e}")
         except Exception as e:
             collector.record_error("kafka", type(e).__name__)
             logger.error(
                 f"Failed to emit event to Kafka topic {topic}: {e}",
                 extra={"topic": topic, "key": key, "event_type": type(event).__name__},
-                exc_info=True,
             )
 
     async def _emit_event(

@@ -4,7 +4,15 @@ from typing import Any
 
 from confluent_kafka import Producer
 
+from core.exceptions import NetworkError
+
 logger = logging.getLogger(__name__)
+
+
+class KafkaProducerError(NetworkError):
+    """Kafka producer error. Inherits from NetworkError (retryable)."""
+
+    pass
 
 
 class KafkaProducer:
