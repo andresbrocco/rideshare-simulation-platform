@@ -19,8 +19,33 @@ if TYPE_CHECKING:
     from trip import Trip
 
 from engine.agent_factory import AgentFactory
+from engine.snapshots import AgentSnapshot, SimulationSnapshot, TripSnapshot
+from engine.thread_coordinator import (
+    Command,
+    CommandTimeoutError,
+    CommandType,
+    NoHandlerRegisteredError,
+    ShutdownError,
+    ThreadCoordinator,
+)
 
-__all__ = ["SimulationEngine", "SimulationState", "TimeManager", "AgentFactory"]
+__all__ = [
+    "SimulationEngine",
+    "SimulationState",
+    "TimeManager",
+    "AgentFactory",
+    # Thread coordination
+    "ThreadCoordinator",
+    "CommandType",
+    "Command",
+    "CommandTimeoutError",
+    "NoHandlerRegisteredError",
+    "ShutdownError",
+    # Snapshots
+    "AgentSnapshot",
+    "TripSnapshot",
+    "SimulationSnapshot",
+]
 
 
 class SimulationState(str, Enum):
