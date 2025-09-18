@@ -56,3 +56,13 @@ settings = get_settings()
 print(f"Kafka brokers: {settings.kafka.bootstrap_servers}")
 print(f"Speed multiplier: {settings.simulation.speed_multiplier}")
 ```
+
+## Security
+
+This project uses a development-first security model optimized for local development and portfolio demonstrations. All data is synthetic.
+
+**Quick start:** The default API key (`dev-api-key-change-in-production`) works out of the box for local development.
+
+For details, see [Security Documentation](docs/security/README.md):
+- [Development Security Model](docs/security/development.md) - Current implementation
+- [Production Checklist](docs/security/production-checklist.md) - Hardening guide
