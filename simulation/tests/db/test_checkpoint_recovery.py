@@ -615,3 +615,47 @@ class TestLoadCheckpointMetadata:
             assert checkpoint["metadata"]["current_time"] == 172800.0
             assert checkpoint["metadata"]["speed_multiplier"] == 100
             assert checkpoint["metadata"]["status"] == "PAUSED"
+
+
+class TestHasCheckpoint:
+    """Tests for has_checkpoint method."""
+
+    def test_has_checkpoint_true(self, temp_sqlite_db):
+        """Returns True when checkpoint exists."""
+        session_maker = init_database(str(temp_sqlite_db))
+
+        with session_maker() as session:
+            manager = CheckpointManager(session)
+            manager.create_checkpoint(
+                current_time=1000.0,
+                speed_multiplier=1,
+                status="PAUSED",
+                drivers=[],
+                riders=[],
+                route_cache={},
+            )
+            session.commit()
+
+        with session_maker() as session:
+            manager = CheckpointManager(session)
+            assert manager.has_checkpoint() is True
+
+    def test_has_checkpoint_false(self, temp_sqlite_db):
+        """Returns False when no checkpoint exists."""
+        session_maker = init_database(str(temp_sqlite_db))
+
+        with session_maker() as session:
+            manager = CheckpointManager(session)
+            assert manager.has_checkpoint() is False
+
+
+class TestCheckpointError:
+    """Tests for CheckpointError exception."""
+
+    def test_checkpoint_error_import(self):
+        """CheckpointError can be imported from checkpoint module."""
+        from src.db.checkpoint import CheckpointError
+
+        error = CheckpointError("Test error message")
+        assert str(error) == "Test error message"
+        assert isinstance(error, Exception)

@@ -300,6 +300,54 @@ class SimulationEngine:
         """Get current simulated time as datetime."""
         return self._time_manager.current_time()
 
+    def try_restore_from_checkpoint(self) -> bool:
+        """Attempt to restore simulation state from a checkpoint.
+
+        Returns:
+            True if successfully restored, False if no checkpoint found or restore failed
+        """
+        from db.checkpoint import CheckpointError, CheckpointManager
+
+        if self._sqlite_db is None:
+            return False
+
+        try:
+            with self._sqlite_db() as session:
+                checkpoint_manager = CheckpointManager(session)
+                if not checkpoint_manager.has_checkpoint():
+                    return False
+
+                checkpoint_manager.restore_to_engine(self)
+
+                # Update time manager with restored environment
+                self._time_manager = TimeManager(
+                    self._time_manager._simulation_start_time,
+                    self._env,
+                )
+                return True
+        except CheckpointError as e:
+            import logging
+
+            logging.getLogger(__name__).warning(f"Checkpoint restore failed: {e}")
+            return False
+        except Exception as e:
+            import logging
+
+            logging.getLogger(__name__).error(f"Unexpected error during checkpoint restore: {e}")
+            return False
+
+    def save_checkpoint(self) -> None:
+        """Save current simulation state to a checkpoint."""
+        from db.checkpoint import CheckpointManager
+
+        if self._sqlite_db is None:
+            return
+
+        with self._sqlite_db() as session:
+            checkpoint_manager = CheckpointManager(session)
+            checkpoint_manager.save_from_engine(self)
+            session.commit()
+
     async def request_match(
         self,
         rider_id: str,

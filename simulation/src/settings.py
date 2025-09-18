@@ -8,6 +8,8 @@ class SimulationSettings(BaseSettings):
     speed_multiplier: int = Field(default=1, ge=1, le=1024)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     checkpoint_interval: int = Field(default=300, ge=60)
+    checkpoint_enabled: bool = Field(default=True)
+    resume_from_checkpoint: bool = Field(default=False)
 
     # GPS-based arrival detection
     arrival_proximity_threshold_m: float = Field(
