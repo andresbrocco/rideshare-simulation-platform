@@ -1,11 +1,15 @@
 """Core stream processor with multi-topic Kafka consumer."""
 
+import json
 import logging
 import time
+from datetime import timedelta
 from typing import Any
 
+import redis
 from confluent_kafka import Consumer, KafkaError
 
+from .deduplication import EventDeduplicator
 from .handlers import (
     BaseHandler,
     DriverProfileHandler,
@@ -90,6 +94,19 @@ class StreamProcessor:
         batch_size = getattr(settings.kafka, "batch_commit_size", 1)
         # Handle MagicMock or other non-int values from tests
         self._batch_commit_size = batch_size if isinstance(batch_size, int) else 1
+
+        # Initialize event deduplicator using same Redis connection
+        dedup_redis = redis.Redis(
+            host=settings.redis.host,
+            port=settings.redis.port,
+            password=settings.redis.password or None,
+            db=settings.redis.db,
+            decode_responses=True,
+        )
+        self._deduplicator = EventDeduplicator(
+            redis_client=dedup_redis,
+            ttl=timedelta(hours=1),
+        )
 
         # Register health callbacks with metrics collector
         collector = get_metrics_collector()
@@ -241,6 +258,15 @@ class StreamProcessor:
             logger.warning(f"No handler for topic: {topic}")
             return
 
+        # Check for duplicate events using event_id
+        try:
+            event_data = json.loads(msg.value())
+            event_id = event_data.get("event_id")
+            if event_id and self._deduplicator.is_duplicate(event_id):
+                return
+        except (json.JSONDecodeError, TypeError):
+            pass  # Continue processing if we can't parse the message
+
         handler = self._handlers[handler_key]
         self.messages_consumed += 1
 
@@ -342,3 +368,10 @@ class StreamProcessor:
         if gps_handler and isinstance(gps_handler, GPSHandler):
             ratio = gps_handler.get_aggregation_ratio()
             logger.info(f"GPS aggregation ratio: {ratio:.2f}x reduction")
+
+        # Log deduplication stats
+        dedup_stats = self._deduplicator.get_stats()
+        logger.info(
+            f"Deduplication: processed={dedup_stats['events_processed']}, "
+            f"duplicates_skipped={dedup_stats['duplicates_skipped']}"
+        )

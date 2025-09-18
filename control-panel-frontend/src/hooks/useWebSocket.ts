@@ -9,6 +9,16 @@ interface UseWebSocketOptions {
   onError?: (error: Event) => void;
 }
 
+interface EventCache {
+  eventIds: Set<string>;
+  maxSize: number;
+}
+
+const createEventCache = (maxSize: number = 1000): EventCache => ({
+  eventIds: new Set(),
+  maxSize,
+});
+
 export function useWebSocket({
   url,
   apiKey,
@@ -25,6 +35,7 @@ export function useWebSocket({
   const onCloseRef = useRef(onClose);
   const onErrorRef = useRef(onError);
   const isCleanedUpRef = useRef(false);
+  const eventCacheRef = useRef(createEventCache(1000));
 
   // Update refs in useLayoutEffect (runs before regular useEffect)
   // This ensures the refs have the latest callbacks when the WebSocket
@@ -64,6 +75,22 @@ export function useWebSocket({
         if (isCleanedUpRef.current) return;
         try {
           const data = JSON.parse(event.data);
+
+          // Deduplicate events by event_id
+          const eventId = (data as Record<string, unknown>)?.event_id;
+          if (typeof eventId === 'string' && eventId) {
+            const cache = eventCacheRef.current;
+            if (cache.eventIds.has(eventId)) {
+              return; // Skip duplicate
+            }
+            // LRU eviction: remove oldest if at capacity
+            if (cache.eventIds.size >= cache.maxSize) {
+              const oldest = cache.eventIds.values().next().value;
+              if (oldest) cache.eventIds.delete(oldest);
+            }
+            cache.eventIds.add(eventId);
+          }
+
           onMessageRef.current(data);
         } catch (error) {
           console.error('Failed to parse WebSocket message:', error);

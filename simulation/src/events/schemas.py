@@ -4,7 +4,21 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, Field
 
 
-class TripEvent(BaseModel):
+class CorrelationMixin(BaseModel):
+    """Mixin adding distributed tracing fields to events."""
+
+    session_id: str | None = Field(
+        default=None, description="Simulation run identifier"
+    )
+    correlation_id: str | None = Field(
+        default=None, description="Primary correlation ID (e.g., trip_id)"
+    )
+    causation_id: str | None = Field(
+        default=None, description="ID of event that caused this one"
+    )
+
+
+class TripEvent(CorrelationMixin):
     """Event for trip state transitions"""
 
     event_id: UUID = Field(default_factory=uuid4)
@@ -42,7 +56,7 @@ class TripEvent(BaseModel):
     pickup_route_progress_index: int | None = None
 
 
-class GPSPingEvent(BaseModel):
+class GPSPingEvent(CorrelationMixin):
     """GPS location ping from driver or rider"""
 
     event_id: UUID = Field(default_factory=uuid4)
@@ -60,19 +74,21 @@ class GPSPingEvent(BaseModel):
     pickup_route_progress_index: int | None = None
 
 
-class DriverStatusEvent(BaseModel):
+class DriverStatusEvent(CorrelationMixin):
     """Driver status change event"""
 
     event_id: UUID = Field(default_factory=uuid4)
     driver_id: str
     timestamp: str
     previous_status: str | None
-    new_status: Literal["online", "offline", "busy", "en_route_pickup", "en_route_destination"]
+    new_status: Literal[
+        "online", "offline", "busy", "en_route_pickup", "en_route_destination"
+    ]
     trigger: str
     location: tuple[float, float]
 
 
-class SurgeUpdateEvent(BaseModel):
+class SurgeUpdateEvent(CorrelationMixin):
     """Surge pricing update for a zone"""
 
     event_id: UUID = Field(default_factory=uuid4)
@@ -85,7 +101,7 @@ class SurgeUpdateEvent(BaseModel):
     calculation_window_seconds: int = 60
 
 
-class RatingEvent(BaseModel):
+class RatingEvent(CorrelationMixin):
     """Rating submitted after trip completion"""
 
     event_id: UUID = Field(default_factory=uuid4)
@@ -98,7 +114,7 @@ class RatingEvent(BaseModel):
     rating: int = Field(ge=1, le=5)
 
 
-class PaymentEvent(BaseModel):
+class PaymentEvent(CorrelationMixin):
     """Payment processing event"""
 
     event_id: UUID = Field(default_factory=uuid4)
@@ -115,7 +131,7 @@ class PaymentEvent(BaseModel):
     driver_payout_amount: float
 
 
-class DriverProfileEvent(BaseModel):
+class DriverProfileEvent(CorrelationMixin):
     """Driver profile creation or update"""
 
     event_id: UUID = Field(default_factory=uuid4)
@@ -135,7 +151,7 @@ class DriverProfileEvent(BaseModel):
     license_plate: str
 
 
-class RiderProfileEvent(BaseModel):
+class RiderProfileEvent(CorrelationMixin):
     """Rider profile creation or update"""
 
     event_id: UUID = Field(default_factory=uuid4)

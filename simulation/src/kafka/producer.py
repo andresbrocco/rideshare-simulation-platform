@@ -19,7 +19,15 @@ class KafkaProducer:
     """Thin wrapper around confluent-kafka Producer with sensible defaults."""
 
     def __init__(self, config: dict):
-        producer_config = {**config, "acks": "all"}
+        producer_config = {
+            **config,
+            # Enable idempotent producer for exactly-once semantics
+            "enable.idempotence": True,
+            "acks": "all",
+            "retries": 5,
+            "max.in.flight.requests.per.connection": 5,
+            "delivery.timeout.ms": 120000,
+        }
         self._producer = Producer(producer_config)
         self._failed_deliveries: list[dict] = []
 
@@ -67,11 +75,15 @@ class KafkaProducer:
                 callback(err, msg)
 
         try:
-            self._producer.produce(topic, key=key, value=serialized, on_delivery=internal_callback)
+            self._producer.produce(
+                topic, key=key, value=serialized, on_delivery=internal_callback
+            )
         except BufferError:
             # Queue full - poll to make room and retry once
             self._producer.poll(1.0)
-            self._producer.produce(topic, key=key, value=serialized, on_delivery=internal_callback)
+            self._producer.produce(
+                topic, key=key, value=serialized, on_delivery=internal_callback
+            )
 
         if critical:
             self._producer.flush(timeout=5.0)
