@@ -45,3 +45,10 @@ repos:
         language: system
         files: ^control-panel-frontend/.*\.(ts|tsx)$
         pass_filenames: false
+
+      - id: check-duplicate-class-names
+        name: Check for duplicate class names
+        entry: python scripts/check_duplicate_class_names.py
+        language: python
+        pass_filenames: false
+        files: \.py$
