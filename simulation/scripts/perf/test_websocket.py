@@ -48,7 +48,8 @@ async def run_client(
         start_time = time.perf_counter()
 
         async with websockets.connect(
-            f"{ws_url}?api_key={api_key}",
+            ws_url,
+            subprotocols=[f"apikey.{api_key}"],
             ping_interval=20,
             ping_timeout=10,
         ) as ws:

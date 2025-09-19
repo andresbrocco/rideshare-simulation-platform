@@ -49,32 +49,27 @@ curl -H "X-API-Key: dev-api-key-change-in-production" \
 **Implementation:** `simulation/src/api/websocket.py`
 
 ```python
-@router.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    api_key = websocket.query_params.get("api_key")
-    if not api_key or api_key != settings.api.key:
-        await websocket.close(code=1008)
-        return
+def extract_api_key(websocket: WebSocket) -> str | None:
+    """Extract API key from Sec-WebSocket-Protocol header."""
+    protocol_header = websocket.headers.get("sec-websocket-protocol")
+    if protocol_header:
+        protocols = [p.strip() for p in protocol_header.split(",")]
+        for protocol in protocols:
+            if protocol.startswith("apikey."):
+                return protocol.split(".", 1)[1]
+    return None
 ```
 
-**Why query string instead of header?**
+**Why Sec-WebSocket-Protocol header?**
 
-Browser WebSocket API doesn't support custom headers. The alternatives are:
-1. Query string (current) - Simple but exposes key in logs/history
-2. First message authentication - Requires protocol changes
-3. Cookie-based - Adds session management complexity
-
-For a demo project, query string is the pragmatic choice.
-
-**Security implications:**
-- API key visible in browser developer tools
-- API key logged by reverse proxies (nginx access logs)
-- API key stored in browser history
-- No protection against replay attacks
+Browser WebSocket API doesn't support custom headers, but it does support subprotocol negotiation via the `Sec-WebSocket-Protocol` header. This approach:
+- Keeps API key out of URLs (not logged, not in browser history)
+- Uses standard WebSocket protocol negotiation
+- Works in all browsers
 
 **Usage (JavaScript):**
 ```javascript
-const ws = new WebSocket("ws://localhost:8000/ws?api_key=dev-api-key-change-in-production");
+const ws = new WebSocket("ws://localhost:8000/ws", ["apikey.dev-api-key-change-in-production"]);
 ```
 
 ## Stream Processor Security
@@ -176,15 +171,7 @@ API_KEY=${API_KEY:-dev-api-key-change-in-production}
 
 **Mitigation:** The default value is self-documenting ("change-in-production").
 
-### 2. WebSocket Query String
-
-**Risk:** API key exposure in logs, history, referrer headers.
-
-**Mitigation:**
-- Acceptable for synthetic data
-- Production would require protocol upgrade
-
-### 3. No Rate Limiting
+### 2. No Rate Limiting
 
 **Risk:** DoS attacks, resource exhaustion.
 
@@ -192,7 +179,7 @@ API_KEY=${API_KEY:-dev-api-key-change-in-production}
 - Local deployment only
 - Docker resource limits (`mem_limit` in compose)
 
-### 4. Unauthenticated Monitoring
+### 3. Unauthenticated Monitoring
 
 **Risk:** Information disclosure (throughput, latency, connection status).
 
@@ -200,7 +187,7 @@ API_KEY=${API_KEY:-dev-api-key-change-in-production}
 - No sensitive data exposed
 - Metrics are operational, not business data
 
-### 5. HTTP Transport
+### 4. HTTP Transport
 
 **Risk:** Credential interception, MITM attacks.
 
@@ -208,7 +195,7 @@ API_KEY=${API_KEY:-dev-api-key-change-in-production}
 - localhost only
 - Docker network isolation
 
-### 6. No Content Security Policy
+### 5. No Content Security Policy
 
 **Risk:** XSS attacks if user-controlled content rendered.
 

@@ -28,18 +28,17 @@ This is intentional. The project demonstrates data engineering concepts, not pro
 |-----------|---------------|-----------|-------|
 | REST API (`/simulation/*`, `/agents/*`, `/metrics/*`) | API key via `X-API-Key` header | HTTP | Protected routes |
 | REST API (`/health`) | None | HTTP | Intentionally open for infrastructure |
-| WebSocket (`/ws`) | API key via query string | WS | [Known limitation](#known-limitations) |
+| WebSocket (`/ws`) | API key via `Sec-WebSocket-Protocol` header | WS | Uses subprotocol negotiation |
 | Stream Processor (`/health`, `/metrics`) | None | HTTP | Internal monitoring only |
 
 ## Known Limitations
 
 These are documented trade-offs for development convenience:
 
-1. **WebSocket query string authentication** - API key exposed in URLs, browser history, server logs
-2. **Default API key** - `dev-api-key-change-in-production` is insecure if unchanged
-3. **No rate limiting** - All endpoints accept unlimited requests
-4. **HTTP transport** - No TLS encryption in local development
-5. **Stream processor endpoints** - No authentication on `/health` and `/metrics`
+1. **Default API key** - `dev-api-key-change-in-production` is insecure if unchanged
+2. **No rate limiting** - All endpoints accept unlimited requests
+3. **HTTP transport** - No TLS encryption in local development
+4. **Stream processor endpoints** - No authentication on `/health` and `/metrics`
 
 See [development.md](development.md) for detailed explanations of each trade-off.
 
@@ -67,5 +66,5 @@ API_KEY=your-generated-key-here
 curl -H "X-API-Key: $API_KEY" http://localhost:8000/simulation/status
 
 # WebSocket (from browser)
-new WebSocket("ws://localhost:8000/ws?api_key=$API_KEY")
+new WebSocket("ws://localhost:8000/ws", ["apikey.$API_KEY"])
 ```

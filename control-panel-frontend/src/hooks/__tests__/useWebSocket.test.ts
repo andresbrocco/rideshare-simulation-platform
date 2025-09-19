@@ -6,6 +6,7 @@ let mockWsInstance: MockWebSocket | null = null;
 
 class MockWebSocket {
   url: string;
+  protocols: string | string[] | undefined;
   onopen: ((event: Event) => void) | null = null;
   onmessage: ((event: MessageEvent) => void) | null = null;
   onclose: ((event: CloseEvent) => void) | null = null;
@@ -17,8 +18,9 @@ class MockWebSocket {
   static CLOSING = 2;
   static CLOSED = 3;
 
-  constructor(url: string) {
+  constructor(url: string, protocols?: string | string[]) {
     this.url = url;
+    this.protocols = protocols;
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     mockWsInstance = this;
     setTimeout(() => {
@@ -483,5 +485,33 @@ describe('useWebSocket', () => {
     expect(onError).toHaveBeenCalled();
 
     consoleErrorSpy.mockRestore();
+  });
+
+  it('passes API key via Sec-WebSocket-Protocol header', async () => {
+    const onMessage = vi.fn();
+    renderHook(() =>
+      useWebSocket({
+        url: 'ws://localhost:8000/ws',
+        apiKey: 'my-secret-key',
+        onMessage,
+      })
+    );
+
+    expect(mockWsInstance?.protocols).toEqual(['apikey.my-secret-key']);
+    expect(mockWsInstance?.url).toBe('ws://localhost:8000/ws');
+  });
+
+  it('does not include API key in URL query string', async () => {
+    const onMessage = vi.fn();
+    renderHook(() =>
+      useWebSocket({
+        url: 'ws://localhost:8000/ws',
+        apiKey: 'test-api-key',
+        onMessage,
+      })
+    );
+
+    expect(mockWsInstance?.url).not.toContain('api_key');
+    expect(mockWsInstance?.url).not.toContain('?');
   });
 });

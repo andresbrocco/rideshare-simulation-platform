@@ -59,7 +59,7 @@ export function useWebSocket({
       // Don't connect if effect was cleaned up
       if (isCleanedUpRef.current) return;
 
-      const ws = new WebSocket(`${url}?api_key=${apiKey}`);
+      const ws = new WebSocket(url, [`apikey.${apiKey}`]);
       wsRef.current = ws;
 
       ws.onopen = () => {
