@@ -21,7 +21,9 @@ from api.models.agents import (
     RiderStatisticsResponse,
     RiderTripRequestBody,
     RiderTripRequestResponse,
+    SpawnQueueStatusResponse,
 )
+from settings import get_settings
 
 router = APIRouter(dependencies=[Depends(verify_api_key)])
 
@@ -80,22 +82,52 @@ def compute_next_action_response(agent: Any, engine: Any) -> NextActionResponse 
 
 @router.post("/drivers", response_model=DriversCreateResponse)
 def create_drivers(request: DriverCreateRequest, agent_factory: AgentFactoryDep):
-    """Create driver agents dynamically."""
+    """Queue driver agents for continuous spawning.
+
+    Drivers are spawned at a continuous rate (default: 2/sec) to prevent
+    synchronized GPS ping bursts. Use GET /agents/spawn-status to monitor progress.
+    """
     try:
-        driver_ids = agent_factory.create_drivers(request.count)
-        return DriversCreateResponse(created=request.count, driver_ids=driver_ids)
+        settings = get_settings()
+        queued = agent_factory.queue_drivers(request.count)
+        spawn_rate = settings.spawn.driver_spawn_rate
+        return DriversCreateResponse(
+            queued=queued,
+            spawn_rate=spawn_rate,
+            estimated_completion_seconds=queued / spawn_rate,
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/riders", response_model=RidersCreateResponse)
 def create_riders(request: RiderCreateRequest, agent_factory: AgentFactoryDep):
-    """Create rider agents dynamically."""
+    """Queue rider agents for continuous spawning.
+
+    Riders are spawned at a continuous rate (default: 40/sec) to prevent
+    synchronized GPS ping bursts. Use GET /agents/spawn-status to monitor progress.
+    """
     try:
-        rider_ids = agent_factory.create_riders(request.count)
-        return RidersCreateResponse(created=request.count, rider_ids=rider_ids)
+        settings = get_settings()
+        queued = agent_factory.queue_riders(request.count)
+        spawn_rate = settings.spawn.rider_spawn_rate
+        return RidersCreateResponse(
+            queued=queued,
+            spawn_rate=spawn_rate,
+            estimated_completion_seconds=queued / spawn_rate,
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.get("/spawn-status", response_model=SpawnQueueStatusResponse)
+def get_spawn_status(agent_factory: AgentFactoryDep):
+    """Get current spawn queue status.
+
+    Returns the number of drivers and riders waiting to be spawned.
+    """
+    status = agent_factory.get_spawn_queue_status()
+    return SpawnQueueStatusResponse(**status)
 
 
 # --- Agent State Inspection ---
@@ -371,12 +403,10 @@ async def request_rider_trip(
 
     # Determine zones
     pickup_zone_id = (
-        zone_loader.find_zone_for_location(rider.location[0], rider.location[1])
-        or "unknown"
+        zone_loader.find_zone_for_location(rider.location[0], rider.location[1]) or "unknown"
     )
     dropoff_zone_id = (
-        zone_loader.find_zone_for_location(body.destination[0], body.destination[1])
-        or "unknown"
+        zone_loader.find_zone_for_location(body.destination[0], body.destination[1]) or "unknown"
     )
 
     # Get surge for pickup zone

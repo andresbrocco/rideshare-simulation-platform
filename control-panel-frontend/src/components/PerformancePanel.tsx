@@ -20,7 +20,7 @@ function formatNumber(value: number, decimals: number = 0): string {
 
 function formatLatency(latency: LatencyMetrics | null): string {
   if (!latency || latency.count === 0) return '-';
-  return `${latency.avg_ms.toFixed(0)}ms / ${latency.p95_ms.toFixed(0)}ms`;
+  return `${latency.avg_ms.toFixed(2)}ms / ${latency.p95_ms.toFixed(2)}ms`;
 }
 
 function formatErrorRate(errors: ErrorStats | null): string {
@@ -75,7 +75,7 @@ export default function PerformancePanel({
           <h3 className={styles.title}>Performance</h3>
           {metrics && (
             <span className={styles.totalEvents}>
-              {formatNumber(metrics.events.total_per_sec, 1)}/s
+              {formatNumber(metrics.events.total_per_sec, 3)}/s
             </span>
           )}
         </div>
@@ -108,17 +108,17 @@ export default function PerformancePanel({
             <div className={styles.sectionTitle}>Events/sec</div>
             <MetricRow
               label="GPS Pings"
-              value={metrics ? formatNumber(metrics.events.gps_pings_per_sec, 1) : '-'}
+              value={metrics ? formatNumber(metrics.events.gps_pings_per_sec, 3) : '-'}
               tooltip="GPS location updates from drivers and riders"
             />
             <MetricRow
               label="Trip Events"
-              value={metrics ? formatNumber(metrics.events.trip_events_per_sec, 1) : '-'}
+              value={metrics ? formatNumber(metrics.events.trip_events_per_sec, 3) : '-'}
               tooltip="Trip state changes (requested, matched, completed, etc.)"
             />
             <MetricRow
               label="Driver Status"
-              value={metrics ? formatNumber(metrics.events.driver_status_per_sec, 1) : '-'}
+              value={metrics ? formatNumber(metrics.events.driver_status_per_sec, 3) : '-'}
               tooltip="Driver availability status changes"
             />
           </div>
@@ -187,12 +187,12 @@ export default function PerformancePanel({
               <div className={styles.sectionTitle}>Stream Processor</div>
               <MetricRow
                 label="Consume"
-                value={`${formatNumber(metrics.stream_processor.messages_consumed_per_sec, 1)}/s`}
+                value={`${formatNumber(metrics.stream_processor.messages_consumed_per_sec, 3)}/s`}
                 tooltip="Messages consumed from Kafka per second"
               />
               <MetricRow
                 label="Publish"
-                value={`${formatNumber(metrics.stream_processor.messages_published_per_sec, 1)}/s`}
+                value={`${formatNumber(metrics.stream_processor.messages_published_per_sec, 3)}/s`}
                 tooltip="Messages published to Redis per second"
               />
               <MetricRow
@@ -208,7 +208,7 @@ export default function PerformancePanel({
                 label="Redis Latency"
                 value={
                   metrics.stream_processor.redis_publish_latency.count > 0
-                    ? `${metrics.stream_processor.redis_publish_latency.avg_ms.toFixed(0)}ms / ${metrics.stream_processor.redis_publish_latency.p95_ms.toFixed(0)}ms`
+                    ? `${metrics.stream_processor.redis_publish_latency.avg_ms.toFixed(2)}ms / ${metrics.stream_processor.redis_publish_latency.p95_ms.toFixed(2)}ms`
                     : '-'
                 }
                 tooltip="Redis publish latency (avg / p95)"
@@ -229,7 +229,7 @@ export default function PerformancePanel({
             <div className={styles.sectionTitle}>Frontend</div>
             <MetricRow
               label="WS Messages"
-              value={`${formatNumber(frontendMetrics.ws_messages_per_sec, 1)}/s`}
+              value={`${formatNumber(frontendMetrics.ws_messages_per_sec, 3)}/s`}
               tooltip="WebSocket messages received per second"
             />
             <MetricRow

@@ -28,6 +28,7 @@ from engine.thread_coordinator import (
     ShutdownError,
     ThreadCoordinator,
 )
+from settings import get_settings
 
 __all__ = [
     "SimulationEngine",
@@ -159,6 +160,9 @@ class SimulationEngine:
         # Unique session ID for this simulation run (for distributed tracing)
         self._session_id = str(uuid4())
 
+        # Agent factory reference (set later by main.py)
+        self._agent_factory: AgentFactory | None = None
+
     @property
     def state(self) -> SimulationState:
         return self._state
@@ -175,17 +179,13 @@ class SimulationEngine:
     @property
     def active_driver_count(self) -> int:
         """Count drivers with status=online."""
-        return sum(
-            1 for driver in self._active_drivers.values() if driver.status == "online"
-        )
+        return sum(1 for driver in self._active_drivers.values() if driver.status == "online")
 
     @property
     def active_rider_count(self) -> int:
         """Count riders with status=waiting or in_trip."""
         return sum(
-            1
-            for rider in self._active_riders.values()
-            if rider.status in ("waiting", "in_trip")
+            1 for rider in self._active_riders.values() if rider.status in ("waiting", "in_trip")
         )
 
     def set_event_loop(self, loop: asyncio.AbstractEventLoop) -> None:
@@ -196,9 +196,7 @@ class SimulationEngine:
         """Get the main asyncio event loop for thread-safe async calls from SimPy thread."""
         return self._event_loop
 
-    def transition_state(
-        self, new_state: SimulationState, trigger: str = "user_request"
-    ) -> None:
+    def transition_state(self, new_state: SimulationState, trigger: str = "user_request") -> None:
         """Validate and execute state transition."""
         if new_state not in VALID_STATE_TRANSITIONS.get(self._state, set()):
             raise ValueError(
@@ -291,12 +289,8 @@ class SimulationEngine:
 
     def pause(self) -> None:
         """Initiate two-phase pause: RUNNING -> DRAINING -> PAUSED."""
-        if SimulationState.DRAINING not in VALID_STATE_TRANSITIONS.get(
-            self._state, set()
-        ):
-            raise ValueError(
-                f"Invalid state transition from {self._state.value} to draining"
-            )
+        if SimulationState.DRAINING not in VALID_STATE_TRANSITIONS.get(self._state, set()):
+            raise ValueError(f"Invalid state transition from {self._state.value} to draining")
 
         old_state = self._state
         self._state = SimulationState.DRAINING
@@ -305,12 +299,8 @@ class SimulationEngine:
 
     def resume(self) -> None:
         """Transition from PAUSED to RUNNING."""
-        if SimulationState.RUNNING not in VALID_STATE_TRANSITIONS.get(
-            self._state, set()
-        ):
-            raise ValueError(
-                f"Invalid state transition from {self._state.value} to running"
-            )
+        if SimulationState.RUNNING not in VALID_STATE_TRANSITIONS.get(self._state, set()):
+            raise ValueError(f"Invalid state transition from {self._state.value} to running")
 
         old_state = self._state
         self._state = SimulationState.RUNNING
@@ -355,9 +345,7 @@ class SimulationEngine:
         except Exception as e:
             import logging
 
-            logging.getLogger(__name__).error(
-                f"Unexpected error during checkpoint restore: {e}"
-            )
+            logging.getLogger(__name__).error(f"Unexpected error during checkpoint restore: {e}")
             return False
 
     def save_checkpoint(self) -> None:
@@ -429,13 +417,20 @@ class SimulationEngine:
                 rider._process_started = True  # type: ignore[attr-defined]
 
     def _start_periodic_processes(self) -> None:
-        """Start surge updates.
+        """Start surge updates and agent spawner processes.
 
         Note: GPS pings are handled by each driver's own _emit_gps_ping() process
         which tracks all relevant statuses accurately (online, en_route_pickup, en_route_destination).
         """
         surge_process = self._env.process(self._surge_update_process())  # type: ignore[no-untyped-call]
         self._periodic_processes.append(surge_process)
+
+        # Start agent spawner processes for continuous spawning
+        driver_spawner = self._env.process(self._driver_spawner_process())  # type: ignore[no-untyped-call]
+        self._periodic_processes.append(driver_spawner)
+
+        rider_spawner = self._env.process(self._rider_spawner_process())  # type: ignore[no-untyped-call]
+        self._periodic_processes.append(rider_spawner)
 
     def _surge_update_process(self):  # type: ignore[no-untyped-def]
         """Recalculate surge every 60 simulated seconds."""
@@ -456,6 +451,130 @@ class SimulationEngine:
                 )
 
             yield self._env.timeout(60)
+
+    def _driver_spawner_process(self):  # type: ignore[no-untyped-def]
+        """Continuously spawn drivers from queue at configured rate.
+
+        Spawns 1 driver per interval (2 drivers/sec = 0.5s interval).
+        Each spawned driver starts its run() process immediately, ensuring
+        GPS pings are naturally desynchronized across different spawn times.
+        """
+        settings = get_settings()
+        interval = 1.0 / settings.spawn.driver_spawn_rate  # e.g., 0.5s for 2/sec
+
+        while True:
+            # Only spawn when simulation is running and factory is set
+            if (
+                self._state == SimulationState.RUNNING
+                and self._agent_factory is not None
+                and self._agent_factory.dequeue_driver()
+            ):
+                self._spawn_single_driver()
+
+            yield self._env.timeout(interval)
+
+    def _rider_spawner_process(self):  # type: ignore[no-untyped-def]
+        """Continuously spawn riders from queue at configured rate.
+
+        Spawns 1 rider per interval (40 riders/sec = 0.025s interval).
+        Each spawned rider starts its run() process immediately.
+        """
+        settings = get_settings()
+        interval = 1.0 / settings.spawn.rider_spawn_rate  # e.g., 0.025s for 40/sec
+
+        while True:
+            # Only spawn when simulation is running and factory is set
+            if (
+                self._state == SimulationState.RUNNING
+                and self._agent_factory is not None
+                and self._agent_factory.dequeue_rider()
+            ):
+                self._spawn_single_rider()
+
+            yield self._env.timeout(interval)
+
+    def _spawn_single_driver(self) -> str | None:
+        """Spawn a single driver and start its process immediately.
+
+        Returns:
+            The driver_id if spawned, None if factory not available
+        """
+        if self._agent_factory is None:
+            return None
+
+        from agents.dna_generator import generate_driver_dna
+        from agents.driver_agent import DriverAgent
+
+        dna = generate_driver_dna()
+        driver_id = str(uuid4())
+
+        # Get dependencies from factory
+        agent = DriverAgent(
+            driver_id=driver_id,
+            dna=dna,
+            env=self._env,
+            kafka_producer=self._kafka_producer,
+            redis_publisher=self._redis_client,
+            driver_repository=None,
+            registry_manager=self._agent_factory._registry_manager,
+            zone_loader=self._agent_factory._zone_loader,
+            immediate_online=True,
+            simulation_engine=self,
+        )
+
+        self.register_driver(agent)
+
+        if self._agent_factory._registry_manager:
+            self._agent_factory._registry_manager.register_driver(agent)
+
+        # Start process IMMEDIATELY (key difference from bulk creation)
+        process = self._env.process(agent.run())
+        self._agent_processes.append(process)
+        agent._process_started = True  # type: ignore[attr-defined]
+
+        return driver_id
+
+    def _spawn_single_rider(self) -> str | None:
+        """Spawn a single rider and start its process immediately.
+
+        Returns:
+            The rider_id if spawned, None if factory not available
+        """
+        if self._agent_factory is None:
+            return None
+
+        from agents.dna_generator import generate_rider_dna
+        from agents.rider_agent import RiderAgent
+
+        dna = generate_rider_dna()
+        rider_id = str(uuid4())
+
+        # Get dependencies from factory
+        agent = RiderAgent(
+            rider_id=rider_id,
+            dna=dna,
+            env=self._env,
+            kafka_producer=self._kafka_producer,
+            redis_publisher=self._redis_client,
+            rider_repository=None,
+            simulation_engine=self,
+            zone_loader=self._agent_factory._zone_loader,
+            osrm_client=self._agent_factory._osrm_client,
+            surge_calculator=self._agent_factory._surge_calculator,
+            immediate_first_trip=False,
+        )
+
+        self.register_rider(agent)
+
+        if self._agent_factory._registry_manager:
+            self._agent_factory._registry_manager.register_rider(agent)
+
+        # Start process IMMEDIATELY (key difference from bulk creation)
+        process = self._env.process(agent.run())
+        self._agent_processes.append(process)
+        agent._process_started = True  # type: ignore[attr-defined]
+
+        return rider_id
 
     def _get_in_flight_trips(self) -> list["Trip"]:
         """Get trips in non-terminal states from MatchingServer."""
@@ -587,6 +706,10 @@ class SimulationEngine:
         # Update matching server's environment reference to the new one
         if hasattr(self._matching_server, "_env"):
             self._matching_server._env = self._env
+
+        # Clear spawn queues
+        if self._agent_factory:
+            self._agent_factory.clear_spawn_queues()
 
         # Clear database
         if self._sqlite_db:

@@ -12,13 +12,26 @@ class RiderCreateRequest(BaseModel):
 
 
 class DriversCreateResponse(BaseModel):
-    created: int
-    driver_ids: list[str]
+    """Response for queued driver creation with continuous spawning."""
+
+    queued: int
+    spawn_rate: float
+    estimated_completion_seconds: float
 
 
 class RidersCreateResponse(BaseModel):
-    created: int
-    rider_ids: list[str]
+    """Response for queued rider creation with continuous spawning."""
+
+    queued: int
+    spawn_rate: float
+    estimated_completion_seconds: float
+
+
+class SpawnQueueStatusResponse(BaseModel):
+    """Current status of agent spawn queues."""
+
+    drivers_queued: int
+    riders_queued: int
 
 
 # --- DNA Override Models (for puppet agents) ---
@@ -137,9 +150,7 @@ class ActiveTripInfo(BaseModel):
     state: str
     rider_id: str | None = None
     driver_id: str | None = None
-    counterpart_name: str | None = (
-        None  # Rider name (for driver) or driver name (for rider)
-    )
+    counterpart_name: str | None = None  # Rider name (for driver) or driver name (for rider)
     pickup_location: tuple[float, float]
     dropoff_location: tuple[float, float]
     surge_multiplier: float

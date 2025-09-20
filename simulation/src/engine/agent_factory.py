@@ -1,6 +1,7 @@
 """Factory for dynamic agent creation."""
 
 import random
+import threading
 from typing import TYPE_CHECKING, Any, cast
 from uuid import uuid4
 
@@ -42,6 +43,11 @@ class AgentFactory:
 
         self._max_drivers = 2000
         self._max_riders = 10000
+
+        # Spawn queue for continuous agent spawning
+        self._driver_spawn_queue: int = 0
+        self._rider_spawn_queue: int = 0
+        self._spawn_lock = threading.Lock()
 
     def create_drivers(self, count: int) -> list[str]:
         """Create N driver agents."""
@@ -129,6 +135,84 @@ class AgentFactory:
             raise ValueError(
                 f"Rider capacity limit exceeded: {current_count} + {count} > {self._max_riders}"
             )
+
+    # --- Spawn Queue Methods (for continuous spawning) ---
+
+    def queue_drivers(self, count: int) -> int:
+        """Queue N drivers for continuous spawning.
+
+        Args:
+            count: Number of drivers to queue
+
+        Returns:
+            Number of drivers queued
+
+        Raises:
+            ValueError: If adding count would exceed capacity
+        """
+        self._check_driver_capacity(count)
+        with self._spawn_lock:
+            self._driver_spawn_queue += count
+        return count
+
+    def queue_riders(self, count: int) -> int:
+        """Queue N riders for continuous spawning.
+
+        Args:
+            count: Number of riders to queue
+
+        Returns:
+            Number of riders queued
+
+        Raises:
+            ValueError: If adding count would exceed capacity
+        """
+        self._check_rider_capacity(count)
+        with self._spawn_lock:
+            self._rider_spawn_queue += count
+        return count
+
+    def dequeue_driver(self) -> bool:
+        """Dequeue one driver for spawning.
+
+        Returns:
+            True if a driver was dequeued, False if queue was empty
+        """
+        with self._spawn_lock:
+            if self._driver_spawn_queue > 0:
+                self._driver_spawn_queue -= 1
+                return True
+            return False
+
+    def dequeue_rider(self) -> bool:
+        """Dequeue one rider for spawning.
+
+        Returns:
+            True if a rider was dequeued, False if queue was empty
+        """
+        with self._spawn_lock:
+            if self._rider_spawn_queue > 0:
+                self._rider_spawn_queue -= 1
+                return True
+            return False
+
+    def get_spawn_queue_status(self) -> dict[str, int]:
+        """Get current spawn queue status.
+
+        Returns:
+            Dictionary with drivers_queued and riders_queued counts
+        """
+        with self._spawn_lock:
+            return {
+                "drivers_queued": self._driver_spawn_queue,
+                "riders_queued": self._rider_spawn_queue,
+            }
+
+    def clear_spawn_queues(self) -> None:
+        """Clear all spawn queues. Used during reset."""
+        with self._spawn_lock:
+            self._driver_spawn_queue = 0
+            self._rider_spawn_queue = 0
 
     def _get_random_location_in_zone(self, zone_id: str) -> tuple[float, float] | None:
         """Get a random location within a zone.

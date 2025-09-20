@@ -21,6 +21,16 @@ def extract_api_key_and_protocol(websocket: WebSocket) -> tuple[str | None, str 
     return None, None
 
 
+def extract_api_key(websocket: WebSocket) -> str | None:
+    """Extract API key from Sec-WebSocket-Protocol header.
+
+    Expected format: apikey.<key>
+    Returns: api_key or None if not found
+    """
+    api_key, _ = extract_api_key_and_protocol(websocket)
+    return api_key
+
+
 class ConnectionManager:
     """Manages WebSocket connections for real-time updates."""
 

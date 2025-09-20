@@ -123,9 +123,7 @@ class MatchingSettings(BaseSettings):
     def __init__(self, **data):
         super().__init__(**data)
         weights_sum = (
-            self.ranking_eta_weight
-            + self.ranking_rating_weight
-            + self.ranking_acceptance_weight
+            self.ranking_eta_weight + self.ranking_rating_weight + self.ranking_acceptance_weight
         )
         if not (0.99 <= weights_sum <= 1.01):
             raise ValueError(
@@ -133,6 +131,25 @@ class MatchingSettings(BaseSettings):
                 f"(ETA: {self.ranking_eta_weight}, Rating: {self.ranking_rating_weight}, "
                 f"Acceptance: {self.ranking_acceptance_weight})"
             )
+
+
+class SpawnSettings(BaseSettings):
+    """Agent spawn rate configuration for continuous spawning."""
+
+    driver_spawn_rate: float = Field(
+        default=2.0,
+        ge=0.1,
+        le=100.0,
+        description="Drivers spawned per simulated second",
+    )
+    rider_spawn_rate: float = Field(
+        default=40.0,
+        ge=1.0,
+        le=1000.0,
+        description="Riders spawned per simulated second",
+    )
+
+    model_config = SettingsConfigDict(env_prefix="SPAWN_")
 
 
 class Settings(BaseSettings):
@@ -146,6 +163,7 @@ class Settings(BaseSettings):
     cors: CORSSettings = Field(default_factory=CORSSettings)
     performance: PerformanceSettings = Field(default_factory=PerformanceSettings)
     matching: MatchingSettings = Field(default_factory=MatchingSettings)
+    spawn: SpawnSettings = Field(default_factory=SpawnSettings)
 
     model_config = SettingsConfigDict(
         env_nested_delimiter="__",

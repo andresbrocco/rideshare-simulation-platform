@@ -220,6 +220,9 @@ def main():
         surge_calculator=surge_calculator,
     )
 
+    # Set factory reference on engine for spawner processes
+    engine._agent_factory = agent_factory
+
     logger.info(f"Simulation engine initialized (speed: {settings.simulation.speed_multiplier}x)")
 
     # Create FastAPI app with real dependencies
