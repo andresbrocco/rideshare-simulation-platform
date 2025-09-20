@@ -4,7 +4,7 @@ import logging
 
 import pytest
 
-from src.logging import DefaultCorrelationFilter, PIIFilter
+from src.sim_logging import DefaultCorrelationFilter, PIIFilter
 
 
 class TestPIIFilter:

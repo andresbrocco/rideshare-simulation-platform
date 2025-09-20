@@ -4,7 +4,7 @@ import logging
 
 import pytest
 
-from src.logging import get_logger, setup_logging
+from src.sim_logging import get_logger, setup_logging
 
 
 class TestSetupLogging:

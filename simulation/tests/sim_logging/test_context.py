@@ -4,7 +4,7 @@ import logging
 
 import pytest
 
-from src.logging import log_context, log_trip_context
+from src.sim_logging import log_context, log_trip_context
 
 
 class TestLogContext:

@@ -5,7 +5,7 @@ import logging
 
 import pytest
 
-from src.logging import DevFormatter, JSONFormatter
+from src.sim_logging import DevFormatter, JSONFormatter
 
 
 class TestJSONFormatter:

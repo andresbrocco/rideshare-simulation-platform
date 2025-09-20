@@ -3,12 +3,23 @@ FROM node:20-alpine AS development
 
 WORKDIR /app
 
+# Copy package files for dependency installation
 COPY control-panel-frontend/package*.json ./
 
-RUN npm install --force
+# Create entrypoint script that installs deps if node_modules is empty
+# Also removes package-lock.json to avoid platform-specific dependency issues
+RUN echo '#!/bin/sh' > /entrypoint.sh && \
+    echo 'if [ ! -d "/app/node_modules/.bin" ]; then' >> /entrypoint.sh && \
+    echo '  echo "Installing dependencies..."' >> /entrypoint.sh && \
+    echo '  rm -f /app/package-lock.json' >> /entrypoint.sh && \
+    echo '  npm install --force' >> /entrypoint.sh && \
+    echo 'fi' >> /entrypoint.sh && \
+    echo 'exec "$@"' >> /entrypoint.sh && \
+    chmod +x /entrypoint.sh
 
 EXPOSE 5173
 
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
 # Build stage - compile React app with Vite

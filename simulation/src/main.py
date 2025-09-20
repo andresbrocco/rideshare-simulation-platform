@@ -117,7 +117,7 @@ def create_async_redis_client(settings) -> Redis:
 def main():
     """Main entry point - initializes and runs the unified service."""
     # Import logging setup from our logging module
-    from src.logging import setup_logging
+    from sim_logging import setup_logging
 
     settings = get_settings()
 
@@ -220,9 +220,7 @@ def main():
         surge_calculator=surge_calculator,
     )
 
-    logger.info(
-        f"Simulation engine initialized (speed: {settings.simulation.speed_multiplier}x)"
-    )
+    logger.info(f"Simulation engine initialized (speed: {settings.simulation.speed_multiplier}x)")
 
     # Create FastAPI app with real dependencies
     app = create_app(
