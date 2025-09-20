@@ -7,6 +7,7 @@ FastAPI handles HTTP requests on the main thread.
 """
 
 import logging
+import os
 import signal
 import sys
 import threading
@@ -33,10 +34,6 @@ from matching.surge_pricing import SurgePricingCalculator
 from redis_client.publisher import RedisPublisher
 from settings import get_settings
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
 logger = logging.getLogger(__name__)
 
 
@@ -119,16 +116,23 @@ def create_async_redis_client(settings) -> Redis:
 
 def main():
     """Main entry point - initializes and runs the unified service."""
+    # Import logging setup from our logging module
+    from src.logging import setup_logging
+
     settings = get_settings()
 
-    log_level = getattr(logging, settings.simulation.log_level)
-    logging.getLogger().setLevel(log_level)
+    # Configure logging using centralized setup
+    # LOG_FORMAT env var takes precedence, then settings.simulation.log_format
+    log_format = os.environ.get("LOG_FORMAT") or settings.simulation.log_format
+    setup_logging(
+        level=settings.simulation.log_level,
+        json_output=log_format == "json",
+        environment=os.environ.get("ENVIRONMENT", "development"),
+    )
 
     logger.info("Starting unified simulation service...")
 
     # Initialize SimPy environment and database
-    import os
-
     db_path = os.environ.get("SIM_DB_PATH", "./db/simulation.db")
     env = simpy.Environment()
     session_factory = init_database(db_path)
@@ -216,7 +220,9 @@ def main():
         surge_calculator=surge_calculator,
     )
 
-    logger.info(f"Simulation engine initialized (speed: {settings.simulation.speed_multiplier}x)")
+    logger.info(
+        f"Simulation engine initialized (speed: {settings.simulation.speed_multiplier}x)"
+    )
 
     # Create FastAPI app with real dependencies
     app = create_app(

@@ -1,21 +1,17 @@
 """Stream processor entry point."""
 
 import logging
+import os
 import signal
 import sys
 
 from confluent_kafka.admin import AdminClient, NewTopic
 
 from .api import start_api_server_thread
+from .logging_setup import setup_logging
 from .processor import StreamProcessor
 from .settings import Settings, get_settings
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
-)
 logger = logging.getLogger(__name__)
 
 # Topics required for the stream processor
@@ -89,9 +85,12 @@ def main() -> None:
     # Load settings
     settings = get_settings()
 
-    # Configure log level
-    log_level = getattr(logging, settings.log_level.upper(), logging.INFO)
-    logging.getLogger().setLevel(log_level)
+    # Configure logging using centralized setup
+    setup_logging(
+        level=settings.log_level,
+        json_output=os.environ.get("LOG_FORMAT") == "json",
+        environment=os.environ.get("ENVIRONMENT", "development"),
+    )
 
     logger.info("Starting stream processor...")
     logger.info(f"Kafka: {settings.kafka.bootstrap_servers}")
