@@ -6,18 +6,19 @@ from settings import get_settings
 router = APIRouter()
 
 
-def extract_api_key(websocket: WebSocket) -> str | None:
-    """Extract API key from Sec-WebSocket-Protocol header.
+def extract_api_key_and_protocol(websocket: WebSocket) -> tuple[str | None, str | None]:
+    """Extract API key and full protocol from Sec-WebSocket-Protocol header.
 
     Expected format: apikey.<key>
+    Returns: (api_key, full_protocol) - both needed for proper handshake
     """
     protocol_header = websocket.headers.get("sec-websocket-protocol")
     if protocol_header:
         protocols = [p.strip() for p in protocol_header.split(",")]
         for protocol in protocols:
             if protocol.startswith("apikey."):
-                return protocol.split(".", 1)[1]
-    return None
+                return protocol.split(".", 1)[1], protocol
+    return None, None
 
 
 class ConnectionManager:
@@ -26,8 +27,8 @@ class ConnectionManager:
     def __init__(self):
         self.active_connections: set[WebSocket] = set()
 
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
+    async def connect(self, websocket: WebSocket, subprotocol: str | None = None):
+        await websocket.accept(subprotocol=subprotocol)
         self.active_connections.add(websocket)
 
     def disconnect(self, websocket: WebSocket):
@@ -47,14 +48,14 @@ manager = ConnectionManager()
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    api_key = extract_api_key(websocket)
+    api_key, subprotocol = extract_api_key_and_protocol(websocket)
     settings = get_settings()
 
     if not api_key or api_key != settings.api.key:
         await websocket.close(code=1008)
         return
 
-    await manager.connect(websocket)
+    await manager.connect(websocket, subprotocol=subprotocol)
 
     try:
         snapshot_manager = websocket.app.state.snapshot_manager

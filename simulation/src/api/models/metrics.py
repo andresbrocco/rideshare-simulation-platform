@@ -41,7 +41,6 @@ class TripMetrics(BaseModel):
 class DriverMetrics(BaseModel):
     online: int
     offline: int
-    busy: int
     en_route_pickup: int
     en_route_destination: int
     total: int
@@ -49,7 +48,6 @@ class DriverMetrics(BaseModel):
 
 class RiderMetrics(BaseModel):
     offline: int
-    matched: int
     to_pickup: int
     in_transit: int
     total: int

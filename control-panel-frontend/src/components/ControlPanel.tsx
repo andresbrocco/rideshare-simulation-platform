@@ -3,6 +3,7 @@ import { useSimulationControl } from '../hooks/useSimulationControl';
 import { useMetrics } from '../hooks/useMetrics';
 import { useInfrastructure } from '../hooks/useInfrastructure';
 import { usePerformanceMetrics } from '../hooks/usePerformanceMetrics';
+import { usePerformanceContext } from '../hooks/usePerformanceContext';
 import StatsPanel from './StatsPanel';
 import InfrastructurePanel from './InfrastructurePanel';
 import PerformancePanel from './PerformancePanel';
@@ -31,7 +32,7 @@ export default function ControlPanel({
   onStartPlacement,
 }: ControlPanelProps) {
   const [driverCount, setDriverCount] = useState(10);
-  const [riderCount, setRiderCount] = useState(50);
+  const [riderCount, setRiderCount] = useState(200);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const {
@@ -53,11 +54,11 @@ export default function ControlPanel({
   } = useInfrastructure();
   const {
     metrics: perfMetrics,
-    frontendMetrics,
     loading: perfLoading,
     error: perfError,
     refresh: refreshPerf,
   } = usePerformanceMetrics();
+  const { frontendMetrics } = usePerformanceContext();
 
   const isRunning = status.state === 'running';
 

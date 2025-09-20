@@ -92,7 +92,7 @@ async def test_snapshot_store_surge(snapshot_manager, mock_redis):
 @pytest.mark.asyncio
 async def test_snapshot_get_all_drivers(snapshot_manager, mock_redis):
     driver1 = {"driver_id": "D1", "status": "available"}
-    driver2 = {"driver_id": "D2", "status": "busy"}
+    driver2 = {"driver_id": "D2", "status": "en_route_pickup"}
 
     async def scan_mock(*args, **kwargs):
         for key in ["snapshot:drivers:D1", "snapshot:drivers:D2"]:
@@ -153,7 +153,7 @@ async def test_snapshot_recent_path_limited(snapshot_manager, mock_redis):
         "driver_id": "D123",
         "location": positions[-1],
         "heading": 90.0,
-        "status": "busy",
+        "status": "en_route_pickup",
         "trip_id": "T100",
         "recent_path": positions,
     }

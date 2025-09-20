@@ -89,11 +89,19 @@ class TestRemoveDriver:
 class TestFindNearestDrivers:
     def test_find_nearest_drivers(self, index):
         # Add drivers at known distances from Paulista
-        index.add_driver("driver_close", PAULISTA_AVE[0], PAULISTA_AVE[1] + 0.01, "online")  # ~1km
-        index.add_driver("driver_medium", PAULISTA_AVE[0], PAULISTA_AVE[1] + 0.03, "online")  # ~3km
-        index.add_driver("driver_far", PAULISTA_AVE[0], PAULISTA_AVE[1] + 0.05, "online")  # ~5km
+        index.add_driver(
+            "driver_close", PAULISTA_AVE[0], PAULISTA_AVE[1] + 0.01, "online"
+        )  # ~1km
+        index.add_driver(
+            "driver_medium", PAULISTA_AVE[0], PAULISTA_AVE[1] + 0.03, "online"
+        )  # ~3km
+        index.add_driver(
+            "driver_far", PAULISTA_AVE[0], PAULISTA_AVE[1] + 0.05, "online"
+        )  # ~5km
 
-        results = index.find_nearest_drivers(PAULISTA_AVE[0], PAULISTA_AVE[1], radius_km=6.0)
+        results = index.find_nearest_drivers(
+            PAULISTA_AVE[0], PAULISTA_AVE[1], radius_km=6.0
+        )
 
         assert len(results) >= 1
         # Should be sorted by distance
@@ -116,9 +124,15 @@ class TestFindNearestDrivers:
         # Add drivers at different distances from query point
         query_lat, query_lon = -23.55, -46.63
 
-        index.add_driver("driver_5km", query_lat + 0.045, query_lon, "online")  # ~5km north
-        index.add_driver("driver_2km", query_lat + 0.018, query_lon, "online")  # ~2km north
-        index.add_driver("driver_1km", query_lat + 0.009, query_lon, "online")  # ~1km north
+        index.add_driver(
+            "driver_5km", query_lat + 0.045, query_lon, "online"
+        )  # ~5km north
+        index.add_driver(
+            "driver_2km", query_lat + 0.018, query_lon, "online"
+        )  # ~2km north
+        index.add_driver(
+            "driver_1km", query_lat + 0.009, query_lon, "online"
+        )  # ~1km north
 
         results = index.find_nearest_drivers(query_lat, query_lon, radius_km=10.0)
 
@@ -137,7 +151,9 @@ class TestStatusFiltering:
         index.add_driver("driver_online", -23.55, -46.63, "online")
         index.add_driver("driver_offline", -23.5501, -46.6301, "offline")
 
-        results = index.find_nearest_drivers(-23.55, -46.63, radius_km=5.0, status_filter="online")
+        results = index.find_nearest_drivers(
+            -23.55, -46.63, radius_km=5.0, status_filter="online"
+        )
 
         driver_ids = [r[0] for r in results]
         assert "driver_online" in driver_ids
@@ -145,26 +161,28 @@ class TestStatusFiltering:
 
     def test_filter_by_status_available(self, index):
         index.add_driver("driver_online", -23.55, -46.63, "online")
-        index.add_driver("driver_busy", -23.5501, -46.6301, "busy")
+        index.add_driver("driver_en_route", -23.5501, -46.6301, "en_route_pickup")
         index.add_driver("driver_offline", -23.5502, -46.6302, "offline")
 
-        results = index.find_nearest_drivers(-23.55, -46.63, radius_km=5.0, status_filter="online")
+        results = index.find_nearest_drivers(
+            -23.55, -46.63, radius_km=5.0, status_filter="online"
+        )
 
         driver_ids = [r[0] for r in results]
         assert "driver_online" in driver_ids
-        assert "driver_busy" not in driver_ids
+        assert "driver_en_route" not in driver_ids
         assert "driver_offline" not in driver_ids
 
-    def test_exclude_busy_drivers(self, index):
+    def test_exclude_en_route_drivers(self, index):
         index.add_driver("driver_1", -23.55, -46.63, "online")
         index.add_driver("driver_2", -23.5501, -46.6301, "online")
-        index.add_driver("driver_busy", -23.5502, -46.6302, "busy")
+        index.add_driver("driver_en_route", -23.5502, -46.6302, "en_route_pickup")
 
         results = index.find_nearest_drivers(-23.55, -46.63, radius_km=5.0)
 
         driver_ids = [r[0] for r in results]
         assert len(driver_ids) == 2
-        assert "driver_busy" not in driver_ids
+        assert "driver_en_route" not in driver_ids
 
     def test_exclude_offline_drivers(self, index):
         index.add_driver("driver_1", -23.55, -46.63, "online")
@@ -209,8 +227,8 @@ class TestUpdateDriverStatus:
         index.add_driver("driver_1", -23.55, -46.63, "online")
         assert index._driver_status["driver_1"] == "online"
 
-        index.update_driver_status("driver_1", "busy")
-        assert index._driver_status["driver_1"] == "busy"
+        index.update_driver_status("driver_1", "en_route_pickup")
+        assert index._driver_status["driver_1"] == "en_route_pickup"
 
     def test_status_change_affects_queries(self, index):
         index.add_driver("driver_1", -23.55, -46.63, "online")
@@ -219,9 +237,9 @@ class TestUpdateDriverStatus:
         results = index.find_nearest_drivers(-23.55, -46.63, radius_km=5.0)
         assert len(results) == 1
 
-        # Change to busy
-        index.update_driver_status("driver_1", "busy")
+        # Change to en_route_pickup
+        index.update_driver_status("driver_1", "en_route_pickup")
 
-        # Should not be found when busy
+        # Should not be found when en_route_pickup
         results = index.find_nearest_drivers(-23.55, -46.63, radius_km=5.0)
         assert len(results) == 0

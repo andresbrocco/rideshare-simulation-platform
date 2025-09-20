@@ -27,7 +27,7 @@ describe('MapLegend', () => {
     render(<MapLegend />);
 
     const legendItems = screen.getAllByRole('listitem');
-    expect(legendItems).toHaveLength(12);
+    expect(legendItems).toHaveLength(15);
 
     expect(legendItems[0]).toHaveTextContent(/online drivers/i);
     expect(legendItems[1]).toHaveTextContent(/offline drivers/i);
@@ -36,9 +36,9 @@ describe('MapLegend', () => {
   it('shows_status_labels', () => {
     render(<MapLegend />);
 
-    expect(screen.getByText(/online/i)).toBeInTheDocument();
-    expect(screen.getByText(/offline/i)).toBeInTheDocument();
-    expect(screen.getByText(/busy/i)).toBeInTheDocument();
+    expect(screen.getByText(/online drivers/i)).toBeInTheDocument();
+    expect(screen.getByText(/offline drivers/i)).toBeInTheDocument();
+    expect(screen.getByText(/en route to pickup/i)).toBeInTheDocument();
     expect(screen.getByText(/waiting/i)).toBeInTheDocument();
     expect(screen.getByText(/in transit/i)).toBeInTheDocument();
   });

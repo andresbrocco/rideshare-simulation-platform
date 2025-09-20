@@ -47,7 +47,7 @@ class TestDriverUpdateMessage:
             driver_id="driver-456",
             location=(-23.5505, -46.6333),
             heading=180.0,
-            status="busy",
+            status="en_route_pickup",
             trip_id="trip-789",
             timestamp="2025-07-31T14:30:00Z",
         )
@@ -57,7 +57,7 @@ class TestDriverUpdateMessage:
         assert data["driver_id"] == "driver-456"
         assert data["location"] == [-23.5505, -46.6333]
         assert data["heading"] == 180.0
-        assert data["status"] == "busy"
+        assert data["status"] == "en_route_pickup"
         assert data["trip_id"] == "trip-789"
         assert "timestamp" in data
 

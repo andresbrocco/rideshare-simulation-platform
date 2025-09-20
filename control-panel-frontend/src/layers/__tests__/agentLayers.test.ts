@@ -7,7 +7,6 @@ import {
   createPathLayer,
   createOnlineDriversLayer,
   createOfflineDriversLayer,
-  createBusyDriversLayer,
   createEnRoutePickupDriversLayer,
   createWithPassengerDriversLayer,
   createOfflineRidersLayer,
@@ -29,7 +28,14 @@ describe('agentLayers', () => {
     it('creates an array of IconLayers grouped by status', () => {
       const drivers: Driver[] = [
         { id: 'd1', latitude: -23.5, longitude: -46.6, status: 'online', rating: 4.5, zone: 'z1' },
-        { id: 'd2', latitude: -23.6, longitude: -46.7, status: 'busy', rating: 4.8, zone: 'z2' },
+        {
+          id: 'd2',
+          latitude: -23.6,
+          longitude: -46.7,
+          status: 'en_route_pickup',
+          rating: 4.8,
+          zone: 'z2',
+        },
       ];
 
       const layers = createDriverLayer(drivers);
@@ -176,12 +182,10 @@ describe('agentLayers', () => {
 
     it('all driver layer types have updateTriggers', () => {
       const offlineDrivers = [{ ...drivers[0], status: 'offline' as const }];
-      const busyDrivers = [{ ...drivers[0], status: 'busy' as const }];
       const enRouteDrivers = [{ ...drivers[0], status: 'en_route_pickup' as const }];
       const withPassengerDrivers = [{ ...drivers[0], status: 'en_route_destination' as const }];
 
       expect(createOfflineDriversLayer(offlineDrivers).props.updateTriggers).toBeDefined();
-      expect(createBusyDriversLayer(busyDrivers).props.updateTriggers).toBeDefined();
       expect(createEnRoutePickupDriversLayer(enRouteDrivers).props.updateTriggers).toBeDefined();
       expect(
         createWithPassengerDriversLayer(withPassengerDrivers).props.updateTriggers
@@ -351,7 +355,7 @@ describe('agentLayers', () => {
       expect(DRIVER_COLORS).toBeDefined();
       expect(DRIVER_COLORS.online).toBeDefined();
       expect(DRIVER_COLORS.offline).toBeDefined();
-      expect(DRIVER_COLORS.busy).toBeDefined();
+      expect(DRIVER_COLORS.en_route_pickup).toBeDefined();
     });
 
     it('exports RIDER_TRIP_STATE_COLORS with expected states', () => {
@@ -366,7 +370,6 @@ describe('agentLayers', () => {
     it('handles empty data for all layer types', () => {
       expect(() => createOnlineDriversLayer([])).not.toThrow();
       expect(() => createOfflineDriversLayer([])).not.toThrow();
-      expect(() => createBusyDriversLayer([])).not.toThrow();
       expect(() => createEnRoutePickupDriversLayer([])).not.toThrow();
       expect(() => createWithPassengerDriversLayer([])).not.toThrow();
       expect(() => createOfflineRidersLayer([])).not.toThrow();

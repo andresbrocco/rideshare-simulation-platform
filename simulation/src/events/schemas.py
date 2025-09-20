@@ -81,9 +81,7 @@ class DriverStatusEvent(CorrelationMixin):
     driver_id: str
     timestamp: str
     previous_status: str | None
-    new_status: Literal[
-        "online", "offline", "busy", "en_route_pickup", "en_route_destination"
-    ]
+    new_status: Literal["online", "offline", "en_route_pickup", "en_route_destination"]
     trigger: str
     location: tuple[float, float]
 

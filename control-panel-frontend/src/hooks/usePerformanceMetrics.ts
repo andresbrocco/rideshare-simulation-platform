@@ -1,35 +1,25 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { PerformanceMetrics, FrontendMetrics } from '../types/api';
+import type { PerformanceMetrics } from '../types/api';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-const POLL_INTERVAL = 2000; // 2 seconds
+const POLL_INTERVAL = 1000; // 1 second (1Hz refresh rate)
 
 interface UsePerformanceMetricsReturn {
   metrics: PerformanceMetrics | null;
-  frontendMetrics: FrontendMetrics;
   loading: boolean;
   error: string | null;
-  recordWsMessage: () => void;
   refresh: () => void;
 }
 
+/**
+ * Hook for fetching backend performance metrics.
+ * Frontend metrics (WS messages/sec, FPS) are tracked via PerformanceContext.
+ */
 export function usePerformanceMetrics(): UsePerformanceMetricsReturn {
   const pollInterval = POLL_INTERVAL;
   const [metrics, setMetrics] = useState<PerformanceMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Frontend metrics tracking
-  const [wsMessagesPerSec, setWsMessagesPerSec] = useState(0);
-  const [renderFps, setRenderFps] = useState(60);
-
-  // Message count tracking
-  const wsMessageCount = useRef(0);
-  const lastWsCountTime = useRef(Date.now());
-
-  // FPS tracking
-  const frameCount = useRef(0);
-  const lastFpsTime = useRef(Date.now());
 
   // Abort controller ref for cleanup
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -68,61 +58,6 @@ export function usePerformanceMetrics(): UsePerformanceMetricsReturn {
     }
   }, []);
 
-  // Record a WebSocket message
-  const recordWsMessage = useCallback(() => {
-    wsMessageCount.current++;
-  }, []);
-
-  // Calculate WebSocket messages per second
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const elapsed = (now - lastWsCountTime.current) / 1000;
-
-      if (elapsed >= 1) {
-        setWsMessagesPerSec(wsMessageCount.current / elapsed);
-        wsMessageCount.current = 0;
-        lastWsCountTime.current = now;
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  // Calculate render FPS using requestAnimationFrame
-  useEffect(() => {
-    let animationId: number;
-    let isActive = true; // Guard against post-unmount execution
-
-    const measureFps = () => {
-      if (!isActive) return; // Exit early if unmounted
-
-      frameCount.current++;
-
-      const now = Date.now();
-      const elapsed = now - lastFpsTime.current;
-
-      if (elapsed >= 1000) {
-        if (isActive) {
-          setRenderFps(Math.round((frameCount.current * 1000) / elapsed));
-        }
-        frameCount.current = 0;
-        lastFpsTime.current = now;
-      }
-
-      if (isActive) {
-        animationId = requestAnimationFrame(measureFps);
-      }
-    };
-
-    animationId = requestAnimationFrame(measureFps);
-
-    return () => {
-      isActive = false; // Set flag before cancel
-      cancelAnimationFrame(animationId);
-    };
-  }, []);
-
   // Poll for backend metrics
   useEffect(() => {
     const controller = new AbortController();
@@ -150,13 +85,8 @@ export function usePerformanceMetrics(): UsePerformanceMetricsReturn {
 
   return {
     metrics,
-    frontendMetrics: {
-      ws_messages_per_sec: wsMessagesPerSec,
-      render_fps: renderFps,
-    },
     loading,
     error,
-    recordWsMessage,
     refresh,
   };
 }

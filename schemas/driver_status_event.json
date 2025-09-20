@@ -34,7 +34,7 @@
     },
     "new_status": {
       "type": "string",
-      "enum": ["online", "offline", "busy", "en_route_pickup", "en_route_destination"],
+      "enum": ["online", "offline", "en_route_pickup", "en_route_destination"],
       "description": "New driver status"
     },
     "trigger": {

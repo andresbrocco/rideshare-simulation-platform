@@ -37,7 +37,12 @@ def rider_repo(db_session):
 
 class TestDriverPersistence:
     def test_driver_persist_on_creation(
-        self, simpy_env, dna_factory: DNAFactory, db_session, driver_repo, mock_kafka_producer
+        self,
+        simpy_env,
+        dna_factory: DNAFactory,
+        db_session,
+        driver_repo,
+        mock_kafka_producer,
     ):
         driver_dna = dna_factory.driver_dna(home_location=(-23.55, -46.63))
 
@@ -60,7 +65,12 @@ class TestDriverPersistence:
         assert retrieved_dna.acceptance_rate == driver_dna.acceptance_rate
 
     def test_driver_persist_location_update(
-        self, simpy_env, dna_factory: DNAFactory, db_session, driver_repo, mock_kafka_producer
+        self,
+        simpy_env,
+        dna_factory: DNAFactory,
+        db_session,
+        driver_repo,
+        mock_kafka_producer,
     ):
         driver_dna = dna_factory.driver_dna()
 
@@ -80,7 +90,12 @@ class TestDriverPersistence:
         assert driver.current_location == "-23.56,-46.65"
 
     def test_driver_persist_status_update(
-        self, simpy_env, dna_factory: DNAFactory, db_session, driver_repo, mock_kafka_producer
+        self,
+        simpy_env,
+        dna_factory: DNAFactory,
+        db_session,
+        driver_repo,
+        mock_kafka_producer,
     ):
         driver_dna = dna_factory.driver_dna()
 
@@ -101,7 +116,12 @@ class TestDriverPersistence:
         assert driver.status == "online"
 
     def test_driver_persist_active_trip(
-        self, simpy_env, dna_factory: DNAFactory, db_session, driver_repo, mock_kafka_producer
+        self,
+        simpy_env,
+        dna_factory: DNAFactory,
+        db_session,
+        driver_repo,
+        mock_kafka_producer,
     ):
         driver_dna = dna_factory.driver_dna()
 
@@ -121,10 +141,15 @@ class TestDriverPersistence:
 
         driver = db_session.get(Driver, "driver_004")
         assert driver.active_trip == "trip_001"
-        assert driver.status == "busy"
+        assert driver.status == "en_route_pickup"
 
     def test_driver_persist_rating_update(
-        self, simpy_env, dna_factory: DNAFactory, db_session, driver_repo, mock_kafka_producer
+        self,
+        simpy_env,
+        dna_factory: DNAFactory,
+        db_session,
+        driver_repo,
+        mock_kafka_producer,
     ):
         driver_dna = dna_factory.driver_dna()
 
@@ -176,7 +201,7 @@ class TestDriverPersistence:
             )
 
             assert loaded_agent.driver_id == "driver_006"
-            assert loaded_agent.status == "busy"
+            assert loaded_agent.status == "en_route_pickup"
             assert loaded_agent.location == (-23.56, -46.65)
             assert loaded_agent.active_trip == "trip_002"
             assert loaded_agent.current_rating == 5.0
@@ -236,7 +261,12 @@ class TestDriverPersistence:
 
 class TestRiderPersistence:
     def test_rider_persist_on_creation(
-        self, simpy_env, dna_factory: DNAFactory, db_session, rider_repo, mock_kafka_producer
+        self,
+        simpy_env,
+        dna_factory: DNAFactory,
+        db_session,
+        rider_repo,
+        mock_kafka_producer,
     ):
         rider_dna = dna_factory.rider_dna(home_location=(-23.55, -46.63))
 
@@ -259,7 +289,12 @@ class TestRiderPersistence:
         assert retrieved_dna.behavior_factor == rider_dna.behavior_factor
 
     def test_rider_persist_location_update(
-        self, simpy_env, dna_factory: DNAFactory, db_session, rider_repo, mock_kafka_producer
+        self,
+        simpy_env,
+        dna_factory: DNAFactory,
+        db_session,
+        rider_repo,
+        mock_kafka_producer,
     ):
         rider_dna = dna_factory.rider_dna()
 
@@ -279,7 +314,12 @@ class TestRiderPersistence:
         assert rider.current_location == "-23.56,-46.65"
 
     def test_rider_persist_status_update(
-        self, simpy_env, dna_factory: DNAFactory, db_session, rider_repo, mock_kafka_producer
+        self,
+        simpy_env,
+        dna_factory: DNAFactory,
+        db_session,
+        rider_repo,
+        mock_kafka_producer,
     ):
         rider_dna = dna_factory.rider_dna()
 
@@ -300,7 +340,12 @@ class TestRiderPersistence:
         assert rider.active_trip == "trip_001"
 
     def test_rider_persist_rating_update(
-        self, simpy_env, dna_factory: DNAFactory, db_session, rider_repo, mock_kafka_producer
+        self,
+        simpy_env,
+        dna_factory: DNAFactory,
+        db_session,
+        rider_repo,
+        mock_kafka_producer,
     ):
         rider_dna = dna_factory.rider_dna()
 

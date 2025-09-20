@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from api.auth import verify_api_key
 from api.models.agents import (
     ActiveTripInfo,
-    AgentCreateRequest,
+    DriverCreateRequest,
     DriverDNAResponse,
     DriversCreateResponse,
     DriverStateResponse,
@@ -14,6 +14,7 @@ from api.models.agents import (
     DriverStatusToggleResponse,
     NextActionResponse,
     PendingOfferInfo,
+    RiderCreateRequest,
     RiderDNAResponse,
     RidersCreateResponse,
     RiderStateResponse,
@@ -78,7 +79,7 @@ def compute_next_action_response(agent: Any, engine: Any) -> NextActionResponse 
 
 
 @router.post("/drivers", response_model=DriversCreateResponse)
-def create_drivers(request: AgentCreateRequest, agent_factory: AgentFactoryDep):
+def create_drivers(request: DriverCreateRequest, agent_factory: AgentFactoryDep):
     """Create driver agents dynamically."""
     try:
         driver_ids = agent_factory.create_drivers(request.count)
@@ -88,7 +89,7 @@ def create_drivers(request: AgentCreateRequest, agent_factory: AgentFactoryDep):
 
 
 @router.post("/riders", response_model=RidersCreateResponse)
-def create_riders(request: AgentCreateRequest, agent_factory: AgentFactoryDep):
+def create_riders(request: RiderCreateRequest, agent_factory: AgentFactoryDep):
     """Create rider agents dynamically."""
     try:
         rider_ids = agent_factory.create_riders(request.count)
@@ -370,10 +371,12 @@ async def request_rider_trip(
 
     # Determine zones
     pickup_zone_id = (
-        zone_loader.find_zone_for_location(rider.location[0], rider.location[1]) or "unknown"
+        zone_loader.find_zone_for_location(rider.location[0], rider.location[1])
+        or "unknown"
     )
     dropoff_zone_id = (
-        zone_loader.find_zone_for_location(body.destination[0], body.destination[1]) or "unknown"
+        zone_loader.find_zone_for_location(body.destination[0], body.destination[1])
+        or "unknown"
     )
 
     # Get surge for pickup zone

@@ -138,12 +138,13 @@ class MatchingServer:
                 duration_count += 1
         avg_duration = total_duration / duration_count if duration_count > 0 else 0.0
 
-        # Calculate average wait time (request to match) in seconds
+        # Calculate average wait time (request to pickup) in seconds
+        # This represents actual rider wait time from request to being picked up
         total_wait = 0.0
         wait_count = 0
         for t in completed:
-            if t.requested_at and t.matched_at:
-                wait_seconds = (t.matched_at - t.requested_at).total_seconds()
+            if t.requested_at and t.driver_arrived_at:
+                wait_seconds = (t.driver_arrived_at - t.requested_at).total_seconds()
                 total_wait += wait_seconds
                 wait_count += 1
         avg_wait_seconds = total_wait / wait_count if wait_count > 0 else 0.0
@@ -571,7 +572,7 @@ class MatchingServer:
             kafka_producer=self._kafka_producer,
             redis_publisher=self._redis_publisher,
             matching_server=self,
-            settings=self._settings,
+            settings=self._settings.simulation if self._settings else None,
             simulation_engine=self._simulation_engine,
         )
 

@@ -23,7 +23,6 @@ def mock_driver_registry():
     registry.get_all_status_counts.return_value = {
         "online": 5,
         "offline": 2,
-        "busy": 2,
         "en_route_pickup": 1,
         "en_route_destination": 0,
     }
@@ -35,7 +34,10 @@ def mock_driver_registry():
 
 @pytest.fixture
 def test_client_with_registry(
-    mock_redis_client, mock_simulation_engine_with_data, mock_driver_registry, mock_agent_factory
+    mock_redis_client,
+    mock_simulation_engine_with_data,
+    mock_driver_registry,
+    mock_agent_factory,
 ):
     """Test client with driver registry set up."""
     with patch.dict("os.environ", {"API_KEY": "test-api-key"}):
@@ -51,7 +53,10 @@ def test_client_with_registry(
 
 
 def test_get_overview_metrics(
-    test_client_with_registry, mock_simulation_engine_with_data, mock_driver_registry, auth_headers
+    test_client_with_registry,
+    mock_simulation_engine_with_data,
+    mock_driver_registry,
+    auth_headers,
 ):
     """Returns total counts."""
     mock_simulation_engine_with_data.active_driver_count = 10
@@ -140,7 +145,9 @@ def test_trip_metrics_avg_fare(test_client_with_registry, auth_headers):
     assert isinstance(data["avg_fare"], int | float)
 
 
-def test_get_driver_metrics(test_client_with_registry, mock_driver_registry, auth_headers):
+def test_get_driver_metrics(
+    test_client_with_registry, mock_driver_registry, auth_headers
+):
     """Returns driver status counts."""
     response = test_client_with_registry.get("/metrics/drivers", headers=auth_headers)
 
@@ -148,13 +155,14 @@ def test_get_driver_metrics(test_client_with_registry, mock_driver_registry, aut
     data = response.json()
     assert "online" in data
     assert "offline" in data
-    assert "busy" in data
     assert "en_route_pickup" in data
     assert "en_route_destination" in data
     assert "total" in data
 
 
-def test_driver_metrics_sum_to_total(test_client_with_registry, mock_driver_registry, auth_headers):
+def test_driver_metrics_sum_to_total(
+    test_client_with_registry, mock_driver_registry, auth_headers
+):
     """Status counts sum to total."""
     response = test_client_with_registry.get("/metrics/drivers", headers=auth_headers)
 
@@ -164,7 +172,6 @@ def test_driver_metrics_sum_to_total(test_client_with_registry, mock_driver_regi
     status_sum = (
         data["online"]
         + data["offline"]
-        + data["busy"]
         + data["en_route_pickup"]
         + data["en_route_destination"]
     )
@@ -194,14 +201,18 @@ def test_metrics_cache_expiry(
 
     # First request at time 0
     with patch.object(time, "time", return_value=1000.0):
-        response1 = test_client_with_registry.get("/metrics/overview", headers=auth_headers)
+        response1 = test_client_with_registry.get(
+            "/metrics/overview", headers=auth_headers
+        )
         assert response1.status_code == 200
         _ = response1.json()
 
     # Second request after TTL expired (6 seconds later)
     mock_simulation_engine_with_data.active_driver_count = 99
     with patch.object(time, "time", return_value=1006.0):
-        response2 = test_client_with_registry.get("/metrics/overview", headers=auth_headers)
+        response2 = test_client_with_registry.get(
+            "/metrics/overview", headers=auth_headers
+        )
         assert response2.status_code == 200
         _ = response2.json()
 

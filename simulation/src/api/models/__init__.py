@@ -2,7 +2,7 @@
 
 from api.models.agents import (
     ActiveTripInfo,
-    AgentCreateRequest,
+    DriverCreateRequest,
     DriverDNAOverride,
     DriverDNAResponse,
     DriversCreateResponse,
@@ -11,6 +11,7 @@ from api.models.agents import (
     DriverStatusToggleResponse,
     PuppetDriverCreateRequest,
     PuppetRiderCreateRequest,
+    RiderCreateRequest,
     RiderDNAOverride,
     RiderDNAResponse,
     RidersCreateResponse,
@@ -32,7 +33,8 @@ __all__ = [
     "DetailedHealthResponse",
     "ServiceHealth",
     # Agent models
-    "AgentCreateRequest",
+    "DriverCreateRequest",
+    "RiderCreateRequest",
     "DriversCreateResponse",
     "RidersCreateResponse",
     # Puppet agent models

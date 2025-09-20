@@ -432,7 +432,7 @@ class SimulationEngine:
         """Start surge updates.
 
         Note: GPS pings are handled by each driver's own _emit_gps_ping() process
-        which tracks all relevant statuses accurately (online, busy, en_route_pickup, en_route_destination).
+        which tracks all relevant statuses accurately (online, en_route_pickup, en_route_destination).
         """
         surge_process = self._env.process(self._surge_update_process())  # type: ignore[no-untyped-call]
         self._periodic_processes.append(surge_process)

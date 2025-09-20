@@ -3,6 +3,7 @@
 import json
 import logging
 import random
+import time
 from collections.abc import Generator
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
@@ -23,6 +24,7 @@ from agents.statistics import DriverStatistics
 from events.schemas import DriverProfileEvent, GPSPingEvent, RatingEvent
 from geo.gps_simulation import GPSSimulator
 from kafka.producer import KafkaProducer
+from metrics import get_metrics_collector
 from redis_client.publisher import RedisPublisher
 from utils.async_helpers import run_coroutine_safe
 
@@ -138,20 +140,28 @@ class DriverAgent(EventEmitter):
 
         # Set initial random location in São Paulo if not already set
         if self._location is None:
-            lat = random.uniform(SAO_PAULO_BOUNDS["lat_min"], SAO_PAULO_BOUNDS["lat_max"])
-            lon = random.uniform(SAO_PAULO_BOUNDS["lon_min"], SAO_PAULO_BOUNDS["lon_max"])
+            lat = random.uniform(
+                SAO_PAULO_BOUNDS["lat_min"], SAO_PAULO_BOUNDS["lat_max"]
+            )
+            lon = random.uniform(
+                SAO_PAULO_BOUNDS["lon_min"], SAO_PAULO_BOUNDS["lon_max"]
+            )
             self._location = (lat, lon)
 
         if self._driver_repository:
             try:
                 self._driver_repository.update_status(self._driver_id, self._status)
             except Exception as e:
-                logger.error(f"Failed to persist status for driver {self._driver_id}: {e}")
+                logger.error(
+                    f"Failed to persist status for driver {self._driver_id}: {e}"
+                )
 
         # Notify registry manager that driver went online
         if self._registry_manager and self._location:
             zone_id = self._determine_zone(self._location)
-            self._registry_manager.driver_went_online(self._driver_id, self._location, zone_id)
+            self._registry_manager.driver_went_online(
+                self._driver_id, self._location, zone_id
+            )
 
         self._emit_status_event(previous_status, self._status, "go_online")
 
@@ -164,7 +174,9 @@ class DriverAgent(EventEmitter):
             try:
                 self._driver_repository.update_status(self._driver_id, self._status)
             except Exception as e:
-                logger.error(f"Failed to persist status for driver {self._driver_id}: {e}")
+                logger.error(
+                    f"Failed to persist status for driver {self._driver_id}: {e}"
+                )
 
         # Notify registry manager that driver went offline
         if self._registry_manager:
@@ -173,9 +185,9 @@ class DriverAgent(EventEmitter):
         self._emit_status_event(previous_status, self._status, "go_offline")
 
     def accept_trip(self, trip_id: str) -> None:
-        """Accept a trip offer, transition to busy."""
+        """Accept a trip offer, transition directly to en_route_pickup."""
         previous_status = self._status
-        self._status = "busy"
+        self._status = "en_route_pickup"
         self._active_trip = trip_id
 
         if self._driver_repository:
@@ -183,7 +195,9 @@ class DriverAgent(EventEmitter):
                 self._driver_repository.update_status(self._driver_id, self._status)
                 self._driver_repository.update_active_trip(self._driver_id, trip_id)
             except Exception as e:
-                logger.error(f"Failed to persist trip acceptance for driver {self._driver_id}: {e}")
+                logger.error(
+                    f"Failed to persist trip acceptance for driver {self._driver_id}: {e}"
+                )
 
         # Notify registry manager of status change
         if self._registry_manager:
@@ -200,7 +214,9 @@ class DriverAgent(EventEmitter):
             try:
                 self._driver_repository.update_status(self._driver_id, self._status)
             except Exception as e:
-                logger.error(f"Failed to persist status for driver {self._driver_id}: {e}")
+                logger.error(
+                    f"Failed to persist status for driver {self._driver_id}: {e}"
+                )
 
         # Notify registry manager of status change
         if self._registry_manager:
@@ -217,7 +233,9 @@ class DriverAgent(EventEmitter):
             try:
                 self._driver_repository.update_status(self._driver_id, self._status)
             except Exception as e:
-                logger.error(f"Failed to persist status for driver {self._driver_id}: {e}")
+                logger.error(
+                    f"Failed to persist status for driver {self._driver_id}: {e}"
+                )
 
         # Notify registry manager of status change
         if self._registry_manager:
@@ -236,7 +254,9 @@ class DriverAgent(EventEmitter):
                 self._driver_repository.update_status(self._driver_id, self._status)
                 self._driver_repository.update_active_trip(self._driver_id, None)
             except Exception as e:
-                logger.error(f"Failed to persist trip completion for driver {self._driver_id}: {e}")
+                logger.error(
+                    f"Failed to persist trip completion for driver {self._driver_id}: {e}"
+                )
 
         # Notify registry manager of status change
         if self._registry_manager:
@@ -244,7 +264,9 @@ class DriverAgent(EventEmitter):
 
         self._emit_status_event(previous_status, self._status, "complete_trip")
 
-    def update_location(self, lat: float, lon: float, heading: float | None = None) -> None:
+    def update_location(
+        self, lat: float, lon: float, heading: float | None = None
+    ) -> None:
         """Update current location and optionally heading.
 
         Args:
@@ -268,18 +290,22 @@ class DriverAgent(EventEmitter):
             try:
                 self._driver_repository.update_location(self._driver_id, (lat, lon))
             except Exception as e:
-                logger.error(f"Failed to persist location for driver {self._driver_id}: {e}")
+                logger.error(
+                    f"Failed to persist location for driver {self._driver_id}: {e}"
+                )
 
         # Notify registry manager of location update
         if self._registry_manager:
             zone_id = self._determine_zone((lat, lon))
-            self._registry_manager.driver_location_updated(self._driver_id, (lat, lon), zone_id)
+            self._registry_manager.driver_location_updated(
+                self._driver_id, (lat, lon), zone_id
+            )
 
     def update_rating(self, new_rating: int) -> None:
         """Update rolling average rating."""
-        self._current_rating = (self._current_rating * self._rating_count + new_rating) / (
-            self._rating_count + 1
-        )
+        self._current_rating = (
+            self._current_rating * self._rating_count + new_rating
+        ) / (self._rating_count + 1)
         self._rating_count += 1
 
         if self._driver_repository:
@@ -288,7 +314,9 @@ class DriverAgent(EventEmitter):
                     self._driver_id, self._current_rating, self._rating_count
                 )
             except Exception as e:
-                logger.error(f"Failed to persist rating for driver {self._driver_id}: {e}")
+                logger.error(
+                    f"Failed to persist rating for driver {self._driver_id}: {e}"
+                )
 
     def submit_rating_for_trip(self, trip: "Trip", rider: "RiderAgent") -> int | None:
         """Submit rating for rider after trip completion."""
@@ -297,7 +325,9 @@ class DriverAgent(EventEmitter):
         if trip.state != TripState.COMPLETED:
             return None
 
-        rating_value = generate_rating_value(rider.dna.behavior_factor, "behavior_factor")
+        rating_value = generate_rating_value(
+            rider.dna.behavior_factor, "behavior_factor"
+        )
 
         if not should_submit_rating(rating_value):
             return None
@@ -307,7 +337,9 @@ class DriverAgent(EventEmitter):
         self._emit_rating_event(trip.trip_id, rider.rider_id, rating_value)
         return rating_value
 
-    def _emit_rating_event(self, trip_id: str, ratee_id: str, rating_value: int) -> None:
+    def _emit_rating_event(
+        self, trip_id: str, ratee_id: str, rating_value: int
+    ) -> None:
         """Emit rating event to Kafka."""
         if self._kafka_producer is None:
             return
@@ -366,7 +398,7 @@ class DriverAgent(EventEmitter):
     def receive_offer(self, offer: dict) -> bool:
         """Decide whether to accept or reject offer based on acceptance rate.
 
-        If accepted, updates driver status to busy via accept_trip().
+        If accepted, updates driver status to en_route_pickup via accept_trip().
         """
         base_rate = self._dna.acceptance_rate
         surge = offer.get("surge_multiplier", 1.0)
@@ -484,18 +516,27 @@ class DriverAgent(EventEmitter):
             "location": list(self._location) if self._location else [0.0, 0.0],
         }
 
-        # Emit to Kafka
+        # Record event for metrics
+        collector = get_metrics_collector()
+        collector.record_event("driver_status")
+
+        # Emit to Kafka with latency tracking
         if self._kafka_producer is not None:
+            start_time = time.perf_counter()
             self._kafka_producer.produce(
                 topic="driver-status",
                 key=self._driver_id,
                 value=json.dumps(event),
             )
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            collector.record_latency("kafka", latency_ms)
 
         # NOTE: Direct Redis publishing disabled - using Kafka → Stream Processor → Redis path
         # See stream-processor service for event routing
 
-    def _emit_status_event(self, previous_status: str, new_status: str, trigger: str) -> None:
+    def _emit_status_event(
+        self, previous_status: str, new_status: str, trigger: str
+    ) -> None:
         """Emit driver status event to Kafka and Redis."""
 
         event = {
@@ -508,13 +549,20 @@ class DriverAgent(EventEmitter):
             "location": list(self._location) if self._location else [0.0, 0.0],
         }
 
-        # Emit to Kafka
+        # Record event for metrics
+        collector = get_metrics_collector()
+        collector.record_event("driver_status")
+
+        # Emit to Kafka with latency tracking
         if self._kafka_producer is not None:
+            start_time = time.perf_counter()
             self._kafka_producer.produce(
                 topic="driver-status",
                 key=self._driver_id,
                 value=json.dumps(event),
             )
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            collector.record_latency("kafka", latency_ms)
 
         # NOTE: Direct Redis publishing disabled - testing Kafka → Stream Processor → Redis path
         # If this works, remove this commented block entirely
@@ -576,11 +624,11 @@ class DriverAgent(EventEmitter):
     def _get_gps_interval(self) -> int:
         """Return GPS ping interval based on current status.
 
-        Moving drivers (busy, en_route_pickup, en_route_destination) ping more frequently
+        Moving drivers (en_route_pickup, en_route_destination) ping more frequently
         to support accurate arrival detection and smooth visualization.
         Idle drivers (online) ping less frequently to reduce load.
         """
-        if self._status in ("busy", "en_route_pickup", "en_route_destination"):
+        if self._status in ("en_route_pickup", "en_route_destination"):
             return GPS_PING_INTERVAL_MOVING
         else:  # online
             return GPS_PING_INTERVAL_IDLE
@@ -590,7 +638,6 @@ class DriverAgent(EventEmitter):
         try:
             while self._status in (
                 "online",
-                "busy",
                 "en_route_pickup",
                 "en_route_destination",
             ):
@@ -631,7 +678,9 @@ class DriverAgent(EventEmitter):
             gps_process = None
             while True:
                 # Start/restart GPS process when not offline
-                if self._status != "offline" and (gps_process is None or not gps_process.is_alive):
+                if self._status != "offline" and (
+                    gps_process is None or not gps_process.is_alive
+                ):
                     gps_process = self._env.process(self._emit_gps_ping())
                 yield self._env.timeout(self._get_gps_interval())
             return
@@ -778,7 +827,9 @@ class DriverAgent(EventEmitter):
         zone_id = None
         loader = zone_loader or self._zone_loader
         if loader and self._location:
-            zone_id = loader.find_zone_for_location(self._location[0], self._location[1])
+            zone_id = loader.find_zone_for_location(
+                self._location[0], self._location[1]
+            )
 
         return {
             "driver_id": self._driver_id,

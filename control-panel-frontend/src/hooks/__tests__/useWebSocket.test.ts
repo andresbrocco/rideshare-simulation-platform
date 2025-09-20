@@ -307,7 +307,7 @@ describe('useWebSocket', () => {
         id: 'd1',
         latitude: -23.5,
         longitude: -46.6,
-        status: 'busy',
+        status: 'en_route_pickup',
         rating: 4.5,
         zone: 'z1',
       },

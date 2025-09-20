@@ -35,7 +35,6 @@ const PERSON_ICON_MAPPING = {
 export const DRIVER_COLORS: Record<string, [number, number, number]> = {
   online: [0, 255, 0], // Green - available
   offline: [128, 128, 128], // Gray - not active
-  busy: [255, 165, 0], // Orange - matched but not yet en route
   en_route_pickup: [255, 215, 0], // Yellow/Gold - driving to pickup
   en_route_destination: [0, 100, 255], // Blue - with passenger
 };
@@ -206,33 +205,6 @@ export function createOfflineDriversLayer(drivers: Driver[], scaleFactor: number
     updateTriggers: {
       getPosition: offlineDrivers.map((d) => `${d.id}:${d.latitude}:${d.longitude}`),
       getAngle: offlineDrivers.map((d) => `${d.id}:${d.heading}`),
-    },
-  });
-}
-
-export function createBusyDriversLayer(drivers: Driver[], scaleFactor: number = 1) {
-  const busyDrivers = drivers.filter((d) => d.status === 'busy');
-  return new IconLayer({
-    id: 'busy-drivers',
-    data: busyDrivers,
-    pickable: true,
-    autoHighlight: true,
-    highlightColor: [255, 255, 255, 128],
-
-    iconAtlas: CAR_ICONS.orange,
-    iconMapping: CAR_ICON_MAPPING,
-    getIcon: () => 'car',
-
-    sizeMinPixels: 20,
-    sizeMaxPixels: 40,
-    getSize: 30 * scaleFactor,
-
-    getPosition: (d: Driver) => [d.longitude, d.latitude],
-    getAngle: (d: Driver) => 90 - (d.heading ?? 0),
-
-    updateTriggers: {
-      getPosition: busyDrivers.map((d) => `${d.id}:${d.latitude}:${d.longitude}`),
-      getAngle: busyDrivers.map((d) => `${d.id}:${d.heading}`),
     },
   });
 }
@@ -718,8 +690,6 @@ function getDriverIconUrl(status: string): string {
       return CAR_ICONS.green;
     case 'offline':
       return CAR_ICONS.gray;
-    case 'busy':
-      return CAR_ICONS.orange;
     case 'en_route_pickup':
       return CAR_ICONS.yellow;
     case 'en_route_destination':
@@ -735,7 +705,6 @@ export function createDriverLayer(drivers: Driver[], scaleFactor: number = 1) {
   const statusGroups = {
     online: drivers.filter((d) => d.status === 'online'),
     offline: drivers.filter((d) => d.status === 'offline'),
-    busy: drivers.filter((d) => d.status === 'busy'),
     en_route_pickup: drivers.filter((d) => d.status === 'en_route_pickup'),
     en_route_destination: drivers.filter((d) => d.status === 'en_route_destination'),
   };

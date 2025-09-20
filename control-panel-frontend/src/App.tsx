@@ -12,13 +12,15 @@ import { useSimulationControl } from './hooks/useSimulationControl';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useZones } from './hooks/useZones';
 import { Toaster } from './lib/toast.ts';
+import { PerformanceProvider } from './contexts/PerformanceContext';
+import { usePerformanceContext } from './hooks/usePerformanceContext';
 import type { WebSocketMessage } from './types/websocket';
 import type { ZoneData } from './types/api';
 import { DEFAULT_VISIBILITY, type LayerVisibility } from './types/layers';
 import type { PlacementMode } from './constants/dnaPresets';
 import './App.css';
 
-function App() {
+function AppContent() {
   const [apiKey, setApiKey] = useState<string | null>(() => {
     return sessionStorage.getItem('apiKey');
   });
@@ -47,6 +49,8 @@ function App() {
   } = useSimulationState();
 
   const { zones } = useZones();
+
+  const { recordWsMessage } = usePerformanceContext();
 
   const {
     addPuppetAgent,
@@ -109,7 +113,10 @@ function App() {
   useWebSocket({
     url: wsUrl,
     apiKey: apiKey || '',
-    onMessage: (data: unknown) => handleMessage(data as WebSocketMessage),
+    onMessage: (data: unknown) => {
+      recordWsMessage();
+      handleMessage(data as WebSocketMessage);
+    },
     onOpen: handleConnect,
     onClose: handleDisconnect,
   });
@@ -242,6 +249,14 @@ function App() {
         </>
       )}
     </div>
+  );
+}
+
+function App() {
+  return (
+    <PerformanceProvider>
+      <AppContent />
+    </PerformanceProvider>
   );
 }
 

@@ -165,7 +165,7 @@ describe('DriverActionsSection', () => {
   it('shows start trip button when driver has arrived', () => {
     const stateArrived: DriverState = {
       ...baseDriverState,
-      status: 'busy',
+      status: 'en_route_pickup',
       active_trip: {
         trip_id: 'trip-456',
         state: 'driver_arrived',

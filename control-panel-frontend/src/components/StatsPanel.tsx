@@ -75,12 +75,6 @@ export default function StatsPanel({
               </Tooltip>
               <span className={styles.statValue}>{driverMetrics?.en_route_destination ?? '-'}</span>
             </div>
-            <div className={styles.statItem}>
-              <Tooltip text="Drivers in other busy states">
-                <span className={styles.statLabel}>Busy:</span>
-              </Tooltip>
-              <span className={styles.statValue}>{driverMetrics?.busy ?? '-'}</span>
-            </div>
           </div>
         </div>
 
@@ -92,12 +86,6 @@ export default function StatsPanel({
                 <span className={styles.statLabel}>Offline:</span>
               </Tooltip>
               <span className={styles.statValue}>{riderMetrics?.offline ?? '-'}</span>
-            </div>
-            <div className={styles.statItem}>
-              <Tooltip text="Riders with trip matched, waiting for driver">
-                <span className={styles.statLabel}>Matched:</span>
-              </Tooltip>
-              <span className={styles.statValue}>{riderMetrics?.matched ?? '-'}</span>
             </div>
             <div className={styles.statItem}>
               <Tooltip text="Riders waiting for driver to arrive">
@@ -150,7 +138,7 @@ export default function StatsPanel({
               </span>
             </div>
             <div className={styles.statItem}>
-              <Tooltip text="Average time from trip request to driver match">
+              <Tooltip text="Average time from trip request to driver arrival at pickup">
                 <span className={styles.statLabel}>Avg Wait:</span>
               </Tooltip>
               <span className={styles.statValue}>{formatTime(tripMetrics?.avg_wait_seconds)}</span>

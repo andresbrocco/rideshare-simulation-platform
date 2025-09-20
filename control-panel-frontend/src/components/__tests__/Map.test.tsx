@@ -71,13 +71,13 @@ describe('Map', () => {
     expect(viewState.zoom).toBe(11);
   });
 
-  it('test_uses_osm_tiles', () => {
+  it('test_uses_carto_basemap', () => {
     render(<Map />);
 
     const mapgl = screen.getByTestId('mapgl');
     const mapStyle = mapgl.getAttribute('data-map-style');
 
-    expect(mapStyle).toContain('demotiles.maplibre.org');
+    expect(mapStyle).toContain('basemaps.cartocdn.com');
   });
 
   it('test_handles_deck_overlay', () => {

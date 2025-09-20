@@ -50,7 +50,7 @@ class TestDriverRegistryConcurrentStatusUpdates:
         num_drivers = 100
         num_threads = 20
         updates_per_thread = 100
-        statuses = ["online", "busy", "en_route_pickup", "en_route_destination"]
+        statuses = ["online", "en_route_pickup", "en_route_destination"]
 
         for iteration in range(STRESS_ITERATIONS):
             driver_registry = DriverRegistry()
@@ -76,7 +76,9 @@ class TestDriverRegistryConcurrentStatusUpdates:
                     registry.update_driver_status(driver_id, new_status)
 
             with ThreadPoolExecutor(max_workers=num_threads) as executor:
-                futures = [executor.submit(update_statuses, i) for i in range(num_threads)]
+                futures = [
+                    executor.submit(update_statuses, i) for i in range(num_threads)
+                ]
                 for future in as_completed(futures):
                     future.result()
 
@@ -120,7 +122,7 @@ class TestDriverRegistryConcurrentStatusUpdates:
             ):
                 for i in range(num_d):
                     try:
-                        registry.update_driver_status(f"driver_{i}", "busy")
+                        registry.update_driver_status(f"driver_{i}", "en_route_pickup")
                     except Exception as e:
                         errs.append(("update", e))
 
@@ -187,7 +189,7 @@ class TestDriverRegistryConcurrentZoneQueries:
             ):
                 for i in range(500):
                     driver_id = f"driver_{i % num_d}"
-                    status = "busy" if i % 2 == 0 else "online"
+                    status = "en_route_pickup" if i % 2 == 0 else "online"
                     registry.update_driver_status(driver_id, status)
 
             query_threads = [threading.Thread(target=query_zone) for _ in range(10)]
@@ -473,7 +475,8 @@ class TestAgentRegistryManagerAtomicUpdates:
 
             with ThreadPoolExecutor(max_workers=20) as executor:
                 futures = [
-                    executor.submit(driver_online, f"driver_{i}") for i in range(num_drivers)
+                    executor.submit(driver_online, f"driver_{i}")
+                    for i in range(num_drivers)
                 ]
                 for future in as_completed(futures):
                     future.result()
@@ -492,7 +495,7 @@ class TestAgentRegistryManagerAtomicUpdates:
     def test_driver_status_changed_consistency(self):
         """driver_status_changed should update all registries consistently."""
         num_drivers = 50
-        statuses = ["online", "busy", "en_route_pickup"]
+        statuses = ["online", "en_route_pickup", "en_route_destination"]
 
         for iteration in range(STRESS_ITERATIONS):
             driver_index = DriverGeospatialIndex()

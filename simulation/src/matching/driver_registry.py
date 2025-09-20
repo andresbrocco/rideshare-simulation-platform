@@ -23,7 +23,6 @@ class DriverRegistry:
         self._status_counts: dict[str, int] = {
             "online": 0,
             "offline": 0,
-            "busy": 0,
             "en_route_pickup": 0,
             "en_route_destination": 0,
         }
@@ -48,7 +47,6 @@ class DriverRegistry:
                     self._zone_status_counts[zone_id] = {
                         "online": 0,
                         "offline": 0,
-                        "busy": 0,
                         "en_route_pickup": 0,
                         "en_route_destination": 0,
                     }
@@ -86,7 +84,6 @@ class DriverRegistry:
                 self._zone_status_counts[new_zone_id] = {
                     "online": 0,
                     "offline": 0,
-                    "busy": 0,
                     "en_route_pickup": 0,
                     "en_route_destination": 0,
                 }
@@ -143,7 +140,6 @@ class DriverRegistry:
             self._status_counts = {
                 "online": 0,
                 "offline": 0,
-                "busy": 0,
                 "en_route_pickup": 0,
                 "en_route_destination": 0,
             }

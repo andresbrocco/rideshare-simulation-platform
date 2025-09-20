@@ -6,7 +6,6 @@ import { calculateZoomScale } from '../utils/zoomScale';
 import {
   createOnlineDriversLayer,
   createOfflineDriversLayer,
-  createBusyDriversLayer,
   createEnRoutePickupDriversLayer,
   createWithPassengerDriversLayer,
   createOfflineRidersLayer,
@@ -85,10 +84,6 @@ export function useSimulationLayers({
       // Driver layers (ordered by visual priority - active on top)
       if (layerVisibility.offlineDrivers) {
         layers.push(createOfflineDriversLayer(drivers, scaleFactor));
-      }
-
-      if (layerVisibility.busyDrivers) {
-        layers.push(createBusyDriversLayer(drivers, scaleFactor));
       }
 
       if (layerVisibility.enRoutePickupDrivers) {

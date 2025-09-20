@@ -12,13 +12,7 @@ export interface Driver {
   id: string;
   latitude: number;
   longitude: number;
-  status:
-    | 'online'
-    | 'offline'
-    | 'busy'
-    | 'en_route_pickup'
-    | 'en_route_destination'
-    | 'offer_pending';
+  status: 'online' | 'offline' | 'en_route_pickup' | 'en_route_destination' | 'offer_pending';
   rating: number;
   zone: string;
   heading?: number; // 0-360 degrees, 0 = North
@@ -116,7 +110,6 @@ export interface DemandPoint {
 export interface DriverMetrics {
   online: number;
   offline: number;
-  busy: number;
   en_route_pickup: number;
   en_route_destination: number;
   total: number;
@@ -140,7 +133,6 @@ export interface TripMetrics {
 
 export interface RiderMetrics {
   offline: number;
-  matched: number;
   to_pickup: number;
   in_transit: number;
   total: number;

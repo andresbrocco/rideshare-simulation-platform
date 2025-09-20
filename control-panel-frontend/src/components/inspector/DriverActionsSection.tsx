@@ -55,16 +55,15 @@ export function DriverActionsSection({
 
       {active_trip && (
         <div className={styles.buttonGroup}>
-          {(status === 'en_route_pickup' || status === 'busy') &&
-            active_trip.state !== 'driver_arrived' && (
-              <button
-                className={styles.actionButton}
-                onClick={onArriveAtPickup}
-                disabled={actionLoading}
-              >
-                {actionLoading ? 'Loading...' : 'Arrive at Pickup'}
-              </button>
-            )}
+          {status === 'en_route_pickup' && active_trip.state !== 'driver_arrived' && (
+            <button
+              className={styles.actionButton}
+              onClick={onArriveAtPickup}
+              disabled={actionLoading}
+            >
+              {actionLoading ? 'Loading...' : 'Arrive at Pickup'}
+            </button>
+          )}
 
           {active_trip.state === 'driver_arrived' && (
             <button
@@ -86,16 +85,15 @@ export function DriverActionsSection({
             </button>
           )}
 
-          {(status === 'busy' || status === 'en_route_pickup') &&
-            active_trip.state !== 'started' && (
-              <button
-                className={`${styles.actionButton} ${styles.dangerButton}`}
-                onClick={onCancelTrip}
-                disabled={actionLoading}
-              >
-                {actionLoading ? 'Loading...' : 'Cancel Trip'}
-              </button>
-            )}
+          {status === 'en_route_pickup' && active_trip.state !== 'started' && (
+            <button
+              className={`${styles.actionButton} ${styles.dangerButton}`}
+              onClick={onCancelTrip}
+              disabled={actionLoading}
+            >
+              {actionLoading ? 'Loading...' : 'Cancel Trip'}
+            </button>
+          )}
         </div>
       )}
 

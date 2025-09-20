@@ -3,8 +3,12 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
-class AgentCreateRequest(BaseModel):
-    count: int = Field(..., ge=1, le=500)
+class DriverCreateRequest(BaseModel):
+    count: int = Field(..., ge=1, le=100)
+
+
+class RiderCreateRequest(BaseModel):
+    count: int = Field(..., ge=1, le=2000)
 
 
 class DriversCreateResponse(BaseModel):
@@ -133,7 +137,9 @@ class ActiveTripInfo(BaseModel):
     state: str
     rider_id: str | None = None
     driver_id: str | None = None
-    counterpart_name: str | None = None  # Rider name (for driver) or driver name (for rider)
+    counterpart_name: str | None = (
+        None  # Rider name (for driver) or driver name (for rider)
+    )
     pickup_location: tuple[float, float]
     dropoff_location: tuple[float, float]
     surge_multiplier: float

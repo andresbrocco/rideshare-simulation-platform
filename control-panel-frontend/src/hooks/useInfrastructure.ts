@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { InfrastructureResponse } from '../types/api';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-const POLL_INTERVAL = 3000; // 3 seconds (slightly slower than performance metrics)
+const POLL_INTERVAL = 1000; // 1 second (1Hz refresh rate)
 
 interface UseInfrastructureReturn {
   data: InfrastructureResponse | null;

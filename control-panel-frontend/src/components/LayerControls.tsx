@@ -11,7 +11,6 @@ const LAYER_CONFIGS = [
   // Driver layers
   { key: 'onlineDrivers' as const, label: 'Online', color: '#00FF00' },
   { key: 'offlineDrivers' as const, label: 'Offline', color: '#808080' },
-  { key: 'busyDrivers' as const, label: 'Busy', color: '#FFA500' },
   { key: 'enRoutePickupDrivers' as const, label: 'To Pickup', color: '#FFD700' },
   { key: 'withPassengerDrivers' as const, label: 'With Rider', color: '#0000FF' },
   // Rider layers
@@ -31,10 +30,10 @@ const LAYER_CONFIGS = [
 ];
 
 // Group layers by category for better organization
-const DRIVER_LAYERS = LAYER_CONFIGS.slice(0, 5);
-const RIDER_LAYERS = LAYER_CONFIGS.slice(5, 11);
-const ROUTE_LAYERS = LAYER_CONFIGS.slice(11, 14);
-const ZONE_LAYERS = LAYER_CONFIGS.slice(14);
+const DRIVER_LAYERS = LAYER_CONFIGS.slice(0, 4);
+const RIDER_LAYERS = LAYER_CONFIGS.slice(4, 10);
+const ROUTE_LAYERS = LAYER_CONFIGS.slice(10, 13);
+const ZONE_LAYERS = LAYER_CONFIGS.slice(13);
 
 export default function LayerControls({ visibility, onChange }: LayerControlsProps) {
   const [collapsed, setCollapsed] = useState(false);

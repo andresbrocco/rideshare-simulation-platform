@@ -82,8 +82,12 @@ def get_overview_metrics(engine: EngineDep, driver_registry: DriverRegistryDep):
     """Returns overview metrics with total counts."""
 
     def compute():
-        total_drivers = len(engine._active_drivers) if hasattr(engine, "_active_drivers") else 0
-        total_riders = len(engine._active_riders) if hasattr(engine, "_active_riders") else 0
+        total_drivers = (
+            len(engine._active_drivers) if hasattr(engine, "_active_drivers") else 0
+        )
+        total_riders = (
+            len(engine._active_riders) if hasattr(engine, "_active_riders") else 0
+        )
 
         online_drivers = 0
         if driver_registry:
@@ -92,7 +96,9 @@ def get_overview_metrics(engine: EngineDep, driver_registry: DriverRegistryDep):
         waiting_riders = sum(
             1
             for rider in (
-                engine._active_riders.values() if hasattr(engine, "_active_riders") else []
+                engine._active_riders.values()
+                if hasattr(engine, "_active_riders")
+                else []
             )
             if hasattr(rider, "status") and rider.status == "waiting"
         )
@@ -100,7 +106,9 @@ def get_overview_metrics(engine: EngineDep, driver_registry: DriverRegistryDep):
         in_transit_riders = sum(
             1
             for rider in (
-                engine._active_riders.values() if hasattr(engine, "_active_riders") else []
+                engine._active_riders.values()
+                if hasattr(engine, "_active_riders")
+                else []
             )
             if hasattr(rider, "status") and rider.status == "in_trip"
         )
@@ -141,7 +149,9 @@ def get_zone_metrics(engine: EngineDep, driver_registry: DriverRegistryDep):
         for zone_id in zone_ids:
             online_drivers = 0
             if driver_registry:
-                online_drivers = driver_registry.get_zone_driver_count(zone_id, "online")
+                online_drivers = driver_registry.get_zone_driver_count(
+                    zone_id, "online"
+                )
 
             waiting_riders = 0
             if hasattr(engine, "_active_riders"):
@@ -242,7 +252,6 @@ def get_driver_metrics(driver_registry: DriverRegistryDep):
             return DriverMetrics(
                 online=0,
                 offline=0,
-                busy=0,
                 en_route_pickup=0,
                 en_route_destination=0,
                 total=0,
@@ -251,15 +260,13 @@ def get_driver_metrics(driver_registry: DriverRegistryDep):
         status_counts = driver_registry.get_all_status_counts()
         online = status_counts.get("online", 0)
         offline = status_counts.get("offline", 0)
-        busy = status_counts.get("busy", 0)
         en_route_pickup = status_counts.get("en_route_pickup", 0)
         en_route_destination = status_counts.get("en_route_destination", 0)
-        total = online + offline + busy + en_route_pickup + en_route_destination
+        total = online + offline + en_route_pickup + en_route_destination
 
         return DriverMetrics(
             online=online,
             offline=offline,
-            busy=busy,
             en_route_pickup=en_route_pickup,
             en_route_destination=en_route_destination,
             total=total,
@@ -273,15 +280,17 @@ def get_rider_metrics(engine: EngineDep, matching_server: MatchingServerDep):
     """Returns rider status counts derived from trip states.
 
     Rider states:
-    - offline: No active trip
-    - matched: Trip state in (REQUESTED, OFFER_SENT, MATCHED)
+    - offline: No active trip (includes matching phase - ephemeral states)
     - to_pickup: Trip state in (DRIVER_EN_ROUTE, DRIVER_ARRIVED)
     - in_transit: Trip state is STARTED
+
+    Note: Matching phase states (REQUESTED, OFFER_SENT, MATCHED, etc.) are
+    ephemeral and counted as offline since they transition too quickly to observe.
     """
 
     def compute():
         if not hasattr(engine, "_active_riders"):
-            return RiderMetrics(offline=0, matched=0, to_pickup=0, in_transit=0, total=0)
+            return RiderMetrics(offline=0, to_pickup=0, in_transit=0, total=0)
 
         # Build rider -> trip state map from active trips
         rider_trip_states: dict[str, TripState] = {}
@@ -289,7 +298,7 @@ def get_rider_metrics(engine: EngineDep, matching_server: MatchingServerDep):
             for trip in matching_server.get_active_trips():
                 rider_trip_states[trip.rider_id] = trip.state
 
-        offline = matched = to_pickup = in_transit = 0
+        offline = to_pickup = in_transit = 0
 
         for rider in engine._active_riders.values():
             rider_id = getattr(rider, "rider_id", None)
@@ -308,8 +317,8 @@ def get_rider_metrics(engine: EngineDep, matching_server: MatchingServerDep):
                 TripState.OFFER_REJECTED,
                 TripState.MATCHED,
             ):
-                # Trip is in matching phase
-                matched += 1
+                # Trip is in matching phase - ephemeral, count as offline
+                offline += 1
             elif trip_state in (TripState.DRIVER_EN_ROUTE, TripState.DRIVER_ARRIVED):
                 # Driver is heading to pickup or waiting
                 to_pickup += 1
@@ -320,10 +329,9 @@ def get_rider_metrics(engine: EngineDep, matching_server: MatchingServerDep):
                 # COMPLETED or CANCELLED shouldn't be in active trips
                 offline += 1
 
-        total = offline + matched + to_pickup + in_transit
+        total = offline + to_pickup + in_transit
         return RiderMetrics(
             offline=offline,
-            matched=matched,
             to_pickup=to_pickup,
             in_transit=in_transit,
             total=total,
@@ -346,8 +354,12 @@ def _fetch_stream_processor_metrics() -> StreamProcessorMetrics | None:
             if response.status_code == 200:
                 data = response.json()
                 return StreamProcessorMetrics(
-                    messages_consumed_per_sec=data.get("messages_consumed_per_sec", 0.0),
-                    messages_published_per_sec=data.get("messages_published_per_sec", 0.0),
+                    messages_consumed_per_sec=data.get(
+                        "messages_consumed_per_sec", 0.0
+                    ),
+                    messages_published_per_sec=data.get(
+                        "messages_published_per_sec", 0.0
+                    ),
                     gps_aggregation_ratio=data.get("gps_aggregation_ratio", 0.0),
                     redis_publish_latency=StreamProcessorLatency(
                         avg_ms=data.get("redis_publish_latency", {}).get("avg_ms", 0.0),
@@ -440,7 +452,9 @@ def get_performance_metrics(engine: EngineDep):
             pending_offers=pending_offers,
             simpy_events=simpy_events,
         ),
-        memory=MemoryMetrics(rss_mb=snapshot.memory_rss_mb, percent=snapshot.memory_percent),
+        memory=MemoryMetrics(
+            rss_mb=snapshot.memory_rss_mb, percent=snapshot.memory_percent
+        ),
         resources=resources,
         stream_processor=stream_processor_metrics,
         timestamp=snapshot.timestamp,
@@ -552,7 +566,9 @@ def _parse_container_resource_metrics(
     memory_limit_mb = memory_limit_bytes / (1024 * 1024)
 
     # Calculate memory percentage
-    memory_percent = (memory_used_mb / memory_limit_mb * 100) if memory_limit_mb > 0 else 0.0
+    memory_percent = (
+        (memory_used_mb / memory_limit_mb * 100) if memory_limit_mb > 0 else 0.0
+    )
 
     # CPU percentage
     cpu_percent = _calculate_cpu_percent(stats)
@@ -565,7 +581,9 @@ def _parse_container_resource_metrics(
     )
 
 
-def _find_container_in_cadvisor(container_name: str, cadvisor_data: dict) -> dict | None:
+def _find_container_in_cadvisor(
+    container_name: str, cadvisor_data: dict
+) -> dict | None:
     """Find a container's data in cAdvisor response by name."""
     for key, data in cadvisor_data.items():
         # Check if the container name is in the key or in the aliases
@@ -631,7 +649,11 @@ async def get_infrastructure_metrics(request: Request):
                 response = await client.get(test_url, params={"overview": "false"})
                 latency_ms = (time.perf_counter() - start) * 1000
                 if response.status_code == 200:
-                    return _determine_status(latency_ms), round(latency_ms, 2), "Routing available"
+                    return (
+                        _determine_status(latency_ms),
+                        round(latency_ms, 2),
+                        "Routing available",
+                    )
                 else:
                     return (
                         ContainerStatus.DEGRADED,
@@ -665,10 +687,16 @@ async def get_infrastructure_metrics(request: Request):
 
             admin = AdminClient(admin_config)
             loop = asyncio.get_running_loop()
-            metadata = await loop.run_in_executor(None, lambda: admin.list_topics(timeout=5.0))
+            metadata = await loop.run_in_executor(
+                None, lambda: admin.list_topics(timeout=5.0)
+            )
             latency_ms = (time.perf_counter() - start) * 1000
             broker_count = len(metadata.brokers)
-            return _determine_status(latency_ms), round(latency_ms, 2), f"{broker_count} broker(s)"
+            return (
+                _determine_status(latency_ms),
+                round(latency_ms, 2),
+                f"{broker_count} broker(s)",
+            )
         except Exception as e:
             return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
 
@@ -686,7 +714,9 @@ async def get_infrastructure_metrics(request: Request):
         except Exception as e:
             return ContainerStatus.UNHEALTHY, None, f"Error: {str(e)[:50]}"
 
-    async def check_stream_processor() -> tuple[ContainerStatus, float | None, str | None]:
+    async def check_stream_processor() -> (
+        tuple[ContainerStatus, float | None, str | None]
+    ):
         """Check stream processor health via its HTTP API."""
         stream_processor_url = "http://stream-processor:8080/health"
         try:
@@ -715,11 +745,13 @@ async def get_infrastructure_metrics(request: Request):
             return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
 
     # Run all health checks concurrently
-    redis_result, osrm_result, kafka_result, stream_processor_result = await asyncio.gather(
-        check_redis(),
-        check_osrm(),
-        check_kafka(),
-        check_stream_processor(),
+    redis_result, osrm_result, kafka_result, stream_processor_result = (
+        await asyncio.gather(
+            check_redis(),
+            check_osrm(),
+            check_kafka(),
+            check_stream_processor(),
+        )
     )
     simulation_result = check_simulation()
 
@@ -751,7 +783,9 @@ async def get_infrastructure_metrics(request: Request):
         # Get resource metrics from cAdvisor if available
         memory_used_mb = 0.0
         memory_limit_bytes = cast(int, config.get("memory_limit_bytes", 0))
-        memory_limit_mb = float(memory_limit_bytes) / (1024 * 1024) if memory_limit_bytes else 0.0
+        memory_limit_mb = (
+            float(memory_limit_bytes) / (1024 * 1024) if memory_limit_bytes else 0.0
+        )
         memory_percent = 0.0
         cpu_percent = 0.0
 
@@ -759,7 +793,9 @@ async def get_infrastructure_metrics(request: Request):
             container_data = _find_container_in_cadvisor(container_name, cadvisor_data)
             if container_data:
                 memory_used_mb, memory_limit_mb, memory_percent, cpu_percent = (
-                    _parse_container_resource_metrics(container_name, container_data, config)
+                    _parse_container_resource_metrics(
+                        container_name, container_data, config
+                    )
                 )
             else:
                 # Container not found in cAdvisor - might be stopped

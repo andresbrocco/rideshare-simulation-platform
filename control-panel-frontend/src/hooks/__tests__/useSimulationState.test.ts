@@ -137,7 +137,7 @@ describe('useSimulationState', () => {
         id: 'd1',
         latitude: -23.6,
         longitude: -46.7,
-        status: 'busy',
+        status: 'en_route_pickup',
         rating: 4.5,
         zone: 'z1',
       },
@@ -148,7 +148,7 @@ describe('useSimulationState', () => {
     });
 
     expect(result.current.drivers).toHaveLength(1);
-    expect(result.current.drivers[0].status).toBe('busy');
+    expect(result.current.drivers[0].status).toBe('en_route_pickup');
     expect(result.current.drivers[0].latitude).toBe(-23.6);
   });
 
@@ -488,13 +488,15 @@ describe('useSimulationState', () => {
   it('updates rider trip_state from gps_ping', () => {
     const { result } = renderHook(() => useSimulationState());
 
-    // Set up initial rider via snapshot
+    // Set up initial rider via snapshot with 'matched' state
+    // Note: The hook guards against offline->started transitions to prevent race conditions,
+    // so we start with 'matched' to test valid trip_state updates
     const snapshot: StateSnapshot = {
       type: 'snapshot',
       data: {
         drivers: [],
         riders: [
-          { id: 'r1', latitude: -23.5, longitude: -46.6, status: 'waiting', trip_state: 'offline' },
+          { id: 'r1', latitude: -23.5, longitude: -46.6, status: 'waiting', trip_state: 'matched' },
         ],
         trips: [],
         surge: {},
@@ -514,7 +516,7 @@ describe('useSimulationState', () => {
       result.current.handleMessage(snapshot);
     });
 
-    expect(result.current.riders[0].trip_state).toBe('offline');
+    expect(result.current.riders[0].trip_state).toBe('matched');
 
     // GPS ping with trip_state should update rider's trip_state
     const gpsPing: GPSPing = {

@@ -175,7 +175,7 @@ def test_driver_status_should_publish(event_filter, timestamp):
         driver_id="driver-1",
         timestamp=timestamp,
         previous_status="online",
-        new_status="busy",
+        new_status="en_route_pickup",
         trigger="trip_matched",
         location=(-23.5505, -46.6333),
     )
@@ -279,7 +279,7 @@ def test_transform_gps_to_driver_update(event_filter, timestamp):
     assert message.driver_id == "driver-1"
     assert message.location == (-23.5505, -46.6333)
     assert message.heading == 90.0
-    assert message.status == "busy"
+    assert message.status == "en_route_pickup"
     assert message.trip_id == "trip-123"
     assert message.timestamp == timestamp
 

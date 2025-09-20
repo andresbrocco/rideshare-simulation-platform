@@ -2,7 +2,6 @@ export interface LayerVisibility {
   // Driver layers
   onlineDrivers: boolean;
   offlineDrivers: boolean;
-  busyDrivers: boolean;
   enRoutePickupDrivers: boolean;
   withPassengerDrivers: boolean;
   // Rider layers
@@ -25,7 +24,6 @@ export const DEFAULT_VISIBILITY: LayerVisibility = {
   // Driver layers
   onlineDrivers: true,
   offlineDrivers: true,
-  busyDrivers: true,
   enRoutePickupDrivers: true,
   withPassengerDrivers: true,
   // Rider layers

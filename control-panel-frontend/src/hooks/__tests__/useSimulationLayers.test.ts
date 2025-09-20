@@ -9,7 +9,6 @@ describe('useSimulationLayers', () => {
   const allLayersVisible: LayerVisibility = {
     onlineDrivers: true,
     offlineDrivers: true,
-    busyDrivers: true,
     enRoutePickupDrivers: true,
     withPassengerDrivers: true,
     offlineRiders: true,
@@ -150,7 +149,14 @@ describe('useSimulationLayers', () => {
   it('creates driver layers grouped by status', () => {
     const drivers: Driver[] = [
       { id: 'd1', latitude: -23.5, longitude: -46.6, status: 'online', rating: 4.5, zone: 'z1' },
-      { id: 'd2', latitude: -23.6, longitude: -46.7, status: 'busy', rating: 4.8, zone: 'z2' },
+      {
+        id: 'd2',
+        latitude: -23.6,
+        longitude: -46.7,
+        status: 'en_route_pickup',
+        rating: 4.8,
+        zone: 'z2',
+      },
     ];
 
     const { result } = renderHook(() =>
@@ -163,7 +169,7 @@ describe('useSimulationLayers', () => {
 
     const layerIds = result.current.map((l) => l.id);
     expect(layerIds).toContain('drivers-online');
-    expect(layerIds).toContain('drivers-busy');
+    expect(layerIds).toContain('drivers-en_route_pickup');
   });
 
   it('creates rider layers grouped by trip_state', () => {

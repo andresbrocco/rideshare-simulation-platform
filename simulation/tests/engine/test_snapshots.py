@@ -71,7 +71,7 @@ class TestAgentSnapshotImmutability:
         snapshot = AgentSnapshot(
             id="driver_001",
             type="driver",
-            status="busy",
+            status="en_route_pickup",
             location=(-23.5505, -46.6333),
             active_trip_id="trip_123",
             zone_id="vila_madalena",
@@ -124,7 +124,14 @@ class TestAgentSnapshotSerialization:
             zone_id="moema",
         )
         data = snapshot.to_dict()
-        expected_keys = {"id", "type", "status", "location", "active_trip_id", "zone_id"}
+        expected_keys = {
+            "id",
+            "type",
+            "status",
+            "location",
+            "active_trip_id",
+            "zone_id",
+        }
         assert set(data.keys()) == expected_keys
 
 
@@ -396,7 +403,7 @@ class TestSimulationSnapshotSerialization:
             drivers=(),
             riders=(),
             active_trips=(),
-            status_counts={"online": 8, "busy": 2},
+            status_counts={"online": 8, "en_route_pickup": 2},
             zone_counts={"zone_a": {"online": 5}},
         )
         data = snapshot.to_dict()

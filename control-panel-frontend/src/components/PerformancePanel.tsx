@@ -136,11 +136,6 @@ export default function PerformancePanel({
               value={metrics ? formatLatency(metrics.latency.kafka) : '-'}
               tooltip="Event publishing latency"
             />
-            <MetricRow
-              label="Redis"
-              value={metrics ? formatLatency(metrics.latency.redis) : '-'}
-              tooltip="Real-time pub/sub latency"
-            />
           </div>
 
           {hasErrors(metrics) && (

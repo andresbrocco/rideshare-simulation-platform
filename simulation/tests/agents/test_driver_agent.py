@@ -52,7 +52,9 @@ class TestDriverAgentInit:
 
 
 class TestDriverDNAImmutability:
-    def test_driver_dna_immutability(self, driver_agent, driver_dna, dna_factory: DNAFactory):
+    def test_driver_dna_immutability(
+        self, driver_agent, driver_dna, dna_factory: DNAFactory
+    ):
         original_acceptance = driver_dna.acceptance_rate
         # Attempting to assign new DNA should not change it
         with pytest.raises(AttributeError):
@@ -65,30 +67,25 @@ class TestDriverDNAImmutability:
 
 
 class TestDriverStatusTransitions:
-    def test_driver_status_transition_offline_to_online(self, driver_agent, mock_kafka_producer):
+    def test_driver_status_transition_offline_to_online(
+        self, driver_agent, mock_kafka_producer
+    ):
         driver_agent.update_location(-23.55, -46.63)
         driver_agent.go_online()
         assert driver_agent.status == "online"
         mock_kafka_producer.produce.assert_called()
 
-    def test_driver_status_transition_online_to_busy(self, driver_agent, mock_kafka_producer):
+    def test_driver_status_transition_online_to_en_route_pickup(
+        self, driver_agent, mock_kafka_producer
+    ):
+        """Accept trip transitions directly to en_route_pickup."""
         driver_agent.update_location(-23.55, -46.63)
         driver_agent.go_online()
         mock_kafka_producer.reset_mock()
 
         driver_agent.accept_trip("trip_001")
-        assert driver_agent.status == "busy"
-        assert driver_agent.active_trip == "trip_001"
-        mock_kafka_producer.produce.assert_called()
-
-    def test_driver_status_transition_busy_to_en_route(self, driver_agent, mock_kafka_producer):
-        driver_agent.update_location(-23.55, -46.63)
-        driver_agent.go_online()
-        driver_agent.accept_trip("trip_001")
-        mock_kafka_producer.reset_mock()
-
-        driver_agent.start_pickup()
         assert driver_agent.status == "en_route_pickup"
+        assert driver_agent.active_trip == "trip_001"
         mock_kafka_producer.produce.assert_called()
 
     def test_driver_status_transition_en_route_to_in_transit(
@@ -104,7 +101,9 @@ class TestDriverStatusTransitions:
         assert driver_agent.status == "en_route_destination"
         mock_kafka_producer.produce.assert_called()
 
-    def test_driver_status_transition_to_online(self, driver_agent, mock_kafka_producer):
+    def test_driver_status_transition_to_online(
+        self, driver_agent, mock_kafka_producer
+    ):
         driver_agent.update_location(-23.55, -46.63)
         driver_agent.go_online()
         driver_agent.accept_trip("trip_001")

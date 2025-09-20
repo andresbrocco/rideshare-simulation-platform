@@ -48,7 +48,9 @@ class EventFilter:
         """Transform event to (channel, message) for Redis pub/sub."""
         if isinstance(event, GPSPingEvent):
             if event.entity_type == "driver":
-                status = "busy" if event.trip_id else "online"
+                # Infer status: if trip_id present, driver is in an active trip
+                # Use en_route_pickup as reasonable default for active trip status
+                status = "en_route_pickup" if event.trip_id else "online"
                 message = DriverUpdateMessage(
                     driver_id=event.entity_id,
                     location=event.location,

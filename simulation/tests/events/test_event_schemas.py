@@ -139,12 +139,12 @@ class TestDriverStatusEvent:
             driver_id="driver_001",
             timestamp="2025-07-17T10:30:00Z",
             previous_status="online",
-            new_status="busy",
+            new_status="en_route_pickup",
             trigger="trip_accepted",
             location=(-23.5505, -46.6333),
         )
         assert event.driver_id == "driver_001"
-        assert event.new_status == "busy"
+        assert event.new_status == "en_route_pickup"
 
     def test_driver_status_valid_statuses(self):
         event = DriverStatusEvent(
