@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from core.exceptions import NetworkError
 from kafka.producer import KafkaProducer
+from kafka.serializer_registry import SerializerRegistry
 from metrics import get_metrics_collector
 
 logger = logging.getLogger(__name__)
@@ -50,7 +51,16 @@ class EventEmitter:
         collector = get_metrics_collector()
         try:
             start_time = time.perf_counter()
-            json_str = event.model_dump_json()
+
+            # Use serializer if Schema Registry is enabled
+            serializer = SerializerRegistry.get_serializer(topic)
+            if serializer:
+                json_str, is_corrupted = serializer.serialize_for_kafka(event, topic)
+                if is_corrupted:
+                    logger.debug(f"Emitting corrupted event for testing: {topic}")
+            else:
+                json_str = event.model_dump_json()
+
             self._kafka_producer.produce(topic=topic, key=key, value=json_str)
             latency_ms = (time.perf_counter() - start_time) * 1000
             collector.record_latency("kafka", latency_ms)

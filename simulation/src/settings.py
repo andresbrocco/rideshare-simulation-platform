@@ -42,6 +42,8 @@ class KafkaSettings(BaseSettings):
     sasl_password: str = ""
     schema_registry_url: str = ""
     schema_registry_basic_auth_user_info: str = ""
+    schema_validation_enabled: bool = True
+    schema_base_path: str = "schemas"
 
     model_config = SettingsConfigDict(env_prefix="KAFKA_")
 

@@ -1,4 +1,5 @@
 import json
+import logging
 import uuid
 from pathlib import Path
 from typing import Any
@@ -7,6 +8,8 @@ from pydantic import BaseModel
 
 from kafka.data_corruption import DataCorruptor, get_corruptor
 from kafka.schema_registry import SchemaRegistry
+
+logger = logging.getLogger(__name__)
 
 
 class EventSerializer:
@@ -40,13 +43,24 @@ class EventSerializer:
     def serialize_for_kafka(self, event: BaseModel, topic: str) -> tuple[str, bool]:
         """Serialize event for Kafka, potentially applying corruption.
 
+        Implements graceful degradation: if schema validation fails, falls back
+        to raw JSON serialization to ensure events are still published.
+
         Returns:
             Tuple of (json_string, is_corrupted)
         """
         if self._corruptor is None:
             self._corruptor = get_corruptor()
 
-        valid_dict = self.serialize(event)
+        try:
+            valid_dict = self.serialize(event)
+        except Exception as e:
+            # Graceful degradation: log warning and publish without validation
+            logger.warning(
+                f"Schema validation failed for {topic}, publishing raw: {e}",
+                extra={"topic": topic, "event_type": type(event).__name__, "error": str(e)},
+            )
+            return event.model_dump_json(), False
 
         if self._corruptor.should_corrupt():
             corrupted_payload, _ = self._corruptor.corrupt(valid_dict, topic)
@@ -93,9 +107,7 @@ class PaymentEventSerializer(EventSerializer):
 
 class DriverProfileEventSerializer(EventSerializer):
     def __init__(self, schema_registry: SchemaRegistry, schema_base_path: Path) -> None:
-        super().__init__(
-            schema_registry, schema_base_path / "driver_profile_event.json"
-        )
+        super().__init__(schema_registry, schema_base_path / "driver_profile_event.json")
 
 
 class RiderProfileEventSerializer(EventSerializer):

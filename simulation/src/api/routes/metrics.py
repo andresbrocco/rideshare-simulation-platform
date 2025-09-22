@@ -82,12 +82,8 @@ def get_overview_metrics(engine: EngineDep, driver_registry: DriverRegistryDep):
     """Returns overview metrics with total counts."""
 
     def compute():
-        total_drivers = (
-            len(engine._active_drivers) if hasattr(engine, "_active_drivers") else 0
-        )
-        total_riders = (
-            len(engine._active_riders) if hasattr(engine, "_active_riders") else 0
-        )
+        total_drivers = len(engine._active_drivers) if hasattr(engine, "_active_drivers") else 0
+        total_riders = len(engine._active_riders) if hasattr(engine, "_active_riders") else 0
 
         online_drivers = 0
         if driver_registry:
@@ -96,9 +92,7 @@ def get_overview_metrics(engine: EngineDep, driver_registry: DriverRegistryDep):
         waiting_riders = sum(
             1
             for rider in (
-                engine._active_riders.values()
-                if hasattr(engine, "_active_riders")
-                else []
+                engine._active_riders.values() if hasattr(engine, "_active_riders") else []
             )
             if hasattr(rider, "status") and rider.status == "waiting"
         )
@@ -106,9 +100,7 @@ def get_overview_metrics(engine: EngineDep, driver_registry: DriverRegistryDep):
         in_transit_riders = sum(
             1
             for rider in (
-                engine._active_riders.values()
-                if hasattr(engine, "_active_riders")
-                else []
+                engine._active_riders.values() if hasattr(engine, "_active_riders") else []
             )
             if hasattr(rider, "status") and rider.status == "in_trip"
         )
@@ -149,9 +141,7 @@ def get_zone_metrics(engine: EngineDep, driver_registry: DriverRegistryDep):
         for zone_id in zone_ids:
             online_drivers = 0
             if driver_registry:
-                online_drivers = driver_registry.get_zone_driver_count(
-                    zone_id, "online"
-                )
+                online_drivers = driver_registry.get_zone_driver_count(zone_id, "online")
 
             waiting_riders = 0
             if hasattr(engine, "_active_riders"):
@@ -354,12 +344,8 @@ def _fetch_stream_processor_metrics() -> StreamProcessorMetrics | None:
             if response.status_code == 200:
                 data = response.json()
                 return StreamProcessorMetrics(
-                    messages_consumed_per_sec=data.get(
-                        "messages_consumed_per_sec", 0.0
-                    ),
-                    messages_published_per_sec=data.get(
-                        "messages_published_per_sec", 0.0
-                    ),
+                    messages_consumed_per_sec=data.get("messages_consumed_per_sec", 0.0),
+                    messages_published_per_sec=data.get("messages_published_per_sec", 0.0),
                     gps_aggregation_ratio=data.get("gps_aggregation_ratio", 0.0),
                     redis_publish_latency=StreamProcessorLatency(
                         avg_ms=data.get("redis_publish_latency", {}).get("avg_ms", 0.0),
@@ -452,9 +438,7 @@ def get_performance_metrics(engine: EngineDep):
             pending_offers=pending_offers,
             simpy_events=simpy_events,
         ),
-        memory=MemoryMetrics(
-            rss_mb=snapshot.memory_rss_mb, percent=snapshot.memory_percent
-        ),
+        memory=MemoryMetrics(rss_mb=snapshot.memory_rss_mb, percent=snapshot.memory_percent),
         resources=resources,
         stream_processor=stream_processor_metrics,
         timestamp=snapshot.timestamp,
@@ -466,6 +450,10 @@ CONTAINER_CONFIG = {
     "rideshare-kafka": {
         "display_name": "Kafka",
         "memory_limit_bytes": 1 * 1024 * 1024 * 1024,  # 1 GB
+    },
+    "rideshare-schema-registry": {
+        "display_name": "Schema Registry",
+        "memory_limit_bytes": 512 * 1024 * 1024,  # 512 MB
     },
     "rideshare-redis": {
         "display_name": "Redis",
@@ -566,9 +554,7 @@ def _parse_container_resource_metrics(
     memory_limit_mb = memory_limit_bytes / (1024 * 1024)
 
     # Calculate memory percentage
-    memory_percent = (
-        (memory_used_mb / memory_limit_mb * 100) if memory_limit_mb > 0 else 0.0
-    )
+    memory_percent = (memory_used_mb / memory_limit_mb * 100) if memory_limit_mb > 0 else 0.0
 
     # CPU percentage
     cpu_percent = _calculate_cpu_percent(stats)
@@ -581,9 +567,7 @@ def _parse_container_resource_metrics(
     )
 
 
-def _find_container_in_cadvisor(
-    container_name: str, cadvisor_data: dict
-) -> dict | None:
+def _find_container_in_cadvisor(container_name: str, cadvisor_data: dict) -> dict | None:
     """Find a container's data in cAdvisor response by name."""
     for key, data in cadvisor_data.items():
         # Check if the container name is in the key or in the aliases
@@ -687,9 +671,7 @@ async def get_infrastructure_metrics(request: Request):
 
             admin = AdminClient(admin_config)
             loop = asyncio.get_running_loop()
-            metadata = await loop.run_in_executor(
-                None, lambda: admin.list_topics(timeout=5.0)
-            )
+            metadata = await loop.run_in_executor(None, lambda: admin.list_topics(timeout=5.0))
             latency_ms = (time.perf_counter() - start) * 1000
             broker_count = len(metadata.brokers)
             return (
@@ -714,9 +696,7 @@ async def get_infrastructure_metrics(request: Request):
         except Exception as e:
             return ContainerStatus.UNHEALTHY, None, f"Error: {str(e)[:50]}"
 
-    async def check_stream_processor() -> (
-        tuple[ContainerStatus, float | None, str | None]
-    ):
+    async def check_stream_processor() -> tuple[ContainerStatus, float | None, str | None]:
         """Check stream processor health via its HTTP API."""
         stream_processor_url = "http://stream-processor:8080/health"
         try:
@@ -744,20 +724,53 @@ async def get_infrastructure_metrics(request: Request):
         except Exception as e:
             return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
 
+    async def check_schema_registry() -> tuple[ContainerStatus, float | None, str | None]:
+        """Check Schema Registry health via subjects endpoint."""
+        schema_registry_url = "http://schema-registry:8081/subjects"
+        try:
+            start = time.perf_counter()
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                response = await client.get(schema_registry_url)
+                latency_ms = (time.perf_counter() - start) * 1000
+                if response.status_code == 200:
+                    subjects = response.json()
+                    subject_count = len(subjects) if isinstance(subjects, list) else 0
+                    return (
+                        _determine_status(latency_ms),
+                        round(latency_ms, 2),
+                        f"{subject_count} subjects" if subject_count > 0 else "Connected",
+                    )
+                else:
+                    return (
+                        ContainerStatus.DEGRADED,
+                        round(latency_ms, 2),
+                        f"HTTP {response.status_code}",
+                    )
+        except httpx.TimeoutException:
+            return ContainerStatus.UNHEALTHY, None, "Request timed out"
+        except Exception as e:
+            return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
+
     # Run all health checks concurrently
-    redis_result, osrm_result, kafka_result, stream_processor_result = (
-        await asyncio.gather(
-            check_redis(),
-            check_osrm(),
-            check_kafka(),
-            check_stream_processor(),
-        )
+    (
+        redis_result,
+        osrm_result,
+        kafka_result,
+        stream_processor_result,
+        schema_registry_result,
+    ) = await asyncio.gather(
+        check_redis(),
+        check_osrm(),
+        check_kafka(),
+        check_stream_processor(),
+        check_schema_registry(),
     )
     simulation_result = check_simulation()
 
     # Map container names to health check results
     health_results = {
         "rideshare-kafka": kafka_result,
+        "rideshare-schema-registry": schema_registry_result,
         "rideshare-redis": redis_result,
         "rideshare-osrm": osrm_result,
         "rideshare-simulation": simulation_result,
@@ -783,9 +796,7 @@ async def get_infrastructure_metrics(request: Request):
         # Get resource metrics from cAdvisor if available
         memory_used_mb = 0.0
         memory_limit_bytes = cast(int, config.get("memory_limit_bytes", 0))
-        memory_limit_mb = (
-            float(memory_limit_bytes) / (1024 * 1024) if memory_limit_bytes else 0.0
-        )
+        memory_limit_mb = float(memory_limit_bytes) / (1024 * 1024) if memory_limit_bytes else 0.0
         memory_percent = 0.0
         cpu_percent = 0.0
 
@@ -793,9 +804,7 @@ async def get_infrastructure_metrics(request: Request):
             container_data = _find_container_in_cadvisor(container_name, cadvisor_data)
             if container_data:
                 memory_used_mb, memory_limit_mb, memory_percent, cpu_percent = (
-                    _parse_container_resource_metrics(
-                        container_name, container_data, config
-                    )
+                    _parse_container_resource_metrics(container_name, container_data, config)
                 )
             else:
                 # Container not found in cAdvisor - might be stopped

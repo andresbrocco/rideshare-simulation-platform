@@ -25,6 +25,7 @@ from engine.agent_factory import AgentFactory
 from geo.osrm_client import OSRMClient
 from geo.zones import ZoneLoader
 from kafka.producer import KafkaProducer
+from kafka.serializer_registry import SerializerRegistry
 from matching.agent_registry_manager import AgentRegistryManager
 from matching.driver_geospatial_index import DriverGeospatialIndex
 from matching.driver_registry import DriverRegistry
@@ -144,6 +145,24 @@ def main():
     kafka_producer = create_kafka_producer(settings)
     if kafka_producer:
         logger.info("Kafka producer connected")
+
+    # Initialize Schema Registry integration if configured
+    if settings.kafka.schema_registry_url and settings.kafka.schema_validation_enabled:
+        try:
+            from pathlib import Path
+
+            # Schema path is relative to simulation/src, schemas are in project root
+            schema_base_path = Path(__file__).parent.parent.parent / settings.kafka.schema_base_path
+            SerializerRegistry.initialize(
+                schema_registry_url=settings.kafka.schema_registry_url,
+                schema_base_path=schema_base_path,
+                basic_auth_user_info=settings.kafka.schema_registry_basic_auth_user_info,
+            )
+            logger.info(
+                f"Schema Registry integration enabled: {settings.kafka.schema_registry_url}"
+            )
+        except Exception as e:
+            logger.warning(f"Schema Registry unavailable, running without validation: {e}")
 
     redis_publisher = create_redis_publisher(settings)
     if redis_publisher:
