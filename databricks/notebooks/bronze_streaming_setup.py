@@ -21,6 +21,7 @@ Topics consumed:
 - rider_profiles: Rider profile updates
 """
 
+import json
 from databricks.utils.streaming_utils import (
     create_checkpoint_path,
     read_kafka_stream,
@@ -31,10 +32,28 @@ from databricks.utils.streaming_utils import (
 # Databricks notebook environment check
 try:
     from pyspark.sql import SparkSession
+    from pyspark.sql import functions as F
+    from pyspark.sql.types import (
+        StructType,
+        StructField,
+        StringType,
+        IntegerType,
+        LongType,
+        TimestampType,
+        DateType,
+    )
 
     spark = SparkSession.builder.getOrCreate()
 except ImportError:
     spark = None
+    F = None
+    StructType = None
+    StructField = None
+    StringType = None
+    IntegerType = None
+    LongType = None
+    TimestampType = None
+    DateType = None
     print("Warning: PySpark not available - notebook is for Databricks environment")
 
 
@@ -53,6 +72,141 @@ KAFKA_TOPICS = [
 CATALOG = "rideshare"
 SCHEMA = "bronze"
 CONSUMER_GROUP = "databricks-bronze-consumer"
+
+# Valid trip event types
+VALID_TRIP_EVENT_TYPES = [
+    "trip.requested",
+    "trip.offer_sent",
+    "trip.matched",
+    "trip.driver_en_route",
+    "trip.driver_arrived",
+    "trip.started",
+    "trip.completed",
+    "trip.cancelled",
+    "trip.offer_expired",
+    "trip.offer_rejected",
+]
+
+
+def get_bronze_trip_events_schema():
+    """
+    Get schema for bronze_trip_events table.
+
+    Returns:
+        StructType schema with all required columns
+    """
+    if StructType is None:
+        raise ImportError("PySpark not available")
+
+    return StructType(
+        [
+            StructField("value", StringType(), nullable=False),
+            StructField("topic", StringType(), nullable=True),
+            StructField("partition", IntegerType(), nullable=True),
+            StructField("offset", LongType(), nullable=False),
+            StructField("timestamp", TimestampType(), nullable=True),
+            StructField("_ingested_at", TimestampType(), nullable=True),
+            StructField("ingestion_date", DateType(), nullable=True),
+        ]
+    )
+
+
+def get_bronze_trip_events_partition_columns():
+    """Get partition columns for trip events table."""
+    return ["ingestion_date"]
+
+
+def get_bronze_trip_events_write_mode():
+    """Get write mode for trip events streaming."""
+    return "append"
+
+
+def add_ingestion_date_column(df):
+    """
+    Add ingestion_date column derived from _ingested_at.
+
+    Args:
+        df: DataFrame with _ingested_at column
+
+    Returns:
+        DataFrame with ingestion_date column added
+    """
+    if F is None:
+        return df.withColumn("ingestion_date", None)
+
+    return df.withColumn("ingestion_date", F.to_date(F.col("_ingested_at")))
+
+
+def parse_trip_event_json(json_str):
+    """
+    Parse trip event JSON string.
+
+    Args:
+        json_str: JSON string containing trip event
+
+    Returns:
+        Dictionary with parsed event data
+    """
+    return json.loads(json_str)
+
+
+def validate_trip_event_type(event_type):
+    """
+    Validate if event type is a valid trip event.
+
+    Args:
+        event_type: Event type string
+
+    Returns:
+        True if valid, False otherwise
+    """
+    return event_type in VALID_TRIP_EVENT_TYPES
+
+
+def extract_tracing_fields_from_json(json_str):
+    """
+    Extract distributed tracing fields from JSON.
+
+    Args:
+        json_str: JSON string containing event
+
+    Returns:
+        Dictionary with session_id, correlation_id, causation_id
+    """
+    event = json.loads(json_str)
+    return {
+        "session_id": event.get("session_id"),
+        "correlation_id": event.get("correlation_id"),
+        "causation_id": event.get("causation_id"),
+    }
+
+
+def get_stream_trigger_config():
+    """
+    Get streaming trigger configuration.
+
+    Returns:
+        Dictionary with processingTime configured
+    """
+    return {"processingTime": "30 seconds"}
+
+
+def create_bronze_trip_events_table(spark):
+    """
+    Create bronze_trip_events table if it doesn't exist.
+
+    Args:
+        spark: Spark session
+    """
+    table_name = "rideshare_bronze.trip_events"
+
+    # Check if table exists
+    if spark.catalog.tableExists(table_name):
+        print(f"Table {table_name} already exists")
+        return
+
+    # Table will be created by writeStream.toTable()
+    print(f"Table {table_name} will be created on first write")
 
 
 def setup_bronze_stream(topic_name: str, table_name: str = None):
@@ -78,6 +232,9 @@ def setup_bronze_stream(topic_name: str, table_name: str = None):
     # Add ingestion metadata
     bronze_df = add_ingestion_metadata(kafka_df)
 
+    # Add ingestion date for partitioning
+    bronze_df = add_ingestion_date_column(bronze_df)
+
     # Extract distributed tracing fields
     bronze_df = extract_correlation_fields(bronze_df)
 
@@ -85,11 +242,14 @@ def setup_bronze_stream(topic_name: str, table_name: str = None):
     checkpoint_path = create_checkpoint_path(topic_name)
 
     # Write to Delta Lake
+    trigger_config = get_stream_trigger_config()
     query = (
         bronze_df.writeStream.format("delta")
         .outputMode("append")
         .option("checkpointLocation", checkpoint_path)
         .option("kafka.group.id", CONSUMER_GROUP)
+        .partitionBy("ingestion_date")
+        .trigger(**trigger_config)
         .queryName(f"bronze_{table_name}")
         .toTable(f"{CATALOG}.{SCHEMA}.{table_name}")
     )
