@@ -78,6 +78,18 @@
       "type": "number",
       "minimum": 0,
       "description": "Amount paid out to driver"
+    },
+    "session_id": {
+      "type": ["string", "null"],
+      "description": "Simulation run identifier"
+    },
+    "correlation_id": {
+      "type": ["string", "null"],
+      "description": "Primary correlation ID (e.g., trip_id)"
+    },
+    "causation_id": {
+      "type": ["string", "null"],
+      "description": "ID of event that caused this one"
     }
   }
 }

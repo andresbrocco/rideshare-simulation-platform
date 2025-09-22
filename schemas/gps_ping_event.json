@@ -61,6 +61,32 @@
       "type": ["string", "null"],
       "format": "uuid",
       "description": "Associated trip ID if entity is on a trip"
+    },
+    "session_id": {
+      "type": ["string", "null"],
+      "description": "Simulation run identifier"
+    },
+    "correlation_id": {
+      "type": ["string", "null"],
+      "description": "Primary correlation ID (e.g., trip_id)"
+    },
+    "causation_id": {
+      "type": ["string", "null"],
+      "description": "ID of event that caused this one"
+    },
+    "trip_state": {
+      "type": ["string", "null"],
+      "description": "Trip state for rider GPS pings during active trips"
+    },
+    "route_progress_index": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Index into route geometry for progress tracking"
+    },
+    "pickup_route_progress_index": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Index into pickup route geometry"
     }
   }
 }

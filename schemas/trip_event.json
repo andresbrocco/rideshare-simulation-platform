@@ -109,6 +109,48 @@
     "cancellation_stage": {
       "type": ["string", "null"],
       "description": "Trip stage when cancellation occurred"
+    },
+    "session_id": {
+      "type": ["string", "null"],
+      "description": "Simulation run identifier"
+    },
+    "correlation_id": {
+      "type": ["string", "null"],
+      "description": "Primary correlation ID (e.g., trip_id)"
+    },
+    "causation_id": {
+      "type": ["string", "null"],
+      "description": "ID of event that caused this one"
+    },
+    "route": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "array",
+        "items": {"type": "number"},
+        "minItems": 2,
+        "maxItems": 2
+      },
+      "description": "Route geometry as array of [lat, lon] coordinates"
+    },
+    "pickup_route": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "array",
+        "items": {"type": "number"},
+        "minItems": 2,
+        "maxItems": 2
+      },
+      "description": "Pickup route geometry as array of [lat, lon] coordinates"
+    },
+    "route_progress_index": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Current index into route geometry"
+    },
+    "pickup_route_progress_index": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Current index into pickup route geometry"
     }
   }
 }
