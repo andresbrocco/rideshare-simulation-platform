@@ -31,7 +31,7 @@ RUN echo "Downloading Sudeste (SE Brazil) OSM data from Geofabrik..." && \
 #############################################
 # Stage: Local (uses pre-extracted file from repo)
 #############################################
-FROM osrm/osrm-backend:latest AS local
+FROM osrm/osrm-backend:v5.25.0 AS local
 
 WORKDIR /data
 
@@ -56,7 +56,7 @@ CMD ["/usr/local/bin/osrm-init.sh"]
 #############################################
 # Stage: Fetch (uses freshly downloaded file)
 #############################################
-FROM osrm/osrm-backend:latest AS fetch
+FROM osrm/osrm-backend:v5.25.0 AS fetch
 
 WORKDIR /data
 
