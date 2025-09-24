@@ -332,6 +332,31 @@ services:
       retries: 10
       start_period: 60s
 
+  localstack:
+    image: localstack/localstack:4.12.0
+    container_name: rideshare-localstack
+    mem_limit: 512m
+    ports:
+      - "4566:4566"
+      - "4510-4559:4510-4559"
+    environment:
+      - SERVICES=secretsmanager,sns,sqs
+      - PERSISTENCE=0
+      - LOCALSTACK_HOST=localhost:4566
+      - DEBUG=0
+      - LS_LOG=info
+    volumes:
+      - localstack-data:/var/lib/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - rideshare-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   cadvisor:
     image: ghcr.io/google/cadvisor:v0.53.0
     container_name: rideshare-cadvisor
@@ -363,3 +388,4 @@ volumes:
   simulation-db:
   frontend-node-modules:
   minio-data:
+  localstack-data:
