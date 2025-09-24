@@ -3,6 +3,8 @@ services:
     image: confluentinc/cp-kafka:7.5.0
     container_name: rideshare-kafka
     mem_limit: 1g
+    profiles:
+      - core
     ports:
       - "9092:9092"
     environment:
@@ -42,6 +44,8 @@ services:
     image: confluentinc/cp-schema-registry:7.5.0
     container_name: rideshare-schema-registry
     mem_limit: 512m
+    profiles:
+      - core
     ports:
       - "8085:8081"
     environment:
@@ -63,6 +67,8 @@ services:
     image: redis:8.0-alpine
     container_name: rideshare-redis
     mem_limit: 512m
+    profiles:
+      - core
     ports:
       - "6379:6379"
     volumes:
@@ -83,6 +89,8 @@ services:
         OSRM_MAP_SOURCE: ${OSRM_MAP_SOURCE:-local}
     container_name: rideshare-osrm
     mem_limit: 3g
+    profiles:
+      - core
     platform: linux/amd64
     ports:
       - "5050:5000"
@@ -106,6 +114,8 @@ services:
       target: development
     container_name: rideshare-simulation
     mem_limit: 4g
+    profiles:
+      - core
     ports:
       - "8000:8000"
     volumes:
@@ -152,6 +162,8 @@ services:
       dockerfile: Dockerfile
     container_name: rideshare-stream-processor
     mem_limit: 512m
+    profiles:
+      - core
     ports:
       - "8080:8080"
     environment:
@@ -188,6 +200,8 @@ services:
       target: development
     container_name: rideshare-frontend
     mem_limit: 512m
+    profiles:
+      - core
     ports:
       - "3000:5173"
     volumes:
@@ -201,6 +215,12 @@ services:
         condition: service_healthy
     networks:
       - rideshare-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5173"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   minio:
     build:
@@ -210,6 +230,8 @@ services:
         MINIO_RELEASE: RELEASE.2025-10-15T17-29-55Z
     container_name: rideshare-minio
     mem_limit: 256m
+    profiles:
+      - data-platform
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -230,6 +252,8 @@ services:
   minio-init:
     image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
     container_name: rideshare-minio-init
+    profiles:
+      - data-platform
     depends_on:
       minio:
         condition: service_healthy
@@ -251,6 +275,8 @@ services:
       dockerfile: docker/spark-delta.Dockerfile
     container_name: rideshare-spark-master
     mem_limit: 512m
+    profiles:
+      - data-platform
     ports:
       - "7077:7077"
       - "4040:8080"
@@ -270,6 +296,8 @@ services:
       dockerfile: docker/spark-delta.Dockerfile
     container_name: rideshare-spark-worker
     mem_limit: 2g
+    profiles:
+      - data-platform
     ports:
       - "8081:8081"
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker -m 1536m -c 2 --webui-port 8081 spark://spark-master:7077
@@ -295,6 +323,8 @@ services:
       dockerfile: docker/spark-delta.Dockerfile
     container_name: rideshare-spark-thrift-server
     mem_limit: 1536m
+    profiles:
+      - data-platform
     ports:
       - "10000:10000"
       - "4041:4040"
@@ -336,6 +366,8 @@ services:
     image: localstack/localstack:4.12.0
     container_name: rideshare-localstack
     mem_limit: 512m
+    profiles:
+      - data-platform
     ports:
       - "4566:4566"
       - "4510-4559:4510-4559"
@@ -361,6 +393,8 @@ services:
     image: ghcr.io/google/cadvisor:v0.53.0
     container_name: rideshare-cadvisor
     mem_limit: 256m
+    profiles:
+      - monitoring
     ports:
       - "8082:8080"
     volumes:
@@ -375,6 +409,11 @@ services:
       - rideshare-network
     privileged: true
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 networks:
   rideshare-network:
