@@ -245,12 +245,99 @@ services:
     networks:
       - rideshare-network
 
+  spark-master:
+    build:
+      context: .
+      dockerfile: docker/spark-delta.Dockerfile
+    container_name: rideshare-spark-master
+    mem_limit: 512m
+    ports:
+      - "7077:7077"
+      - "4040:8080"
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+    networks:
+      - rideshare-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  spark-worker:
+    build:
+      context: .
+      dockerfile: docker/spark-delta.Dockerfile
+    container_name: rideshare-spark-worker
+    mem_limit: 2g
+    ports:
+      - "8081:8081"
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker -m 1536m -c 2 --webui-port 8081 spark://spark-master:7077
+    volumes:
+      - ./data-platform/spark:/opt/spark-scripts:ro
+    depends_on:
+      spark-master:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - rideshare-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  spark-thrift-server:
+    build:
+      context: .
+      dockerfile: docker/spark-delta.Dockerfile
+    container_name: rideshare-spark-thrift-server
+    mem_limit: 1536m
+    ports:
+      - "10000:10000"
+      - "4041:4040"
+    command: >
+      /opt/spark/bin/spark-submit
+      --master spark://spark-master:7077
+      --class org.apache.spark.sql.hive.thriftserver.HiveThriftServer2
+      --name "Thrift JDBC/ODBC Server"
+      --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
+      --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
+      --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000
+      --conf spark.hadoop.fs.s3a.access.key=minioadmin
+      --conf spark.hadoop.fs.s3a.secret.key=minioadmin
+      --conf spark.hadoop.fs.s3a.path.style.access=true
+      --conf spark.hadoop.fs.s3a.connection.ssl.enabled=false
+      --conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
+      --conf spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
+      --hiveconf hive.server2.thrift.port=10000
+      --hiveconf hive.server2.thrift.bind.host=0.0.0.0
+    volumes:
+      - ./data-platform/spark:/opt/spark-scripts:ro
+    depends_on:
+      spark-master:
+        condition: service_healthy
+      spark-worker:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - rideshare-network
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 10000 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
   cadvisor:
     image: ghcr.io/google/cadvisor:v0.53.0
     container_name: rideshare-cadvisor
     mem_limit: 256m
     ports:
-      - "8081:8080"
+      - "8082:8080"
     volumes:
       - /:/rootfs:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
