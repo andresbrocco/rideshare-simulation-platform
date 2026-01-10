@@ -2,6 +2,10 @@
 
 A ride-sharing simulation platform that generates realistic synthetic data for data engineering portfolio demonstrations.
 
+> **Repository Reorganization (2026-01-15)**: This monorepo was reorganized to improve structure.
+> Services are now under `services/`, data engineering under `data-platform/`, and infrastructure
+> under `infrastructure/`. Docker Compose service names remain unchanged for compatibility.
+
 ## Environment Setup
 
 ### 1. Copy Environment Template
