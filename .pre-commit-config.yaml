@@ -27,23 +27,23 @@ repos:
       - id: mypy
         additional_dependencies: [types-redis==4.6.0.20241004, types-requests>=2.31.0, pydantic==2.12.5]
         args: [--ignore-missing-imports, --explicit-package-bases]
-        files: ^simulation/src/
+        files: ^services/simulation/src/
 
   # Frontend (React/TypeScript) hooks
   - repo: local
     hooks:
       - id: frontend-lint-staged
         name: lint-staged (frontend)
-        entry: bash -c 'cd control-panel-frontend && npx lint-staged'
+        entry: bash -c 'cd services/frontend && npx lint-staged'
         language: system
-        files: ^control-panel-frontend/.*\.(ts|tsx|css|json|md)$
+        files: ^services/frontend/.*\.(ts|tsx|css|json|md)$
         pass_filenames: false
 
       - id: frontend-typecheck
         name: TypeScript (frontend)
-        entry: bash -c 'cd control-panel-frontend && npm run typecheck'
+        entry: bash -c 'cd services/frontend && npm run typecheck'
         language: system
-        files: ^control-panel-frontend/.*\.(ts|tsx)$
+        files: ^services/frontend/.*\.(ts|tsx)$
         pass_filenames: false
 
       - id: check-duplicate-class-names

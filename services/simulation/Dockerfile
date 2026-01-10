@@ -22,13 +22,13 @@ RUN pip install --no-cache-dir uv
 FROM base AS development
 
 # Copy dependency files first for layer caching
-COPY simulation/pyproject.toml simulation/pyproject.toml
+COPY pyproject.toml pyproject.toml
 
 # Create src directory placeholder for editable install
-RUN mkdir -p simulation/src
+RUN mkdir -p src
 
 # Install dependencies including dev (editable install for development)
-RUN cd simulation && uv pip install --system -e ".[dev]"
+RUN uv pip install --system -e ".[dev]"
 
 # Create directories for mounted volumes
 RUN mkdir -p data db && chown -R simuser:simuser /app
@@ -49,12 +49,11 @@ CMD ["python", "main.py"]
 # Production stage - optimized for size
 FROM base AS production
 
-COPY simulation/pyproject.toml simulation/pyproject.toml
+COPY pyproject.toml pyproject.toml
 
-RUN cd simulation && uv pip install --system .
+RUN uv pip install --system .
 
-COPY simulation/src /app/src
-COPY data/sao-paulo /app/data/sao-paulo
+COPY src /app/src
 
 RUN mkdir -p /app/data/db && chown -R simuser:simuser /app
 

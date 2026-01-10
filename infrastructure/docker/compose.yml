@@ -134,8 +134,8 @@ services:
 
   simulation:
     build:
-      context: ../..
-      dockerfile: docker/simulation.Dockerfile
+      context: ../../services/simulation
+      dockerfile: Dockerfile
       target: development
     container_name: rideshare-simulation
     mem_limit: 4g
@@ -144,7 +144,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ../../simulation/src:/app/src:ro
+      - ../../services/simulation/src:/app/src:ro
       - ../../data:/app/data:ro
       - simulation-db:/app/db
     environment:
@@ -220,8 +220,8 @@ services:
 
   control-panel-frontend:
     build:
-      context: ../..
-      dockerfile: docker/frontend.Dockerfile
+      context: ../../services/frontend
+      dockerfile: Dockerfile
       target: development
     container_name: rideshare-frontend
     mem_limit: 512m
