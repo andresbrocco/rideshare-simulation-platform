@@ -25,7 +25,9 @@ class TestKafkaProducer:
             producer = KafkaProducer(config)
             callback = Mock()
 
-            producer.produce("test-topic", key="key1", value="value1", callback=callback)
+            producer.produce(
+                "test-topic", key="key1", value="value1", callback=callback
+            )
 
             # Verify produce was called with correct topic, key, value
             # Note: on_delivery is now an internal callback that chains to user callback
@@ -55,7 +57,9 @@ class TestKafkaProducer:
 
             mock_producer_instance.produce.side_effect = trigger_error_callback
 
-            producer.produce("test-topic", key="key1", value="value1", callback=error_callback)
+            producer.produce(
+                "test-topic", key="key1", value="value1", callback=error_callback
+            )
 
             error_callback.assert_called_once()
             assert error_callback.call_args[0][0] is not None

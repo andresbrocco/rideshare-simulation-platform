@@ -161,7 +161,11 @@ class TestIsWithinProximity:
 
         # With 50m threshold
         assert is_within_proximity(
-            driver_nearby_lat, driver_nearby_lon, pickup_lat, pickup_lon, threshold_m=50.0
+            driver_nearby_lat,
+            driver_nearby_lon,
+            pickup_lat,
+            pickup_lon,
+            threshold_m=50.0,
         )
         assert not is_within_proximity(
             driver_far_lat, driver_far_lon, pickup_lat, pickup_lon, threshold_m=50.0

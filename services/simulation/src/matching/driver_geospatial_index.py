@@ -67,7 +67,11 @@ class DriverGeospatialIndex:
             del self._driver_status[driver_id]
 
     def find_nearest_drivers(
-        self, lat: float, lon: float, radius_km: float = 5.0, status_filter: str = "online"
+        self,
+        lat: float,
+        lon: float,
+        radius_km: float = 5.0,
+        status_filter: str = "online",
     ) -> list[tuple[str, float]]:
         with self._lock:
             if not self._driver_locations:
@@ -84,7 +88,9 @@ class DriverGeospatialIndex:
                     for driver_id in self._h3_cells[cell]:
                         if self._driver_status.get(driver_id) == status_filter:
                             driver_lat, driver_lon = self._driver_locations[driver_id]
-                            distance = haversine_distance_km(lat, lon, driver_lat, driver_lon)
+                            distance = haversine_distance_km(
+                                lat, lon, driver_lat, driver_lon
+                            )
                             if distance <= radius_km:
                                 candidates.append((driver_id, distance))
 

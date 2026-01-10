@@ -60,7 +60,11 @@ class SurgePricingCalculator:
             return 2.5
 
     def _update_zone_surge(
-        self, zone_id: str, new_multiplier: float, available_drivers: int, pending_requests: int
+        self,
+        zone_id: str,
+        new_multiplier: float,
+        available_drivers: int,
+        pending_requests: int,
     ):
         old_multiplier = self.current_surge.get(zone_id, 1.0)
 
@@ -77,7 +81,9 @@ class SurgePricingCalculator:
                     pending_requests=pending_requests,
                     calculation_window_seconds=self.update_interval_seconds,
                 )
-                self.kafka_producer.produce(topic="surge-updates", key=zone_id, value=event)
+                self.kafka_producer.produce(
+                    topic="surge-updates", key=zone_id, value=event
+                )
 
             self.current_surge[zone_id] = new_multiplier
 

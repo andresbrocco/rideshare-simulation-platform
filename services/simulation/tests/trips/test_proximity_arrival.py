@@ -190,7 +190,11 @@ class TestProximityArrivalDetection:
             if call[1].get("topic") == "trips"
         ]
         event_types = [
-            evt.get("event_type") if isinstance(evt, dict) else getattr(evt, "event_type", None)
+            (
+                evt.get("event_type")
+                if isinstance(evt, dict)
+                else getattr(evt, "event_type", None)
+            )
             for evt in events
         ]
 
@@ -422,7 +426,9 @@ class TestSimulationSettingsValidation:
     def test_proximity_threshold_maximum(self):
         """Test that proximity threshold has a maximum value."""
         with pytest.raises(ValueError):
-            SimulationSettings(arrival_proximity_threshold_m=600.0)  # Above 500m maximum
+            SimulationSettings(
+                arrival_proximity_threshold_m=600.0
+            )  # Above 500m maximum
 
     def test_valid_timeout_multiplier(self):
         """Test valid timeout multiplier values."""

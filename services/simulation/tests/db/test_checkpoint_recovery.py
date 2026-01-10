@@ -68,7 +68,9 @@ class TestCheckpointMetadata:
 class TestCheckpointAgents:
     """Tests for checkpoint agent persistence."""
 
-    def test_create_checkpoint_all_agents(self, temp_sqlite_db, dna_factory: DNAFactory):
+    def test_create_checkpoint_all_agents(
+        self, temp_sqlite_db, dna_factory: DNAFactory
+    ):
         """Saves all drivers and riders to checkpoint."""
         session_maker = init_database(str(temp_sqlite_db))
         drivers = [
@@ -244,8 +246,16 @@ class TestCheckpointRouteCache:
         """Saves route cache to checkpoint."""
         session_maker = init_database(str(temp_sqlite_db))
         routes = {
-            "h3_1|h3_2": {"distance": 1000.0, "duration": 300.0, "polyline": "encoded1"},
-            "h3_3|h3_4": {"distance": 2000.0, "duration": 600.0, "polyline": "encoded2"},
+            "h3_1|h3_2": {
+                "distance": 1000.0,
+                "duration": 300.0,
+                "polyline": "encoded1",
+            },
+            "h3_3|h3_4": {
+                "distance": 2000.0,
+                "duration": 600.0,
+                "polyline": "encoded2",
+            },
         }
 
         with session_maker() as session:
@@ -508,7 +518,9 @@ class TestCleanVsDirtyCheckpoint:
 class TestCheckpointRecovery:
     """Tests for checkpoint recovery scenarios."""
 
-    def test_resume_from_clean_checkpoint(self, temp_sqlite_db, dna_factory: DNAFactory):
+    def test_resume_from_clean_checkpoint(
+        self, temp_sqlite_db, dna_factory: DNAFactory
+    ):
         """Resumes from clean checkpoint without warnings."""
         session_maker = init_database(str(temp_sqlite_db))
 
@@ -520,7 +532,13 @@ class TestCheckpointRecovery:
                 status="PAUSED",
                 drivers=[("d1", dna_factory.driver_dna())],
                 riders=[("r1", dna_factory.rider_dna())],
-                route_cache={"h3_x|h3_y": {"distance": 500.0, "duration": 150.0, "polyline": None}},
+                route_cache={
+                    "h3_x|h3_y": {
+                        "distance": 500.0,
+                        "duration": 150.0,
+                        "polyline": None,
+                    }
+                },
             )
             session.commit()
 

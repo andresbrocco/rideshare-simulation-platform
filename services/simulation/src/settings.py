@@ -125,7 +125,9 @@ class MatchingSettings(BaseSettings):
     def __init__(self, **data):
         super().__init__(**data)
         weights_sum = (
-            self.ranking_eta_weight + self.ranking_rating_weight + self.ranking_acceptance_weight
+            self.ranking_eta_weight
+            + self.ranking_rating_weight
+            + self.ranking_acceptance_weight
         )
         if not (0.99 <= weights_sum <= 1.01):
             raise ValueError(

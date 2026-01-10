@@ -115,7 +115,9 @@ class ThreadCoordinator:
 
             handler = self._handlers.get(cmd.type)
             if handler is None:
-                cmd.error = NoHandlerRegisteredError(f"No handler registered for {cmd.type}")
+                cmd.error = NoHandlerRegisteredError(
+                    f"No handler registered for {cmd.type}"
+                )
             else:
                 try:
                     cmd.result = handler(cmd.payload)

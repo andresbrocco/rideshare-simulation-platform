@@ -77,10 +77,14 @@ class Trip(BaseModel):
     def transition_to(self, new_state: TripState) -> None:
         """Transition to a new state with validation."""
         if self.state in {TripState.COMPLETED, TripState.CANCELLED}:
-            raise ValueError(f"Cannot transition from terminal state {self.state.value}")
+            raise ValueError(
+                f"Cannot transition from terminal state {self.state.value}"
+            )
 
         if new_state not in VALID_TRANSITIONS[self.state]:
-            raise ValueError(f"Invalid transition from {self.state.value} to {new_state.value}")
+            raise ValueError(
+                f"Invalid transition from {self.state.value} to {new_state.value}"
+            )
 
         self.state = new_state
 

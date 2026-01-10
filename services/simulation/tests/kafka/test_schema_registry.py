@@ -176,7 +176,13 @@ def test_check_compatibility_incompatible(sr_config, trip_schema):
         registry = SchemaRegistry(sr_config)
 
         new_schema = trip_schema.copy()
-        new_schema["required"] = ["trip_id", "driver_id", "rider_id", "status", "new_field"]
+        new_schema["required"] = [
+            "trip_id",
+            "driver_id",
+            "rider_id",
+            "status",
+            "new_field",
+        ]
         schema_str = json.dumps(new_schema)
 
         is_compatible = registry.check_compatibility("trips-value", schema_str)

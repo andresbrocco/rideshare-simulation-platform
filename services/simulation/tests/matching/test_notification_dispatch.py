@@ -69,12 +69,16 @@ class TestNotificationDispatch:
         dispatcher = NotificationDispatch(mock_registry_manager)
         assert dispatcher is not None
 
-    async def test_send_driver_offer(self, mock_registry_manager, sample_trip, mock_driver_agent):
+    async def test_send_driver_offer(
+        self, mock_registry_manager, sample_trip, mock_driver_agent
+    ):
         """Sends offer to driver agent."""
         dispatcher = NotificationDispatch(mock_registry_manager)
 
         # The new interface takes driver object directly, not driver_id
-        decision = dispatcher.send_driver_offer(mock_driver_agent, sample_trip, eta_seconds=300)
+        decision = dispatcher.send_driver_offer(
+            mock_driver_agent, sample_trip, eta_seconds=300
+        )
 
         assert decision in [True, False]
         mock_driver_agent.receive_offer.assert_called_once()
@@ -86,7 +90,9 @@ class TestNotificationDispatch:
         mock_driver_agent.receive_offer.return_value = True
         dispatcher = NotificationDispatch(mock_registry_manager)
 
-        decision = dispatcher.send_driver_offer(mock_driver_agent, sample_trip, eta_seconds=300)
+        decision = dispatcher.send_driver_offer(
+            mock_driver_agent, sample_trip, eta_seconds=300
+        )
 
         assert decision is True
 
@@ -97,7 +103,9 @@ class TestNotificationDispatch:
         mock_driver_agent.receive_offer.return_value = False
         dispatcher = NotificationDispatch(mock_registry_manager)
 
-        decision = dispatcher.send_driver_offer(mock_driver_agent, sample_trip, eta_seconds=300)
+        decision = dispatcher.send_driver_offer(
+            mock_driver_agent, sample_trip, eta_seconds=300
+        )
 
         assert decision is False
 
@@ -109,9 +117,13 @@ class TestNotificationDispatch:
 
         await dispatcher.notify_rider_match("rider-456", sample_trip, "driver-123")
 
-        mock_rider_agent.on_match_found.assert_called_once_with(sample_trip, "driver-123")
+        mock_rider_agent.on_match_found.assert_called_once_with(
+            sample_trip, "driver-123"
+        )
 
-    async def test_notify_rider_no_drivers(self, mock_registry_manager, mock_rider_agent):
+    async def test_notify_rider_no_drivers(
+        self, mock_registry_manager, mock_rider_agent
+    ):
         """Notifies rider of no_drivers_available."""
         dispatcher = NotificationDispatch(mock_registry_manager)
 
@@ -125,7 +137,9 @@ class TestNotificationDispatch:
         """Notifies both parties of trip state change."""
         dispatcher = NotificationDispatch(mock_registry_manager)
 
-        await dispatcher.notify_trip_state_change(sample_trip, TripState.DRIVER_EN_ROUTE)
+        await dispatcher.notify_trip_state_change(
+            sample_trip, TripState.DRIVER_EN_ROUTE
+        )
 
         mock_rider_agent.on_driver_en_route.assert_called_once_with(sample_trip)
 
@@ -181,15 +195,21 @@ class TestNotificationDispatch:
 
         mock_rider_agent.on_trip_cancelled.assert_called_once_with(sample_trip)
 
-    async def test_sync_dispatch(self, mock_registry_manager, sample_trip, mock_driver_agent):
+    async def test_sync_dispatch(
+        self, mock_registry_manager, sample_trip, mock_driver_agent
+    ):
         """Dispatch send_driver_offer is now sync."""
         dispatcher = NotificationDispatch(mock_registry_manager)
 
-        decision = dispatcher.send_driver_offer(mock_driver_agent, sample_trip, eta_seconds=300)
+        decision = dispatcher.send_driver_offer(
+            mock_driver_agent, sample_trip, eta_seconds=300
+        )
 
         assert isinstance(decision, bool)
 
-    async def test_agent_not_found(self, mock_registry_manager, sample_trip, mock_rider_agent):
+    async def test_agent_not_found(
+        self, mock_registry_manager, sample_trip, mock_rider_agent
+    ):
         """Handles rider not in registry for trip."""
         # Create a trip with a non-existent rider
         trip_no_rider = Trip(
@@ -208,7 +228,9 @@ class TestNotificationDispatch:
         mock_driver.receive_offer.return_value = True
 
         # This should still work but use default rating
-        decision = dispatcher.send_driver_offer(mock_driver, trip_no_rider, eta_seconds=300)
+        decision = dispatcher.send_driver_offer(
+            mock_driver, trip_no_rider, eta_seconds=300
+        )
 
         assert decision is True
         offer_arg = mock_driver.receive_offer.call_args[0][0]

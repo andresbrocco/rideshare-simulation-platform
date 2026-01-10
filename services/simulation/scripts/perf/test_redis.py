@@ -24,7 +24,9 @@ import uuid
 import redis
 
 
-def run_publisher_benchmark(host: str, port: int, channel: str, num_messages: int) -> dict:
+def run_publisher_benchmark(
+    host: str, port: int, channel: str, num_messages: int
+) -> dict:
     """Benchmark Redis publish throughput."""
     print("\nPublisher Benchmark")
     print(f"  Channel: {channel}")
@@ -76,7 +78,9 @@ def run_publisher_benchmark(host: str, port: int, channel: str, num_messages: in
     return results
 
 
-def run_pubsub_lag_benchmark(host: str, port: int, channel: str, num_messages: int) -> dict:
+def run_pubsub_lag_benchmark(
+    host: str, port: int, channel: str, num_messages: int
+) -> dict:
     """Benchmark Redis pub/sub lag."""
     print("\nPub/Sub Lag Benchmark")
     print(f"  Channel: {channel}")
@@ -216,7 +220,10 @@ def main():
     )
 
     lag_results = run_pubsub_lag_benchmark(
-        args.redis_host, args.redis_port, args.channel + "-lag", min(args.messages, 1000)
+        args.redis_host,
+        args.redis_port,
+        args.channel + "-lag",
+        min(args.messages, 1000),
     )
 
     print_results(pub_results, lag_results)

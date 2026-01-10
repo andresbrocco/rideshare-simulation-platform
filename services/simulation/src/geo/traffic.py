@@ -45,9 +45,13 @@ class TrafficModel:
             return self.BASELINE + (self.NIGHT_PEAK - self.BASELINE) * night_effect
         else:
             # Blend between baseline and rush based on rush effect strength
-            return self.BASELINE + (self.RUSH_HOUR_PEAK - self.BASELINE) * rush_multiplier
+            return (
+                self.BASELINE + (self.RUSH_HOUR_PEAK - self.BASELINE) * rush_multiplier
+            )
 
-    def _period_effect(self, hour: float, center: float, peak: float, half_width: float) -> float:
+    def _period_effect(
+        self, hour: float, center: float, peak: float, half_width: float
+    ) -> float:
         """Calculate effect strength for a traffic period using sigmoid smoothing."""
         distance = abs(hour - center)
         if distance > half_width + 1.0:  # Outside influence range

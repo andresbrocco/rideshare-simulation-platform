@@ -274,7 +274,9 @@ class TestOSRMRetryLogic:
     ):
         """Trip is cancelled after exhausting all retries."""
         osrm_client = Mock()
-        osrm_client.get_route_sync = Mock(side_effect=OSRMTimeoutError("Persistent failure"))
+        osrm_client.get_route_sync = Mock(
+            side_effect=OSRMTimeoutError("Persistent failure")
+        )
 
         executor = TripExecutor(
             env=simpy_env,
@@ -486,7 +488,9 @@ class TestCleanupHandler:
 
         # Check Kafka received a cancellation event
         trip_events = [
-            c for c in mock_kafka_producer.produce.call_args_list if c[1].get("topic") == "trips"
+            c
+            for c in mock_kafka_producer.produce.call_args_list
+            if c[1].get("topic") == "trips"
         ]
         assert len(trip_events) > 0
 
@@ -526,7 +530,9 @@ class TestCleanupHandler:
         process = simpy_env.process(executor.execute())
         simpy_env.run(process)
 
-        mock_matching_server.complete_trip.assert_called_once_with(sample_trip.trip_id, sample_trip)
+        mock_matching_server.complete_trip.assert_called_once_with(
+            sample_trip.trip_id, sample_trip
+        )
 
     def test_cleanup_records_statistics(
         self,

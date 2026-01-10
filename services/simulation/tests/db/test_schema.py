@@ -117,7 +117,9 @@ class TestMetadataTable:
         session_maker = init_database(str(temp_sqlite_db))
         inspector = inspect(session_maker.kw["bind"])
 
-        columns = {col["name"]: col for col in inspector.get_columns("simulation_metadata")}
+        columns = {
+            col["name"]: col for col in inspector.get_columns("simulation_metadata")
+        }
 
         assert "key" in columns
         assert "value" in columns
@@ -129,7 +131,9 @@ class TestMetadataTable:
 class TestDriverDNASerialization:
     """Test driver DNA JSON serialization."""
 
-    def test_driver_dna_json_serialization(self, temp_sqlite_db, dna_factory: DNAFactory):
+    def test_driver_dna_json_serialization(
+        self, temp_sqlite_db, dna_factory: DNAFactory
+    ):
         """Stores DriverDNA as JSON."""
         session_maker = init_database(str(temp_sqlite_db))
 
@@ -162,7 +166,9 @@ class TestDriverDNASerialization:
 class TestRiderDNASerialization:
     """Test rider DNA JSON serialization."""
 
-    def test_rider_dna_json_serialization(self, temp_sqlite_db, dna_factory: DNAFactory):
+    def test_rider_dna_json_serialization(
+        self, temp_sqlite_db, dna_factory: DNAFactory
+    ):
         """Stores RiderDNA as JSON."""
         session_maker = init_database(str(temp_sqlite_db))
 
@@ -194,7 +200,9 @@ class TestRiderDNASerialization:
 class TestDriverLocationStorage:
     """Test driver location tuple storage."""
 
-    def test_driver_location_tuple_storage(self, temp_sqlite_db, dna_factory: DNAFactory):
+    def test_driver_location_tuple_storage(
+        self, temp_sqlite_db, dna_factory: DNAFactory
+    ):
         """Stores location as lat/lon tuple."""
         session_maker = init_database(str(temp_sqlite_db))
 
@@ -281,6 +289,10 @@ class TestSchemaMigrationSupport:
         session_maker = init_database(str(temp_sqlite_db))
 
         with session_maker() as session:
-            metadata = session.query(SimulationMetadata).filter_by(key="schema_version").first()
+            metadata = (
+                session.query(SimulationMetadata)
+                .filter_by(key="schema_version")
+                .first()
+            )
             assert metadata is not None
             assert metadata.value == "1.0.0"

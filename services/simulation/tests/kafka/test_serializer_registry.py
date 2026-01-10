@@ -107,7 +107,9 @@ class TestSerializerRegistryInitialization:
 class TestSerializerRegistryGetSerializer:
     """Tests for get_serializer method."""
 
-    def test_get_serializer_returns_correct_type(self, mock_schema_registry, schema_base_path):
+    def test_get_serializer_returns_correct_type(
+        self, mock_schema_registry, schema_base_path
+    ):
         """Test that get_serializer returns the correct serializer type per topic."""
         SerializerRegistry.initialize(
             schema_registry_url="http://schema-registry:8081",
@@ -123,7 +125,9 @@ class TestSerializerRegistryGetSerializer:
         status_serializer = SerializerRegistry.get_serializer("driver-status")
         assert isinstance(status_serializer, DriverStatusEventSerializer)
 
-    def test_get_serializer_caches_instances(self, mock_schema_registry, schema_base_path):
+    def test_get_serializer_caches_instances(
+        self, mock_schema_registry, schema_base_path
+    ):
         """Test that serializers are cached after first request."""
         SerializerRegistry.initialize(
             schema_registry_url="http://schema-registry:8081",
@@ -253,7 +257,9 @@ class TestSerializerRegistryGracefulDegradation:
             # Registry should not be enabled after failed init
             assert SerializerRegistry.is_enabled() is False
 
-    def test_serializer_created_lazily_allows_missing_files(self, mock_schema_registry, tmp_path):
+    def test_serializer_created_lazily_allows_missing_files(
+        self, mock_schema_registry, tmp_path
+    ):
         """Test that serializer creation succeeds even with missing schema files.
 
         The serializer reads the schema file during serialize(), not during __init__().

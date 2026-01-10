@@ -128,7 +128,9 @@ class RiderAgent(EventEmitter):
                 self._rider_repository.update_status(self._rider_id, self._status)
                 self._rider_repository.update_active_trip(self._rider_id, trip_id)
             except Exception as e:
-                logger.error(f"Failed to persist trip request for rider {self._rider_id}: {e}")
+                logger.error(
+                    f"Failed to persist trip request for rider {self._rider_id}: {e}"
+                )
 
     def start_trip(self) -> None:
         """Transition from waiting to in_trip."""
@@ -138,7 +140,9 @@ class RiderAgent(EventEmitter):
             try:
                 self._rider_repository.update_status(self._rider_id, self._status)
             except Exception as e:
-                logger.error(f"Failed to persist status for rider {self._rider_id}: {e}")
+                logger.error(
+                    f"Failed to persist status for rider {self._rider_id}: {e}"
+                )
 
     def complete_trip(self) -> None:
         """Transition from in_trip to offline, clear active trip."""
@@ -150,7 +154,9 @@ class RiderAgent(EventEmitter):
                 self._rider_repository.update_status(self._rider_id, self._status)
                 self._rider_repository.update_active_trip(self._rider_id, None)
             except Exception as e:
-                logger.error(f"Failed to persist trip completion for rider {self._rider_id}: {e}")
+                logger.error(
+                    f"Failed to persist trip completion for rider {self._rider_id}: {e}"
+                )
 
     def cancel_trip(self) -> None:
         """Transition from waiting to offline, clear active trip."""
@@ -162,7 +168,9 @@ class RiderAgent(EventEmitter):
                 self._rider_repository.update_status(self._rider_id, self._status)
                 self._rider_repository.update_active_trip(self._rider_id, None)
             except Exception as e:
-                logger.error(f"Failed to persist trip cancellation for rider {self._rider_id}: {e}")
+                logger.error(
+                    f"Failed to persist trip cancellation for rider {self._rider_id}: {e}"
+                )
 
     def update_location(self, lat: float, lon: float) -> None:
         """Update current location."""
@@ -172,13 +180,15 @@ class RiderAgent(EventEmitter):
             try:
                 self._rider_repository.update_location(self._rider_id, (lat, lon))
             except Exception as e:
-                logger.error(f"Failed to persist location for rider {self._rider_id}: {e}")
+                logger.error(
+                    f"Failed to persist location for rider {self._rider_id}: {e}"
+                )
 
     def update_rating(self, new_rating: int) -> None:
         """Update rolling average rating."""
-        self._current_rating = (self._current_rating * self._rating_count + new_rating) / (
-            self._rating_count + 1
-        )
+        self._current_rating = (
+            self._current_rating * self._rating_count + new_rating
+        ) / (self._rating_count + 1)
         self._rating_count += 1
 
         if self._rider_repository:
@@ -187,7 +197,9 @@ class RiderAgent(EventEmitter):
                     self._rider_id, self._current_rating, self._rating_count
                 )
             except Exception as e:
-                logger.error(f"Failed to persist rating for rider {self._rider_id}: {e}")
+                logger.error(
+                    f"Failed to persist rating for rider {self._rider_id}: {e}"
+                )
 
     def submit_rating_for_trip(self, trip: "Trip", driver: "DriverAgent") -> int | None:
         """Submit rating for driver after trip completion."""
@@ -196,7 +208,9 @@ class RiderAgent(EventEmitter):
         if trip.state != TripState.COMPLETED:
             return None
 
-        rating_value = generate_rating_value(driver.dna.service_quality, "service_quality")
+        rating_value = generate_rating_value(
+            driver.dna.service_quality, "service_quality"
+        )
 
         if not should_submit_rating(rating_value):
             return None
@@ -206,7 +220,9 @@ class RiderAgent(EventEmitter):
         self._emit_rating_event(trip.trip_id, driver.driver_id, rating_value)
         return rating_value
 
-    def _emit_rating_event(self, trip_id: str, ratee_id: str, rating_value: int) -> None:
+    def _emit_rating_event(
+        self, trip_id: str, ratee_id: str, rating_value: int
+    ) -> None:
         """Emit rating event to Kafka."""
         from datetime import UTC, datetime
 
@@ -308,7 +324,9 @@ class RiderAgent(EventEmitter):
                 try:
                     self._rider_repository.update_status(self._rider_id, self._status)
                 except Exception as e:
-                    logger.error(f"Failed to persist status for rider {self._rider_id}: {e}")
+                    logger.error(
+                        f"Failed to persist status for rider {self._rider_id}: {e}"
+                    )
 
     def on_driver_arrived(self, trip) -> None:
         """Handle driver arrival notification."""
@@ -558,10 +576,14 @@ class RiderAgent(EventEmitter):
                     self._surge_calculator.decrement_pending_request(pickup_zone_id)
 
                 # Cancel trip in matching server to clean up _active_trips
-                if self._simulation_engine and hasattr(self._simulation_engine, "_matching_server"):
+                if self._simulation_engine and hasattr(
+                    self._simulation_engine, "_matching_server"
+                ):
                     matching_server = self._simulation_engine._matching_server
                     if matching_server:
-                        matching_server.cancel_trip(trip_id, "rider", "patience_timeout")
+                        matching_server.cancel_trip(
+                            trip_id, "rider", "patience_timeout"
+                        )
 
                 event = TripEvent(
                     event_type="trip.cancelled",
@@ -679,22 +701,32 @@ class RiderAgent(EventEmitter):
                 duration_minutes = route.duration_seconds / 60
             except Exception:
                 # Fallback to Haversine estimate
-                distance_km = self._haversine_distance(pickup[0], pickup[1], dropoff[0], dropoff[1])
+                distance_km = self._haversine_distance(
+                    pickup[0], pickup[1], dropoff[0], dropoff[1]
+                )
                 # Estimate duration based on average city speed (25 km/h)
                 duration_minutes = (distance_km / 25) * 60
         else:
-            distance_km = self._haversine_distance(pickup[0], pickup[1], dropoff[0], dropoff[1])
+            distance_km = self._haversine_distance(
+                pickup[0], pickup[1], dropoff[0], dropoff[1]
+            )
             duration_minutes = (distance_km / 25) * 60
 
         # Calculate total fare
-        fare = BASE_FARE + (distance_km * PER_KM_RATE) + (duration_minutes * PER_MINUTE_RATE)
+        fare = (
+            BASE_FARE
+            + (distance_km * PER_KM_RATE)
+            + (duration_minutes * PER_MINUTE_RATE)
+        )
         fare = fare * surge_multiplier
 
         # Round to 2 decimal places
         return round(fare, 2)
 
     @staticmethod
-    def _haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    def _haversine_distance(
+        lat1: float, lon1: float, lat2: float, lon2: float
+    ) -> float:
         """Calculate distance between two points in kilometers using Haversine formula."""
         import math
 
@@ -735,7 +767,9 @@ class RiderAgent(EventEmitter):
         zone_id = None
         loader = zone_loader or self._zone_loader
         if loader and self._location:
-            zone_id = loader.find_zone_for_location(self._location[0], self._location[1])
+            zone_id = loader.find_zone_for_location(
+                self._location[0], self._location[1]
+            )
 
         return {
             "rider_id": self._rider_id,

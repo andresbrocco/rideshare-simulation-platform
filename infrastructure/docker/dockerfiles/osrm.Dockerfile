@@ -47,7 +47,7 @@ RUN sed -i 's/deb.debian.org/archive.debian.org/g' /etc/apt/sources.list && \
 # Source: Geofabrik sudeste-latest.osm.pbf, extracted with osmium
 COPY data/osrm/sao-paulo-metro.osm.pbf /data/sao-paulo.osm.pbf
 
-COPY docker/scripts/osrm-init.sh /usr/local/bin/osrm-init.sh
+COPY infrastructure/docker/dockerfiles/scripts/osrm-init.sh /usr/local/bin/osrm-init.sh
 RUN chmod +x /usr/local/bin/osrm-init.sh
 
 EXPOSE 5000
@@ -70,7 +70,7 @@ RUN sed -i 's/deb.debian.org/archive.debian.org/g' /etc/apt/sources.list && \
 # Copy freshly downloaded file from fetcher stage
 COPY --from=fetcher /extract/sao-paulo-metro.osm.pbf /data/sao-paulo.osm.pbf
 
-COPY docker/scripts/osrm-init.sh /usr/local/bin/osrm-init.sh
+COPY infrastructure/docker/dockerfiles/scripts/osrm-init.sh /usr/local/bin/osrm-init.sh
 RUN chmod +x /usr/local/bin/osrm-init.sh
 
 EXPOSE 5000

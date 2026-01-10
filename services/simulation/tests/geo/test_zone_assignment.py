@@ -89,7 +89,9 @@ class TestCentroidDistanceCalculation:
         # Point 1km away (approximately)
         lat, lon = centroid_lat + 0.009, centroid_lon
 
-        distance = zone_service._calculate_distance(lat, lon, centroid_lat, centroid_lon)
+        distance = zone_service._calculate_distance(
+            lat, lon, centroid_lat, centroid_lon
+        )
 
         assert 0.9 < distance < 1.1
 

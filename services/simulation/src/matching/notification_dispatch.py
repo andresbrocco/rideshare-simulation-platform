@@ -18,7 +18,9 @@ class NotificationDispatch:
     def __init__(self, registry_manager: "AgentRegistryManager"):
         self._registry = registry_manager
 
-    def send_driver_offer(self, driver: "DriverAgent", trip: Trip, eta_seconds: int) -> bool:
+    def send_driver_offer(
+        self, driver: "DriverAgent", trip: Trip, eta_seconds: int
+    ) -> bool:
         """Send offer to driver and return decision.
 
         Args:
@@ -41,7 +43,9 @@ class NotificationDispatch:
 
         return driver.receive_offer(offer)
 
-    async def notify_rider_match(self, rider_id: str, trip: Trip, driver_id: str) -> None:
+    async def notify_rider_match(
+        self, rider_id: str, trip: Trip, driver_id: str
+    ) -> None:
         """Notify rider of successful match."""
         rider = self._registry.get_rider(rider_id)
         if not rider:
@@ -87,7 +91,9 @@ class NotificationDispatch:
     async def notify_trip_cancellation(self, trip: Trip, cancelled_by: str) -> None:
         """Notify counterparty of trip cancellation."""
         if cancelled_by == "rider":
-            driver = self._registry.get_driver(trip.driver_id) if trip.driver_id else None
+            driver = (
+                self._registry.get_driver(trip.driver_id) if trip.driver_id else None
+            )
             if driver:
                 driver.on_trip_cancelled(trip)
 

@@ -403,10 +403,12 @@ async def request_rider_trip(
 
     # Determine zones
     pickup_zone_id = (
-        zone_loader.find_zone_for_location(rider.location[0], rider.location[1]) or "unknown"
+        zone_loader.find_zone_for_location(rider.location[0], rider.location[1])
+        or "unknown"
     )
     dropoff_zone_id = (
-        zone_loader.find_zone_for_location(body.destination[0], body.destination[1]) or "unknown"
+        zone_loader.find_zone_for_location(body.destination[0], body.destination[1])
+        or "unknown"
     )
 
     # Get surge for pickup zone

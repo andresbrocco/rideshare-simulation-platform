@@ -97,13 +97,21 @@ class TripRepository:
 
     def list_by_driver(self, driver_id: str) -> list[TripDomain]:
         """List trips by driver ID."""
-        stmt = select(Trip).where(Trip.driver_id == driver_id).order_by(Trip.requested_at.desc())
+        stmt = (
+            select(Trip)
+            .where(Trip.driver_id == driver_id)
+            .order_by(Trip.requested_at.desc())
+        )
         result = self.session.execute(stmt)
         return [self._to_domain(t) for t in result.scalars().all()]
 
     def list_by_rider(self, rider_id: str) -> list[TripDomain]:
         """List trips by rider ID."""
-        stmt = select(Trip).where(Trip.rider_id == rider_id).order_by(Trip.requested_at.desc())
+        stmt = (
+            select(Trip)
+            .where(Trip.rider_id == rider_id)
+            .order_by(Trip.requested_at.desc())
+        )
         result = self.session.execute(stmt)
         return [self._to_domain(t) for t in result.scalars().all()]
 
@@ -119,7 +127,11 @@ class TripRepository:
 
     def count_in_flight(self) -> int:
         """Count trips in non-terminal states."""
-        stmt = select(func.count()).select_from(Trip).where(Trip.state.notin_(TERMINAL_STATES))
+        stmt = (
+            select(func.count())
+            .select_from(Trip)
+            .where(Trip.state.notin_(TERMINAL_STATES))
+        )
         return self.session.execute(stmt).scalar() or 0
 
     def _to_domain(self, trip: Trip) -> TripDomain:

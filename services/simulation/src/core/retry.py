@@ -42,7 +42,9 @@ async def with_retry(
         except config.retryable_exceptions as e:
             last_exception = e
             if attempt == config.max_attempts - 1:
-                logger.error(f"{operation_name} failed after {config.max_attempts} attempts: {e}")
+                logger.error(
+                    f"{operation_name} failed after {config.max_attempts} attempts: {e}"
+                )
                 raise
 
             delay = min(

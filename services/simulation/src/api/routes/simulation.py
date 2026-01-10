@@ -73,7 +73,9 @@ async def _broadcast_reset(connection_manager) -> None:
 
 
 @router.post("/reset", response_model=ControlResponse)
-def reset_simulation(request: Request, engine: EngineDep, background_tasks: BackgroundTasks):
+def reset_simulation(
+    request: Request, engine: EngineDep, background_tasks: BackgroundTasks
+):
     """Reset simulation to initial state, clearing all data."""
     # Call engine reset (handles most clearing including database)
     engine.reset()

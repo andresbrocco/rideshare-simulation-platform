@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from jsonschema import ValidationError, validate
 
-SCHEMAS_DIR = Path(__file__).parent.parent.parent.parent / "schemas"
+SCHEMAS_DIR = Path(__file__).parent.parent.parent.parent.parent / "schemas" / "kafka"
 
 
 @pytest.fixture

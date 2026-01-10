@@ -21,7 +21,9 @@ def test_driver_home_location_in_zone():
     for _ in range(20):
         dna = generate_driver_dna()
         lat, lon = dna.home_location
-        assert is_location_in_any_zone(lat, lon), f"Location ({lat}, {lon}) not in any zone"
+        assert is_location_in_any_zone(
+            lat, lon
+        ), f"Location ({lat}, {lon}) not in any zone"
 
 
 def test_driver_acceptance_rate_range():
@@ -136,7 +138,9 @@ def test_rider_home_location_in_zone():
     for _ in range(20):
         dna = generate_rider_dna()
         lat, lon = dna.home_location
-        assert is_location_in_any_zone(lat, lon), f"Location ({lat}, {lon}) not in any zone"
+        assert is_location_in_any_zone(
+            lat, lon
+        ), f"Location ({lat}, {lon}) not in any zone"
 
 
 def test_rider_frequent_destinations_count():
@@ -154,7 +158,9 @@ def test_rider_destinations_within_20km():
         for dest in dna.frequent_destinations:
             dest_lat, dest_lon = dest["coordinates"]
             distance = haversine_distance(home_lat, home_lon, dest_lat, dest_lon)
-            assert distance <= 20.0, f"Destination {distance:.1f}km from home (max 20km)"
+            assert (
+                distance <= 20.0
+            ), f"Destination {distance:.1f}km from home (max 20km)"
 
 
 def test_rider_destinations_minimum_distance():
@@ -165,7 +171,9 @@ def test_rider_destinations_minimum_distance():
         for dest in dna.frequent_destinations:
             dest_lat, dest_lon = dest["coordinates"]
             distance = haversine_distance(home_lat, home_lon, dest_lat, dest_lon)
-            assert distance >= 0.5, f"Destination only {distance:.2f}km from home (min ~0.8km)"
+            assert (
+                distance >= 0.5
+            ), f"Destination only {distance:.2f}km from home (min ~0.8km)"
 
 
 def test_rider_destination_weights_sum():
@@ -173,7 +181,9 @@ def test_rider_destination_weights_sum():
     for _ in range(30):
         dna = generate_rider_dna()
         weights = [d["weight"] for d in dna.frequent_destinations]
-        assert all(0.0 < w <= 1.0 for w in weights), "Each weight should be in (0.0, 1.0]"
+        assert all(
+            0.0 < w <= 1.0 for w in weights
+        ), "Each weight should be in (0.0, 1.0]"
         total = sum(weights)
         assert abs(total - 1.0) < 0.01, f"Weights sum to {total}, expected ~1.0"
 

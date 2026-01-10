@@ -58,7 +58,11 @@ class EventSerializer:
             # Graceful degradation: log warning and publish without validation
             logger.warning(
                 f"Schema validation failed for {topic}, publishing raw: {e}",
-                extra={"topic": topic, "event_type": type(event).__name__, "error": str(e)},
+                extra={
+                    "topic": topic,
+                    "event_type": type(event).__name__,
+                    "error": str(e),
+                },
             )
             return event.model_dump_json(), False
 
@@ -107,7 +111,9 @@ class PaymentEventSerializer(EventSerializer):
 
 class DriverProfileEventSerializer(EventSerializer):
     def __init__(self, schema_registry: SchemaRegistry, schema_base_path: Path) -> None:
-        super().__init__(schema_registry, schema_base_path / "driver_profile_event.json")
+        super().__init__(
+            schema_registry, schema_base_path / "driver_profile_event.json"
+        )
 
 
 class RiderProfileEventSerializer(EventSerializer):

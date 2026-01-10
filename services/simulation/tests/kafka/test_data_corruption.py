@@ -123,7 +123,9 @@ class TestCorruptionTypes:
         corrupted, _ = corruptor.corrupt(sample_event, "trips")
         parsed = json.loads(corrupted)
         uuid_fields = ["event_id", "trip_id", "rider_id"]
-        bad_uuids = [parsed[f] == "not-a-valid-uuid" for f in uuid_fields if f in parsed]
+        bad_uuids = [
+            parsed[f] == "not-a-valid-uuid" for f in uuid_fields if f in parsed
+        ]
         assert any(bad_uuids)
 
     def test_invalid_timestamp_sets_bad_format(self, sample_event):

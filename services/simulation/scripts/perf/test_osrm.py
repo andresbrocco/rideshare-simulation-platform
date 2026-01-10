@@ -74,7 +74,9 @@ def run_benchmark(osrm_url: str, concurrency: int, total_requests: int) -> dict:
     start_time = time.time()
 
     with ThreadPoolExecutor(max_workers=concurrency) as executor:
-        futures = [executor.submit(fetch_route, osrm_url) for _ in range(total_requests)]
+        futures = [
+            executor.submit(fetch_route, osrm_url) for _ in range(total_requests)
+        ]
 
         for i, future in enumerate(as_completed(futures), 1):
             latency_ms, success = future.result()
@@ -86,7 +88,9 @@ def run_benchmark(osrm_url: str, concurrency: int, total_requests: int) -> dict:
                 failures += 1
 
             if i % 10 == 0:
-                print(f"  Progress: {i}/{total_requests} ({successes} ok, {failures} fail)")
+                print(
+                    f"  Progress: {i}/{total_requests} ({successes} ok, {failures} fail)"
+                )
 
     elapsed = time.time() - start_time
     throughput = total_requests / elapsed
@@ -120,7 +124,9 @@ def print_results(results: dict) -> None:
     print(f"  Total: {results['total_requests']}")
     print(f"  Success: {results['successes']}")
     print(f"  Failures: {results['failures']}")
-    print(f"  Success Rate: {results['successes'] / results['total_requests'] * 100:.1f}%")
+    print(
+        f"  Success Rate: {results['successes'] / results['total_requests'] * 100:.1f}%"
+    )
 
     print("\nThroughput:")
     print(f"  Duration: {results['elapsed_seconds']:.1f}s")

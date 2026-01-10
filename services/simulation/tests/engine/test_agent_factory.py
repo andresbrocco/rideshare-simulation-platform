@@ -85,7 +85,11 @@ def sample_rider_dna():
         max_surge_multiplier=2.0,
         avg_rides_per_week=5,
         frequent_destinations=[
-            {"coordinates": (-23.56, -46.65), "weight": 0.5, "time_affinity": [7, 8, 9]},
+            {
+                "coordinates": (-23.56, -46.65),
+                "weight": 0.5,
+                "time_affinity": [7, 8, 9],
+            },
             {"coordinates": (-23.54, -46.62), "weight": 0.5, "time_affinity": None},
         ],
         home_location=(-23.5505, -46.6333),
@@ -279,7 +283,9 @@ def test_driver_capacity_limit(
     mock_gen_dna.return_value = sample_driver_dna
 
     # Simulate 2000 existing drivers
-    mock_simulation_engine._active_drivers = {f"driver_{i}": MagicMock() for i in range(2000)}
+    mock_simulation_engine._active_drivers = {
+        f"driver_{i}": MagicMock() for i in range(2000)
+    }
 
     with pytest.raises(ValueError, match="Driver capacity limit"):
         agent_factory.create_drivers(1)
@@ -293,7 +299,9 @@ def test_rider_capacity_limit(
     mock_gen_dna.return_value = sample_rider_dna
 
     # Simulate 10000 existing riders
-    mock_simulation_engine._active_riders = {f"rider_{i}": MagicMock() for i in range(10000)}
+    mock_simulation_engine._active_riders = {
+        f"rider_{i}": MagicMock() for i in range(10000)
+    }
 
     with pytest.raises(ValueError, match="Rider capacity limit"):
         agent_factory.create_riders(1)
@@ -307,7 +315,9 @@ def test_capacity_check_incremental(
     mock_gen_dna.return_value = sample_driver_dna
 
     # Simulate 1990 existing drivers
-    mock_simulation_engine._active_drivers = {f"driver_{i}": MagicMock() for i in range(1990)}
+    mock_simulation_engine._active_drivers = {
+        f"driver_{i}": MagicMock() for i in range(1990)
+    }
 
     with pytest.raises(ValueError, match="Driver capacity limit"):
         agent_factory.create_drivers(11)
@@ -315,7 +325,9 @@ def test_capacity_check_incremental(
 
 @patch("engine.agent_factory.generate_driver_dna")
 @patch("engine.agent_factory.uuid4")
-def test_returns_created_agent_ids(mock_uuid, mock_gen_dna, agent_factory, sample_driver_dna):
+def test_returns_created_agent_ids(
+    mock_uuid, mock_gen_dna, agent_factory, sample_driver_dna
+):
     """Returns list of created IDs."""
     driver_ids = [str(uuid4()) for _ in range(5)]
     mock_uuid.side_effect = driver_ids

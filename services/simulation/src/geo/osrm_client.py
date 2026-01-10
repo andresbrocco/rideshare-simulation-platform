@@ -57,7 +57,8 @@ class OSRMClient:
         dest_lat, dest_lon = destination
 
         url = (
-            f"{self.base_url}/route/v1/driving/" f"{origin_lon},{origin_lat};{dest_lon},{dest_lat}"
+            f"{self.base_url}/route/v1/driving/"
+            f"{origin_lon},{origin_lat};{dest_lon},{dest_lat}"
         )
         params = {"overview": "full", "geometries": "polyline"}
 
@@ -98,7 +99,8 @@ class OSRMClient:
         dest_lat, dest_lon = destination
 
         url = (
-            f"{self.base_url}/route/v1/driving/" f"{origin_lon},{origin_lat};{dest_lon},{dest_lat}"
+            f"{self.base_url}/route/v1/driving/"
+            f"{origin_lon},{origin_lat};{dest_lon},{dest_lat}"
         )
         params = {"overview": "full", "geometries": "polyline"}
 

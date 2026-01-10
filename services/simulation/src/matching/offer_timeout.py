@@ -14,7 +14,9 @@ class PendingOffer:
 class OfferTimeoutManager:
     """Manages offer timeouts using SimPy processes"""
 
-    def __init__(self, env: simpy.Environment, kafka_producer, timeout_seconds: int = 15):
+    def __init__(
+        self, env: simpy.Environment, kafka_producer, timeout_seconds: int = 15
+    ):
         self.env = env
         self.kafka_producer = kafka_producer
         self.timeout_seconds = timeout_seconds

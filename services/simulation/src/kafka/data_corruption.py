@@ -84,7 +84,9 @@ class DataCorruptor:
     def should_corrupt(self) -> bool:
         return random.random() < self.corruption_rate
 
-    def corrupt(self, event_dict: dict[str, Any], topic: str) -> tuple[str, CorruptionType]:
+    def corrupt(
+        self, event_dict: dict[str, Any], topic: str
+    ) -> tuple[str, CorruptionType]:
         """Apply random corruption to an event."""
         corruption_type = self._select_type()
         corrupted = self._apply_corruption(event_dict, topic, corruption_type)

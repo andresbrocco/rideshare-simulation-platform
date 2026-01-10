@@ -131,12 +131,16 @@ class MetricsCollector:
             self._errors[component].append((now, error_type))
             self._cleanup_old_errors(now, component)
 
-    def register_queue_depth_callback(self, name: str, callback: Callable[[], int]) -> None:
+    def register_queue_depth_callback(
+        self, name: str, callback: Callable[[], int]
+    ) -> None:
         """Register a callback to get current queue depth."""
         with self._lock:
             self._queue_depth_callbacks[name] = callback
 
-    def register_agent_count_callback(self, name: str, callback: Callable[[], int]) -> None:
+    def register_agent_count_callback(
+        self, name: str, callback: Callable[[], int]
+    ) -> None:
         """Register a callback to get current agent count."""
         with self._lock:
             self._agent_count_callbacks[name] = callback
@@ -180,7 +184,9 @@ class MetricsCollector:
             first_valid = len(samples)
         self._errors[component] = samples[first_valid:]
 
-    def _compute_latency_stats(self, samples: list[tuple[float, float]]) -> LatencyStats:
+    def _compute_latency_stats(
+        self, samples: list[tuple[float, float]]
+    ) -> LatencyStats:
         """Compute latency statistics from samples."""
         if not samples:
             return LatencyStats(avg_ms=0.0, p95_ms=0.0, p99_ms=0.0, count=0)
@@ -246,7 +252,9 @@ class MetricsCollector:
             # Compute error stats
             error_stats = {}
             for component, error_samples in self._errors.items():
-                error_stats[component] = self._compute_error_stats(error_samples, window_divisor)
+                error_stats[component] = self._compute_error_stats(
+                    error_samples, window_divisor
+                )
 
             # Get queue depths
             queue_depths = {}

@@ -138,7 +138,9 @@ def test_draining_waits_for_quiescence(fast_running_engine):
             return in_flight_trips
         return completed_trips
 
-    with patch.object(fast_running_engine, "_get_in_flight_trips", side_effect=mock_get_trips):
+    with patch.object(
+        fast_running_engine, "_get_in_flight_trips", side_effect=mock_get_trips
+    ):
         fast_running_engine.pause()
         fast_running_engine.step(15)
 
@@ -249,9 +251,13 @@ def test_terminal_states_excluded(running_engine):
         create_trip("trip5", TripState.DRIVER_EN_ROUTE),
     ]
 
-    non_terminal = [t for t in trips if t.state not in {TripState.COMPLETED, TripState.CANCELLED}]
+    non_terminal = [
+        t for t in trips if t.state not in {TripState.COMPLETED, TripState.CANCELLED}
+    ]
 
-    with patch.object(running_engine, "_get_in_flight_trips", return_value=non_terminal):
+    with patch.object(
+        running_engine, "_get_in_flight_trips", return_value=non_terminal
+    ):
         running_engine.pause()
         count = len(running_engine._get_in_flight_trips())
         assert count == 3

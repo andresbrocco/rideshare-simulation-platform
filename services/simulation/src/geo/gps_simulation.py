@@ -54,7 +54,9 @@ class GPSSimulator:
         for i, segment_distance in enumerate(distances):
             if accumulated + segment_distance >= target_distance:
                 segment_progress = (target_distance - accumulated) / segment_distance
-                return self._interpolate_segment(polyline[i], polyline[i + 1], segment_progress)
+                return self._interpolate_segment(
+                    polyline[i], polyline[i + 1], segment_progress
+                )
             accumulated += segment_distance
 
         return polyline[-1]
@@ -68,7 +70,9 @@ class GPSSimulator:
         dlon = lon2 - lon1
 
         y = math.sin(dlon) * math.cos(lat2)
-        x = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dlon)
+        x = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(
+            lat2
+        ) * math.cos(dlon)
 
         bearing_rad = math.atan2(y, x)
         bearing_deg = (math.degrees(bearing_rad) + 360) % 360

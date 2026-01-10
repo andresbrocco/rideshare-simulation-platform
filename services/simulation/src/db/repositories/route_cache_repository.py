@@ -79,7 +79,9 @@ class RouteCacheRepository:
             }
         return routes
 
-    def bulk_save(self, routes: list[tuple[str, str, float, float, str | None]]) -> None:
+    def bulk_save(
+        self, routes: list[tuple[str, str, float, float, str | None]]
+    ) -> None:
         """Batch insert multiple routes."""
         if not routes:
             return

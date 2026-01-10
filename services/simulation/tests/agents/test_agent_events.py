@@ -72,9 +72,13 @@ def mock_redis_publisher():
     return publisher
 
 
-def test_driver_creation_event_emitted(driver_dna, mock_kafka_producer, mock_redis_publisher):
+def test_driver_creation_event_emitted(
+    driver_dna, mock_kafka_producer, mock_redis_publisher
+):
     env = simpy.Environment()
-    _driver = DriverAgent("driver1", driver_dna, env, mock_kafka_producer, mock_redis_publisher)
+    _driver = DriverAgent(
+        "driver1", driver_dna, env, mock_kafka_producer, mock_redis_publisher
+    )
 
     assert mock_kafka_producer.produce.called
     call_args = mock_kafka_producer.produce.call_args
@@ -90,9 +94,13 @@ def test_driver_creation_event_emitted(driver_dna, mock_kafka_producer, mock_red
     assert event["vehicle_make"] == "Toyota"
 
 
-def test_rider_creation_event_emitted(rider_dna, mock_kafka_producer, mock_redis_publisher):
+def test_rider_creation_event_emitted(
+    rider_dna, mock_kafka_producer, mock_redis_publisher
+):
     env = simpy.Environment()
-    _rider = RiderAgent("rider1", rider_dna, env, mock_kafka_producer, mock_redis_publisher)
+    _rider = RiderAgent(
+        "rider1", rider_dna, env, mock_kafka_producer, mock_redis_publisher
+    )
 
     assert mock_kafka_producer.produce.called
     call_args = mock_kafka_producer.produce.call_args
@@ -108,9 +116,13 @@ def test_rider_creation_event_emitted(rider_dna, mock_kafka_producer, mock_redis
     assert event["behavior_factor"] == 0.8
 
 
-def test_driver_gps_ping_emission(driver_dna, mock_kafka_producer, mock_redis_publisher):
+def test_driver_gps_ping_emission(
+    driver_dna, mock_kafka_producer, mock_redis_publisher
+):
     env = simpy.Environment()
-    driver = DriverAgent("driver1", driver_dna, env, mock_kafka_producer, mock_redis_publisher)
+    driver = DriverAgent(
+        "driver1", driver_dna, env, mock_kafka_producer, mock_redis_publisher
+    )
     driver.update_location(-23.55, -46.63)
 
     mock_kafka_producer.reset_mock()
@@ -139,7 +151,9 @@ def test_driver_gps_ping_emission(driver_dna, mock_kafka_producer, mock_redis_pu
 def test_rider_gps_ping_emission(rider_dna, mock_kafka_producer, mock_redis_publisher):
     """Test that rider emits GPS pings while in trip."""
     env = simpy.Environment()
-    rider = RiderAgent("rider1", rider_dna, env, mock_kafka_producer, mock_redis_publisher)
+    rider = RiderAgent(
+        "rider1", rider_dna, env, mock_kafka_producer, mock_redis_publisher
+    )
     rider.update_location(-23.55, -46.63)
     rider.request_trip("trip1")
     rider.start_trip()
@@ -168,9 +182,13 @@ def test_rider_gps_ping_emission(rider_dna, mock_kafka_producer, mock_redis_publ
     assert event["speed"] is None
 
 
-def test_rider_no_gps_when_offline(rider_dna, mock_kafka_producer, mock_redis_publisher):
+def test_rider_no_gps_when_offline(
+    rider_dna, mock_kafka_producer, mock_redis_publisher
+):
     env = simpy.Environment()
-    rider = RiderAgent("rider1", rider_dna, env, mock_kafka_producer, mock_redis_publisher)
+    rider = RiderAgent(
+        "rider1", rider_dna, env, mock_kafka_producer, mock_redis_publisher
+    )
     rider.update_location(-23.55, -46.63)
 
     mock_kafka_producer.reset_mock()
@@ -187,9 +205,13 @@ def test_rider_no_gps_when_offline(rider_dna, mock_kafka_producer, mock_redis_pu
     assert len(produce_calls) == 0
 
 
-def test_driver_gps_includes_heading_speed(driver_dna, mock_kafka_producer, mock_redis_publisher):
+def test_driver_gps_includes_heading_speed(
+    driver_dna, mock_kafka_producer, mock_redis_publisher
+):
     env = simpy.Environment()
-    driver = DriverAgent("driver1", driver_dna, env, mock_kafka_producer, mock_redis_publisher)
+    driver = DriverAgent(
+        "driver1", driver_dna, env, mock_kafka_producer, mock_redis_publisher
+    )
     driver.update_location(-23.55, -46.63)
 
     mock_kafka_producer.reset_mock()
@@ -211,10 +233,14 @@ def test_driver_gps_includes_heading_speed(driver_dna, mock_kafka_producer, mock
     assert 20 <= event["speed"] <= 60
 
 
-def test_rider_gps_stationary_in_trip(rider_dna, mock_kafka_producer, mock_redis_publisher):
+def test_rider_gps_stationary_in_trip(
+    rider_dna, mock_kafka_producer, mock_redis_publisher
+):
     """Test that rider GPS pings during trip have no heading/speed (stationary)."""
     env = simpy.Environment()
-    rider = RiderAgent("rider1", rider_dna, env, mock_kafka_producer, mock_redis_publisher)
+    rider = RiderAgent(
+        "rider1", rider_dna, env, mock_kafka_producer, mock_redis_publisher
+    )
     rider.update_location(-23.55, -46.63)
     rider.request_trip("trip1")
     rider.start_trip()
@@ -239,9 +265,13 @@ def test_rider_gps_stationary_in_trip(rider_dna, mock_kafka_producer, mock_redis
     assert event["speed"] is None
 
 
-def test_kafka_partition_key_driver(driver_dna, mock_kafka_producer, mock_redis_publisher):
+def test_kafka_partition_key_driver(
+    driver_dna, mock_kafka_producer, mock_redis_publisher
+):
     env = simpy.Environment()
-    driver = DriverAgent("driver1", driver_dna, env, mock_kafka_producer, mock_redis_publisher)
+    driver = DriverAgent(
+        "driver1", driver_dna, env, mock_kafka_producer, mock_redis_publisher
+    )
     driver.update_location(-23.55, -46.63)
 
     mock_kafka_producer.reset_mock()
@@ -260,9 +290,13 @@ def test_kafka_partition_key_driver(driver_dna, mock_kafka_producer, mock_redis_
         assert call.kwargs["key"] == "driver1"
 
 
-def test_kafka_partition_key_rider(rider_dna, mock_kafka_producer, mock_redis_publisher):
+def test_kafka_partition_key_rider(
+    rider_dna, mock_kafka_producer, mock_redis_publisher
+):
     env = simpy.Environment()
-    rider = RiderAgent("rider1", rider_dna, env, mock_kafka_producer, mock_redis_publisher)
+    rider = RiderAgent(
+        "rider1", rider_dna, env, mock_kafka_producer, mock_redis_publisher
+    )
     rider.update_location(-23.55, -46.63)
     rider.request_trip("trip1")
     rider.start_trip()
@@ -285,7 +319,9 @@ def test_kafka_partition_key_rider(rider_dna, mock_kafka_producer, mock_redis_pu
 
 def test_event_timestamp_utc(driver_dna, mock_kafka_producer, mock_redis_publisher):
     env = simpy.Environment()
-    _driver = DriverAgent("driver1", driver_dna, env, mock_kafka_producer, mock_redis_publisher)
+    _driver = DriverAgent(
+        "driver1", driver_dna, env, mock_kafka_producer, mock_redis_publisher
+    )
 
     call_args = mock_kafka_producer.produce.call_args
     event_json = call_args.kwargs["value"]

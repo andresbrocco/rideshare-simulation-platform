@@ -368,7 +368,9 @@ class LoadTester:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Load test the rideshare simulation platform")
+    parser = argparse.ArgumentParser(
+        description="Load test the rideshare simulation platform"
+    )
     parser.add_argument(
         "--max-drivers",
         type=int,

@@ -72,7 +72,9 @@ class StateSnapshotManager:
                 if rider.rider_id in rider_trip_map:
                     trip = rider_trip_map[rider.rider_id]
                     rider_data["trip_state"] = (
-                        trip.state.value if hasattr(trip.state, "value") else str(trip.state)
+                        trip.state.value
+                        if hasattr(trip.state, "value")
+                        else str(trip.state)
                     )
                 else:
                     rider_data["trip_state"] = "offline"
@@ -105,16 +107,24 @@ class StateSnapshotManager:
                                 "driver_id": trip.driver_id,
                                 "rider_id": trip.rider_id,
                                 "pickup_latitude": (
-                                    trip.pickup_location[0] if trip.pickup_location else 0
+                                    trip.pickup_location[0]
+                                    if trip.pickup_location
+                                    else 0
                                 ),
                                 "pickup_longitude": (
-                                    trip.pickup_location[1] if trip.pickup_location else 0
+                                    trip.pickup_location[1]
+                                    if trip.pickup_location
+                                    else 0
                                 ),
                                 "dropoff_latitude": (
-                                    trip.dropoff_location[0] if trip.dropoff_location else 0
+                                    trip.dropoff_location[0]
+                                    if trip.dropoff_location
+                                    else 0
                                 ),
                                 "dropoff_longitude": (
-                                    trip.dropoff_location[1] if trip.dropoff_location else 0
+                                    trip.dropoff_location[1]
+                                    if trip.dropoff_location
+                                    else 0
                                 ),
                                 "route": trip.route or [],
                                 "pickup_route": trip.pickup_route or [],

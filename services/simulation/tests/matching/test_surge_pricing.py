@@ -133,7 +133,9 @@ def test_surge_ratio_3_0(env, mock_zone_loader, driver_registry, mock_kafka_prod
     assert calculator.get_surge("pinheiros") == 2.5
 
 
-def test_surge_ratio_above_3_0(env, mock_zone_loader, driver_registry, mock_kafka_producer):
+def test_surge_ratio_above_3_0(
+    env, mock_zone_loader, driver_registry, mock_kafka_producer
+):
     calculator = SurgePricingCalculator(
         env=env,
         zone_loader=mock_zone_loader,
@@ -151,7 +153,9 @@ def test_surge_ratio_above_3_0(env, mock_zone_loader, driver_registry, mock_kafk
     assert calculator.get_surge("pinheiros") == 2.5
 
 
-def test_surge_linear_interpolation(env, mock_zone_loader, driver_registry, mock_kafka_producer):
+def test_surge_linear_interpolation(
+    env, mock_zone_loader, driver_registry, mock_kafka_producer
+):
     calculator = SurgePricingCalculator(
         env=env,
         zone_loader=mock_zone_loader,
@@ -169,7 +173,9 @@ def test_surge_linear_interpolation(env, mock_zone_loader, driver_registry, mock
     assert calculator.get_surge("pinheiros") == 1.25
 
 
-def test_surge_update_every_60_seconds(env, mock_zone_loader, driver_registry, mock_kafka_producer):
+def test_surge_update_every_60_seconds(
+    env, mock_zone_loader, driver_registry, mock_kafka_producer
+):
     calculator = SurgePricingCalculator(
         env=env,
         zone_loader=mock_zone_loader,
@@ -197,7 +203,9 @@ def test_surge_per_zone(env, mock_zone_loader, driver_registry, mock_kafka_produ
 
     for i in range(10):
         driver_registry.register_driver(f"driver{i}", "online", zone_id="pinheiros")
-        driver_registry.register_driver(f"driver_vm{i}", "online", zone_id="vila_madalena")
+        driver_registry.register_driver(
+            f"driver_vm{i}", "online", zone_id="vila_madalena"
+        )
 
     calculator.set_pending_requests("pinheiros", 20)
     calculator.set_pending_requests("vila_madalena", 10)
@@ -208,7 +216,9 @@ def test_surge_per_zone(env, mock_zone_loader, driver_registry, mock_kafka_produ
     assert calculator.get_surge("vila_madalena") == 1.0
 
 
-def test_surge_event_emission(env, mock_zone_loader, driver_registry, mock_kafka_producer):
+def test_surge_event_emission(
+    env, mock_zone_loader, driver_registry, mock_kafka_producer
+):
     calculator = SurgePricingCalculator(
         env=env,
         zone_loader=mock_zone_loader,
@@ -235,7 +245,9 @@ def test_surge_event_emission(env, mock_zone_loader, driver_registry, mock_kafka
     assert event.pending_requests == 20
 
 
-def test_no_event_if_unchanged(env, mock_zone_loader, driver_registry, mock_kafka_producer):
+def test_no_event_if_unchanged(
+    env, mock_zone_loader, driver_registry, mock_kafka_producer
+):
     calculator = SurgePricingCalculator(
         env=env,
         zone_loader=mock_zone_loader,
@@ -253,7 +265,9 @@ def test_no_event_if_unchanged(env, mock_zone_loader, driver_registry, mock_kafk
     assert not mock_kafka_producer.produce.called
 
 
-def test_zero_drivers_available(env, mock_zone_loader, driver_registry, mock_kafka_producer):
+def test_zero_drivers_available(
+    env, mock_zone_loader, driver_registry, mock_kafka_producer
+):
     calculator = SurgePricingCalculator(
         env=env,
         zone_loader=mock_zone_loader,
@@ -334,19 +348,25 @@ class TestSurgePricingKafkaOnly:
         for i in range(10):
             driver_registry.register_driver(f"driver{i}", "online", zone_id="pinheiros")
 
-        calculator.set_pending_requests("pinheiros", 20)  # Creates 2:1 ratio = 1.5x surge
+        calculator.set_pending_requests(
+            "pinheiros", 20
+        )  # Creates 2:1 ratio = 1.5x surge
 
         # Run simulation to trigger surge calculation
         env.run(until=60)
 
         # Verify Kafka was called for surge update
-        assert mock_kafka_producer.produce.called, "Surge events should be sent to Kafka"
+        assert (
+            mock_kafka_producer.produce.called
+        ), "Surge events should be sent to Kafka"
 
         kafka_calls = mock_kafka_producer.produce.call_args_list
         surge_kafka_calls = [
             call for call in kafka_calls if call[1].get("topic") == "surge-updates"
         ]
-        assert len(surge_kafka_calls) > 0, "Surge events should go to surge-updates topic"
+        assert (
+            len(surge_kafka_calls) > 0
+        ), "Surge events should go to surge-updates topic"
 
         # Verify Redis was NOT called for surge updates
         # After the fix, redis_publisher.publish_sync should not be called

@@ -19,7 +19,9 @@ def dna_factory():
 
 
 class TestDestinationFromHome:
-    def test_destination_from_home_frequent(self, simpy_env, dna_factory, mock_kafka_producer):
+    def test_destination_from_home_frequent(
+        self, simpy_env, dna_factory, mock_kafka_producer
+    ):
         random.seed(42)
 
         home = (-23.55, -46.63)
@@ -49,7 +51,9 @@ class TestDestinationFromHome:
 
         assert frequent_count > 70
 
-    def test_destination_from_home_random(self, simpy_env, dna_factory, mock_kafka_producer):
+    def test_destination_from_home_random(
+        self, simpy_env, dna_factory, mock_kafka_producer
+    ):
         random.seed(42)
 
         home = (-23.55, -46.63)
@@ -112,7 +116,9 @@ class TestDestinationFromNonHome:
 
         assert home_count > 50
 
-    def test_destination_from_nonhome_frequent(self, simpy_env, dna_factory, mock_kafka_producer):
+    def test_destination_from_nonhome_frequent(
+        self, simpy_env, dna_factory, mock_kafka_producer
+    ):
         random.seed(42)
 
         home = (-23.55, -46.63)
@@ -143,7 +149,9 @@ class TestDestinationFromNonHome:
         # From non-home: 30% goes to frequent destinations (excluding home)
         assert frequent_count >= 20
 
-    def test_destination_from_nonhome_random(self, simpy_env, dna_factory, mock_kafka_producer):
+    def test_destination_from_nonhome_random(
+        self, simpy_env, dna_factory, mock_kafka_producer
+    ):
         random.seed(42)
 
         home = (-23.55, -46.63)
@@ -169,13 +177,17 @@ class TestDestinationFromNonHome:
             selections.append(dest)
 
         valid_frequent = [tuple(d["coordinates"]) for d in dna.frequent_destinations]
-        random_count = sum(1 for d in selections if d not in valid_frequent and d != home)
+        random_count = sum(
+            1 for d in selections if d not in valid_frequent and d != home
+        )
 
         assert random_count > 5
 
 
 class TestDestinationWeightedSelection:
-    def test_destination_weighted_selection(self, simpy_env, dna_factory, mock_kafka_producer):
+    def test_destination_weighted_selection(
+        self, simpy_env, dna_factory, mock_kafka_producer
+    ):
         random.seed(42)
 
         home = (-23.55, -46.63)
@@ -225,7 +237,9 @@ class TestDestinationWeightedSelection:
 
 
 class TestDestinationTimeAffinity:
-    def test_destination_time_affinity_match(self, simpy_env, dna_factory, mock_kafka_producer):
+    def test_destination_time_affinity_match(
+        self, simpy_env, dna_factory, mock_kafka_producer
+    ):
         random.seed(42)
 
         home = (-23.55, -46.63)
@@ -271,7 +285,9 @@ class TestDestinationTimeAffinity:
 
             assert work_ratio > 0.5
 
-    def test_destination_time_affinity_no_match(self, simpy_env, dna_factory, mock_kafka_producer):
+    def test_destination_time_affinity_no_match(
+        self, simpy_env, dna_factory, mock_kafka_producer
+    ):
         random.seed(42)
 
         home = (-23.55, -46.63)
@@ -319,7 +335,9 @@ class TestDestinationTimeAffinity:
 
 
 class TestDestinationWeightNormalization:
-    def test_destination_weight_normalization(self, simpy_env, dna_factory, mock_kafka_producer):
+    def test_destination_weight_normalization(
+        self, simpy_env, dna_factory, mock_kafka_producer
+    ):
         random.seed(42)
 
         home = (-23.55, -46.63)
@@ -362,7 +380,9 @@ class TestDestinationWeightNormalization:
 
 
 class TestDestinationRandomBounds:
-    def test_destination_random_within_bounds(self, simpy_env, dna_factory, mock_kafka_producer):
+    def test_destination_random_within_bounds(
+        self, simpy_env, dna_factory, mock_kafka_producer
+    ):
         random.seed(42)
 
         home = (-23.55, -46.63)
@@ -396,7 +416,9 @@ class TestDestinationRandomBounds:
 
 
 class TestDestinationReturnType:
-    def test_destination_returns_coordinates(self, simpy_env, dna_factory, mock_kafka_producer):
+    def test_destination_returns_coordinates(
+        self, simpy_env, dna_factory, mock_kafka_producer
+    ):
         dna = dna_factory.rider_dna()
 
         agent = RiderAgent(
@@ -416,7 +438,9 @@ class TestDestinationReturnType:
 
 
 class TestDestinationHomeDetection:
-    def test_destination_home_detection(self, simpy_env, dna_factory, mock_kafka_producer):
+    def test_destination_home_detection(
+        self, simpy_env, dna_factory, mock_kafka_producer
+    ):
         home = (-23.55, -46.63)
         dna = dna_factory.rider_dna(home_location=home)
 
@@ -428,9 +452,13 @@ class TestDestinationHomeDetection:
         )
 
         agent.update_location(*home)
-        distance = haversine_distance(home[0], home[1], agent.location[0], agent.location[1])
+        distance = haversine_distance(
+            home[0], home[1], agent.location[0], agent.location[1]
+        )
         assert distance < 0.1
 
         agent.update_location(-23.56, -46.65)
-        distance = haversine_distance(home[0], home[1], agent.location[0], agent.location[1])
+        distance = haversine_distance(
+            home[0], home[1], agent.location[0], agent.location[1]
+        )
         assert distance > 0.1

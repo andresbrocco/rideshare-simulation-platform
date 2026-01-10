@@ -32,7 +32,9 @@ def main():
 
             timestamp = datetime.now().strftime("%H:%M:%S")
 
-            samples.append({"time": timestamp, "online": online, "total": total, "trips": trips})
+            samples.append(
+                {"time": timestamp, "online": online, "total": total, "trips": trips}
+            )
 
             print(f"{timestamp} | {online:6} | {total:5} | {trips:5} |")
 

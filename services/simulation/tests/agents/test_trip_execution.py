@@ -134,7 +134,9 @@ class TestTripFullFlow:
 
 
 class TestTripEvents:
-    def test_trip_driver_en_route_event(self, simpy_env, trip_executor, mock_kafka_producer):
+    def test_trip_driver_en_route_event(
+        self, simpy_env, trip_executor, mock_kafka_producer
+    ):
         process = simpy_env.process(trip_executor.execute())
         simpy_env.run(process)
 
@@ -144,13 +146,19 @@ class TestTripEvents:
             if call[1].get("topic") == "trips"
         ]
         event_types = [
-            evt.get("event_type") if isinstance(evt, dict) else getattr(evt, "event_type", None)
+            (
+                evt.get("event_type")
+                if isinstance(evt, dict)
+                else getattr(evt, "event_type", None)
+            )
             for evt in events
         ]
 
         assert "trip.driver_en_route" in event_types
 
-    def test_trip_driver_arrived_event(self, simpy_env, trip_executor, mock_kafka_producer):
+    def test_trip_driver_arrived_event(
+        self, simpy_env, trip_executor, mock_kafka_producer
+    ):
         process = simpy_env.process(trip_executor.execute())
         simpy_env.run(process)
 
@@ -160,7 +168,11 @@ class TestTripEvents:
             if call[1].get("topic") == "trips"
         ]
         event_types = [
-            evt.get("event_type") if isinstance(evt, dict) else getattr(evt, "event_type", None)
+            (
+                evt.get("event_type")
+                if isinstance(evt, dict)
+                else getattr(evt, "event_type", None)
+            )
             for evt in events
         ]
 
@@ -176,7 +188,11 @@ class TestTripEvents:
             if call[1].get("topic") == "trips"
         ]
         event_types = [
-            evt.get("event_type") if isinstance(evt, dict) else getattr(evt, "event_type", None)
+            (
+                evt.get("event_type")
+                if isinstance(evt, dict)
+                else getattr(evt, "event_type", None)
+            )
             for evt in events
         ]
 
@@ -192,13 +208,19 @@ class TestTripEvents:
             if call[1].get("topic") == "trips"
         ]
         event_types = [
-            evt.get("event_type") if isinstance(evt, dict) else getattr(evt, "event_type", None)
+            (
+                evt.get("event_type")
+                if isinstance(evt, dict)
+                else getattr(evt, "event_type", None)
+            )
             for evt in events
         ]
 
         assert "trip.completed" in event_types
 
-    def test_trip_payment_event_on_completion(self, simpy_env, trip_executor, mock_kafka_producer):
+    def test_trip_payment_event_on_completion(
+        self, simpy_env, trip_executor, mock_kafka_producer
+    ):
         process = simpy_env.process(trip_executor.execute())
         simpy_env.run(process)
 
@@ -213,7 +235,13 @@ class TestTripEvents:
 
 class TestTripCancellation:
     def test_trip_driver_wait_timeout(
-        self, simpy_env, driver_agent, rider_agent, trip, mock_osrm_client, mock_kafka_producer
+        self,
+        simpy_env,
+        driver_agent,
+        rider_agent,
+        trip,
+        mock_osrm_client,
+        mock_kafka_producer,
     ):
         executor = TripExecutor(
             env=simpy_env,
@@ -234,7 +262,13 @@ class TestTripCancellation:
         assert trip.cancellation_reason == "no_show"
 
     def test_trip_driver_cancellation_no_show(
-        self, simpy_env, driver_agent, rider_agent, trip, mock_osrm_client, mock_kafka_producer
+        self,
+        simpy_env,
+        driver_agent,
+        rider_agent,
+        trip,
+        mock_osrm_client,
+        mock_kafka_producer,
     ):
         executor = TripExecutor(
             env=simpy_env,
@@ -266,7 +300,13 @@ class TestTripCancellation:
         assert len(cancelled_events) > 0
 
     def test_trip_rider_cancellation_during_trip(
-        self, simpy_env, driver_agent, rider_agent, trip, mock_osrm_client, mock_kafka_producer
+        self,
+        simpy_env,
+        driver_agent,
+        rider_agent,
+        trip,
+        mock_osrm_client,
+        mock_kafka_producer,
     ):
         executor = TripExecutor(
             env=simpy_env,
@@ -286,7 +326,9 @@ class TestTripCancellation:
 
 
 class TestGPSUpdates:
-    def test_trip_gps_updates_during_transit(self, simpy_env, trip_executor, mock_kafka_producer):
+    def test_trip_gps_updates_during_transit(
+        self, simpy_env, trip_executor, mock_kafka_producer
+    ):
         process = simpy_env.process(trip_executor.execute())
         simpy_env.run(process)
 
@@ -338,13 +380,19 @@ class TestTripTiming:
 
 
 class TestAgentStatusTransitions:
-    def test_trip_driver_status_transitions(self, simpy_env, trip_executor, driver_agent):
+    def test_trip_driver_status_transitions(
+        self, simpy_env, trip_executor, driver_agent
+    ):
         assert driver_agent.status == "online"
 
         simpy_env.process(trip_executor.execute())
         simpy_env.run(until=simpy_env.now + 1)
 
-        assert driver_agent.status in ["en_route_pickup", "en_route_destination", "online"]
+        assert driver_agent.status in [
+            "en_route_pickup",
+            "en_route_destination",
+            "online",
+        ]
 
     def test_trip_rider_status_transitions(self, simpy_env, trip_executor, rider_agent):
         process = simpy_env.process(trip_executor.execute())
@@ -354,7 +402,9 @@ class TestAgentStatusTransitions:
 
 
 class TestDriverOfferResponse:
-    def test_driver_receive_offer_accepts(self, simpy_env, dna_factory, mock_kafka_producer):
+    def test_driver_receive_offer_accepts(
+        self, simpy_env, dna_factory, mock_kafka_producer
+    ):
         accepting_dna = dna_factory.driver_dna(acceptance_rate=1.0)
         driver = DriverAgent(
             driver_id="driver_002",
@@ -374,7 +424,9 @@ class TestDriverOfferResponse:
 
         assert accepts is True
 
-    def test_driver_receive_offer_rejects(self, simpy_env, dna_factory, mock_kafka_producer):
+    def test_driver_receive_offer_rejects(
+        self, simpy_env, dna_factory, mock_kafka_producer
+    ):
         rejecting_dna = dna_factory.driver_dna(acceptance_rate=0.0)
         driver = DriverAgent(
             driver_id="driver_003",
@@ -420,7 +472,9 @@ class TestNotificationHandlers:
         rider.on_match_found(trip, "driver_004")
         assert rider.status == "waiting"
 
-    def test_rider_on_no_drivers_available(self, simpy_env, rider_dna, mock_kafka_producer):
+    def test_rider_on_no_drivers_available(
+        self, simpy_env, rider_dna, mock_kafka_producer
+    ):
         rider = RiderAgent(
             rider_id="rider_003",
             dna=rider_dna,
@@ -430,7 +484,9 @@ class TestNotificationHandlers:
 
         rider.on_no_drivers_available("trip_005")
 
-    def test_driver_on_trip_cancelled_by_rider(self, simpy_env, driver_dna, mock_kafka_producer):
+    def test_driver_on_trip_cancelled_by_rider(
+        self, simpy_env, driver_dna, mock_kafka_producer
+    ):
         driver = DriverAgent(
             driver_id="driver_005",
             dna=driver_dna,
@@ -457,7 +513,9 @@ class TestNotificationHandlers:
         driver.on_trip_cancelled(trip)
         assert driver.status == "online"
 
-    def test_rider_on_trip_cancelled_by_driver(self, simpy_env, rider_dna, mock_kafka_producer):
+    def test_rider_on_trip_cancelled_by_driver(
+        self, simpy_env, rider_dna, mock_kafka_producer
+    ):
         rider = RiderAgent(
             rider_id="rider_005",
             dna=rider_dna,

@@ -82,7 +82,9 @@ def run_benchmark(
             topic,
             key=str(produce_start),
             value=sample_payload,
-            callback=lambda err, msg: delivery_callback(err, msg, latencies, delivery_event),
+            callback=lambda err, msg: delivery_callback(
+                err, msg, latencies, delivery_event
+            ),
         )
 
         produce_latency = (time.perf_counter() - produce_start) * 1000

@@ -102,7 +102,9 @@ class CheckpointManager:
         # Load metadata
         metadata = {
             "current_time": json.loads(current_time_raw),
-            "speed_multiplier": json.loads(self._get_metadata("speed_multiplier") or "1"),
+            "speed_multiplier": json.loads(
+                self._get_metadata("speed_multiplier") or "1"
+            ),
             "status": self._get_metadata("status") or "PAUSED",
             "checkpoint_type": checkpoint_type or "graceful",
             "in_flight_trips": json.loads(self._get_metadata("in_flight_trips") or "0"),
@@ -138,11 +140,14 @@ class CheckpointManager:
 
         return {
             "current_time": json.loads(current_time_raw),
-            "speed_multiplier": json.loads(self._get_metadata("speed_multiplier") or "1"),
+            "speed_multiplier": json.loads(
+                self._get_metadata("speed_multiplier") or "1"
+            ),
             "status": self._get_metadata("status") or "PAUSED",
             "checkpoint_type": self._get_metadata("checkpoint_type") or "graceful",
             "in_flight_trips": json.loads(self._get_metadata("in_flight_trips") or "0"),
-            "checkpoint_version": self._get_metadata("checkpoint_version") or CHECKPOINT_VERSION,
+            "checkpoint_version": self._get_metadata("checkpoint_version")
+            or CHECKPOINT_VERSION,
             "created_at": self._get_metadata("created_at"),
         }
 
@@ -326,7 +331,9 @@ class CheckpointManager:
         version = self._get_metadata("checkpoint_version") or "1.0.0"
 
         if version != CHECKPOINT_VERSION:
-            logger.warning(f"Checkpoint version mismatch: {version} vs {CHECKPOINT_VERSION}")
+            logger.warning(
+                f"Checkpoint version mismatch: {version} vs {CHECKPOINT_VERSION}"
+            )
 
         # Restore simulation time by creating a new environment with initial time
         initial_time = metadata["current_time"]
@@ -430,7 +437,9 @@ class CheckpointManager:
             )
             # Cancel any in-flight trips to prevent inconsistent state
             for trip in list(engine._matching_server._active_trips.values()):
-                engine._matching_server.cancel_trip(trip.trip_id, "system", "recovery_cleanup")
+                engine._matching_server.cancel_trip(
+                    trip.trip_id, "system", "recovery_cleanup"
+                )
 
         logger.info(
             f"Checkpoint restored: time={initial_time:.1f}s, "
