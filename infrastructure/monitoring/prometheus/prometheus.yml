@@ -1,0 +1,36 @@
+# Prometheus Configuration
+# This is a placeholder - actual configuration will be added in Phase 5
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'rideshare-simulation'
+    environment: 'local'
+
+# Alertmanager configuration (optional)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           - alertmanager:9093
+
+# Rule files (alerts, recording rules)
+rule_files:
+  - 'alerts/*.yml'
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Additional scrape targets will be added in Phase 5:
+  # - Simulation service metrics (FastAPI)
+  # - Stream processor metrics
+  # - Kafka JMX metrics
+  # - Redis metrics
+  # - Spark metrics
+  # - Node exporter (system metrics)
+  # - cAdvisor (container metrics)

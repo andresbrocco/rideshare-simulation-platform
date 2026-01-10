@@ -108,8 +108,8 @@ services:
 
   osrm:
     build:
-      context: .
-      dockerfile: docker/osrm.Dockerfile
+      context: ../..
+      dockerfile: infrastructure/docker/dockerfiles/osrm.Dockerfile
       args:
         OSRM_MAP_SOURCE: ${OSRM_MAP_SOURCE:-local}
     container_name: rideshare-osrm
@@ -134,7 +134,7 @@ services:
 
   simulation:
     build:
-      context: .
+      context: ../..
       dockerfile: docker/simulation.Dockerfile
       target: development
     container_name: rideshare-simulation
@@ -144,8 +144,8 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./simulation/src:/app/src:ro
-      - ./data:/app/data:ro
+      - ../../simulation/src:/app/src:ro
+      - ../../data:/app/data:ro
       - simulation-db:/app/db
     environment:
       - SIM_SPEED_MULTIPLIER=${SIM_SPEED_MULTIPLIER:-1}
@@ -183,7 +183,7 @@ services:
 
   stream-processor:
     build:
-      context: ./stream-processor
+      context: ../../services/stream-processor
       dockerfile: Dockerfile
     container_name: rideshare-stream-processor
     mem_limit: 512m
@@ -220,7 +220,7 @@ services:
 
   control-panel-frontend:
     build:
-      context: .
+      context: ../..
       dockerfile: docker/frontend.Dockerfile
       target: development
     container_name: rideshare-frontend
@@ -230,7 +230,7 @@ services:
     ports:
       - "3000:5173"
     volumes:
-      - ./control-panel-frontend:/app
+      - ../../services/frontend:/app
       - frontend-node-modules:/app/node_modules
     environment:
       - VITE_API_URL=http://localhost:8000
@@ -249,8 +249,8 @@ services:
 
   minio:
     build:
-      context: .
-      dockerfile: docker/minio.Dockerfile
+      context: ../..
+      dockerfile: infrastructure/docker/dockerfiles/minio.Dockerfile
       args:
         MINIO_RELEASE: RELEASE.2025-10-15T17-29-55Z
     container_name: rideshare-minio
@@ -296,8 +296,8 @@ services:
 
   spark-master:
     build:
-      context: .
-      dockerfile: docker/spark-delta.Dockerfile
+      context: ../..
+      dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
     container_name: rideshare-spark-master
     mem_limit: 512m
     profiles:
@@ -317,8 +317,8 @@ services:
 
   spark-worker:
     build:
-      context: .
-      dockerfile: docker/spark-delta.Dockerfile
+      context: ../..
+      dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
     container_name: rideshare-spark-worker
     mem_limit: 2g
     profiles:
@@ -327,7 +327,7 @@ services:
       - "8081:8081"
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker -m 1536m -c 2 --webui-port 8081 spark://spark-master:7077
     volumes:
-      - ./data-platform/spark_streaming:/opt/spark-scripts:ro
+      - ../../data-platform/spark_streaming:/opt/spark-scripts:ro
     depends_on:
       spark-master:
         condition: service_healthy
@@ -344,8 +344,8 @@ services:
 
   spark-thrift-server:
     build:
-      context: .
-      dockerfile: docker/spark-delta.Dockerfile
+      context: ../..
+      dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
     container_name: rideshare-spark-thrift-server
     mem_limit: 1536m
     profiles:
@@ -370,7 +370,7 @@ services:
       --hiveconf hive.server2.thrift.port=10000
       --hiveconf hive.server2.thrift.bind.host=0.0.0.0
     volumes:
-      - ./data-platform/spark_streaming:/opt/spark-scripts:ro
+      - ../../data-platform/spark_streaming:/opt/spark-scripts:ro
     depends_on:
       spark-master:
         condition: service_healthy

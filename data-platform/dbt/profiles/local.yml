@@ -1,0 +1,12 @@
+rideshare:
+  target: dev
+  outputs:
+    dev:
+      type: spark
+      method: thrift
+      host: localhost
+      port: 10000
+      schema: default
+      threads: 4
+      connect_timeout: 60
+      connect_retries: 3

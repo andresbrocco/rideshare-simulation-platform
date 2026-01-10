@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Base Kubernetes manifests for data platform services
+# Services: spark-master, spark-worker, minio, thrift-server
+
+resources: []
+# Manifests will be added in Phase 6 (Kubernetes Migration)
+# - spark-master-deployment.yaml
+# - spark-worker-deployment.yaml
+# - minio-statefulset.yaml
+# - thrift-server-deployment.yaml
+
+commonLabels:
+  app.kubernetes.io/part-of: rideshare-simulation
+  tier: data-platform
