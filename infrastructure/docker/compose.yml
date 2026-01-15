@@ -327,7 +327,7 @@ services:
       - "8081:8081"
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker -m 1536m -c 2 --webui-port 8081 spark://spark-master:7077
     volumes:
-      - ../../data-platform/spark_streaming:/opt/spark-scripts:ro
+      - ../../data-platform/streaming:/opt/spark-scripts:ro
     depends_on:
       spark-master:
         condition: service_healthy
@@ -370,7 +370,7 @@ services:
       --hiveconf hive.server2.thrift.port=10000
       --hiveconf hive.server2.thrift.bind.host=0.0.0.0
     volumes:
-      - ../../data-platform/spark_streaming:/opt/spark-scripts:ro
+      - ../../data-platform/streaming:/opt/spark-scripts:ro
     depends_on:
       spark-master:
         condition: service_healthy

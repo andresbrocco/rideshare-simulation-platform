@@ -14,7 +14,7 @@ class TestStreamingJobEntryPoints:
     @staticmethod
     def _get_job_files():
         """Get all streaming job Python files."""
-        jobs_dir = Path(__file__).parent.parent / "spark_streaming" / "jobs"
+        jobs_dir = Path(__file__).parent.parent / "streaming" / "jobs"
         return [f for f in jobs_dir.glob("*.py") if f.name != "__init__.py"]
 
     @staticmethod
@@ -155,7 +155,7 @@ class TestStreamingJobEntryPoints:
         """trips_streaming_job.py should initialize SparkSession."""
         job_file = (
             Path(__file__).parent.parent
-            / "spark_streaming"
+            / "streaming"
             / "jobs"
             / "trips_streaming_job.py"
         )
@@ -166,7 +166,7 @@ class TestStreamingJobEntryPoints:
         """trips_streaming_job.py should initialize KafkaConfig."""
         job_file = (
             Path(__file__).parent.parent
-            / "spark_streaming"
+            / "streaming"
             / "jobs"
             / "trips_streaming_job.py"
         )
@@ -177,7 +177,7 @@ class TestStreamingJobEntryPoints:
         """trips_streaming_job.py should initialize CheckpointConfig."""
         job_file = (
             Path(__file__).parent.parent
-            / "spark_streaming"
+            / "streaming"
             / "jobs"
             / "trips_streaming_job.py"
         )
@@ -190,7 +190,7 @@ class TestStreamingJobEntryPoints:
         """trips_streaming_job.py should initialize ErrorHandler."""
         job_file = (
             Path(__file__).parent.parent
-            / "spark_streaming"
+            / "streaming"
             / "jobs"
             / "trips_streaming_job.py"
         )
@@ -201,7 +201,7 @@ class TestStreamingJobEntryPoints:
         """trips_streaming_job.py should call job.start()."""
         job_file = (
             Path(__file__).parent.parent
-            / "spark_streaming"
+            / "streaming"
             / "jobs"
             / "trips_streaming_job.py"
         )
@@ -212,7 +212,7 @@ class TestStreamingJobEntryPoints:
         """trips_streaming_job.py should call query.awaitTermination()."""
         job_file = (
             Path(__file__).parent.parent
-            / "spark_streaming"
+            / "streaming"
             / "jobs"
             / "trips_streaming_job.py"
         )
@@ -225,7 +225,7 @@ class TestStreamingJobEntryPoints:
         """gps_pings_streaming_job.py should have all required components."""
         job_file = (
             Path(__file__).parent.parent
-            / "spark_streaming"
+            / "streaming"
             / "jobs"
             / "gps_pings_streaming_job.py"
         )
@@ -245,7 +245,7 @@ class TestStreamingJobEntryPoints:
         """driver_status_streaming_job.py should have all required components."""
         job_file = (
             Path(__file__).parent.parent
-            / "spark_streaming"
+            / "streaming"
             / "jobs"
             / "driver_status_streaming_job.py"
         )
@@ -265,7 +265,7 @@ class TestStreamingJobEntryPoints:
         """driver_profiles_streaming_job.py should have all required components."""
         job_file = (
             Path(__file__).parent.parent
-            / "spark_streaming"
+            / "streaming"
             / "jobs"
             / "driver_profiles_streaming_job.py"
         )
@@ -285,7 +285,7 @@ class TestStreamingJobEntryPoints:
         """rider_profiles_streaming_job.py should have all required components."""
         job_file = (
             Path(__file__).parent.parent
-            / "spark_streaming"
+            / "streaming"
             / "jobs"
             / "rider_profiles_streaming_job.py"
         )
@@ -305,7 +305,7 @@ class TestStreamingJobEntryPoints:
         """payments_streaming_job.py should have all required components."""
         job_file = (
             Path(__file__).parent.parent
-            / "spark_streaming"
+            / "streaming"
             / "jobs"
             / "payments_streaming_job.py"
         )
@@ -325,7 +325,7 @@ class TestStreamingJobEntryPoints:
         """ratings_streaming_job.py should have all required components."""
         job_file = (
             Path(__file__).parent.parent
-            / "spark_streaming"
+            / "streaming"
             / "jobs"
             / "ratings_streaming_job.py"
         )
@@ -345,7 +345,7 @@ class TestStreamingJobEntryPoints:
         """surge_updates_streaming_job.py should have all required components."""
         job_file = (
             Path(__file__).parent.parent
-            / "spark_streaming"
+            / "streaming"
             / "jobs"
             / "surge_updates_streaming_job.py"
         )
@@ -365,7 +365,7 @@ class TestStreamingJobEntryPoints:
         """trips_streaming_job.py should read bootstrap_servers from environment."""
         job_file = (
             Path(__file__).parent.parent
-            / "spark_streaming"
+            / "streaming"
             / "jobs"
             / "trips_streaming_job.py"
         )
