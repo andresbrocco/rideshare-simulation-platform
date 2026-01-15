@@ -12,14 +12,14 @@ Each Bronze table schema maps directly to a JSON schema in `/schemas/*.json`. Fi
 Every Bronze table includes three categories of standard fields:
 
 **Tracing Fields** (nullable)
-- `session_id` - Simulation session identifier
-- `correlation_id` - Request correlation for distributed tracing
-- `causation_id` - ID of the event that caused this event
+- `session_id` - Simulation session identifier for tracking related events across the simulation
+- `correlation_id` - Request correlation ID for distributed tracing and linking causally related events
+- `causation_id` - Event ID of the upstream event that caused this event to be created
 
 **Ingestion Metadata** (non-nullable)
-- `_ingested_at` - Timestamp when the record was written to Bronze
-- `_kafka_partition` - Source Kafka partition number
-- `_kafka_offset` - Source Kafka offset for exactly-once processing
+- `_ingested_at` - Timestamp (UTC) when the record was written to Bronze layer, used for audit trails and data freshness tracking
+- `_kafka_partition` - Source Kafka partition number, enables partition-level debugging and recovery
+- `_kafka_offset` - Source Kafka offset within the partition, critical for exactly-once processing and checkpoint recovery
 
 ## Tables
 
