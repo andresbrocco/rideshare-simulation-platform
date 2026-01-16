@@ -27,10 +27,21 @@ models:
       +materialized: incremental
       +on_schema_change: fail
       +incremental_strategy: merge
+      +tags:
+        - silver
     marts:
       dimensions:
         +materialized: table
+        +tags:
+          - gold
+          - dimensions
       facts:
         +materialized: table
+        +tags:
+          - gold
+          - facts
       aggregates:
         +materialized: table
+        +tags:
+          - gold
+          - aggregates

@@ -419,6 +419,108 @@ services:
       retries: 5
       start_period: 10s
 
+  postgres-airflow:
+    image: postgres:16
+    container_name: rideshare-postgres-airflow
+    mem_limit: 256m
+    profiles:
+      - quality-orchestration
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-airflow-data:/var/lib/postgresql/data
+    networks:
+      - rideshare-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  airflow-webserver:
+    image: apache/airflow:3.1.5
+    container_name: rideshare-airflow-webserver
+    mem_limit: 384m
+    profiles:
+      - quality-orchestration
+    ports:
+      - "8082:8080"
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
+      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__WEBSERVER__AUTH_MANAGER: 'airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager'
+      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
+      AIRFLOW__CORE__PARALLELISM: 8
+      AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: 30
+      _AIRFLOW_DB_MIGRATE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: admin
+      _AIRFLOW_WWW_USER_PASSWORD: admin
+      _PIP_ADDITIONAL_REQUIREMENTS: 'dbt-core dbt-spark==1.10.0'
+    volumes:
+      - ../../services/airflow/dags:/opt/airflow/dags
+      - ../../services/airflow/logs:/opt/airflow/logs
+      - ../../services/airflow/plugins:/opt/airflow/plugins
+      - ../../services/airflow/config:/opt/airflow/config
+      - ../../services/dbt:/opt/dbt
+    depends_on:
+      postgres-airflow:
+        condition: service_healthy
+    networks:
+      - rideshare-network
+    command: api-server
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/v2/monitor/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  airflow-scheduler:
+    image: apache/airflow:3.1.5
+    container_name: rideshare-airflow-scheduler
+    mem_limit: 384m
+    profiles:
+      - quality-orchestration
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
+      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__WEBSERVER__AUTH_MANAGER: 'airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager'
+      AIRFLOW__CORE__PARALLELISM: 8
+      AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: 30
+      _PIP_ADDITIONAL_REQUIREMENTS: 'dbt-core dbt-spark==1.10.0'
+    volumes:
+      - ../../services/airflow/dags:/opt/airflow/dags
+      - ../../services/airflow/logs:/opt/airflow/logs
+      - ../../services/airflow/plugins:/opt/airflow/plugins
+      - ../../services/airflow/config:/opt/airflow/config
+      - ../../services/dbt:/opt/dbt
+    depends_on:
+      postgres-airflow:
+        condition: service_healthy
+    networks:
+      - rideshare-network
+    command: scheduler
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s = socket.socket(); s.settimeout(3); s.connect(('localhost', 8793)); s.close()"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
   cadvisor:
     image: ghcr.io/google/cadvisor:v0.53.0
     container_name: rideshare-cadvisor
@@ -426,7 +528,7 @@ services:
     profiles:
       - monitoring
     ports:
-      - "8082:8080"
+      - "8083:8080"
     volumes:
       - /:/rootfs:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -458,3 +560,4 @@ volumes:
   frontend-node-modules:
   minio-data:
   localstack-data:
+  postgres-airflow-data:
