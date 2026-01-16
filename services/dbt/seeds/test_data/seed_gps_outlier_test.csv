@@ -1,0 +1,5 @@
+event_id,entity_type,entity_id,timestamp,latitude,longitude,accuracy,heading,speed,trip_id,trip_state,_ingested_at
+evt_gps_outlier_001,driver,driver_003,2026-01-16 11:00:00,-22.0,-46.6,10.0,90.0,5.0,,,2026-01-16 11:00:01
+evt_gps_valid_001,driver,driver_004,2026-01-16 11:00:00,-23.5,-46.6,10.0,90.0,5.0,,,2026-01-16 11:00:01
+evt_gps_outlier_002,driver,driver_005,2026-01-16 11:01:00,-23.5,-50.0,10.0,90.0,5.0,,,2026-01-16 11:01:01
+evt_gps_outlier_003,driver,driver_006,2026-01-16 11:02:00,-24.0,-46.6,10.0,90.0,5.0,,,2026-01-16 11:02:01

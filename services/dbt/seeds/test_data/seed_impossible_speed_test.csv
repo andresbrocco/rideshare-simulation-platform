@@ -1,0 +1,5 @@
+event_id,entity_type,entity_id,timestamp,latitude,longitude,accuracy,heading,speed,trip_id,trip_state,_ingested_at
+evt_speed_001,driver,driver_007,2026-01-16 12:00:00,-23.5,-46.6,10.0,90.0,5.0,,,2026-01-16 12:00:01
+evt_speed_002,driver,driver_007,2026-01-16 12:02:00,-23.3,-46.4,10.0,90.0,5.0,,,2026-01-16 12:02:01
+evt_speed_003,driver,driver_008,2026-01-16 12:00:00,-23.5,-46.6,10.0,90.0,5.0,,,2026-01-16 12:00:01
+evt_speed_004,driver,driver_008,2026-01-16 12:10:00,-23.51,-46.61,10.0,90.0,5.0,,,2026-01-16 12:10:01

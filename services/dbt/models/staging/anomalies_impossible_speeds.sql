@@ -1,0 +1,67 @@
+{{
+    config(
+        materialized='view'
+    )
+}}
+
+with bronze_parsed as (
+    -- Parse location array from Bronze layer for testing without requiring staging model
+    select
+        event_id,
+        entity_type,
+        entity_id,
+        timestamp,
+        location[0] as latitude,
+        location[1] as longitude
+    from bronze_gps_pings
+    where location[0] between -23.8 and -23.3
+      and location[1] between -46.9 and -46.3
+),
+
+gps_with_prev as (
+    select
+        event_id,
+        entity_type,
+        entity_id,
+        timestamp,
+        latitude,
+        longitude,
+        lag(latitude) over (partition by entity_id order by timestamp) as previous_latitude,
+        lag(longitude) over (partition by entity_id order by timestamp) as previous_longitude,
+        lag(timestamp) over (partition by entity_id order by timestamp) as previous_timestamp
+    from bronze_parsed
+),
+
+speed_calculations as (
+    select
+        event_id,
+        entity_type,
+        entity_id,
+        timestamp,
+        latitude,
+        longitude,
+        previous_latitude,
+        previous_longitude,
+        previous_timestamp,
+        (unix_timestamp(timestamp) - unix_timestamp(previous_timestamp)) as time_diff_seconds,
+        -- Haversine distance approximation in km
+        111.32 * sqrt(
+            pow(latitude - previous_latitude, 2) +
+            pow((longitude - previous_longitude) * cos(radians((latitude + previous_latitude) / 2)), 2)
+        ) as distance_km,
+        -- Calculate speed in km/h
+        case
+            when (unix_timestamp(timestamp) - unix_timestamp(previous_timestamp)) > 0 then
+                (111.32 * sqrt(
+                    pow(latitude - previous_latitude, 2) +
+                    pow((longitude - previous_longitude) * cos(radians((latitude + previous_latitude) / 2)), 2)
+                )) / ((unix_timestamp(timestamp) - unix_timestamp(previous_timestamp)) / 3600.0)
+            else 0
+        end as speed_kmh
+    from gps_with_prev
+    where previous_timestamp is not null
+)
+
+select *
+from speed_calculations
+where speed_kmh > 200

@@ -1,0 +1,140 @@
+version: 2
+
+models:
+  - name: anomalies_zombie_drivers
+    description: |
+      Expected schema for zombie driver anomaly detection.
+      Detects drivers who are online but have not sent GPS ping in 10+ minutes.
+    columns:
+      - name: driver_id
+        description: Driver identifier
+        tests:
+          - not_null
+      - name: last_gps_timestamp
+        description: Timestamp of last GPS ping
+        tests:
+          - not_null
+      - name: last_status_timestamp
+        description: Timestamp of last status change
+        tests:
+          - not_null
+      - name: current_status
+        description: Current driver status (should be online)
+        tests:
+          - not_null
+      - name: minutes_since_last_ping
+        description: Minutes elapsed since last GPS ping
+        tests:
+          - not_null
+
+  - name: anomalies_gps_outliers
+    description: |
+      Expected schema for GPS outlier anomaly detection.
+      Detects GPS coordinates outside valid Sao Paulo bounds.
+    columns:
+      - name: event_id
+        description: GPS ping event identifier
+        tests:
+          - not_null
+      - name: entity_type
+        description: Type of entity (driver or rider)
+        tests:
+          - not_null
+      - name: entity_id
+        description: Entity identifier
+        tests:
+          - not_null
+      - name: timestamp
+        description: GPS ping timestamp
+        tests:
+          - not_null
+      - name: latitude
+        description: GPS latitude (outside valid bounds)
+        tests:
+          - not_null
+      - name: longitude
+        description: GPS longitude (outside valid bounds)
+        tests:
+          - not_null
+
+  - name: anomalies_impossible_speeds
+    description: |
+      Expected schema for impossible speed anomaly detection.
+      Detects speeds > 200 km/h between consecutive GPS pings.
+    columns:
+      - name: event_id
+        description: GPS ping event identifier
+        tests:
+          - not_null
+      - name: entity_type
+        description: Type of entity (driver or rider)
+        tests:
+          - not_null
+      - name: entity_id
+        description: Entity identifier
+        tests:
+          - not_null
+      - name: timestamp
+        description: GPS ping timestamp
+        tests:
+          - not_null
+      - name: previous_timestamp
+        description: Previous GPS ping timestamp
+        tests:
+          - not_null
+      - name: latitude
+        description: Current GPS latitude
+        tests:
+          - not_null
+      - name: longitude
+        description: Current GPS longitude
+        tests:
+          - not_null
+      - name: previous_latitude
+        description: Previous GPS latitude
+        tests:
+          - not_null
+      - name: previous_longitude
+        description: Previous GPS longitude
+        tests:
+          - not_null
+      - name: distance_km
+        description: Distance traveled in kilometers
+        tests:
+          - not_null
+      - name: time_diff_seconds
+        description: Time elapsed in seconds
+        tests:
+          - not_null
+      - name: speed_kmh
+        description: Calculated speed in km/h (should be > 200)
+        tests:
+          - not_null
+
+  - name: anomalies_all
+    description: |
+      Expected schema for unified anomaly table.
+      Unions all anomaly types with consistent structure.
+    columns:
+      - name: anomaly_type
+        description: Type of anomaly (zombie_driver, gps_outlier, impossible_speed)
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['zombie_driver', 'gps_outlier', 'impossible_speed']
+      - name: entity_type
+        description: Type of entity affected
+        tests:
+          - not_null
+      - name: entity_id
+        description: Entity identifier
+        tests:
+          - not_null
+      - name: detected_at
+        description: Timestamp when anomaly was detected
+        tests:
+          - not_null
+      - name: anomaly_details
+        description: JSON string with anomaly-specific details
+        tests:
+          - not_null
