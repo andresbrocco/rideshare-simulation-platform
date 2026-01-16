@@ -288,3 +288,324 @@ models:
         description: Timestamp when record was ingested into Bronze layer
         tests:
           - not_null
+
+  - name: stg_ratings
+    description: |
+      Staging model for rating events from Bronze layer.
+      Validates rating range (1-5), deduplicates by event_id,
+      and standardizes timestamps to UTC.
+    columns:
+      - name: event_id
+        description: Unique identifier for the rating event
+        tests:
+          - unique
+          - not_null
+
+      - name: trip_id
+        description: Unique identifier for the trip being rated
+        tests:
+          - not_null
+
+      - name: timestamp
+        description: Rating timestamp in UTC
+        tests:
+          - not_null
+
+      - name: rater_type
+        description: Type of entity providing the rating (driver or rider)
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - 'driver'
+                - 'rider'
+
+      - name: rater_id
+        description: Unique identifier for the rater
+        tests:
+          - not_null
+
+      - name: ratee_type
+        description: Type of entity receiving the rating (driver or rider)
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - 'driver'
+                - 'rider'
+
+      - name: ratee_id
+        description: Unique identifier for the ratee
+        tests:
+          - not_null
+
+      - name: rating
+        description: Rating value between 1 and 5
+        tests:
+          - not_null
+          - accepted_values:
+              values: [1, 2, 3, 4, 5]
+
+      - name: _ingested_at
+        description: Timestamp when record was ingested into Bronze layer
+        tests:
+          - not_null
+
+  - name: stg_payments
+    description: |
+      Staging model for payment events from Bronze layer.
+      Validates positive amounts, calculates platform fees and driver payouts,
+      deduplicates by event_id, and standardizes timestamps to UTC.
+    columns:
+      - name: event_id
+        description: Unique identifier for the payment event
+        tests:
+          - unique
+          - not_null
+
+      - name: payment_id
+        description: Unique identifier for the payment transaction
+        tests:
+          - not_null
+
+      - name: trip_id
+        description: Unique identifier for the trip
+        tests:
+          - not_null
+
+      - name: timestamp
+        description: Payment timestamp in UTC
+        tests:
+          - not_null
+
+      - name: rider_id
+        description: Unique identifier for the rider
+        tests:
+          - not_null
+
+      - name: driver_id
+        description: Unique identifier for the driver
+        tests:
+          - not_null
+
+      - name: payment_method_type
+        description: Type of payment method (credit_card, debit_card, etc.)
+        tests:
+          - not_null
+
+      - name: payment_method_masked
+        description: Masked payment method identifier
+        tests:
+          - not_null
+
+      - name: fare_amount
+        description: Total fare amount
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                inclusive: false
+
+      - name: platform_fee_percentage
+        description: Platform fee percentage (typically 0.25 for 25%)
+        tests:
+          - not_null
+
+      - name: platform_fee_amount
+        description: Platform fee amount in BRL
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                inclusive: false
+
+      - name: driver_payout_amount
+        description: Driver payout amount in BRL
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                inclusive: false
+
+      - name: _ingested_at
+        description: Timestamp when record was ingested into Bronze layer
+        tests:
+          - not_null
+
+  - name: stg_drivers
+    description: |
+      Staging model for driver profile events from Bronze layer.
+      Captures create and update events for SCD Type 2 tracking,
+      deduplicates by event_id, and standardizes timestamps to UTC.
+    columns:
+      - name: event_id
+        description: Unique identifier for the profile event
+        tests:
+          - unique
+          - not_null
+
+      - name: event_type
+        description: Type of profile event (driver.profile_created or driver.profile_updated)
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - 'driver.profile_created'
+                - 'driver.profile_updated'
+
+      - name: driver_id
+        description: Unique identifier for the driver
+        tests:
+          - not_null
+
+      - name: timestamp
+        description: Profile event timestamp in UTC
+        tests:
+          - not_null
+
+      - name: first_name
+        description: Driver first name
+        tests:
+          - not_null
+
+      - name: last_name
+        description: Driver last name
+        tests:
+          - not_null
+
+      - name: email
+        description: Driver email address
+        tests:
+          - not_null
+
+      - name: phone
+        description: Driver phone number
+        tests:
+          - not_null
+
+      - name: home_lat
+        description: Driver home location latitude
+        tests:
+          - not_null
+
+      - name: home_lon
+        description: Driver home location longitude
+        tests:
+          - not_null
+
+      - name: preferred_zones
+        description: JSON array of preferred zone IDs
+        tests:
+          - not_null
+
+      - name: shift_preference
+        description: Preferred shift timing
+        tests:
+          - not_null
+
+      - name: vehicle_make
+        description: Vehicle manufacturer
+        tests:
+          - not_null
+
+      - name: vehicle_model
+        description: Vehicle model
+        tests:
+          - not_null
+
+      - name: vehicle_year
+        description: Vehicle year
+        tests:
+          - not_null
+
+      - name: license_plate
+        description: Vehicle license plate
+        tests:
+          - not_null
+
+      - name: _ingested_at
+        description: Timestamp when record was ingested into Bronze layer
+        tests:
+          - not_null
+
+  - name: stg_riders
+    description: |
+      Staging model for rider profile events from Bronze layer.
+      Captures create and update events for current state tracking,
+      deduplicates by event_id, and standardizes timestamps to UTC.
+    columns:
+      - name: event_id
+        description: Unique identifier for the profile event
+        tests:
+          - unique
+          - not_null
+
+      - name: event_type
+        description: Type of profile event (rider.profile_created or rider.profile_updated)
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - 'rider.profile_created'
+                - 'rider.profile_updated'
+
+      - name: rider_id
+        description: Unique identifier for the rider
+        tests:
+          - not_null
+
+      - name: timestamp
+        description: Profile event timestamp in UTC
+        tests:
+          - not_null
+
+      - name: first_name
+        description: Rider first name
+        tests:
+          - not_null
+
+      - name: last_name
+        description: Rider last name
+        tests:
+          - not_null
+
+      - name: email
+        description: Rider email address
+        tests:
+          - not_null
+
+      - name: phone
+        description: Rider phone number
+        tests:
+          - not_null
+
+      - name: home_lat
+        description: Rider home location latitude
+        tests:
+          - not_null
+
+      - name: home_lon
+        description: Rider home location longitude
+        tests:
+          - not_null
+
+      - name: payment_method_type
+        description: Type of payment method
+        tests:
+          - not_null
+
+      - name: payment_method_masked
+        description: Masked payment method identifier
+        tests:
+          - not_null
+
+      - name: behavior_factor
+        description: Rider behavior factor (nullable)
+
+      - name: _ingested_at
+        description: Timestamp when record was ingested into Bronze layer
+        tests:
+          - not_null
