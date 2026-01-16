@@ -90,7 +90,7 @@ sys.path.insert(0, '/opt/spark-scripts')
 try:
     with open('{job_path}', 'r') as f:
         code = f.read()
-        if 'from streaming.framework' not in code:
+        if 'from spark_streaming.framework' not in code:
             print('Warning: No framework import found')
 except Exception as e:
     print(f'Error: {{e}}')
