@@ -1,0 +1,322 @@
+version: 2
+
+models:
+  - name: fact_trips
+    description: Completed trips with fare metrics and journey details
+    columns:
+      - name: trip_key
+        description: Surrogate key for trip fact
+        tests:
+          - unique
+          - not_null
+      - name: trip_id
+        description: Natural key for trip
+        tests:
+          - unique
+          - not_null
+      - name: driver_key
+        description: Foreign key to dim_drivers
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_drivers')
+              field: driver_key
+      - name: rider_key
+        description: Foreign key to dim_riders
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_riders')
+              field: rider_key
+      - name: pickup_zone_key
+        description: Foreign key to dim_zones for pickup location
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_zones')
+              field: zone_key
+      - name: dropoff_zone_key
+        description: Foreign key to dim_zones for dropoff location
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_zones')
+              field: zone_key
+      - name: time_key
+        description: Foreign key to dim_time for trip date
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_time')
+              field: time_key
+      - name: trip_state
+        description: Final trip state (should only be COMPLETED)
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['completed']
+      - name: requested_at
+        description: Timestamp when trip was requested
+        tests:
+          - not_null
+      - name: matched_at
+        description: Timestamp when driver was matched
+      - name: started_at
+        description: Timestamp when trip started
+      - name: completed_at
+        description: Timestamp when trip completed
+        tests:
+          - not_null
+      - name: pickup_lat
+        description: Pickup location latitude
+        tests:
+          - not_null
+      - name: pickup_lon
+        description: Pickup location longitude
+        tests:
+          - not_null
+      - name: dropoff_lat
+        description: Dropoff location latitude
+        tests:
+          - not_null
+      - name: dropoff_lon
+        description: Dropoff location longitude
+        tests:
+          - not_null
+      - name: fare
+        description: Total fare amount
+        tests:
+          - not_null
+      - name: surge_multiplier
+        description: Surge pricing multiplier applied
+        tests:
+          - not_null
+      - name: distance_km
+        description: Trip distance in kilometers
+      - name: duration_minutes
+        description: Trip duration in minutes
+
+  - name: fact_payments
+    description: Payment transactions with fare breakdown
+    columns:
+      - name: payment_key
+        description: Surrogate key for payment fact
+        tests:
+          - unique
+          - not_null
+      - name: payment_id
+        description: Natural key for payment
+        tests:
+          - unique
+          - not_null
+      - name: trip_key
+        description: Foreign key to fact_trips
+        tests:
+          - not_null
+          - relationships:
+              to: ref('fact_trips')
+              field: trip_key
+      - name: rider_key
+        description: Foreign key to dim_riders
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_riders')
+              field: rider_key
+      - name: driver_key
+        description: Foreign key to dim_drivers
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_drivers')
+              field: driver_key
+      - name: payment_method_key
+        description: Foreign key to dim_payment_methods
+        tests:
+          - relationships:
+              to: ref('dim_payment_methods')
+              field: payment_method_key
+      - name: time_key
+        description: Foreign key to dim_time for payment date
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_time')
+              field: time_key
+      - name: payment_timestamp
+        description: Timestamp of payment
+        tests:
+          - not_null
+      - name: total_fare
+        description: Total fare amount
+        tests:
+          - not_null
+      - name: platform_fee
+        description: Platform fee (25% of total fare)
+        tests:
+          - not_null
+      - name: driver_payout
+        description: Driver payout (75% of total fare)
+        tests:
+          - not_null
+      - name: payment_method_type
+        description: Type of payment method used
+        tests:
+          - not_null
+
+  - name: fact_ratings
+    description: Individual ratings with rater and ratee information
+    columns:
+      - name: rating_key
+        description: Surrogate key for rating fact
+        tests:
+          - unique
+          - not_null
+      - name: trip_key
+        description: Foreign key to fact_trips
+        tests:
+          - not_null
+          - relationships:
+              to: ref('fact_trips')
+              field: trip_key
+      - name: rater_key
+        description: Foreign key to dimension table (driver or rider)
+        tests:
+          - not_null
+      - name: ratee_key
+        description: Foreign key to dimension table (driver or rider)
+        tests:
+          - not_null
+      - name: time_key
+        description: Foreign key to dim_time for rating date
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_time')
+              field: time_key
+      - name: rating_timestamp
+        description: Timestamp of rating
+        tests:
+          - not_null
+      - name: rater_type
+        description: Type of rater (driver or rider)
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['driver', 'rider']
+      - name: ratee_type
+        description: Type of ratee (driver or rider)
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['driver', 'rider']
+      - name: rating
+        description: Rating value (1-5)
+        tests:
+          - not_null
+          - accepted_values:
+              values: [1, 2, 3, 4, 5]
+
+  - name: fact_cancellations
+    description: Cancelled trips with cancellation details
+    columns:
+      - name: cancellation_key
+        description: Surrogate key for cancellation fact
+        tests:
+          - unique
+          - not_null
+      - name: trip_id
+        description: Natural key for trip
+        tests:
+          - unique
+          - not_null
+      - name: driver_key
+        description: Foreign key to dim_drivers (nullable if no driver matched)
+        tests:
+          - relationships:
+              to: ref('dim_drivers')
+              field: driver_key
+      - name: rider_key
+        description: Foreign key to dim_riders
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_riders')
+              field: rider_key
+      - name: pickup_zone_key
+        description: Foreign key to dim_zones for pickup location
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_zones')
+              field: zone_key
+      - name: time_key
+        description: Foreign key to dim_time for cancellation date
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_time')
+              field: time_key
+      - name: requested_at
+        description: Timestamp when trip was requested
+        tests:
+          - not_null
+      - name: cancelled_at
+        description: Timestamp when trip was cancelled
+        tests:
+          - not_null
+      - name: cancellation_stage
+        description: Trip state when cancelled
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['requested', 'offer_sent', 'offer_expired', 'offer_rejected', 'matched', 'driver_en_route', 'driver_arrived']
+      - name: cancellation_reason
+        description: Reason for cancellation
+      - name: surge_multiplier
+        description: Surge multiplier at time of cancellation
+        tests:
+          - not_null
+
+  - name: fact_driver_activity
+    description: Driver status durations for utilization analysis
+    columns:
+      - name: activity_key
+        description: Surrogate key for driver activity fact
+        tests:
+          - unique
+          - not_null
+      - name: driver_key
+        description: Foreign key to dim_drivers
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_drivers')
+              field: driver_key
+      - name: time_key
+        description: Foreign key to dim_time for activity date
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_time')
+              field: time_key
+      - name: status
+        description: Driver status
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['online', 'offline', 'en_route', 'arrived', 'on_trip']
+      - name: status_start
+        description: Timestamp when status began
+        tests:
+          - not_null
+      - name: status_end
+        description: Timestamp when status ended
+        tests:
+          - not_null
+      - name: duration_minutes
+        description: Duration of status in minutes
+        tests:
+          - not_null
+      - name: zone_key
+        description: Foreign key to dim_zones for location during status (nullable - geospatial mapping not implemented)
