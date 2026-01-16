@@ -43,6 +43,20 @@ class BaseStreamingJob(ABC):
         pass
 
     @property
+    def partition_columns(self) -> Optional[list]:
+        """Columns to partition by. Override to enable partitioning."""
+        return None
+
+    def _has_active_spark_context(self) -> bool:
+        """Check if there's an active Spark context."""
+        try:
+            from pyspark import SparkContext
+
+            return SparkContext._active_spark_context is not None
+        except (ImportError, AttributeError):
+            return False
+
+    @property
     def kafka_config(self) -> KafkaConfig:
         return self._kafka_config
 

@@ -642,6 +642,7 @@ def create_mock_kafka_df(messages: list, partition: int, offset: int) -> MagicMo
         mock_writer = MagicMock()
         mock_writer.mode = MagicMock(return_value=mock_writer)
         mock_writer.option = MagicMock(return_value=mock_writer)
+        mock_writer.partitionBy = MagicMock(return_value=mock_writer)
 
         def mock_save(path=None):
             if messages:
