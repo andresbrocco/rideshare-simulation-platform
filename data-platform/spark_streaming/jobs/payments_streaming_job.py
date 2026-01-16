@@ -38,3 +38,28 @@ class PaymentsStreamingJob(BaseStreamingJob):
     def recover_from_checkpoint(self):
         """Recover starting offsets from checkpoint if available."""
         self.starting_offsets = {f"{self.topic_name}-0": 50}
+
+
+if __name__ == "__main__":
+    import os
+    from pyspark.sql import SparkSession
+    from spark_streaming.config.kafka_config import KafkaConfig
+    from spark_streaming.config.checkpoint_config import CheckpointConfig
+    from spark_streaming.utils.error_handler import ErrorHandler
+
+    spark = SparkSession.builder.appName("PaymentsStreamingJob").getOrCreate()
+
+    kafka_config = KafkaConfig(
+        bootstrap_servers=os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
+    )
+    checkpoint_config = CheckpointConfig(
+        checkpoint_path=os.environ.get(
+            "CHECKPOINT_PATH", "s3a://rideshare-checkpoints/payments/"
+        ),
+        trigger_interval=os.environ.get("TRIGGER_INTERVAL", "10 seconds"),
+    )
+    error_handler = ErrorHandler()
+
+    job = PaymentsStreamingJob(spark, kafka_config, checkpoint_config, error_handler)
+    query = job.start()
+    query.awaitTermination()
