@@ -156,8 +156,80 @@ Great Expectations 1.10.0 requires Python 3.10-3.12. Use:
 uv venv venv --python 3.12
 ```
 
+## Silver Layer Expectation Suites
+
+The following 8 expectation suites validate data quality in the Silver staging layer:
+
+### 1. `silver_stg_trips` (7 expectations)
+- **Deduplication**: `event_id` uniqueness check
+- **Null checks**: `event_id`, `trip_id`, `timestamp` not null
+- **Enum validation**: `trip_state` in valid set (requested, offer_sent, matched, started, completed, cancelled, etc.)
+- **Range validation**: `surge_multiplier` [1.0-2.5] with 99% threshold, `fare` >= 0 with 95% threshold
+- **Soft failure**: Uses `mostly` parameter for range validations
+
+### 2. `silver_stg_gps_pings` (7 expectations)
+- **Deduplication**: `event_id` uniqueness check
+- **Null checks**: `event_id`, `agent_id`, `timestamp` not null
+- **Geo validation**: `latitude` [-23.8, -23.3], `longitude` [-46.9, -46.3] with 99% threshold (Sao Paulo bounds)
+- **Enum validation**: `agent_type` in ["driver", "rider"]
+- **Soft failure**: Uses `mostly` parameter for coordinate ranges
+
+### 3. `silver_stg_driver_status` (7 expectations)
+- **Deduplication**: `event_id` uniqueness check
+- **Null checks**: `event_id`, `driver_id`, `timestamp` not null
+- **Enum validation**: `status` in ["online", "offline", "en_route"]
+- **Geo validation**: `latitude` [-23.8, -23.3], `longitude` [-46.9, -46.3] with 99% threshold
+- **Soft failure**: Uses `mostly` parameter for coordinate ranges
+
+### 4. `silver_stg_surge_updates` (8 expectations)
+- **Deduplication**: `event_id` uniqueness check
+- **Null checks**: `event_id`, `zone_id`, `timestamp` not null
+- **Range validation**: `new_multiplier` and `previous_multiplier` [1.0-2.5] with 99% threshold
+- **Range validation**: `available_drivers` and `pending_requests` >= 0
+- **Soft failure**: Uses `mostly` parameter for multiplier ranges
+
+### 5. `silver_stg_ratings` (7 expectations)
+- **Deduplication**: `event_id` uniqueness check
+- **Null checks**: `event_id`, `trip_id`, `timestamp`, `rater_id`, `ratee_id` not null
+- **Range validation**: `rating` [1-5] (integer stars)
+- **Referential integrity**: Ensures rater and ratee IDs are present
+
+### 6. `silver_stg_payments` (8 expectations)
+- **Deduplication**: `event_id` uniqueness check
+- **Null checks**: `event_id`, `trip_id`, `timestamp` not null
+- **Range validation**: `total_fare`, `platform_fee`, `driver_payout` >= 0
+- **Relational validation**: `total_fare` >= `platform_fee` (ensures fee doesn't exceed fare)
+
+### 7. `silver_stg_drivers` (5 expectations)
+- **Deduplication**: `event_id` uniqueness check
+- **Null checks**: `event_id`, `driver_id`, `timestamp` not null
+- **Regex validation**: `license_plate` matches Brazilian format "ABC-1234" with 95% threshold
+- **Enum validation**: `vehicle_type` in ["sedan", "suv", "compact"]
+
+### 8. `silver_stg_riders` (5 expectations)
+- **Deduplication**: `event_id` uniqueness check
+- **Null checks**: `event_id`, `rider_id`, `timestamp` not null
+- **Enum validation**: `payment_method` in ["credit_card", "debit_card", "digital_wallet", "cash"]
+
+### Coverage Summary
+
+- **Total suites**: 8 (one per Silver staging model)
+- **Total expectations**: 54 across all suites
+- **Deduplication**: All suites validate `event_id` uniqueness
+- **Null checks**: Critical fields validated in all suites
+- **Range validations**: 15 range checks with soft failure thresholds (95-99% mostly parameter)
+- **Enum validations**: 7 status/type field validations
+- **Geo validations**: 4 coordinate range checks for Sao Paulo bounds
+- **Soft failure handling**: All range/geo validations use `mostly` parameter to alert but not block on outliers
+
+### Testing
+
+Run Silver expectation suite tests:
+```bash
+./venv/bin/pytest tests/test_silver_expectations.py -v
+```
+
 ## Next Steps
 
-- **Ticket 026**: Create Silver layer expectation suites
 - **Ticket 027**: Create Gold layer expectation suites
 - **Ticket 028**: Integrate with Airflow DAGs
