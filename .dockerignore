@@ -62,8 +62,8 @@ terraform/
 # Airflow (separate deployment)
 airflow_dags/
 
-# DBT (separate deployment)
-dbt/
+# DBT (inside data-platform)
+data-platform/dbt/
 
 # Great Expectations (separate deployment)
 great_expectations/

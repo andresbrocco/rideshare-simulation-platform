@@ -1,0 +1,31 @@
+name: 'rideshare'
+version: '1.0.0'
+config-version: 2
+
+profile: 'rideshare'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  rideshare:
+    staging:
+      +materialized: incremental
+      +on_schema_change: fail
+      +incremental_strategy: merge
+    marts:
+      dimensions:
+        +materialized: table
+      facts:
+        +materialized: table
+      aggregates:
+        +materialized: table
