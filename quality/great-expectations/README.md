@@ -229,7 +229,121 @@ Run Silver expectation suite tests:
 ./venv/bin/pytest tests/test_silver_expectations.py -v
 ```
 
+## Gold Layer Expectation Suites
+
+The following 12 expectation suites validate data quality in the Gold layer across dimensions, facts, and aggregates:
+
+### Dimensions (5 suites)
+
+#### 1. `gold_dim_drivers` (10 expectations)
+- **SCD Type 2 validation**: `driver_key`, `driver_id`, `valid_from`, `valid_to`, `current_flag` not null
+- **Primary key**: `driver_key` uniqueness
+- **SCD flag**: `current_flag` in [true, false]
+- **Profile validation**: `vehicle_make`, `vehicle_model` not null
+- **Regex validation**: `license_plate` matches Brazilian format "ABC-1234" with 95% threshold
+
+#### 2. `gold_dim_riders` (7 expectations)
+- **Primary key**: `rider_key` uniqueness and not null
+- **Natural key**: `rider_id` not null
+- **Contact validation**: `phone_number` not null
+- **Payment validation**: `payment_method` in ["credit_card", "debit_card", "digital_wallet", "cash"]
+- **Completeness**: Required fields validated
+
+#### 3. `gold_dim_zones` (7 expectations)
+- **Primary key**: `zone_key` uniqueness and not null
+- **Natural key**: `zone_id` uniqueness and not null
+- **Completeness**: `name`, `region`, `geometry` not null
+- **Geospatial integrity**: Ensures zone boundaries are present
+
+#### 4. `gold_dim_time` (10 expectations)
+- **Primary key**: `time_key` uniqueness and not null
+- **Natural key**: `date_key` not null
+- **Date hierarchy**: `year`, `month`, `day`, `hour`, `minute` not null
+- **Completeness**: All date dimension attributes validated
+
+#### 5. `gold_dim_payment_methods` (9 expectations)
+- **SCD Type 2 validation**: `payment_method_key`, `valid_from`, `valid_to`, `current_flag` not null
+- **Primary key**: `payment_method_key` uniqueness
+- **SCD flag**: `current_flag` in [true, false]
+- **Method validation**: `method_name` in ["credit_card", "debit_card", "digital_wallet", "cash"]
+- **Business rules**: `fee_percentage` between 0 and 10%
+
+### Facts (5 suites)
+
+#### 6. `gold_fact_trips` (12 expectations)
+- **Primary key**: `trip_key` uniqueness and not null
+- **Natural key**: `trip_id` not null
+- **Referential integrity**: `driver_key`, `rider_key`, `pickup_zone_key`, `dropoff_zone_key`, `time_key` not null
+- **Status validation**: `trip_status` in valid trip states
+- **Business rules**: `distance_km` [0-200] and `duration_minutes` [0-300] with 99% threshold
+
+#### 7. `gold_fact_payments` (14 expectations)
+- **Primary key**: `payment_key` uniqueness and not null
+- **Referential integrity**: `trip_key`, `rider_key`, `driver_key`, `time_key` not null
+- **Business logic**: `total_fare`, `platform_fee`, `driver_payout` not null and >= 0
+- **Platform fee validation**: `platform_fee` [0-2500] (25% of max $10k fare)
+- **Driver payout validation**: `driver_payout` [0-7500] (75% of max $10k fare)
+- **Status validation**: `payment_status` in ["pending", "completed", "failed", "refunded"]
+
+#### 8. `gold_fact_ratings` (9 expectations)
+- **Primary key**: `rating_key` uniqueness and not null
+- **Referential integrity**: `trip_key`, `rater_key`, `ratee_key`, `time_key` not null
+- **Rating validation**: `rating` between 1 and 5
+- **Type validation**: `rater_type` and `ratee_type` in ["driver", "rider"]
+
+#### 9. `gold_fact_cancellations` (8 expectations)
+- **Primary key**: `cancellation_key` uniqueness and not null
+- **Referential integrity**: `rider_key`, `pickup_zone_key`, `time_key` not null
+- **Reason validation**: `cancellation_reason` not null
+- **Initiated by validation**: `cancelled_by` in ["driver", "rider", "system"]
+
+#### 10. `gold_fact_driver_activity` (10 expectations)
+- **Primary key**: `activity_key` uniqueness and not null
+- **Referential integrity**: `driver_key`, `time_key` not null
+- **Status validation**: `status` in ["online", "offline", "en_route", "on_trip"]
+- **Activity metrics**: `online_duration_minutes`, `idle_duration_minutes`, `trip_duration_minutes` >= 0
+- **Completeness**: All duration fields validated
+
+### Aggregates (2 suites)
+
+#### 11. `gold_agg_hourly_zone_demand` (11 expectations)
+- **Referential integrity**: `zone_key`, `hour_timestamp` not null
+- **Trip counts**: `requested_trips`, `completed_trips`, `cancelled_trips` not null and [0-100000]
+- **Completion rate**: `completion_rate` between 0 and 1
+- **Surge validation**: `avg_surge_multiplier` between 1.0 and 5.0
+- **Consistency**: Aggregate counts must align with fact tables
+
+#### 12. `gold_agg_daily_driver_performance` (12 expectations)
+- **Referential integrity**: `driver_key`, `time_key` not null
+- **Performance metrics**: `trips_completed`, `trips_declined` >= 0
+- **Financial metrics**: `total_payout`, `avg_payout_per_trip` >= 0
+- **Rating validation**: `avg_rating` between 1 and 5
+- **Utilization**: `utilization_pct` between 0 and 1
+- **Consistency**: Aggregates must match sum of fact records
+
+### Coverage Summary
+
+- **Total suites**: 12 (5 dimensions, 5 facts, 2 aggregates)
+- **Total expectations**: 119 across all suites
+- **SCD Type 2 validation**: 2 dimension tables (drivers, payment_methods)
+- **Referential integrity**: All fact and aggregate tables validate foreign keys
+- **Business logic**: Platform fee (25%), driver payout (75%), rating ranges, surge multipliers
+- **Completeness**: All tables validate required fields are not null
+- **Consistency**: Aggregates validated against fact table sums
+- **Soft failure handling**: Range validations use `mostly` parameter (95-99%) to alert but not block on outliers
+
+### Testing
+
+Run Gold expectation suite tests:
+```bash
+./venv/bin/pytest tests/test_gold_expectations.py -v
+```
+
+Run all tests (Silver and Gold):
+```bash
+./venv/bin/pytest tests/ -v
+```
+
 ## Next Steps
 
-- **Ticket 027**: Create Gold layer expectation suites
 - **Ticket 028**: Integrate with Airflow DAGs
