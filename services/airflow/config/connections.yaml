@@ -1,0 +1,13 @@
+# Airflow Connection Configuration for Streaming Jobs DAG
+#
+# Local Spark connection (used when RIDESHARE_ENVIRONMENT=local)
+spark_default:
+  conn_type: spark
+  host: spark://spark-master
+  port: 7077
+
+# Databricks connection (used when RIDESHARE_ENVIRONMENT=cloud)
+databricks_default:
+  conn_type: databricks
+  host: https://<workspace>.cloud.databricks.com
+  password: <api-token>
