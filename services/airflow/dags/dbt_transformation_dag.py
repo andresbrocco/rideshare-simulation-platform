@@ -39,7 +39,15 @@ with DAG(
         bash_command="cd /opt/dbt && dbt test --select tag:silver --profiles-dir /opt/dbt/profiles",
     )
 
-    check_bronze_freshness >> dbt_silver_run >> dbt_silver_test
+    ge_silver_validation = BashOperator(
+        task_id="ge_silver_validation",
+        bash_command="""
+        cd /opt/great-expectations && \
+        python3 run_checkpoint.py silver_validation || echo "WARNING: Silver validation failed" && exit 0
+        """,
+    )
+
+    check_bronze_freshness >> dbt_silver_run >> dbt_silver_test >> ge_silver_validation
 
 # Gold DAG - Runs daily with dimensions -> facts -> aggregates
 with DAG(
@@ -72,4 +80,27 @@ with DAG(
         bash_command="cd /opt/dbt && dbt test --select tag:gold --profiles-dir /opt/dbt/profiles",
     )
 
-    dbt_gold_dimensions >> dbt_gold_facts >> dbt_gold_aggregates >> dbt_gold_test
+    ge_gold_validation = BashOperator(
+        task_id="ge_gold_validation",
+        bash_command="""
+        cd /opt/great-expectations && \
+        python3 run_checkpoint.py gold_validation || echo "WARNING: Gold validation failed" && exit 0
+        """,
+    )
+
+    ge_generate_data_docs = BashOperator(
+        task_id="ge_generate_data_docs",
+        bash_command="""
+        cd /opt/great-expectations && \
+        python3 build_data_docs.py
+        """,
+    )
+
+    (
+        dbt_gold_dimensions
+        >> dbt_gold_facts
+        >> dbt_gold_aggregates
+        >> dbt_gold_test
+        >> ge_gold_validation
+        >> ge_generate_data_docs
+    )

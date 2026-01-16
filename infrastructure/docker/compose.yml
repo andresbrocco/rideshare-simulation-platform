@@ -464,13 +464,14 @@ services:
       _AIRFLOW_WWW_USER_CREATE: 'true'
       _AIRFLOW_WWW_USER_USERNAME: admin
       _AIRFLOW_WWW_USER_PASSWORD: admin
-      _PIP_ADDITIONAL_REQUIREMENTS: 'dbt-core dbt-spark==1.10.0'
+      _PIP_ADDITIONAL_REQUIREMENTS: 'dbt-core dbt-spark==1.10.0 great-expectations==1.10.0'
     volumes:
       - ../../services/airflow/dags:/opt/airflow/dags
       - ../../services/airflow/logs:/opt/airflow/logs
       - ../../services/airflow/plugins:/opt/airflow/plugins
       - ../../services/airflow/config:/opt/airflow/config
       - ../../services/dbt:/opt/dbt
+      - ../../quality/great-expectations:/opt/great-expectations
     depends_on:
       postgres-airflow:
         condition: service_healthy
@@ -500,13 +501,14 @@ services:
       AIRFLOW__WEBSERVER__AUTH_MANAGER: 'airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager'
       AIRFLOW__CORE__PARALLELISM: 8
       AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: 30
-      _PIP_ADDITIONAL_REQUIREMENTS: 'dbt-core dbt-spark==1.10.0'
+      _PIP_ADDITIONAL_REQUIREMENTS: 'dbt-core dbt-spark==1.10.0 great-expectations==1.10.0'
     volumes:
       - ../../services/airflow/dags:/opt/airflow/dags
       - ../../services/airflow/logs:/opt/airflow/logs
       - ../../services/airflow/plugins:/opt/airflow/plugins
       - ../../services/airflow/config:/opt/airflow/config
       - ../../services/dbt:/opt/dbt
+      - ../../quality/great-expectations:/opt/great-expectations
     depends_on:
       postgres-airflow:
         condition: service_healthy

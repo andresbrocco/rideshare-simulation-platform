@@ -1,0 +1,74 @@
+name: gold_validation
+config_version: 1.0
+class_name: Checkpoint
+validations:
+  # Dimensions
+  - batch_request:
+      datasource_name: rideshare_spark
+      data_connector_name: default_inferred_data_connector
+      data_asset_name: gold_dimensions.dim_drivers
+    expectation_suite_name: gold_dim_drivers
+  - batch_request:
+      datasource_name: rideshare_spark
+      data_connector_name: default_inferred_data_connector
+      data_asset_name: gold_dimensions.dim_riders
+    expectation_suite_name: gold_dim_riders
+  - batch_request:
+      datasource_name: rideshare_spark
+      data_connector_name: default_inferred_data_connector
+      data_asset_name: gold_dimensions.dim_zones
+    expectation_suite_name: gold_dim_zones
+  - batch_request:
+      datasource_name: rideshare_spark
+      data_connector_name: default_inferred_data_connector
+      data_asset_name: gold_dimensions.dim_time
+    expectation_suite_name: gold_dim_time
+  - batch_request:
+      datasource_name: rideshare_spark
+      data_connector_name: default_inferred_data_connector
+      data_asset_name: gold_dimensions.dim_payment_methods
+    expectation_suite_name: gold_dim_payment_methods
+  # Facts
+  - batch_request:
+      datasource_name: rideshare_spark
+      data_connector_name: default_inferred_data_connector
+      data_asset_name: gold_facts.fact_trips
+    expectation_suite_name: gold_fact_trips
+  - batch_request:
+      datasource_name: rideshare_spark
+      data_connector_name: default_inferred_data_connector
+      data_asset_name: gold_facts.fact_payments
+    expectation_suite_name: gold_fact_payments
+  - batch_request:
+      datasource_name: rideshare_spark
+      data_connector_name: default_inferred_data_connector
+      data_asset_name: gold_facts.fact_ratings
+    expectation_suite_name: gold_fact_ratings
+  - batch_request:
+      datasource_name: rideshare_spark
+      data_connector_name: default_inferred_data_connector
+      data_asset_name: gold_facts.fact_cancellations
+    expectation_suite_name: gold_fact_cancellations
+  - batch_request:
+      datasource_name: rideshare_spark
+      data_connector_name: default_inferred_data_connector
+      data_asset_name: gold_facts.fact_driver_activity
+    expectation_suite_name: gold_fact_driver_activity
+  # Aggregates
+  - batch_request:
+      datasource_name: rideshare_spark
+      data_connector_name: default_inferred_data_connector
+      data_asset_name: gold_aggregates.agg_hourly_zone_demand
+    expectation_suite_name: gold_agg_hourly_zone_demand
+  - batch_request:
+      datasource_name: rideshare_spark
+      data_connector_name: default_inferred_data_connector
+      data_asset_name: gold_aggregates.agg_daily_driver_performance
+    expectation_suite_name: gold_agg_daily_driver_performance
+action_list:
+  - name: store_validation_result
+    action:
+      class_name: StoreValidationResultAction
+  - name: update_data_docs
+    action:
+      class_name: UpdateDataDocsAction
