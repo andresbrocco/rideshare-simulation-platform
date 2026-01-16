@@ -17,3 +17,6 @@ RUN curl -sL https://repo1.maven.org/maven2/io/delta/delta-spark_2.13/4.0.0/delt
         -o /opt/spark/jars/hadoop-aws-3.4.1.jar && \
     curl -sL https://repo1.maven.org/maven2/software/amazon/awssdk/bundle/2.24.6/bundle-2.24.6.jar \
         -o /opt/spark/jars/aws-sdk-bundle-2.24.6.jar
+
+# Install Python dependencies for Delta Lake Python API
+RUN pip install --no-cache-dir delta-spark==4.0.0
