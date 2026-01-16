@@ -74,9 +74,24 @@ class BaseStreamingJob(ABC):
 
     def start(self):
         """Start the streaming job."""
+        from pyspark.sql.functions import (
+            col,
+            current_timestamp,
+        )
+        from pyspark.sql.types import StringType
+
         kafka_options = self._kafka_config.to_spark_options(topic=self.topic_name)
 
-        df = self._spark.readStream.format("kafka").options(**kafka_options).load()
+        raw_df = self._spark.readStream.format("kafka").options(**kafka_options).load()
+
+        # Add metadata columns and parse JSON value
+        df = raw_df.select(
+            col("value").cast(StringType()).alias("_raw_value"),
+            col("partition").alias("_kafka_partition"),
+            col("offset").alias("_kafka_offset"),
+            col("timestamp").alias("_kafka_timestamp"),
+            current_timestamp().alias("_ingested_at"),
+        )
 
         trigger_config = {}
         if self._checkpoint_config.trigger_interval == "availableNow":

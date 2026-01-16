@@ -50,7 +50,10 @@ if __name__ == "__main__":
     spark = SparkSession.builder.appName("GpsPingsStreamingJob").getOrCreate()
 
     kafka_config = KafkaConfig(
-        bootstrap_servers=os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
+        bootstrap_servers=os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092"),
+        schema_registry_url=os.environ.get(
+            "SCHEMA_REGISTRY_URL", "http://schema-registry:8081"
+        ),
     )
     checkpoint_config = CheckpointConfig(
         checkpoint_path=os.environ.get(
@@ -58,7 +61,7 @@ if __name__ == "__main__":
         ),
         trigger_interval=os.environ.get("TRIGGER_INTERVAL", "10 seconds"),
     )
-    error_handler = ErrorHandler()
+    error_handler = ErrorHandler(dlq_table_path="s3a://rideshare-bronze/dlq_gps_pings/")
 
     job = GpsPingsStreamingJob(spark, kafka_config, checkpoint_config, error_handler)
     query = job.start()

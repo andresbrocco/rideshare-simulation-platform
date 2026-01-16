@@ -23,6 +23,9 @@ class TripsStreamingJob(BaseStreamingJob):
 
     def process_batch(self, df: Any, batch_id: int) -> Any:
         """Process a micro-batch of Kafka messages."""
+        if df.count() == 0:
+            return df
+
         if self._has_active_spark_context() and self.partition_columns:
             partitioned_df = df.withColumn(
                 "_ingestion_date", date_format(col("_ingested_at"), "yyyy-MM-dd")
@@ -50,7 +53,10 @@ if __name__ == "__main__":
     spark = SparkSession.builder.appName("TripsStreamingJob").getOrCreate()
 
     kafka_config = KafkaConfig(
-        bootstrap_servers=os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
+        bootstrap_servers=os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092"),
+        schema_registry_url=os.environ.get(
+            "SCHEMA_REGISTRY_URL", "http://schema-registry:8081"
+        ),
     )
     checkpoint_config = CheckpointConfig(
         checkpoint_path=os.environ.get(
@@ -58,7 +64,7 @@ if __name__ == "__main__":
         ),
         trigger_interval=os.environ.get("TRIGGER_INTERVAL", "10 seconds"),
     )
-    error_handler = ErrorHandler()
+    error_handler = ErrorHandler(dlq_table_path="s3a://rideshare-bronze/dlq_trips/")
 
     job = TripsStreamingJob(spark, kafka_config, checkpoint_config, error_handler)
     query = job.start()
