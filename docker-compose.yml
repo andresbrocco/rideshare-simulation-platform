@@ -40,6 +40,31 @@ services:
       timeout: 10s
       retries: 10
 
+  kafka-init:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: rideshare-kafka-init
+    profiles:
+      - core
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      echo 'Creating Kafka topics...' &&
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic trips --partitions 4 --replication-factor 1 &&
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic gps-pings --partitions 8 --replication-factor 1 &&
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic driver-status --partitions 2 --replication-factor 1 &&
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic surge-updates --partitions 2 --replication-factor 1 &&
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic ratings --partitions 2 --replication-factor 1 &&
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic payments --partitions 2 --replication-factor 1 &&
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic driver-profiles --partitions 1 --replication-factor 1 &&
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic rider-profiles --partitions 1 --replication-factor 1 &&
+      echo 'Kafka topics created successfully' &&
+      kafka-topics --bootstrap-server kafka:29092 --list
+      "
+    networks:
+      - rideshare-network
+
   schema-registry:
     image: confluentinc/cp-schema-registry:7.5.0
     container_name: rideshare-schema-registry
