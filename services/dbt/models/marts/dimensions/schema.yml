@@ -1,0 +1,190 @@
+version: 2
+
+models:
+  - name: dim_drivers
+    description: Driver dimension with SCD Type 2 tracking profile changes
+    columns:
+      - name: driver_key
+        description: Surrogate key for driver dimension (unique per version)
+        tests:
+          - unique
+          - not_null
+      - name: driver_id
+        description: Natural key for driver
+        tests:
+          - not_null
+      - name: first_name
+        description: Driver first name
+      - name: last_name
+        description: Driver last name
+      - name: email
+        description: Driver email address
+      - name: phone
+        description: Driver phone number
+      - name: home_lat
+        description: Driver home location latitude
+      - name: home_lon
+        description: Driver home location longitude
+      - name: preferred_zones
+        description: Array of preferred zone IDs
+      - name: shift_preference
+        description: Driver shift preference
+      - name: vehicle_make
+        description: Vehicle manufacturer
+      - name: vehicle_model
+        description: Vehicle model
+      - name: vehicle_year
+        description: Vehicle year
+      - name: license_plate
+        description: Vehicle license plate
+      - name: valid_from
+        description: Start of validity period
+        tests:
+          - not_null
+      - name: valid_to
+        description: End of validity period
+        tests:
+          - not_null
+      - name: current_flag
+        description: Boolean flag indicating current version
+        tests:
+          - not_null
+
+  - name: dim_riders
+    description: Rider dimension with current state only
+    columns:
+      - name: rider_key
+        description: Surrogate key for rider dimension
+        tests:
+          - unique
+          - not_null
+      - name: rider_id
+        description: Natural key for rider
+        tests:
+          - unique
+          - not_null
+      - name: first_name
+        description: Rider first name
+      - name: last_name
+        description: Rider last name
+      - name: email
+        description: Rider email address
+      - name: phone
+        description: Rider phone number
+      - name: home_lat
+        description: Rider home location latitude
+      - name: home_lon
+        description: Rider home location longitude
+      - name: payment_method_type
+        description: Payment method type
+      - name: payment_method_masked
+        description: Masked payment method details
+      - name: behavior_factor
+        description: Rider behavior factor
+      - name: last_updated_at
+        description: Timestamp of last profile update
+
+  - name: dim_zones
+    description: Geographic zones dimension (static reference)
+    columns:
+      - name: zone_key
+        description: Surrogate key for zone dimension
+        tests:
+          - unique
+          - not_null
+      - name: zone_id
+        description: Natural key for zone (3-letter code)
+        tests:
+          - unique
+          - not_null
+      - name: name
+        description: Zone name
+        tests:
+          - not_null
+      - name: subprefecture
+        description: Subprefecture containing this zone
+      - name: demand_multiplier
+        description: Base demand multiplier for this zone
+        tests:
+          - not_null
+      - name: surge_sensitivity
+        description: Surge pricing sensitivity factor
+        tests:
+          - not_null
+
+  - name: dim_time
+    description: Time dimension with date attributes
+    columns:
+      - name: time_key
+        description: Surrogate key for time dimension
+        tests:
+          - unique
+          - not_null
+      - name: date_key
+        description: Date value
+        tests:
+          - unique
+          - not_null
+      - name: year
+        description: Year
+        tests:
+          - not_null
+      - name: month
+        description: Month (1-12)
+        tests:
+          - not_null
+      - name: day
+        description: Day of month (1-31)
+        tests:
+          - not_null
+      - name: day_of_week
+        description: Day of week (0=Sunday, 6=Saturday)
+        tests:
+          - not_null
+      - name: is_weekend
+        description: Boolean flag for weekend days
+        tests:
+          - not_null
+      - name: day_name
+        description: Name of day (Monday, Tuesday, etc.)
+      - name: month_name
+        description: Name of month (January, February, etc.)
+      - name: quarter
+        description: Quarter (1-4)
+        tests:
+          - not_null
+
+  - name: dim_payment_methods
+    description: Payment methods dimension with SCD Type 2
+    columns:
+      - name: payment_method_key
+        description: Surrogate key for payment method dimension
+        tests:
+          - unique
+          - not_null
+      - name: payment_method_id
+        description: Business key for payment method
+        tests:
+          - not_null
+      - name: rider_id
+        description: Rider who owns this payment method
+        tests:
+          - not_null
+      - name: payment_method_type
+        description: Type of payment method
+        tests:
+          - not_null
+      - name: payment_method_masked
+        description: Masked payment method details
+      - name: valid_from
+        description: Start of validity period
+        tests:
+          - not_null
+      - name: valid_to
+        description: End of validity period
+        tests:
+          - not_null
+      - name: current_flag
+        description: Boolean flag indicating current version
+        tests:
+          - not_null
