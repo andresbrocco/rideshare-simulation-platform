@@ -372,6 +372,8 @@ services:
       --conf spark.sql.warehouse.dir=s3a://rideshare-silver/warehouse/
       --hiveconf hive.server2.thrift.port=10000
       --hiveconf hive.server2.thrift.bind.host=0.0.0.0
+      --hiveconf hive.server2.authentication=NOSASL
+      --hiveconf hive.server2.transport.mode=binary
     environment:
       - PYTHONPATH=/opt
     volumes:
@@ -456,15 +458,16 @@ services:
       AIRFLOW__CORE__FERNET_KEY: ''
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-      AIRFLOW__WEBSERVER__AUTH_MANAGER: 'airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager'
-      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
+      AIRFLOW__CORE__AUTH_MANAGER: 'airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager'
       AIRFLOW__CORE__PARALLELISM: 8
       AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: 30
+      # Spark connection for SparkSubmitOperator
+      AIRFLOW_CONN_SPARK_DEFAULT: 'spark://spark-master:7077?deploy-mode=client'
       _AIRFLOW_DB_MIGRATE: 'true'
       _AIRFLOW_WWW_USER_CREATE: 'true'
       _AIRFLOW_WWW_USER_USERNAME: admin
       _AIRFLOW_WWW_USER_PASSWORD: admin
-      _PIP_ADDITIONAL_REQUIREMENTS: 'dbt-core dbt-spark==1.10.0 great-expectations==1.10.0'
+      _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-fab apache-airflow-providers-apache-spark pyhive thrift'
     volumes:
       - ../../services/airflow/dags:/opt/airflow/dags
       - ../../services/airflow/logs:/opt/airflow/logs
@@ -498,10 +501,12 @@ services:
       AIRFLOW__CORE__FERNET_KEY: ''
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-      AIRFLOW__WEBSERVER__AUTH_MANAGER: 'airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager'
+      AIRFLOW__CORE__AUTH_MANAGER: 'airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager'
       AIRFLOW__CORE__PARALLELISM: 8
       AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: 30
-      _PIP_ADDITIONAL_REQUIREMENTS: 'dbt-core dbt-spark==1.10.0 great-expectations==1.10.0'
+      # Spark connection for SparkSubmitOperator
+      AIRFLOW_CONN_SPARK_DEFAULT: 'spark://spark-master:7077?deploy-mode=client'
+      _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-fab apache-airflow-providers-apache-spark pyhive thrift'
     volumes:
       - ../../services/airflow/dags:/opt/airflow/dags
       - ../../services/airflow/logs:/opt/airflow/logs

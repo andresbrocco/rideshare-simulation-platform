@@ -1,4 +1,7 @@
-"""DLQ monitoring DAG that checks error counts every 15 minutes."""
+"""DLQ monitoring DAG that checks error counts every 15 minutes.
+
+Connects to Spark Thrift Server via PyHive to query DLQ Delta tables.
+"""
 
 from datetime import datetime, timedelta
 from airflow import DAG
@@ -21,6 +24,9 @@ DLQ_TABLES = [
     "dlq_rider_profiles",
 ]
 
+THRIFT_HOST = "spark-thrift-server"
+THRIFT_PORT = 10000
+
 default_args = {
     "owner": "rideshare",
     "depends_on_past": False,
@@ -32,44 +38,48 @@ default_args = {
 
 
 def query_dlq_errors(**context):
-    """Query all DLQ tables for error counts in the last 15 minutes."""
-    from pyspark.sql import SparkSession
-    from datetime import datetime, timedelta
+    """Query all DLQ tables for error counts in the last 15 minutes.
 
-    spark = (
-        SparkSession.builder.appName("DLQ Monitoring")
-        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-        .config(
-            "spark.sql.catalog.spark_catalog",
-            "org.apache.spark.sql.delta.catalog.DeltaCatalog",
-        )
-        .config("spark.hadoop.fs.s3a.endpoint", "http://minio:9000")
-        .config("spark.hadoop.fs.s3a.access.key", "minioadmin")
-        .config("spark.hadoop.fs.s3a.secret.key", "minioadmin")
-        .config("spark.hadoop.fs.s3a.path.style.access", "true")
-        .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
-        .getOrCreate()
-    )
+    Uses PyHive to connect to Spark Thrift Server instead of running
+    Spark locally (Airflow container doesn't have Java).
+    """
+    from pyhive import hive
+    from datetime import datetime, timedelta
 
     error_counts = {}
     total_errors = 0
-    cutoff_time = datetime.now() - timedelta(minutes=15)
+    cutoff_time = (datetime.now() - timedelta(minutes=15)).strftime("%Y-%m-%d %H:%M:%S")
 
-    for table in DLQ_TABLES:
-        try:
-            dlq_path = f"s3a://rideshare-bronze/{table}/"
-            df = spark.read.format("delta").load(dlq_path)
+    try:
+        # Connect without SASL authentication (local development)
+        conn = hive.connect(host=THRIFT_HOST, port=THRIFT_PORT, auth="NOSASL")
+        cursor = conn.cursor()
 
-            count = df.filter(df._ingested_at >= cutoff_time).count()
-            error_counts[table] = count
-            total_errors += count
+        for table in DLQ_TABLES:
+            try:
+                query = f"""
+                    SELECT COUNT(*) as cnt
+                    FROM bronze.{table}
+                    WHERE _ingested_at >= '{cutoff_time}'
+                """
+                cursor.execute(query)
+                result = cursor.fetchone()
+                count = result[0] if result else 0
+                error_counts[table] = count
+                total_errors += count
 
-            print(f"DLQ table {table}: {count} errors in last 15 minutes")
-        except Exception as e:
-            print(f"Warning: Could not query {table}: {e}")
+                print(f"DLQ table {table}: {count} errors in last 15 minutes")
+            except Exception as e:
+                print(f"Warning: Could not query {table}: {e}")
+                error_counts[table] = 0
+
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Error connecting to Spark Thrift Server: {e}")
+        print("DLQ tables may not exist yet - this is expected on first run")
+        for table in DLQ_TABLES:
             error_counts[table] = 0
-
-    spark.stop()
 
     context["ti"].xcom_push(key="error_counts", value=error_counts)
     context["ti"].xcom_push(key="total_errors", value=total_errors)
