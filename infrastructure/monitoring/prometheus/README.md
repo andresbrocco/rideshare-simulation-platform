@@ -1,53 +1,74 @@
 # Prometheus Configuration
 
-Prometheus monitoring configuration for the rideshare simulation platform.
+Prometheus v3.9.1 monitoring for the rideshare simulation platform.
 
 ## Purpose
 
 This directory contains Prometheus configuration files:
-- `prometheus.yml` - Main Prometheus configuration
-- `alerts/` - Alert rule files
+- `prometheus.yml` - Main Prometheus configuration with scrape targets
+- `rules/alerts.yml` - Alert rule definitions
 
-## Metrics to be Collected (Phase 5)
+## Configuration
 
-### Application Metrics
-- **Simulation service**: Trip counts, matching rates, agent counts, trip duration
-- **Stream processor**: Kafka consumer lag, message throughput, Redis publish rate
-- **Frontend**: HTTP request rates, response times
+**Version**: 3.9.1
+**Memory Limit**: 256MB
+**Retention**: 7 days
+**Port**: 9090
 
-### Infrastructure Metrics
-- **Kafka**: Broker metrics, topic metrics, consumer lag
-- **Redis**: Memory usage, command rate, keyspace stats
-- **Spark**: Job metrics, executor metrics, streaming query metrics
+### Scrape Targets
 
-### System Metrics
-- **Node exporter**: CPU, memory, disk, network
-- **cAdvisor**: Container CPU, memory, network, filesystem
+Prometheus is configured to scrape metrics from:
+- **prometheus** (localhost:9090) - Self-monitoring
+- **cadvisor** (cadvisor:8080) - Container metrics (CPU, memory, network)
+- **kafka** (kafka:9092) - Kafka broker metrics
+- **spark-master** (spark-master:8080) - Spark master UI metrics
+- **spark-worker** (spark-worker:8081) - Spark worker metrics
+- **airflow-webserver** (airflow-webserver:8080) - Airflow health metrics
 
 ## Usage
 
-### Local Development (Docker Compose)
-```bash
-cd infrastructure/docker
-docker compose --profile monitoring up -d prometheus
+### Start Prometheus
 
-# Access Prometheus UI
-open http://localhost:9090
+```bash
+docker compose -f infrastructure/docker/compose.yml --profile monitoring up -d prometheus
 ```
 
-### Kubernetes (Phase 6)
+### Access UI
+
+Open http://localhost:9090 in your browser.
+
+### Check Health
+
 ```bash
-kubectl apply -k infrastructure/kubernetes/overlays/local
-kubectl port-forward -n rideshare-local svc/prometheus 9090:9090
+curl http://localhost:9090/-/healthy
+```
+
+### Check Targets
+
+```bash
+curl http://localhost:9090/api/v1/targets
+```
+
+### Reload Configuration
+
+```bash
+curl -X POST http://localhost:9090/-/reload
 ```
 
 ## Alert Rules
 
-Alert rules will be added in `alerts/` directory:
-- `simulation_alerts.yml` - Alerts for simulation health
-- `infrastructure_alerts.yml` - Alerts for Kafka, Redis, Spark
-- `system_alerts.yml` - Alerts for system resources
+Basic alert rules are configured in `rules/alerts.yml`:
+- **PrometheusDown** - Prometheus instance unavailable
+- **PrometheusScrapeFailure** - Target scrape failures
+- **HighContainerMemoryUsage** - Container memory usage > 90%
+- **ContainerDown** - cAdvisor unavailable
+
+## Data Retention
+
+Metrics are retained for 7 days. TSDB data is stored in Docker volume `prometheus-data`.
 
 ## References
+
 - [Prometheus Documentation](https://prometheus.io/docs/)
 - [Prometheus Configuration](https://prometheus.io/docs/prometheus/latest/configuration/configuration/)
+- [Docker Setup](https://prometheus.io/docs/prometheus/latest/installation/#using-docker)

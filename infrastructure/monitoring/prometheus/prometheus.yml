@@ -1,6 +1,3 @@
-# Prometheus Configuration
-# This is a placeholder - actual configuration will be added in Phase 5
-
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
@@ -8,29 +5,48 @@ global:
     cluster: 'rideshare-simulation'
     environment: 'local'
 
-# Alertmanager configuration (optional)
-# alerting:
-#   alertmanagers:
-#     - static_configs:
-#         - targets:
-#           - alertmanager:9093
-
-# Rule files (alerts, recording rules)
 rule_files:
-  - 'alerts/*.yml'
+  - '/etc/prometheus/rules/*.yml'
 
-# Scrape configurations
 scrape_configs:
-  # Prometheus self-monitoring
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
 
-  # Additional scrape targets will be added in Phase 5:
-  # - Simulation service metrics (FastAPI)
-  # - Stream processor metrics
-  # - Kafka JMX metrics
-  # - Redis metrics
-  # - Spark metrics
-  # - Node exporter (system metrics)
-  # - cAdvisor (container metrics)
+  - job_name: 'cadvisor'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          service: 'cadvisor'
+
+  - job_name: 'kafka'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['kafka:9092']
+        labels:
+          service: 'kafka'
+
+  - job_name: 'spark-master'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['spark-master:8080']
+        labels:
+          service: 'spark-master'
+
+  - job_name: 'spark-worker'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['spark-worker:8081']
+        labels:
+          service: 'spark-worker'
+
+  - job_name: 'airflow-webserver'
+    scrape_interval: 30s
+    metrics_path: '/api/v2/monitor/health'
+    static_configs:
+      - targets: ['airflow-webserver:8080']
+        labels:
+          service: 'airflow-webserver'

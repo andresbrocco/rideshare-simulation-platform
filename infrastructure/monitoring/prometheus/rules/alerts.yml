@@ -1,0 +1,42 @@
+groups:
+  - name: prometheus_health
+    interval: 30s
+    rules:
+      - alert: PrometheusDown
+        expr: up{job="prometheus"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prometheus instance down"
+          description: "Prometheus has been down for more than 1 minute"
+
+      - alert: PrometheusScrapeFailure
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Target scrape failure"
+          description: "Prometheus failed to scrape {{ $labels.job }} for 5 minutes"
+
+  - name: container_health
+    interval: 30s
+    rules:
+      - alert: HighContainerMemoryUsage
+        expr: (container_memory_usage_bytes / container_spec_memory_limit_bytes) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High container memory usage"
+          description: "Container {{ $labels.name }} is using {{ $value | humanizePercentage }} of memory limit"
+
+      - alert: ContainerDown
+        expr: up{job="cadvisor"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "cAdvisor down"
+          description: "Container metrics collection is unavailable"

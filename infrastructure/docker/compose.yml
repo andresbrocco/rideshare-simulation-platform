@@ -528,6 +528,34 @@ services:
       start_period: 60s
     restart: unless-stopped
 
+  prometheus:
+    image: prom/prometheus:v3.9.1
+    container_name: rideshare-prometheus
+    mem_limit: 256m
+    profiles:
+      - monitoring
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ../../infrastructure/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../../infrastructure/monitoring/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus-data:/prometheus
+    networks:
+      - rideshare-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
   cadvisor:
     image: ghcr.io/google/cadvisor:v0.53.0
     container_name: rideshare-cadvisor
@@ -667,3 +695,4 @@ volumes:
   postgres-airflow-data:
   postgres-superset-data:
   redis-superset-data:
+  prometheus-data:
