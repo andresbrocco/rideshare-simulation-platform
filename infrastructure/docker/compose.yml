@@ -615,6 +615,7 @@ services:
       - rideshare-network
     command: >
       /bin/sh -c "
+      pip install pyhive thrift &&
       superset db upgrade &&
       superset fab create-admin --username admin --firstname Admin --lastname User --email admin@superset.com --password admin || true &&
       superset init &&
@@ -629,17 +630,19 @@ services:
       - bi
     ports:
       - "8088:8088"
+    user: root
     environment:
       SUPERSET_SECRET_KEY: dev-secret-key-change-in-production
-      PYTHONPATH: /app/pythonpath
+      PYTHONPATH: /tmp/python-packages:/app/pythonpath
     volumes:
       - ../../analytics/superset/superset_config.py:/app/pythonpath/superset_config.py:ro
+      - ../../analytics/superset/docker-entrypoint.sh:/app/docker-entrypoint.sh:ro
     depends_on:
       superset-init:
         condition: service_completed_successfully
     networks:
       - rideshare-network
-    command: ["/usr/bin/run-server.sh"]
+    command: ["/app/docker-entrypoint.sh"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
       interval: 10s
