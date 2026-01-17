@@ -59,6 +59,7 @@ models:
         description: Timestamp when trip was requested
         tests:
           - not_null
+          - no_future_dates
       - name: matched_at
         description: Timestamp when driver was matched
       - name: started_at
@@ -67,6 +68,7 @@ models:
         description: Timestamp when trip completed
         tests:
           - not_null
+          - no_future_dates
       - name: pickup_lat
         description: Pickup location latitude
         tests:
@@ -91,6 +93,10 @@ models:
         description: Surge pricing multiplier applied
         tests:
           - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1.0
+              max_value: 2.5
+              inclusive: true
       - name: distance_km
         description: Trip distance in kilometers
       - name: duration_minutes
@@ -98,6 +104,15 @@ models:
 
   - name: fact_payments
     description: Payment transactions with fare breakdown
+    tests:
+      - fee_percentage:
+          total_column: total_fare
+          fee_column: platform_fee
+          expected_percentage: 0.25
+      - fee_percentage:
+          total_column: total_fare
+          fee_column: driver_payout
+          expected_percentage: 0.75
     columns:
       - name: payment_key
         description: Surrogate key for payment fact
@@ -147,6 +162,7 @@ models:
         description: Timestamp of payment
         tests:
           - not_null
+          - no_future_dates
       - name: total_fare
         description: Total fare amount
         tests:
@@ -198,6 +214,7 @@ models:
         description: Timestamp of rating
         tests:
           - not_null
+          - no_future_dates
       - name: rater_type
         description: Type of rater (driver or rider)
         tests:
@@ -261,10 +278,12 @@ models:
         description: Timestamp when trip was requested
         tests:
           - not_null
+          - no_future_dates
       - name: cancelled_at
         description: Timestamp when trip was cancelled
         tests:
           - not_null
+          - no_future_dates
       - name: cancellation_stage
         description: Trip state when cancelled
         tests:
@@ -277,6 +296,10 @@ models:
         description: Surge multiplier at time of cancellation
         tests:
           - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1.0
+              max_value: 2.5
+              inclusive: true
 
   - name: fact_driver_activity
     description: Driver status durations for utilization analysis
@@ -310,10 +333,12 @@ models:
         description: Timestamp when status began
         tests:
           - not_null
+          - no_future_dates
       - name: status_end
         description: Timestamp when status ended
         tests:
           - not_null
+          - no_future_dates
       - name: duration_minutes
         description: Duration of status in minutes
         tests:

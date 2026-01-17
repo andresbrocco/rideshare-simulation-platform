@@ -39,6 +39,7 @@ models:
         description: Event timestamp in UTC
         tests:
           - not_null
+          - no_future_dates
 
       - name: trip_id
         description: Unique identifier for the trip
@@ -128,6 +129,7 @@ models:
         description: GPS ping timestamp in UTC
         tests:
           - not_null
+          - no_future_dates
 
       - name: latitude
         description: GPS latitude coordinate
@@ -192,6 +194,7 @@ models:
         description: Status change timestamp in UTC
         tests:
           - not_null
+          - no_future_dates
 
       - name: new_status
         description: New driver status
@@ -250,6 +253,7 @@ models:
         description: Surge update timestamp in UTC
         tests:
           - not_null
+          - no_future_dates
 
       - name: previous_multiplier
         description: Previous surge multiplier
@@ -310,6 +314,7 @@ models:
         description: Rating timestamp in UTC
         tests:
           - not_null
+          - no_future_dates
 
       - name: rater_type
         description: Type of entity providing the rating (driver or rider)
@@ -377,6 +382,7 @@ models:
         description: Payment timestamp in UTC
         tests:
           - not_null
+          - no_future_dates
 
       - name: rider_id
         description: Unique identifier for the rider
@@ -465,6 +471,7 @@ models:
         description: Profile event timestamp in UTC
         tests:
           - not_null
+          - no_future_dates
 
       - name: first_name
         description: Driver first name
@@ -561,6 +568,7 @@ models:
         description: Profile event timestamp in UTC
         tests:
           - not_null
+          - no_future_dates
 
       - name: first_name
         description: Rider first name

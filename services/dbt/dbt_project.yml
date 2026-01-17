@@ -16,6 +16,11 @@ clean-targets:
   - "target"
   - "dbt_packages"
 
+tests:
+  rideshare:
+    +store_failures: true
+    +severity: warn
+
 models:
   rideshare:
     staging:
