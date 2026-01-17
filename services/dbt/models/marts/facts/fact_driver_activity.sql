@@ -34,7 +34,7 @@ with_dimensions as (
         sp.status,
         sp.status_start,
         sp.status_end,
-        null as zone_key
+        cast(null as string) as zone_key
     from status_periods sp
     inner join {{ ref('dim_drivers') }} dr on sp.driver_id = dr.driver_id and sp.status_start >= dr.valid_from and sp.status_start < dr.valid_to
     inner join {{ ref('dim_time') }} t on cast(sp.status_start as date) = t.date_key

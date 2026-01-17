@@ -2,7 +2,11 @@ version: 2
 
 models:
   - name: dim_drivers
-    description: Driver dimension with SCD Type 2 tracking profile changes
+    description: |
+      Driver dimension with SCD Type 2 tracking profile changes.
+      Each driver profile change creates a new version with validity period.
+
+      {{ doc('scd_type_2_logic') }}
     tests:
       - scd_validity:
           driver_id_column: driver_id
@@ -161,7 +165,11 @@ models:
           - not_null
 
   - name: dim_payment_methods
-    description: Payment methods dimension with SCD Type 2
+    description: |
+      Payment methods dimension with SCD Type 2.
+      Tracks changes to rider payment methods over time.
+
+      {{ doc('scd_type_2_logic') }}
     tests:
       - scd_validity:
           driver_id_column: payment_method_id

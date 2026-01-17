@@ -3,7 +3,8 @@
         materialized='incremental',
         unique_key='event_id',
         incremental_strategy='merge',
-        file_format='delta'
+        file_format='delta',
+        on_schema_change='sync_all_columns'
     )
 }}
 

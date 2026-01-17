@@ -103,7 +103,7 @@ final as (
         dropoff_lon,
         fare,
         surge_multiplier,
-        null as distance_km,
+        cast(null as double) as distance_km,
         case
             when started_at is not null and completed_at is not null
             then (unix_timestamp(completed_at) - unix_timestamp(started_at)) / 60.0

@@ -6,6 +6,8 @@ models:
       Staging model for trip events from Bronze layer.
       Parses trip_state from event_type, deduplicates by event_id,
       validates state transitions, and standardizes timestamps to UTC.
+
+      {{ doc('incremental_strategy') }}
     columns:
       - name: event_id
         description: Unique identifier for the event

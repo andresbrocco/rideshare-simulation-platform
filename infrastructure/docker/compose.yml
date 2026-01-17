@@ -326,8 +326,10 @@ services:
     ports:
       - "8081:8081"
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker -m 1536m -c 2 --webui-port 8081 spark://spark-master:7077
+    environment:
+      - PYTHONPATH=/opt
     volumes:
-      - ../../services/spark-streaming:/opt/spark-scripts:ro
+      - ../../services/spark-streaming:/opt/spark_streaming:ro
     depends_on:
       spark-master:
         condition: service_healthy
@@ -367,10 +369,13 @@ services:
       --conf spark.hadoop.fs.s3a.connection.ssl.enabled=false
       --conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
       --conf spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
+      --conf spark.sql.warehouse.dir=s3a://rideshare-silver/warehouse/
       --hiveconf hive.server2.thrift.port=10000
       --hiveconf hive.server2.thrift.bind.host=0.0.0.0
+    environment:
+      - PYTHONPATH=/opt
     volumes:
-      - ../../services/spark-streaming:/opt/spark-scripts:ro
+      - ../../services/spark-streaming:/opt/spark_streaming:ro
     depends_on:
       spark-master:
         condition: service_healthy

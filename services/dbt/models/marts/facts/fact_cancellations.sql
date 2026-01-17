@@ -82,7 +82,7 @@ final as (
         requested_at,
         cancelled_at,
         cancellation_stage,
-        null as cancellation_reason,
+        cast(null as string) as cancellation_reason,
         surge_multiplier
     from with_dimensions
 )
