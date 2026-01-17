@@ -554,6 +554,100 @@ services:
       timeout: 5s
       retries: 5
 
+  postgres-superset:
+    image: postgres:16
+    container_name: rideshare-postgres-superset
+    mem_limit: 256m
+    profiles:
+      - bi
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: superset
+      POSTGRES_PASSWORD: superset
+      POSTGRES_DB: superset
+    volumes:
+      - postgres-superset-data:/var/lib/postgresql/data
+    networks:
+      - rideshare-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U superset"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis-superset:
+    image: redis:8.0-alpine
+    container_name: rideshare-redis-superset
+    mem_limit: 128m
+    profiles:
+      - bi
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-superset-data:/data
+    networks:
+      - rideshare-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  superset-init:
+    image: apache/superset:6.0.0-dev
+    container_name: rideshare-superset-init
+    profiles:
+      - bi
+    environment:
+      SUPERSET_SECRET_KEY: dev-secret-key-change-in-production
+      PYTHONPATH: /app/pythonpath
+    volumes:
+      - ../../analytics/superset/superset_config.py:/app/pythonpath/superset_config.py:ro
+    depends_on:
+      postgres-superset:
+        condition: service_healthy
+      redis-superset:
+        condition: service_healthy
+    networks:
+      - rideshare-network
+    command: >
+      /bin/sh -c "
+      superset db upgrade &&
+      superset fab create-admin --username admin --firstname Admin --lastname User --email admin@superset.com --password admin || true &&
+      superset init &&
+      echo 'Superset initialization complete'
+      "
+
+  superset:
+    image: apache/superset:6.0.0-dev
+    container_name: rideshare-superset
+    mem_limit: 768m
+    profiles:
+      - bi
+    ports:
+      - "8088:8088"
+    environment:
+      SUPERSET_SECRET_KEY: dev-secret-key-change-in-production
+      PYTHONPATH: /app/pythonpath
+    volumes:
+      - ../../analytics/superset/superset_config.py:/app/pythonpath/superset_config.py:ro
+    depends_on:
+      superset-init:
+        condition: service_completed_successfully
+    networks:
+      - rideshare-network
+    command: ["/usr/bin/run-server.sh"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
 networks:
   rideshare-network:
     driver: bridge
@@ -568,3 +662,5 @@ volumes:
   minio-data:
   localstack-data:
   postgres-airflow-data:
+  postgres-superset-data:
+  redis-superset-data:
