@@ -2,72 +2,137 @@
 
 This directory contains exported Superset dashboards for version control and deployment automation.
 
+## Dashboard Overview
+
+All dashboards use virtual datasets with SQL queries and are configured with 5-minute auto-refresh intervals.
+
+| Dashboard | Slug | Charts | Purpose |
+|-----------|------|--------|---------|
+| Operations Dashboard | `operations` | 9 | Real-time platform monitoring |
+| Driver Performance Dashboard | `driver-performance` | 6 | Driver metrics and analytics |
+| Demand Analysis Dashboard | `demand-analysis` | 6 | Zone demand and surge patterns |
+| Revenue Analytics Dashboard | `revenue-analytics` | 9 | Revenue metrics and KPIs |
+
 ## Operations Dashboard
 
-The Operations Dashboard (`operations-dashboard.json`) provides real-time monitoring of the rideshare simulation platform with the following components:
+**File**: `operations.json`
+**URL**: http://localhost:8088/superset/dashboard/operations/
 
-### Dashboard Components
+### Charts (9 total)
 
-#### Trip Metrics (Top Row)
-- **Active Trips**: Current count of trips in progress
-- **Completed Today**: Total trips completed today with trend indicator
-- **Average Wait Time Today**: Average time between request and pickup
-- **Total Revenue Today**: Sum of all fares collected today
+1. **Active Trips** - Current trips in progress
+2. **Completed Today** - Total completed trips with trend
+3. **Average Wait Time Today** - Average wait time metric
+4. **Total Revenue Today** - Daily revenue sum
+5. **DLQ Errors Last Hour** - Time series error volume
+6. **Total DLQ Errors** - Pie chart by error type
+7. **Hourly Trip Volume** - 24-hour trip throughput
+8. **Pipeline Lag** - Event processing delay
+9. **Trips by Zone Today** - Geographic distribution map
 
-#### DLQ Error Monitoring (Second Row)
-- **DLQ Errors Last Hour**: Time series bar chart showing error volume over time
-- **Total DLQ Errors**: Pie chart breaking down errors by type
+## Driver Performance Dashboard
 
-#### Pipeline Health (Third Row)
-- **Hourly Trip Volume**: Line chart showing trip throughput over last 24 hours
-- **Pipeline Lag**: Current delay between event generation and processing
+**File**: `driver-performance.json`
+**URL**: http://localhost:8088/superset/dashboard/driver-performance/
 
-#### Zone Visualization (Bottom Row)
-- **Trips by Zone Today**: Deck.gl polygon map showing geographic distribution
+### Charts (6 total)
 
-### Configuration
+1. **Top 10 Drivers by Trips** - Bar chart of top performers
+2. **Driver Ratings Distribution** - Histogram of rating distribution
+3. **Driver Payouts Over Time** - Time series line chart
+4. **Driver Utilization Heatmap** - Utilization by driver and date
+5. **Trips per Driver** - Scatter plot of trips vs revenue
+6. **Driver Status Summary** - Pie chart of driver status
 
-- **Refresh Interval**: 300 seconds (5 minutes)
-- **Database**: Rideshare Gold Layer (Spark Thrift Server)
-- **Slug**: `operations`
-- **URL**: http://localhost:8088/superset/dashboard/operations/
+## Demand Analysis Dashboard
 
-### Deployment
+**File**: `demand-analysis.json`
+**URL**: http://localhost:8088/superset/dashboard/demand-analysis/
 
-The dashboard is created programmatically via the Superset API using the scripts in this directory:
+### Charts (6 total)
 
-1. `setup_database_connection.py` - Creates database connection to Gold layer
-2. `create_operations_dashboard_v2.py` - Creates dashboard with all charts
-3. `associate_charts.py` - Associates charts with dashboard
+1. **Zone Demand Heatmap** - Demand by zone and date
+2. **Surge Multiplier Trends** - Time series of surge pricing
+3. **Average Wait Time by Zone** - Bar chart by zone
+4. **Demand by Hour of Day** - Area chart showing hourly patterns
+5. **Top Demand Zones** - Table of highest demand zones
+6. **Surge Events Timeline** - Time series bar chart of surge events
 
-To recreate the dashboard:
+## Revenue Analytics Dashboard
+
+**File**: `revenue-analytics.json`
+**URL**: http://localhost:8088/superset/dashboard/revenue-analytics/
+
+### Charts (9 total)
+
+**KPIs (Top Row)**
+1. **Daily Revenue** - Big number with trend indicator
+2. **Total Fees** - Big number KPI
+3. **Trip Count** - Big number KPI
+
+**Analytics Charts**
+4. **Revenue by Zone** - Bar chart showing zone breakdown
+5. **Revenue Over Time** - Time series line chart
+6. **Average Fare by Distance** - Scatter plot analysis
+7. **Payment Method Distribution** - Pie chart
+8. **Revenue by Hour** - Heatmap by hour and date
+9. **Top Revenue Zones** - Table of highest revenue zones
+
+## Creating Dashboards
+
+All dashboards are created programmatically using Python scripts:
 
 ```bash
 cd analytics/superset/dashboards
+
+# Prerequisites
 python3 setup_database_connection.py
-python3 create_operations_dashboard_v2.py
-python3 associate_charts.py
+
+# Create individual dashboards
+./venv/bin/python3 create_operations_dashboard_v2.py
+./venv/bin/python3 create_driver_performance_dashboard.py
+./venv/bin/python3 create_demand_analysis_dashboard.py
+./venv/bin/python3 create_revenue_analytics_dashboard.py
 ```
 
-### Testing
+## Exporting Dashboards
 
-Tests are located in `analytics/superset/tests/test_operations_dashboard.py` and verify:
+To export all dashboards to JSON for version control:
 
-1. Dashboard exists and is accessible via API
-2. All 9 required charts are present
-3. Auto-refresh interval is configured
-4. Dashboard URL returns valid data
+```bash
+bash analytics/superset/scripts/export-dashboards.sh
+```
 
-Run tests with:
+This exports all 4 dashboards to JSON files in this directory.
+
+## Testing
+
+Comprehensive test suite covers all dashboards:
 
 ```bash
 cd analytics/superset/tests
-./venv/bin/pytest test_operations_dashboard.py -v
+./venv/bin/pytest test_all_dashboards.py -v
 ```
 
-### Notes
+Tests verify:
+- All 4 dashboards exist with correct slugs
+- Each dashboard has expected chart count
+- Exported JSON files are valid
+- Dashboard filters work correctly
+- All charts query successfully
+- Dashboards are accessible via API
 
-- Dashboard uses virtual datasets with SQL queries
-- For development, uses PostgreSQL connection instead of Spark Thrift Server
-- Production deployment should update connection to use Spark Thrift Server with actual Gold layer tables
-- Dashboard export includes all chart definitions and layout configuration
+## Configuration
+
+- **Database**: Rideshare Gold Layer (PostgreSQL in dev, Spark Thrift Server in prod)
+- **Refresh Interval**: 300 seconds (5 minutes)
+- **Datasets**: Virtual datasets using SQL queries
+- **Development**: Uses mock data queries for testing
+- **Production**: Update SQL queries to reference actual Gold layer tables
+
+## Notes
+
+- Dashboard exports are ZIP files containing full dashboard configuration
+- JSON exports include all chart definitions and layout
+- Virtual datasets enable dashboard creation without requiring physical tables
+- Production deployment should update SQL queries to use actual Spark tables
