@@ -1,0 +1,216 @@
+version: 2
+
+models:
+  - name: agg_hourly_zone_demand
+    description: Hourly demand and supply metrics by zone for operational insights
+    columns:
+      - name: zone_key
+        description: Foreign key to dim_zones
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_zones')
+              field: zone_key
+      - name: hour_timestamp
+        description: Start of hour period
+        tests:
+          - not_null
+      - name: requested_trips
+        description: Number of trip requests in this hour
+        tests:
+          - not_null
+      - name: completed_trips
+        description: Number of completed trips in this hour
+        tests:
+          - not_null
+      - name: avg_surge_multiplier
+        description: Average surge multiplier during this hour
+        tests:
+          - not_null
+      - name: avg_wait_time_minutes
+        description: Average wait time from request to pickup in minutes
+      - name: completion_rate
+        description: Ratio of completed trips to requested trips
+        tests:
+          - not_null
+
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "completed_trips <= requested_trips"
+          name: test_agg_hourly_zone_demand_completed_lte_requested
+
+      - dbt_utils.expression_is_true:
+          expression: "completion_rate between 0.0 and 1.0"
+          name: test_agg_hourly_zone_demand_completion_rate_range
+
+      - dbt_utils.expression_is_true:
+          expression: "avg_surge_multiplier between 1.0 and 2.5"
+          name: test_agg_hourly_zone_demand_surge_range
+
+  - name: agg_daily_driver_performance
+    description: Daily driver KPIs including utilization and earnings
+    columns:
+      - name: driver_key
+        description: Foreign key to dim_drivers
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_drivers')
+              field: driver_key
+      - name: time_key
+        description: Foreign key to dim_time for this day
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_time')
+              field: time_key
+      - name: trips_completed
+        description: Number of trips completed
+        tests:
+          - not_null
+      - name: total_payout
+        description: Total driver earnings for the day
+        tests:
+          - not_null
+      - name: avg_rating
+        description: Average rating received from riders
+      - name: online_minutes
+        description: Total minutes driver was online
+        tests:
+          - not_null
+      - name: en_route_minutes
+        description: Total minutes driver was en route to pickup
+        tests:
+          - not_null
+      - name: on_trip_minutes
+        description: Total minutes driver was on a trip
+        tests:
+          - not_null
+      - name: utilization_pct
+        description: Percentage of online time spent en route or on trip
+        tests:
+          - not_null
+
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "utilization_pct between 0.0 and 100.0"
+          name: test_agg_daily_driver_performance_utilization_range
+
+      - dbt_utils.expression_is_true:
+          expression: "en_route_minutes + on_trip_minutes <= online_minutes"
+          name: test_agg_daily_driver_performance_time_consistency
+
+      - dbt_utils.expression_is_true:
+          expression: "avg_rating is null or avg_rating between 1.0 and 5.0"
+          name: test_agg_daily_driver_performance_rating_range
+
+  - name: agg_daily_platform_revenue
+    description: Daily revenue and fees by zone
+    columns:
+      - name: zone_key
+        description: Foreign key to dim_zones
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_zones')
+              field: zone_key
+      - name: time_key
+        description: Foreign key to dim_time for this day
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_time')
+              field: time_key
+      - name: total_trips
+        description: Total trips completed in this zone
+        tests:
+          - not_null
+      - name: total_revenue
+        description: Total fare revenue
+        tests:
+          - not_null
+      - name: total_platform_fees
+        description: Total platform fees collected (25% of revenue)
+        tests:
+          - not_null
+      - name: total_driver_payouts
+        description: Total driver payouts (75% of revenue)
+        tests:
+          - not_null
+      - name: avg_fare
+        description: Average fare per trip
+        tests:
+          - not_null
+
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "abs(total_platform_fees + total_driver_payouts - total_revenue) < 0.01"
+          name: test_agg_daily_platform_revenue_splits_sum_to_total
+
+      - dbt_utils.expression_is_true:
+          expression: "abs(total_platform_fees - (total_revenue * 0.25)) < 1.0"
+          name: test_agg_daily_platform_revenue_platform_fee_ratio
+
+      - dbt_utils.expression_is_true:
+          expression: "total_trips > 0"
+          name: test_agg_daily_platform_revenue_has_trips
+
+  - name: agg_surge_history
+    description: Surge pricing trends over time by zone
+    columns:
+      - name: zone_key
+        description: Foreign key to dim_zones
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_zones')
+              field: zone_key
+      - name: hour_timestamp
+        description: Start of hour period
+        tests:
+          - not_null
+      - name: avg_surge_multiplier
+        description: Average surge multiplier during this hour
+        tests:
+          - not_null
+      - name: max_surge_multiplier
+        description: Maximum surge multiplier during this hour
+        tests:
+          - not_null
+      - name: min_surge_multiplier
+        description: Minimum surge multiplier during this hour
+        tests:
+          - not_null
+      - name: avg_available_drivers
+        description: Average number of available drivers
+        tests:
+          - not_null
+      - name: avg_pending_requests
+        description: Average number of pending requests
+        tests:
+          - not_null
+      - name: surge_update_count
+        description: Number of surge updates during this hour
+        tests:
+          - not_null
+
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "avg_surge_multiplier between 1.0 and 2.5"
+          name: test_agg_surge_history_avg_surge_range
+
+      - dbt_utils.expression_is_true:
+          expression: "max_surge_multiplier >= avg_surge_multiplier"
+          name: test_agg_surge_history_max_gte_avg
+
+      - dbt_utils.expression_is_true:
+          expression: "min_surge_multiplier <= avg_surge_multiplier"
+          name: test_agg_surge_history_min_lte_avg
+
+      - dbt_utils.expression_is_true:
+          expression: "max_surge_multiplier between 1.0 and 2.5"
+          name: test_agg_surge_history_max_surge_range
+
+      - dbt_utils.expression_is_true:
+          expression: "min_surge_multiplier between 1.0 and 2.5"
+          name: test_agg_surge_history_min_surge_range
