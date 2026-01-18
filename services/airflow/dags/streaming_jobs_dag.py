@@ -1,11 +1,16 @@
-"""Streaming Jobs Lifecycle DAG.
+"""Streaming Jobs Lifecycle DAG - DEPRECATED.
 
-Manages Spark Structured Streaming jobs for Bronze layer ingestion.
-Monitors health and automatically restarts failed jobs.
+⚠️  This DAG is DEPRECATED as of 2026-01-18.
+
+Streaming jobs are now managed as dedicated docker-compose services with
+automatic restart capabilities. This DAG is kept for reference only.
+
+See: infrastructure/docker/compose.yml (spark-streaming-* services)
 """
 
 import os
 from datetime import datetime, timedelta
+
 from airflow import DAG
 from airflow.providers.standard.operators.python import PythonOperator
 from airflow.providers.standard.sensors.python import PythonSensor
@@ -64,19 +69,73 @@ default_args = {
 }
 
 
-def check_job_health(job_name: str) -> bool:
-    """Check if a streaming job is running and healthy."""
-    return True
+def check_job_running(job_name: str) -> bool:
+    """Check if a streaming job is already running in Spark cluster."""
+    import requests
+
+    try:
+        # Check Spark Master for running applications
+        response = requests.get("http://spark-master:8080/json/", timeout=5)
+        data = response.json()
+
+        # Look for application with matching name
+        for app in data.get("activeapps", []):
+            if job_name.lower() in app.get("name", "").lower():
+                return True
+
+        return False
+    except Exception as e:
+        print(f"Error checking job status: {e}")
+        return False
+
+
+def submit_streaming_job_if_not_running(job_name: str, job_file: str) -> str:
+    """Submit streaming job only if it's not already running (idempotent)."""
+    import subprocess
+
+    # Check if job is already running
+    if check_job_running(job_name):
+        return f"Job {job_name} is already running - skipping submission"
+
+    # Build spark-submit command
+    cmd = [
+        "docker",
+        "exec",
+        "-d",
+        "rideshare-spark-master",
+        "bash",
+        "-c",
+        f"""nohup /opt/spark/bin/spark-submit \
+  --master spark://spark-master:7077 \
+  --deploy-mode client \
+  --name "streaming_{job_name}" \
+  --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension \
+  --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog \
+  --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000 \
+  --conf spark.hadoop.fs.s3a.access.key=minioadmin \
+  --conf spark.hadoop.fs.s3a.secret.key=minioadmin \
+  --conf spark.hadoop.fs.s3a.path.style.access=true \
+  /opt/spark_streaming/jobs/{job_file} > /tmp/{job_name}_job.log 2>&1 &""",
+    ]
+
+    # Submit job
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    if result.returncode == 0:
+        return f"Submitted job {job_name} successfully"
+    else:
+        raise Exception(f"Failed to submit job {job_name}: {result.stderr}")
 
 
 with DAG(
     dag_id="streaming_jobs_lifecycle",
     default_args=default_args,
     description="Manages Spark Structured Streaming jobs for Bronze layer ingestion",
-    schedule=timedelta(minutes=5),
+    schedule=None,  # CHANGED from timedelta(minutes=5) - DEPRECATED
     start_date=datetime(2025, 1, 1),
     catchup=False,
     max_active_runs=1,
+    is_paused_upon_creation=False,
     tags=["streaming", "monitoring"],
     params={},
 ) as dag:
@@ -85,22 +144,12 @@ with DAG(
     health_tasks = []
 
     for job in STREAMING_JOBS:
-        # Create submit task based on environment
+        # Create idempotent submit task
         if IS_LOCAL:
-            from airflow.providers.apache.spark.operators.spark_submit import (
-                SparkSubmitOperator,
-            )
-
-            submit_task = SparkSubmitOperator(
+            submit_task = PythonOperator(
                 task_id=f"submit_{job['name']}",
-                application=f"/opt/spark-scripts/jobs/{job['file']}",
-                conn_id="spark_default",
-                conf={
-                    "spark.sql.extensions": "io.delta.sql.DeltaSparkSessionExtension",
-                    "spark.sql.catalog.spark_catalog": "org.apache.spark.sql.delta.catalog.DeltaCatalog",
-                },
-                name=f"streaming_{job['name']}",
-                verbose=True,
+                python_callable=submit_streaming_job_if_not_running,
+                op_kwargs={"job_name": job["name"], "job_file": job["file"]},
             )
         else:
             submit_task = DatabricksSubmitRunOperator(
@@ -120,7 +169,7 @@ with DAG(
         # Health check sensor
         health_task = PythonSensor(
             task_id=f"health_check_{job['name']}",
-            python_callable=check_job_health,
+            python_callable=check_job_running,
             op_kwargs={"job_name": job["name"]},
             timeout=300,
             poke_interval=60,

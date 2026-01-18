@@ -129,6 +129,7 @@ with DAG(
     schedule=timedelta(minutes=15),
     start_date=datetime(2026, 1, 1),
     catchup=False,
+    is_paused_upon_creation=False,
     tags=["monitoring", "dlq"],
 ) as dag:
 

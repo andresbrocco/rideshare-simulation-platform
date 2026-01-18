@@ -21,6 +21,7 @@ with DAG(
     schedule="@hourly",
     start_date=datetime(2026, 1, 1),
     catchup=False,
+    is_paused_upon_creation=False,
     tags=["dbt", "silver", "transformation"],
 ) as silver_dag:
 
@@ -57,6 +58,7 @@ with DAG(
     schedule="@daily",
     start_date=datetime(2026, 1, 1),
     catchup=False,
+    is_paused_upon_creation=False,
     tags=["dbt", "gold", "transformation"],
 ) as gold_dag:
 

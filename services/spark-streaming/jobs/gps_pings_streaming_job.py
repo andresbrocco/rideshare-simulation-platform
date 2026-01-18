@@ -50,7 +50,7 @@ if __name__ == "__main__":
     spark = SparkSession.builder.appName("GpsPingsStreamingJob").getOrCreate()
 
     kafka_config = KafkaConfig(
-        bootstrap_servers=os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092"),
+        bootstrap_servers=os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "kafka:29092"),
         schema_registry_url=os.environ.get(
             "SCHEMA_REGISTRY_URL", "http://schema-registry:8081"
         ),
