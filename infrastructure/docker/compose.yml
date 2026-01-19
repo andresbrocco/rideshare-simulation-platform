@@ -68,7 +68,7 @@ services:
   schema-registry:
     image: confluentinc/cp-schema-registry:7.5.0
     container_name: rideshare-schema-registry
-    mem_limit: 768m
+    mem_limit: 384m
     profiles:
       - core
     ports:
@@ -91,7 +91,7 @@ services:
   redis:
     image: redis:8.0-alpine
     container_name: rideshare-redis
-    mem_limit: 768m
+    mem_limit: 128m
     profiles:
       - core
     ports:
@@ -113,7 +113,7 @@ services:
       args:
         OSRM_MAP_SOURCE: ${OSRM_MAP_SOURCE:-local}
     container_name: rideshare-osrm
-    mem_limit: 3g
+    mem_limit: 1g
     profiles:
       - core
     platform: linux/amd64
@@ -138,7 +138,7 @@ services:
       dockerfile: Dockerfile
       target: development
     container_name: rideshare-simulation
-    mem_limit: 4g
+    mem_limit: 1g
     profiles:
       - core
     ports:
@@ -186,7 +186,7 @@ services:
       context: ../../services/stream-processor
       dockerfile: Dockerfile
     container_name: rideshare-stream-processor
-    mem_limit: 768m
+    mem_limit: 256m
     profiles:
       - core
     ports:
@@ -224,7 +224,7 @@ services:
       dockerfile: Dockerfile
       target: development
     container_name: rideshare-frontend
-    mem_limit: 768m
+    mem_limit: 384m
     profiles:
       - core
     ports:
@@ -299,7 +299,7 @@ services:
       context: ../..
       dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
     container_name: rideshare-spark-master
-    mem_limit: 768m
+    mem_limit: 512m
     profiles:
       - data-platform
     ports:
@@ -324,12 +324,12 @@ services:
       context: ../..
       dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
     container_name: rideshare-spark-worker
-    mem_limit: 6g
+    mem_limit: 3g
     profiles:
       - data-platform
     ports:
       - "8081:8081"
-    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker -m 5g -c 10 --webui-port 8081 spark://spark-master:7077
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker -m 2g -c 4 --webui-port 8081 spark://spark-master:7077
     environment:
       - PYTHONPATH=/opt
     volumes:
@@ -353,7 +353,7 @@ services:
       context: ../..
       dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
     container_name: rideshare-spark-thrift-server
-    mem_limit: 3g
+    mem_limit: 1536m
     profiles:
       - data-platform
     ports:
@@ -405,7 +405,7 @@ services:
       context: ../..
       dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
     container_name: rideshare-spark-streaming-trips
-    mem_limit: 1024m
+    mem_limit: 768m
     profiles:
       - data-platform
     environment:
@@ -448,7 +448,7 @@ services:
       context: ../..
       dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
     container_name: rideshare-spark-streaming-gps-pings
-    mem_limit: 1024m
+    mem_limit: 768m
     profiles:
       - data-platform
     environment:
@@ -491,7 +491,7 @@ services:
       context: ../..
       dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
     container_name: rideshare-spark-streaming-driver-status
-    mem_limit: 1024m
+    mem_limit: 768m
     profiles:
       - data-platform
     environment:
@@ -534,7 +534,7 @@ services:
       context: ../..
       dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
     container_name: rideshare-spark-streaming-surge-updates
-    mem_limit: 1024m
+    mem_limit: 768m
     profiles:
       - data-platform
     environment:
@@ -577,7 +577,7 @@ services:
       context: ../..
       dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
     container_name: rideshare-spark-streaming-ratings
-    mem_limit: 1024m
+    mem_limit: 768m
     profiles:
       - data-platform
     environment:
@@ -620,7 +620,7 @@ services:
       context: ../..
       dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
     container_name: rideshare-spark-streaming-payments
-    mem_limit: 1024m
+    mem_limit: 768m
     profiles:
       - data-platform
     environment:
@@ -663,7 +663,7 @@ services:
       context: ../..
       dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
     container_name: rideshare-spark-streaming-driver-profiles
-    mem_limit: 1024m
+    mem_limit: 768m
     profiles:
       - data-platform
     environment:
@@ -706,7 +706,7 @@ services:
       context: ../..
       dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
     container_name: rideshare-spark-streaming-rider-profiles
-    mem_limit: 1024m
+    mem_limit: 768m
     profiles:
       - data-platform
     environment:
@@ -764,7 +764,7 @@ services:
   localstack:
     image: localstack/localstack:4.12.0
     container_name: rideshare-localstack
-    mem_limit: 768m
+    mem_limit: 384m
     profiles:
       - data-platform
     ports:
@@ -899,7 +899,7 @@ services:
   prometheus:
     image: prom/prometheus:v3.9.1
     container_name: rideshare-prometheus
-    mem_limit: 256m
+    mem_limit: 512m
     profiles:
       - monitoring
     ports:
