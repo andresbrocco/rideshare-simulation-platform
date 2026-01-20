@@ -241,7 +241,7 @@ services:
     networks:
       - rideshare-network
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5173"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5173', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -437,6 +437,12 @@ services:
       --conf spark.hadoop.fs.s3a.path.style.access=true
       /opt/spark_streaming/jobs/trips_streaming_job.py
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'spark-submit' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   spark-streaming-gps-pings:
     build:
@@ -474,6 +480,12 @@ services:
       --conf spark.hadoop.fs.s3a.path.style.access=true
       /opt/spark_streaming/jobs/gps_pings_streaming_job.py
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'spark-submit' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   spark-streaming-driver-status:
     build:
@@ -511,6 +523,12 @@ services:
       --conf spark.hadoop.fs.s3a.path.style.access=true
       /opt/spark_streaming/jobs/driver_status_streaming_job.py
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'spark-submit' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   spark-streaming-surge-updates:
     build:
@@ -548,6 +566,12 @@ services:
       --conf spark.hadoop.fs.s3a.path.style.access=true
       /opt/spark_streaming/jobs/surge_updates_streaming_job.py
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'spark-submit' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   spark-streaming-ratings:
     build:
@@ -585,6 +609,12 @@ services:
       --conf spark.hadoop.fs.s3a.path.style.access=true
       /opt/spark_streaming/jobs/ratings_streaming_job.py
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'spark-submit' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   spark-streaming-payments:
     build:
@@ -622,6 +652,12 @@ services:
       --conf spark.hadoop.fs.s3a.path.style.access=true
       /opt/spark_streaming/jobs/payments_streaming_job.py
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'spark-submit' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   spark-streaming-driver-profiles:
     build:
@@ -659,6 +695,12 @@ services:
       --conf spark.hadoop.fs.s3a.path.style.access=true
       /opt/spark_streaming/jobs/driver_profiles_streaming_job.py
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'spark-submit' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   spark-streaming-rider-profiles:
     build:
@@ -696,6 +738,12 @@ services:
       --conf spark.hadoop.fs.s3a.path.style.access=true
       /opt/spark_streaming/jobs/rider_profiles_streaming_job.py
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'spark-submit' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   bronze-init:
     image: apache/airflow:3.1.5
