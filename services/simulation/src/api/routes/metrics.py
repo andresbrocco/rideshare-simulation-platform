@@ -82,12 +82,8 @@ def get_overview_metrics(engine: EngineDep, driver_registry: DriverRegistryDep):
     """Returns overview metrics with total counts."""
 
     def compute():
-        total_drivers = (
-            len(engine._active_drivers) if hasattr(engine, "_active_drivers") else 0
-        )
-        total_riders = (
-            len(engine._active_riders) if hasattr(engine, "_active_riders") else 0
-        )
+        total_drivers = len(engine._active_drivers) if hasattr(engine, "_active_drivers") else 0
+        total_riders = len(engine._active_riders) if hasattr(engine, "_active_riders") else 0
 
         online_drivers = 0
         if driver_registry:
@@ -96,9 +92,7 @@ def get_overview_metrics(engine: EngineDep, driver_registry: DriverRegistryDep):
         waiting_riders = sum(
             1
             for rider in (
-                engine._active_riders.values()
-                if hasattr(engine, "_active_riders")
-                else []
+                engine._active_riders.values() if hasattr(engine, "_active_riders") else []
             )
             if hasattr(rider, "status") and rider.status == "waiting"
         )
@@ -106,9 +100,7 @@ def get_overview_metrics(engine: EngineDep, driver_registry: DriverRegistryDep):
         in_transit_riders = sum(
             1
             for rider in (
-                engine._active_riders.values()
-                if hasattr(engine, "_active_riders")
-                else []
+                engine._active_riders.values() if hasattr(engine, "_active_riders") else []
             )
             if hasattr(rider, "status") and rider.status == "in_trip"
         )
@@ -149,9 +141,7 @@ def get_zone_metrics(engine: EngineDep, driver_registry: DriverRegistryDep):
         for zone_id in zone_ids:
             online_drivers = 0
             if driver_registry:
-                online_drivers = driver_registry.get_zone_driver_count(
-                    zone_id, "online"
-                )
+                online_drivers = driver_registry.get_zone_driver_count(zone_id, "online")
 
             waiting_riders = 0
             if hasattr(engine, "_active_riders"):
@@ -354,12 +344,8 @@ def _fetch_stream_processor_metrics() -> StreamProcessorMetrics | None:
             if response.status_code == 200:
                 data = response.json()
                 return StreamProcessorMetrics(
-                    messages_consumed_per_sec=data.get(
-                        "messages_consumed_per_sec", 0.0
-                    ),
-                    messages_published_per_sec=data.get(
-                        "messages_published_per_sec", 0.0
-                    ),
+                    messages_consumed_per_sec=data.get("messages_consumed_per_sec", 0.0),
+                    messages_published_per_sec=data.get("messages_published_per_sec", 0.0),
                     gps_aggregation_ratio=data.get("gps_aggregation_ratio", 0.0),
                     redis_publish_latency=StreamProcessorLatency(
                         avg_ms=data.get("redis_publish_latency", {}).get("avg_ms", 0.0),
@@ -452,9 +438,7 @@ def get_performance_metrics(engine: EngineDep):
             pending_offers=pending_offers,
             simpy_events=simpy_events,
         ),
-        memory=MemoryMetrics(
-            rss_mb=snapshot.memory_rss_mb, percent=snapshot.memory_percent
-        ),
+        memory=MemoryMetrics(rss_mb=snapshot.memory_rss_mb, percent=snapshot.memory_percent),
         resources=resources,
         stream_processor=stream_processor_metrics,
         timestamp=snapshot.timestamp,
@@ -463,33 +447,118 @@ def get_performance_metrics(engine: EngineDep):
 
 # Container configuration for infrastructure monitoring
 CONTAINER_CONFIG = {
+    # Core profile
     "rideshare-kafka": {
         "display_name": "Kafka",
         "memory_limit_bytes": 1 * 1024 * 1024 * 1024,  # 1 GB
     },
     "rideshare-schema-registry": {
         "display_name": "Schema Registry",
-        "memory_limit_bytes": 512 * 1024 * 1024,  # 512 MB
+        "memory_limit_bytes": 384 * 1024 * 1024,  # 384 MB
     },
     "rideshare-redis": {
         "display_name": "Redis",
-        "memory_limit_bytes": 512 * 1024 * 1024,  # 512 MB
+        "memory_limit_bytes": 128 * 1024 * 1024,  # 128 MB
     },
     "rideshare-osrm": {
         "display_name": "OSRM",
-        "memory_limit_bytes": 3 * 1024 * 1024 * 1024,  # 3 GB
+        "memory_limit_bytes": 1 * 1024 * 1024 * 1024,  # 1 GB
     },
     "rideshare-simulation": {
         "display_name": "Simulation",
-        "memory_limit_bytes": 4 * 1024 * 1024 * 1024,  # 4 GB
+        "memory_limit_bytes": 1 * 1024 * 1024 * 1024,  # 1 GB
     },
     "rideshare-stream-processor": {
         "display_name": "Stream Processor",
-        "memory_limit_bytes": 512 * 1024 * 1024,  # 512 MB
+        "memory_limit_bytes": 256 * 1024 * 1024,  # 256 MB
     },
     "rideshare-frontend": {
         "display_name": "Frontend",
+        "memory_limit_bytes": 384 * 1024 * 1024,  # 384 MB
+    },
+    # Data Platform profile
+    "rideshare-minio": {
+        "display_name": "MinIO",
+        "memory_limit_bytes": 256 * 1024 * 1024,  # 256 MB
+    },
+    "rideshare-spark-thrift-server": {
+        "display_name": "Spark Thrift",
+        "memory_limit_bytes": 1024 * 1024 * 1024,  # 1 GB
+    },
+    "rideshare-spark-streaming-trips": {
+        "display_name": "Spark: Trips",
+        "memory_limit_bytes": 768 * 1024 * 1024,  # 768 MB
+    },
+    "rideshare-spark-streaming-gps-pings": {
+        "display_name": "Spark: GPS",
+        "memory_limit_bytes": 768 * 1024 * 1024,  # 768 MB
+    },
+    "rideshare-spark-streaming-driver-status": {
+        "display_name": "Spark: Driver Status",
+        "memory_limit_bytes": 768 * 1024 * 1024,  # 768 MB
+    },
+    "rideshare-spark-streaming-surge-updates": {
+        "display_name": "Spark: Surge",
+        "memory_limit_bytes": 768 * 1024 * 1024,  # 768 MB
+    },
+    "rideshare-spark-streaming-ratings": {
+        "display_name": "Spark: Ratings",
+        "memory_limit_bytes": 768 * 1024 * 1024,  # 768 MB
+    },
+    "rideshare-spark-streaming-payments": {
+        "display_name": "Spark: Payments",
+        "memory_limit_bytes": 768 * 1024 * 1024,  # 768 MB
+    },
+    "rideshare-spark-streaming-driver-profiles": {
+        "display_name": "Spark: Driver Profiles",
+        "memory_limit_bytes": 768 * 1024 * 1024,  # 768 MB
+    },
+    "rideshare-spark-streaming-rider-profiles": {
+        "display_name": "Spark: Rider Profiles",
+        "memory_limit_bytes": 768 * 1024 * 1024,  # 768 MB
+    },
+    "rideshare-localstack": {
+        "display_name": "LocalStack",
+        "memory_limit_bytes": 384 * 1024 * 1024,  # 384 MB
+    },
+    # Monitoring profile
+    "rideshare-prometheus": {
+        "display_name": "Prometheus",
         "memory_limit_bytes": 512 * 1024 * 1024,  # 512 MB
+    },
+    "rideshare-cadvisor": {
+        "display_name": "cAdvisor",
+        "memory_limit_bytes": 256 * 1024 * 1024,  # 256 MB
+    },
+    "rideshare-grafana": {
+        "display_name": "Grafana",
+        "memory_limit_bytes": 192 * 1024 * 1024,  # 192 MB
+    },
+    # Quality Orchestration profile
+    "rideshare-postgres-airflow": {
+        "display_name": "Postgres (Airflow)",
+        "memory_limit_bytes": 256 * 1024 * 1024,  # 256 MB
+    },
+    "rideshare-airflow-webserver": {
+        "display_name": "Airflow Web",
+        "memory_limit_bytes": 384 * 1024 * 1024,  # 384 MB
+    },
+    "rideshare-airflow-scheduler": {
+        "display_name": "Airflow Scheduler",
+        "memory_limit_bytes": 384 * 1024 * 1024,  # 384 MB
+    },
+    # BI profile
+    "rideshare-postgres-superset": {
+        "display_name": "Postgres (Superset)",
+        "memory_limit_bytes": 256 * 1024 * 1024,  # 256 MB
+    },
+    "rideshare-redis-superset": {
+        "display_name": "Redis (Superset)",
+        "memory_limit_bytes": 128 * 1024 * 1024,  # 128 MB
+    },
+    "rideshare-superset": {
+        "display_name": "Superset",
+        "memory_limit_bytes": 768 * 1024 * 1024,  # 768 MB
     },
 }
 
@@ -570,9 +639,7 @@ def _parse_container_resource_metrics(
     memory_limit_mb = memory_limit_bytes / (1024 * 1024)
 
     # Calculate memory percentage
-    memory_percent = (
-        (memory_used_mb / memory_limit_mb * 100) if memory_limit_mb > 0 else 0.0
-    )
+    memory_percent = (memory_used_mb / memory_limit_mb * 100) if memory_limit_mb > 0 else 0.0
 
     # CPU percentage
     cpu_percent = _calculate_cpu_percent(stats)
@@ -585,9 +652,7 @@ def _parse_container_resource_metrics(
     )
 
 
-def _find_container_in_cadvisor(
-    container_name: str, cadvisor_data: dict
-) -> dict | None:
+def _find_container_in_cadvisor(container_name: str, cadvisor_data: dict) -> dict | None:
     """Find a container's data in cAdvisor response by name."""
     for key, data in cadvisor_data.items():
         # Check if the container name is in the key or in the aliases
@@ -691,9 +756,7 @@ async def get_infrastructure_metrics(request: Request):
 
             admin = AdminClient(admin_config)
             loop = asyncio.get_running_loop()
-            metadata = await loop.run_in_executor(
-                None, lambda: admin.list_topics(timeout=5.0)
-            )
+            metadata = await loop.run_in_executor(None, lambda: admin.list_topics(timeout=5.0))
             latency_ms = (time.perf_counter() - start) * 1000
             broker_count = len(metadata.brokers)
             return (
@@ -718,9 +781,7 @@ async def get_infrastructure_metrics(request: Request):
         except Exception as e:
             return ContainerStatus.UNHEALTHY, None, f"Error: {str(e)[:50]}"
 
-    async def check_stream_processor() -> (
-        tuple[ContainerStatus, float | None, str | None]
-    ):
+    async def check_stream_processor() -> tuple[ContainerStatus, float | None, str | None]:
         """Check stream processor health via its HTTP API."""
         stream_processor_url = "http://stream-processor:8080/health"
         try:
@@ -748,9 +809,7 @@ async def get_infrastructure_metrics(request: Request):
         except Exception as e:
             return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
 
-    async def check_schema_registry() -> (
-        tuple[ContainerStatus, float | None, str | None]
-    ):
+    async def check_schema_registry() -> tuple[ContainerStatus, float | None, str | None]:
         """Check Schema Registry health via subjects endpoint."""
         schema_registry_url = "http://schema-registry:8081/subjects"
         try:
@@ -764,12 +823,201 @@ async def get_infrastructure_metrics(request: Request):
                     return (
                         _determine_status(latency_ms),
                         round(latency_ms, 2),
-                        (
-                            f"{subject_count} subjects"
-                            if subject_count > 0
-                            else "Connected"
-                        ),
+                        (f"{subject_count} subjects" if subject_count > 0 else "Connected"),
                     )
+                else:
+                    return (
+                        ContainerStatus.DEGRADED,
+                        round(latency_ms, 2),
+                        f"HTTP {response.status_code}",
+                    )
+        except httpx.TimeoutException:
+            return ContainerStatus.UNHEALTHY, None, "Request timed out"
+        except Exception as e:
+            return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
+
+    async def check_minio() -> tuple[ContainerStatus, float | None, str | None]:
+        """Check MinIO health via liveness endpoint."""
+        minio_url = "http://minio:9000/minio/health/live"
+        try:
+            start = time.perf_counter()
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                response = await client.get(minio_url)
+                latency_ms = (time.perf_counter() - start) * 1000
+                if response.status_code == 200:
+                    return _determine_status(latency_ms), round(latency_ms, 2), "Live"
+                else:
+                    return (
+                        ContainerStatus.DEGRADED,
+                        round(latency_ms, 2),
+                        f"HTTP {response.status_code}",
+                    )
+        except httpx.TimeoutException:
+            return ContainerStatus.UNHEALTHY, None, "Request timed out"
+        except Exception as e:
+            return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
+
+    async def check_spark_thrift() -> tuple[ContainerStatus, float | None, str | None]:
+        """Check Spark Thrift Server health via Spark UI API."""
+        spark_url = "http://spark-thrift-server:4040/api/v1/applications"
+        try:
+            start = time.perf_counter()
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                response = await client.get(spark_url)
+                latency_ms = (time.perf_counter() - start) * 1000
+                if response.status_code == 200:
+                    apps = response.json()
+                    app_count = len(apps) if isinstance(apps, list) else 0
+                    return (
+                        _determine_status(latency_ms),
+                        round(latency_ms, 2),
+                        f"{app_count} app(s)",
+                    )
+                else:
+                    return (
+                        ContainerStatus.DEGRADED,
+                        round(latency_ms, 2),
+                        f"HTTP {response.status_code}",
+                    )
+        except httpx.TimeoutException:
+            return ContainerStatus.UNHEALTHY, None, "Request timed out"
+        except Exception as e:
+            return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
+
+    async def check_localstack() -> tuple[ContainerStatus, float | None, str | None]:
+        """Check LocalStack health via health endpoint."""
+        localstack_url = "http://localstack:4566/_localstack/health"
+        try:
+            start = time.perf_counter()
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                response = await client.get(localstack_url)
+                latency_ms = (time.perf_counter() - start) * 1000
+                if response.status_code == 200:
+                    data = response.json()
+                    services = data.get("services", {})
+                    running = sum(1 for s in services.values() if s == "running")
+                    return (
+                        _determine_status(latency_ms),
+                        round(latency_ms, 2),
+                        f"{running} services",
+                    )
+                else:
+                    return (
+                        ContainerStatus.DEGRADED,
+                        round(latency_ms, 2),
+                        f"HTTP {response.status_code}",
+                    )
+        except httpx.TimeoutException:
+            return ContainerStatus.UNHEALTHY, None, "Request timed out"
+        except Exception as e:
+            return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
+
+    async def check_prometheus() -> tuple[ContainerStatus, float | None, str | None]:
+        """Check Prometheus health via healthy endpoint."""
+        prometheus_url = "http://prometheus:9090/-/healthy"
+        try:
+            start = time.perf_counter()
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                response = await client.get(prometheus_url)
+                latency_ms = (time.perf_counter() - start) * 1000
+                if response.status_code == 200:
+                    return _determine_status(latency_ms), round(latency_ms, 2), "Healthy"
+                else:
+                    return (
+                        ContainerStatus.DEGRADED,
+                        round(latency_ms, 2),
+                        f"HTTP {response.status_code}",
+                    )
+        except httpx.TimeoutException:
+            return ContainerStatus.UNHEALTHY, None, "Request timed out"
+        except Exception as e:
+            return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
+
+    async def check_cadvisor() -> tuple[ContainerStatus, float | None, str | None]:
+        """Check cAdvisor health via healthz endpoint."""
+        cadvisor_url = "http://cadvisor:8080/healthz"
+        try:
+            start = time.perf_counter()
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                response = await client.get(cadvisor_url)
+                latency_ms = (time.perf_counter() - start) * 1000
+                if response.status_code == 200:
+                    return _determine_status(latency_ms), round(latency_ms, 2), "Healthy"
+                else:
+                    return (
+                        ContainerStatus.DEGRADED,
+                        round(latency_ms, 2),
+                        f"HTTP {response.status_code}",
+                    )
+        except httpx.TimeoutException:
+            return ContainerStatus.UNHEALTHY, None, "Request timed out"
+        except Exception as e:
+            return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
+
+    async def check_grafana() -> tuple[ContainerStatus, float | None, str | None]:
+        """Check Grafana health via health endpoint."""
+        grafana_url = "http://grafana:3000/api/health"
+        try:
+            start = time.perf_counter()
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                response = await client.get(grafana_url)
+                latency_ms = (time.perf_counter() - start) * 1000
+                if response.status_code == 200:
+                    data = response.json()
+                    db_status = data.get("database", "unknown")
+                    return (
+                        _determine_status(latency_ms),
+                        round(latency_ms, 2),
+                        f"DB: {db_status}",
+                    )
+                else:
+                    return (
+                        ContainerStatus.DEGRADED,
+                        round(latency_ms, 2),
+                        f"HTTP {response.status_code}",
+                    )
+        except httpx.TimeoutException:
+            return ContainerStatus.UNHEALTHY, None, "Request timed out"
+        except Exception as e:
+            return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
+
+    async def check_airflow_web() -> tuple[ContainerStatus, float | None, str | None]:
+        """Check Airflow webserver health via health endpoint."""
+        airflow_url = "http://airflow-webserver:8080/health"
+        try:
+            start = time.perf_counter()
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                response = await client.get(airflow_url)
+                latency_ms = (time.perf_counter() - start) * 1000
+                if response.status_code == 200:
+                    data = response.json()
+                    metadb = data.get("metadatabase", {}).get("status", "unknown")
+                    return (
+                        _determine_status(latency_ms),
+                        round(latency_ms, 2),
+                        f"MetaDB: {metadb}",
+                    )
+                else:
+                    return (
+                        ContainerStatus.DEGRADED,
+                        round(latency_ms, 2),
+                        f"HTTP {response.status_code}",
+                    )
+        except httpx.TimeoutException:
+            return ContainerStatus.UNHEALTHY, None, "Request timed out"
+        except Exception as e:
+            return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
+
+    async def check_superset() -> tuple[ContainerStatus, float | None, str | None]:
+        """Check Superset health via health endpoint."""
+        superset_url = "http://superset:8088/health"
+        try:
+            start = time.perf_counter()
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                response = await client.get(superset_url)
+                latency_ms = (time.perf_counter() - start) * 1000
+                if response.status_code == 200:
+                    return _determine_status(latency_ms), round(latency_ms, 2), "Healthy"
                 else:
                     return (
                         ContainerStatus.DEGRADED,
@@ -788,28 +1036,68 @@ async def get_infrastructure_metrics(request: Request):
         kafka_result,
         stream_processor_result,
         schema_registry_result,
+        minio_result,
+        spark_thrift_result,
+        localstack_result,
+        prometheus_result,
+        cadvisor_result,
+        grafana_result,
+        airflow_web_result,
+        superset_result,
     ) = await asyncio.gather(
         check_redis(),
         check_osrm(),
         check_kafka(),
         check_stream_processor(),
         check_schema_registry(),
+        check_minio(),
+        check_spark_thrift(),
+        check_localstack(),
+        check_prometheus(),
+        check_cadvisor(),
+        check_grafana(),
+        check_airflow_web(),
+        check_superset(),
     )
     simulation_result = check_simulation()
 
+    # Default result for containers without health endpoints (status based on cAdvisor)
+    no_health_endpoint = (ContainerStatus.HEALTHY, None, "No health endpoint")
+
     # Map container names to health check results
     health_results = {
+        # Core profile
         "rideshare-kafka": kafka_result,
         "rideshare-schema-registry": schema_registry_result,
         "rideshare-redis": redis_result,
         "rideshare-osrm": osrm_result,
         "rideshare-simulation": simulation_result,
         "rideshare-stream-processor": stream_processor_result,
-        "rideshare-frontend": (
-            ContainerStatus.HEALTHY,
-            None,
-            "No health endpoint",
-        ),  # Frontend has no health check
+        "rideshare-frontend": no_health_endpoint,
+        # Data Platform profile
+        "rideshare-minio": minio_result,
+        "rideshare-spark-thrift-server": spark_thrift_result,
+        "rideshare-spark-streaming-trips": no_health_endpoint,
+        "rideshare-spark-streaming-gps-pings": no_health_endpoint,
+        "rideshare-spark-streaming-driver-status": no_health_endpoint,
+        "rideshare-spark-streaming-surge-updates": no_health_endpoint,
+        "rideshare-spark-streaming-ratings": no_health_endpoint,
+        "rideshare-spark-streaming-payments": no_health_endpoint,
+        "rideshare-spark-streaming-driver-profiles": no_health_endpoint,
+        "rideshare-spark-streaming-rider-profiles": no_health_endpoint,
+        "rideshare-localstack": localstack_result,
+        # Monitoring profile
+        "rideshare-prometheus": prometheus_result,
+        "rideshare-cadvisor": cadvisor_result,
+        "rideshare-grafana": grafana_result,
+        # Quality Orchestration profile
+        "rideshare-postgres-airflow": no_health_endpoint,
+        "rideshare-airflow-webserver": airflow_web_result,
+        "rideshare-airflow-scheduler": no_health_endpoint,
+        # BI profile
+        "rideshare-postgres-superset": no_health_endpoint,
+        "rideshare-redis-superset": no_health_endpoint,
+        "rideshare-superset": superset_result,
     }
 
     # Fetch container resource metrics from cAdvisor
@@ -826,9 +1114,7 @@ async def get_infrastructure_metrics(request: Request):
         # Get resource metrics from cAdvisor if available
         memory_used_mb = 0.0
         memory_limit_bytes = cast(int, config.get("memory_limit_bytes", 0))
-        memory_limit_mb = (
-            float(memory_limit_bytes) / (1024 * 1024) if memory_limit_bytes else 0.0
-        )
+        memory_limit_mb = float(memory_limit_bytes) / (1024 * 1024) if memory_limit_bytes else 0.0
         memory_percent = 0.0
         cpu_percent = 0.0
 
@@ -836,9 +1122,7 @@ async def get_infrastructure_metrics(request: Request):
             container_data = _find_container_in_cadvisor(container_name, cadvisor_data)
             if container_data:
                 memory_used_mb, memory_limit_mb, memory_percent, cpu_percent = (
-                    _parse_container_resource_metrics(
-                        container_name, container_data, config
-                    )
+                    _parse_container_resource_metrics(container_name, container_data, config)
                 )
             else:
                 # Container not found in cAdvisor - might be stopped
