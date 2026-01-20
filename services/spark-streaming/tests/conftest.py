@@ -4,8 +4,26 @@ This module provides reusable fixtures for testing Spark Structured Streaming
 jobs that ingest data from Kafka into Bronze Delta tables.
 """
 
-import pytest
-from unittest.mock import MagicMock
+import sys
+from pathlib import Path
+import importlib.util
+
+# Create 'spark_streaming' module alias pointing to parent directory
+# Mimics Docker mount: services/spark-streaming -> /opt/spark_streaming
+# This allows imports like 'from spark_streaming.config import ...' to work locally
+spark_streaming_dir = Path(__file__).resolve().parent.parent
+if "spark_streaming" not in sys.modules:
+    spec = importlib.util.spec_from_file_location(
+        "spark_streaming",
+        spark_streaming_dir / "__init__.py",
+        submodule_search_locations=[str(spark_streaming_dir)],
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["spark_streaming"] = module
+    spec.loader.exec_module(module)
+
+import pytest  # noqa: E402
+from unittest.mock import MagicMock  # noqa: E402
 
 
 @pytest.fixture(scope="session")

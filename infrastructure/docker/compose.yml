@@ -884,6 +884,8 @@ services:
         condition: service_healthy
       airflow-webserver:
         condition: service_healthy  # Ensure DB migrations complete before reserialization
+      spark-thrift-server:
+        condition: service_healthy  # Required for DBT tasks to connect
     networks:
       - rideshare-network
     # Reserialize DAGs on startup to ensure they're loaded in Airflow 3.x

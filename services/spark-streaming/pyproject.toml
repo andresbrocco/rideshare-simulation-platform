@@ -1,0 +1,15 @@
+[project]
+name = "spark-streaming"
+version = "0.1.0"
+description = "Spark Streaming jobs for Bronze layer ingestion"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = ["--strict-markers", "-ra"]
+markers = [
+    "integration: marks tests as integration tests (require Docker services)",
+]
