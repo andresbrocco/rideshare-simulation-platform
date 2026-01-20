@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-echo "Installing PyHive, Thrift, and SASL dependencies for Spark connectivity..."
-pip install --target=/tmp/python-packages pyhive thrift thrift-sasl pure-sasl
+echo "Installing dependencies (PyHive for Spark, psycopg2 for PostgreSQL)..."
+pip install --target=/tmp/python-packages pyhive thrift thrift-sasl pure-sasl psycopg2-binary
 
 # Wait for PostgreSQL metadata database to be ready
 # Note: superset-init has already run db upgrade, create-admin, and init

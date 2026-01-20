@@ -1023,8 +1023,9 @@ services:
     restart: unless-stopped
 
   superset-init:
-    image: apache/superset:6.0.0-dev
+    image: apache/superset:6.0.0
     container_name: rideshare-superset-init
+    user: root
     profiles:
       - bi
     environment:
@@ -1041,60 +1042,14 @@ services:
       - rideshare-network
     command: >
       /bin/sh -c "
-      echo 'Installing dependencies...' &&
-      pip install pyhive thrift psycopg2-binary &&
+      echo 'Installing dependencies to Superset venv...' &&
+      pip install --target=/app/.venv/lib/python3.10/site-packages pyhive thrift psycopg2-binary &&
 
       echo 'Running database migrations...' &&
       superset db upgrade &&
 
-      echo 'Waiting for migrations to fully complete...' &&
-      python3 -c \"
-      import time
-      import psycopg2
-
-      # Wait for critical tables to exist after db upgrade
-      required_tables = ['ab_user', 'ab_role', 'ab_permission', 'dbs']
-      max_retries = 30
-
-      for attempt in range(max_retries):
-          try:
-              conn = psycopg2.connect(
-                  host='postgres-superset',
-                  port=5432,
-                  user='superset',
-                  password='superset',
-                  database='superset'
-              )
-              cursor = conn.cursor()
-
-              # Check if all required tables exist
-              cursor.execute('''
-                  SELECT table_name FROM information_schema.tables
-                  WHERE table_schema = 'public' AND table_name = ANY(%s)
-              ''', (required_tables,))
-              found_tables = [row[0] for row in cursor.fetchall()]
-
-              missing = set(required_tables) - set(found_tables)
-              if not missing:
-                  print(f'All required tables exist: {found_tables}')
-                  cursor.close()
-                  conn.close()
-                  break
-              else:
-                  print(f'Waiting for tables: {missing} (attempt {attempt+1}/{max_retries})')
-
-              cursor.close()
-              conn.close()
-          except Exception as e:
-              print(f'Database check failed: {e} (attempt {attempt+1}/{max_retries})')
-
-          time.sleep(2)
-      else:
-          print('ERROR: Required tables not created after max retries')
-          exit(1)
-
-      print('Migration verification complete!')
-      \" &&
+      echo 'Waiting for migrations to settle...' &&
+      sleep 5 &&
 
       echo 'Creating admin user...' &&
       superset fab create-admin --username admin --firstname Admin --lastname User --email admin@superset.com --password admin || true &&
@@ -1111,7 +1066,7 @@ services:
       "
 
   superset:
-    image: apache/superset:6.0.0-dev
+    image: apache/superset:6.0.0
     container_name: rideshare-superset
     mem_limit: 768m
     profiles:
