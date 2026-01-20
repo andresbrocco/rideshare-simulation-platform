@@ -294,66 +294,71 @@ services:
     networks:
       - rideshare-network
 
-  spark-master:
-    build:
-      context: ../..
-      dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
-    container_name: rideshare-spark-master
-    mem_limit: 512m
-    profiles:
-      - data-platform
-    ports:
-      - "7077:7077"
-      - "4040:8080"
-    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
-    environment:
-      - PYTHONPATH=/opt
-    volumes:
-      - ../../services/spark-streaming:/opt/spark_streaming:ro
-    networks:
-      - rideshare-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-
-  spark-worker:
-    build:
-      context: ../..
-      dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
-    container_name: rideshare-spark-worker
-    mem_limit: 3g
-    profiles:
-      - data-platform
-    ports:
-      - "8081:8081"
-    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker -m 2g -c 4 --webui-port 8081 spark://spark-master:7077
-    environment:
-      - PYTHONPATH=/opt
-    volumes:
-      - ../../services/spark-streaming:/opt/spark_streaming:ro
-    depends_on:
-      spark-master:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    networks:
-      - rideshare-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
+  # ============================================================================
+  # COMMENTED OUT: Spark Cluster Mode (migrated to local mode 2026-01-19)
+  # Each Spark service now runs in local mode within its container.
+  # Preserved for reference - uncomment to restore cluster mode if needed.
+  # ============================================================================
+  # spark-master:
+  #   build:
+  #     context: ../..
+  #     dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
+  #   container_name: rideshare-spark-master
+  #   mem_limit: 512m
+  #   profiles:
+  #     - data-platform
+  #   ports:
+  #     - "7077:7077"
+  #     - "4040:8080"
+  #   command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+  #   environment:
+  #     - PYTHONPATH=/opt
+  #   volumes:
+  #     - ../../services/spark-streaming:/opt/spark_streaming:ro
+  #   networks:
+  #     - rideshare-network
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8080"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 10
+  #     start_period: 30s
+  #
+  # spark-worker:
+  #   build:
+  #     context: ../..
+  #     dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
+  #   container_name: rideshare-spark-worker
+  #   mem_limit: 3g
+  #   profiles:
+  #     - data-platform
+  #   ports:
+  #     - "8081:8081"
+  #   command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker -m 2g -c 4 --webui-port 8081 spark://spark-master:7077
+  #   environment:
+  #     - PYTHONPATH=/opt
+  #   volumes:
+  #     - ../../services/spark-streaming:/opt/spark_streaming:ro
+  #   depends_on:
+  #     spark-master:
+  #       condition: service_healthy
+  #     minio:
+  #       condition: service_healthy
+  #   networks:
+  #     - rideshare-network
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8081"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 10
+  #     start_period: 30s
 
   spark-thrift-server:
     build:
       context: ../..
       dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
     container_name: rideshare-spark-thrift-server
-    mem_limit: 1536m
+    mem_limit: 1024m
     profiles:
       - data-platform
     ports:
@@ -385,10 +390,6 @@ services:
     volumes:
       - ../../services/spark-streaming:/opt/spark_streaming:ro
     depends_on:
-      spark-master:
-        condition: service_healthy
-      spark-worker:
-        condition: service_healthy
       minio:
         condition: service_healthy
     networks:
@@ -417,8 +418,6 @@ services:
     volumes:
       - ../../services/spark-streaming:/opt/spark_streaming:ro
     depends_on:
-      spark-master:
-        condition: service_healthy
       minio:
         condition: service_healthy
       kafka:
@@ -427,10 +426,8 @@ services:
       - rideshare-network
     command: >
       /opt/spark/bin/spark-submit
-      --master spark://spark-master:7077
-      --deploy-mode client
-      --total-executor-cores 1
-      --executor-memory 512m
+      --master local[1]
+      --driver-memory 512m
       --name "streaming_trips"
       --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
       --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
@@ -438,8 +435,6 @@ services:
       --conf spark.hadoop.fs.s3a.access.key=minioadmin
       --conf spark.hadoop.fs.s3a.secret.key=minioadmin
       --conf spark.hadoop.fs.s3a.path.style.access=true
-      --conf spark.driver.memory=512m
-      --conf spark.executor.memory=512m
       /opt/spark_streaming/jobs/trips_streaming_job.py
     restart: unless-stopped
 
@@ -460,8 +455,6 @@ services:
     volumes:
       - ../../services/spark-streaming:/opt/spark_streaming:ro
     depends_on:
-      spark-master:
-        condition: service_healthy
       minio:
         condition: service_healthy
       kafka:
@@ -470,10 +463,8 @@ services:
       - rideshare-network
     command: >
       /opt/spark/bin/spark-submit
-      --master spark://spark-master:7077
-      --deploy-mode client
-      --total-executor-cores 1
-      --executor-memory 512m
+      --master local[2]
+      --driver-memory 512m
       --name "streaming_gps_pings"
       --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
       --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
@@ -481,8 +472,6 @@ services:
       --conf spark.hadoop.fs.s3a.access.key=minioadmin
       --conf spark.hadoop.fs.s3a.secret.key=minioadmin
       --conf spark.hadoop.fs.s3a.path.style.access=true
-      --conf spark.driver.memory=512m
-      --conf spark.executor.memory=512m
       /opt/spark_streaming/jobs/gps_pings_streaming_job.py
     restart: unless-stopped
 
@@ -503,8 +492,6 @@ services:
     volumes:
       - ../../services/spark-streaming:/opt/spark_streaming:ro
     depends_on:
-      spark-master:
-        condition: service_healthy
       minio:
         condition: service_healthy
       kafka:
@@ -513,10 +500,8 @@ services:
       - rideshare-network
     command: >
       /opt/spark/bin/spark-submit
-      --master spark://spark-master:7077
-      --deploy-mode client
-      --total-executor-cores 1
-      --executor-memory 512m
+      --master local[1]
+      --driver-memory 512m
       --name "streaming_driver_status"
       --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
       --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
@@ -524,8 +509,6 @@ services:
       --conf spark.hadoop.fs.s3a.access.key=minioadmin
       --conf spark.hadoop.fs.s3a.secret.key=minioadmin
       --conf spark.hadoop.fs.s3a.path.style.access=true
-      --conf spark.driver.memory=512m
-      --conf spark.executor.memory=512m
       /opt/spark_streaming/jobs/driver_status_streaming_job.py
     restart: unless-stopped
 
@@ -546,8 +529,6 @@ services:
     volumes:
       - ../../services/spark-streaming:/opt/spark_streaming:ro
     depends_on:
-      spark-master:
-        condition: service_healthy
       minio:
         condition: service_healthy
       kafka:
@@ -556,10 +537,8 @@ services:
       - rideshare-network
     command: >
       /opt/spark/bin/spark-submit
-      --master spark://spark-master:7077
-      --deploy-mode client
-      --total-executor-cores 1
-      --executor-memory 512m
+      --master local[1]
+      --driver-memory 512m
       --name "streaming_surge_updates"
       --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
       --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
@@ -567,8 +546,6 @@ services:
       --conf spark.hadoop.fs.s3a.access.key=minioadmin
       --conf spark.hadoop.fs.s3a.secret.key=minioadmin
       --conf spark.hadoop.fs.s3a.path.style.access=true
-      --conf spark.driver.memory=512m
-      --conf spark.executor.memory=512m
       /opt/spark_streaming/jobs/surge_updates_streaming_job.py
     restart: unless-stopped
 
@@ -589,8 +566,6 @@ services:
     volumes:
       - ../../services/spark-streaming:/opt/spark_streaming:ro
     depends_on:
-      spark-master:
-        condition: service_healthy
       minio:
         condition: service_healthy
       kafka:
@@ -599,10 +574,8 @@ services:
       - rideshare-network
     command: >
       /opt/spark/bin/spark-submit
-      --master spark://spark-master:7077
-      --deploy-mode client
-      --total-executor-cores 1
-      --executor-memory 512m
+      --master local[1]
+      --driver-memory 512m
       --name "streaming_ratings"
       --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
       --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
@@ -610,8 +583,6 @@ services:
       --conf spark.hadoop.fs.s3a.access.key=minioadmin
       --conf spark.hadoop.fs.s3a.secret.key=minioadmin
       --conf spark.hadoop.fs.s3a.path.style.access=true
-      --conf spark.driver.memory=512m
-      --conf spark.executor.memory=512m
       /opt/spark_streaming/jobs/ratings_streaming_job.py
     restart: unless-stopped
 
@@ -632,8 +603,6 @@ services:
     volumes:
       - ../../services/spark-streaming:/opt/spark_streaming:ro
     depends_on:
-      spark-master:
-        condition: service_healthy
       minio:
         condition: service_healthy
       kafka:
@@ -642,10 +611,8 @@ services:
       - rideshare-network
     command: >
       /opt/spark/bin/spark-submit
-      --master spark://spark-master:7077
-      --deploy-mode client
-      --total-executor-cores 1
-      --executor-memory 512m
+      --master local[1]
+      --driver-memory 512m
       --name "streaming_payments"
       --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
       --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
@@ -653,8 +620,6 @@ services:
       --conf spark.hadoop.fs.s3a.access.key=minioadmin
       --conf spark.hadoop.fs.s3a.secret.key=minioadmin
       --conf spark.hadoop.fs.s3a.path.style.access=true
-      --conf spark.driver.memory=512m
-      --conf spark.executor.memory=512m
       /opt/spark_streaming/jobs/payments_streaming_job.py
     restart: unless-stopped
 
@@ -675,8 +640,6 @@ services:
     volumes:
       - ../../services/spark-streaming:/opt/spark_streaming:ro
     depends_on:
-      spark-master:
-        condition: service_healthy
       minio:
         condition: service_healthy
       kafka:
@@ -685,10 +648,8 @@ services:
       - rideshare-network
     command: >
       /opt/spark/bin/spark-submit
-      --master spark://spark-master:7077
-      --deploy-mode client
-      --total-executor-cores 1
-      --executor-memory 512m
+      --master local[1]
+      --driver-memory 512m
       --name "streaming_driver_profiles"
       --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
       --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
@@ -696,8 +657,6 @@ services:
       --conf spark.hadoop.fs.s3a.access.key=minioadmin
       --conf spark.hadoop.fs.s3a.secret.key=minioadmin
       --conf spark.hadoop.fs.s3a.path.style.access=true
-      --conf spark.driver.memory=512m
-      --conf spark.executor.memory=512m
       /opt/spark_streaming/jobs/driver_profiles_streaming_job.py
     restart: unless-stopped
 
@@ -718,8 +677,6 @@ services:
     volumes:
       - ../../services/spark-streaming:/opt/spark_streaming:ro
     depends_on:
-      spark-master:
-        condition: service_healthy
       minio:
         condition: service_healthy
       kafka:
@@ -728,10 +685,8 @@ services:
       - rideshare-network
     command: >
       /opt/spark/bin/spark-submit
-      --master spark://spark-master:7077
-      --deploy-mode client
-      --total-executor-cores 1
-      --executor-memory 512m
+      --master local[1]
+      --driver-memory 512m
       --name "streaming_rider_profiles"
       --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
       --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
@@ -739,8 +694,6 @@ services:
       --conf spark.hadoop.fs.s3a.access.key=minioadmin
       --conf spark.hadoop.fs.s3a.secret.key=minioadmin
       --conf spark.hadoop.fs.s3a.path.style.access=true
-      --conf spark.driver.memory=512m
-      --conf spark.executor.memory=512m
       /opt/spark_streaming/jobs/rider_profiles_streaming_job.py
     restart: unless-stopped
 
@@ -828,8 +781,6 @@ services:
       AIRFLOW__CORE__AUTH_MANAGER: 'airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager'
       AIRFLOW__CORE__PARALLELISM: 8
       AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: 30
-      # Spark connection for SparkSubmitOperator
-      AIRFLOW_CONN_SPARK_DEFAULT: 'spark://spark-master:7077?deploy-mode=client'
       _AIRFLOW_DB_MIGRATE: 'true'
       _AIRFLOW_WWW_USER_CREATE: 'true'
       _AIRFLOW_WWW_USER_USERNAME: admin
@@ -871,8 +822,6 @@ services:
       AIRFLOW__CORE__AUTH_MANAGER: 'airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager'
       AIRFLOW__CORE__PARALLELISM: 8
       AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: 30
-      # Spark connection for SparkSubmitOperator
-      AIRFLOW_CONN_SPARK_DEFAULT: 'spark://spark-master:7077?deploy-mode=client'
       _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-fab apache-airflow-providers-apache-spark pyhive thrift dbt-core dbt-spark[PyHive]'
     volumes:
       - ../../services/airflow/dags:/opt/airflow/dags
