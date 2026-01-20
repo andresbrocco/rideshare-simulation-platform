@@ -882,9 +882,12 @@ services:
     depends_on:
       postgres-airflow:
         condition: service_healthy
+      airflow-webserver:
+        condition: service_healthy  # Ensure DB migrations complete before reserialization
     networks:
       - rideshare-network
-    command: scheduler
+    # Reserialize DAGs on startup to ensure they're loaded in Airflow 3.x
+    command: bash -c "airflow dags reserialize && exec airflow scheduler"
     healthcheck:
       test: ["CMD", "python", "-c", "import socket; s = socket.socket(); s.settimeout(3); s.connect(('localhost', 8793)); s.close()"]
       interval: 10s

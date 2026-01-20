@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
-"""Initialize Bronze layer database in Hive metastore.
+"""Initialize lakehouse layer databases in Hive metastore.
 
-This script creates the Bronze database. Tables are NOT pre-created here -
-they are created by Spark Streaming jobs on first write with proper schema
-and partitioning (partitioned by _ingestion_date).
+This script creates all lakehouse databases:
+- bronze: Raw event data from Kafka streaming
+- silver_staging: DBT staging models (cleaned/deduplicated)
+- gold_dimensions: DBT dimension tables (SCD Type 2)
+- gold_facts: DBT fact tables
+- gold_aggregates: DBT aggregate tables
+
+Tables are NOT pre-created here - they are created by Spark Streaming jobs
+(Bronze layer) or DBT models (Silver/Gold layers) on first write with proper
+schema and partitioning.
 
 Usage:
     python3 init-bronze-metastore.py
@@ -63,8 +70,24 @@ BRONZE_TABLES = [
 ]
 
 
-def init_bronze_database():
-    """Create Bronze database if it doesn't exist."""
+def init_lakehouse_databases():
+    """Create all lakehouse layer databases if they don't exist.
+
+    Creates:
+    - bronze: Raw event data from Kafka streaming
+    - silver_staging: DBT staging models (cleaned/deduplicated)
+    - gold_dimensions: DBT dimension tables (SCD Type 2)
+    - gold_facts: DBT fact tables
+    - gold_aggregates: DBT aggregate tables
+    """
+    databases_to_create = [
+        "bronze",
+        "silver_staging",
+        "gold_dimensions",
+        "gold_facts",
+        "gold_aggregates",
+    ]
+
     max_retries = 3
     for attempt in range(max_retries):
         try:
@@ -75,17 +98,19 @@ def init_bronze_database():
             cursor = conn.cursor()
 
             try:
-                logger.info("Creating Bronze database...")
-                cursor.execute("CREATE DATABASE IF NOT EXISTS bronze")
-                logger.info("✓ Bronze database created")
+                for db_name in databases_to_create:
+                    logger.info(f"Creating {db_name} database...")
+                    cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db_name}")
+                    logger.info(f"✓ {db_name} database created")
 
-                # Verify database exists
+                # Verify databases exist
                 cursor.execute("SHOW DATABASES")
                 databases = [row[0] for row in cursor.fetchall()]
                 logger.info(f"Available databases: {databases}")
 
-                if "bronze" not in databases:
-                    raise Exception("Bronze database was not created successfully")
+                missing = [db for db in databases_to_create if db not in databases]
+                if missing:
+                    raise Exception(f"Databases not created successfully: {missing}")
 
             finally:
                 conn.close()
@@ -190,18 +215,18 @@ def register_bronze_tables():
 
 if __name__ == "__main__":
     logger.info("=" * 60)
-    logger.info("Bronze Layer Initialization")
+    logger.info("Lakehouse Layer Initialization")
     logger.info("=" * 60)
 
     try:
-        init_bronze_database()
-        # Note: We only create the database here.
+        init_lakehouse_databases()
+        # Note: We only create the databases here.
         # Tables are created by streaming jobs with proper partitioning.
         # Optionally register tables that already have data:
         register_bronze_tables()
 
         logger.info("=" * 60)
-        logger.info("✓ Bronze layer initialization complete")
+        logger.info("✓ Lakehouse layer initialization complete")
         logger.info("=" * 60)
 
     except Exception as e:

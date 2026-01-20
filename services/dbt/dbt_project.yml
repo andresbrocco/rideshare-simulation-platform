@@ -24,6 +24,7 @@ tests:
 models:
   rideshare:
     staging:
+      +schema: silver_staging
       +materialized: incremental
       +on_schema_change: fail
       +incremental_strategy: merge
@@ -31,16 +32,19 @@ models:
         - silver
     marts:
       dimensions:
+        +schema: gold_dimensions
         +materialized: table
         +tags:
           - gold
           - dimensions
       facts:
+        +schema: gold_facts
         +materialized: table
         +tags:
           - gold
           - facts
       aggregates:
+        +schema: gold_aggregates
         +materialized: table
         +tags:
           - gold
