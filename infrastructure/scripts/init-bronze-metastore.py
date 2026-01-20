@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Initialize Bronze layer database and tables in Hive metastore.
+"""Initialize Bronze layer database in Hive metastore.
 
-This script creates the Bronze database and registers all Delta tables
-with the Hive metastore so they can be queried via Spark Thrift Server.
+This script creates the Bronze database. Tables are NOT pre-created here -
+they are created by Spark Streaming jobs on first write with proper schema
+and partitioning (partitioned by _ingestion_date).
 
 Usage:
     python3 init-bronze-metastore.py
@@ -10,6 +11,12 @@ Usage:
 Environment:
     - Runs from Airflow container which has PyHive installed
     - Connects to spark-thrift-server:10000
+
+Note:
+    Tables are created automatically by streaming jobs with partitioning.
+    Pre-creating empty tables here would cause schema mismatch errors because
+    streaming jobs write with partitionBy("_ingestion_date") which requires
+    the partition column to exist from table creation.
 """
 
 from pyhive import hive
@@ -19,7 +26,7 @@ import time
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Bronze table configurations
+# Bronze table configurations (for reference/registration after data exists)
 BRONZE_TABLES = [
     {
         "name": "bronze_trips",
@@ -96,8 +103,13 @@ def init_bronze_database():
                 raise
 
 
-def init_bronze_tables():
-    """Create all Bronze tables if they don't exist."""
+def register_bronze_tables():
+    """Register Bronze tables that already have data written by streaming jobs.
+
+    This function registers existing Delta tables with the Hive metastore.
+    Tables must already exist (created by streaming jobs) before registration.
+    If a table doesn't exist yet, it's skipped with a warning.
+    """
     max_retries = 3
     for attempt in range(max_retries):
         try:
@@ -108,27 +120,57 @@ def init_bronze_tables():
             cursor = conn.cursor()
 
             try:
+                registered = []
+                skipped = []
+
                 for table in BRONZE_TABLES:
                     table_name = table["name"]
                     location = table["location"]
 
-                    logger.info(f"Creating table bronze.{table_name}...")
-
-                    # Create table if not exists
-                    cursor.execute(
-                        f"""
-                        CREATE TABLE IF NOT EXISTS bronze.{table_name}
-                        USING DELTA
-                        LOCATION '{location}'
-                    """
-                    )
-
-                    logger.info(f"✓ Table bronze.{table_name} created/verified")
+                    # Check if Delta table exists at location by looking for _delta_log
+                    # We try to create it - if data exists, it will pick up the schema
+                    # If no data exists, we skip to avoid creating empty unpartitioned table
+                    try:
+                        # Try to describe the table first
+                        cursor.execute(f"DESCRIBE bronze.{table_name}")
+                        logger.info(f"✓ Table bronze.{table_name} already registered")
+                        registered.append(table_name)
+                    except Exception:
+                        # Table not registered - try to register if Delta data exists
+                        try:
+                            cursor.execute(
+                                f"""
+                                CREATE TABLE IF NOT EXISTS bronze.{table_name}
+                                USING DELTA
+                                LOCATION '{location}'
+                            """
+                            )
+                            # Verify it worked by describing
+                            cursor.execute(f"DESCRIBE bronze.{table_name}")
+                            columns = cursor.fetchall()
+                            if len(columns) > 0:
+                                logger.info(
+                                    f"✓ Table bronze.{table_name} registered with {len(columns)} columns"
+                                )
+                                registered.append(table_name)
+                            else:
+                                # Empty table created - drop it to let streaming job create properly
+                                cursor.execute(
+                                    f"DROP TABLE IF EXISTS bronze.{table_name}"
+                                )
+                                logger.warning(
+                                    f"⏳ Table bronze.{table_name} skipped (no data yet, waiting for streaming job)"
+                                )
+                                skipped.append(table_name)
+                        except Exception as e:
+                            logger.warning(f"⏳ Table bronze.{table_name} skipped: {e}")
+                            skipped.append(table_name)
 
                 # List all tables in Bronze
                 cursor.execute("SHOW TABLES IN bronze")
                 tables = [row[1] for row in cursor.fetchall()]
-                logger.info(f"Bronze tables: {tables}")
+                logger.info(f"Bronze tables registered: {tables}")
+                logger.info(f"Tables waiting for streaming data: {skipped}")
 
             finally:
                 conn.close()
@@ -153,7 +195,10 @@ if __name__ == "__main__":
 
     try:
         init_bronze_database()
-        init_bronze_tables()
+        # Note: We only create the database here.
+        # Tables are created by streaming jobs with proper partitioning.
+        # Optionally register tables that already have data:
+        register_bronze_tables()
 
         logger.info("=" * 60)
         logger.info("✓ Bronze layer initialization complete")

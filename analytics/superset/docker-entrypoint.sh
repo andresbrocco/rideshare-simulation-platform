@@ -5,6 +5,8 @@ echo "Installing PyHive, Thrift, and SASL dependencies for Spark connectivity...
 pip install --target=/tmp/python-packages pyhive thrift thrift-sasl pure-sasl
 
 # Wait for PostgreSQL metadata database to be ready
+# Note: superset-init has already run db upgrade, create-admin, and init
+# This container just needs to wait for postgres and provision the Spark connection
 echo "Waiting for PostgreSQL metadata database..."
 python3 << 'WAIT_EOF'
 import time
@@ -20,33 +22,20 @@ for i in range(max_retries):
             password="superset",
             database="superset"
         )
+        # Verify that superset-init completed by checking for ab_user table
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM ab_user LIMIT 1")
+        cursor.close()
         conn.close()
-        print("PostgreSQL is ready!")
+        print("PostgreSQL is ready and initialized!")
         break
     except Exception as e:
-        print(f"PostgreSQL is unavailable - sleeping... ({i+1}/{max_retries})")
+        print(f"PostgreSQL/Superset not ready - sleeping... ({i+1}/{max_retries}): {e}")
         time.sleep(2)
 else:
     print("Failed to connect to PostgreSQL after max retries")
     exit(1)
 WAIT_EOF
-
-# Initialize Superset database (runs migrations)
-echo "Running Superset database migrations..."
-superset db upgrade
-
-# Create admin user if not exists
-echo "Creating admin user..."
-superset fab create-admin \
-  --username admin \
-  --firstname Admin \
-  --lastname User \
-  --email admin@superset.local \
-  --password admin || true
-
-# Initialize Superset (roles, permissions)
-echo "Initializing Superset..."
-superset init
 
 # Provision Spark Thrift Server database connection if not exists
 echo "Provisioning Spark Thrift Server database connection..."

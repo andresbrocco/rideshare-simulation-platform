@@ -4,6 +4,16 @@
     )
 }}
 
+{# Define columns for bronze_gps_pings #}
+{% set source_columns = {
+    'event_id': 'string',
+    'entity_type': 'string',
+    'entity_id': 'string',
+    'timestamp': 'timestamp',
+    'location': 'array<double>',
+    'trip_id': 'string'
+} %}
+
 with all_gps_pings as (
     select
         event_id,
@@ -12,7 +22,7 @@ with all_gps_pings as (
         timestamp,
         location,
         trip_id
-    from bronze_gps_pings
+    from {{ source_with_empty_guard('bronze_gps_pings', source_columns) }}
 ),
 
 outliers as (

@@ -4,6 +4,14 @@
     )
 }}
 
+{# Define columns for bronze_rider_profiles #}
+{% set source_columns = {
+    'rider_id': 'string',
+    'payment_method_type': 'string',
+    'payment_method_masked': 'string',
+    'timestamp': 'timestamp'
+} %}
+
 with rider_payment_changes as (
     select
         rider_id,
@@ -12,7 +20,7 @@ with rider_payment_changes as (
         timestamp,
         lag(timestamp) over (partition by rider_id order by timestamp) as prev_timestamp,
         lead(timestamp) over (partition by rider_id order by timestamp) as next_timestamp
-    from bronze_rider_profiles
+    from {{ source_with_empty_guard('bronze_rider_profiles', source_columns) }}
 ),
 
 with_validity as (

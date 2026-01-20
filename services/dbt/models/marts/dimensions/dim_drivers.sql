@@ -4,6 +4,23 @@
     )
 }}
 
+{# Define columns for bronze_driver_profiles #}
+{% set source_columns = {
+    'driver_id': 'string',
+    'first_name': 'string',
+    'last_name': 'string',
+    'email': 'string',
+    'phone': 'string',
+    'home_location': 'array<double>',
+    'preferred_zones': 'array<string>',
+    'shift_preference': 'string',
+    'vehicle_make': 'string',
+    'vehicle_model': 'string',
+    'vehicle_year': 'int',
+    'license_plate': 'string',
+    'timestamp': 'timestamp'
+} %}
+
 with driver_changes as (
     select
         driver_id,
@@ -22,7 +39,7 @@ with driver_changes as (
         timestamp,
         lag(timestamp) over (partition by driver_id order by timestamp) as prev_timestamp,
         lead(timestamp) over (partition by driver_id order by timestamp) as next_timestamp
-    from bronze_driver_profiles
+    from {{ source_with_empty_guard('bronze_driver_profiles', source_columns) }}
 ),
 
 with_validity as (
