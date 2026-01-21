@@ -11,16 +11,21 @@ Tests integration between phases of the medallion lakehouse architecture:
 import json
 import subprocess
 import time
+from pathlib import Path
 
 import pytest
 
 from tests.integration.data_platform.utils.sql_helpers import count_rows, query_table
 
+# Project root for subprocess commands
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+
 # Module-level fixtures: ensure services are ready before any test runs
+# Note: streaming_jobs_running is NOT required for tests that only test DBT
+# transformations. Only tests that rely on Kafka -> Bronze ingestion need it.
 pytestmark = [
     pytest.mark.cross_phase,
     pytest.mark.usefixtures(
-        "streaming_jobs_running",
         "bronze_tables_initialized",
     ),
 ]
@@ -28,6 +33,7 @@ pytestmark = [
 
 @pytest.mark.cross_phase
 @pytest.mark.requires_profiles("core", "data-platform")
+@pytest.mark.usefixtures("streaming_jobs_running")
 def test_phase1_phase2_minio_streaming(
     clean_bronze_tables,
     minio_client,
@@ -59,7 +65,7 @@ def test_phase1_phase2_minio_streaming(
         "trip_id": "xp001-trip-001",
         "status": "requested",
         "rider_id": "xp001-rider-001",
-        "event_timestamp": "2026-01-20T12:00:00Z",
+        "timestamp": "2026-01-20T12:00:00Z",
         "correlation_id": "xp001-corr-001",
     }
     kafka_producer.produce(
@@ -93,20 +99,25 @@ def test_phase1_phase2_minio_streaming(
     assert len(parquet_files) > 0, "No parquet data files found in MinIO"
 
     # Assert: Verify Spark can read via Thrift Server
+    # Bronze layer stores raw JSON in _raw_value column
     rows = query_table(
         thrift_connection,
-        f"SELECT * FROM bronze.bronze_trips WHERE trip_id = '{trip_event['trip_id']}'",
+        f"SELECT _raw_value FROM bronze.bronze_trips WHERE _raw_value LIKE '%{trip_event['trip_id']}%'",
     )
     assert (
         len(rows) >= 1
     ), f"Expected at least 1 event in bronze_trips, found {len(rows)}"
+
+    # Parse JSON from _raw_value to verify trip_id
+    raw_json = json.loads(rows[0]["_raw_value"])
     assert (
-        rows[0]["trip_id"] == trip_event["trip_id"]
+        raw_json["trip_id"] == trip_event["trip_id"]
     ), "Event not readable via Thrift Server"
 
 
 @pytest.mark.cross_phase
 @pytest.mark.requires_profiles("core", "data-platform")
+@pytest.mark.usefixtures("streaming_jobs_running")
 def test_phase2_phase3_bronze_dbt(
     clean_bronze_tables,
     thrift_connection,
@@ -130,7 +141,7 @@ def test_phase2_phase3_bronze_dbt(
             "status": "completed",
             "rider_id": f"xp002-rider-{i:03d}",
             "driver_id": f"xp002-driver-{i:03d}",
-            "event_timestamp": "2026-01-20T12:00:00Z",
+            "timestamp": "2026-01-20T12:00:00Z",
             "correlation_id": f"xp002-corr-{i:03d}",
         }
         for i in range(1, 6)
@@ -151,25 +162,20 @@ def test_phase2_phase3_bronze_dbt(
     trip_count = count_rows(thrift_connection, "bronze.bronze_trips")
     assert trip_count > 0, "Bronze tables must have data for DBT source tests"
 
-    # Get project root for DBT commands
-    project_root = (
-        "/Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform"
-    )
-
-    # Act: Run DBT debug to check connection
+    # Act: Run DBT debug to check connection using local DBT installation
     debug_result = subprocess.run(
         [
-            "services/dbt/venv/bin/dbt",
+            "./venv/bin/dbt",
             "debug",
             "--profiles-dir",
-            "services/dbt",
+            "profiles",
             "--project-dir",
-            "services/dbt",
+            ".",
         ],
-        cwd=project_root,
         capture_output=True,
         text=True,
         timeout=60,
+        cwd=str(PROJECT_ROOT / "services" / "dbt"),
     )
 
     # Assert: DBT can connect
@@ -186,21 +192,21 @@ def test_phase2_phase3_bronze_dbt(
         "Database Error" not in debug_result.stderr
     ), f"DBT encountered database error:\n{debug_result.stderr}"
 
-    # Act: Run DBT source freshness check (if sources configured)
+    # Act: Run DBT source freshness check (if sources configured) using local DBT installation
     freshness_result = subprocess.run(
         [
-            "services/dbt/venv/bin/dbt",
+            "./venv/bin/dbt",
             "source",
             "freshness",
             "--profiles-dir",
-            "services/dbt",
+            "profiles",
             "--project-dir",
-            "services/dbt",
+            ".",
         ],
-        cwd=project_root,
         capture_output=True,
         text=True,
         timeout=120,
+        cwd=str(PROJECT_ROOT / "services" / "dbt"),
     )
 
     # Note: Source freshness may return non-zero if no freshness tests configured
@@ -233,60 +239,30 @@ def test_phase3_phase4_dbt_airflow(
     - Task logs show DBT output
     - Task state = success
     """
-    # Assert: No DAG import errors - use underlying client for direct API access
-    import_errors = airflow_client.client.get(
-        f"{airflow_client.base_url}/api/v1/importErrors"
-    )
-    assert (
-        import_errors.status_code == 200
-    ), f"Failed to get import errors: {import_errors.text}"
-    errors_data = import_errors.json()
+    import httpx
+
+    # Assert: No DAG import errors - use version-agnostic client method
+    errors_data = airflow_client.get_import_errors()
     assert (
         errors_data["total_entries"] == 0
     ), f"DAG import errors detected: {errors_data.get('import_errors', [])}"
 
     # Arrange: Get dbt_transformation DAG
     dag_id = "dbt_transformation"
-    dag_response = airflow_client.client.get(
-        f"{airflow_client.base_url}/api/v1/dags/{dag_id}"
-    )
-
-    # Skip if DBT DAG not found (might not be deployed yet)
-    if dag_response.status_code == 404:
-        pytest.skip(f"DAG {dag_id} not found in Airflow - skipping")
-
-    assert (
-        dag_response.status_code == 200
-    ), f"DAG {dag_id} request failed: {dag_response.text}"
+    try:
+        airflow_client.get_dag(dag_id)
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            pytest.skip(f"DAG {dag_id} not found in Airflow - skipping")
+        raise
 
     # Act: Trigger DAG run
-    trigger_response = airflow_client.client.post(
-        f"{airflow_client.base_url}/api/v1/dags/{dag_id}/dagRuns",
-        json={"conf": {}},
-    )
-    assert trigger_response.status_code in [
-        200,
-        201,
-    ], f"Failed to trigger DAG: {trigger_response.text}"
-    dag_run_id = trigger_response.json()["dag_run_id"]
+    dag_run_id = airflow_client.trigger_dag(dag_id, conf={})
 
     # Act: Wait for DAG completion
-    max_wait = 300  # 5 minutes
-    poll_interval = 10
-    elapsed = 0
-    dag_state = None
-
-    while elapsed < max_wait:
-        state_response = airflow_client.client.get(
-            f"{airflow_client.base_url}/api/v1/dags/{dag_id}/dagRuns/{dag_run_id}"
-        )
-        if state_response.status_code == 200:
-            dag_data = state_response.json()
-            dag_state = dag_data.get("state")
-            if dag_state in ["success", "failed"]:
-                break
-        time.sleep(poll_interval)
-        elapsed += poll_interval
+    dag_state = airflow_client.wait_for_dag_completion(
+        dag_id, dag_run_id, timeout_seconds=300, poll_interval=10.0
+    )
 
     # Assert: DAG completed successfully
     assert (
@@ -294,15 +270,9 @@ def test_phase3_phase4_dbt_airflow(
     ), f"DAG {dag_id} did not complete successfully: state={dag_state}"
 
     # Act: Get task instances to verify DBT task ran
-    tasks_response = airflow_client.client.get(
-        f"{airflow_client.base_url}/api/v1/dags/{dag_id}/dagRuns/{dag_run_id}/taskInstances"
-    )
-    assert (
-        tasks_response.status_code == 200
-    ), f"Failed to get task instances: {tasks_response.text}"
+    tasks = airflow_client.get_task_instances(dag_id, dag_run_id)
 
     # Assert: All tasks succeeded
-    tasks = tasks_response.json()["task_instances"]
     for task in tasks:
         assert (
             task["state"] == "success"
@@ -330,8 +300,28 @@ def test_phase3_phase5_gold_superset(
     # Arrange: Check if Gold tables exist and have data
     gold_count = count_rows(thrift_connection, "gold.agg_hourly_zone_demand")
     if gold_count == 0:
-        # Skip test if no Gold data (requires prior DBT run)
-        pytest.skip("Gold tables empty, run DBT transformations first")
+        # Run DBT Gold transformations to populate tables
+        print(
+            "Gold tables empty, running DBT Gold transformations using local DBT installation..."
+        )
+        dbt_result = subprocess.run(
+            [
+                "./venv/bin/dbt",
+                "run",
+                "--select",
+                "tag:gold",
+                "--profiles-dir",
+                "profiles",
+                "--project-dir",
+                ".",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=str(PROJECT_ROOT / "services" / "dbt"),
+        )
+
+        if dbt_result.returncode != 0:
+            pytest.skip(f"Could not populate Gold tables via DBT: {dbt_result.stderr}")
 
     # Act: Get list of databases
     databases = superset_client.list_databases()

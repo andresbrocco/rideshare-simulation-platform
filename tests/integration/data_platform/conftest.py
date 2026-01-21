@@ -79,22 +79,17 @@ def _get_required_profiles_from_items(items) -> set:
     return profiles
 
 
-def pytest_collection_modifyitems(config, items):
-    """Store required profiles in config for the session fixture."""
-    profiles = _get_required_profiles_from_items(items)
-    # Default to core + data-platform if no markers specified (backward compatibility)
-    if not profiles:
-        profiles = {"core", "data-platform"}
-    config._required_profiles = profiles
-
-
 @pytest.fixture(scope="session")
 def docker_compose(request):
     """Manage Docker Compose container lifecycle.
 
     Dynamically starts profiles based on @pytest.mark.requires_profiles markers
-    found in the test collection. Falls back to core + data-platform if no
-    markers are specified.
+    found ONLY in the tests that will actually run (after -k filters, marker
+    filters, and file path selection are applied). Falls back to core +
+    data-platform if no markers are specified.
+
+    Set SKIP_DOCKER_TEARDOWN=1 to skip container teardown after tests
+    (useful for faster iteration when containers are slow to start).
 
     Usage in test files:
         @pytest.mark.requires_profiles("core", "data-platform")
@@ -110,8 +105,13 @@ def docker_compose(request):
         os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     )
 
-    # Get required profiles from pytest config (set during collection)
-    profiles = getattr(request.config, "_required_profiles", {"core", "data-platform"})
+    # Get required profiles from session items (tests that will actually run)
+    # request.session.items contains only the selected tests after filtering
+    profiles = _get_required_profiles_from_items(request.session.items)
+
+    # Default to core + data-platform if no markers specified (backward compatibility)
+    if not profiles:
+        profiles = {"core", "data-platform"}
 
     # Validate profiles
     invalid_profiles = profiles - set(DOCKER_PROFILES.keys())
@@ -133,6 +133,11 @@ def docker_compose(request):
     subprocess.run(cmd, check=True, cwd=project_root)
 
     yield profiles  # Yield the profiles so tests can know what's running
+
+    # Teardown: skip if SKIP_DOCKER_TEARDOWN is set (for faster iteration)
+    if os.environ.get("SKIP_DOCKER_TEARDOWN", "").lower() in ("1", "true", "yes"):
+        print("\n[conftest] SKIP_DOCKER_TEARDOWN set, skipping container teardown")
+        return
 
     # Teardown: stop containers for the profiles we started
     down_cmd = ["docker", "compose", "-f", compose_file]
@@ -178,6 +183,16 @@ def wait_for_services(docker_compose):
 
     def check_airflow_healthy():
         try:
+            # Airflow 3.x uses /api/v2, Airflow 2.x uses /api/v1
+            # Try v2 first, fall back to v1
+            response = httpx.get(
+                "http://localhost:8082/api/v2/monitor/health",
+                auth=("admin", "admin"),
+                timeout=5.0,
+            )
+            if response.status_code == 200:
+                return True
+            # Fall back to v1 for older Airflow versions
             response = httpx.get(
                 "http://localhost:8082/api/v1/monitor/health",
                 auth=("admin", "admin"),
@@ -223,10 +238,11 @@ def wait_for_services(docker_compose):
         text=True,
     )
     if "rideshare-airflow-webserver" in airflow_container_check.stdout:
+        # Airflow may take a long time to start due to pip install on first boot
         wait_for_condition(
             condition=check_airflow_healthy,
-            timeout_seconds=180,
-            poll_interval=5.0,
+            timeout_seconds=600,
+            poll_interval=10.0,
             description="Airflow webserver health",
         )
 
@@ -519,16 +535,16 @@ def wait_for_bronze_ingestion(thrift_connection, published_events):
 
 
 # =============================================================================
-# Module-scoped service verification fixtures (Ticket 015)
+# Session-scoped service verification fixtures (Ticket 015)
 # =============================================================================
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def streaming_jobs_running(docker_compose):
     """Verify all 8 Spark Structured Streaming jobs are running.
 
     Checks that spark-submit process exists in each streaming container.
-    Module-scoped: runs once per test module.
+    Session-scoped: runs once per test session.
     """
     streaming_containers = [
         "rideshare-spark-streaming-trips",
@@ -559,13 +575,25 @@ def streaming_jobs_running(docker_compose):
     yield
 
 
-@pytest.fixture(scope="module")
-def bronze_tables_initialized(docker_compose):
-    """Verify bronze-init container completed successfully.
+@pytest.fixture(scope="session")
+def bronze_tables_initialized(docker_compose, thrift_connection):
+    """Verify bronze-init container completed and ensure all layer tables exist.
 
-    Waits for container to exit with code 0 (Bronze tables created).
-    Module-scoped: runs once per test module.
+    Waits for container to exit with code 0 (databases created),
+    then ensures all Bronze, Silver, and Gold tables exist by creating them if necessary.
+    Session-scoped: runs once per test session.
+
+    Note: The bronze-init container only creates databases and tries to register
+    existing Delta tables. If no data has been written by streaming jobs yet,
+    the tables won't exist. This fixture ensures tables are created with proper
+    schemas so tests can run even without streaming data.
     """
+    from tests.integration.data_platform.utils.sql_helpers import (
+        ensure_bronze_tables_exist,
+        ensure_silver_tables_exist,
+        ensure_gold_tables_exist,
+    )
+
     container_name = "rideshare-bronze-init"
     max_wait_seconds = 180
     start_time = time.time()
@@ -581,7 +609,38 @@ def bronze_tables_initialized(docker_compose):
         if result.returncode == 0:
             exit_code = result.stdout.strip()
             if exit_code == "0":
-                # Container exited successfully
+                # Container exited successfully - now ensure tables exist
+                print(
+                    "[conftest] bronze-init completed, ensuring all layer tables exist..."
+                )
+
+                # Ensure Bronze tables exist
+                created_bronze = ensure_bronze_tables_exist(thrift_connection)
+                if created_bronze:
+                    print(
+                        f"[conftest] Created {len(created_bronze)} Bronze tables: {created_bronze}"
+                    )
+                else:
+                    print("[conftest] All Bronze tables already exist")
+
+                # Ensure Silver tables exist
+                created_silver = ensure_silver_tables_exist(thrift_connection)
+                if created_silver:
+                    print(
+                        f"[conftest] Created {len(created_silver)} Silver tables: {created_silver}"
+                    )
+                else:
+                    print("[conftest] All Silver tables already exist")
+
+                # Ensure Gold tables exist
+                created_gold = ensure_gold_tables_exist(thrift_connection)
+                if created_gold:
+                    print(
+                        f"[conftest] Created {len(created_gold)} Gold tables: {created_gold}"
+                    )
+                else:
+                    print("[conftest] All Gold tables already exist")
+
                 yield
                 return
             elif exit_code != "":
@@ -598,12 +657,12 @@ def bronze_tables_initialized(docker_compose):
     )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def airflow_dags_loaded(wait_for_services, airflow_client):
     """Verify Airflow DAGs are loaded without import errors.
 
     Queries /api/v1/dags endpoint to check DAG parsing.
-    Module-scoped: runs once per test module.
+    Session-scoped: runs once per test session.
     """
     # List all DAGs
     dags = airflow_client.list_dags()

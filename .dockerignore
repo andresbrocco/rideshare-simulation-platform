@@ -45,9 +45,6 @@
 **/coverage/
 **/.nyc_output/
 
-# Implementation plan (not needed in containers)
-.implementation/
-
 # OS files
 **/.DS_Store
 **/Thumbs.db
@@ -56,22 +53,16 @@
 **/*.log
 **/logs/
 
-# Terraform
-terraform/
+# Local workflow artifacts (not needed in containers)
+.workflow/
+.archive/
+.playwright-mcp/
+.implementation/
 
-# Airflow (separate deployment)
-airflow_dags/
+# Terraform (infrastructure provisioning, never containerized)
+infrastructure/terraform/
 
-# DBT (inside data-platform)
-data-platform/dbt/
-
-# Great Expectations (separate deployment)
-great_expectations/
-
-# Looker (separate deployment)
-looker/
-
-# Integration tests (run separately)
+# Integration tests (run separately from containers)
 tests/integration/
 
 # Example files

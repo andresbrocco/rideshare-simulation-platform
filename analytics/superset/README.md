@@ -1,6 +1,6 @@
 # Apache Superset BI Stack
 
-Apache Superset 6.0.0-dev deployment for business intelligence dashboards and SQL exploration.
+Apache Superset 6.0.0 deployment for business intelligence dashboards and SQL exploration.
 
 ## Architecture
 
@@ -9,7 +9,7 @@ Apache Superset 6.0.0-dev deployment for business intelligence dashboards and SQ
 - **Redis**: Cache layer (128MB) on port 6380
 - **Total Memory**: 1152MB
 
-Note: Using 6.0.0-dev image which includes psycopg2-binary for PostgreSQL connectivity.
+Note: Using 6.0.0 image which includes psycopg2-binary for PostgreSQL connectivity.
 
 ## Quick Start
 

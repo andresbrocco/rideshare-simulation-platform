@@ -1,12 +1,17 @@
 """HTTP client utilities for external service APIs."""
 
 import time
-from typing import Dict, Any, Optional, List
+from typing import Any
+
 import httpx
 
 
 class AirflowClient:
-    """HTTP client for Airflow REST API with basic auth."""
+    """HTTP client for Airflow REST API.
+
+    Supports both Airflow 2.x (api/v1 with basic auth) and Airflow 3.x (api/v2 with JWT).
+    Airflow 3.x uses JWT token authentication via POST /auth/token endpoint.
+    """
 
     def __init__(self, base_url: str, username: str, password: str):
         """Initialize Airflow client.
@@ -17,9 +22,71 @@ class AirflowClient:
             password: Airflow admin password
         """
         self.base_url = base_url.rstrip("/")
-        self.client = httpx.Client(auth=(username, password), timeout=30.0)
+        self._username = username
+        self._password = password
+        self._jwt_token: str | None = None
+        self.client = httpx.Client(timeout=30.0)
+        # Auto-detect API version and configure authentication
+        self._api_version = self._detect_api_version()
+        self._setup_authentication()
 
-    def trigger_dag(self, dag_id: str, conf: Optional[Dict[str, Any]] = None) -> str:
+    def _detect_api_version(self) -> str:
+        """Detect Airflow API version.
+
+        Returns:
+            API version string ('v2' or 'v1')
+        """
+        try:
+            # Health endpoint works without auth in both versions
+            response = self.client.get(f"{self.base_url}/api/v2/monitor/health")
+            if response.status_code == 200:
+                return "v2"
+        except Exception:
+            pass
+        return "v1"
+
+    def _setup_authentication(self) -> None:
+        """Set up authentication based on API version.
+
+        Airflow 2.x uses basic auth, Airflow 3.x uses JWT tokens.
+        """
+        if self._api_version == "v2":
+            # Airflow 3.x: Get JWT token via /auth/token endpoint
+            self._refresh_jwt_token()
+        else:
+            # Airflow 2.x: Use basic auth
+            self.client = httpx.Client(
+                auth=(self._username, self._password), timeout=30.0
+            )
+
+    def _refresh_jwt_token(self) -> None:
+        """Obtain JWT token from Airflow 3.x /auth/token endpoint.
+
+        Raises:
+            httpx.HTTPError: On authentication failure
+        """
+        response = self.client.post(
+            f"{self.base_url}/auth/token",
+            json={"username": self._username, "password": self._password},
+            headers={"Content-Type": "application/json"},
+        )
+        response.raise_for_status()
+        self._jwt_token = response.json()["access_token"]
+        # Update client headers with bearer token
+        self.client.headers.update({"Authorization": f"Bearer {self._jwt_token}"})
+
+    def _api_url(self, path: str) -> str:
+        """Build API URL with correct version.
+
+        Args:
+            path: API path (without /api/vX prefix)
+
+        Returns:
+            Full API URL
+        """
+        return f"{self.base_url}/api/{self._api_version}{path}"
+
+    def trigger_dag(self, dag_id: str, conf: dict[str, Any] | None = None) -> str:
         """Trigger DAG run.
 
         Args:
@@ -34,7 +101,7 @@ class AirflowClient:
         """
         payload = {"conf": conf or {}}
         response = self.client.post(
-            f"{self.base_url}/api/v1/dags/{dag_id}/dagRuns", json=payload
+            self._api_url(f"/dags/{dag_id}/dagRuns"), json=payload
         )
         response.raise_for_status()
         return response.json()["dag_run_id"]
@@ -50,20 +117,62 @@ class AirflowClient:
             State string (e.g., 'success', 'running', 'failed')
         """
         response = self.client.get(
-            f"{self.base_url}/api/v1/dags/{dag_id}/dagRuns/{dag_run_id}"
+            self._api_url(f"/dags/{dag_id}/dagRuns/{dag_run_id}")
         )
         response.raise_for_status()
         return response.json()["state"]
 
-    def list_dags(self) -> List[Dict[str, Any]]:
+    def list_dags(self) -> list[dict[str, Any]]:
         """List all DAGs.
 
         Returns:
             List of DAG metadata dictionaries
         """
-        response = self.client.get(f"{self.base_url}/api/v1/dags")
+        response = self.client.get(self._api_url("/dags"))
         response.raise_for_status()
         return response.json()["dags"]
+
+    def get_dag(self, dag_id: str) -> dict[str, Any]:
+        """Get DAG details by ID.
+
+        Args:
+            dag_id: DAG identifier
+
+        Returns:
+            DAG metadata dictionary
+
+        Raises:
+            httpx.HTTPError: On API error (including 404 if DAG not found)
+        """
+        response = self.client.get(self._api_url(f"/dags/{dag_id}"))
+        response.raise_for_status()
+        return response.json()
+
+    def get_import_errors(self) -> dict[str, Any]:
+        """Get DAG import errors.
+
+        Returns:
+            Dictionary with 'import_errors' list and 'total_entries' count
+        """
+        response = self.client.get(self._api_url("/importErrors"))
+        response.raise_for_status()
+        return response.json()
+
+    def get_task_instances(self, dag_id: str, dag_run_id: str) -> list[dict[str, Any]]:
+        """Get task instances for a DAG run.
+
+        Args:
+            dag_id: DAG identifier
+            dag_run_id: DAG run ID
+
+        Returns:
+            List of task instance dictionaries
+        """
+        response = self.client.get(
+            self._api_url(f"/dags/{dag_id}/dagRuns/{dag_run_id}/taskInstances")
+        )
+        response.raise_for_status()
+        return response.json()["task_instances"]
 
     def wait_for_dag_completion(
         self,
@@ -129,7 +238,12 @@ class SupersetClient:
         """
         response = self.client.post(
             f"{self.base_url}/api/v1/security/login",
-            json={"username": username, "password": password},
+            json={
+                "username": username,
+                "password": password,
+                "provider": "db",
+                "refresh": True,
+            },
         )
         response.raise_for_status()
         access_token = response.json()["access_token"]
@@ -137,7 +251,7 @@ class SupersetClient:
         # Set Authorization header for subsequent requests
         self.client.headers.update({"Authorization": f"Bearer {access_token}"})
 
-    def list_databases(self) -> List[Dict[str, Any]]:
+    def list_databases(self) -> list[dict[str, Any]]:
         """List database connections.
 
         Returns:
@@ -147,7 +261,31 @@ class SupersetClient:
         response.raise_for_status()
         return response.json()["result"]
 
-    def execute_query(self, database_id: int, sql: str) -> Dict[str, Any]:
+    def create_database(self, name: str, sqlalchemy_uri: str) -> int:
+        """Create a new database connection.
+
+        Args:
+            name: Database connection name
+            sqlalchemy_uri: SQLAlchemy connection URI
+
+        Returns:
+            Database ID
+
+        Raises:
+            httpx.HTTPError: On API error
+        """
+        response = self.client.post(
+            f"{self.base_url}/api/v1/database/",
+            json={
+                "database_name": name,
+                "sqlalchemy_uri": sqlalchemy_uri,
+                "expose_in_sqllab": True,
+            },
+        )
+        response.raise_for_status()
+        return response.json()["id"]
+
+    def execute_query(self, database_id: int, sql: str) -> dict[str, Any]:
         """Execute SQL query via Superset API.
 
         Args:
@@ -181,7 +319,7 @@ class PrometheusClient:
         self.base_url = base_url.rstrip("/")
         self.client = httpx.Client(timeout=30.0)
 
-    def query_instant(self, query: str) -> Dict[str, Any]:
+    def query_instant(self, query: str) -> dict[str, Any]:
         """Execute instant query.
 
         Args:
@@ -198,7 +336,7 @@ class PrometheusClient:
 
     def query_range(
         self, query: str, start: str, end: str, step: str = "1m"
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Execute range query.
 
         Args:
@@ -217,7 +355,7 @@ class PrometheusClient:
         response.raise_for_status()
         return response.json()
 
-    def get_targets(self) -> List[Dict[str, Any]]:
+    def get_targets(self) -> list[dict[str, Any]]:
         """Get scrape targets.
 
         Returns:
@@ -248,7 +386,7 @@ class GrafanaClient:
         self.base_url = base_url.rstrip("/")
         self.client = httpx.Client(auth=(username, password), timeout=30.0)
 
-    def get_dashboard(self, uid: str) -> Dict[str, Any]:
+    def get_dashboard(self, uid: str) -> dict[str, Any]:
         """Get dashboard by UID.
 
         Args:
@@ -261,7 +399,7 @@ class GrafanaClient:
         response.raise_for_status()
         return response.json()
 
-    def list_dashboards(self) -> List[Dict[str, Any]]:
+    def list_dashboards(self) -> list[dict[str, Any]]:
         """List all dashboards.
 
         Returns:

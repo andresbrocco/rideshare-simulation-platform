@@ -28,7 +28,7 @@ def run_command(cmd, check=True, cwd=None):
 class TestServiceHealth:
     """Verify all data platform services are running and healthy."""
 
-    def test_all_services_running(self):
+    def test_all_services_running(self, wait_for_services):
         """All data platform containers should be in running state.
 
         Note: Spark runs in local mode (no spark-master/spark-worker).
@@ -70,7 +70,7 @@ class TestServiceHealth:
         missing = expected - services_found
         assert not missing, f"Missing services: {missing}"
 
-    def test_memory_limits_enforced(self):
+    def test_memory_limits_enforced(self, wait_for_services):
         """Verify services respect memory limits (no OOMKilled)."""
         project_root = _get_project_root()
         ps_output = run_command(
@@ -108,23 +108,61 @@ class TestSparkDelta:
     """Verify Spark can read/write Delta tables to MinIO."""
 
     def test_spark_delta_write_read(self, thrift_connection):
-        """Verify Delta tables can be queried via Thrift Server.
+        """Verify Delta tables can be created, written to, and read from.
 
-        Uses the thrift_connection fixture (PyHive) to query existing
-        Bronze tables created by streaming jobs.
+        Creates a test Delta table to verify Spark's Delta Lake integration
+        works correctly, without depending on streaming job data.
         """
         cursor = thrift_connection.cursor()
-        # Query the bronze database to verify Delta tables are accessible
-        cursor.execute("SHOW DATABASES")
-        databases = [row[0] for row in cursor.fetchall()]
-        assert (
-            "bronze" in databases
-        ), f"Bronze database not found. Databases: {databases}"
 
-        # Verify we can query a Bronze table
-        cursor.execute("SHOW TABLES IN bronze")
-        tables = [row[1] for row in cursor.fetchall()]
-        assert len(tables) > 0, "No tables found in bronze database"
+        test_db = "spark_delta_test_db"
+        test_table = "delta_write_read_test"
+
+        try:
+            # Create test database
+            cursor.execute(f"CREATE DATABASE IF NOT EXISTS {test_db}")
+
+            # Create a Delta table
+            cursor.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS {test_db}.{test_table} (
+                    trip_id STRING,
+                    driver_id STRING,
+                    rider_id STRING,
+                    fare_amount DOUBLE
+                ) USING DELTA
+                """
+            )
+
+            # Write test data
+            cursor.execute(
+                f"""
+                INSERT INTO {test_db}.{test_table} VALUES
+                ('trip_001', 'driver_001', 'rider_001', 25.50),
+                ('trip_002', 'driver_002', 'rider_002', 15.75)
+                """
+            )
+
+            # Read and verify the data
+            cursor.execute(
+                f"SELECT trip_id, fare_amount FROM {test_db}.{test_table} ORDER BY trip_id"
+            )
+            rows = cursor.fetchall()
+            assert len(rows) == 2, f"Expected 2 rows, got {len(rows)}"
+            assert rows[0][0] == "trip_001"
+            assert rows[0][1] == 25.50
+            assert rows[1][0] == "trip_002"
+            assert rows[1][1] == 15.75
+
+            # Verify Delta-specific feature: table history
+            cursor.execute(f"DESCRIBE HISTORY {test_db}.{test_table}")
+            history = cursor.fetchall()
+            assert len(history) >= 1, "Delta table should have history"
+
+        finally:
+            # Cleanup
+            cursor.execute(f"DROP TABLE IF EXISTS {test_db}.{test_table}")
+            cursor.execute(f"DROP DATABASE IF EXISTS {test_db}")
 
 
 class TestThriftServer:
@@ -138,19 +176,63 @@ class TestThriftServer:
         assert "default" in databases, f"Default database not found: {databases}"
 
     def test_thrift_server_delta_query(self, thrift_connection):
-        """SQL query should read Delta tables in Bronze layer."""
+        """SQL query should execute Delta table operations successfully.
+
+        Creates a temporary Delta table to verify Thrift Server can handle
+        Delta queries, without depending on data from streaming jobs.
+        """
         cursor = thrift_connection.cursor()
-        # Query the bronze_trips table created by streaming jobs
-        cursor.execute("SELECT COUNT(*) FROM bronze.bronze_trips")
-        count = cursor.fetchone()[0]
-        # Just verify the query works - count may be 0 if no data yet
-        assert count >= 0, "Query should return a count"
+
+        # Create a test database and Delta table to verify Delta query capability
+        test_db = "thrift_test_db"
+        test_table = "test_delta_table"
+
+        try:
+            # Create test database
+            cursor.execute(f"CREATE DATABASE IF NOT EXISTS {test_db}")
+
+            # Create a Delta table with test data
+            cursor.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS {test_db}.{test_table} (
+                    id INT,
+                    name STRING,
+                    created_at TIMESTAMP
+                ) USING DELTA
+                """
+            )
+
+            # Insert test data
+            cursor.execute(
+                f"""
+                INSERT INTO {test_db}.{test_table} VALUES
+                (1, 'test_record_1', current_timestamp()),
+                (2, 'test_record_2', current_timestamp())
+                """
+            )
+
+            # Query the Delta table to verify it works
+            cursor.execute(f"SELECT COUNT(*) FROM {test_db}.{test_table}")
+            count = cursor.fetchone()[0]
+            assert count == 2, f"Expected 2 records, got {count}"
+
+            # Verify we can read specific columns (Delta-specific query)
+            cursor.execute(f"SELECT id, name FROM {test_db}.{test_table} ORDER BY id")
+            rows = cursor.fetchall()
+            assert len(rows) == 2
+            assert rows[0][0] == 1
+            assert rows[0][1] == "test_record_1"
+
+        finally:
+            # Cleanup: drop test table and database
+            cursor.execute(f"DROP TABLE IF EXISTS {test_db}.{test_table}")
+            cursor.execute(f"DROP DATABASE IF EXISTS {test_db}")
 
 
 class TestLocalStack:
     """Verify LocalStack AWS emulation."""
 
-    def test_localstack_health(self):
+    def test_localstack_health(self, wait_for_services):
         """LocalStack health endpoint should respond."""
         output = run_command("curl -s http://localhost:4566/_localstack/health")
         health = json.loads(output)

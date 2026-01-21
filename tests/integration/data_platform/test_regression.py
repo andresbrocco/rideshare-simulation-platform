@@ -23,13 +23,14 @@ from tests.integration.data_platform.utils.wait_helpers import (
 
 # Module-level fixtures: ensure services are ready before any test runs
 # Note: REG-001 requires quality-orchestration (Airflow) and bi (Superset)
+# Note: streaming_jobs_running is required for all regression tests as they
+# test full pipeline flows involving Kafka -> Bronze ingestion.
 pytestmark = [
     pytest.mark.regression,
     pytest.mark.requires_profiles("core", "data-platform"),
     pytest.mark.usefixtures(
         "streaming_jobs_running",
         "bronze_tables_initialized",
-        "airflow_dags_loaded",
     ),
 ]
 
@@ -41,6 +42,7 @@ pytestmark = [
 
 @pytest.mark.regression
 @pytest.mark.requires_profiles("core", "data-platform", "quality-orchestration", "bi")
+@pytest.mark.usefixtures("airflow_dags_loaded")
 def test_full_pipeline_regression(
     clean_bronze_tables,
     clean_silver_tables,
@@ -81,7 +83,7 @@ def test_full_pipeline_regression(
         {
             "trip_id": trip_id,
             "status": "requested",
-            "event_timestamp": "2026-01-20T10:00:00Z",
+            "timestamp": "2026-01-20T10:00:00Z",
             "rider_id": rider_id,
             "pickup_location": {"lat": -23.5505, "lon": -46.6333},
             "dropoff_location": {"lat": -23.5620, "lon": -46.6550},
@@ -90,7 +92,7 @@ def test_full_pipeline_regression(
         {
             "trip_id": trip_id,
             "status": "matched",
-            "event_timestamp": "2026-01-20T10:01:00Z",
+            "timestamp": "2026-01-20T10:01:00Z",
             "rider_id": rider_id,
             "driver_id": driver_id,
             "correlation_id": correlation_id,
@@ -98,28 +100,28 @@ def test_full_pipeline_regression(
         {
             "trip_id": trip_id,
             "status": "driver_en_route",
-            "event_timestamp": "2026-01-20T10:02:00Z",
+            "timestamp": "2026-01-20T10:02:00Z",
             "driver_id": driver_id,
             "correlation_id": correlation_id,
         },
         {
             "trip_id": trip_id,
             "status": "driver_arrived",
-            "event_timestamp": "2026-01-20T10:05:00Z",
+            "timestamp": "2026-01-20T10:05:00Z",
             "driver_id": driver_id,
             "correlation_id": correlation_id,
         },
         {
             "trip_id": trip_id,
             "status": "started",
-            "event_timestamp": "2026-01-20T10:06:00Z",
+            "timestamp": "2026-01-20T10:06:00Z",
             "driver_id": driver_id,
             "correlation_id": correlation_id,
         },
         {
             "trip_id": trip_id,
             "status": "completed",
-            "event_timestamp": "2026-01-20T10:25:00Z",
+            "timestamp": "2026-01-20T10:25:00Z",
             "driver_id": driver_id,
             "fare": 45.50,
             "distance_km": 12.3,
@@ -141,7 +143,8 @@ def test_full_pipeline_regression(
     # Step 1: Wait for Bronze ingestion
     def query_bronze_count():
         return count_rows(
-            thrift_connection, f"bronze.bronze_trips WHERE trip_id = '{trip_id}'"
+            thrift_connection,
+            f"bronze.bronze_trips WHERE _raw_value LIKE '%{trip_id}%'",
         )
 
     poll_until_records_present(
@@ -155,7 +158,7 @@ def test_full_pipeline_regression(
     # Assert: Verify all 6 events in Bronze
     bronze_events = query_table(
         thrift_connection,
-        f"SELECT * FROM bronze.bronze_trips WHERE trip_id = '{trip_id}' ORDER BY event_timestamp",
+        f"SELECT _raw_value, _ingested_at FROM bronze.bronze_trips WHERE _raw_value LIKE '%{trip_id}%' ORDER BY _kafka_offset",
     )
 
     assert (
@@ -309,7 +312,7 @@ def test_service_restart_resilience(
         event = {
             "trip_id": f"restart-test-{i:03d}",
             "status": "requested",
-            "event_timestamp": f"2026-01-20T11:{i:02d}:00Z",
+            "timestamp": f"2026-01-20T11:{i:02d}:00Z",
             "rider_id": f"rider-{i:03d}",
             "pickup_location": {"lat": -23.5505, "lon": -46.6333},
             "dropoff_location": {"lat": -23.5620, "lon": -46.6550},
@@ -346,12 +349,15 @@ def test_service_restart_resilience(
     ), f"Expected 10 rows before restart, found {bronze_count_before_restart}"
 
     # Act: Restart spark-streaming-trips container
+    # Both profiles needed to resolve service dependencies
     restart_streaming_result = subprocess.run(
         [
             "docker",
             "compose",
             "-f",
             "infrastructure/docker/compose.yml",
+            "--profile",
+            "core",
             "--profile",
             "data-platform",
             "restart",
@@ -377,7 +383,7 @@ def test_service_restart_resilience(
         event = {
             "trip_id": f"restart-test-{i:03d}",
             "status": "requested",
-            "event_timestamp": f"2026-01-20T11:{i:02d}:00Z",
+            "timestamp": f"2026-01-20T11:{i:02d}:00Z",
             "rider_id": f"rider-{i:03d}",
             "pickup_location": {"lat": -23.5505, "lon": -46.6333},
             "dropoff_location": {"lat": -23.5620, "lon": -46.6550},
@@ -413,12 +419,15 @@ def test_service_restart_resilience(
     ), f"Expected 20 rows before Thrift restart, found {bronze_count_before_thrift_restart}"
 
     # Act: Restart spark-thrift-server container
+    # Both profiles needed to resolve service dependencies
     restart_thrift_result = subprocess.run(
         [
             "docker",
             "compose",
             "-f",
             "infrastructure/docker/compose.yml",
+            "--profile",
+            "core",
             "--profile",
             "data-platform",
             "restart",
@@ -451,25 +460,30 @@ def test_service_restart_resilience(
     )
 
     try:
+        # Bronze layer stores raw JSON in _raw_value column
         bronze_trips = query_table(
             new_connection,
-            "SELECT trip_id, status FROM bronze.bronze_trips ORDER BY trip_id",
+            "SELECT _raw_value, _kafka_offset FROM bronze.bronze_trips ORDER BY _kafka_offset",
         )
 
         assert (
             len(bronze_trips) == 20
         ), f"Expected 20 events in bronze_trips after restarts, found {len(bronze_trips)}"
 
-        # Assert: All trip_ids present (no data loss)
+        # Assert: All trip_ids present (no data loss) - parse from JSON
         expected_trip_ids = {f"restart-test-{i:03d}" for i in range(1, 21)}
-        actual_trip_ids = {row["trip_id"] for row in bronze_trips}
+        actual_trip_ids = set()
+        for row in bronze_trips:
+            raw_json = json.loads(row["_raw_value"])
+            actual_trip_ids.add(raw_json["trip_id"])
+
         assert (
             actual_trip_ids == expected_trip_ids
         ), f"Missing trip_ids. Expected {expected_trip_ids}, got {actual_trip_ids}"
 
         # Assert: No duplicates (exactly-once semantics)
         assert (
-            len(set(actual_trip_ids)) == 20
+            len(actual_trip_ids) == 20
         ), "Duplicates found in bronze_trips after restart"
 
     finally:
@@ -534,7 +548,7 @@ def test_memory_pressure_resilience(
         event = {
             "trip_id": f"memory-test-{i:05d}",
             "status": "requested",
-            "event_timestamp": f"2026-01-20T12:{(i % 60):02d}:{(i // 60) % 60:02d}Z",
+            "timestamp": f"2026-01-20T12:{(i % 60):02d}:{(i // 60) % 60:02d}Z",
             "rider_id": f"rider-{(i % 100):03d}",
             "pickup_location": {
                 "lat": -23.5505 + (i % 10) * 0.001,
@@ -630,30 +644,38 @@ def test_memory_pressure_resilience(
     assert container_running == "true", "Container stopped during memory pressure test"
 
     # Assert: Query sample of events to verify no data corruption
+    # Bronze layer stores raw JSON in _raw_value column
     sample_trips = query_table(
         thrift_connection,
-        "SELECT trip_id, status, correlation_id FROM bronze.bronze_trips "
-        "WHERE trip_id IN ('memory-test-00001', 'memory-test-00500', 'memory-test-01000') "
-        "ORDER BY trip_id",
+        "SELECT _raw_value FROM bronze.bronze_trips "
+        "WHERE _raw_value LIKE '%memory-test-00001%' "
+        "   OR _raw_value LIKE '%memory-test-00500%' "
+        "   OR _raw_value LIKE '%memory-test-01000%' "
+        "ORDER BY _kafka_offset",
     )
 
     assert len(sample_trips) == 3, f"Expected 3 sample trips, found {len(sample_trips)}"
 
-    # Verify no data corruption in sample
-    for trip in sample_trips:
+    # Verify no data corruption in sample - parse JSON
+    for row in sample_trips:
+        trip = json.loads(row["_raw_value"])
         assert (
             trip["status"] == "requested"
         ), f"Data corruption: trip {trip['trip_id']} has status {trip['status']}"
         assert (
-            trip["correlation_id"] is not None
+            trip.get("correlation_id") is not None
         ), f"Data corruption: trip {trip['trip_id']} missing correlation_id"
 
     # Assert: No duplicates (exactly-once even under memory pressure)
-    all_trip_ids = query_table(
-        thrift_connection, "SELECT trip_id FROM bronze.bronze_trips"
+    all_trips = query_table(
+        thrift_connection, "SELECT _raw_value FROM bronze.bronze_trips"
     )
 
-    unique_trip_ids = set([row["trip_id"] for row in all_trip_ids])
+    unique_trip_ids = set()
+    for row in all_trips:
+        trip = json.loads(row["_raw_value"])
+        unique_trip_ids.add(trip["trip_id"])
+
     assert (
         len(unique_trip_ids) == num_events
-    ), f"Duplicates found: {len(all_trip_ids)} rows, {len(unique_trip_ids)} unique trip_ids"
+    ), f"Duplicates found: {len(all_trips)} rows, {len(unique_trip_ids)} unique trip_ids"
