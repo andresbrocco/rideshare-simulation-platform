@@ -28,7 +28,19 @@ addopts = [
     "--strict-markers",
     "--strict-config",
     "-ra",
+    "-v",
+    "--tb=short",
+    "--maxfail=5",
 ]
 markers = [
     "integration: Integration tests (slower, external dependencies)",
+    "feature_journey: Feature journey tests (FJ-001 through FJ-007)",
+    "data_flow: Data flow tests (DF-001 through DF-004)",
+    "cross_phase: Cross-phase integration tests (XP-001 through XP-005)",
+    "external_integration: External service integration tests (EI-001 through EI-003)",
+    "regression: Regression tests (REG-001 through REG-003)",
 ]
+
+# Timeout settings (requires pytest-timeout package)
+# timeout = 120  # Default 120 seconds per test
+# timeout_method = "thread"

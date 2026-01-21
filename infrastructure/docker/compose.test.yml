@@ -1,0 +1,137 @@
+# Test-specific services for integration testing
+# Extends infrastructure/docker/compose.yml base configuration
+
+services:
+  # ============================================================================
+  # Test data producer - generates controlled test events
+  # ============================================================================
+
+  test-data-producer:
+    image: python:3.11-slim
+    container_name: rideshare-test-producer
+    profiles:
+      - test
+    working_dir: /app
+    environment:
+      # Kafka configuration (internal network addresses)
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
+
+      # Producer settings
+      PRODUCER_BATCH_SIZE: 10
+      PRODUCER_LINGER_MS: 100
+    volumes:
+      # Mount test fixtures and producers as read-only
+      - ../../tests/integration/data-platform/fixtures:/app/fixtures:ro
+      - ../../tests/integration/data-platform/producers:/app/producers:ro
+    depends_on:
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+    networks:
+      - rideshare-network
+    command: ["python", "/app/producers/generate_test_events.py"]
+    # Note: This service runs once and exits; no healthcheck needed
+
+  # ============================================================================
+  # Test runner - executes pytest integration tests
+  # ============================================================================
+
+  test-runner:
+    image: python:3.11-slim
+    container_name: rideshare-test-runner
+    profiles:
+      - test
+    working_dir: /app
+    volumes:
+      # Mount test code as read-only
+      - ../../tests:/app/tests:ro
+      - ../../pyproject.toml:/app/pyproject.toml:ro
+
+      # Mount shared dependencies (if needed for imports)
+      - ../../schemas:/app/schemas:ro
+    environment:
+      # ========================================================================
+      # MinIO / S3
+      # ========================================================================
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+
+      # ========================================================================
+      # Kafka
+      # ========================================================================
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
+
+      # ========================================================================
+      # Spark Thrift Server
+      # ========================================================================
+      THRIFT_SERVER_HOST: spark-thrift-server
+      THRIFT_SERVER_PORT: 10000
+
+      # ========================================================================
+      # Airflow
+      # ========================================================================
+      AIRFLOW_API_URL: http://airflow-webserver:8080
+      AIRFLOW_USERNAME: admin
+      AIRFLOW_PASSWORD: admin
+
+      # ========================================================================
+      # Superset
+      # ========================================================================
+      SUPERSET_URL: http://superset:8088
+      SUPERSET_USERNAME: admin
+      SUPERSET_PASSWORD: admin
+
+      # ========================================================================
+      # LocalStack
+      # ========================================================================
+      LOCALSTACK_ENDPOINT: http://localstack:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
+
+      # ========================================================================
+      # Prometheus / Grafana
+      # ========================================================================
+      PROMETHEUS_URL: http://prometheus:9090
+      GRAFANA_URL: http://grafana:3000
+      GRAFANA_USERNAME: admin
+      GRAFANA_PASSWORD: admin
+
+      # ========================================================================
+      # Redis
+      # ========================================================================
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+      # ========================================================================
+      # Test configuration
+      # ========================================================================
+      TEST_TIMEOUT_SECONDS: 120
+      STREAMING_TRIGGER_INTERVAL: 10
+      PYTHONPATH: /app
+    depends_on:
+      minio:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+      spark-thrift-server:
+        condition: service_healthy
+    networks:
+      - rideshare-network
+    # Default command runs all integration tests
+    command: ["pytest", "tests/integration/data-platform/", "-v", "--tb=short"]
+    # Note: test-runner exits after pytest completes; no healthcheck needed
+
+# ============================================================================
+# Use existing network from base compose.yml
+# ============================================================================
+networks:
+  rideshare-network:
+    external: true
+    name: rideshare-network
