@@ -139,22 +139,22 @@ def clean_bronze_tables(connection: hive.Connection) -> None:
         connection: PyHive Hive connection
     """
     bronze_tables = [
-        "bronze_trips",
-        "bronze_gps_pings",
-        "bronze_driver_status",
-        "bronze_surge_updates",
-        "bronze_ratings",
-        "bronze_payments",
-        "bronze_driver_profiles",
-        "bronze_rider_profiles",
-        "dlq_trips",
-        "dlq_gps_pings",
-        "dlq_driver_status",
-        "dlq_surge_updates",
-        "dlq_ratings",
-        "dlq_payments",
-        "dlq_driver_profiles",
-        "dlq_rider_profiles",
+        "bronze.bronze_trips",
+        "bronze.bronze_gps_pings",
+        "bronze.bronze_driver_status",
+        "bronze.bronze_surge_updates",
+        "bronze.bronze_ratings",
+        "bronze.bronze_payments",
+        "bronze.bronze_driver_profiles",
+        "bronze.bronze_rider_profiles",
+        "bronze.dlq_trips",
+        "bronze.dlq_gps_pings",
+        "bronze.dlq_driver_status",
+        "bronze.dlq_surge_updates",
+        "bronze.dlq_ratings",
+        "bronze.dlq_payments",
+        "bronze.dlq_driver_profiles",
+        "bronze.dlq_rider_profiles",
     ]
 
     for table in bronze_tables:
@@ -169,16 +169,16 @@ def clean_silver_tables(connection: hive.Connection) -> None:
         connection: PyHive Hive connection
     """
     silver_tables = [
-        "stg_trips",
-        "stg_gps_pings",
-        "stg_driver_status",
-        "stg_surge_updates",
-        "stg_ratings",
-        "stg_payments",
-        "stg_driver_profiles",
-        "stg_rider_profiles",
-        "anomalies_zombie_drivers",
-        "anomalies_gps_outliers",
+        "silver.stg_trips",
+        "silver.stg_gps_pings",
+        "silver.stg_driver_status",
+        "silver.stg_surge_updates",
+        "silver.stg_ratings",
+        "silver.stg_payments",
+        "silver.stg_driver_profiles",
+        "silver.stg_rider_profiles",
+        "silver.anomalies_zombie_drivers",
+        "silver.anomalies_gps_outliers",
     ]
 
     for table in silver_tables:
@@ -193,14 +193,14 @@ def clean_gold_tables(connection: hive.Connection) -> None:
         connection: PyHive Hive connection
     """
     gold_tables = [
-        "dim_drivers",
-        "dim_riders",
-        "dim_zones",
-        "dim_time",
-        "fact_trips",
-        "fact_payments",
-        "agg_hourly_zone_demand",
-        "agg_daily_driver_performance",
+        "gold.dim_drivers",
+        "gold.dim_riders",
+        "gold.dim_zones",
+        "gold.dim_time",
+        "gold.fact_trips",
+        "gold.fact_payments",
+        "gold.agg_hourly_zone_demand",
+        "gold.agg_daily_driver_performance",
     ]
 
     for table in gold_tables:

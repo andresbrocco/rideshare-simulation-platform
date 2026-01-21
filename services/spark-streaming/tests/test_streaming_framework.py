@@ -336,31 +336,47 @@ class TestBaseStreamingJob:
 
         assert isinstance(job.error_handler, ErrorHandler)
 
-    def test_streaming_job_start_creates_read_stream(self):
+    @patch("pyspark.sql.functions.col")
+    @patch("pyspark.sql.functions.current_timestamp")
+    def test_streaming_job_start_creates_read_stream(
+        self, mock_current_timestamp, mock_col
+    ):
         """Verify starting job creates a Kafka read stream."""
         mock_spark = MagicMock()
         mock_stream = MagicMock()
         mock_spark.readStream.format.return_value.options.return_value.load.return_value = (
             mock_stream
         )
+        # Make col and current_timestamp return MagicMock objects
+        mock_col.return_value = MagicMock()
+        mock_current_timestamp.return_value = MagicMock()
 
         job = create_concrete_streaming_job(spark=mock_spark)
         job.start()
 
         mock_spark.readStream.format.assert_called_with("kafka")
 
-    def test_streaming_job_start_creates_write_stream(self):
+    @patch("pyspark.sql.functions.col")
+    @patch("pyspark.sql.functions.current_timestamp")
+    def test_streaming_job_start_creates_write_stream(
+        self, mock_current_timestamp, mock_col
+    ):
         """Verify starting job creates a write stream to Delta."""
         mock_spark = MagicMock()
-        mock_df = MagicMock()
+        mock_raw_df = MagicMock()
+        mock_selected_df = MagicMock()
+        mock_raw_df.select.return_value = mock_selected_df
         mock_spark.readStream.format.return_value.options.return_value.load.return_value = (
-            mock_df
+            mock_raw_df
         )
+        # Make col and current_timestamp return MagicMock objects
+        mock_col.return_value = MagicMock()
+        mock_current_timestamp.return_value = MagicMock()
 
         job = create_concrete_streaming_job(spark=mock_spark)
         job.start()
 
-        mock_df.writeStream.format.assert_called_with("delta")
+        mock_selected_df.writeStream.format.assert_called_with("delta")
 
     def test_streaming_job_stop_gracefully(self):
         """Verify job can be stopped gracefully."""
@@ -418,19 +434,29 @@ class TestBatchIntervalConfiguration:
 
         assert config.trigger_interval == "availableNow"
 
-    def test_streaming_job_applies_trigger_interval(self):
+    @patch("pyspark.sql.functions.col")
+    @patch("pyspark.sql.functions.current_timestamp")
+    def test_streaming_job_applies_trigger_interval(
+        self, mock_current_timestamp, mock_col
+    ):
         """Verify streaming job applies trigger interval to write stream."""
         mock_spark = MagicMock()
-        mock_df = MagicMock()
+        mock_raw_df = MagicMock()
+        mock_selected_df = MagicMock()
         mock_write_stream = MagicMock()
-        mock_df.writeStream = mock_write_stream
+        mock_raw_df.select.return_value = mock_selected_df
+        mock_selected_df.writeStream = mock_write_stream
         mock_write_stream.format.return_value = mock_write_stream
         mock_write_stream.option.return_value = mock_write_stream
         mock_write_stream.trigger.return_value = mock_write_stream
+        mock_write_stream.foreachBatch.return_value = mock_write_stream
         mock_write_stream.start.return_value = MagicMock()
         mock_spark.readStream.format.return_value.options.return_value.load.return_value = (
-            mock_df
+            mock_raw_df
         )
+        # Make col and current_timestamp return MagicMock objects
+        mock_col.return_value = MagicMock()
+        mock_current_timestamp.return_value = MagicMock()
 
         job = create_concrete_streaming_job(spark=mock_spark)
         job.start()

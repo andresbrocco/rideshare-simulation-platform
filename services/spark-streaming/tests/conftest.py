@@ -22,6 +22,12 @@ if "spark_streaming" not in sys.modules:
     sys.modules["spark_streaming"] = module
     spec.loader.exec_module(module)
 
+# Add repository root to sys.path to enable imports like 'from schemas.lakehouse...'
+# The schemas package is located at the repo root level
+repo_root = Path(__file__).resolve().parent.parent.parent.parent
+if str(repo_root) not in sys.path:
+    sys.path.insert(0, str(repo_root))
+
 import pytest  # noqa: E402
 from unittest.mock import MagicMock  # noqa: E402
 

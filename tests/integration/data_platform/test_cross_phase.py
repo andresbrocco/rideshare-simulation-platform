@@ -75,7 +75,7 @@ def test_phase1_phase2_minio_streaming(
     try:
         objects = minio_client.list_objects_v2(
             Bucket="rideshare-bronze",
-            Prefix="trips/_delta_log/",
+            Prefix="bronze_trips/_delta_log/",
         )
         delta_log_files = objects.get("Contents", [])
         assert len(delta_log_files) > 0, "Delta _delta_log directory not found in MinIO"
@@ -85,7 +85,7 @@ def test_phase1_phase2_minio_streaming(
     # Assert: Verify parquet data files exist
     data_objects = minio_client.list_objects_v2(
         Bucket="rideshare-bronze",
-        Prefix="trips/",
+        Prefix="bronze_trips/",
     )
     all_files = data_objects.get("Contents", [])
     parquet_files = [obj["Key"] for obj in all_files if obj["Key"].endswith(".parquet")]
@@ -94,7 +94,7 @@ def test_phase1_phase2_minio_streaming(
     # Assert: Verify Spark can read via Thrift Server
     rows = query_table(
         thrift_connection,
-        f"SELECT * FROM bronze_trips WHERE trip_id = '{trip_event['trip_id']}'",
+        f"SELECT * FROM bronze.bronze_trips WHERE trip_id = '{trip_event['trip_id']}'",
     )
     assert (
         len(rows) >= 1
@@ -146,7 +146,7 @@ def test_phase2_phase3_bronze_dbt(
     time.sleep(15)
 
     # Arrange: Verify Bronze data exists
-    trip_count = count_rows(thrift_connection, "bronze_trips")
+    trip_count = count_rows(thrift_connection, "bronze.bronze_trips")
     assert trip_count > 0, "Bronze tables must have data for DBT source tests"
 
     # Get project root for DBT commands
@@ -324,7 +324,7 @@ def test_phase3_phase5_gold_superset(
     - Data types render properly
     """
     # Arrange: Check if Gold tables exist and have data
-    gold_count = count_rows(thrift_connection, "agg_hourly_zone_demand")
+    gold_count = count_rows(thrift_connection, "gold.agg_hourly_zone_demand")
     if gold_count == 0:
         # Skip test if no Gold data (requires prior DBT run)
         pytest.skip("Gold tables empty, run DBT transformations first")
@@ -369,7 +369,7 @@ def test_phase3_phase5_gold_superset(
     try:
         query_result = superset_client.execute_query(
             database_id=spark_db_id,
-            sql="SELECT * FROM agg_hourly_zone_demand LIMIT 10",
+            sql="SELECT * FROM gold.agg_hourly_zone_demand LIMIT 10",
         )
         # Assert: Query execution succeeded
         assert query_result is not None, "Query returned no result"

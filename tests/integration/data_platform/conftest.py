@@ -61,7 +61,7 @@ def docker_compose():
     """
     compose_file = "infrastructure/docker/compose.yml"
     project_root = os.path.dirname(
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     )
 
     # Start containers
@@ -127,7 +127,9 @@ def wait_for_services(docker_compose):
 
     def check_thrift_server_healthy():
         try:
-            response = httpx.get("http://localhost:4041/json/", timeout=5.0)
+            response = httpx.get(
+                "http://localhost:4041/json/", timeout=5.0, follow_redirects=True
+            )
             return response.status_code == 200
         except Exception:
             return False
@@ -165,12 +167,26 @@ def wait_for_services(docker_compose):
         description="Spark Thrift Server health",
     )
 
-    wait_for_condition(
-        condition=check_airflow_healthy,
-        timeout_seconds=180,
-        poll_interval=5.0,
-        description="Airflow webserver health",
+    # Only wait for Airflow if the container is running
+    airflow_container_check = subprocess.run(
+        [
+            "docker",
+            "ps",
+            "--filter",
+            "name=rideshare-airflow-webserver",
+            "--format",
+            "{{.Names}}",
+        ],
+        capture_output=True,
+        text=True,
     )
+    if "rideshare-airflow-webserver" in airflow_container_check.stdout:
+        wait_for_condition(
+            condition=check_airflow_healthy,
+            timeout_seconds=180,
+            poll_interval=5.0,
+            description="Airflow webserver health",
+        )
 
     yield
 
@@ -441,20 +457,20 @@ def published_events(kafka_producer, test_trip_events) -> List[Dict[str, Any]]:
 def wait_for_bronze_ingestion(thrift_connection, published_events):
     """Wait until published events appear in Bronze layer.
 
-    Polls bronze_trips table with configurable timeout (default 60s).
+    Polls bronze.bronze_trips table with configurable timeout (default 60s).
     Raises TimeoutError if events don't appear in time.
     """
     expected_count = len(published_events)
 
     def query_bronze_count():
-        return count_rows(thrift_connection, "bronze_trips")
+        return count_rows(thrift_connection, "bronze.bronze_trips")
 
     poll_until_records_present(
         query_callback=query_bronze_count,
         expected_count=expected_count,
         timeout_seconds=60,
         poll_interval=2.0,
-        description="bronze_trips table",
+        description="bronze.bronze_trips table",
     )
 
     yield
@@ -484,9 +500,10 @@ def streaming_jobs_running(docker_compose):
     ]
 
     for container in streaming_containers:
-        # Check if spark-submit process is running in container
+        # Check if SparkSubmit process is running in container
+        # (Spark runs as java with org.apache.spark.deploy.SparkSubmit class)
         result = subprocess.run(
-            ["docker", "exec", container, "pgrep", "-f", "spark-submit"],
+            ["docker", "exec", container, "pgrep", "-f", "SparkSubmit"],
             capture_output=True,
             text=True,
         )
@@ -494,7 +511,7 @@ def streaming_jobs_running(docker_compose):
         if result.returncode != 0:
             raise RuntimeError(
                 f"Streaming job not running in {container}. "
-                f"spark-submit process not found."
+                f"SparkSubmit process not found."
             )
 
     yield

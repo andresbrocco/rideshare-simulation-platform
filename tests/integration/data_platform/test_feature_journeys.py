@@ -69,10 +69,10 @@ def test_trip_lifecycle_bronze_ingestion(
     expected_count = len(test_trip_events)
     trip_id = test_trip_events[0]["trip_id"]
 
-    # Act: Query bronze_trips table
+    # Act: Query bronze.bronze_trips table
     rows = query_table(
         thrift_connection,
-        f"SELECT * FROM bronze_trips WHERE trip_id = '{trip_id}' ORDER BY timestamp",
+        f"SELECT * FROM bronze.bronze_trips WHERE trip_id = '{trip_id}' ORDER BY timestamp",
     )
 
     # Assert: All 6 events present
@@ -148,7 +148,9 @@ def test_gps_pings_high_volume_ingestion(
 
     # Wait for streaming trigger interval + processing time
     def check_gps_count():
-        return count_rows(thrift_connection, "bronze_gps_pings") >= expected_count
+        return (
+            count_rows(thrift_connection, "bronze.bronze_gps_pings") >= expected_count
+        )
 
     wait_for_condition(
         condition=check_gps_count,
@@ -165,7 +167,7 @@ def test_gps_pings_high_volume_ingestion(
     rows = query_table(
         thrift_connection,
         "SELECT entity_id, location, timestamp, _kafka_partition "
-        "FROM bronze_gps_pings "
+        "FROM bronze.bronze_gps_pings "
         "ORDER BY entity_id, timestamp",
     )
 
@@ -286,12 +288,12 @@ def test_dbt_silver_transformation(
         },
     ]
 
-    insert_bronze_data(thrift_connection, "bronze_trips", bronze_trips_data)
-    insert_bronze_data(thrift_connection, "bronze_gps_pings", bronze_gps_data)
+    insert_bronze_data(thrift_connection, "bronze.bronze_trips", bronze_trips_data)
+    insert_bronze_data(thrift_connection, "bronze.bronze_gps_pings", bronze_gps_data)
 
     # Record Bronze counts before transformation
-    bronze_trips_count = count_rows(thrift_connection, "bronze_trips")
-    bronze_gps_count = count_rows(thrift_connection, "bronze_gps_pings")
+    bronze_trips_count = count_rows(thrift_connection, "bronze.bronze_trips")
+    bronze_gps_count = count_rows(thrift_connection, "bronze.bronze_gps_pings")
 
     # Act: Execute DBT Silver transformations
     dbt_result = subprocess.run(
@@ -320,12 +322,12 @@ def test_dbt_silver_transformation(
     # Query Silver tables
     silver_trips = query_table(
         thrift_connection,
-        "SELECT trip_id, event_type, timestamp FROM stg_trips ORDER BY trip_id",
+        "SELECT trip_id, event_type, timestamp FROM silver.stg_trips ORDER BY trip_id",
     )
 
     silver_gps = query_table(
         thrift_connection,
-        "SELECT entity_id, location FROM stg_gps_pings ORDER BY entity_id",
+        "SELECT entity_id, location FROM silver.stg_gps_pings ORDER BY entity_id",
     )
 
     # Assert: stg_trips has deduplicated records
@@ -348,7 +350,7 @@ def test_dbt_silver_transformation(
     # Assert: Anomaly tables populated (if they exist and have data)
     try:
         anomaly_gps = query_table(
-            thrift_connection, "SELECT * FROM anomalies_gps_outliers"
+            thrift_connection, "SELECT * FROM silver.anomalies_gps_outliers"
         )
         # If table exists and has data, validate
         if len(anomaly_gps) > 0:
@@ -432,9 +434,9 @@ def test_dbt_gold_layer_models(
         },
     ]
 
-    insert_silver_data(thrift_connection, "stg_driver_profiles", silver_drivers)
-    insert_silver_data(thrift_connection, "stg_trips", silver_trips)
-    insert_silver_data(thrift_connection, "stg_payments", silver_payments)
+    insert_silver_data(thrift_connection, "silver.stg_driver_profiles", silver_drivers)
+    insert_silver_data(thrift_connection, "silver.stg_trips", silver_trips)
+    insert_silver_data(thrift_connection, "silver.stg_payments", silver_payments)
 
     # Act: Execute DBT Gold transformations in dependency order
 
@@ -504,7 +506,7 @@ def test_dbt_gold_layer_models(
     dim_drivers = query_table(
         thrift_connection,
         "SELECT driver_id, vehicle_type, valid_from, valid_to, is_current "
-        "FROM dim_drivers ORDER BY driver_id, valid_from",
+        "FROM gold.dim_drivers ORDER BY driver_id, valid_from",
     )
 
     # Assert: dim_drivers has SCD Type 2 columns
@@ -531,7 +533,7 @@ def test_dbt_gold_layer_models(
     # Query fact_trips
     fact_trips = query_table(
         thrift_connection,
-        "SELECT trip_id, rider_id, driver_id, fare FROM fact_trips",
+        "SELECT trip_id, rider_id, driver_id, fare FROM gold.fact_trips",
     )
 
     # Assert: fact_trips has data
@@ -548,7 +550,7 @@ def test_dbt_gold_layer_models(
     # Query fact_payments
     fact_payments = query_table(
         thrift_connection,
-        "SELECT payment_id, trip_id, amount FROM fact_payments",
+        "SELECT payment_id, trip_id, amount FROM gold.fact_payments",
     )
 
     # Assert: fact_payments links to fact_trips
@@ -563,7 +565,7 @@ def test_dbt_gold_layer_models(
     try:
         hourly_demand = query_table(
             thrift_connection,
-            "SELECT * FROM agg_hourly_zone_demand LIMIT 10",
+            "SELECT * FROM gold.agg_hourly_zone_demand LIMIT 10",
         )
 
         # Assert: Aggregates computed correctly
@@ -606,7 +608,7 @@ def test_airflow_dag_execution(
             "_kafka_offset": 1000,
         },
     ]
-    insert_bronze_data(thrift_connection, "bronze_trips", bronze_trips_data)
+    insert_bronze_data(thrift_connection, "bronze.bronze_trips", bronze_trips_data)
 
     # Act: Trigger dbt_transformation DAG
     print("Triggering dbt_transformation DAG...")
@@ -700,8 +702,8 @@ def test_great_expectations_validation(
         },
     ]
 
-    insert_silver_data(thrift_connection, "stg_trips", silver_trips)
-    insert_silver_data(thrift_connection, "stg_gps_pings", silver_gps_pings)
+    insert_silver_data(thrift_connection, "silver.stg_trips", silver_trips)
+    insert_silver_data(thrift_connection, "silver.stg_gps_pings", silver_gps_pings)
 
     # Prepare Gold data
     gold_drivers = [
@@ -723,8 +725,8 @@ def test_great_expectations_validation(
         },
     ]
 
-    insert_gold_data(thrift_connection, "dim_drivers", gold_drivers)
-    insert_gold_data(thrift_connection, "fact_trips", gold_trips)
+    insert_gold_data(thrift_connection, "gold.dim_drivers", gold_drivers)
+    insert_gold_data(thrift_connection, "gold.fact_trips", gold_trips)
 
     # Act: Run silver_validation checkpoint
     print("Running silver_validation checkpoint...")
@@ -850,7 +852,9 @@ def test_superset_spark_connectivity(
         },
     ]
 
-    insert_gold_data(thrift_connection, "agg_hourly_zone_demand", hourly_demand_data)
+    insert_gold_data(
+        thrift_connection, "gold.agg_hourly_zone_demand", hourly_demand_data
+    )
 
     # Act: Get existing database connections
     databases = superset_client.list_databases()
@@ -884,7 +888,7 @@ def test_superset_spark_connectivity(
             zone_id,
             trip_count,
             total_fare
-        FROM agg_hourly_zone_demand
+        FROM gold.agg_hourly_zone_demand
         WHERE trip_date = '2026-01-20'
         ORDER BY trip_hour, zone_id
         LIMIT 10

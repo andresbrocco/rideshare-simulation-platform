@@ -101,11 +101,11 @@ def test_schema_validation_dlq_routing(
 
     # Assert: Query bronze_trips and dlq_trips
     bronze_trips = query_table(
-        thrift_connection, "SELECT * FROM bronze_trips ORDER BY event_timestamp"
+        thrift_connection, "SELECT * FROM bronze.bronze_trips ORDER BY event_timestamp"
     )
 
     dlq_trips = query_table(
-        thrift_connection, "SELECT * FROM dlq_trips ORDER BY _ingested_at"
+        thrift_connection, "SELECT * FROM bronze.dlq_trips ORDER BY _ingested_at"
     )
 
     # Assert: 2 valid events in bronze_trips
@@ -230,11 +230,12 @@ def test_bronze_to_silver_lineage(
         },
     ]
 
-    insert_bronze_data(thrift_connection, "bronze_trips", bronze_trips_data)
+    insert_bronze_data(thrift_connection, "bronze.bronze_trips", bronze_trips_data)
 
     # Record Bronze counts before transformation
     bronze_count = count_rows(
-        thrift_connection, f"bronze_trips WHERE correlation_id = '{correlation_id}'"
+        thrift_connection,
+        f"bronze.bronze_trips WHERE correlation_id = '{correlation_id}'",
     )
 
     # Act: Execute DBT Silver transformations
@@ -265,14 +266,14 @@ def test_bronze_to_silver_lineage(
     silver_trips = query_table(
         thrift_connection,
         f"SELECT trip_id, status, event_timestamp, fare, duration, correlation_id "
-        f"FROM stg_trips WHERE correlation_id = '{correlation_id}' "
+        f"FROM silver.stg_trips WHERE correlation_id = '{correlation_id}' "
         f"ORDER BY trip_id, event_timestamp",
     )
 
     # Assert: Silver records traceable via correlation_id
     assert (
         len(silver_trips) > 0
-    ), f"No records found in stg_trips with correlation_id = {correlation_id}"
+    ), f"No records found in silver.stg_trips with correlation_id = {correlation_id}"
 
     # Verify all Silver records have expected correlation_id
     for row in silver_trips:
@@ -293,7 +294,7 @@ def test_bronze_to_silver_lineage(
     trip_keys = [(row["trip_id"], row["event_timestamp"]) for row in silver_trips]
     assert len(trip_keys) == len(
         set(trip_keys)
-    ), "Duplicate trips found in stg_trips after deduplication"
+    ), "Duplicate trips found in silver.stg_trips after deduplication"
 
     # Assert: Transformations applied correctly (data values preserved)
     expected_fares = {15.50, 22.00, 18.75}
@@ -452,7 +453,7 @@ def test_silver_to_gold_aggregation(
         silver_trips_zone_a_h10 + silver_trips_zone_b_h10 + silver_trips_zone_a_h11
     )
 
-    insert_silver_data(thrift_connection, "stg_trips", all_silver_trips)
+    insert_silver_data(thrift_connection, "silver.stg_trips", all_silver_trips)
 
     # Act: Execute DBT Gold transformations
     dbt_result = subprocess.run(
@@ -482,7 +483,7 @@ def test_silver_to_gold_aggregation(
     gold_aggregates = query_table(
         thrift_connection,
         "SELECT pickup_zone_id, hour, trip_count, total_fare, avg_duration "
-        "FROM agg_hourly_zone_demand "
+        "FROM gold.agg_hourly_zone_demand "
         "ORDER BY pickup_zone_id, hour",
     )
 
@@ -571,9 +572,9 @@ def test_checkpoint_recovery_after_restart(
 
     kafka_producer.flush(timeout=10.0)
 
-    # Wait for first batch ingestion (poll until 10 rows in bronze_trips)
+    # Wait for first batch ingestion (poll until 10 rows in bronze.bronze_trips)
     def query_bronze_count():
-        return count_rows(thrift_connection, "bronze_trips")
+        return count_rows(thrift_connection, "bronze.bronze_trips")
 
     poll_until_records_present(
         query_callback=query_bronze_count,
@@ -584,7 +585,7 @@ def test_checkpoint_recovery_after_restart(
     )
 
     # Verify first batch ingested
-    bronze_count_before_restart = count_rows(thrift_connection, "bronze_trips")
+    bronze_count_before_restart = count_rows(thrift_connection, "bronze.bronze_trips")
     assert (
         bronze_count_before_restart == 10
     ), f"Expected 10 rows before restart, found {bronze_count_before_restart}"
@@ -648,10 +649,10 @@ def test_checkpoint_recovery_after_restart(
         description="bronze_trips after batch 2",
     )
 
-    # Assert: Query bronze_trips and verify 20 rows
+    # Assert: Query bronze.bronze_trips and verify 20 rows
     bronze_trips = query_table(
         thrift_connection,
-        "SELECT trip_id, _kafka_offset FROM bronze_trips ORDER BY trip_id",
+        "SELECT trip_id, _kafka_offset FROM bronze.bronze_trips ORDER BY trip_id",
     )
 
     assert (

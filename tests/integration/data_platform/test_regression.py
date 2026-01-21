@@ -138,7 +138,7 @@ def test_full_pipeline_regression(
     # Step 1: Wait for Bronze ingestion
     def query_bronze_count():
         return count_rows(
-            thrift_connection, f"bronze_trips WHERE trip_id = '{trip_id}'"
+            thrift_connection, f"bronze.bronze_trips WHERE trip_id = '{trip_id}'"
         )
 
     poll_until_records_present(
@@ -152,7 +152,7 @@ def test_full_pipeline_regression(
     # Assert: Verify all 6 events in Bronze
     bronze_events = query_table(
         thrift_connection,
-        f"SELECT * FROM bronze_trips WHERE trip_id = '{trip_id}' ORDER BY event_timestamp",
+        f"SELECT * FROM bronze.bronze_trips WHERE trip_id = '{trip_id}' ORDER BY event_timestamp",
     )
 
     assert (
@@ -178,7 +178,7 @@ def test_full_pipeline_regression(
     # Assert: Verify Silver transformation
     silver_trips = query_table(
         thrift_connection,
-        f"SELECT * FROM stg_trips WHERE correlation_id = '{correlation_id}'",
+        f"SELECT * FROM silver.stg_trips WHERE correlation_id = '{correlation_id}'",
     )
 
     assert (
@@ -201,7 +201,7 @@ def test_full_pipeline_regression(
 
     # Assert: Verify Gold layer has fact_trips
     gold_trips = query_table(
-        thrift_connection, f"SELECT * FROM fact_trips WHERE trip_id = '{trip_id}'"
+        thrift_connection, f"SELECT * FROM gold.fact_trips WHERE trip_id = '{trip_id}'"
     )
 
     assert (
@@ -230,7 +230,7 @@ def test_full_pipeline_regression(
 
     superset_query_result = superset_client.execute_query(
         database_id=database_id,
-        sql=f"SELECT * FROM fact_trips WHERE trip_id = '{trip_id}'",
+        sql=f"SELECT * FROM gold.fact_trips WHERE trip_id = '{trip_id}'",
     )
 
     # Superset returns various structures; check for success
@@ -326,7 +326,7 @@ def test_service_restart_resilience(
 
     # Wait for batch 1 ingestion
     def query_bronze_count():
-        return count_rows(thrift_connection, "bronze_trips")
+        return count_rows(thrift_connection, "bronze.bronze_trips")
 
     poll_until_records_present(
         query_callback=query_bronze_count,
@@ -337,7 +337,7 @@ def test_service_restart_resilience(
     )
 
     # Verify batch 1 ingested
-    bronze_count_before_restart = count_rows(thrift_connection, "bronze_trips")
+    bronze_count_before_restart = count_rows(thrift_connection, "bronze.bronze_trips")
     assert (
         bronze_count_before_restart == 10
     ), f"Expected 10 rows before restart, found {bronze_count_before_restart}"
@@ -402,7 +402,9 @@ def test_service_restart_resilience(
     )
 
     # Verify 20 events before Thrift Server restart
-    bronze_count_before_thrift_restart = count_rows(thrift_connection, "bronze_trips")
+    bronze_count_before_thrift_restart = count_rows(
+        thrift_connection, "bronze.bronze_trips"
+    )
     assert (
         bronze_count_before_thrift_restart == 20
     ), f"Expected 20 rows before Thrift restart, found {bronze_count_before_thrift_restart}"
@@ -448,7 +450,7 @@ def test_service_restart_resilience(
     try:
         bronze_trips = query_table(
             new_connection,
-            "SELECT trip_id, status FROM bronze_trips ORDER BY trip_id",
+            "SELECT trip_id, status FROM bronze.bronze_trips ORDER BY trip_id",
         )
 
         assert (
@@ -576,7 +578,7 @@ def test_memory_pressure_resilience(
 
     # Wait for all events to be processed
     def query_bronze_count():
-        return count_rows(thrift_connection, "bronze_trips")
+        return count_rows(thrift_connection, "bronze.bronze_trips")
 
     poll_until_records_present(
         query_callback=query_bronze_count,
@@ -587,7 +589,7 @@ def test_memory_pressure_resilience(
     )
 
     # Assert: All 1000 events processed
-    bronze_count = count_rows(thrift_connection, "bronze_trips")
+    bronze_count = count_rows(thrift_connection, "bronze.bronze_trips")
     assert (
         bronze_count == num_events
     ), f"Expected {num_events} events in bronze_trips, found {bronze_count}"
@@ -627,7 +629,7 @@ def test_memory_pressure_resilience(
     # Assert: Query sample of events to verify no data corruption
     sample_trips = query_table(
         thrift_connection,
-        "SELECT trip_id, status, correlation_id FROM bronze_trips "
+        "SELECT trip_id, status, correlation_id FROM bronze.bronze_trips "
         "WHERE trip_id IN ('memory-test-00001', 'memory-test-00500', 'memory-test-01000') "
         "ORDER BY trip_id",
     )
@@ -644,7 +646,9 @@ def test_memory_pressure_resilience(
         ), f"Data corruption: trip {trip['trip_id']} missing correlation_id"
 
     # Assert: No duplicates (exactly-once even under memory pressure)
-    all_trip_ids = query_table(thrift_connection, "SELECT trip_id FROM bronze_trips")
+    all_trip_ids = query_table(
+        thrift_connection, "SELECT trip_id FROM bronze.bronze_trips"
+    )
 
     unique_trip_ids = set([row["trip_id"] for row in all_trip_ids])
     assert (

@@ -12,9 +12,21 @@ class TestStreamingJobEntryPoints:
     """Verify all streaming job files have execution entry points."""
 
     @staticmethod
+    def _get_jobs_dir():
+        """Get the path to the streaming jobs directory."""
+        # Navigate from tests/integration/data_platform/ up to repo root,
+        # then to services/spark-streaming/jobs/
+        return (
+            Path(__file__).parent.parent.parent.parent
+            / "services"
+            / "spark-streaming"
+            / "jobs"
+        )
+
+    @staticmethod
     def _get_job_files():
         """Get all streaming job Python files."""
-        jobs_dir = Path(__file__).parent.parent / "streaming" / "jobs"
+        jobs_dir = TestStreamingJobEntryPoints._get_jobs_dir()
         return [f for f in jobs_dir.glob("*.py") if f.name != "__init__.py"]
 
     @staticmethod
@@ -153,34 +165,19 @@ class TestStreamingJobEntryPoints:
 
     def test_trips_job_has_spark_session(self):
         """trips_streaming_job.py should initialize SparkSession."""
-        job_file = (
-            Path(__file__).parent.parent
-            / "streaming"
-            / "jobs"
-            / "trips_streaming_job.py"
-        )
+        job_file = self._get_jobs_dir() / "trips_streaming_job.py"
         main_block = self._extract_main_block_content(job_file)
         assert self._has_spark_session_init(main_block), "SparkSession not initialized"
 
     def test_trips_job_has_kafka_config(self):
         """trips_streaming_job.py should initialize KafkaConfig."""
-        job_file = (
-            Path(__file__).parent.parent
-            / "streaming"
-            / "jobs"
-            / "trips_streaming_job.py"
-        )
+        job_file = self._get_jobs_dir() / "trips_streaming_job.py"
         main_block = self._extract_main_block_content(job_file)
         assert self._has_kafka_config_init(main_block), "KafkaConfig not initialized"
 
     def test_trips_job_has_checkpoint_config(self):
         """trips_streaming_job.py should initialize CheckpointConfig."""
-        job_file = (
-            Path(__file__).parent.parent
-            / "streaming"
-            / "jobs"
-            / "trips_streaming_job.py"
-        )
+        job_file = self._get_jobs_dir() / "trips_streaming_job.py"
         main_block = self._extract_main_block_content(job_file)
         assert self._has_checkpoint_config_init(
             main_block
@@ -188,34 +185,19 @@ class TestStreamingJobEntryPoints:
 
     def test_trips_job_has_error_handler(self):
         """trips_streaming_job.py should initialize ErrorHandler."""
-        job_file = (
-            Path(__file__).parent.parent
-            / "streaming"
-            / "jobs"
-            / "trips_streaming_job.py"
-        )
+        job_file = self._get_jobs_dir() / "trips_streaming_job.py"
         main_block = self._extract_main_block_content(job_file)
         assert self._has_error_handler_init(main_block), "ErrorHandler not initialized"
 
     def test_trips_job_starts_streaming(self):
         """trips_streaming_job.py should call job.start()."""
-        job_file = (
-            Path(__file__).parent.parent
-            / "streaming"
-            / "jobs"
-            / "trips_streaming_job.py"
-        )
+        job_file = self._get_jobs_dir() / "trips_streaming_job.py"
         main_block = self._extract_main_block_content(job_file)
         assert self._has_job_start_call(main_block), "job.start() not called"
 
     def test_trips_job_awaits_termination(self):
         """trips_streaming_job.py should call query.awaitTermination()."""
-        job_file = (
-            Path(__file__).parent.parent
-            / "streaming"
-            / "jobs"
-            / "trips_streaming_job.py"
-        )
+        job_file = self._get_jobs_dir() / "trips_streaming_job.py"
         main_block = self._extract_main_block_content(job_file)
         assert self._has_await_termination_call(
             main_block
@@ -223,12 +205,7 @@ class TestStreamingJobEntryPoints:
 
     def test_gps_pings_job_has_main_components(self):
         """gps_pings_streaming_job.py should have all required components."""
-        job_file = (
-            Path(__file__).parent.parent
-            / "streaming"
-            / "jobs"
-            / "gps_pings_streaming_job.py"
-        )
+        job_file = self._get_jobs_dir() / "gps_pings_streaming_job.py"
         main_block = self._extract_main_block_content(job_file)
 
         assert self._has_spark_session_init(main_block), "SparkSession not initialized"
@@ -243,12 +220,7 @@ class TestStreamingJobEntryPoints:
 
     def test_driver_status_job_has_main_components(self):
         """driver_status_streaming_job.py should have all required components."""
-        job_file = (
-            Path(__file__).parent.parent
-            / "streaming"
-            / "jobs"
-            / "driver_status_streaming_job.py"
-        )
+        job_file = self._get_jobs_dir() / "driver_status_streaming_job.py"
         main_block = self._extract_main_block_content(job_file)
 
         assert self._has_spark_session_init(main_block), "SparkSession not initialized"
@@ -263,12 +235,7 @@ class TestStreamingJobEntryPoints:
 
     def test_driver_profiles_job_has_main_components(self):
         """driver_profiles_streaming_job.py should have all required components."""
-        job_file = (
-            Path(__file__).parent.parent
-            / "streaming"
-            / "jobs"
-            / "driver_profiles_streaming_job.py"
-        )
+        job_file = self._get_jobs_dir() / "driver_profiles_streaming_job.py"
         main_block = self._extract_main_block_content(job_file)
 
         assert self._has_spark_session_init(main_block), "SparkSession not initialized"
@@ -283,12 +250,7 @@ class TestStreamingJobEntryPoints:
 
     def test_rider_profiles_job_has_main_components(self):
         """rider_profiles_streaming_job.py should have all required components."""
-        job_file = (
-            Path(__file__).parent.parent
-            / "streaming"
-            / "jobs"
-            / "rider_profiles_streaming_job.py"
-        )
+        job_file = self._get_jobs_dir() / "rider_profiles_streaming_job.py"
         main_block = self._extract_main_block_content(job_file)
 
         assert self._has_spark_session_init(main_block), "SparkSession not initialized"
@@ -303,12 +265,7 @@ class TestStreamingJobEntryPoints:
 
     def test_payments_job_has_main_components(self):
         """payments_streaming_job.py should have all required components."""
-        job_file = (
-            Path(__file__).parent.parent
-            / "streaming"
-            / "jobs"
-            / "payments_streaming_job.py"
-        )
+        job_file = self._get_jobs_dir() / "payments_streaming_job.py"
         main_block = self._extract_main_block_content(job_file)
 
         assert self._has_spark_session_init(main_block), "SparkSession not initialized"
@@ -323,12 +280,7 @@ class TestStreamingJobEntryPoints:
 
     def test_ratings_job_has_main_components(self):
         """ratings_streaming_job.py should have all required components."""
-        job_file = (
-            Path(__file__).parent.parent
-            / "streaming"
-            / "jobs"
-            / "ratings_streaming_job.py"
-        )
+        job_file = self._get_jobs_dir() / "ratings_streaming_job.py"
         main_block = self._extract_main_block_content(job_file)
 
         assert self._has_spark_session_init(main_block), "SparkSession not initialized"
@@ -343,12 +295,7 @@ class TestStreamingJobEntryPoints:
 
     def test_surge_updates_job_has_main_components(self):
         """surge_updates_streaming_job.py should have all required components."""
-        job_file = (
-            Path(__file__).parent.parent
-            / "streaming"
-            / "jobs"
-            / "surge_updates_streaming_job.py"
-        )
+        job_file = self._get_jobs_dir() / "surge_updates_streaming_job.py"
         main_block = self._extract_main_block_content(job_file)
 
         assert self._has_spark_session_init(main_block), "SparkSession not initialized"
@@ -363,12 +310,7 @@ class TestStreamingJobEntryPoints:
 
     def test_trips_job_uses_environment_variables(self):
         """trips_streaming_job.py should read bootstrap_servers from environment."""
-        job_file = (
-            Path(__file__).parent.parent
-            / "streaming"
-            / "jobs"
-            / "trips_streaming_job.py"
-        )
+        job_file = self._get_jobs_dir() / "trips_streaming_job.py"
         with open(job_file, "r") as f:
             content = f.read()
 
