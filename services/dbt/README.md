@@ -330,11 +330,20 @@ dbt run --target prod
 
 ### Orchestration
 
-Airflow DAG schedules DBT runs:
-- Seed: Daily at 00:00 UTC
-- Staging: Every 5 minutes (incremental)
-- Marts: Every 15 minutes (full refresh)
-- Tests: After each run
+DBT transformations are orchestrated by two Airflow DAGs:
+
+**Silver Layer (`dbt_transformation` DAG)**
+- Schedule: `@hourly`
+- Models: Staging models with incremental merge strategy
+- Tests: Run after staging models complete
+
+**Gold Layer (`dbt_gold_transformation` DAG)**
+- Schedule: `@daily`
+- Models: Dimensions → Facts → Aggregates (in dependency order)
+- Strategy: Full refresh for dimensions, incremental for facts
+- Tests: Run after each layer completes
+
+See `services/airflow/dags/dbt_transformation_dag.py` for implementation.
 
 ## Troubleshooting
 

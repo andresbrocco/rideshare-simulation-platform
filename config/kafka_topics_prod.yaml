@@ -1,6 +1,21 @@
 # Kafka Topic Configuration - Production Environment
 # Higher partition counts for parallelism and throughput.
 
+# Dead Letter Queue (DLQ) Implementation
+# =======================================
+# DLQ is NOT implemented as separate Kafka topics.
+# Instead, failed events are routed to Delta Lake tables in the bronze schema:
+#   - dlq_trips, dlq_gps_pings, dlq_driver_status, dlq_surge_updates
+#   - dlq_ratings, dlq_payments, dlq_driver_profiles, dlq_rider_profiles
+#
+# DLQ handling is implemented in:
+#   - services/spark-streaming/utils/dlq_handler.py (DLQHandler class)
+#   - schemas/lakehouse/schemas/dlq_schema.py (schema definition)
+#   - services/airflow/dags/dlq_monitoring_dag.py (monitoring every 15 min)
+#
+# Error types captured: JSON_PARSE_ERROR, SCHEMA_VIOLATION
+# Storage path: s3a://rideshare-bronze/dlq/{topic_name}
+
 topics:
   # Trip events - all events for a trip are ordered by trip_id
   # 16 partitions allows parallel processing of different trips

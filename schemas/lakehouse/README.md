@@ -5,7 +5,7 @@ The Bronze layer stores raw events ingested from Kafka topics with minimal trans
 ## Schema Design
 
 ### Source Alignment
-Each Bronze table schema maps directly to a JSON schema in `/schemas/*.json`. Field names and types match the source events exactly to preserve data fidelity.
+Each Bronze table schema maps directly to a JSON schema in `schemas/kafka/*.json`. Field names and types match the source events exactly to preserve data fidelity.
 
 ### Standard Fields
 
