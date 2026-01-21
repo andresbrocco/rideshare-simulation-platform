@@ -99,7 +99,12 @@ class AirflowClient:
         Raises:
             httpx.HTTPError: On API error
         """
-        payload = {"conf": conf or {}}
+        from datetime import datetime, timezone
+
+        payload = {
+            "conf": conf or {},
+            "logical_date": datetime.now(timezone.utc).isoformat(),
+        }
         response = self.client.post(
             self._api_url(f"/dags/{dag_id}/dagRuns"), json=payload
         )

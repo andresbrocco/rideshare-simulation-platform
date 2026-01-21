@@ -1077,6 +1077,9 @@ def ensure_bronze_tables_exist(connection: hive.Connection) -> List[str]:
     """
     created_tables = []
 
+    # Ensure the bronze database exists before creating tables
+    _ensure_database_exists(connection, "bronze")
+
     def _create_table_with_retry(table_name: str, ddl: str) -> bool:
         """Try to create a table, deleting empty Delta log if needed.
 
