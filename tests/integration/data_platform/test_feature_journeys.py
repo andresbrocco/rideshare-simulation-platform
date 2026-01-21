@@ -29,8 +29,10 @@ from tests.integration.data_platform.utils.wait_helpers import wait_for_conditio
 
 
 # Module-level fixtures: ensure services are ready before any test runs
+# Note: FJ-005 needs quality-orchestration (Airflow), FJ-007 needs bi (Superset)
 pytestmark = [
     pytest.mark.feature_journey,
+    pytest.mark.requires_profiles("core", "data-platform"),
     pytest.mark.usefixtures(
         "streaming_jobs_running",
         "bronze_tables_initialized",
@@ -580,6 +582,7 @@ def test_dbt_gold_layer_models(
 
 
 @pytest.mark.feature_journey
+@pytest.mark.requires_profiles("core", "data-platform", "quality-orchestration")
 def test_airflow_dag_execution(
     airflow_dags_loaded,
     airflow_client,
@@ -815,6 +818,7 @@ def test_great_expectations_validation(
 
 
 @pytest.mark.feature_journey
+@pytest.mark.requires_profiles("core", "data-platform", "bi")
 def test_superset_spark_connectivity(
     superset_client,
     thrift_connection,

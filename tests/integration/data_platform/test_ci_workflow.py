@@ -2,7 +2,12 @@
 
 from pathlib import Path
 
+import pytest
 import yaml
+
+
+# Module-level marker: no Docker profiles required (file-based tests only)
+pytestmark = pytest.mark.requires_profiles()
 
 
 WORKFLOW_PATH = Path(".github/workflows/integration-tests.yml")

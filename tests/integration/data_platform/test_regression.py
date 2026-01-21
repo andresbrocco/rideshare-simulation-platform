@@ -22,8 +22,10 @@ from tests.integration.data_platform.utils.wait_helpers import (
 
 
 # Module-level fixtures: ensure services are ready before any test runs
+# Note: REG-001 requires quality-orchestration (Airflow) and bi (Superset)
 pytestmark = [
     pytest.mark.regression,
+    pytest.mark.requires_profiles("core", "data-platform"),
     pytest.mark.usefixtures(
         "streaming_jobs_running",
         "bronze_tables_initialized",
@@ -38,6 +40,7 @@ pytestmark = [
 
 
 @pytest.mark.regression
+@pytest.mark.requires_profiles("core", "data-platform", "quality-orchestration", "bi")
 def test_full_pipeline_regression(
     clean_bronze_tables,
     clean_silver_tables,

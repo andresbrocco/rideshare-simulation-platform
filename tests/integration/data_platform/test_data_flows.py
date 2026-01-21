@@ -27,6 +27,7 @@ from tests.integration.data_platform.utils.wait_helpers import (
 # Module-level fixtures: ensure services are ready before any test runs
 pytestmark = [
     pytest.mark.data_flow,
+    pytest.mark.requires_profiles("core", "data-platform"),
     pytest.mark.usefixtures(
         "streaming_jobs_running",
         "bronze_tables_initialized",

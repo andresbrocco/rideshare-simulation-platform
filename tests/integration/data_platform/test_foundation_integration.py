@@ -4,6 +4,12 @@ import json
 import os
 import subprocess
 
+import pytest
+
+
+# Module-level marker: requires core and data-platform profiles
+pytestmark = pytest.mark.requires_profiles("core", "data-platform")
+
 
 def _get_project_root() -> str:
     """Get the project root directory."""

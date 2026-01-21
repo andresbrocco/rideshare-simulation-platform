@@ -7,6 +7,12 @@ that allow them to be executed directly via spark-submit.
 import ast
 from pathlib import Path
 
+import pytest
+
+
+# Module-level marker: no Docker profiles required (file-based tests only)
+pytestmark = pytest.mark.requires_profiles()
+
 
 class TestStreamingJobEntryPoints:
     """Verify all streaming job files have execution entry points."""

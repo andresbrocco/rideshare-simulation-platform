@@ -27,6 +27,7 @@ pytestmark = [
 
 
 @pytest.mark.cross_phase
+@pytest.mark.requires_profiles("core", "data-platform")
 def test_phase1_phase2_minio_streaming(
     clean_bronze_tables,
     minio_client,
@@ -105,6 +106,7 @@ def test_phase1_phase2_minio_streaming(
 
 
 @pytest.mark.cross_phase
+@pytest.mark.requires_profiles("core", "data-platform")
 def test_phase2_phase3_bronze_dbt(
     clean_bronze_tables,
     thrift_connection,
@@ -214,6 +216,7 @@ def test_phase2_phase3_bronze_dbt(
 
 
 @pytest.mark.cross_phase
+@pytest.mark.requires_profiles("core", "data-platform", "quality-orchestration")
 def test_phase3_phase4_dbt_airflow(
     airflow_client,
     airflow_dags_loaded,
@@ -307,6 +310,7 @@ def test_phase3_phase4_dbt_airflow(
 
 
 @pytest.mark.cross_phase
+@pytest.mark.requires_profiles("core", "data-platform", "bi")
 def test_phase3_phase5_gold_superset(
     superset_client,
     thrift_connection,
@@ -383,6 +387,9 @@ def test_phase3_phase5_gold_superset(
 
 
 @pytest.mark.cross_phase
+@pytest.mark.requires_profiles(
+    "core", "data-platform", "quality-orchestration", "monitoring"
+)
 def test_phase4_phase5_airflow_grafana(
     prometheus_client,
     grafana_client,

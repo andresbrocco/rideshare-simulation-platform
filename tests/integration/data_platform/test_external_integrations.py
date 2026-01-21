@@ -13,8 +13,11 @@ import pytest
 from botocore.exceptions import ClientError
 
 
-# Module-level marker for external integration tests
-pytestmark = pytest.mark.external_integration
+# Module-level markers for external integration tests
+pytestmark = [
+    pytest.mark.external_integration,
+    pytest.mark.requires_profiles("core", "data-platform"),
+]
 
 
 @pytest.mark.external_integration

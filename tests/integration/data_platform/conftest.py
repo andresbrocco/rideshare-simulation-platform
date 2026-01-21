@@ -51,55 +51,97 @@ from tests.integration.data_platform.fixtures.trip_events import generate_trip_l
 # Session-scoped Docker lifecycle fixtures (Ticket 012)
 # =============================================================================
 
+# Available Docker profiles and their descriptions
+DOCKER_PROFILES = {
+    "core": "Kafka, Redis, OSRM, Simulation, Stream Processor, Frontend",
+    "data-platform": "MinIO, Spark Thrift Server, Spark Streaming jobs, LocalStack",
+    "quality-orchestration": "Airflow (webserver + scheduler), Postgres for Airflow",
+    "monitoring": "Prometheus, Grafana, cAdvisor",
+    "bi": "Superset, Postgres for Superset, Redis for Superset",
+}
+
+
+def pytest_configure(config):
+    """Register custom markers for Docker profile requirements."""
+    config.addinivalue_line(
+        "markers",
+        "requires_profiles(*profiles): mark test to require specific Docker profiles "
+        "(e.g., @pytest.mark.requires_profiles('core', 'data-platform'))",
+    )
+
+
+def _get_required_profiles_from_items(items) -> set:
+    """Extract all required profiles from test items' markers."""
+    profiles = set()
+    for item in items:
+        for marker in item.iter_markers(name="requires_profiles"):
+            profiles.update(marker.args)
+    return profiles
+
+
+def pytest_collection_modifyitems(config, items):
+    """Store required profiles in config for the session fixture."""
+    profiles = _get_required_profiles_from_items(items)
+    # Default to core + data-platform if no markers specified (backward compatibility)
+    if not profiles:
+        profiles = {"core", "data-platform"}
+    config._required_profiles = profiles
+
 
 @pytest.fixture(scope="session")
-def docker_compose():
+def docker_compose(request):
     """Manage Docker Compose container lifecycle.
 
-    Starts core and data-platform profiles at session start,
-    stops all containers at session end.
+    Dynamically starts profiles based on @pytest.mark.requires_profiles markers
+    found in the test collection. Falls back to core + data-platform if no
+    markers are specified.
+
+    Usage in test files:
+        @pytest.mark.requires_profiles("core", "data-platform")
+        def test_something():
+            ...
+
+        @pytest.mark.requires_profiles("core", "data-platform", "quality-orchestration")
+        class TestAirflowIntegration:
+            ...
     """
     compose_file = "infrastructure/docker/compose.yml"
     project_root = os.path.dirname(
         os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     )
 
+    # Get required profiles from pytest config (set during collection)
+    profiles = getattr(request.config, "_required_profiles", {"core", "data-platform"})
+
+    # Validate profiles
+    invalid_profiles = profiles - set(DOCKER_PROFILES.keys())
+    if invalid_profiles:
+        raise ValueError(
+            f"Invalid Docker profiles: {invalid_profiles}. "
+            f"Valid profiles: {list(DOCKER_PROFILES.keys())}"
+        )
+
+    # Build docker compose command with all required profiles
+    cmd = ["docker", "compose", "-f", compose_file]
+    for profile in sorted(profiles):  # Sort for consistent ordering
+        cmd.extend(["--profile", profile])
+    cmd.extend(["up", "-d"])
+
+    print(f"\n[conftest] Starting Docker profiles: {sorted(profiles)}")
+
     # Start containers
-    subprocess.run(
-        [
-            "docker",
-            "compose",
-            "-f",
-            compose_file,
-            "--profile",
-            "core",
-            "--profile",
-            "data-platform",
-            "up",
-            "-d",
-        ],
-        check=True,
-        cwd=project_root,
-    )
+    subprocess.run(cmd, check=True, cwd=project_root)
 
-    yield
+    yield profiles  # Yield the profiles so tests can know what's running
 
-    # Teardown: stop containers
-    subprocess.run(
-        [
-            "docker",
-            "compose",
-            "-f",
-            compose_file,
-            "--profile",
-            "core",
-            "--profile",
-            "data-platform",
-            "down",
-        ],
-        check=False,  # Don't fail if containers already stopped
-        cwd=project_root,
-    )
+    # Teardown: stop containers for the profiles we started
+    down_cmd = ["docker", "compose", "-f", compose_file]
+    for profile in sorted(profiles):
+        down_cmd.extend(["--profile", profile])
+    down_cmd.append("down")
+
+    print(f"\n[conftest] Stopping Docker profiles: {sorted(profiles)}")
+    subprocess.run(down_cmd, check=False, cwd=project_root)
 
 
 @pytest.fixture(scope="session")
