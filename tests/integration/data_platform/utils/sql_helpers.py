@@ -206,3 +206,85 @@ def clean_gold_tables(connection: hive.Connection) -> None:
     for table in gold_tables:
         if table_exists(connection, table):
             truncate_table(connection, table)
+
+
+# Alias for backward compatibility and readability
+query_table = execute_query
+
+
+def insert_bronze_data(
+    connection: hive.Connection,
+    table_name: str,
+    records: List[Dict[str, Any]],
+) -> None:
+    """Insert records into a Bronze layer table.
+
+    Args:
+        connection: PyHive Hive connection
+        table_name: Bronze table name (e.g., 'bronze_trips')
+        records: List of dictionaries to insert
+    """
+    if not records:
+        return
+
+    # Get table schema to build INSERT statement
+    schema = get_table_schema(connection, table_name)
+    columns = [col["column_name"] for col in schema]
+
+    for record in records:
+        # Build column values, handling nulls and types
+        values = []
+        cols_to_insert = []
+
+        for col in columns:
+            if col in record:
+                cols_to_insert.append(col)
+                val = record[col]
+                if val is None:
+                    values.append("NULL")
+                elif isinstance(val, str):
+                    # Escape single quotes
+                    escaped = val.replace("'", "''")
+                    values.append(f"'{escaped}'")
+                elif isinstance(val, bool):
+                    values.append("TRUE" if val else "FALSE")
+                elif isinstance(val, (int, float)):
+                    values.append(str(val))
+                else:
+                    values.append(f"'{val}'")
+
+        if cols_to_insert:
+            cols_str = ", ".join(cols_to_insert)
+            vals_str = ", ".join(values)
+            insert_sql = f"INSERT INTO {table_name} ({cols_str}) VALUES ({vals_str})"
+            execute_non_query(connection, insert_sql)
+
+
+def insert_silver_data(
+    connection: hive.Connection,
+    table_name: str,
+    records: List[Dict[str, Any]],
+) -> None:
+    """Insert records into a Silver layer table.
+
+    Args:
+        connection: PyHive Hive connection
+        table_name: Silver table name (e.g., 'stg_trips')
+        records: List of dictionaries to insert
+    """
+    insert_bronze_data(connection, table_name, records)
+
+
+def insert_gold_data(
+    connection: hive.Connection,
+    table_name: str,
+    records: List[Dict[str, Any]],
+) -> None:
+    """Insert records into a Gold layer table.
+
+    Args:
+        connection: PyHive Hive connection
+        table_name: Gold table name (e.g., 'dim_drivers')
+        records: List of dictionaries to insert
+    """
+    insert_bronze_data(connection, table_name, records)
