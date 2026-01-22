@@ -68,7 +68,7 @@ services:
   schema-registry:
     image: confluentinc/cp-schema-registry:7.5.0
     container_name: rideshare-schema-registry
-    mem_limit: 384m
+    mem_limit: 512m
     profiles:
       - core
     ports:
@@ -77,6 +77,7 @@ services:
       SCHEMA_REGISTRY_HOST_NAME: schema-registry
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:29092
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_HEAP_OPTS: "-Xms128m -Xmx256m"
     depends_on:
       kafka:
         condition: service_healthy
@@ -85,8 +86,9 @@ services:
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/subjects"]
       interval: 10s
-      timeout: 5s
-      retries: 5
+      timeout: 10s
+      retries: 12
+      start_period: 30s
 
   redis:
     image: redis:8.0-alpine
