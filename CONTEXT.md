@@ -219,9 +219,10 @@ npm run lint
 ./venv/bin/pytest tests/integration/data_platform/ -v
 
 # Specific test categories
-./venv/bin/pytest tests/integration/data_platform/ -m feature_journey
-./venv/bin/pytest tests/integration/data_platform/ -m data_flow
-./venv/bin/pytest tests/integration/data_platform/ -m regression
+./venv/bin/pytest tests/integration/data_platform/ -m core_pipeline    # Core event flow tests
+./venv/bin/pytest tests/integration/data_platform/ -m resilience       # Recovery/consistency tests
+./venv/bin/pytest tests/integration/data_platform/ -m feature_journey  # Bronze/Silver tests
+./venv/bin/pytest tests/integration/data_platform/ -m data_flow        # Data lineage tests
 ```
 
 ## Key Domain Concepts

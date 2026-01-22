@@ -11,7 +11,7 @@ Tests are organized by service in separate directories:
 - `services/simulation/tests/` - Unit tests for simulation service (~75 test files)
 - `services/stream-processor/tests/` - Unit tests for stream processor (~6 test files)
 - `services/frontend/src/**/__tests__/` - Component and hook tests for frontend (~24 test files)
-- `tests/integration/data_platform/` - Integration tests for data platform (~9 test files)
+- `tests/integration/data_platform/` - Integration tests for data platform (~8 test files)
 
 ### Naming Convention
 
@@ -63,17 +63,17 @@ services/frontend/src/
 └── utils/__tests__/
 
 tests/integration/data_platform/
-├── test_foundation_integration.py
-├── test_data_flows.py
-├── test_feature_journeys.py
-├── test_cross_phase.py
-├── test_regression.py
-├── test_external_integrations.py
+├── test_foundation_integration.py  # Service health and infrastructure
+├── test_core_pipeline.py           # Core event flow (API → Kafka → Redis → WebSocket)
+├── test_resilience.py              # Data consistency and recovery tests
+├── test_data_flows.py              # Data lineage and checkpoint recovery
+├── test_feature_journeys.py        # Bronze ingestion and DBT transformations
+├── test_cross_phase.py             # Cross-phase integration (MinIO, Streaming, DBT)
 ├── test_streaming_job_entry_points.py
 ├── test_ci_workflow.py
-├── conftest.py           # Docker lifecycle and service fixtures
-├── fixtures/             # Event generators
-└── utils/                # SQL helpers, API clients, wait utilities
+├── conftest.py                     # Docker lifecycle and service fixtures
+├── fixtures/                       # Event generators
+└── utils/                          # SQL helpers, API clients, wait utilities
 ```
 
 ## Frameworks Used
@@ -110,14 +110,14 @@ tests/integration/data_platform/
 ### Integration Tests
 
 - Location: `tests/integration/data_platform/`
-- Coverage: End-to-end data flows, Kafka-to-Delta ingestion, DBT transformations, cross-phase integration
+- Coverage: Core event flow (Simulation API → Kafka → Stream Processor → Redis → WebSocket), data flows, Kafka-to-Delta ingestion, DBT transformations, cross-phase integration, resilience/recovery
 
 **Test Categories (via pytest markers):**
-- `feature_journey` - Feature journey tests (FJ-001 through FJ-007)
-- `data_flow` - Data flow tests (DF-001 through DF-004)
-- `cross_phase` - Cross-phase integration tests (XP-001 through XP-005)
-- `external_integration` - External service integration (EI-001 through EI-003)
-- `regression` - Regression tests (REG-001 through REG-003)
+- `core_pipeline` - Core event flow tests (NEW-001 through NEW-004): API publishing, stream processing, WebSocket delivery, schema enforcement
+- `resilience` - Data consistency and recovery tests (NEW-005, NEW-006, REG-001): partial failure recovery, state machine integrity, pipeline smoke test
+- `feature_journey` - Feature journey tests (FJ-001, FJ-003): Bronze ingestion, DBT Silver transformation
+- `data_flow` - Data flow tests (DF-001, DF-002, DF-004): schema validation, Bronze-to-Silver lineage, checkpoint recovery
+- `cross_phase` - Cross-phase integration tests (XP-001, XP-002): MinIO + Streaming, Bronze + DBT
 
 ## Running Tests
 
@@ -180,9 +180,10 @@ Integration tests use Docker Compose with dynamic profile selection via `@pytest
 ./venv/bin/pytest tests/integration/data_platform/ -v
 
 # Run specific test categories
-./venv/bin/pytest tests/integration/data_platform/ -m data_flow
-./venv/bin/pytest tests/integration/data_platform/ -m feature_journey
-./venv/bin/pytest tests/integration/data_platform/ -m regression
+./venv/bin/pytest tests/integration/data_platform/ -m core_pipeline    # Core event flow tests
+./venv/bin/pytest tests/integration/data_platform/ -m resilience       # Recovery/consistency tests
+./venv/bin/pytest tests/integration/data_platform/ -m data_flow        # Data lineage tests
+./venv/bin/pytest tests/integration/data_platform/ -m feature_journey  # Bronze/Silver tests
 
 # Skip Docker teardown for faster iteration
 SKIP_DOCKER_TEARDOWN=1 ./venv/bin/pytest tests/integration/data_platform/ -v
@@ -228,11 +229,15 @@ SKIP_DOCKER_TEARDOWN=1 ./venv/bin/pytest tests/integration/data_platform/ -v
 - `thrift_connection` - PyHive connection to Spark Thrift Server
 - `airflow_client` - HTTP client for Airflow REST API
 - `superset_client` - HTTP client for Superset REST API
+- `simulation_api_client` - HTTP client for Simulation API with X-API-Key auth
+- `stream_processor_healthy` - Waits for stream processor health endpoint
 
-**Function-scoped (Table cleanup):**
+**Function-scoped (Table cleanup and testing):**
 - `clean_bronze_tables` - Truncates Bronze layer tables
 - `clean_silver_tables` - Truncates Silver layer tables
 - `clean_gold_tables` - Truncates Gold layer tables
+- `redis_publisher` - Sync Redis client for pub/sub testing
+- `kafka_consumer` - Kafka Consumer with unique group ID per test
 
 **Event Generators:**
 - `test_trip_events` - Generates trip lifecycle events
@@ -340,8 +345,8 @@ npm run test -- --coverage
 Integration tests run on GitHub Actions via `.github/workflows/integration-tests.yml`:
 
 - Triggers: Push to `main`, pull requests
-- Docker profiles: `data-platform` profile started automatically
-- Test execution: `pytest tests/integration/ -v --tb=short --junitxml=test-results.xml`
+- Docker profiles: `core` and `data-platform` profiles started automatically
+- Test execution: `python -m pytest tests/integration/ -v --tb=short --junitxml=test-results.xml`
 - Timeout: 30 minutes per job
 - Artifacts: Test results and container logs uploaded on failure
 
@@ -352,6 +357,12 @@ Integration tests run on GitHub Actions via `.github/workflows/integration-tests
 - `SCHEMA_REGISTRY_URL: http://schema-registry:8085`
 - `SPARK_THRIFT_HOST: spark-thrift-server`
 
+**Service health checks performed:**
+- MinIO health endpoint
+- Kafka broker API versions
+- Redis ping
+- Simulation API health
+
 ## Test Markers
 
 **Simulation Service:**
@@ -360,11 +371,11 @@ Integration tests run on GitHub Actions via `.github/workflows/integration-tests
 
 **Integration Tests:**
 - `integration` - Integration tests (slower, external dependencies)
-- `feature_journey` - Feature journey tests
-- `data_flow` - Data flow tests
-- `cross_phase` - Cross-phase integration tests
-- `external_integration` - External service integration tests
-- `regression` - Regression tests
+- `core_pipeline` - Core event flow tests (Simulation → Kafka → Redis → WebSocket)
+- `resilience` - Data consistency and recovery tests
+- `feature_journey` - Feature journey tests (Bronze ingestion, DBT transformations)
+- `data_flow` - Data flow tests (lineage, checkpoint recovery)
+- `cross_phase` - Cross-phase integration tests (MinIO + Streaming, Bronze + DBT)
 - `requires_profiles(*profiles)` - Dynamic Docker profile requirements
 
 **Usage:**
@@ -372,8 +383,11 @@ Integration tests run on GitHub Actions via `.github/workflows/integration-tests
 # Run only unit tests
 ./venv/bin/pytest -m unit
 
-# Run feature journey tests
-./venv/bin/pytest -m feature_journey
+# Run core pipeline tests (requires core profile)
+./venv/bin/pytest -m core_pipeline
+
+# Run resilience tests (requires core + data-platform profiles)
+./venv/bin/pytest -m resilience
 
 # Skip slow tests
 ./venv/bin/pytest -m "not slow"

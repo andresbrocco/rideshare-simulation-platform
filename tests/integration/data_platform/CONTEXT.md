@@ -2,25 +2,28 @@
 
 ## Purpose
 
-Validates end-to-end integration of the medallion lakehouse architecture across all services: Kafka ingestion, Spark Structured Streaming, Delta Lake storage, DBT transformations, Airflow orchestration, and BI visualization. Tests data flows from raw events through Bronze/Silver/Gold layers to ensure correctness, reliability, and resilience under realistic failure scenarios.
+Validates end-to-end integration of the data platform across all services: the core event flow (Simulation API → Kafka → Stream Processor → Redis → WebSocket), Spark Structured Streaming for Bronze ingestion, Delta Lake storage, and DBT transformations. Tests focus on data correctness, reliability, and resilience under realistic failure scenarios.
 
 ## Responsibility Boundaries
 
-- **Owns**: Integration test orchestration, Docker lifecycle management, test data generation, cross-service validation, and regression testing of the complete data pipeline
+- **Owns**: Integration test orchestration, Docker lifecycle management, test data generation, cross-service validation, core pipeline testing, and resilience testing of the complete data platform
 - **Delegates to**: Individual service health checks to service containers, schema definitions to production code in `schemas/`, DBT transformations to `services/dbt/`, data generation logic to fixture modules
-- **Does not handle**: Unit testing of individual services, performance benchmarking, production monitoring, or load testing beyond resilience scenarios
+- **Does not handle**: Unit testing of individual services, performance benchmarking, production monitoring, load testing, or vendor service validation (Airflow, Superset, Great Expectations)
 
 ## Key Concepts
 
-**Dynamic Docker Profile Management**: Tests use `@pytest.mark.requires_profiles()` markers to declare required Docker Compose profiles (core, data-platform, quality-orchestration, monitoring, bi). The `docker_compose` fixture introspects selected tests to determine which profiles to start, minimizing container overhead and startup time.
+**Dynamic Docker Profile Management**: Tests use `@pytest.mark.requires_profiles()` markers to declare required Docker Compose profiles (core, data-platform). The `docker_compose` fixture introspects selected tests to determine which profiles to start, minimizing container overhead and startup time.
 
-**Test Categories**: Tests are organized by concern: foundation (service health), data flows (pipeline correctness), cross-phase (inter-service integration), regression (end-to-end scenarios), and external integrations (API compatibility). Each category validates different architectural boundaries.
+**Test Categories**: Tests are organized into focused categories:
+- **Core Pipeline** (`core_pipeline`): Tests the real-time event flow from Simulation API through Kafka, Stream Processor, Redis pub/sub, to WebSocket clients
+- **Resilience** (`resilience`): Tests data consistency under partial failures, trip state machine integrity, and pipeline smoke tests
+- **Feature Journey** (`feature_journey`): Tests Bronze ingestion and DBT Silver transformations
+- **Data Flow** (`data_flow`): Tests data lineage, deduplication, and checkpoint recovery
+- **Cross-Phase** (`cross_phase`): Tests integration between MinIO + Streaming and Bronze + DBT
 
-**Correlation ID Tracing**: Tests inject unique `correlation_id` values into events to enable precise data lineage tracking through Bronze/Silver/Gold transformations without interference from other concurrent tests or background data.
+**Correlation ID Tracing**: Tests inject unique `correlation_id` or `trip_id` values into events to enable precise data lineage tracking through Bronze/Silver transformations without interference from other concurrent tests.
 
-**Fixture Scope Strategy**: Session-scoped fixtures manage Docker containers and service clients (shared across all tests); function-scoped fixtures handle table cleanup and event generation (isolated per test). This balances test isolation with container startup cost.
-
-**Airflow API Version Detection**: The `AirflowClient` auto-detects API version (v1 for Airflow 2.x with basic auth, v2 for Airflow 3.x with JWT) to maintain compatibility across Airflow versions without configuration changes.
+**Fixture Scope Strategy**: Session-scoped fixtures manage Docker containers and service clients (shared across all tests); function-scoped fixtures handle table cleanup, Kafka consumers, and Redis publishers (isolated per test). This balances test isolation with container startup cost.
 
 ## Non-Obvious Details
 
@@ -28,11 +31,11 @@ Tests wait for Bronze tables to be initialized by the `bronze-init` container, t
 
 The `clean_*_tables` fixtures truncate Delta tables by deleting S3 objects directly rather than using `DELETE FROM` SQL, as Delta tables preserve history and SQL deletes only mark rows as removed. Direct S3 deletion provides true isolation between test runs.
 
-Checkpoint recovery tests restart streaming containers mid-pipeline to verify exactly-once semantics. The test publishes events before and after restart, then validates all events appear exactly once in Bronze tables, confirming Kafka offset checkpoints restore correctly.
+Checkpoint recovery tests kill and restart streaming containers mid-pipeline to verify exactly-once semantics. The test publishes events before and after restart, then validates all events appear exactly once in Bronze tables, confirming Kafka offset checkpoints restore correctly.
 
-Memory pressure tests publish 1000 events in rapid succession and monitor container memory usage to verify services respect Docker memory limits without OOMKilled failures. This validates backpressure handling and resource constraints under burst load.
+WebSocket tests use `websockets.sync.client` with API key authentication via the `Sec-WebSocket-Protocol: apikey.<key>` subprotocol header, matching the production authentication mechanism.
 
-Schema Registry compatibility testing uses identical schemas for evolution tests rather than adding optional fields, as JSON Schema compatibility rules in Confluent Schema Registry are strict and adding fields may fail backward compatibility checks.
+Schema Registry enforcement tests verify the pipeline handles malformed events gracefully—invalid events don't corrupt the system, and valid events published after invalid ones still flow correctly.
 
 ## Related Modules
 
