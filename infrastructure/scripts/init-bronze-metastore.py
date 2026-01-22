@@ -3,10 +3,8 @@
 
 This script creates all lakehouse databases:
 - bronze: Raw event data from Kafka streaming
-- silver_staging: DBT staging models (cleaned/deduplicated)
-- gold_dimensions: DBT dimension tables (SCD Type 2)
-- gold_facts: DBT fact tables
-- gold_aggregates: DBT aggregate tables
+- silver: DBT staging models (cleaned/deduplicated)
+- gold: DBT dimension, fact, and aggregate tables
 
 Tables are NOT pre-created here - they are created by Spark Streaming jobs
 (Bronze layer) or DBT models (Silver/Gold layers) on first write with proper
@@ -75,17 +73,13 @@ def init_lakehouse_databases():
 
     Creates:
     - bronze: Raw event data from Kafka streaming
-    - silver_staging: DBT staging models (cleaned/deduplicated)
-    - gold_dimensions: DBT dimension tables (SCD Type 2)
-    - gold_facts: DBT fact tables
-    - gold_aggregates: DBT aggregate tables
+    - silver: DBT staging models (cleaned/deduplicated)
+    - gold: DBT dimension, fact, and aggregate tables
     """
     databases_to_create = [
         "bronze",
-        "silver_staging",
-        "gold_dimensions",
-        "gold_facts",
-        "gold_aggregates",
+        "silver",
+        "gold",
     ]
 
     max_retries = 3

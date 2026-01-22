@@ -22,7 +22,7 @@ Data validation layer using Great Expectations to enforce quality contracts on l
 
 ## Non-Obvious Details
 
-Validations reference tables via fully-qualified names (e.g., `silver_staging.stg_trips`, `gold_facts.fact_trips`) but actual execution requires a live Spark Thrift Server connection. The `test_connection.py` script can verify configuration without live data.
+Validations reference tables via fully-qualified names (e.g., `silver.stg_trips`, `gold.fact_trips`) but actual execution requires a live Spark Thrift Server connection. The `test_connection.py` script can verify configuration without live data.
 
 Expectation suites encode domain knowledge: trip states must match the simulation engine's 10-state machine, surge multipliers constrained to 1.0-2.5x range, distance/duration sanity checks reflect São Paulo geography.
 

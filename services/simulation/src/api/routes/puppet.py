@@ -541,7 +541,7 @@ def puppet_driver_cancel_trip(
 @router.post(
     "/riders/{rider_id}/request-trip", response_model=PuppetTripRequestResponse
 )
-def puppet_rider_request_trip(
+async def puppet_rider_request_trip(
     rider_id: str,
     body: PuppetTripRequestBody,
     engine: SimulationEngineDep,
@@ -598,8 +598,8 @@ def puppet_rider_request_trip(
     per_km_rate = 2.5
     fare = (base_fare + (distance_km * per_km_rate)) * surge_multiplier
 
-    # Request match via matching server (uses puppet=True for the driver matching)
-    matching_server.request_match(
+    # Request match via matching server (async call)
+    await matching_server.request_match(
         rider_id=rider_id,
         pickup_location=rider.location,
         dropoff_location=body.destination,

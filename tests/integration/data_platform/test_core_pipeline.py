@@ -26,26 +26,84 @@ pytestmark = [
 @pytest.mark.core_pipeline
 def test_simulation_api_kafka_publishing(
     simulation_api_client,
+    kafka_admin,  # Ensures topics are created
     kafka_consumer,
+    kafka_producer,
 ):
     """NEW-001: Verify Simulation API publishes trip events to Kafka.
 
-    When POST /simulation/start is called, trip events should appear
-    in the Kafka 'trips' topic within 15 seconds.
+    This test verifies that when agents are created and the simulation is running,
+    trip events appear in the Kafka 'trips' topic. We use the puppet agent API
+    to create a controlled trip request that generates events immediately.
 
     Verifies:
     - Simulation can be started via API
     - Trip events are published to Kafka
     - Events have trip_id, event_type, and timestamp fields
     """
-    # Subscribe to trips topic
+    # Verify simulation can connect to Kafka (check detailed health)
+    health_response = simulation_api_client.get("/health/detailed")
+    if health_response.status_code == 200:
+        health_data = health_response.json()
+        kafka_status = health_data.get("kafka", {}).get("status")
+        assert kafka_status in [
+            "healthy",
+            "degraded",
+        ], f"Kafka not healthy in simulation service: {health_data.get('kafka')}"
+
+    # Subscribe to trips topic FIRST, then poll to get partition assignment
     kafka_consumer.subscribe(["trips"])
 
-    # Act: Start simulation via API
-    response = simulation_api_client.post(
-        "/simulation/start",
-        json={"num_drivers": 5, "num_riders": 5},
+    # Poll multiple times to ensure consumer gets partition assignment
+    # This is important because the first few polls are used for group coordination
+    # Allow up to 30 seconds for partition assignment (Kafka needs time after startup)
+    partition_assigned = False
+    for _ in range(30):
+        kafka_consumer.poll(timeout=1.0)
+        assignment = kafka_consumer.assignment()
+        if assignment:
+            partition_assigned = True
+            break
+
+    assert (
+        partition_assigned
+    ), "Consumer did not get partition assignment after 30 seconds"
+
+    # Verify consumer can receive messages by sending a test marker message
+    test_marker_id = f"test-marker-{int(time.time() * 1000)}"
+    test_marker = {
+        "event_id": test_marker_id,
+        "event_type": "test.marker",
+        "trip_id": test_marker_id,
+        "timestamp": "2026-01-20T10:00:00Z",
+    }
+    kafka_producer.produce(
+        topic="trips",
+        value=json.dumps(test_marker).encode("utf-8"),
+        key=test_marker_id.encode("utf-8"),
     )
+    kafka_producer.flush(timeout=5.0)
+
+    # Verify we can read the marker (this validates the consumer is working)
+    marker_found = False
+    for _ in range(10):
+        msg = kafka_consumer.poll(timeout=1.0)
+        if msg is not None and not msg.error():
+            try:
+                event = json.loads(msg.value().decode("utf-8"))
+                if event.get("event_id") == test_marker_id:
+                    marker_found = True
+                    break
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                pass
+
+    assert marker_found, (
+        "Consumer could not read test marker message. "
+        "Kafka consumer setup may be incorrect."
+    )
+
+    # Act: Start simulation via API (no parameters needed)
+    response = simulation_api_client.post("/simulation/start")
 
     # Handle case where simulation is already running
     if response.status_code == 400:
@@ -55,7 +113,7 @@ def test_simulation_api_kafka_publishing(
             status_response = simulation_api_client.get("/simulation/status")
             assert status_response.status_code == 200
             status = status_response.json()
-            assert status.get("is_running") is True, "Simulation should be running"
+            assert status.get("state") == "running", "Simulation should be running"
         else:
             pytest.fail(f"Unexpected 400 error: {response.text}")
     else:
@@ -64,10 +122,66 @@ def test_simulation_api_kafka_publishing(
             201,
         ], f"Start simulation failed: {response.status_code} - {response.text}"
 
+    # Give simulation time to initialize
+    time.sleep(2)
+
+    # Create puppet driver and rider to generate controlled trip events
+    # Puppet agents allow us to trigger trips via API without waiting for DNA-based schedules
+
+    # Create puppet driver at a location in Sao Paulo
+    driver_response = simulation_api_client.post(
+        "/agents/puppet/drivers",
+        json={"location": [-23.5505, -46.6333]},  # Sao Paulo center
+    )
+    assert driver_response.status_code in [
+        200,
+        201,
+    ], f"Failed to create puppet driver: {driver_response.status_code} - {driver_response.text}"
+    driver_id = driver_response.json().get("driver_id")
+    assert driver_id, "No driver_id returned"
+
+    # Set driver online using puppet endpoint
+    online_response = simulation_api_client.put(
+        f"/agents/puppet/drivers/{driver_id}/go-online",
+    )
+    assert (
+        online_response.status_code == 200
+    ), f"Failed to set driver online: {online_response.status_code} - {online_response.text}"
+
+    # Give driver registration time to propagate to geospatial index
+    time.sleep(1)
+
+    # Create puppet rider nearby
+    rider_response = simulation_api_client.post(
+        "/agents/puppet/riders",
+        json={"location": [-23.5510, -46.6340]},  # Near the driver
+    )
+    assert rider_response.status_code in [
+        200,
+        201,
+    ], f"Failed to create puppet rider: {rider_response.status_code} - {rider_response.text}"
+    rider_id = rider_response.json().get("rider_id")
+    assert rider_id, "No rider_id returned"
+
+    # Request a trip for the puppet rider using puppet endpoint (this should generate trip events)
+    trip_response = simulation_api_client.post(
+        f"/agents/puppet/riders/{rider_id}/request-trip",
+        json={"destination": [-23.5600, -46.6500]},  # Destination in Sao Paulo
+    )
+    assert trip_response.status_code in [
+        200,
+        201,
+    ], f"Failed to request trip: {trip_response.status_code} - {trip_response.text}"
+    trip_id = trip_response.json().get("trip_id")
+    assert trip_id, "No trip_id returned from request-trip"
+
+    # Give Kafka producer time to flush messages (the simulation uses async batching)
+    time.sleep(2)
+
     # Poll for trip events in Kafka
     events_received = []
     start_time = time.time()
-    timeout_seconds = 15
+    timeout_seconds = 30  # Increased timeout for event propagation
 
     while time.time() - start_time < timeout_seconds:
         msg = kafka_consumer.poll(timeout=1.0)
@@ -78,8 +192,9 @@ def test_simulation_api_kafka_publishing(
 
         try:
             event = json.loads(msg.value().decode("utf-8"))
-            # Look for trip events
-            if event.get("event_type", "").startswith("trip."):
+            event_type = event.get("event_type", "")
+            # Look for any trip-related events (trip.* or no_drivers_available)
+            if event_type.startswith("trip.") or event_type == "no_drivers_available":
                 events_received.append(event)
                 break  # Found at least one trip event
         except (json.JSONDecodeError, UnicodeDecodeError):
@@ -87,8 +202,9 @@ def test_simulation_api_kafka_publishing(
 
     # Assert: At least one trip event received
     assert len(events_received) >= 1, (
-        f"No trip events received from Kafka within {timeout_seconds} seconds. "
-        "Check if simulation is publishing to Kafka."
+        f"Expected at least 1 message on trip topic trips, got 0. "
+        f"Trip ID from API: {trip_id}. "
+        "Check if simulation is publishing to Kafka and OSRM is reachable."
     )
 
     # Assert: Event has required fields

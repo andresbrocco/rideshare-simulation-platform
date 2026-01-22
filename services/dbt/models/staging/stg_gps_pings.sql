@@ -4,7 +4,7 @@
         unique_key='event_id',
         incremental_strategy='merge',
         file_format='delta',
-        on_schema_change='sync_all_columns'
+        on_schema_change='append_new_columns'
     )
 }}
 
@@ -31,6 +31,10 @@ parsed as (
         to_timestamp(get_json_object(_raw_value, '$.timestamp')) as timestamp,
         cast(get_json_object(_raw_value, '$.location[0]') as double) as latitude,
         cast(get_json_object(_raw_value, '$.location[1]') as double) as longitude,
+        array(
+            cast(get_json_object(_raw_value, '$.location[0]') as double),
+            cast(get_json_object(_raw_value, '$.location[1]') as double)
+        ) as location,
         cast(get_json_object(_raw_value, '$.accuracy') as double) as accuracy,
         cast(get_json_object(_raw_value, '$.heading') as double) as heading,
         cast(get_json_object(_raw_value, '$.speed') as double) as speed,

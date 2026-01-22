@@ -14,7 +14,7 @@ Custom DBT macros that handle Delta Lake-specific edge cases and enforce medalli
 
 **Empty Source Guard** — Compile-time check that prevents `DeltaAnalysisException` when reading newly-created Delta tables that have no columns. Returns typed empty result sets to maintain schema compatibility.
 
-**Schema Name Override** — Bypasses DBT's default `target.schema` prefix to map custom schema names directly to Spark database names (e.g., `silver_staging`, `gold_facts`), enforcing clean lakehouse layer separation.
+**Schema Name Override** — Bypasses DBT's default `target.schema` prefix to map custom schema names directly to Spark database names (e.g., `silver`, `gold`), enforcing clean lakehouse layer separation.
 
 ## Non-Obvious Details
 

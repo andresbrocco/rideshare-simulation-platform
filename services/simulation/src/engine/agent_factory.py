@@ -248,6 +248,8 @@ class AgentFactory:
     ) -> list[dict[str, Any]]:
         """Generate frequent destinations near a home location.
 
+        All destinations are validated to be inside São Paulo zone polygons.
+
         Args:
             home_lat: Home latitude
             home_lon: Home longitude
@@ -256,27 +258,44 @@ class AgentFactory:
             List of destination dictionaries
         """
         from agents.dna_generator import SAO_PAULO_BOUNDS
+        from agents.zone_validator import is_location_in_any_zone
 
         num_destinations = random.randint(2, 5)
         destinations: list[dict[str, Any]] = []
         total_weight = 0.0
 
+        max_attempts_per_destination = 50
         for _ in range(num_destinations):
-            # Generate destination within 0.8-20km of home
-            distance_factor = random.uniform(0.01, 0.15)
-            lat_offset = random.uniform(-distance_factor, distance_factor)
-            lon_offset = random.uniform(-distance_factor, distance_factor)
+            # Try to generate a valid destination within zone boundaries
+            dest_lat, dest_lon = None, None
+            for _attempt in range(max_attempts_per_destination):
+                # Generate destination within 0.8-20km of home
+                distance_factor = random.uniform(0.01, 0.15)
+                lat_offset = random.uniform(-distance_factor, distance_factor)
+                lon_offset = random.uniform(-distance_factor, distance_factor)
 
-            dest_lat = home_lat + lat_offset
-            dest_lon = home_lon + lon_offset
+                candidate_lat = home_lat + lat_offset
+                candidate_lon = home_lon + lon_offset
 
-            # Clamp to Sao Paulo bounds
-            dest_lat = max(
-                SAO_PAULO_BOUNDS["lat_min"], min(SAO_PAULO_BOUNDS["lat_max"], dest_lat)
-            )
-            dest_lon = max(
-                SAO_PAULO_BOUNDS["lon_min"], min(SAO_PAULO_BOUNDS["lon_max"], dest_lon)
-            )
+                # Clamp to Sao Paulo bounds
+                candidate_lat = max(
+                    SAO_PAULO_BOUNDS["lat_min"],
+                    min(SAO_PAULO_BOUNDS["lat_max"], candidate_lat),
+                )
+                candidate_lon = max(
+                    SAO_PAULO_BOUNDS["lon_min"],
+                    min(SAO_PAULO_BOUNDS["lon_max"], candidate_lon),
+                )
+
+                # Validate destination is inside a zone polygon
+                if is_location_in_any_zone(candidate_lat, candidate_lon):
+                    dest_lat, dest_lon = candidate_lat, candidate_lon
+                    break
+
+            # If no valid destination found after retries, use home location
+            # (which should already be validated)
+            if dest_lat is None or dest_lon is None:
+                dest_lat, dest_lon = home_lat, home_lon
 
             weight = random.random()
             total_weight += weight
