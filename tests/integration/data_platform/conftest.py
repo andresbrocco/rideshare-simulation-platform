@@ -5,18 +5,21 @@ This module provides fixtures for:
 - Service client connections (Ticket 013)
 - Table cleanup and event generation (Ticket 014)
 - Service verification (Ticket 015)
+- Core pipeline testing (NEW-001 to NEW-004)
 """
 
 import json
 import os
 import subprocess
 import time
+import uuid
 from typing import Dict, Any, List
 
 import boto3
 import httpx
 import pytest
-from confluent_kafka import Producer
+import redis
+from confluent_kafka import Consumer, Producer
 from confluent_kafka.admin import AdminClient, NewTopic
 from pyhive import hive
 
@@ -62,11 +65,19 @@ DOCKER_PROFILES = {
 
 
 def pytest_configure(config):
-    """Register custom markers for Docker profile requirements."""
+    """Register custom markers for Docker profile requirements and test categories."""
     config.addinivalue_line(
         "markers",
         "requires_profiles(*profiles): mark test to require specific Docker profiles "
         "(e.g., @pytest.mark.requires_profiles('core', 'data-platform'))",
+    )
+    config.addinivalue_line(
+        "markers",
+        "core_pipeline: mark test as core pipeline test (Simulation -> Kafka -> Redis -> WebSocket)",
+    )
+    config.addinivalue_line(
+        "markers",
+        "resilience: mark test as resilience/recovery test",
     )
 
 
@@ -383,6 +394,120 @@ def grafana_client(wait_for_services):
     yield client
 
     client.close()
+
+
+# =============================================================================
+# Core pipeline testing fixtures (NEW-001 to NEW-004)
+# =============================================================================
+
+
+@pytest.fixture(scope="session")
+def simulation_api_client(docker_compose):
+    """HTTP client for Simulation API with X-API-Key header.
+
+    Waits for /health endpoint before yielding.
+    Base URL: http://localhost:8000
+    API key: dev-api-key-change-in-production
+    """
+    base_url = "http://localhost:8000"
+    api_key = "dev-api-key-change-in-production"
+
+    client = httpx.Client(
+        base_url=base_url,
+        headers={"X-API-Key": api_key},
+        timeout=30.0,
+    )
+
+    # Wait for health endpoint to respond
+    max_attempts = 30
+    for attempt in range(max_attempts):
+        try:
+            response = client.get("/health")
+            if response.status_code == 200:
+                break
+        except httpx.RequestError:
+            pass
+        time.sleep(2)
+    else:
+        raise TimeoutError(
+            f"Simulation API did not become healthy within {max_attempts * 2} seconds"
+        )
+
+    yield client
+
+    client.close()
+
+
+@pytest.fixture(scope="session")
+def stream_processor_healthy(docker_compose):
+    """Wait for stream processor /health endpoint to return 'healthy'.
+
+    Verifies kafka_connected and redis_connected are true.
+    URL: http://localhost:8080/health
+    """
+    health_url = "http://localhost:8080/health"
+    max_attempts = 30
+
+    for attempt in range(max_attempts):
+        try:
+            response = httpx.get(health_url, timeout=5.0)
+            if response.status_code == 200:
+                data = response.json()
+                if (
+                    data.get("status") == "healthy"
+                    and data.get("kafka_connected") is True
+                    and data.get("redis_connected") is True
+                ):
+                    yield
+                    return
+        except (httpx.RequestError, json.JSONDecodeError):
+            pass
+        time.sleep(2)
+
+    raise TimeoutError(
+        f"Stream processor did not become healthy within {max_attempts * 2} seconds"
+    )
+
+
+@pytest.fixture(scope="function")
+def redis_publisher(docker_compose):
+    """Sync Redis client for publishing test events.
+
+    Used to inject events into pub/sub channels for WebSocket testing.
+    """
+    client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+
+    # Verify connection
+    client.ping()
+
+    yield client
+
+    client.close()
+
+
+@pytest.fixture(scope="function")
+def kafka_consumer(wait_for_services):
+    """Kafka Consumer with unique group ID per test.
+
+    auto.offset.reset: earliest
+    enable.auto.commit: false
+    Used to read events published by simulation.
+    """
+    # Generate unique group ID per test to avoid offset conflicts
+    group_id = f"integration-test-consumer-{uuid.uuid4().hex[:8]}"
+
+    consumer = Consumer(
+        {
+            "bootstrap.servers": "localhost:9092",
+            "group.id": group_id,
+            "auto.offset.reset": "earliest",
+            "enable.auto.commit": False,
+        }
+    )
+
+    yield consumer
+
+    consumer.close()
 
 
 # =============================================================================

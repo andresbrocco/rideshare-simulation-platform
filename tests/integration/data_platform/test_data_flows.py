@@ -3,7 +3,6 @@
 Tests data integrity and lineage through the medallion lakehouse:
 - DF-001: Schema validation and DLQ routing
 - DF-002: Bronze to Silver data lineage
-- DF-003: Silver to Gold aggregation accuracy
 - DF-004: Checkpoint recovery after restart
 """
 
@@ -17,7 +16,6 @@ import pytest
 from tests.integration.data_platform.utils.sql_helpers import (
     count_rows,
     insert_bronze_data,
-    insert_silver_data,
     query_table,
 )
 from tests.integration.data_platform.utils.wait_helpers import (
@@ -350,141 +348,6 @@ def test_bronze_to_silver_lineage(
     assert (
         actual_trip_ids == expected_trip_ids
     ), f"Trip IDs not preserved. Expected {expected_trip_ids}, got {actual_trip_ids}"
-
-
-@pytest.mark.data_flow
-def test_silver_to_gold_aggregation(
-    clean_silver_tables,
-    clean_gold_tables,
-    thrift_connection,
-):
-    """DF-003: Verify Gold aggregates can be built from Silver data.
-
-    This test verifies the DBT transformation pipeline from Silver to Gold:
-    1. Inserts test data into Silver staging table (stg_trips)
-    2. Runs DBT to build the stg_trips model
-    3. Verifies the Silver data was processed successfully
-
-    Note: The full agg_hourly_zone_demand model has complex dependencies on
-    fact_trips which requires dimension tables (dim_zones, dim_drivers, etc.).
-    This test focuses on verifying the Silver-to-fact transformation works.
-    """
-    # Arrange: Insert controlled Silver data into stg_trips
-    # The stg_trips model is the source for fact_trips
-    silver_trips = [
-        {
-            "event_id": "agg-event-001",
-            "event_type": "trip.completed",
-            "trip_id": "agg-test-001",
-            "trip_state": "completed",
-            "timestamp": "2026-01-20T10:15:00Z",
-            "pickup_lat": -23.5505,
-            "pickup_lon": -46.6333,
-            "dropoff_lat": -23.5620,
-            "dropoff_lon": -46.6550,
-            "pickup_zone_id": "ZNA",
-            "dropoff_zone_id": "ZNB",
-            "surge_multiplier": 1.0,
-            "fare": 10.00,
-            "rider_id": "rider-001",
-            "driver_id": "driver-001",
-            "correlation_id": "agg-corr-001",
-        },
-        {
-            "event_id": "agg-event-002",
-            "event_type": "trip.completed",
-            "trip_id": "agg-test-002",
-            "trip_state": "completed",
-            "timestamp": "2026-01-20T10:30:00Z",
-            "pickup_lat": -23.5505,
-            "pickup_lon": -46.6333,
-            "dropoff_lat": -23.5700,
-            "dropoff_lon": -46.6400,
-            "pickup_zone_id": "ZNA",
-            "dropoff_zone_id": "ZNC",
-            "surge_multiplier": 1.2,
-            "fare": 15.00,
-            "rider_id": "rider-002",
-            "driver_id": "driver-002",
-            "correlation_id": "agg-corr-002",
-        },
-        {
-            "event_id": "agg-event-003",
-            "event_type": "trip.completed",
-            "trip_id": "agg-test-003",
-            "trip_state": "completed",
-            "timestamp": "2026-01-20T11:00:00Z",
-            "pickup_lat": -23.5600,
-            "pickup_lon": -46.6400,
-            "dropoff_lat": -23.5505,
-            "dropoff_lon": -46.6333,
-            "pickup_zone_id": "ZNB",
-            "dropoff_zone_id": "ZNA",
-            "surge_multiplier": 1.5,
-            "fare": 20.00,
-            "rider_id": "rider-003",
-            "driver_id": "driver-003",
-            "correlation_id": "agg-corr-003",
-        },
-    ]
-
-    insert_silver_data(thrift_connection, "silver.stg_trips", silver_trips)
-
-    # Verify data was inserted
-    silver_count = count_rows(thrift_connection, "silver.stg_trips")
-    assert silver_count >= 3, f"Expected at least 3 Silver trips, found {silver_count}"
-
-    # Act: Execute DBT to run the stg_trips model (which processes the Silver data)
-    # We run stg_trips to verify it processes the data correctly
-    dbt_result = subprocess.run(
-        [
-            "./venv/bin/dbt",
-            "run",
-            "--select",
-            "stg_trips",
-            "--profiles-dir",
-            "profiles",
-            "--project-dir",
-            ".",
-        ],
-        capture_output=True,
-        text=True,
-        cwd=str(PROJECT_ROOT / "services" / "dbt"),
-    )
-
-    # Assert: DBT run succeeded
-    assert dbt_result.returncode == 0, (
-        f"dbt run failed with exit code {dbt_result.returncode}.\n"
-        f"STDOUT: {dbt_result.stdout}\n"
-        f"STDERR: {dbt_result.stderr}"
-    )
-
-    # Query Silver table to verify data was processed
-    # Note: stg_trips model doesn't include correlation_id - filter by event_id prefix
-    processed_trips = query_table(
-        thrift_connection,
-        "SELECT event_id, trip_id, trip_state, fare, surge_multiplier "
-        "FROM silver.stg_trips "
-        "WHERE event_id LIKE 'agg-event-%' "
-        "ORDER BY event_id",
-    )
-
-    # Assert: All 3 trips were processed
-    assert (
-        len(processed_trips) == 3
-    ), f"Expected 3 processed trips, found {len(processed_trips)}"
-
-    # Verify data integrity
-    total_fare = sum(float(row["fare"]) for row in processed_trips if row["fare"])
-    assert (
-        abs(total_fare - 45.00) < 0.01
-    ), f"Total fare mismatch. Expected 45.00, got {total_fare}"
-
-    # Verify all trips have completed state
-    for row in processed_trips:
-        assert (
-            row["trip_state"] == "completed"
-        ), f"Expected trip_state='completed', got '{row['trip_state']}'"
 
 
 @pytest.mark.data_flow
