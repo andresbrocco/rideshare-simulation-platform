@@ -21,9 +21,6 @@ spec:
         path:
           type: ReplacePrefixMatch
           replacePrefixMatch: /
-    timeouts:
-      request: 3600s
-      backendRequest: 3600s
     backendRefs:
     - name: simulation
       port: 8000
