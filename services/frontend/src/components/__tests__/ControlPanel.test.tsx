@@ -70,8 +70,15 @@ describe('ControlPanel', () => {
     state: 'stopped',
     speed_multiplier: 1,
     current_time: '2024-08-25T10:30:00Z',
-    drivers_count: 50,
-    riders_count: 20,
+    drivers_total: 50,
+    drivers_offline: 10,
+    drivers_online: 30,
+    drivers_en_route_pickup: 5,
+    drivers_en_route_destination: 5,
+    riders_total: 20,
+    riders_offline: 5,
+    riders_waiting: 10,
+    riders_in_trip: 5,
     active_trips_count: 10,
     uptime_seconds: 3600,
   };
@@ -157,13 +164,15 @@ describe('ControlPanel', () => {
     render(<ControlPanel status={mockStatus} />);
 
     const driverInput = screen.getByLabelText(/drivers/i);
-    const addDriversButton = screen.getByRole('button', { name: /add drivers/i });
+    // Get the Add button in the drivers section (first Add button after driver input)
+    const addButtons = screen.getAllByRole('button', { name: /^add$/i });
+    const addDriversButton = addButtons[0];
 
     await user.clear(driverInput);
     await user.type(driverInput, '5');
     await user.click(addDriversButton);
 
-    expect(mockAddDrivers).toHaveBeenCalledWith(5);
+    expect(mockAddDrivers).toHaveBeenCalledWith(5, 'immediate');
   });
 
   it('autonomous_agent_creation_riders', async () => {
@@ -172,13 +181,15 @@ describe('ControlPanel', () => {
     render(<ControlPanel status={mockStatus} />);
 
     const riderInput = screen.getByLabelText(/riders/i);
-    const addRidersButton = screen.getByRole('button', { name: /add riders/i });
+    // Get the Add button in the riders section (second Add button after rider input)
+    const addButtons = screen.getAllByRole('button', { name: /^add$/i });
+    const addRidersButton = addButtons[1];
 
     await user.clear(riderInput);
     await user.type(riderInput, '3');
     await user.click(addRidersButton);
 
-    expect(mockAddRiders).toHaveBeenCalledWith(3);
+    expect(mockAddRiders).toHaveBeenCalledWith(3, 'scheduled');
   });
 
   it('test_displays_status_indicator', () => {

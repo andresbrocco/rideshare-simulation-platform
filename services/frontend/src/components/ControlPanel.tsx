@@ -9,7 +9,7 @@ import InfrastructurePanel from './InfrastructurePanel';
 import PerformancePanel from './PerformancePanel';
 import Tooltip from './Tooltip';
 import ConfirmModal from './ConfirmModal';
-import type { SimulationStatus } from '../types/api';
+import type { SimulationStatus, SpawnMode } from '../types/api';
 import type { PlacementMode } from '../constants/dnaPresets';
 import { formatDuration } from '../utils/formatDuration';
 import styles from './ControlPanel.module.css';
@@ -33,6 +33,8 @@ export default function ControlPanel({
 }: ControlPanelProps) {
   const [driverCount, setDriverCount] = useState(10);
   const [riderCount, setRiderCount] = useState(200);
+  const [driverMode, setDriverMode] = useState<SpawnMode>('immediate');
+  const [riderMode, setRiderMode] = useState<SpawnMode>('scheduled');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const {
@@ -68,11 +70,11 @@ export default function ControlPanel({
   };
 
   const handleAddDrivers = async () => {
-    await addDrivers(driverCount);
+    await addDrivers(driverCount, driverMode);
   };
 
   const handleAddRiders = async () => {
-    await addRiders(riderCount);
+    await addRiders(riderCount, riderMode);
   };
 
   const getStatusColor = () => {
@@ -190,8 +192,19 @@ export default function ControlPanel({
             min="1"
             className={styles.input}
           />
+          <Tooltip text="Immediate: go online immediately. Scheduled: follow shift schedule from DNA.">
+            <select
+              id="driver-mode"
+              value={driverMode}
+              onChange={(e) => setDriverMode(e.target.value as SpawnMode)}
+              className={styles.select}
+            >
+              <option value="immediate">Immediate</option>
+              <option value="scheduled">Scheduled</option>
+            </select>
+          </Tooltip>
           <button onClick={handleAddDrivers} className={styles.button}>
-            Add Drivers
+            Add
           </button>
         </div>
         <div className={styles.agentControl}>
@@ -206,8 +219,19 @@ export default function ControlPanel({
             min="1"
             className={styles.input}
           />
+          <Tooltip text="Immediate: request trip now. Scheduled: follow ride frequency from DNA.">
+            <select
+              id="rider-mode"
+              value={riderMode}
+              onChange={(e) => setRiderMode(e.target.value as SpawnMode)}
+              className={styles.select}
+            >
+              <option value="immediate">Immediate</option>
+              <option value="scheduled">Scheduled</option>
+            </select>
+          </Tooltip>
           <button onClick={handleAddRiders} className={styles.button}>
-            Add Riders
+            Add
           </button>
         </div>
       </div>

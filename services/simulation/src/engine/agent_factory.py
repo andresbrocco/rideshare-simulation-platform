@@ -2,6 +2,7 @@
 
 import random
 import threading
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 from uuid import uuid4
 
@@ -9,6 +10,15 @@ from agents.dna import DriverDNA, RiderDNA
 from agents.dna_generator import generate_driver_dna, generate_rider_dna
 from agents.driver_agent import DriverAgent
 from agents.rider_agent import RiderAgent
+
+
+@dataclass
+class SpawnRequest:
+    """A request to spawn agents with a specific mode."""
+
+    count: int
+    immediate: bool
+
 
 if TYPE_CHECKING:
     from engine import SimulationEngine
@@ -44,9 +54,9 @@ class AgentFactory:
         self._max_drivers = 2000
         self._max_riders = 10000
 
-        # Spawn queue for continuous agent spawning
-        self._driver_spawn_queue: int = 0
-        self._rider_spawn_queue: int = 0
+        # Spawn queue for continuous agent spawning (list of SpawnRequest)
+        self._driver_spawn_requests: list[SpawnRequest] = []
+        self._rider_spawn_requests: list[SpawnRequest] = []
         self._spawn_lock = threading.Lock()
 
     def create_drivers(self, count: int) -> list[str]:
@@ -138,11 +148,12 @@ class AgentFactory:
 
     # --- Spawn Queue Methods (for continuous spawning) ---
 
-    def queue_drivers(self, count: int) -> int:
+    def queue_drivers(self, count: int, immediate: bool = True) -> int:
         """Queue N drivers for continuous spawning.
 
         Args:
             count: Number of drivers to queue
+            immediate: If True, go online immediately; if False, follow DNA shift_preference
 
         Returns:
             Number of drivers queued
@@ -152,14 +163,15 @@ class AgentFactory:
         """
         self._check_driver_capacity(count)
         with self._spawn_lock:
-            self._driver_spawn_queue += count
+            self._driver_spawn_requests.append(SpawnRequest(count, immediate))
         return count
 
-    def queue_riders(self, count: int) -> int:
+    def queue_riders(self, count: int, immediate: bool = False) -> int:
         """Queue N riders for continuous spawning.
 
         Args:
             count: Number of riders to queue
+            immediate: If True, request trip immediately; if False, follow DNA avg_rides_per_week
 
         Returns:
             Number of riders queued
@@ -169,32 +181,38 @@ class AgentFactory:
         """
         self._check_rider_capacity(count)
         with self._spawn_lock:
-            self._rider_spawn_queue += count
+            self._rider_spawn_requests.append(SpawnRequest(count, immediate))
         return count
 
-    def dequeue_driver(self) -> bool:
+    def dequeue_driver(self) -> bool | None:
         """Dequeue one driver for spawning.
 
         Returns:
-            True if a driver was dequeued, False if queue was empty
+            True for immediate mode, False for scheduled mode, None if queue empty
         """
         with self._spawn_lock:
-            if self._driver_spawn_queue > 0:
-                self._driver_spawn_queue -= 1
-                return True
-            return False
+            while self._driver_spawn_requests:
+                request = self._driver_spawn_requests[0]
+                if request.count > 0:
+                    request.count -= 1
+                    return request.immediate
+                self._driver_spawn_requests.pop(0)
+            return None
 
-    def dequeue_rider(self) -> bool:
+    def dequeue_rider(self) -> bool | None:
         """Dequeue one rider for spawning.
 
         Returns:
-            True if a rider was dequeued, False if queue was empty
+            True for immediate mode, False for scheduled mode, None if queue empty
         """
         with self._spawn_lock:
-            if self._rider_spawn_queue > 0:
-                self._rider_spawn_queue -= 1
-                return True
-            return False
+            while self._rider_spawn_requests:
+                request = self._rider_spawn_requests[0]
+                if request.count > 0:
+                    request.count -= 1
+                    return request.immediate
+                self._rider_spawn_requests.pop(0)
+            return None
 
     def get_spawn_queue_status(self) -> dict[str, int]:
         """Get current spawn queue status.
@@ -204,15 +222,15 @@ class AgentFactory:
         """
         with self._spawn_lock:
             return {
-                "drivers_queued": self._driver_spawn_queue,
-                "riders_queued": self._rider_spawn_queue,
+                "drivers_queued": sum(r.count for r in self._driver_spawn_requests),
+                "riders_queued": sum(r.count for r in self._rider_spawn_requests),
             }
 
     def clear_spawn_queues(self) -> None:
         """Clear all spawn queues. Used during reset."""
         with self._spawn_lock:
-            self._driver_spawn_queue = 0
-            self._rider_spawn_queue = 0
+            self._driver_spawn_requests.clear()
+            self._rider_spawn_requests.clear()
 
     def _get_random_location_in_zone(self, zone_id: str) -> tuple[float, float] | None:
         """Get a random location within a zone.
@@ -303,9 +321,7 @@ class AgentFactory:
             # Optional time affinity
             time_affinity = None
             if random.random() < 0.4:
-                affinity_type = random.choice(
-                    ["morning_commute", "evening_return", "leisure"]
-                )
+                affinity_type = random.choice(["morning_commute", "evening_return", "leisure"])
                 if affinity_type == "morning_commute":
                     time_affinity = list(range(7, 10))
                 elif affinity_type == "evening_return":
@@ -440,10 +456,8 @@ class AgentFactory:
             if zone_location:
                 dna_dict["home_location"] = zone_location
                 # Regenerate frequent_destinations based on zone location
-                dna_dict["frequent_destinations"] = (
-                    self._generate_destinations_for_home(
-                        zone_location[0], zone_location[1]
-                    )
+                dna_dict["frequent_destinations"] = self._generate_destinations_for_home(
+                    zone_location[0], zone_location[1]
                 )
 
         # Apply explicit overrides (takes precedence over zone)

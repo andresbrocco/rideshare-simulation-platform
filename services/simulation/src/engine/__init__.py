@@ -179,17 +179,13 @@ class SimulationEngine:
     @property
     def active_driver_count(self) -> int:
         """Count drivers with status=online."""
-        return sum(
-            1 for driver in self._active_drivers.values() if driver.status == "online"
-        )
+        return sum(1 for driver in self._active_drivers.values() if driver.status == "online")
 
     @property
     def active_rider_count(self) -> int:
         """Count riders with status=waiting or in_trip."""
         return sum(
-            1
-            for rider in self._active_riders.values()
-            if rider.status in ("waiting", "in_trip")
+            1 for rider in self._active_riders.values() if rider.status in ("waiting", "in_trip")
         )
 
     def set_event_loop(self, loop: asyncio.AbstractEventLoop) -> None:
@@ -200,9 +196,7 @@ class SimulationEngine:
         """Get the main asyncio event loop for thread-safe async calls from SimPy thread."""
         return self._event_loop
 
-    def transition_state(
-        self, new_state: SimulationState, trigger: str = "user_request"
-    ) -> None:
+    def transition_state(self, new_state: SimulationState, trigger: str = "user_request") -> None:
         """Validate and execute state transition."""
         if new_state not in VALID_STATE_TRANSITIONS.get(self._state, set()):
             raise ValueError(
@@ -295,12 +289,8 @@ class SimulationEngine:
 
     def pause(self) -> None:
         """Initiate two-phase pause: RUNNING -> DRAINING -> PAUSED."""
-        if SimulationState.DRAINING not in VALID_STATE_TRANSITIONS.get(
-            self._state, set()
-        ):
-            raise ValueError(
-                f"Invalid state transition from {self._state.value} to draining"
-            )
+        if SimulationState.DRAINING not in VALID_STATE_TRANSITIONS.get(self._state, set()):
+            raise ValueError(f"Invalid state transition from {self._state.value} to draining")
 
         old_state = self._state
         self._state = SimulationState.DRAINING
@@ -309,12 +299,8 @@ class SimulationEngine:
 
     def resume(self) -> None:
         """Transition from PAUSED to RUNNING."""
-        if SimulationState.RUNNING not in VALID_STATE_TRANSITIONS.get(
-            self._state, set()
-        ):
-            raise ValueError(
-                f"Invalid state transition from {self._state.value} to running"
-            )
+        if SimulationState.RUNNING not in VALID_STATE_TRANSITIONS.get(self._state, set()):
+            raise ValueError(f"Invalid state transition from {self._state.value} to running")
 
         old_state = self._state
         self._state = SimulationState.RUNNING
@@ -359,9 +345,7 @@ class SimulationEngine:
         except Exception as e:
             import logging
 
-            logging.getLogger(__name__).error(
-                f"Unexpected error during checkpoint restore: {e}"
-            )
+            logging.getLogger(__name__).error(f"Unexpected error during checkpoint restore: {e}")
             return False
 
     def save_checkpoint(self) -> None:
@@ -480,12 +464,10 @@ class SimulationEngine:
 
         while True:
             # Only spawn when simulation is running and factory is set
-            if (
-                self._state == SimulationState.RUNNING
-                and self._agent_factory is not None
-                and self._agent_factory.dequeue_driver()
-            ):
-                self._spawn_single_driver()
+            if self._state == SimulationState.RUNNING and self._agent_factory is not None:
+                immediate = self._agent_factory.dequeue_driver()
+                if immediate is not None:
+                    self._spawn_single_driver(immediate_online=immediate)
 
             yield self._env.timeout(interval)
 
@@ -500,17 +482,18 @@ class SimulationEngine:
 
         while True:
             # Only spawn when simulation is running and factory is set
-            if (
-                self._state == SimulationState.RUNNING
-                and self._agent_factory is not None
-                and self._agent_factory.dequeue_rider()
-            ):
-                self._spawn_single_rider()
+            if self._state == SimulationState.RUNNING and self._agent_factory is not None:
+                immediate = self._agent_factory.dequeue_rider()
+                if immediate is not None:
+                    self._spawn_single_rider(immediate_first_trip=immediate)
 
             yield self._env.timeout(interval)
 
-    def _spawn_single_driver(self) -> str | None:
+    def _spawn_single_driver(self, immediate_online: bool = True) -> str | None:
         """Spawn a single driver and start its process immediately.
+
+        Args:
+            immediate_online: If True, go online immediately; if False, follow DNA shift_preference
 
         Returns:
             The driver_id if spawned, None if factory not available
@@ -534,7 +517,7 @@ class SimulationEngine:
             driver_repository=None,
             registry_manager=self._agent_factory._registry_manager,
             zone_loader=self._agent_factory._zone_loader,
-            immediate_online=True,
+            immediate_online=immediate_online,
             simulation_engine=self,
         )
 
@@ -550,8 +533,11 @@ class SimulationEngine:
 
         return driver_id
 
-    def _spawn_single_rider(self) -> str | None:
+    def _spawn_single_rider(self, immediate_first_trip: bool = False) -> str | None:
         """Spawn a single rider and start its process immediately.
+
+        Args:
+            immediate_first_trip: If True, request trip immediately; if False, follow DNA schedule
 
         Returns:
             The rider_id if spawned, None if factory not available
@@ -577,7 +563,7 @@ class SimulationEngine:
             zone_loader=self._agent_factory._zone_loader,
             osrm_client=self._agent_factory._osrm_client,
             surge_calculator=self._agent_factory._surge_calculator,
-            immediate_first_trip=False,
+            immediate_first_trip=immediate_first_trip,
         )
 
         self.register_rider(agent)

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { SimulationStatus } from '../types/api';
+import type { SimulationStatus, SpawnMode } from '../types/api';
 import { showToast } from '../lib/toast';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -114,20 +114,20 @@ export function useSimulationControl(onStatusUpdate?: (status: SimulationStatus)
     }
   };
 
-  const addDrivers = async (count: number) => {
+  const addDrivers = async (count: number, mode: SpawnMode = 'immediate') => {
     try {
-      await apiCall('/agents/drivers', 'POST', { count });
-      showToast.success(`Added ${count} driver${count !== 1 ? 's' : ''}`);
+      await apiCall(`/agents/drivers?mode=${mode}`, 'POST', { count });
+      showToast.success(`Added ${count} driver${count !== 1 ? 's' : ''} (${mode})`);
     } catch (err) {
       showToast.error(err);
       throw err;
     }
   };
 
-  const addRiders = async (count: number) => {
+  const addRiders = async (count: number, mode: SpawnMode = 'scheduled') => {
     try {
-      await apiCall('/agents/riders', 'POST', { count });
-      showToast.success(`Added ${count} rider${count !== 1 ? 's' : ''}`);
+      await apiCall(`/agents/riders?mode=${mode}`, 'POST', { count });
+      showToast.success(`Added ${count} rider${count !== 1 ? 's' : ''} (${mode})`);
     } catch (err) {
       showToast.error(err);
       throw err;

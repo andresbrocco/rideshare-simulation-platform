@@ -7,9 +7,7 @@ import pytest
 @pytest.fixture
 def mock_simulation_engine_with_time(mock_simulation_engine):
     """Simulation engine with time configured."""
-    mock_simulation_engine.current_time.return_value = datetime(
-        2025, 8, 18, 15, 0, 0, tzinfo=UTC
-    )
+    mock_simulation_engine.current_time.return_value = datetime(2025, 8, 18, 15, 0, 0, tzinfo=UTC)
     mock_simulation_engine.active_driver_count = 5
     mock_simulation_engine.active_rider_count = 10
     return mock_simulation_engine
@@ -91,9 +89,7 @@ def test_reset_simulation(test_client, mock_simulation_engine, auth_headers):
 
 def test_change_speed_valid(test_client, mock_simulation_engine, auth_headers):
     """Changes speed multiplier."""
-    response = test_client.put(
-        "/simulation/speed", json={"multiplier": 10}, headers=auth_headers
-    )
+    response = test_client.put("/simulation/speed", json={"multiplier": 10}, headers=auth_headers)
 
     assert response.status_code == 200
     assert response.json()["speed"] == 10
@@ -102,9 +98,7 @@ def test_change_speed_valid(test_client, mock_simulation_engine, auth_headers):
 
 def test_change_speed_invalid(test_client, mock_simulation_engine, auth_headers):
     """Rejects invalid multiplier (must be positive integer)."""
-    response = test_client.put(
-        "/simulation/speed", json={"multiplier": 0}, headers=auth_headers
-    )
+    response = test_client.put("/simulation/speed", json={"multiplier": 0}, headers=auth_headers)
 
     assert response.status_code == 400
     assert "positive integer" in response.json()["detail"]
@@ -114,8 +108,8 @@ def test_get_status(test_client, mock_simulation_engine, auth_headers):
     """Returns current simulation state."""
     mock_simulation_engine.state.value = "running"
     mock_simulation_engine.speed_multiplier = 10
-    mock_simulation_engine.active_driver_count = 5
-    mock_simulation_engine.active_rider_count = 10
+    mock_simulation_engine._active_drivers = {}
+    mock_simulation_engine._active_riders = {}
     mock_simulation_engine._get_in_flight_trips.return_value = [1, 2, 3]
 
     response = test_client.get("/simulation/status", headers=auth_headers)
@@ -128,18 +122,54 @@ def test_get_status(test_client, mock_simulation_engine, auth_headers):
 
 
 def test_get_status_includes_counts(test_client, mock_simulation_engine, auth_headers):
-    """Status includes agent counts."""
+    """Status includes detailed agent counts."""
     mock_simulation_engine.state.value = "running"
-    mock_simulation_engine.active_driver_count = 5
-    mock_simulation_engine.active_rider_count = 10
+    # Create mock drivers with different statuses
+    mock_driver_online = Mock()
+    mock_driver_online.status = "online"
+    mock_driver_offline = Mock()
+    mock_driver_offline.status = "offline"
+    mock_driver_pickup = Mock()
+    mock_driver_pickup.status = "en_route_pickup"
+    mock_driver_dest = Mock()
+    mock_driver_dest.status = "en_route_destination"
+    mock_simulation_engine._active_drivers = {
+        "d1": mock_driver_online,
+        "d2": mock_driver_online,
+        "d3": mock_driver_online,
+        "d4": mock_driver_offline,
+        "d5": mock_driver_pickup,
+    }
+    # Create mock riders with different statuses
+    mock_rider_waiting = Mock()
+    mock_rider_waiting.status = "waiting"
+    mock_rider_offline = Mock()
+    mock_rider_offline.status = "offline"
+    mock_rider_in_trip = Mock()
+    mock_rider_in_trip.status = "in_trip"
+    mock_simulation_engine._active_riders = {
+        "r1": mock_rider_waiting,
+        "r2": mock_rider_waiting,
+        "r3": mock_rider_offline,
+        "r4": mock_rider_in_trip,
+    }
     mock_simulation_engine._get_in_flight_trips.return_value = [1, 2, 3]
 
     response = test_client.get("/simulation/status", headers=auth_headers)
 
     assert response.status_code == 200
     data = response.json()
-    assert data["drivers_count"] == 5
-    assert data["riders_count"] == 10
+    # Verify detailed driver counts
+    assert data["drivers_total"] == 5
+    assert data["drivers_online"] == 3
+    assert data["drivers_offline"] == 1
+    assert data["drivers_en_route_pickup"] == 1
+    assert data["drivers_en_route_destination"] == 0
+    # Verify detailed rider counts
+    assert data["riders_total"] == 4
+    assert data["riders_waiting"] == 2
+    assert data["riders_offline"] == 1
+    assert data["riders_in_trip"] == 1
     assert data["active_trips_count"] == 3
 
 

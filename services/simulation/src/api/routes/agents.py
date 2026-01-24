@@ -1,6 +1,6 @@
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from api.auth import verify_api_key
 from api.models.agents import (
@@ -21,6 +21,7 @@ from api.models.agents import (
     RiderStatisticsResponse,
     RiderTripRequestBody,
     RiderTripRequestResponse,
+    SpawnMode,
     SpawnQueueStatusResponse,
 )
 from settings import get_settings
@@ -81,15 +82,29 @@ def compute_next_action_response(agent: Any, engine: Any) -> NextActionResponse 
 
 
 @router.post("/drivers", response_model=DriversCreateResponse)
-def create_drivers(request: DriverCreateRequest, agent_factory: AgentFactoryDep):
+def create_drivers(
+    request: DriverCreateRequest,
+    agent_factory: AgentFactoryDep,
+    mode: Annotated[
+        SpawnMode,
+        Query(
+            description="immediate: go online immediately; scheduled: follow DNA shift_preference"
+        ),
+    ] = SpawnMode.IMMEDIATE,
+):
     """Queue driver agents for continuous spawning.
 
     Drivers are spawned at a continuous rate (default: 2/sec) to prevent
     synchronized GPS ping bursts. Use GET /agents/spawn-status to monitor progress.
+
+    Query Parameters:
+        mode: immediate (default) - drivers go online immediately
+              scheduled - drivers follow their DNA shift_preference schedule
     """
     try:
         settings = get_settings()
-        queued = agent_factory.queue_drivers(request.count)
+        immediate = mode == SpawnMode.IMMEDIATE
+        queued = agent_factory.queue_drivers(request.count, immediate=immediate)
         spawn_rate = settings.spawn.driver_spawn_rate
         return DriversCreateResponse(
             queued=queued,
@@ -101,15 +116,29 @@ def create_drivers(request: DriverCreateRequest, agent_factory: AgentFactoryDep)
 
 
 @router.post("/riders", response_model=RidersCreateResponse)
-def create_riders(request: RiderCreateRequest, agent_factory: AgentFactoryDep):
+def create_riders(
+    request: RiderCreateRequest,
+    agent_factory: AgentFactoryDep,
+    mode: Annotated[
+        SpawnMode,
+        Query(
+            description="immediate: request trip immediately; scheduled: follow DNA avg_rides_per_week"
+        ),
+    ] = SpawnMode.SCHEDULED,
+):
     """Queue rider agents for continuous spawning.
 
     Riders are spawned at a continuous rate (default: 40/sec) to prevent
     synchronized GPS ping bursts. Use GET /agents/spawn-status to monitor progress.
+
+    Query Parameters:
+        mode: immediate - riders request a trip immediately after spawning
+              scheduled (default) - riders follow their DNA avg_rides_per_week schedule
     """
     try:
         settings = get_settings()
-        queued = agent_factory.queue_riders(request.count)
+        immediate = mode == SpawnMode.IMMEDIATE
+        queued = agent_factory.queue_riders(request.count, immediate=immediate)
         spawn_rate = settings.spawn.rider_spawn_rate
         return RidersCreateResponse(
             queued=queued,
@@ -403,12 +432,10 @@ async def request_rider_trip(
 
     # Determine zones
     pickup_zone_id = (
-        zone_loader.find_zone_for_location(rider.location[0], rider.location[1])
-        or "unknown"
+        zone_loader.find_zone_for_location(rider.location[0], rider.location[1]) or "unknown"
     )
     dropoff_zone_id = (
-        zone_loader.find_zone_for_location(body.destination[0], body.destination[1])
-        or "unknown"
+        zone_loader.find_zone_for_location(body.destination[0], body.destination[1]) or "unknown"
     )
 
     # Get surge for pickup zone

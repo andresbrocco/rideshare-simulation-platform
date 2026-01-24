@@ -141,8 +141,8 @@ class LoadTester:
         return PerformanceSnapshot(
             timestamp=time.time(),
             elapsed_seconds=elapsed,
-            driver_count=status.get("drivers_count", 0),
-            rider_count=status.get("riders_count", 0),
+            driver_count=status.get("drivers_total", 0),
+            rider_count=status.get("riders_total", 0),
             events_per_sec=perf.get("events", {}).get("total_per_sec", 0),
             gps_pings_per_sec=perf.get("events", {}).get("gps_pings_per_sec", 0),
             trip_events_per_sec=perf.get("events", {}).get("trip_events_per_sec", 0),
@@ -368,9 +368,7 @@ class LoadTester:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Load test the rideshare simulation platform"
-    )
+    parser = argparse.ArgumentParser(description="Load test the rideshare simulation platform")
     parser.add_argument(
         "--max-drivers",
         type=int,

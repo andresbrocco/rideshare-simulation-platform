@@ -72,9 +72,7 @@ class StateSnapshotManager:
                 if rider.rider_id in rider_trip_map:
                     trip = rider_trip_map[rider.rider_id]
                     rider_data["trip_state"] = (
-                        trip.state.value
-                        if hasattr(trip.state, "value")
-                        else str(trip.state)
+                        trip.state.value if hasattr(trip.state, "value") else str(trip.state)
                     )
                 else:
                     rider_data["trip_state"] = "offline"
@@ -107,24 +105,16 @@ class StateSnapshotManager:
                                 "driver_id": trip.driver_id,
                                 "rider_id": trip.rider_id,
                                 "pickup_latitude": (
-                                    trip.pickup_location[0]
-                                    if trip.pickup_location
-                                    else 0
+                                    trip.pickup_location[0] if trip.pickup_location else 0
                                 ),
                                 "pickup_longitude": (
-                                    trip.pickup_location[1]
-                                    if trip.pickup_location
-                                    else 0
+                                    trip.pickup_location[1] if trip.pickup_location else 0
                                 ),
                                 "dropoff_latitude": (
-                                    trip.dropoff_location[0]
-                                    if trip.dropoff_location
-                                    else 0
+                                    trip.dropoff_location[0] if trip.dropoff_location else 0
                                 ),
                                 "dropoff_longitude": (
-                                    trip.dropoff_location[1]
-                                    if trip.dropoff_location
-                                    else 0
+                                    trip.dropoff_location[1] if trip.dropoff_location else 0
                                 ),
                                 "route": trip.route or [],
                                 "pickup_route": trip.pickup_route or [],
@@ -167,6 +157,19 @@ class StateSnapshotManager:
 
         current_time = engine.current_time() if callable(engine.current_time) else None
 
+        # Compute detailed driver counts from snapshot data
+        drivers_offline = sum(1 for d in drivers if d.get("status") == "offline")
+        drivers_online = sum(1 for d in drivers if d.get("status") == "online")
+        drivers_en_route_pickup = sum(1 for d in drivers if d.get("status") == "en_route_pickup")
+        drivers_en_route_destination = sum(
+            1 for d in drivers if d.get("status") == "en_route_destination"
+        )
+
+        # Compute detailed rider counts from snapshot data
+        riders_offline = sum(1 for r in riders if r.get("status") == "offline")
+        riders_waiting = sum(1 for r in riders if r.get("status") == "waiting")
+        riders_in_trip = sum(1 for r in riders if r.get("status") == "in_trip")
+
         return {
             "drivers": drivers,
             "riders": riders,
@@ -176,8 +179,15 @@ class StateSnapshotManager:
                 "state": engine.state.value,
                 "speed_multiplier": engine.speed_multiplier,
                 "current_time": current_time.isoformat() if current_time else None,
-                "drivers_count": len(drivers),
-                "riders_count": len(riders),
+                "drivers_total": len(drivers),
+                "drivers_offline": drivers_offline,
+                "drivers_online": drivers_online,
+                "drivers_en_route_pickup": drivers_en_route_pickup,
+                "drivers_en_route_destination": drivers_en_route_destination,
+                "riders_total": len(riders),
+                "riders_offline": riders_offline,
+                "riders_waiting": riders_waiting,
+                "riders_in_trip": riders_in_trip,
                 "active_trips_count": len(trips),
                 "uptime_seconds": engine._env.now if hasattr(engine, "_env") else 0,
             },

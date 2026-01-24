@@ -2,11 +2,23 @@ export interface SimulationStatus {
   state: 'stopped' | 'running' | 'draining' | 'paused';
   speed_multiplier: number;
   current_time: string;
-  drivers_count: number;
-  riders_count: number;
+  // Detailed driver metrics
+  drivers_total: number;
+  drivers_offline: number;
+  drivers_online: number;
+  drivers_en_route_pickup: number;
+  drivers_en_route_destination: number;
+  // Detailed rider metrics
+  riders_total: number;
+  riders_offline: number;
+  riders_waiting: number;
+  riders_in_trip: number;
+  // Trips
   active_trips_count: number;
   uptime_seconds: number;
 }
+
+export type SpawnMode = 'immediate' | 'scheduled';
 
 export interface Driver {
   id: string;

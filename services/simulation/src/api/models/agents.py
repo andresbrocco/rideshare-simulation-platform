@@ -1,6 +1,14 @@
+from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+
+class SpawnMode(str, Enum):
+    """Spawn mode for autonomous agents."""
+
+    IMMEDIATE = "immediate"
+    SCHEDULED = "scheduled"
 
 
 class DriverCreateRequest(BaseModel):
@@ -150,9 +158,7 @@ class ActiveTripInfo(BaseModel):
     state: str
     rider_id: str | None = None
     driver_id: str | None = None
-    counterpart_name: str | None = (
-        None  # Rider name (for driver) or driver name (for rider)
-    )
+    counterpart_name: str | None = None  # Rider name (for driver) or driver name (for rider)
     pickup_location: tuple[float, float]
     dropoff_location: tuple[float, float]
     surge_multiplier: float

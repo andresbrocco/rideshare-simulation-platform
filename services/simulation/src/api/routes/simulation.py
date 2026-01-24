@@ -21,7 +21,12 @@ def get_engine(request: Request) -> Any:
     return request.app.state.engine
 
 
+def get_driver_registry(request: Request) -> Any:
+    return getattr(request.app.state, "driver_registry", None)
+
+
 EngineDep = Annotated[Any, Depends(get_engine)]
+DriverRegistryDep = Annotated[Any, Depends(get_driver_registry)]
 
 
 @router.post("/start", response_model=ControlResponse)
@@ -73,9 +78,7 @@ async def _broadcast_reset(connection_manager) -> None:
 
 
 @router.post("/reset", response_model=ControlResponse)
-def reset_simulation(
-    request: Request, engine: EngineDep, background_tasks: BackgroundTasks
-):
+def reset_simulation(request: Request, engine: EngineDep, background_tasks: BackgroundTasks):
     """Reset simulation to initial state, clearing all data."""
     # Call engine reset (handles most clearing including database)
     engine.reset()
@@ -114,8 +117,8 @@ def change_speed(request: SpeedChangeRequest, engine: EngineDep):
 
 
 @router.get("/status", response_model=SimulationStatusResponse)
-def get_status(engine: EngineDep):
-    """Get current simulation status."""
+def get_status(engine: EngineDep, driver_registry: DriverRegistryDep):
+    """Get current simulation status with detailed agent counts."""
     current_time = engine.current_time()
     if isinstance(current_time, datetime):
         current_time_str = current_time.astimezone(UTC).isoformat()
@@ -130,12 +133,38 @@ def get_status(engine: EngineDep):
     if _simulation_start_wall_time is not None:
         uptime = time.time() - _simulation_start_wall_time
 
+    # Driver counts from registry (O(1) if get_all_status_counts exists)
+    driver_counts = {"online": 0, "offline": 0, "en_route_pickup": 0, "en_route_destination": 0}
+    if driver_registry and hasattr(driver_registry, "get_all_status_counts"):
+        driver_counts = driver_registry.get_all_status_counts()
+    elif hasattr(engine, "_active_drivers"):
+        # Fallback: compute from engine's active drivers
+        for driver in engine._active_drivers.values():
+            status = getattr(driver, "status", "offline")
+            if status in driver_counts:
+                driver_counts[status] += 1
+
+    # Rider counts (O(n), n = active riders)
+    rider_counts = {"offline": 0, "waiting": 0, "in_trip": 0}
+    if hasattr(engine, "_active_riders"):
+        for rider in engine._active_riders.values():
+            status = getattr(rider, "status", "offline")
+            if status in rider_counts:
+                rider_counts[status] += 1
+
     return SimulationStatusResponse(
         state=engine.state.value,
         speed_multiplier=engine.speed_multiplier,
         current_time=current_time_str,
-        drivers_count=engine.active_driver_count,
-        riders_count=engine.active_rider_count,
+        drivers_total=sum(driver_counts.values()),
+        drivers_offline=driver_counts["offline"],
+        drivers_online=driver_counts["online"],
+        drivers_en_route_pickup=driver_counts["en_route_pickup"],
+        drivers_en_route_destination=driver_counts["en_route_destination"],
+        riders_total=sum(rider_counts.values()),
+        riders_offline=rider_counts["offline"],
+        riders_waiting=rider_counts["waiting"],
+        riders_in_trip=rider_counts["in_trip"],
         active_trips_count=len(in_flight),
         uptime_seconds=uptime,
     )

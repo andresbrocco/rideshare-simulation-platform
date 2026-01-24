@@ -20,7 +20,17 @@ class SimulationStatusResponse(BaseModel):
     state: Literal["stopped", "running", "draining", "paused"]
     speed_multiplier: int
     current_time: str
-    drivers_count: int
-    riders_count: int
+    # Detailed driver metrics
+    drivers_total: int
+    drivers_offline: int
+    drivers_online: int
+    drivers_en_route_pickup: int
+    drivers_en_route_destination: int
+    # Detailed rider metrics
+    riders_total: int
+    riders_offline: int
+    riders_waiting: int
+    riders_in_trip: int
+    # Trips
     active_trips_count: int
     uptime_seconds: float
