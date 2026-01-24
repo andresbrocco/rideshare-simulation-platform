@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: core-config
+  labels:
+    app: rideshare-platform
+    component: configuration
+data:
+  # Kafka Configuration
+  KAFKA_BOOTSTRAP_SERVERS: "kafka-0.kafka.default.svc.cluster.local:29092"
+  KAFKA_SECURITY_PROTOCOL: "PLAINTEXT"
+  KAFKA_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
+  KAFKA_AUTO_OFFSET_RESET: "latest"
+  KAFKA_GROUP_ID: "stream-processor"
+
+  # Redis Configuration
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  REDIS_SSL: "false"
+
+  # OSRM Configuration
+  OSRM_BASE_URL: "http://osrm:5000"
+
+  # Simulation Configuration
+  SIM_SPEED_MULTIPLIER: "1"
+  SIM_LOG_LEVEL: "INFO"
+  SIM_CHECKPOINT_INTERVAL: "300"
+  SIM_DB_PATH: "/app/db/simulation.db"
+
+  # Stream Processor Configuration
+  PROCESSOR_WINDOW_SIZE_MS: "100"
+  PROCESSOR_AGGREGATION_STRATEGY: "latest"
+  PROCESSOR_TOPICS: "gps-pings,trips,driver-status,surge-updates"
+
+  # API Configuration
+  API_HOST: "0.0.0.0"
+  API_PORT: "8080"
+  LOG_LEVEL: "INFO"
+
+  # CORS Configuration
+  CORS_ORIGINS: "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177,http://localhost:5178"
