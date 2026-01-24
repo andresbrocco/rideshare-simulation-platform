@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: superset-postgres
+  labels:
+    app: superset-postgres
+spec:
+  serviceName: superset-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: superset-postgres
+  template:
+    metadata:
+      labels:
+        app: superset-postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:16-alpine
+        resources:
+          limits:
+            memory: "256Mi"
+          requests:
+            memory: "128Mi"
+        ports:
+        - containerPort: 5432
+          name: postgres
+        env:
+        - name: POSTGRES_USER
+          value: superset
+        - name: POSTGRES_PASSWORD
+          value: superset
+        - name: POSTGRES_DB
+          value: superset
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - superset
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - superset
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+      volumes:
+      - name: data
+        emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: superset-postgres
+  labels:
+    app: superset-postgres
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5432
+    targetPort: 5432
+    name: postgres
+  selector:
+    app: superset-postgres
