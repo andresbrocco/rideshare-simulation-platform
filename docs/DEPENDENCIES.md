@@ -120,8 +120,11 @@ Internal module structure within `services/simulation/src/`:
 - Validates `gold_validation` checkpoint (business rules, aggregates)
 
 #### services/frontend → Backend REST API & WebSocket
-- REST endpoints: `/simulation/status`, `/simulation/start`, `/simulation/pause`, `/simulation/resume`, `/simulation/stop`
-- WebSocket endpoint: `/ws` for real-time updates
+- Simulation control: `/simulation/status`, `/simulation/start`, `/simulation/pause`, `/simulation/resume`, `/simulation/stop`, `/simulation/speed`
+- Agent spawning: `/agents/drivers?mode=immediate|scheduled`, `/agents/riders?mode=immediate|scheduled`, `/agents/spawn-status`
+- Agent state: `/agents/drivers/{id}`, `/agents/riders/{id}`, `/agents/drivers/{id}/status`
+- Puppet agents: `/agents/puppet/drivers`, `/agents/puppet/riders` with action endpoints
+- WebSocket endpoint: `/ws` for real-time updates (drivers, riders, trips, surge, simulation status)
 - Authentication: API key via `X-API-Key` header or `Sec-WebSocket-Protocol`
 
 #### services/simulation/src/agents → Multiple
