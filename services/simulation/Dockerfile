@@ -50,10 +50,9 @@ CMD ["python", "main.py"]
 FROM base AS production
 
 COPY pyproject.toml pyproject.toml
+COPY src /app/src
 
 RUN uv pip install --system .
-
-COPY src /app/src
 
 RUN mkdir -p /app/data/db && chown -R simuser:simuser /app
 
@@ -61,6 +60,7 @@ USER simuser
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONPATH=/app/src
 
 EXPOSE 8000
 
@@ -68,4 +68,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-CMD ["python", "-m", "src.main"]
+WORKDIR /app/src
+CMD ["python", "main.py"]

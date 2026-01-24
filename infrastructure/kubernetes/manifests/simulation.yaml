@@ -1,0 +1,156 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simulation
+  labels:
+    app: simulation
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: simulation
+  template:
+    metadata:
+      labels:
+        app: simulation
+    spec:
+      initContainers:
+      - name: wait-for-kafka
+        image: confluentinc/cp-kafka:7.5.0
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for Kafka to be ready..."
+          until kafka-broker-api-versions --bootstrap-server kafka-0.kafka.default.svc.cluster.local:29092 2>/dev/null; do
+            echo "Kafka not ready, waiting..."
+            sleep 5
+          done
+          echo "Kafka is ready!"
+      - name: wait-for-schema-registry
+        image: curlimages/curl:latest
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for Schema Registry to be ready..."
+          until curl -sf http://schema-registry:8081/subjects >/dev/null 2>&1; do
+            echo "Schema Registry not ready, waiting..."
+            sleep 5
+          done
+          echo "Schema Registry is ready!"
+      - name: wait-for-redis
+        image: redis:8.0-alpine
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for Redis to be ready..."
+          until redis-cli -h redis ping 2>/dev/null; do
+            echo "Redis not ready, waiting..."
+            sleep 2
+          done
+          echo "Redis is ready!"
+      - name: wait-for-osrm
+        image: curlimages/curl:latest
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for OSRM to be ready..."
+          until curl -sf "http://osrm:5000/route/v1/driving/-46.6333,-23.5505;-46.6334,-23.5506" >/dev/null 2>&1; do
+            echo "OSRM not ready, waiting..."
+            sleep 10
+          done
+          echo "OSRM is ready!"
+      - name: wait-for-stream-processor
+        image: curlimages/curl:latest
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for Stream Processor to be ready..."
+          until curl -sf http://stream-processor:8080/health >/dev/null 2>&1; do
+            echo "Stream Processor not ready, waiting..."
+            sleep 5
+          done
+          echo "Stream Processor is ready!"
+      containers:
+      - name: simulation
+        image: rideshare-simulation:local
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: SIM_SPEED_MULTIPLIER
+          value: "1"
+        - name: SIM_LOG_LEVEL
+          value: "INFO"
+        - name: SIM_CHECKPOINT_INTERVAL
+          value: "300"
+        - name: SIM_DB_PATH
+          value: "/app/db/simulation.db"
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: "kafka-0.kafka.default.svc.cluster.local:29092"
+        - name: KAFKA_SECURITY_PROTOCOL
+          value: "PLAINTEXT"
+        - name: KAFKA_SCHEMA_REGISTRY_URL
+          value: "http://schema-registry:8081"
+        - name: REDIS_HOST
+          value: "redis"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: REDIS_PASSWORD
+          value: ""
+        - name: REDIS_SSL
+          value: "false"
+        - name: OSRM_BASE_URL
+          value: "http://osrm:5000"
+        - name: API_KEY
+          value: "dev-api-key-change-in-production"
+        - name: CORS_ORIGINS
+          value: "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177,http://localhost:5178"
+        resources:
+          limits:
+            memory: "1Gi"
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 5
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 5
+        volumeMounts:
+        - name: simulation-db
+          mountPath: /app/db
+      volumes:
+      - name: simulation-db
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: simulation
+  labels:
+    app: simulation
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8000
+    targetPort: 8000
+    name: http
+  selector:
+    app: simulation

@@ -151,12 +151,12 @@ export default function Map({
         onClick={handleClick}
         onHover={handleHover}
         getCursor={getCursor}
-        onLoad={handleDeckLoad}
+        onLoad={handleDeckLoad as () => void}
       >
         <MapGL
           ref={mapRef}
           mapStyle="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
-          attributionControl={true}
+          attributionControl={{ compact: false }}
         />
       </DeckGL>
     </div>

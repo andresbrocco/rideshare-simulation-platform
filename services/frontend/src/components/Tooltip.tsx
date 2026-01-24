@@ -1,4 +1,4 @@
-import { useState, useId, useRef, ReactElement, cloneElement } from 'react';
+import React, { useState, useId, useRef, cloneElement, type ReactElement } from 'react';
 import styles from './Tooltip.module.css';
 
 interface TooltipProps {
@@ -40,7 +40,7 @@ export default function Tooltip({ text, position = 'top', children }: TooltipPro
 
   const childWithProps = cloneElement(children, {
     'aria-describedby': isVisible ? tooltipId : undefined,
-  });
+  } as React.Attributes);
 
   return (
     <div
