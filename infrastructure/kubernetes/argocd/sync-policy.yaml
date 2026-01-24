@@ -1,0 +1,55 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-sync-policy
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd-sync-policy
+    app.kubernetes.io/part-of: argocd
+data:
+  # Sync Policy Configuration for ArgoCD Applications
+  # This ConfigMap documents sync policies used across environments
+
+  dev.auto-sync: "true"
+  dev.self-heal: "true"
+  dev.prune: "true"
+
+  prod.auto-sync: "false"
+  prod.self-heal: "false"
+  prod.prune: "true"
+
+  # Default sync retry configuration
+  sync.retry.limit: "5"
+  sync.retry.backoff.duration: "5s"
+  sync.retry.backoff.factor: "2"
+  sync.retry.backoff.maxDuration: "3m"
+
+  # Drift detection interval (default: 3 minutes)
+  reconciliation.timeout: "180s"
+
+  # Configuration drift detection
+  # ArgoCD polls Git every 3 minutes by default to detect changes
+  # Self-heal will automatically sync when OutOfSync is detected
+
+  policy.description: |
+    ArgoCD Sync Policies:
+
+    Development Environment:
+    - Auto-sync: ENABLED - Changes in Git are automatically applied
+    - Self-heal: ENABLED - Manual changes are automatically reverted
+    - Prune: ENABLED - Resources deleted from Git are deleted from cluster
+
+    Production Environment:
+    - Auto-sync: DISABLED - Changes require manual approval via UI/CLI
+    - Self-heal: DISABLED - Manual changes are not automatically reverted
+    - Prune: ENABLED - Resources deleted from Git are deleted after manual sync
+
+    Drift Detection:
+    - ArgoCD reconciles every 180 seconds (3 minutes)
+    - Detects configuration drift between Git and cluster
+    - Marks applications as "OutOfSync" when drift is detected
+    - Self-heal policy determines if drift is automatically corrected
+
+    Usage:
+    To apply different policies per environment, create separate Application
+    resources with environment-specific sync policies.
