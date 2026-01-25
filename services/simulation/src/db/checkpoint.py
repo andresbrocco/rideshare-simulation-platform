@@ -102,9 +102,7 @@ class CheckpointManager:
         # Load metadata
         metadata = {
             "current_time": json.loads(current_time_raw),
-            "speed_multiplier": json.loads(
-                self._get_metadata("speed_multiplier") or "1"
-            ),
+            "speed_multiplier": json.loads(self._get_metadata("speed_multiplier") or "1"),
             "status": self._get_metadata("status") or "PAUSED",
             "checkpoint_type": checkpoint_type or "graceful",
             "in_flight_trips": json.loads(self._get_metadata("in_flight_trips") or "0"),
@@ -140,14 +138,11 @@ class CheckpointManager:
 
         return {
             "current_time": json.loads(current_time_raw),
-            "speed_multiplier": json.loads(
-                self._get_metadata("speed_multiplier") or "1"
-            ),
+            "speed_multiplier": json.loads(self._get_metadata("speed_multiplier") or "1"),
             "status": self._get_metadata("status") or "PAUSED",
             "checkpoint_type": self._get_metadata("checkpoint_type") or "graceful",
             "in_flight_trips": json.loads(self._get_metadata("in_flight_trips") or "0"),
-            "checkpoint_version": self._get_metadata("checkpoint_version")
-            or CHECKPOINT_VERSION,
+            "checkpoint_version": self._get_metadata("checkpoint_version") or CHECKPOINT_VERSION,
             "created_at": self._get_metadata("created_at"),
         }
 
@@ -251,15 +246,35 @@ class CheckpointManager:
         """
         from ..trip import TripState
 
-        # Collect driver data
+        # Collect driver data with full runtime state
         drivers = []
         for driver in engine._active_drivers.values():
-            drivers.append((driver.driver_id, driver.dna))
+            drivers.append(
+                {
+                    "id": driver.driver_id,
+                    "dna": driver.dna,
+                    "location": driver._location or driver.dna.home_location,
+                    "status": driver._status,
+                    "active_trip": driver._active_trip,
+                    "rating": driver._current_rating,
+                    "rating_count": driver._rating_count,
+                }
+            )
 
-        # Collect rider data
+        # Collect rider data with full runtime state
         riders = []
         for rider in engine._active_riders.values():
-            riders.append((rider.rider_id, rider.dna))
+            riders.append(
+                {
+                    "id": rider.rider_id,
+                    "dna": rider.dna,
+                    "location": rider._location or rider.dna.home_location,
+                    "status": rider._status,
+                    "active_trip": rider._active_trip,
+                    "rating": rider._current_rating,
+                    "rating_count": rider._rating_count,
+                }
+            )
 
         # Get in-flight trips count
         in_flight_trips = engine._matching_server.get_active_trips()
@@ -271,15 +286,21 @@ class CheckpointManager:
             ]
         )
 
-        # Save checkpoint with engine state
-        self.create_checkpoint(
-            current_time=engine._env.now,
-            speed_multiplier=engine._speed_multiplier,
-            status=engine._state.value,
-            drivers=drivers,
-            riders=riders,
-            route_cache={},  # Route cache is persisted separately
-        )
+        # Save checkpoint metadata
+        checkpoint_type = "graceful" if in_flight_count == 0 else "crash"
+        self._save_metadata("current_time", json.dumps(engine._env.now))
+        self._save_metadata("speed_multiplier", json.dumps(engine._speed_multiplier))
+        self._save_metadata("status", engine._state.value)
+        self._save_metadata("checkpoint_type", checkpoint_type)
+        self._save_metadata("in_flight_trips", json.dumps(in_flight_count))
+        self._save_metadata("checkpoint_version", CHECKPOINT_VERSION)
+        self._save_metadata("created_at", utc_now().isoformat())
+
+        # Save agents with full state using upsert
+        if drivers:
+            self.driver_repo.batch_upsert_with_state(drivers)
+        if riders:
+            self.rider_repo.batch_upsert_with_state(riders)
 
         # Also save surge multipliers if available
         if (
@@ -331,9 +352,7 @@ class CheckpointManager:
         version = self._get_metadata("checkpoint_version") or "1.0.0"
 
         if version != CHECKPOINT_VERSION:
-            logger.warning(
-                f"Checkpoint version mismatch: {version} vs {CHECKPOINT_VERSION}"
-            )
+            logger.warning(f"Checkpoint version mismatch: {version} vs {CHECKPOINT_VERSION}")
 
         # Restore simulation time by creating a new environment with initial time
         initial_time = metadata["current_time"]
@@ -437,9 +456,7 @@ class CheckpointManager:
             )
             # Cancel any in-flight trips to prevent inconsistent state
             for trip in list(engine._matching_server._active_trips.values()):
-                engine._matching_server.cancel_trip(
-                    trip.trip_id, "system", "recovery_cleanup"
-                )
+                engine._matching_server.cancel_trip(trip.trip_id, "system", "recovery_cleanup")
 
         logger.info(
             f"Checkpoint restored: time={initial_time:.1f}s, "
