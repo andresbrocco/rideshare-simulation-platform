@@ -28,7 +28,7 @@ from tests.integration.data_platform.utils.wait_helpers import (
 # Only tests that rely on Kafka -> Bronze ingestion need streaming_jobs_running.
 pytestmark = [
     pytest.mark.data_flow,
-    pytest.mark.requires_profiles("core", "data-platform"),
+    pytest.mark.requires_profiles("core", "data-pipeline"),
     pytest.mark.usefixtures(
         "bronze_tables_initialized",
     ),
@@ -422,7 +422,7 @@ def test_checkpoint_recovery_after_restart(
             "--profile",
             "core",
             "--profile",
-            "data-platform",
+            "data-pipeline",
             "restart",
             "spark-streaming-trips",
         ],

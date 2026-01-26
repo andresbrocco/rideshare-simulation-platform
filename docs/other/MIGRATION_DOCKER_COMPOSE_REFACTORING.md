@@ -87,14 +87,14 @@ git pull origin main
 
 # Start all services
 docker compose -f infrastructure/docker/compose.yml \
-  --profile core --profile data-platform \
+  --profile core --profile data-pipeline \
   up -d
 
 # Wait for initialization (~4 minutes)
 sleep 240
 
 # Verify streaming services
-docker compose -f infrastructure/docker/compose.yml --profile data-platform ps | grep streaming
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline ps | grep streaming
 # Expected: 8 services "Up"
 
 # Verify DAGs unpaused
@@ -109,7 +109,7 @@ If you already have services running:
 **Step 1: Stop all services**
 ```bash
 docker compose -f infrastructure/docker/compose.yml \
-  --profile core --profile data-platform \
+  --profile core --profile data-pipeline \
   down
 ```
 
@@ -122,21 +122,21 @@ git pull origin main
 ```bash
 # This removes all data - only do this if you want a fresh start
 docker compose -f infrastructure/docker/compose.yml \
-  --profile core --profile data-platform \
+  --profile core --profile data-pipeline \
   down -v
 ```
 
 **Step 4: Start with new configuration**
 ```bash
 docker compose -f infrastructure/docker/compose.yml \
-  --profile core --profile data-platform \
+  --profile core --profile data-pipeline \
   up -d
 ```
 
 **Step 5: Verify migration**
 ```bash
 # Check streaming services
-docker compose -f infrastructure/docker/compose.yml --profile data-platform ps | grep streaming
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline ps | grep streaming
 # Expected: 8 services "Up"
 
 # Check deprecated DAG
@@ -154,7 +154,7 @@ docker exec rideshare-airflow-scheduler airflow dags list | grep -E "(dbt_transf
 
 ```bash
 # All 8 services should be running
-docker compose -f infrastructure/docker/compose.yml --profile data-platform ps | grep streaming
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline ps | grep streaming
 
 # Check logs for one service
 docker logs rideshare-spark-streaming-trips --tail 50
@@ -220,7 +220,7 @@ If you need to rollback to the previous version:
 **Step 1: Stop current services**
 ```bash
 docker compose -f infrastructure/docker/compose.yml \
-  --profile core --profile data-platform \
+  --profile core --profile data-pipeline \
   down
 ```
 
@@ -236,7 +236,7 @@ git checkout <COMMIT_HASH>
 **Step 3: Restart services**
 ```bash
 docker compose -f infrastructure/docker/compose.yml \
-  --profile core --profile data-platform \
+  --profile core --profile data-pipeline \
   up -d
 ```
 
@@ -254,27 +254,27 @@ docker compose -f infrastructure/docker/compose.yml \
 **Check:**
 ```bash
 # Verify profile is specified
-docker compose -f infrastructure/docker/compose.yml --profile data-platform ps
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline ps
 
 # Check service logs
 docker logs rideshare-spark-streaming-trips
 ```
 
 **Common causes:**
-- Forgot `--profile data-platform` flag
+- Forgot `--profile data-pipeline` flag
 - Spark Master not healthy yet
 - MinIO or Kafka not ready
 
 **Solution:**
 ```bash
 # Start dependencies first
-docker compose -f infrastructure/docker/compose.yml --profile data-platform up -d spark-master minio kafka
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d spark-master minio kafka
 
 # Wait for health checks
 sleep 60
 
 # Start streaming services
-docker compose -f infrastructure/docker/compose.yml --profile data-platform up -d
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
 ```
 
 ### DAGs Are Paused on First Deployment
@@ -286,8 +286,8 @@ docker compose -f infrastructure/docker/compose.yml --profile data-platform up -
 **Solution 1 - Fresh start (recommended for dev):**
 ```bash
 # Remove volumes to reset Airflow metadata
-docker compose -f infrastructure/docker/compose.yml --profile data-platform down -v
-docker compose -f infrastructure/docker/compose.yml --profile data-platform up -d
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline down -v
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
 ```
 
 **Solution 2 - Manual unpause (for existing deployments):**
@@ -349,7 +349,7 @@ conn.close()
 **Solution:**
 ```bash
 # Restart bronze-init service
-docker compose -f infrastructure/docker/compose.yml --profile data-platform restart bronze-init
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline restart bronze-init
 ```
 
 ### Deprecated DAG Still Running

@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: data-platform-config
+  name: data-pipeline-config
   labels:
     app: rideshare-platform
     component: configuration

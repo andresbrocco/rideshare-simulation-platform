@@ -55,10 +55,10 @@ from tests.integration.data_platform.fixtures.trip_events import generate_trip_l
 # =============================================================================
 
 # Available Docker profiles and their descriptions
+# Note: data-platform and quality-orchestration were consolidated into data-pipeline (2026-01-26)
 DOCKER_PROFILES = {
     "core": "Kafka, Redis, OSRM, Simulation, Stream Processor, Frontend",
-    "data-platform": "MinIO, Spark Thrift Server, Spark Streaming jobs, LocalStack",
-    "quality-orchestration": "Airflow (webserver + scheduler), Postgres for Airflow",
+    "data-pipeline": "MinIO, Spark (Thrift Server + Streaming jobs), LocalStack, Airflow",
     "monitoring": "Prometheus, Grafana, cAdvisor",
     "bi": "Superset, Postgres for Superset, Redis for Superset",
 }
@@ -69,7 +69,7 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers",
         "requires_profiles(*profiles): mark test to require specific Docker profiles "
-        "(e.g., @pytest.mark.requires_profiles('core', 'data-platform'))",
+        "(e.g., @pytest.mark.requires_profiles('core', 'data-pipeline'))",
     )
     config.addinivalue_line(
         "markers",
@@ -97,18 +97,18 @@ def docker_compose(request):
     Dynamically starts profiles based on @pytest.mark.requires_profiles markers
     found ONLY in the tests that will actually run (after -k filters, marker
     filters, and file path selection are applied). Falls back to core +
-    data-platform if no markers are specified.
+    data-pipeline if no markers are specified.
 
     Set SKIP_DOCKER_TEARDOWN=1 to skip container teardown after tests
     (useful for faster iteration when containers are slow to start).
 
     Usage in test files:
-        @pytest.mark.requires_profiles("core", "data-platform")
+        @pytest.mark.requires_profiles("core", "data-pipeline")
         def test_something():
             ...
 
-        @pytest.mark.requires_profiles("core", "data-platform", "quality-orchestration")
-        class TestAirflowIntegration:
+        @pytest.mark.requires_profiles("core", "data-pipeline", "bi")
+        class TestSupersetIntegration:
             ...
     """
     compose_file = "infrastructure/docker/compose.yml"
@@ -120,9 +120,9 @@ def docker_compose(request):
     # request.session.items contains only the selected tests after filtering
     profiles = _get_required_profiles_from_items(request.session.items)
 
-    # Default to core + data-platform if no markers specified (backward compatibility)
+    # Default to core + data-pipeline if no markers specified
     if not profiles:
-        profiles = {"core", "data-platform"}
+        profiles = {"core", "data-pipeline"}
 
     # Validate profiles
     invalid_profiles = profiles - set(DOCKER_PROFILES.keys())

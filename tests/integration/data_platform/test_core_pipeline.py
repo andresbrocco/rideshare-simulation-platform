@@ -260,14 +260,19 @@ def test_stream_processor_kafka_to_redis(
     time.sleep(0.5)
 
     # Act: Publish trip event to Kafka
+    # Note: All required fields from TripEvent schema must be included
     trip_event = {
-        "event_id": f"event-{test_trip_id}",
         "event_type": "trip.requested",
         "trip_id": test_trip_id,
         "rider_id": "test-rider-001",
+        "driver_id": None,  # No driver assigned yet for requested state
         "timestamp": "2026-01-20T10:00:00Z",
         "pickup_location": [-23.5505, -46.6333],
         "dropoff_location": [-23.5620, -46.6550],
+        "pickup_zone_id": "zone-centro",
+        "dropoff_zone_id": "zone-pinheiros",
+        "surge_multiplier": 1.0,
+        "fare": 25.50,
     }
 
     kafka_producer.produce(

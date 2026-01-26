@@ -14,8 +14,8 @@ Apache Airflow 3.1.5 for orchestrating data quality checks and DBT pipeline runs
 ## Quick Start
 
 ```bash
-# Start Airflow services (from project root)
-docker compose -f infrastructure/docker/compose.yml --profile quality-orchestration up -d
+# Start data pipeline services including Airflow (from project root)
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
 
 # View logs
 docker compose -f infrastructure/docker/compose.yml logs -f airflow-webserver

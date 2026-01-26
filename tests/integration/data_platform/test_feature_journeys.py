@@ -19,13 +19,13 @@ from tests.integration.data_platform.utils.sql_helpers import (
 
 
 # Module-level fixtures: ensure services are ready before any test runs
-# Note: FJ-005 needs quality-orchestration (Airflow), FJ-007 needs bi (Superset)
+# Note: FJ-005 and FJ-007 need the data-pipeline profile which includes Airflow
 # Note: streaming_jobs_running is NOT required for tests that only test DBT
 # transformations (they insert data directly into Bronze/Silver tables).
 # Only tests that rely on Kafka -> Bronze ingestion need streaming_jobs_running.
 pytestmark = [
     pytest.mark.feature_journey,
-    pytest.mark.requires_profiles("core", "data-platform"),
+    pytest.mark.requires_profiles("core", "data-pipeline"),
     pytest.mark.usefixtures(
         "bronze_tables_initialized",
     ),

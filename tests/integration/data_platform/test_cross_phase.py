@@ -29,7 +29,7 @@ pytestmark = [
 
 
 @pytest.mark.cross_phase
-@pytest.mark.requires_profiles("core", "data-platform")
+@pytest.mark.requires_profiles("core", "data-pipeline")
 @pytest.mark.usefixtures("streaming_jobs_running")
 def test_phase1_phase2_minio_streaming(
     clean_bronze_tables,
@@ -117,7 +117,7 @@ def test_phase1_phase2_minio_streaming(
 
 
 @pytest.mark.cross_phase
-@pytest.mark.requires_profiles("core", "data-platform")
+@pytest.mark.requires_profiles("core", "data-pipeline")
 @pytest.mark.usefixtures("streaming_jobs_running")
 def test_phase2_phase3_bronze_dbt(
     clean_bronze_tables,

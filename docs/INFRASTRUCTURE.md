@@ -24,7 +24,7 @@
 3. Cache Docker layers for faster builds
 4. Set up Python 3.13 environment
 5. Install test dependencies (pytest, pyyaml, boto3, httpx, confluent-kafka, pyhive)
-6. Start data-platform Docker Compose profile
+6. Start core and data-pipeline Docker Compose profiles
 7. Wait 60 seconds for service health checks
 8. Run integration tests with pytest from `tests/integration/`
 9. Collect container logs on failure
@@ -35,7 +35,7 @@
 - Timeout: 30 minutes
 - Runner: ubuntu-latest
 - Docker Compose file: `infrastructure/docker/compose.yml`
-- Profiles used: `data-platform`
+- Profiles used: `core`, `data-pipeline`
 
 **Environment Variables**:
 - `MINIO_ENDPOINT=minio:9000`
@@ -78,8 +78,7 @@
 | Profile | Purpose | Services |
 |---------|---------|----------|
 | core | Main simulation services | kafka, schema-registry, redis, osrm, simulation, stream-processor, frontend |
-| data-platform | Data engineering services | minio, spark-thrift-server, spark-streaming-* (8 jobs), localstack |
-| quality-orchestration | Pipeline orchestration | postgres-airflow, airflow-webserver, airflow-scheduler |
+| data-pipeline | Data engineering + orchestration | minio, spark-thrift-server, spark-streaming-* (8 jobs), localstack, postgres-airflow, airflow-webserver, airflow-scheduler |
 | monitoring | Observability | prometheus, cadvisor, grafana |
 | bi | Business intelligence | postgres-superset, redis-superset, superset |
 
@@ -152,10 +151,10 @@ docker build -f services/frontend/Dockerfile --target development services/front
 docker build -f services/stream-processor/Dockerfile services/stream-processor
 ```
 
-**Data Platform**:
+**Data Pipeline**:
 ```bash
-# Start data platform services
-docker compose -f infrastructure/docker/compose.yml --profile data-platform up -d
+# Start data pipeline services
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
 
 # Build OSRM with local map data
 docker build -f infrastructure/docker/dockerfiles/osrm.Dockerfile \
@@ -167,9 +166,9 @@ docker build -f infrastructure/docker/dockerfiles/spark-delta.Dockerfile .
 
 **Combined Profiles**:
 ```bash
-# Start core + data platform
+# Start core + data pipeline
 docker compose -f infrastructure/docker/compose.yml \
-  --profile core --profile data-platform up -d
+  --profile core --profile data-pipeline up -d
 ```
 
 ### Run Commands
@@ -182,7 +181,7 @@ docker compose -f infrastructure/docker/compose.yml ps
 docker compose -f infrastructure/docker/compose.yml logs -f simulation
 
 # Stop all services
-docker compose -f infrastructure/docker/compose.yml --profile core --profile data-platform down
+docker compose -f infrastructure/docker/compose.yml --profile core --profile data-pipeline down
 
 # Stop and remove volumes
 docker compose -f infrastructure/docker/compose.yml --profile core down -v
@@ -385,7 +384,7 @@ All services implement Docker healthchecks for orchestration:
 **CI/CD (GitHub Actions)**:
 1. Checkout code on push or pull request
 2. Set up Docker Buildx for layer caching
-3. Start data-platform profile
+3. Start core and data-pipeline profiles
 4. Run integration tests
 5. Upload artifacts on failure
 6. Clean up services and volumes
@@ -475,8 +474,8 @@ docker compose -f infrastructure/docker/compose.yml --profile core up -d
 # - Simulation API: http://localhost:8000
 # - API docs: http://localhost:8000/docs
 
-# 8. (Optional) Start data platform
-docker compose -f infrastructure/docker/compose.yml --profile data-platform up -d
+# 8. (Optional) Start data pipeline
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
 
 # 9. (Optional) Start monitoring
 docker compose -f infrastructure/docker/compose.yml --profile monitoring up -d
@@ -626,4 +625,4 @@ All services have explicit memory limits to prevent resource exhaustion:
 **Codebase**: rideshare-simulation-platform
 **Infrastructure Files Analyzed**: 15
 **Total Services**: 30+ containers (across all profiles)
-**Docker Compose Profiles**: 5 (core, data-platform, quality-orchestration, monitoring, bi)
+**Docker Compose Profiles**: 4 (core, data-pipeline, monitoring, bi)

@@ -1,10 +1,10 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: data-platform
+  name: data-pipeline
   namespace: argocd
   labels:
-    app.kubernetes.io/name: data-platform
+    app.kubernetes.io/name: data-pipeline
     app.kubernetes.io/part-of: rideshare-platform
   finalizers:
     - resources-finalizer.argocd.argoproj.io
@@ -30,7 +30,7 @@ spec:
         superset.yaml
         prometheus.yaml
         grafana.yaml
-        configmap-data-platform.yaml
+        configmap-data-pipeline.yaml
         storageclass.yaml
         pv-static.yaml
         pvc-kafka.yaml

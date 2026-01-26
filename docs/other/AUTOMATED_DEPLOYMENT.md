@@ -7,8 +7,8 @@ All data platform deployment steps are now **fully automated and idempotent**. Y
 ```bash
 docker compose -f infrastructure/docker/compose.yml \
   --profile core \
-  --profile data-platform \
-  --profile quality-orchestration \
+  --profile data-pipeline \
+  \
   --profile bi \
   --profile monitoring \
   up -d
@@ -55,7 +55,7 @@ Should show unpaused (False) DAGs.
 
 **View Running Services:**
 ```bash
-docker compose -f infrastructure/docker/compose.yml --profile data-platform ps | grep streaming
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline ps | grep streaming
 ```
 
 ## 📊 Deployment Flow Diagram
@@ -137,7 +137,7 @@ docker exec rideshare-airflow-scheduler airflow dags state dbt_transformation
 ### Check Streaming Services Running
 ```bash
 # Verify all 8 streaming services running
-docker compose -f infrastructure/docker/compose.yml --profile data-platform ps | grep streaming
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline ps | grep streaming
 
 # Check logs for a specific streaming service
 docker logs rideshare-spark-streaming-trips
@@ -174,17 +174,17 @@ To redeploy (simulates fresh environment):
 ```bash
 # Stop all services
 docker compose -f infrastructure/docker/compose.yml \
-  --profile core --profile data-platform --profile quality-orchestration \
+  --profile core --profile data-pipeline \
   down
 
 # Optional: Remove volumes for completely fresh start
 docker compose -f infrastructure/docker/compose.yml \
-  --profile core --profile data-platform --profile quality-orchestration \
+  --profile core --profile data-pipeline \
   down -v
 
 # Restart - everything auto-initializes
 docker compose -f infrastructure/docker/compose.yml \
-  --profile core --profile data-platform --profile quality-orchestration \
+  --profile core --profile data-pipeline \
   up -d
 ```
 
@@ -232,13 +232,13 @@ docker exec rideshare-bronze-init bash /opt/init-scripts/wait-for-thrift-and-ini
 ### "Streaming services not starting"
 ```bash
 # Check status of all streaming services
-docker compose -f infrastructure/docker/compose.yml --profile data-platform ps | grep streaming
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline ps | grep streaming
 
 # Check logs for specific service
 docker logs rideshare-spark-streaming-trips
 
 # Restart specific service
-docker compose -f infrastructure/docker/compose.yml --profile data-platform restart spark-streaming-trips
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline restart spark-streaming-trips
 
 # Verify Spark Master can accept jobs
 curl -s http://localhost:8080/json/ | python3 -m json.tool

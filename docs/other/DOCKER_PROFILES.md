@@ -6,52 +6,57 @@ This project uses Docker Compose profiles to enable selective service startup ba
 
 | Profile | Memory | Description |
 |---------|--------|-------------|
-| **core** | ~10GB | Simulation platform essentials |
-| **data-platform** | 3.8GB | MinIO, Spark, LocalStack |
-| **monitoring** | 256MB | cAdvisor container metrics |
-| **orchestration** | 1GB | Airflow (Phase 4+) |
-| **bi** | 1.2GB | Superset (Phase 5+) |
+| **core** | ~3.4GB | Simulation platform essentials |
+| **data-pipeline** | ~9.5GB | MinIO, Spark, LocalStack, Airflow |
+| **monitoring** | ~960MB | Prometheus, cAdvisor, Grafana |
+| **bi** | ~1.15GB | Superset |
+
+> Note: `data-pipeline` was consolidated from `data-platform` and `quality-orchestration` profiles (2026-01-26).
 
 ## Profile Contents
 
-### core (10GB)
+### core (~3.4GB)
 Essential services for running the simulation:
 - kafka (1GB)
 - schema-registry (512MB)
-- redis (512MB)
-- osrm (3GB)
-- simulation (4GB)
-- stream-processor (512MB)
-- control-panel-frontend (512MB)
+- redis (128MB)
+- osrm (1GB)
+- simulation (1GB)
+- stream-processor (256MB)
+- control-panel-frontend (384MB)
 
-### data-platform (3.8GB)
-Data lakehouse infrastructure:
+### data-pipeline (~9.5GB)
+Data lakehouse infrastructure and orchestration:
 - minio (256MB) - S3-compatible object storage
 - minio-init - Bucket initialization (runs once)
-- spark-master (512MB)
-- spark-worker (2GB)
-- spark-thrift-server (1.5GB) - JDBC/ODBC endpoint
-- localstack (512MB) - AWS service emulation
+- spark-thrift-server (1GB) - JDBC/ODBC endpoint
+- spark-streaming-* (8 jobs, ~768MB each) - Bronze ingestion
+- localstack (384MB) - AWS service emulation
+- postgres-airflow (256MB) - Airflow metadata DB
+- airflow-webserver (384MB) - Airflow UI
+- airflow-scheduler (384MB) - DAG scheduler
 
-### monitoring (256MB)
+### monitoring (~960MB)
 Container observability:
+- prometheus (512MB) - Metrics collection
 - cadvisor (256MB) - Container metrics exporter
+- grafana (192MB) - Dashboard visualization
 
 ## Usage Examples
 
-### Start core simulation only (~10GB)
+### Start core simulation only (~3.4GB)
 ```bash
 docker compose --profile core up -d
 ```
 
-### Start core + data platform (~14GB)
+### Start core + data pipeline (~13GB)
 ```bash
-docker compose --profile core --profile data-platform up -d
+docker compose --profile core --profile data-pipeline up -d
 ```
 
-### Start data platform only (for DBT development)
+### Start data pipeline only (for DBT development)
 ```bash
-docker compose --profile data-platform up -d
+docker compose --profile data-pipeline up -d
 ```
 
 ### Start with monitoring
@@ -61,7 +66,7 @@ docker compose --profile core --profile monitoring up -d
 
 ### Start everything (requires 16GB+ available)
 ```bash
-docker compose --profile core --profile data-platform --profile monitoring up -d
+docker compose --profile core --profile data-pipeline --profile monitoring --profile bi up -d
 ```
 
 ### Stop all services
@@ -90,10 +95,10 @@ docker stats
 
 | Configuration | Total Memory |
 |--------------|--------------|
-| core only | ~10GB |
-| data-platform only | ~3.8GB |
-| core + data-platform | ~14GB |
-| All profiles | ~16GB |
+| core only | ~3.4GB |
+| data-pipeline only | ~9.5GB |
+| core + data-pipeline | ~13GB |
+| All profiles | ~15GB |
 
 ## Shell Aliases (Optional)
 
@@ -104,7 +109,7 @@ Add these to your shell profile for convenience:
 alias rideshare-core='docker compose --profile core up -d'
 
 # Start full stack
-alias rideshare-full='docker compose --profile core --profile data-platform up -d'
+alias rideshare-full='docker compose --profile core --profile data-pipeline up -d'
 
 # Stop everything
 alias rideshare-down='docker compose down'

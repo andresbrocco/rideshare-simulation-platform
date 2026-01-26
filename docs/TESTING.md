@@ -191,8 +191,7 @@ SKIP_DOCKER_TEARDOWN=1 ./venv/bin/pytest tests/integration/data_platform/ -v
 
 **Available Docker Profiles:**
 - `core` - Kafka, Redis, OSRM, Simulation, Stream Processor, Frontend
-- `data-platform` - MinIO, Spark Thrift Server, Spark Streaming jobs, LocalStack
-- `quality-orchestration` - Airflow (webserver + scheduler), Postgres for Airflow
+- `data-pipeline` - MinIO, Spark Thrift Server, Spark Streaming jobs, LocalStack, Airflow
 - `monitoring` - Prometheus, Grafana, cAdvisor
 - `bi` - Superset, Postgres for Superset, Redis for Superset
 
@@ -345,7 +344,7 @@ npm run test -- --coverage
 Integration tests run on GitHub Actions via `.github/workflows/integration-tests.yml`:
 
 - Triggers: Push to `main`, pull requests
-- Docker profiles: `core` and `data-platform` profiles started automatically
+- Docker profiles: `core` and `data-pipeline` profiles started automatically
 - Test execution: `python -m pytest tests/integration/ -v --tb=short --junitxml=test-results.xml`
 - Timeout: 30 minutes per job
 - Artifacts: Test results and container logs uploaded on failure
@@ -386,7 +385,7 @@ Integration tests run on GitHub Actions via `.github/workflows/integration-tests
 # Run core pipeline tests (requires core profile)
 ./venv/bin/pytest -m core_pipeline
 
-# Run resilience tests (requires core + data-platform profiles)
+# Run resilience tests (requires core + data-pipeline profiles)
 ./venv/bin/pytest -m resilience
 
 # Skip slow tests

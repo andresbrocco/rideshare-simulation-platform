@@ -213,14 +213,16 @@ The system deploys as 11 independent containers orchestrated via Docker Compose 
 | schema-registry | Confluent Schema Registry | core | 8085 | kafka |
 | redis | Key-value store + pub/sub | core | 6379 | - |
 | osrm | Route calculation service | core | 5050 | - |
-| minio | S3-compatible object storage | data-platform | 9000, 9001 | - |
-| spark-thrift-server | SQL interface to lakehouse | data-platform | 10000 | minio |
-| spark-streaming-* | Bronze ingestion jobs (5 instances) | data-platform | - | kafka, minio |
-| localstack | S3 mock for testing | data-platform | 4566 | - |
+| minio | S3-compatible object storage | data-pipeline | 9000, 9001 | - |
+| spark-thrift-server | SQL interface to lakehouse | data-pipeline | 10000 | minio |
+| spark-streaming-* | Bronze ingestion jobs (8 instances) | data-pipeline | - | kafka, minio |
+| localstack | S3 mock for testing | data-pipeline | 4566 | - |
+| airflow-webserver | Airflow UI and API server | data-pipeline | 8082 | postgres-airflow |
+| airflow-scheduler | DAG scheduler and executor | data-pipeline | - | airflow-webserver |
 | cadvisor | Container metrics collection | monitoring | 8081 | - |
-| postgres-superset | Superset metadata storage | data-platform | 5432 | - |
-| redis-superset | Superset cache layer | data-platform | 6380 | - |
-| superset | BI dashboard platform | data-platform | 8088 | postgres-superset, redis-superset, spark-thrift-server |
+| postgres-superset | Superset metadata storage | bi | 5433 | - |
+| redis-superset | Superset cache layer | bi | 6380 | - |
+| superset | BI dashboard platform | bi | 8088 | postgres-superset, redis-superset, spark-thrift-server |
 
 ### Profile Groups
 
@@ -229,15 +231,18 @@ The system deploys as 11 independent containers orchestrated via Docker Compose 
 - Provides real-time visualization via WebSocket
 - Publishes events to Kafka for downstream processing
 
-**data-platform** - Data engineering services
+**data-pipeline** - Data engineering services (consolidated from data-platform + quality-orchestration)
 - Ingests events from Kafka to Bronze Delta tables
 - Transforms data through Silver and Gold layers via DBT
 - Validates data quality with Great Expectations
-- Provides BI dashboards via Superset
+- Orchestrates pipelines with Airflow
 
 **monitoring** - Observability services
 - Collects container resource metrics via cAdvisor
-- Provides metrics endpoint for Prometheus integration
+- Provides Prometheus metrics and Grafana dashboards
+
+**bi** - Business intelligence
+- Provides BI dashboards via Superset
 
 ### Deployment Commands
 
@@ -245,11 +250,11 @@ The system deploys as 11 independent containers orchestrated via Docker Compose 
 # Start core services only
 docker compose -f infrastructure/docker/compose.yml --profile core up -d
 
-# Start data platform only
-docker compose -f infrastructure/docker/compose.yml --profile data-platform up -d
+# Start data pipeline only
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
 
 # Start all services
-docker compose -f infrastructure/docker/compose.yml --profile core --profile data-platform --profile monitoring up -d
+docker compose -f infrastructure/docker/compose.yml --profile core --profile data-pipeline --profile monitoring --profile bi up -d
 ```
 
 ### Initialization Dependencies

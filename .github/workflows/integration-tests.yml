@@ -56,14 +56,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]" || pip install pytest pyyaml boto3 httpx confluent-kafka pyhive redis websockets
 
-      - name: Build and start core and data platform services
+      - name: Build and start core and data-pipeline services
         run: |
           # Build images first
-          docker compose -f $COMPOSE_FILE --profile core --profile data-platform build
+          docker compose -f $COMPOSE_FILE --profile core --profile data-pipeline build
           # Clean build cache to free disk space
           docker builder prune -af
           # Start services
-          docker compose -f $COMPOSE_FILE --profile core --profile data-platform up -d
+          docker compose -f $COMPOSE_FILE --profile core --profile data-pipeline up -d
           echo "Waiting for services to be healthy..."
           sleep 60
 
@@ -87,7 +87,7 @@ jobs:
         if: failure()
         run: |
           mkdir -p logs
-          docker compose -f $COMPOSE_FILE --profile core --profile data-platform logs > logs/container-logs.txt 2>&1
+          docker compose -f $COMPOSE_FILE --profile core --profile data-pipeline logs > logs/container-logs.txt 2>&1
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
@@ -102,4 +102,4 @@ jobs:
       - name: Cleanup services
         if: always()
         run: |
-          docker compose -f $COMPOSE_FILE --profile core --profile data-platform down -v --remove-orphans
+          docker compose -f $COMPOSE_FILE --profile core --profile data-pipeline down -v --remove-orphans

@@ -11,7 +11,7 @@ cd "$(dirname "$0")/../.."
 echo "Checking service status..."
 if ! docker compose ps | grep -q "rideshare-minio"; then
     echo "Starting data platform services..."
-    docker compose --profile data-platform up -d
+    docker compose --profile data-pipeline up -d
     echo "Waiting for services to be healthy (30s)..."
     sleep 30
 fi
@@ -24,7 +24,7 @@ export AWS_DEFAULT_REGION="us-east-1"
 # Run integration tests
 echo ""
 echo "Running integration tests..."
-./venv/bin/pytest data-platform/tests/test_foundation_integration.py -v
+./venv/bin/pytest data-pipeline/tests/test_foundation_integration.py -v
 
 echo ""
 echo "=== All integration tests passed! ==="

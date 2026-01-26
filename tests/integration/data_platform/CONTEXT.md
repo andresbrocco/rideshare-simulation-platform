@@ -12,7 +12,7 @@ Validates end-to-end integration of the data platform across all services: the c
 
 ## Key Concepts
 
-**Dynamic Docker Profile Management**: Tests use `@pytest.mark.requires_profiles()` markers to declare required Docker Compose profiles (core, data-platform). The `docker_compose` fixture introspects selected tests to determine which profiles to start, minimizing container overhead and startup time.
+**Dynamic Docker Profile Management**: Tests use `@pytest.mark.requires_profiles()` markers to declare required Docker Compose profiles (core, data-pipeline). The `docker_compose` fixture introspects selected tests to determine which profiles to start, minimizing container overhead and startup time.
 
 **Test Categories**: Tests are organized into focused categories:
 - **Core Pipeline** (`core_pipeline`): Tests the real-time event flow from Simulation API through Kafka, Stream Processor, Redis pub/sub, to WebSocket clients

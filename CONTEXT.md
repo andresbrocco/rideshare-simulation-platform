@@ -48,8 +48,8 @@ cp services/frontend/.env.example services/frontend/.env
 # Start core services (simulation, kafka, redis, osrm, frontend)
 docker compose -f infrastructure/docker/compose.yml --profile core up -d
 
-# Start data platform (minio, spark, streaming jobs)
-docker compose -f infrastructure/docker/compose.yml --profile data-platform up -d
+# Start data pipeline (minio, spark, streaming jobs, airflow)
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
 
 # Access services
 # - Frontend: http://localhost:5173
@@ -161,8 +161,7 @@ Driver matching uses H3 hexagons (resolution 7, ~5km) for O(1) neighbor lookups.
 | Profile | Services | Purpose |
 |---------|----------|---------|
 | core | kafka, redis, osrm, simulation, stream-processor, frontend | Main simulation services |
-| data-platform | minio, spark-thrift-server, spark-streaming-* (8 jobs), localstack | Data engineering pipeline |
-| quality-orchestration | airflow-webserver, airflow-scheduler, postgres-airflow | Pipeline orchestration |
+| data-pipeline | minio, spark-thrift-server, spark-streaming-* (8 jobs), localstack, airflow | Data engineering pipeline & orchestration |
 | monitoring | prometheus, cadvisor, grafana | Observability metrics |
 | bi | superset, postgres-superset, redis-superset | Business intelligence dashboards |
 
@@ -171,8 +170,8 @@ Start services:
 # Core only
 docker compose -f infrastructure/docker/compose.yml --profile core up -d
 
-# Core + data platform
-docker compose -f infrastructure/docker/compose.yml --profile core --profile data-platform up -d
+# Core + data pipeline
+docker compose -f infrastructure/docker/compose.yml --profile core --profile data-pipeline up -d
 ```
 
 ## Development Workflow
@@ -276,7 +275,7 @@ Install: `pre-commit install`
 
 **Generated:** 2026-01-21
 **System Type:** Event-Driven Microservices with Medallion Lakehouse Architecture
-**Total Services:** 30+ containers across 5 Docker Compose profiles
+**Total Services:** 30+ containers across 4 Docker Compose profiles
 **Event Topics:** 8 Kafka topics
 **Lakehouse Layers:** Bronze (raw) → Silver (cleaned) → Gold (business-ready)
 **Geographic Scope:** São Paulo, Brazil (96 districts)

@@ -9,8 +9,8 @@ This guide explains how to deploy the data platform services (Bronze layer, DBT,
 ```bash
 docker compose -f infrastructure/docker/compose.yml \
   --profile core \
-  --profile data-platform \
-  --profile quality-orchestration \
+  --profile data-pipeline \
+   \
   --profile bi \
   --profile monitoring \
   up -d
@@ -111,7 +111,7 @@ After deployment, verify:
 
 ### Services Running
 ```bash
-docker compose -f infrastructure/docker/compose.yml --profile core --profile data-platform --profile quality-orchestration ps
+docker compose -f infrastructure/docker/compose.yml --profile core --profile data-pipeline  ps
 ```
 
 All containers should be "Up" and healthy.
@@ -188,19 +188,18 @@ print(f'Spark connection: {hook._resolve_connection()}')
 │  ├─ kafka, schema-registry, redis, osrm                     │
 │  ├─ simulation, stream-processor, frontend                  │
 │                                                              │
-│  Data Platform (--profile data-platform)                     │
+│  Data Pipeline (--profile data-pipeline)                     │
 │  ├─ minio (+ minio-init)                                    │
-│  ├─ spark-master, spark-worker, spark-thrift-server        │
+│  ├─ spark-thrift-server                                     │
+│  ├─ spark-streaming-* (8 streaming jobs)                    │
 │  ├─ localstack                                              │
+│  ├─ postgres-airflow                                        │
+│  ├─ airflow-webserver, airflow-scheduler                   │
 │  │                                                           │
-│  │  Streaming Jobs (submitted to Spark cluster)             │
+│  │  Streaming Jobs (as dedicated containers)                │
 │  │  ├─ Read from: kafka:29092                              │
 │  │  ├─ Write to: s3a://rideshare-bronze/*                  │
 │  │  └─ Checkpoints: s3a://rideshare-checkpoints/*          │
-│                                                              │
-│  Quality & Orchestration (--profile quality-orchestration)   │
-│  ├─ postgres-airflow                                        │
-│  ├─ airflow-webserver, airflow-scheduler                   │
 │  │                                                           │
 │  │  DAGs:                                                    │
 │  │  ├─ bronze_initialization (manual trigger, once)         │
@@ -236,14 +235,14 @@ If you previously deployed manually, here's how to migrate:
 
 1. **Stop all containers**
    ```bash
-   docker compose -f infrastructure/docker/compose.yml --profile core --profile data-platform --profile quality-orchestration down
+   docker compose -f infrastructure/docker/compose.yml --profile core --profile data-pipeline  down
    ```
 
 2. **Pull latest code changes** (with automation fixes)
 
 3. **Restart with new configuration**
    ```bash
-   docker compose -f infrastructure/docker/compose.yml --profile core --profile data-platform --profile quality-orchestration up -d
+   docker compose -f infrastructure/docker/compose.yml --profile core --profile data-pipeline  up -d
    ```
 
 4. **Bronze tables already exist?** Skip the initialization DAG

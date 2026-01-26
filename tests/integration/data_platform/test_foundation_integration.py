@@ -7,8 +7,8 @@ import subprocess
 import pytest
 
 
-# Module-level marker: requires core and data-platform profiles
-pytestmark = pytest.mark.requires_profiles("core", "data-platform")
+# Module-level marker: requires core and data-pipeline profiles
+pytestmark = pytest.mark.requires_profiles("core", "data-pipeline")
 
 
 def _get_project_root() -> str:
@@ -36,7 +36,7 @@ class TestServiceHealth:
         """
         project_root = _get_project_root()
         output = run_command(
-            "docker compose -f infrastructure/docker/compose.yml --profile core --profile data-platform ps --format json",
+            "docker compose -f infrastructure/docker/compose.yml --profile core --profile data-pipeline ps --format json",
             cwd=project_root,
         )
         lines = [line for line in output.strip().split("\n") if line]
@@ -74,7 +74,7 @@ class TestServiceHealth:
         """Verify services respect memory limits (no OOMKilled)."""
         project_root = _get_project_root()
         ps_output = run_command(
-            "docker compose -f infrastructure/docker/compose.yml --profile core --profile data-platform ps",
+            "docker compose -f infrastructure/docker/compose.yml --profile core --profile data-pipeline ps",
             cwd=project_root,
         )
         assert "OOMKilled" not in ps_output, "Service was OOM killed"

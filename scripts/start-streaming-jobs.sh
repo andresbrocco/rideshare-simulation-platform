@@ -4,7 +4,7 @@
 # These jobs consume from Kafka and write to Bronze Delta tables in MinIO.
 #
 # Prerequisites:
-#   - Docker Compose core and data-platform profiles running
+#   - Docker Compose core and data-pipeline profiles running
 #   - Kafka, Spark Master, Spark Worker, and MinIO healthy
 #
 # Usage:
@@ -183,7 +183,7 @@ start_all_jobs() {
 
     if ! check_container "$SPARK_WORKER_CONTAINER"; then
         log_error "Spark worker container not running"
-        log_info "Start with: docker compose -f infrastructure/docker/compose.yml --profile data-platform up -d"
+        log_info "Start with: docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d"
         exit 1
     fi
 

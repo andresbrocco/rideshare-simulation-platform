@@ -9,7 +9,7 @@ This directory contains ArgoCD installation and application manifests for GitOps
 
 ### Applications
 - `app-core-services.yaml` - Core simulation services (simulation, frontend, kafka, redis, etc.)
-- `app-data-platform.yaml` - Data platform services (spark, minio, airflow, superset, etc.)
+- `app-data-pipeline.yaml` - Data platform services (spark, minio, airflow, superset, etc.)
 
 ### Configuration
 - `sync-policy.yaml` - Sync policy documentation and configuration
@@ -59,7 +59,7 @@ kubectl apply -f app-core-services.yaml
 Deploy data platform:
 
 ```bash
-kubectl apply -f app-data-platform.yaml
+kubectl apply -f app-data-pipeline.yaml
 ```
 
 Apply sync policy configuration:
@@ -92,14 +92,14 @@ argocd app list
 
 ```bash
 argocd app get core-services
-argocd app get data-platform
+argocd app get data-pipeline
 ```
 
 ### Manual Sync
 
 ```bash
 argocd app sync core-services
-argocd app sync data-platform
+argocd app sync data-pipeline
 ```
 
 ### View Sync History

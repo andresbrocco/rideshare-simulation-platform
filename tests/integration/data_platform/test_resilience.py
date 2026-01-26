@@ -23,10 +23,10 @@ from tests.integration.data_platform.utils.wait_helpers import (
 )
 
 
-# Module-level fixtures: require both core and data-platform profiles
+# Module-level fixtures: require both core and data-pipeline profiles
 pytestmark = [
     pytest.mark.resilience,
-    pytest.mark.requires_profiles("core", "data-platform"),
+    pytest.mark.requires_profiles("core", "data-pipeline"),
     pytest.mark.usefixtures(
         "bronze_tables_initialized",
     ),
@@ -150,7 +150,7 @@ def test_data_consistency_under_partial_failure(
             "--profile",
             "core",
             "--profile",
-            "data-platform",
+            "data-pipeline",
             "start",
             "spark-streaming-trips",
         ],
