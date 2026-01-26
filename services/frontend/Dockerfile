@@ -7,12 +7,11 @@ WORKDIR /app
 COPY package*.json ./
 
 # Create entrypoint script that installs deps if node_modules is empty
-# Also removes package-lock.json to avoid platform-specific dependency issues
+# Uses npm ci for reproducible builds from committed package-lock.json
 RUN echo '#!/bin/sh' > /entrypoint.sh && \
     echo 'if [ ! -d "/app/node_modules/.bin" ]; then' >> /entrypoint.sh && \
     echo '  echo "Installing dependencies..."' >> /entrypoint.sh && \
-    echo '  rm -f /app/package-lock.json' >> /entrypoint.sh && \
-    echo '  npm install --force' >> /entrypoint.sh && \
+    echo '  npm ci' >> /entrypoint.sh && \
     echo 'fi' >> /entrypoint.sh && \
     echo 'exec "$@"' >> /entrypoint.sh && \
     chmod +x /entrypoint.sh
@@ -29,7 +28,7 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm install --force
+RUN npm ci
 
 COPY . .
 
