@@ -193,7 +193,7 @@ SKIP_DOCKER_TEARDOWN=1 ./venv/bin/pytest tests/integration/data_platform/ -v
 - `core` - Kafka, Redis, OSRM, Simulation, Stream Processor, Frontend
 - `data-pipeline` - MinIO, Spark Thrift Server, Spark Streaming jobs, LocalStack, Airflow
 - `monitoring` - Prometheus, Grafana, cAdvisor
-- `bi` - Superset, Postgres for Superset, Redis for Superset
+- `analytics` - Superset, Postgres for Superset, Redis for Superset
 
 ## Test Patterns
 

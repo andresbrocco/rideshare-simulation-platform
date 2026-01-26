@@ -254,7 +254,7 @@ docker compose -f infrastructure/docker/compose.yml --profile core up -d
 docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
 
 # Start all services
-docker compose -f infrastructure/docker/compose.yml --profile core --profile data-pipeline --profile monitoring --profile bi up -d
+docker compose -f infrastructure/docker/compose.yml --profile core --profile data-pipeline --profile monitoring --profile analytics up -d
 ```
 
 ### Initialization Dependencies

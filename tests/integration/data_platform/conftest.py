@@ -107,7 +107,7 @@ def docker_compose(request):
         def test_something():
             ...
 
-        @pytest.mark.requires_profiles("core", "data-pipeline", "bi")
+        @pytest.mark.requires_profiles("core", "data-pipeline", "analytics")
         class TestSupersetIntegration:
             ...
     """

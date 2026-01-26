@@ -619,4 +619,4 @@ All services have explicit memory limits to prevent resource exhaustion:
 **Codebase**: rideshare-simulation-platform
 **Infrastructure Files Analyzed**: 15
 **Total Services**: 30+ containers (across all profiles)
-**Docker Compose Profiles**: 4 (core, data-pipeline, monitoring, bi)
+**Docker Compose Profiles**: 4 (core, data-pipeline, monitoring, analytics)

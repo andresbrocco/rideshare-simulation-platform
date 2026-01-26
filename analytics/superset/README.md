@@ -15,7 +15,7 @@ Note: Using 6.0.0 image which includes psycopg2-binary for PostgreSQL connectivi
 
 ```bash
 # Start Superset stack (from project root)
-docker compose -f infrastructure/docker/compose.yml --profile bi up -d
+docker compose -f infrastructure/docker/compose.yml --profile analytics up -d
 
 # Check service health
 docker compose -f infrastructure/docker/compose.yml ps | grep superset
@@ -24,7 +24,7 @@ docker compose -f infrastructure/docker/compose.yml ps | grep superset
 docker compose -f infrastructure/docker/compose.yml logs -f superset
 
 # Stop services
-docker compose -f infrastructure/docker/compose.yml --profile bi down
+docker compose -f infrastructure/docker/compose.yml --profile analytics down
 ```
 
 ## Access
