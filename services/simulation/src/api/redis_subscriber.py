@@ -65,6 +65,9 @@ class RedisSubscriber:
             location = data.get("location") or data.get("home_location") or [0, 0]
             lat, lon = location[0], location[1]
 
+            # Check if this is a profile event (has event_type like "driver.created")
+            is_profile_event = data.get("event_type", "").startswith("driver.")
+
             if is_gps_ping:
                 # GPS pings: send position update with heading and route progress (use "gps_ping" type)
                 return {
@@ -78,13 +81,26 @@ class RedisSubscriber:
                         "timestamp": data.get("timestamp"),
                         "trip_id": data.get("trip_id"),
                         "route_progress_index": data.get("route_progress_index"),
-                        "pickup_route_progress_index": data.get(
-                            "pickup_route_progress_index"
-                        ),
+                        "pickup_route_progress_index": data.get("pickup_route_progress_index"),
+                    },
+                }
+            elif is_profile_event:
+                # Profile events: send driver info WITHOUT status field
+                # This prevents profile events from overwriting actual driver status
+                return {
+                    "type": message_type,
+                    "data": {
+                        "id": data.get("driver_id"),
+                        "latitude": lat,
+                        "longitude": lon,
+                        "rating": data.get("rating", 5.0),
+                        "zone": data.get("zone", "unknown"),
+                        "heading": data.get("heading", 0),
+                        # Note: NO status field - intentionally omitted
                     },
                 }
             else:
-                # Status change events: include full driver info
+                # Status change events: include full driver info with status
                 status = data.get("status") or data.get("new_status", "offline")
                 return {
                     "type": message_type,
@@ -166,9 +182,7 @@ class RedisSubscriber:
                     "route": data.get("route") or [],
                     "pickup_route": data.get("pickup_route") or [],
                     "route_progress_index": data.get("route_progress_index"),
-                    "pickup_route_progress_index": data.get(
-                        "pickup_route_progress_index"
-                    ),
+                    "pickup_route_progress_index": data.get("pickup_route_progress_index"),
                 },
             }
         elif channel == "surge-updates":
@@ -204,16 +218,12 @@ class RedisSubscriber:
                             if transformed:
                                 await self.connection_manager.broadcast(transformed)
                         except json.JSONDecodeError:
-                            logger.warning(
-                                f"Invalid JSON from Redis: {message['data']}"
-                            )
+                            logger.warning(f"Invalid JSON from Redis: {message['data']}")
                         except Exception as e:
                             logger.warning(f"Error broadcasting message: {e}")
 
             except redis.ConnectionError:
-                logger.error(
-                    f"Redis disconnected, reconnecting in {self.reconnect_delay}s..."
-                )
+                logger.error(f"Redis disconnected, reconnecting in {self.reconnect_delay}s...")
                 await asyncio.sleep(self.reconnect_delay)
             except asyncio.CancelledError:
                 break

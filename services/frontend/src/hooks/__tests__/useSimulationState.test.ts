@@ -166,6 +166,78 @@ describe('useSimulationState', () => {
     expect(result.current.drivers[0].latitude).toBe(-23.6);
   });
 
+  it('preserves driver status when update has no status (profile event)', () => {
+    const { result } = renderHook(() => useSimulationState());
+
+    // First, set up driver via snapshot with 'online' status
+    const snapshot: StateSnapshot = {
+      type: 'snapshot',
+      data: {
+        drivers: [
+          {
+            id: 'd1',
+            latitude: -23.5,
+            longitude: -46.6,
+            status: 'online',
+            rating: 4.5,
+            zone: 'z1',
+          },
+        ],
+        riders: [],
+        trips: [],
+        surge: {},
+        simulation: {
+          state: 'RUNNING',
+          speed_multiplier: 1,
+          current_time: '2024-01-01T00:00:00',
+          drivers_total: 1,
+          drivers_offline: 0,
+          drivers_online: 1,
+          drivers_en_route_pickup: 0,
+          drivers_en_route_destination: 0,
+          riders_total: 0,
+          riders_offline: 0,
+          riders_waiting: 0,
+          riders_in_trip: 0,
+          active_trips_count: 0,
+          uptime_seconds: 0,
+        },
+      },
+    };
+
+    act(() => {
+      result.current.handleMessage(snapshot);
+    });
+
+    expect(result.current.drivers[0].status).toBe('online');
+
+    // Send driver update WITHOUT status (simulates profile event like driver.created)
+    // This should NOT overwrite the existing status
+    const profileUpdate = {
+      type: 'driver_update' as const,
+      data: {
+        id: 'd1',
+        latitude: -23.6,
+        longitude: -46.7,
+        rating: 4.8,
+        zone: 'z2',
+        heading: 90,
+        // Note: NO status field - this is what profile events look like
+      },
+    };
+
+    act(() => {
+      result.current.handleMessage(profileUpdate);
+    });
+
+    // Status should be preserved as 'online', not defaulted to 'offline'
+    expect(result.current.drivers[0].status).toBe('online');
+    // Other fields should update
+    expect(result.current.drivers[0].latitude).toBe(-23.6);
+    expect(result.current.drivers[0].rating).toBe(4.8);
+    expect(result.current.drivers[0].zone).toBe('z2');
+  });
+
   it('handles rider update message', () => {
     const { result } = renderHook(() => useSimulationState());
 
