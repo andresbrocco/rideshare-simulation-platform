@@ -485,36 +485,12 @@ CONTAINER_CONFIG = {
         "display_name": "Spark Thrift",
         "memory_limit_bytes": 1024 * 1024 * 1024,  # 1 GB
     },
-    "rideshare-spark-streaming-trips": {
-        "display_name": "Spark: Trips",
+    "rideshare-spark-streaming-high-volume": {
+        "display_name": "Spark: High Volume",
         "memory_limit_bytes": 768 * 1024 * 1024,  # 768 MB
     },
-    "rideshare-spark-streaming-gps-pings": {
-        "display_name": "Spark: GPS",
-        "memory_limit_bytes": 768 * 1024 * 1024,  # 768 MB
-    },
-    "rideshare-spark-streaming-driver-status": {
-        "display_name": "Spark: Driver Status",
-        "memory_limit_bytes": 768 * 1024 * 1024,  # 768 MB
-    },
-    "rideshare-spark-streaming-surge-updates": {
-        "display_name": "Spark: Surge",
-        "memory_limit_bytes": 768 * 1024 * 1024,  # 768 MB
-    },
-    "rideshare-spark-streaming-ratings": {
-        "display_name": "Spark: Ratings",
-        "memory_limit_bytes": 768 * 1024 * 1024,  # 768 MB
-    },
-    "rideshare-spark-streaming-payments": {
-        "display_name": "Spark: Payments",
-        "memory_limit_bytes": 768 * 1024 * 1024,  # 768 MB
-    },
-    "rideshare-spark-streaming-driver-profiles": {
-        "display_name": "Spark: Driver Profiles",
-        "memory_limit_bytes": 768 * 1024 * 1024,  # 768 MB
-    },
-    "rideshare-spark-streaming-rider-profiles": {
-        "display_name": "Spark: Rider Profiles",
+    "rideshare-spark-streaming-low-volume": {
+        "display_name": "Spark: Low Volume",
         "memory_limit_bytes": 768 * 1024 * 1024,  # 768 MB
     },
     "rideshare-localstack": {
@@ -1077,14 +1053,8 @@ async def get_infrastructure_metrics(request: Request):
         # Data Platform profile
         "rideshare-minio": minio_result,
         "rideshare-spark-thrift-server": spark_thrift_result,
-        "rideshare-spark-streaming-trips": no_health_endpoint,
-        "rideshare-spark-streaming-gps-pings": no_health_endpoint,
-        "rideshare-spark-streaming-driver-status": no_health_endpoint,
-        "rideshare-spark-streaming-surge-updates": no_health_endpoint,
-        "rideshare-spark-streaming-ratings": no_health_endpoint,
-        "rideshare-spark-streaming-payments": no_health_endpoint,
-        "rideshare-spark-streaming-driver-profiles": no_health_endpoint,
-        "rideshare-spark-streaming-rider-profiles": no_health_endpoint,
+        "rideshare-spark-streaming-high-volume": no_health_endpoint,
+        "rideshare-spark-streaming-low-volume": no_health_endpoint,
         "rideshare-localstack": localstack_result,
         # Monitoring profile
         "rideshare-prometheus": prometheus_result,

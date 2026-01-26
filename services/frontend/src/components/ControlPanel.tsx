@@ -179,7 +179,7 @@ export default function ControlPanel({
       </div>
 
       <div className={styles.section}>
-        <h3>Add Agents</h3>
+        <h3>Add Autonomous Agents</h3>
         <div className={styles.agentControl}>
           <label htmlFor="driver-count" className={styles.label}>
             Drivers:
