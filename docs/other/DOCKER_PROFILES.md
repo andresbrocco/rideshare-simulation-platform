@@ -7,7 +7,7 @@ This project uses Docker Compose profiles to enable selective service startup ba
 | Profile | Memory | Description |
 |---------|--------|-------------|
 | **core** | ~3.4GB | Simulation platform essentials |
-| **data-pipeline** | ~9.5GB | MinIO, Spark, LocalStack, Airflow |
+| **data-pipeline** | ~5GB | MinIO, Spark, LocalStack, Airflow |
 | **monitoring** | ~960MB | Prometheus, cAdvisor, Grafana |
 | **bi** | ~1.15GB | Superset |
 
@@ -25,12 +25,12 @@ Essential services for running the simulation:
 - stream-processor (256MB)
 - control-panel-frontend (384MB)
 
-### data-pipeline (~9.5GB)
+### data-pipeline (~5GB)
 Data lakehouse infrastructure and orchestration:
 - minio (256MB) - S3-compatible object storage
 - minio-init - Bucket initialization (runs once)
 - spark-thrift-server (1GB) - JDBC/ODBC endpoint
-- spark-streaming-* (8 jobs, ~768MB each) - Bronze ingestion
+- spark-streaming-* (2 jobs, ~768MB each) - Bronze ingestion
 - localstack (384MB) - AWS service emulation
 - postgres-airflow (256MB) - Airflow metadata DB
 - airflow-webserver (384MB) - Airflow UI
@@ -96,9 +96,9 @@ docker stats
 | Configuration | Total Memory |
 |--------------|--------------|
 | core only | ~3.4GB |
-| data-pipeline only | ~9.5GB |
-| core + data-pipeline | ~13GB |
-| All profiles | ~15GB |
+| data-pipeline only | ~5GB |
+| core + data-pipeline | ~8.5GB |
+| All profiles | ~10.5GB |
 
 ## Shell Aliases (Optional)
 

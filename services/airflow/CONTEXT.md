@@ -13,7 +13,7 @@ Orchestrates the data lakehouse pipeline by scheduling DBT transformations, moni
 ## Key Concepts
 
 - **Medallion Architecture Scheduling**: Separate DAGs for Silver (hourly) and Gold (daily) layers with explicit dependency ordering (dimensions → facts → aggregates)
-- **DLQ Monitoring**: Queries 8 Delta tables via PyHive every 15 minutes; branches to alerting when errors exceed threshold (default: 10)
+- **DLQ Monitoring**: Queries 8 Delta tables (one per topic, created by 2 consolidated streaming jobs) via PyHive every 15 minutes; branches to alerting when errors exceed threshold (default: 10)
 - **Bronze Initialization**: Manual one-time DAG that creates Hive metastore schema for streaming jobs
 - **Great Expectations Integration**: Runs validation checkpoints after DBT transformations; failures logged but don't block pipeline
 

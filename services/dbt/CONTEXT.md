@@ -40,7 +40,7 @@ Staging models use `incremental_strategy: merge` with `_ingested_at` watermark t
 
 ## Related Modules
 
-- **[services/spark-streaming](../spark-streaming/CONTEXT.md)** — Data source; DBT reads from Bronze Delta tables created by streaming jobs
+- **[services/spark-streaming](../spark-streaming/CONTEXT.md)** — Data source; DBT reads from 8 Bronze Delta tables created by 2 consolidated streaming jobs
 - **[services/airflow](../airflow/CONTEXT.md)** — Orchestration partner; Airflow schedules DBT runs and triggers data validation
 - **[quality/great-expectations](../../quality/great-expectations/CONTEXT.md)** — Validation partner; Great Expectations validates DBT output for data quality
 - **[analytics/superset](../../analytics/superset/CONTEXT.md)** — Data consumer; Superset dashboards query Gold dimensional models created by DBT

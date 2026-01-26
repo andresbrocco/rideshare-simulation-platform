@@ -43,19 +43,13 @@ This guide covers the migration from Docker Compose workarounds to production-re
 - Custom idempotency checks
 
 **After:**
-- 8 dedicated docker-compose services
+- 2 consolidated docker-compose services (by volume tier)
 - Each service runs continuously with `restart: unless-stopped`
 - Docker Compose ensures single instance per service
 
 **Services Added:**
-- spark-streaming-trips
-- spark-streaming-gps-pings
-- spark-streaming-driver-status
-- spark-streaming-surge-updates
-- spark-streaming-ratings
-- spark-streaming-payments
-- spark-streaming-driver-profiles
-- spark-streaming-rider-profiles
+- spark-streaming-high-volume (gps-pings)
+- spark-streaming-low-volume (trips, driver-status, surge-updates, ratings, payments, driver-profiles, rider-profiles)
 
 **Files Changed:**
 - `infrastructure/docker/compose.yml` - Added 8 services
@@ -95,7 +89,7 @@ sleep 240
 
 # Verify streaming services
 docker compose -f infrastructure/docker/compose.yml --profile data-pipeline ps | grep streaming
-# Expected: 8 services "Up"
+# Expected: 2 services "Up"
 
 # Verify DAGs unpaused
 docker exec rideshare-airflow-scheduler airflow dags list
@@ -137,7 +131,7 @@ docker compose -f infrastructure/docker/compose.yml \
 ```bash
 # Check streaming services
 docker compose -f infrastructure/docker/compose.yml --profile data-pipeline ps | grep streaming
-# Expected: 8 services "Up"
+# Expected: 2 services "Up"
 
 # Check deprecated DAG
 docker exec rideshare-airflow-scheduler airflow dags list | grep streaming_jobs_lifecycle
@@ -153,11 +147,11 @@ docker exec rideshare-airflow-scheduler airflow dags list | grep -E "(dbt_transf
 ### Verify Streaming Services
 
 ```bash
-# All 8 services should be running
+# All 2 services should be running
 docker compose -f infrastructure/docker/compose.yml --profile data-pipeline ps | grep streaming
 
 # Check logs for one service
-docker logs rideshare-spark-streaming-trips --tail 50
+docker logs rideshare-spark-streaming-high-volume --tail 50
 
 # Verify with Spark Master
 curl -s http://localhost:4040/json/ | python3 -c "
@@ -168,7 +162,7 @@ print(f'Active apps: {len(apps)}')
 for app in apps:
     print(f\"  - {app['name']}\")
 "
-# Expected: 8 applications
+# Expected: 2 applications
 ```
 
 ### Verify DAGs
@@ -203,13 +197,13 @@ conn.close()
 
 ```bash
 # Stop one streaming service
-docker stop rideshare-spark-streaming-trips
+docker stop rideshare-spark-streaming-high-volume
 
 # Wait 15 seconds
 sleep 15
 
 # Check if restarted
-docker ps | grep spark-streaming-trips
+docker ps | grep spark-streaming-high-volume
 # Expected: Container is running again
 ```
 
@@ -249,7 +243,7 @@ docker compose -f infrastructure/docker/compose.yml \
 
 ### Streaming Services Not Starting
 
-**Symptom:** `docker ps` doesn't show 8 streaming services
+**Symptom:** `docker ps` doesn't show 2 streaming services
 
 **Check:**
 ```bash

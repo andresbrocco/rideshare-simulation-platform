@@ -14,7 +14,7 @@ Defines the containerized orchestration for the entire ride-sharing simulation p
 
 **Profiles**: Services are organized into logical groups that can be started independently:
 - `core` - Simulation runtime (kafka, redis, osrm, simulation, stream-processor, frontend)
-- `data-pipeline` - Data engineering services (minio, spark-thrift-server, spark-streaming-*, localstack, airflow)
+- `data-pipeline` - Data engineering services (minio, spark-thrift-server, spark-streaming-* (2 jobs), localstack, airflow)
   - Note: Consolidated from data-platform + quality-orchestration (2026-01-26)
 - `monitoring` - Observability (cadvisor, prometheus, grafana)
 - `bi` - Apache Superset with supporting services

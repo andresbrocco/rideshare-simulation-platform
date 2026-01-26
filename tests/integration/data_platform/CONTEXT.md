@@ -40,7 +40,7 @@ Schema Registry enforcement tests verify the pipeline handles malformed events g
 ## Related Modules
 
 - **[infrastructure/docker](../../../infrastructure/docker/CONTEXT.md)** — Uses Docker Compose profile system to orchestrate service dependencies for integration testing
-- **[services/spark-streaming](../../../services/spark-streaming/CONTEXT.md)** — Validates Bronze ingestion by verifying Kafka events appear in Delta tables
+- **[services/spark-streaming](../../../services/spark-streaming/CONTEXT.md)** — Validates Bronze ingestion by verifying Kafka events from 2 consolidated streaming jobs appear in 8 Delta tables
 - **[services/dbt](../../../services/dbt/CONTEXT.md)** — Tests Silver/Gold transformations by querying dimensional models after DBT runs
 - **[services/airflow](../../../services/airflow/CONTEXT.md)** — Validates DAG execution and DLQ monitoring via Airflow API
 - **[schemas/kafka](../../../schemas/kafka/CONTEXT.md)** — Uses production schemas for test event generation to ensure realistic data contracts

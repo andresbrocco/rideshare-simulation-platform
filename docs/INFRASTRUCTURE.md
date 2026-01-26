@@ -78,7 +78,7 @@
 | Profile | Purpose | Services |
 |---------|---------|----------|
 | core | Main simulation services | kafka, schema-registry, redis, osrm, simulation, stream-processor, frontend |
-| data-pipeline | Data engineering + orchestration | minio, spark-thrift-server, spark-streaming-* (8 jobs), localstack, postgres-airflow, airflow-webserver, airflow-scheduler |
+| data-pipeline | Data engineering + orchestration | minio, spark-thrift-server, spark-streaming-* (2 jobs), localstack, postgres-airflow, airflow-webserver, airflow-scheduler |
 | monitoring | Observability | prometheus, cadvisor, grafana |
 | bi | Business intelligence | postgres-superset, redis-superset, superset |
 
@@ -100,14 +100,8 @@
 |---------|-------|---------|------|
 | minio | custom (minio/minio) | S3-compatible lakehouse storage | 9000, 9001 |
 | spark-thrift-server | custom (apache/spark:4.0.0-python3) | SQL interface to Delta tables | 10000, 4041 |
-| spark-streaming-trips | custom | Bronze ingestion for trips | - |
-| spark-streaming-gps-pings | custom | Bronze ingestion for GPS pings | - |
-| spark-streaming-driver-status | custom | Bronze ingestion for driver status | - |
-| spark-streaming-surge-updates | custom | Bronze ingestion for surge updates | - |
-| spark-streaming-ratings | custom | Bronze ingestion for ratings | - |
-| spark-streaming-payments | custom | Bronze ingestion for payments | - |
-| spark-streaming-driver-profiles | custom | Bronze ingestion for driver profiles | - |
-| spark-streaming-rider-profiles | custom | Bronze ingestion for rider profiles | - |
+| spark-streaming-high-volume | custom | Bronze ingestion for gps-pings (high volume) | - |
+| spark-streaming-low-volume | custom | Bronze ingestion for 7 low-volume topics | - |
 | localstack | localstack/localstack:4.12.0 | S3/SNS/SQS mock for testing | 4566 |
 
 ### Orchestration Services

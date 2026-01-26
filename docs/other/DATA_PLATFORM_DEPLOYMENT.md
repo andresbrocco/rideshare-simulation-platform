@@ -30,7 +30,7 @@ After first deployment, trigger the Bronze initialization DAG in Airflow:
 To have Airflow manage streaming jobs:
 
 1. Unpause the `streaming_jobs_lifecycle` DAG
-2. It will submit all 8 streaming jobs to Spark and monitor their health
+2. It will submit the 2 consolidated streaming jobs to Spark and monitor their health
 3. Runs every 5 minutes to check job health
 
 **Note:** SparkSubmitOperator limitations mean this might not work perfectly in Docker. Alternative: use the manual spark-submit command (see Troubleshooting).
@@ -47,7 +47,7 @@ These persist across deployments automatically:
 - ✅ Superset database connection auto-provisioning
 
 ### Code Fixes
-- ✅ Kafka port corrected in all 8 streaming jobs (`kafka:29092`)
+- ✅ Kafka port corrected in streaming jobs (`kafka:29092`)
 - ✅ S3A credentials in Airflow DAG `streaming_jobs_dag.py`
 - ✅ DBT profiles configured for Spark Thrift Server
 
@@ -95,15 +95,9 @@ docker exec -d rideshare-spark-master bash -c 'nohup /opt/spark/bin/spark-submit
   /opt/spark_streaming/jobs/trips_streaming_job.py > /tmp/trips_job.log 2>&1 &'
 ```
 
-Repeat for all 8 jobs:
-- trips_streaming_job.py
-- gps_pings_streaming_job.py
-- driver_status_streaming_job.py
-- surge_updates_streaming_job.py
-- ratings_streaming_job.py
-- payments_streaming_job.py
-- driver_profiles_streaming_job.py
-- rider_profiles_streaming_job.py
+Jobs available (2 consolidated jobs):
+- high_volume_streaming_job.py (gps-pings)
+- low_volume_streaming_job.py (trips, driver-status, surge-updates, ratings, payments, driver-profiles, rider-profiles)
 
 ## Verification Checklist
 
@@ -136,7 +130,7 @@ conn.close()
 curl -s http://localhost:4040/api/v1/applications | python3 -m json.tool
 ```
 
-Should show 8 running applications (one per topic).
+Should show 2 running applications (one per volume tier).
 
 ### Airflow DAGs Loaded
 ```bash
@@ -191,7 +185,7 @@ print(f'Spark connection: {hook._resolve_connection()}')
 │  Data Pipeline (--profile data-pipeline)                     │
 │  ├─ minio (+ minio-init)                                    │
 │  ├─ spark-thrift-server                                     │
-│  ├─ spark-streaming-* (8 streaming jobs)                    │
+│  ├─ spark-streaming-* (2 streaming jobs)                    │
 │  ├─ localstack                                              │
 │  ├─ postgres-airflow                                        │
 │  ├─ airflow-webserver, airflow-scheduler                   │

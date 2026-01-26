@@ -31,5 +31,5 @@ DLQ schema captures original payload as string to enable forensic analysis of ma
 ## Related Modules
 
 - **[services/simulation](../services/simulation/CONTEXT.md)** — Schema producer; simulation emits events conforming to Kafka JSON schemas
-- **[services/spark-streaming](../services/spark-streaming/CONTEXT.md)** — Schema consumer; streaming jobs use lakehouse PySpark schemas to parse and store events in Bronze Delta tables
+- **[services/spark-streaming](../services/spark-streaming/CONTEXT.md)** — Schema consumer; 2 consolidated streaming jobs use lakehouse PySpark schemas to parse and store events in 8 Bronze Delta tables
 - **[config](../config/CONTEXT.md)** — Partition configuration companion; topic configs reference schema field names as partition keys

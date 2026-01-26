@@ -16,7 +16,7 @@ Error handling and Dead Letter Queue (DLQ) routing infrastructure for Spark Stru
 
 **Error Types**: `JSON_PARSE_ERROR` (unparseable raw bytes) vs `SCHEMA_VIOLATION` (valid JSON but missing required fields or type mismatches).
 
-**DLQ Path Convention**: Topic-specific DLQ tables at `{dlq_base_path}/{topic_with_underscores}` (e.g., `trips` topic routes to `s3://bucket/dlq/trips`).
+**DLQ Path Convention**: Topic-specific DLQ tables at `{dlq_base_path}/{topic_with_underscores}` (e.g., `trips` topic routes to `s3://bucket/dlq/trips`). Even with consolidated streaming jobs (2 containers), DLQ paths remain topic-specific (8 total DLQ tables) for precise error isolation and debugging.
 
 ## Non-Obvious Details
 

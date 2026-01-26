@@ -215,7 +215,7 @@ The system deploys as 11 independent containers orchestrated via Docker Compose 
 | osrm | Route calculation service | core | 5050 | - |
 | minio | S3-compatible object storage | data-pipeline | 9000, 9001 | - |
 | spark-thrift-server | SQL interface to lakehouse | data-pipeline | 10000 | minio |
-| spark-streaming-* | Bronze ingestion jobs (8 instances) | data-pipeline | - | kafka, minio |
+| spark-streaming-* | Bronze ingestion jobs (2 instances) | data-pipeline | - | kafka, minio |
 | localstack | S3 mock for testing | data-pipeline | 4566 | - |
 | airflow-webserver | Airflow UI and API server | data-pipeline | 8082 | postgres-airflow |
 | airflow-scheduler | DAG scheduler and executor | data-pipeline | - | airflow-webserver |
