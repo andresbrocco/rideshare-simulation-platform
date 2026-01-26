@@ -410,11 +410,11 @@ services:
       retries: 10
       start_period: 60s
 
-  spark-streaming-trips:
+  spark-streaming-high-volume:
     build:
       context: ../..
       dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
-    container_name: rideshare-spark-streaming-trips
+    container_name: rideshare-spark-streaming-high-volume
     mem_limit: 768m
     profiles:
       - data-pipeline
@@ -422,50 +422,8 @@ services:
       - PYTHONPATH=/opt
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - CHECKPOINT_PATH=s3a://rideshare-checkpoints/trips/
-      - TRIGGER_INTERVAL=10 seconds
-    volumes:
-      - ../../services/spark-streaming:/opt/spark_streaming:ro
-    depends_on:
-      minio:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-    networks:
-      - rideshare-network
-    command: >
-      /opt/spark/bin/spark-submit
-      --master local[1]
-      --driver-memory 512m
-      --name "streaming_trips"
-      --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
-      --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
-      --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000
-      --conf spark.hadoop.fs.s3a.access.key=minioadmin
-      --conf spark.hadoop.fs.s3a.secret.key=minioadmin
-      --conf spark.hadoop.fs.s3a.path.style.access=true
-      /opt/spark_streaming/jobs/trips_streaming_job.py
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pgrep -f 'spark-submit' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-
-  spark-streaming-gps-pings:
-    build:
-      context: ../..
-      dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
-    container_name: rideshare-spark-streaming-gps-pings
-    mem_limit: 768m
-    profiles:
-      - data-pipeline
-    environment:
-      - PYTHONPATH=/opt
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - CHECKPOINT_PATH=s3a://rideshare-checkpoints/gps_pings/
+      - KAFKA_TOPICS=gps-pings
+      - CHECKPOINT_BASE_PATH=s3a://rideshare-checkpoints/
       - TRIGGER_INTERVAL=10 seconds
     volumes:
       - ../../services/spark-streaming:/opt/spark_streaming:ro
@@ -480,14 +438,14 @@ services:
       /opt/spark/bin/spark-submit
       --master local[2]
       --driver-memory 512m
-      --name "streaming_gps_pings"
+      --name "streaming_high_volume"
       --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
       --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
       --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000
       --conf spark.hadoop.fs.s3a.access.key=minioadmin
       --conf spark.hadoop.fs.s3a.secret.key=minioadmin
       --conf spark.hadoop.fs.s3a.path.style.access=true
-      /opt/spark_streaming/jobs/gps_pings_streaming_job.py
+      /opt/spark_streaming/jobs/high_volume_streaming_job.py
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pgrep -f 'spark-submit' || exit 1"]
@@ -496,11 +454,11 @@ services:
       retries: 3
       start_period: 60s
 
-  spark-streaming-driver-status:
+  spark-streaming-low-volume:
     build:
       context: ../..
       dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
-    container_name: rideshare-spark-streaming-driver-status
+    container_name: rideshare-spark-streaming-low-volume
     mem_limit: 768m
     profiles:
       - data-pipeline
@@ -508,7 +466,8 @@ services:
       - PYTHONPATH=/opt
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - CHECKPOINT_PATH=s3a://rideshare-checkpoints/driver_status/
+      - KAFKA_TOPICS=trips,driver-status,surge-updates,ratings,payments,driver-profiles,rider-profiles
+      - CHECKPOINT_BASE_PATH=s3a://rideshare-checkpoints/
       - TRIGGER_INTERVAL=10 seconds
     volumes:
       - ../../services/spark-streaming:/opt/spark_streaming:ro
@@ -521,231 +480,16 @@ services:
       - rideshare-network
     command: >
       /opt/spark/bin/spark-submit
-      --master local[1]
+      --master local[2]
       --driver-memory 512m
-      --name "streaming_driver_status"
+      --name "streaming_low_volume"
       --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
       --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
       --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000
       --conf spark.hadoop.fs.s3a.access.key=minioadmin
       --conf spark.hadoop.fs.s3a.secret.key=minioadmin
       --conf spark.hadoop.fs.s3a.path.style.access=true
-      /opt/spark_streaming/jobs/driver_status_streaming_job.py
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pgrep -f 'spark-submit' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-
-  spark-streaming-surge-updates:
-    build:
-      context: ../..
-      dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
-    container_name: rideshare-spark-streaming-surge-updates
-    mem_limit: 768m
-    profiles:
-      - data-pipeline
-    environment:
-      - PYTHONPATH=/opt
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - CHECKPOINT_PATH=s3a://rideshare-checkpoints/surge_updates/
-      - TRIGGER_INTERVAL=10 seconds
-    volumes:
-      - ../../services/spark-streaming:/opt/spark_streaming:ro
-    depends_on:
-      minio:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-    networks:
-      - rideshare-network
-    command: >
-      /opt/spark/bin/spark-submit
-      --master local[1]
-      --driver-memory 512m
-      --name "streaming_surge_updates"
-      --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
-      --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
-      --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000
-      --conf spark.hadoop.fs.s3a.access.key=minioadmin
-      --conf spark.hadoop.fs.s3a.secret.key=minioadmin
-      --conf spark.hadoop.fs.s3a.path.style.access=true
-      /opt/spark_streaming/jobs/surge_updates_streaming_job.py
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pgrep -f 'spark-submit' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-
-  spark-streaming-ratings:
-    build:
-      context: ../..
-      dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
-    container_name: rideshare-spark-streaming-ratings
-    mem_limit: 768m
-    profiles:
-      - data-pipeline
-    environment:
-      - PYTHONPATH=/opt
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - CHECKPOINT_PATH=s3a://rideshare-checkpoints/ratings/
-      - TRIGGER_INTERVAL=10 seconds
-    volumes:
-      - ../../services/spark-streaming:/opt/spark_streaming:ro
-    depends_on:
-      minio:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-    networks:
-      - rideshare-network
-    command: >
-      /opt/spark/bin/spark-submit
-      --master local[1]
-      --driver-memory 512m
-      --name "streaming_ratings"
-      --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
-      --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
-      --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000
-      --conf spark.hadoop.fs.s3a.access.key=minioadmin
-      --conf spark.hadoop.fs.s3a.secret.key=minioadmin
-      --conf spark.hadoop.fs.s3a.path.style.access=true
-      /opt/spark_streaming/jobs/ratings_streaming_job.py
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pgrep -f 'spark-submit' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-
-  spark-streaming-payments:
-    build:
-      context: ../..
-      dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
-    container_name: rideshare-spark-streaming-payments
-    mem_limit: 768m
-    profiles:
-      - data-pipeline
-    environment:
-      - PYTHONPATH=/opt
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - CHECKPOINT_PATH=s3a://rideshare-checkpoints/payments/
-      - TRIGGER_INTERVAL=10 seconds
-    volumes:
-      - ../../services/spark-streaming:/opt/spark_streaming:ro
-    depends_on:
-      minio:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-    networks:
-      - rideshare-network
-    command: >
-      /opt/spark/bin/spark-submit
-      --master local[1]
-      --driver-memory 512m
-      --name "streaming_payments"
-      --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
-      --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
-      --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000
-      --conf spark.hadoop.fs.s3a.access.key=minioadmin
-      --conf spark.hadoop.fs.s3a.secret.key=minioadmin
-      --conf spark.hadoop.fs.s3a.path.style.access=true
-      /opt/spark_streaming/jobs/payments_streaming_job.py
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pgrep -f 'spark-submit' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-
-  spark-streaming-driver-profiles:
-    build:
-      context: ../..
-      dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
-    container_name: rideshare-spark-streaming-driver-profiles
-    mem_limit: 768m
-    profiles:
-      - data-pipeline
-    environment:
-      - PYTHONPATH=/opt
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - CHECKPOINT_PATH=s3a://rideshare-checkpoints/driver_profiles/
-      - TRIGGER_INTERVAL=10 seconds
-    volumes:
-      - ../../services/spark-streaming:/opt/spark_streaming:ro
-    depends_on:
-      minio:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-    networks:
-      - rideshare-network
-    command: >
-      /opt/spark/bin/spark-submit
-      --master local[1]
-      --driver-memory 512m
-      --name "streaming_driver_profiles"
-      --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
-      --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
-      --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000
-      --conf spark.hadoop.fs.s3a.access.key=minioadmin
-      --conf spark.hadoop.fs.s3a.secret.key=minioadmin
-      --conf spark.hadoop.fs.s3a.path.style.access=true
-      /opt/spark_streaming/jobs/driver_profiles_streaming_job.py
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pgrep -f 'spark-submit' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-
-  spark-streaming-rider-profiles:
-    build:
-      context: ../..
-      dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
-    container_name: rideshare-spark-streaming-rider-profiles
-    mem_limit: 768m
-    profiles:
-      - data-pipeline
-    environment:
-      - PYTHONPATH=/opt
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - CHECKPOINT_PATH=s3a://rideshare-checkpoints/rider_profiles/
-      - TRIGGER_INTERVAL=10 seconds
-    volumes:
-      - ../../services/spark-streaming:/opt/spark_streaming:ro
-    depends_on:
-      minio:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-    networks:
-      - rideshare-network
-    command: >
-      /opt/spark/bin/spark-submit
-      --master local[1]
-      --driver-memory 512m
-      --name "streaming_rider_profiles"
-      --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
-      --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
-      --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000
-      --conf spark.hadoop.fs.s3a.access.key=minioadmin
-      --conf spark.hadoop.fs.s3a.secret.key=minioadmin
-      --conf spark.hadoop.fs.s3a.path.style.access=true
-      /opt/spark_streaming/jobs/rider_profiles_streaming_job.py
+      /opt/spark_streaming/jobs/low_volume_streaming_job.py
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pgrep -f 'spark-submit' || exit 1"]

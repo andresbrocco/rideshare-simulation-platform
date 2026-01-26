@@ -2,6 +2,11 @@
 
 Validates that all streaming job files have proper __main__ blocks
 that allow them to be executed directly via spark-submit.
+
+Note: As of the streaming consolidation (2026-01-26), jobs are consolidated:
+- high_volume_streaming_job.py: handles gps-pings topic
+- low_volume_streaming_job.py: handles 7 other topics
+- multi_topic_streaming_job.py: base class (no __main__ block)
 """
 
 import ast
@@ -31,9 +36,20 @@ class TestStreamingJobEntryPoints:
 
     @staticmethod
     def _get_job_files():
-        """Get all streaming job Python files."""
+        """Get all streaming job Python files (excluding __init__.py)."""
         jobs_dir = TestStreamingJobEntryPoints._get_jobs_dir()
         return [f for f in jobs_dir.glob("*.py") if f.name != "__init__.py"]
+
+    @staticmethod
+    def _get_executable_job_files():
+        """Get job files that should have __main__ blocks (excludes base classes)."""
+        jobs_dir = TestStreamingJobEntryPoints._get_jobs_dir()
+        # Only high_volume and low_volume jobs are executable entry points
+        # multi_topic_streaming_job.py is a base class without __main__
+        return [
+            jobs_dir / "high_volume_streaming_job.py",
+            jobs_dir / "low_volume_streaming_job.py",
+        ]
 
     @staticmethod
     def _has_main_block(file_path):
@@ -157,10 +173,27 @@ class TestStreamingJobEntryPoints:
                             return True
         return False
 
-    def test_all_job_files_have_main_block(self):
-        """All 8 streaming job files should have __main__ block."""
+    def test_all_job_files_exist(self):
+        """All 3 streaming job files should exist (2 executable + 1 base class)."""
         job_files = self._get_job_files()
-        assert len(job_files) == 8, f"Expected 8 job files, found {len(job_files)}"
+        assert len(job_files) == 3, f"Expected 3 job files, found {len(job_files)}"
+
+        expected_files = {
+            "high_volume_streaming_job.py",
+            "low_volume_streaming_job.py",
+            "multi_topic_streaming_job.py",
+        }
+        actual_files = {f.name for f in job_files}
+        assert (
+            actual_files == expected_files
+        ), f"Expected {expected_files}, found {actual_files}"
+
+    def test_executable_jobs_have_main_block(self):
+        """Executable job files (high_volume, low_volume) should have __main__ block."""
+        job_files = self._get_executable_job_files()
+        assert (
+            len(job_files) == 2
+        ), f"Expected 2 executable job files, found {len(job_files)}"
 
         missing_main = []
         for job_file in job_files:
@@ -169,49 +202,49 @@ class TestStreamingJobEntryPoints:
 
         assert not missing_main, f"Jobs missing __main__ block: {missing_main}"
 
-    def test_trips_job_has_spark_session(self):
-        """trips_streaming_job.py should initialize SparkSession."""
-        job_file = self._get_jobs_dir() / "trips_streaming_job.py"
+    def test_high_volume_job_has_spark_session(self):
+        """high_volume_streaming_job.py should initialize SparkSession."""
+        job_file = self._get_jobs_dir() / "high_volume_streaming_job.py"
         main_block = self._extract_main_block_content(job_file)
         assert self._has_spark_session_init(main_block), "SparkSession not initialized"
 
-    def test_trips_job_has_kafka_config(self):
-        """trips_streaming_job.py should initialize KafkaConfig."""
-        job_file = self._get_jobs_dir() / "trips_streaming_job.py"
+    def test_high_volume_job_has_kafka_config(self):
+        """high_volume_streaming_job.py should initialize KafkaConfig."""
+        job_file = self._get_jobs_dir() / "high_volume_streaming_job.py"
         main_block = self._extract_main_block_content(job_file)
         assert self._has_kafka_config_init(main_block), "KafkaConfig not initialized"
 
-    def test_trips_job_has_checkpoint_config(self):
-        """trips_streaming_job.py should initialize CheckpointConfig."""
-        job_file = self._get_jobs_dir() / "trips_streaming_job.py"
+    def test_high_volume_job_has_checkpoint_config(self):
+        """high_volume_streaming_job.py should initialize CheckpointConfig."""
+        job_file = self._get_jobs_dir() / "high_volume_streaming_job.py"
         main_block = self._extract_main_block_content(job_file)
         assert self._has_checkpoint_config_init(
             main_block
         ), "CheckpointConfig not initialized"
 
-    def test_trips_job_has_error_handler(self):
-        """trips_streaming_job.py should initialize ErrorHandler."""
-        job_file = self._get_jobs_dir() / "trips_streaming_job.py"
+    def test_high_volume_job_has_error_handler(self):
+        """high_volume_streaming_job.py should initialize ErrorHandler."""
+        job_file = self._get_jobs_dir() / "high_volume_streaming_job.py"
         main_block = self._extract_main_block_content(job_file)
         assert self._has_error_handler_init(main_block), "ErrorHandler not initialized"
 
-    def test_trips_job_starts_streaming(self):
-        """trips_streaming_job.py should call job.start()."""
-        job_file = self._get_jobs_dir() / "trips_streaming_job.py"
+    def test_high_volume_job_starts_streaming(self):
+        """high_volume_streaming_job.py should call job.start()."""
+        job_file = self._get_jobs_dir() / "high_volume_streaming_job.py"
         main_block = self._extract_main_block_content(job_file)
         assert self._has_job_start_call(main_block), "job.start() not called"
 
-    def test_trips_job_awaits_termination(self):
-        """trips_streaming_job.py should call query.awaitTermination()."""
-        job_file = self._get_jobs_dir() / "trips_streaming_job.py"
+    def test_high_volume_job_awaits_termination(self):
+        """high_volume_streaming_job.py should call query.awaitTermination()."""
+        job_file = self._get_jobs_dir() / "high_volume_streaming_job.py"
         main_block = self._extract_main_block_content(job_file)
         assert self._has_await_termination_call(
             main_block
         ), "query.awaitTermination() not called"
 
-    def test_gps_pings_job_has_main_components(self):
-        """gps_pings_streaming_job.py should have all required components."""
-        job_file = self._get_jobs_dir() / "gps_pings_streaming_job.py"
+    def test_low_volume_job_has_main_components(self):
+        """low_volume_streaming_job.py should have all required components."""
+        job_file = self._get_jobs_dir() / "low_volume_streaming_job.py"
         main_block = self._extract_main_block_content(job_file)
 
         assert self._has_spark_session_init(main_block), "SparkSession not initialized"
@@ -224,119 +257,50 @@ class TestStreamingJobEntryPoints:
             main_block
         ), "query.awaitTermination() not called"
 
-    def test_driver_status_job_has_main_components(self):
-        """driver_status_streaming_job.py should have all required components."""
-        job_file = self._get_jobs_dir() / "driver_status_streaming_job.py"
-        main_block = self._extract_main_block_content(job_file)
-
-        assert self._has_spark_session_init(main_block), "SparkSession not initialized"
-        assert self._has_kafka_config_init(main_block), "KafkaConfig not initialized"
-        assert self._has_checkpoint_config_init(
-            main_block
-        ), "CheckpointConfig not initialized"
-        assert self._has_job_start_call(main_block), "job.start() not called"
-        assert self._has_await_termination_call(
-            main_block
-        ), "query.awaitTermination() not called"
-
-    def test_driver_profiles_job_has_main_components(self):
-        """driver_profiles_streaming_job.py should have all required components."""
-        job_file = self._get_jobs_dir() / "driver_profiles_streaming_job.py"
-        main_block = self._extract_main_block_content(job_file)
-
-        assert self._has_spark_session_init(main_block), "SparkSession not initialized"
-        assert self._has_kafka_config_init(main_block), "KafkaConfig not initialized"
-        assert self._has_checkpoint_config_init(
-            main_block
-        ), "CheckpointConfig not initialized"
-        assert self._has_job_start_call(main_block), "job.start() not called"
-        assert self._has_await_termination_call(
-            main_block
-        ), "query.awaitTermination() not called"
-
-    def test_rider_profiles_job_has_main_components(self):
-        """rider_profiles_streaming_job.py should have all required components."""
-        job_file = self._get_jobs_dir() / "rider_profiles_streaming_job.py"
-        main_block = self._extract_main_block_content(job_file)
-
-        assert self._has_spark_session_init(main_block), "SparkSession not initialized"
-        assert self._has_kafka_config_init(main_block), "KafkaConfig not initialized"
-        assert self._has_checkpoint_config_init(
-            main_block
-        ), "CheckpointConfig not initialized"
-        assert self._has_job_start_call(main_block), "job.start() not called"
-        assert self._has_await_termination_call(
-            main_block
-        ), "query.awaitTermination() not called"
-
-    def test_payments_job_has_main_components(self):
-        """payments_streaming_job.py should have all required components."""
-        job_file = self._get_jobs_dir() / "payments_streaming_job.py"
-        main_block = self._extract_main_block_content(job_file)
-
-        assert self._has_spark_session_init(main_block), "SparkSession not initialized"
-        assert self._has_kafka_config_init(main_block), "KafkaConfig not initialized"
-        assert self._has_checkpoint_config_init(
-            main_block
-        ), "CheckpointConfig not initialized"
-        assert self._has_job_start_call(main_block), "job.start() not called"
-        assert self._has_await_termination_call(
-            main_block
-        ), "query.awaitTermination() not called"
-
-    def test_ratings_job_has_main_components(self):
-        """ratings_streaming_job.py should have all required components."""
-        job_file = self._get_jobs_dir() / "ratings_streaming_job.py"
-        main_block = self._extract_main_block_content(job_file)
-
-        assert self._has_spark_session_init(main_block), "SparkSession not initialized"
-        assert self._has_kafka_config_init(main_block), "KafkaConfig not initialized"
-        assert self._has_checkpoint_config_init(
-            main_block
-        ), "CheckpointConfig not initialized"
-        assert self._has_job_start_call(main_block), "job.start() not called"
-        assert self._has_await_termination_call(
-            main_block
-        ), "query.awaitTermination() not called"
-
-    def test_surge_updates_job_has_main_components(self):
-        """surge_updates_streaming_job.py should have all required components."""
-        job_file = self._get_jobs_dir() / "surge_updates_streaming_job.py"
-        main_block = self._extract_main_block_content(job_file)
-
-        assert self._has_spark_session_init(main_block), "SparkSession not initialized"
-        assert self._has_kafka_config_init(main_block), "KafkaConfig not initialized"
-        assert self._has_checkpoint_config_init(
-            main_block
-        ), "CheckpointConfig not initialized"
-        assert self._has_job_start_call(main_block), "job.start() not called"
-        assert self._has_await_termination_call(
-            main_block
-        ), "query.awaitTermination() not called"
-
-    def test_trips_job_uses_environment_variables(self):
-        """trips_streaming_job.py should read bootstrap_servers from environment."""
-        job_file = self._get_jobs_dir() / "trips_streaming_job.py"
+    def test_high_volume_job_uses_environment_variables(self):
+        """high_volume_streaming_job.py should read config from environment."""
+        job_file = self._get_jobs_dir() / "high_volume_streaming_job.py"
         with open(job_file, "r") as f:
             content = f.read()
 
         assert (
             "KAFKA_BOOTSTRAP_SERVERS" in content
         ), "Should read KAFKA_BOOTSTRAP_SERVERS env var"
+        # Jobs read CHECKPOINT_PATH; Docker Compose sets CHECKPOINT_BASE_PATH
+        # which the job uses as a base for topic-specific checkpoint directories
         assert "CHECKPOINT_PATH" in content, "Should read CHECKPOINT_PATH env var"
 
-    def test_all_jobs_have_proper_app_names(self):
-        """Each job should have a descriptive SparkSession appName."""
-        job_files = self._get_job_files()
+    def test_low_volume_job_uses_environment_variables(self):
+        """low_volume_streaming_job.py should read config from environment."""
+        job_file = self._get_jobs_dir() / "low_volume_streaming_job.py"
+        with open(job_file, "r") as f:
+            content = f.read()
+
+        assert (
+            "KAFKA_BOOTSTRAP_SERVERS" in content
+        ), "Should read KAFKA_BOOTSTRAP_SERVERS env var"
+        # Jobs read CHECKPOINT_PATH; Docker Compose sets CHECKPOINT_BASE_PATH
+        # which the job uses as a base for topic-specific checkpoint directories
+        assert "CHECKPOINT_PATH" in content, "Should read CHECKPOINT_PATH env var"
+
+    def test_executable_jobs_have_proper_app_names(self):
+        """Each executable job should have a descriptive SparkSession appName."""
+        job_files = self._get_executable_job_files()
 
         for job_file in job_files:
             with open(job_file, "r") as f:
                 content = f.read()
 
-            if self._has_main_block(job_file):
-                assert (
-                    "appName" in content
-                ), f"{job_file.name} missing appName in SparkSession"
+            assert (
+                "appName" in content
+            ), f"{job_file.name} missing appName in SparkSession"
+
+    def test_multi_topic_base_class_has_no_main(self):
+        """multi_topic_streaming_job.py is a base class and should NOT have __main__."""
+        job_file = self._get_jobs_dir() / "multi_topic_streaming_job.py"
+        assert not self._has_main_block(
+            job_file
+        ), "Base class should not have __main__ block"
 
 
 if __name__ == "__main__":

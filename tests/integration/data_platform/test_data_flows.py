@@ -360,7 +360,7 @@ def test_checkpoint_recovery_after_restart(
 ):
     """DF-004: Verify Spark Streaming resumes from checkpoint after restart.
 
-    Publishes 10 events, waits for ingestion, restarts spark-streaming-trips
+    Publishes 10 events, waits for ingestion, restarts spark-streaming-low-volume
     container, publishes 10 more events, and validates:
     - All 20 events present in bronze_trips
     - No duplicates from restart
@@ -411,7 +411,7 @@ def test_checkpoint_recovery_after_restart(
         bronze_count_before_restart == 10
     ), f"Expected 10 rows before restart, found {bronze_count_before_restart}"
 
-    # Act: Restart spark-streaming-trips container
+    # Act: Restart spark-streaming-low-volume container
     # Both profiles needed to resolve service dependencies
     restart_result = subprocess.run(
         [
@@ -424,7 +424,7 @@ def test_checkpoint_recovery_after_restart(
             "--profile",
             "data-pipeline",
             "restart",
-            "spark-streaming-trips",
+            "spark-streaming-low-volume",
         ],
         capture_output=True,
         text=True,

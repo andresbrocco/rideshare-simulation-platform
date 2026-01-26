@@ -56,16 +56,20 @@ class TestServiceHealth:
             elif "rideshare-localstack" in name:
                 services_found.add("localstack")
                 assert state == "running", f"LocalStack not running: {state}"
-            elif "rideshare-spark-streaming-trips" in name:
-                services_found.add("spark-streaming-trips")
-                assert state == "running", f"Spark streaming trips not running: {state}"
+            elif "rideshare-spark-streaming-low-volume" in name:
+                services_found.add("spark-streaming-low-volume")
+                assert (
+                    state == "running"
+                ), f"Spark streaming low-volume not running: {state}"
 
         # Spark runs in local mode now - no separate master/worker containers
+        # Note: As of streaming consolidation (2026-01-26), spark-streaming-low-volume
+        # handles trips and 6 other topics (driver-status, surge-updates, etc.)
         expected = {
             "minio",
             "spark-thrift-server",
             "localstack",
-            "spark-streaming-trips",
+            "spark-streaming-low-volume",
         }
         missing = expected - services_found
         assert not missing, f"Missing services: {missing}"

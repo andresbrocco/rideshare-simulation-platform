@@ -670,16 +670,14 @@ def streaming_jobs_running(docker_compose):
 
     Checks that spark-submit process exists in each streaming container.
     Session-scoped: runs once per test session.
+
+    Note: As of the streaming consolidation (2026-01-26), services are consolidated:
+    - spark-streaming-high-volume: handles gps-pings topic
+    - spark-streaming-low-volume: handles 7 other topics (trips, driver-status, etc.)
     """
     streaming_containers = [
-        "rideshare-spark-streaming-trips",
-        "rideshare-spark-streaming-gps-pings",
-        "rideshare-spark-streaming-driver-status",
-        "rideshare-spark-streaming-surge-updates",
-        "rideshare-spark-streaming-ratings",
-        "rideshare-spark-streaming-payments",
-        "rideshare-spark-streaming-driver-profiles",
-        "rideshare-spark-streaming-rider-profiles",
+        "rideshare-spark-streaming-high-volume",
+        "rideshare-spark-streaming-low-volume",
     ]
 
     for container in streaming_containers:
