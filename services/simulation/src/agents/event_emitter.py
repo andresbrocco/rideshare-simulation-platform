@@ -28,6 +28,13 @@ logger = logging.getLogger(__name__)
 GPS_PING_INTERVAL_MOVING = int(os.environ.get("GPS_PING_INTERVAL_MOVING", "2"))
 GPS_PING_INTERVAL_IDLE = int(os.environ.get("GPS_PING_INTERVAL_IDLE", "10"))
 
+# Profile update interval in seconds (simulated time).
+# Default: ~7 simulated days (7 * 24 * 3600 = 604800 seconds).
+# Controls how often agents emit profile.updated events for SCD Type 2 tracking.
+PROFILE_UPDATE_INTERVAL_SECONDS = int(
+    os.environ.get("PROFILE_UPDATE_INTERVAL_SECONDS", str(7 * 24 * 3600))
+)
+
 
 class EventEmitter:
     """Mixin class for emitting events to Kafka.

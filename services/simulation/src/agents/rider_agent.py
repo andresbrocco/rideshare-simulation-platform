@@ -10,8 +10,13 @@ from typing import TYPE_CHECKING
 import simpy
 
 from agents.dna import RiderDNA
-from agents.event_emitter import GPS_PING_INTERVAL_MOVING, EventEmitter
+from agents.event_emitter import (
+    GPS_PING_INTERVAL_MOVING,
+    PROFILE_UPDATE_INTERVAL_SECONDS,
+    EventEmitter,
+)
 from agents.next_action import NextAction, NextActionType
+from agents.profile_mutations import mutate_rider_profile
 from agents.rating_logic import generate_rating_value, should_submit_rating
 from agents.statistics import RiderStatistics
 from events.schemas import GPSPingEvent, RatingEvent, RiderProfileEvent
@@ -128,9 +133,7 @@ class RiderAgent(EventEmitter):
                 self._rider_repository.update_status(self._rider_id, self._status)
                 self._rider_repository.update_active_trip(self._rider_id, trip_id)
             except Exception as e:
-                logger.error(
-                    f"Failed to persist trip request for rider {self._rider_id}: {e}"
-                )
+                logger.error(f"Failed to persist trip request for rider {self._rider_id}: {e}")
 
     def start_trip(self) -> None:
         """Transition from waiting to in_trip."""
@@ -140,9 +143,7 @@ class RiderAgent(EventEmitter):
             try:
                 self._rider_repository.update_status(self._rider_id, self._status)
             except Exception as e:
-                logger.error(
-                    f"Failed to persist status for rider {self._rider_id}: {e}"
-                )
+                logger.error(f"Failed to persist status for rider {self._rider_id}: {e}")
 
     def complete_trip(self) -> None:
         """Transition from in_trip to offline, clear active trip."""
@@ -154,9 +155,7 @@ class RiderAgent(EventEmitter):
                 self._rider_repository.update_status(self._rider_id, self._status)
                 self._rider_repository.update_active_trip(self._rider_id, None)
             except Exception as e:
-                logger.error(
-                    f"Failed to persist trip completion for rider {self._rider_id}: {e}"
-                )
+                logger.error(f"Failed to persist trip completion for rider {self._rider_id}: {e}")
 
     def cancel_trip(self) -> None:
         """Transition from waiting to offline, clear active trip."""
@@ -168,9 +167,7 @@ class RiderAgent(EventEmitter):
                 self._rider_repository.update_status(self._rider_id, self._status)
                 self._rider_repository.update_active_trip(self._rider_id, None)
             except Exception as e:
-                logger.error(
-                    f"Failed to persist trip cancellation for rider {self._rider_id}: {e}"
-                )
+                logger.error(f"Failed to persist trip cancellation for rider {self._rider_id}: {e}")
 
     def update_location(self, lat: float, lon: float) -> None:
         """Update current location."""
@@ -180,15 +177,13 @@ class RiderAgent(EventEmitter):
             try:
                 self._rider_repository.update_location(self._rider_id, (lat, lon))
             except Exception as e:
-                logger.error(
-                    f"Failed to persist location for rider {self._rider_id}: {e}"
-                )
+                logger.error(f"Failed to persist location for rider {self._rider_id}: {e}")
 
     def update_rating(self, new_rating: int) -> None:
         """Update rolling average rating."""
-        self._current_rating = (
-            self._current_rating * self._rating_count + new_rating
-        ) / (self._rating_count + 1)
+        self._current_rating = (self._current_rating * self._rating_count + new_rating) / (
+            self._rating_count + 1
+        )
         self._rating_count += 1
 
         if self._rider_repository:
@@ -197,9 +192,7 @@ class RiderAgent(EventEmitter):
                     self._rider_id, self._current_rating, self._rating_count
                 )
             except Exception as e:
-                logger.error(
-                    f"Failed to persist rating for rider {self._rider_id}: {e}"
-                )
+                logger.error(f"Failed to persist rating for rider {self._rider_id}: {e}")
 
     def submit_rating_for_trip(self, trip: "Trip", driver: "DriverAgent") -> int | None:
         """Submit rating for driver after trip completion."""
@@ -208,9 +201,7 @@ class RiderAgent(EventEmitter):
         if trip.state != TripState.COMPLETED:
             return None
 
-        rating_value = generate_rating_value(
-            driver.dna.service_quality, "service_quality"
-        )
+        rating_value = generate_rating_value(driver.dna.service_quality, "service_quality")
 
         if not should_submit_rating(rating_value):
             return None
@@ -220,9 +211,7 @@ class RiderAgent(EventEmitter):
         self._emit_rating_event(trip.trip_id, driver.driver_id, rating_value)
         return rating_value
 
-    def _emit_rating_event(
-        self, trip_id: str, ratee_id: str, rating_value: int
-    ) -> None:
+    def _emit_rating_event(self, trip_id: str, ratee_id: str, rating_value: int) -> None:
         """Emit rating event to Kafka."""
         from datetime import UTC, datetime
 
@@ -324,9 +313,7 @@ class RiderAgent(EventEmitter):
                 try:
                     self._rider_repository.update_status(self._rider_id, self._status)
                 except Exception as e:
-                    logger.error(
-                        f"Failed to persist status for rider {self._rider_id}: {e}"
-                    )
+                    logger.error(f"Failed to persist status for rider {self._rider_id}: {e}")
 
     def on_driver_arrived(self, trip) -> None:
         """Handle driver arrival notification."""
@@ -373,6 +360,58 @@ class RiderAgent(EventEmitter):
         # NOTE: Direct Redis publishing disabled - using Kafka → Stream Processor → Redis path
         # See stream-processor service for event routing
 
+    def _emit_update_event(self) -> None:
+        """Emit rider.updated event with mutated profile fields."""
+        changes = mutate_rider_profile(self._dna)
+        if not changes:
+            return
+
+        event = RiderProfileEvent(
+            event_type="rider.updated",
+            rider_id=self._rider_id,
+            timestamp=datetime.now(UTC).isoformat(),
+            first_name=self._dna.first_name,
+            last_name=self._dna.last_name,
+            email=changes.get("email", self._dna.email),
+            phone=changes.get("phone", self._dna.phone),
+            home_location=self._dna.home_location,
+            payment_method_type=changes.get("payment_method_type", self._dna.payment_method_type),
+            payment_method_masked=changes.get(
+                "payment_method_masked", self._dna.payment_method_masked
+            ),
+            behavior_factor=self._dna.behavior_factor,
+        )
+
+        main_loop = None
+        if self._simulation_engine:
+            main_loop = self._simulation_engine.get_event_loop()
+        run_coroutine_safe(
+            self._emit_event(
+                event=event,
+                kafka_topic="rider-profiles",
+                partition_key=self._rider_id,
+                redis_channel="rider-updates",
+            ),
+            main_loop,
+            fallback_sync=True,
+        )
+
+    def _profile_update_loop(self) -> Generator[simpy.Event]:
+        """Periodic profile update loop for SCD Type 2 events.
+
+        Emits rider.updated events at intervals with variance.
+        Puppets do not emit profile updates.
+        """
+        try:
+            while True:
+                # Add variance (0.5x to 1.5x) to prevent synchronized updates
+                variance = random.uniform(0.5, 1.5)
+                yield self._env.timeout(PROFILE_UPDATE_INTERVAL_SECONDS * variance)
+                if not self._is_puppet:
+                    self._emit_update_event()
+        except simpy.Interrupt:
+            pass
+
     def _emit_puppet_gps_ping(self) -> None:
         """Emit a single GPS ping for puppet rider."""
         if self._location is None:
@@ -415,6 +454,10 @@ class RiderAgent(EventEmitter):
                 self._emit_puppet_gps_ping()
                 yield self._env.timeout(GPS_PING_INTERVAL_MOVING)
             return
+
+        # Start profile update background process (non-puppet only)
+        # This runs throughout the agent's lifetime for SCD Type 2 tracking
+        self._env.process(self._profile_update_loop())
 
         # Set initial random location in São Paulo if not already set
         if self._location is None:
@@ -576,14 +619,10 @@ class RiderAgent(EventEmitter):
                     self._surge_calculator.decrement_pending_request(pickup_zone_id)
 
                 # Cancel trip in matching server to clean up _active_trips
-                if self._simulation_engine and hasattr(
-                    self._simulation_engine, "_matching_server"
-                ):
+                if self._simulation_engine and hasattr(self._simulation_engine, "_matching_server"):
                     matching_server = self._simulation_engine._matching_server
                     if matching_server:
-                        matching_server.cancel_trip(
-                            trip_id, "rider", "patience_timeout"
-                        )
+                        matching_server.cancel_trip(trip_id, "rider", "patience_timeout")
 
                 event = TripEvent(
                     event_type="trip.cancelled",
@@ -701,32 +740,22 @@ class RiderAgent(EventEmitter):
                 duration_minutes = route.duration_seconds / 60
             except Exception:
                 # Fallback to Haversine estimate
-                distance_km = self._haversine_distance(
-                    pickup[0], pickup[1], dropoff[0], dropoff[1]
-                )
+                distance_km = self._haversine_distance(pickup[0], pickup[1], dropoff[0], dropoff[1])
                 # Estimate duration based on average city speed (25 km/h)
                 duration_minutes = (distance_km / 25) * 60
         else:
-            distance_km = self._haversine_distance(
-                pickup[0], pickup[1], dropoff[0], dropoff[1]
-            )
+            distance_km = self._haversine_distance(pickup[0], pickup[1], dropoff[0], dropoff[1])
             duration_minutes = (distance_km / 25) * 60
 
         # Calculate total fare
-        fare = (
-            BASE_FARE
-            + (distance_km * PER_KM_RATE)
-            + (duration_minutes * PER_MINUTE_RATE)
-        )
+        fare = BASE_FARE + (distance_km * PER_KM_RATE) + (duration_minutes * PER_MINUTE_RATE)
         fare = fare * surge_multiplier
 
         # Round to 2 decimal places
         return round(fare, 2)
 
     @staticmethod
-    def _haversine_distance(
-        lat1: float, lon1: float, lat2: float, lon2: float
-    ) -> float:
+    def _haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
         """Calculate distance between two points in kilometers using Haversine formula."""
         import math
 
@@ -767,9 +796,7 @@ class RiderAgent(EventEmitter):
         zone_id = None
         loader = zone_loader or self._zone_loader
         if loader and self._location:
-            zone_id = loader.find_zone_for_location(
-                self._location[0], self._location[1]
-            )
+            zone_id = loader.find_zone_for_location(self._location[0], self._location[1])
 
         return {
             "rider_id": self._rider_id,
