@@ -27,7 +27,7 @@ kind create cluster --name rideshare-local
 kubectl apply -k .
 
 # Port forward to access services
-kubectl port-forward -n rideshare-local svc/frontend 3000:3000
+kubectl port-forward -n rideshare-local svc/frontend 5173:80
 kubectl port-forward -n rideshare-local svc/simulation 8000:8000
 ```
 

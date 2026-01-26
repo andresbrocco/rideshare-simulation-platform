@@ -1,3 +1,10 @@
+# Docker Compose Profiles:
+# - core: Simulation runtime services (kafka, redis, osrm, simulation, stream-processor, frontend)
+# - data-pipeline: ETL, streaming, and orchestration (minio, spark-*, localstack, airflow)
+#   (Consolidated from data-platform + quality-orchestration on 2026-01-26)
+# - monitoring: Observability (prometheus, cadvisor, grafana)
+# - bi: Business intelligence (superset, postgres-superset, redis-superset)
+
 services:
   kafka:
     image: confluentinc/cp-kafka:7.5.0
@@ -230,7 +237,7 @@ services:
     profiles:
       - core
     ports:
-      - "3000:5173"
+      - "5173:5173"
     volumes:
       - ../../services/frontend:/app
       - frontend-node-modules:/app/node_modules
@@ -258,7 +265,7 @@ services:
     container_name: rideshare-minio
     mem_limit: 256m
     profiles:
-      - data-platform
+      - data-pipeline
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -280,7 +287,7 @@ services:
     image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
     container_name: rideshare-minio-init
     profiles:
-      - data-platform
+      - data-pipeline
     depends_on:
       minio:
         condition: service_healthy
@@ -362,7 +369,7 @@ services:
     container_name: rideshare-spark-thrift-server
     mem_limit: 1024m
     profiles:
-      - data-platform
+      - data-pipeline
     ports:
       - "10000:10000"
       - "4041:4040"
@@ -410,7 +417,7 @@ services:
     container_name: rideshare-spark-streaming-trips
     mem_limit: 768m
     profiles:
-      - data-platform
+      - data-pipeline
     environment:
       - PYTHONPATH=/opt
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
@@ -453,7 +460,7 @@ services:
     container_name: rideshare-spark-streaming-gps-pings
     mem_limit: 768m
     profiles:
-      - data-platform
+      - data-pipeline
     environment:
       - PYTHONPATH=/opt
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
@@ -496,7 +503,7 @@ services:
     container_name: rideshare-spark-streaming-driver-status
     mem_limit: 768m
     profiles:
-      - data-platform
+      - data-pipeline
     environment:
       - PYTHONPATH=/opt
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
@@ -539,7 +546,7 @@ services:
     container_name: rideshare-spark-streaming-surge-updates
     mem_limit: 768m
     profiles:
-      - data-platform
+      - data-pipeline
     environment:
       - PYTHONPATH=/opt
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
@@ -582,7 +589,7 @@ services:
     container_name: rideshare-spark-streaming-ratings
     mem_limit: 768m
     profiles:
-      - data-platform
+      - data-pipeline
     environment:
       - PYTHONPATH=/opt
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
@@ -625,7 +632,7 @@ services:
     container_name: rideshare-spark-streaming-payments
     mem_limit: 768m
     profiles:
-      - data-platform
+      - data-pipeline
     environment:
       - PYTHONPATH=/opt
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
@@ -668,7 +675,7 @@ services:
     container_name: rideshare-spark-streaming-driver-profiles
     mem_limit: 768m
     profiles:
-      - data-platform
+      - data-pipeline
     environment:
       - PYTHONPATH=/opt
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
@@ -711,7 +718,7 @@ services:
     container_name: rideshare-spark-streaming-rider-profiles
     mem_limit: 768m
     profiles:
-      - data-platform
+      - data-pipeline
     environment:
       - PYTHONPATH=/opt
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
@@ -751,7 +758,7 @@ services:
     image: apache/airflow:3.1.5
     container_name: rideshare-bronze-init
     profiles:
-      - data-platform
+      - data-pipeline
     environment:
       - _PIP_ADDITIONAL_REQUIREMENTS=pyhive thrift
     volumes:
@@ -769,7 +776,7 @@ services:
     container_name: rideshare-localstack
     mem_limit: 384m
     profiles:
-      - data-platform
+      - data-pipeline
     ports:
       - "4566:4566"
       - "4510-4559:4510-4559"
@@ -796,7 +803,7 @@ services:
     container_name: rideshare-postgres-airflow
     mem_limit: 256m
     profiles:
-      - quality-orchestration
+      - data-pipeline
     ports:
       - "5432:5432"
     environment:
@@ -819,7 +826,7 @@ services:
     container_name: rideshare-airflow-webserver
     mem_limit: 384m
     profiles:
-      - quality-orchestration
+      - data-pipeline
     ports:
       - "8082:8080"
     environment:
@@ -862,7 +869,7 @@ services:
     container_name: rideshare-airflow-scheduler
     mem_limit: 384m
     profiles:
-      - quality-orchestration
+      - data-pipeline
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
