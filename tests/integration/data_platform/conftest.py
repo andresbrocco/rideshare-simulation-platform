@@ -29,12 +29,7 @@ from tests.integration.data_platform.utils.api_clients import (
     PrometheusClient,
     SupersetClient,
 )
-from tests.integration.data_platform.utils.sql_helpers import (
-    clean_bronze_tables as cleanup_bronze,
-    clean_gold_tables as cleanup_gold,
-    clean_silver_tables as cleanup_silver,
-    count_rows,
-)
+from tests.integration.data_platform.utils.sql_helpers import count_rows
 from tests.integration.data_platform.utils.wait_helpers import (
     poll_until_records_present,
     wait_for_condition,
@@ -161,7 +156,68 @@ def docker_compose(request):
 
 
 @pytest.fixture(scope="session")
-def wait_for_services(docker_compose):
+def reset_all_state(docker_compose):
+    """Reset all persistent state at session start.
+
+    This fixture eliminates cross-test contamination by:
+    1. Stopping streaming containers (release checkpoint locks)
+    2. Dropping tables from Hive metastore (avoid orphaned entries)
+    3. Clearing MinIO buckets (checkpoints, bronze, silver, gold)
+    4. Deleting and recreating Kafka topics
+    5. Restarting streaming containers
+
+    Order of operations is important to avoid file lock issues and orphaned
+    metastore entries pointing to non-existent Delta files.
+    """
+    from tests.integration.data_platform.utils.state_reset import (
+        clear_minio_buckets,
+        drop_lakehouse_tables,
+        reset_kafka_topics,
+        restart_streaming_containers,
+    )
+
+    project_root = os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    )
+
+    print("\n[conftest] Resetting all persistent state...")
+
+    # 1. Stop streaming containers to release checkpoint file locks
+    restart_streaming_containers(project_root, action="stop")
+
+    # 2. Drop all lakehouse tables from Hive metastore
+    # This prevents orphaned metastore entries after we clear MinIO
+    thrift_conn = hive.Connection(
+        host="localhost", port=10000, database="default", auth="NOSASL"
+    )
+    try:
+        drop_lakehouse_tables(thrift_conn)
+    finally:
+        thrift_conn.close()
+
+    # 3. Clear all MinIO buckets (create client directly to avoid circular dependency)
+    s3_client = boto3.client(
+        "s3",
+        endpoint_url="http://localhost:9000",
+        aws_access_key_id="minioadmin",
+        aws_secret_access_key="minioadmin",
+    )
+    deleted = clear_minio_buckets(s3_client)
+    print(f"[conftest] Cleared {deleted} objects from MinIO buckets")
+
+    # 4. Reset Kafka topics
+    admin = AdminClient({"bootstrap.servers": "localhost:9092"})
+    reset_kafka_topics(admin)
+
+    # 5. Restart streaming containers to pick up clean state
+    restart_streaming_containers(project_root, action="start")
+
+    print("[conftest] State reset complete")
+    yield
+
+
+@pytest.fixture(scope="session")
+def wait_for_services(reset_all_state):
     """Wait for all services to be healthy.
 
     Depends on docker_compose fixture. Polls health endpoints
@@ -516,33 +572,55 @@ def kafka_consumer(wait_for_services):
 
 
 @pytest.fixture(scope="function")
-def clean_bronze_tables(thrift_connection):
-    """Truncate all Bronze layer tables while preserving schemas.
+def clean_bronze_tables():
+    """No-op: Tests use unique IDs and session reset ensures clean state.
 
-    Runs before each test to ensure clean state.
+    Previously truncated all Bronze layer tables. Now that tests use unique
+    test IDs (via test_context fixture) and reset_all_state clears everything
+    at session start, per-test cleanup is no longer needed.
     """
-    cleanup_bronze(thrift_connection)
     yield
 
 
 @pytest.fixture(scope="function")
-def clean_silver_tables(thrift_connection):
-    """Truncate all Silver layer tables while preserving schemas.
+def clean_silver_tables():
+    """No-op: Tests use unique IDs and session reset ensures clean state.
 
-    Runs before each test to ensure clean state.
+    Previously truncated all Silver layer tables. Now that tests use unique
+    test IDs (via test_context fixture) and reset_all_state clears everything
+    at session start, per-test cleanup is no longer needed.
     """
-    cleanup_silver(thrift_connection)
     yield
 
 
 @pytest.fixture(scope="function")
-def clean_gold_tables(thrift_connection):
-    """Truncate all Gold layer tables while preserving schemas.
+def clean_gold_tables():
+    """No-op: Tests use unique IDs and session reset ensures clean state.
 
-    Runs before each test to ensure clean state.
+    Previously truncated all Gold layer tables. Now that tests use unique
+    test IDs (via test_context fixture) and reset_all_state clears everything
+    at session start, per-test cleanup is no longer needed.
     """
-    cleanup_gold(thrift_connection)
     yield
+
+
+@pytest.fixture(scope="function")
+def test_context(request):
+    """Provide unique test context with ID generation.
+
+    Each test gets a TestContext with a unique test_id that can be used
+    to generate unique IDs for trips, drivers, riders, and events.
+    This prevents cross-test contamination and allows precise filtering.
+
+    Usage in tests:
+        def test_something(test_context):
+            trip_id = test_context.trip_id("001")
+            driver_id = test_context.driver_id("001")
+            filter_pattern = test_context.filter_pattern()
+    """
+    from tests.integration.data_platform.utils.test_context import TestContext
+
+    return TestContext(_test_name=request.node.name)
 
 
 # =============================================================================

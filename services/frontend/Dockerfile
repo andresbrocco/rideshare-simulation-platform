@@ -7,11 +7,11 @@ WORKDIR /app
 COPY package*.json ./
 
 # Create entrypoint script that installs deps if node_modules is empty
-# Uses npm ci for reproducible builds from committed package-lock.json
+# Uses npm install --force to bypass platform-specific package checks (darwin/linux lockfile differences)
 RUN echo '#!/bin/sh' > /entrypoint.sh && \
     echo 'if [ ! -d "/app/node_modules/.bin" ]; then' >> /entrypoint.sh && \
     echo '  echo "Installing dependencies..."' >> /entrypoint.sh && \
-    echo '  npm ci' >> /entrypoint.sh && \
+    echo '  npm install --force' >> /entrypoint.sh && \
     echo 'fi' >> /entrypoint.sh && \
     echo 'exec "$@"' >> /entrypoint.sh && \
     chmod +x /entrypoint.sh

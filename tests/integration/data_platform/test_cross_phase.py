@@ -22,6 +22,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 # transformations. Only tests that rely on Kafka -> Bronze ingestion need it.
 pytestmark = [
     pytest.mark.cross_phase,
+    pytest.mark.requires_profiles("core", "data-pipeline"),
     pytest.mark.usefixtures(
         "bronze_tables_initialized",
     ),

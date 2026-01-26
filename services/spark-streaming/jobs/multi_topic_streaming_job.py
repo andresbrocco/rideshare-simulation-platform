@@ -75,9 +75,10 @@ class MultiTopicStreamingJob(BaseStreamingJob):
             if topic_df.count() == 0:
                 continue
 
+            # Add partition column and drop the 'topic' column (not part of Bronze schema)
             partitioned_df = topic_df.withColumn(
                 "_ingestion_date", date_format(col("_ingested_at"), "yyyy-MM-dd")
-            )
+            ).drop("topic")
 
             bronze_path = self.get_bronze_path(topic)
 

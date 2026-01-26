@@ -832,10 +832,19 @@ def truncate_table(connection: hive.Connection, table_name: str) -> None:
         table_name: Fully qualified table name (e.g., 'bronze_trips')
 
     Raises:
-        Exception: On truncate error
+        Exception: On truncate error (except for missing Delta files)
     """
-    # Use DELETE instead of TRUNCATE for Delta tables
-    execute_non_query(connection, f"DELETE FROM {table_name}")
+    try:
+        execute_non_query(connection, f"DELETE FROM {table_name}")
+    except Exception as e:
+        error_msg = str(e)
+        # Ignore errors for tables that exist in metastore but have no Delta files yet
+        if (
+            "DELTA_TABLE_NOT_FOUND" in error_msg
+            or "DELTA_PATH_DOES_NOT_EXIST" in error_msg
+        ):
+            return
+        raise
 
 
 def count_rows(connection: hive.Connection, table_name: str) -> int:
@@ -850,6 +859,55 @@ def count_rows(connection: hive.Connection, table_name: str) -> int:
     """
     results = execute_query(connection, f"SELECT COUNT(*) AS count FROM {table_name}")
     return results[0]["count"] if results else 0
+
+
+def count_rows_filtered(
+    connection: hive.Connection,
+    table_name: str,
+    filter_pattern: str,
+    column: str = "_raw_value",
+) -> int:
+    """Count rows matching a filter pattern.
+
+    Useful for counting only test-specific rows when using unique test IDs.
+
+    Args:
+        connection: PyHive Hive connection
+        table_name: Table name
+        filter_pattern: SQL LIKE pattern (e.g., '%test-abc123%')
+        column: Column to filter on (default: _raw_value for Bronze tables)
+
+    Returns:
+        Row count matching the filter
+    """
+    query = f"SELECT COUNT(*) AS count FROM {table_name} WHERE {column} LIKE '{filter_pattern}'"
+    results = execute_query(connection, query)
+    return results[0]["count"] if results else 0
+
+
+def query_table_filtered(
+    connection: hive.Connection,
+    table_name: str,
+    filter_pattern: str,
+    columns: str = "*",
+    filter_column: str = "_raw_value",
+) -> List[Dict[str, Any]]:
+    """Query table with filter pattern.
+
+    Useful for retrieving only test-specific rows when using unique test IDs.
+
+    Args:
+        connection: PyHive Hive connection
+        table_name: Table name
+        filter_pattern: SQL LIKE pattern (e.g., '%test-abc123%')
+        columns: Columns to select (default: *)
+        filter_column: Column to filter on (default: _raw_value for Bronze tables)
+
+    Returns:
+        List of rows matching the filter
+    """
+    query = f"SELECT {columns} FROM {table_name} WHERE {filter_column} LIKE '{filter_pattern}'"
+    return execute_query(connection, query)
 
 
 def table_exists(connection: hive.Connection, table_name: str) -> bool:
@@ -887,7 +945,7 @@ def get_table_schema(
         table_name: Table name
 
     Returns:
-        List of dicts with 'column_name' and 'data_type' keys
+        List of dicts with 'column_name' and 'data_type' keys.
     """
     results = execute_query(connection, f"DESCRIBE {table_name}")
     return [
@@ -976,6 +1034,13 @@ def insert_bronze_data(
 
     # Get table schema to build INSERT statement
     schema = get_table_schema(connection, table_name)
+
+    if not schema:
+        raise RuntimeError(
+            f"Cannot insert into {table_name}: table has no schema. "
+            "Ensure reset_all_state fixture ran successfully."
+        )
+
     columns = [col["column_name"] for col in schema]
 
     for record in records:

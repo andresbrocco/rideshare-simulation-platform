@@ -357,27 +357,32 @@ def test_checkpoint_recovery_after_restart(
     kafka_producer,
     thrift_connection,
     minio_client,
+    test_context,
 ):
     """DF-004: Verify Spark Streaming resumes from checkpoint after restart.
 
     Publishes 10 events, waits for ingestion, restarts spark-streaming-low-volume
     container, publishes 10 more events, and validates:
-    - All 20 events present in bronze_trips
+    - All 20 events present in bronze_trips (filtered by test_context)
     - No duplicates from restart
     - Checkpoint files exist in MinIO
-    - Kafka consumer group offset matches expected
     """
-    # Arrange: Generate 10 test events (first batch)
+    from tests.integration.data_platform.utils.sql_helpers import (
+        count_rows_filtered,
+        query_table_filtered,
+    )
+
+    # Arrange: Generate 10 test events (first batch) with unique test IDs
     # Note: Events must include event_id and array format for locations (DBT parsing)
     batch_1_events = []
     for i in range(1, 11):
         event = {
-            "event_id": f"checkpoint-event-{i:03d}",
+            "event_id": test_context.event_id(f"{i:03d}"),
             "event_type": "trip.requested",
-            "trip_id": f"checkpoint-test-{i:03d}",
+            "trip_id": test_context.trip_id(f"{i:03d}"),
             "status": "requested",
             "timestamp": f"2026-01-20T10:{i:02d}:00Z",
-            "rider_id": f"rider-{i:03d}",
+            "rider_id": test_context.rider_id(f"{i:03d}"),
             "pickup_location": [-23.5505, -46.6333],
             "dropoff_location": [-23.5620, -46.6550],
         }
@@ -393,20 +398,24 @@ def test_checkpoint_recovery_after_restart(
 
     kafka_producer.flush(timeout=10.0)
 
-    # Wait for first batch ingestion (poll until 10 rows in bronze.bronze_trips)
+    # Wait for first batch ingestion (poll until 10 rows matching our test_context)
+    filter_pattern = test_context.filter_pattern()
+
     def query_bronze_count():
-        return count_rows(thrift_connection, "bronze.bronze_trips")
+        return count_rows_filtered(
+            thrift_connection, "bronze.bronze_trips", filter_pattern
+        )
 
     poll_until_records_present(
         query_callback=query_bronze_count,
         expected_count=10,
         timeout_seconds=60,
         poll_interval=2.0,
-        description="bronze_trips after batch 1",
+        description=f"bronze_trips after batch 1 (filter: {filter_pattern})",
     )
 
     # Verify first batch ingested
-    bronze_count_before_restart = count_rows(thrift_connection, "bronze.bronze_trips")
+    bronze_count_before_restart = query_bronze_count()
     assert (
         bronze_count_before_restart == 10
     ), f"Expected 10 rows before restart, found {bronze_count_before_restart}"
@@ -445,12 +454,12 @@ def test_checkpoint_recovery_after_restart(
     batch_2_events = []
     for i in range(11, 21):
         event = {
-            "event_id": f"checkpoint-event-{i:03d}",
+            "event_id": test_context.event_id(f"{i:03d}"),
             "event_type": "trip.requested",
-            "trip_id": f"checkpoint-test-{i:03d}",
+            "trip_id": test_context.trip_id(f"{i:03d}"),
             "status": "requested",
             "timestamp": f"2026-01-20T10:{i:02d}:00Z",
-            "rider_id": f"rider-{i:03d}",
+            "rider_id": test_context.rider_id(f"{i:03d}"),
             "pickup_location": [-23.5505, -46.6333],
             "dropoff_location": [-23.5620, -46.6550],
         }
@@ -466,20 +475,22 @@ def test_checkpoint_recovery_after_restart(
 
     kafka_producer.flush(timeout=10.0)
 
-    # Wait for second batch ingestion (poll until 20 rows in bronze_trips)
+    # Wait for second batch ingestion (poll until 20 rows matching our filter)
     poll_until_records_present(
         query_callback=query_bronze_count,
         expected_count=20,
         timeout_seconds=60,
         poll_interval=2.0,
-        description="bronze_trips after batch 2",
+        description=f"bronze_trips after batch 2 (filter: {filter_pattern})",
     )
 
-    # Assert: Query bronze.bronze_trips and verify 20 rows
+    # Assert: Query bronze.bronze_trips and verify 20 rows with our test_context
     # Bronze layer stores raw JSON in _raw_value column
-    bronze_trips = query_table(
+    bronze_trips = query_table_filtered(
         thrift_connection,
-        "SELECT _raw_value, _kafka_offset FROM bronze.bronze_trips ORDER BY _kafka_offset",
+        "bronze.bronze_trips",
+        filter_pattern,
+        columns="_raw_value, _kafka_offset",
     )
 
     assert (
@@ -488,7 +499,7 @@ def test_checkpoint_recovery_after_restart(
 
     # Assert: All trip_ids present (no data loss)
     # Parse trip_id from raw JSON
-    expected_trip_ids = {f"checkpoint-test-{i:03d}" for i in range(1, 21)}
+    expected_trip_ids = {test_context.trip_id(f"{i:03d}") for i in range(1, 21)}
     actual_trip_ids = set()
     for row in bronze_trips:
         raw_json = json.loads(row["_raw_value"])
@@ -525,7 +536,3 @@ def test_checkpoint_recovery_after_restart(
 
     except Exception as e:
         pytest.fail(f"Failed to verify checkpoint files in MinIO: {e}")
-
-    # Assert: Kafka consumer group offset consistency (optional advanced check)
-    # This would require Kafka Admin API to query consumer group offsets
-    # Placeholder for future enhancement

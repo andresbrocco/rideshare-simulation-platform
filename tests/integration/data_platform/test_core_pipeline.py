@@ -29,6 +29,7 @@ def test_simulation_api_kafka_publishing(
     kafka_admin,  # Ensures topics are created
     kafka_consumer,
     kafka_producer,
+    test_context,
 ):
     """NEW-001: Verify Simulation API publishes trip events to Kafka.
 
@@ -70,7 +71,8 @@ def test_simulation_api_kafka_publishing(
     ), "Consumer did not get partition assignment after 30 seconds"
 
     # Verify consumer can receive messages by sending a test marker message
-    test_marker_id = f"test-marker-{int(time.time() * 1000)}"
+    # Use unique test_context ID to avoid conflicts with previous test runs
+    test_marker_id = test_context.marker_id()
     test_marker = {
         "event_id": test_marker_id,
         "event_type": "test.marker",
@@ -85,8 +87,9 @@ def test_simulation_api_kafka_publishing(
     kafka_producer.flush(timeout=5.0)
 
     # Verify we can read the marker (this validates the consumer is working)
+    # Filter by our unique marker ID to avoid reading old messages
     marker_found = False
-    for _ in range(10):
+    for _ in range(30):  # Increased timeout to handle larger topic with old messages
         msg = kafka_consumer.poll(timeout=1.0)
         if msg is not None and not msg.error():
             try:
@@ -98,7 +101,7 @@ def test_simulation_api_kafka_publishing(
                 pass
 
     assert marker_found, (
-        "Consumer could not read test marker message. "
+        f"Consumer could not read test marker message with ID {test_marker_id}. "
         "Kafka consumer setup may be incorrect."
     )
 

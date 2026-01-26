@@ -12,7 +12,6 @@ from pathlib import Path
 import pytest
 
 from tests.integration.data_platform.utils.sql_helpers import (
-    count_rows,
     insert_bronze_data,
     query_table,
 )
@@ -39,9 +38,9 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 @pytest.mark.usefixtures("streaming_jobs_running")
 def test_trip_lifecycle_bronze_ingestion(
     clean_bronze_tables,
-    wait_for_bronze_ingestion,
+    kafka_producer,
     thrift_connection,
-    test_trip_events,
+    test_context,
 ):
     """FJ-001: Verify complete trip lifecycle flows from Kafka to Bronze.
 
@@ -60,17 +59,64 @@ def test_trip_lifecycle_bronze_ingestion(
     - Event order preserved (via timestamp)
     """
     import json as json_module
+    from tests.integration.data_platform.fixtures.trip_events import (
+        generate_trip_lifecycle,
+    )
+    from tests.integration.data_platform.utils.sql_helpers import query_table_filtered
+    from tests.integration.data_platform.utils.wait_helpers import (
+        poll_until_records_present,
+    )
 
-    # Arrange: test_trip_events generates 6 events, published_events publishes them
-    # wait_for_bronze_ingestion polls until events appear in Bronze
-    expected_count = len(test_trip_events)
-    trip_id = test_trip_events[0]["trip_id"]
+    # Arrange: Generate trip events with unique test IDs
+    trip_id = test_context.trip_id("001")
+    rider_id = test_context.rider_id("001")
+    driver_id = test_context.driver_id("001")
 
-    # Act: Query bronze.bronze_trips table
+    trip_events = generate_trip_lifecycle(
+        trip_id=trip_id,
+        rider_id=rider_id,
+        driver_id=driver_id,
+        surge_multiplier=1.0,
+        fare=15.00,
+    )
+    expected_count = len(trip_events)
+
+    # Publish events to Kafka
+    for event in trip_events:
+        kafka_producer.produce(
+            topic="trips",
+            value=json_module.dumps(event).encode("utf-8"),
+            key=trip_id.encode("utf-8"),
+        )
+    kafka_producer.flush(timeout=10.0)
+
+    # Wait for events to appear in Bronze
+    filter_pattern = test_context.filter_pattern()
+
+    def query_bronze_count():
+        from tests.integration.data_platform.utils.sql_helpers import (
+            count_rows_filtered,
+        )
+
+        return count_rows_filtered(
+            thrift_connection, "bronze.bronze_trips", filter_pattern
+        )
+
+    poll_until_records_present(
+        query_callback=query_bronze_count,
+        expected_count=expected_count,
+        timeout_seconds=60,
+        poll_interval=2.0,
+        description=f"bronze_trips for trip {trip_id}",
+    )
+
+    # Act: Query bronze.bronze_trips table for our test events only
     # Bronze layer stores raw JSON in _raw_value column
-    rows = query_table(
+    rows = query_table_filtered(
         thrift_connection,
-        f"SELECT _raw_value, _ingested_at, _kafka_partition, _kafka_offset FROM bronze.bronze_trips WHERE _raw_value LIKE '%{trip_id}%' ORDER BY _kafka_offset",
+        "bronze.bronze_trips",
+        filter_pattern,
+        columns="_raw_value, _ingested_at, _kafka_partition, _kafka_offset",
     )
 
     # Assert: All 6 events present
@@ -91,6 +137,9 @@ def test_trip_lifecycle_bronze_ingestion(
     for row in rows:
         event = json_module.loads(row["_raw_value"])
         parsed_events.append(event)
+
+    # Sort by timestamp for order comparison
+    parsed_events.sort(key=lambda e: e.get("timestamp", ""))
 
     # Assert: Events match expected types (event_type field from parsed JSON)
     expected_types = [
@@ -121,6 +170,7 @@ def test_dbt_silver_transformation(
     clean_bronze_tables,
     clean_silver_tables,
     thrift_connection,
+    test_context,
 ):
     """FJ-003: Verify DBT transforms Bronze to Silver.
 
@@ -131,33 +181,36 @@ def test_dbt_silver_transformation(
     - Anomaly detection tables populated (anomalies_gps_outliers)
     - Row counts: Silver <= Bronze (deduplication removes records)
     """
+    from tests.integration.data_platform.utils.sql_helpers import count_rows_filtered
+
     # Arrange: Insert test data into Bronze tables as raw JSON
     # Include some duplicate records and anomalies for testing
+    # Use unique IDs from test_context to avoid conflicts
 
     # Bronze trips: with duplicates (same event_id = duplicate)
     raw_trip_events = [
         {
-            "event_id": "fj003-event-001",  # First occurrence
+            "event_id": test_context.event_id("001"),  # First occurrence
             "event_type": "trip.completed",
-            "trip_id": "trip-001",
-            "rider_id": "rider-001",
-            "driver_id": "driver-001",
+            "trip_id": test_context.trip_id("001"),
+            "rider_id": test_context.rider_id("001"),
+            "driver_id": test_context.driver_id("001"),
             "timestamp": "2026-01-20T10:00:00Z",
         },
         {
-            "event_id": "fj003-event-001",  # Duplicate (same event_id)
+            "event_id": test_context.event_id("001"),  # Duplicate (same event_id)
             "event_type": "trip.completed",
-            "trip_id": "trip-001",
-            "rider_id": "rider-001",
-            "driver_id": "driver-001",
+            "trip_id": test_context.trip_id("001"),
+            "rider_id": test_context.rider_id("001"),
+            "driver_id": test_context.driver_id("001"),
             "timestamp": "2026-01-20T10:00:00Z",
         },
         {
-            "event_id": "fj003-event-002",
+            "event_id": test_context.event_id("002"),
             "event_type": "trip.completed",
-            "trip_id": "trip-002",
-            "rider_id": "rider-002",
-            "driver_id": "driver-002",
+            "trip_id": test_context.trip_id("002"),
+            "rider_id": test_context.rider_id("002"),
+            "driver_id": test_context.driver_id("002"),
             "timestamp": "2026-01-20T11:00:00Z",
         },
     ]
@@ -179,22 +232,22 @@ def test_dbt_silver_transformation(
     # Bronze GPS pings: with invalid coordinates
     raw_gps_events = [
         {
-            "event_id": "fj003-gps-001",
-            "entity_id": "driver-001",
+            "event_id": test_context.event_id("gps-001"),
+            "entity_id": test_context.driver_id("001"),
             "entity_type": "driver",
             "location": [-23.5505, -46.6333],  # Valid coordinates
             "timestamp": "2026-01-20T10:00:00Z",
         },
         {
-            "event_id": "fj003-gps-002",
-            "entity_id": "driver-001",
+            "event_id": test_context.event_id("gps-002"),
+            "entity_id": test_context.driver_id("001"),
             "entity_type": "driver",
             "location": [999.0, -46.6333],  # Invalid latitude (outlier)
             "timestamp": "2026-01-20T10:00:05Z",
         },
         {
-            "event_id": "fj003-gps-003",
-            "entity_id": "driver-002",
+            "event_id": test_context.event_id("gps-003"),
+            "entity_id": test_context.driver_id("002"),
             "entity_type": "driver",
             "location": [-23.5629, -46.6544],  # Valid coordinates
             "timestamp": "2026-01-20T10:00:00Z",
@@ -218,9 +271,14 @@ def test_dbt_silver_transformation(
     insert_bronze_data(thrift_connection, "bronze.bronze_trips", bronze_trips_data)
     insert_bronze_data(thrift_connection, "bronze.bronze_gps_pings", bronze_gps_data)
 
-    # Record Bronze counts before transformation
-    bronze_trips_count = count_rows(thrift_connection, "bronze.bronze_trips")
-    bronze_gps_count = count_rows(thrift_connection, "bronze.bronze_gps_pings")
+    # Record Bronze counts before transformation (only our test data)
+    filter_pattern = test_context.filter_pattern()
+    bronze_trips_count = count_rows_filtered(
+        thrift_connection, "bronze.bronze_trips", filter_pattern
+    )
+    bronze_gps_count = count_rows_filtered(
+        thrift_connection, "bronze.bronze_gps_pings", filter_pattern
+    )
 
     # Act: Execute DBT Silver transformations using local DBT installation
     # Run only stg_trips and stg_gps_pings models to avoid running models with schema issues
@@ -247,19 +305,22 @@ def test_dbt_silver_transformation(
         f"STDERR: {dbt_result.stderr}"
     )
 
-    # Query Silver tables
+    # Query Silver tables - filter by our test_context event_id prefix
+    event_id_prefix = f"event-{test_context.test_id}%"
     silver_trips = query_table(
         thrift_connection,
-        "SELECT event_id, trip_id, event_type, timestamp FROM silver.stg_trips ORDER BY event_id",
+        f"SELECT event_id, trip_id, event_type, timestamp FROM silver.stg_trips "
+        f"WHERE event_id LIKE '{event_id_prefix}' ORDER BY event_id",
     )
 
     # Query GPS pings - note that stg_gps_pings extracts latitude/longitude from location array
     silver_gps = query_table(
         thrift_connection,
-        "SELECT event_id, entity_id, latitude, longitude FROM silver.stg_gps_pings ORDER BY event_id",
+        f"SELECT event_id, entity_id, latitude, longitude FROM silver.stg_gps_pings "
+        f"WHERE event_id LIKE '{event_id_prefix}' ORDER BY event_id",
     )
 
-    # Assert: stg_trips has deduplicated records
+    # Assert: stg_trips has deduplicated records (our test data only)
     assert len(silver_trips) < bronze_trips_count, (
         f"Expected deduplication. Bronze: {bronze_trips_count}, "
         f"Silver: {len(silver_trips)}"
