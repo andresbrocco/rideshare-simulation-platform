@@ -1,3 +1,5 @@
+name: rideshare-platform
+
 # Docker Compose Profiles:
 # - core: Simulation runtime services (kafka, redis, osrm, simulation, stream-processor, frontend)
 # - data-pipeline: ETL, streaming, and orchestration (minio, spark-*, localstack, airflow)
@@ -743,7 +745,7 @@ services:
     container_name: rideshare-postgres-superset
     mem_limit: 256m
     profiles:
-      - bi
+      - analytics
     ports:
       - "5433:5432"
     environment:
@@ -766,7 +768,7 @@ services:
     container_name: rideshare-redis-superset
     mem_limit: 128m
     profiles:
-      - bi
+      - analytics
     ports:
       - "6380:6379"
     volumes:
@@ -785,7 +787,7 @@ services:
     container_name: rideshare-superset-init
     user: root
     profiles:
-      - bi
+      - analytics
     environment:
       SUPERSET_SECRET_KEY: dev-secret-key-change-in-production
       PYTHONPATH: /app/pythonpath
@@ -828,7 +830,7 @@ services:
     container_name: rideshare-superset
     mem_limit: 768m
     profiles:
-      - bi
+      - analytics
     ports:
       - "8088:8088"
     user: root
