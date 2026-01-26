@@ -1,13 +1,17 @@
-"""Tests for remaining streaming jobs (driver-status, surge-updates, ratings, payments, profiles).
+"""Parameterized tests for streaming jobs topic configuration.
 
 These tests verify that LowVolumeStreamingJob correctly handles all low-volume topics
-for Bronze layer Delta table ingestion.
+for Bronze layer Delta table ingestion. Tests use pytest.mark.parametrize to eliminate
+code duplication across topics.
+
+Refactored per ticket 009 to use parameterized tests instead of separate test classes.
 """
 
+import pytest
 from unittest.mock import MagicMock
 
-
 from spark_streaming.jobs.low_volume_streaming_job import LowVolumeStreamingJob
+from spark_streaming.jobs.high_volume_streaming_job import HighVolumeStreamingJob
 from spark_streaming.config.kafka_config import KafkaConfig
 from spark_streaming.config.checkpoint_config import CheckpointConfig
 from spark_streaming.utils.error_handler import ErrorHandler
@@ -29,6 +33,24 @@ def create_low_volume_job(spark=None) -> LowVolumeStreamingJob:
     error_handler = ErrorHandler(dlq_table_path="s3a://test-dlq/")
 
     return LowVolumeStreamingJob(spark, kafka_config, checkpoint_config, error_handler)
+
+
+def create_high_volume_job(spark=None) -> HighVolumeStreamingJob:
+    """Create a test instance of HighVolumeStreamingJob."""
+    if spark is None:
+        spark = MagicMock()
+
+    kafka_config = KafkaConfig(
+        bootstrap_servers="kafka:9092",
+        schema_registry_url="http://schema-registry:8081",
+    )
+    checkpoint_config = CheckpointConfig(
+        checkpoint_path="s3a://test-checkpoints/gps-pings/",
+        trigger_interval="10 seconds",
+    )
+    error_handler = ErrorHandler(dlq_table_path="s3a://test-dlq/")
+
+    return HighVolumeStreamingJob(spark, kafka_config, checkpoint_config, error_handler)
 
 
 # =============================================================================
@@ -96,196 +118,151 @@ class TestLowVolumeStreamingJobImport:
 
 
 # =============================================================================
-# Driver Status Topic Tests (via LowVolumeStreamingJob)
+# Parameterized Topic Tests - All Low-Volume Topics
 # =============================================================================
 
 
-class TestDriverStatusStreamingJobProperties:
-    """Tests for driver-status topic configuration via LowVolumeStreamingJob."""
+# All low-volume topics with their expected path components
+LOW_VOLUME_TOPICS = [
+    ("trips", "trips"),
+    ("driver-status", "driver_status"),
+    ("surge-updates", "surge_updates"),
+    ("ratings", "ratings"),
+    ("payments", "payments"),
+    ("driver-profiles", "driver_profiles"),
+    ("rider-profiles", "rider_profiles"),
+]
 
-    def test_topic_name_is_driver_status(self):
-        """Verify driver-status topic is in LowVolumeStreamingJob topic_names."""
-        job = create_low_volume_job()
-        assert "driver-status" in job.topic_names
 
-    def test_bronze_table_path(self):
-        """Verify get_bronze_path returns correct path for driver-status."""
+@pytest.mark.parametrize("topic,expected_table_name", LOW_VOLUME_TOPICS)
+class TestLowVolumeTopicConfiguration:
+    """Parameterized tests for low-volume topic configuration."""
+
+    def test_topic_is_in_job_topic_names(self, topic, expected_table_name):
+        """Verify topic is in LowVolumeStreamingJob topic_names."""
         job = create_low_volume_job()
-        bronze_path = job.get_bronze_path("driver-status")
+        assert topic in job.topic_names
+
+    def test_bronze_path_contains_correct_table_name(self, topic, expected_table_name):
+        """Verify get_bronze_path returns correct path containing table name."""
+        job = create_low_volume_job()
+        bronze_path = job.get_bronze_path(topic)
         assert "bronze" in bronze_path.lower()
-        assert "driver_status" in bronze_path.lower()
-
-    def test_inherits_from_base_streaming_job(self):
-        """Verify LowVolumeStreamingJob inherits from BaseStreamingJob."""
-        from spark_streaming.framework.base_streaming_job import BaseStreamingJob
-
-        assert issubclass(LowVolumeStreamingJob, BaseStreamingJob)
+        assert expected_table_name in bronze_path.lower()
 
 
 # =============================================================================
-# Surge Updates Topic Tests (via LowVolumeStreamingJob)
+# Parameterized Bronze Path Mapping Tests - All 8 Topics
 # =============================================================================
 
 
-class TestSurgeUpdatesStreamingJobProperties:
-    """Tests for surge-updates topic configuration via LowVolumeStreamingJob."""
+# All 8 topics with their expected bronze paths
+ALL_TOPICS_BRONZE_PATHS = [
+    ("trips", "s3a://rideshare-bronze/bronze_trips/", "low"),
+    ("driver-status", "s3a://rideshare-bronze/bronze_driver_status/", "low"),
+    ("surge-updates", "s3a://rideshare-bronze/bronze_surge_updates/", "low"),
+    ("ratings", "s3a://rideshare-bronze/bronze_ratings/", "low"),
+    ("payments", "s3a://rideshare-bronze/bronze_payments/", "low"),
+    ("driver-profiles", "s3a://rideshare-bronze/bronze_driver_profiles/", "low"),
+    ("rider-profiles", "s3a://rideshare-bronze/bronze_rider_profiles/", "low"),
+    ("gps-pings", "s3a://rideshare-bronze/bronze_gps_pings/", "high"),
+]
 
-    def test_topic_name_is_surge_updates(self):
-        """Verify surge-updates topic is in LowVolumeStreamingJob topic_names."""
+
+@pytest.mark.parametrize("topic,expected_path,job_type", ALL_TOPICS_BRONZE_PATHS)
+def test_bronze_path_exact_match(topic, expected_path, job_type):
+    """Verify exact bronze path for each topic."""
+    if job_type == "high":
+        job = create_high_volume_job()
+    else:
         job = create_low_volume_job()
-        assert "surge-updates" in job.topic_names
 
-    def test_bronze_table_path(self):
-        """Verify get_bronze_path returns correct path for surge-updates."""
+    assert job.get_bronze_path(topic) == expected_path
+
+
+@pytest.mark.parametrize("topic,expected_path,job_type", ALL_TOPICS_BRONZE_PATHS)
+def test_bronze_path_starts_with_s3a(topic, expected_path, job_type):
+    """Verify all bronze paths use s3a protocol."""
+    if job_type == "high":
+        job = create_high_volume_job()
+    else:
         job = create_low_volume_job()
-        bronze_path = job.get_bronze_path("surge-updates")
-        assert "bronze" in bronze_path.lower()
-        assert "surge_updates" in bronze_path.lower()
 
-    def test_inherits_from_base_streaming_job(self):
-        """Verify LowVolumeStreamingJob inherits from BaseStreamingJob."""
-        from spark_streaming.framework.base_streaming_job import BaseStreamingJob
+    bronze_path = job.get_bronze_path(topic)
+    assert bronze_path.startswith("s3a://")
 
-        assert issubclass(LowVolumeStreamingJob, BaseStreamingJob)
+
+@pytest.mark.parametrize("topic,expected_path,job_type", ALL_TOPICS_BRONZE_PATHS)
+def test_bronze_path_ends_with_slash(topic, expected_path, job_type):
+    """Verify all bronze paths end with trailing slash."""
+    if job_type == "high":
+        job = create_high_volume_job()
+    else:
+        job = create_low_volume_job()
+
+    bronze_path = job.get_bronze_path(topic)
+    assert bronze_path.endswith("/")
 
 
 # =============================================================================
-# Ratings Topic Tests (via LowVolumeStreamingJob)
+# Parameterized Hyphen-to-Underscore Conversion Tests
 # =============================================================================
 
 
-class TestRatingsStreamingJobProperties:
-    """Tests for ratings topic configuration via LowVolumeStreamingJob."""
+HYPHENATED_TOPICS = [
+    ("driver-status", "driver_status"),
+    ("surge-updates", "surge_updates"),
+    ("driver-profiles", "driver_profiles"),
+    ("rider-profiles", "rider_profiles"),
+    ("gps-pings", "gps_pings"),
+]
 
-    def test_topic_name_is_ratings(self):
-        """Verify ratings topic is in LowVolumeStreamingJob topic_names."""
+
+@pytest.mark.parametrize("topic,expected_underscore_name", HYPHENATED_TOPICS)
+def test_hyphen_to_underscore_conversion(topic, expected_underscore_name):
+    """Verify topic names with hyphens are converted to underscores in paths."""
+    if topic == "gps-pings":
+        job = create_high_volume_job()
+    else:
         job = create_low_volume_job()
-        assert "ratings" in job.topic_names
 
-    def test_bronze_table_path(self):
-        """Verify get_bronze_path returns correct path for ratings."""
-        job = create_low_volume_job()
-        bronze_path = job.get_bronze_path("ratings")
-        assert "bronze" in bronze_path.lower()
-        assert "ratings" in bronze_path.lower()
-
-    def test_inherits_from_base_streaming_job(self):
-        """Verify LowVolumeStreamingJob inherits from BaseStreamingJob."""
-        from spark_streaming.framework.base_streaming_job import BaseStreamingJob
-
-        assert issubclass(LowVolumeStreamingJob, BaseStreamingJob)
+    bronze_path = job.get_bronze_path(topic)
+    assert expected_underscore_name in bronze_path
+    # Ensure hyphen is NOT in path
+    assert f"bronze_{topic}/" not in bronze_path or "-" not in topic
 
 
 # =============================================================================
-# Payments Topic Tests (via LowVolumeStreamingJob)
+# Parameterized Job Inheritance Tests
 # =============================================================================
 
 
-class TestPaymentsStreamingJobProperties:
-    """Tests for payments topic configuration via LowVolumeStreamingJob."""
-
-    def test_topic_name_is_payments(self):
-        """Verify payments topic is in LowVolumeStreamingJob topic_names."""
-        job = create_low_volume_job()
-        assert "payments" in job.topic_names
-
-    def test_bronze_table_path(self):
-        """Verify get_bronze_path returns correct path for payments."""
-        job = create_low_volume_job()
-        bronze_path = job.get_bronze_path("payments")
-        assert "bronze" in bronze_path.lower()
-        assert "payments" in bronze_path.lower()
-
-    def test_inherits_from_base_streaming_job(self):
-        """Verify LowVolumeStreamingJob inherits from BaseStreamingJob."""
-        from spark_streaming.framework.base_streaming_job import BaseStreamingJob
-
-        assert issubclass(LowVolumeStreamingJob, BaseStreamingJob)
+JOB_CLASSES = [
+    (LowVolumeStreamingJob, "LowVolumeStreamingJob"),
+    (HighVolumeStreamingJob, "HighVolumeStreamingJob"),
+]
 
 
-# =============================================================================
-# Driver Profiles Topic Tests (via LowVolumeStreamingJob)
-# =============================================================================
+@pytest.mark.parametrize("job_class,job_name", JOB_CLASSES)
+def test_job_inherits_from_base_streaming_job(job_class, job_name):
+    """Verify job classes inherit from BaseStreamingJob."""
+    from spark_streaming.framework.base_streaming_job import BaseStreamingJob
+
+    assert issubclass(job_class, BaseStreamingJob)
 
 
-class TestDriverProfilesStreamingJobProperties:
-    """Tests for driver-profiles topic configuration via LowVolumeStreamingJob."""
+@pytest.mark.parametrize("job_class,job_name", JOB_CLASSES)
+def test_job_inherits_from_multi_topic_streaming_job(job_class, job_name):
+    """Verify job classes inherit from MultiTopicStreamingJob."""
+    from spark_streaming.jobs.multi_topic_streaming_job import (
+        MultiTopicStreamingJob,
+    )
 
-    def test_topic_name_is_driver_profiles(self):
-        """Verify driver-profiles topic is in LowVolumeStreamingJob topic_names."""
-        job = create_low_volume_job()
-        assert "driver-profiles" in job.topic_names
-
-    def test_bronze_table_path(self):
-        """Verify get_bronze_path returns correct path for driver-profiles."""
-        job = create_low_volume_job()
-        bronze_path = job.get_bronze_path("driver-profiles")
-        assert "bronze" in bronze_path.lower()
-        assert "driver_profiles" in bronze_path.lower()
-
-    def test_inherits_from_base_streaming_job(self):
-        """Verify LowVolumeStreamingJob inherits from BaseStreamingJob."""
-        from spark_streaming.framework.base_streaming_job import BaseStreamingJob
-
-        assert issubclass(LowVolumeStreamingJob, BaseStreamingJob)
+    assert issubclass(job_class, MultiTopicStreamingJob)
 
 
 # =============================================================================
-# Rider Profiles Topic Tests (via LowVolumeStreamingJob)
-# =============================================================================
-
-
-class TestRiderProfilesStreamingJobProperties:
-    """Tests for rider-profiles topic configuration via LowVolumeStreamingJob."""
-
-    def test_topic_name_is_rider_profiles(self):
-        """Verify rider-profiles topic is in LowVolumeStreamingJob topic_names."""
-        job = create_low_volume_job()
-        assert "rider-profiles" in job.topic_names
-
-    def test_bronze_table_path(self):
-        """Verify get_bronze_path returns correct path for rider-profiles."""
-        job = create_low_volume_job()
-        bronze_path = job.get_bronze_path("rider-profiles")
-        assert "bronze" in bronze_path.lower()
-        assert "rider_profiles" in bronze_path.lower()
-
-    def test_inherits_from_base_streaming_job(self):
-        """Verify LowVolumeStreamingJob inherits from BaseStreamingJob."""
-        from spark_streaming.framework.base_streaming_job import BaseStreamingJob
-
-        assert issubclass(LowVolumeStreamingJob, BaseStreamingJob)
-
-
-# =============================================================================
-# Trips Topic Tests (via LowVolumeStreamingJob)
-# =============================================================================
-
-
-class TestTripsStreamingJobProperties:
-    """Tests for trips topic configuration via LowVolumeStreamingJob."""
-
-    def test_topic_name_is_trips(self):
-        """Verify trips topic is in LowVolumeStreamingJob topic_names."""
-        job = create_low_volume_job()
-        assert "trips" in job.topic_names
-
-    def test_bronze_table_path(self):
-        """Verify get_bronze_path returns correct path for trips."""
-        job = create_low_volume_job()
-        bronze_path = job.get_bronze_path("trips")
-        assert "bronze" in bronze_path.lower()
-        assert "trips" in bronze_path.lower()
-
-    def test_inherits_from_base_streaming_job(self):
-        """Verify LowVolumeStreamingJob inherits from BaseStreamingJob."""
-        from spark_streaming.framework.base_streaming_job import BaseStreamingJob
-
-        assert issubclass(LowVolumeStreamingJob, BaseStreamingJob)
-
-
-# =============================================================================
-# Bronze Path Mapping Tests
+# Bronze Path Mapping Tests (Non-Parameterized)
 # =============================================================================
 
 
@@ -308,23 +285,6 @@ class TestBronzePathMapping:
             # Should follow pattern: s3a://rideshare-bronze/bronze_<topic_underscored>/
             assert bronze_path.startswith("s3a://rideshare-bronze/bronze_")
             assert bronze_path.endswith("/")
-
-    def test_hyphen_to_underscore_conversion(self):
-        """Verify topic names with hyphens are converted to underscores in paths."""
-        job = create_low_volume_job()
-
-        # Topics with hyphens
-        hyphenated_topics = [
-            "driver-status",
-            "surge-updates",
-            "driver-profiles",
-            "rider-profiles",
-        ]
-
-        for topic in hyphenated_topics:
-            bronze_path = job.get_bronze_path(topic)
-            expected_table = topic.replace("-", "_")
-            assert expected_table in bronze_path
 
     def test_partition_columns_set(self):
         """Verify partition columns are configured for date partitioning."""

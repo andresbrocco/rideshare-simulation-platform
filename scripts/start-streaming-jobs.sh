@@ -21,16 +21,12 @@ JOBS_PATH="/opt/spark_streaming/jobs"
 KAFKA_BOOTSTRAP_SERVERS="kafka:29092"
 SCHEMA_REGISTRY_URL="http://schema-registry:8085"
 
-# All streaming jobs
+# Consolidated streaming jobs (as of 2026-01-26):
+# - high_volume_streaming_job.py: handles gps-pings topic (high throughput)
+# - low_volume_streaming_job.py: handles 7 other topics (trips, driver-status, etc.)
 JOBS=(
-    "trips_streaming_job.py"
-    "gps_pings_streaming_job.py"
-    "driver_status_streaming_job.py"
-    "surge_updates_streaming_job.py"
-    "ratings_streaming_job.py"
-    "payments_streaming_job.py"
-    "driver_profiles_streaming_job.py"
-    "rider_profiles_streaming_job.py"
+    "high_volume_streaming_job.py"
+    "low_volume_streaming_job.py"
 )
 
 # Colors for output

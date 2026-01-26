@@ -47,16 +47,12 @@ except ImportError:
             )
 
 
-# Streaming job configurations
+# Streaming job configurations (consolidated as of 2026-01-26)
+# - high_volume: handles gps-pings topic (high throughput, needs isolation)
+# - low_volume: handles 7 other topics (trips, driver-status, surge-updates, etc.)
 STREAMING_JOBS = [
-    {"name": "trips", "file": "trips_streaming_job.py"},
-    {"name": "gps_pings", "file": "gps_pings_streaming_job.py"},
-    {"name": "driver_status", "file": "driver_status_streaming_job.py"},
-    {"name": "surge_updates", "file": "surge_updates_streaming_job.py"},
-    {"name": "ratings", "file": "ratings_streaming_job.py"},
-    {"name": "payments", "file": "payments_streaming_job.py"},
-    {"name": "driver_profiles", "file": "driver_profiles_streaming_job.py"},
-    {"name": "rider_profiles", "file": "rider_profiles_streaming_job.py"},
+    {"name": "high_volume", "file": "high_volume_streaming_job.py"},
+    {"name": "low_volume", "file": "low_volume_streaming_job.py"},
 ]
 
 default_args = {

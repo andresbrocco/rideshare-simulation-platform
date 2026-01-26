@@ -1,7 +1,6 @@
 """Tests for streaming jobs lifecycle DAG."""
 
 import pytest
-from datetime import timedelta
 from airflow.models import DagBag
 
 
@@ -33,7 +32,11 @@ def test_dag_loads(dagbag):
 
 
 def test_environment_detection_local(dagbag, mock_local_environment):
-    """Verify SparkSubmitOperator is used when RIDESHARE_ENVIRONMENT=local."""
+    """Verify PythonOperator is used when RIDESHARE_ENVIRONMENT=local.
+
+    Note: Local mode uses PythonOperator to submit jobs via Docker exec,
+    not SparkSubmitOperator.
+    """
     dagbag_local = DagBag(
         dag_folder="/Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/services/airflow/dags/",
         include_examples=False,
@@ -46,8 +49,8 @@ def test_environment_detection_local(dagbag, mock_local_environment):
 
     for task in submit_tasks:
         assert (
-            task.task_type == "SparkSubmitOperator"
-        ), f"Task {task.task_id} should use SparkSubmitOperator in local mode"
+            task.task_type == "PythonOperator"
+        ), f"Task {task.task_id} should use PythonOperator in local mode"
 
 
 def test_environment_detection_cloud(dagbag, mock_cloud_environment):
@@ -69,18 +72,15 @@ def test_environment_detection_cloud(dagbag, mock_cloud_environment):
 
 
 def test_all_jobs_configured(dagbag):
-    """Verify all 8 streaming jobs have submit and health check tasks."""
+    """Verify all 2 consolidated streaming jobs have submit and health check tasks."""
     dag = dagbag.dags["streaming_jobs_lifecycle"]
 
+    # Consolidated streaming jobs (as of 2026-01-26):
+    # - high_volume: handles gps-pings topic
+    # - low_volume: handles 7 other topics
     expected_jobs = [
-        "trips",
-        "gps_pings",
-        "driver_status",
-        "surge_updates",
-        "ratings",
-        "payments",
-        "driver_profiles",
-        "rider_profiles",
+        "high_volume",
+        "low_volume",
     ]
 
     task_ids = {task.task_id for task in dag.tasks}
@@ -101,7 +101,9 @@ def test_health_sensor_timeout(dagbag):
         task for task in dag.tasks if task.task_id.startswith("health_check_")
     ]
 
-    assert len(health_check_tasks) == 8, "Should have 8 health check tasks"
+    assert (
+        len(health_check_tasks) == 2
+    ), "Should have 2 health check tasks (consolidated jobs)"
 
     for task in health_check_tasks:
         assert task.task_type in [
@@ -135,17 +137,12 @@ def test_restart_on_failure(dagbag):
 
     upstream_tasks = {task.task_id for task in restart_task.upstream_list}
 
+    # Consolidated streaming jobs (as of 2026-01-26)
     health_check_tasks = [
         f"health_check_{job}"
         for job in [
-            "trips",
-            "gps_pings",
-            "driver_status",
-            "surge_updates",
-            "ratings",
-            "payments",
-            "driver_profiles",
-            "rider_profiles",
+            "high_volume",
+            "low_volume",
         ]
     ]
 
@@ -156,16 +153,18 @@ def test_restart_on_failure(dagbag):
 
 
 def test_manual_trigger(dagbag):
-    """Verify DAG supports manual trigger with correct configuration."""
+    """Verify DAG supports manual trigger with correct configuration.
+
+    Note: This DAG is deprecated (as of 2026-01-18) and has schedule=None.
+    Streaming jobs are now managed as dedicated docker-compose services.
+    """
     dag = dagbag.dags["streaming_jobs_lifecycle"]
 
     assert dag.catchup is False, "DAG should not catch up on past runs"
 
     schedule = getattr(dag, "schedule_interval", None) or dag.schedule
-    expected_interval = timedelta(minutes=5)
-    assert (
-        schedule == expected_interval or schedule == "*/5 * * * *"
-    ), "DAG should run every 5 minutes"
+    # DAG is deprecated - schedule is None
+    assert schedule is None, "DAG should have schedule=None (deprecated)"
 
     assert hasattr(dag, "params") or True, "DAG should support manual parameters"
 
@@ -193,15 +192,10 @@ def test_task_dependencies(dagbag):
 
     tasks = {task.task_id: task for task in dag.tasks}
 
+    # Consolidated streaming jobs (as of 2026-01-26)
     for job_name in [
-        "trips",
-        "gps_pings",
-        "driver_status",
-        "surge_updates",
-        "ratings",
-        "payments",
-        "driver_profiles",
-        "rider_profiles",
+        "high_volume",
+        "low_volume",
     ]:
         submit_task = tasks[f"submit_{job_name}"]
         health_task = tasks[f"health_check_{job_name}"]
