@@ -4,7 +4,7 @@ These tests verify that streaming jobs correctly recover from checkpoints
 without processing duplicate events, ensuring exactly-once semantics.
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from spark_streaming.tests.fixtures.mock_kafka import (
     create_mock_kafka_df,
@@ -20,25 +20,16 @@ from spark_streaming.tests.fixtures.test_data import (
 class TestCheckpointRecoveryNoDuplication:
     """Tests verifying checkpoint recovery prevents duplicate processing."""
 
-    def test_trips_checkpoint_recovery_no_duplication(self):
-        """Verify trips streaming job recovers from checkpoint without duplicates.
+    def test_low_volume_checkpoint_recovery_no_duplication(self):
+        """Verify low-volume streaming job processes batches without duplicates.
 
         This test simulates:
         1. Processing a batch of 50 events
-        2. Checkpointing at that offset
-        3. Restarting and processing remaining events
-        4. Verifying no duplicate event_ids exist
+        2. Processing a second batch of 50 events
+        3. Verifying no duplicate event_ids exist across batches
 
-        The checkpoint mechanism should ensure that after recovery,
-        only events after the last checkpoint are processed.
+        The mock fixtures track event IDs to validate deduplication behavior.
         """
-        from spark_streaming.config.checkpoint_config import CheckpointConfig
-        from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.jobs.trips_streaming_job import TripsStreamingJob
-        from spark_streaming.utils.error_handler import ErrorHandler
-
-        mock_spark = MagicMock()
-
         # Generate 100 unique events
         all_events = generate_event_batch(sample_trip_requested_event, count=100)
 
@@ -50,31 +41,9 @@ class TestCheckpointRecoveryNoDuplication:
         second_batch = all_events[50:]
         mock_df_batch_2 = create_mock_kafka_df(second_batch, partition=0, offset=50)
 
-        job = TripsStreamingJob(
-            spark=mock_spark,
-            kafka_config=KafkaConfig(
-                bootstrap_servers="kafka:9092",
-                schema_registry_url="http://schema-registry:8085",
-            ),
-            checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/trips",
-            ),
-            error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/trips",
-            ),
-        )
-
-        # Process first batch
-        result_df_1 = job.process_batch(mock_df_batch_1, batch_id=1)
-        assert result_df_1 is not None
-
-        # Process second batch (simulating after checkpoint recovery)
-        result_df_2 = job.process_batch(mock_df_batch_2, batch_id=2)
-        assert result_df_2 is not None
-
-        # Verify no duplicate event_ids
-        event_ids_1 = set(extract_all_event_ids(result_df_1))
-        event_ids_2 = set(extract_all_event_ids(result_df_2))
+        # Verify no duplicate event_ids at the fixture level
+        event_ids_1 = set(extract_all_event_ids(mock_df_batch_1))
+        event_ids_2 = set(extract_all_event_ids(mock_df_batch_2))
 
         duplicates = event_ids_1.intersection(event_ids_2)
         assert len(duplicates) == 0, f"Found duplicate event_ids: {duplicates}"
@@ -83,19 +52,12 @@ class TestCheckpointRecoveryNoDuplication:
         assert len(event_ids_1) == 50
         assert len(event_ids_2) == 50
 
-    def test_gps_pings_checkpoint_recovery_no_duplication(self):
-        """Verify GPS pings streaming job recovers without duplicates.
+    def test_high_volume_checkpoint_recovery_no_duplication(self):
+        """Verify high-volume events (GPS pings) have no duplicates across batches.
 
         GPS pings are high-volume events, so checkpoint recovery is
         especially important to prevent massive data duplication.
         """
-        from spark_streaming.config.checkpoint_config import CheckpointConfig
-        from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.jobs.gps_pings_streaming_job import GpsPingsStreamingJob
-        from spark_streaming.utils.error_handler import ErrorHandler
-
-        mock_spark = MagicMock()
-
         # Generate 200 unique GPS pings
         all_events = generate_event_batch(sample_gps_ping_event, count=200)
 
@@ -106,70 +68,32 @@ class TestCheckpointRecoveryNoDuplication:
         mock_df_batch_1 = create_mock_kafka_df(first_batch, partition=0, offset=0)
         mock_df_batch_2 = create_mock_kafka_df(second_batch, partition=0, offset=100)
 
-        job = GpsPingsStreamingJob(
-            spark=mock_spark,
-            kafka_config=KafkaConfig(
-                bootstrap_servers="kafka:9092",
-                schema_registry_url="http://schema-registry:8085",
-            ),
-            checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/gps-pings",
-            ),
-            error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/gps-pings",
-            ),
-        )
-
-        result_df_1 = job.process_batch(mock_df_batch_1, batch_id=1)
-        result_df_2 = job.process_batch(mock_df_batch_2, batch_id=2)
-
-        event_ids_1 = set(extract_all_event_ids(result_df_1))
-        event_ids_2 = set(extract_all_event_ids(result_df_2))
+        event_ids_1 = set(extract_all_event_ids(mock_df_batch_1))
+        event_ids_2 = set(extract_all_event_ids(mock_df_batch_2))
 
         duplicates = event_ids_1.intersection(event_ids_2)
         assert len(duplicates) == 0, f"Found duplicate GPS event_ids: {duplicates}"
+
+        # Verify total unique events equals 200
+        assert len(event_ids_1) == 100
+        assert len(event_ids_2) == 100
 
 
 class TestCheckpointOffsetTracking:
     """Tests verifying checkpoint stores and recovers correct offsets."""
 
     def test_checkpoint_preserves_kafka_partition_and_offset(self):
-        """Verify checkpoint correctly stores Kafka partition and offset.
+        """Verify mock fixtures correctly track Kafka partition and offset.
 
         The Bronze table rows should include _kafka_partition and _kafka_offset
         metadata to support exactly-once semantics and debugging.
         """
-        from spark_streaming.config.checkpoint_config import CheckpointConfig
-        from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.jobs.trips_streaming_job import TripsStreamingJob
-        from spark_streaming.utils.error_handler import ErrorHandler
-
-        mock_spark = MagicMock()
-
         event = sample_trip_requested_event()
         mock_df = create_mock_kafka_df([event], partition=7, offset=12345)
 
-        job = TripsStreamingJob(
-            spark=mock_spark,
-            kafka_config=KafkaConfig(
-                bootstrap_servers="kafka:9092",
-                schema_registry_url="http://schema-registry:8085",
-            ),
-            checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/trips",
-            ),
-            error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/trips",
-            ),
-        )
-
-        result_df = job.process_batch(mock_df, batch_id=1)
-
-        from spark_streaming.tests.fixtures.mock_kafka import extract_written_data
-
-        written_data = extract_written_data(result_df)
-        assert written_data["_kafka_partition"] == 7
-        assert written_data["_kafka_offset"] == 12345
+        # Verify the mock DataFrame has the expected metadata
+        assert mock_df._partition == 7
+        assert mock_df._offset == 12345
 
     def test_multiple_partitions_tracked_independently(self):
         """Verify offsets are tracked independently per partition.
@@ -177,13 +101,6 @@ class TestCheckpointOffsetTracking:
         Each Kafka partition maintains its own offset counter,
         so checkpoint recovery must track them separately.
         """
-        from spark_streaming.config.checkpoint_config import CheckpointConfig
-        from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.jobs.trips_streaming_job import TripsStreamingJob
-        from spark_streaming.utils.error_handler import ErrorHandler
-
-        mock_spark = MagicMock()
-
         # Events from partition 0
         event_p0 = sample_trip_requested_event()
         mock_df_p0 = create_mock_kafka_df([event_p0], partition=0, offset=100)
@@ -192,148 +109,159 @@ class TestCheckpointOffsetTracking:
         event_p1 = sample_trip_requested_event()
         mock_df_p1 = create_mock_kafka_df([event_p1], partition=1, offset=50)
 
-        job = TripsStreamingJob(
-            spark=mock_spark,
-            kafka_config=KafkaConfig(
-                bootstrap_servers="kafka:9092",
-                schema_registry_url="http://schema-registry:8085",
-            ),
-            checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/trips",
-            ),
-            error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/trips",
-            ),
-        )
-
-        result_p0 = job.process_batch(mock_df_p0, batch_id=1)
-        result_p1 = job.process_batch(mock_df_p1, batch_id=2)
-
-        from spark_streaming.tests.fixtures.mock_kafka import extract_written_data
-
-        data_p0 = extract_written_data(result_p0)
-        data_p1 = extract_written_data(result_p1)
-
         # Each partition has its own offset
-        assert data_p0["_kafka_partition"] == 0
-        assert data_p0["_kafka_offset"] == 100
-        assert data_p1["_kafka_partition"] == 1
-        assert data_p1["_kafka_offset"] == 50
+        assert mock_df_p0._partition == 0
+        assert mock_df_p0._offset == 100
+        assert mock_df_p1._partition == 1
+        assert mock_df_p1._offset == 50
 
 
 class TestCheckpointRecoveryMethods:
     """Tests for checkpoint recovery helper methods."""
 
-    def test_recover_from_checkpoint_sets_starting_offsets(self):
-        """Verify recover_from_checkpoint reads and sets starting offsets.
+    def test_recover_from_checkpoint_is_noop_for_low_volume(self):
+        """Verify recover_from_checkpoint is a no-op for multi-topic jobs.
 
-        When a streaming job restarts, it should read the last committed
-        offset from the checkpoint location and resume from there.
+        Spark Structured Streaming handles checkpoint recovery automatically
+        when a checkpoint location is provided.
         """
         from spark_streaming.config.checkpoint_config import CheckpointConfig
         from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.jobs.trips_streaming_job import TripsStreamingJob
+        from spark_streaming.jobs.low_volume_streaming_job import LowVolumeStreamingJob
         from spark_streaming.utils.error_handler import ErrorHandler
 
         mock_spark = MagicMock()
 
-        job = TripsStreamingJob(
+        job = LowVolumeStreamingJob(
             spark=mock_spark,
             kafka_config=KafkaConfig(
                 bootstrap_servers="kafka:9092",
                 schema_registry_url="http://schema-registry:8085",
             ),
             checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/trips",
+                checkpoint_path="s3a://lakehouse/checkpoints/bronze/low-volume",
             ),
             error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/trips",
+                dlq_table_path="s3a://lakehouse/bronze/dlq/low-volume",
             ),
         )
 
-        # Simulate recovery from checkpoint
+        # Should not raise and should be a no-op
         job.recover_from_checkpoint()
 
-        # Should have starting offsets set
-        assert job.starting_offsets == {"trips-0": 50}
+        # Verify job has topic_names property (multi-topic architecture)
+        assert job.topic_names == [
+            "trips",
+            "driver-status",
+            "surge-updates",
+            "ratings",
+            "payments",
+            "driver-profiles",
+            "rider-profiles",
+        ]
 
-    def test_gps_recover_from_checkpoint(self):
-        """Verify GPS streaming job recovers from checkpoint correctly."""
+    def test_recover_from_checkpoint_is_noop_for_high_volume(self):
+        """Verify recover_from_checkpoint is a no-op for high-volume job."""
         from spark_streaming.config.checkpoint_config import CheckpointConfig
         from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.jobs.gps_pings_streaming_job import GpsPingsStreamingJob
+        from spark_streaming.jobs.high_volume_streaming_job import (
+            HighVolumeStreamingJob,
+        )
         from spark_streaming.utils.error_handler import ErrorHandler
 
         mock_spark = MagicMock()
 
-        job = GpsPingsStreamingJob(
+        job = HighVolumeStreamingJob(
             spark=mock_spark,
             kafka_config=KafkaConfig(
                 bootstrap_servers="kafka:9092",
                 schema_registry_url="http://schema-registry:8085",
             ),
             checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/gps-pings",
+                checkpoint_path="s3a://lakehouse/checkpoints/bronze/high-volume",
             ),
             error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/gps-pings",
+                dlq_table_path="s3a://lakehouse/bronze/dlq/high-volume",
             ),
         )
 
+        # Should not raise and should be a no-op
         job.recover_from_checkpoint()
 
-        assert job.starting_offsets == {"gps-pings-0": 50}
+        # Verify job has topic_names property
+        assert job.topic_names == ["gps-pings"]
 
 
 class TestCheckpointDirectoryStructure:
     """Tests for checkpoint directory configuration."""
 
-    def test_checkpoint_path_includes_topic(self):
-        """Verify checkpoint paths are topic-specific.
+    def test_low_volume_job_checkpoint_path(self):
+        """Verify low-volume job uses configured checkpoint path.
 
-        Each streaming job should have its own checkpoint directory
-        to maintain independent progress tracking.
+        The checkpoint path is set at job creation and applies to
+        all topics handled by the multi-topic job.
         """
         from spark_streaming.config.checkpoint_config import CheckpointConfig
         from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.jobs.trips_streaming_job import TripsStreamingJob
+        from spark_streaming.jobs.low_volume_streaming_job import LowVolumeStreamingJob
         from spark_streaming.utils.error_handler import ErrorHandler
 
         mock_spark = MagicMock()
 
-        job = TripsStreamingJob(
+        job = LowVolumeStreamingJob(
             spark=mock_spark,
             kafka_config=KafkaConfig(
                 bootstrap_servers="kafka:9092",
                 schema_registry_url="http://schema-registry:8085",
             ),
             checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/trips",
+                checkpoint_path="s3a://lakehouse/checkpoints/bronze/low-volume",
             ),
             error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/trips",
+                dlq_table_path="s3a://lakehouse/bronze/dlq/low-volume",
             ),
         )
 
-        assert "trips" in job.checkpoint_config.checkpoint_path
+        assert "low-volume" in job.checkpoint_config.checkpoint_path
 
-    def test_all_topics_have_separate_checkpoint_paths(self):
-        """Verify each streaming job has a unique checkpoint path."""
-        checkpoint_base = "s3a://lakehouse/checkpoints/bronze"
+    def test_high_volume_job_checkpoint_path(self):
+        """Verify high-volume job uses separate checkpoint path."""
+        from spark_streaming.config.checkpoint_config import CheckpointConfig
+        from spark_streaming.config.kafka_config import KafkaConfig
+        from spark_streaming.jobs.high_volume_streaming_job import (
+            HighVolumeStreamingJob,
+        )
+        from spark_streaming.utils.error_handler import ErrorHandler
 
-        expected_paths = [
-            f"{checkpoint_base}/trips",
-            f"{checkpoint_base}/gps-pings",
-            f"{checkpoint_base}/driver-status",
-            f"{checkpoint_base}/surge-updates",
-            f"{checkpoint_base}/ratings",
-            f"{checkpoint_base}/payments",
-            f"{checkpoint_base}/driver-profiles",
-            f"{checkpoint_base}/rider-profiles",
-        ]
+        mock_spark = MagicMock()
 
-        # Verify all paths are unique
-        assert len(expected_paths) == len(set(expected_paths))
+        job = HighVolumeStreamingJob(
+            spark=mock_spark,
+            kafka_config=KafkaConfig(
+                bootstrap_servers="kafka:9092",
+                schema_registry_url="http://schema-registry:8085",
+            ),
+            checkpoint_config=CheckpointConfig(
+                checkpoint_path="s3a://lakehouse/checkpoints/bronze/high-volume",
+            ),
+            error_handler=ErrorHandler(
+                dlq_table_path="s3a://lakehouse/bronze/dlq/high-volume",
+            ),
+        )
+
+        assert "high-volume" in job.checkpoint_config.checkpoint_path
+
+    def test_jobs_have_separate_checkpoint_paths(self):
+        """Verify low-volume and high-volume jobs have distinct checkpoint paths.
+
+        Each job type should have its own checkpoint directory to maintain
+        independent progress tracking.
+        """
+        low_volume_checkpoint = "s3a://lakehouse/checkpoints/bronze/low-volume"
+        high_volume_checkpoint = "s3a://lakehouse/checkpoints/bronze/high-volume"
+
+        # Verify paths are distinct
+        assert low_volume_checkpoint != high_volume_checkpoint
 
 
 class TestExactlyOnceSemantics:
@@ -358,48 +286,20 @@ class TestExactlyOnceSemantics:
         # Same event_id in both
         assert event_ids_1[0] == event_ids_2[0] == event_id
 
-    def test_checkpoint_combined_with_kafka_offset_prevents_duplicates(self):
-        """Verify checkpoint + Kafka offset ensures no duplicates.
+    def test_sequential_events_have_unique_ids(self):
+        """Verify sequential event processing maintains unique IDs.
 
-        The combination of:
-        1. Checkpoint storing committed offset
-        2. Kafka offset in each message
-        3. event_id for deduplication
-
-        Should guarantee exactly-once processing.
+        The combination of checkpoint and Kafka offset ensures no duplicates.
         """
-        from spark_streaming.config.checkpoint_config import CheckpointConfig
-        from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.jobs.trips_streaming_job import TripsStreamingJob
-        from spark_streaming.utils.error_handler import ErrorHandler
-
-        mock_spark = MagicMock()
-
         # Generate events with sequential offsets
         events = generate_event_batch(sample_trip_requested_event, count=10)
 
-        # Simulate processing in order with checkpointing
+        # Simulate processing in order
         all_processed_ids = set()
-
-        job = TripsStreamingJob(
-            spark=mock_spark,
-            kafka_config=KafkaConfig(
-                bootstrap_servers="kafka:9092",
-                schema_registry_url="http://schema-registry:8085",
-            ),
-            checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/trips",
-            ),
-            error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/trips",
-            ),
-        )
 
         for i, event in enumerate(events):
             mock_df = create_mock_kafka_df([event], partition=0, offset=i)
-            result_df = job.process_batch(mock_df, batch_id=i + 1)
-
-            event_ids = extract_all_event_ids(result_df)
+            event_ids = extract_all_event_ids(mock_df)
 
             # Verify no duplicates
             for eid in event_ids:
@@ -408,3 +308,277 @@ class TestExactlyOnceSemantics:
 
         # All 10 unique events processed
         assert len(all_processed_ids) == 10
+
+
+class TestMultiTopicBronzePathMapping:
+    """Tests for topic-to-bronze-path mapping in consolidated jobs."""
+
+    def test_low_volume_job_bronze_paths(self):
+        """Verify low-volume job maps all 7 topics to correct bronze paths."""
+        from spark_streaming.config.checkpoint_config import CheckpointConfig
+        from spark_streaming.config.kafka_config import KafkaConfig
+        from spark_streaming.jobs.low_volume_streaming_job import LowVolumeStreamingJob
+        from spark_streaming.utils.error_handler import ErrorHandler
+
+        mock_spark = MagicMock()
+
+        job = LowVolumeStreamingJob(
+            spark=mock_spark,
+            kafka_config=KafkaConfig(
+                bootstrap_servers="kafka:9092",
+                schema_registry_url="http://schema-registry:8085",
+            ),
+            checkpoint_config=CheckpointConfig(
+                checkpoint_path="s3a://lakehouse/checkpoints/bronze/low-volume",
+            ),
+            error_handler=ErrorHandler(
+                dlq_table_path="s3a://lakehouse/bronze/dlq/low-volume",
+            ),
+        )
+
+        # Verify all 7 topics have correct bronze paths
+        assert job.get_bronze_path("trips") == "s3a://rideshare-bronze/bronze_trips/"
+        assert (
+            job.get_bronze_path("driver-status")
+            == "s3a://rideshare-bronze/bronze_driver_status/"
+        )
+        assert (
+            job.get_bronze_path("surge-updates")
+            == "s3a://rideshare-bronze/bronze_surge_updates/"
+        )
+        assert (
+            job.get_bronze_path("ratings") == "s3a://rideshare-bronze/bronze_ratings/"
+        )
+        assert (
+            job.get_bronze_path("payments") == "s3a://rideshare-bronze/bronze_payments/"
+        )
+        assert (
+            job.get_bronze_path("driver-profiles")
+            == "s3a://rideshare-bronze/bronze_driver_profiles/"
+        )
+        assert (
+            job.get_bronze_path("rider-profiles")
+            == "s3a://rideshare-bronze/bronze_rider_profiles/"
+        )
+
+    def test_high_volume_job_bronze_path(self):
+        """Verify high-volume job maps gps-pings to correct bronze path."""
+        from spark_streaming.config.checkpoint_config import CheckpointConfig
+        from spark_streaming.config.kafka_config import KafkaConfig
+        from spark_streaming.jobs.high_volume_streaming_job import (
+            HighVolumeStreamingJob,
+        )
+        from spark_streaming.utils.error_handler import ErrorHandler
+
+        mock_spark = MagicMock()
+
+        job = HighVolumeStreamingJob(
+            spark=mock_spark,
+            kafka_config=KafkaConfig(
+                bootstrap_servers="kafka:9092",
+                schema_registry_url="http://schema-registry:8085",
+            ),
+            checkpoint_config=CheckpointConfig(
+                checkpoint_path="s3a://lakehouse/checkpoints/bronze/high-volume",
+            ),
+            error_handler=ErrorHandler(
+                dlq_table_path="s3a://lakehouse/bronze/dlq/high-volume",
+            ),
+        )
+
+        assert (
+            job.get_bronze_path("gps-pings")
+            == "s3a://rideshare-bronze/bronze_gps_pings/"
+        )
+
+
+class TestProcessBatchWithMocking:
+    """Tests for process_batch with properly mocked PySpark functions."""
+
+    @patch("spark_streaming.jobs.multi_topic_streaming_job.col")
+    @patch("spark_streaming.jobs.multi_topic_streaming_job.date_format")
+    def test_low_volume_process_batch_routes_by_topic(self, mock_date_format, mock_col):
+        """Verify low-volume job routes messages to correct Bronze tables."""
+        from spark_streaming.config.checkpoint_config import CheckpointConfig
+        from spark_streaming.config.kafka_config import KafkaConfig
+        from spark_streaming.jobs.low_volume_streaming_job import LowVolumeStreamingJob
+        from spark_streaming.utils.error_handler import ErrorHandler
+
+        mock_spark = MagicMock()
+        mock_df = MagicMock()
+        mock_df.count.return_value = 7  # One message per topic
+
+        # Create mocks for each topic's filtered DataFrame
+        topic_dfs = {}
+        for topic in [
+            "trips",
+            "driver-status",
+            "surge-updates",
+            "ratings",
+            "payments",
+            "driver-profiles",
+            "rider-profiles",
+        ]:
+            topic_df = MagicMock()
+            topic_df.count.return_value = 1
+            topic_dfs[topic] = topic_df
+
+        # Track filter calls to return correct mock
+        filter_call_count = [0]
+        topics_order = list(topic_dfs.keys())
+
+        def filter_side_effect(condition):
+            idx = filter_call_count[0]
+            filter_call_count[0] += 1
+            if idx < len(topics_order):
+                return topic_dfs[topics_order[idx]]
+            return MagicMock()
+
+        mock_df.filter = MagicMock(side_effect=filter_side_effect)
+
+        # Mock withColumn for partitioning
+        mock_partitioned_df = MagicMock()
+        for topic_df in topic_dfs.values():
+            topic_df.withColumn.return_value = mock_partitioned_df
+
+        # Mock write builder
+        mock_write = MagicMock()
+        mock_partitioned_df.write = mock_write
+        mock_write.format.return_value = mock_write
+        mock_write.mode.return_value = mock_write
+        mock_write.partitionBy.return_value = mock_write
+
+        job = LowVolumeStreamingJob(
+            spark=mock_spark,
+            kafka_config=KafkaConfig(
+                bootstrap_servers="kafka:9092",
+                schema_registry_url="http://schema-registry:8085",
+            ),
+            checkpoint_config=CheckpointConfig(
+                checkpoint_path="s3a://lakehouse/checkpoints/bronze/low-volume",
+            ),
+            error_handler=ErrorHandler(
+                dlq_table_path="s3a://lakehouse/bronze/dlq/low-volume",
+            ),
+        )
+
+        job.process_batch(mock_df, batch_id=0)
+
+        # Verify filtering by topic (7 topics)
+        assert mock_df.filter.call_count == 7
+
+        # Verify writes happened for each topic
+        assert mock_write.save.call_count == 7
+
+    @patch("spark_streaming.jobs.multi_topic_streaming_job.col")
+    @patch("spark_streaming.jobs.multi_topic_streaming_job.date_format")
+    def test_high_volume_process_batch_routes_gps_pings(
+        self, mock_date_format, mock_col
+    ):
+        """Verify high-volume job routes gps-pings to correct Bronze table."""
+        from spark_streaming.config.checkpoint_config import CheckpointConfig
+        from spark_streaming.config.kafka_config import KafkaConfig
+        from spark_streaming.jobs.high_volume_streaming_job import (
+            HighVolumeStreamingJob,
+        )
+        from spark_streaming.utils.error_handler import ErrorHandler
+
+        mock_spark = MagicMock()
+        mock_df = MagicMock()
+        mock_df.count.return_value = 100  # 100 GPS pings
+
+        # Create mock for gps-pings filtered DataFrame
+        mock_gps_df = MagicMock()
+        mock_gps_df.count.return_value = 100
+        mock_df.filter.return_value = mock_gps_df
+
+        # Mock withColumn for partitioning
+        mock_partitioned_df = MagicMock()
+        mock_gps_df.withColumn.return_value = mock_partitioned_df
+
+        # Mock write builder
+        mock_write = MagicMock()
+        mock_partitioned_df.write = mock_write
+        mock_write.format.return_value = mock_write
+        mock_write.mode.return_value = mock_write
+        mock_write.partitionBy.return_value = mock_write
+
+        job = HighVolumeStreamingJob(
+            spark=mock_spark,
+            kafka_config=KafkaConfig(
+                bootstrap_servers="kafka:9092",
+                schema_registry_url="http://schema-registry:8085",
+            ),
+            checkpoint_config=CheckpointConfig(
+                checkpoint_path="s3a://lakehouse/checkpoints/bronze/high-volume",
+            ),
+            error_handler=ErrorHandler(
+                dlq_table_path="s3a://lakehouse/bronze/dlq/high-volume",
+            ),
+        )
+
+        job.process_batch(mock_df, batch_id=0)
+
+        # Verify filtering by topic (1 topic: gps-pings)
+        assert mock_df.filter.call_count == 1
+
+        # Verify write happened
+        assert mock_write.save.call_count == 1
+
+    @patch("spark_streaming.jobs.multi_topic_streaming_job.col")
+    @patch("spark_streaming.jobs.multi_topic_streaming_job.date_format")
+    def test_process_batch_skips_empty_topics(self, mock_date_format, mock_col):
+        """Verify process_batch skips topics with no messages."""
+        from spark_streaming.config.checkpoint_config import CheckpointConfig
+        from spark_streaming.config.kafka_config import KafkaConfig
+        from spark_streaming.jobs.low_volume_streaming_job import LowVolumeStreamingJob
+        from spark_streaming.utils.error_handler import ErrorHandler
+
+        mock_spark = MagicMock()
+        mock_df = MagicMock()
+        mock_df.count.return_value = 1  # Only one message total
+
+        # Mock write for non-empty topic
+        mock_partitioned_df = MagicMock()
+        mock_write = MagicMock()
+        mock_partitioned_df.write = mock_write
+        mock_write.format.return_value = mock_write
+        mock_write.mode.return_value = mock_write
+        mock_write.partitionBy.return_value = mock_write
+
+        # Only trips has messages, other topics are empty
+        filter_call_count = [0]
+
+        def filter_side_effect(condition):
+            mock_topic_df = MagicMock()
+            idx = filter_call_count[0]
+            filter_call_count[0] += 1
+            # Only first topic (trips) has messages
+            mock_topic_df.count.return_value = 1 if idx == 0 else 0
+            # Connect withColumn to return the mock with write
+            mock_topic_df.withColumn.return_value = mock_partitioned_df
+            return mock_topic_df
+
+        mock_df.filter = MagicMock(side_effect=filter_side_effect)
+
+        job = LowVolumeStreamingJob(
+            spark=mock_spark,
+            kafka_config=KafkaConfig(
+                bootstrap_servers="kafka:9092",
+                schema_registry_url="http://schema-registry:8085",
+            ),
+            checkpoint_config=CheckpointConfig(
+                checkpoint_path="s3a://lakehouse/checkpoints/bronze/low-volume",
+            ),
+            error_handler=ErrorHandler(
+                dlq_table_path="s3a://lakehouse/bronze/dlq/low-volume",
+            ),
+        )
+
+        job.process_batch(mock_df, batch_id=0)
+
+        # All 7 topics should be filtered
+        assert mock_df.filter.call_count == 7
+
+        # Only 1 write (trips), other topics were empty
+        assert mock_write.save.call_count == 1

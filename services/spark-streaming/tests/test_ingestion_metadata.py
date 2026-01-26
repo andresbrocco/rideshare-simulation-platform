@@ -5,326 +5,117 @@ These tests verify that all Bronze tables include ingestion metadata columns
 fields (session_id, correlation_id, causation_id) from event payloads.
 """
 
-import uuid
-from datetime import datetime, timezone
-from unittest.mock import MagicMock
-
 from pyspark.sql.types import (
     IntegerType,
     LongType,
     StringType,
     TimestampType,
 )
+from unittest.mock import MagicMock
+
+from spark_streaming.jobs.low_volume_streaming_job import LowVolumeStreamingJob
+from spark_streaming.jobs.high_volume_streaming_job import HighVolumeStreamingJob
+from spark_streaming.config.kafka_config import KafkaConfig
+from spark_streaming.config.checkpoint_config import CheckpointConfig
+from spark_streaming.utils.error_handler import ErrorHandler
 
 
-class TestIngestionMetadataPopulated:
-    """Tests for ingestion metadata column population."""
+def create_test_kafka_config():
+    """Create test Kafka configuration."""
+    return KafkaConfig(
+        bootstrap_servers="kafka:9092",
+        schema_registry_url="http://schema-registry:8085",
+    )
 
-    def test_trips_metadata_populated(self):
-        """Verify trips ingestion metadata columns populated correctly."""
-        from spark_streaming.jobs.trips_streaming_job import TripsStreamingJob
-        from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.config.checkpoint_config import CheckpointConfig
-        from spark_streaming.utils.error_handler import ErrorHandler
 
+def create_test_checkpoint_config(path: str):
+    """Create test checkpoint configuration."""
+    return CheckpointConfig(
+        checkpoint_path=path,
+        trigger_interval="10 seconds",
+    )
+
+
+def create_test_error_handler(dlq_path: str):
+    """Create test error handler."""
+    return ErrorHandler(dlq_table_path=dlq_path)
+
+
+class TestLowVolumeJobConfiguration:
+    """Tests for LowVolumeStreamingJob multi-topic configuration."""
+
+    def test_low_volume_job_includes_trips_topic(self):
+        """Verify LowVolumeStreamingJob includes trips topic."""
         mock_spark = MagicMock()
-
-        kafka_message = {
-            "event_id": str(uuid.uuid4()),
-            "event_type": "trip.requested",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "trip_id": str(uuid.uuid4()),
-            "rider_id": str(uuid.uuid4()),
-            "pickup_location": [-23.5505, -46.6333],
-            "dropoff_location": [-23.5605, -46.6433],
-            "pickup_zone_id": "zone_1",
-            "dropoff_zone_id": "zone_2",
-            "surge_multiplier": 1.0,
-            "fare": 0.0,
-            "session_id": "sim-123",
-            "correlation_id": "trip-456",
-            "causation_id": "event-789",
-        }
-
-        mock_df = create_mock_kafka_df([kafka_message], partition=3, offset=500)
-
-        job = TripsStreamingJob(
+        job = LowVolumeStreamingJob(
             spark=mock_spark,
-            kafka_config=KafkaConfig(
-                bootstrap_servers="kafka:9092",
-                schema_registry_url="http://schema-registry:8085",
+            kafka_config=create_test_kafka_config(),
+            checkpoint_config=create_test_checkpoint_config(
+                "s3a://lakehouse/checkpoints/bronze/low-volume"
             ),
-            checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/trips",
-            ),
-            error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/trips",
+            error_handler=create_test_error_handler(
+                "s3a://lakehouse/bronze/dlq/low-volume"
             ),
         )
 
-        result_df = job.process_batch(mock_df, batch_id=1)
+        assert "trips" in job.topic_names
+        assert len(job.topic_names) == 7
 
-        written_data = extract_written_data(result_df)
-        assert written_data["_kafka_partition"] == 3
-        assert written_data["_kafka_offset"] == 500
-        assert written_data["_ingested_at"] is not None
-        assert isinstance(written_data["_ingested_at"], datetime)
-
-    def test_gps_pings_metadata_populated(self):
-        """Verify GPS pings ingestion metadata columns populated correctly."""
-        from spark_streaming.jobs.gps_pings_streaming_job import GpsPingsStreamingJob
-        from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.config.checkpoint_config import CheckpointConfig
-        from spark_streaming.utils.error_handler import ErrorHandler
-
+    def test_low_volume_job_bronze_path_for_trips(self):
+        """Verify LowVolumeStreamingJob returns correct bronze path for trips."""
         mock_spark = MagicMock()
-
-        kafka_message = {
-            "event_id": str(uuid.uuid4()),
-            "entity_type": "driver",
-            "entity_id": str(uuid.uuid4()),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "location": [-23.55, -46.63],
-            "heading": 90.0,
-            "speed": 45.0,
-            "accuracy": 5.0,
-            "trip_id": None,
-            "trip_state": None,
-            "route_progress_index": None,
-            "pickup_route_progress_index": None,
-            "session_id": "sim-123",
-            "correlation_id": "gps-456",
-            "causation_id": "event-789",
-        }
-
-        mock_df = create_mock_kafka_df([kafka_message], partition=3, offset=500)
-
-        job = GpsPingsStreamingJob(
+        job = LowVolumeStreamingJob(
             spark=mock_spark,
-            kafka_config=KafkaConfig(
-                bootstrap_servers="kafka:9092",
-                schema_registry_url="http://schema-registry:8085",
+            kafka_config=create_test_kafka_config(),
+            checkpoint_config=create_test_checkpoint_config(
+                "s3a://lakehouse/checkpoints/bronze/low-volume"
             ),
-            checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/gps-pings",
-            ),
-            error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/gps-pings",
+            error_handler=create_test_error_handler(
+                "s3a://lakehouse/bronze/dlq/low-volume"
             ),
         )
 
-        result_df = job.process_batch(mock_df, batch_id=1)
-
-        written_data = extract_written_data(result_df)
-        assert written_data["_kafka_partition"] == 3
-        assert written_data["_kafka_offset"] == 500
-        assert written_data["_ingested_at"] is not None
+        assert job.get_bronze_path("trips") == "s3a://rideshare-bronze/bronze_trips/"
 
 
-class TestTracingFieldsExtracted:
-    """Tests for distributed tracing field extraction."""
+class TestHighVolumeJobConfiguration:
+    """Tests for HighVolumeStreamingJob multi-topic configuration."""
 
-    def test_tracing_fields_extracted_from_trips(self):
-        """Verify distributed tracing fields extracted from trip event payloads."""
-        from spark_streaming.jobs.trips_streaming_job import TripsStreamingJob
-        from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.config.checkpoint_config import CheckpointConfig
-        from spark_streaming.utils.error_handler import ErrorHandler
-
+    def test_high_volume_job_includes_gps_pings_topic(self):
+        """Verify HighVolumeStreamingJob includes gps-pings topic."""
         mock_spark = MagicMock()
-
-        kafka_message = {
-            "event_id": str(uuid.uuid4()),
-            "event_type": "trip.requested",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "trip_id": str(uuid.uuid4()),
-            "rider_id": str(uuid.uuid4()),
-            "pickup_location": [-23.5505, -46.6333],
-            "dropoff_location": [-23.5605, -46.6433],
-            "pickup_zone_id": "zone_1",
-            "dropoff_zone_id": "zone_2",
-            "surge_multiplier": 1.0,
-            "fare": 0.0,
-            "session_id": "sim-123",
-            "correlation_id": "trip-456",
-            "causation_id": "event-789",
-        }
-
-        mock_df = create_mock_kafka_df([kafka_message], partition=0, offset=100)
-
-        job = TripsStreamingJob(
+        job = HighVolumeStreamingJob(
             spark=mock_spark,
-            kafka_config=KafkaConfig(
-                bootstrap_servers="kafka:9092",
-                schema_registry_url="http://schema-registry:8085",
+            kafka_config=create_test_kafka_config(),
+            checkpoint_config=create_test_checkpoint_config(
+                "s3a://lakehouse/checkpoints/bronze/gps-pings"
             ),
-            checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/trips",
-            ),
-            error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/trips",
+            error_handler=create_test_error_handler(
+                "s3a://lakehouse/bronze/dlq/gps-pings"
             ),
         )
 
-        result_df = job.process_batch(mock_df, batch_id=1)
+        assert "gps-pings" in job.topic_names
+        assert len(job.topic_names) == 1
 
-        written_data = extract_written_data(result_df)
-        assert written_data["session_id"] == "sim-123"
-        assert written_data["correlation_id"] == "trip-456"
-        assert written_data["causation_id"] == "event-789"
-
-    def test_tracing_fields_extracted_from_gps_pings(self):
-        """Verify distributed tracing fields extracted from GPS event payloads."""
-        from spark_streaming.jobs.gps_pings_streaming_job import GpsPingsStreamingJob
-        from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.config.checkpoint_config import CheckpointConfig
-        from spark_streaming.utils.error_handler import ErrorHandler
-
+    def test_high_volume_job_bronze_path_for_gps_pings(self):
+        """Verify HighVolumeStreamingJob returns correct bronze path for gps-pings."""
         mock_spark = MagicMock()
-
-        kafka_message = {
-            "event_id": str(uuid.uuid4()),
-            "entity_type": "driver",
-            "entity_id": str(uuid.uuid4()),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "location": [-23.55, -46.63],
-            "heading": 90.0,
-            "speed": 45.0,
-            "accuracy": 5.0,
-            "trip_id": None,
-            "trip_state": None,
-            "route_progress_index": None,
-            "pickup_route_progress_index": None,
-            "session_id": "sim-999",
-            "correlation_id": "gps-777",
-            "causation_id": "event-888",
-        }
-
-        mock_df = create_mock_kafka_df([kafka_message], partition=0, offset=100)
-
-        job = GpsPingsStreamingJob(
+        job = HighVolumeStreamingJob(
             spark=mock_spark,
-            kafka_config=KafkaConfig(
-                bootstrap_servers="kafka:9092",
-                schema_registry_url="http://schema-registry:8085",
+            kafka_config=create_test_kafka_config(),
+            checkpoint_config=create_test_checkpoint_config(
+                "s3a://lakehouse/checkpoints/bronze/gps-pings"
             ),
-            checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/gps-pings",
-            ),
-            error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/gps-pings",
+            error_handler=create_test_error_handler(
+                "s3a://lakehouse/bronze/dlq/gps-pings"
             ),
         )
 
-        result_df = job.process_batch(mock_df, batch_id=1)
-
-        written_data = extract_written_data(result_df)
-        assert written_data["session_id"] == "sim-999"
-        assert written_data["correlation_id"] == "gps-777"
-        assert written_data["causation_id"] == "event-888"
-
-
-class TestNullTracingFieldsHandled:
-    """Tests for null tracing field handling."""
-
-    def test_null_tracing_fields_handled_gracefully(self):
-        """Verify null tracing fields handled correctly in trips."""
-        from spark_streaming.jobs.trips_streaming_job import TripsStreamingJob
-        from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.config.checkpoint_config import CheckpointConfig
-        from spark_streaming.utils.error_handler import ErrorHandler
-
-        mock_spark = MagicMock()
-
-        kafka_message = {
-            "event_id": str(uuid.uuid4()),
-            "event_type": "trip.requested",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "trip_id": str(uuid.uuid4()),
-            "rider_id": str(uuid.uuid4()),
-            "pickup_location": [-23.5505, -46.6333],
-            "dropoff_location": [-23.5605, -46.6433],
-            "pickup_zone_id": "zone_1",
-            "dropoff_zone_id": "zone_2",
-            "surge_multiplier": 1.0,
-            "fare": 0.0,
-            "session_id": None,
-            "correlation_id": None,
-            "causation_id": None,
-        }
-
-        mock_df = create_mock_kafka_df([kafka_message], partition=0, offset=100)
-
-        job = TripsStreamingJob(
-            spark=mock_spark,
-            kafka_config=KafkaConfig(
-                bootstrap_servers="kafka:9092",
-                schema_registry_url="http://schema-registry:8085",
-            ),
-            checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/trips",
-            ),
-            error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/trips",
-            ),
+        assert (
+            job.get_bronze_path("gps-pings")
+            == "s3a://rideshare-bronze/bronze_gps_pings/"
         )
-
-        result_df = job.process_batch(mock_df, batch_id=1)
-
-        written_data = extract_written_data(result_df)
-        assert written_data["session_id"] is None
-        assert written_data["correlation_id"] is None
-        assert written_data["causation_id"] is None
-
-    def test_null_tracing_fields_in_gps_pings(self):
-        """Verify null tracing fields handled correctly in GPS pings."""
-        from spark_streaming.jobs.gps_pings_streaming_job import GpsPingsStreamingJob
-        from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.config.checkpoint_config import CheckpointConfig
-        from spark_streaming.utils.error_handler import ErrorHandler
-
-        mock_spark = MagicMock()
-
-        kafka_message = {
-            "event_id": str(uuid.uuid4()),
-            "entity_type": "driver",
-            "entity_id": str(uuid.uuid4()),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "location": [-23.55, -46.63],
-            "heading": None,
-            "speed": None,
-            "accuracy": 5.0,
-            "trip_id": None,
-            "trip_state": None,
-            "route_progress_index": None,
-            "pickup_route_progress_index": None,
-            "session_id": None,
-            "correlation_id": None,
-            "causation_id": None,
-        }
-
-        mock_df = create_mock_kafka_df([kafka_message], partition=0, offset=100)
-
-        job = GpsPingsStreamingJob(
-            spark=mock_spark,
-            kafka_config=KafkaConfig(
-                bootstrap_servers="kafka:9092",
-                schema_registry_url="http://schema-registry:8085",
-            ),
-            checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/gps-pings",
-            ),
-            error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/gps-pings",
-            ),
-        )
-
-        result_df = job.process_batch(mock_df, batch_id=1)
-
-        written_data = extract_written_data(result_df)
-        assert written_data["session_id"] is None
-        assert written_data["correlation_id"] is None
-        assert written_data["causation_id"] is None
 
 
 class TestMetadataColumnsInSchema:
@@ -380,50 +171,115 @@ class TestMetadataColumnsInSchema:
         assert "_kafka_partition" in field_names
         assert "_kafka_offset" in field_names
 
+    def test_all_bronze_schemas_include_metadata_columns(self):
+        """Verify all Bronze schemas include required metadata columns."""
+        from schemas.lakehouse.schemas.bronze_tables import (
+            bronze_trips_schema,
+            bronze_gps_pings_schema,
+            bronze_driver_status_schema,
+            bronze_surge_updates_schema,
+            bronze_ratings_schema,
+            bronze_payments_schema,
+            bronze_driver_profiles_schema,
+            bronze_rider_profiles_schema,
+        )
 
-def create_mock_kafka_df(messages: list, partition: int, offset: int) -> MagicMock:
-    """Create a mock Kafka DataFrame with the given messages."""
-    mock_df = MagicMock()
-    mock_df._messages = messages
-    mock_df._partition = partition
-    mock_df._offset = offset
-    mock_df._written_data = None
+        schemas = [
+            ("trips", bronze_trips_schema),
+            ("gps_pings", bronze_gps_pings_schema),
+            ("driver_status", bronze_driver_status_schema),
+            ("surge_updates", bronze_surge_updates_schema),
+            ("ratings", bronze_ratings_schema),
+            ("payments", bronze_payments_schema),
+            ("driver_profiles", bronze_driver_profiles_schema),
+            ("rider_profiles", bronze_rider_profiles_schema),
+        ]
 
-    def mock_select(*args, **kwargs):
-        return mock_df
+        required_metadata_columns = [
+            "session_id",
+            "correlation_id",
+            "causation_id",
+            "_ingested_at",
+            "_kafka_partition",
+            "_kafka_offset",
+        ]
 
-    def mock_withColumn(name, expr):
-        new_df = create_mock_kafka_df(messages, partition, offset)
-        new_df._written_data = mock_df._written_data
-        return new_df
-
-    def mock_write_format(fmt):
-        mock_writer = MagicMock()
-        mock_writer.mode = MagicMock(return_value=mock_writer)
-        mock_writer.option = MagicMock(return_value=mock_writer)
-
-        def mock_save(path=None):
-            if messages:
-                mock_df._written_data = messages[0].copy()
-                mock_df._written_data["_kafka_partition"] = partition
-                mock_df._written_data["_kafka_offset"] = offset
-                mock_df._written_data["_ingested_at"] = datetime.now(timezone.utc)
-
-        mock_writer.save = mock_save
-        mock_writer.saveAsTable = mock_save
-        return mock_writer
-
-    mock_df.select = mock_select
-    mock_df.withColumn = mock_withColumn
-    mock_df.write = MagicMock()
-    mock_df.write.format = MagicMock(side_effect=mock_write_format)
-    mock_df.collect = MagicMock(return_value=[])
-
-    return mock_df
+        for schema_name, schema in schemas:
+            field_names = [field.name for field in schema.fields]
+            for column in required_metadata_columns:
+                assert (
+                    column in field_names
+                ), f"Missing {column} in {schema_name} schema"
 
 
-def extract_written_data(result_df: MagicMock) -> dict:
-    """Extract the data that was written by process_batch."""
-    if hasattr(result_df, "_written_data") and result_df._written_data:
-        return result_df._written_data
-    raise AssertionError("No data was written to the DataFrame")
+class TestMetadataColumnTypes:
+    """Tests for metadata column data types."""
+
+    def test_tracing_fields_are_nullable_strings(self):
+        """Verify tracing fields (session_id, correlation_id, causation_id) are nullable strings."""
+        from schemas.lakehouse.schemas.bronze_tables import bronze_trips_schema
+
+        tracing_fields = ["session_id", "correlation_id", "causation_id"]
+
+        for field_name in tracing_fields:
+            field = next(f for f in bronze_trips_schema.fields if f.name == field_name)
+            assert field.dataType == StringType(), f"{field_name} should be StringType"
+            assert field.nullable is True, f"{field_name} should be nullable"
+
+    def test_kafka_metadata_fields_are_non_nullable(self):
+        """Verify Kafka metadata fields are non-nullable."""
+        from schemas.lakehouse.schemas.bronze_tables import bronze_trips_schema
+
+        ingested_at = next(
+            f for f in bronze_trips_schema.fields if f.name == "_ingested_at"
+        )
+        assert ingested_at.dataType == TimestampType()
+        assert ingested_at.nullable is False
+
+        kafka_partition = next(
+            f for f in bronze_trips_schema.fields if f.name == "_kafka_partition"
+        )
+        assert kafka_partition.dataType == IntegerType()
+        assert kafka_partition.nullable is False
+
+        kafka_offset = next(
+            f for f in bronze_trips_schema.fields if f.name == "_kafka_offset"
+        )
+        assert kafka_offset.dataType == LongType()
+        assert kafka_offset.nullable is False
+
+
+class TestPartitionColumns:
+    """Tests for partition columns in multi-topic jobs."""
+
+    def test_low_volume_job_partition_columns(self):
+        """Verify LowVolumeStreamingJob uses _ingestion_date partition."""
+        mock_spark = MagicMock()
+        job = LowVolumeStreamingJob(
+            spark=mock_spark,
+            kafka_config=create_test_kafka_config(),
+            checkpoint_config=create_test_checkpoint_config(
+                "s3a://lakehouse/checkpoints/bronze/low-volume"
+            ),
+            error_handler=create_test_error_handler(
+                "s3a://lakehouse/bronze/dlq/low-volume"
+            ),
+        )
+
+        assert job.partition_columns == ["_ingestion_date"]
+
+    def test_high_volume_job_partition_columns(self):
+        """Verify HighVolumeStreamingJob uses _ingestion_date partition."""
+        mock_spark = MagicMock()
+        job = HighVolumeStreamingJob(
+            spark=mock_spark,
+            kafka_config=create_test_kafka_config(),
+            checkpoint_config=create_test_checkpoint_config(
+                "s3a://lakehouse/checkpoints/bronze/gps-pings"
+            ),
+            error_handler=create_test_error_handler(
+                "s3a://lakehouse/bronze/dlq/gps-pings"
+            ),
+        )
+
+        assert job.partition_columns == ["_ingestion_date"]

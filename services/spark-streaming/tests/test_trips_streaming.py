@@ -1,685 +1,137 @@
-"""Tests for the trips streaming job.
+"""Tests for trips topic handling via LowVolumeStreamingJob.
 
-These tests verify TripsStreamingJob correctly ingests trip events
-from Kafka to the Bronze layer Delta table.
+These tests verify trips-specific configuration and schema validation
+for Bronze layer Delta table ingestion.
+
+Note: Batch processing behavior is tested in test_multi_topic_streaming_job.py.
+Topic configuration tests are in test_remaining_streaming_jobs.py.
 """
-
-import uuid
-from datetime import datetime, timezone
-from unittest.mock import MagicMock
 
 from pyspark.sql.types import (
     ArrayType,
     DoubleType,
-    StructType,
+    IntegerType,
+    LongType,
+    StringType,
+    TimestampType,
 )
 
 
-class TestTripRequestedIngestion:
-    """Tests for trip.requested event ingestion."""
+class TestTripsSchemaValidation:
+    """Tests for trips Bronze table schema validation.
 
-    def test_trip_requested_ingestion(self):
-        """Verify trip.requested events written to Bronze correctly."""
-        from spark_streaming.jobs.trips_streaming_job import TripsStreamingJob
-        from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.config.checkpoint_config import CheckpointConfig
-        from spark_streaming.utils.error_handler import ErrorHandler
+    These tests verify the schema is correctly defined for trips data,
+    including field types for fare, route, and metadata columns.
+    """
 
-        mock_spark = MagicMock()
-        trip_id = str(uuid.uuid4())
-        rider_id = str(uuid.uuid4())
-        event_id = str(uuid.uuid4())
-        timestamp = datetime.now(timezone.utc).isoformat()
+    def test_fare_field_is_double_type(self):
+        """Verify fare field is defined as DoubleType in schema."""
+        from schemas.lakehouse.schemas.bronze_tables import bronze_trips_schema
 
-        kafka_message = {
-            "event_id": event_id,
-            "event_type": "trip.requested",
-            "timestamp": timestamp,
-            "trip_id": trip_id,
-            "rider_id": rider_id,
-            "pickup_location": [-23.5505, -46.6333],
-            "dropoff_location": [-23.5605, -46.6433],
-            "pickup_zone_id": "zone_1",
-            "dropoff_zone_id": "zone_2",
-            "surge_multiplier": 1.0,
-            "fare": 0.0,
-            "session_id": "session_123",
-            "correlation_id": "corr_123",
-            "causation_id": "cause_123",
-        }
-
-        mock_df = create_mock_kafka_df([kafka_message], partition=0, offset=100)
-
-        job = TripsStreamingJob(
-            spark=mock_spark,
-            kafka_config=KafkaConfig(
-                bootstrap_servers="kafka:9092",
-                schema_registry_url="http://schema-registry:8085",
-            ),
-            checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/trips",
-            ),
-            error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/trips",
-            ),
+        fare_field = next(
+            (f for f in bronze_trips_schema.fields if f.name == "fare"), None
         )
-
-        result_df = job.process_batch(mock_df, batch_id=1)
-
-        assert result_df is not None
-        result_df.write.format.assert_called_with("delta")
-
-        written_data = extract_written_data(result_df)
-        assert written_data["event_id"] == event_id
-        assert written_data["event_type"] == "trip.requested"
-        assert written_data["trip_id"] == trip_id
-        assert written_data["rider_id"] == rider_id
-        assert written_data["pickup_location"] == [-23.5505, -46.6333]
-        assert written_data["dropoff_location"] == [-23.5605, -46.6433]
-        assert written_data["_kafka_partition"] == 0
-        assert written_data["_kafka_offset"] == 100
-        assert written_data["_ingested_at"] is not None
-
-    def test_trip_requested_parses_all_required_fields(self):
-        """Verify all required fields from trip.requested are parsed correctly."""
-        from spark_streaming.jobs.trips_streaming_job import TripsStreamingJob
-        from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.config.checkpoint_config import CheckpointConfig
-        from spark_streaming.utils.error_handler import ErrorHandler
-
-        mock_spark = MagicMock()
-
-        kafka_message = {
-            "event_id": str(uuid.uuid4()),
-            "event_type": "trip.requested",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "trip_id": str(uuid.uuid4()),
-            "rider_id": str(uuid.uuid4()),
-            "pickup_location": [-23.5505, -46.6333],
-            "dropoff_location": [-23.5605, -46.6433],
-            "pickup_zone_id": "centro",
-            "dropoff_zone_id": "pinheiros",
-            "surge_multiplier": 1.5,
-            "fare": 0.0,
-            "session_id": None,
-            "correlation_id": None,
-            "causation_id": None,
-        }
-
-        mock_df = create_mock_kafka_df([kafka_message], partition=2, offset=42)
-
-        job = TripsStreamingJob(
-            spark=mock_spark,
-            kafka_config=KafkaConfig(
-                bootstrap_servers="kafka:9092",
-                schema_registry_url="http://schema-registry:8085",
-            ),
-            checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/trips",
-            ),
-            error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/trips",
-            ),
-        )
-
-        result_df = job.process_batch(mock_df, batch_id=1)
-
-        written_data = extract_written_data(result_df)
-        assert written_data["pickup_zone_id"] == "centro"
-        assert written_data["dropoff_zone_id"] == "pinheiros"
-        assert written_data["surge_multiplier"] == 1.5
-
-
-class TestTripCompletedIngestion:
-    """Tests for trip.completed event ingestion."""
-
-    def test_trip_completed_ingestion(self):
-        """Verify trip.completed events include fare and route data."""
-        from spark_streaming.jobs.trips_streaming_job import TripsStreamingJob
-        from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.config.checkpoint_config import CheckpointConfig
-        from spark_streaming.utils.error_handler import ErrorHandler
-
-        mock_spark = MagicMock()
-        trip_id = str(uuid.uuid4())
-        driver_id = str(uuid.uuid4())
-        rider_id = str(uuid.uuid4())
-
-        route = [
-            [-23.5505, -46.6333],
-            [-23.5520, -46.6350],
-            [-23.5540, -46.6370],
-            [-23.5605, -46.6433],
-        ]
-
-        kafka_message = {
-            "event_id": str(uuid.uuid4()),
-            "event_type": "trip.completed",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "trip_id": trip_id,
-            "rider_id": rider_id,
-            "driver_id": driver_id,
-            "pickup_location": [-23.5505, -46.6333],
-            "dropoff_location": [-23.5605, -46.6433],
-            "pickup_zone_id": "zone_1",
-            "dropoff_zone_id": "zone_2",
-            "surge_multiplier": 1.2,
-            "fare": 25.50,
-            "route": route,
-            "session_id": "session_456",
-            "correlation_id": "corr_456",
-            "causation_id": "cause_456",
-        }
-
-        mock_df = create_mock_kafka_df([kafka_message], partition=1, offset=200)
-
-        job = TripsStreamingJob(
-            spark=mock_spark,
-            kafka_config=KafkaConfig(
-                bootstrap_servers="kafka:9092",
-                schema_registry_url="http://schema-registry:8085",
-            ),
-            checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/trips",
-            ),
-            error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/trips",
-            ),
-        )
-
-        result_df = job.process_batch(mock_df, batch_id=1)
-
-        written_data = extract_written_data(result_df)
-        assert written_data["event_type"] == "trip.completed"
-        assert written_data["fare"] == 25.50
-        assert isinstance(written_data["fare"], float)
-        assert written_data["route"] == route
-        assert isinstance(written_data["route"], list)
-        assert len(written_data["route"]) == 4
-        assert written_data["route"][0] == [-23.5505, -46.6333]
-
-    def test_trip_completed_fare_is_double_type(self):
-        """Verify fare field is stored as DoubleType."""
-        from spark_streaming.jobs.trips_streaming_job import TripsStreamingJob
-        from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.config.checkpoint_config import CheckpointConfig
-        from spark_streaming.utils.error_handler import ErrorHandler
-
-        mock_spark = MagicMock()
-
-        kafka_message = {
-            "event_id": str(uuid.uuid4()),
-            "event_type": "trip.completed",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "trip_id": str(uuid.uuid4()),
-            "rider_id": str(uuid.uuid4()),
-            "driver_id": str(uuid.uuid4()),
-            "pickup_location": [-23.5505, -46.6333],
-            "dropoff_location": [-23.5605, -46.6433],
-            "pickup_zone_id": "zone_1",
-            "dropoff_zone_id": "zone_2",
-            "surge_multiplier": 1.0,
-            "fare": 99.99,
-            "route": [[-23.5505, -46.6333], [-23.5605, -46.6433]],
-            "session_id": None,
-            "correlation_id": None,
-            "causation_id": None,
-        }
-
-        mock_df = create_mock_kafka_df([kafka_message], partition=0, offset=300)
-
-        job = TripsStreamingJob(
-            spark=mock_spark,
-            kafka_config=KafkaConfig(
-                bootstrap_servers="kafka:9092",
-                schema_registry_url="http://schema-registry:8085",
-            ),
-            checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/trips",
-            ),
-            error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/trips",
-            ),
-        )
-
-        result_df = job.process_batch(mock_df, batch_id=1)
-
-        schema = get_result_schema(result_df)
-        fare_field = next((f for f in schema.fields if f.name == "fare"), None)
-        assert fare_field is not None
+        assert fare_field is not None, "fare field not found in schema"
         assert fare_field.dataType == DoubleType()
 
-    def test_trip_completed_route_is_array_of_arrays(self):
-        """Verify route field is stored as ArrayType(ArrayType(DoubleType))."""
-        from spark_streaming.jobs.trips_streaming_job import TripsStreamingJob
-        from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.config.checkpoint_config import CheckpointConfig
-        from spark_streaming.utils.error_handler import ErrorHandler
+    def test_route_field_is_array_of_arrays(self):
+        """Verify route field is defined as ArrayType(ArrayType(DoubleType)) in schema."""
+        from schemas.lakehouse.schemas.bronze_tables import bronze_trips_schema
 
-        mock_spark = MagicMock()
-
-        long_route = [
-            [-23.5505, -46.6333],
-            [-23.5510, -46.6340],
-            [-23.5520, -46.6350],
-            [-23.5530, -46.6360],
-            [-23.5540, -46.6370],
-            [-23.5550, -46.6380],
-            [-23.5560, -46.6390],
-            [-23.5570, -46.6400],
-            [-23.5580, -46.6410],
-            [-23.5590, -46.6420],
-            [-23.5605, -46.6433],
-        ]
-
-        kafka_message = {
-            "event_id": str(uuid.uuid4()),
-            "event_type": "trip.completed",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "trip_id": str(uuid.uuid4()),
-            "rider_id": str(uuid.uuid4()),
-            "driver_id": str(uuid.uuid4()),
-            "pickup_location": [-23.5505, -46.6333],
-            "dropoff_location": [-23.5605, -46.6433],
-            "pickup_zone_id": "zone_1",
-            "dropoff_zone_id": "zone_2",
-            "surge_multiplier": 1.0,
-            "fare": 45.00,
-            "route": long_route,
-            "session_id": None,
-            "correlation_id": None,
-            "causation_id": None,
-        }
-
-        mock_df = create_mock_kafka_df([kafka_message], partition=0, offset=400)
-
-        job = TripsStreamingJob(
-            spark=mock_spark,
-            kafka_config=KafkaConfig(
-                bootstrap_servers="kafka:9092",
-                schema_registry_url="http://schema-registry:8085",
-            ),
-            checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/trips",
-            ),
-            error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/trips",
-            ),
+        route_field = next(
+            (f for f in bronze_trips_schema.fields if f.name == "route"), None
         )
-
-        result_df = job.process_batch(mock_df, batch_id=1)
-
-        schema = get_result_schema(result_df)
-        route_field = next((f for f in schema.fields if f.name == "route"), None)
-        assert route_field is not None
+        assert route_field is not None, "route field not found in schema"
         assert route_field.dataType == ArrayType(ArrayType(DoubleType()))
 
-        written_data = extract_written_data(result_df)
-        assert len(written_data["route"]) == 11
+    def test_surge_multiplier_field_is_double_type(self):
+        """Verify surge_multiplier field is defined as DoubleType in schema."""
+        from schemas.lakehouse.schemas.bronze_tables import bronze_trips_schema
 
+        surge_field = next(
+            (f for f in bronze_trips_schema.fields if f.name == "surge_multiplier"),
+            None,
+        )
+        assert surge_field is not None, "surge_multiplier field not found in schema"
+        assert surge_field.dataType == DoubleType()
 
-class TestTripsCheckpointRecovery:
-    """Tests for checkpoint recovery and exactly-once semantics."""
+    def test_location_fields_are_arrays(self):
+        """Verify pickup/dropoff location fields are ArrayType(DoubleType) in schema."""
+        from schemas.lakehouse.schemas.bronze_tables import bronze_trips_schema
 
-    def test_trips_checkpoint_recovery(self):
-        """Verify trips streaming job recovers from checkpoint without duplicates."""
-        from spark_streaming.jobs.trips_streaming_job import TripsStreamingJob
-        from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.config.checkpoint_config import CheckpointConfig
-        from spark_streaming.utils.error_handler import ErrorHandler
-
-        mock_spark = MagicMock()
-
-        messages = []
-        for i in range(50):
-            messages.append(
-                {
-                    "event_id": str(uuid.uuid4()),
-                    "event_type": "trip.requested" if i % 2 == 0 else "trip.completed",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "trip_id": str(uuid.uuid4()),
-                    "rider_id": str(uuid.uuid4()),
-                    "pickup_location": [-23.5505, -46.6333],
-                    "dropoff_location": [-23.5605, -46.6433],
-                    "pickup_zone_id": "zone_1",
-                    "dropoff_zone_id": "zone_2",
-                    "surge_multiplier": 1.0,
-                    "fare": 25.00 if i % 2 == 1 else 0.0,
-                    "session_id": None,
-                    "correlation_id": None,
-                    "causation_id": None,
-                }
+        for field_name in ["pickup_location", "dropoff_location"]:
+            field = next(
+                (f for f in bronze_trips_schema.fields if f.name == field_name), None
             )
+            assert field is not None, f"{field_name} field not found in schema"
+            assert field.dataType == ArrayType(DoubleType())
 
-        mock_df_batch_1 = create_mock_kafka_df(messages[:25], partition=0, offset=0)
-        mock_df_batch_2 = create_mock_kafka_df(messages[25:], partition=0, offset=25)
+    def test_metadata_columns_present(self):
+        """Verify all required metadata columns are in schema."""
+        from schemas.lakehouse.schemas.bronze_tables import bronze_trips_schema
 
-        job = TripsStreamingJob(
-            spark=mock_spark,
-            kafka_config=KafkaConfig(
-                bootstrap_servers="kafka:9092",
-                schema_registry_url="http://schema-registry:8085",
-            ),
-            checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/trips",
-            ),
-            error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/trips",
-            ),
+        field_names = [f.name for f in bronze_trips_schema.fields]
+
+        # Ingestion metadata
+        assert "_ingested_at" in field_names
+        assert "_kafka_partition" in field_names
+        assert "_kafka_offset" in field_names
+
+        # Tracing metadata
+        assert "session_id" in field_names
+        assert "correlation_id" in field_names
+        assert "causation_id" in field_names
+
+    def test_metadata_column_types(self):
+        """Verify metadata columns have correct types."""
+        from schemas.lakehouse.schemas.bronze_tables import bronze_trips_schema
+
+        ingested_at = next(
+            f for f in bronze_trips_schema.fields if f.name == "_ingested_at"
         )
+        assert ingested_at.dataType == TimestampType()
+        assert ingested_at.nullable is False
 
-        result_df_1 = job.process_batch(mock_df_batch_1, batch_id=1)
-        assert result_df_1 is not None
-
-        result_df_2 = job.process_batch(mock_df_batch_2, batch_id=2)
-        assert result_df_2 is not None
-
-        written_event_ids_1 = set(extract_all_event_ids(result_df_1))
-        written_event_ids_2 = set(extract_all_event_ids(result_df_2))
-
-        duplicates = written_event_ids_1.intersection(written_event_ids_2)
-        assert len(duplicates) == 0, f"Found duplicate event_ids: {duplicates}"
-
-    def test_checkpoint_preserves_kafka_offsets(self):
-        """Verify checkpoint stores Kafka offsets for recovery."""
-        from spark_streaming.jobs.trips_streaming_job import TripsStreamingJob
-        from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.config.checkpoint_config import CheckpointConfig
-        from spark_streaming.utils.error_handler import ErrorHandler
-
-        mock_spark = MagicMock()
-
-        kafka_message = {
-            "event_id": str(uuid.uuid4()),
-            "event_type": "trip.requested",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "trip_id": str(uuid.uuid4()),
-            "rider_id": str(uuid.uuid4()),
-            "pickup_location": [-23.5505, -46.6333],
-            "dropoff_location": [-23.5605, -46.6433],
-            "pickup_zone_id": "zone_1",
-            "dropoff_zone_id": "zone_2",
-            "surge_multiplier": 1.0,
-            "fare": 0.0,
-            "session_id": None,
-            "correlation_id": None,
-            "causation_id": None,
-        }
-
-        mock_df = create_mock_kafka_df([kafka_message], partition=3, offset=999)
-
-        job = TripsStreamingJob(
-            spark=mock_spark,
-            kafka_config=KafkaConfig(
-                bootstrap_servers="kafka:9092",
-                schema_registry_url="http://schema-registry:8085",
-            ),
-            checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/trips",
-            ),
-            error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/trips",
-            ),
+        kafka_partition = next(
+            f for f in bronze_trips_schema.fields if f.name == "_kafka_partition"
         )
+        assert kafka_partition.dataType == IntegerType()
+        assert kafka_partition.nullable is False
 
-        result_df = job.process_batch(mock_df, batch_id=1)
-
-        written_data = extract_written_data(result_df)
-        assert written_data["_kafka_partition"] == 3
-        assert written_data["_kafka_offset"] == 999
-
-    def test_restart_continues_from_last_offset(self):
-        """Verify restarted job continues from last checkpointed offset."""
-        from spark_streaming.jobs.trips_streaming_job import TripsStreamingJob
-        from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.config.checkpoint_config import CheckpointConfig
-        from spark_streaming.utils.error_handler import ErrorHandler
-
-        mock_spark = MagicMock()
-        mock_checkpoint_manager = MagicMock()
-        mock_checkpoint_manager.get_last_offset.return_value = {"trips-0": 50}
-
-        job = TripsStreamingJob(
-            spark=mock_spark,
-            kafka_config=KafkaConfig(
-                bootstrap_servers="kafka:9092",
-                schema_registry_url="http://schema-registry:8085",
-            ),
-            checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/trips",
-            ),
-            error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/trips",
-            ),
+        kafka_offset = next(
+            f for f in bronze_trips_schema.fields if f.name == "_kafka_offset"
         )
+        assert kafka_offset.dataType == LongType()
+        assert kafka_offset.nullable is False
 
-        job.recover_from_checkpoint()
+    def test_tracing_column_types(self):
+        """Verify tracing columns have correct types (nullable strings)."""
+        from schemas.lakehouse.schemas.bronze_tables import bronze_trips_schema
 
-        assert job.starting_offsets == {"trips-0": 50}
+        for field_name in ["session_id", "correlation_id", "causation_id"]:
+            field = next(f for f in bronze_trips_schema.fields if f.name == field_name)
+            assert field.dataType == StringType()
+            assert field.nullable is True
 
+    def test_required_event_fields_present(self):
+        """Verify all required event fields are in schema."""
+        from schemas.lakehouse.schemas.bronze_tables import bronze_trips_schema
 
-class TestTripsStreamingJobProperties:
-    """Tests for TripsStreamingJob configuration and properties."""
+        field_names = [f.name for f in bronze_trips_schema.fields]
 
-    def test_topic_name_is_trips(self):
-        """Verify job subscribes to trips topic."""
-        from spark_streaming.jobs.trips_streaming_job import TripsStreamingJob
-        from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.config.checkpoint_config import CheckpointConfig
-        from spark_streaming.utils.error_handler import ErrorHandler
+        required_fields = [
+            "event_id",
+            "event_type",
+            "timestamp",
+            "trip_id",
+            "rider_id",
+            "pickup_location",
+            "dropoff_location",
+            "pickup_zone_id",
+            "dropoff_zone_id",
+            "surge_multiplier",
+            "fare",
+        ]
 
-        mock_spark = MagicMock()
-
-        job = TripsStreamingJob(
-            spark=mock_spark,
-            kafka_config=KafkaConfig(
-                bootstrap_servers="kafka:9092",
-                schema_registry_url="http://schema-registry:8085",
-            ),
-            checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/trips",
-            ),
-            error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/trips",
-            ),
-        )
-
-        assert job.topic_name == "trips"
-
-    def test_bronze_table_path(self):
-        """Verify job writes to correct Bronze table path."""
-        from spark_streaming.jobs.trips_streaming_job import TripsStreamingJob
-        from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.config.checkpoint_config import CheckpointConfig
-        from spark_streaming.utils.error_handler import ErrorHandler
-
-        mock_spark = MagicMock()
-
-        job = TripsStreamingJob(
-            spark=mock_spark,
-            kafka_config=KafkaConfig(
-                bootstrap_servers="kafka:9092",
-                schema_registry_url="http://schema-registry:8085",
-            ),
-            checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/trips",
-            ),
-            error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/trips",
-            ),
-        )
-
-        assert "bronze" in job.bronze_table_path.lower()
-        assert "trips" in job.bronze_table_path.lower()
-
-    def test_inherits_from_base_streaming_job(self):
-        """Verify TripsStreamingJob inherits from BaseStreamingJob."""
-        from spark_streaming.jobs.trips_streaming_job import TripsStreamingJob
-        from spark_streaming.framework.base_streaming_job import BaseStreamingJob
-
-        assert issubclass(TripsStreamingJob, BaseStreamingJob)
-
-
-class TestMetadataFields:
-    """Tests for metadata field population."""
-
-    def test_ingested_at_is_populated(self):
-        """Verify _ingested_at timestamp is set during processing."""
-        from spark_streaming.jobs.trips_streaming_job import TripsStreamingJob
-        from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.config.checkpoint_config import CheckpointConfig
-        from spark_streaming.utils.error_handler import ErrorHandler
-
-        mock_spark = MagicMock()
-
-        kafka_message = {
-            "event_id": str(uuid.uuid4()),
-            "event_type": "trip.requested",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "trip_id": str(uuid.uuid4()),
-            "rider_id": str(uuid.uuid4()),
-            "pickup_location": [-23.5505, -46.6333],
-            "dropoff_location": [-23.5605, -46.6433],
-            "pickup_zone_id": "zone_1",
-            "dropoff_zone_id": "zone_2",
-            "surge_multiplier": 1.0,
-            "fare": 0.0,
-            "session_id": None,
-            "correlation_id": None,
-            "causation_id": None,
-        }
-
-        mock_df = create_mock_kafka_df([kafka_message], partition=0, offset=0)
-
-        job = TripsStreamingJob(
-            spark=mock_spark,
-            kafka_config=KafkaConfig(
-                bootstrap_servers="kafka:9092",
-                schema_registry_url="http://schema-registry:8085",
-            ),
-            checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/trips",
-            ),
-            error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/trips",
-            ),
-        )
-
-        result_df = job.process_batch(mock_df, batch_id=1)
-
-        written_data = extract_written_data(result_df)
-        assert "_ingested_at" in written_data
-        assert written_data["_ingested_at"] is not None
-
-    def test_kafka_metadata_captured(self):
-        """Verify Kafka partition and offset are captured in metadata."""
-        from spark_streaming.jobs.trips_streaming_job import TripsStreamingJob
-        from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.config.checkpoint_config import CheckpointConfig
-        from spark_streaming.utils.error_handler import ErrorHandler
-
-        mock_spark = MagicMock()
-
-        kafka_message = {
-            "event_id": str(uuid.uuid4()),
-            "event_type": "trip.matched",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "trip_id": str(uuid.uuid4()),
-            "rider_id": str(uuid.uuid4()),
-            "driver_id": str(uuid.uuid4()),
-            "pickup_location": [-23.5505, -46.6333],
-            "dropoff_location": [-23.5605, -46.6433],
-            "pickup_zone_id": "zone_1",
-            "dropoff_zone_id": "zone_2",
-            "surge_multiplier": 1.0,
-            "fare": 0.0,
-            "session_id": None,
-            "correlation_id": None,
-            "causation_id": None,
-        }
-
-        mock_df = create_mock_kafka_df([kafka_message], partition=5, offset=12345)
-
-        job = TripsStreamingJob(
-            spark=mock_spark,
-            kafka_config=KafkaConfig(
-                bootstrap_servers="kafka:9092",
-                schema_registry_url="http://schema-registry:8085",
-            ),
-            checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/trips",
-            ),
-            error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/trips",
-            ),
-        )
-
-        result_df = job.process_batch(mock_df, batch_id=1)
-
-        written_data = extract_written_data(result_df)
-        assert written_data["_kafka_partition"] == 5
-        assert written_data["_kafka_offset"] == 12345
-
-
-def create_mock_kafka_df(messages: list, partition: int, offset: int) -> MagicMock:
-    """Create a mock Kafka DataFrame with the given messages."""
-    mock_df = MagicMock()
-    mock_df._messages = messages
-    mock_df._partition = partition
-    mock_df._offset = offset
-    mock_df._written_data = None
-    mock_df._schema = None
-
-    def mock_select(*args, **kwargs):
-        return mock_df
-
-    def mock_withColumn(name, expr):
-        new_df = create_mock_kafka_df(messages, partition, offset)
-        new_df._written_data = mock_df._written_data
-        return new_df
-
-    def mock_write_format(fmt):
-        mock_writer = MagicMock()
-        mock_writer.mode = MagicMock(return_value=mock_writer)
-        mock_writer.option = MagicMock(return_value=mock_writer)
-        mock_writer.partitionBy = MagicMock(return_value=mock_writer)
-
-        def mock_save(path=None):
-            if messages:
-                mock_df._written_data = messages[0].copy()
-                mock_df._written_data["_kafka_partition"] = partition
-                mock_df._written_data["_kafka_offset"] = offset
-                mock_df._written_data["_ingested_at"] = datetime.now(timezone.utc)
-
-        mock_writer.save = mock_save
-        mock_writer.saveAsTable = mock_save
-        return mock_writer
-
-    mock_df.select = mock_select
-    mock_df.withColumn = mock_withColumn
-    mock_df.write = MagicMock()
-    mock_df.write.format = MagicMock(side_effect=mock_write_format)
-    mock_df.collect = MagicMock(return_value=[])
-
-    return mock_df
-
-
-def extract_written_data(result_df: MagicMock) -> dict:
-    """Extract the data that was written by process_batch."""
-    if hasattr(result_df, "_written_data") and result_df._written_data:
-        return result_df._written_data
-    raise AssertionError("No data was written to the DataFrame")
-
-
-def extract_all_event_ids(result_df: MagicMock) -> list:
-    """Extract all event_ids from written data."""
-    if hasattr(result_df, "_messages") and result_df._messages:
-        return [m["event_id"] for m in result_df._messages]
-    return []
-
-
-def get_result_schema(result_df: MagicMock) -> StructType:
-    """Get the expected schema for the result DataFrame."""
-    from schemas.lakehouse.schemas.bronze_tables import bronze_trips_schema
-
-    return bronze_trips_schema
+        for field_name in required_fields:
+            assert field_name in field_names, f"{field_name} not found in schema"
