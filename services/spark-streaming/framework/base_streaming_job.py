@@ -26,21 +26,41 @@ class BaseStreamingJob(ABC):
         self.starting_offsets = None
 
     @property
-    @abstractmethod
-    def topic_name(self) -> str:
-        """Kafka topic to consume from."""
-        pass
+    def topic_name(self) -> Optional[str]:
+        """Single topic to consume from (for backward compatibility).
+
+        Subclasses should override either this or topic_names, not both.
+        """
+        return None
 
     @property
-    @abstractmethod
-    def bronze_table_path(self) -> str:
-        """Path to the Bronze Delta table."""
-        pass
+    def topic_names(self) -> Optional[list[str]]:
+        """Multiple topics to consume from (for consolidated jobs).
+
+        Subclasses should override either this or topic_name, not both.
+        """
+        return None
+
+    @property
+    def bronze_table_path(self) -> Optional[str]:
+        """Path to the Bronze Delta table.
+
+        Single-topic jobs must override this property.
+        Multi-topic jobs typically don't use this (routing happens in process_batch).
+        """
+        return None
 
     @abstractmethod
     def process_batch(self, df: Any, batch_id: int) -> Any:
         """Process a micro-batch of data."""
         pass
+
+    def _validate_topic_config(self):
+        """Ensure at least one topic configuration is provided."""
+        if not self.topic_name and not self.topic_names:
+            raise ValueError("Either topic_name or topic_names must be defined")
+        if self.topic_name and self.topic_names:
+            raise ValueError("Cannot define both topic_name and topic_names")
 
     @property
     def partition_columns(self) -> Optional[list]:
@@ -80,18 +100,35 @@ class BaseStreamingJob(ABC):
         )
         from pyspark.sql.types import StringType
 
-        kafka_options = self._kafka_config.to_spark_options(topic=self.topic_name)
+        # Validate topic configuration
+        self._validate_topic_config()
+
+        # Get Kafka options based on single or multi-topic mode
+        if self.topic_names:
+            kafka_options = self._kafka_config.to_spark_options(topics=self.topic_names)
+        else:
+            kafka_options = self._kafka_config.to_spark_options(topic=self.topic_name)
 
         raw_df = self._spark.readStream.format("kafka").options(**kafka_options).load()
 
-        # Add metadata columns and parse JSON value
-        df = raw_df.select(
-            col("value").cast(StringType()).alias("_raw_value"),
-            col("partition").alias("_kafka_partition"),
-            col("offset").alias("_kafka_offset"),
-            col("timestamp").alias("_kafka_timestamp"),
-            current_timestamp().alias("_ingested_at"),
-        )
+        # Select columns - include 'topic' for multi-topic routing
+        if self.topic_names:
+            df = raw_df.select(
+                col("topic"),  # topic column for routing
+                col("value").cast(StringType()).alias("_raw_value"),
+                col("partition").alias("_kafka_partition"),
+                col("offset").alias("_kafka_offset"),
+                col("timestamp").alias("_kafka_timestamp"),
+                current_timestamp().alias("_ingested_at"),
+            )
+        else:
+            df = raw_df.select(
+                col("value").cast(StringType()).alias("_raw_value"),
+                col("partition").alias("_kafka_partition"),
+                col("offset").alias("_kafka_offset"),
+                col("timestamp").alias("_kafka_timestamp"),
+                current_timestamp().alias("_ingested_at"),
+            )
 
         trigger_config = {}
         if self._checkpoint_config.trigger_interval == "availableNow":
