@@ -119,3 +119,18 @@ class RiderProfileEvent(BaseModel):
     payment_method_type: Literal["credit_card", "digital_wallet"]
     payment_method_masked: str
     behavior_factor: float | None = None
+
+
+class RatingEvent(BaseModel):
+    """Rating submitted after trip completion."""
+
+    event_id: UUID = Field(default_factory=uuid4)
+    trip_id: str
+    timestamp: str
+    rater_type: Literal["rider", "driver"]
+    rater_id: str
+    ratee_type: Literal["rider", "driver"]
+    ratee_id: str
+    rating: int = Field(ge=1, le=5)
+    current_rating: float  # Rolling average after this rating
+    rating_count: int  # Total ratings after this rating

@@ -15,6 +15,7 @@ from .handlers import (
     DriverProfileHandler,
     DriverStatusHandler,
     GPSHandler,
+    RatingHandler,
     RiderProfileHandler,
     SurgeHandler,
     TripHandler,
@@ -42,6 +43,7 @@ class StreamProcessor:
         "surge-updates": "surge",
         "driver-profiles": "driver_profile",
         "rider-profiles": "rider_profile",
+        "ratings": "rating",
     }
 
     def __init__(self, settings: Settings):
@@ -147,6 +149,10 @@ class StreamProcessor:
         self._handlers["rider_profile"] = RiderProfileHandler()
         logger.info("Rider profile handler initialized (pass-through)")
 
+        # Rating handler is always enabled for real-time rating updates
+        self._handlers["rating"] = RatingHandler()
+        logger.info("Rating handler initialized (pass-through)")
+
     def _check_kafka_health(self) -> bool:
         """Check if Kafka consumer is healthy."""
         return self.running and self._consumer is not None
@@ -168,6 +174,9 @@ class StreamProcessor:
         # Profile topics are always enabled for real-time agent visibility
         topics.append("driver-profiles")
         topics.append("rider-profiles")
+
+        # Rating topic is always enabled for real-time rating updates
+        topics.append("ratings")
 
         return topics
 

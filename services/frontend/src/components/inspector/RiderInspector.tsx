@@ -62,7 +62,14 @@ export function RiderInspector({
       <InspectorSection title="Status">
         <InspectorRow label="ID" value={rider.id} isId />
         <InspectorRow label="Status" value={state.status} />
-        <InspectorRow label="Rating" value={state.current_rating.toFixed(2)} />
+        <InspectorRow
+          label="Rating"
+          value={
+            state.rating_count === 0
+              ? '-'
+              : `${state.current_rating.toFixed(2)} (${state.rating_count})`
+          }
+        />
         <InspectorRow label="Zone" value={state.zone_id || 'Unknown'} />
       </InspectorSection>
 

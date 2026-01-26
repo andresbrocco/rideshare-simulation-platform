@@ -26,6 +26,7 @@ export interface Driver {
   longitude: number;
   status: 'online' | 'offline' | 'en_route_pickup' | 'en_route_destination' | 'offer_pending';
   rating: number;
+  rating_count?: number;
   zone: string;
   heading?: number; // 0-360 degrees, 0 = North
 }
@@ -51,6 +52,7 @@ export interface Rider {
   status: 'offline' | 'waiting' | 'in_trip';
   trip_state?: TripStateValue;
   rating?: number;
+  rating_count?: number;
   destination_latitude?: number;
   destination_longitude?: number;
 }

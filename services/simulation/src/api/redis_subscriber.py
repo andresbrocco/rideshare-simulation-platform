@@ -61,6 +61,17 @@ class RedisSubscriber:
         is_gps_ping = "entity_type" in data
 
         if channel == "driver-updates":
+            # Check if this is a rating update event
+            if data.get("event_type") == "rating_update":
+                return {
+                    "type": "driver_update",
+                    "data": {
+                        "id": data.get("ratee_id"),
+                        "rating": data.get("current_rating"),
+                        "rating_count": data.get("rating_count"),
+                    },
+                }
+
             # Extract lat/lon from location tuple
             location = data.get("location") or data.get("home_location") or [0, 0]
             lat, lon = location[0], location[1]
@@ -81,7 +92,9 @@ class RedisSubscriber:
                         "timestamp": data.get("timestamp"),
                         "trip_id": data.get("trip_id"),
                         "route_progress_index": data.get("route_progress_index"),
-                        "pickup_route_progress_index": data.get("pickup_route_progress_index"),
+                        "pickup_route_progress_index": data.get(
+                            "pickup_route_progress_index"
+                        ),
                     },
                 }
             elif is_profile_event:
@@ -115,6 +128,17 @@ class RedisSubscriber:
                     },
                 }
         elif channel == "rider-updates":
+            # Check if this is a rating update event
+            if data.get("event_type") == "rating_update":
+                return {
+                    "type": "rider_update",
+                    "data": {
+                        "id": data.get("ratee_id"),
+                        "rating": data.get("current_rating"),
+                        "rating_count": data.get("rating_count"),
+                    },
+                }
+
             # Extract lat/lon from location tuple
             location = data.get("location") or data.get("home_location") or [0, 0]
             lat, lon = location[0], location[1]
@@ -182,7 +206,9 @@ class RedisSubscriber:
                     "route": data.get("route") or [],
                     "pickup_route": data.get("pickup_route") or [],
                     "route_progress_index": data.get("route_progress_index"),
-                    "pickup_route_progress_index": data.get("pickup_route_progress_index"),
+                    "pickup_route_progress_index": data.get(
+                        "pickup_route_progress_index"
+                    ),
                 },
             }
         elif channel == "surge-updates":
@@ -218,12 +244,16 @@ class RedisSubscriber:
                             if transformed:
                                 await self.connection_manager.broadcast(transformed)
                         except json.JSONDecodeError:
-                            logger.warning(f"Invalid JSON from Redis: {message['data']}")
+                            logger.warning(
+                                f"Invalid JSON from Redis: {message['data']}"
+                            )
                         except Exception as e:
                             logger.warning(f"Error broadcasting message: {e}")
 
             except redis.ConnectionError:
-                logger.error(f"Redis disconnected, reconnecting in {self.reconnect_delay}s...")
+                logger.error(
+                    f"Redis disconnected, reconnecting in {self.reconnect_delay}s..."
+                )
                 await asyncio.sleep(self.reconnect_delay)
             except asyncio.CancelledError:
                 break

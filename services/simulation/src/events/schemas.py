@@ -110,6 +110,8 @@ class RatingEvent(CorrelationMixin):
     ratee_type: Literal["rider", "driver"]
     ratee_id: str
     rating: int = Field(ge=1, le=5)
+    current_rating: float  # Rolling average after this rating
+    rating_count: int  # Total ratings after this rating
 
 
 class PaymentEvent(CorrelationMixin):

@@ -184,9 +184,13 @@ class TestRatingEvent:
             ratee_type="driver",
             ratee_id="driver_001",
             rating=5,
+            current_rating=4.75,
+            rating_count=10,
         )
         assert event.rating == 5
         assert event.rater_type == "rider"
+        assert event.current_rating == 4.75
+        assert event.rating_count == 10
 
     def test_rating_value_bounds(self):
         with pytest.raises(ValidationError):
@@ -198,6 +202,8 @@ class TestRatingEvent:
                 ratee_type="driver",
                 ratee_id="driver_001",
                 rating=6,
+                current_rating=4.5,
+                rating_count=5,
             )
 
 

@@ -203,6 +203,8 @@ def test_rating_event_should_not_publish(event_filter, timestamp):
         ratee_type="driver",
         ratee_id="driver-1",
         rating=5,
+        current_rating=4.8,
+        rating_count=10,
     )
     assert event_filter.should_publish(event) is False
 
