@@ -1,14 +1,12 @@
 # Kafka Topic Partitioning Strategy
 
-This document describes the partitioning strategy for all Kafka topics in the rideshare simulation platform.
+This document explains the **rationale** behind partitioning decisions. For actual partition counts and retention settings, see `config/kafka_topics_dev.yaml` and `config/kafka_topics_prod.yaml`.
 
 ## Overview
 
 Kafka partitions determine how messages are distributed across a topic. The partition key controls which partition receives each message - messages with the same key always go to the same partition, guaranteeing ordering for that key.
 
-## Partition Key Selection
-
-Each topic uses a specific field as its partition key based on ordering requirements:
+## Partition Key Selection Rationale
 
 | Topic | Partition Key | Rationale |
 |-------|---------------|-----------|
@@ -20,40 +18,6 @@ Each topic uses a specific field as its partition key based on ordering requirem
 | `payments` | `trip_id` | One payment per trip |
 | `driver-profiles` | `driver_id` | Profile updates for a driver are ordered |
 | `rider-profiles` | `rider_id` | Profile updates for a rider are ordered |
-
-DLQ topics use the same partition key as their source topic.
-
-## Partition Counts
-
-### Development Environment
-
-Lower partition counts reduce overhead for local testing:
-
-| Topic | Partitions |
-|-------|------------|
-| `trips` | 4 |
-| `gps-pings` | 8 |
-| `driver-status` | 2 |
-| `surge-updates` | 2 |
-| `ratings` | 2 |
-| `payments` | 2 |
-| `driver-profiles` | 1 |
-| `rider-profiles` | 1 |
-
-### Production Environment
-
-Higher partition counts for parallelism:
-
-| Topic | Partitions |
-|-------|------------|
-| `trips` | 16 |
-| `gps-pings` | 32 |
-| `driver-status` | 8 |
-| `surge-updates` | 8 |
-| `ratings` | 8 |
-| `payments` | 8 |
-| `driver-profiles` | 4 |
-| `rider-profiles` | 4 |
 
 ## Ordering Guarantees
 
@@ -92,17 +56,6 @@ Profile updates use SCD Type 2 semantics. Updates for a single driver/rider are 
 
 The number of partitions limits maximum parallelism - a consumer group cannot have more active consumers than partitions. Plan partition counts based on expected consumer parallelism:
 
-- `gps-pings`: 32 partitions allows up to 32 parallel consumers (high volume)
-- `trips`: 16 partitions for moderate parallelism
-- Low volume topics: fewer partitions to reduce overhead
-
-## Replication Factor
-
-All topics use replication factor 3 for durability (Confluent Cloud default).
-
-## Retention Policy
-
-- Regular topics: 7 days (dev) / 30 days (prod)
-- DLQ topics: 30 days (both environments) for investigation
-
-All topics use `cleanup.policy: delete` for time-based retention.
+- `gps-pings`: High partition count allows many parallel consumers (high volume)
+- `trips`: Moderate parallelism
+- Low volume topics: Fewer partitions to reduce overhead
