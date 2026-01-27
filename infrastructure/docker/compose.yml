@@ -14,6 +14,7 @@ services:
     mem_limit: 1g
     profiles:
       - core
+      - data-pipeline
     ports:
       - "9092:9092"
     environment:
@@ -54,6 +55,7 @@ services:
     container_name: rideshare-kafka-init
     profiles:
       - core
+      - data-pipeline
     depends_on:
       kafka:
         condition: service_healthy
@@ -80,6 +82,7 @@ services:
     mem_limit: 512m
     profiles:
       - core
+      - data-pipeline
     ports:
       - "8085:8081"
     environment:
