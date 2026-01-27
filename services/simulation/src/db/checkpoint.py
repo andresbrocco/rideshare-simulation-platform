@@ -48,43 +48,50 @@ class CheckpointManager:
         riders: list[tuple[str, RiderDNA]],
         route_cache: dict,
     ) -> None:
-        """Create a checkpoint by persisting all simulation state."""
+        """Create a checkpoint by persisting all simulation state.
+
+        Uses explicit transaction boundaries to ensure all checkpoint data
+        is saved atomically - either everything succeeds or nothing is committed.
+        """
+        from .transaction import transaction
+
         in_flight = self.trip_repo.count_in_flight()
         checkpoint_type = "graceful" if in_flight == 0 else "crash"
 
-        # Save metadata
-        self._save_metadata("current_time", json.dumps(current_time))
-        self._save_metadata("speed_multiplier", json.dumps(speed_multiplier))
-        self._save_metadata("status", status)
-        self._save_metadata("checkpoint_type", checkpoint_type)
-        self._save_metadata("in_flight_trips", json.dumps(in_flight))
-        self._save_metadata("checkpoint_version", CHECKPOINT_VERSION)
-        self._save_metadata("created_at", utc_now().isoformat())
+        with transaction(self.session):
+            # Save metadata
+            self._save_metadata("current_time", json.dumps(current_time))
+            self._save_metadata("speed_multiplier", json.dumps(speed_multiplier))
+            self._save_metadata("status", status)
+            self._save_metadata("checkpoint_type", checkpoint_type)
+            self._save_metadata("in_flight_trips", json.dumps(in_flight))
+            self._save_metadata("checkpoint_version", CHECKPOINT_VERSION)
+            self._save_metadata("created_at", utc_now().isoformat())
 
-        # Save agents
-        if drivers:
-            self.driver_repo.batch_create(drivers)
-        if riders:
-            self.rider_repo.batch_create(riders)
+            # Save agents
+            if drivers:
+                self.driver_repo.batch_create(drivers)
+            if riders:
+                self.rider_repo.batch_create(riders)
 
-        # Save route cache
-        if route_cache:
-            routes_list = []
-            for cache_key, route_data in route_cache.items():
-                parts = cache_key.split("|")
-                if len(parts) == 2:
-                    origin_h3, dest_h3 = parts
-                    routes_list.append(
-                        (
-                            origin_h3,
-                            dest_h3,
-                            route_data["distance"],
-                            route_data["duration"],
-                            route_data.get("polyline"),
+            # Save route cache
+            if route_cache:
+                routes_list = []
+                for cache_key, route_data in route_cache.items():
+                    parts = cache_key.split("|")
+                    if len(parts) == 2:
+                        origin_h3, dest_h3 = parts
+                        routes_list.append(
+                            (
+                                origin_h3,
+                                dest_h3,
+                                route_data["distance"],
+                                route_data["duration"],
+                                route_data.get("polyline"),
+                            )
                         )
-                    )
-            if routes_list:
-                self.route_cache_repo.bulk_save(routes_list)
+                if routes_list:
+                    self.route_cache_repo.bulk_save(routes_list)
 
     def load_checkpoint(self) -> dict | None:
         """Load checkpoint and restore simulation state."""
@@ -243,8 +250,12 @@ class CheckpointManager:
 
         This captures all agent states including DNA, active trips,
         and matching server state for later restoration.
+
+        Uses explicit transaction boundaries to ensure all checkpoint data
+        is saved atomically - either everything succeeds or nothing is committed.
         """
         from ..trip import TripState
+        from .transaction import transaction
 
         # Collect driver data with full runtime state
         drivers = []
@@ -286,39 +297,41 @@ class CheckpointManager:
             ]
         )
 
-        # Save checkpoint metadata
-        checkpoint_type = "graceful" if in_flight_count == 0 else "crash"
-        self._save_metadata("current_time", json.dumps(engine._env.now))
-        self._save_metadata("speed_multiplier", json.dumps(engine._speed_multiplier))
-        self._save_metadata("status", engine._state.value)
-        self._save_metadata("checkpoint_type", checkpoint_type)
-        self._save_metadata("in_flight_trips", json.dumps(in_flight_count))
-        self._save_metadata("checkpoint_version", CHECKPOINT_VERSION)
-        self._save_metadata("created_at", utc_now().isoformat())
+        # Save all checkpoint data in a single transaction
+        # If any part fails, the entire checkpoint is rolled back
+        with transaction(self.session):
+            # Save checkpoint metadata
+            checkpoint_type = "graceful" if in_flight_count == 0 else "crash"
+            self._save_metadata("current_time", json.dumps(engine._env.now))
+            self._save_metadata("speed_multiplier", json.dumps(engine._speed_multiplier))
+            self._save_metadata("status", engine._state.value)
+            self._save_metadata("checkpoint_type", checkpoint_type)
+            self._save_metadata("in_flight_trips", json.dumps(in_flight_count))
+            self._save_metadata("checkpoint_version", CHECKPOINT_VERSION)
+            self._save_metadata("created_at", utc_now().isoformat())
 
-        # Save agents with full state using upsert
-        if drivers:
-            self.driver_repo.batch_upsert_with_state(drivers)
-        if riders:
-            self.rider_repo.batch_upsert_with_state(riders)
+            # Save agents with full state using upsert
+            if drivers:
+                self.driver_repo.batch_upsert_with_state(drivers)
+            if riders:
+                self.rider_repo.batch_upsert_with_state(riders)
 
-        # Also save surge multipliers if available
-        if (
-            hasattr(engine._matching_server, "_surge_calculator")
-            and engine._matching_server._surge_calculator
-        ):
-            surge_data = {}
-            calculator = engine._matching_server._surge_calculator
-            if hasattr(calculator, "_zone_multipliers"):
-                surge_data = dict(calculator._zone_multipliers)
-            self._save_metadata("surge_multipliers", json.dumps(surge_data))
+            # Also save surge multipliers if available
+            if (
+                hasattr(engine._matching_server, "_surge_calculator")
+                and engine._matching_server._surge_calculator
+            ):
+                surge_data = {}
+                calculator = engine._matching_server._surge_calculator
+                if hasattr(calculator, "_zone_multipliers"):
+                    surge_data = dict(calculator._zone_multipliers)
+                self._save_metadata("surge_multipliers", json.dumps(surge_data))
 
-        # Save reserved drivers
-        if hasattr(engine._matching_server, "_reserved_drivers"):
-            reserved = list(engine._matching_server._reserved_drivers)
-            self._save_metadata("reserved_drivers", json.dumps(reserved))
+            # Save reserved drivers
+            if hasattr(engine._matching_server, "_reserved_drivers"):
+                reserved = list(engine._matching_server._reserved_drivers)
+                self._save_metadata("reserved_drivers", json.dumps(reserved))
 
-        self.session.commit()
         logger.info(
             f"Checkpoint saved: time={engine._env.now:.1f}s, "
             f"drivers={len(drivers)}, riders={len(riders)}, "

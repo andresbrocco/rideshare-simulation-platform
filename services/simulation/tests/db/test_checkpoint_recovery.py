@@ -68,9 +68,7 @@ class TestCheckpointMetadata:
 class TestCheckpointAgents:
     """Tests for checkpoint agent persistence."""
 
-    def test_create_checkpoint_all_agents(
-        self, temp_sqlite_db, dna_factory: DNAFactory
-    ):
+    def test_create_checkpoint_all_agents(self, temp_sqlite_db, dna_factory: DNAFactory):
         """Saves all drivers and riders to checkpoint."""
         session_maker = init_database(str(temp_sqlite_db))
         drivers = [
@@ -307,8 +305,8 @@ class TestCheckpointRouteCache:
 class TestCheckpointAtomicity:
     """Tests for checkpoint atomicity."""
 
-    def test_create_checkpoint_atomic(self, temp_sqlite_db, dna_factory: DNAFactory):
-        """Checkpoint is atomic - all or nothing."""
+    def test_create_checkpoint_commits_on_success(self, temp_sqlite_db, dna_factory: DNAFactory):
+        """Checkpoint commits automatically when successful."""
         session_maker = init_database(str(temp_sqlite_db))
         drivers = [("d1", dna_factory.driver_dna())]
 
@@ -322,13 +320,49 @@ class TestCheckpointAtomicity:
                 riders=[],
                 route_cache={},
             )
-            # Rollback instead of commit
-            session.rollback()
+            # Note: create_checkpoint now auto-commits via transaction context
 
+        # Verify data was committed
         with session_maker() as session:
             driver_repo = DriverRepository(session)
             d1 = driver_repo.get("d1")
-            assert d1 is None  # Nothing persisted on rollback
+            assert d1 is not None  # Data persisted on success
+            assert d1.id == "d1"
+
+    def test_create_checkpoint_rolls_back_on_failure(self, temp_sqlite_db, dna_factory: DNAFactory):
+        """Checkpoint rolls back all data if any part fails."""
+        from unittest.mock import patch
+
+        session_maker = init_database(str(temp_sqlite_db))
+        drivers = [("d1", dna_factory.driver_dna()), ("d2", dna_factory.driver_dna())]
+        riders = [("r1", dna_factory.rider_dna())]
+
+        with session_maker() as session:
+            manager = CheckpointManager(session)
+
+            def failing_batch_create(riders_list):
+                raise ValueError("Simulated failure during rider batch create")
+
+            with (
+                patch.object(manager.rider_repo, "batch_create", side_effect=failing_batch_create),
+                pytest.raises(ValueError, match="Simulated failure"),
+            ):
+                manager.create_checkpoint(
+                    current_time=1000.0,
+                    speed_multiplier=1,
+                    status="RUNNING",
+                    drivers=drivers,
+                    riders=riders,
+                    route_cache={},
+                )
+
+        # Verify nothing was persisted (atomic rollback)
+        with session_maker() as session:
+            driver_repo = DriverRepository(session)
+            rider_repo = RiderRepository(session)
+            assert driver_repo.get("d1") is None  # Driver rolled back
+            assert driver_repo.get("d2") is None  # Driver rolled back
+            assert rider_repo.get("r1") is None  # Rider never created
 
 
 class TestCleanVsDirtyCheckpoint:
@@ -518,9 +552,7 @@ class TestCleanVsDirtyCheckpoint:
 class TestCheckpointRecovery:
     """Tests for checkpoint recovery scenarios."""
 
-    def test_resume_from_clean_checkpoint(
-        self, temp_sqlite_db, dna_factory: DNAFactory
-    ):
+    def test_resume_from_clean_checkpoint(self, temp_sqlite_db, dna_factory: DNAFactory):
         """Resumes from clean checkpoint without warnings."""
         session_maker = init_database(str(temp_sqlite_db))
 
