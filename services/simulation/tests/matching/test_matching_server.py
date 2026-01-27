@@ -454,9 +454,7 @@ class TestOfferCycle:
         mock_kafka_producer,
         sample_driver_dna,
     ):
-        drivers = [
-            create_mock_driver(f"driver-{i}", sample_driver_dna) for i in range(5)
-        ]
+        drivers = [create_mock_driver(f"driver-{i}", sample_driver_dna) for i in range(5)]
 
         mock_notification_dispatch.send_driver_offer.return_value = False
 
@@ -479,9 +477,7 @@ class TestOfferCycle:
             fare=25.50,
         )
 
-        ranked_drivers = [
-            (d, 300 + i * 60, 0.9 - i * 0.01) for i, d in enumerate(drivers)
-        ]
+        ranked_drivers = [(d, 300 + i * 60, 0.9 - i * 0.01) for i, d in enumerate(drivers)]
 
         result = server.send_offer_cycle(trip, ranked_drivers, max_attempts=5)
 
@@ -570,9 +566,7 @@ class TestMatchFlow:
         mock_kafka_producer,
         sample_driver_dna,
     ):
-        drivers = [
-            create_mock_driver(f"driver-{i}", sample_driver_dna) for i in range(4)
-        ]
+        drivers = [create_mock_driver(f"driver-{i}", sample_driver_dna) for i in range(4)]
 
         mock_driver_index.find_nearest_drivers.return_value = [
             (f"driver-{i}", 2.0 + i * 0.5) for i in range(4)
@@ -623,9 +617,7 @@ class TestMatchFlow:
         mock_kafka_producer,
         sample_driver_dna,
     ):
-        drivers = [
-            create_mock_driver(f"driver-{i}", sample_driver_dna) for i in range(3)
-        ]
+        drivers = [create_mock_driver(f"driver-{i}", sample_driver_dna) for i in range(3)]
 
         mock_driver_index.find_nearest_drivers.return_value = [
             (f"driver-{i}", 2.0 + i * 0.5) for i in range(3)
@@ -719,10 +711,7 @@ class TestPuppetReOfferFlow:
 
         # Should have stored remaining candidates
         assert trip.trip_id in server._pending_offer_candidates
-        assert (
-            len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"])
-            == 1
-        )
+        assert len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"]) == 1
 
         # Puppet rejects - should continue to next driver
         server.process_puppet_reject("puppet-driver", "trip-123")
@@ -769,33 +758,22 @@ class TestPuppetReOfferFlow:
             fare=25.50,
         )
 
-        ranked_drivers = [
-            (p, 300 + i * 60, 0.9 - i * 0.01) for i, p in enumerate(puppets)
-        ]
+        ranked_drivers = [(p, 300 + i * 60, 0.9 - i * 0.01) for i, p in enumerate(puppets)]
 
         # Start cycle - pauses at puppet-0
         server.send_offer_cycle(trip, ranked_drivers, max_attempts=5)
         assert trip.trip_id in server._pending_offer_candidates
-        assert (
-            len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"])
-            == 2
-        )
+        assert len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"]) == 2
 
         # Reject puppet-0 - should pause at puppet-1
         server.process_puppet_reject("puppet-0", "trip-123")
         assert trip.trip_id in server._pending_offer_candidates
-        assert (
-            len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"])
-            == 1
-        )
+        assert len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"]) == 1
 
         # Reject puppet-1 - should pause at puppet-2
         server.process_puppet_reject("puppet-1", "trip-123")
         assert trip.trip_id in server._pending_offer_candidates
-        assert (
-            len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"])
-            == 0
-        )
+        assert len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"]) == 0
 
     def test_puppet_reject_exhausts_all_candidates(
         self,
@@ -836,10 +814,7 @@ class TestPuppetReOfferFlow:
         # Start cycle - only one candidate
         server.send_offer_cycle(trip, ranked_drivers, max_attempts=5)
         assert trip.trip_id in server._pending_offer_candidates
-        assert (
-            len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"])
-            == 0
-        )
+        assert len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"]) == 0
 
         # Track the trip as active
         assert trip.trip_id in server._active_trips
@@ -958,14 +933,10 @@ class TestMatchingServerKafkaOnly:
         server._emit_trip_state_event(trip, "trip.matched")
 
         # Verify Kafka was called
-        assert (
-            mock_kafka_producer.produce.called
-        ), "Trip state events should be sent to Kafka"
+        assert mock_kafka_producer.produce.called, "Trip state events should be sent to Kafka"
 
         kafka_calls = mock_kafka_producer.produce.call_args_list
-        trip_kafka_calls = [
-            call for call in kafka_calls if call[1].get("topic") == "trips"
-        ]
+        trip_kafka_calls = [call for call in kafka_calls if call[1].get("topic") == "trips"]
         assert len(trip_kafka_calls) > 0, "Trip state events should go to trips topic"
 
         # Verify Redis was NOT called for trip state events
@@ -1129,3 +1100,191 @@ class TestRouteClearOnCancellation:
 
         # Verify Redis was NOT called (consolidation fix)
         assert not mock_redis_publisher.publish.called
+
+
+class TestBoundedTripHistory:
+    """Tests for bounded trip history to prevent memory growth."""
+
+    def test_completed_trips_bounded_by_max_trip_history(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+    ):
+        """Verify old completed trips are evicted when max_trip_history is exceeded."""
+        from settings import Settings
+
+        # Create settings with small max_trip_history for testing
+        settings = Settings()
+        settings.matching.max_trip_history = 5
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+            settings=settings,
+        )
+
+        # Complete 10 trips
+        for i in range(10):
+            trip = Trip(
+                trip_id=f"trip-{i}",
+                rider_id=f"rider-{i}",
+                pickup_location=(-23.55, -46.63),
+                dropoff_location=(-23.56, -46.64),
+                pickup_zone_id="centro",
+                dropoff_zone_id="pinheiros",
+                surge_multiplier=1.0,
+                fare=25.50,
+            )
+            trip.transition_to(TripState.OFFER_SENT)
+            trip.transition_to(TripState.MATCHED)
+            trip.transition_to(TripState.DRIVER_EN_ROUTE)
+            trip.transition_to(TripState.DRIVER_ARRIVED)
+            trip.transition_to(TripState.STARTED)
+            trip.transition_to(TripState.COMPLETED)
+
+            server._active_trips[trip.trip_id] = trip
+            server.complete_trip(trip.trip_id, trip)
+
+        # Should only have last 5 trips (max_trip_history=5)
+        completed = server.get_completed_trips()
+        assert len(completed) == 5
+
+        # First 5 trips should have been evicted, only trip-5 through trip-9 remain
+        trip_ids = [t.trip_id for t in completed]
+        assert "trip-0" not in trip_ids
+        assert "trip-4" not in trip_ids
+        assert "trip-5" in trip_ids
+        assert "trip-9" in trip_ids
+
+    def test_cancelled_trips_bounded_by_max_trip_history(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+    ):
+        """Verify old cancelled trips are evicted when max_trip_history is exceeded."""
+        from settings import Settings
+
+        settings = Settings()
+        settings.matching.max_trip_history = 3
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+            settings=settings,
+        )
+
+        # Cancel 7 trips
+        for i in range(7):
+            trip = Trip(
+                trip_id=f"cancelled-trip-{i}",
+                rider_id=f"rider-{i}",
+                pickup_location=(-23.55, -46.63),
+                dropoff_location=(-23.56, -46.64),
+                pickup_zone_id="centro",
+                dropoff_zone_id="pinheiros",
+                surge_multiplier=1.0,
+                fare=25.50,
+            )
+            trip.cancel(by="rider", reason="test", stage="requested")
+
+            server._active_trips[trip.trip_id] = trip
+            server.complete_trip(trip.trip_id, trip)
+
+        # Should only have last 3 trips (max_trip_history=3)
+        cancelled = server.get_cancelled_trips()
+        assert len(cancelled) == 3
+
+        trip_ids = [t.trip_id for t in cancelled]
+        assert "cancelled-trip-0" not in trip_ids
+        assert "cancelled-trip-3" not in trip_ids
+        assert "cancelled-trip-4" in trip_ids
+        assert "cancelled-trip-6" in trip_ids
+
+    def test_clear_reinitializes_bounded_deques(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+    ):
+        """Verify clear() reinitializes deques with correct maxlen."""
+        from settings import Settings
+
+        settings = Settings()
+        settings.matching.max_trip_history = 5
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+            settings=settings,
+        )
+
+        # Add some trips
+        for i in range(3):
+            trip = Trip(
+                trip_id=f"trip-{i}",
+                rider_id=f"rider-{i}",
+                pickup_location=(-23.55, -46.63),
+                dropoff_location=(-23.56, -46.64),
+                pickup_zone_id="centro",
+                dropoff_zone_id="pinheiros",
+                surge_multiplier=1.0,
+                fare=25.50,
+            )
+            trip.transition_to(TripState.OFFER_SENT)
+            trip.transition_to(TripState.MATCHED)
+            trip.transition_to(TripState.DRIVER_EN_ROUTE)
+            trip.transition_to(TripState.DRIVER_ARRIVED)
+            trip.transition_to(TripState.STARTED)
+            trip.transition_to(TripState.COMPLETED)
+            server._active_trips[trip.trip_id] = trip
+            server.complete_trip(trip.trip_id, trip)
+
+        assert len(server.get_completed_trips()) == 3
+
+        # Clear the server
+        server.clear()
+
+        # Should be empty after clear
+        assert len(server.get_completed_trips()) == 0
+        assert len(server.get_cancelled_trips()) == 0
+
+        # Add more trips after clear - should still respect maxlen
+        for i in range(10):
+            trip = Trip(
+                trip_id=f"post-clear-trip-{i}",
+                rider_id=f"rider-{i}",
+                pickup_location=(-23.55, -46.63),
+                dropoff_location=(-23.56, -46.64),
+                pickup_zone_id="centro",
+                dropoff_zone_id="pinheiros",
+                surge_multiplier=1.0,
+                fare=25.50,
+            )
+            trip.transition_to(TripState.OFFER_SENT)
+            trip.transition_to(TripState.MATCHED)
+            trip.transition_to(TripState.DRIVER_EN_ROUTE)
+            trip.transition_to(TripState.DRIVER_ARRIVED)
+            trip.transition_to(TripState.STARTED)
+            trip.transition_to(TripState.COMPLETED)
+            server._active_trips[trip.trip_id] = trip
+            server.complete_trip(trip.trip_id, trip)
+
+        # Should still be bounded by maxlen=5
+        assert len(server.get_completed_trips()) == 5

@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import threading
+from collections import deque
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 from uuid import uuid4
@@ -109,9 +110,9 @@ class MatchingServer:
         self._active_trips: dict[str, Trip] = {}
         # Queue for trips that need their TripExecutor started from SimPy thread
         self._pending_trip_executions: list[tuple[DriverAgent, Trip]] = []
-        # Trip completion tracking
-        self._completed_trips: list[Trip] = []
-        self._cancelled_trips: list[Trip] = []
+        # Trip completion tracking (bounded deques to prevent memory growth)
+        self._completed_trips: deque[Trip] = deque(maxlen=self._settings.matching.max_trip_history)
+        self._cancelled_trips: deque[Trip] = deque(maxlen=self._settings.matching.max_trip_history)
         # Thread-safe state protection (RLock allows nested acquisition)
         self._state_lock = threading.RLock()
         self._reserved_drivers: set[str] = set()  # Drivers currently receiving offers
@@ -155,12 +156,12 @@ class MatchingServer:
     def get_completed_trips(self) -> list["Trip"]:
         """Get all completed trips."""
         with self._state_lock:
-            return self._completed_trips.copy()
+            return list(self._completed_trips)
 
     def get_cancelled_trips(self) -> list["Trip"]:
         """Get all cancelled trips."""
         with self._state_lock:
-            return self._cancelled_trips.copy()
+            return list(self._cancelled_trips)
 
     def get_trip_stats(self) -> dict[str, Any]:
         """Get trip statistics for metrics."""
@@ -779,8 +780,9 @@ class MatchingServer:
             self._puppet_drives.clear()
 
             self._active_trips.clear()
-            self._completed_trips.clear()
-            self._cancelled_trips.clear()
+            # Reinitialize deques with maxlen to ensure bound is preserved
+            self._completed_trips = deque(maxlen=self._settings.matching.max_trip_history)
+            self._cancelled_trips = deque(maxlen=self._settings.matching.max_trip_history)
             self._pending_offers.clear()
             self._pending_offer_candidates.clear()
             self._pending_trip_executions.clear()

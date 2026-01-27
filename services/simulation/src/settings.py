@@ -119,15 +119,18 @@ class MatchingSettings(BaseSettings):
     ranking_eta_weight: float = Field(default=0.5, ge=0.0, le=1.0)
     ranking_rating_weight: float = Field(default=0.3, ge=0.0, le=1.0)
     ranking_acceptance_weight: float = Field(default=0.2, ge=0.0, le=1.0)
+    max_trip_history: int = Field(
+        default=10000,
+        ge=100,
+        description="Maximum number of completed/cancelled trips to retain in memory for metrics",
+    )
 
     model_config = SettingsConfigDict(env_prefix="MATCHING_")
 
     def __init__(self, **data):
         super().__init__(**data)
         weights_sum = (
-            self.ranking_eta_weight
-            + self.ranking_rating_weight
-            + self.ranking_acceptance_weight
+            self.ranking_eta_weight + self.ranking_rating_weight + self.ranking_acceptance_weight
         )
         if not (0.99 <= weights_sum <= 1.01):
             raise ValueError(
