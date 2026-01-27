@@ -574,7 +574,7 @@ All services have explicit memory limits to prevent resource exhaustion:
 | spark-thrift-server | 1024m | SQL interface |
 | spark-streaming-* | 768m | Each streaming job |
 | airflow-webserver | 384m | Airflow UI |
-| airflow-scheduler | 384m | DAG scheduler |
+| airflow-scheduler | 768m | DAG scheduler |
 | prometheus | 512m | 7-day metric retention |
 | cadvisor | 256m | Container metrics |
 | grafana | 192m | Dashboard UI |

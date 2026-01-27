@@ -616,7 +616,7 @@ services:
   airflow-scheduler:
     image: apache/airflow:3.1.5
     container_name: rideshare-airflow-scheduler
-    mem_limit: 384m
+    mem_limit: 768m
     profiles:
       - data-pipeline
     environment:

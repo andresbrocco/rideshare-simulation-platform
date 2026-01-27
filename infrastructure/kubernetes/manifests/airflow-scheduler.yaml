@@ -35,9 +35,9 @@ spec:
         - airflow dags reserialize && exec airflow scheduler
         resources:
           limits:
-            memory: "384Mi"
+            memory: "768Mi"
           requests:
-            memory: "192Mi"
+            memory: "384Mi"
         env:
         - name: AIRFLOW__CORE__EXECUTOR
           value: LocalExecutor
