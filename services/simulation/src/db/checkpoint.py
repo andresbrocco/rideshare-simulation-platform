@@ -378,6 +378,7 @@ class CheckpointManager:
 
         # Restore drivers
         restored_drivers = 0
+        failed_drivers = 0
         for driver_data in checkpoint["agents"]["drivers"]:
             try:
                 driver_dna = DriverDNA.model_validate(driver_data["dna"])
@@ -406,9 +407,11 @@ class CheckpointManager:
                 restored_drivers += 1
             except Exception as e:
                 logger.error(f"Failed to restore driver {driver_data.get('id')}: {e}")
+                failed_drivers += 1
 
         # Restore riders
         restored_riders = 0
+        failed_riders = 0
         for rider_data in checkpoint["agents"]["riders"]:
             try:
                 rider_dna = RiderDNA.model_validate(rider_data["dna"])
@@ -435,6 +438,7 @@ class CheckpointManager:
                 restored_riders += 1
             except Exception as e:
                 logger.error(f"Failed to restore rider {rider_data.get('id')}: {e}")
+                failed_riders += 1
 
         # Restore active trips
         restored_trips = 0
@@ -470,6 +474,13 @@ class CheckpointManager:
             # Cancel any in-flight trips to prevent inconsistent state
             for trip in list(engine._matching_server._active_trips.values()):
                 engine._matching_server.cancel_trip(trip.trip_id, "system", "recovery_cleanup")
+
+        # Warn about incomplete restoration
+        if failed_drivers or failed_riders:
+            logger.warning(
+                f"Checkpoint restore incomplete: {failed_drivers} drivers and "
+                f"{failed_riders} riders failed to restore"
+            )
 
         logger.info(
             f"Checkpoint restored: time={initial_time:.1f}s, "

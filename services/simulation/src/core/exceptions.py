@@ -28,6 +28,12 @@ class ServiceUnavailableError(TransientError):
     pass
 
 
+class PersistenceError(TransientError):
+    """Database or state persistence failed after retries."""
+
+    pass
+
+
 class PermanentError(SimulationError):
     """Errors that will not succeed on retry."""
 
