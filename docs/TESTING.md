@@ -66,7 +66,7 @@ tests/integration/data_platform/
 ├── test_foundation_integration.py  # Service health and infrastructure
 ├── test_core_pipeline.py           # Core event flow (API → Kafka → Redis → WebSocket)
 ├── test_resilience.py              # Data consistency and recovery tests
-├── test_data_flows.py              # Data lineage and checkpoint recovery
+├── test_data_flows.py              # Data lineage tests
 ├── test_feature_journeys.py        # Bronze ingestion and DBT transformations
 ├── test_cross_phase.py             # Cross-phase integration (MinIO, Streaming, DBT)
 ├── test_streaming_job_entry_points.py
@@ -116,7 +116,7 @@ tests/integration/data_platform/
 - `core_pipeline` - Core event flow tests (NEW-001 through NEW-004): API publishing, stream processing, WebSocket delivery, schema enforcement
 - `resilience` - Data consistency and recovery tests (NEW-005, NEW-006, REG-001): partial failure recovery, state machine integrity, pipeline smoke test
 - `feature_journey` - Feature journey tests (FJ-001, FJ-003): Bronze ingestion, DBT Silver transformation
-- `data_flow` - Data flow tests (DF-001, DF-002, DF-004): schema validation, Bronze-to-Silver lineage, checkpoint recovery
+- `data_flow` - Data flow tests (DF-001, DF-002): schema validation, Bronze-to-Silver lineage
 - `cross_phase` - Cross-phase integration tests (XP-001, XP-002): MinIO + Streaming, Bronze + DBT
 
 ## Running Tests
@@ -373,7 +373,7 @@ Integration tests run on GitHub Actions via `.github/workflows/integration-tests
 - `core_pipeline` - Core event flow tests (Simulation → Kafka → Redis → WebSocket)
 - `resilience` - Data consistency and recovery tests
 - `feature_journey` - Feature journey tests (Bronze ingestion, DBT transformations)
-- `data_flow` - Data flow tests (lineage, checkpoint recovery)
+- `data_flow` - Data flow tests (lineage)
 - `cross_phase` - Cross-phase integration tests (MinIO + Streaming, Bronze + DBT)
 - `requires_profiles(*profiles)` - Dynamic Docker profile requirements
 

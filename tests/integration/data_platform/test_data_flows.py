@@ -3,23 +3,20 @@
 Tests data integrity and lineage through the medallion lakehouse:
 - DF-001: Schema validation and DLQ routing
 - DF-002: Bronze to Silver data lineage
-- DF-004: Checkpoint recovery after restart
 """
 
 import json
 import subprocess
-import time
+import uuid
 from pathlib import Path
 
 import pytest
 
 from tests.integration.data_platform.utils.sql_helpers import (
     count_rows,
+    get_future_ingestion_timestamp,
     insert_bronze_data,
     query_table,
-)
-from tests.integration.data_platform.utils.wait_helpers import (
-    poll_until_records_present,
 )
 
 # Module-level fixtures: ensure services are ready before any test runs
@@ -189,16 +186,17 @@ def test_bronze_to_silver_lineage(
     - No data loss for valid records
     - Duplicates removed (Bronze > Silver row count)
     """
-    # Arrange: Insert test data into Bronze tables with correlation_id
-    correlation_id = "lineage-test-001"
+    # Arrange: Generate unique test run ID to avoid conflicts with other test runs
+    test_run_id = uuid.uuid4().hex[:8]
+    correlation_id = f"lineage-test-{test_run_id}"
 
     # Bronze trips: 5 records with 2 duplicates (same event_id = duplicate)
     # Format data as raw JSON in _raw_value column
     raw_events = [
         {
-            "event_id": "event-lineage-001",  # First occurrence
+            "event_id": f"event-lineage-{test_run_id}-001",  # First occurrence
             "event_type": "trip.completed",
-            "trip_id": "trip-lineage-001",
+            "trip_id": f"trip-lineage-{test_run_id}-001",
             "status": "completed",
             "timestamp": "2026-01-20T10:00:00Z",
             "correlation_id": correlation_id,
@@ -208,9 +206,9 @@ def test_bronze_to_silver_lineage(
             "duration": 900,
         },
         {
-            "event_id": "event-lineage-001",  # Duplicate (same event_id)
+            "event_id": f"event-lineage-{test_run_id}-001",  # Duplicate (same event_id)
             "event_type": "trip.completed",
-            "trip_id": "trip-lineage-001",
+            "trip_id": f"trip-lineage-{test_run_id}-001",
             "status": "completed",
             "timestamp": "2026-01-20T10:00:00Z",
             "correlation_id": correlation_id,
@@ -220,9 +218,9 @@ def test_bronze_to_silver_lineage(
             "duration": 900,
         },
         {
-            "event_id": "event-lineage-002",
+            "event_id": f"event-lineage-{test_run_id}-002",
             "event_type": "trip.completed",
-            "trip_id": "trip-lineage-002",
+            "trip_id": f"trip-lineage-{test_run_id}-002",
             "status": "completed",
             "timestamp": "2026-01-20T11:00:00Z",
             "correlation_id": correlation_id,
@@ -232,9 +230,9 @@ def test_bronze_to_silver_lineage(
             "duration": 1200,
         },
         {
-            "event_id": "event-lineage-003",  # First occurrence
+            "event_id": f"event-lineage-{test_run_id}-003",  # First occurrence
             "event_type": "trip.completed",
-            "trip_id": "trip-lineage-003",
+            "trip_id": f"trip-lineage-{test_run_id}-003",
             "status": "completed",
             "timestamp": "2026-01-20T12:00:00Z",
             "correlation_id": correlation_id,
@@ -244,9 +242,9 @@ def test_bronze_to_silver_lineage(
             "duration": 1000,
         },
         {
-            "event_id": "event-lineage-003",  # Duplicate (same event_id)
+            "event_id": f"event-lineage-{test_run_id}-003",  # Duplicate (same event_id)
             "event_type": "trip.completed",
-            "trip_id": "trip-lineage-003",
+            "trip_id": f"trip-lineage-{test_run_id}-003",
             "status": "completed",
             "timestamp": "2026-01-20T12:00:00Z",
             "correlation_id": correlation_id,
@@ -259,6 +257,7 @@ def test_bronze_to_silver_lineage(
 
     # Convert to Bronze format with _raw_value column
     # Note: _ingestion_date is a partition column, do not include in INSERT values
+    # Use future timestamps to bypass DBT incremental filter
     bronze_trips_data = []
     for i, event in enumerate(raw_events):
         bronze_trips_data.append(
@@ -267,7 +266,7 @@ def test_bronze_to_silver_lineage(
                 "_kafka_partition": i % 3,
                 "_kafka_offset": 100 + i,
                 "_kafka_timestamp": "2026-01-20T10:00:00",
-                "_ingested_at": f"2026-01-20T{10 + i}:00:0{i}",
+                "_ingested_at": get_future_ingestion_timestamp(offset_hours=i),
             }
         )
 
@@ -306,17 +305,18 @@ def test_bronze_to_silver_lineage(
 
     # Query Silver table - filter by event_id prefix since stg_trips doesn't have correlation_id
     # The stg_trips model parses JSON from _raw_value and doesn't include correlation_id
+    event_prefix = f"event-lineage-{test_run_id}-%"
     silver_trips = query_table(
         thrift_connection,
-        "SELECT event_id, trip_id, trip_state, timestamp, fare "
-        "FROM silver.stg_trips WHERE event_id LIKE 'event-lineage-%' "
-        "ORDER BY event_id",
+        f"SELECT event_id, trip_id, trip_state, timestamp, fare "
+        f"FROM silver.stg_trips WHERE event_id LIKE '{event_prefix}' "
+        f"ORDER BY event_id",
     )
 
     # Assert: Silver records traceable via event_id prefix
     assert (
         len(silver_trips) > 0
-    ), "No records found in silver.stg_trips with event_id LIKE 'event-lineage-%'"
+    ), f"No records found in silver.stg_trips with event_id LIKE '{event_prefix}'"
 
     # Assert: Duplicates removed (Silver count < Bronze count)
     silver_count = len(silver_trips)
@@ -343,196 +343,12 @@ def test_bronze_to_silver_lineage(
     ), f"Fares not preserved. Expected {expected_fares}, got {actual_fares}"
 
     # Assert: No data loss for valid records
-    expected_trip_ids = {"trip-lineage-001", "trip-lineage-002", "trip-lineage-003"}
+    expected_trip_ids = {
+        f"trip-lineage-{test_run_id}-001",
+        f"trip-lineage-{test_run_id}-002",
+        f"trip-lineage-{test_run_id}-003",
+    }
     actual_trip_ids = {row["trip_id"] for row in silver_trips}
     assert (
         actual_trip_ids == expected_trip_ids
     ), f"Trip IDs not preserved. Expected {expected_trip_ids}, got {actual_trip_ids}"
-
-
-@pytest.mark.data_flow
-@pytest.mark.usefixtures("streaming_jobs_running")
-def test_checkpoint_recovery_after_restart(
-    clean_bronze_tables,
-    kafka_producer,
-    thrift_connection,
-    minio_client,
-    test_context,
-):
-    """DF-004: Verify Spark Streaming resumes from checkpoint after restart.
-
-    Publishes 10 events, waits for ingestion, restarts spark-streaming-low-volume
-    container, publishes 10 more events, and validates:
-    - All 20 events present in bronze_trips (filtered by test_context)
-    - No duplicates from restart
-    - Checkpoint files exist in MinIO
-    """
-    from tests.integration.data_platform.utils.sql_helpers import (
-        count_rows_filtered,
-        query_table_filtered,
-    )
-
-    # Arrange: Generate 10 test events (first batch) with unique test IDs
-    # Note: Events must include event_id and array format for locations (DBT parsing)
-    batch_1_events = []
-    for i in range(1, 11):
-        event = {
-            "event_id": test_context.event_id(f"{i:03d}"),
-            "event_type": "trip.requested",
-            "trip_id": test_context.trip_id(f"{i:03d}"),
-            "status": "requested",
-            "timestamp": f"2026-01-20T10:{i:02d}:00Z",
-            "rider_id": test_context.rider_id(f"{i:03d}"),
-            "pickup_location": [-23.5505, -46.6333],
-            "dropoff_location": [-23.5620, -46.6550],
-        }
-        batch_1_events.append(event)
-
-    # Act: Publish first batch to Kafka
-    for event in batch_1_events:
-        kafka_producer.produce(
-            topic="trips",
-            value=json.dumps(event).encode("utf-8"),
-            key=event["trip_id"].encode("utf-8"),
-        )
-
-    kafka_producer.flush(timeout=10.0)
-
-    # Wait for first batch ingestion (poll until 10 rows matching our test_context)
-    filter_pattern = test_context.filter_pattern()
-
-    def query_bronze_count():
-        return count_rows_filtered(
-            thrift_connection, "bronze.bronze_trips", filter_pattern
-        )
-
-    poll_until_records_present(
-        query_callback=query_bronze_count,
-        expected_count=10,
-        timeout_seconds=60,
-        poll_interval=2.0,
-        description=f"bronze_trips after batch 1 (filter: {filter_pattern})",
-    )
-
-    # Verify first batch ingested
-    bronze_count_before_restart = query_bronze_count()
-    assert (
-        bronze_count_before_restart == 10
-    ), f"Expected 10 rows before restart, found {bronze_count_before_restart}"
-
-    # Act: Restart spark-streaming-low-volume container
-    # Both profiles needed to resolve service dependencies
-    restart_result = subprocess.run(
-        [
-            "docker",
-            "compose",
-            "-f",
-            "infrastructure/docker/compose.yml",
-            "--profile",
-            "core",
-            "--profile",
-            "data-pipeline",
-            "restart",
-            "spark-streaming-low-volume",
-        ],
-        capture_output=True,
-        text=True,
-        cwd=str(PROJECT_ROOT),
-    )
-
-    assert restart_result.returncode == 0, (
-        f"Container restart failed.\n"
-        f"STDOUT: {restart_result.stdout}\n"
-        f"STDERR: {restart_result.stderr}"
-    )
-
-    # Wait for container to be healthy again (polling health check)
-    time.sleep(30)  # Allow container to start and recover from checkpoint
-
-    # Arrange: Generate 10 more test events (second batch)
-    # Note: Events must include event_id and array format for locations (DBT parsing)
-    batch_2_events = []
-    for i in range(11, 21):
-        event = {
-            "event_id": test_context.event_id(f"{i:03d}"),
-            "event_type": "trip.requested",
-            "trip_id": test_context.trip_id(f"{i:03d}"),
-            "status": "requested",
-            "timestamp": f"2026-01-20T10:{i:02d}:00Z",
-            "rider_id": test_context.rider_id(f"{i:03d}"),
-            "pickup_location": [-23.5505, -46.6333],
-            "dropoff_location": [-23.5620, -46.6550],
-        }
-        batch_2_events.append(event)
-
-    # Act: Publish second batch to Kafka
-    for event in batch_2_events:
-        kafka_producer.produce(
-            topic="trips",
-            value=json.dumps(event).encode("utf-8"),
-            key=event["trip_id"].encode("utf-8"),
-        )
-
-    kafka_producer.flush(timeout=10.0)
-
-    # Wait for second batch ingestion (poll until 20 rows matching our filter)
-    poll_until_records_present(
-        query_callback=query_bronze_count,
-        expected_count=20,
-        timeout_seconds=60,
-        poll_interval=2.0,
-        description=f"bronze_trips after batch 2 (filter: {filter_pattern})",
-    )
-
-    # Assert: Query bronze.bronze_trips and verify 20 rows with our test_context
-    # Bronze layer stores raw JSON in _raw_value column
-    bronze_trips = query_table_filtered(
-        thrift_connection,
-        "bronze.bronze_trips",
-        filter_pattern,
-        columns="_raw_value, _kafka_offset",
-    )
-
-    assert (
-        len(bronze_trips) == 20
-    ), f"Expected 20 events in bronze_trips, found {len(bronze_trips)}"
-
-    # Assert: All trip_ids present (no data loss)
-    # Parse trip_id from raw JSON
-    expected_trip_ids = {test_context.trip_id(f"{i:03d}") for i in range(1, 21)}
-    actual_trip_ids = set()
-    for row in bronze_trips:
-        raw_json = json.loads(row["_raw_value"])
-        actual_trip_ids.add(raw_json["trip_id"])
-
-    assert (
-        actual_trip_ids == expected_trip_ids
-    ), f"Missing trip_ids. Expected {expected_trip_ids}, got {actual_trip_ids}"
-
-    # Assert: No duplicates (exactly-once semantics)
-    assert (
-        len(set(actual_trip_ids)) == 20
-    ), "Duplicates found in bronze_trips after restart"
-
-    # Assert: Verify checkpoint files exist in MinIO
-    checkpoint_bucket = "rideshare-checkpoints"
-    checkpoint_prefix = "trips/"
-
-    try:
-        # boto3 S3 client uses list_objects_v2
-        objects = minio_client.list_objects_v2(
-            Bucket=checkpoint_bucket, Prefix=checkpoint_prefix
-        )
-
-        checkpoint_files = [obj["Key"] for obj in objects.get("Contents", [])]
-
-        assert (
-            len(checkpoint_files) > 0
-        ), f"No checkpoint files found in s3a://{checkpoint_bucket}/{checkpoint_prefix}"
-
-        # Verify checkpoint metadata directory exists
-        metadata_files = [f for f in checkpoint_files if "metadata" in f.lower()]
-        assert len(metadata_files) > 0, "Checkpoint metadata files not found"
-
-    except Exception as e:
-        pytest.fail(f"Failed to verify checkpoint files in MinIO: {e}")

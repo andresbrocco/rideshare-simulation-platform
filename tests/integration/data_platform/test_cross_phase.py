@@ -7,12 +7,18 @@ Tests integration between phases of the medallion lakehouse architecture:
 
 import json
 import subprocess
-import time
 from pathlib import Path
 
 import pytest
 
-from tests.integration.data_platform.utils.sql_helpers import count_rows, query_table
+from tests.integration.data_platform.utils.sql_helpers import (
+    count_rows,
+    count_rows_filtered,
+    query_table,
+)
+from tests.integration.data_platform.utils.wait_helpers import (
+    poll_until_records_present,
+)
 
 # Project root for subprocess commands
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
@@ -37,6 +43,7 @@ def test_phase1_phase2_minio_streaming(
     minio_client,
     kafka_producer,
     thrift_connection,
+    test_context,
 ):
     """XP-001: Verify Phase 1 MinIO integrates with Phase 2 streaming.
 
@@ -58,14 +65,14 @@ def test_phase1_phase2_minio_streaming(
         "rideshare-bronze" in bucket_names
     ), "rideshare-bronze bucket not found in MinIO"
 
-    # Arrange: Publish single trip event
+    # Arrange: Publish single trip event with unique test IDs
     # Note: Event must include event_id and proper location format for DBT parsing
     trip_event = {
-        "event_id": "xp001-event-001",
+        "event_id": test_context.event_id("001"),
         "event_type": "trip.requested",
-        "trip_id": "xp001-trip-001",
+        "trip_id": test_context.trip_id("001"),
         "status": "requested",
-        "rider_id": "xp001-rider-001",
+        "rider_id": test_context.rider_id("001"),
         "timestamp": "2026-01-20T12:00:00Z",
         "pickup_location": [-23.5505, -46.6333],
         "dropoff_location": [-23.5620, -46.6550],
@@ -77,8 +84,21 @@ def test_phase1_phase2_minio_streaming(
     )
     kafka_producer.flush()
 
-    # Act: Wait for streaming job to process
-    time.sleep(15)  # Wait for trigger interval + processing
+    # Act: Wait for streaming job to process with polling
+    filter_pattern = test_context.filter_pattern()
+
+    def query_bronze_count():
+        return count_rows_filtered(
+            thrift_connection, "bronze.bronze_trips", filter_pattern
+        )
+
+    poll_until_records_present(
+        query_callback=query_bronze_count,
+        expected_count=1,
+        timeout_seconds=60,
+        poll_interval=2.0,
+        description=f"bronze_trips for {trip_event['trip_id']}",
+    )
 
     # Assert: Verify Delta _delta_log directory exists
     try:
@@ -124,6 +144,7 @@ def test_phase2_phase3_bronze_dbt(
     clean_bronze_tables,
     thrift_connection,
     kafka_producer,
+    test_context,
 ):
     """XP-002: Verify Phase 2 Bronze tables consumable by Phase 3 DBT.
 
@@ -140,12 +161,12 @@ def test_phase2_phase3_bronze_dbt(
     # Note: Events must include event_id and proper location format for DBT parsing
     trip_events = [
         {
-            "event_id": f"xp002-event-{i:03d}",
+            "event_id": test_context.event_id(f"{i:03d}"),
             "event_type": "trip.completed",
-            "trip_id": f"xp002-trip-{i:03d}",
+            "trip_id": test_context.trip_id(f"{i:03d}"),
             "status": "completed",
-            "rider_id": f"xp002-rider-{i:03d}",
-            "driver_id": f"xp002-driver-{i:03d}",
+            "rider_id": test_context.rider_id(f"{i:03d}"),
+            "driver_id": test_context.driver_id(f"{i:03d}"),
             "timestamp": "2026-01-20T12:00:00Z",
             "pickup_location": [-23.5505, -46.6333],
             "dropoff_location": [-23.5620, -46.6550],
@@ -161,8 +182,21 @@ def test_phase2_phase3_bronze_dbt(
         )
     kafka_producer.flush()
 
-    # Wait for streaming to process
-    time.sleep(15)
+    # Wait for streaming to process with polling
+    filter_pattern = test_context.filter_pattern()
+
+    def query_bronze_count():
+        return count_rows_filtered(
+            thrift_connection, "bronze.bronze_trips", filter_pattern
+        )
+
+    poll_until_records_present(
+        query_callback=query_bronze_count,
+        expected_count=5,
+        timeout_seconds=60,
+        poll_interval=2.0,
+        description=f"bronze_trips for test {test_context.test_id}",
+    )
 
     # Arrange: Verify Bronze data exists
     trip_count = count_rows(thrift_connection, "bronze.bronze_trips")

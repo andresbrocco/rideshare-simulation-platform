@@ -9,6 +9,7 @@ Tests data consistency and recovery under failure conditions:
 import json
 import subprocess
 import time
+import uuid
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,7 @@ import pytest
 from tests.integration.data_platform.utils.sql_helpers import (
     count_rows,
     count_rows_filtered,
+    get_future_ingestion_timestamp,
     insert_bronze_data,
     query_table,
     query_table_filtered,
@@ -240,12 +242,15 @@ def test_trip_state_machine_integrity(
     - DBT Silver transformation preserves all fields
     - fare, surge_multiplier, driver_id, rider_id match exactly
     """
-    # Arrange: Create complete trip lifecycle with known values
+    # Arrange: Generate unique test run ID to avoid conflicts with other test runs
+    test_run_id = uuid.uuid4().hex[:8]
+
+    # Create complete trip lifecycle with known values
     test_fare = 42.75
     test_surge = 1.5
-    test_trip_id = "integrity-test-trip-001"
-    test_driver_id = "integrity-driver-001"
-    test_rider_id = "integrity-rider-001"
+    test_trip_id = f"integrity-test-trip-{test_run_id}"
+    test_driver_id = f"integrity-driver-{test_run_id}"
+    test_rider_id = f"integrity-rider-{test_run_id}"
 
     trip_lifecycle_events = [
         {
@@ -309,6 +314,7 @@ def test_trip_state_machine_integrity(
     ]
 
     # Insert into Bronze as raw JSON
+    # Use future timestamps to bypass DBT incremental filter
     bronze_data = []
     for i, event in enumerate(trip_lifecycle_events):
         bronze_data.append(
@@ -317,7 +323,7 @@ def test_trip_state_machine_integrity(
                 "_kafka_partition": 0,
                 "_kafka_offset": 100 + i,
                 "_kafka_timestamp": "2026-01-20T10:00:00",
-                "_ingested_at": f"2026-01-20T10:0{i}:00",
+                "_ingested_at": get_future_ingestion_timestamp(offset_hours=i),
             }
         )
 
@@ -402,6 +408,7 @@ def test_pipeline_smoke_test(
     clean_silver_tables,
     kafka_producer,
     thrift_connection,
+    test_context,
 ):
     """REG-001 (simplified): Pipeline smoke test Kafka -> Bronze -> Silver.
 
@@ -416,62 +423,64 @@ def test_pipeline_smoke_test(
     """
     start_time = time.time()
 
-    # Arrange: Create trip lifecycle
-    test_trip_id = "smoke-test-trip-001"
+    # Arrange: Create trip lifecycle with unique test IDs
+    test_trip_id = test_context.trip_id("001")
+    test_driver_id = test_context.driver_id("001")
+    test_rider_id = test_context.rider_id("001")
     test_fare = 35.00
 
     trip_events = [
         {
-            "event_id": f"{test_trip_id}-event-001",
+            "event_id": test_context.event_id("001"),
             "event_type": "trip.requested",
             "trip_id": test_trip_id,
             "status": "requested",
-            "rider_id": "smoke-rider-001",
+            "rider_id": test_rider_id,
             "timestamp": "2026-01-20T14:00:00Z",
             "pickup_location": [-23.5505, -46.6333],
             "dropoff_location": [-23.5620, -46.6550],
         },
         {
-            "event_id": f"{test_trip_id}-event-002",
+            "event_id": test_context.event_id("002"),
             "event_type": "trip.matched",
             "trip_id": test_trip_id,
             "status": "matched",
-            "rider_id": "smoke-rider-001",
-            "driver_id": "smoke-driver-001",
+            "rider_id": test_rider_id,
+            "driver_id": test_driver_id,
             "timestamp": "2026-01-20T14:01:00Z",
         },
         {
-            "event_id": f"{test_trip_id}-event-003",
+            "event_id": test_context.event_id("003"),
             "event_type": "trip.driver_en_route",
             "trip_id": test_trip_id,
             "status": "driver_en_route",
-            "driver_id": "smoke-driver-001",
+            "driver_id": test_driver_id,
             "timestamp": "2026-01-20T14:02:00Z",
         },
         {
-            "event_id": f"{test_trip_id}-event-004",
+            "event_id": test_context.event_id("004"),
             "event_type": "trip.driver_arrived",
             "trip_id": test_trip_id,
             "status": "driver_arrived",
-            "driver_id": "smoke-driver-001",
+            "driver_id": test_driver_id,
             "timestamp": "2026-01-20T14:05:00Z",
         },
         {
-            "event_id": f"{test_trip_id}-event-005",
+            "event_id": test_context.event_id("005"),
             "event_type": "trip.started",
             "trip_id": test_trip_id,
             "status": "started",
-            "driver_id": "smoke-driver-001",
-            "rider_id": "smoke-rider-001",
+            "driver_id": test_driver_id,
+            "rider_id": test_rider_id,
             "timestamp": "2026-01-20T14:06:00Z",
         },
         {
-            "event_id": f"{test_trip_id}-event-006",
+            "event_id": test_context.event_id("006"),
             "event_type": "trip.completed",
             "trip_id": test_trip_id,
             "status": "completed",
-            "driver_id": "smoke-driver-001",
-            "rider_id": "smoke-rider-001",
+            "driver_id": test_driver_id,
+            "rider_id": test_rider_id,
             "timestamp": "2026-01-20T14:20:00Z",
             "fare": test_fare,
             "surge_multiplier": 1.0,
@@ -510,12 +519,14 @@ def test_pipeline_smoke_test(
     assert bronze_count == 6, f"Expected 6 events in Bronze, found {bronze_count}"
 
     # Act: Run DBT Silver transformation directly (no Airflow)
+    # Use --full-refresh to bypass incremental filter and ensure test data is processed
     dbt_result = subprocess.run(
         [
             "./venv/bin/dbt",
             "run",
             "--select",
             "stg_trips",
+            "--full-refresh",
             "--profiles-dir",
             "profiles",
             "--project-dir",

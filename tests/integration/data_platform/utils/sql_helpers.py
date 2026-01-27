@@ -2,10 +2,29 @@
 
 import os
 import uuid
+from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 
 import boto3
 from pyhive import hive
+
+
+def get_future_ingestion_timestamp(offset_hours: int = 0) -> str:
+    """Generate a future timestamp for _ingested_at that bypasses DBT incremental filters.
+
+    DBT incremental models filter data where `_ingested_at > max(_ingested_at)` from Silver.
+    Using future timestamps (year 2099) ensures test data is always processed regardless
+    of what's already in Silver from previous test runs.
+
+    Args:
+        offset_hours: Hours to add to the base future timestamp (for ordering within a test)
+
+    Returns:
+        Timestamp string in format "2099-01-20T10:00:00" (no timezone)
+    """
+    base = datetime(2099, 1, 20, 10, 0, 0)
+    result = base + timedelta(hours=offset_hours)
+    return result.strftime("%Y-%m-%dT%H:%M:%S")
 
 
 def _get_minio_client():
@@ -1156,7 +1175,10 @@ def ensure_bronze_tables_exist(connection: hive.Connection) -> List[str]:
             return True
         except Exception as e:
             error_msg = str(e)
-            if "DELTA_CREATE_TABLE_SCHEME_MISMATCH" in error_msg:
+            if (
+                "DELTA_CREATE_TABLE_SCHEME_MISMATCH" in error_msg
+                or "DELTA_CREATE_TABLE_WITH_NON_EMPTY_LOCATION" in error_msg
+            ):
                 # Extract S3 location from DDL
                 bucket, prefix = _extract_s3_location_from_ddl(ddl)
                 if bucket and prefix:
@@ -1235,7 +1257,10 @@ def ensure_table_exists(connection: hive.Connection, table_name: str) -> bool:
             # If CREATE TABLE fails due to schema mismatch (empty Delta log exists),
             # delete the empty Delta log and retry
             error_msg = str(e)
-            if "DELTA_CREATE_TABLE_SCHEME_MISMATCH" in error_msg:
+            if (
+                "DELTA_CREATE_TABLE_SCHEME_MISMATCH" in error_msg
+                or "DELTA_CREATE_TABLE_WITH_NON_EMPTY_LOCATION" in error_msg
+            ):
                 bucket, prefix = _extract_s3_location_from_ddl(ddl)
                 if bucket and prefix:
                     print(
@@ -1322,7 +1347,10 @@ def ensure_silver_tables_exist(connection: hive.Connection) -> List[str]:
             return True
         except Exception as e:
             error_msg = str(e)
-            if "DELTA_CREATE_TABLE_SCHEME_MISMATCH" in error_msg:
+            if (
+                "DELTA_CREATE_TABLE_SCHEME_MISMATCH" in error_msg
+                or "DELTA_CREATE_TABLE_WITH_NON_EMPTY_LOCATION" in error_msg
+            ):
                 # Extract S3 location from DDL
                 bucket, prefix = _extract_s3_location_from_ddl(ddl)
                 if bucket and prefix:
@@ -1398,7 +1426,10 @@ def ensure_gold_tables_exist(connection: hive.Connection) -> List[str]:
             return True
         except Exception as e:
             error_msg = str(e)
-            if "DELTA_CREATE_TABLE_SCHEME_MISMATCH" in error_msg:
+            if (
+                "DELTA_CREATE_TABLE_SCHEME_MISMATCH" in error_msg
+                or "DELTA_CREATE_TABLE_WITH_NON_EMPTY_LOCATION" in error_msg
+            ):
                 # Extract S3 location from DDL
                 bucket, prefix = _extract_s3_location_from_ddl(ddl)
                 if bucket and prefix:

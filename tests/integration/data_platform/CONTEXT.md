@@ -18,7 +18,7 @@ Validates end-to-end integration of the data platform across all services: the c
 - **Core Pipeline** (`core_pipeline`): Tests the real-time event flow from Simulation API through Kafka, Stream Processor, Redis pub/sub, to WebSocket clients
 - **Resilience** (`resilience`): Tests data consistency under partial failures, trip state machine integrity, and pipeline smoke tests
 - **Feature Journey** (`feature_journey`): Tests Bronze ingestion and DBT Silver transformations
-- **Data Flow** (`data_flow`): Tests data lineage, deduplication, and checkpoint recovery
+- **Data Flow** (`data_flow`): Tests data lineage and deduplication
 - **Cross-Phase** (`cross_phase`): Tests integration between MinIO + Streaming and Bronze + DBT
 
 **Correlation ID Tracing**: Tests inject unique `correlation_id` or `trip_id` values into events to enable precise data lineage tracking through Bronze/Silver transformations without interference from other concurrent tests.
@@ -30,8 +30,6 @@ Validates end-to-end integration of the data platform across all services: the c
 Tests wait for Bronze tables to be initialized by the `bronze-init` container, then explicitly create missing tables using DDL from `sql_helpers.py` if streaming jobs haven't written data yet. This ensures tests can run even when no production data exists.
 
 The `clean_*_tables` fixtures truncate Delta tables by deleting S3 objects directly rather than using `DELETE FROM` SQL, as Delta tables preserve history and SQL deletes only mark rows as removed. Direct S3 deletion provides true isolation between test runs.
-
-Checkpoint recovery tests kill and restart streaming containers mid-pipeline to verify exactly-once semantics. The test publishes events before and after restart, then validates all events appear exactly once in Bronze tables, confirming Kafka offset checkpoints restore correctly.
 
 WebSocket tests use `websockets.sync.client` with API key authentication via the `Sec-WebSocket-Protocol: apikey.<key>` subprotocol header, matching the production authentication mechanism.
 
