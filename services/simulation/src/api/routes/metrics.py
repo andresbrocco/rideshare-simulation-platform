@@ -28,6 +28,7 @@ from api.models.metrics import (
     TripMetrics,
     ZoneMetrics,
 )
+from api.rate_limit import limiter
 from metrics import get_metrics_collector
 from trip import TripState
 
@@ -78,7 +79,8 @@ def _get_cached_or_compute(cache_key: str, compute_func: Callable):
 
 
 @router.get("/overview", response_model=OverviewMetrics)
-def get_overview_metrics(engine: EngineDep, driver_registry: DriverRegistryDep):
+@limiter.limit("120/minute")
+def get_overview_metrics(request: Request, engine: EngineDep, driver_registry: DriverRegistryDep):
     """Returns overview metrics with total counts."""
 
     def compute():
@@ -131,7 +133,8 @@ def get_overview_metrics(engine: EngineDep, driver_registry: DriverRegistryDep):
 
 
 @router.get("/zones", response_model=list[ZoneMetrics])
-def get_zone_metrics(engine: EngineDep, driver_registry: DriverRegistryDep):
+@limiter.limit("120/minute")
+def get_zone_metrics(request: Request, engine: EngineDep, driver_registry: DriverRegistryDep):
     """Returns per-zone metrics with supply, demand, and surge."""
 
     def compute():
@@ -171,7 +174,8 @@ def get_zone_metrics(engine: EngineDep, driver_registry: DriverRegistryDep):
 
 
 @router.get("/trips", response_model=TripMetrics)
-def get_trip_metrics(engine: EngineDep):
+@limiter.limit("120/minute")
+def get_trip_metrics(request: Request, engine: EngineDep):
     """Returns trip statistics including active, completed, and averages."""
 
     def compute():
@@ -234,7 +238,8 @@ def get_trip_metrics(engine: EngineDep):
 
 
 @router.get("/drivers", response_model=DriverMetrics)
-def get_driver_metrics(driver_registry: DriverRegistryDep):
+@limiter.limit("120/minute")
+def get_driver_metrics(request: Request, driver_registry: DriverRegistryDep):
     """Returns driver status counts."""
 
     def compute():
@@ -266,7 +271,8 @@ def get_driver_metrics(driver_registry: DriverRegistryDep):
 
 
 @router.get("/riders", response_model=RiderMetrics)
-def get_rider_metrics(engine: EngineDep, matching_server: MatchingServerDep):
+@limiter.limit("120/minute")
+def get_rider_metrics(request: Request, engine: EngineDep, matching_server: MatchingServerDep):
     """Returns rider status counts derived from trip states.
 
     Rider states:
@@ -364,7 +370,8 @@ def _fetch_stream_processor_metrics() -> StreamProcessorMetrics | None:
 
 
 @router.get("/performance", response_model=PerformanceMetrics)
-def get_performance_metrics(engine: EngineDep):
+@limiter.limit("120/minute")
+def get_performance_metrics(request: Request, engine: EngineDep):
     """Returns real-time performance metrics.
 
     Includes:
@@ -644,6 +651,7 @@ def _find_container_in_cadvisor(container_name: str, cadvisor_data: dict) -> dic
 
 
 @router.get("/infrastructure", response_model=InfrastructureResponse)
+@limiter.limit("120/minute")
 async def get_infrastructure_metrics(request: Request):
     """Returns unified infrastructure metrics for all services.
 

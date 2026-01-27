@@ -12,6 +12,8 @@ import httpx
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from redis.asyncio import Redis
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from api.auth import verify_api_key
 from api.models.health import (
@@ -19,6 +21,7 @@ from api.models.health import (
     ServiceHealth,
     StreamProcessorHealth,
 )
+from api.rate_limit import limiter
 from api.redis_subscriber import RedisSubscriber
 from api.routes import agents, metrics, puppet, simulation
 from api.snapshots import StateSnapshotManager
@@ -36,9 +39,7 @@ logger = logging.getLogger(__name__)
 class StatusBroadcaster:
     """Periodically broadcasts simulation status to WebSocket clients."""
 
-    def __init__(
-        self, engine: "SimulationEngine", connection_manager, snapshot_manager
-    ):
+    def __init__(self, engine: "SimulationEngine", connection_manager, snapshot_manager):
         self._engine = engine
         self._connection_manager = connection_manager
         self._snapshot_manager = snapshot_manager
@@ -59,9 +60,7 @@ class StatusBroadcaster:
             try:
                 await asyncio.sleep(self._interval)
                 if self._connection_manager.active_connections:
-                    snapshot = await self._snapshot_manager.get_snapshot(
-                        engine=self._engine
-                    )
+                    snapshot = await self._snapshot_manager.get_snapshot(engine=self._engine)
                     await self._connection_manager.broadcast(
                         {
                             "type": "simulation_status",
@@ -119,6 +118,10 @@ def create_app(
         description="REST API for controlling simulation and streaming real-time updates",
         lifespan=lifespan,
     )
+
+    # Add rate limiter state and exception handler
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     # Set core dependencies immediately (not in lifespan) so they're available for testing
     app.state.simulation_engine = engine
@@ -202,7 +205,9 @@ def create_app(
             """Check OSRM health via test route request."""
             settings = get_settings()
             # Use a simple route in Sao Paulo for health check
-            test_url = f"{settings.osrm.base_url}/route/v1/driving/-46.6388,-23.5475;-46.6355,-23.5505"
+            test_url = (
+                f"{settings.osrm.base_url}/route/v1/driving/-46.6388,-23.5475;-46.6355,-23.5505"
+            )
 
             try:
                 start = time.perf_counter()
@@ -260,9 +265,7 @@ def create_app(
                 admin = AdminClient(admin_config)
                 # list_topics() is blocking, run in executor
                 loop = asyncio.get_running_loop()
-                metadata = await loop.run_in_executor(
-                    None, lambda: admin.list_topics(timeout=5.0)
-                )
+                metadata = await loop.run_in_executor(None, lambda: admin.list_topics(timeout=5.0))
                 latency_ms = (time.perf_counter() - start) * 1000
 
                 broker_count = len(metadata.brokers)
@@ -349,13 +352,11 @@ def create_app(
                 )
 
         # Run all checks concurrently
-        redis_health, osrm_health, kafka_health, stream_processor_health = (
-            await asyncio.gather(
-                check_redis(),
-                check_osrm(),
-                check_kafka(),
-                check_stream_processor(),
-            )
+        redis_health, osrm_health, kafka_health, stream_processor_health = await asyncio.gather(
+            check_redis(),
+            check_osrm(),
+            check_kafka(),
+            check_stream_processor(),
         )
         engine_health = check_simulation_engine()
 

@@ -24,6 +24,7 @@ from api.models.agents import (
     SpawnMode,
     SpawnQueueStatusResponse,
 )
+from api.rate_limit import limiter
 from settings import get_settings
 
 router = APIRouter(dependencies=[Depends(verify_api_key)])
@@ -82,8 +83,10 @@ def compute_next_action_response(agent: Any, engine: Any) -> NextActionResponse 
 
 
 @router.post("/drivers", response_model=DriversCreateResponse)
+@limiter.limit("30/minute")
 def create_drivers(
-    request: DriverCreateRequest,
+    request: Request,
+    body: DriverCreateRequest,
     agent_factory: AgentFactoryDep,
     mode: Annotated[
         SpawnMode,
@@ -104,7 +107,7 @@ def create_drivers(
     try:
         settings = get_settings()
         immediate = mode == SpawnMode.IMMEDIATE
-        queued = agent_factory.queue_drivers(request.count, immediate=immediate)
+        queued = agent_factory.queue_drivers(body.count, immediate=immediate)
         spawn_rate = settings.spawn.driver_spawn_rate
         return DriversCreateResponse(
             queued=queued,
@@ -116,8 +119,10 @@ def create_drivers(
 
 
 @router.post("/riders", response_model=RidersCreateResponse)
+@limiter.limit("30/minute")
 def create_riders(
-    request: RiderCreateRequest,
+    request: Request,
+    body: RiderCreateRequest,
     agent_factory: AgentFactoryDep,
     mode: Annotated[
         SpawnMode,
@@ -138,7 +143,7 @@ def create_riders(
     try:
         settings = get_settings()
         immediate = mode == SpawnMode.IMMEDIATE
-        queued = agent_factory.queue_riders(request.count, immediate=immediate)
+        queued = agent_factory.queue_riders(body.count, immediate=immediate)
         spawn_rate = settings.spawn.rider_spawn_rate
         return RidersCreateResponse(
             queued=queued,
@@ -150,7 +155,8 @@ def create_riders(
 
 
 @router.get("/spawn-status", response_model=SpawnQueueStatusResponse)
-def get_spawn_status(agent_factory: AgentFactoryDep):
+@limiter.limit("60/minute")
+def get_spawn_status(request: Request, agent_factory: AgentFactoryDep):
     """Get current spawn queue status.
 
     Returns the number of drivers and riders waiting to be spawned.
@@ -163,7 +169,9 @@ def get_spawn_status(agent_factory: AgentFactoryDep):
 
 
 @router.get("/drivers/{driver_id}", response_model=DriverStateResponse)
+@limiter.limit("60/minute")
 def get_driver_state(
+    request: Request,
     driver_id: str,
     engine: SimulationEngineDep,
     zone_loader: ZoneLoaderDep,
@@ -273,7 +281,9 @@ def get_driver_state(
 
 
 @router.get("/riders/{rider_id}", response_model=RiderStateResponse)
+@limiter.limit("60/minute")
 def get_rider_state(
+    request: Request,
     rider_id: str,
     engine: SimulationEngineDep,
     zone_loader: ZoneLoaderDep,
@@ -364,9 +374,11 @@ def get_rider_state(
 
 
 @router.put("/drivers/{driver_id}/status", response_model=DriverStatusToggleResponse)
+@limiter.limit("30/minute")
 def toggle_driver_status(
+    request: Request,
     driver_id: str,
-    request: DriverStatusToggleRequest,
+    body: DriverStatusToggleRequest,
     engine: SimulationEngineDep,
 ):
     """Toggle driver online/offline status.
@@ -385,7 +397,7 @@ def toggle_driver_status(
 
     previous_status = driver.status
 
-    if request.go_online:
+    if body.go_online:
         if driver.status == "online":
             raise HTTPException(status_code=400, detail="Driver is already online")
         driver.go_online()
@@ -402,7 +414,9 @@ def toggle_driver_status(
 
 
 @router.post("/riders/{rider_id}/request-trip", response_model=RiderTripRequestResponse)
+@limiter.limit("30/minute")
 async def request_rider_trip(
+    request: Request,
     rider_id: str,
     body: RiderTripRequestBody,
     engine: SimulationEngineDep,

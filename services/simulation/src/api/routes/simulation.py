@@ -11,6 +11,7 @@ from api.models.simulation import (
     SpeedChangeRequest,
     SpeedChangeResponse,
 )
+from api.rate_limit import limiter
 
 router = APIRouter(dependencies=[Depends(verify_api_key)])
 
@@ -30,7 +31,8 @@ DriverRegistryDep = Annotated[Any, Depends(get_driver_registry)]
 
 
 @router.post("/start", response_model=ControlResponse)
-def start_simulation(engine: EngineDep):
+@limiter.limit("10/minute")
+def start_simulation(request: Request, engine: EngineDep):
     """Start the simulation."""
     if engine.state.value == "running":
         raise HTTPException(status_code=400, detail="Simulation already running")
@@ -43,7 +45,8 @@ def start_simulation(engine: EngineDep):
 
 
 @router.post("/pause", response_model=ControlResponse)
-def pause_simulation(engine: EngineDep):
+@limiter.limit("10/minute")
+def pause_simulation(request: Request, engine: EngineDep):
     """Initiate two-phase pause (draining then paused)."""
     if engine.state.value != "running":
         raise HTTPException(status_code=400, detail="Simulation not running")
@@ -53,7 +56,8 @@ def pause_simulation(engine: EngineDep):
 
 
 @router.post("/resume", response_model=ControlResponse)
-def resume_simulation(engine: EngineDep):
+@limiter.limit("10/minute")
+def resume_simulation(request: Request, engine: EngineDep):
     """Resume from paused state."""
     if engine.state.value != "paused":
         raise HTTPException(status_code=400, detail="Simulation not paused")
@@ -63,7 +67,8 @@ def resume_simulation(engine: EngineDep):
 
 
 @router.post("/stop", response_model=ControlResponse)
-def stop_simulation(engine: EngineDep):
+@limiter.limit("10/minute")
+def stop_simulation(request: Request, engine: EngineDep):
     """Stop the simulation."""
     if engine.state.value == "stopped":
         raise HTTPException(status_code=400, detail="Simulation already stopped")
@@ -78,6 +83,7 @@ async def _broadcast_reset(connection_manager) -> None:
 
 
 @router.post("/reset", response_model=ControlResponse)
+@limiter.limit("10/minute")
 def reset_simulation(request: Request, engine: EngineDep, background_tasks: BackgroundTasks):
     """Reset simulation to initial state, clearing all data."""
     # Call engine reset (handles most clearing including database)
@@ -105,19 +111,21 @@ def reset_simulation(request: Request, engine: EngineDep, background_tasks: Back
 
 
 @router.put("/speed", response_model=SpeedChangeResponse)
-def change_speed(request: SpeedChangeRequest, engine: EngineDep):
+@limiter.limit("10/minute")
+def change_speed(request: Request, body: SpeedChangeRequest, engine: EngineDep):
     """Change simulation speed multiplier (any positive integer)."""
-    if request.multiplier < 1:
+    if body.multiplier < 1:
         raise HTTPException(
             status_code=400, detail="Invalid multiplier. Must be a positive integer"
         )
 
-    engine.set_speed(request.multiplier)
-    return SpeedChangeResponse(speed=request.multiplier)
+    engine.set_speed(body.multiplier)
+    return SpeedChangeResponse(speed=body.multiplier)
 
 
 @router.get("/status", response_model=SimulationStatusResponse)
-def get_status(engine: EngineDep, driver_registry: DriverRegistryDep):
+@limiter.limit("30/minute")
+def get_status(request: Request, engine: EngineDep, driver_registry: DriverRegistryDep):
     """Get current simulation status with detailed agent counts."""
     current_time = engine.current_time()
     if isinstance(current_time, datetime):
