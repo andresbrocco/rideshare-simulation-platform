@@ -4,7 +4,7 @@ import asyncio
 import logging
 import threading
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal, TypedDict
 from uuid import uuid4
 
 import simpy
@@ -17,17 +17,58 @@ from settings import Settings
 from trip import Trip, TripState
 from trips.trip_executor import TripExecutor
 
-logger = logging.getLogger(__name__)
-
 if TYPE_CHECKING:
     from agents.driver_agent import DriverAgent
     from agents.rider_agent import RiderAgent
-    from engine.simulation_engine import SimulationEngine
+    from engine import SimulationEngine
     from geo.osrm_client import OSRMClient, RouteResponse
     from kafka.producer import KafkaProducer
     from matching.agent_registry_manager import AgentRegistryManager
     from matching.surge_pricing import SurgePricingCalculator
     from redis_client.publisher import RedisPublisher
+
+logger = logging.getLogger(__name__)
+
+# Type alias for trip event types
+TripEventType = Literal[
+    "trip.requested",
+    "trip.offer_sent",
+    "trip.matched",
+    "trip.driver_en_route",
+    "trip.driver_arrived",
+    "trip.started",
+    "trip.completed",
+    "trip.cancelled",
+    "trip.offer_expired",
+    "trip.offer_rejected",
+]
+
+# Type alias for cancellation actor
+CancellationActor = Literal["rider", "driver", "system"]
+
+
+class PendingOffer(TypedDict):
+    """Structure for a pending trip offer to a driver."""
+
+    trip_id: str
+    surge_multiplier: float
+    rider_rating: float
+    eta_seconds: int
+
+
+class PendingOfferCandidates(TypedDict):
+    """Structure for tracking remaining candidates during offer cycle."""
+
+    remaining_drivers: list[tuple[Any, int, float]]  # (DriverAgent, eta, score)
+    current_attempt: int
+    max_attempts: int
+
+
+class PuppetDriveStatus(TypedDict):
+    """Structure for puppet drive status."""
+
+    is_running: bool
+    is_completed: bool
 
 
 class MatchingServer:
@@ -61,10 +102,9 @@ class MatchingServer:
         self._surge_calculator = surge_calculator
         self._settings = settings or Settings()
         self._simulation_engine = simulation_engine
-        self._pending_offers: dict[str, dict] = {}
+        self._pending_offers: dict[str, PendingOffer] = {}
         # Store remaining candidates when puppet driver gets offer (for continuation after rejection)
-        # Maps trip_id -> {"remaining_drivers": [...], "current_attempt": int, "max_attempts": int}
-        self._pending_offer_candidates: dict[str, dict] = {}
+        self._pending_offer_candidates: dict[str, PendingOfferCandidates] = {}
         self._drivers: dict[str, DriverAgent] = {}
         self._active_trips: dict[str, Trip] = {}
         # Queue for trips that need their TripExecutor started from SimPy thread
@@ -122,7 +162,7 @@ class MatchingServer:
         with self._state_lock:
             return self._cancelled_trips.copy()
 
-    def get_trip_stats(self) -> dict:
+    def get_trip_stats(self) -> dict[str, Any]:
         """Get trip statistics for metrics."""
         with self._state_lock:
             completed = list(self._completed_trips)
@@ -171,7 +211,7 @@ class MatchingServer:
             "avg_pickup_seconds": avg_pickup_seconds,
         }
 
-    def get_matching_stats(self) -> dict:
+    def get_matching_stats(self) -> dict[str, Any]:
         """Get matching outcome statistics for metrics."""
         with self._state_lock:
             return {
@@ -272,6 +312,8 @@ class MatchingServer:
             driver: "DriverAgent",
         ) -> tuple["DriverAgent", int] | None:
             try:
+                # Location is guaranteed non-None by valid_drivers filter above
+                assert driver.location is not None
                 route = await self._osrm_client.get_route(driver.location, pickup_location)
                 eta_seconds = int(route.duration_seconds)
                 logger.debug(
@@ -342,7 +384,7 @@ class MatchingServer:
 
         # Composite score using configurable weights
         weights = self._settings.matching
-        score = (
+        score: float = (
             eta_normalized * weights.ranking_eta_weight
             + rating_normalized * weights.ranking_rating_weight
             + acceptance_normalized * weights.ranking_acceptance_weight
@@ -610,7 +652,7 @@ class MatchingServer:
                 return False
 
             # Regular drivers auto-decide based on DNA
-            accepted = self._notification_dispatch.send_driver_offer(
+            accepted: bool = self._notification_dispatch.send_driver_offer(
                 driver=driver,
                 trip=trip,
                 eta_seconds=eta_seconds,
@@ -756,7 +798,7 @@ class MatchingServer:
 
     # --- Puppet Agent Helper Methods ---
 
-    def get_pending_offer_for_driver(self, driver_id: str) -> dict | None:
+    def get_pending_offer_for_driver(self, driver_id: str) -> PendingOffer | None:
         """Get the pending trip offer for a specific driver."""
         with self._state_lock:
             return self._pending_offers.get(driver_id)
@@ -1021,7 +1063,7 @@ class MatchingServer:
             )
 
     def cancel_trip(
-        self, trip_id: str, cancelled_by: str = "system", reason: str = "cancelled"
+        self, trip_id: str, cancelled_by: CancellationActor = "system", reason: str = "cancelled"
     ) -> None:
         """Cancel an active trip."""
         trip = self._active_trips.get(trip_id)
@@ -1057,13 +1099,13 @@ class MatchingServer:
         # Remove from active trips
         self.complete_trip(trip_id, trip)
 
-    def _emit_trip_state_event(self, trip: Trip, event_type: str) -> None:
+    def _emit_trip_state_event(self, trip: Trip, event_type: TripEventType) -> None:
         """Emit a trip state change event."""
         if not self._kafka_producer:
             return
 
         event = TripEvent(
-            event_type=event_type,  # type: ignore[arg-type]
+            event_type=event_type,
             trip_id=trip.trip_id,
             rider_id=trip.rider_id,
             driver_id=trip.driver_id,
@@ -1104,6 +1146,9 @@ class MatchingServer:
         if driver.status != "en_route_pickup":
             raise ValueError(f"Driver must be in 'en_route_pickup' status, got '{driver.status}'")
 
+        if not driver.location:
+            raise ValueError(f"Driver {driver_id} has no location")
+
         # Stop any existing drive for this driver
         if driver_id in self._puppet_drives:
             self._puppet_drives[driver_id].stop()
@@ -1121,7 +1166,7 @@ class MatchingServer:
             route_response=route,
             kafka_producer=self._kafka_producer,
             redis_publisher=self._redis_publisher,
-            speed_multiplier=self._settings.speed_multiplier,
+            speed_multiplier=self._settings.simulation.speed_multiplier,
             is_pickup_drive=True,
         )
 
@@ -1156,6 +1201,9 @@ class MatchingServer:
                 f"Driver must be in 'en_route_destination' status, got '{driver.status}'"
             )
 
+        if not driver.location:
+            raise ValueError(f"Driver {driver_id} has no location")
+
         # Stop any existing drive for this driver
         if driver_id in self._puppet_drives:
             self._puppet_drives[driver_id].stop()
@@ -1173,7 +1221,7 @@ class MatchingServer:
             route_response=route,
             kafka_producer=self._kafka_producer,
             redis_publisher=self._redis_publisher,
-            speed_multiplier=self._settings.speed_multiplier,
+            speed_multiplier=self._settings.simulation.speed_multiplier,
             is_pickup_drive=False,
         )
 
@@ -1182,7 +1230,7 @@ class MatchingServer:
 
         return route, controller
 
-    def get_puppet_drive_status(self, driver_id: str) -> dict | None:
+    def get_puppet_drive_status(self, driver_id: str) -> PuppetDriveStatus | None:
         """Get status of an active puppet drive."""
         controller = self._puppet_drives.get(driver_id)
         if not controller:
