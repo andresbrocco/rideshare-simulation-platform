@@ -10,7 +10,12 @@ warn_unused_configs = true
 check_untyped_defs = true
 warn_redundant_casts = true
 
-# pyhive and airflow.providers.databricks have no type stubs available
+# These libraries have no type stubs or are not installed in CI
 [[tool.mypy.overrides]]
-module = ["pyhive", "pyhive.*", "airflow.providers.databricks", "airflow.providers.databricks.*"]
+module = [
+    "pyhive",
+    "pyhive.*",
+    "airflow",
+    "airflow.*",
+]
 ignore_missing_imports = true

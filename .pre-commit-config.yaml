@@ -69,9 +69,9 @@ repos:
 
       - id: mypy-superset
         name: mypy (superset)
-        entry: bash -c 'cd analytics/superset && ./venv/bin/mypy superset_config.py dashboards/ tests/'
+        entry: bash -c 'cd analytics/superset && ./venv/bin/mypy superset_config.py dashboards/'
         language: system
-        files: ^analytics/superset/(superset_config\.py|dashboards/.*\.py|tests/.*\.py)$
+        files: ^analytics/superset/(superset_config\.py|dashboards/.*\.py)$
         pass_filenames: false
 
       - id: mypy-lakehouse

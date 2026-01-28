@@ -112,5 +112,7 @@ module = [
     "h3.*",
     "polyline",
     "polyline.*",
+    "shapely",
+    "shapely.*",
 ]
 ignore_missing_imports = true
