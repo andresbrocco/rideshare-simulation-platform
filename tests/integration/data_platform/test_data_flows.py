@@ -325,9 +325,7 @@ def test_bronze_to_silver_lineage(
     ), f"Expected deduplication. Bronze: {bronze_count}, Silver: {silver_count}"
 
     # Expected: 3 unique events after deduplication (event_id is the dedup key)
-    assert (
-        silver_count == 3
-    ), f"Expected 3 unique events in Silver, found {silver_count}"
+    assert silver_count == 3, f"Expected 3 unique events in Silver, found {silver_count}"
 
     # Assert: No duplicate event_ids in Silver
     event_ids = [row["event_id"] for row in silver_trips]

@@ -321,9 +321,7 @@ class AgentFactory:
             # Optional time affinity
             time_affinity = None
             if random.random() < 0.4:
-                affinity_type = random.choice(
-                    ["morning_commute", "evening_return", "leisure"]
-                )
+                affinity_type = random.choice(["morning_commute", "evening_return", "leisure"])
                 if affinity_type == "morning_commute":
                     time_affinity = list(range(7, 10))
                 elif affinity_type == "evening_return":
@@ -458,10 +456,8 @@ class AgentFactory:
             if zone_location:
                 dna_dict["home_location"] = zone_location
                 # Regenerate frequent_destinations based on zone location
-                dna_dict["frequent_destinations"] = (
-                    self._generate_destinations_for_home(
-                        zone_location[0], zone_location[1]
-                    )
+                dna_dict["frequent_destinations"] = self._generate_destinations_for_home(
+                    zone_location[0], zone_location[1]
                 )
 
         # Apply explicit overrides (takes precedence over zone)

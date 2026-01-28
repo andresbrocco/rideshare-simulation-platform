@@ -63,9 +63,7 @@ def expected_dashboards():
 @pytest.fixture
 def dashboards_dir():
     """Path to dashboards export directory."""
-    project_root = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "..")
-    )
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
     return os.path.join(project_root, "analytics", "superset", "dashboards")
 
 
@@ -87,9 +85,7 @@ def test_all_dashboards_exist(superset_session, superset_base_url, expected_dash
         assert slug in found_slugs, f"Dashboard with slug '{slug}' not found"
 
 
-def test_dashboard_charts_count(
-    superset_session, superset_base_url, expected_dashboards
-):
+def test_dashboard_charts_count(superset_session, superset_base_url, expected_dashboards):
     """Verify each dashboard has expected chart count.
 
     Input: Dashboard slugs and expected counts
@@ -143,9 +139,7 @@ def test_exported_json_valid(dashboards_dir, expected_dashboards):
 
         assert os.path.exists(json_file), f"Exported JSON file not found: {json_file}"
 
-        assert zipfile.is_zipfile(
-            json_file
-        ), f"Export file {slug}.json is not a valid ZIP"
+        assert zipfile.is_zipfile(json_file), f"Export file {slug}.json is not a valid ZIP"
 
         with zipfile.ZipFile(json_file, "r") as zf:
             assert len(zf.namelist()) > 0, f"ZIP file {slug}.json is empty"
@@ -155,9 +149,7 @@ def test_exported_json_valid(dashboards_dir, expected_dashboards):
                 for name in zf.namelist()
                 if name.endswith(".yaml") and "dashboard" in name.lower()
             ]
-            assert (
-                len(dashboard_yaml_files) > 0
-            ), f"No dashboard YAML found in {slug}.json export"
+            assert len(dashboard_yaml_files) > 0, f"No dashboard YAML found in {slug}.json export"
 
 
 def test_dashboard_filters(superset_session, superset_base_url):
@@ -213,9 +205,7 @@ def test_charts_query_successfully(superset_session, superset_base_url):
             assert chart_response.status_code == 200, f"Chart {chart_id} failed to load"
 
 
-def test_dashboards_accessible(
-    superset_session, superset_base_url, expected_dashboards
-):
+def test_dashboards_accessible(superset_session, superset_base_url, expected_dashboards):
     """Verify all dashboards are accessible via API.
 
     Input: Dashboard slugs

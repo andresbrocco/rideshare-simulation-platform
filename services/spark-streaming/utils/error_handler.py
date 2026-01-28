@@ -16,9 +16,7 @@ class DLQRecord:
     kafka_topic: str
     kafka_partition: int
     kafka_offset: int
-    error_timestamp: datetime = field(
-        default_factory=lambda: datetime.now(timezone.utc)
-    )
+    error_timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     error_details: str = ""
 
 

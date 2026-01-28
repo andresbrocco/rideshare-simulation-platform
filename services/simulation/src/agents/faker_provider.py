@@ -34,26 +34,18 @@ class BrazilianLicensePlateProvider(BaseProvider):
         if self.random_element([True, False]):
             # Old format: ABC-1234
             letters = "".join(
-                self.random_elements(
-                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ", length=3, unique=False
-                )
+                self.random_elements("ABCDEFGHIJKLMNOPQRSTUVWXYZ", length=3, unique=False)
             )
-            numbers = "".join(
-                self.random_elements("0123456789", length=4, unique=False)
-            )
+            numbers = "".join(self.random_elements("0123456789", length=4, unique=False))
             return f"{letters}-{numbers}"
         else:
             # Mercosul format: ABC1D23
             letters1 = "".join(
-                self.random_elements(
-                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ", length=3, unique=False
-                )
+                self.random_elements("ABCDEFGHIJKLMNOPQRSTUVWXYZ", length=3, unique=False)
             )
             digit1 = self.random_element("0123456789")
             letter2 = self.random_element("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-            digits2 = "".join(
-                self.random_elements("0123456789", length=2, unique=False)
-            )
+            digits2 = "".join(self.random_elements("0123456789", length=2, unique=False))
             return f"{letters1}{digit1}{letter2}{digits2}"
 
 
@@ -119,9 +111,7 @@ class BrazilianPaymentProvider(BaseProvider):
         last_four = "".join(self.random_elements("0123456789", length=4, unique=False))
         return f"****{last_four}"
 
-    def payment_method_br(
-        self, credit_card_probability: float = 0.7
-    ) -> PaymentMethodDict:
+    def payment_method_br(self, credit_card_probability: float = 0.7) -> PaymentMethodDict:
         """Generate a payment method (credit card or digital wallet).
 
         Args:

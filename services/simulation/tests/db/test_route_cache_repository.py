@@ -21,16 +21,12 @@ class TestRouteCacheRepository:
         with session_maker() as session:
             # Table should exist after init
             result = session.execute(
-                text(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name='route_cache'"
-                )
+                text("SELECT name FROM sqlite_master WHERE type='table' AND name='route_cache'")
             ).fetchone()
             assert result is not None
 
             # Check columns exist
-            columns_result = session.execute(
-                text("PRAGMA table_info(route_cache)")
-            ).fetchall()
+            columns_result = session.execute(text("PRAGMA table_info(route_cache)")).fetchall()
             column_names = [col[1] for col in columns_result]
             expected = [
                 "cache_key",

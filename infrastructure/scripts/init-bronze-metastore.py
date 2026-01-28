@@ -113,9 +113,7 @@ def init_lakehouse_databases():
 
         except Exception as e:
             if attempt < max_retries - 1:
-                logger.warning(
-                    f"Attempt {attempt + 1} failed: {e}. Retrying in 5 seconds..."
-                )
+                logger.warning(f"Attempt {attempt + 1} failed: {e}. Retrying in 5 seconds...")
                 time.sleep(5)
             else:
                 logger.error(f"All {max_retries} attempts failed")
@@ -174,9 +172,7 @@ def register_bronze_tables():
                                 registered.append(table_name)
                             else:
                                 # Empty table created - drop it to let streaming job create properly
-                                cursor.execute(
-                                    f"DROP TABLE IF EXISTS bronze.{table_name}"
-                                )
+                                cursor.execute(f"DROP TABLE IF EXISTS bronze.{table_name}")
                                 logger.warning(
                                     f"⏳ Table bronze.{table_name} skipped (no data yet, waiting for streaming job)"
                                 )
@@ -198,9 +194,7 @@ def register_bronze_tables():
 
         except Exception as e:
             if attempt < max_retries - 1:
-                logger.warning(
-                    f"Attempt {attempt + 1} failed: {e}. Retrying in 5 seconds..."
-                )
+                logger.warning(f"Attempt {attempt + 1} failed: {e}. Retrying in 5 seconds...")
                 time.sleep(5)
             else:
                 logger.error(f"All {max_retries} attempts failed")

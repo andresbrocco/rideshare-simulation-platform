@@ -427,9 +427,7 @@ class TestDirtyCheckpointIntegration:
                 surge_multiplier=1.0,
                 fare=15.0,
             )
-            trip_repo.update_state(
-                "trip_completed", TripState.MATCHED, driver_id="driver_0"
-            )
+            trip_repo.update_state("trip_completed", TripState.MATCHED, driver_id="driver_0")
             trip_repo.update_state("trip_completed", TripState.DRIVER_EN_ROUTE)
             trip_repo.update_state("trip_completed", TripState.DRIVER_ARRIVED)
             trip_repo.update_state("trip_completed", TripState.STARTED)
@@ -483,9 +481,7 @@ class TestDirtyCheckpointIntegration:
         # In-flight trips should have been cancelled during restore
         # (restore_to_engine cancels them to prevent inconsistent state)
         active_trips = engine2._matching_server.get_active_trips()
-        assert (
-            len(active_trips) == 0
-        ), "In-flight trips should be cancelled on dirty restore"
+        assert len(active_trips) == 0, "In-flight trips should be cancelled on dirty restore"
 
         # === Phase 6: Verify simulation can continue after dirty restore ===
         engine2.step(100)

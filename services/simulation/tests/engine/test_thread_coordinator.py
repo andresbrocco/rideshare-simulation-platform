@@ -191,9 +191,7 @@ class TestSendCommand:
     def test_send_command_with_payload(self):
         """send_command passes payload to handler."""
         coordinator = ThreadCoordinator()
-        coordinator.register_handler(
-            CommandType.SET_SPEED, lambda p: p["multiplier"] * 2
-        )
+        coordinator.register_handler(CommandType.SET_SPEED, lambda p: p["multiplier"] * 2)
 
         def process_commands():
             time.sleep(0.05)
@@ -518,9 +516,7 @@ class TestCommandQueueIntegration:
         coordinator.register_handler(CommandType.PAUSE, lambda p: "paused")
         coordinator.register_handler(CommandType.RESUME, lambda p: "resumed")
         coordinator.register_handler(CommandType.SET_SPEED, lambda p: p["speed"])
-        coordinator.register_handler(
-            CommandType.GET_SNAPSHOT, lambda p: {"state": "ok"}
-        )
+        coordinator.register_handler(CommandType.GET_SNAPSHOT, lambda p: {"state": "ok"})
 
         def process_loop():
             while not coordinator.is_shutdown:
@@ -536,12 +532,8 @@ class TestCommandQueueIntegration:
                 results[key] = result
 
         threads = [
-            threading.Thread(
-                target=send_and_store, args=(CommandType.PAUSE, None, "pause")
-            ),
-            threading.Thread(
-                target=send_and_store, args=(CommandType.RESUME, None, "resume")
-            ),
+            threading.Thread(target=send_and_store, args=(CommandType.PAUSE, None, "pause")),
+            threading.Thread(target=send_and_store, args=(CommandType.RESUME, None, "resume")),
             threading.Thread(
                 target=send_and_store,
                 args=(CommandType.SET_SPEED, {"speed": 2.0}, "speed"),

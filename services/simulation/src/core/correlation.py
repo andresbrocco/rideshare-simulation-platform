@@ -6,9 +6,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 
 # Context variables for correlation IDs
-current_correlation_id: ContextVar[str | None] = ContextVar(
-    "correlation_id", default=None
-)
+current_correlation_id: ContextVar[str | None] = ContextVar("correlation_id", default=None)
 current_session_id: ContextVar[str | None] = ContextVar("session_id", default=None)
 
 

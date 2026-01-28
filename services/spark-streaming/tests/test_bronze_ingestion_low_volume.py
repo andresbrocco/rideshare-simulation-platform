@@ -24,9 +24,7 @@ def low_volume_job():
     )
     error_handler = ErrorHandler(dlq_table_path="s3a://test-dlq/")
 
-    return BronzeIngestionLowVolume(
-        spark, kafka_config, checkpoint_config, error_handler
-    )
+    return BronzeIngestionLowVolume(spark, kafka_config, checkpoint_config, error_handler)
 
 
 def test_topic_names(low_volume_job):
@@ -45,10 +43,7 @@ def test_topic_names(low_volume_job):
 
 def test_bronze_path_mapping(low_volume_job):
     """Verify topic-to-bronze-path mapping for all 7 topics."""
-    assert (
-        low_volume_job.get_bronze_path("trips")
-        == "s3a://rideshare-bronze/bronze_trips/"
-    )
+    assert low_volume_job.get_bronze_path("trips") == "s3a://rideshare-bronze/bronze_trips/"
     assert (
         low_volume_job.get_bronze_path("driver_status")
         == "s3a://rideshare-bronze/bronze_driver_status/"
@@ -57,14 +52,8 @@ def test_bronze_path_mapping(low_volume_job):
         low_volume_job.get_bronze_path("surge_updates")
         == "s3a://rideshare-bronze/bronze_surge_updates/"
     )
-    assert (
-        low_volume_job.get_bronze_path("ratings")
-        == "s3a://rideshare-bronze/bronze_ratings/"
-    )
-    assert (
-        low_volume_job.get_bronze_path("payments")
-        == "s3a://rideshare-bronze/bronze_payments/"
-    )
+    assert low_volume_job.get_bronze_path("ratings") == "s3a://rideshare-bronze/bronze_ratings/"
+    assert low_volume_job.get_bronze_path("payments") == "s3a://rideshare-bronze/bronze_payments/"
     assert (
         low_volume_job.get_bronze_path("driver_profiles")
         == "s3a://rideshare-bronze/bronze_driver_profiles/"

@@ -76,9 +76,7 @@ class TestDriverResponseTime:
         def collect_times():
             for i in range(10):
                 start_time = simpy_env.now
-                yield simpy_env.process(
-                    agent.process_ride_offer({**offer, "trip_id": f"trip_{i}"})
-                )
+                yield simpy_env.process(agent.process_ride_offer({**offer, "trip_id": f"trip_{i}"}))
                 response_times.append(simpy_env.now - start_time)
 
         simpy_env.process(collect_times())
@@ -93,9 +91,7 @@ class TestDriverAcceptanceProbability:
         self, simpy_env, dna_factory, mock_kafka_producer, offer
     ):
         random.seed(42)
-        dna = dna_factory.driver_dna(
-            acceptance_rate=0.8, response_time=3.0, min_rider_rating=3.0
-        )
+        dna = dna_factory.driver_dna(acceptance_rate=0.8, response_time=3.0, min_rider_rating=3.0)
         agent = DriverAgent(
             driver_id="driver_001",
             dna=dna,
@@ -159,13 +155,9 @@ class TestDriverAcceptanceProbability:
 
         assert acceptances > 50
 
-    def test_driver_acceptance_no_surge(
-        self, simpy_env, dna_factory, mock_kafka_producer, offer
-    ):
+    def test_driver_acceptance_no_surge(self, simpy_env, dna_factory, mock_kafka_producer, offer):
         random.seed(42)
-        dna = dna_factory.driver_dna(
-            acceptance_rate=0.7, response_time=3.0, min_rider_rating=3.0
-        )
+        dna = dna_factory.driver_dna(acceptance_rate=0.7, response_time=3.0, min_rider_rating=3.0)
         agent = DriverAgent(
             driver_id="driver_001",
             dna=dna,
@@ -219,9 +211,7 @@ class TestDriverRiderRatingThreshold:
             nonlocal acceptances
             for i in range(100):
                 result = yield simpy_env.process(
-                    agent.process_ride_offer(
-                        {**low_rating_offer, "trip_id": f"trip_{i}"}
-                    )
+                    agent.process_ride_offer({**low_rating_offer, "trip_id": f"trip_{i}"})
                 )
                 if result:
                     acceptances += 1
@@ -236,9 +226,7 @@ class TestDriverRiderRatingThreshold:
         self, simpy_env, dna_factory, mock_kafka_producer, offer
     ):
         random.seed(42)
-        dna = dna_factory.driver_dna(
-            acceptance_rate=1.0, response_time=3.0, min_rider_rating=4.0
-        )
+        dna = dna_factory.driver_dna(acceptance_rate=1.0, response_time=3.0, min_rider_rating=4.0)
         agent = DriverAgent(
             driver_id="driver_001",
             dna=dna,
@@ -251,9 +239,7 @@ class TestDriverRiderRatingThreshold:
         high_rating_offer = {**offer, "rider_rating": 4.8}
 
         def test_process():
-            result = yield simpy_env.process(
-                agent.process_ride_offer(high_rating_offer)
-            )
+            result = yield simpy_env.process(agent.process_ride_offer(high_rating_offer))
             assert result is True
 
         simpy_env.process(test_process())
@@ -284,9 +270,7 @@ class TestDriverRiderRatingThreshold:
             nonlocal acceptances
             for i in range(100):
                 result = yield simpy_env.process(
-                    agent.process_ride_offer(
-                        {**below_threshold_offer, "trip_id": f"trip_{i}"}
-                    )
+                    agent.process_ride_offer({**below_threshold_offer, "trip_id": f"trip_{i}"})
                 )
                 if result:
                     acceptances += 1
@@ -303,9 +287,7 @@ class TestDriverResponseTransitions:
         self, simpy_env, dna_factory, mock_kafka_producer, offer
     ):
         random.seed(42)
-        dna = dna_factory.driver_dna(
-            acceptance_rate=1.0, response_time=3.0, min_rider_rating=3.0
-        )
+        dna = dna_factory.driver_dna(acceptance_rate=1.0, response_time=3.0, min_rider_rating=3.0)
         agent = DriverAgent(
             driver_id="driver_001",
             dna=dna,
@@ -329,9 +311,7 @@ class TestDriverResponseTransitions:
         self, simpy_env, dna_factory, mock_kafka_producer, offer
     ):
         random.seed(42)
-        dna = dna_factory.driver_dna(
-            acceptance_rate=0.0, response_time=3.0, min_rider_rating=3.0
-        )
+        dna = dna_factory.driver_dna(acceptance_rate=0.0, response_time=3.0, min_rider_rating=3.0)
         agent = DriverAgent(
             driver_id="driver_001",
             dna=dna,

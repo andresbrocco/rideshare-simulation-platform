@@ -27,9 +27,7 @@ CHANNEL_TO_MESSAGE_TYPE = {
 class RedisSubscriber:
     """Subscribes to Redis pub/sub and broadcasts to WebSocket clients."""
 
-    def __init__(
-        self, redis_client: "Redis[str]", connection_manager: "ConnectionManager"
-    ) -> None:
+    def __init__(self, redis_client: "Redis[str]", connection_manager: "ConnectionManager") -> None:
         self.redis_client = redis_client
         self.connection_manager = connection_manager
         self.channels = [
@@ -59,9 +57,7 @@ class RedisSubscriber:
             with contextlib.suppress(asyncio.CancelledError):
                 await self.task
 
-    def _transform_event(
-        self, channel: str, data: dict[str, Any]
-    ) -> dict[str, Any] | None:
+    def _transform_event(self, channel: str, data: dict[str, Any]) -> dict[str, Any] | None:
         """Transform backend event to frontend-expected format."""
         message_type = CHANNEL_TO_MESSAGE_TYPE.get(channel)
         if not message_type:
@@ -102,9 +98,7 @@ class RedisSubscriber:
                         "timestamp": data.get("timestamp"),
                         "trip_id": data.get("trip_id"),
                         "route_progress_index": data.get("route_progress_index"),
-                        "pickup_route_progress_index": data.get(
-                            "pickup_route_progress_index"
-                        ),
+                        "pickup_route_progress_index": data.get("pickup_route_progress_index"),
                     },
                 }
             elif is_profile_event:
@@ -216,9 +210,7 @@ class RedisSubscriber:
                     "route": data.get("route") or [],
                     "pickup_route": data.get("pickup_route") or [],
                     "route_progress_index": data.get("route_progress_index"),
-                    "pickup_route_progress_index": data.get(
-                        "pickup_route_progress_index"
-                    ),
+                    "pickup_route_progress_index": data.get("pickup_route_progress_index"),
                 },
             }
         elif channel == "surge_updates":
@@ -254,16 +246,12 @@ class RedisSubscriber:
                             if transformed:
                                 await self.connection_manager.broadcast(transformed)
                         except json.JSONDecodeError:
-                            logger.warning(
-                                f"Invalid JSON from Redis: {message['data']}"
-                            )
+                            logger.warning(f"Invalid JSON from Redis: {message['data']}")
                         except Exception as e:
                             logger.warning(f"Error broadcasting message: {e}")
 
             except redis.ConnectionError:
-                logger.error(
-                    f"Redis disconnected, reconnecting in {self.reconnect_delay}s..."
-                )
+                logger.error(f"Redis disconnected, reconnecting in {self.reconnect_delay}s...")
                 await asyncio.sleep(self.reconnect_delay)
             except asyncio.CancelledError:
                 break

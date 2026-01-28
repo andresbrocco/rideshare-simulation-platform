@@ -39,9 +39,7 @@ def run_checkpoint(checkpoint_name: str) -> int:
             print(f"✗ No validations found in checkpoint '{checkpoint_name}'")
             return 1
 
-        print(
-            f"Running checkpoint '{checkpoint_name}' with {len(validations)} validations..."
-        )
+        print(f"Running checkpoint '{checkpoint_name}' with {len(validations)} validations...")
 
         all_success = True
         failed_suites = []

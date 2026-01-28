@@ -54,9 +54,7 @@ class TestDLQRoutingInvalidJSON:
         )
 
         assert result.error_type == "JSON_PARSE_ERROR"
-        assert result.original_payload == truncated_json.decode(
-            "utf-8", errors="replace"
-        )
+        assert result.original_payload == truncated_json.decode("utf-8", errors="replace")
 
     def test_dlq_routing_empty_message(self):
         """Verify empty message routes to DLQ."""
@@ -109,10 +107,7 @@ class TestDLQRoutingSchemaViolation:
         )
 
         assert result.error_type == "SCHEMA_VIOLATION"
-        assert (
-            "trip_id" in result.error_message
-            or "missing" in result.error_message.lower()
-        )
+        assert "trip_id" in result.error_message or "missing" in result.error_message.lower()
         assert result.original_payload == incomplete_message
 
     def test_dlq_routing_schema_violation_wrong_type(self):

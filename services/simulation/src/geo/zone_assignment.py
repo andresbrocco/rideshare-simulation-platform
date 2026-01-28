@@ -92,9 +92,7 @@ class ZoneAssignmentService:
 
         return nearest_zone_id
 
-    def _calculate_distance(
-        self, lat1: float, lon1: float, lat2: float, lon2: float
-    ) -> float:
+    def _calculate_distance(self, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
         """Calculate Haversine distance in kilometers"""
         R = 6371.0  # Earth radius in km
 

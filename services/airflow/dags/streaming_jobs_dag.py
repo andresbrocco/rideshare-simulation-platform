@@ -42,9 +42,7 @@ except ImportError:
             run_name=None,
             **kwargs,
         ):
-            super().__init__(
-                python_callable=lambda: print(f"Databricks job: {run_name}"), **kwargs
-            )
+            super().__init__(python_callable=lambda: print(f"Databricks job: {run_name}"), **kwargs)
 
 
 # Streaming job configurations (consolidated as of 2026-01-26)

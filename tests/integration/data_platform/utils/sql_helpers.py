@@ -858,10 +858,7 @@ def truncate_table(connection: hive.Connection, table_name: str) -> None:
     except Exception as e:
         error_msg = str(e)
         # Ignore errors for tables that exist in metastore but have no Delta files yet
-        if (
-            "DELTA_TABLE_NOT_FOUND" in error_msg
-            or "DELTA_PATH_DOES_NOT_EXIST" in error_msg
-        ):
+        if "DELTA_TABLE_NOT_FOUND" in error_msg or "DELTA_PATH_DOES_NOT_EXIST" in error_msg:
             return
         raise
 
@@ -954,9 +951,7 @@ def table_exists(connection: hive.Connection, table_name: str) -> bool:
         cursor.close()
 
 
-def get_table_schema(
-    connection: hive.Connection, table_name: str
-) -> List[Dict[str, str]]:
+def get_table_schema(connection: hive.Connection, table_name: str) -> List[Dict[str, str]]:
     """Get table schema (column names and types).
 
     Args:
@@ -1182,9 +1177,7 @@ def ensure_bronze_tables_exist(connection: hive.Connection) -> List[str]:
                 # Extract S3 location from DDL
                 bucket, prefix = _extract_s3_location_from_ddl(ddl)
                 if bucket and prefix:
-                    print(
-                        f"Table {table_name} has empty Delta log at s3a://{bucket}/{prefix}"
-                    )
+                    print(f"Table {table_name} has empty Delta log at s3a://{bucket}/{prefix}")
                     print("Deleting empty Delta log...")
                     deleted = _delete_s3_prefix(bucket, prefix)
                     print(f"Deleted {deleted} objects from s3a://{bucket}/{prefix}")
@@ -1192,19 +1185,13 @@ def ensure_bronze_tables_exist(connection: hive.Connection) -> List[str]:
                     # Retry table creation
                     try:
                         execute_non_query(connection, ddl)
-                        print(
-                            f"Created table {table_name} (after deleting empty Delta log)"
-                        )
+                        print(f"Created table {table_name} (after deleting empty Delta log)")
                         return True
                     except Exception as retry_e:
-                        print(
-                            f"Warning: Could not create {table_name} after retry: {retry_e}"
-                        )
+                        print(f"Warning: Could not create {table_name} after retry: {retry_e}")
                         return False
                 else:
-                    print(
-                        f"Warning: Could not extract S3 location from DDL for {table_name}"
-                    )
+                    print(f"Warning: Could not extract S3 location from DDL for {table_name}")
                     return False
             else:
                 # Log but don't fail - table might have been created by streaming job
@@ -1263,9 +1250,7 @@ def ensure_table_exists(connection: hive.Connection, table_name: str) -> bool:
             ):
                 bucket, prefix = _extract_s3_location_from_ddl(ddl)
                 if bucket and prefix:
-                    print(
-                        f"Table {table_name} has empty Delta log at s3a://{bucket}/{prefix}"
-                    )
+                    print(f"Table {table_name} has empty Delta log at s3a://{bucket}/{prefix}")
                     print("Deleting empty Delta log...")
                     deleted = _delete_s3_prefix(bucket, prefix)
                     print(f"Deleted {deleted} objects from s3a://{bucket}/{prefix}")
@@ -1273,19 +1258,13 @@ def ensure_table_exists(connection: hive.Connection, table_name: str) -> bool:
                     # Retry table creation
                     try:
                         execute_non_query(connection, ddl)
-                        print(
-                            f"Created table {table_name} (after deleting empty Delta log)"
-                        )
+                        print(f"Created table {table_name} (after deleting empty Delta log)")
                         return True
                     except Exception as retry_e:
-                        print(
-                            f"Warning: Could not create {table_name} after retry: {retry_e}"
-                        )
+                        print(f"Warning: Could not create {table_name} after retry: {retry_e}")
                         return False
                 else:
-                    print(
-                        f"Warning: Could not extract S3 location from DDL for {table_name}"
-                    )
+                    print(f"Warning: Could not extract S3 location from DDL for {table_name}")
                     return False
             else:
                 print(f"Warning: Could not create {table_name}: {e}")
@@ -1354,9 +1333,7 @@ def ensure_silver_tables_exist(connection: hive.Connection) -> List[str]:
                 # Extract S3 location from DDL
                 bucket, prefix = _extract_s3_location_from_ddl(ddl)
                 if bucket and prefix:
-                    print(
-                        f"Table {table_name} has empty Delta log at s3a://{bucket}/{prefix}"
-                    )
+                    print(f"Table {table_name} has empty Delta log at s3a://{bucket}/{prefix}")
                     print("Deleting empty Delta log...")
                     deleted = _delete_s3_prefix(bucket, prefix)
                     print(f"Deleted {deleted} objects from s3a://{bucket}/{prefix}")
@@ -1364,19 +1341,13 @@ def ensure_silver_tables_exist(connection: hive.Connection) -> List[str]:
                     # Retry table creation
                     try:
                         execute_non_query(connection, ddl)
-                        print(
-                            f"Created table {table_name} (after deleting empty Delta log)"
-                        )
+                        print(f"Created table {table_name} (after deleting empty Delta log)")
                         return True
                     except Exception as retry_e:
-                        print(
-                            f"Warning: Could not create {table_name} after retry: {retry_e}"
-                        )
+                        print(f"Warning: Could not create {table_name} after retry: {retry_e}")
                         return False
                 else:
-                    print(
-                        f"Warning: Could not extract S3 location from DDL for {table_name}"
-                    )
+                    print(f"Warning: Could not extract S3 location from DDL for {table_name}")
                     return False
             else:
                 # Log but don't fail - table might have been created by DBT
@@ -1433,9 +1404,7 @@ def ensure_gold_tables_exist(connection: hive.Connection) -> List[str]:
                 # Extract S3 location from DDL
                 bucket, prefix = _extract_s3_location_from_ddl(ddl)
                 if bucket and prefix:
-                    print(
-                        f"Table {table_name} has empty Delta log at s3a://{bucket}/{prefix}"
-                    )
+                    print(f"Table {table_name} has empty Delta log at s3a://{bucket}/{prefix}")
                     print("Deleting empty Delta log...")
                     deleted = _delete_s3_prefix(bucket, prefix)
                     print(f"Deleted {deleted} objects from s3a://{bucket}/{prefix}")
@@ -1443,19 +1412,13 @@ def ensure_gold_tables_exist(connection: hive.Connection) -> List[str]:
                     # Retry table creation
                     try:
                         execute_non_query(connection, ddl)
-                        print(
-                            f"Created table {table_name} (after deleting empty Delta log)"
-                        )
+                        print(f"Created table {table_name} (after deleting empty Delta log)")
                         return True
                     except Exception as retry_e:
-                        print(
-                            f"Warning: Could not create {table_name} after retry: {retry_e}"
-                        )
+                        print(f"Warning: Could not create {table_name} after retry: {retry_e}")
                         return False
                 else:
-                    print(
-                        f"Warning: Could not extract S3 location from DDL for {table_name}"
-                    )
+                    print(f"Warning: Could not extract S3 location from DDL for {table_name}")
                     return False
             else:
                 # Log but don't fail - table might have been created by DBT

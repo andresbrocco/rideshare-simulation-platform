@@ -145,9 +145,7 @@ def test_trip_metrics_avg_fare(test_client_with_registry, auth_headers):
     assert isinstance(data["avg_fare"], int | float)
 
 
-def test_get_driver_metrics(
-    test_client_with_registry, mock_driver_registry, auth_headers
-):
+def test_get_driver_metrics(test_client_with_registry, mock_driver_registry, auth_headers):
     """Returns driver status counts."""
     response = test_client_with_registry.get("/metrics/drivers", headers=auth_headers)
 
@@ -160,9 +158,7 @@ def test_get_driver_metrics(
     assert "total" in data
 
 
-def test_driver_metrics_sum_to_total(
-    test_client_with_registry, mock_driver_registry, auth_headers
-):
+def test_driver_metrics_sum_to_total(test_client_with_registry, mock_driver_registry, auth_headers):
     """Status counts sum to total."""
     response = test_client_with_registry.get("/metrics/drivers", headers=auth_headers)
 
@@ -170,10 +166,7 @@ def test_driver_metrics_sum_to_total(
     data = response.json()
     total = data["total"]
     status_sum = (
-        data["online"]
-        + data["offline"]
-        + data["en_route_pickup"]
-        + data["en_route_destination"]
+        data["online"] + data["offline"] + data["en_route_pickup"] + data["en_route_destination"]
     )
     assert status_sum == total
 
@@ -201,18 +194,14 @@ def test_metrics_cache_expiry(
 
     # First request at time 0
     with patch.object(time, "time", return_value=1000.0):
-        response1 = test_client_with_registry.get(
-            "/metrics/overview", headers=auth_headers
-        )
+        response1 = test_client_with_registry.get("/metrics/overview", headers=auth_headers)
         assert response1.status_code == 200
         _ = response1.json()
 
     # Second request after TTL expired (6 seconds later)
     mock_simulation_engine_with_data.active_driver_count = 99
     with patch.object(time, "time", return_value=1006.0):
-        response2 = test_client_with_registry.get(
-            "/metrics/overview", headers=auth_headers
-        )
+        response2 = test_client_with_registry.get("/metrics/overview", headers=auth_headers)
         assert response2.status_code == 200
         _ = response2.json()
 

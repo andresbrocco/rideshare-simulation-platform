@@ -84,9 +84,7 @@ class TestRiderRequestCreatesTrip:
 
 
 class TestRiderPatienceTimeout:
-    def test_rider_patience_timeout(
-        self, simpy_env, mock_kafka_producer, dna_factory: DNAFactory
-    ):
+    def test_rider_patience_timeout(self, simpy_env, mock_kafka_producer, dna_factory: DNAFactory):
         dna = dna_factory.rider_dna(avg_rides_per_week=100000, patience_threshold=180)
         agent = RiderAgent(
             rider_id="rider_001",
@@ -149,9 +147,7 @@ class TestRiderPatienceTimeout:
 
 
 class TestRiderMatchAccepted:
-    def test_rider_match_accepted(
-        self, simpy_env, mock_kafka_producer, dna_factory: DNAFactory
-    ):
+    def test_rider_match_accepted(self, simpy_env, mock_kafka_producer, dna_factory: DNAFactory):
         dna = dna_factory.rider_dna(avg_rides_per_week=100000)
         agent = RiderAgent(
             rider_id="rider_001",
@@ -177,9 +173,7 @@ class TestRiderMatchAccepted:
         simpy_env.process(verify_match())
         simpy_env.run(until=20)
 
-    def test_rider_wait_for_pickup(
-        self, simpy_env, mock_kafka_producer, dna_factory: DNAFactory
-    ):
+    def test_rider_wait_for_pickup(self, simpy_env, mock_kafka_producer, dna_factory: DNAFactory):
         dna = dna_factory.rider_dna(avg_rides_per_week=100000)
         agent = RiderAgent(
             rider_id="rider_001",
@@ -200,9 +194,7 @@ class TestRiderMatchAccepted:
         simpy_env.process(simulate_match())
         simpy_env.run(until=50)
 
-    def test_rider_board_vehicle(
-        self, simpy_env, mock_kafka_producer, dna_factory: DNAFactory
-    ):
+    def test_rider_board_vehicle(self, simpy_env, mock_kafka_producer, dna_factory: DNAFactory):
         dna = dna_factory.rider_dna(avg_rides_per_week=100000)
         agent = RiderAgent(
             rider_id="rider_001",
@@ -224,9 +216,7 @@ class TestRiderMatchAccepted:
 
 
 class TestRiderTripCompletion:
-    def test_rider_trip_completion(
-        self, simpy_env, mock_kafka_producer, dna_factory: DNAFactory
-    ):
+    def test_rider_trip_completion(self, simpy_env, mock_kafka_producer, dna_factory: DNAFactory):
         dna = dna_factory.rider_dna(avg_rides_per_week=100000)
         agent = RiderAgent(
             rider_id="rider_001",

@@ -111,9 +111,7 @@ class TestBaseStreamingJobMultiTopic:
 
         job = NoTopicJob(MagicMock(), kafka_config, checkpoint_config, error_handler)
 
-        with pytest.raises(
-            ValueError, match="Either topic_name or topic_names must be defined"
-        ):
+        with pytest.raises(ValueError, match="Either topic_name or topic_names must be defined"):
             job._validate_topic_config()
 
     def test_validation_prevents_both_topic_and_topics(self):
@@ -141,20 +139,14 @@ class TestBaseStreamingJobMultiTopic:
         )
         error_handler = ErrorHandler(dlq_table_path="s3a://test-dlq/")
 
-        job = ConflictingJob(
-            MagicMock(), kafka_config, checkpoint_config, error_handler
-        )
+        job = ConflictingJob(MagicMock(), kafka_config, checkpoint_config, error_handler)
 
-        with pytest.raises(
-            ValueError, match="Cannot define both topic_name and topic_names"
-        ):
+        with pytest.raises(ValueError, match="Cannot define both topic_name and topic_names"):
             job._validate_topic_config()
 
     @patch("pyspark.sql.functions.col")
     @patch("pyspark.sql.functions.current_timestamp")
-    def test_multi_topic_job_uses_topics_parameter(
-        self, mock_current_timestamp, mock_col
-    ):
+    def test_multi_topic_job_uses_topics_parameter(self, mock_current_timestamp, mock_col):
         """Verify multi-topic job uses topics parameter for Kafka options."""
         mock_spark = MagicMock()
         mock_raw_df = MagicMock()
@@ -198,20 +190,14 @@ class TestMultiTopicStreamingJob:
     def test_get_bronze_path_payments(self):
         """Verify topic-to-bronze-path mapping for payments."""
         job = create_test_job()
-        assert (
-            job.get_bronze_path("payments") == "s3a://rideshare-bronze/bronze_payments/"
-        )
+        assert job.get_bronze_path("payments") == "s3a://rideshare-bronze/bronze_payments/"
 
     def test_get_bronze_path_with_hyphens(self):
         """Verify topic-to-bronze-path mapping handles hyphens."""
         job = create_test_job()
+        assert job.get_bronze_path("gps_pings") == "s3a://rideshare-bronze/bronze_gps_pings/"
         assert (
-            job.get_bronze_path("gps_pings")
-            == "s3a://rideshare-bronze/bronze_gps_pings/"
-        )
-        assert (
-            job.get_bronze_path("driver_status")
-            == "s3a://rideshare-bronze/bronze_driver_status/"
+            job.get_bronze_path("driver_status") == "s3a://rideshare-bronze/bronze_driver_status/"
         )
 
     def test_partition_columns(self):
@@ -230,13 +216,9 @@ class TestMultiTopicStreamingJob:
         )
         error_handler = ErrorHandler(dlq_table_path="s3a://test-dlq/")
 
-        job = MultiTopicStreamingJob(
-            MagicMock(), kafka_config, checkpoint_config, error_handler
-        )
+        job = MultiTopicStreamingJob(MagicMock(), kafka_config, checkpoint_config, error_handler)
 
-        with pytest.raises(
-            NotImplementedError, match="Subclasses must implement get_topic_names"
-        ):
+        with pytest.raises(NotImplementedError, match="Subclasses must implement get_topic_names"):
             job.get_topic_names()
 
     def test_process_batch_empty_dataframe(self):

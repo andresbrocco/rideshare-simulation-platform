@@ -27,12 +27,7 @@ class TestStreamingJobEntryPoints:
         """Get the path to the streaming jobs directory."""
         # Navigate from tests/integration/data_platform/ up to repo root,
         # then to services/spark-streaming/jobs/
-        return (
-            Path(__file__).parent.parent.parent.parent
-            / "services"
-            / "spark-streaming"
-            / "jobs"
-        )
+        return Path(__file__).parent.parent.parent.parent / "services" / "spark-streaming" / "jobs"
 
     @staticmethod
     def _get_job_files():
@@ -60,10 +55,7 @@ class TestStreamingJobEntryPoints:
         for node in ast.walk(tree):
             if isinstance(node, ast.If):
                 if isinstance(node.test, ast.Compare):
-                    if (
-                        isinstance(node.test.left, ast.Name)
-                        and node.test.left.id == "__name__"
-                    ):
+                    if isinstance(node.test.left, ast.Name) and node.test.left.id == "__name__":
                         for comparator in node.test.comparators:
                             if (
                                 isinstance(comparator, ast.Constant)
@@ -82,10 +74,7 @@ class TestStreamingJobEntryPoints:
         for node in ast.walk(tree):
             if isinstance(node, ast.If):
                 if isinstance(node.test, ast.Compare):
-                    if (
-                        isinstance(node.test.left, ast.Name)
-                        and node.test.left.id == "__name__"
-                    ):
+                    if isinstance(node.test.left, ast.Name) and node.test.left.id == "__name__":
                         for comparator in node.test.comparators:
                             if (
                                 isinstance(comparator, ast.Constant)
@@ -184,16 +173,12 @@ class TestStreamingJobEntryPoints:
             "multi_topic_streaming_job.py",
         }
         actual_files = {f.name for f in job_files}
-        assert (
-            actual_files == expected_files
-        ), f"Expected {expected_files}, found {actual_files}"
+        assert actual_files == expected_files, f"Expected {expected_files}, found {actual_files}"
 
     def test_executable_jobs_have_main_block(self):
         """Executable job files (bronze_ingestion_high_volume, bronze_ingestion_low_volume) should have __main__ block."""
         job_files = self._get_executable_job_files()
-        assert (
-            len(job_files) == 2
-        ), f"Expected 2 executable job files, found {len(job_files)}"
+        assert len(job_files) == 2, f"Expected 2 executable job files, found {len(job_files)}"
 
         missing_main = []
         for job_file in job_files:
@@ -218,9 +203,7 @@ class TestStreamingJobEntryPoints:
         """bronze_ingestion_high_volume.py should initialize CheckpointConfig."""
         job_file = self._get_jobs_dir() / "bronze_ingestion_high_volume.py"
         main_block = self._extract_main_block_content(job_file)
-        assert self._has_checkpoint_config_init(
-            main_block
-        ), "CheckpointConfig not initialized"
+        assert self._has_checkpoint_config_init(main_block), "CheckpointConfig not initialized"
 
     def test_high_volume_job_has_error_handler(self):
         """bronze_ingestion_high_volume.py should initialize ErrorHandler."""
@@ -238,9 +221,7 @@ class TestStreamingJobEntryPoints:
         """bronze_ingestion_high_volume.py should call query.awaitTermination()."""
         job_file = self._get_jobs_dir() / "bronze_ingestion_high_volume.py"
         main_block = self._extract_main_block_content(job_file)
-        assert self._has_await_termination_call(
-            main_block
-        ), "query.awaitTermination() not called"
+        assert self._has_await_termination_call(main_block), "query.awaitTermination() not called"
 
     def test_low_volume_job_has_main_components(self):
         """bronze_ingestion_low_volume.py should have all required components."""
@@ -249,13 +230,9 @@ class TestStreamingJobEntryPoints:
 
         assert self._has_spark_session_init(main_block), "SparkSession not initialized"
         assert self._has_kafka_config_init(main_block), "KafkaConfig not initialized"
-        assert self._has_checkpoint_config_init(
-            main_block
-        ), "CheckpointConfig not initialized"
+        assert self._has_checkpoint_config_init(main_block), "CheckpointConfig not initialized"
         assert self._has_job_start_call(main_block), "job.start() not called"
-        assert self._has_await_termination_call(
-            main_block
-        ), "query.awaitTermination() not called"
+        assert self._has_await_termination_call(main_block), "query.awaitTermination() not called"
 
     def test_high_volume_job_uses_environment_variables(self):
         """bronze_ingestion_high_volume.py should read config from environment."""
@@ -263,9 +240,7 @@ class TestStreamingJobEntryPoints:
         with open(job_file, "r") as f:
             content = f.read()
 
-        assert (
-            "KAFKA_BOOTSTRAP_SERVERS" in content
-        ), "Should read KAFKA_BOOTSTRAP_SERVERS env var"
+        assert "KAFKA_BOOTSTRAP_SERVERS" in content, "Should read KAFKA_BOOTSTRAP_SERVERS env var"
         # Jobs read CHECKPOINT_PATH; Docker Compose sets CHECKPOINT_BASE_PATH
         # which the job uses as a base for topic-specific checkpoint directories
         assert "CHECKPOINT_PATH" in content, "Should read CHECKPOINT_PATH env var"
@@ -276,9 +251,7 @@ class TestStreamingJobEntryPoints:
         with open(job_file, "r") as f:
             content = f.read()
 
-        assert (
-            "KAFKA_BOOTSTRAP_SERVERS" in content
-        ), "Should read KAFKA_BOOTSTRAP_SERVERS env var"
+        assert "KAFKA_BOOTSTRAP_SERVERS" in content, "Should read KAFKA_BOOTSTRAP_SERVERS env var"
         # Jobs read CHECKPOINT_PATH; Docker Compose sets CHECKPOINT_BASE_PATH
         # which the job uses as a base for topic-specific checkpoint directories
         assert "CHECKPOINT_PATH" in content, "Should read CHECKPOINT_PATH env var"
@@ -291,16 +264,12 @@ class TestStreamingJobEntryPoints:
             with open(job_file, "r") as f:
                 content = f.read()
 
-            assert (
-                "appName" in content
-            ), f"{job_file.name} missing appName in SparkSession"
+            assert "appName" in content, f"{job_file.name} missing appName in SparkSession"
 
     def test_multi_topic_base_class_has_no_main(self):
         """multi_topic_streaming_job.py is a base class and should NOT have __main__."""
         job_file = self._get_jobs_dir() / "multi_topic_streaming_job.py"
-        assert not self._has_main_block(
-            job_file
-        ), "Base class should not have __main__ block"
+        assert not self._has_main_block(job_file), "Base class should not have __main__ block"
 
 
 if __name__ == "__main__":

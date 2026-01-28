@@ -32,9 +32,7 @@ def create_low_volume_job(spark=None) -> BronzeIngestionLowVolume:
     )
     error_handler = ErrorHandler(dlq_table_path="s3a://test-dlq/")
 
-    return BronzeIngestionLowVolume(
-        spark, kafka_config, checkpoint_config, error_handler
-    )
+    return BronzeIngestionLowVolume(spark, kafka_config, checkpoint_config, error_handler)
 
 
 def create_high_volume_job(spark=None) -> BronzeIngestionHighVolume:
@@ -52,9 +50,7 @@ def create_high_volume_job(spark=None) -> BronzeIngestionHighVolume:
     )
     error_handler = ErrorHandler(dlq_table_path="s3a://test-dlq/")
 
-    return BronzeIngestionHighVolume(
-        spark, kafka_config, checkpoint_config, error_handler
-    )
+    return BronzeIngestionHighVolume(spark, kafka_config, checkpoint_config, error_handler)
 
 
 # =============================================================================

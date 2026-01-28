@@ -68,9 +68,7 @@ def test_dashboard_exists(superset_session, superset_base_url, dashboard_slug):
             operations_dashboard = dashboard
             break
 
-    assert (
-        operations_dashboard is not None
-    ), f"Dashboard with slug '{dashboard_slug}' not found"
+    assert operations_dashboard is not None, f"Dashboard with slug '{dashboard_slug}' not found"
     assert operations_dashboard.get("dashboard_title") == "Operations Dashboard"
 
 
@@ -137,14 +135,10 @@ def test_required_charts_present(superset_session, superset_base_url, dashboard_
     ]
 
     for required_chart in required_chart_names:
-        assert (
-            required_chart in chart_names
-        ), f"Required chart '{required_chart}' not found"
+        assert required_chart in chart_names, f"Required chart '{required_chart}' not found"
 
 
-def test_refresh_interval_configured(
-    superset_session, superset_base_url, dashboard_slug
-):
+def test_refresh_interval_configured(superset_session, superset_base_url, dashboard_slug):
     """Verify auto-refresh is enabled with appropriate interval.
 
     Input: Dashboard JSON
@@ -183,9 +177,7 @@ def test_refresh_interval_configured(
 
     assert refresh_frequency is not None, "No refresh_frequency configured"
     assert isinstance(refresh_frequency, int), "refresh_frequency must be an integer"
-    assert (
-        refresh_frequency <= 300
-    ), f"refresh_frequency too high: {refresh_frequency} seconds"
+    assert refresh_frequency <= 300, f"refresh_frequency too high: {refresh_frequency} seconds"
 
 
 def test_dashboard_accessible(superset_session, superset_base_url, dashboard_slug):

@@ -100,16 +100,12 @@ def test_dim_drivers_scd2():
     assert len(not_null_keys) >= 4, "Missing SCD Type 2 required field validations"
 
     valid_to_check = [
-        exp
-        for exp in expectations
-        if "valid_to" in exp.get("kwargs", {}).get("column", "")
+        exp for exp in expectations if "valid_to" in exp.get("kwargs", {}).get("column", "")
     ]
     assert len(valid_to_check) > 0, "Missing valid_to validation"
 
     current_flag_check = [
-        exp
-        for exp in expectations
-        if exp.get("kwargs", {}).get("column") == "current_flag"
+        exp for exp in expectations if exp.get("kwargs", {}).get("column") == "current_flag"
     ]
     assert len(current_flag_check) > 0, "Missing current_flag validation"
 
@@ -178,23 +174,17 @@ def test_fact_payments_business_logic():
     expectations = suite_data.get("expectations", [])
 
     platform_fee_check = [
-        exp
-        for exp in expectations
-        if exp.get("kwargs", {}).get("column") == "platform_fee"
+        exp for exp in expectations if exp.get("kwargs", {}).get("column") == "platform_fee"
     ]
     assert len(platform_fee_check) > 0, "Missing platform_fee validation"
 
     driver_payout_check = [
-        exp
-        for exp in expectations
-        if exp.get("kwargs", {}).get("column") == "driver_payout"
+        exp for exp in expectations if exp.get("kwargs", {}).get("column") == "driver_payout"
     ]
     assert len(driver_payout_check) > 0, "Missing driver_payout validation"
 
     total_fare_check = [
-        exp
-        for exp in expectations
-        if exp.get("kwargs", {}).get("column") == "total_fare"
+        exp for exp in expectations if exp.get("kwargs", {}).get("column") == "total_fare"
     ]
     assert len(total_fare_check) > 0, "Missing total_fare validation"
 
@@ -290,9 +280,7 @@ def test_fact_driver_activity_referential_integrity():
         ]
         assert len(fk_not_null) > 0, f"Missing not null check for foreign key: {fk}"
 
-    status_check = [
-        exp for exp in expectations if exp.get("kwargs", {}).get("column") == "status"
-    ]
+    status_check = [exp for exp in expectations if exp.get("kwargs", {}).get("column") == "status"]
     assert len(status_check) > 0, "Missing status validation"
 
 
@@ -326,9 +314,7 @@ def test_agg_hourly_zone_demand_consistency():
         assert len(col_not_null) > 0, f"Missing not null check for {col}"
 
     completion_rate = [
-        exp
-        for exp in expectations
-        if exp.get("kwargs", {}).get("column") == "completion_rate"
+        exp for exp in expectations if exp.get("kwargs", {}).get("column") == "completion_rate"
     ]
     assert len(completion_rate) > 0, "Missing completion_rate validation"
 
@@ -336,9 +322,7 @@ def test_agg_hourly_zone_demand_consistency():
 def test_agg_daily_driver_performance_consistency():
     """Verify daily driver performance aggregates match fact tables."""
     expectations_dir = Path(__file__).parent.parent / "gx" / "expectations" / "gold"
-    suite_path = (
-        expectations_dir / "aggregates" / "gold_agg_daily_driver_performance.json"
-    )
+    suite_path = expectations_dir / "aggregates" / "gold_agg_daily_driver_performance.json"
 
     with open(suite_path, "r") as f:
         suite_data = json.load(f)
@@ -356,9 +340,7 @@ def test_agg_daily_driver_performance_consistency():
         assert len(col_not_null) > 0, f"Missing not null check for {col}"
 
     utilization_check = [
-        exp
-        for exp in expectations
-        if exp.get("kwargs", {}).get("column") == "utilization_pct"
+        exp for exp in expectations if exp.get("kwargs", {}).get("column") == "utilization_pct"
     ]
     assert len(utilization_check) > 0, "Missing utilization_pct validation"
 
@@ -458,9 +440,7 @@ def test_suite_structure():
         assert "expectation_suite_name" in suite_data
         assert "expectations" in suite_data
         assert isinstance(suite_data["expectations"], list)
-        assert (
-            len(suite_data["expectations"]) >= 3
-        ), f"{suite_file} has fewer than 3 expectations"
+        assert len(suite_data["expectations"]) >= 3, f"{suite_file} has fewer than 3 expectations"
 
         for expectation in suite_data["expectations"]:
             assert "expectation_type" in expectation

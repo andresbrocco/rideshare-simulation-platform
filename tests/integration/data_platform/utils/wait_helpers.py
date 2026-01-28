@@ -45,13 +45,9 @@ def wait_for_condition(
 
         # Check timeout
         if max_retries is not None and attempt >= max_retries:
-            raise TimeoutError(
-                f"Condition '{description}' not met after {attempt} attempts"
-            )
+            raise TimeoutError(f"Condition '{description}' not met after {attempt} attempts")
         elif elapsed >= timeout_seconds:
-            raise TimeoutError(
-                f"Condition '{description}' not met after {elapsed:.1f} seconds"
-            )
+            raise TimeoutError(f"Condition '{description}' not met after {elapsed:.1f} seconds")
 
         # Sleep with exponential backoff (capped at 10s)
         sleep_time = min(poll_interval * (2 ** (attempt - 1)), 10.0)

@@ -19,13 +19,13 @@ from pathlib import Path
 
 import httpx
 
-GEOSAMPA_URL = "https://raw.githubusercontent.com/codigourbano/distritos-sp/master/distritos-sp.geojson"
+GEOSAMPA_URL = (
+    "https://raw.githubusercontent.com/codigourbano/distritos-sp/master/distritos-sp.geojson"
+)
 PROJECT_ROOT = Path(__file__).parent.parent
 CONFIG_PATH = PROJECT_ROOT / "data" / "sao-paulo" / "subprefecture_config.json"
 RAW_OUTPUT_PATH = PROJECT_ROOT / "data" / "sao-paulo" / "distritos-sp-raw.geojson"
-SIMPLIFIED_PATH = (
-    PROJECT_ROOT / "data" / "sao-paulo" / "distritos-sp-simplified.geojson"
-)
+SIMPLIFIED_PATH = PROJECT_ROOT / "data" / "sao-paulo" / "distritos-sp-simplified.geojson"
 OUTPUT_PATH = PROJECT_ROOT / "data" / "sao-paulo" / "zones.geojson"
 
 
@@ -205,9 +205,7 @@ def validate_output(geojson: dict, config: dict) -> bool:
         geom = f["geometry"]
 
         if geom["type"] != "Polygon":
-            print(
-                f"ERROR: Expected Polygon geometry for {props['zone_id']}, got {geom['type']}"
-            )
+            print(f"ERROR: Expected Polygon geometry for {props['zone_id']}, got {geom['type']}")
             return False
 
         if not (0.5 <= props["demand_multiplier"] <= 2.0):

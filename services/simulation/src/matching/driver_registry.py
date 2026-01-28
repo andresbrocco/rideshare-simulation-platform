@@ -91,9 +91,7 @@ class DriverRegistry:
 
             record.zone_id = new_zone_id
 
-    def update_driver_location(
-        self, driver_id: str, location: tuple[float, float]
-    ) -> None:
+    def update_driver_location(self, driver_id: str, location: tuple[float, float]) -> None:
         with self._lock:
             if driver_id not in self._drivers:
                 return

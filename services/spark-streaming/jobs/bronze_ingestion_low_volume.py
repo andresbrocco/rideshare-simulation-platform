@@ -49,22 +49,16 @@ if __name__ == "__main__":
 
     kafka_config = KafkaConfig(
         bootstrap_servers=os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "kafka:29092"),
-        schema_registry_url=os.environ.get(
-            "SCHEMA_REGISTRY_URL", "http://schema-registry:8081"
-        ),
+        schema_registry_url=os.environ.get("SCHEMA_REGISTRY_URL", "http://schema-registry:8081"),
     )
 
     checkpoint_config = CheckpointConfig(
-        checkpoint_path=os.environ.get(
-            "CHECKPOINT_PATH", "s3a://rideshare-checkpoints/"
-        ),
+        checkpoint_path=os.environ.get("CHECKPOINT_PATH", "s3a://rideshare-checkpoints/"),
         trigger_interval=os.environ.get("TRIGGER_INTERVAL", "10 seconds"),
     )
 
     error_handler = ErrorHandler(dlq_table_path="s3a://rideshare-bronze/dlq/")
 
-    job = BronzeIngestionLowVolume(
-        spark, kafka_config, checkpoint_config, error_handler
-    )
+    job = BronzeIngestionLowVolume(spark, kafka_config, checkpoint_config, error_handler)
     query = job.start()
     query.awaitTermination()

@@ -7,15 +7,11 @@ from pydantic import BaseModel, Field
 class CorrelationMixin(BaseModel):
     """Mixin adding distributed tracing fields to events."""
 
-    session_id: str | None = Field(
-        default=None, description="Simulation run identifier"
-    )
+    session_id: str | None = Field(default=None, description="Simulation run identifier")
     correlation_id: str | None = Field(
         default=None, description="Primary correlation ID (e.g., trip_id)"
     )
-    causation_id: str | None = Field(
-        default=None, description="ID of event that caused this one"
-    )
+    causation_id: str | None = Field(default=None, description="ID of event that caused this one")
 
 
 class TripEvent(CorrelationMixin):

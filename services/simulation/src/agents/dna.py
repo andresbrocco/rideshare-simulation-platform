@@ -26,10 +26,7 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
     delta_lat = radians(lat2 - lat1)
     delta_lon = radians(lon2 - lon1)
 
-    a = (
-        sin(delta_lat / 2) ** 2
-        + cos(lat1_rad) * cos(lat2_rad) * sin(delta_lon / 2) ** 2
-    )
+    a = sin(delta_lat / 2) ** 2 + cos(lat1_rad) * cos(lat2_rad) * sin(delta_lon / 2) ** 2
     c = 2 * asin(sqrt(a))
 
     return earth_radius_km * c
@@ -44,9 +41,7 @@ def validate_sao_paulo_coordinates(coords: tuple[float, float]) -> tuple[float, 
 
     lat, lon = coords
     if not is_location_in_any_zone(lat, lon):
-        raise ValueError(
-            f"Location ({lat}, {lon}) is not within any São Paulo zone boundary"
-        )
+        raise ValueError(f"Location ({lat}, {lon}) is not within any São Paulo zone boundary")
     return coords
 
 
@@ -112,9 +107,7 @@ class RiderDNA(BaseModel):
 
     @field_validator("frequent_destinations")
     @classmethod
-    def validate_destinations_in_zone(
-        cls, v: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def validate_destinations_in_zone(cls, v: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Validate destinations are inside a São Paulo zone."""
         from agents.zone_validator import is_location_in_any_zone
 

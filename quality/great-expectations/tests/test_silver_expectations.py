@@ -52,8 +52,7 @@ def test_suite_has_minimum_expectations(expectations_dir, expected_suites):
 
         expectations = suite_data.get("expectations", [])
         assert len(expectations) >= 5, (
-            f"{suite_file} has only {len(expectations)} expectations, "
-            f"expected at least 5"
+            f"{suite_file} has only {len(expectations)} expectations, " f"expected at least 5"
         )
 
 
@@ -72,9 +71,7 @@ def test_all_suites_include_event_id_deduplication(expectations_dir, expected_su
             and exp.get("kwargs", {}).get("column") == "event_id"
         ]
 
-        assert (
-            len(dedup_expectations) > 0
-        ), f"{suite_file} missing event_id deduplication check"
+        assert len(dedup_expectations) > 0, f"{suite_file} missing event_id deduplication check"
 
 
 def test_stg_trips_deduplication():
@@ -121,10 +118,7 @@ def test_stg_surge_updates_range():
         exp
         for exp in expectations
         if exp.get("expectation_type") == "expect_column_values_to_be_between"
-        and (
-            exp.get("kwargs", {}).get("column")
-            in ["new_multiplier", "previous_multiplier"]
-        )
+        and (exp.get("kwargs", {}).get("column") in ["new_multiplier", "previous_multiplier"])
     ]
 
     assert len(range_expectations) > 0, "Missing surge multiplier range validation"
@@ -133,9 +127,7 @@ def test_stg_surge_updates_range():
         kwargs = expectation["kwargs"]
         assert kwargs.get("min_value") == 1.0
         assert kwargs.get("max_value") == 2.5
-        assert (
-            kwargs.get("mostly") is not None
-        ), "Missing 'mostly' parameter for soft failure"
+        assert kwargs.get("mostly") is not None, "Missing 'mostly' parameter for soft failure"
 
 
 def test_stg_ratings_enum():
@@ -189,9 +181,7 @@ def test_stg_driver_status_not_null():
 
     assert len(not_null_expectations) > 0, "Missing not null validations"
 
-    not_null_columns = [
-        exp.get("kwargs", {}).get("column") for exp in not_null_expectations
-    ]
+    not_null_columns = [exp.get("kwargs", {}).get("column") for exp in not_null_expectations]
 
     assert "driver_id" in not_null_columns, "Missing driver_id not null check"
     assert "event_id" in not_null_columns, "Missing event_id not null check"
@@ -273,19 +263,13 @@ def test_stg_gps_pings_has_coordinate_validation():
         and exp.get("kwargs", {}).get("column") in ["latitude", "longitude"]
     ]
 
-    assert (
-        len(coordinate_expectations) >= 2
-    ), "Missing latitude/longitude range validations"
+    assert len(coordinate_expectations) >= 2, "Missing latitude/longitude range validations"
 
     latitude_exps = [
-        exp
-        for exp in coordinate_expectations
-        if exp.get("kwargs", {}).get("column") == "latitude"
+        exp for exp in coordinate_expectations if exp.get("kwargs", {}).get("column") == "latitude"
     ]
     longitude_exps = [
-        exp
-        for exp in coordinate_expectations
-        if exp.get("kwargs", {}).get("column") == "longitude"
+        exp for exp in coordinate_expectations if exp.get("kwargs", {}).get("column") == "longitude"
     ]
 
     assert len(latitude_exps) > 0, "Missing latitude range validation"

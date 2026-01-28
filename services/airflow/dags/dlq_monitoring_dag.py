@@ -90,9 +90,7 @@ def query_dlq_errors(**context):
 
 def check_threshold(**context):
     """Check if error count exceeds threshold and branch accordingly."""
-    total_errors = context["ti"].xcom_pull(
-        task_ids="query_dlq_errors", key="total_errors"
-    )
+    total_errors = context["ti"].xcom_pull(task_ids="query_dlq_errors", key="total_errors")
 
     if total_errors is None:
         total_errors = 0
@@ -106,12 +104,8 @@ def check_threshold(**context):
 
 def send_alert(**context):
     """Send alert when error threshold is exceeded."""
-    total_errors = context["ti"].xcom_pull(
-        task_ids="query_dlq_errors", key="total_errors"
-    )
-    error_counts = context["ti"].xcom_pull(
-        task_ids="query_dlq_errors", key="error_counts"
-    )
+    total_errors = context["ti"].xcom_pull(task_ids="query_dlq_errors", key="total_errors")
+    error_counts = context["ti"].xcom_pull(task_ids="query_dlq_errors", key="error_counts")
 
     print("ALERT: DLQ errors exceeded threshold!")
     print(f"Total errors: {total_errors}")

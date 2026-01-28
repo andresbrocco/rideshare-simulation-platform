@@ -69,9 +69,7 @@ class TestRiderAgentInit:
 
 
 class TestRiderDNAImmutability:
-    def test_rider_dna_immutability(
-        self, rider_agent, rider_dna, dna_factory: DNAFactory
-    ):
+    def test_rider_dna_immutability(self, rider_agent, rider_dna, dna_factory: DNAFactory):
         original_behavior = rider_dna.behavior_factor
         with pytest.raises(AttributeError):
             rider_agent.dna = dna_factory.rider_dna(
@@ -144,9 +142,7 @@ class TestRiderDestinationSelection:
             coords = rider_agent.select_destination()
             selected_coords.append(coords)
 
-        valid_coords = [
-            tuple(d["coordinates"]) for d in rider_dna.frequent_destinations
-        ]
+        valid_coords = [tuple(d["coordinates"]) for d in rider_dna.frequent_destinations]
         frequent_count = sum(1 for c in selected_coords if tuple(c) in valid_coords)
 
         # From home: expect ~80% frequent destinations
@@ -167,9 +163,7 @@ class TestRiderZoneBasedGeneration:
                 lat, lon
             ), f"Generated location ({lat}, {lon}) is not inside any zone"
 
-    def test_select_destination_returns_valid_zone_coordinates(
-        self, rider_agent, rider_dna
-    ):
+    def test_select_destination_returns_valid_zone_coordinates(self, rider_agent, rider_dna):
         """Verify select_destination always returns coordinates inside a zone."""
         from agents.zone_validator import is_location_in_any_zone
 

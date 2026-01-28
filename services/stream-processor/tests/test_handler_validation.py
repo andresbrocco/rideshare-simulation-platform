@@ -277,17 +277,13 @@ class TestDriverStatusHandlerValidation:
         event = {"missing": "fields"}
         message = json.dumps(event).encode()
 
-        with patch(
-            "src.handlers.driver_status_handler.get_metrics_collector"
-        ) as mock_metrics:
+        with patch("src.handlers.driver_status_handler.get_metrics_collector") as mock_metrics:
             mock_collector = MagicMock()
             mock_metrics.return_value = mock_collector
 
             handler.handle(message)
 
-            mock_collector.record_validation_error.assert_called_once_with(
-                "driver_status"
-            )
+            mock_collector.record_validation_error.assert_called_once_with("driver_status")
 
 
 class TestSurgeHandlerValidation:
@@ -397,17 +393,13 @@ class TestDriverProfileHandlerValidation:
         event = {"only": "partial"}
         message = json.dumps(event).encode()
 
-        with patch(
-            "src.handlers.driver_profile_handler.get_metrics_collector"
-        ) as mock_metrics:
+        with patch("src.handlers.driver_profile_handler.get_metrics_collector") as mock_metrics:
             mock_collector = MagicMock()
             mock_metrics.return_value = mock_collector
 
             handler.handle(message)
 
-            mock_collector.record_validation_error.assert_called_once_with(
-                "driver_profile"
-            )
+            mock_collector.record_validation_error.assert_called_once_with("driver_profile")
 
 
 class TestRiderProfileHandlerValidation:
@@ -461,14 +453,10 @@ class TestRiderProfileHandlerValidation:
         event = {"incomplete": "profile"}
         message = json.dumps(event).encode()
 
-        with patch(
-            "src.handlers.rider_profile_handler.get_metrics_collector"
-        ) as mock_metrics:
+        with patch("src.handlers.rider_profile_handler.get_metrics_collector") as mock_metrics:
             mock_collector = MagicMock()
             mock_metrics.return_value = mock_collector
 
             handler.handle(message)
 
-            mock_collector.record_validation_error.assert_called_once_with(
-                "rider_profile"
-            )
+            mock_collector.record_validation_error.assert_called_once_with("rider_profile")

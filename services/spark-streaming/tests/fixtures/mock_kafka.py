@@ -50,9 +50,9 @@ class MockKafkaProducer:
                 "partition": start_partition,
                 "offset": start_offset + idx,
                 "timestamp": datetime.fromisoformat(
-                    event.get(
-                        "timestamp", datetime.now(timezone.utc).isoformat()
-                    ).replace("Z", "+00:00")
+                    event.get("timestamp", datetime.now(timezone.utc).isoformat()).replace(
+                        "Z", "+00:00"
+                    )
                 ),
                 "timestampType": 0,
             }
@@ -87,9 +87,7 @@ class MockKafkaProducer:
             return _create_mock_df(events, topic, start_partition, start_offset)
 
     @staticmethod
-    def create_malformed_message(
-        topic: str, partition: int = 0, offset: int = 0
-    ) -> dict:
+    def create_malformed_message(topic: str, partition: int = 0, offset: int = 0) -> dict:
         """Create a malformed Kafka message for DLQ testing.
 
         Args:

@@ -50,9 +50,7 @@ def ensure_topics_exist(settings: Settings) -> None:
     for topic_name in REQUIRED_TOPICS:
         if topic_name not in existing_topics:
             # Create with 1 partition and replication factor 1 (single broker)
-            topics_to_create.append(
-                NewTopic(topic_name, num_partitions=1, replication_factor=1)
-            )
+            topics_to_create.append(NewTopic(topic_name, num_partitions=1, replication_factor=1))
 
     if not topics_to_create:
         logger.info(f"All {len(REQUIRED_TOPICS)} required topics already exist")
@@ -72,9 +70,7 @@ def ensure_topics_exist(settings: Settings) -> None:
             logger.info(f"Created topic: {topic_name}")
         except Exception as e:
             # Topic might already exist (race condition) - that's OK
-            if "TopicExistsException" in str(
-                type(e).__name__
-            ) or "TOPIC_ALREADY_EXISTS" in str(e):
+            if "TopicExistsException" in str(type(e).__name__) or "TOPIC_ALREADY_EXISTS" in str(e):
                 logger.info(f"Topic {topic_name} already exists")
             else:
                 logger.warning(f"Failed to create topic {topic_name}: {e}")

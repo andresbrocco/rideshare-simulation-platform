@@ -123,9 +123,7 @@ def get_random_location_in_zones() -> tuple[float, float]:
         if polygon.contains(point):
             return (lat, lon)
 
-    raise RuntimeError(
-        f"Failed to generate valid location after {max_retries} attempts"
-    )
+    raise RuntimeError(f"Failed to generate valid location after {max_retries} attempts")
 
 
 def get_random_location_in_zone(zone_id: str) -> tuple[float, float]:

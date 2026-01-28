@@ -5,9 +5,7 @@ def test_create_single_driver(test_client, mock_agent_factory, auth_headers):
     """Queues 1 driver for continuous spawning with immediate mode (default)."""
     mock_agent_factory.queue_drivers.return_value = 1
 
-    response = test_client.post(
-        "/agents/drivers", json={"count": 1}, headers=auth_headers
-    )
+    response = test_client.post("/agents/drivers", json={"count": 1}, headers=auth_headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -21,9 +19,7 @@ def test_create_multiple_drivers(test_client, mock_agent_factory, auth_headers):
     """Queues multiple drivers for continuous spawning."""
     mock_agent_factory.queue_drivers.return_value = 10
 
-    response = test_client.post(
-        "/agents/drivers", json={"count": 10}, headers=auth_headers
-    )
+    response = test_client.post("/agents/drivers", json={"count": 10}, headers=auth_headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -37,9 +33,7 @@ def test_create_drivers_max_count(test_client, mock_agent_factory, auth_headers)
     """Queues max allowed (100) drivers."""
     mock_agent_factory.queue_drivers.return_value = 100
 
-    response = test_client.post(
-        "/agents/drivers", json={"count": 100}, headers=auth_headers
-    )
+    response = test_client.post("/agents/drivers", json={"count": 100}, headers=auth_headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -49,9 +43,7 @@ def test_create_drivers_max_count(test_client, mock_agent_factory, auth_headers)
 
 def test_create_drivers_exceeds_max(test_client, mock_agent_factory, auth_headers):
     """Rejects count > 100 (validation limit)."""
-    response = test_client.post(
-        "/agents/drivers", json={"count": 501}, headers=auth_headers
-    )
+    response = test_client.post("/agents/drivers", json={"count": 501}, headers=auth_headers)
 
     assert response.status_code == 422
     mock_agent_factory.queue_drivers.assert_not_called()
@@ -59,9 +51,7 @@ def test_create_drivers_exceeds_max(test_client, mock_agent_factory, auth_header
 
 def test_create_drivers_below_min(test_client, mock_agent_factory, auth_headers):
     """Rejects count < 1."""
-    response = test_client.post(
-        "/agents/drivers", json={"count": 0}, headers=auth_headers
-    )
+    response = test_client.post("/agents/drivers", json={"count": 0}, headers=auth_headers)
 
     assert response.status_code == 422
     mock_agent_factory.queue_drivers.assert_not_called()
@@ -73,9 +63,7 @@ def test_create_drivers_capacity_limit(test_client, mock_agent_factory, auth_hea
         "Driver capacity limit exceeded: 2000 + 1 > 2000"
     )
 
-    response = test_client.post(
-        "/agents/drivers", json={"count": 1}, headers=auth_headers
-    )
+    response = test_client.post("/agents/drivers", json={"count": 1}, headers=auth_headers)
 
     assert response.status_code == 400
     data = response.json()
@@ -86,9 +74,7 @@ def test_create_single_rider(test_client, mock_agent_factory, auth_headers):
     """Queues 1 rider for continuous spawning with scheduled mode (default)."""
     mock_agent_factory.queue_riders.return_value = 1
 
-    response = test_client.post(
-        "/agents/riders", json={"count": 1}, headers=auth_headers
-    )
+    response = test_client.post("/agents/riders", json={"count": 1}, headers=auth_headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -102,9 +88,7 @@ def test_create_multiple_riders(test_client, mock_agent_factory, auth_headers):
     """Queues multiple riders for continuous spawning."""
     mock_agent_factory.queue_riders.return_value = 50
 
-    response = test_client.post(
-        "/agents/riders", json={"count": 50}, headers=auth_headers
-    )
+    response = test_client.post("/agents/riders", json={"count": 50}, headers=auth_headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -118,9 +102,7 @@ def test_create_riders_max_count(test_client, mock_agent_factory, auth_headers):
     """Queues max per-request (2000) riders."""
     mock_agent_factory.queue_riders.return_value = 2000
 
-    response = test_client.post(
-        "/agents/riders", json={"count": 2000}, headers=auth_headers
-    )
+    response = test_client.post("/agents/riders", json={"count": 2000}, headers=auth_headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -134,9 +116,7 @@ def test_create_riders_capacity_limit(test_client, mock_agent_factory, auth_head
         "Rider capacity limit exceeded: 10000 + 1 > 10000"
     )
 
-    response = test_client.post(
-        "/agents/riders", json={"count": 1}, headers=auth_headers
-    )
+    response = test_client.post("/agents/riders", json={"count": 1}, headers=auth_headers)
 
     assert response.status_code == 400
     data = response.json()

@@ -15,9 +15,7 @@ import sys
 
 
 class SupersetClient:
-    def __init__(
-        self, base_url="http://localhost:8088", username="admin", password="admin"
-    ):
+    def __init__(self, base_url="http://localhost:8088", username="admin", password="admin"):
         self.base_url = base_url
         self.session = requests.Session()
         self._login(username, password)
@@ -135,9 +133,7 @@ def create_operations_dashboard():
             "viz_type": "big_number_total",
             "datasource_id": database_id,
             "datasource_type": "table",
-            "params": json.dumps(
-                {"metric": "avg_wait", "viz_type": "big_number_total"}
-            ),
+            "params": json.dumps({"metric": "avg_wait", "viz_type": "big_number_total"}),
             "query_context": json.dumps(
                 {
                     "datasource": {"id": database_id, "type": "table"},
@@ -194,9 +190,7 @@ def create_operations_dashboard():
             "viz_type": "pie",
             "datasource_id": database_id,
             "datasource_type": "table",
-            "params": json.dumps(
-                {"viz_type": "pie", "groupby": ["error_type"], "metric": "count"}
-            ),
+            "params": json.dumps({"viz_type": "pie", "groupby": ["error_type"], "metric": "count"}),
             "query_context": json.dumps(
                 {
                     "datasource": {"id": database_id, "type": "table"},
@@ -236,9 +230,7 @@ def create_operations_dashboard():
             "viz_type": "big_number_total",
             "datasource_id": database_id,
             "datasource_type": "table",
-            "params": json.dumps(
-                {"metric": "lag_seconds", "viz_type": "big_number_total"}
-            ),
+            "params": json.dumps({"metric": "lag_seconds", "viz_type": "big_number_total"}),
             "query_context": json.dumps(
                 {
                     "datasource": {"id": database_id, "type": "table"},
@@ -327,9 +319,7 @@ def create_operations_dashboard():
     try:
         dashboard_id = client.create_dashboard(dashboard_config)
         print(f"\nCreated dashboard: Operations Dashboard (ID: {dashboard_id})")
-        print(
-            f"Dashboard URL: http://localhost:8088/superset/dashboard/{dashboard_id}/"
-        )
+        print(f"Dashboard URL: http://localhost:8088/superset/dashboard/{dashboard_id}/")
 
         # Export dashboard as JSON
         dashboard_json = client.export_dashboard(dashboard_id)

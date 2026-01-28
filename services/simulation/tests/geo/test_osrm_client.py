@@ -40,9 +40,7 @@ async def test_route_request_valid(osrm_client: OSRMClient, valid_osrm_response:
             return_value=Response(200, json=valid_osrm_response)
         )
 
-        result = await osrm_client.get_route(
-            origin=(-23.55, -46.63), destination=(-23.56, -46.64)
-        )
+        result = await osrm_client.get_route(origin=(-23.55, -46.63), destination=(-23.56, -46.64))
 
         assert route.called
         assert isinstance(result, RouteResponse)
@@ -52,17 +50,13 @@ async def test_route_request_valid(osrm_client: OSRMClient, valid_osrm_response:
         assert len(result.geometry) > 0
 
 
-async def test_route_response_parsing(
-    osrm_client: OSRMClient, valid_osrm_response: dict
-):
+async def test_route_response_parsing(osrm_client: OSRMClient, valid_osrm_response: dict):
     async with respx.mock:
         respx.route(path__regex=r".*/route/v1/driving/.*").mock(
             return_value=Response(200, json=valid_osrm_response)
         )
 
-        result = await osrm_client.get_route(
-            origin=(-23.55, -46.63), destination=(-23.56, -46.64)
-        )
+        result = await osrm_client.get_route(origin=(-23.55, -46.63), destination=(-23.56, -46.64))
 
         assert result.osrm_code == "Ok"
         assert isinstance(result.distance_meters, float)
@@ -107,9 +101,7 @@ async def test_osrm_server_error(osrm_client: OSRMClient):
         )
 
         with pytest.raises(OSRMServiceError):
-            await osrm_client.get_route(
-                origin=(-23.55, -46.63), destination=(-23.56, -46.64)
-            )
+            await osrm_client.get_route(origin=(-23.55, -46.63), destination=(-23.56, -46.64))
 
 
 async def test_osrm_timeout(osrm_client: OSRMClient):
@@ -121,9 +113,7 @@ async def test_osrm_timeout(osrm_client: OSRMClient):
         )
 
         with pytest.raises(OSRMTimeoutError):
-            await osrm_client.get_route(
-                origin=(-23.55, -46.63), destination=(-23.56, -46.64)
-            )
+            await osrm_client.get_route(origin=(-23.55, -46.63), destination=(-23.56, -46.64))
 
 
 def test_route_cache_key_generation(osrm_client: OSRMClient):
@@ -141,9 +131,7 @@ async def test_async_route_request(osrm_client: OSRMClient, valid_osrm_response:
             return_value=Response(200, json=valid_osrm_response)
         )
 
-        result = await osrm_client.get_route(
-            origin=(-23.55, -46.63), destination=(-23.56, -46.64)
-        )
+        result = await osrm_client.get_route(origin=(-23.55, -46.63), destination=(-23.56, -46.64))
 
         assert isinstance(result, RouteResponse)
         assert result.osrm_code == "Ok"
@@ -158,6 +146,4 @@ async def test_osrm_network_error(osrm_client: OSRMClient):
         )
 
         with pytest.raises(OSRMServiceError):
-            await osrm_client.get_route(
-                origin=(-23.55, -46.63), destination=(-23.56, -46.64)
-            )
+            await osrm_client.get_route(origin=(-23.55, -46.63), destination=(-23.56, -46.64))

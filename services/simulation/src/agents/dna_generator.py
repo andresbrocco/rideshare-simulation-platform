@@ -132,9 +132,7 @@ def _generate_destination_near(
     # Convert to lat/lon offset
     # 1 degree lat ≈ 111 km, 1 degree lon ≈ 111 * cos(lat) km
     delta_lat = (distance * math.cos(bearing)) / 111.0
-    delta_lon = (distance * math.sin(bearing)) / (
-        111.0 * math.cos(math.radians(home_lat))
-    )
+    delta_lon = (distance * math.sin(bearing)) / (111.0 * math.cos(math.radians(home_lat)))
 
     new_lat = home_lat + delta_lat
     new_lon = home_lon + delta_lon
@@ -222,9 +220,7 @@ def generate_rider_dna(faker: Faker | None = None) -> RiderDNA:
 
     # Generate 2-5 frequent destinations
     num_destinations = random.randint(2, 5)
-    frequent_destinations = _generate_frequent_destinations(
-        home_lat, home_lon, num_destinations
-    )
+    frequent_destinations = _generate_frequent_destinations(home_lat, home_lon, num_destinations)
 
     # Personal info from Faker
     first_name = fake.first_name()

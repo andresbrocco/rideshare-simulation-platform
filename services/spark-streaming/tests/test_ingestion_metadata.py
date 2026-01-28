@@ -53,9 +53,7 @@ class TestLowVolumeJobConfiguration:
             checkpoint_config=create_test_checkpoint_config(
                 "s3a://lakehouse/checkpoints/bronze/low-volume"
             ),
-            error_handler=create_test_error_handler(
-                "s3a://lakehouse/bronze/dlq/low-volume"
-            ),
+            error_handler=create_test_error_handler("s3a://lakehouse/bronze/dlq/low-volume"),
         )
 
         assert "trips" in job.topic_names
@@ -70,9 +68,7 @@ class TestLowVolumeJobConfiguration:
             checkpoint_config=create_test_checkpoint_config(
                 "s3a://lakehouse/checkpoints/bronze/low-volume"
             ),
-            error_handler=create_test_error_handler(
-                "s3a://lakehouse/bronze/dlq/low-volume"
-            ),
+            error_handler=create_test_error_handler("s3a://lakehouse/bronze/dlq/low-volume"),
         )
 
         assert job.get_bronze_path("trips") == "s3a://rideshare-bronze/bronze_trips/"
@@ -90,9 +86,7 @@ class TestHighVolumeJobConfiguration:
             checkpoint_config=create_test_checkpoint_config(
                 "s3a://lakehouse/checkpoints/bronze/gps_pings"
             ),
-            error_handler=create_test_error_handler(
-                "s3a://lakehouse/bronze/dlq/gps_pings"
-            ),
+            error_handler=create_test_error_handler("s3a://lakehouse/bronze/dlq/gps_pings"),
         )
 
         assert "gps_pings" in job.topic_names
@@ -107,15 +101,10 @@ class TestHighVolumeJobConfiguration:
             checkpoint_config=create_test_checkpoint_config(
                 "s3a://lakehouse/checkpoints/bronze/gps_pings"
             ),
-            error_handler=create_test_error_handler(
-                "s3a://lakehouse/bronze/dlq/gps_pings"
-            ),
+            error_handler=create_test_error_handler("s3a://lakehouse/bronze/dlq/gps_pings"),
         )
 
-        assert (
-            job.get_bronze_path("gps_pings")
-            == "s3a://rideshare-bronze/bronze_gps_pings/"
-        )
+        assert job.get_bronze_path("gps_pings") == "s3a://rideshare-bronze/bronze_gps_pings/"
 
 
 class TestMetadataColumnsInSchema:
@@ -134,15 +123,11 @@ class TestMetadataColumnsInSchema:
         assert "_kafka_partition" in field_names
         assert "_kafka_offset" in field_names
 
-        session_id_field = next(
-            f for f in bronze_trips_schema.fields if f.name == "session_id"
-        )
+        session_id_field = next(f for f in bronze_trips_schema.fields if f.name == "session_id")
         assert session_id_field.dataType == StringType()
         assert session_id_field.nullable is True
 
-        ingested_at_field = next(
-            f for f in bronze_trips_schema.fields if f.name == "_ingested_at"
-        )
+        ingested_at_field = next(f for f in bronze_trips_schema.fields if f.name == "_ingested_at")
         assert ingested_at_field.dataType == TimestampType()
         assert ingested_at_field.nullable is False
 
@@ -207,9 +192,7 @@ class TestMetadataColumnsInSchema:
         for schema_name, schema in schemas:
             field_names = [field.name for field in schema.fields]
             for column in required_metadata_columns:
-                assert (
-                    column in field_names
-                ), f"Missing {column} in {schema_name} schema"
+                assert column in field_names, f"Missing {column} in {schema_name} schema"
 
 
 class TestMetadataColumnTypes:
@@ -230,9 +213,7 @@ class TestMetadataColumnTypes:
         """Verify Kafka metadata fields are non-nullable."""
         from schemas.lakehouse.schemas.bronze_tables import bronze_trips_schema
 
-        ingested_at = next(
-            f for f in bronze_trips_schema.fields if f.name == "_ingested_at"
-        )
+        ingested_at = next(f for f in bronze_trips_schema.fields if f.name == "_ingested_at")
         assert ingested_at.dataType == TimestampType()
         assert ingested_at.nullable is False
 
@@ -242,9 +223,7 @@ class TestMetadataColumnTypes:
         assert kafka_partition.dataType == IntegerType()
         assert kafka_partition.nullable is False
 
-        kafka_offset = next(
-            f for f in bronze_trips_schema.fields if f.name == "_kafka_offset"
-        )
+        kafka_offset = next(f for f in bronze_trips_schema.fields if f.name == "_kafka_offset")
         assert kafka_offset.dataType == LongType()
         assert kafka_offset.nullable is False
 
@@ -261,9 +240,7 @@ class TestPartitionColumns:
             checkpoint_config=create_test_checkpoint_config(
                 "s3a://lakehouse/checkpoints/bronze/low-volume"
             ),
-            error_handler=create_test_error_handler(
-                "s3a://lakehouse/bronze/dlq/low-volume"
-            ),
+            error_handler=create_test_error_handler("s3a://lakehouse/bronze/dlq/low-volume"),
         )
 
         assert job.partition_columns == ["_ingestion_date"]
@@ -277,9 +254,7 @@ class TestPartitionColumns:
             checkpoint_config=create_test_checkpoint_config(
                 "s3a://lakehouse/checkpoints/bronze/gps_pings"
             ),
-            error_handler=create_test_error_handler(
-                "s3a://lakehouse/bronze/dlq/gps_pings"
-            ),
+            error_handler=create_test_error_handler("s3a://lakehouse/bronze/dlq/gps_pings"),
         )
 
         assert job.partition_columns == ["_ingestion_date"]

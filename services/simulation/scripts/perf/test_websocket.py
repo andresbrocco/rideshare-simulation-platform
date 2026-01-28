@@ -103,10 +103,7 @@ async def run_benchmark(
 
     # Start all clients
     print("  Starting clients...")
-    tasks = [
-        run_client(ws_url, api_key, i, duration, all_stats[i])
-        for i in range(num_clients)
-    ]
+    tasks = [run_client(ws_url, api_key, i, duration, all_stats[i]) for i in range(num_clients)]
 
     start_time = time.time()
 
@@ -121,14 +118,10 @@ async def run_benchmark(
 
     total_messages = sum(s.messages_received for s in all_stats)
 
-    connection_times = [
-        s.connection_time_ms for s in all_stats if s.connection_time_ms > 0
-    ]
+    connection_times = [s.connection_time_ms for s in all_stats if s.connection_time_ms > 0]
     sorted_connection = sorted(connection_times) if connection_times else [0]
 
-    messages_per_client = [
-        s.messages_received for s in all_stats if s.messages_received > 0
-    ]
+    messages_per_client = [s.messages_received for s in all_stats if s.messages_received > 0]
 
     # Calculate message rates per client
     rates = []
@@ -150,9 +143,7 @@ async def run_benchmark(
         },
         "messages": {
             "total": total_messages,
-            "avg_per_client": (
-                statistics.mean(messages_per_client) if messages_per_client else 0
-            ),
+            "avg_per_client": (statistics.mean(messages_per_client) if messages_per_client else 0),
             "total_rate_mps": total_messages / elapsed if elapsed > 0 else 0,
             "avg_client_rate": statistics.mean(rates) if rates else 0,
         },
@@ -235,9 +226,7 @@ def main():
     args = parser.parse_args()
 
     try:
-        results = asyncio.run(
-            run_benchmark(args.ws_url, args.api_key, args.clients, args.duration)
-        )
+        results = asyncio.run(run_benchmark(args.ws_url, args.api_key, args.clients, args.duration))
         print_results(results)
     except Exception as e:
         print(f"\nError: {e}")

@@ -142,9 +142,7 @@ class TestCheckpointConfiguration:
 
         options = config.to_write_options()
 
-        assert (
-            options["checkpointLocation"] == "s3a://lakehouse/checkpoints/bronze/trips"
-        )
+        assert options["checkpointLocation"] == "s3a://lakehouse/checkpoints/bronze/trips"
 
     def test_checkpoint_recovery_maintains_offsets(self):
         """Verify checkpoint recovery continues from correct Kafka offset."""
@@ -338,9 +336,7 @@ class TestBaseStreamingJob:
 
     @patch("pyspark.sql.functions.col")
     @patch("pyspark.sql.functions.current_timestamp")
-    def test_streaming_job_start_creates_read_stream(
-        self, mock_current_timestamp, mock_col
-    ):
+    def test_streaming_job_start_creates_read_stream(self, mock_current_timestamp, mock_col):
         """Verify starting job creates a Kafka read stream."""
         mock_spark = MagicMock()
         mock_stream = MagicMock()
@@ -358,9 +354,7 @@ class TestBaseStreamingJob:
 
     @patch("pyspark.sql.functions.col")
     @patch("pyspark.sql.functions.current_timestamp")
-    def test_streaming_job_start_creates_write_stream(
-        self, mock_current_timestamp, mock_col
-    ):
+    def test_streaming_job_start_creates_write_stream(self, mock_current_timestamp, mock_col):
         """Verify starting job creates a write stream to Delta."""
         mock_spark = MagicMock()
         mock_raw_df = MagicMock()
@@ -436,9 +430,7 @@ class TestBatchIntervalConfiguration:
 
     @patch("pyspark.sql.functions.col")
     @patch("pyspark.sql.functions.current_timestamp")
-    def test_streaming_job_applies_trigger_interval(
-        self, mock_current_timestamp, mock_col
-    ):
+    def test_streaming_job_applies_trigger_interval(self, mock_current_timestamp, mock_col):
         """Verify streaming job applies trigger interval to write stream."""
         mock_spark = MagicMock()
         mock_raw_df = MagicMock()

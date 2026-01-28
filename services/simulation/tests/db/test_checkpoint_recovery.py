@@ -68,9 +68,7 @@ class TestCheckpointMetadata:
 class TestCheckpointAgents:
     """Tests for checkpoint agent persistence."""
 
-    def test_create_checkpoint_all_agents(
-        self, temp_sqlite_db, dna_factory: DNAFactory
-    ):
+    def test_create_checkpoint_all_agents(self, temp_sqlite_db, dna_factory: DNAFactory):
         """Saves all drivers and riders to checkpoint."""
         session_maker = init_database(str(temp_sqlite_db))
         drivers = [
@@ -307,9 +305,7 @@ class TestCheckpointRouteCache:
 class TestCheckpointAtomicity:
     """Tests for checkpoint atomicity."""
 
-    def test_create_checkpoint_commits_on_success(
-        self, temp_sqlite_db, dna_factory: DNAFactory
-    ):
+    def test_create_checkpoint_commits_on_success(self, temp_sqlite_db, dna_factory: DNAFactory):
         """Checkpoint commits automatically when successful."""
         session_maker = init_database(str(temp_sqlite_db))
         drivers = [("d1", dna_factory.driver_dna())]
@@ -333,9 +329,7 @@ class TestCheckpointAtomicity:
             assert d1 is not None  # Data persisted on success
             assert d1.id == "d1"
 
-    def test_create_checkpoint_rolls_back_on_failure(
-        self, temp_sqlite_db, dna_factory: DNAFactory
-    ):
+    def test_create_checkpoint_rolls_back_on_failure(self, temp_sqlite_db, dna_factory: DNAFactory):
         """Checkpoint rolls back all data if any part fails."""
         from unittest.mock import patch
 
@@ -350,9 +344,7 @@ class TestCheckpointAtomicity:
                 raise ValueError("Simulated failure during rider batch create")
 
             with (
-                patch.object(
-                    manager.rider_repo, "batch_create", side_effect=failing_batch_create
-                ),
+                patch.object(manager.rider_repo, "batch_create", side_effect=failing_batch_create),
                 pytest.raises(ValueError, match="Simulated failure"),
             ):
                 manager.create_checkpoint(
@@ -560,9 +552,7 @@ class TestCleanVsDirtyCheckpoint:
 class TestCheckpointRecovery:
     """Tests for checkpoint recovery scenarios."""
 
-    def test_resume_from_clean_checkpoint(
-        self, temp_sqlite_db, dna_factory: DNAFactory
-    ):
+    def test_resume_from_clean_checkpoint(self, temp_sqlite_db, dna_factory: DNAFactory):
         """Resumes from clean checkpoint without warnings."""
         session_maker = init_database(str(temp_sqlite_db))
 

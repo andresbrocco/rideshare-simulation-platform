@@ -114,9 +114,7 @@ class TestBronzeTripSchema:
 
     def test_timestamp_is_timestamp_type(self):
         """timestamp should be TimestampType."""
-        assert isinstance(
-            get_field_type(bronze_trips_schema, "timestamp"), TimestampType
-        )
+        assert isinstance(get_field_type(bronze_trips_schema, "timestamp"), TimestampType)
 
     def test_pickup_location_is_array_of_doubles(self):
         """pickup_location should be ArrayType(DoubleType) for [lat, lon]."""
@@ -132,9 +130,7 @@ class TestBronzeTripSchema:
 
     def test_surge_multiplier_is_double(self):
         """surge_multiplier should be DoubleType."""
-        assert isinstance(
-            get_field_type(bronze_trips_schema, "surge_multiplier"), DoubleType
-        )
+        assert isinstance(get_field_type(bronze_trips_schema, "surge_multiplier"), DoubleType)
 
     def test_fare_is_double(self):
         """fare should be DoubleType."""
@@ -142,9 +138,7 @@ class TestBronzeTripSchema:
 
     def test_offer_sequence_is_integer(self):
         """offer_sequence should be IntegerType."""
-        assert isinstance(
-            get_field_type(bronze_trips_schema, "offer_sequence"), IntegerType
-        )
+        assert isinstance(get_field_type(bronze_trips_schema, "offer_sequence"), IntegerType)
 
     def test_route_is_nested_array(self):
         """route should be ArrayType(ArrayType(DoubleType)) for coordinates."""
@@ -162,27 +156,19 @@ class TestBronzeTripSchema:
 
     def test_route_progress_index_is_integer(self):
         """route_progress_index should be IntegerType."""
-        assert isinstance(
-            get_field_type(bronze_trips_schema, "route_progress_index"), IntegerType
-        )
+        assert isinstance(get_field_type(bronze_trips_schema, "route_progress_index"), IntegerType)
 
     def test_ingested_at_is_timestamp(self):
         """_ingested_at metadata field should be TimestampType."""
-        assert isinstance(
-            get_field_type(bronze_trips_schema, "_ingested_at"), TimestampType
-        )
+        assert isinstance(get_field_type(bronze_trips_schema, "_ingested_at"), TimestampType)
 
     def test_kafka_partition_is_integer(self):
         """_kafka_partition should be IntegerType."""
-        assert isinstance(
-            get_field_type(bronze_trips_schema, "_kafka_partition"), IntegerType
-        )
+        assert isinstance(get_field_type(bronze_trips_schema, "_kafka_partition"), IntegerType)
 
     def test_kafka_offset_is_long(self):
         """_kafka_offset should be LongType for large offset values."""
-        assert isinstance(
-            get_field_type(bronze_trips_schema, "_kafka_offset"), LongType
-        )
+        assert isinstance(get_field_type(bronze_trips_schema, "_kafka_offset"), LongType)
 
 
 class TestBronzeGpsPingsSchema:
@@ -236,15 +222,11 @@ class TestBronzeGpsPingsSchema:
 
     def test_accuracy_is_double(self):
         """accuracy should be DoubleType."""
-        assert isinstance(
-            get_field_type(bronze_gps_pings_schema, "accuracy"), DoubleType
-        )
+        assert isinstance(get_field_type(bronze_gps_pings_schema, "accuracy"), DoubleType)
 
     def test_heading_is_double(self):
         """heading should be DoubleType."""
-        assert isinstance(
-            get_field_type(bronze_gps_pings_schema, "heading"), DoubleType
-        )
+        assert isinstance(get_field_type(bronze_gps_pings_schema, "heading"), DoubleType)
 
     def test_speed_is_double(self):
         """speed should be DoubleType."""
@@ -252,15 +234,11 @@ class TestBronzeGpsPingsSchema:
 
     def test_entity_type_is_string(self):
         """entity_type should be StringType."""
-        assert isinstance(
-            get_field_type(bronze_gps_pings_schema, "entity_type"), StringType
-        )
+        assert isinstance(get_field_type(bronze_gps_pings_schema, "entity_type"), StringType)
 
     def test_timestamp_is_timestamp_type(self):
         """timestamp should be TimestampType."""
-        assert isinstance(
-            get_field_type(bronze_gps_pings_schema, "timestamp"), TimestampType
-        )
+        assert isinstance(get_field_type(bronze_gps_pings_schema, "timestamp"), TimestampType)
 
 
 class TestBronzeDriverStatusSchema:
@@ -307,21 +285,15 @@ class TestBronzeDriverStatusSchema:
 
     def test_new_status_is_string(self):
         """new_status should be StringType."""
-        assert isinstance(
-            get_field_type(bronze_driver_status_schema, "new_status"), StringType
-        )
+        assert isinstance(get_field_type(bronze_driver_status_schema, "new_status"), StringType)
 
     def test_trigger_is_string(self):
         """trigger should be StringType."""
-        assert isinstance(
-            get_field_type(bronze_driver_status_schema, "trigger"), StringType
-        )
+        assert isinstance(get_field_type(bronze_driver_status_schema, "trigger"), StringType)
 
     def test_timestamp_is_timestamp_type(self):
         """timestamp should be TimestampType."""
-        assert isinstance(
-            get_field_type(bronze_driver_status_schema, "timestamp"), TimestampType
-        )
+        assert isinstance(get_field_type(bronze_driver_status_schema, "timestamp"), TimestampType)
 
 
 class TestBronzeSurgeUpdatesSchema:
@@ -383,9 +355,7 @@ class TestBronzeSurgeUpdatesSchema:
 
     def test_new_multiplier_is_double(self):
         """new_multiplier should be DoubleType."""
-        assert isinstance(
-            get_field_type(bronze_surge_updates_schema, "new_multiplier"), DoubleType
-        )
+        assert isinstance(get_field_type(bronze_surge_updates_schema, "new_multiplier"), DoubleType)
 
     def test_calculation_window_seconds_is_integer(self):
         """calculation_window_seconds should be IntegerType."""
@@ -396,9 +366,7 @@ class TestBronzeSurgeUpdatesSchema:
 
     def test_timestamp_is_timestamp_type(self):
         """timestamp should be TimestampType."""
-        assert isinstance(
-            get_field_type(bronze_surge_updates_schema, "timestamp"), TimestampType
-        )
+        assert isinstance(get_field_type(bronze_surge_updates_schema, "timestamp"), TimestampType)
 
 
 class TestBronzeRatingsSchema:
@@ -438,21 +406,15 @@ class TestBronzeRatingsSchema:
 
     def test_rater_type_is_string(self):
         """rater_type should be StringType."""
-        assert isinstance(
-            get_field_type(bronze_ratings_schema, "rater_type"), StringType
-        )
+        assert isinstance(get_field_type(bronze_ratings_schema, "rater_type"), StringType)
 
     def test_ratee_type_is_string(self):
         """ratee_type should be StringType."""
-        assert isinstance(
-            get_field_type(bronze_ratings_schema, "ratee_type"), StringType
-        )
+        assert isinstance(get_field_type(bronze_ratings_schema, "ratee_type"), StringType)
 
     def test_timestamp_is_timestamp_type(self):
         """timestamp should be TimestampType."""
-        assert isinstance(
-            get_field_type(bronze_ratings_schema, "timestamp"), TimestampType
-        )
+        assert isinstance(get_field_type(bronze_ratings_schema, "timestamp"), TimestampType)
 
 
 class TestBronzePaymentsSchema:
@@ -492,9 +454,7 @@ class TestBronzePaymentsSchema:
 
     def test_fare_amount_is_double(self):
         """fare_amount should be DoubleType."""
-        assert isinstance(
-            get_field_type(bronze_payments_schema, "fare_amount"), DoubleType
-        )
+        assert isinstance(get_field_type(bronze_payments_schema, "fare_amount"), DoubleType)
 
     def test_platform_fee_percentage_is_double(self):
         """platform_fee_percentage should be DoubleType."""
@@ -505,9 +465,7 @@ class TestBronzePaymentsSchema:
 
     def test_platform_fee_amount_is_double(self):
         """platform_fee_amount should be DoubleType."""
-        assert isinstance(
-            get_field_type(bronze_payments_schema, "platform_fee_amount"), DoubleType
-        )
+        assert isinstance(get_field_type(bronze_payments_schema, "platform_fee_amount"), DoubleType)
 
     def test_driver_payout_amount_is_double(self):
         """driver_payout_amount should be DoubleType."""
@@ -517,15 +475,11 @@ class TestBronzePaymentsSchema:
 
     def test_payment_method_type_is_string(self):
         """payment_method_type should be StringType."""
-        assert isinstance(
-            get_field_type(bronze_payments_schema, "payment_method_type"), StringType
-        )
+        assert isinstance(get_field_type(bronze_payments_schema, "payment_method_type"), StringType)
 
     def test_timestamp_is_timestamp_type(self):
         """timestamp should be TimestampType."""
-        assert isinstance(
-            get_field_type(bronze_payments_schema, "timestamp"), TimestampType
-        )
+        assert isinstance(get_field_type(bronze_payments_schema, "timestamp"), TimestampType)
 
 
 class TestBronzeDriverProfilesSchema:
@@ -568,9 +522,7 @@ class TestBronzeDriverProfilesSchema:
 
     def test_event_type_is_string(self):
         """event_type should be StringType for driver.created/driver.updated."""
-        assert isinstance(
-            get_field_type(bronze_driver_profiles_schema, "event_type"), StringType
-        )
+        assert isinstance(get_field_type(bronze_driver_profiles_schema, "event_type"), StringType)
 
     def test_preferred_zones_is_array_of_strings(self):
         """preferred_zones should be ArrayType(StringType)."""
@@ -599,9 +551,7 @@ class TestBronzeDriverProfilesSchema:
 
     def test_timestamp_is_timestamp_type(self):
         """timestamp should be TimestampType."""
-        assert isinstance(
-            get_field_type(bronze_driver_profiles_schema, "timestamp"), TimestampType
-        )
+        assert isinstance(get_field_type(bronze_driver_profiles_schema, "timestamp"), TimestampType)
 
 
 class TestBronzeRiderProfilesSchema:
@@ -647,9 +597,7 @@ class TestBronzeRiderProfilesSchema:
 
     def test_event_type_is_string(self):
         """event_type should be StringType for rider.created/rider.updated."""
-        assert isinstance(
-            get_field_type(bronze_rider_profiles_schema, "event_type"), StringType
-        )
+        assert isinstance(get_field_type(bronze_rider_profiles_schema, "event_type"), StringType)
 
     def test_home_location_is_array_of_doubles(self):
         """home_location should be ArrayType(DoubleType)."""
@@ -672,9 +620,7 @@ class TestBronzeRiderProfilesSchema:
 
     def test_timestamp_is_timestamp_type(self):
         """timestamp should be TimestampType."""
-        assert isinstance(
-            get_field_type(bronze_rider_profiles_schema, "timestamp"), TimestampType
-        )
+        assert isinstance(get_field_type(bronze_rider_profiles_schema, "timestamp"), TimestampType)
 
 
 if __name__ == "__main__":

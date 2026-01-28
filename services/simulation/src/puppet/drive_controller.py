@@ -118,9 +118,7 @@ class PuppetDriveController:
             # Calculate heading
             next_idx = min(idx + 1, len(geometry) - 1)
             if idx != next_idx:
-                heading = gps_simulator.calculate_heading(
-                    current_pos, geometry[next_idx]
-                )
+                heading = gps_simulator.calculate_heading(current_pos, geometry[next_idx])
             else:
                 heading = self._driver.heading or 0.0
 
@@ -166,9 +164,7 @@ class PuppetDriveController:
             accuracy=5.0,
             trip_id=self._trip.trip_id,
             pickup_route_progress_index=(
-                self._trip.pickup_route_progress_index
-                if self._is_pickup_drive
-                else None
+                self._trip.pickup_route_progress_index if self._is_pickup_drive else None
             ),
             route_progress_index=(
                 self._trip.route_progress_index if not self._is_pickup_drive else None

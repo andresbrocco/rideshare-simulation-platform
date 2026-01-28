@@ -65,9 +65,7 @@ class TestRedisSinkRetry:
     def test_retry_exhaustion_returns_false(self, mock_redis_client, redis_sink):
         """Should return False after max retries exhausted."""
         # All 3 attempts fail
-        mock_redis_client.publish.side_effect = redis.ConnectionError(
-            "Connection refused"
-        )
+        mock_redis_client.publish.side_effect = redis.ConnectionError("Connection refused")
 
         result = redis_sink.publish("driver-updates", {"driver_id": "d1"})
 

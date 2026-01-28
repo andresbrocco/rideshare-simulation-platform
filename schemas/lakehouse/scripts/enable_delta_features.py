@@ -35,15 +35,11 @@ def enable_bronze_delta_features():
         DeltaConfig.enable_auto_optimize(spark, table_path)
 
         props = DeltaConfig.verify_table_properties(spark, table_path)
-        print(
-            f"  delta.enableChangeDataFeed: {props.get('delta.enableChangeDataFeed')}"
-        )
+        print(f"  delta.enableChangeDataFeed: {props.get('delta.enableChangeDataFeed')}")
         print(
             f"  delta.autoOptimize.optimizeWrite: {props.get('delta.autoOptimize.optimizeWrite')}"
         )
-        print(
-            f"  delta.autoOptimize.autoCompact: {props.get('delta.autoOptimize.autoCompact')}"
-        )
+        print(f"  delta.autoOptimize.autoCompact: {props.get('delta.autoOptimize.autoCompact')}")
 
     spark.stop()
 

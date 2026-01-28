@@ -6,9 +6,7 @@ from fastapi.testclient import TestClient
 
 def test_valid_api_key(test_client, mock_simulation_engine):
     """Accepts valid API key."""
-    response = test_client.post(
-        "/simulation/start", headers={"X-API-Key": "test-api-key"}
-    )
+    response = test_client.post("/simulation/start", headers={"X-API-Key": "test-api-key"})
     assert response.status_code == 200
 
 
@@ -61,15 +59,11 @@ def test_error_response_format(test_client):
 
 def test_case_sensitive_key(test_client):
     """Key validation is case-sensitive."""
-    response = test_client.post(
-        "/simulation/start", headers={"X-API-Key": "TEST-API-KEY"}
-    )
+    response = test_client.post("/simulation/start", headers={"X-API-Key": "TEST-API-KEY"})
     assert response.status_code == 401
 
 
-def test_api_key_from_env(
-    mock_redis_client, mock_simulation_engine, mock_agent_factory
-):
+def test_api_key_from_env(mock_redis_client, mock_simulation_engine, mock_agent_factory):
     """Reads key from environment."""
     with patch.dict("os.environ", {"API_KEY": "custom-env-key"}):
         from api.app import create_app

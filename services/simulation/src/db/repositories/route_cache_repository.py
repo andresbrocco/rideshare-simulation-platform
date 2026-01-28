@@ -47,9 +47,7 @@ class RouteCacheRepository:
         )
         self.session.execute(stmt)
 
-    def load(
-        self, origin_h3: str, dest_h3: str, ttl_days: int = 30
-    ) -> dict[str, Any] | None:
+    def load(self, origin_h3: str, dest_h3: str, ttl_days: int = 30) -> dict[str, Any] | None:
         """Load a route from the cache if it exists and is not expired."""
         cache_key = f"{origin_h3}|{dest_h3}"
         route = self.session.get(RouteCache, cache_key)
@@ -82,9 +80,7 @@ class RouteCacheRepository:
             }
         return routes
 
-    def bulk_save(
-        self, routes: list[tuple[str, str, float, float, str | None]]
-    ) -> None:
+    def bulk_save(self, routes: list[tuple[str, str, float, float, str | None]]) -> None:
         """Batch insert multiple routes."""
         if not routes:
             return

@@ -8,9 +8,7 @@ from src.handlers.surge_handler import SurgeHandler
 from src.handlers.trip_handler import TripHandler
 
 
-def make_trip_event(
-    trip_id: str = "trip-123", event_type: str = "trip.started"
-) -> dict:
+def make_trip_event(trip_id: str = "trip-123", event_type: str = "trip.started") -> dict:
     """Create a valid trip event for testing."""
     return {
         "event_id": "550e8400-e29b-41d4-a716-446655440001",
@@ -28,9 +26,7 @@ def make_trip_event(
     }
 
 
-def make_driver_status_event(
-    driver_id: str = "driver-1", new_status: str = "online"
-) -> dict:
+def make_driver_status_event(driver_id: str = "driver-1", new_status: str = "online") -> dict:
     """Create a valid driver status event for testing."""
     return {
         "event_id": "550e8400-e29b-41d4-a716-446655440002",

@@ -454,9 +454,7 @@ class TestOfferCycle:
         mock_kafka_producer,
         sample_driver_dna,
     ):
-        drivers = [
-            create_mock_driver(f"driver-{i}", sample_driver_dna) for i in range(5)
-        ]
+        drivers = [create_mock_driver(f"driver-{i}", sample_driver_dna) for i in range(5)]
 
         mock_notification_dispatch.send_driver_offer.return_value = False
 
@@ -479,9 +477,7 @@ class TestOfferCycle:
             fare=25.50,
         )
 
-        ranked_drivers = [
-            (d, 300 + i * 60, 0.9 - i * 0.01) for i, d in enumerate(drivers)
-        ]
+        ranked_drivers = [(d, 300 + i * 60, 0.9 - i * 0.01) for i, d in enumerate(drivers)]
 
         result = server.send_offer_cycle(trip, ranked_drivers, max_attempts=5)
 
@@ -570,9 +566,7 @@ class TestMatchFlow:
         mock_kafka_producer,
         sample_driver_dna,
     ):
-        drivers = [
-            create_mock_driver(f"driver-{i}", sample_driver_dna) for i in range(4)
-        ]
+        drivers = [create_mock_driver(f"driver-{i}", sample_driver_dna) for i in range(4)]
 
         mock_driver_index.find_nearest_drivers.return_value = [
             (f"driver-{i}", 2.0 + i * 0.5) for i in range(4)
@@ -623,9 +617,7 @@ class TestMatchFlow:
         mock_kafka_producer,
         sample_driver_dna,
     ):
-        drivers = [
-            create_mock_driver(f"driver-{i}", sample_driver_dna) for i in range(3)
-        ]
+        drivers = [create_mock_driver(f"driver-{i}", sample_driver_dna) for i in range(3)]
 
         mock_driver_index.find_nearest_drivers.return_value = [
             (f"driver-{i}", 2.0 + i * 0.5) for i in range(3)
@@ -719,10 +711,7 @@ class TestPuppetReOfferFlow:
 
         # Should have stored remaining candidates
         assert trip.trip_id in server._pending_offer_candidates
-        assert (
-            len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"])
-            == 1
-        )
+        assert len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"]) == 1
 
         # Puppet rejects - should continue to next driver
         server.process_puppet_reject("puppet-driver", "trip-123")
@@ -769,33 +758,22 @@ class TestPuppetReOfferFlow:
             fare=25.50,
         )
 
-        ranked_drivers = [
-            (p, 300 + i * 60, 0.9 - i * 0.01) for i, p in enumerate(puppets)
-        ]
+        ranked_drivers = [(p, 300 + i * 60, 0.9 - i * 0.01) for i, p in enumerate(puppets)]
 
         # Start cycle - pauses at puppet-0
         server.send_offer_cycle(trip, ranked_drivers, max_attempts=5)
         assert trip.trip_id in server._pending_offer_candidates
-        assert (
-            len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"])
-            == 2
-        )
+        assert len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"]) == 2
 
         # Reject puppet-0 - should pause at puppet-1
         server.process_puppet_reject("puppet-0", "trip-123")
         assert trip.trip_id in server._pending_offer_candidates
-        assert (
-            len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"])
-            == 1
-        )
+        assert len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"]) == 1
 
         # Reject puppet-1 - should pause at puppet-2
         server.process_puppet_reject("puppet-1", "trip-123")
         assert trip.trip_id in server._pending_offer_candidates
-        assert (
-            len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"])
-            == 0
-        )
+        assert len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"]) == 0
 
     def test_puppet_reject_exhausts_all_candidates(
         self,
@@ -836,10 +814,7 @@ class TestPuppetReOfferFlow:
         # Start cycle - only one candidate
         server.send_offer_cycle(trip, ranked_drivers, max_attempts=5)
         assert trip.trip_id in server._pending_offer_candidates
-        assert (
-            len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"])
-            == 0
-        )
+        assert len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"]) == 0
 
         # Track the trip as active
         assert trip.trip_id in server._active_trips
@@ -958,14 +933,10 @@ class TestMatchingServerKafkaOnly:
         server._emit_trip_state_event(trip, "trip.matched")
 
         # Verify Kafka was called
-        assert (
-            mock_kafka_producer.produce.called
-        ), "Trip state events should be sent to Kafka"
+        assert mock_kafka_producer.produce.called, "Trip state events should be sent to Kafka"
 
         kafka_calls = mock_kafka_producer.produce.call_args_list
-        trip_kafka_calls = [
-            call for call in kafka_calls if call[1].get("topic") == "trips"
-        ]
+        trip_kafka_calls = [call for call in kafka_calls if call[1].get("topic") == "trips"]
         assert len(trip_kafka_calls) > 0, "Trip state events should go to trips topic"
 
         # Verify Redis was NOT called for trip state events

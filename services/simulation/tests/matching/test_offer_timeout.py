@@ -180,10 +180,7 @@ def test_multiple_pending_offers(env, mock_kafka_producer):
     assert len(manager.pending_offers) == 0
     assert mock_kafka_producer.produce.call_count == 3
 
-    trip_ids = {
-        call[1]["value"]["trip_id"]
-        for call in mock_kafka_producer.produce.call_args_list
-    }
+    trip_ids = {call[1]["value"]["trip_id"] for call in mock_kafka_producer.produce.call_args_list}
     assert trip_ids == {"trip1", "trip2", "trip3"}
 
 

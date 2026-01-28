@@ -76,9 +76,7 @@ class TestDriverRegistryConcurrentStatusUpdates:
                     registry.update_driver_status(driver_id, new_status)
 
             with ThreadPoolExecutor(max_workers=num_threads) as executor:
-                futures = [
-                    executor.submit(update_statuses, i) for i in range(num_threads)
-                ]
+                futures = [executor.submit(update_statuses, i) for i in range(num_threads)]
                 for future in as_completed(futures):
                     future.result()
 
@@ -475,8 +473,7 @@ class TestAgentRegistryManagerAtomicUpdates:
 
             with ThreadPoolExecutor(max_workers=20) as executor:
                 futures = [
-                    executor.submit(driver_online, f"driver_{i}")
-                    for i in range(num_drivers)
+                    executor.submit(driver_online, f"driver_{i}") for i in range(num_drivers)
                 ]
                 for future in as_completed(futures):
                     future.result()

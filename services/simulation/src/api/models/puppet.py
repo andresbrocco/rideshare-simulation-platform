@@ -19,9 +19,7 @@ class PuppetDriverWithDNARequest(BaseModel):
     location: tuple[float, float] = Field(
         ..., description="Initial location (lat, lon) for the puppet driver"
     )
-    dna_override: DriverDNAOverride | None = Field(
-        None, description="Optional DNA override fields"
-    )
+    dna_override: DriverDNAOverride | None = Field(None, description="Optional DNA override fields")
     ephemeral: bool = Field(True, description="If True, skip SQLite persistence")
 
 
@@ -31,9 +29,7 @@ class PuppetRiderWithDNARequest(BaseModel):
     location: tuple[float, float] = Field(
         ..., description="Initial location (lat, lon) for the puppet rider"
     )
-    dna_override: RiderDNAOverride | None = Field(
-        None, description="Optional DNA override fields"
-    )
+    dna_override: RiderDNAOverride | None = Field(None, description="Optional DNA override fields")
     ephemeral: bool = Field(True, description="If True, skip SQLite persistence")
 
 
@@ -65,9 +61,7 @@ class PuppetActionResponse(BaseModel):
 class PuppetTripRequestBody(BaseModel):
     """Request body for puppet rider trip request."""
 
-    destination: tuple[float, float] = Field(
-        ..., description="Destination coordinates (lat, lon)"
-    )
+    destination: tuple[float, float] = Field(..., description="Destination coordinates (lat, lon)")
 
 
 class PuppetTripRequestResponse(BaseModel):
@@ -104,8 +98,6 @@ class PuppetDriveResponse(BaseModel):
     driver_id: str
     trip_id: str
     new_status: str
-    route: list[tuple[float, float]] = Field(
-        ..., description="Route geometry for visualization"
-    )
+    route: list[tuple[float, float]] = Field(..., description="Route geometry for visualization")
     distance_meters: float
     estimated_duration_seconds: float

@@ -66,9 +66,7 @@ def test_simulation_api_kafka_publishing(
             partition_assigned = True
             break
 
-    assert (
-        partition_assigned
-    ), "Consumer did not get partition assignment after 30 seconds"
+    assert partition_assigned, "Consumer did not get partition assignment after 30 seconds"
 
     # Verify consumer can receive messages by sending a test marker message
     # Use unique test_context ID to avoid conflicts with previous test runs
@@ -329,9 +327,7 @@ def test_stream_processor_kafka_to_redis(
     )
 
     # Assert: Message received in Redis
-    assert (
-        message is not None
-    ), f"Trip event {test_trip_id} not received in Redis within timeout"
+    assert message is not None, f"Trip event {test_trip_id} not received in Redis within timeout"
 
     # Verify trip_id is in the message
     message_str = json.dumps(message)

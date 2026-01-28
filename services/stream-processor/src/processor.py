@@ -197,9 +197,7 @@ class StreamProcessor:
             msg = self._consumer.poll(timeout=1.0)
             assignment = self._consumer.assignment()
             if assignment:
-                logger.info(
-                    f"Consumer assigned partitions: {[str(p) for p in assignment]}"
-                )
+                logger.info(f"Consumer assigned partitions: {[str(p) for p in assignment]}")
                 # Process any message received during warmup
                 if msg is not None and not msg.error():
                     self._process_message(msg)
@@ -324,9 +322,7 @@ class StreamProcessor:
                     if results:
                         published = self._redis_sink.publish_batch(results)
                         self.messages_published += published
-                        logger.debug(
-                            f"Flushed {handler_key}: {len(results)} events published"
-                        )
+                        logger.debug(f"Flushed {handler_key}: {len(results)} events published")
 
                     # Record GPS aggregation metrics (track deltas between flushes)
                     if handler_key == "gps" and isinstance(handler, GPSHandler):

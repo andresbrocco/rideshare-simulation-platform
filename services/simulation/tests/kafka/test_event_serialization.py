@@ -166,9 +166,7 @@ def test_serialize_with_schema_validation(mock_schema_registry, schema_path):
 def test_reject_invalid_event(mock_schema_registry, schema_path):
     from jsonschema import ValidationError
 
-    mock_schema_registry.validate_message.side_effect = ValidationError(
-        "Missing required field"
-    )
+    mock_schema_registry.validate_message.side_effect = ValidationError("Missing required field")
     serializer = TripEventSerializer(mock_schema_registry, schema_path)
     event = TripEvent(
         event_type="trip.requested",

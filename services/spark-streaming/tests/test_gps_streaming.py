@@ -130,9 +130,7 @@ class TestGpsPingsBronzeSchema:
         """Verify speed field is defined as DoubleType."""
         from schemas.lakehouse.schemas.bronze_tables import bronze_gps_pings_schema
 
-        speed_field = next(
-            (f for f in bronze_gps_pings_schema.fields if f.name == "speed"), None
-        )
+        speed_field = next((f for f in bronze_gps_pings_schema.fields if f.name == "speed"), None)
         assert speed_field is not None
         assert speed_field.dataType == DoubleType()
         assert speed_field.nullable is True  # speed is optional
@@ -142,11 +140,7 @@ class TestGpsPingsBronzeSchema:
         from schemas.lakehouse.schemas.bronze_tables import bronze_gps_pings_schema
 
         route_progress_field = next(
-            (
-                f
-                for f in bronze_gps_pings_schema.fields
-                if f.name == "route_progress_index"
-            ),
+            (f for f in bronze_gps_pings_schema.fields if f.name == "route_progress_index"),
             None,
         )
         assert route_progress_field is not None
@@ -158,11 +152,7 @@ class TestGpsPingsBronzeSchema:
         from schemas.lakehouse.schemas.bronze_tables import bronze_gps_pings_schema
 
         pickup_progress_field = next(
-            (
-                f
-                for f in bronze_gps_pings_schema.fields
-                if f.name == "pickup_route_progress_index"
-            ),
+            (f for f in bronze_gps_pings_schema.fields if f.name == "pickup_route_progress_index"),
             None,
         )
         assert pickup_progress_field is not None

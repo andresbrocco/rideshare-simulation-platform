@@ -107,9 +107,7 @@ def docker_compose(request):
             ...
     """
     compose_file = "infrastructure/docker/compose.yml"
-    project_root = os.path.dirname(
-        os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    )
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
     # Get required profiles from session items (tests that will actually run)
     # request.session.items contains only the selected tests after filtering
@@ -176,9 +174,7 @@ def reset_all_state(docker_compose):
         restart_streaming_containers,
     )
 
-    project_root = os.path.dirname(
-        os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    )
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
     print("\n[conftest] Resetting all persistent state...")
 
@@ -187,9 +183,7 @@ def reset_all_state(docker_compose):
 
     # 2. Drop all lakehouse tables from Hive metastore
     # This prevents orphaned metastore entries after we clear MinIO
-    thrift_conn = hive.Connection(
-        host="localhost", port=10000, database="default", auth="NOSASL"
-    )
+    thrift_conn = hive.Connection(host="localhost", port=10000, database="default", auth="NOSASL")
     try:
         drop_lakehouse_tables(thrift_conn)
     finally:
@@ -241,9 +235,7 @@ def wait_for_services(reset_all_state):
 
     def check_thrift_server_healthy():
         try:
-            response = httpx.get(
-                "http://localhost:4041/json/", timeout=5.0, follow_redirects=True
-            )
+            response = httpx.get("http://localhost:4041/json/", timeout=5.0, follow_redirects=True)
             return response.status_code == 200
         except Exception:
             return False
@@ -397,9 +389,7 @@ def thrift_connection(wait_for_services):
 
     Connection pool for SQL queries against Delta tables.
     """
-    connection = hive.Connection(
-        host="localhost", port=10000, database="default", auth="NOSASL"
-    )
+    connection = hive.Connection(host="localhost", port=10000, database="default", auth="NOSASL")
 
     yield connection
 
@@ -409,9 +399,7 @@ def thrift_connection(wait_for_services):
 @pytest.fixture(scope="session")
 def airflow_client(wait_for_services):
     """HTTP client for Airflow REST API with basic auth."""
-    client = AirflowClient(
-        base_url="http://localhost:8082", username="admin", password="admin"
-    )
+    client = AirflowClient(base_url="http://localhost:8082", username="admin", password="admin")
 
     yield client
 
@@ -421,9 +409,7 @@ def airflow_client(wait_for_services):
 @pytest.fixture(scope="session")
 def superset_client(wait_for_services):
     """HTTP client for Superset REST API with session-based auth."""
-    client = SupersetClient(
-        base_url="http://localhost:8088", username="admin", password="admin"
-    )
+    client = SupersetClient(base_url="http://localhost:8088", username="admin", password="admin")
 
     yield client
 
@@ -443,9 +429,7 @@ def prometheus_client(wait_for_services):
 @pytest.fixture(scope="session")
 def grafana_client(wait_for_services):
     """HTTP client for Grafana API with basic auth."""
-    client = GrafanaClient(
-        base_url="http://localhost:3001", username="admin", password="admin"
-    )
+    client = GrafanaClient(base_url="http://localhost:3001", username="admin", password="admin")
 
     yield client
 
@@ -538,9 +522,7 @@ def stream_processor_healthy(wait_for_services):
             pass
         time.sleep(2)
     else:
-        raise TimeoutError(
-            f"Stream processor health check failed after {max_health_attempts * 2}s"
-        )
+        raise TimeoutError(f"Stream processor health check failed after {max_health_attempts * 2}s")
 
     # Phase 2: Probe message to verify end-to-end pipeline
     # Retry because the consumer may need a few poll cycles after reporting healthy
@@ -862,8 +844,7 @@ def streaming_jobs_running(docker_compose):
 
         if result.returncode != 0:
             raise RuntimeError(
-                f"Streaming job not running in {container}. "
-                f"SparkSubmit process not found."
+                f"Streaming job not running in {container}. " f"SparkSubmit process not found."
             )
 
     yield
@@ -904,9 +885,7 @@ def bronze_tables_initialized(docker_compose, thrift_connection):
             exit_code = result.stdout.strip()
             if exit_code == "0":
                 # Container exited successfully - now ensure tables exist
-                print(
-                    "[conftest] bronze-init completed, ensuring all layer tables exist..."
-                )
+                print("[conftest] bronze-init completed, ensuring all layer tables exist...")
 
                 # Ensure Bronze tables exist
                 created_bronze = ensure_bronze_tables_exist(thrift_connection)
@@ -929,9 +908,7 @@ def bronze_tables_initialized(docker_compose, thrift_connection):
                 # Ensure Gold tables exist
                 created_gold = ensure_gold_tables_exist(thrift_connection)
                 if created_gold:
-                    print(
-                        f"[conftest] Created {len(created_gold)} Gold tables: {created_gold}"
-                    )
+                    print(f"[conftest] Created {len(created_gold)} Gold tables: {created_gold}")
                 else:
                     print("[conftest] All Gold tables already exist")
 
@@ -939,16 +916,12 @@ def bronze_tables_initialized(docker_compose, thrift_connection):
                 return
             elif exit_code != "":
                 # Container exited with non-zero code
-                raise RuntimeError(
-                    f"bronze-init container failed with exit code {exit_code}"
-                )
+                raise RuntimeError(f"bronze-init container failed with exit code {exit_code}")
 
         # Container still running or not found, wait and retry
         time.sleep(5)
 
-    raise TimeoutError(
-        f"bronze-init container did not complete within {max_wait_seconds} seconds"
-    )
+    raise TimeoutError(f"bronze-init container did not complete within {max_wait_seconds} seconds")
 
 
 @pytest.fixture(scope="session")

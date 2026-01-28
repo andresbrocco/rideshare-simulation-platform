@@ -101,9 +101,9 @@ def test_partitioning_by_date(spark, test_table_path, sample_schema):
         "_ingestion_date", date_format(col("_ingested_at"), "yyyy-MM-dd")
     )
 
-    partitioned_df.write.format("delta").mode("overwrite").partitionBy(
-        "_ingestion_date"
-    ).save(test_table_path)
+    partitioned_df.write.format("delta").mode("overwrite").partitionBy("_ingestion_date").save(
+        test_table_path
+    )
 
     result_df = spark.read.format("delta").load(test_table_path)
     partitions = result_df.select("_ingestion_date").distinct().collect()

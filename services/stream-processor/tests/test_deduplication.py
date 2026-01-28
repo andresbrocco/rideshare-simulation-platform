@@ -17,9 +17,7 @@ class TestEventDeduplicator:
         deduplicator = EventDeduplicator(mock_redis, ttl=timedelta(hours=1))
 
         assert deduplicator.is_duplicate("event-1") is False
-        mock_redis.set.assert_called_once_with(
-            "event:processed:event-1", "1", nx=True, ex=3600
-        )
+        mock_redis.set.assert_called_once_with("event:processed:event-1", "1", nx=True, ex=3600)
 
     def test_duplicate_event_detected(self):
         """Second time seeing same event_id returns True (is duplicate)."""
@@ -91,6 +89,4 @@ class TestEventDeduplicator:
 
         deduplicator.is_duplicate("event-1")
 
-        mock_redis.set.assert_called_once_with(
-            "event:processed:event-1", "1", nx=True, ex=900
-        )
+        mock_redis.set.assert_called_once_with("event:processed:event-1", "1", nx=True, ex=900)

@@ -28,9 +28,7 @@ STREAMING_JOBS = [
 def run_command(cmd: List[str], capture_output: bool = True) -> Tuple[int, str]:
     """Run shell command and return exit code and output."""
     try:
-        result = subprocess.run(
-            cmd, capture_output=capture_output, text=True, timeout=30
-        )
+        result = subprocess.run(cmd, capture_output=capture_output, text=True, timeout=30)
         return result.returncode, result.stdout + result.stderr
     except subprocess.TimeoutExpired:
         return 1, "Command timed out"
@@ -47,9 +45,7 @@ def check_container_running() -> bool:
 def check_job_file_exists(job_file: str) -> bool:
     """Check if job file exists in container."""
     job_path = f"{JOBS_PATH}/{job_file}"
-    exit_code, _ = run_command(
-        ["docker", "exec", SPARK_CONTAINER, "test", "-f", job_path]
-    )
+    exit_code, _ = run_command(["docker", "exec", SPARK_CONTAINER, "test", "-f", job_path])
     return exit_code == 0
 
 

@@ -11,21 +11,13 @@ def registry():
 @pytest.fixture
 def populated_registry():
     reg = DriverRegistry()
-    reg.register_driver(
-        "driver1", "online", zone_id="pinheiros", location=(-23.561, -46.682)
-    )
-    reg.register_driver(
-        "driver2", "online", zone_id="pinheiros", location=(-23.562, -46.683)
-    )
+    reg.register_driver("driver1", "online", zone_id="pinheiros", location=(-23.561, -46.682))
+    reg.register_driver("driver2", "online", zone_id="pinheiros", location=(-23.562, -46.683))
     reg.register_driver(
         "driver3", "en_route_pickup", zone_id="pinheiros", location=(-23.563, -46.684)
     )
-    reg.register_driver(
-        "driver4", "online", zone_id="vila_madalena", location=(-23.545, -46.690)
-    )
-    reg.register_driver(
-        "driver5", "offline", zone_id="vila_madalena", location=(-23.546, -46.691)
-    )
+    reg.register_driver("driver4", "online", zone_id="vila_madalena", location=(-23.545, -46.690))
+    reg.register_driver("driver5", "offline", zone_id="vila_madalena", location=(-23.546, -46.691))
     return reg
 
 
@@ -151,9 +143,7 @@ def test_update_status_of_nonexistent_driver(registry):
 
 
 def test_update_driver_location(registry):
-    registry.register_driver(
-        "driver1", "online", zone_id="pinheiros", location=(-23.561, -46.682)
-    )
+    registry.register_driver("driver1", "online", zone_id="pinheiros", location=(-23.561, -46.682))
 
     new_location = (-23.570, -46.690)
     registry.update_driver_location("driver1", new_location)

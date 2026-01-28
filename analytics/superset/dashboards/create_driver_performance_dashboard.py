@@ -17,9 +17,7 @@ import sys
 
 
 class SupersetClient:
-    def __init__(
-        self, base_url="http://localhost:8088", username="admin", password="admin"
-    ):
+    def __init__(self, base_url="http://localhost:8088", username="admin", password="admin"):
         self.base_url = base_url
         self.session = requests.Session()
         self._login(username, password)
@@ -126,9 +124,7 @@ class SupersetClient:
             update_data = {"dashboards": [dashboard_id]}
             response = self.session.put(chart_url, json=update_data)
             if response.status_code not in [200, 201]:
-                raise Exception(
-                    f"Failed to associate chart {chart_id}: {response.text}"
-                )
+                raise Exception(f"Failed to associate chart {chart_id}: {response.text}")
 
     def export_dashboard(self, dashboard_id, output_file):
         url = f"{self.base_url}/api/v1/dashboard/export/"
@@ -202,9 +198,7 @@ def main():
                         if existing_ds.get("table_name") == ds["table_name"]:
                             ds_id = existing_ds.get("id")
                             dataset_ids.append(ds_id)
-                            print(
-                                f"Using existing dataset: {ds['table_name']} (ID: {ds_id})"
-                            )
+                            print(f"Using existing dataset: {ds['table_name']} (ID: {ds_id})")
                             break
             else:
                 print(f"Warning: {e}")
@@ -287,9 +281,7 @@ def main():
             "viz_type": "pie",
             "datasource_id": dataset_ids[5],
             "datasource_type": "table",
-            "params": json.dumps(
-                {"viz_type": "pie", "metrics": ["count"], "groupby": ["status"]}
-            ),
+            "params": json.dumps({"viz_type": "pie", "metrics": ["count"], "groupby": ["status"]}),
         },
     ]
 
@@ -307,9 +299,7 @@ def main():
         print("Error: Not all charts created")
         sys.exit(1)
 
-    dashboard_id = client.create_dashboard(
-        "Driver Performance Dashboard", "driver-performance"
-    )
+    dashboard_id = client.create_dashboard("Driver Performance Dashboard", "driver-performance")
     print(f"Created dashboard: Driver Performance Dashboard (ID: {dashboard_id})")
 
     client.update_dashboard(dashboard_id, chart_ids)

@@ -94,9 +94,7 @@ def test_data_consistency_under_partial_failure(
 
     # Wait for first batch ingestion (filter by test-specific IDs)
     def query_bronze_count():
-        return count_rows_filtered(
-            thrift_connection, "bronze.bronze_trips", filter_pattern
-        )
+        return count_rows_filtered(thrift_connection, "bronze.bronze_trips", filter_pattern)
 
     poll_until_records_present(
         query_callback=query_bronze_count,
@@ -108,9 +106,7 @@ def test_data_consistency_under_partial_failure(
 
     # Verify first batch ingested
     bronze_count_before = query_bronze_count()
-    assert (
-        bronze_count_before == 10
-    ), f"Expected 10 rows before kill, found {bronze_count_before}"
+    assert bronze_count_before == 10, f"Expected 10 rows before kill, found {bronze_count_before}"
 
     # Act: Kill bronze-ingestion-low-volume container (simulate failure)
     kill_result = subprocess.run(
@@ -368,9 +364,7 @@ def test_trip_state_machine_integrity(
     )
 
     # Assert: Completed trip exists in Silver
-    assert (
-        len(silver_trips) >= 1
-    ), f"No completed trip found in Silver for trip_id={test_trip_id}"
+    assert len(silver_trips) >= 1, f"No completed trip found in Silver for trip_id={test_trip_id}"
 
     completed_trip = silver_trips[0]
 
@@ -551,9 +545,7 @@ def test_pipeline_smoke_test(
     )
 
     # Assert: Completed trip in Silver
-    assert (
-        len(silver_trips) >= 1
-    ), f"No completed trip found in Silver for trip_id={test_trip_id}"
+    assert len(silver_trips) >= 1, f"No completed trip found in Silver for trip_id={test_trip_id}"
 
     # Assert: Fare preserved
     completed = silver_trips[0]
@@ -565,8 +557,6 @@ def test_pipeline_smoke_test(
 
     # Assert: Total time < 120 seconds
     total_time = time.time() - start_time
-    assert (
-        total_time < 120
-    ), f"Pipeline took {total_time:.1f}s, expected < 120s (2 minutes)"
+    assert total_time < 120, f"Pipeline took {total_time:.1f}s, expected < 120s (2 minutes)"
 
     print(f"Pipeline smoke test completed in {total_time:.1f} seconds")

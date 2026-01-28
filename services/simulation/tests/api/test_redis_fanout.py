@@ -37,9 +37,7 @@ def create_pubsub_mock(messages):
 
 
 @pytest.mark.asyncio
-async def test_redis_subscribe_on_startup(
-    mock_redis_client_for_pubsub, mock_connection_manager
-):
+async def test_redis_subscribe_on_startup(mock_redis_client_for_pubsub, mock_connection_manager):
     """Subscribes to all channels on startup."""
     pubsub = create_pubsub_mock([])
     mock_redis_client_for_pubsub.pubsub.return_value = pubsub
@@ -59,9 +57,7 @@ async def test_redis_subscribe_on_startup(
 
 
 @pytest.mark.asyncio
-async def test_fanout_driver_update(
-    mock_redis_client_for_pubsub, mock_connection_manager
-):
+async def test_fanout_driver_update(mock_redis_client_for_pubsub, mock_connection_manager):
     """Fans out driver update to all clients (transformed to frontend format)."""
     messages = [
         {
@@ -99,9 +95,7 @@ async def test_fanout_driver_update(
 
 
 @pytest.mark.asyncio
-async def test_fanout_trip_update(
-    mock_redis_client_for_pubsub, mock_connection_manager
-):
+async def test_fanout_trip_update(mock_redis_client_for_pubsub, mock_connection_manager):
     """Fans out trip update to all clients (transformed to frontend format)."""
     messages = [
         {
@@ -144,9 +138,7 @@ async def test_fanout_trip_update(
 
 
 @pytest.mark.asyncio
-async def test_fanout_surge_update(
-    mock_redis_client_for_pubsub, mock_connection_manager
-):
+async def test_fanout_surge_update(mock_redis_client_for_pubsub, mock_connection_manager):
     """Fans out surge update to all clients (transformed to frontend format)."""
     messages = [
         {
@@ -173,9 +165,7 @@ async def test_fanout_surge_update(
 
 
 @pytest.mark.asyncio
-async def test_fanout_multiple_clients(
-    mock_redis_client_for_pubsub, mock_connection_manager
-):
+async def test_fanout_multiple_clients(mock_redis_client_for_pubsub, mock_connection_manager):
     """Broadcasts to all connected clients (transformed to frontend format)."""
     ws1, ws2, ws3 = AsyncMock(), AsyncMock(), AsyncMock()
     mock_connection_manager.active_connections = {ws1, ws2, ws3}
@@ -206,9 +196,7 @@ async def test_fanout_multiple_clients(
 
 
 @pytest.mark.asyncio
-async def test_redis_reconnect_on_disconnect(
-    mock_redis_client_for_pubsub, mock_connection_manager
-):
+async def test_redis_reconnect_on_disconnect(mock_redis_client_for_pubsub, mock_connection_manager):
     """Reconnects after connection loss."""
     import redis.asyncio as redis
 
@@ -245,9 +233,7 @@ async def test_redis_reconnect_on_disconnect(
 
 
 @pytest.mark.asyncio
-async def test_parse_redis_message(
-    mock_redis_client_for_pubsub, mock_connection_manager
-):
+async def test_parse_redis_message(mock_redis_client_for_pubsub, mock_connection_manager):
     """Parses JSON from Redis message and transforms to frontend format."""
     messages = [
         {
@@ -284,9 +270,7 @@ async def test_parse_redis_message(
 
 
 @pytest.mark.asyncio
-async def test_subscription_task_lifecycle(
-    mock_redis_client_for_pubsub, mock_connection_manager
-):
+async def test_subscription_task_lifecycle(mock_redis_client_for_pubsub, mock_connection_manager):
     """Task starts on startup and stops on shutdown."""
     pubsub = MagicMock()
     pubsub.subscribe = AsyncMock()
@@ -314,9 +298,7 @@ async def test_subscription_task_lifecycle(
 
 
 @pytest.mark.asyncio
-async def test_ignore_malformed_messages(
-    mock_redis_client_for_pubsub, mock_connection_manager
-):
+async def test_ignore_malformed_messages(mock_redis_client_for_pubsub, mock_connection_manager):
     """Ignores invalid JSON without crashing."""
     messages = [
         {"type": "message", "channel": "driver-updates", "data": "not valid json"},

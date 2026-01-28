@@ -345,26 +345,19 @@ class TestMultiTopicBronzePathMapping:
         # Verify all 7 topics have correct bronze paths
         assert job.get_bronze_path("trips") == "s3a://rideshare-bronze/bronze_trips/"
         assert (
-            job.get_bronze_path("driver_status")
-            == "s3a://rideshare-bronze/bronze_driver_status/"
+            job.get_bronze_path("driver_status") == "s3a://rideshare-bronze/bronze_driver_status/"
         )
         assert (
-            job.get_bronze_path("surge_updates")
-            == "s3a://rideshare-bronze/bronze_surge_updates/"
+            job.get_bronze_path("surge_updates") == "s3a://rideshare-bronze/bronze_surge_updates/"
         )
-        assert (
-            job.get_bronze_path("ratings") == "s3a://rideshare-bronze/bronze_ratings/"
-        )
-        assert (
-            job.get_bronze_path("payments") == "s3a://rideshare-bronze/bronze_payments/"
-        )
+        assert job.get_bronze_path("ratings") == "s3a://rideshare-bronze/bronze_ratings/"
+        assert job.get_bronze_path("payments") == "s3a://rideshare-bronze/bronze_payments/"
         assert (
             job.get_bronze_path("driver_profiles")
             == "s3a://rideshare-bronze/bronze_driver_profiles/"
         )
         assert (
-            job.get_bronze_path("rider_profiles")
-            == "s3a://rideshare-bronze/bronze_rider_profiles/"
+            job.get_bronze_path("rider_profiles") == "s3a://rideshare-bronze/bronze_rider_profiles/"
         )
 
     def test_high_volume_job_bronze_path(self):
@@ -392,10 +385,7 @@ class TestMultiTopicBronzePathMapping:
             ),
         )
 
-        assert (
-            job.get_bronze_path("gps_pings")
-            == "s3a://rideshare-bronze/bronze_gps_pings/"
-        )
+        assert job.get_bronze_path("gps_pings") == "s3a://rideshare-bronze/bronze_gps_pings/"
 
 
 class TestProcessBatchWithMocking:
@@ -480,9 +470,7 @@ class TestProcessBatchWithMocking:
 
     @patch("spark_streaming.jobs.multi_topic_streaming_job.col")
     @patch("spark_streaming.jobs.multi_topic_streaming_job.date_format")
-    def test_high_volume_process_batch_routes_gps_pings(
-        self, mock_date_format, mock_col
-    ):
+    def test_high_volume_process_batch_routes_gps_pings(self, mock_date_format, mock_col):
         """Verify high-volume job routes gps_pings to correct Bronze table."""
         from spark_streaming.config.checkpoint_config import CheckpointConfig
         from spark_streaming.config.kafka_config import KafkaConfig

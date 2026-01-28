@@ -38,9 +38,7 @@ class TestBaseAgentRepositoryGenericBehavior:
 class TestBaseAgentRepositoryPolymorphism:
     """Test that both repos work interchangeably through base class interface."""
 
-    def test_create_driver_through_base_interface(
-        self, temp_sqlite_db, dna_factory: DNAFactory
-    ):
+    def test_create_driver_through_base_interface(self, temp_sqlite_db, dna_factory: DNAFactory):
         """Can create driver using generic interface."""
         session_maker = init_database(str(temp_sqlite_db))
         driver_dna = dna_factory.driver_dna(home_location=(-23.55, -46.63))
@@ -55,9 +53,7 @@ class TestBaseAgentRepositoryPolymorphism:
             assert driver is not None
             assert driver.status == "offline"
 
-    def test_create_rider_through_base_interface(
-        self, temp_sqlite_db, dna_factory: DNAFactory
-    ):
+    def test_create_rider_through_base_interface(self, temp_sqlite_db, dna_factory: DNAFactory):
         """Can create rider using generic interface."""
         session_maker = init_database(str(temp_sqlite_db))
         rider_dna = dna_factory.rider_dna(home_location=(-23.55, -46.63))
@@ -72,9 +68,7 @@ class TestBaseAgentRepositoryPolymorphism:
             assert rider is not None
             assert rider.status == "offline"
 
-    def test_get_returns_correct_model_type(
-        self, temp_sqlite_db, dna_factory: DNAFactory
-    ):
+    def test_get_returns_correct_model_type(self, temp_sqlite_db, dna_factory: DNAFactory):
         """get() returns the correct ORM model type for each repository."""
         session_maker = init_database(str(temp_sqlite_db))
         driver_dna = dna_factory.driver_dna()
@@ -125,9 +119,7 @@ class TestBaseAgentRepositoryPolymorphism:
 class TestBaseAgentRepositoryTypeIsolation:
     """Test that driver and rider data remain isolated."""
 
-    def test_driver_repo_does_not_see_riders(
-        self, temp_sqlite_db, dna_factory: DNAFactory
-    ):
+    def test_driver_repo_does_not_see_riders(self, temp_sqlite_db, dna_factory: DNAFactory):
         """DriverRepository only sees drivers, not riders."""
         session_maker = init_database(str(temp_sqlite_db))
         driver_dna = dna_factory.driver_dna()
@@ -144,9 +136,7 @@ class TestBaseAgentRepositoryTypeIsolation:
             result = driver_repo.get("r_iso_1")
             assert result is None
 
-    def test_rider_repo_does_not_see_drivers(
-        self, temp_sqlite_db, dna_factory: DNAFactory
-    ):
+    def test_rider_repo_does_not_see_drivers(self, temp_sqlite_db, dna_factory: DNAFactory):
         """RiderRepository only sees riders, not drivers."""
         session_maker = init_database(str(temp_sqlite_db))
         driver_dna = dna_factory.driver_dna()

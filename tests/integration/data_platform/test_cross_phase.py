@@ -61,9 +61,7 @@ def test_phase1_phase2_minio_streaming(
     # Arrange: Verify bucket exists
     buckets_response = minio_client.list_buckets()
     bucket_names = [bucket["Name"] for bucket in buckets_response["Buckets"]]
-    assert (
-        "rideshare-bronze" in bucket_names
-    ), "rideshare-bronze bucket not found in MinIO"
+    assert "rideshare-bronze" in bucket_names, "rideshare-bronze bucket not found in MinIO"
 
     # Arrange: Publish single trip event with unique test IDs
     # Note: Event must include event_id and proper location format for DBT parsing
@@ -88,9 +86,7 @@ def test_phase1_phase2_minio_streaming(
     filter_pattern = test_context.filter_pattern()
 
     def query_bronze_count():
-        return count_rows_filtered(
-            thrift_connection, "bronze.bronze_trips", filter_pattern
-        )
+        return count_rows_filtered(thrift_connection, "bronze.bronze_trips", filter_pattern)
 
     poll_until_records_present(
         query_callback=query_bronze_count,
@@ -126,15 +122,11 @@ def test_phase1_phase2_minio_streaming(
         thrift_connection,
         f"SELECT _raw_value FROM bronze.bronze_trips WHERE _raw_value LIKE '%{trip_event['trip_id']}%'",
     )
-    assert (
-        len(rows) >= 1
-    ), f"Expected at least 1 event in bronze_trips, found {len(rows)}"
+    assert len(rows) >= 1, f"Expected at least 1 event in bronze_trips, found {len(rows)}"
 
     # Parse JSON from _raw_value to verify trip_id
     raw_json = json.loads(rows[0]["_raw_value"])
-    assert (
-        raw_json["trip_id"] == trip_event["trip_id"]
-    ), "Event not readable via Thrift Server"
+    assert raw_json["trip_id"] == trip_event["trip_id"], "Event not readable via Thrift Server"
 
 
 @pytest.mark.cross_phase
@@ -186,9 +178,7 @@ def test_phase2_phase3_bronze_dbt(
     filter_pattern = test_context.filter_pattern()
 
     def query_bronze_count():
-        return count_rows_filtered(
-            thrift_connection, "bronze.bronze_trips", filter_pattern
-        )
+        return count_rows_filtered(thrift_connection, "bronze.bronze_trips", filter_pattern)
 
     poll_until_records_present(
         query_callback=query_bronze_count,
@@ -220,14 +210,11 @@ def test_phase2_phase3_bronze_dbt(
 
     # Assert: DBT can connect
     assert (
-        "Connection test: [OK connection ok]" in debug_result.stdout
-        or debug_result.returncode == 0
+        "Connection test: [OK connection ok]" in debug_result.stdout or debug_result.returncode == 0
     ), f"DBT connection check failed:\nSTDOUT: {debug_result.stdout}\nSTDERR: {debug_result.stderr}"
 
     # Assert: No connectivity errors
-    assert (
-        "Could not connect" not in debug_result.stdout
-    ), "DBT could not connect to Bronze tables"
+    assert "Could not connect" not in debug_result.stdout, "DBT could not connect to Bronze tables"
     assert (
         "Database Error" not in debug_result.stderr
     ), f"DBT encountered database error:\n{debug_result.stderr}"

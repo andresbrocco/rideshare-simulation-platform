@@ -47,9 +47,7 @@ def high_volume_job(mock_spark):
     return BronzeIngestionHighVolume(
         spark=mock_spark,
         kafka_config=create_kafka_config(),
-        checkpoint_config=create_checkpoint_config(
-            "s3a://lakehouse/checkpoints/bronze/gps_pings"
-        ),
+        checkpoint_config=create_checkpoint_config("s3a://lakehouse/checkpoints/bronze/gps_pings"),
         error_handler=create_error_handler("s3a://lakehouse/bronze/dlq/gps_pings"),
     )
 
@@ -60,9 +58,7 @@ def low_volume_job(mock_spark):
     return BronzeIngestionLowVolume(
         spark=mock_spark,
         kafka_config=create_kafka_config(),
-        checkpoint_config=create_checkpoint_config(
-            "s3a://lakehouse/checkpoints/bronze/low-volume"
-        ),
+        checkpoint_config=create_checkpoint_config("s3a://lakehouse/checkpoints/bronze/low-volume"),
         error_handler=create_error_handler("s3a://lakehouse/bronze/dlq/low-volume"),
     )
 
@@ -95,9 +91,7 @@ class TestAllTopicsCoverage:
 
         # Verify no overlap between jobs
         overlap = high_volume_topics & low_volume_topics
-        assert (
-            overlap == set()
-        ), f"Topics should not be duplicated across jobs: {overlap}"
+        assert overlap == set(), f"Topics should not be duplicated across jobs: {overlap}"
 
         # Verify all topics are covered
         covered_topics = high_volume_topics | low_volume_topics
@@ -149,9 +143,7 @@ class TestBronzePathRouting:
 
         for topic, expected_path in expected_paths.items():
             actual_path = low_volume_job.get_bronze_path(topic)
-            assert (
-                actual_path == expected_path
-            ), f"Wrong path for {topic}: {actual_path}"
+            assert actual_path == expected_path, f"Wrong path for {topic}: {actual_path}"
             assert "bronze" in actual_path.lower()
 
     def test_bronze_paths_convert_hyphens_to_underscores(self, low_volume_job):

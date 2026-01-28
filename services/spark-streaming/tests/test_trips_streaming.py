@@ -28,9 +28,7 @@ class TestTripsSchemaValidation:
         """Verify fare field is defined as DoubleType in schema."""
         from schemas.lakehouse.schemas.bronze_tables import bronze_trips_schema
 
-        fare_field = next(
-            (f for f in bronze_trips_schema.fields if f.name == "fare"), None
-        )
+        fare_field = next((f for f in bronze_trips_schema.fields if f.name == "fare"), None)
         assert fare_field is not None, "fare field not found in schema"
         assert fare_field.dataType == DoubleType()
 
@@ -38,9 +36,7 @@ class TestTripsSchemaValidation:
         """Verify route field is defined as ArrayType(ArrayType(DoubleType)) in schema."""
         from schemas.lakehouse.schemas.bronze_tables import bronze_trips_schema
 
-        route_field = next(
-            (f for f in bronze_trips_schema.fields if f.name == "route"), None
-        )
+        route_field = next((f for f in bronze_trips_schema.fields if f.name == "route"), None)
         assert route_field is not None, "route field not found in schema"
         assert route_field.dataType == ArrayType(ArrayType(DoubleType()))
 
@@ -60,9 +56,7 @@ class TestTripsSchemaValidation:
         from schemas.lakehouse.schemas.bronze_tables import bronze_trips_schema
 
         for field_name in ["pickup_location", "dropoff_location"]:
-            field = next(
-                (f for f in bronze_trips_schema.fields if f.name == field_name), None
-            )
+            field = next((f for f in bronze_trips_schema.fields if f.name == field_name), None)
             assert field is not None, f"{field_name} field not found in schema"
             assert field.dataType == ArrayType(DoubleType())
 
@@ -86,9 +80,7 @@ class TestTripsSchemaValidation:
         """Verify metadata columns have correct types."""
         from schemas.lakehouse.schemas.bronze_tables import bronze_trips_schema
 
-        ingested_at = next(
-            f for f in bronze_trips_schema.fields if f.name == "_ingested_at"
-        )
+        ingested_at = next(f for f in bronze_trips_schema.fields if f.name == "_ingested_at")
         assert ingested_at.dataType == TimestampType()
         assert ingested_at.nullable is False
 
@@ -98,9 +90,7 @@ class TestTripsSchemaValidation:
         assert kafka_partition.dataType == IntegerType()
         assert kafka_partition.nullable is False
 
-        kafka_offset = next(
-            f for f in bronze_trips_schema.fields if f.name == "_kafka_offset"
-        )
+        kafka_offset = next(f for f in bronze_trips_schema.fields if f.name == "_kafka_offset")
         assert kafka_offset.dataType == LongType()
         assert kafka_offset.nullable is False
 

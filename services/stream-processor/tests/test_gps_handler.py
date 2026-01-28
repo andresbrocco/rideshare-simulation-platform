@@ -6,9 +6,7 @@ import json
 from src.handlers.gps_handler import GPSHandler
 
 
-def make_gps_event(
-    entity_id: str, entity_type: str = "driver", location: list = None
-) -> dict:
+def make_gps_event(entity_id: str, entity_type: str = "driver", location: list = None) -> dict:
     """Create a valid GPS event for testing."""
     return {
         "event_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -52,9 +50,7 @@ class TestGPSHandlerLatestStrategy:
 
         # Add pings for 3 different drivers
         for i in range(3):
-            event = make_gps_event(
-                f"driver-{i}", location=[float(i * 10), float(i * 10)]
-            )
+            event = make_gps_event(f"driver-{i}", location=[float(i * 10), float(i * 10)])
             handler.handle(json.dumps(event).encode())
 
         results = handler.flush()

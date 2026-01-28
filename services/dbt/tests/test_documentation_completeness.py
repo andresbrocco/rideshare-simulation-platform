@@ -57,9 +57,7 @@ def test_documentation_files_exist():
         if not full_path.exists():
             missing_files.append(file_path)
 
-    assert (
-        len(missing_files) == 0
-    ), f"Missing documentation files: {', '.join(missing_files)}"
+    assert len(missing_files) == 0, f"Missing documentation files: {', '.join(missing_files)}"
 
 
 def test_doc_blocks_referenced_in_schema():
@@ -93,9 +91,7 @@ def test_catalog_json_exists():
         "/Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/services/dbt/target/catalog.json"
     )
 
-    assert (
-        catalog_path.exists()
-    ), "catalog.json not found. Run 'dbt docs generate' to create it."
+    assert catalog_path.exists(), "catalog.json not found. Run 'dbt docs generate' to create it."
 
 
 def test_manifest_json_exists():
@@ -198,9 +194,7 @@ def test_key_columns_have_descriptions():
                 ):
                     description = col_info.get("description", "").strip()
                     if not description:
-                        key_columns_without_descriptions.append(
-                            f"{model_name}.{col_name}"
-                        )
+                        key_columns_without_descriptions.append(f"{model_name}.{col_name}")
 
     assert (
         len(key_columns_without_descriptions) == 0

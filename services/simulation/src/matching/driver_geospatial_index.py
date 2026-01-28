@@ -89,9 +89,7 @@ class DriverGeospatialIndex:
                     for driver_id in self._h3_cells[cell]:
                         if self._driver_status.get(driver_id) == status_filter:
                             driver_lat, driver_lon = self._driver_locations[driver_id]
-                            distance = haversine_distance_km(
-                                lat, lon, driver_lat, driver_lon
-                            )
+                            distance = haversine_distance_km(lat, lon, driver_lat, driver_lon)
                             if distance <= radius_km:
                                 candidates.append((driver_id, distance))
 

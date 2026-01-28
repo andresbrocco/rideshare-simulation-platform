@@ -55,9 +55,7 @@ class AirflowClient:
             self._refresh_jwt_token()
         else:
             # Airflow 2.x: Use basic auth
-            self.client = httpx.Client(
-                auth=(self._username, self._password), timeout=30.0
-            )
+            self.client = httpx.Client(auth=(self._username, self._password), timeout=30.0)
 
     def _refresh_jwt_token(self) -> None:
         """Obtain JWT token from Airflow 3.x /auth/token endpoint.
@@ -105,9 +103,7 @@ class AirflowClient:
             "conf": conf or {},
             "logical_date": datetime.now(timezone.utc).isoformat(),
         }
-        response = self.client.post(
-            self._api_url(f"/dags/{dag_id}/dagRuns"), json=payload
-        )
+        response = self.client.post(self._api_url(f"/dags/{dag_id}/dagRuns"), json=payload)
         response.raise_for_status()
         return response.json()["dag_run_id"]
 
@@ -121,9 +117,7 @@ class AirflowClient:
         Returns:
             State string (e.g., 'success', 'running', 'failed')
         """
-        response = self.client.get(
-            self._api_url(f"/dags/{dag_id}/dagRuns/{dag_run_id}")
-        )
+        response = self.client.get(self._api_url(f"/dags/{dag_id}/dagRuns/{dag_run_id}"))
         response.raise_for_status()
         return response.json()["state"]
 
@@ -333,15 +327,11 @@ class PrometheusClient:
         Returns:
             Query result dictionary with 'data' key
         """
-        response = self.client.get(
-            f"{self.base_url}/api/v1/query", params={"query": query}
-        )
+        response = self.client.get(f"{self.base_url}/api/v1/query", params={"query": query})
         response.raise_for_status()
         return response.json()
 
-    def query_range(
-        self, query: str, start: str, end: str, step: str = "1m"
-    ) -> dict[str, Any]:
+    def query_range(self, query: str, start: str, end: str, step: str = "1m") -> dict[str, Any]:
         """Execute range query.
 
         Args:
@@ -431,9 +421,7 @@ class GrafanaClient:
         self.client.close()
 
 
-def retry_on_transient_error(
-    callback, max_attempts: int = 3, backoff_seconds: float = 1.0
-):
+def retry_on_transient_error(callback, max_attempts: int = 3, backoff_seconds: float = 1.0):
     """Retry callback on transient HTTP errors.
 
     Args:

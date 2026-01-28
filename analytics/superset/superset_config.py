@@ -1,12 +1,8 @@
 import os
 
-SECRET_KEY = os.environ.get(
-    "SUPERSET_SECRET_KEY", "dev-secret-key-change-in-production"
-)
+SECRET_KEY = os.environ.get("SUPERSET_SECRET_KEY", "dev-secret-key-change-in-production")
 
-SQLALCHEMY_DATABASE_URI = (
-    "postgresql://superset:superset@postgres-superset:5432/superset"
-)
+SQLALCHEMY_DATABASE_URI = "postgresql://superset:superset@postgres-superset:5432/superset"
 
 
 class CeleryConfig:

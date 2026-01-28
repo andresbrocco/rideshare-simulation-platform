@@ -45,9 +45,7 @@ def main():
     # Filter out cross-service duplicates (same name in different services is OK)
     def is_cross_service_only(locations: list[str]) -> bool:
         sim_count = sum(1 for loc in locations if loc.startswith("simulation/"))
-        stream_count = sum(
-            1 for loc in locations if loc.startswith("stream-processor/")
-        )
+        stream_count = sum(1 for loc in locations if loc.startswith("stream-processor/"))
         return sim_count <= 1 and stream_count <= 1
 
     unexpected = {

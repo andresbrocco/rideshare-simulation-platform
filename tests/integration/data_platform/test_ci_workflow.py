@@ -125,11 +125,7 @@ class TestWorkflowStructure:
             for step in steps:
                 step_if = step.get("if", "")
                 run_cmd = step.get("run", "")
-                if (
-                    "always()" in step_if
-                    and "docker compose" in run_cmd
-                    and "down" in run_cmd
-                ):
+                if "always()" in step_if and "docker compose" in run_cmd and "down" in run_cmd:
                     found_cleanup = True
                     break
 

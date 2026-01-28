@@ -58,9 +58,7 @@ def create_rider_dna(behavior_factor: float = 0.7) -> RiderDNA:
     )
 
 
-def create_trip(
-    trip_id: str = "trip-1", state: TripState = TripState.COMPLETED
-) -> Trip:
+def create_trip(trip_id: str = "trip-1", state: TripState = TripState.COMPLETED) -> Trip:
     trip = Trip(
         trip_id=trip_id,
         rider_id="rider-1",
@@ -160,9 +158,7 @@ class TestRiderRatesDriver:
         env = simpy.Environment()
         mock_producer = MagicMock()
         rider = RiderAgent("rider-1", create_rider_dna(), env, mock_producer)
-        driver = DriverAgent(
-            "driver-1", create_driver_dna(service_quality=0.9), env, None
-        )
+        driver = DriverAgent("driver-1", create_driver_dna(service_quality=0.9), env, None)
 
         trip = create_trip()
 

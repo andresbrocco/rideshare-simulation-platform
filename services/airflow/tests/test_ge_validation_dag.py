@@ -36,20 +36,14 @@ def test_soft_failure_handling(dagbag):
 
     assert hasattr(silver_validation, "bash_command")
     assert "exit 0" in silver_validation.bash_command
-    assert (
-        "WARNING" in silver_validation.bash_command
-        or "echo" in silver_validation.bash_command
-    )
+    assert "WARNING" in silver_validation.bash_command or "echo" in silver_validation.bash_command
 
     gold_tasks = {task.task_id: task for task in gold_dag.tasks}
     gold_validation = gold_tasks["ge_gold_validation"]
 
     assert hasattr(gold_validation, "bash_command")
     assert "exit 0" in gold_validation.bash_command
-    assert (
-        "WARNING" in gold_validation.bash_command
-        or "echo" in gold_validation.bash_command
-    )
+    assert "WARNING" in gold_validation.bash_command or "echo" in gold_validation.bash_command
 
 
 def test_task_dependencies(dagbag):

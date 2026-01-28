@@ -46,10 +46,7 @@ class EventFilter:
 
     def transform(self, event: object) -> tuple[
         str,
-        DriverUpdateMessage
-        | RiderUpdateMessage
-        | TripUpdateMessage
-        | SurgeUpdateMessage,
+        DriverUpdateMessage | RiderUpdateMessage | TripUpdateMessage | SurgeUpdateMessage,
     ]:
         """Transform event to (channel, message) for Redis pub/sub."""
         if isinstance(event, GPSPingEvent):

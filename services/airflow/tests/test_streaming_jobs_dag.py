@@ -97,13 +97,9 @@ def test_health_sensor_timeout(dagbag):
     """Verify health check sensors have appropriate timeout and poke_interval."""
     dag = dagbag.dags["streaming_jobs_lifecycle"]
 
-    health_check_tasks = [
-        task for task in dag.tasks if task.task_id.startswith("health_check_")
-    ]
+    health_check_tasks = [task for task in dag.tasks if task.task_id.startswith("health_check_")]
 
-    assert (
-        len(health_check_tasks) == 2
-    ), "Should have 2 health check tasks (consolidated jobs)"
+    assert len(health_check_tasks) == 2, "Should have 2 health check tasks (consolidated jobs)"
 
     for task in health_check_tasks:
         assert task.task_type in [
@@ -111,13 +107,9 @@ def test_health_sensor_timeout(dagbag):
             "HttpSensor",
         ], f"Task {task.task_id} should be a sensor"
 
-        assert (
-            task.timeout >= 300
-        ), f"Task {task.task_id} timeout should be at least 300 seconds"
+        assert task.timeout >= 300, f"Task {task.task_id} timeout should be at least 300 seconds"
 
-        assert (
-            task.poke_interval == 60
-        ), f"Task {task.task_id} poke_interval should be 60 seconds"
+        assert task.poke_interval == 60, f"Task {task.task_id} poke_interval should be 60 seconds"
 
 
 def test_restart_on_failure(dagbag):
@@ -127,9 +119,7 @@ def test_restart_on_failure(dagbag):
     task_ids = {task.task_id for task in dag.tasks}
     assert "restart_failed_jobs" in task_ids
 
-    restart_task = next(
-        task for task in dag.tasks if task.task_id == "restart_failed_jobs"
-    )
+    restart_task = next(task for task in dag.tasks if task.task_id == "restart_failed_jobs")
 
     assert (
         restart_task.trigger_rule == "one_failed"

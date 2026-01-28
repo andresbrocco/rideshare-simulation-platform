@@ -219,9 +219,7 @@ class TestDriverRepository:
             offline_drivers = repo.list_by_status("offline")
             assert len(offline_drivers) == 2
 
-    def test_list_available_drivers_in_zone(
-        self, temp_sqlite_db, dna_factory: DNAFactory
-    ):
+    def test_list_available_drivers_in_zone(self, temp_sqlite_db, dna_factory: DNAFactory):
         """Queries available drivers in zone."""
         session_maker = init_database(str(temp_sqlite_db))
 

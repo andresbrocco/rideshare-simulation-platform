@@ -58,9 +58,7 @@ class TestServiceHealth:
                 assert state == "running", f"LocalStack not running: {state}"
             elif "rideshare-bronze-ingestion-low-volume" in name:
                 services_found.add("bronze-ingestion-low-volume")
-                assert (
-                    state == "running"
-                ), f"Bronze ingestion low-volume not running: {state}"
+                assert state == "running", f"Bronze ingestion low-volume not running: {state}"
 
         # Spark runs in local mode now - no separate master/worker containers
         # Note: As of streaming consolidation (2026-01-26), bronze-ingestion-low-volume
@@ -252,9 +250,7 @@ class TestLocalStack:
 
         # Create or update secret
         try:
-            localstack_secrets_client.create_secret(
-                Name=secret_name, SecretString=secret_value
-            )
+            localstack_secrets_client.create_secret(Name=secret_name, SecretString=secret_value)
         except localstack_secrets_client.exceptions.ResourceExistsException:
             localstack_secrets_client.put_secret_value(
                 SecretId=secret_name, SecretString=secret_value

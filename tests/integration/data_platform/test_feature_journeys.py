@@ -98,9 +98,7 @@ def test_trip_lifecycle_bronze_ingestion(
             count_rows_filtered,
         )
 
-        return count_rows_filtered(
-            thrift_connection, "bronze.bronze_trips", filter_pattern
-        )
+        return count_rows_filtered(thrift_connection, "bronze.bronze_trips", filter_pattern)
 
     poll_until_records_present(
         query_callback=query_bronze_count,
@@ -127,9 +125,7 @@ def test_trip_lifecycle_bronze_ingestion(
     # Assert: Metadata columns present
     for row in rows:
         assert row.get("_ingested_at") is not None, "Missing _ingested_at metadata"
-        assert (
-            row.get("_kafka_partition") is not None
-        ), "Missing _kafka_partition metadata"
+        assert row.get("_kafka_partition") is not None, "Missing _kafka_partition metadata"
         assert row.get("_kafka_offset") is not None, "Missing _kafka_offset metadata"
 
     # Parse events from raw JSON
@@ -322,8 +318,7 @@ def test_dbt_silver_transformation(
 
     # Assert: stg_trips has deduplicated records (our test data only)
     assert len(silver_trips) < bronze_trips_count, (
-        f"Expected deduplication. Bronze: {bronze_trips_count}, "
-        f"Silver: {len(silver_trips)}"
+        f"Expected deduplication. Bronze: {bronze_trips_count}, " f"Silver: {len(silver_trips)}"
     )
 
     # Assert: No duplicate event_id in Silver (event_id is dedup key)
@@ -339,9 +334,7 @@ def test_dbt_silver_transformation(
 
     # Assert: Anomaly tables populated (if they exist and have data)
     try:
-        anomaly_gps = query_table(
-            thrift_connection, "SELECT * FROM silver.anomalies_gps_outliers"
-        )
+        anomaly_gps = query_table(thrift_connection, "SELECT * FROM silver.anomalies_gps_outliers")
         # If table exists and has data, validate
         if len(anomaly_gps) > 0:
             print(f"Found {len(anomaly_gps)} GPS outliers in anomaly table")

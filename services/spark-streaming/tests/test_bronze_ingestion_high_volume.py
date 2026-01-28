@@ -26,9 +26,7 @@ def high_volume_job(spark):
     )
     error_handler = ErrorHandler(dlq_table_path="s3a://test-dlq/")
 
-    return BronzeIngestionHighVolume(
-        spark, kafka_config, checkpoint_config, error_handler
-    )
+    return BronzeIngestionHighVolume(spark, kafka_config, checkpoint_config, error_handler)
 
 
 def test_topic_names(high_volume_job):
@@ -39,8 +37,7 @@ def test_topic_names(high_volume_job):
 def test_get_bronze_path(high_volume_job):
     """Verify bronze path for gps_pings topic."""
     assert (
-        high_volume_job.get_bronze_path("gps_pings")
-        == "s3a://rideshare-bronze/bronze_gps_pings/"
+        high_volume_job.get_bronze_path("gps_pings") == "s3a://rideshare-bronze/bronze_gps_pings/"
     )
 
 

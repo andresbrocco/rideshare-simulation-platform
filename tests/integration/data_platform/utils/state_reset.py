@@ -132,9 +132,7 @@ def clear_minio_buckets(s3_client) -> int:
                 objects = page.get("Contents", [])
                 if objects:
                     delete_keys = [{"Key": obj["Key"]} for obj in objects]
-                    s3_client.delete_objects(
-                        Bucket=bucket, Delete={"Objects": delete_keys}
-                    )
+                    s3_client.delete_objects(Bucket=bucket, Delete={"Objects": delete_keys})
                     total_deleted += len(delete_keys)
                     print(
                         f"[state_reset] Deleted {len(delete_keys)} objects from {bucket}/{prefix}"
@@ -178,9 +176,7 @@ def reset_kafka_topics(admin: AdminClient, timeout: float = 30.0) -> None:
 
     # Recreate topics with standard configuration
     print(f"[state_reset] Recreating Kafka topics: {KAFKA_TOPICS}")
-    new_topics = [
-        NewTopic(t, num_partitions=4, replication_factor=1) for t in KAFKA_TOPICS
-    ]
+    new_topics = [NewTopic(t, num_partitions=4, replication_factor=1) for t in KAFKA_TOPICS]
     try:
         create_futures = admin.create_topics(new_topics)
         for topic, future in create_futures.items():
@@ -228,9 +224,7 @@ def restart_streaming_containers(project_root: str, action: str = "restart") -> 
         ]
         result = subprocess.run(cmd, capture_output=True, cwd=project_root)
         if result.returncode != 0:
-            print(
-                f"[state_reset] Warning: {action} {container} failed: {result.stderr.decode()}"
-            )
+            print(f"[state_reset] Warning: {action} {container} failed: {result.stderr.decode()}")
         else:
             print(f"[state_reset] {action.capitalize()}ed {container}")
 

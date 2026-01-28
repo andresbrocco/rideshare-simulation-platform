@@ -25,9 +25,7 @@ def init_database(db_path: str) -> sessionmaker[Any]:
     session_maker = sessionmaker(bind=engine)
 
     with session_maker() as session:
-        schema_version = (
-            session.query(SimulationMetadata).filter_by(key="schema_version").first()
-        )
+        schema_version = session.query(SimulationMetadata).filter_by(key="schema_version").first()
         if not schema_version:
             schema_version = SimulationMetadata(key="schema_version", value="1.0.0")
             session.add(schema_version)

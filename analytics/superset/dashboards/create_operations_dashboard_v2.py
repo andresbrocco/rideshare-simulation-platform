@@ -12,9 +12,7 @@ import sys
 
 
 class SupersetClient:
-    def __init__(
-        self, base_url="http://localhost:8088", username="admin", password="admin"
-    ):
+    def __init__(self, base_url="http://localhost:8088", username="admin", password="admin"):
         self.base_url = base_url
         self.session = requests.Session()
         self._login(username, password)
@@ -95,9 +93,7 @@ class SupersetClient:
             "viz_type": viz_type,
             "datasource_id": dataset_id,
             "datasource_type": "table",
-            "params": json.dumps(
-                {"viz_type": viz_type, "metrics": ["count"], "adhoc_filters": []}
-            ),
+            "params": json.dumps({"viz_type": viz_type, "metrics": ["count"], "adhoc_filters": []}),
             "query_context": json.dumps(
                 {
                     "datasource": {"id": dataset_id, "type": "table"},
@@ -177,9 +173,7 @@ class SupersetClient:
 
             response = self.session.put(chart_url, json=update_data)
             if response.status_code not in [200, 201]:
-                raise Exception(
-                    f"Failed to associate chart {chart_id}: {response.text}"
-                )
+                raise Exception(f"Failed to associate chart {chart_id}: {response.text}")
 
     def export_dashboard(self, dashboard_id, output_path):
         """Export dashboard to JSON file."""
@@ -262,9 +256,7 @@ def main():
         # Associate charts with dashboard
         client.associate_charts_with_dashboard(dashboard_id, chart_ids)
         print(f"Associated {len(chart_ids)} charts with dashboard")
-        print(
-            f"Dashboard URL: http://localhost:8088/superset/dashboard/{dashboard_id}/"
-        )
+        print(f"Dashboard URL: http://localhost:8088/superset/dashboard/{dashboard_id}/")
 
         # Export dashboard
         output_path = "/Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/analytics/superset/dashboards/operations-dashboard.json"

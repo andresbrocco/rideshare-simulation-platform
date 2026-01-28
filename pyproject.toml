@@ -44,3 +44,7 @@ markers = [
 # Timeout settings (requires pytest-timeout package)
 # timeout = 120  # Default 120 seconds per test
 # timeout_method = "thread"
+
+[tool.black]
+line-length = 100
+target-version = ['py313']
