@@ -32,7 +32,7 @@ DriverRegistryDep = Annotated[Any, Depends(get_driver_registry)]
 
 @router.post("/start", response_model=ControlResponse)
 @limiter.limit("10/minute")
-def start_simulation(request: Request, engine: EngineDep):
+def start_simulation(request: Request, engine: EngineDep) -> ControlResponse:
     """Start the simulation."""
     if engine.state.value == "running":
         raise HTTPException(status_code=400, detail="Simulation already running")
@@ -46,7 +46,7 @@ def start_simulation(request: Request, engine: EngineDep):
 
 @router.post("/pause", response_model=ControlResponse)
 @limiter.limit("10/minute")
-def pause_simulation(request: Request, engine: EngineDep):
+def pause_simulation(request: Request, engine: EngineDep) -> ControlResponse:
     """Initiate two-phase pause (draining then paused)."""
     if engine.state.value != "running":
         raise HTTPException(status_code=400, detail="Simulation not running")
@@ -57,7 +57,7 @@ def pause_simulation(request: Request, engine: EngineDep):
 
 @router.post("/resume", response_model=ControlResponse)
 @limiter.limit("10/minute")
-def resume_simulation(request: Request, engine: EngineDep):
+def resume_simulation(request: Request, engine: EngineDep) -> ControlResponse:
     """Resume from paused state."""
     if engine.state.value != "paused":
         raise HTTPException(status_code=400, detail="Simulation not paused")
@@ -68,7 +68,7 @@ def resume_simulation(request: Request, engine: EngineDep):
 
 @router.post("/stop", response_model=ControlResponse)
 @limiter.limit("10/minute")
-def stop_simulation(request: Request, engine: EngineDep):
+def stop_simulation(request: Request, engine: EngineDep) -> ControlResponse:
     """Stop the simulation."""
     if engine.state.value == "stopped":
         raise HTTPException(status_code=400, detail="Simulation already stopped")
@@ -77,14 +77,16 @@ def stop_simulation(request: Request, engine: EngineDep):
     return ControlResponse(status="stopped")
 
 
-async def _broadcast_reset(connection_manager) -> None:
+async def _broadcast_reset(connection_manager: Any) -> None:
     """Broadcast reset message to all WebSocket clients."""
     await connection_manager.broadcast({"type": "simulation_reset", "data": {}})
 
 
 @router.post("/reset", response_model=ControlResponse)
 @limiter.limit("10/minute")
-def reset_simulation(request: Request, engine: EngineDep, background_tasks: BackgroundTasks):
+def reset_simulation(
+    request: Request, engine: EngineDep, background_tasks: BackgroundTasks
+) -> ControlResponse:
     """Reset simulation to initial state, clearing all data."""
     # Call engine reset (handles most clearing including database)
     engine.reset()
@@ -112,7 +114,9 @@ def reset_simulation(request: Request, engine: EngineDep, background_tasks: Back
 
 @router.put("/speed", response_model=SpeedChangeResponse)
 @limiter.limit("10/minute")
-def change_speed(request: Request, body: SpeedChangeRequest, engine: EngineDep):
+def change_speed(
+    request: Request, body: SpeedChangeRequest, engine: EngineDep
+) -> SpeedChangeResponse:
     """Change simulation speed multiplier (any positive integer)."""
     if body.multiplier < 1:
         raise HTTPException(
@@ -125,7 +129,9 @@ def change_speed(request: Request, body: SpeedChangeRequest, engine: EngineDep):
 
 @router.get("/status", response_model=SimulationStatusResponse)
 @limiter.limit("30/minute")
-def get_status(request: Request, engine: EngineDep, driver_registry: DriverRegistryDep):
+def get_status(
+    request: Request, engine: EngineDep, driver_registry: DriverRegistryDep
+) -> SimulationStatusResponse:
     """Get current simulation status with detailed agent counts."""
     current_time = engine.current_time()
     if isinstance(current_time, datetime):

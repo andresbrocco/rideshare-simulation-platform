@@ -2,12 +2,13 @@
 
 import json
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..agents.dna import DriverDNA, RiderDNA
+from agents.dna import DriverDNA, RiderDNA
+
 from .repositories.driver_repository import DriverRepository
 from .repositories.rider_repository import RiderRepository
 from .repositories.route_cache_repository import RouteCacheRepository
@@ -16,7 +17,7 @@ from .schema import Driver, Rider, SimulationMetadata
 from .utils import utc_now
 
 if TYPE_CHECKING:
-    from ..engine import SimulationEngine
+    from engine import SimulationEngine
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ class CheckpointManager:
         status: str,
         drivers: list[tuple[str, DriverDNA]],
         riders: list[tuple[str, RiderDNA]],
-        route_cache: dict,
+        route_cache: dict[str, dict[str, Any]],
     ) -> None:
         """Create a checkpoint by persisting all simulation state.
 
@@ -93,7 +94,7 @@ class CheckpointManager:
                 if routes_list:
                     self.route_cache_repo.bulk_save(routes_list)
 
-    def load_checkpoint(self) -> dict | None:
+    def load_checkpoint(self) -> dict[str, Any] | None:
         """Load checkpoint and restore simulation state."""
         current_time_raw = self._get_metadata("current_time")
         if current_time_raw is None:
@@ -137,7 +138,7 @@ class CheckpointManager:
         checkpoint_type = self._get_metadata("checkpoint_type")
         return checkpoint_type == "graceful"
 
-    def get_checkpoint_info(self) -> dict | None:
+    def get_checkpoint_info(self) -> dict[str, Any] | None:
         """Get checkpoint metadata without loading full state."""
         current_time_raw = self._get_metadata("current_time")
         if current_time_raw is None:
@@ -167,7 +168,7 @@ class CheckpointManager:
         metadata = self.session.get(SimulationMetadata, key)
         return metadata.value if metadata else None
 
-    def _load_all_drivers(self) -> list[dict]:
+    def _load_all_drivers(self) -> list[dict[str, Any]]:
         """Load all drivers with deserialized DNA."""
         stmt = select(Driver)
         result = self.session.execute(stmt)
@@ -188,7 +189,7 @@ class CheckpointManager:
             )
         return drivers
 
-    def _load_all_riders(self) -> list[dict]:
+    def _load_all_riders(self) -> list[dict[str, Any]]:
         """Load all riders with deserialized DNA."""
         stmt = select(Rider)
         result = self.session.execute(stmt)
@@ -209,10 +210,11 @@ class CheckpointManager:
             )
         return riders
 
-    def _load_all_trips(self) -> list:
+    def _load_all_trips(self) -> list[Any]:
         """Load all trips (both in-flight and completed)."""
-        from ..trip import Trip as TripDomain
-        from ..trip import TripState
+        from trip import Trip as TripDomain
+        from trip import TripState
+
         from .schema import Trip
 
         stmt = select(Trip)
@@ -234,7 +236,11 @@ class CheckpointManager:
                 surge_multiplier=trip.surge_multiplier,
                 fare=trip.fare,
                 offer_sequence=trip.offer_sequence,
-                cancelled_by=trip.cancelled_by,
+                cancelled_by=(
+                    cast(Literal["rider", "driver", "system"], trip.cancelled_by)
+                    if trip.cancelled_by in ("rider", "driver", "system")
+                    else None
+                ),
                 cancellation_reason=trip.cancellation_reason,
                 cancellation_stage=trip.cancellation_stage,
                 requested_at=trip.requested_at,
@@ -254,7 +260,8 @@ class CheckpointManager:
         Uses explicit transaction boundaries to ensure all checkpoint data
         is saved atomically - either everything succeeds or nothing is committed.
         """
-        from ..trip import TripState
+        from trip import TripState
+
         from .transaction import transaction
 
         # Collect driver data with full runtime state
@@ -353,9 +360,9 @@ class CheckpointManager:
         """
         import simpy
 
-        from ..agents.driver_agent import DriverAgent
-        from ..agents.rider_agent import RiderAgent
-        from ..trip import TripState
+        from agents.driver_agent import DriverAgent
+        from agents.rider_agent import RiderAgent
+        from trip import TripState
 
         checkpoint = self.load_checkpoint()
         if checkpoint is None:

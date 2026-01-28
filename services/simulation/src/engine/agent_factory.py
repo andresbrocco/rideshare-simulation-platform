@@ -35,7 +35,7 @@ class AgentFactory:
     def __init__(
         self,
         simulation_engine: "SimulationEngine",
-        sqlite_db,
+        sqlite_db: Any,
         kafka_producer: "KafkaProducer | None",
         registry_manager: "AgentRegistryManager | None" = None,
         zone_loader: "ZoneLoader | None" = None,

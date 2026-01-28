@@ -33,7 +33,7 @@ from matching.matching_server import MatchingServer
 from matching.notification_dispatch import NotificationDispatch
 from matching.surge_pricing import SurgePricingCalculator
 from redis_client.publisher import RedisPublisher
-from settings import get_settings
+from settings import Settings, get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -41,26 +41,26 @@ logger = logging.getLogger(__name__)
 class SimulationRunner:
     """Manages the simulation loop in a background thread."""
 
-    def __init__(self, engine: SimulationEngine):
+    def __init__(self, engine: SimulationEngine) -> None:
         self._engine = engine
         self._running = False
         self._thread: threading.Thread | None = None
 
-    def start(self):
+    def start(self) -> None:
         """Start the simulation loop in a background thread."""
         self._running = True
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
         logger.info("Simulation loop started in background thread")
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop the simulation loop."""
         self._running = False
         if self._thread:
             self._thread.join(timeout=5.0)
         logger.info("Simulation loop stopped")
 
-    def _run_loop(self):
+    def _run_loop(self) -> None:
         """Main simulation loop - advances simulation time."""
         while self._running:
             # Step simulation when running or draining (drain process needs env to advance)
@@ -69,7 +69,7 @@ class SimulationRunner:
             time.sleep(0.1)
 
 
-def create_kafka_producer(settings) -> KafkaProducer | None:
+def create_kafka_producer(settings: Settings) -> KafkaProducer | None:
     """Create Kafka producer with settings."""
     try:
         kafka_config = {
@@ -90,7 +90,7 @@ def create_kafka_producer(settings) -> KafkaProducer | None:
         return None
 
 
-def create_redis_publisher(settings) -> RedisPublisher | None:
+def create_redis_publisher(settings: Settings) -> RedisPublisher | None:
     """Create Redis publisher with settings."""
     try:
         redis_config = {
@@ -105,7 +105,7 @@ def create_redis_publisher(settings) -> RedisPublisher | None:
         return None
 
 
-def create_async_redis_client(settings) -> Redis:
+def create_async_redis_client(settings: Settings) -> "Redis[str]":
     """Create async Redis client for FastAPI."""
     return Redis(
         host=settings.redis.host,
@@ -115,7 +115,7 @@ def create_async_redis_client(settings) -> Redis:
     )
 
 
-def main():
+def main() -> None:
     """Main entry point - initializes and runs the unified service."""
     # Import logging setup from our logging module
     from sim_logging import setup_logging
@@ -152,9 +152,7 @@ def main():
             from pathlib import Path
 
             # Schema path is relative to simulation/src, schemas are in project root
-            schema_base_path = (
-                Path(__file__).parent.parent.parent / settings.kafka.schema_base_path
-            )
+            schema_base_path = Path(__file__).parent.parent.parent / settings.kafka.schema_base_path
             SerializerRegistry.initialize(
                 schema_registry_url=settings.kafka.schema_registry_url,
                 schema_base_path=schema_base_path,
@@ -164,9 +162,7 @@ def main():
                 f"Schema Registry integration enabled: {settings.kafka.schema_registry_url}"
             )
         except Exception as e:
-            logger.warning(
-                f"Schema Registry unavailable, running without validation: {e}"
-            )
+            logger.warning(f"Schema Registry unavailable, running without validation: {e}")
 
     redis_publisher = create_redis_publisher(settings)
     if redis_publisher:
@@ -246,9 +242,7 @@ def main():
     # Set factory reference on engine for spawner processes
     engine._agent_factory = agent_factory
 
-    logger.info(
-        f"Simulation engine initialized (speed: {settings.simulation.speed_multiplier}x)"
-    )
+    logger.info(f"Simulation engine initialized (speed: {settings.simulation.speed_multiplier}x)")
 
     # Create FastAPI app with real dependencies
     app = create_app(
@@ -268,7 +262,7 @@ def main():
     sim_runner.start()
 
     # Handle shutdown signals
-    def shutdown_handler(signum, frame):
+    def shutdown_handler(signum: int, frame: object) -> None:
         logger.info(f"Received signal {signum}, shutting down...")
         sim_runner.stop()
         if engine.state.value == "running":

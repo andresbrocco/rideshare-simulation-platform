@@ -1,11 +1,13 @@
+from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING, Any
-
-import redis.asyncio as aioredis
 
 from trip import TripState
 
 if TYPE_CHECKING:
+    import redis.asyncio as aioredis
+
     from engine import SimulationEngine
 
 logger = logging.getLogger(__name__)
@@ -27,10 +29,10 @@ class StateSnapshotManager:
     Reads directly from the simulation engine's in-memory state.
     """
 
-    def __init__(self, client: aioredis.Redis):
+    def __init__(self, client: aioredis.Redis[str]):
         self._client = client
 
-    def _get_drivers_from_engine(self, engine: "SimulationEngine") -> list[dict]:
+    def _get_drivers_from_engine(self, engine: SimulationEngine) -> list[dict[str, Any]]:
         """Extract driver state from engine's in-memory registry."""
         drivers = []
         for driver in engine._active_drivers.values():
@@ -49,7 +51,7 @@ class StateSnapshotManager:
                 )
         return drivers
 
-    def _get_riders_from_engine(self, engine: "SimulationEngine") -> list[dict]:
+    def _get_riders_from_engine(self, engine: SimulationEngine) -> list[dict[str, Any]]:
         """Extract rider state from engine's in-memory registry."""
         # Build a map of rider_id -> trip for quick lookup
         rider_trip_map: dict[str, Any] = {}
@@ -74,9 +76,7 @@ class StateSnapshotManager:
                 if rider.rider_id in rider_trip_map:
                     trip = rider_trip_map[rider.rider_id]
                     rider_data["trip_state"] = (
-                        trip.state.value
-                        if hasattr(trip.state, "value")
-                        else str(trip.state)
+                        trip.state.value if hasattr(trip.state, "value") else str(trip.state)
                     )
                 else:
                     rider_data["trip_state"] = "offline"
@@ -87,7 +87,7 @@ class StateSnapshotManager:
                 riders.append(rider_data)
         return riders
 
-    def _get_trips_from_engine(self, engine: "SimulationEngine") -> list[dict]:
+    def _get_trips_from_engine(self, engine: SimulationEngine) -> list[dict[str, Any]]:
         """Extract active trip state from engine's in-memory store.
 
         Only includes trips in active states (DRIVER_EN_ROUTE, DRIVER_ARRIVED, STARTED)
@@ -109,24 +109,16 @@ class StateSnapshotManager:
                                 "driver_id": trip.driver_id,
                                 "rider_id": trip.rider_id,
                                 "pickup_latitude": (
-                                    trip.pickup_location[0]
-                                    if trip.pickup_location
-                                    else 0
+                                    trip.pickup_location[0] if trip.pickup_location else 0
                                 ),
                                 "pickup_longitude": (
-                                    trip.pickup_location[1]
-                                    if trip.pickup_location
-                                    else 0
+                                    trip.pickup_location[1] if trip.pickup_location else 0
                                 ),
                                 "dropoff_latitude": (
-                                    trip.dropoff_location[0]
-                                    if trip.dropoff_location
-                                    else 0
+                                    trip.dropoff_location[0] if trip.dropoff_location else 0
                                 ),
                                 "dropoff_longitude": (
-                                    trip.dropoff_location[1]
-                                    if trip.dropoff_location
-                                    else 0
+                                    trip.dropoff_location[1] if trip.dropoff_location else 0
                                 ),
                                 "route": trip.route or [],
                                 "pickup_route": trip.pickup_route or [],
@@ -143,7 +135,7 @@ class StateSnapshotManager:
             logger.error(f"Failed to get trips from engine: {e}")
         return trips
 
-    def _get_surge_from_engine(self, engine: "SimulationEngine") -> dict[str, float]:
+    def _get_surge_from_engine(self, engine: SimulationEngine) -> dict[str, float]:
         """Extract current surge multipliers from engine's surge calculator."""
         if hasattr(engine, "_matching_server") and engine._matching_server:
             surge_calc = getattr(engine._matching_server, "_surge_calculator", None)
@@ -151,7 +143,7 @@ class StateSnapshotManager:
                 return dict(surge_calc.current_surge)
         return {}
 
-    async def get_snapshot(self, engine: "SimulationEngine | None" = None) -> dict:
+    async def get_snapshot(self, engine: SimulationEngine | None = None) -> dict[str, Any]:
         """Build snapshot from engine's in-memory state."""
         if not engine:
             return {
@@ -172,9 +164,7 @@ class StateSnapshotManager:
         # Compute detailed driver counts from snapshot data
         drivers_offline = sum(1 for d in drivers if d.get("status") == "offline")
         drivers_online = sum(1 for d in drivers if d.get("status") == "online")
-        drivers_en_route_pickup = sum(
-            1 for d in drivers if d.get("status") == "en_route_pickup"
-        )
+        drivers_en_route_pickup = sum(1 for d in drivers if d.get("status") == "en_route_pickup")
         drivers_en_route_destination = sum(
             1 for d in drivers if d.get("status") == "en_route_destination"
         )

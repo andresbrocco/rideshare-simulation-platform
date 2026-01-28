@@ -94,7 +94,7 @@ def create_drivers(
             description="immediate: go online immediately; scheduled: follow DNA shift_preference"
         ),
     ] = SpawnMode.IMMEDIATE,
-):
+) -> DriversCreateResponse:
     """Queue driver agents for continuous spawning.
 
     Drivers are spawned at a continuous rate (default: 2/sec) to prevent
@@ -130,7 +130,7 @@ def create_riders(
             description="immediate: request trip immediately; scheduled: follow DNA avg_rides_per_week"
         ),
     ] = SpawnMode.SCHEDULED,
-):
+) -> RidersCreateResponse:
     """Queue rider agents for continuous spawning.
 
     Riders are spawned at a continuous rate (default: 40/sec) to prevent
@@ -156,7 +156,7 @@ def create_riders(
 
 @router.get("/spawn-status", response_model=SpawnQueueStatusResponse)
 @limiter.limit("60/minute")
-def get_spawn_status(request: Request, agent_factory: AgentFactoryDep):
+def get_spawn_status(request: Request, agent_factory: AgentFactoryDep) -> SpawnQueueStatusResponse:
     """Get current spawn queue status.
 
     Returns the number of drivers and riders waiting to be spawned.
@@ -176,7 +176,7 @@ def get_driver_state(
     engine: SimulationEngineDep,
     zone_loader: ZoneLoaderDep,
     matching_server: MatchingServerDep,
-):
+) -> DriverStateResponse:
     """Get full state and DNA for a driver.
 
     Returns the driver's current state (status, location, rating),
@@ -288,7 +288,7 @@ def get_rider_state(
     engine: SimulationEngineDep,
     zone_loader: ZoneLoaderDep,
     matching_server: MatchingServerDep,
-):
+) -> RiderStateResponse:
     """Get full state and DNA for a rider.
 
     Returns the rider's current state (status, location, rating),
@@ -380,7 +380,7 @@ def toggle_driver_status(
     driver_id: str,
     body: DriverStatusToggleRequest,
     engine: SimulationEngineDep,
-):
+) -> DriverStatusToggleResponse:
     """Toggle driver online/offline status.
 
     Can only toggle when driver has no active trip.
@@ -422,7 +422,7 @@ async def request_rider_trip(
     engine: SimulationEngineDep,
     zone_loader: ZoneLoaderDep,
     matching_server: MatchingServerDep,
-):
+) -> RiderTripRequestResponse:
     """Request a trip for a rider with specified destination.
 
     The rider must be in 'offline' status to request a trip.

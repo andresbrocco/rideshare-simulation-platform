@@ -1,5 +1,6 @@
 import math
 from collections import OrderedDict
+from typing import cast
 
 import h3
 from shapely.geometry import Point, Polygon
@@ -36,7 +37,7 @@ class ZoneAssignmentService:
 
     def _generate_cache_key(self, lat: float, lon: float) -> str:
         """Generate H3 cell ID as cache key (resolution 9, ~174m edge)"""
-        return h3.latlng_to_cell(lat, lon, 9)
+        return cast(str, h3.latlng_to_cell(lat, lon, 9))
 
     def get_zone_id(self, lat: float, lon: float) -> str:
         """Get zone ID for given coordinates"""
@@ -91,9 +92,7 @@ class ZoneAssignmentService:
 
         return nearest_zone_id
 
-    def _calculate_distance(
-        self, lat1: float, lon1: float, lat2: float, lon2: float
-    ) -> float:
+    def _calculate_distance(self, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
         """Calculate Haversine distance in kilometers"""
         R = 6371.0  # Earth radius in km
 

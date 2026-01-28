@@ -17,7 +17,7 @@ class DriverRegistry:
     from the SimPy background thread and FastAPI main thread.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._lock = threading.Lock()
         self._drivers: dict[str, DriverRecord] = {}
         self._status_counts: dict[str, int] = {
@@ -34,7 +34,7 @@ class DriverRegistry:
         status: str,
         zone_id: str | None = None,
         location: tuple[float, float] | None = None,
-    ):
+    ) -> None:
         with self._lock:
             record = DriverRecord(
                 driver_id=driver_id, status=status, zone_id=zone_id, location=location
@@ -52,7 +52,7 @@ class DriverRegistry:
                     }
                 self._zone_status_counts[zone_id][status] += 1
 
-    def update_driver_status(self, driver_id: str, new_status: str):
+    def update_driver_status(self, driver_id: str, new_status: str) -> None:
         with self._lock:
             if driver_id not in self._drivers:
                 return
@@ -69,7 +69,7 @@ class DriverRegistry:
 
             record.status = new_status
 
-    def update_driver_zone(self, driver_id: str, new_zone_id: str):
+    def update_driver_zone(self, driver_id: str, new_zone_id: str) -> None:
         with self._lock:
             if driver_id not in self._drivers:
                 return
@@ -91,14 +91,14 @@ class DriverRegistry:
 
             record.zone_id = new_zone_id
 
-    def update_driver_location(self, driver_id: str, location: tuple[float, float]):
+    def update_driver_location(self, driver_id: str, location: tuple[float, float]) -> None:
         with self._lock:
             if driver_id not in self._drivers:
                 return
 
             self._drivers[driver_id].location = location
 
-    def unregister_driver(self, driver_id: str):
+    def unregister_driver(self, driver_id: str) -> None:
         with self._lock:
             if driver_id not in self._drivers:
                 return

@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import Any
 
 import redis
 from redis.exceptions import ConnectionError
@@ -17,7 +18,7 @@ class RedisPublisher:
     including SimPy processes and FastAPI async handlers.
     """
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict[str, Any]):
         self.config = config
         self._client = redis.Redis(
             host=config["host"],
@@ -27,7 +28,7 @@ class RedisPublisher:
             decode_responses=True,
         )
 
-    def publish_sync(self, channel: str, message: dict) -> None:
+    def publish_sync(self, channel: str, message: dict[str, Any]) -> None:
         """Synchronous publish method."""
         if channel not in ALL_CHANNELS:
             raise ValueError(
@@ -41,7 +42,7 @@ class RedisPublisher:
             get_metrics_collector().record_error("redis", "connection_error")
             logger.error(f"Failed to publish to channel {channel}: {e}")
 
-    async def publish(self, channel: str, message: dict) -> None:
+    async def publish(self, channel: str, message: dict[str, Any]) -> None:
         """Async-compatible publish (wraps sync operation)."""
         self.publish_sync(channel, message)
 

@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -127,7 +127,7 @@ class MatchingSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="MATCHING_")
 
-    def __init__(self, **data):
+    def __init__(self, **data: Any) -> None:
         super().__init__(**data)
         weights_sum = (
             self.ranking_eta_weight + self.ranking_rating_weight + self.ranking_acceptance_weight
@@ -161,12 +161,12 @@ class SpawnSettings(BaseSettings):
 
 class Settings(BaseSettings):
     simulation: SimulationSettings = Field(default_factory=SimulationSettings)
-    kafka: KafkaSettings = Field(default_factory=KafkaSettings)  # type: ignore[arg-type]
-    redis: RedisSettings = Field(default_factory=RedisSettings)  # type: ignore[arg-type]
+    kafka: KafkaSettings = Field(default_factory=KafkaSettings)
+    redis: RedisSettings = Field(default_factory=RedisSettings)
     osrm: OSRMSettings = Field(default_factory=OSRMSettings)
-    databricks: DatabricksSettings = Field(default_factory=DatabricksSettings)  # type: ignore[arg-type]
+    databricks: DatabricksSettings = Field(default_factory=DatabricksSettings)
     aws: AWSSettings = Field(default_factory=AWSSettings)
-    api: APISettings = Field(default_factory=APISettings)  # type: ignore[arg-type]
+    api: APISettings = Field(default_factory=APISettings)
     cors: CORSSettings = Field(default_factory=CORSSettings)
     performance: PerformanceSettings = Field(default_factory=PerformanceSettings)
     matching: MatchingSettings = Field(default_factory=MatchingSettings)

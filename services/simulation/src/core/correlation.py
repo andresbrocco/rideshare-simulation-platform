@@ -1,13 +1,12 @@
 """Correlation context for distributed tracing."""
 
 import logging
+from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 
 # Context variables for correlation IDs
-current_correlation_id: ContextVar[str | None] = ContextVar(
-    "correlation_id", default=None
-)
+current_correlation_id: ContextVar[str | None] = ContextVar("correlation_id", default=None)
 current_session_id: ContextVar[str | None] = ContextVar("session_id", default=None)
 
 
@@ -45,7 +44,7 @@ def get_correlation_formatter() -> logging.Formatter:
 
 
 @contextmanager
-def with_correlation(correlation_id: str):
+def with_correlation(correlation_id: str) -> Iterator[None]:
     """Context manager to set correlation ID for a block of code.
 
     Usage:

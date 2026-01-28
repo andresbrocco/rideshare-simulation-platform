@@ -1,10 +1,15 @@
 """Malformed data injection for testing Bronze layer DLQ handling."""
 
+from __future__ import annotations
+
 import json
 import os
 import random
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 class CorruptionType(Enum):
@@ -77,16 +82,14 @@ class DataCorruptor:
         }
 
     @classmethod
-    def from_environment(cls) -> "DataCorruptor":
+    def from_environment(cls) -> DataCorruptor:
         rate = float(os.getenv("MALFORMED_EVENT_RATE", "0.0"))
         return cls(corruption_rate=rate)
 
     def should_corrupt(self) -> bool:
         return random.random() < self.corruption_rate
 
-    def corrupt(
-        self, event_dict: dict[str, Any], topic: str
-    ) -> tuple[str, CorruptionType]:
+    def corrupt(self, event_dict: dict[str, Any], topic: str) -> tuple[str, CorruptionType]:
         """Apply random corruption to an event."""
         corruption_type = self._select_type()
         corrupted = self._apply_corruption(event_dict, topic, corruption_type)
@@ -129,14 +132,15 @@ class DataCorruptor:
 
     def _malform_json(self, event: dict[str, Any]) -> str:
         json_str = json.dumps(event)
-        methods = [
+        methods: list[Callable[[str], str]] = [
             lambda s: s[:-1],  # Remove closing brace
             lambda s: s[1:],  # Remove opening brace
             lambda s: s.replace('"', "'", 1),  # Replace quote
             lambda s: s + '{"extra":',  # Unclosed object
             lambda s: s.replace(":", "", 1),  # Remove colon
         ]
-        return random.choice(methods)(json_str)
+        chosen_method = random.choice(methods)
+        return chosen_method(json_str)
 
     def _truncate(self, event: dict[str, Any]) -> str:
         json_str = json.dumps(event)

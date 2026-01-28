@@ -36,7 +36,8 @@ class EventSerializer:
             if "+00:00" in timestamp:
                 event_dict["timestamp"] = timestamp.replace("+00:00", "Z")
 
-        self.schema_registry.validate_message(event_dict, self._schema_str)
+        if self._schema_str is not None:
+            self.schema_registry.validate_message(event_dict, self._schema_str)
 
         return event_dict
 
@@ -111,9 +112,7 @@ class PaymentEventSerializer(EventSerializer):
 
 class DriverProfileEventSerializer(EventSerializer):
     def __init__(self, schema_registry: SchemaRegistry, schema_base_path: Path) -> None:
-        super().__init__(
-            schema_registry, schema_base_path / "driver_profile_event.json"
-        )
+        super().__init__(schema_registry, schema_base_path / "driver_profile_event.json")
 
 
 class RiderProfileEventSerializer(EventSerializer):

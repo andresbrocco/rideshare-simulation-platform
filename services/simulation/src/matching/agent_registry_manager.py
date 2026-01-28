@@ -2,7 +2,7 @@
 
 import logging
 import threading
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +89,7 @@ class AgentRegistryManager:
         with self._lock:
             agent = self._agents.get(driver_id)
             if agent and hasattr(agent, "driver_id"):
-                return agent
+                return cast("DriverAgent", agent)
             return None
 
     def get_rider(self, rider_id: str) -> "RiderAgent | None":
@@ -104,7 +104,7 @@ class AgentRegistryManager:
         with self._lock:
             agent = self._agents.get(rider_id)
             if agent and hasattr(agent, "rider_id"):
-                return agent
+                return cast("RiderAgent", agent)
             return None
 
     def driver_went_online(
@@ -122,13 +122,9 @@ class AgentRegistryManager:
         """
         with self._lock:
             lat, lon = location
-            logger.info(
-                f"Driver {driver_id} going online at ({lat}, {lon}), zone={zone_id}"
-            )
+            logger.info(f"Driver {driver_id} going online at ({lat}, {lon}), zone={zone_id}")
             self._driver_index.add_driver(driver_id, lat, lon, "online")
-            logger.info(
-                f"Driver index now has {len(self._driver_index._driver_locations)} drivers"
-            )
+            logger.info(f"Driver index now has {len(self._driver_index._driver_locations)} drivers")
 
             # Update status from offline to online (driver was registered as offline in register_driver())
             self._driver_registry.update_driver_status(driver_id, "online")

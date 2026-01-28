@@ -4,7 +4,7 @@ import logging
 import random
 from collections.abc import Generator
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 from uuid import uuid4
 
 import simpy
@@ -63,9 +63,7 @@ class TripExecutor:
 
     def execute(self) -> Generator[simpy.Event]:
         """Execute the full trip flow."""
-        logger.debug(
-            "TripExecutor.execute() started", extra={"trip_id": self._trip.trip_id}
-        )
+        logger.debug("TripExecutor.execute() started", extra={"trip_id": self._trip.trip_id})
         logger.info(f"TripExecutor.execute() started for trip {self._trip.trip_id}")
         try:
             logger.info(f"Trip {self._trip.trip_id}: Starting drive to pickup")
@@ -78,10 +76,8 @@ class TripExecutor:
             logger.info(f"Trip {self._trip.trip_id}: Waiting for rider")
             yield from self._wait_for_rider()
 
-            if self._trip.state == TripState.CANCELLED:
-                logger.info(
-                    f"Trip {self._trip.trip_id}: Cancelled while waiting for rider"
-                )
+            if self._trip.state == TripState.CANCELLED:  # type: ignore[comparison-overlap]
+                logger.info(f"Trip {self._trip.trip_id}: Cancelled while waiting for rider")
                 return
 
             logger.info(f"Trip {self._trip.trip_id}: Starting trip")
@@ -90,10 +86,8 @@ class TripExecutor:
             logger.info(f"Trip {self._trip.trip_id}: Driving to destination")
             yield from self._drive_to_destination()
 
-            if self._trip.state == TripState.CANCELLED:
-                logger.info(
-                    f"Trip {self._trip.trip_id}: Cancelled during drive to destination"
-                )
+            if self._trip.state == TripState.CANCELLED:  # type: ignore[comparison-overlap]
+                logger.info(f"Trip {self._trip.trip_id}: Cancelled during drive to destination")
                 return
 
             logger.info(f"Trip {self._trip.trip_id}: Completing trip")
@@ -131,12 +125,13 @@ class TripExecutor:
         self._driver.start_pickup()
 
         # Fetch route with retry logic
+        driver_location = self._driver.location
+        if driver_location is None:
+            raise PermanentError(f"Driver location is None for trip {self._trip.trip_id}")
         logger.info(
-            f"Trip {self._trip.trip_id}: Fetching route from {self._driver.location} to {self._trip.pickup_location}"
+            f"Trip {self._trip.trip_id}: Fetching route from {driver_location} to {self._trip.pickup_location}"
         )
-        route = yield from self._get_route_with_retry(
-            self._driver.location, self._trip.pickup_location
-        )
+        route = yield from self._get_route_with_retry(driver_location, self._trip.pickup_location)
         # Store pickup route for visualization
         self._trip.pickup_route = route.geometry
         logger.info(
@@ -148,9 +143,7 @@ class TripExecutor:
         self._rider.on_driver_en_route(self._trip)
 
         duration = route.duration_seconds
-        logger.info(
-            f"Trip {self._trip.trip_id}: Starting simulated drive to pickup ({duration}s)"
-        )
+        logger.info(f"Trip {self._trip.trip_id}: Starting simulated drive to pickup ({duration}s)")
         yield from self._simulate_drive(
             geometry=route.geometry,
             duration=duration,
@@ -218,9 +211,7 @@ class TripExecutor:
 
     def _complete_trip(self) -> Generator[simpy.Event]:
         """Complete trip and emit events."""
-        logger.info(
-            f"Trip {self._trip.trip_id}: _complete_trip - transitioning to COMPLETED"
-        )
+        logger.info(f"Trip {self._trip.trip_id}: _complete_trip - transitioning to COMPLETED")
         self._trip.transition_to(TripState.COMPLETED)
         self._trip.completed_at = datetime.now(UTC)
         self._driver.update_location(*self._trip.dropoff_location)
@@ -256,16 +247,12 @@ class TripExecutor:
         # Rider rates driver (based on driver's service_quality DNA)
         rider_rating = self._rider.submit_rating_for_trip(self._trip, self._driver)
         if rider_rating is not None:
-            logger.debug(
-                f"Trip {self._trip.trip_id}: Rider submitted rating {rider_rating}"
-            )
+            logger.debug(f"Trip {self._trip.trip_id}: Rider submitted rating {rider_rating}")
 
         # Driver rates rider (based on rider's behavior_factor DNA)
         driver_rating = self._driver.submit_rating_for_trip(self._trip, self._rider)
         if driver_rating is not None:
-            logger.debug(
-                f"Trip {self._trip.trip_id}: Driver submitted rating {driver_rating}"
-            )
+            logger.debug(f"Trip {self._trip.trip_id}: Driver submitted rating {driver_rating}")
 
     def _record_completion_stats(self) -> None:
         """Record trip completion statistics for driver and rider."""
@@ -283,9 +270,7 @@ class TripExecutor:
             ).total_seconds()
 
         if self._trip.requested_at and self._trip.matched_at:
-            wait_time_seconds = (
-                self._trip.matched_at - self._trip.requested_at
-            ).total_seconds()
+            wait_time_seconds = (self._trip.matched_at - self._trip.requested_at).total_seconds()
 
         if self._trip.started_at and self._trip.completed_at:
             trip_duration_seconds = (
@@ -411,11 +396,7 @@ class TripExecutor:
         proximity_threshold = self._settings.arrival_proximity_threshold_m
 
         for i in range(num_intervals):
-            if (
-                check_rider_cancel
-                and self._rider_cancels_mid_trip
-                and i == num_intervals // 2
-            ):
+            if check_rider_cancel and self._rider_cancels_mid_trip and i == num_intervals // 2:
                 self._trip.cancel(by="rider", reason="changed_mind", stage="in_transit")
                 self._emit_trip_event("trip.cancelled")
                 self._driver.complete_trip()
@@ -477,7 +458,21 @@ class TripExecutor:
 
             yield self._env.timeout(time_per_interval)
 
-    def _emit_trip_event(self, event_type: str) -> None:
+    def _emit_trip_event(
+        self,
+        event_type: Literal[
+            "trip.requested",
+            "trip.offer_sent",
+            "trip.matched",
+            "trip.driver_en_route",
+            "trip.driver_arrived",
+            "trip.started",
+            "trip.completed",
+            "trip.cancelled",
+            "trip.offer_expired",
+            "trip.offer_rejected",
+        ],
+    ) -> None:
         """Emit trip state transition event to Kafka and Redis."""
         event = TripEvent(
             event_type=event_type,
@@ -513,13 +508,23 @@ class TripExecutor:
         if not self._kafka_producer:
             return
 
+        # Ensure driver_id is set for completed payments
+        driver_id = self._trip.driver_id
+        if driver_id is None:
+            logger.warning(f"Trip {self._trip.trip_id} completed but driver_id is None")
+            return
+
+        payment_method = self._rider.dna.payment_method_type
+        if payment_method not in ("credit_card", "digital_wallet"):
+            payment_method = "credit_card"  # Default fallback
+
         event = PaymentEvent(
             payment_id=str(uuid4()),
             trip_id=self._trip.trip_id,
             timestamp=datetime.now(UTC).isoformat(),
             rider_id=self._trip.rider_id,
-            driver_id=self._trip.driver_id,
-            payment_method_type=self._rider.dna.payment_method_type,
+            driver_id=driver_id,
+            payment_method_type=payment_method,  # type: ignore[arg-type]
             payment_method_masked=self._rider.dna.payment_method_masked,
             fare_amount=self._trip.fare,
             platform_fee_percentage=0.25,
@@ -534,7 +539,7 @@ class TripExecutor:
         )
 
     def _emit_gps_ping(
-        self, entity_id: str, entity_type: str, location: tuple[float, float]
+        self, entity_id: str, entity_type: Literal["driver", "rider"], location: tuple[float, float]
     ) -> None:
         """Emit GPS ping event to Kafka and Redis."""
         # Include trip_state for riders to enable redundant state sync

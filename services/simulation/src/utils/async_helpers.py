@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 def run_coroutine_safe(
-    coro: Coroutine,
+    coro: Coroutine[Any, Any, Any],
     main_event_loop: asyncio.AbstractEventLoop | None = None,
     fallback_sync: bool = False,
 ) -> concurrent.futures.Future[Any] | Any | None:

@@ -18,7 +18,7 @@ class KafkaProducerError(NetworkError):
 class KafkaProducer:
     """Thin wrapper around confluent-kafka Producer with sensible defaults."""
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict[str, Any]):
         producer_config = {
             **config,
             # Enable idempotent producer for exactly-once semantics
@@ -29,16 +29,16 @@ class KafkaProducer:
             "delivery.timeout.ms": 120000,
         }
         self._producer = Producer(producer_config)
-        self._failed_deliveries: list[dict] = []
+        self._failed_deliveries: list[dict[str, Any]] = []
 
     def produce(
         self,
         topic: str,
         key: str,
-        value: str | dict | Any,
-        callback=None,
+        value: str | dict[str, Any] | Any,
+        callback: Any = None,
         critical: bool = False,
-    ):
+    ) -> None:
         """Produce a message to Kafka.
 
         Args:
@@ -60,7 +60,7 @@ class KafkaProducer:
             serialized = json.dumps(value)
 
         # Create internal delivery callback that tracks failures
-        def internal_callback(err, msg):
+        def internal_callback(err: Any, msg: Any) -> None:
             if err is not None:
                 logger.error(f"Kafka delivery failed: {err.str()}")
                 self._failed_deliveries.append(
@@ -75,25 +75,21 @@ class KafkaProducer:
                 callback(err, msg)
 
         try:
-            self._producer.produce(
-                topic, key=key, value=serialized, on_delivery=internal_callback
-            )
+            self._producer.produce(topic, key=key, value=serialized, on_delivery=internal_callback)
         except BufferError:
             # Queue full - poll to make room and retry once
             self._producer.poll(1.0)
-            self._producer.produce(
-                topic, key=key, value=serialized, on_delivery=internal_callback
-            )
+            self._producer.produce(topic, key=key, value=serialized, on_delivery=internal_callback)
 
         if critical:
             self._producer.flush(timeout=5.0)
         else:
             self._producer.poll(0)
 
-    def flush(self):
+    def flush(self) -> None:
         """Flush all pending messages."""
         self._producer.flush()
 
-    def close(self):
+    def close(self) -> None:
         """Close the producer."""
         self._producer.flush()

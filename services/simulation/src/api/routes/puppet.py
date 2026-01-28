@@ -55,7 +55,7 @@ MatchingServerDep = Annotated[Any, Depends(get_matching_server)]
 def create_puppet_driver(
     request: PuppetDriverWithDNARequest,
     agent_factory: AgentFactoryDep,
-):
+) -> PuppetDriverCreateResponse:
     """Create a puppet driver at the specified location.
 
     Puppet drivers:
@@ -66,9 +66,7 @@ def create_puppet_driver(
     """
     try:
         override_dict = (
-            request.dna_override.model_dump(exclude_none=True)
-            if request.dna_override
-            else None
+            request.dna_override.model_dump(exclude_none=True) if request.dna_override else None
         )
         zone_id = request.dna_override.zone_id if request.dna_override else None
 
@@ -91,7 +89,7 @@ def create_puppet_driver(
 def create_puppet_rider(
     request: PuppetRiderWithDNARequest,
     agent_factory: AgentFactoryDep,
-):
+) -> PuppetRiderCreateResponse:
     """Create a puppet rider at the specified location.
 
     Puppet riders:
@@ -102,9 +100,7 @@ def create_puppet_rider(
     """
     try:
         override_dict = (
-            request.dna_override.model_dump(exclude_none=True)
-            if request.dna_override
-            else None
+            request.dna_override.model_dump(exclude_none=True) if request.dna_override else None
         )
         zone_id = request.dna_override.zone_id if request.dna_override else None
 
@@ -130,7 +126,7 @@ def create_puppet_rider(
 def puppet_driver_go_online(
     driver_id: str,
     engine: SimulationEngineDep,
-):
+) -> PuppetActionResponse:
     """Set puppet driver status to online.
 
     Valid from: offline
@@ -162,7 +158,7 @@ def puppet_driver_go_online(
 def puppet_driver_go_offline(
     driver_id: str,
     engine: SimulationEngineDep,
-):
+) -> PuppetActionResponse:
     """Set puppet driver status to offline.
 
     Valid from: online (with no active trip)
@@ -201,7 +197,7 @@ def puppet_driver_accept_offer(
     driver_id: str,
     engine: SimulationEngineDep,
     matching_server: MatchingServerDep,
-):
+) -> PuppetActionResponse:
     """Accept the pending trip offer for this driver.
 
     Valid from: online (with pending offer)
@@ -243,7 +239,7 @@ def puppet_driver_reject_offer(
     driver_id: str,
     engine: SimulationEngineDep,
     matching_server: MatchingServerDep,
-):
+) -> PuppetActionResponse:
     """Reject the pending trip offer for this driver.
 
     Valid from: online (with pending offer)
@@ -285,7 +281,7 @@ def puppet_driver_drive_to_pickup(
     driver_id: str,
     engine: SimulationEngineDep,
     matching_server: MatchingServerDep,
-):
+) -> PuppetDriveResponse:
     """Start driving the puppet driver to the pickup location.
 
     Prerequisites:
@@ -332,14 +328,12 @@ def puppet_driver_drive_to_pickup(
     )
 
 
-@router.post(
-    "/drivers/{driver_id}/drive-to-destination", response_model=PuppetDriveResponse
-)
+@router.post("/drivers/{driver_id}/drive-to-destination", response_model=PuppetDriveResponse)
 def puppet_driver_drive_to_destination(
     driver_id: str,
     engine: SimulationEngineDep,
     matching_server: MatchingServerDep,
-):
+) -> PuppetDriveResponse:
     """Start driving the puppet driver to the destination.
 
     Prerequisites:
@@ -391,7 +385,7 @@ def puppet_driver_arrive_pickup(
     driver_id: str,
     engine: SimulationEngineDep,
     matching_server: MatchingServerDep,
-):
+) -> PuppetActionResponse:
     """Signal that driver has arrived at pickup location.
 
     Valid from: en_route_pickup
@@ -428,7 +422,7 @@ def puppet_driver_start_trip(
     driver_id: str,
     engine: SimulationEngineDep,
     matching_server: MatchingServerDep,
-):
+) -> PuppetActionResponse:
     """Signal that rider has been picked up and trip is starting.
 
     Valid from: en_route_pickup (after arrive-pickup)
@@ -464,7 +458,7 @@ def puppet_driver_complete_trip(
     driver_id: str,
     engine: SimulationEngineDep,
     matching_server: MatchingServerDep,
-):
+) -> PuppetActionResponse:
     """Signal that trip has been completed at destination.
 
     Valid from: en_route_destination (after start-trip)
@@ -501,7 +495,7 @@ def puppet_driver_cancel_trip(
     driver_id: str,
     engine: SimulationEngineDep,
     matching_server: MatchingServerDep,
-):
+) -> PuppetActionResponse:
     """Cancel the current trip (before pickup only).
 
     Valid from: en_route_pickup
@@ -538,16 +532,14 @@ def puppet_driver_cancel_trip(
 # --- Rider Control Endpoints ---
 
 
-@router.post(
-    "/riders/{rider_id}/request-trip", response_model=PuppetTripRequestResponse
-)
+@router.post("/riders/{rider_id}/request-trip", response_model=PuppetTripRequestResponse)
 async def puppet_rider_request_trip(
     rider_id: str,
     body: PuppetTripRequestBody,
     engine: SimulationEngineDep,
     zone_loader: ZoneLoaderDep,
     matching_server: MatchingServerDep,
-):
+) -> PuppetTripRequestResponse:
     """Request a trip for the puppet rider.
 
     Valid from: offline
@@ -628,7 +620,7 @@ def puppet_rider_cancel_trip(
     rider_id: str,
     engine: SimulationEngineDep,
     matching_server: MatchingServerDep,
-):
+) -> PuppetActionResponse:
     """Cancel the pending trip request.
 
     Valid from: waiting
@@ -669,7 +661,7 @@ def update_driver_rating(
     driver_id: str,
     body: RatingUpdateRequest,
     engine: SimulationEngineDep,
-):
+) -> PuppetActionResponse:
     """Update a puppet driver's rating for testing.
 
     Allows testing driver acceptance thresholds and rating-based matching.
@@ -698,7 +690,7 @@ def update_rider_rating(
     rider_id: str,
     body: RatingUpdateRequest,
     engine: SimulationEngineDep,
-):
+) -> PuppetActionResponse:
     """Update a puppet rider's rating for testing.
 
     Allows testing driver acceptance based on rider rating thresholds.
@@ -728,7 +720,7 @@ def teleport_driver(
     body: LocationUpdateRequest,
     engine: SimulationEngineDep,
     matching_server: MatchingServerDep,
-):
+) -> PuppetActionResponse:
     """Teleport a puppet driver to a new location.
 
     Useful for testing geospatial matching logic.
@@ -752,9 +744,7 @@ def teleport_driver(
 
     # Update geospatial index if driver is online
     if driver.status == "online" and matching_server:
-        matching_server._driver_index.update_driver_location(
-            driver.driver_id, body.location
-        )
+        matching_server._driver_index.update_driver_location(driver.driver_id, body.location)
 
     return PuppetActionResponse(
         success=True,
@@ -769,7 +759,7 @@ def teleport_rider(
     rider_id: str,
     body: LocationUpdateRequest,
     engine: SimulationEngineDep,
-):
+) -> PuppetActionResponse:
     """Teleport a puppet rider to a new location.
 
     Useful for testing zone-based surge pricing and matching.
@@ -799,14 +789,12 @@ def teleport_rider(
     )
 
 
-@router.post(
-    "/drivers/{driver_id}/force-offer-timeout", response_model=PuppetActionResponse
-)
+@router.post("/drivers/{driver_id}/force-offer-timeout", response_model=PuppetActionResponse)
 def force_driver_offer_timeout(
     driver_id: str,
     engine: SimulationEngineDep,
     matching_server: MatchingServerDep,
-):
+) -> PuppetActionResponse:
     """Force a pending offer to timeout.
 
     Simulates offer expiry without waiting for actual timeout.
@@ -838,14 +826,12 @@ def force_driver_offer_timeout(
     )
 
 
-@router.post(
-    "/riders/{rider_id}/force-patience-timeout", response_model=PuppetActionResponse
-)
+@router.post("/riders/{rider_id}/force-patience-timeout", response_model=PuppetActionResponse)
 def force_rider_patience_timeout(
     rider_id: str,
     engine: SimulationEngineDep,
     matching_server: MatchingServerDep,
-):
+) -> PuppetActionResponse:
     """Force the rider to timeout waiting.
 
     Simulates patience expiry without waiting for actual timeout.
@@ -867,9 +853,7 @@ def force_rider_patience_timeout(
     if not rider.active_trip:
         raise HTTPException(status_code=400, detail="No active trip for this rider")
 
-    matching_server.cancel_trip(
-        rider.active_trip, cancelled_by="rider", reason="patience_timeout"
-    )
+    matching_server.cancel_trip(rider.active_trip, cancelled_by="rider", reason="patience_timeout")
 
     return PuppetActionResponse(
         success=True,

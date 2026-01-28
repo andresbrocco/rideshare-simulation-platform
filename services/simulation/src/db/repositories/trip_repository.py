@@ -1,5 +1,7 @@
 """Trip repository for CRUD operations with state tracking."""
 
+from typing import Literal, cast
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -97,21 +99,13 @@ class TripRepository:
 
     def list_by_driver(self, driver_id: str) -> list[TripDomain]:
         """List trips by driver ID."""
-        stmt = (
-            select(Trip)
-            .where(Trip.driver_id == driver_id)
-            .order_by(Trip.requested_at.desc())
-        )
+        stmt = select(Trip).where(Trip.driver_id == driver_id).order_by(Trip.requested_at.desc())
         result = self.session.execute(stmt)
         return [self._to_domain(t) for t in result.scalars().all()]
 
     def list_by_rider(self, rider_id: str) -> list[TripDomain]:
         """List trips by rider ID."""
-        stmt = (
-            select(Trip)
-            .where(Trip.rider_id == rider_id)
-            .order_by(Trip.requested_at.desc())
-        )
+        stmt = select(Trip).where(Trip.rider_id == rider_id).order_by(Trip.requested_at.desc())
         result = self.session.execute(stmt)
         return [self._to_domain(t) for t in result.scalars().all()]
 
@@ -127,17 +121,18 @@ class TripRepository:
 
     def count_in_flight(self) -> int:
         """Count trips in non-terminal states."""
-        stmt = (
-            select(func.count())
-            .select_from(Trip)
-            .where(Trip.state.notin_(TERMINAL_STATES))
-        )
+        stmt = select(func.count()).select_from(Trip).where(Trip.state.notin_(TERMINAL_STATES))
         return self.session.execute(stmt).scalar() or 0
 
     def _to_domain(self, trip: Trip) -> TripDomain:
         """Convert ORM model to domain model."""
         pickup_lat, pickup_lon = map(float, trip.pickup_location.split(","))
         dropoff_lat, dropoff_lon = map(float, trip.dropoff_location.split(","))
+
+        # Cast cancelled_by to Literal type for domain model
+        cancelled_by: Literal["rider", "driver", "system"] | None = None
+        if trip.cancelled_by in ("rider", "driver", "system"):
+            cancelled_by = cast(Literal["rider", "driver", "system"], trip.cancelled_by)
 
         return TripDomain(
             trip_id=trip.trip_id,
@@ -151,7 +146,7 @@ class TripRepository:
             surge_multiplier=trip.surge_multiplier,
             fare=trip.fare,
             offer_sequence=trip.offer_sequence,
-            cancelled_by=trip.cancelled_by,
+            cancelled_by=cancelled_by,
             cancellation_reason=trip.cancellation_reason,
             cancellation_stage=trip.cancellation_stage,
             requested_at=trip.requested_at,

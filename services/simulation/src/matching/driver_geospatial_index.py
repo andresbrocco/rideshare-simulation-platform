@@ -1,4 +1,5 @@
 import threading
+from typing import cast
 
 import h3
 
@@ -88,9 +89,7 @@ class DriverGeospatialIndex:
                     for driver_id in self._h3_cells[cell]:
                         if self._driver_status.get(driver_id) == status_filter:
                             driver_lat, driver_lon = self._driver_locations[driver_id]
-                            distance = haversine_distance_km(
-                                lat, lon, driver_lat, driver_lon
-                            )
+                            distance = haversine_distance_km(lat, lon, driver_lat, driver_lon)
                             if distance <= radius_km:
                                 candidates.append((driver_id, distance))
 
@@ -98,7 +97,7 @@ class DriverGeospatialIndex:
             return candidates
 
     def _get_h3_cell(self, lat: float, lon: float) -> str:
-        return h3.latlng_to_cell(lat, lon, self._h3_resolution)
+        return cast(str, h3.latlng_to_cell(lat, lon, self._h3_resolution))
 
     def clear(self) -> None:
         """Clear all index state for simulation reset."""

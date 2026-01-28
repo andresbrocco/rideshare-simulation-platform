@@ -76,7 +76,7 @@ class BaseAgentRepository(Generic[ModelT, DNAT]):
             agent_objects.append(agent)
         self.session.add_all(agent_objects)
 
-    def batch_upsert_with_state(self, agents: list[dict]) -> None:
+    def batch_upsert_with_state(self, agents: list[dict[str, Any]]) -> None:
         """Upsert agents with full runtime state for checkpoint.
 
         Each dict should have: id, dna, location, status, active_trip, rating, rating_count

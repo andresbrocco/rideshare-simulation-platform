@@ -1,10 +1,12 @@
 """Standardized exception hierarchy for the simulation platform."""
 
+from typing import Any
+
 
 class SimulationError(Exception):
     """Base exception for all simulation errors."""
 
-    def __init__(self, message: str, details: dict | None = None):
+    def __init__(self, message: str, details: dict[str, Any] | None = None):
         super().__init__(message)
         self.message = message
         self.details = details or {}

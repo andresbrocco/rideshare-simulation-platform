@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from fastapi.websockets import WebSocketState
 
@@ -34,21 +36,21 @@ def extract_api_key(websocket: WebSocket) -> str | None:
 class ConnectionManager:
     """Manages WebSocket connections for real-time updates."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.active_connections: set[WebSocket] = set()
 
-    async def connect(self, websocket: WebSocket, subprotocol: str | None = None):
+    async def connect(self, websocket: WebSocket, subprotocol: str | None = None) -> None:
         await websocket.accept(subprotocol=subprotocol)
         self.active_connections.add(websocket)
 
-    def disconnect(self, websocket: WebSocket):
+    def disconnect(self, websocket: WebSocket) -> None:
         self.active_connections.discard(websocket)
 
-    async def send_message(self, websocket: WebSocket, message: dict):
+    async def send_message(self, websocket: WebSocket, message: dict[str, Any]) -> None:
         if websocket.application_state == WebSocketState.CONNECTED:
             await websocket.send_json(message)
 
-    async def broadcast(self, message: dict):
+    async def broadcast(self, message: dict[str, Any]) -> None:
         for connection in self.active_connections:
             await self.send_message(connection, message)
 
@@ -57,7 +59,7 @@ manager = ConnectionManager()
 
 
 @router.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket) -> None:
     api_key, subprotocol = extract_api_key_and_protocol(websocket)
     settings = get_settings()
 

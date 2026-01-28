@@ -1,6 +1,7 @@
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, Field
 from shapely.geometry import Point, Polygon
@@ -53,7 +54,7 @@ class ZoneLoader:
         logger.info(f"Loaded {len(self._zones)} zones from {self.geojson_path}")
 
     @staticmethod
-    def _parse_feature(feature: dict) -> Zone | None:
+    def _parse_feature(feature: dict[str, Any]) -> Zone | None:
         try:
             properties = feature.get("properties", {})
             geometry = feature.get("geometry", {})
@@ -95,9 +96,7 @@ class ZoneLoader:
             return None
 
     @staticmethod
-    def _calculate_centroid(
-        polygon_coords: list[tuple[float, float]]
-    ) -> tuple[float, float]:
+    def _calculate_centroid(polygon_coords: list[tuple[float, float]]) -> tuple[float, float]:
         if not polygon_coords:
             raise ValueError("Cannot calculate centroid of empty polygon")
 

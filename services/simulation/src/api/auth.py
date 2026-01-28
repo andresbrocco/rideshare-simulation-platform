@@ -3,7 +3,7 @@ import os
 from fastapi import Header, HTTPException
 
 
-def verify_api_key(x_api_key: str = Header(...)):
+def verify_api_key(x_api_key: str = Header(...)) -> None:
     """Validates API key from X-API-Key header."""
     api_key = os.getenv("API_KEY")
 

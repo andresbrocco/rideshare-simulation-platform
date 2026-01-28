@@ -127,6 +127,9 @@ class SerializerRegistry:
 
         # Lazy initialization of serializer
         if topic not in cls._serializers:
+            if cls._schema_registry is None or cls._schema_base_path is None:
+                logger.warning("Schema registry or base path not initialized")
+                return None
             try:
                 serializer_class = TOPIC_SERIALIZERS[topic]
                 cls._serializers[topic] = serializer_class(

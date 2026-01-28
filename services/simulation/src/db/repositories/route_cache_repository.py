@@ -1,6 +1,7 @@
 """Route cache repository for persistent route storage."""
 
 from datetime import timedelta
+from typing import Any
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.sqlite import insert
@@ -46,7 +47,7 @@ class RouteCacheRepository:
         )
         self.session.execute(stmt)
 
-    def load(self, origin_h3: str, dest_h3: str, ttl_days: int = 30) -> dict | None:
+    def load(self, origin_h3: str, dest_h3: str, ttl_days: int = 30) -> dict[str, Any] | None:
         """Load a route from the cache if it exists and is not expired."""
         cache_key = f"{origin_h3}|{dest_h3}"
         route = self.session.get(RouteCache, cache_key)
@@ -64,7 +65,7 @@ class RouteCacheRepository:
             "polyline": route.polyline,
         }
 
-    def bulk_load(self, ttl_days: int = 30) -> dict:
+    def bulk_load(self, ttl_days: int = 30) -> dict[str, dict[str, Any]]:
         """Load all non-expired routes for cache pre-population."""
         cutoff = utc_now() - timedelta(days=ttl_days)
         stmt = select(RouteCache).where(RouteCache.created_at >= cutoff)
@@ -79,9 +80,7 @@ class RouteCacheRepository:
             }
         return routes
 
-    def bulk_save(
-        self, routes: list[tuple[str, str, float, float, str | None]]
-    ) -> None:
+    def bulk_save(self, routes: list[tuple[str, str, float, float, str | None]]) -> None:
         """Batch insert multiple routes."""
         if not routes:
             return

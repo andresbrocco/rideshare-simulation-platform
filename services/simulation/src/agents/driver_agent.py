@@ -6,7 +6,7 @@ import random
 import time
 from collections.abc import Generator
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 import simpy
@@ -71,6 +71,7 @@ class DriverAgent(EventEmitter):
         self._simulation_engine = simulation_engine
         self._immediate_online = immediate_online
         self._is_puppet = puppet
+        self._is_ephemeral = False  # Can be set True for non-persisted puppet agents
 
         # Runtime state
         self._status = "offline"
@@ -86,11 +87,10 @@ class DriverAgent(EventEmitter):
 
         if self._driver_repository:
             try:
+                repo = self._driver_repository
                 with_retry_sync(
-                    lambda: self._driver_repository.create(driver_id, dna),
-                    config=RetryConfig(
-                        max_attempts=3, retryable_exceptions=(Exception,)
-                    ),
+                    lambda repo=repo: repo.create(driver_id, dna),  # type: ignore[misc]
+                    config=RetryConfig(max_attempts=3, retryable_exceptions=(Exception,)),
                     operation_name=f"persist_driver_{driver_id}",
                 )
             except Exception as e:
@@ -158,23 +158,16 @@ class DriverAgent(EventEmitter):
 
         # Set initial random location in São Paulo if not already set
         if self._location is None:
-            lat = random.uniform(
-                SAO_PAULO_BOUNDS["lat_min"], SAO_PAULO_BOUNDS["lat_max"]
-            )
-            lon = random.uniform(
-                SAO_PAULO_BOUNDS["lon_min"], SAO_PAULO_BOUNDS["lon_max"]
-            )
+            lat = random.uniform(SAO_PAULO_BOUNDS["lat_min"], SAO_PAULO_BOUNDS["lat_max"])
+            lon = random.uniform(SAO_PAULO_BOUNDS["lon_min"], SAO_PAULO_BOUNDS["lon_max"])
             self._location = (lat, lon)
 
         if self._driver_repository:
             try:
+                repo = self._driver_repository
                 with_retry_sync(
-                    lambda: self._driver_repository.update_status(
-                        self._driver_id, self._status
-                    ),
-                    config=RetryConfig(
-                        max_attempts=3, retryable_exceptions=(Exception,)
-                    ),
+                    lambda repo=repo: repo.update_status(self._driver_id, self._status),  # type: ignore[misc]
+                    config=RetryConfig(max_attempts=3, retryable_exceptions=(Exception,)),
                     operation_name=f"update_driver_status_{self._driver_id}",
                 )
             except Exception as e:
@@ -186,9 +179,7 @@ class DriverAgent(EventEmitter):
         # Notify registry manager that driver went online
         if self._registry_manager and self._location:
             zone_id = self._determine_zone(self._location)
-            self._registry_manager.driver_went_online(
-                self._driver_id, self._location, zone_id
-            )
+            self._registry_manager.driver_went_online(self._driver_id, self._location, zone_id)
 
         self._emit_status_event(previous_status, self._status, "go_online")
 
@@ -199,13 +190,10 @@ class DriverAgent(EventEmitter):
 
         if self._driver_repository:
             try:
+                repo = self._driver_repository
                 with_retry_sync(
-                    lambda: self._driver_repository.update_status(
-                        self._driver_id, self._status
-                    ),
-                    config=RetryConfig(
-                        max_attempts=3, retryable_exceptions=(Exception,)
-                    ),
+                    lambda repo=repo: repo.update_status(self._driver_id, self._status),  # type: ignore[misc]
+                    config=RetryConfig(max_attempts=3, retryable_exceptions=(Exception,)),
                     operation_name=f"update_driver_status_{self._driver_id}",
                 )
             except Exception as e:
@@ -228,18 +216,13 @@ class DriverAgent(EventEmitter):
 
         if self._driver_repository:
             try:
+                repo = self._driver_repository
                 with_retry_sync(
-                    lambda: (
-                        self._driver_repository.update_status(
-                            self._driver_id, self._status
-                        ),
-                        self._driver_repository.update_active_trip(
-                            self._driver_id, trip_id
-                        ),
+                    lambda repo=repo: (  # type: ignore[misc]
+                        repo.update_status(self._driver_id, self._status),
+                        repo.update_active_trip(self._driver_id, trip_id),
                     ),
-                    config=RetryConfig(
-                        max_attempts=3, retryable_exceptions=(Exception,)
-                    ),
+                    config=RetryConfig(max_attempts=3, retryable_exceptions=(Exception,)),
                     operation_name=f"persist_trip_acceptance_{self._driver_id}",
                 )
             except Exception as e:
@@ -261,13 +244,10 @@ class DriverAgent(EventEmitter):
 
         if self._driver_repository:
             try:
+                repo = self._driver_repository
                 with_retry_sync(
-                    lambda: self._driver_repository.update_status(
-                        self._driver_id, self._status
-                    ),
-                    config=RetryConfig(
-                        max_attempts=3, retryable_exceptions=(Exception,)
-                    ),
+                    lambda repo=repo: repo.update_status(self._driver_id, self._status),  # type: ignore[misc]
+                    config=RetryConfig(max_attempts=3, retryable_exceptions=(Exception,)),
                     operation_name=f"update_driver_status_{self._driver_id}",
                 )
             except Exception as e:
@@ -289,13 +269,10 @@ class DriverAgent(EventEmitter):
 
         if self._driver_repository:
             try:
+                repo = self._driver_repository
                 with_retry_sync(
-                    lambda: self._driver_repository.update_status(
-                        self._driver_id, self._status
-                    ),
-                    config=RetryConfig(
-                        max_attempts=3, retryable_exceptions=(Exception,)
-                    ),
+                    lambda repo=repo: repo.update_status(self._driver_id, self._status),  # type: ignore[misc]
+                    config=RetryConfig(max_attempts=3, retryable_exceptions=(Exception,)),
                     operation_name=f"update_driver_status_{self._driver_id}",
                 )
             except Exception as e:
@@ -318,18 +295,13 @@ class DriverAgent(EventEmitter):
 
         if self._driver_repository:
             try:
+                repo = self._driver_repository
                 with_retry_sync(
-                    lambda: (
-                        self._driver_repository.update_status(
-                            self._driver_id, self._status
-                        ),
-                        self._driver_repository.update_active_trip(
-                            self._driver_id, None
-                        ),
+                    lambda repo=repo: (  # type: ignore[misc]
+                        repo.update_status(self._driver_id, self._status),
+                        repo.update_active_trip(self._driver_id, None),
                     ),
-                    config=RetryConfig(
-                        max_attempts=3, retryable_exceptions=(Exception,)
-                    ),
+                    config=RetryConfig(max_attempts=3, retryable_exceptions=(Exception,)),
                     operation_name=f"persist_trip_completion_{self._driver_id}",
                 )
             except Exception as e:
@@ -344,9 +316,7 @@ class DriverAgent(EventEmitter):
 
         self._emit_status_event(previous_status, self._status, "complete_trip")
 
-    def update_location(
-        self, lat: float, lon: float, heading: float | None = None
-    ) -> None:
+    def update_location(self, lat: float, lon: float, heading: float | None = None) -> None:
         """Update current location and optionally heading.
 
         Args:
@@ -368,13 +338,10 @@ class DriverAgent(EventEmitter):
 
         if self._driver_repository:
             try:
+                repo = self._driver_repository
                 with_retry_sync(
-                    lambda: self._driver_repository.update_location(
-                        self._driver_id, (lat, lon)
-                    ),
-                    config=RetryConfig(
-                        max_attempts=3, retryable_exceptions=(Exception,)
-                    ),
+                    lambda repo=repo: repo.update_location(self._driver_id, (lat, lon)),  # type: ignore[misc]
+                    config=RetryConfig(max_attempts=3, retryable_exceptions=(Exception,)),
                     operation_name=f"update_driver_location_{self._driver_id}",
                 )
             except Exception as e:
@@ -386,26 +353,23 @@ class DriverAgent(EventEmitter):
         # Notify registry manager of location update
         if self._registry_manager:
             zone_id = self._determine_zone((lat, lon))
-            self._registry_manager.driver_location_updated(
-                self._driver_id, (lat, lon), zone_id
-            )
+            self._registry_manager.driver_location_updated(self._driver_id, (lat, lon), zone_id)
 
     def update_rating(self, new_rating: int) -> None:
         """Update rolling average rating."""
-        self._current_rating = (
-            self._current_rating * self._rating_count + new_rating
-        ) / (self._rating_count + 1)
+        self._current_rating = (self._current_rating * self._rating_count + new_rating) / (
+            self._rating_count + 1
+        )
         self._rating_count += 1
 
         if self._driver_repository:
             try:
+                repo = self._driver_repository
                 with_retry_sync(
-                    lambda: self._driver_repository.update_rating(
+                    lambda repo=repo: repo.update_rating(  # type: ignore[misc]
                         self._driver_id, self._current_rating, self._rating_count
                     ),
-                    config=RetryConfig(
-                        max_attempts=3, retryable_exceptions=(Exception,)
-                    ),
+                    config=RetryConfig(max_attempts=3, retryable_exceptions=(Exception,)),
                     operation_name=f"update_driver_rating_{self._driver_id}",
                 )
             except Exception as e:
@@ -421,9 +385,7 @@ class DriverAgent(EventEmitter):
         if trip.state != TripState.COMPLETED:
             return None
 
-        rating_value = generate_rating_value(
-            rider.dna.behavior_factor, "behavior_factor"
-        )
+        rating_value = generate_rating_value(rider.dna.behavior_factor, "behavior_factor")
 
         if not should_submit_rating(rating_value):
             return None
@@ -469,7 +431,7 @@ class DriverAgent(EventEmitter):
             value=event,
         )
 
-    def process_ride_offer(self, offer: dict) -> Generator[simpy.Event, None, bool]:
+    def process_ride_offer(self, offer: dict[str, Any]) -> Generator[simpy.Event, None, bool]:
         """Process ride offer and decide accept/reject."""
         base_delay = self._dna.response_time
         variance = random.uniform(-2.0, 2.0)
@@ -504,7 +466,7 @@ class DriverAgent(EventEmitter):
         else:
             return False
 
-    def receive_offer(self, offer: dict) -> bool:
+    def receive_offer(self, offer: dict[str, Any]) -> bool:
         """Decide whether to accept or reject offer based on acceptance rate.
 
         If accepted, updates driver status to en_route_pickup via accept_trip().
@@ -532,16 +494,16 @@ class DriverAgent(EventEmitter):
             return True
         return False
 
-    def on_trip_cancelled(self, trip) -> None:
+    def on_trip_cancelled(self, trip: "Trip") -> None:
         """Handle trip cancellation notification."""
         if self._status != "offline":
             self.complete_trip()
 
-    def on_trip_started(self, trip) -> None:
+    def on_trip_started(self, trip: "Trip") -> None:
         """Handle trip started notification."""
         pass
 
-    def on_trip_completed(self, trip) -> None:
+    def on_trip_completed(self, trip: "Trip") -> None:
         """Handle trip completion notification."""
         pass
 
@@ -594,9 +556,7 @@ class DriverAgent(EventEmitter):
             phone=changes.get("phone", self._dna.phone),
             home_location=self._dna.home_location,
             preferred_zones=self._dna.preferred_zones,
-            shift_preference=changes.get(
-                "shift_preference", self._dna.shift_preference.value
-            ),
+            shift_preference=changes.get("shift_preference", self._dna.shift_preference.value),
             vehicle_make=changes.get("vehicle_make", self._dna.vehicle_make),
             vehicle_model=changes.get("vehicle_model", self._dna.vehicle_model),
             vehicle_year=changes.get("vehicle_year", self._dna.vehicle_year),
@@ -682,9 +642,7 @@ class DriverAgent(EventEmitter):
         # NOTE: Direct Redis publishing disabled - using Kafka → Stream Processor → Redis path
         # See stream-processor service for event routing
 
-    def _emit_status_event(
-        self, previous_status: str, new_status: str, trigger: str
-    ) -> None:
+    def _emit_status_event(self, previous_status: str, new_status: str, trigger: str) -> None:
         """Emit driver status event to Kafka and Redis."""
 
         event = {
@@ -842,9 +800,7 @@ class DriverAgent(EventEmitter):
             gps_process = None
             while True:
                 # Start/restart GPS process when not offline
-                if self._status != "offline" and (
-                    gps_process is None or not gps_process.is_alive
-                ):
+                if self._status != "offline" and (gps_process is None or not gps_process.is_alive):
                     gps_process = self._env.process(self._emit_gps_ping())
                 yield self._env.timeout(self._get_gps_interval())
             return
@@ -983,7 +939,7 @@ class DriverAgent(EventEmitter):
         """Check if this is a puppet (manually controlled) agent."""
         return getattr(self, "_is_puppet", False)
 
-    def get_state(self, zone_loader: "ZoneLoader | None" = None) -> dict:
+    def get_state(self, zone_loader: "ZoneLoader | None" = None) -> dict[str, Any]:
         """Extract full agent state for API inspection.
 
         Args:
@@ -995,9 +951,7 @@ class DriverAgent(EventEmitter):
         zone_id = None
         loader = zone_loader or self._zone_loader
         if loader and self._location:
-            zone_id = loader.find_zone_for_location(
-                self._location[0], self._location[1]
-            )
+            zone_id = loader.find_zone_for_location(self._location[0], self._location[1])
 
         return {
             "driver_id": self._driver_id,

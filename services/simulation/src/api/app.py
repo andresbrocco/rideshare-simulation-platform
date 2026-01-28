@@ -1,19 +1,23 @@
 """FastAPI application factory for simulation control panel."""
 
+from __future__ import annotations
+
 import asyncio
 import contextlib
 import logging
 import time
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import httpx
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from redis.asyncio import Redis
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+
+if TYPE_CHECKING:
+    from redis.asyncio import Redis
 
 from api.auth import verify_api_key
 from api.models.health import (
@@ -39,23 +43,25 @@ logger = logging.getLogger(__name__)
 class StatusBroadcaster:
     """Periodically broadcasts simulation status to WebSocket clients."""
 
-    def __init__(self, engine: "SimulationEngine", connection_manager, snapshot_manager):
+    def __init__(
+        self, engine: SimulationEngine, connection_manager: Any, snapshot_manager: Any
+    ) -> None:
         self._engine = engine
         self._connection_manager = connection_manager
         self._snapshot_manager = snapshot_manager
-        self._task = None
+        self._task: asyncio.Task[None] | None = None
         self._interval = 1.0  # seconds
 
-    async def start(self):
+    async def start(self) -> None:
         self._task = asyncio.create_task(self._broadcast_loop())
 
-    async def stop(self):
+    async def stop(self) -> None:
         if self._task:
             self._task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._task
 
-    async def _broadcast_loop(self):
+    async def _broadcast_loop(self) -> None:
         while True:
             try:
                 await asyncio.sleep(self._interval)
@@ -74,11 +80,11 @@ class StatusBroadcaster:
 
 
 def create_app(
-    engine: "SimulationEngine",
-    agent_factory: "AgentFactory",
-    redis_client: Redis,
-    zone_loader=None,
-    matching_server=None,
+    engine: SimulationEngine,
+    agent_factory: AgentFactory,
+    redis_client: Redis[str],
+    zone_loader: Any = None,
+    matching_server: Any = None,
 ) -> FastAPI:
     """Create FastAPI application with injected dependencies.
 
@@ -91,7 +97,7 @@ def create_app(
     """
 
     @asynccontextmanager
-    async def lifespan(app: FastAPI):
+    async def lifespan(app: FastAPI) -> Any:
         """Manage application startup and shutdown."""
         # Store event loop reference for thread-safe async calls from SimPy
         import asyncio
@@ -121,7 +127,7 @@ def create_app(
 
     # Add rate limiter state and exception handler
     app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
     # Set core dependencies immediately (not in lifespan) so they're available for testing
     app.state.simulation_engine = engine
@@ -150,12 +156,12 @@ def create_app(
     app.include_router(websocket_router)
 
     @app.get("/health")
-    async def health_check():
+    async def health_check() -> dict[str, str]:
         """Health check endpoint for monitoring (unauthenticated for infrastructure)."""
         return {"status": "ok"}
 
     @app.get("/auth/validate")
-    async def validate_api_key_endpoint(_: str = Depends(verify_api_key)):
+    async def validate_api_key_endpoint(_: str = Depends(verify_api_key)) -> dict[str, str]:
         """Validate API key for login.
 
         This endpoint requires a valid API key and returns 200 if valid.
@@ -179,7 +185,7 @@ def create_app(
         return "unhealthy"
 
     @app.get("/health/detailed", response_model=DetailedHealthResponse)
-    async def detailed_health_check():
+    async def detailed_health_check() -> DetailedHealthResponse:
         """Detailed health check for all services with latency metrics."""
 
         async def check_redis() -> ServiceHealth:
@@ -368,6 +374,7 @@ def create_app(
             engine_health.status,
         ]
 
+        overall: Literal["healthy", "degraded", "unhealthy"]
         if all(s == "healthy" for s in core_statuses):
             overall = "healthy"
         elif any(s == "unhealthy" for s in core_statuses):

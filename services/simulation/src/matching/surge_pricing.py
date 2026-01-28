@@ -1,20 +1,28 @@
+from collections.abc import Generator
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 from events.schemas import SurgeUpdateEvent
 from geo.zones import ZoneLoader
 from matching.driver_registry import DriverRegistry
 
+if TYPE_CHECKING:
+    import simpy
+
+    from kafka.producer import KafkaProducer
+    from redis_client.publisher import RedisPublisher
+
 
 class SurgePricingCalculator:
     def __init__(
         self,
-        env,
+        env: "simpy.Environment",
         zone_loader: ZoneLoader,
         driver_registry: DriverRegistry,
-        kafka_producer=None,
-        redis_publisher=None,
+        kafka_producer: "KafkaProducer | None" = None,
+        redis_publisher: "RedisPublisher | None" = None,
         update_interval_seconds: int = 60,
-    ):
+    ) -> None:
         self.env = env
         self.zone_loader = zone_loader
         self.driver_registry = driver_registry
@@ -27,17 +35,17 @@ class SurgePricingCalculator:
 
         self.env.process(self._surge_calculation_loop())
 
-    def _surge_calculation_loop(self):
+    def _surge_calculation_loop(self) -> Generator[Any, Any]:
         while True:
             self._calculate_surge_all_zones()
             yield self.env.timeout(self.update_interval_seconds)
 
-    def _calculate_surge_all_zones(self):
+    def _calculate_surge_all_zones(self) -> None:
         zones = self.zone_loader.get_all_zones()
         for zone in zones:
             self._calculate_zone_surge(zone.zone_id)
 
-    def _calculate_zone_surge(self, zone_id: str):
+    def _calculate_zone_surge(self, zone_id: str) -> None:
         pending = self.pending_requests.get(zone_id, 0)
         available = self.driver_registry.get_zone_driver_count(zone_id, "online")
 
@@ -65,7 +73,7 @@ class SurgePricingCalculator:
         new_multiplier: float,
         available_drivers: int,
         pending_requests: int,
-    ):
+    ) -> None:
         old_multiplier = self.current_surge.get(zone_id, 1.0)
 
         if new_multiplier != old_multiplier:
@@ -81,16 +89,14 @@ class SurgePricingCalculator:
                     pending_requests=pending_requests,
                     calculation_window_seconds=self.update_interval_seconds,
                 )
-                self.kafka_producer.produce(
-                    topic="surge_updates", key=zone_id, value=event
-                )
+                self.kafka_producer.produce(topic="surge_updates", key=zone_id, value=event)
 
             self.current_surge[zone_id] = new_multiplier
 
     def get_surge(self, zone_id: str) -> float:
         return self.current_surge.get(zone_id, 1.0)
 
-    def set_pending_requests(self, zone_id: str, count: int):
+    def set_pending_requests(self, zone_id: str, count: int) -> None:
         self.pending_requests[zone_id] = count
 
     def increment_pending_request(self, zone_id: str) -> None:

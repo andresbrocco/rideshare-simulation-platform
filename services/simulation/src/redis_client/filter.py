@@ -23,7 +23,7 @@ from pubsub.channels import (
 class EventFilter:
     """Filters and transforms events for real-time visualization."""
 
-    def should_publish(self, event) -> bool:
+    def should_publish(self, event: object) -> bool:
         """Return True if event should be published to Redis."""
         if isinstance(
             event,
@@ -44,14 +44,18 @@ class EventFilter:
 
         return False
 
-    def transform(self, event) -> tuple[str, object]:
+    def transform(
+        self, event: object
+    ) -> tuple[
+        str, DriverUpdateMessage | RiderUpdateMessage | TripUpdateMessage | SurgeUpdateMessage
+    ]:
         """Transform event to (channel, message) for Redis pub/sub."""
         if isinstance(event, GPSPingEvent):
             if event.entity_type == "driver":
                 # Infer status: if trip_id present, driver is in an active trip
                 # Use en_route_pickup as reasonable default for active trip status
                 status = "en_route_pickup" if event.trip_id else "online"
-                message = DriverUpdateMessage(
+                driver_msg = DriverUpdateMessage(
                     driver_id=event.entity_id,
                     location=event.location,
                     heading=event.heading,
@@ -59,19 +63,19 @@ class EventFilter:
                     trip_id=event.trip_id,
                     timestamp=event.timestamp,
                 )
-                return CHANNEL_DRIVER_UPDATES, message
+                return CHANNEL_DRIVER_UPDATES, driver_msg
             else:
-                message = RiderUpdateMessage(
+                rider_msg = RiderUpdateMessage(
                     rider_id=event.entity_id,
                     location=event.location,
                     trip_id=event.trip_id,
                     timestamp=event.timestamp,
                 )
-                return CHANNEL_RIDER_UPDATES, message
+                return CHANNEL_RIDER_UPDATES, rider_msg
 
         if isinstance(event, TripEvent):
             state = event.event_type.replace("trip.", "")
-            message = TripUpdateMessage(
+            trip_msg = TripUpdateMessage(
                 trip_id=event.trip_id,
                 state=state,
                 pickup=event.pickup_location,
@@ -82,10 +86,10 @@ class EventFilter:
                 surge_multiplier=event.surge_multiplier,
                 timestamp=event.timestamp,
             )
-            return CHANNEL_TRIP_UPDATES, message
+            return CHANNEL_TRIP_UPDATES, trip_msg
 
         if isinstance(event, DriverStatusEvent):
-            message = DriverUpdateMessage(
+            status_msg = DriverUpdateMessage(
                 driver_id=event.driver_id,
                 location=event.location,
                 heading=None,
@@ -93,10 +97,10 @@ class EventFilter:
                 trip_id=None,
                 timestamp=event.timestamp,
             )
-            return CHANNEL_DRIVER_UPDATES, message
+            return CHANNEL_DRIVER_UPDATES, status_msg
 
         if isinstance(event, SurgeUpdateEvent):
-            message = SurgeUpdateMessage(
+            surge_msg = SurgeUpdateMessage(
                 zone_id=event.zone_id,
                 previous_multiplier=event.previous_multiplier,
                 new_multiplier=event.new_multiplier,
@@ -104,10 +108,10 @@ class EventFilter:
                 request_count=event.pending_requests,
                 timestamp=event.timestamp,
             )
-            return CHANNEL_SURGE_UPDATES, message
+            return CHANNEL_SURGE_UPDATES, surge_msg
 
         if isinstance(event, DriverProfileEvent):
-            message = DriverUpdateMessage(
+            profile_msg = DriverUpdateMessage(
                 driver_id=event.driver_id,
                 location=event.home_location,
                 heading=None,
@@ -115,15 +119,15 @@ class EventFilter:
                 trip_id=None,
                 timestamp=event.timestamp,
             )
-            return CHANNEL_DRIVER_UPDATES, message
+            return CHANNEL_DRIVER_UPDATES, profile_msg
 
         if isinstance(event, RiderProfileEvent):
-            message = RiderUpdateMessage(
+            rider_profile_msg = RiderUpdateMessage(
                 rider_id=event.rider_id,
                 location=event.home_location,
                 trip_id=None,
                 timestamp=event.timestamp,
             )
-            return CHANNEL_RIDER_UPDATES, message
+            return CHANNEL_RIDER_UPDATES, rider_profile_msg
 
         raise ValueError(f"Cannot transform event of type {type(event)}")
