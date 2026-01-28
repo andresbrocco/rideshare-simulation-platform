@@ -45,7 +45,7 @@ Responsibilities:
 - Provide snapshot-on-connect pattern for state synchronization
 
 ### Event Streaming Layer
-- **Kafka Topics** - Event backbone with 8 topics: trips, gps-pings, driver-status, surge-updates, ratings, payments, driver-profiles, rider-profiles
+- **Kafka Topics** - Event backbone with 8 topics: trips, gps_pings, driver_status, surge_updates, ratings, payments, driver_profiles, rider_profiles
 - **Stream Processor** - Kafka-to-Redis bridge with 100ms windowed aggregation
 - **Schema Registry** - JSON Schema validation with Confluent Cloud
 - **Reliability Tiers** - Critical events (trips, payments) use synchronous confirmation; high-volume events (GPS pings) use fire-and-forget
@@ -139,7 +139,7 @@ Simulation Engine (SimPy)
 5. Kafka acknowledges write (synchronous for critical events, async for high-volume)
 
 **Real-Time Visualization Flow:**
-1. Stream Processor consumes from Kafka topics (gps-pings, trips, driver-status, surge-updates)
+1. Stream Processor consumes from Kafka topics (gps_pings, trips, driver_status, surge_updates)
 2. GPS events aggregated in 100ms window to reduce message volume
 3. Events transformed and published to Redis pub/sub channels
 4. WebSocket server subscribes to Redis channels and broadcasts to connected clients
@@ -363,7 +363,7 @@ REQUESTED → OFFER_SENT → MATCHED → DRIVER_EN_ROUTE → DRIVER_ARRIVED → 
 - demand_factor = `max(0, (riders_waiting - available_drivers) / total_demand)`
 - Multipliers range from 1.0x to 2.5x
 - Surge sensitivity configured per zone in `data/sao-paulo/subprefecture_config.json`
-- Events published to `surge-updates` topic for real-time visualization
+- Events published to `surge_updates` topic for real-time visualization
 
 ### Medallion Architecture
 

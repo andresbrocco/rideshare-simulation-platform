@@ -1,4 +1,4 @@
-"""Tests for trips topic handling via LowVolumeStreamingJob.
+"""Tests for trips topic handling via BronzeIngestionLowVolume.
 
 These tests verify trips-specific configuration and schema validation
 for Bronze layer Delta table ingestion.

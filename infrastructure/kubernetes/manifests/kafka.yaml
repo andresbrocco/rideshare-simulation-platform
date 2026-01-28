@@ -156,12 +156,12 @@ spec:
         - |
           echo 'Creating Kafka topics...'
           kafka-topics --bootstrap-server kafka-0.kafka.default.svc.cluster.local:29092 --create --if-not-exists --topic trips --partitions 4 --replication-factor 1
-          kafka-topics --bootstrap-server kafka-0.kafka.default.svc.cluster.local:29092 --create --if-not-exists --topic gps-pings --partitions 8 --replication-factor 1
-          kafka-topics --bootstrap-server kafka-0.kafka.default.svc.cluster.local:29092 --create --if-not-exists --topic driver-status --partitions 2 --replication-factor 1
-          kafka-topics --bootstrap-server kafka-0.kafka.default.svc.cluster.local:29092 --create --if-not-exists --topic surge-updates --partitions 2 --replication-factor 1
+          kafka-topics --bootstrap-server kafka-0.kafka.default.svc.cluster.local:29092 --create --if-not-exists --topic gps_pings --partitions 8 --replication-factor 1
+          kafka-topics --bootstrap-server kafka-0.kafka.default.svc.cluster.local:29092 --create --if-not-exists --topic driver_status --partitions 2 --replication-factor 1
+          kafka-topics --bootstrap-server kafka-0.kafka.default.svc.cluster.local:29092 --create --if-not-exists --topic surge_updates --partitions 2 --replication-factor 1
           kafka-topics --bootstrap-server kafka-0.kafka.default.svc.cluster.local:29092 --create --if-not-exists --topic ratings --partitions 2 --replication-factor 1
           kafka-topics --bootstrap-server kafka-0.kafka.default.svc.cluster.local:29092 --create --if-not-exists --topic payments --partitions 2 --replication-factor 1
-          kafka-topics --bootstrap-server kafka-0.kafka.default.svc.cluster.local:29092 --create --if-not-exists --topic driver-profiles --partitions 1 --replication-factor 1
-          kafka-topics --bootstrap-server kafka-0.kafka.default.svc.cluster.local:29092 --create --if-not-exists --topic rider-profiles --partitions 1 --replication-factor 1
+          kafka-topics --bootstrap-server kafka-0.kafka.default.svc.cluster.local:29092 --create --if-not-exists --topic driver_profiles --partitions 1 --replication-factor 1
+          kafka-topics --bootstrap-server kafka-0.kafka.default.svc.cluster.local:29092 --create --if-not-exists --topic rider_profiles --partitions 1 --replication-factor 1
           echo 'Kafka topics created successfully'
           kafka-topics --bootstrap-server kafka-0.kafka.default.svc.cluster.local:29092 --list

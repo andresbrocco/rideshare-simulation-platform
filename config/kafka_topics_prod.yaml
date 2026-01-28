@@ -29,7 +29,7 @@ topics:
 
   # GPS pings - highest volume topic, partitioned by entity_id
   # 32 partitions for maximum parallelism on ping processing
-  - name: gps-pings
+  - name: gps_pings
     partitions: 32
     replication_factor: 3
     partition_key: entity_id
@@ -38,7 +38,7 @@ topics:
       cleanup.policy: delete
 
   # Driver status changes - ordered by driver_id
-  - name: driver-status
+  - name: driver_status
     partitions: 8
     replication_factor: 3
     partition_key: driver_id
@@ -47,7 +47,7 @@ topics:
       cleanup.policy: delete
 
   # Surge pricing updates - ordered by zone_id
-  - name: surge-updates
+  - name: surge_updates
     partitions: 8
     replication_factor: 3
     partition_key: zone_id
@@ -74,7 +74,7 @@ topics:
       cleanup.policy: delete
 
   # Driver profiles - SCD Type 2 updates, ordered by driver_id
-  - name: driver-profiles
+  - name: driver_profiles
     partitions: 4
     replication_factor: 3
     partition_key: driver_id
@@ -83,7 +83,7 @@ topics:
       cleanup.policy: delete
 
   # Rider profiles - SCD Type 2 updates, ordered by rider_id
-  - name: rider-profiles
+  - name: rider_profiles
     partitions: 4
     replication_factor: 3
     partition_key: rider_id

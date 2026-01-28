@@ -14,11 +14,11 @@ FAILED=0
 TOTAL=2
 
 # Consolidated streaming jobs (as of 2026-01-26):
-# - high_volume_streaming_job.py: handles gps-pings topic (high throughput)
-# - low_volume_streaming_job.py: handles 7 other topics (trips, driver-status, etc.)
+# - bronze_ingestion_high_volume.py: handles gps_pings topic (high throughput)
+# - bronze_ingestion_low_volume.py: handles 7 other topics (trips, driver_status, etc.)
 STREAMING_JOBS=(
-    "high_volume_streaming_job.py"
-    "low_volume_streaming_job.py"
+    "bronze_ingestion_high_volume.py"
+    "bronze_ingestion_low_volume.py"
 )
 
 echo "======================================"

@@ -14,7 +14,7 @@ Bridges Kafka event streams to Redis pub/sub channels for real-time frontend vis
 
 **Windowed Aggregation**: GPS pings are buffered in time windows (default 100ms) and aggregated before publishing. Two strategies exist: "latest" keeps only the most recent ping per entity, "sample" emits every Nth ping. This reduces message rates from hundreds per second to manageable levels for the frontend.
 
-**Handler Routing**: Each Kafka topic maps to a specific handler (gps-pings → GPSHandler, trips → TripHandler). Handlers are either pass-through (immediate Redis publish) or windowed (buffer and flush on timer). The `is_windowed` property determines flushing behavior.
+**Handler Routing**: Each Kafka topic maps to a specific handler (gps_pings → GPSHandler, trips → TripHandler). Handlers are either pass-through (immediate Redis publish) or windowed (buffer and flush on timer). The `is_windowed` property determines flushing behavior.
 
 **Event Deduplication**: Uses Redis SET NX with TTL to track processed event_id values. Atomic operation prevents duplicate processing across restarts or rebalances.
 
@@ -28,4 +28,4 @@ Topic subscription happens eagerly but partition assignment is asynchronous. The
 
 GPS aggregation state is cleared on each window flush. Metrics track aggregation ratios (messages received / messages emitted) to quantify bandwidth reduction.
 
-Profile events (driver-profiles, rider-profiles) are always enabled regardless of feature flags to ensure real-time agent visibility.
+Profile events (driver_profiles, rider_profiles) are always enabled regardless of feature flags to ensure real-time agent visibility.

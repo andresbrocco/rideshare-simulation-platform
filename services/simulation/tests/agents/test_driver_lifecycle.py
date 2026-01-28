@@ -48,7 +48,7 @@ class TestDriverShiftLifecycle:
         calls = [
             call
             for call in mock_kafka_producer.produce.call_args_list
-            if call.kwargs.get("topic") == "driver-status"
+            if call.kwargs.get("topic") == "driver_status"
         ]
         assert len(calls) > 0
 
@@ -156,7 +156,7 @@ class TestDriverShiftLifecycle:
         status_calls = [
             call
             for call in mock_kafka_producer.produce.call_args_list
-            if call.kwargs.get("topic") == "driver-status"
+            if call.kwargs.get("topic") == "driver_status"
         ]
 
         online_events = [
@@ -226,7 +226,7 @@ class TestDriverShiftLifecycle:
         status_calls = [
             call
             for call in mock_kafka_producer.produce.call_args_list
-            if call.kwargs.get("topic") == "driver-status"
+            if call.kwargs.get("topic") == "driver_status"
         ]
         assert len(status_calls) > 0
 
@@ -259,7 +259,7 @@ class TestDriverShiftLifecycle:
         status_calls = [
             call
             for call in mock_kafka_producer.produce.call_args_list
-            if call.kwargs.get("topic") == "driver-status"
+            if call.kwargs.get("topic") == "driver_status"
         ]
 
         offline_events = [
@@ -413,7 +413,7 @@ class TestDriverShiftLifecycle:
         status_calls = [
             call
             for call in mock_kafka_producer.produce.call_args_list
-            if call.kwargs.get("topic") == "driver-status"
+            if call.kwargs.get("topic") == "driver_status"
         ]
 
         # Flexible driver should go online at some point

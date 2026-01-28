@@ -12,7 +12,7 @@ Provides a Template Method base class for all Spark Structured Streaming jobs th
 
 ## Key Concepts
 
-**Template Method Pattern**: `BaseStreamingJob` implements the full streaming pipeline in `start()`, calling abstract methods (`topic_name`, `bronze_table_path`, `process_batch`) that subclasses must define. `MultiTopicStreamingJob` extends this for consolidated jobs that subscribe to multiple topics. Two job classes (`HighVolumeStreamingJob` for gps-pings, `LowVolumeStreamingJob` for 7 other topics) use the multi-topic framework. This ensures all jobs follow the same Kafka→Delta flow while customizing data handling.
+**Template Method Pattern**: `BaseStreamingJob` implements the full streaming pipeline in `start()`, calling abstract methods (`topic_name`, `bronze_table_path`, `process_batch`) that subclasses must define. `MultiTopicStreamingJob` extends this for consolidated jobs that subscribe to multiple topics. Two job classes (`BronzeIngestionHighVolume` for gps_pings, `BronzeIngestionLowVolume` for 7 other topics) use the multi-topic framework. This ensures all jobs follow the same Kafka→Delta flow while customizing data handling.
 
 **Dual-Write Pattern**: The `start()` method configures `foreachBatch(self.process_batch)` but writes to `self.bronze_table_path`. Subclasses implement `process_batch()` to manually write batches (usually for partitioning), creating a potential double-write scenario. The framework expects subclasses to either write inside `process_batch()` OR rely on the outer writeStream target, not both.
 

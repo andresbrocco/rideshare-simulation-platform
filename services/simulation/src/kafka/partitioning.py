@@ -9,13 +9,13 @@ from typing import Any
 
 PARTITION_KEY_MAPPING = {
     "trips": "trip_id",
-    "gps-pings": "entity_id",
-    "driver-status": "driver_id",
-    "surge-updates": "zone_id",
+    "gps_pings": "entity_id",
+    "driver_status": "driver_id",
+    "surge_updates": "zone_id",
     "ratings": "trip_id",
     "payments": "trip_id",
-    "driver-profiles": "driver_id",
-    "rider-profiles": "rider_id",
+    "driver_profiles": "driver_id",
+    "rider_profiles": "rider_id",
 }
 
 

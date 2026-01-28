@@ -37,12 +37,12 @@ class StreamProcessor:
 
     # Topic to handler mapping
     TOPIC_HANDLERS = {
-        "gps-pings": "gps",
+        "gps_pings": "gps",
         "trips": "trips",
-        "driver-status": "driver_status",
-        "surge-updates": "surge",
-        "driver-profiles": "driver_profile",
-        "rider-profiles": "rider_profile",
+        "driver_status": "driver_status",
+        "surge_updates": "surge",
+        "driver_profiles": "driver_profile",
+        "rider_profiles": "rider_profile",
         "ratings": "rating",
     }
 
@@ -163,17 +163,17 @@ class StreamProcessor:
         topics = []
 
         if proc_settings.gps_enabled:
-            topics.append("gps-pings")
+            topics.append("gps_pings")
         if proc_settings.trips_enabled:
             topics.append("trips")
         if proc_settings.driver_status_enabled:
-            topics.append("driver-status")
+            topics.append("driver_status")
         if proc_settings.surge_enabled:
-            topics.append("surge-updates")
+            topics.append("surge_updates")
 
         # Profile topics are always enabled for real-time agent visibility
-        topics.append("driver-profiles")
-        topics.append("rider-profiles")
+        topics.append("driver_profiles")
+        topics.append("rider_profiles")
 
         # Rating topic is always enabled for real-time rating updates
         topics.append("ratings")

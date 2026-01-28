@@ -24,7 +24,7 @@ Bronze layer ingestion service that consumes events from Kafka topics and writes
 
 ## Non-Obvious Details
 
-Jobs run as consolidated Docker containers (2 containers by volume tier: high-volume for gps-pings, low-volume for 7 other topics), each with its own Spark session in local mode (no central cluster). This reduces memory footprint from ~6.1GB to ~1.5GB. The framework enforces partition-by-date strategy for high-volume topics (gps-pings, trips) to enable efficient downstream queries. Error handler creates DLQRecord objects but actual persistence happens via DLQHandler.write_to_dlq. Jobs can be executed standalone via __main__ block or orchestrated by Airflow/Databricks workflows.
+Jobs run as consolidated Docker containers (2 containers by volume tier: high-volume for gps_pings, low-volume for 7 other topics), each with its own Spark session in local mode (no central cluster). This reduces memory footprint from ~6.1GB to ~1.5GB. The framework enforces partition-by-date strategy for high-volume topics (gps_pings, trips) to enable efficient downstream queries. Error handler creates DLQRecord objects but actual persistence happens via DLQHandler.write_to_dlq. Jobs can be executed standalone via __main__ block or orchestrated by Airflow/Databricks workflows.
 
 ## Related Modules
 

@@ -93,7 +93,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "kafka_consumer_lag{topic=~\"trips|gps-pings|driver-status|surge-updates|ratings|payments\"}",
+          "expr": "kafka_consumer_lag{topic=~\"trips|gps_pings|driver_status|surge_updates|ratings|payments\"}",
           "refId": "A"
         }
       ],
@@ -417,7 +417,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "kafka_log_size{topic=~\"trips|gps-pings|driver-status|surge-updates|ratings|payments\"}",
+          "expr": "kafka_log_size{topic=~\"trips|gps_pings|driver_status|surge_updates|ratings|payments\"}",
           "refId": "A"
         }
       ],

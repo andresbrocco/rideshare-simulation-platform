@@ -156,7 +156,7 @@ class TestDriverEventEmission:
         mock_kafka_producer.produce.assert_called_once()
         call_args = mock_kafka_producer.produce.call_args
 
-        assert call_args.kwargs["topic"] == "driver-status"
+        assert call_args.kwargs["topic"] == "driver_status"
         assert call_args.kwargs["key"] == "driver_001"
 
         # Parse the event payload

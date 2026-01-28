@@ -332,7 +332,7 @@ dbt run --target prod
 
 DBT transformations are orchestrated by two Airflow DAGs:
 
-**Silver Layer (`dbt_transformation` DAG)**
+**Silver Layer (`dbt_silver_transformation` DAG)**
 - Schedule: `@hourly`
 - Models: Staging models with incremental merge strategy
 - Tests: Run after staging models complete

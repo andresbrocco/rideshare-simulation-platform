@@ -26,7 +26,7 @@ docker compose -f infrastructure/docker/compose.yml --profile core down
 | Profile | Services | Use Case |
 |---------|----------|----------|
 | `core` | kafka, schema-registry, redis, osrm, simulation, stream-processor, frontend | Main simulation runtime |
-| `data-pipeline` | kafka, schema-registry, minio, spark-thrift-server, spark-streaming-*, localstack, airflow | ETL and data engineering |
+| `data-pipeline` | kafka, schema-registry, minio, spark-thrift-server, bronze-ingestion-*, localstack, airflow | ETL and data engineering |
 | `monitoring` | prometheus, cadvisor, grafana | Observability and metrics |
 | `analytics` | superset, postgres-superset, redis-superset | Business intelligence dashboards |
 
@@ -179,7 +179,7 @@ docker exec rideshare-kafka kafka-console-consumer \
 # Consume messages (live)
 docker exec rideshare-kafka kafka-console-consumer \
   --bootstrap-server localhost:9092 \
-  --topic gps-pings
+  --topic gps_pings
 
 # Check consumer group lag
 docker exec rideshare-kafka kafka-consumer-groups \
@@ -287,8 +287,8 @@ docker compose -f infrastructure/docker/compose.yml --profile data-pipeline rest
 Check streaming job logs:
 
 ```bash
-docker logs rideshare-spark-streaming-high-volume --tail 100
-docker logs rideshare-spark-streaming-low-volume --tail 100
+docker logs rideshare-bronze-ingestion-high-volume --tail 100
+docker logs rideshare-bronze-ingestion-low-volume --tail 100
 ```
 
 Common issues:

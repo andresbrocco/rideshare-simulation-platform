@@ -41,8 +41,8 @@ class MultiTopicStreamingJob(BaseStreamingJob):
 
         Default implementation converts topic name to Bronze table path:
         - "trips" -> "s3a://rideshare-bronze/bronze_trips/"
-        - "gps-pings" -> "s3a://rideshare-bronze/bronze_gps_pings/"
-        - "driver-status" -> "s3a://rideshare-bronze/bronze_driver_status/"
+        - "gps_pings" -> "s3a://rideshare-bronze/bronze_gps_pings/"
+        - "driver_status" -> "s3a://rideshare-bronze/bronze_driver_status/"
 
         Args:
             topic: Kafka topic name

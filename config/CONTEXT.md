@@ -14,15 +14,15 @@ Environment-specific Kafka topic configurations that define partitioning strateg
 
 **Partition Key Strategy**: Each topic uses a specific field as partition key to guarantee ordering for related events. Examples: `trip_id` ensures all trip state changes arrive in order, `entity_id` preserves chronological GPS tracks, `zone_id` orders surge updates per zone.
 
-**Environment Scaling**: Development uses lower partition counts (1-8) for local testing overhead reduction. Production uses higher counts (4-32) for consumer parallelism, with `gps-pings` at 32 partitions due to highest volume.
+**Environment Scaling**: Development uses lower partition counts (1-8) for local testing overhead reduction. Production uses higher counts (4-32) for consumer parallelism, with `gps_pings` at 32 partitions due to highest volume.
 
 **Retention Policy**: All topics use time-based deletion (7 days dev, 30 days prod) rather than compaction, appropriate for event streaming workload.
 
 ## Non-Obvious Details
 
-Maximum consumer parallelism is limited by partition count. A consumer group cannot have more active consumers than partitions, so partition counts must be planned based on expected scaling needs (e.g., 32 partitions allows up to 32 parallel `gps-pings` consumers).
+Maximum consumer parallelism is limited by partition count. A consumer group cannot have more active consumers than partitions, so partition counts must be planned based on expected scaling needs (e.g., 32 partitions allows up to 32 parallel `gps_pings` consumers).
 
-Profile topics (`driver-profiles`, `rider-profiles`) use SCD Type 2 semantics where partition key ordering maintains version history for each entity.
+Profile topics (`driver_profiles`, `rider_profiles`) use SCD Type 2 semantics where partition key ordering maintains version history for each entity.
 
 ## Related Modules
 

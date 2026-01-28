@@ -48,11 +48,11 @@ except ImportError:
 
 
 # Streaming job configurations (consolidated as of 2026-01-26)
-# - high_volume: handles gps-pings topic (high throughput, needs isolation)
-# - low_volume: handles 7 other topics (trips, driver-status, surge-updates, etc.)
+# - high_volume: handles gps_pings topic (high throughput, needs isolation)
+# - low_volume: handles 7 other topics (trips, driver_status, surge_updates, etc.)
 STREAMING_JOBS = [
-    {"name": "high_volume", "file": "high_volume_streaming_job.py"},
-    {"name": "low_volume", "file": "low_volume_streaming_job.py"},
+    {"name": "high_volume", "file": "bronze_ingestion_high_volume.py"},
+    {"name": "low_volume", "file": "bronze_ingestion_low_volume.py"},
 ]
 
 default_args = {

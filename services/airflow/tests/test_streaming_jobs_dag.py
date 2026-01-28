@@ -76,7 +76,7 @@ def test_all_jobs_configured(dagbag):
     dag = dagbag.dags["streaming_jobs_lifecycle"]
 
     # Consolidated streaming jobs (as of 2026-01-26):
-    # - high_volume: handles gps-pings topic
+    # - high_volume: handles gps_pings topic
     # - low_volume: handles 7 other topics
     expected_jobs = [
         "high_volume",

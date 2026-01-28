@@ -82,7 +82,7 @@ class SurgePricingCalculator:
                     calculation_window_seconds=self.update_interval_seconds,
                 )
                 self.kafka_producer.produce(
-                    topic="surge-updates", key=zone_id, value=event
+                    topic="surge_updates", key=zone_id, value=event
                 )
 
             self.current_surge[zone_id] = new_multiplier

@@ -1,11 +1,11 @@
-"""Tests for GPS pings streaming via HighVolumeStreamingJob.
+"""Tests for GPS pings streaming via BronzeIngestionHighVolume.
 
 These tests verify:
-1. HighVolumeStreamingJob is properly configured for GPS pings topic
+1. BronzeIngestionHighVolume is properly configured for GPS pings topic
 2. GPS pings Bronze schema has correct field types
 
 Note: Batch processing behavior (topic routing, metadata enrichment, etc.)
-is tested in test_multi_topic_streaming_job.py since HighVolumeStreamingJob
+is tested in test_multi_topic_streaming_job.py since BronzeIngestionHighVolume
 inherits from MultiTopicStreamingJob.
 """
 
@@ -18,13 +18,13 @@ from pyspark.sql.types import (
 )
 
 
-class TestHighVolumeStreamingJobProperties:
-    """Tests for HighVolumeStreamingJob configuration and properties."""
+class TestBronzeIngestionHighVolumeProperties:
+    """Tests for BronzeIngestionHighVolume configuration and properties."""
 
     def test_topic_name_is_gps_pings(self):
-        """Verify HighVolumeStreamingJob subscribes to gps-pings topic."""
-        from spark_streaming.jobs.high_volume_streaming_job import (
-            HighVolumeStreamingJob,
+        """Verify BronzeIngestionHighVolume subscribes to gps_pings topic."""
+        from spark_streaming.jobs.bronze_ingestion_high_volume import (
+            BronzeIngestionHighVolume,
         )
         from spark_streaming.config.kafka_config import KafkaConfig
         from spark_streaming.config.checkpoint_config import CheckpointConfig
@@ -32,26 +32,26 @@ class TestHighVolumeStreamingJobProperties:
 
         mock_spark = MagicMock()
 
-        job = HighVolumeStreamingJob(
+        job = BronzeIngestionHighVolume(
             spark=mock_spark,
             kafka_config=KafkaConfig(
                 bootstrap_servers="kafka:9092",
                 schema_registry_url="http://schema-registry:8085",
             ),
             checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/gps-pings",
+                checkpoint_path="s3a://lakehouse/checkpoints/bronze/gps_pings",
             ),
             error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/gps-pings",
+                dlq_table_path="s3a://lakehouse/bronze/dlq/gps_pings",
             ),
         )
 
-        assert job.topic_names == ["gps-pings"]
+        assert job.topic_names == ["gps_pings"]
 
     def test_bronze_table_path(self):
         """Verify job writes to correct Bronze table path via get_bronze_path."""
-        from spark_streaming.jobs.high_volume_streaming_job import (
-            HighVolumeStreamingJob,
+        from spark_streaming.jobs.bronze_ingestion_high_volume import (
+            BronzeIngestionHighVolume,
         )
         from spark_streaming.config.kafka_config import KafkaConfig
         from spark_streaming.config.checkpoint_config import CheckpointConfig
@@ -59,43 +59,43 @@ class TestHighVolumeStreamingJobProperties:
 
         mock_spark = MagicMock()
 
-        job = HighVolumeStreamingJob(
+        job = BronzeIngestionHighVolume(
             spark=mock_spark,
             kafka_config=KafkaConfig(
                 bootstrap_servers="kafka:9092",
                 schema_registry_url="http://schema-registry:8085",
             ),
             checkpoint_config=CheckpointConfig(
-                checkpoint_path="s3a://lakehouse/checkpoints/bronze/gps-pings",
+                checkpoint_path="s3a://lakehouse/checkpoints/bronze/gps_pings",
             ),
             error_handler=ErrorHandler(
-                dlq_table_path="s3a://lakehouse/bronze/dlq/gps-pings",
+                dlq_table_path="s3a://lakehouse/bronze/dlq/gps_pings",
             ),
         )
 
-        bronze_path = job.get_bronze_path("gps-pings")
+        bronze_path = job.get_bronze_path("gps_pings")
         assert "bronze" in bronze_path.lower()
         assert "gps" in bronze_path.lower()
 
     def test_inherits_from_multi_topic_streaming_job(self):
-        """Verify HighVolumeStreamingJob inherits from MultiTopicStreamingJob."""
-        from spark_streaming.jobs.high_volume_streaming_job import (
-            HighVolumeStreamingJob,
+        """Verify BronzeIngestionHighVolume inherits from MultiTopicStreamingJob."""
+        from spark_streaming.jobs.bronze_ingestion_high_volume import (
+            BronzeIngestionHighVolume,
         )
         from spark_streaming.jobs.multi_topic_streaming_job import (
             MultiTopicStreamingJob,
         )
 
-        assert issubclass(HighVolumeStreamingJob, MultiTopicStreamingJob)
+        assert issubclass(BronzeIngestionHighVolume, MultiTopicStreamingJob)
 
     def test_inherits_from_base_streaming_job(self):
-        """Verify HighVolumeStreamingJob inherits from BaseStreamingJob."""
-        from spark_streaming.jobs.high_volume_streaming_job import (
-            HighVolumeStreamingJob,
+        """Verify BronzeIngestionHighVolume inherits from BaseStreamingJob."""
+        from spark_streaming.jobs.bronze_ingestion_high_volume import (
+            BronzeIngestionHighVolume,
         )
         from spark_streaming.framework.base_streaming_job import BaseStreamingJob
 
-        assert issubclass(HighVolumeStreamingJob, BaseStreamingJob)
+        assert issubclass(BronzeIngestionHighVolume, BaseStreamingJob)
 
 
 class TestGpsPingsBronzeSchema:

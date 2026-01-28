@@ -362,11 +362,11 @@ class TestSurgePricingKafkaOnly:
 
         kafka_calls = mock_kafka_producer.produce.call_args_list
         surge_kafka_calls = [
-            call for call in kafka_calls if call[1].get("topic") == "surge-updates"
+            call for call in kafka_calls if call[1].get("topic") == "surge_updates"
         ]
         assert (
             len(surge_kafka_calls) > 0
-        ), "Surge events should go to surge-updates topic"
+        ), "Surge events should go to surge_updates topic"
 
         # Verify Redis was NOT called for surge updates
         # After the fix, redis_publisher.publish_sync should not be called

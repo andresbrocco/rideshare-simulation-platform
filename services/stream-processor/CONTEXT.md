@@ -13,7 +13,7 @@ Bridges Kafka event streams with Redis pub/sub for real-time frontend visualizat
 ## Key Concepts
 
 **Handler Pattern**: Two types of handlers process different event streams:
-- Pass-through handlers (trips, driver-status, surge, profiles) immediately publish to Redis
+- Pass-through handlers (trips, driver_status, surge, profiles) immediately publish to Redis
 - Windowed handlers (GPS) buffer events and emit aggregated results on flush
 
 **Windowed Aggregation**: GPS pings are aggregated within time windows (default 100ms) to reduce message volume to frontend. Two strategies available:
@@ -23,12 +23,12 @@ Bridges Kafka event streams with Redis pub/sub for real-time frontend visualizat
 **Event Deduplication**: Uses Redis SET NX to atomically track processed event IDs within a TTL window (1 hour), preventing duplicate processing if Kafka messages are redelivered.
 
 **Topic-to-Channel Routing**: Maps Kafka topics to Redis pub/sub channels:
-- gps-pings → driver-updates / rider-updates (based on entity_type)
+- gps_pings → driver-updates / rider-updates (based on entity_type)
 - trips → trip-updates
-- driver-status → driver-updates
-- surge-updates → surge-updates
-- driver-profiles → driver-updates
-- rider-profiles → rider-updates
+- driver_status → driver-updates
+- surge_updates → surge_updates
+- driver_profiles → driver-updates
+- rider_profiles → rider-updates
 
 ## Non-Obvious Details
 

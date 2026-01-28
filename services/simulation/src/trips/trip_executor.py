@@ -63,7 +63,9 @@ class TripExecutor:
 
     def execute(self) -> Generator[simpy.Event]:
         """Execute the full trip flow."""
-        logger.debug("TripExecutor.execute() started", extra={"trip_id": self._trip.trip_id})
+        logger.debug(
+            "TripExecutor.execute() started", extra={"trip_id": self._trip.trip_id}
+        )
         logger.info(f"TripExecutor.execute() started for trip {self._trip.trip_id}")
         try:
             logger.info(f"Trip {self._trip.trip_id}: Starting drive to pickup")
@@ -77,7 +79,9 @@ class TripExecutor:
             yield from self._wait_for_rider()
 
             if self._trip.state == TripState.CANCELLED:
-                logger.info(f"Trip {self._trip.trip_id}: Cancelled while waiting for rider")
+                logger.info(
+                    f"Trip {self._trip.trip_id}: Cancelled while waiting for rider"
+                )
                 return
 
             logger.info(f"Trip {self._trip.trip_id}: Starting trip")
@@ -87,7 +91,9 @@ class TripExecutor:
             yield from self._drive_to_destination()
 
             if self._trip.state == TripState.CANCELLED:
-                logger.info(f"Trip {self._trip.trip_id}: Cancelled during drive to destination")
+                logger.info(
+                    f"Trip {self._trip.trip_id}: Cancelled during drive to destination"
+                )
                 return
 
             logger.info(f"Trip {self._trip.trip_id}: Completing trip")
@@ -142,7 +148,9 @@ class TripExecutor:
         self._rider.on_driver_en_route(self._trip)
 
         duration = route.duration_seconds
-        logger.info(f"Trip {self._trip.trip_id}: Starting simulated drive to pickup ({duration}s)")
+        logger.info(
+            f"Trip {self._trip.trip_id}: Starting simulated drive to pickup ({duration}s)"
+        )
         yield from self._simulate_drive(
             geometry=route.geometry,
             duration=duration,
@@ -210,7 +218,9 @@ class TripExecutor:
 
     def _complete_trip(self) -> Generator[simpy.Event]:
         """Complete trip and emit events."""
-        logger.info(f"Trip {self._trip.trip_id}: _complete_trip - transitioning to COMPLETED")
+        logger.info(
+            f"Trip {self._trip.trip_id}: _complete_trip - transitioning to COMPLETED"
+        )
         self._trip.transition_to(TripState.COMPLETED)
         self._trip.completed_at = datetime.now(UTC)
         self._driver.update_location(*self._trip.dropoff_location)
@@ -246,12 +256,16 @@ class TripExecutor:
         # Rider rates driver (based on driver's service_quality DNA)
         rider_rating = self._rider.submit_rating_for_trip(self._trip, self._driver)
         if rider_rating is not None:
-            logger.debug(f"Trip {self._trip.trip_id}: Rider submitted rating {rider_rating}")
+            logger.debug(
+                f"Trip {self._trip.trip_id}: Rider submitted rating {rider_rating}"
+            )
 
         # Driver rates rider (based on rider's behavior_factor DNA)
         driver_rating = self._driver.submit_rating_for_trip(self._trip, self._rider)
         if driver_rating is not None:
-            logger.debug(f"Trip {self._trip.trip_id}: Driver submitted rating {driver_rating}")
+            logger.debug(
+                f"Trip {self._trip.trip_id}: Driver submitted rating {driver_rating}"
+            )
 
     def _record_completion_stats(self) -> None:
         """Record trip completion statistics for driver and rider."""
@@ -269,7 +283,9 @@ class TripExecutor:
             ).total_seconds()
 
         if self._trip.requested_at and self._trip.matched_at:
-            wait_time_seconds = (self._trip.matched_at - self._trip.requested_at).total_seconds()
+            wait_time_seconds = (
+                self._trip.matched_at - self._trip.requested_at
+            ).total_seconds()
 
         if self._trip.started_at and self._trip.completed_at:
             trip_duration_seconds = (
@@ -395,7 +411,11 @@ class TripExecutor:
         proximity_threshold = self._settings.arrival_proximity_threshold_m
 
         for i in range(num_intervals):
-            if check_rider_cancel and self._rider_cancels_mid_trip and i == num_intervals // 2:
+            if (
+                check_rider_cancel
+                and self._rider_cancels_mid_trip
+                and i == num_intervals // 2
+            ):
                 self._trip.cancel(by="rider", reason="changed_mind", stage="in_transit")
                 self._emit_trip_event("trip.cancelled")
                 self._driver.complete_trip()
@@ -548,7 +568,7 @@ class TripExecutor:
         # Emit to Kafka (source of truth for data pipelines)
         if self._kafka_producer:
             self._kafka_producer.produce(
-                topic="gps-pings",
+                topic="gps_pings",
                 key=entity_id,
                 value=event,
             )

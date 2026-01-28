@@ -82,7 +82,7 @@ def test_driver_creation_event_emitted(
 
     assert mock_kafka_producer.produce.called
     call_args = mock_kafka_producer.produce.call_args
-    assert call_args.kwargs["topic"] == "driver-profiles"
+    assert call_args.kwargs["topic"] == "driver_profiles"
     assert call_args.kwargs["key"] == "driver1"
 
     event_json = call_args.kwargs["value"]
@@ -104,7 +104,7 @@ def test_rider_creation_event_emitted(
 
     assert mock_kafka_producer.produce.called
     call_args = mock_kafka_producer.produce.call_args
-    assert call_args.kwargs["topic"] == "rider-profiles"
+    assert call_args.kwargs["topic"] == "rider_profiles"
     assert call_args.kwargs["key"] == "rider1"
 
     event_json = call_args.kwargs["value"]
@@ -134,7 +134,7 @@ def test_driver_gps_ping_emission(
     produce_calls = [
         call
         for call in mock_kafka_producer.produce.call_args_list
-        if call.kwargs.get("topic") == "gps-pings"
+        if call.kwargs.get("topic") == "gps_pings"
     ]
     assert len(produce_calls) >= 2
 
@@ -168,7 +168,7 @@ def test_rider_gps_ping_emission(rider_dna, mock_kafka_producer, mock_redis_publ
     produce_calls = [
         call
         for call in mock_kafka_producer.produce.call_args_list
-        if call.kwargs.get("topic") == "gps-pings"
+        if call.kwargs.get("topic") == "gps_pings"
     ]
     # Expect at least one GPS ping
     assert len(produce_calls) >= 1
@@ -200,7 +200,7 @@ def test_rider_no_gps_when_offline(
     produce_calls = [
         call
         for call in mock_kafka_producer.produce.call_args_list
-        if call.kwargs.get("topic") == "gps-pings"
+        if call.kwargs.get("topic") == "gps_pings"
     ]
     assert len(produce_calls) == 0
 
@@ -223,7 +223,7 @@ def test_driver_gps_includes_heading_speed(
     produce_calls = [
         call
         for call in mock_kafka_producer.produce.call_args_list
-        if call.kwargs.get("topic") == "gps-pings"
+        if call.kwargs.get("topic") == "gps_pings"
     ]
     assert len(produce_calls) >= 1
 
@@ -254,7 +254,7 @@ def test_rider_gps_stationary_in_trip(
     produce_calls = [
         call
         for call in mock_kafka_producer.produce.call_args_list
-        if call.kwargs.get("topic") == "gps-pings"
+        if call.kwargs.get("topic") == "gps_pings"
     ]
     assert len(produce_calls) >= 1
 
@@ -283,7 +283,7 @@ def test_kafka_partition_key_driver(
     produce_calls = [
         call
         for call in mock_kafka_producer.produce.call_args_list
-        if call.kwargs.get("topic") == "gps-pings"
+        if call.kwargs.get("topic") == "gps_pings"
     ]
 
     for call in produce_calls:
@@ -310,7 +310,7 @@ def test_kafka_partition_key_rider(
     produce_calls = [
         call
         for call in mock_kafka_producer.produce.call_args_list
-        if call.kwargs.get("topic") == "gps-pings"
+        if call.kwargs.get("topic") == "gps_pings"
     ]
 
     for call in produce_calls:

@@ -365,7 +365,7 @@ class TestProximityGPSUpdates:
         gps_calls = [
             call
             for call in mock_kafka_producer.produce.call_args_list
-            if call[1].get("topic") == "gps-pings"
+            if call[1].get("topic") == "gps_pings"
         ]
 
         # Should have GPS pings from both phases

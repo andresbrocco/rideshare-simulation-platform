@@ -24,7 +24,7 @@ Event handlers that consume Kafka messages and transform them into Redis pub/sub
 - `driver-updates`: GPS (drivers), driver status, driver profiles
 - `rider-updates`: GPS (riders), rider profiles
 - `trip-updates`: Trip state changes
-- `surge-updates`: Surge pricing changes
+- `surge_updates`: Surge pricing changes
 
 ## Non-Obvious Details
 

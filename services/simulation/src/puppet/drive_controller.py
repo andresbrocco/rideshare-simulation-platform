@@ -178,7 +178,7 @@ class PuppetDriveController:
         if self._kafka_producer:
             try:
                 self._kafka_producer.produce(
-                    topic="gps-pings",
+                    topic="gps_pings",
                     key=self._driver.driver_id,
                     value=event,
                 )

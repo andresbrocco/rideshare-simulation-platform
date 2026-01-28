@@ -15,7 +15,7 @@ def dagbag():
 
 def test_dag_structure(dagbag):
     """Verify DAG has correct validation tasks."""
-    silver_dag = dagbag.dags["dbt_transformation"]
+    silver_dag = dagbag.dags["dbt_silver_transformation"]
     gold_dag = dagbag.dags["dbt_gold_transformation"]
 
     silver_tasks = {task.task_id for task in silver_dag.tasks}
@@ -28,7 +28,7 @@ def test_dag_structure(dagbag):
 
 def test_soft_failure_handling(dagbag):
     """Verify validation failures don't block pipeline."""
-    silver_dag = dagbag.dags["dbt_transformation"]
+    silver_dag = dagbag.dags["dbt_silver_transformation"]
     gold_dag = dagbag.dags["dbt_gold_transformation"]
 
     silver_tasks = {task.task_id: task for task in silver_dag.tasks}
@@ -54,7 +54,7 @@ def test_soft_failure_handling(dagbag):
 
 def test_task_dependencies(dagbag):
     """Verify GE validation runs after DBT."""
-    silver_dag = dagbag.dags["dbt_transformation"]
+    silver_dag = dagbag.dags["dbt_silver_transformation"]
     silver_tasks = {task.task_id: task for task in silver_dag.tasks}
     silver_validation = silver_tasks["ge_silver_validation"]
 
@@ -71,7 +71,7 @@ def test_task_dependencies(dagbag):
 
 def test_silver_validation_command(dagbag):
     """Verify Silver validation task runs correct checkpoint."""
-    silver_dag = dagbag.dags["dbt_transformation"]
+    silver_dag = dagbag.dags["dbt_silver_transformation"]
     silver_tasks = {task.task_id: task for task in silver_dag.tasks}
     silver_validation = silver_tasks["ge_silver_validation"]
 
@@ -108,7 +108,7 @@ def test_data_docs_generation(dagbag):
 
 def test_ge_working_directory(dagbag):
     """Verify GE tasks run in correct directory."""
-    silver_dag = dagbag.dags["dbt_transformation"]
+    silver_dag = dagbag.dags["dbt_silver_transformation"]
     gold_dag = dagbag.dags["dbt_gold_transformation"]
 
     silver_tasks = {task.task_id: task for task in silver_dag.tasks}
@@ -125,7 +125,7 @@ def test_ge_working_directory(dagbag):
 
 def test_silver_dag_full_pipeline(dagbag):
     """Verify complete Silver pipeline flow."""
-    silver_dag = dagbag.dags["dbt_transformation"]
+    silver_dag = dagbag.dags["dbt_silver_transformation"]
     silver_tasks = {task.task_id: task for task in silver_dag.tasks}
 
     # Verify all required tasks exist

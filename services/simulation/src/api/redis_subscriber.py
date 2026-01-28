@@ -14,7 +14,7 @@ CHANNEL_TO_MESSAGE_TYPE = {
     "driver-updates": "driver_update",
     "rider-updates": "rider_update",
     "trip-updates": "trip_update",
-    "surge-updates": "surge_update",
+    "surge_updates": "surge_update",
 }
 
 
@@ -28,7 +28,7 @@ class RedisSubscriber:
             "driver-updates",
             "rider-updates",
             "trip-updates",
-            "surge-updates",
+            "surge_updates",
         ]
         self.task = None
         self.reconnect_delay = 5
@@ -211,7 +211,7 @@ class RedisSubscriber:
                     ),
                 },
             }
-        elif channel == "surge-updates":
+        elif channel == "surge_updates":
             return {
                 "type": message_type,
                 "data": {

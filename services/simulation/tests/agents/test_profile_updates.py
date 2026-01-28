@@ -298,7 +298,7 @@ class TestPuppetNoProfileUpdates:
         profile_calls = [
             call
             for call in mock_producer.produce.call_args_list
-            if call[1].get("topic") == "driver-profiles"
+            if call[1].get("topic") == "driver_profiles"
         ]
 
         # Puppets should emit 0 profile update events
@@ -331,7 +331,7 @@ class TestPuppetNoProfileUpdates:
         profile_calls = [
             call
             for call in mock_producer.produce.call_args_list
-            if call[1].get("topic") == "rider-profiles"
+            if call[1].get("topic") == "rider_profiles"
         ]
 
         # Puppets should emit 0 profile update events

@@ -30,7 +30,7 @@ data:
   # Stream Processor Configuration
   PROCESSOR_WINDOW_SIZE_MS: "100"
   PROCESSOR_AGGREGATION_STRATEGY: "latest"
-  PROCESSOR_TOPICS: "gps-pings,trips,driver-status,surge-updates"
+  PROCESSOR_TOPICS: "gps_pings,trips,driver_status,surge_updates"
 
   # API Configuration
   API_HOST: "0.0.0.0"

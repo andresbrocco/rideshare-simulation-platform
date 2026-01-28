@@ -101,13 +101,13 @@ class EventEmitter:
         # Map Kafka topics to event types for metrics
         topic_to_event_type = {
             "trips": "trip_event",
-            "gps-pings": "gps_ping",
-            "driver-status": "driver_status",
-            "surge-updates": "surge_update",
+            "gps_pings": "gps_ping",
+            "driver_status": "driver_status",
+            "surge_updates": "surge_update",
             "ratings": "rating",
             "payments": "payment",
-            "driver-profiles": "driver_profile",
-            "rider-profiles": "rider_profile",
+            "driver_profiles": "driver_profile",
+            "rider_profiles": "rider_profile",
         }
         event_type = topic_to_event_type.get(kafka_topic, kafka_topic)
         get_metrics_collector().record_event(event_type)

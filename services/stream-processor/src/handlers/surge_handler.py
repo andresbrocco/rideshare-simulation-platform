@@ -39,7 +39,7 @@ class SurgeHandler(BaseHandler):
             return []
 
         self.messages_processed += 1
-        return [("surge-updates", event)]
+        return [("surge_updates", event)]
 
     def flush(self) -> list[tuple[str, dict]]:
         """No buffering for surge events."""

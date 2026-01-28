@@ -11,13 +11,13 @@ Kafka partitions determine how messages are distributed across a topic. The part
 | Topic | Partition Key | Rationale |
 |-------|---------------|-----------|
 | `trips` | `trip_id` | All events for a trip (requested → completed) are processed in order |
-| `gps-pings` | `entity_id` | Pings for a driver/rider stay chronologically ordered |
-| `driver-status` | `driver_id` | Status transitions for a driver are ordered |
-| `surge-updates` | `zone_id` | Surge changes for a zone are ordered |
+| `gps_pings` | `entity_id` | Pings for a driver/rider stay chronologically ordered |
+| `driver_status` | `driver_id` | Status transitions for a driver are ordered |
+| `surge_updates` | `zone_id` | Surge changes for a zone are ordered |
 | `ratings` | `trip_id` | Groups rider and driver ratings for the same trip |
 | `payments` | `trip_id` | One payment per trip |
-| `driver-profiles` | `driver_id` | Profile updates for a driver are ordered |
-| `rider-profiles` | `rider_id` | Profile updates for a rider are ordered |
+| `driver_profiles` | `driver_id` | Profile updates for a driver are ordered |
+| `rider_profiles` | `rider_id` | Profile updates for a rider are ordered |
 
 ## Ordering Guarantees
 
@@ -28,15 +28,15 @@ All events for a single trip are delivered in order:
 
 Different trips can be processed in parallel.
 
-### gps-pings
+### gps_pings
 
 Pings for a single entity (driver or rider) are chronologically ordered. This ensures GPS track reconstruction is accurate.
 
-### driver-status
+### driver_status
 
 Status transitions for a driver are ordered. Without this, a driver could appear to go offline before going online.
 
-### surge-updates
+### surge_updates
 
 Surge multiplier changes for a zone are ordered. Consumers always see the latest surge value.
 
@@ -56,6 +56,6 @@ Profile updates use SCD Type 2 semantics. Updates for a single driver/rider are 
 
 The number of partitions limits maximum parallelism - a consumer group cannot have more active consumers than partitions. Plan partition counts based on expected consumer parallelism:
 
-- `gps-pings`: High partition count allows many parallel consumers (high volume)
+- `gps_pings`: High partition count allows many parallel consumers (high volume)
 - `trips`: Moderate parallelism
 - Low volume topics: Fewer partitions to reduce overhead

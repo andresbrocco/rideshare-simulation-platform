@@ -27,32 +27,32 @@ class CorruptionType(Enum):
 # Required fields per topic for targeted corruption
 REQUIRED_FIELDS: dict[str, list[str]] = {
     "trips": ["event_id", "event_type", "trip_id", "rider_id", "timestamp"],
-    "gps-pings": ["event_id", "entity_type", "entity_id", "timestamp", "location"],
-    "driver-status": ["event_id", "driver_id", "timestamp", "new_status"],
-    "surge-updates": ["event_id", "zone_id", "timestamp", "new_multiplier"],
+    "gps_pings": ["event_id", "entity_type", "entity_id", "timestamp", "location"],
+    "driver_status": ["event_id", "driver_id", "timestamp", "new_status"],
+    "surge_updates": ["event_id", "zone_id", "timestamp", "new_multiplier"],
     "ratings": ["event_id", "trip_id", "timestamp", "rating"],
     "payments": ["event_id", "payment_id", "trip_id", "timestamp"],
-    "driver-profiles": ["event_id", "driver_id", "timestamp", "first_name"],
-    "rider-profiles": ["event_id", "rider_id", "timestamp", "first_name"],
+    "driver_profiles": ["event_id", "driver_id", "timestamp", "first_name"],
+    "rider_profiles": ["event_id", "rider_id", "timestamp", "first_name"],
 }
 
 # Enum fields per topic for targeted corruption
 ENUM_FIELDS: dict[str, tuple[str, str]] = {
     "trips": ("event_type", "trip.invalid_state"),
-    "gps-pings": ("entity_type", "vehicle"),
-    "driver-status": ("new_status", "sleeping"),
+    "gps_pings": ("entity_type", "vehicle"),
+    "driver_status": ("new_status", "sleeping"),
     "ratings": ("rater_type", "system"),
     "payments": ("payment_method_type", "bitcoin"),
-    "driver-profiles": ("shift_preference", "whenever"),
-    "rider-profiles": ("event_type", "rider.deleted"),
+    "driver_profiles": ("shift_preference", "whenever"),
+    "rider_profiles": ("event_type", "rider.deleted"),
 }
 
 # Numeric fields with out-of-range values per topic
 RANGE_FIELDS: dict[str, tuple[str, float | int]] = {
     "trips": ("fare", -100.0),
-    "gps-pings": ("heading", 500),
+    "gps_pings": ("heading", 500),
     "ratings": ("rating", 10),
-    "surge-updates": ("new_multiplier", -2.0),
+    "surge_updates": ("new_multiplier", -2.0),
     "payments": ("fare_amount", -50.0),
 }
 

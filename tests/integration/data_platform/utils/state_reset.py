@@ -19,13 +19,13 @@ from pyhive import hive
 # Kafka topics to reset
 KAFKA_TOPICS = [
     "trips",
-    "gps-pings",
-    "driver-status",
-    "surge-updates",
+    "gps_pings",
+    "driver_status",
+    "surge_updates",
     "ratings",
     "payments",
-    "driver-profiles",
-    "rider-profiles",
+    "driver_profiles",
+    "rider_profiles",
 ]
 
 # MinIO buckets to clear (bucket, prefix)
@@ -204,7 +204,7 @@ def restart_streaming_containers(project_root: str, action: str = "restart") -> 
         project_root: Path to project root directory
         action: One of "stop", "start", or "restart"
     """
-    containers = ["spark-streaming-high-volume", "spark-streaming-low-volume"]
+    containers = ["bronze-ingestion-high-volume", "bronze-ingestion-low-volume"]
     compose_file = os.path.join(project_root, "infrastructure/docker/compose.yml")
 
     print(f"[state_reset] {action.capitalize()}ing streaming containers: {containers}")

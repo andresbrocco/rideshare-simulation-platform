@@ -157,7 +157,7 @@ class TestTopicAwareCorruption:
         }
         corruptor = DataCorruptor(corruption_rate=1.0)
         corruptor._weights = {CorruptionType.INVALID_ENUM_VALUE: 100}
-        corrupted, _ = corruptor.corrupt(event, "gps-pings")
+        corrupted, _ = corruptor.corrupt(event, "gps_pings")
         parsed = json.loads(corrupted)
         assert parsed["entity_type"] == "vehicle"
 

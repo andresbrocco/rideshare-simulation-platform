@@ -229,13 +229,13 @@ npm run lint
 ### Kafka Topics (8 total)
 
 - trips (4 partitions) - Trip lifecycle events
-- gps-pings (8 partitions) - Driver location updates
-- driver-status (2 partitions) - Driver availability changes
-- surge-updates (2 partitions) - Dynamic pricing per zone
+- gps_pings (8 partitions) - Driver location updates
+- driver_status (2 partitions) - Driver availability changes
+- surge_updates (2 partitions) - Dynamic pricing per zone
 - ratings (2 partitions) - Trip rating events
 - payments (2 partitions) - Payment transaction events
-- driver-profiles (1 partition) - Driver profile changes (SCD Type 2)
-- rider-profiles (1 partition) - Rider profile changes (SCD Type 2)
+- driver_profiles (1 partition) - Driver profile changes (SCD Type 2)
+- rider_profiles (1 partition) - Rider profile changes (SCD Type 2)
 
 ### Surge Pricing
 

@@ -16,7 +16,7 @@ This module defines the autonomous actors in the rideshare simulation: drivers a
 
 **Agent Lifecycle Modes**: Three operational modes - Normal (shift-based autonomy following DNA patterns), Immediate (goes online immediately for testing), Puppet (manually controlled via API with no autonomous behavior). Puppet mode only emits GPS pings and responds to external commands.
 
-**Event Flow Architecture**: Agents publish all events exclusively to Kafka topics (trips, gps-pings, driver-status, ratings, driver-profiles, rider-profiles). The separate stream-processor service consumes from Kafka and publishes to Redis pub/sub channels for WebSocket delivery to frontend. No direct Redis publishing from agents eliminates duplicate events.
+**Event Flow Architecture**: Agents publish all events exclusively to Kafka topics (trips, gps_pings, driver_status, ratings, driver_profiles, rider_profiles). The separate stream-processor service consumes from Kafka and publishes to Redis pub/sub channels for WebSocket delivery to frontend. No direct Redis publishing from agents eliminates duplicate events.
 
 **Statistics vs Persistence**: Statistics dataclasses track session-only metrics (trips_completed, total_earnings, offers_received) that reset on simulation restart. Persistence layer (repositories) maintains durable state (location, active_trip, current_rating) that survives checkpoints. Statistics are never persisted to database.
 

@@ -15,14 +15,14 @@ def dagbag():
 
 def test_dag_loaded(dagbag):
     """Verify DBT transformation DAGs are loaded without errors."""
-    assert "dbt_transformation" in dagbag.dags
+    assert "dbt_silver_transformation" in dagbag.dags
     assert "dbt_gold_transformation" in dagbag.dags
     assert len(dagbag.import_errors) == 0
 
 
 def test_dbt_silver_dag_structure(dagbag):
     """Verify Silver DAG has correct tasks and dependencies."""
-    dag = dagbag.dags["dbt_transformation"]
+    dag = dagbag.dags["dbt_silver_transformation"]
     assert dag is not None
 
     tasks = {task.task_id: task for task in dag.tasks}
@@ -41,7 +41,7 @@ def test_dbt_silver_dag_structure(dagbag):
 
 def test_dbt_silver_command(dagbag):
     """Verify DBT Silver run command includes tag:silver."""
-    dag = dagbag.dags["dbt_transformation"]
+    dag = dagbag.dags["dbt_silver_transformation"]
     tasks = {task.task_id: task for task in dag.tasks}
     silver_run_task = tasks["dbt_silver_run"]
 
@@ -109,7 +109,7 @@ def test_dbt_gold_aggregates_command(dagbag):
 
 def test_schedule_hourly(dagbag):
     """Verify Silver DAG runs hourly."""
-    dag = dagbag.dags["dbt_transformation"]
+    dag = dagbag.dags["dbt_silver_transformation"]
     assert dag.schedule == "@hourly" or dag.schedule_interval == "@hourly"
 
 
@@ -121,7 +121,7 @@ def test_schedule_daily(dagbag):
 
 def test_no_catchup(dagbag):
     """Verify DAGs don't catch up on past runs."""
-    silver_dag = dagbag.dags["dbt_transformation"]
+    silver_dag = dagbag.dags["dbt_silver_transformation"]
     gold_dag = dagbag.dags["dbt_gold_transformation"]
 
     assert silver_dag.catchup is False
@@ -130,7 +130,7 @@ def test_no_catchup(dagbag):
 
 def test_failure_callback(dagbag):
     """Verify failure alerting configured via default_args."""
-    silver_dag = dagbag.dags["dbt_transformation"]
+    silver_dag = dagbag.dags["dbt_silver_transformation"]
     gold_dag = dagbag.dags["dbt_gold_transformation"]
 
     assert hasattr(silver_dag, "default_args")

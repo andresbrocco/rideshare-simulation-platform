@@ -206,11 +206,11 @@ class TestMultiTopicStreamingJob:
         """Verify topic-to-bronze-path mapping handles hyphens."""
         job = create_test_job()
         assert (
-            job.get_bronze_path("gps-pings")
+            job.get_bronze_path("gps_pings")
             == "s3a://rideshare-bronze/bronze_gps_pings/"
         )
         assert (
-            job.get_bronze_path("driver-status")
+            job.get_bronze_path("driver_status")
             == "s3a://rideshare-bronze/bronze_driver_status/"
         )
 

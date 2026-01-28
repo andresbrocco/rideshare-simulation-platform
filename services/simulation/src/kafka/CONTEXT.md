@@ -16,7 +16,7 @@ Event publishing abstraction for streaming simulation events to Kafka with schem
 
 **Graceful Degradation**: If schema validation fails, events are published as raw JSON with warning logs rather than dropped. SerializerRegistry can be disabled to bypass schema validation entirely when Schema Registry is unavailable.
 
-**Partitioning Strategy**: Each topic uses a specific field as partition key to guarantee ordering (trips by trip_id, gps-pings by entity_id, driver-status by driver_id, surge-updates by zone_id). Partition key is extracted from message payload via PARTITION_KEY_MAPPING.
+**Partitioning Strategy**: Each topic uses a specific field as partition key to guarantee ordering (trips by trip_id, gps_pings by entity_id, driver_status by driver_id, surge_updates by zone_id). Partition key is extracted from message payload via PARTITION_KEY_MAPPING.
 
 **Data Corruption**: Optional malformed event injection via MALFORMED_EVENT_RATE environment variable. Supports 9 corruption types weighted by severity (schema violations 60%, format violations 40%) to test Bronze layer DLQ handling. Corruption types include missing fields, wrong data types, invalid enums, malformed JSON, truncated payloads.
 

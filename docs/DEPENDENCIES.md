@@ -102,8 +102,8 @@ Internal module structure within `services/simulation/src/`:
 - Uses `subprefecture_config.json` for demand parameters and surge sensitivity
 
 #### services/stream-processor → Redis pub/sub
-- Consumes from Kafka topics: `gps-pings`, `trips`, `driver-status`, `surge-updates`
-- Publishes to Redis channels: `driver-updates`, `rider-updates`, `trip-updates`, `surge-updates`
+- Consumes from Kafka topics: `gps_pings`, `trips`, `driver_status`, `surge_updates`
+- Publishes to Redis channels: `driver-updates`, `rider-updates`, `trip-updates`, `surge_updates`
 - Aggregation window: 100ms batching for GPS updates
 
 #### services/spark-streaming → schemas/lakehouse

@@ -1,7 +1,7 @@
 """Integration tests for the consolidated Bronze streaming jobs.
 
-These tests verify that the two consolidated streaming jobs (HighVolumeStreamingJob
-and LowVolumeStreamingJob) correctly cover all eight Kafka topics and properly
+These tests verify that the two consolidated streaming jobs (BronzeIngestionHighVolume
+and BronzeIngestionLowVolume) correctly cover all eight Kafka topics and properly
 route events to their respective Bronze Delta tables.
 """
 
@@ -9,8 +9,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from spark_streaming.jobs.high_volume_streaming_job import HighVolumeStreamingJob
-from spark_streaming.jobs.low_volume_streaming_job import LowVolumeStreamingJob
+from spark_streaming.jobs.bronze_ingestion_high_volume import BronzeIngestionHighVolume
+from spark_streaming.jobs.bronze_ingestion_low_volume import BronzeIngestionLowVolume
 from spark_streaming.framework.base_streaming_job import BaseStreamingJob
 from spark_streaming.config.kafka_config import KafkaConfig
 from spark_streaming.config.checkpoint_config import CheckpointConfig
@@ -43,21 +43,21 @@ def mock_spark():
 
 @pytest.fixture
 def high_volume_job(mock_spark):
-    """Create a HighVolumeStreamingJob instance for testing."""
-    return HighVolumeStreamingJob(
+    """Create a BronzeIngestionHighVolume instance for testing."""
+    return BronzeIngestionHighVolume(
         spark=mock_spark,
         kafka_config=create_kafka_config(),
         checkpoint_config=create_checkpoint_config(
-            "s3a://lakehouse/checkpoints/bronze/gps-pings"
+            "s3a://lakehouse/checkpoints/bronze/gps_pings"
         ),
-        error_handler=create_error_handler("s3a://lakehouse/bronze/dlq/gps-pings"),
+        error_handler=create_error_handler("s3a://lakehouse/bronze/dlq/gps_pings"),
     )
 
 
 @pytest.fixture
 def low_volume_job(mock_spark):
-    """Create a LowVolumeStreamingJob instance for testing."""
-    return LowVolumeStreamingJob(
+    """Create a BronzeIngestionLowVolume instance for testing."""
+    return BronzeIngestionLowVolume(
         spark=mock_spark,
         kafka_config=create_kafka_config(),
         checkpoint_config=create_checkpoint_config(
@@ -75,19 +75,19 @@ class TestAllTopicsCoverage:
         """Verify all eight topics are covered by the two consolidated jobs.
 
         The platform has 8 Kafka topics that must be ingested to Bronze:
-        - gps-pings (high volume, handled by HighVolumeStreamingJob)
-        - trips, driver-status, surge-updates, ratings, payments,
-          driver-profiles, rider-profiles (low volume, handled by LowVolumeStreamingJob)
+        - gps_pings (high volume, handled by BronzeIngestionHighVolume)
+        - trips, driver_status, surge_updates, ratings, payments,
+          driver_profiles, rider_profiles (low volume, handled by BronzeIngestionLowVolume)
         """
         expected_all_topics = {
-            "gps-pings",
+            "gps_pings",
             "trips",
-            "driver-status",
-            "surge-updates",
+            "driver_status",
+            "surge_updates",
             "ratings",
             "payments",
-            "driver-profiles",
-            "rider-profiles",
+            "driver_profiles",
+            "rider_profiles",
         }
 
         high_volume_topics = set(high_volume_job.topic_names)
@@ -107,19 +107,19 @@ class TestAllTopicsCoverage:
         )
 
     def test_high_volume_job_handles_gps_pings_only(self, high_volume_job):
-        """Verify HighVolumeStreamingJob only handles gps-pings topic."""
-        assert high_volume_job.topic_names == ["gps-pings"]
+        """Verify BronzeIngestionHighVolume only handles gps_pings topic."""
+        assert high_volume_job.topic_names == ["gps_pings"]
 
     def test_low_volume_job_handles_seven_topics(self, low_volume_job):
-        """Verify LowVolumeStreamingJob handles exactly 7 topics."""
+        """Verify BronzeIngestionLowVolume handles exactly 7 topics."""
         expected_topics = [
             "trips",
-            "driver-status",
-            "surge-updates",
+            "driver_status",
+            "surge_updates",
             "ratings",
             "payments",
-            "driver-profiles",
-            "rider-profiles",
+            "driver_profiles",
+            "rider_profiles",
         ]
         assert low_volume_job.topic_names == expected_topics
         assert len(low_volume_job.topic_names) == 7
@@ -130,8 +130,8 @@ class TestBronzePathRouting:
     """Tests verifying Bronze paths work correctly via get_bronze_path()."""
 
     def test_high_volume_bronze_path(self, high_volume_job):
-        """Verify get_bronze_path returns correct path for gps-pings."""
-        bronze_path = high_volume_job.get_bronze_path("gps-pings")
+        """Verify get_bronze_path returns correct path for gps_pings."""
+        bronze_path = high_volume_job.get_bronze_path("gps_pings")
         assert bronze_path == "s3a://rideshare-bronze/bronze_gps_pings/"
         assert "bronze" in bronze_path.lower()
 
@@ -139,12 +139,12 @@ class TestBronzePathRouting:
         """Verify get_bronze_path returns correct paths for all low-volume topics."""
         expected_paths = {
             "trips": "s3a://rideshare-bronze/bronze_trips/",
-            "driver-status": "s3a://rideshare-bronze/bronze_driver_status/",
-            "surge-updates": "s3a://rideshare-bronze/bronze_surge_updates/",
+            "driver_status": "s3a://rideshare-bronze/bronze_driver_status/",
+            "surge_updates": "s3a://rideshare-bronze/bronze_surge_updates/",
             "ratings": "s3a://rideshare-bronze/bronze_ratings/",
             "payments": "s3a://rideshare-bronze/bronze_payments/",
-            "driver-profiles": "s3a://rideshare-bronze/bronze_driver_profiles/",
-            "rider-profiles": "s3a://rideshare-bronze/bronze_rider_profiles/",
+            "driver_profiles": "s3a://rideshare-bronze/bronze_driver_profiles/",
+            "rider_profiles": "s3a://rideshare-bronze/bronze_rider_profiles/",
         }
 
         for topic, expected_path in expected_paths.items():
@@ -157,11 +157,11 @@ class TestBronzePathRouting:
     def test_bronze_paths_convert_hyphens_to_underscores(self, low_volume_job):
         """Verify hyphens in topic names are converted to underscores in paths."""
         hyphenated_topics = [
-            "gps-pings",
-            "driver-status",
-            "surge-updates",
-            "driver-profiles",
-            "rider-profiles",
+            "gps_pings",
+            "driver_status",
+            "surge_updates",
+            "driver_profiles",
+            "rider_profiles",
         ]
 
         for topic in hyphenated_topics:
@@ -176,12 +176,12 @@ class TestJobInheritance:
     """Tests verifying both jobs inherit from BaseStreamingJob."""
 
     def test_high_volume_job_inherits_from_base(self):
-        """Verify HighVolumeStreamingJob inherits from BaseStreamingJob."""
-        assert issubclass(HighVolumeStreamingJob, BaseStreamingJob)
+        """Verify BronzeIngestionHighVolume inherits from BaseStreamingJob."""
+        assert issubclass(BronzeIngestionHighVolume, BaseStreamingJob)
 
     def test_low_volume_job_inherits_from_base(self):
-        """Verify LowVolumeStreamingJob inherits from BaseStreamingJob."""
-        assert issubclass(LowVolumeStreamingJob, BaseStreamingJob)
+        """Verify BronzeIngestionLowVolume inherits from BaseStreamingJob."""
+        assert issubclass(BronzeIngestionLowVolume, BaseStreamingJob)
 
     def test_both_jobs_have_required_properties(self, high_volume_job, low_volume_job):
         """Verify both jobs have required BaseStreamingJob properties."""
@@ -204,11 +204,11 @@ class TestPartitionConfiguration:
     """Tests verifying partition configuration for Bronze tables."""
 
     def test_high_volume_job_partition_columns(self, high_volume_job):
-        """Verify HighVolumeStreamingJob uses _ingestion_date partitioning."""
+        """Verify BronzeIngestionHighVolume uses _ingestion_date partitioning."""
         assert high_volume_job.partition_columns == ["_ingestion_date"]
 
     def test_low_volume_job_partition_columns(self, low_volume_job):
-        """Verify LowVolumeStreamingJob uses _ingestion_date partitioning."""
+        """Verify BronzeIngestionLowVolume uses _ingestion_date partitioning."""
         assert low_volume_job.partition_columns == ["_ingestion_date"]
 
 
@@ -217,7 +217,7 @@ class TestProcessBatchEmptyDataFrame:
     """Tests verifying process_batch handles empty DataFrames correctly."""
 
     def test_high_volume_job_empty_batch(self, high_volume_job):
-        """Verify HighVolumeStreamingJob handles empty batch gracefully."""
+        """Verify BronzeIngestionHighVolume handles empty batch gracefully."""
         mock_df = MagicMock()
         mock_df.count.return_value = 0
 
@@ -227,7 +227,7 @@ class TestProcessBatchEmptyDataFrame:
         mock_df.filter.assert_not_called()
 
     def test_low_volume_job_empty_batch(self, low_volume_job):
-        """Verify LowVolumeStreamingJob handles empty batch gracefully."""
+        """Verify BronzeIngestionLowVolume handles empty batch gracefully."""
         mock_df = MagicMock()
         mock_df.count.return_value = 0
 
@@ -242,31 +242,31 @@ class TestImportPaths:
     """Tests verifying correct import paths for the consolidated jobs."""
 
     def test_high_volume_job_import_from_jobs_module(self):
-        """Verify HighVolumeStreamingJob can be imported from jobs module."""
-        from spark_streaming.jobs import HighVolumeStreamingJob as ImportedJob
+        """Verify BronzeIngestionHighVolume can be imported from jobs module."""
+        from spark_streaming.jobs import BronzeIngestionHighVolume as ImportedJob
 
         assert ImportedJob is not None
-        assert ImportedJob is HighVolumeStreamingJob
+        assert ImportedJob is BronzeIngestionHighVolume
 
     def test_low_volume_job_import_from_jobs_module(self):
-        """Verify LowVolumeStreamingJob can be imported from jobs module."""
-        from spark_streaming.jobs import LowVolumeStreamingJob as ImportedJob
+        """Verify BronzeIngestionLowVolume can be imported from jobs module."""
+        from spark_streaming.jobs import BronzeIngestionLowVolume as ImportedJob
 
         assert ImportedJob is not None
-        assert ImportedJob is LowVolumeStreamingJob
+        assert ImportedJob is BronzeIngestionLowVolume
 
     def test_direct_import_high_volume(self):
-        """Verify direct import of HighVolumeStreamingJob works."""
-        from spark_streaming.jobs.high_volume_streaming_job import (
-            HighVolumeStreamingJob as DirectImport,
+        """Verify direct import of BronzeIngestionHighVolume works."""
+        from spark_streaming.jobs.bronze_ingestion_high_volume import (
+            BronzeIngestionHighVolume as DirectImport,
         )
 
         assert DirectImport is not None
 
     def test_direct_import_low_volume(self):
-        """Verify direct import of LowVolumeStreamingJob works."""
-        from spark_streaming.jobs.low_volume_streaming_job import (
-            LowVolumeStreamingJob as DirectImport,
+        """Verify direct import of BronzeIngestionLowVolume works."""
+        from spark_streaming.jobs.bronze_ingestion_low_volume import (
+            BronzeIngestionLowVolume as DirectImport,
         )
 
         assert DirectImport is not None
@@ -277,8 +277,8 @@ class TestTopicValidation:
     """Tests verifying topic configuration validation."""
 
     def test_high_volume_job_passes_validation(self, mock_spark):
-        """Verify HighVolumeStreamingJob passes topic validation."""
-        job = HighVolumeStreamingJob(
+        """Verify BronzeIngestionHighVolume passes topic validation."""
+        job = BronzeIngestionHighVolume(
             spark=mock_spark,
             kafka_config=create_kafka_config(),
             checkpoint_config=create_checkpoint_config(),
@@ -288,8 +288,8 @@ class TestTopicValidation:
         job._validate_topic_config()
 
     def test_low_volume_job_passes_validation(self, mock_spark):
-        """Verify LowVolumeStreamingJob passes topic validation."""
-        job = LowVolumeStreamingJob(
+        """Verify BronzeIngestionLowVolume passes topic validation."""
+        job = BronzeIngestionLowVolume(
             spark=mock_spark,
             kafka_config=create_kafka_config(),
             checkpoint_config=create_checkpoint_config(),

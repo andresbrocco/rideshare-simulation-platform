@@ -127,12 +127,14 @@ class TestCheckpointRecoveryMethods:
         """
         from spark_streaming.config.checkpoint_config import CheckpointConfig
         from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.jobs.low_volume_streaming_job import LowVolumeStreamingJob
+        from spark_streaming.jobs.bronze_ingestion_low_volume import (
+            BronzeIngestionLowVolume,
+        )
         from spark_streaming.utils.error_handler import ErrorHandler
 
         mock_spark = MagicMock()
 
-        job = LowVolumeStreamingJob(
+        job = BronzeIngestionLowVolume(
             spark=mock_spark,
             kafka_config=KafkaConfig(
                 bootstrap_servers="kafka:9092",
@@ -152,26 +154,26 @@ class TestCheckpointRecoveryMethods:
         # Verify job has topic_names property (multi-topic architecture)
         assert job.topic_names == [
             "trips",
-            "driver-status",
-            "surge-updates",
+            "driver_status",
+            "surge_updates",
             "ratings",
             "payments",
-            "driver-profiles",
-            "rider-profiles",
+            "driver_profiles",
+            "rider_profiles",
         ]
 
     def test_recover_from_checkpoint_is_noop_for_high_volume(self):
         """Verify recover_from_checkpoint is a no-op for high-volume job."""
         from spark_streaming.config.checkpoint_config import CheckpointConfig
         from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.jobs.high_volume_streaming_job import (
-            HighVolumeStreamingJob,
+        from spark_streaming.jobs.bronze_ingestion_high_volume import (
+            BronzeIngestionHighVolume,
         )
         from spark_streaming.utils.error_handler import ErrorHandler
 
         mock_spark = MagicMock()
 
-        job = HighVolumeStreamingJob(
+        job = BronzeIngestionHighVolume(
             spark=mock_spark,
             kafka_config=KafkaConfig(
                 bootstrap_servers="kafka:9092",
@@ -189,7 +191,7 @@ class TestCheckpointRecoveryMethods:
         job.recover_from_checkpoint()
 
         # Verify job has topic_names property
-        assert job.topic_names == ["gps-pings"]
+        assert job.topic_names == ["gps_pings"]
 
 
 class TestCheckpointDirectoryStructure:
@@ -203,12 +205,14 @@ class TestCheckpointDirectoryStructure:
         """
         from spark_streaming.config.checkpoint_config import CheckpointConfig
         from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.jobs.low_volume_streaming_job import LowVolumeStreamingJob
+        from spark_streaming.jobs.bronze_ingestion_low_volume import (
+            BronzeIngestionLowVolume,
+        )
         from spark_streaming.utils.error_handler import ErrorHandler
 
         mock_spark = MagicMock()
 
-        job = LowVolumeStreamingJob(
+        job = BronzeIngestionLowVolume(
             spark=mock_spark,
             kafka_config=KafkaConfig(
                 bootstrap_servers="kafka:9092",
@@ -228,14 +232,14 @@ class TestCheckpointDirectoryStructure:
         """Verify high-volume job uses separate checkpoint path."""
         from spark_streaming.config.checkpoint_config import CheckpointConfig
         from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.jobs.high_volume_streaming_job import (
-            HighVolumeStreamingJob,
+        from spark_streaming.jobs.bronze_ingestion_high_volume import (
+            BronzeIngestionHighVolume,
         )
         from spark_streaming.utils.error_handler import ErrorHandler
 
         mock_spark = MagicMock()
 
-        job = HighVolumeStreamingJob(
+        job = BronzeIngestionHighVolume(
             spark=mock_spark,
             kafka_config=KafkaConfig(
                 bootstrap_servers="kafka:9092",
@@ -317,12 +321,14 @@ class TestMultiTopicBronzePathMapping:
         """Verify low-volume job maps all 7 topics to correct bronze paths."""
         from spark_streaming.config.checkpoint_config import CheckpointConfig
         from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.jobs.low_volume_streaming_job import LowVolumeStreamingJob
+        from spark_streaming.jobs.bronze_ingestion_low_volume import (
+            BronzeIngestionLowVolume,
+        )
         from spark_streaming.utils.error_handler import ErrorHandler
 
         mock_spark = MagicMock()
 
-        job = LowVolumeStreamingJob(
+        job = BronzeIngestionLowVolume(
             spark=mock_spark,
             kafka_config=KafkaConfig(
                 bootstrap_servers="kafka:9092",
@@ -339,11 +345,11 @@ class TestMultiTopicBronzePathMapping:
         # Verify all 7 topics have correct bronze paths
         assert job.get_bronze_path("trips") == "s3a://rideshare-bronze/bronze_trips/"
         assert (
-            job.get_bronze_path("driver-status")
+            job.get_bronze_path("driver_status")
             == "s3a://rideshare-bronze/bronze_driver_status/"
         )
         assert (
-            job.get_bronze_path("surge-updates")
+            job.get_bronze_path("surge_updates")
             == "s3a://rideshare-bronze/bronze_surge_updates/"
         )
         assert (
@@ -353,26 +359,26 @@ class TestMultiTopicBronzePathMapping:
             job.get_bronze_path("payments") == "s3a://rideshare-bronze/bronze_payments/"
         )
         assert (
-            job.get_bronze_path("driver-profiles")
+            job.get_bronze_path("driver_profiles")
             == "s3a://rideshare-bronze/bronze_driver_profiles/"
         )
         assert (
-            job.get_bronze_path("rider-profiles")
+            job.get_bronze_path("rider_profiles")
             == "s3a://rideshare-bronze/bronze_rider_profiles/"
         )
 
     def test_high_volume_job_bronze_path(self):
-        """Verify high-volume job maps gps-pings to correct bronze path."""
+        """Verify high-volume job maps gps_pings to correct bronze path."""
         from spark_streaming.config.checkpoint_config import CheckpointConfig
         from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.jobs.high_volume_streaming_job import (
-            HighVolumeStreamingJob,
+        from spark_streaming.jobs.bronze_ingestion_high_volume import (
+            BronzeIngestionHighVolume,
         )
         from spark_streaming.utils.error_handler import ErrorHandler
 
         mock_spark = MagicMock()
 
-        job = HighVolumeStreamingJob(
+        job = BronzeIngestionHighVolume(
             spark=mock_spark,
             kafka_config=KafkaConfig(
                 bootstrap_servers="kafka:9092",
@@ -387,7 +393,7 @@ class TestMultiTopicBronzePathMapping:
         )
 
         assert (
-            job.get_bronze_path("gps-pings")
+            job.get_bronze_path("gps_pings")
             == "s3a://rideshare-bronze/bronze_gps_pings/"
         )
 
@@ -401,7 +407,9 @@ class TestProcessBatchWithMocking:
         """Verify low-volume job routes messages to correct Bronze tables."""
         from spark_streaming.config.checkpoint_config import CheckpointConfig
         from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.jobs.low_volume_streaming_job import LowVolumeStreamingJob
+        from spark_streaming.jobs.bronze_ingestion_low_volume import (
+            BronzeIngestionLowVolume,
+        )
         from spark_streaming.utils.error_handler import ErrorHandler
 
         mock_spark = MagicMock()
@@ -412,12 +420,12 @@ class TestProcessBatchWithMocking:
         topic_dfs = {}
         for topic in [
             "trips",
-            "driver-status",
-            "surge-updates",
+            "driver_status",
+            "surge_updates",
             "ratings",
             "payments",
-            "driver-profiles",
-            "rider-profiles",
+            "driver_profiles",
+            "rider_profiles",
         ]:
             topic_df = MagicMock()
             topic_df.count.return_value = 1
@@ -448,7 +456,7 @@ class TestProcessBatchWithMocking:
         mock_write.mode.return_value = mock_write
         mock_write.partitionBy.return_value = mock_write
 
-        job = LowVolumeStreamingJob(
+        job = BronzeIngestionLowVolume(
             spark=mock_spark,
             kafka_config=KafkaConfig(
                 bootstrap_servers="kafka:9092",
@@ -475,11 +483,11 @@ class TestProcessBatchWithMocking:
     def test_high_volume_process_batch_routes_gps_pings(
         self, mock_date_format, mock_col
     ):
-        """Verify high-volume job routes gps-pings to correct Bronze table."""
+        """Verify high-volume job routes gps_pings to correct Bronze table."""
         from spark_streaming.config.checkpoint_config import CheckpointConfig
         from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.jobs.high_volume_streaming_job import (
-            HighVolumeStreamingJob,
+        from spark_streaming.jobs.bronze_ingestion_high_volume import (
+            BronzeIngestionHighVolume,
         )
         from spark_streaming.utils.error_handler import ErrorHandler
 
@@ -487,7 +495,7 @@ class TestProcessBatchWithMocking:
         mock_df = MagicMock()
         mock_df.count.return_value = 100  # 100 GPS pings
 
-        # Create mock for gps-pings filtered DataFrame
+        # Create mock for gps_pings filtered DataFrame
         mock_gps_df = MagicMock()
         mock_gps_df.count.return_value = 100
         mock_df.filter.return_value = mock_gps_df
@@ -503,7 +511,7 @@ class TestProcessBatchWithMocking:
         mock_write.mode.return_value = mock_write
         mock_write.partitionBy.return_value = mock_write
 
-        job = HighVolumeStreamingJob(
+        job = BronzeIngestionHighVolume(
             spark=mock_spark,
             kafka_config=KafkaConfig(
                 bootstrap_servers="kafka:9092",
@@ -519,7 +527,7 @@ class TestProcessBatchWithMocking:
 
         job.process_batch(mock_df, batch_id=0)
 
-        # Verify filtering by topic (1 topic: gps-pings)
+        # Verify filtering by topic (1 topic: gps_pings)
         assert mock_df.filter.call_count == 1
 
         # Verify write happened
@@ -531,7 +539,9 @@ class TestProcessBatchWithMocking:
         """Verify process_batch skips topics with no messages."""
         from spark_streaming.config.checkpoint_config import CheckpointConfig
         from spark_streaming.config.kafka_config import KafkaConfig
-        from spark_streaming.jobs.low_volume_streaming_job import LowVolumeStreamingJob
+        from spark_streaming.jobs.bronze_ingestion_low_volume import (
+            BronzeIngestionLowVolume,
+        )
         from spark_streaming.utils.error_handler import ErrorHandler
 
         mock_spark = MagicMock()
@@ -561,7 +571,7 @@ class TestProcessBatchWithMocking:
 
         mock_df.filter = MagicMock(side_effect=filter_side_effect)
 
-        job = LowVolumeStreamingJob(
+        job = BronzeIngestionLowVolume(
             spark=mock_spark,
             kafka_config=KafkaConfig(
                 bootstrap_servers="kafka:9092",

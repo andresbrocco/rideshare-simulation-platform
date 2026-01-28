@@ -17,7 +17,7 @@ class TestChannelConstants:
         assert CHANNEL_DRIVER_UPDATES == "driver-updates"
         assert CHANNEL_RIDER_UPDATES == "rider-updates"
         assert CHANNEL_TRIP_UPDATES == "trip-updates"
-        assert CHANNEL_SURGE_UPDATES == "surge-updates"
+        assert CHANNEL_SURGE_UPDATES == "surge_updates"
         assert len(ALL_CHANNELS) == 4
 
 

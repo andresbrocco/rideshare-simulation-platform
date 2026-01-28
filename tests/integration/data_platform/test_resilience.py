@@ -112,9 +112,9 @@ def test_data_consistency_under_partial_failure(
         bronze_count_before == 10
     ), f"Expected 10 rows before kill, found {bronze_count_before}"
 
-    # Act: Kill spark-streaming-low-volume container (simulate failure)
+    # Act: Kill bronze-ingestion-low-volume container (simulate failure)
     kill_result = subprocess.run(
-        ["docker", "kill", "rideshare-spark-streaming-low-volume"],
+        ["docker", "kill", "rideshare-bronze-ingestion-low-volume"],
         capture_output=True,
         text=True,
         cwd=project_root,
@@ -160,7 +160,7 @@ def test_data_consistency_under_partial_failure(
             "--profile",
             "data-pipeline",
             "start",
-            "spark-streaming-low-volume",
+            "bronze-ingestion-low-volume",
         ],
         capture_output=True,
         text=True,

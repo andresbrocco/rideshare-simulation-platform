@@ -13,8 +13,8 @@ from pyspark.sql.types import (
 )
 from unittest.mock import MagicMock
 
-from spark_streaming.jobs.low_volume_streaming_job import LowVolumeStreamingJob
-from spark_streaming.jobs.high_volume_streaming_job import HighVolumeStreamingJob
+from spark_streaming.jobs.bronze_ingestion_low_volume import BronzeIngestionLowVolume
+from spark_streaming.jobs.bronze_ingestion_high_volume import BronzeIngestionHighVolume
 from spark_streaming.config.kafka_config import KafkaConfig
 from spark_streaming.config.checkpoint_config import CheckpointConfig
 from spark_streaming.utils.error_handler import ErrorHandler
@@ -42,12 +42,12 @@ def create_test_error_handler(dlq_path: str):
 
 
 class TestLowVolumeJobConfiguration:
-    """Tests for LowVolumeStreamingJob multi-topic configuration."""
+    """Tests for BronzeIngestionLowVolume multi-topic configuration."""
 
     def test_low_volume_job_includes_trips_topic(self):
-        """Verify LowVolumeStreamingJob includes trips topic."""
+        """Verify BronzeIngestionLowVolume includes trips topic."""
         mock_spark = MagicMock()
-        job = LowVolumeStreamingJob(
+        job = BronzeIngestionLowVolume(
             spark=mock_spark,
             kafka_config=create_test_kafka_config(),
             checkpoint_config=create_test_checkpoint_config(
@@ -62,9 +62,9 @@ class TestLowVolumeJobConfiguration:
         assert len(job.topic_names) == 7
 
     def test_low_volume_job_bronze_path_for_trips(self):
-        """Verify LowVolumeStreamingJob returns correct bronze path for trips."""
+        """Verify BronzeIngestionLowVolume returns correct bronze path for trips."""
         mock_spark = MagicMock()
-        job = LowVolumeStreamingJob(
+        job = BronzeIngestionLowVolume(
             spark=mock_spark,
             kafka_config=create_test_kafka_config(),
             checkpoint_config=create_test_checkpoint_config(
@@ -79,41 +79,41 @@ class TestLowVolumeJobConfiguration:
 
 
 class TestHighVolumeJobConfiguration:
-    """Tests for HighVolumeStreamingJob multi-topic configuration."""
+    """Tests for BronzeIngestionHighVolume multi-topic configuration."""
 
     def test_high_volume_job_includes_gps_pings_topic(self):
-        """Verify HighVolumeStreamingJob includes gps-pings topic."""
+        """Verify BronzeIngestionHighVolume includes gps_pings topic."""
         mock_spark = MagicMock()
-        job = HighVolumeStreamingJob(
+        job = BronzeIngestionHighVolume(
             spark=mock_spark,
             kafka_config=create_test_kafka_config(),
             checkpoint_config=create_test_checkpoint_config(
-                "s3a://lakehouse/checkpoints/bronze/gps-pings"
+                "s3a://lakehouse/checkpoints/bronze/gps_pings"
             ),
             error_handler=create_test_error_handler(
-                "s3a://lakehouse/bronze/dlq/gps-pings"
+                "s3a://lakehouse/bronze/dlq/gps_pings"
             ),
         )
 
-        assert "gps-pings" in job.topic_names
+        assert "gps_pings" in job.topic_names
         assert len(job.topic_names) == 1
 
     def test_high_volume_job_bronze_path_for_gps_pings(self):
-        """Verify HighVolumeStreamingJob returns correct bronze path for gps-pings."""
+        """Verify BronzeIngestionHighVolume returns correct bronze path for gps_pings."""
         mock_spark = MagicMock()
-        job = HighVolumeStreamingJob(
+        job = BronzeIngestionHighVolume(
             spark=mock_spark,
             kafka_config=create_test_kafka_config(),
             checkpoint_config=create_test_checkpoint_config(
-                "s3a://lakehouse/checkpoints/bronze/gps-pings"
+                "s3a://lakehouse/checkpoints/bronze/gps_pings"
             ),
             error_handler=create_test_error_handler(
-                "s3a://lakehouse/bronze/dlq/gps-pings"
+                "s3a://lakehouse/bronze/dlq/gps_pings"
             ),
         )
 
         assert (
-            job.get_bronze_path("gps-pings")
+            job.get_bronze_path("gps_pings")
             == "s3a://rideshare-bronze/bronze_gps_pings/"
         )
 
@@ -253,9 +253,9 @@ class TestPartitionColumns:
     """Tests for partition columns in multi-topic jobs."""
 
     def test_low_volume_job_partition_columns(self):
-        """Verify LowVolumeStreamingJob uses _ingestion_date partition."""
+        """Verify BronzeIngestionLowVolume uses _ingestion_date partition."""
         mock_spark = MagicMock()
-        job = LowVolumeStreamingJob(
+        job = BronzeIngestionLowVolume(
             spark=mock_spark,
             kafka_config=create_test_kafka_config(),
             checkpoint_config=create_test_checkpoint_config(
@@ -269,16 +269,16 @@ class TestPartitionColumns:
         assert job.partition_columns == ["_ingestion_date"]
 
     def test_high_volume_job_partition_columns(self):
-        """Verify HighVolumeStreamingJob uses _ingestion_date partition."""
+        """Verify BronzeIngestionHighVolume uses _ingestion_date partition."""
         mock_spark = MagicMock()
-        job = HighVolumeStreamingJob(
+        job = BronzeIngestionHighVolume(
             spark=mock_spark,
             kafka_config=create_test_kafka_config(),
             checkpoint_config=create_test_checkpoint_config(
-                "s3a://lakehouse/checkpoints/bronze/gps-pings"
+                "s3a://lakehouse/checkpoints/bronze/gps_pings"
             ),
             error_handler=create_test_error_handler(
-                "s3a://lakehouse/bronze/dlq/gps-pings"
+                "s3a://lakehouse/bronze/dlq/gps_pings"
             ),
         )
 

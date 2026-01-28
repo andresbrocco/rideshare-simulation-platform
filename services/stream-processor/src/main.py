@@ -16,12 +16,12 @@ logger = logging.getLogger(__name__)
 
 # Topics required for the stream processor
 REQUIRED_TOPICS = [
-    "gps-pings",
+    "gps_pings",
     "trips",
-    "driver-status",
-    "surge-updates",
-    "driver-profiles",
-    "rider-profiles",
+    "driver_status",
+    "surge_updates",
+    "driver_profiles",
+    "rider_profiles",
 ]
 
 

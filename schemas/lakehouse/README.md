@@ -26,13 +26,13 @@ Every Bronze table includes three categories of standard fields:
 | Table | Source Topic | Description |
 |-------|--------------|-------------|
 | `bronze_trips` | trips | Trip lifecycle events (requested, matched, started, completed, cancelled) |
-| `bronze_gps_pings` | gps-pings | High-frequency location updates from drivers and riders |
-| `bronze_driver_status` | driver-status | Driver availability state changes |
-| `bronze_surge_updates` | surge-updates | Zone-level surge pricing calculations |
+| `bronze_gps_pings` | gps_pings | High-frequency location updates from drivers and riders |
+| `bronze_driver_status` | driver_status | Driver availability state changes |
+| `bronze_surge_updates` | surge_updates | Zone-level surge pricing calculations |
 | `bronze_ratings` | ratings | Post-trip ratings from riders and drivers |
 | `bronze_payments` | payments | Payment processing events |
-| `bronze_driver_profiles` | driver-profiles | Driver profile creation and updates (SCD Type 2 source) |
-| `bronze_rider_profiles` | rider-profiles | Rider profile creation and updates (SCD Type 2 source) |
+| `bronze_driver_profiles` | driver_profiles | Driver profile creation and updates (SCD Type 2 source) |
+| `bronze_rider_profiles` | rider_profiles | Rider profile creation and updates (SCD Type 2 source) |
 
 ## Type Mappings
 

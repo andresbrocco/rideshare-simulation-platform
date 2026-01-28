@@ -100,8 +100,8 @@
 |---------|-------|---------|------|
 | minio | custom (minio/minio) | S3-compatible lakehouse storage | 9000, 9001 |
 | spark-thrift-server | custom (apache/spark:4.0.0-python3) | SQL interface to Delta tables | 10000, 4041 |
-| spark-streaming-high-volume | custom | Bronze ingestion for gps-pings (high volume) | - |
-| spark-streaming-low-volume | custom | Bronze ingestion for 7 low-volume topics | - |
+| bronze-ingestion-high-volume | custom | Bronze ingestion for gps_pings (high volume) | - |
+| bronze-ingestion-low-volume | custom | Bronze ingestion for 7 low-volume topics | - |
 | localstack | localstack/localstack:4.12.0 | S3/SNS/SQS mock for testing | 4566 |
 
 ### Orchestration Services
@@ -243,7 +243,7 @@ One-shot containers that bootstrap infrastructure:
 | REDIS_PORT | Redis port | 6379 |
 | PROCESSOR_WINDOW_SIZE_MS | GPS aggregation window in milliseconds | 100 |
 | PROCESSOR_AGGREGATION_STRATEGY | Aggregation strategy (latest or sample) | latest |
-| PROCESSOR_TOPICS | Kafka topics to consume (comma-separated) | gps-pings,trips,driver-status,surge-updates |
+| PROCESSOR_TOPICS | Kafka topics to consume (comma-separated) | gps_pings,trips,driver_status,surge_updates |
 | LOG_LEVEL | Logging verbosity | INFO |
 
 #### Frontend
@@ -549,13 +549,13 @@ npm run build
 
 **Topics**:
 - trips (4 partitions)
-- gps-pings (8 partitions)
-- driver-status (2 partitions)
-- surge-updates (2 partitions)
+- gps_pings (8 partitions)
+- driver_status (2 partitions)
+- surge_updates (2 partitions)
 - ratings (2 partitions)
 - payments (2 partitions)
-- driver-profiles (1 partition)
-- rider-profiles (1 partition)
+- driver_profiles (1 partition)
+- rider_profiles (1 partition)
 
 **Retention**: 1 hour or 512MB per partition (development setting)
 

@@ -15,7 +15,7 @@ default_args = {
 
 # Silver DAG - Runs hourly with Bronze freshness check
 with DAG(
-    "dbt_transformation",
+    "dbt_silver_transformation",
     default_args=default_args,
     description="DBT Silver layer transformations (hourly)",
     schedule="@hourly",

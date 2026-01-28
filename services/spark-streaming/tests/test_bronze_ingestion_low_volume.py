@@ -1,9 +1,9 @@
-"""Tests for LowVolumeStreamingJob."""
+"""Tests for BronzeIngestionLowVolume."""
 
 import pytest
 from unittest.mock import MagicMock
 
-from spark_streaming.jobs.low_volume_streaming_job import LowVolumeStreamingJob
+from spark_streaming.jobs.bronze_ingestion_low_volume import BronzeIngestionLowVolume
 from spark_streaming.config.kafka_config import KafkaConfig
 from spark_streaming.config.checkpoint_config import CheckpointConfig
 from spark_streaming.utils.error_handler import ErrorHandler
@@ -11,7 +11,7 @@ from spark_streaming.utils.error_handler import ErrorHandler
 
 @pytest.fixture
 def low_volume_job():
-    """Create a test instance of LowVolumeStreamingJob."""
+    """Create a test instance of BronzeIngestionLowVolume."""
     spark = MagicMock()
 
     kafka_config = KafkaConfig(
@@ -24,19 +24,21 @@ def low_volume_job():
     )
     error_handler = ErrorHandler(dlq_table_path="s3a://test-dlq/")
 
-    return LowVolumeStreamingJob(spark, kafka_config, checkpoint_config, error_handler)
+    return BronzeIngestionLowVolume(
+        spark, kafka_config, checkpoint_config, error_handler
+    )
 
 
 def test_topic_names(low_volume_job):
     """Verify job subscribes to 7 low-volume topics."""
     expected_topics = [
         "trips",
-        "driver-status",
-        "surge-updates",
+        "driver_status",
+        "surge_updates",
         "ratings",
         "payments",
-        "driver-profiles",
-        "rider-profiles",
+        "driver_profiles",
+        "rider_profiles",
     ]
     assert low_volume_job.topic_names == expected_topics
 
@@ -48,11 +50,11 @@ def test_bronze_path_mapping(low_volume_job):
         == "s3a://rideshare-bronze/bronze_trips/"
     )
     assert (
-        low_volume_job.get_bronze_path("driver-status")
+        low_volume_job.get_bronze_path("driver_status")
         == "s3a://rideshare-bronze/bronze_driver_status/"
     )
     assert (
-        low_volume_job.get_bronze_path("surge-updates")
+        low_volume_job.get_bronze_path("surge_updates")
         == "s3a://rideshare-bronze/bronze_surge_updates/"
     )
     assert (
@@ -64,17 +66,17 @@ def test_bronze_path_mapping(low_volume_job):
         == "s3a://rideshare-bronze/bronze_payments/"
     )
     assert (
-        low_volume_job.get_bronze_path("driver-profiles")
+        low_volume_job.get_bronze_path("driver_profiles")
         == "s3a://rideshare-bronze/bronze_driver_profiles/"
     )
     assert (
-        low_volume_job.get_bronze_path("rider-profiles")
+        low_volume_job.get_bronze_path("rider_profiles")
         == "s3a://rideshare-bronze/bronze_rider_profiles/"
     )
 
 
 def test_import_from_jobs_module():
-    """Verify LowVolumeStreamingJob can be imported from jobs module."""
-    from spark_streaming.jobs import LowVolumeStreamingJob
+    """Verify BronzeIngestionLowVolume can be imported from jobs module."""
+    from spark_streaming.jobs import BronzeIngestionLowVolume
 
-    assert LowVolumeStreamingJob is not None
+    assert BronzeIngestionLowVolume is not None

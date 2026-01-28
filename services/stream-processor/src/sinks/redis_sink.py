@@ -24,7 +24,7 @@ class RedisSink:
             "driver-updates",
             "rider-updates",
             "trip-updates",
-            "surge-updates",
+            "surge_updates",
         ]
     )
 

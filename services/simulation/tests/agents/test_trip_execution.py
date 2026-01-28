@@ -335,7 +335,7 @@ class TestGPSUpdates:
         gps_calls = [
             call
             for call in mock_kafka_producer.produce.call_args_list
-            if call[1].get("topic") == "gps-pings"
+            if call[1].get("topic") == "gps_pings"
         ]
 
         assert len(gps_calls) > 0

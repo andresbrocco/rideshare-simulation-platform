@@ -355,11 +355,11 @@ def kafka_admin(wait_for_services):
     # Create test topics (will ignore if already exist)
     topics = [
         NewTopic("trips", num_partitions=4, replication_factor=1),
-        NewTopic("gps-pings", num_partitions=8, replication_factor=1),
-        NewTopic("driver-status", num_partitions=4, replication_factor=1),
-        NewTopic("driver-profiles", num_partitions=2, replication_factor=1),
-        NewTopic("rider-profiles", num_partitions=2, replication_factor=1),
-        NewTopic("surge-updates", num_partitions=4, replication_factor=1),
+        NewTopic("gps_pings", num_partitions=8, replication_factor=1),
+        NewTopic("driver_status", num_partitions=4, replication_factor=1),
+        NewTopic("driver_profiles", num_partitions=2, replication_factor=1),
+        NewTopic("rider_profiles", num_partitions=2, replication_factor=1),
+        NewTopic("surge_updates", num_partitions=4, replication_factor=1),
         NewTopic("ratings", num_partitions=4, replication_factor=1),
         NewTopic("payments", num_partitions=4, replication_factor=1),
     ]
@@ -750,12 +750,12 @@ def streaming_jobs_running(docker_compose):
     Session-scoped: runs once per test session.
 
     Note: As of the streaming consolidation (2026-01-26), services are consolidated:
-    - spark-streaming-high-volume: handles gps-pings topic
-    - spark-streaming-low-volume: handles 7 other topics (trips, driver-status, etc.)
+    - bronze-ingestion-high-volume: handles gps_pings topic
+    - bronze-ingestion-low-volume: handles 7 other topics (trips, driver_status, etc.)
     """
     streaming_containers = [
-        "rideshare-spark-streaming-high-volume",
-        "rideshare-spark-streaming-low-volume",
+        "rideshare-bronze-ingestion-high-volume",
+        "rideshare-bronze-ingestion-low-volume",
     ]
 
     for container in streaming_containers:

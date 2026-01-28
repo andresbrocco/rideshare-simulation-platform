@@ -248,10 +248,10 @@ def main():
     # Event generation mapping
     event_generators = {
         "trip_lifecycle": (generate_trip_events, "trips"),
-        "gps_pings": (generate_gps_events, "gps-pings"),
-        "driver_status": (generate_driver_status_events, "driver-status"),
-        "driver_profiles": (generate_driver_profile_events, "driver-profiles"),
-        "rider_profiles": (generate_rider_profile_events, "rider-profiles"),
+        "gps_pings": (generate_gps_events, "gps_pings"),
+        "driver_status": (generate_driver_status_events, "driver_status"),
+        "driver_profiles": (generate_driver_profile_events, "driver_profiles"),
+        "rider_profiles": (generate_rider_profile_events, "rider_profiles"),
     }
 
     def produce_batch():

@@ -82,7 +82,7 @@ class TestDLQRoutingInvalidJSON:
 
         result = handler.route_invalid_json(
             raw_message=binary_data,
-            topic="gps-pings",
+            topic="gps_pings",
             partition=3,
             offset=999,
         )
@@ -182,12 +182,12 @@ class TestDLQMetadataCaptured:
 
         result = handler.route_invalid_json(
             raw_message=b"bad data",
-            topic="driver-status",
+            topic="driver_status",
             partition=0,
             offset=42,
         )
 
-        assert result.kafka_topic == "driver-status"
+        assert result.kafka_topic == "driver_status"
 
     def test_dlq_metadata_captured_timestamp(self):
         """Verify DLQ captures ingestion timestamp."""
@@ -335,7 +335,7 @@ class TestDLQHandlerWriteToDLQ:
             failed_df=mock_df,
             error_message="Schema error",
             error_type="SCHEMA_VIOLATION",
-            topic="gps-pings",
+            topic="gps_pings",
             dlq_path="s3a://lakehouse/bronze/dlq/gps_pings",
         )
 
@@ -375,13 +375,13 @@ class TestDLQTablePaths:
 
         expected_topics = [
             "trips",
-            "gps-pings",
-            "driver-status",
-            "surge-updates",
+            "gps_pings",
+            "driver_status",
+            "surge_updates",
             "ratings",
             "payments",
-            "driver-profiles",
-            "rider-profiles",
+            "driver_profiles",
+            "rider_profiles",
         ]
 
         for topic in expected_topics:
@@ -406,9 +406,9 @@ class TestDLQTablePaths:
 
         handler = DLQHandler(dlq_base_path="s3a://lakehouse/bronze/dlq")
 
-        dlq_path = handler.get_dlq_path("gps-pings")
+        dlq_path = handler.get_dlq_path("gps_pings")
 
-        assert "gps_pings" in dlq_path or "gps-pings" not in dlq_path
+        assert "gps_pings" in dlq_path or "gps_pings" not in dlq_path
 
 
 class TestDLQErrorTypeCategorization:

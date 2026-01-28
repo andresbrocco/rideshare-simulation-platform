@@ -52,7 +52,7 @@ async def test_redis_subscribe_on_startup(
     await asyncio.sleep(0.02)
 
     pubsub.subscribe.assert_called_once_with(
-        "driver-updates", "rider-updates", "trip-updates", "surge-updates"
+        "driver-updates", "rider-updates", "trip-updates", "surge_updates"
     )
 
     await subscriber.stop()
@@ -151,7 +151,7 @@ async def test_fanout_surge_update(
     messages = [
         {
             "type": "message",
-            "channel": "surge-updates",
+            "channel": "surge_updates",
             "data": '{"zone_id": "z1", "new_multiplier": 1.5}',
         }
     ]

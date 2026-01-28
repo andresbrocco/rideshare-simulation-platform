@@ -24,7 +24,7 @@ Orchestrates the complete trip lifecycle from driver-rider match through complet
 
 ## Non-Obvious Details
 
-**Why separate event emission methods**: `_emit_trip_event()` for state transitions, `_emit_payment_event()` for payments, `_emit_gps_ping()` for location updates. Each has different schema requirements and Kafka topics (trips, payments, gps-pings).
+**Why separate event emission methods**: `_emit_trip_event()` for state transitions, `_emit_payment_event()` for payments, `_emit_gps_ping()` for location updates. Each has different schema requirements and Kafka topics (trips, payments, gps_pings).
 
 **Why route stored on Trip model**: Routes (`route`, `pickup_route`) are marked as "not persisted to database" in Trip model but stored in memory for WebSocket visualization. Progress indices enable efficient incremental updates without resending entire route.
 

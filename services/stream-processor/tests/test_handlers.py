@@ -155,7 +155,7 @@ class TestSurgeHandler:
 
         assert len(results) == 1
         channel, emitted_event = results[0]
-        assert channel == "surge-updates"
+        assert channel == "surge_updates"
         assert emitted_event["zone_id"] == "zone-1"
 
     def test_flush_returns_empty(self):

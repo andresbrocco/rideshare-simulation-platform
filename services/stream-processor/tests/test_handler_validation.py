@@ -303,7 +303,7 @@ class TestSurgeHandlerValidation:
 
         result = handler.handle(message)
         assert len(result) == 1
-        assert result[0][0] == "surge-updates"
+        assert result[0][0] == "surge_updates"
 
     def test_invalid_surge_missing_zone_id_returns_empty(self):
         """Surge event missing zone_id should return empty list."""

@@ -63,13 +63,13 @@ services:
       /bin/sh -c "
       echo 'Creating Kafka topics...' &&
       kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic trips --partitions 4 --replication-factor 1 &&
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic gps-pings --partitions 8 --replication-factor 1 &&
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic driver-status --partitions 2 --replication-factor 1 &&
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic surge-updates --partitions 2 --replication-factor 1 &&
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic gps_pings --partitions 8 --replication-factor 1 &&
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic driver_status --partitions 2 --replication-factor 1 &&
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic surge_updates --partitions 2 --replication-factor 1 &&
       kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic ratings --partitions 2 --replication-factor 1 &&
       kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic payments --partitions 2 --replication-factor 1 &&
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic driver-profiles --partitions 1 --replication-factor 1 &&
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic rider-profiles --partitions 1 --replication-factor 1 &&
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic driver_profiles --partitions 1 --replication-factor 1 &&
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic rider_profiles --partitions 1 --replication-factor 1 &&
       echo 'Kafka topics created successfully' &&
       kafka-topics --bootstrap-server kafka:29092 --list
       "
@@ -214,7 +214,7 @@ services:
       - REDIS_PASSWORD=
       - PROCESSOR_WINDOW_SIZE_MS=${PROCESSOR_WINDOW_SIZE_MS:-100}
       - PROCESSOR_AGGREGATION_STRATEGY=${PROCESSOR_AGGREGATION_STRATEGY:-latest}
-      - PROCESSOR_TOPICS=gps-pings,trips,driver-status,surge-updates
+      - PROCESSOR_TOPICS=gps_pings,trips,driver_status,surge_updates
       - API_HOST=0.0.0.0
       - API_PORT=8080
       - LOG_LEVEL=${PROCESSOR_LOG_LEVEL:-INFO}
@@ -415,11 +415,11 @@ services:
       retries: 10
       start_period: 60s
 
-  spark-streaming-high-volume:
+  bronze-ingestion-high-volume:
     build:
       context: ../..
       dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
-    container_name: rideshare-spark-streaming-high-volume
+    container_name: rideshare-bronze-ingestion-high-volume
     mem_limit: 768m
     profiles:
       - data-pipeline
@@ -427,7 +427,7 @@ services:
       - PYTHONPATH=/opt
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - KAFKA_TOPICS=gps-pings
+      - KAFKA_TOPICS=gps_pings
       - CHECKPOINT_BASE_PATH=s3a://rideshare-checkpoints/
       - TRIGGER_INTERVAL=10 seconds
     volumes:
@@ -450,7 +450,7 @@ services:
       --conf spark.hadoop.fs.s3a.access.key=minioadmin
       --conf spark.hadoop.fs.s3a.secret.key=minioadmin
       --conf spark.hadoop.fs.s3a.path.style.access=true
-      /opt/spark_streaming/jobs/high_volume_streaming_job.py
+      /opt/spark_streaming/jobs/bronze_ingestion_high_volume.py
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pgrep -f 'spark-submit' || exit 1"]
@@ -459,11 +459,11 @@ services:
       retries: 3
       start_period: 60s
 
-  spark-streaming-low-volume:
+  bronze-ingestion-low-volume:
     build:
       context: ../..
       dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
-    container_name: rideshare-spark-streaming-low-volume
+    container_name: rideshare-bronze-ingestion-low-volume
     mem_limit: 768m
     profiles:
       - data-pipeline
@@ -471,7 +471,7 @@ services:
       - PYTHONPATH=/opt
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - KAFKA_TOPICS=trips,driver-status,surge-updates,ratings,payments,driver-profiles,rider-profiles
+      - KAFKA_TOPICS=trips,driver_status,surge_updates,ratings,payments,driver_profiles,rider_profiles
       - CHECKPOINT_BASE_PATH=s3a://rideshare-checkpoints/
       - TRIGGER_INTERVAL=10 seconds
     volumes:
@@ -494,7 +494,7 @@ services:
       --conf spark.hadoop.fs.s3a.access.key=minioadmin
       --conf spark.hadoop.fs.s3a.secret.key=minioadmin
       --conf spark.hadoop.fs.s3a.path.style.access=true
-      /opt/spark_streaming/jobs/low_volume_streaming_job.py
+      /opt/spark_streaming/jobs/bronze_ingestion_low_volume.py
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pgrep -f 'spark-submit' || exit 1"]

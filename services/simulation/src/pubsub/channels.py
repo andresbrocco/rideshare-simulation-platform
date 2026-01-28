@@ -6,7 +6,7 @@ from pydantic import BaseModel
 CHANNEL_DRIVER_UPDATES = "driver-updates"
 CHANNEL_RIDER_UPDATES = "rider-updates"
 CHANNEL_TRIP_UPDATES = "trip-updates"
-CHANNEL_SURGE_UPDATES = "surge-updates"
+CHANNEL_SURGE_UPDATES = "surge_updates"
 
 ALL_CHANNELS = [
     CHANNEL_DRIVER_UPDATES,

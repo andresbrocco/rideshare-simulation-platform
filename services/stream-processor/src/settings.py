@@ -66,7 +66,7 @@ class ProcessorSettings(BaseSettings):
 
     # Topics to consume (comma-separated)
     topics: str = Field(
-        default="gps-pings,trips,driver-status,surge-updates",
+        default="gps_pings,trips,driver_status,surge_updates",
         description="Kafka topics to consume",
     )
 

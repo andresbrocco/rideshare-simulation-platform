@@ -26,13 +26,13 @@ logger = logging.getLogger(__name__)
 # Mapping of Kafka topics to their serializer classes
 TOPIC_SERIALIZERS: dict[str, type[EventSerializer]] = {
     "trips": TripEventSerializer,
-    "gps-pings": GPSPingEventSerializer,
-    "driver-status": DriverStatusEventSerializer,
-    "surge-updates": SurgeUpdateEventSerializer,
+    "gps_pings": GPSPingEventSerializer,
+    "driver_status": DriverStatusEventSerializer,
+    "surge_updates": SurgeUpdateEventSerializer,
     "ratings": RatingEventSerializer,
     "payments": PaymentEventSerializer,
-    "driver-profiles": DriverProfileEventSerializer,
-    "rider-profiles": RiderProfileEventSerializer,
+    "driver_profiles": DriverProfileEventSerializer,
+    "rider_profiles": RiderProfileEventSerializer,
 }
 
 
@@ -110,7 +110,7 @@ class SerializerRegistry:
         Serializers are lazily initialized on first request.
 
         Args:
-            topic: Kafka topic name (e.g., "trips", "gps-pings")
+            topic: Kafka topic name (e.g., "trips", "gps_pings")
 
         Returns:
             EventSerializer for the topic, or None if:

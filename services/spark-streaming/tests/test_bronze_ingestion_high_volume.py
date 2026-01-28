@@ -1,9 +1,9 @@
-"""Tests for HighVolumeStreamingJob."""
+"""Tests for BronzeIngestionHighVolume."""
 
 import pytest
 from pyspark.sql import SparkSession
 
-from spark_streaming.jobs.high_volume_streaming_job import HighVolumeStreamingJob
+from spark_streaming.jobs.bronze_ingestion_high_volume import BronzeIngestionHighVolume
 from spark_streaming.config.kafka_config import KafkaConfig
 from spark_streaming.config.checkpoint_config import CheckpointConfig
 from spark_streaming.utils.error_handler import ErrorHandler
@@ -21,32 +21,34 @@ def high_volume_job(spark):
         schema_registry_url="http://sr:8081",
     )
     checkpoint_config = CheckpointConfig(
-        checkpoint_path="s3a://test-checkpoints/gps-pings/",
+        checkpoint_path="s3a://test-checkpoints/gps_pings/",
         trigger_interval="10 seconds",
     )
     error_handler = ErrorHandler(dlq_table_path="s3a://test-dlq/")
 
-    return HighVolumeStreamingJob(spark, kafka_config, checkpoint_config, error_handler)
+    return BronzeIngestionHighVolume(
+        spark, kafka_config, checkpoint_config, error_handler
+    )
 
 
 def test_topic_names(high_volume_job):
-    """Verify job subscribes to gps-pings topic only."""
-    assert high_volume_job.topic_names == ["gps-pings"]
+    """Verify job subscribes to gps_pings topic only."""
+    assert high_volume_job.topic_names == ["gps_pings"]
 
 
 def test_get_bronze_path(high_volume_job):
-    """Verify bronze path for gps-pings topic."""
+    """Verify bronze path for gps_pings topic."""
     assert (
-        high_volume_job.get_bronze_path("gps-pings")
+        high_volume_job.get_bronze_path("gps_pings")
         == "s3a://rideshare-bronze/bronze_gps_pings/"
     )
 
 
 def test_import_from_jobs_module():
-    """Verify HighVolumeStreamingJob can be imported from jobs module."""
-    from spark_streaming.jobs import HighVolumeStreamingJob
+    """Verify BronzeIngestionHighVolume can be imported from jobs module."""
+    from spark_streaming.jobs import BronzeIngestionHighVolume
 
-    assert HighVolumeStreamingJob is not None
+    assert BronzeIngestionHighVolume is not None
 
 
 def test_partition_columns(high_volume_job):

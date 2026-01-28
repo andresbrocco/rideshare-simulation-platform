@@ -64,7 +64,7 @@ spec:
         - name: PROCESSOR_AGGREGATION_STRATEGY
           value: "latest"
         - name: PROCESSOR_TOPICS
-          value: "gps-pings,trips,driver-status,surge-updates"
+          value: "gps_pings,trips,driver_status,surge_updates"
         - name: API_HOST
           value: "0.0.0.0"
         - name: API_PORT

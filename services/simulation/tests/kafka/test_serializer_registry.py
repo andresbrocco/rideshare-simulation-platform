@@ -119,10 +119,10 @@ class TestSerializerRegistryGetSerializer:
         trips_serializer = SerializerRegistry.get_serializer("trips")
         assert isinstance(trips_serializer, TripEventSerializer)
 
-        gps_serializer = SerializerRegistry.get_serializer("gps-pings")
+        gps_serializer = SerializerRegistry.get_serializer("gps_pings")
         assert isinstance(gps_serializer, GPSPingEventSerializer)
 
-        status_serializer = SerializerRegistry.get_serializer("driver-status")
+        status_serializer = SerializerRegistry.get_serializer("driver_status")
         assert isinstance(status_serializer, DriverStatusEventSerializer)
 
     def test_get_serializer_caches_instances(
