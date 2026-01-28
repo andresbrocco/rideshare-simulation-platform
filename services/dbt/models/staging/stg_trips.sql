@@ -22,7 +22,7 @@ with source as (
         _kafka_timestamp,
         _ingested_at,
         _ingestion_date
-    from bronze.bronze_trips
+    from {{ delta_source('bronze', 'bronze_trips') }}
     {% if is_incremental() %}
     where _ingested_at > (select coalesce(max(_ingested_at), to_timestamp('1970-01-01')) from {{ this }})
     {% endif %}

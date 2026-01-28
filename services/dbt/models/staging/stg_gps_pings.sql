@@ -17,7 +17,7 @@ with source as (
     select
         _raw_value,
         _ingested_at
-    from bronze.bronze_gps_pings
+    from {{ delta_source('bronze', 'bronze_gps_pings') }}
     {% if is_incremental() %}
     where _ingested_at > (select coalesce(max(_ingested_at), to_timestamp('1970-01-01')) from {{ this }})
     {% endif %}

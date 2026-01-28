@@ -1,0 +1,105 @@
+version: 2
+
+sources:
+  - name: bronze
+    description: |
+      Bronze layer raw data from Kafka streams stored in Delta format in MinIO.
+      Tables are read directly from S3 paths using Delta format.
+    meta:
+      external_location: s3a://rideshare-bronze/
+    tables:
+      - name: bronze_trips
+        description: Raw trip events from Kafka
+        meta:
+          location: s3a://rideshare-bronze/bronze_trips/
+          file_format: delta
+        columns:
+          - name: _raw_value
+            description: Raw JSON payload from Kafka message
+          - name: _kafka_partition
+            description: Kafka partition number
+          - name: _kafka_offset
+            description: Kafka offset
+          - name: _kafka_timestamp
+            description: Kafka message timestamp
+          - name: _ingested_at
+            description: Timestamp when record was written to Bronze
+          - name: _ingestion_date
+            description: Date partition for ingestion
+
+      - name: bronze_gps_pings
+        description: Raw GPS ping events from Kafka
+        meta:
+          location: s3a://rideshare-bronze/bronze_gps_pings/
+          file_format: delta
+        columns:
+          - name: _raw_value
+            description: Raw JSON payload from Kafka message
+          - name: _ingested_at
+            description: Timestamp when record was written to Bronze
+
+      - name: bronze_driver_status
+        description: Raw driver status change events from Kafka
+        meta:
+          location: s3a://rideshare-bronze/bronze_driver_status/
+          file_format: delta
+        columns:
+          - name: _raw_value
+            description: Raw JSON payload from Kafka message
+          - name: _ingested_at
+            description: Timestamp when record was written to Bronze
+
+      - name: bronze_surge_updates
+        description: Raw surge pricing update events from Kafka
+        meta:
+          location: s3a://rideshare-bronze/bronze_surge_updates/
+          file_format: delta
+        columns:
+          - name: _raw_value
+            description: Raw JSON payload from Kafka message
+          - name: _ingested_at
+            description: Timestamp when record was written to Bronze
+
+      - name: bronze_ratings
+        description: Raw rating events from Kafka
+        meta:
+          location: s3a://rideshare-bronze/bronze_ratings/
+          file_format: delta
+        columns:
+          - name: _raw_value
+            description: Raw JSON payload from Kafka message
+          - name: _ingested_at
+            description: Timestamp when record was written to Bronze
+
+      - name: bronze_payments
+        description: Raw payment events from Kafka
+        meta:
+          location: s3a://rideshare-bronze/bronze_payments/
+          file_format: delta
+        columns:
+          - name: _raw_value
+            description: Raw JSON payload from Kafka message
+          - name: _ingested_at
+            description: Timestamp when record was written to Bronze
+
+      - name: bronze_driver_profiles
+        description: Raw driver profile events from Kafka
+        meta:
+          location: s3a://rideshare-bronze/bronze_driver_profiles/
+          file_format: delta
+        columns:
+          - name: _raw_value
+            description: Raw JSON payload from Kafka message
+          - name: _ingested_at
+            description: Timestamp when record was written to Bronze
+
+      - name: bronze_rider_profiles
+        description: Raw rider profile events from Kafka
+        meta:
+          location: s3a://rideshare-bronze/bronze_rider_profiles/
+          file_format: delta
+        columns:
+          - name: _raw_value
+            description: Raw JSON payload from Kafka message
+          - name: _ingested_at
+            description: Timestamp when record was written to Bronze

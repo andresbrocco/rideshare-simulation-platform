@@ -4,26 +4,12 @@
     )
 }}
 
-{# Define columns for bronze_gps_pings #}
-{% set gps_columns = {
-    'entity_id': 'string',
-    'timestamp': 'timestamp',
-    'entity_type': 'string'
-} %}
-
-{# Define columns for bronze_driver_status #}
-{% set status_columns = {
-    'driver_id': 'string',
-    'timestamp': 'timestamp',
-    'new_status': 'string'
-} %}
-
 with bronze_gps as (
     select
         entity_id as driver_id,
         timestamp,
         entity_type
-    from {{ source_with_empty_guard('bronze_gps_pings', gps_columns) }}
+    from {{ ref('stg_gps_pings') }}
     where entity_type = 'driver'
 ),
 
@@ -40,7 +26,7 @@ bronze_status as (
         driver_id,
         timestamp,
         new_status
-    from {{ source_with_empty_guard('bronze_driver_status', status_columns) }}
+    from {{ ref('stg_driver_status') }}
 ),
 
 latest_status_per_driver as (

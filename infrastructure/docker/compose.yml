@@ -581,12 +581,16 @@ services:
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
-      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__FERNET_KEY: "989ZwyjTUPqrIF5wxv6t2co6yYH94e5BVlrefZQ-Vy8="
+      AIRFLOW__CORE__INTERNAL_API_SECRET_KEY: "-mszrjJhmspCQdvqihrR6DIrme0unbToVPUk40brcPE="
+      AIRFLOW__API_AUTH__JWT_SECRET: "LZzI1GGTMbhAuzQhC9wfN7n0yaVe3ANAUsTl6jVbVSw"
+      AIRFLOW__API__SECRET_KEY: "D2rCEm60_xUtsSSxMXh9tOEWGgEadUX39FRaMesKvl0"
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW__CORE__AUTH_MANAGER: 'airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager'
       AIRFLOW__CORE__PARALLELISM: 8
       AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: 30
+      AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-webserver:8080/execution/'
       _AIRFLOW_DB_MIGRATE: 'true'
       _AIRFLOW_WWW_USER_CREATE: 'true'
       _AIRFLOW_WWW_USER_USERNAME: admin
@@ -622,12 +626,17 @@ services:
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
-      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__FERNET_KEY: "989ZwyjTUPqrIF5wxv6t2co6yYH94e5BVlrefZQ-Vy8="
+      AIRFLOW__CORE__INTERNAL_API_SECRET_KEY: "-mszrjJhmspCQdvqihrR6DIrme0unbToVPUk40brcPE="
+      AIRFLOW__API_AUTH__JWT_SECRET: "LZzI1GGTMbhAuzQhC9wfN7n0yaVe3ANAUsTl6jVbVSw"
+      AIRFLOW__API__SECRET_KEY: "D2rCEm60_xUtsSSxMXh9tOEWGgEadUX39FRaMesKvl0"
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW__CORE__AUTH_MANAGER: 'airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager'
       AIRFLOW__CORE__PARALLELISM: 8
       AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: 30
+      AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-webserver:8080/execution/'
+      DBT_SPARK_HOST: spark-thrift-server
       _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-fab apache-airflow-providers-apache-spark pyhive thrift dbt-core dbt-spark[PyHive]'
     volumes:
       - ../../services/airflow/dags:/opt/airflow/dags

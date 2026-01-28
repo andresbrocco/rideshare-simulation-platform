@@ -47,37 +47,21 @@
     {%- set typed_null_list = typed_nulls | join(', ') -%}
 
     {#-
-      Check if the source table exists and has columns.
-      We use execute to run only during the execution phase, not during parsing.
-      Tables are in the bronze database (e.g., bronze.bronze_trips).
+      Read from Delta table path in S3.
+      Always assumes the table exists and uses COALESCE pattern to handle empty tables gracefully.
+      Delta tables are read from S3 (e.g., s3a://rideshare-bronze/bronze_trips/).
     -#}
-    {%- set table_exists = true -%}
-    {%- if execute -%}
-        {%- set check_query -%}
-            show tables in bronze like '{{ source_table }}'
-        {%- endset -%}
-        {%- set results = run_query(check_query) -%}
-        {%- if results | length == 0 -%}
-            {%- set table_exists = false -%}
-        {%- endif -%}
-    {%- endif -%}
+    {%- set delta_path = 's3a://rideshare-bronze/' ~ source_table ~ '/' -%}
 
-    {%- if table_exists -%}
     (
         select {{ column_list }}
-        from bronze.{{ source_table }}
+        from delta.`{{ delta_path }}`
 
         union all
 
         select {{ typed_null_list }}
         where 1=0
     )
-    {%- else -%}
-    (
-        select {{ typed_null_list }}
-        where 1=0
-    )
-    {%- endif -%}
 {% endmacro %}
 
 

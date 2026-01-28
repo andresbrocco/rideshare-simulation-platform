@@ -4,27 +4,18 @@
     )
 }}
 
-{# Define columns for bronze_gps_pings #}
-{% set source_columns = {
-    'event_id': 'string',
-    'entity_type': 'string',
-    'entity_id': 'string',
-    'timestamp': 'timestamp',
-    'location': 'array<double>'
-} %}
-
 with bronze_parsed as (
-    -- Parse location array from Bronze layer for testing without requiring staging model
+    -- Use staging model which parses location from Bronze layer
     select
         event_id,
         entity_type,
         entity_id,
         timestamp,
-        location[0] as latitude,
-        location[1] as longitude
-    from {{ source_with_empty_guard('bronze_gps_pings', source_columns) }}
-    where location[0] between -23.8 and -23.3
-      and location[1] between -46.9 and -46.3
+        latitude,
+        longitude
+    from {{ ref('stg_gps_pings') }}
+    where latitude between -23.8 and -23.3
+      and longitude between -46.9 and -46.3
 ),
 
 gps_with_prev as (
