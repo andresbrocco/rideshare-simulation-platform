@@ -130,7 +130,7 @@ class BaseStreamingJob(ABC):
                 current_timestamp().alias("_ingested_at"),
             )
 
-        trigger_config = {}
+        trigger_config: dict[str, str | bool] = {}
         if self._checkpoint_config.trigger_interval == "availableNow":
             trigger_config["availableNow"] = True
         else:

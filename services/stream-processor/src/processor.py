@@ -56,7 +56,7 @@ class StreamProcessor:
         self.running = False
 
         # Initialize Kafka consumer
-        consumer_config = {
+        consumer_config: dict[str, str | int | float | bool | None] = {
             "bootstrap.servers": settings.kafka.bootstrap_servers,
             "group.id": settings.kafka.group_id,
             "auto.offset.reset": settings.kafka.auto_offset_reset,

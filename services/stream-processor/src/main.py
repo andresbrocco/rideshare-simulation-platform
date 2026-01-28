@@ -32,7 +32,7 @@ def ensure_topics_exist(settings: Settings) -> None:
     when subscribing, rather than waiting for topics to be auto-created
     by the simulation producer.
     """
-    admin_config = {
+    admin_config: dict[str, str | int | float | bool] = {
         "bootstrap.servers": settings.kafka.bootstrap_servers,
     }
     admin = AdminClient(admin_config)
