@@ -223,12 +223,13 @@ class StreamProcessor:
                     self._maybe_flush_windows()
                     continue
 
-                if msg.error():
-                    error_code = msg.error().code()
-                    if error_code == KafkaError._PARTITION_EOF:
+                error = msg.error()
+                if error:
+                    error_code = error.code()
+                    if error_code == KafkaError._PARTITION_EOF:  # type: ignore[attr-defined]
                         # End of partition, not an error
                         continue
-                    elif error_code == KafkaError.UNKNOWN_TOPIC_OR_PART:
+                    elif error_code == KafkaError.UNKNOWN_TOPIC_OR_PART:  # type: ignore[attr-defined]
                         # Topics don't exist yet, wait and retry
                         logger.warning(
                             "Topics not available yet, waiting for simulation to create them..."
