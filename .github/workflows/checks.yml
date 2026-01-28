@@ -30,15 +30,15 @@ jobs:
       - name: Install pre-commit
         run: pip install pre-commit
 
-      - name: Create venvs and install mypy for all services
+      - name: Create venvs and install dependencies for all services
         run: |
-          # simulation (already has strict mypy config)
+          # simulation - install full dev dependencies for type stubs
           python -m venv services/simulation/venv
-          services/simulation/venv/bin/pip install --quiet mypy types-redis
+          services/simulation/venv/bin/pip install --quiet -e services/simulation/[dev]
 
           # stream-processor
           python -m venv services/stream-processor/venv
-          services/stream-processor/venv/bin/pip install --quiet mypy types-redis
+          services/stream-processor/venv/bin/pip install --quiet -e services/stream-processor/[dev]
 
           # spark-streaming (uses Python 3.11 locally, but 3.13 works for mypy)
           python -m venv services/spark-streaming/venv
