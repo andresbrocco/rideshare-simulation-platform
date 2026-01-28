@@ -52,9 +52,7 @@ class TestDriverAgentInit:
 
 
 class TestDriverDNAImmutability:
-    def test_driver_dna_immutability(
-        self, driver_agent, driver_dna, dna_factory: DNAFactory
-    ):
+    def test_driver_dna_immutability(self, driver_agent, driver_dna, dna_factory: DNAFactory):
         original_acceptance = driver_dna.acceptance_rate
         # Attempting to assign new DNA should not change it
         with pytest.raises(AttributeError):
@@ -67,9 +65,7 @@ class TestDriverDNAImmutability:
 
 
 class TestDriverStatusTransitions:
-    def test_driver_status_transition_offline_to_online(
-        self, driver_agent, mock_kafka_producer
-    ):
+    def test_driver_status_transition_offline_to_online(self, driver_agent, mock_kafka_producer):
         driver_agent.update_location(-23.55, -46.63)
         driver_agent.go_online()
         assert driver_agent.status == "online"
@@ -101,9 +97,7 @@ class TestDriverStatusTransitions:
         assert driver_agent.status == "en_route_destination"
         mock_kafka_producer.produce.assert_called()
 
-    def test_driver_status_transition_to_online(
-        self, driver_agent, mock_kafka_producer
-    ):
+    def test_driver_status_transition_to_online(self, driver_agent, mock_kafka_producer):
         driver_agent.update_location(-23.55, -46.63)
         driver_agent.go_online()
         driver_agent.accept_trip("trip_001")
@@ -159,13 +153,13 @@ class TestDriverEventEmission:
         assert call_args.kwargs["topic"] == "driver_status"
         assert call_args.kwargs["key"] == "driver_001"
 
-        # Parse the event payload
-        event_data = json.loads(call_args.kwargs["value"])
-        assert event_data["driver_id"] == "driver_001"
-        assert event_data["previous_status"] == "offline"
-        assert event_data["new_status"] == "online"
-        assert event_data["trigger"] == "go_online"
-        assert event_data["location"] == [-23.55, -46.63]
+        # The value is now a DriverStatusEvent Pydantic model
+        event = call_args.kwargs["value"]
+        assert event.driver_id == "driver_001"
+        assert event.previous_status == "offline"
+        assert event.new_status == "online"
+        assert event.trigger == "go_online"
+        assert event.location == (-23.55, -46.63)
 
 
 class TestDriverSimpyProcess:

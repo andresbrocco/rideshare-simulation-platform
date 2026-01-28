@@ -2,6 +2,7 @@ from collections.abc import Generator
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
+from events.factory import EventFactory
 from events.schemas import SurgeUpdateEvent
 from geo.zones import ZoneLoader
 from matching.driver_registry import DriverRegistry
@@ -80,7 +81,9 @@ class SurgePricingCalculator:
             timestamp = datetime.now(UTC).isoformat()
 
             if self.kafka_producer:
-                event = SurgeUpdateEvent(
+                event = EventFactory.create(
+                    SurgeUpdateEvent,
+                    correlation_id=zone_id,
                     zone_id=zone_id,
                     timestamp=timestamp,
                     previous_multiplier=old_multiplier,
@@ -89,9 +92,7 @@ class SurgePricingCalculator:
                     pending_requests=pending_requests,
                     calculation_window_seconds=self.update_interval_seconds,
                 )
-                self.kafka_producer.produce(
-                    topic="surge_updates", key=zone_id, value=event
-                )
+                self.kafka_producer.produce(topic="surge_updates", key=zone_id, value=event)
 
             self.current_surge[zone_id] = new_multiplier
 

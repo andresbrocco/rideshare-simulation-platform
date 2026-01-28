@@ -73,18 +73,16 @@ class Trip(BaseModel):
     # Route progress indices for efficient frontend updates
     route_progress_index: int = 0
     pickup_route_progress_index: int = 0
+    # For causation chain tracking in distributed tracing
+    last_event_id: str | None = None
 
     def transition_to(self, new_state: TripState) -> None:
         """Transition to a new state with validation."""
         if self.state in {TripState.COMPLETED, TripState.CANCELLED}:
-            raise ValueError(
-                f"Cannot transition from terminal state {self.state.value}"
-            )
+            raise ValueError(f"Cannot transition from terminal state {self.state.value}")
 
         if new_state not in VALID_TRANSITIONS[self.state]:
-            raise ValueError(
-                f"Invalid transition from {self.state.value} to {new_state.value}"
-            )
+            raise ValueError(f"Invalid transition from {self.state.value} to {new_state.value}")
 
         self.state = new_state
 

@@ -10,6 +10,7 @@ from uuid import uuid4
 
 import simpy
 
+from events.factory import EventFactory
 from events.schemas import TripEvent
 from kafka.serializer_registry import SerializerRegistry
 from matching.driver_geospatial_index import DriverGeospatialIndex
@@ -111,12 +112,8 @@ class MatchingServer:
         # Queue for trips that need their TripExecutor started from SimPy thread
         self._pending_trip_executions: list[tuple[DriverAgent, Trip]] = []
         # Trip completion tracking (bounded deques to prevent memory growth)
-        self._completed_trips: deque[Trip] = deque(
-            maxlen=self._settings.matching.max_trip_history
-        )
-        self._cancelled_trips: deque[Trip] = deque(
-            maxlen=self._settings.matching.max_trip_history
-        )
+        self._completed_trips: deque[Trip] = deque(maxlen=self._settings.matching.max_trip_history)
+        self._cancelled_trips: deque[Trip] = deque(maxlen=self._settings.matching.max_trip_history)
         # Thread-safe state protection (RLock allows nested acquisition)
         self._state_lock = threading.RLock()
         self._reserved_drivers: set[str] = set()  # Drivers currently receiving offers
@@ -254,17 +251,11 @@ class MatchingServer:
 
         # Compute route immediately for early visualization (pending route)
         try:
-            route_response = await self._osrm_client.get_route(
-                pickup_location, dropoff_location
-            )
+            route_response = await self._osrm_client.get_route(pickup_location, dropoff_location)
             trip.route = route_response.geometry
-            logger.info(
-                f"Trip {trip.trip_id}: Computed route with {len(trip.route)} points"
-            )
+            logger.info(f"Trip {trip.trip_id}: Computed route with {len(trip.route)} points")
         except Exception as e:
-            logger.warning(
-                f"Trip {trip.trip_id}: Could not fetch route at request time: {e}"
-            )
+            logger.warning(f"Trip {trip.trip_id}: Could not fetch route at request time: {e}")
 
         # Track trip as active immediately so it appears in snapshots
         self._active_trips[trip.trip_id] = trip
@@ -292,9 +283,7 @@ class MatchingServer:
         max_eta_seconds: int = 900,
     ) -> list[tuple["DriverAgent", int]]:
         logger.debug(f"Searching for nearby drivers at {pickup_location}")
-        logger.debug(
-            f"Driver index has {len(self._driver_index._driver_locations)} drivers total"
-        )
+        logger.debug(f"Driver index has {len(self._driver_index._driver_locations)} drivers total")
         logger.debug(f"Drivers registered with matching server: {len(self._drivers)}")
 
         nearby = self._driver_index.find_nearest_drivers(
@@ -327,17 +316,13 @@ class MatchingServer:
             try:
                 # Location is guaranteed non-None by valid_drivers filter above
                 assert driver.location is not None
-                route = await self._osrm_client.get_route(
-                    driver.location, pickup_location
-                )
+                route = await self._osrm_client.get_route(driver.location, pickup_location)
                 eta_seconds = int(route.duration_seconds)
                 logger.debug(
                     f"Driver {driver.driver_id} ETA: {eta_seconds}s (max={max_eta_seconds}s)"
                 )
                 if eta_seconds <= max_eta_seconds:
-                    logger.debug(
-                        f"Driver {driver.driver_id} added to result (ETA within limit)"
-                    )
+                    logger.debug(f"Driver {driver.driver_id} added to result (ETA within limit)")
                     return (driver, eta_seconds)
                 else:
                     logger.debug(f"Driver {driver.driver_id} ETA too long, skipping")
@@ -346,9 +331,7 @@ class MatchingServer:
                 logger.error(f"Failed to get route for driver {driver.driver_id}: {e}")
                 return None
 
-        route_results = await asyncio.gather(
-            *[fetch_route(driver) for driver, _ in valid_drivers]
-        )
+        route_results = await asyncio.gather(*[fetch_route(driver) for driver, _ in valid_drivers])
 
         # Filter out None results (failed fetches or ETAs too long)
         result = [r for r in route_results if r is not None]
@@ -416,20 +399,14 @@ class MatchingServer:
         ranked_drivers: list[tuple["DriverAgent", int, float]],
         max_attempts: int = 5,
     ) -> Trip | None:
-        logger.info(
-            f"send_offer_cycle: {len(ranked_drivers)} drivers, max_attempts={max_attempts}"
-        )
+        logger.info(f"send_offer_cycle: {len(ranked_drivers)} drivers, max_attempts={max_attempts}")
         for attempts, (driver, eta_seconds, _score) in enumerate(ranked_drivers):
             if attempts >= max_attempts:
                 logger.info(f"Reached max attempts ({max_attempts})")
                 break
 
-            logger.info(
-                f"Sending offer to driver {driver.driver_id} (attempt {attempts + 1})"
-            )
-            accepted = self.send_offer(
-                driver, trip, trip.offer_sequence + 1, eta_seconds
-            )
+            logger.info(f"Sending offer to driver {driver.driver_id} (attempt {attempts + 1})")
+            accepted = self.send_offer(driver, trip, trip.offer_sequence + 1, eta_seconds)
 
             # For puppet drivers, pause the cycle and wait for manual accept/reject via API
             if getattr(driver, "_is_puppet", False):
@@ -449,9 +426,7 @@ class MatchingServer:
                 # Return trip to indicate it's pending (not None which would mean failure)
                 return trip
 
-            logger.info(
-                f"Driver {driver.driver_id} {'accepted' if accepted else 'rejected'} offer"
-            )
+            logger.info(f"Driver {driver.driver_id} {'accepted' if accepted else 'rejected'} offer")
 
             if accepted:
                 trip.driver_id = driver.driver_id
@@ -467,9 +442,7 @@ class MatchingServer:
 
                 # Decrement pending request count for surge calculation
                 if self._surge_calculator:
-                    self._surge_calculator.decrement_pending_request(
-                        trip.pickup_zone_id
-                    )
+                    self._surge_calculator.decrement_pending_request(trip.pickup_zone_id)
 
                 # Start trip execution
                 logger.info(f"Starting trip execution for trip {trip.trip_id}")
@@ -518,12 +491,8 @@ class MatchingServer:
                 logger.info(f"Reached max attempts ({max_attempts})")
                 break
 
-            logger.info(
-                f"Sending offer to driver {driver.driver_id} (attempt {attempt_num + 1})"
-            )
-            accepted = self.send_offer(
-                driver, trip, trip.offer_sequence + 1, eta_seconds
-            )
+            logger.info(f"Sending offer to driver {driver.driver_id} (attempt {attempt_num + 1})")
+            accepted = self.send_offer(driver, trip, trip.offer_sequence + 1, eta_seconds)
 
             # For puppet drivers, pause the cycle again and wait for manual action
             if getattr(driver, "_is_puppet", False):
@@ -540,9 +509,7 @@ class MatchingServer:
                 }
                 return trip
 
-            logger.info(
-                f"Driver {driver.driver_id} {'accepted' if accepted else 'rejected'} offer"
-            )
+            logger.info(f"Driver {driver.driver_id} {'accepted' if accepted else 'rejected'} offer")
 
             if accepted:
                 trip.driver_id = driver.driver_id
@@ -556,9 +523,7 @@ class MatchingServer:
 
                 # Decrement pending request count for surge calculation
                 if self._surge_calculator:
-                    self._surge_calculator.decrement_pending_request(
-                        trip.pickup_zone_id
-                    )
+                    self._surge_calculator.decrement_pending_request(trip.pickup_zone_id)
 
                 # Start trip execution
                 logger.info(f"Starting trip execution for trip {trip.trip_id}")
@@ -610,13 +575,9 @@ class MatchingServer:
             driver: The matched driver
             trip: The matched trip
         """
-        logger.debug(
-            "_start_trip_execution_internal called", extra={"trip_id": trip.trip_id}
-        )
+        logger.debug("_start_trip_execution_internal called", extra={"trip_id": trip.trip_id})
         if not self._registry_manager:
-            logger.debug(
-                "No registry_manager available", extra={"trip_id": trip.trip_id}
-            )
+            logger.debug("No registry_manager available", extra={"trip_id": trip.trip_id})
             return
 
         rider = self._registry_manager.get_rider(trip.rider_id)
@@ -755,7 +716,10 @@ class MatchingServer:
         if not self._kafka_producer:
             return
 
-        event = TripEvent(
+        event = EventFactory.create_for_trip(
+            TripEvent,
+            trip,
+            update_causation=True,
             event_type="trip.offer_sent",
             trip_id=trip.trip_id,
             rider_id=trip.rider_id,
@@ -776,7 +740,10 @@ class MatchingServer:
         if not self._kafka_producer:
             return
 
-        event = TripEvent(
+        event = EventFactory.create_for_trip(
+            TripEvent,
+            trip,
+            update_causation=True,
             event_type="trip.matched",
             trip_id=trip.trip_id,
             rider_id=trip.rider_id,
@@ -821,12 +788,8 @@ class MatchingServer:
 
             self._active_trips.clear()
             # Reinitialize deques with maxlen to ensure bound is preserved
-            self._completed_trips = deque(
-                maxlen=self._settings.matching.max_trip_history
-            )
-            self._cancelled_trips = deque(
-                maxlen=self._settings.matching.max_trip_history
-            )
+            self._completed_trips = deque(maxlen=self._settings.matching.max_trip_history)
+            self._cancelled_trips = deque(maxlen=self._settings.matching.max_trip_history)
             self._pending_offers.clear()
             self._pending_offer_candidates.clear()
             self._pending_trip_executions.clear()
@@ -939,9 +902,7 @@ class MatchingServer:
                 self._active_trips.pop(trip.trip_id, None)
         else:
             # No more candidates available
-            logger.info(
-                f"No remaining candidates for trip {trip_id} after puppet rejection"
-            )
+            logger.info(f"No remaining candidates for trip {trip_id} after puppet rejection")
             self._emit_no_drivers_event(trip.trip_id, trip.rider_id)
             self._active_trips.pop(trip.trip_id, None)
 
@@ -990,9 +951,7 @@ class MatchingServer:
                 self._active_trips.pop(trip.trip_id, None)
         else:
             # No more candidates available
-            logger.info(
-                f"No remaining candidates for trip {trip_id} after puppet timeout"
-            )
+            logger.info(f"No remaining candidates for trip {trip_id} after puppet timeout")
             self._emit_no_drivers_event(trip.trip_id, trip.rider_id)
             self._active_trips.pop(trip.trip_id, None)
 
@@ -1088,17 +1047,13 @@ class MatchingServer:
         trip_duration_seconds = 0.0
 
         if trip.matched_at and trip.driver_arrived_at:
-            pickup_time_seconds = (
-                trip.driver_arrived_at - trip.matched_at
-            ).total_seconds()
+            pickup_time_seconds = (trip.driver_arrived_at - trip.matched_at).total_seconds()
 
         if trip.requested_at and trip.matched_at:
             wait_time_seconds = (trip.matched_at - trip.requested_at).total_seconds()
 
         if trip.started_at and trip.completed_at:
-            trip_duration_seconds = (
-                trip.completed_at - trip.started_at
-            ).total_seconds()
+            trip_duration_seconds = (trip.completed_at - trip.started_at).total_seconds()
 
         # Record driver statistics
         driver.statistics.record_trip_completed(
@@ -1161,7 +1116,10 @@ class MatchingServer:
         if not self._kafka_producer:
             return
 
-        event = TripEvent(
+        event = EventFactory.create_for_trip(
+            TripEvent,
+            trip,
+            update_causation=True,
             event_type=event_type,
             trip_id=trip.trip_id,
             rider_id=trip.rider_id,
@@ -1201,9 +1159,7 @@ class MatchingServer:
             raise ValueError(f"Trip {trip_id} not found")
 
         if driver.status != "en_route_pickup":
-            raise ValueError(
-                f"Driver must be in 'en_route_pickup' status, got '{driver.status}'"
-            )
+            raise ValueError(f"Driver must be in 'en_route_pickup' status, got '{driver.status}'")
 
         if not driver.location:
             raise ValueError(f"Driver {driver_id} has no location")

@@ -52,8 +52,9 @@ class TestDriverShiftLifecycle:
         ]
         assert len(calls) > 0
 
-        event = json.loads(calls[0].kwargs["value"])
-        assert event["new_status"] == "online"
+        # The value is now a DriverStatusEvent Pydantic model
+        event = calls[0].kwargs["value"]
+        assert event.new_status == "online"
 
     def test_driver_shift_ends(self, mock_kafka_producer, dna_factory: DNAFactory):
         """Test that driver goes offline after shift ends.
@@ -80,9 +81,7 @@ class TestDriverShiftLifecycle:
 
         assert agent.status == "offline"
 
-    def test_driver_shift_timing_randomized(
-        self, mock_kafka_producer, dna_factory: DNAFactory
-    ):
+    def test_driver_shift_timing_randomized(self, mock_kafka_producer, dna_factory: DNAFactory):
         """Test that shift start times vary between drivers.
 
         Uses 3 agents starting at 5:00 AM to catch morning shifts quickly.
@@ -159,10 +158,9 @@ class TestDriverShiftLifecycle:
             if call.kwargs.get("topic") == "driver_status"
         ]
 
+        # The value is now a DriverStatusEvent Pydantic model
         online_events = [
-            call
-            for call in status_calls
-            if "online" in json.loads(call.kwargs["value"])["new_status"]
+            call for call in status_calls if "online" in call.kwargs["value"].new_status
         ]
 
         # With avg_days_per_week=7, driver should go online on day 1
@@ -201,9 +199,7 @@ class TestDriverShiftLifecycle:
         assert agent.status == "offline"
         assert agent.active_trip is None
 
-    def test_driver_shift_status_event_online(
-        self, mock_kafka_producer, dna_factory: DNAFactory
-    ):
+    def test_driver_shift_status_event_online(self, mock_kafka_producer, dna_factory: DNAFactory):
         """Test online status event is emitted."""
         env = simpy.Environment(initial_time=5 * 3600)  # Start at 5:00
 
@@ -230,13 +226,12 @@ class TestDriverShiftLifecycle:
         ]
         assert len(status_calls) > 0
 
-        event = json.loads(status_calls[0].kwargs["value"])
-        assert event["new_status"] == "online"
-        assert event["driver_id"] == "driver_001"
+        # The value is now a DriverStatusEvent Pydantic model
+        event = status_calls[0].kwargs["value"]
+        assert event.new_status == "online"
+        assert event.driver_id == "driver_001"
 
-    def test_driver_shift_status_event_offline(
-        self, mock_kafka_producer, dna_factory: DNAFactory
-    ):
+    def test_driver_shift_status_event_offline(self, mock_kafka_producer, dna_factory: DNAFactory):
         """Test offline status event is emitted after shift ends."""
         env = simpy.Environment(initial_time=6 * 3600)  # Start at 6:00
 
@@ -262,16 +257,13 @@ class TestDriverShiftLifecycle:
             if call.kwargs.get("topic") == "driver_status"
         ]
 
+        # The value is now a DriverStatusEvent Pydantic model
         offline_events = [
-            call
-            for call in status_calls
-            if json.loads(call.kwargs["value"])["new_status"] == "offline"
+            call for call in status_calls if call.kwargs["value"].new_status == "offline"
         ]
         assert len(offline_events) > 0
 
-    def test_driver_shift_duration_exact(
-        self, mock_kafka_producer, dna_factory: DNAFactory
-    ):
+    def test_driver_shift_duration_exact(self, mock_kafka_producer, dna_factory: DNAFactory):
         """Test that shift duration matches avg_hours_per_day."""
         env = simpy.Environment(initial_time=5 * 3600)  # Start at 5:00
 
@@ -295,11 +287,7 @@ class TestDriverShiftLifecycle:
                 yield env.timeout(60)
                 if agent.status == "online" and "online" not in times:
                     times["online"] = env.now
-                elif (
-                    agent.status == "offline"
-                    and "online" in times
-                    and "offline" not in times
-                ):
+                elif agent.status == "offline" and "online" in times and "offline" not in times:
                     times["offline"] = env.now
 
         env.process(agent.run())
@@ -310,9 +298,7 @@ class TestDriverShiftLifecycle:
             duration = (times["offline"] - times["online"]) / 3600
             assert 3.5 <= duration <= 4.5
 
-    def test_driver_shift_preference_morning(
-        self, mock_kafka_producer, dna_factory: DNAFactory
-    ):
+    def test_driver_shift_preference_morning(self, mock_kafka_producer, dna_factory: DNAFactory):
         """Test morning shift starts in morning hours."""
         env = simpy.Environment(initial_time=5 * 3600)  # Start at 5:00
 
@@ -345,9 +331,7 @@ class TestDriverShiftLifecycle:
         assert start_hour is not None
         assert 5.5 <= start_hour <= 10.5
 
-    def test_driver_shift_preference_evening(
-        self, mock_kafka_producer, dna_factory: DNAFactory
-    ):
+    def test_driver_shift_preference_evening(self, mock_kafka_producer, dna_factory: DNAFactory):
         """Test evening shift starts in evening hours.
 
         Start simulation at 15:00 so we only need to wait ~6 hours for evening shift.
@@ -384,9 +368,7 @@ class TestDriverShiftLifecycle:
         assert start_hour is not None
         assert 16.5 <= start_hour <= 21.5
 
-    def test_driver_shift_preference_flexible(
-        self, mock_kafka_producer, dna_factory: DNAFactory
-    ):
+    def test_driver_shift_preference_flexible(self, mock_kafka_producer, dna_factory: DNAFactory):
         """Test flexible shift can start at any hour.
 
         Flexible shifts have a random start time, so we just verify
@@ -417,9 +399,8 @@ class TestDriverShiftLifecycle:
         ]
 
         # Flexible driver should go online at some point
+        # The value is now a DriverStatusEvent Pydantic model
         online_events = [
-            call
-            for call in status_calls
-            if json.loads(call.kwargs["value"])["new_status"] == "online"
+            call for call in status_calls if call.kwargs["value"].new_status == "online"
         ]
         assert len(online_events) >= 1

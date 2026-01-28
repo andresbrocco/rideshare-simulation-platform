@@ -21,7 +21,8 @@ from agents.rating_logic import generate_rating_value, should_submit_rating
 from agents.statistics import RiderStatistics
 from core.exceptions import PersistenceError
 from core.retry import RetryConfig, with_retry_sync
-from events.schemas import GPSPingEvent, RatingEvent, RiderProfileEvent
+from events.factory import EventFactory
+from events.schemas import GPSPingEvent, RatingEvent, RiderProfileEvent, TripEvent
 from kafka.producer import KafkaProducer
 from redis_client.publisher import RedisPublisher
 from utils.async_helpers import run_coroutine_safe
@@ -87,9 +88,7 @@ class RiderAgent(EventEmitter):
                 repo = self._rider_repository
                 with_retry_sync(
                     lambda repo=repo: repo.create(rider_id, dna),  # type: ignore[misc]
-                    config=RetryConfig(
-                        max_attempts=3, retryable_exceptions=(Exception,)
-                    ),
+                    config=RetryConfig(max_attempts=3, retryable_exceptions=(Exception,)),
                     operation_name=f"persist_rider_{rider_id}",
                 )
             except Exception as e:
@@ -154,9 +153,7 @@ class RiderAgent(EventEmitter):
                         repo.update_status(self._rider_id, self._status),
                         repo.update_active_trip(self._rider_id, trip_id),
                     ),
-                    config=RetryConfig(
-                        max_attempts=3, retryable_exceptions=(Exception,)
-                    ),
+                    config=RetryConfig(max_attempts=3, retryable_exceptions=(Exception,)),
                     operation_name=f"persist_trip_request_{self._rider_id}",
                 )
             except Exception as e:
@@ -174,9 +171,7 @@ class RiderAgent(EventEmitter):
                 repo = self._rider_repository
                 with_retry_sync(
                     lambda repo=repo: repo.update_status(self._rider_id, self._status),  # type: ignore[misc]
-                    config=RetryConfig(
-                        max_attempts=3, retryable_exceptions=(Exception,)
-                    ),
+                    config=RetryConfig(max_attempts=3, retryable_exceptions=(Exception,)),
                     operation_name=f"update_rider_status_{self._rider_id}",
                 )
             except Exception as e:
@@ -198,9 +193,7 @@ class RiderAgent(EventEmitter):
                         repo.update_status(self._rider_id, self._status),
                         repo.update_active_trip(self._rider_id, None),
                     ),
-                    config=RetryConfig(
-                        max_attempts=3, retryable_exceptions=(Exception,)
-                    ),
+                    config=RetryConfig(max_attempts=3, retryable_exceptions=(Exception,)),
                     operation_name=f"persist_trip_completion_{self._rider_id}",
                 )
             except Exception as e:
@@ -222,9 +215,7 @@ class RiderAgent(EventEmitter):
                         repo.update_status(self._rider_id, self._status),
                         repo.update_active_trip(self._rider_id, None),
                     ),
-                    config=RetryConfig(
-                        max_attempts=3, retryable_exceptions=(Exception,)
-                    ),
+                    config=RetryConfig(max_attempts=3, retryable_exceptions=(Exception,)),
                     operation_name=f"persist_trip_cancellation_{self._rider_id}",
                 )
             except Exception as e:
@@ -242,9 +233,7 @@ class RiderAgent(EventEmitter):
                 repo = self._rider_repository
                 with_retry_sync(
                     lambda repo=repo: repo.update_location(self._rider_id, (lat, lon)),  # type: ignore[misc]
-                    config=RetryConfig(
-                        max_attempts=3, retryable_exceptions=(Exception,)
-                    ),
+                    config=RetryConfig(max_attempts=3, retryable_exceptions=(Exception,)),
                     operation_name=f"update_rider_location_{self._rider_id}",
                 )
             except Exception as e:
@@ -255,9 +244,9 @@ class RiderAgent(EventEmitter):
 
     def update_rating(self, new_rating: int) -> None:
         """Update rolling average rating."""
-        self._current_rating = (
-            self._current_rating * self._rating_count + new_rating
-        ) / (self._rating_count + 1)
+        self._current_rating = (self._current_rating * self._rating_count + new_rating) / (
+            self._rating_count + 1
+        )
         self._rating_count += 1
 
         if self._rider_repository:
@@ -267,9 +256,7 @@ class RiderAgent(EventEmitter):
                     lambda repo=repo: repo.update_rating(  # type: ignore[misc]
                         self._rider_id, self._current_rating, self._rating_count
                     ),
-                    config=RetryConfig(
-                        max_attempts=3, retryable_exceptions=(Exception,)
-                    ),
+                    config=RetryConfig(max_attempts=3, retryable_exceptions=(Exception,)),
                     operation_name=f"update_rider_rating_{self._rider_id}",
                 )
             except Exception as e:
@@ -285,9 +272,7 @@ class RiderAgent(EventEmitter):
         if trip.state != TripState.COMPLETED:
             return None
 
-        rating_value = generate_rating_value(
-            driver.dna.service_quality, "service_quality"
-        )
+        rating_value = generate_rating_value(driver.dna.service_quality, "service_quality")
 
         if not should_submit_rating(rating_value):
             return None
@@ -312,12 +297,12 @@ class RiderAgent(EventEmitter):
         rating_count: int,
     ) -> None:
         """Emit rating event to Kafka."""
-        from datetime import UTC, datetime
-
         if self._kafka_producer is None:
             return
 
-        event = RatingEvent(
+        event = EventFactory.create(
+            RatingEvent,
+            correlation_id=trip_id,
             trip_id=trip_id,
             timestamp=datetime.now(UTC).isoformat(),
             rater_type="rider",
@@ -415,9 +400,7 @@ class RiderAgent(EventEmitter):
                     repo = self._rider_repository
                     with_retry_sync(
                         lambda repo=repo: repo.update_status(self._rider_id, self._status),  # type: ignore[misc]
-                        config=RetryConfig(
-                            max_attempts=3, retryable_exceptions=(Exception,)
-                        ),
+                        config=RetryConfig(max_attempts=3, retryable_exceptions=(Exception,)),
                         operation_name=f"update_rider_status_{self._rider_id}",
                     )
                 except Exception as e:
@@ -440,7 +423,9 @@ class RiderAgent(EventEmitter):
 
     def _emit_creation_event(self) -> None:
         """Emit rider.created event on initialization."""
-        event = RiderProfileEvent(
+        event = EventFactory.create(
+            RiderProfileEvent,
+            correlation_id=self._rider_id,
             event_type="rider.created",
             rider_id=self._rider_id,
             timestamp=datetime.now(UTC).isoformat(),
@@ -449,7 +434,7 @@ class RiderAgent(EventEmitter):
             email=self._dna.email,
             phone=self._dna.phone,
             home_location=self._dna.home_location,
-            payment_method_type=self._dna.payment_method_type,  # type: ignore[arg-type]
+            payment_method_type=self._dna.payment_method_type,
             payment_method_masked=self._dna.payment_method_masked,
             behavior_factor=self._dna.behavior_factor,
         )
@@ -477,7 +462,9 @@ class RiderAgent(EventEmitter):
         if not changes:
             return
 
-        event = RiderProfileEvent(
+        event = EventFactory.create(
+            RiderProfileEvent,
+            correlation_id=self._rider_id,
             event_type="rider.updated",
             rider_id=self._rider_id,
             timestamp=datetime.now(UTC).isoformat(),
@@ -486,9 +473,7 @@ class RiderAgent(EventEmitter):
             email=changes.get("email", self._dna.email),
             phone=changes.get("phone", self._dna.phone),
             home_location=self._dna.home_location,
-            payment_method_type=changes.get(
-                "payment_method_type", self._dna.payment_method_type
-            ),
+            payment_method_type=changes.get("payment_method_type", self._dna.payment_method_type),
             payment_method_masked=changes.get(
                 "payment_method_masked", self._dna.payment_method_masked
             ),
@@ -530,7 +515,11 @@ class RiderAgent(EventEmitter):
         if self._location is None:
             return
 
-        gps_event = GPSPingEvent(
+        # Use trip_id as correlation if in trip, otherwise rider_id
+        correlation = self._active_trip or self._rider_id
+        gps_event = EventFactory.create(
+            GPSPingEvent,
+            correlation_id=correlation,
             entity_type="rider",
             entity_id=self._rider_id,
             timestamp=datetime.now(UTC).isoformat(),
@@ -559,8 +548,6 @@ class RiderAgent(EventEmitter):
         """SimPy process entry point with request lifecycle."""
         import uuid
 
-        from events.schemas import TripEvent
-
         # Puppet mode: only emit GPS pings, no autonomous actions
         if self._is_puppet:
             while True:
@@ -579,7 +566,11 @@ class RiderAgent(EventEmitter):
         while True:
             if self._status == "in_trip":
                 if self._location:
-                    gps_event = GPSPingEvent(
+                    # Use trip_id as correlation if in trip, otherwise rider_id
+                    correlation = self._active_trip or self._rider_id
+                    gps_event = EventFactory.create(
+                        GPSPingEvent,
+                        correlation_id=correlation,
                         entity_type="rider",
                         entity_id=self._rider_id,
                         timestamp=datetime.now(UTC).isoformat(),
@@ -652,8 +643,10 @@ class RiderAgent(EventEmitter):
             surge_multiplier = self._get_surge(pickup_zone_id)
             fare = self._calculate_fare(self._location, destination, surge_multiplier)
 
-            # Emit trip.requested event
-            trip_event = TripEvent(
+            # Emit trip.requested event (root event for this trip)
+            trip_event = EventFactory.create(
+                TripEvent,
+                correlation_id=trip_id,
                 event_type="trip.requested",
                 trip_id=trip_id,
                 timestamp=datetime.now(UTC).isoformat(),
@@ -732,16 +725,14 @@ class RiderAgent(EventEmitter):
                     self._surge_calculator.decrement_pending_request(pickup_zone_id)
 
                 # Cancel trip in matching server to clean up _active_trips
-                if self._simulation_engine and hasattr(
-                    self._simulation_engine, "_matching_server"
-                ):
+                if self._simulation_engine and hasattr(self._simulation_engine, "_matching_server"):
                     matching_server = self._simulation_engine._matching_server
                     if matching_server:
-                        matching_server.cancel_trip(
-                            trip_id, "rider", "patience_timeout"
-                        )
+                        matching_server.cancel_trip(trip_id, "rider", "patience_timeout")
 
-                event = TripEvent(
+                event = EventFactory.create(
+                    TripEvent,
+                    correlation_id=trip_id,
                     event_type="trip.cancelled",
                     trip_id=trip_id,
                     timestamp=datetime.now(UTC).isoformat(),
@@ -774,7 +765,11 @@ class RiderAgent(EventEmitter):
 
             while self._status == "in_trip":
                 if self._location:
-                    gps_event = GPSPingEvent(
+                    # Use trip_id as correlation since rider is in trip
+                    correlation = self._active_trip or self._rider_id
+                    gps_event = EventFactory.create(
+                        GPSPingEvent,
+                        correlation_id=correlation,
                         entity_type="rider",
                         entity_id=self._rider_id,
                         timestamp=datetime.now(UTC).isoformat(),
@@ -857,32 +852,22 @@ class RiderAgent(EventEmitter):
                 duration_minutes = route.duration_seconds / 60
             except Exception:
                 # Fallback to Haversine estimate
-                distance_km = self._haversine_distance(
-                    pickup[0], pickup[1], dropoff[0], dropoff[1]
-                )
+                distance_km = self._haversine_distance(pickup[0], pickup[1], dropoff[0], dropoff[1])
                 # Estimate duration based on average city speed (25 km/h)
                 duration_minutes = (distance_km / 25) * 60
         else:
-            distance_km = self._haversine_distance(
-                pickup[0], pickup[1], dropoff[0], dropoff[1]
-            )
+            distance_km = self._haversine_distance(pickup[0], pickup[1], dropoff[0], dropoff[1])
             duration_minutes = (distance_km / 25) * 60
 
         # Calculate total fare
-        fare = (
-            BASE_FARE
-            + (distance_km * PER_KM_RATE)
-            + (duration_minutes * PER_MINUTE_RATE)
-        )
+        fare = BASE_FARE + (distance_km * PER_KM_RATE) + (duration_minutes * PER_MINUTE_RATE)
         fare = fare * surge_multiplier
 
         # Round to 2 decimal places
         return round(fare, 2)
 
     @staticmethod
-    def _haversine_distance(
-        lat1: float, lon1: float, lat2: float, lon2: float
-    ) -> float:
+    def _haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
         """Calculate distance between two points in kilometers using Haversine formula."""
         import math
 
@@ -923,9 +908,7 @@ class RiderAgent(EventEmitter):
         zone_id = None
         loader = zone_loader or self._zone_loader
         if loader and self._location:
-            zone_id = loader.find_zone_for_location(
-                self._location[0], self._location[1]
-            )
+            zone_id = loader.find_zone_for_location(self._location[0], self._location[1])
 
         return {
             "rider_id": self._rider_id,
