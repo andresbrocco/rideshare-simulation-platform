@@ -24,7 +24,12 @@ from agents.statistics import DriverStatistics
 from core.exceptions import PersistenceError
 from core.retry import RetryConfig, with_retry_sync
 from events.factory import EventFactory
-from events.schemas import DriverProfileEvent, DriverStatusEvent, GPSPingEvent, RatingEvent
+from events.schemas import (
+    DriverProfileEvent,
+    DriverStatusEvent,
+    GPSPingEvent,
+    RatingEvent,
+)
 from geo.gps_simulation import GPSSimulator
 from kafka.producer import KafkaProducer
 from metrics import get_metrics_collector
