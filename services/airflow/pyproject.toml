@@ -6,7 +6,11 @@ requires-python = ">=3.11"
 
 [tool.mypy]
 python_version = "3.13"
-ignore_missing_imports = true
 warn_unused_configs = true
 check_untyped_defs = true
 warn_redundant_casts = true
+
+# pyhive and airflow.providers.databricks have no type stubs available
+[[tool.mypy.overrides]]
+module = ["pyhive", "pyhive.*", "airflow.providers.databricks", "airflow.providers.databricks.*"]
+ignore_missing_imports = true

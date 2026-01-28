@@ -75,6 +75,10 @@ class GPSHandler(BaseHandler):
         entity_id = event.get("entity_id")
         self.messages_received += 1
 
+        if entity_id is None:
+            logger.warning("GPS event missing entity_id, skipping")
+            return []
+
         if self.strategy == "latest":
             self.window_state[entity_id] = event
             return []

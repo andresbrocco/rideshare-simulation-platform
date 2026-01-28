@@ -41,7 +41,7 @@ repos:
 
       - id: mypy-spark-streaming
         name: mypy (spark-streaming)
-        entry: bash -c 'cd services/spark-streaming && ./venv/bin/mypy framework/ config/ jobs/ utils/'
+        entry: bash -c 'cd services && [ ! -L spark_streaming ] && ln -s spark-streaming spark_streaming; PYTHONPATH=. ./spark-streaming/venv/bin/mypy spark_streaming/framework/ spark_streaming/config/ spark_streaming/jobs/ spark_streaming/utils/'
         language: system
         files: ^services/spark-streaming/(framework|config|jobs|utils)/.*\.py$
         pass_filenames: false

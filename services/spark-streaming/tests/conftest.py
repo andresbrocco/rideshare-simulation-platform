@@ -18,9 +18,10 @@ if "spark_streaming" not in sys.modules:
         spark_streaming_dir / "__init__.py",
         submodule_search_locations=[str(spark_streaming_dir)],
     )
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["spark_streaming"] = module
-    spec.loader.exec_module(module)
+    if spec is not None and spec.loader is not None:
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["spark_streaming"] = module
+        spec.loader.exec_module(module)
 
 # Add repository root to sys.path to enable imports like 'from schemas.lakehouse...'
 # The schemas package is located at the repo root level

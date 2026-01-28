@@ -101,14 +101,16 @@ warn_unused_ignores = true
 explicit_package_bases = true
 mypy_path = "src"
 
+# These libraries have no type stubs available
 [[tool.mypy.overrides]]
 module = [
+    "simpy",
     "simpy.*",
+    "confluent_kafka",
     "confluent_kafka.*",
+    "h3",
     "h3.*",
+    "polyline",
     "polyline.*",
-    "respx.*",
-    "faker.*",
-    "shapely.*",
 ]
 ignore_missing_imports = true

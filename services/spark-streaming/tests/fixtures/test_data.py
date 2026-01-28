@@ -6,6 +6,7 @@ for testing all eight streaming jobs in the Bronze layer ingestion pipeline.
 
 import uuid
 from datetime import datetime, timezone
+from typing import Callable
 
 
 def sample_trip_requested_event(
@@ -383,7 +384,7 @@ def sample_malformed_gps_event() -> dict:
 
 
 def generate_event_batch(
-    event_generator: callable,
+    event_generator: Callable,
     count: int = 100,
     **kwargs,
 ) -> list[dict]:

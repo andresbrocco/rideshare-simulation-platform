@@ -47,3 +47,4 @@ data/osrm/*.osm.pbf
 !data/osrm/sao-paulo-metro.osm.pbf
 *.db
 *.sqlite
+services/spark_streaming
