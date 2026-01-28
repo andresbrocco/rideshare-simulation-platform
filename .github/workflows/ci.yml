@@ -1,0 +1,133 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: services/frontend/package-lock.json
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
+      - name: Create venvs and install mypy for all services
+        run: |
+          # simulation (already has strict mypy config)
+          python -m venv services/simulation/venv
+          services/simulation/venv/bin/pip install --quiet mypy types-redis
+
+          # stream-processor
+          python -m venv services/stream-processor/venv
+          services/stream-processor/venv/bin/pip install --quiet mypy types-redis
+
+          # spark-streaming (uses Python 3.11 locally, but 3.13 works for mypy)
+          python -m venv services/spark-streaming/venv
+          services/spark-streaming/venv/bin/pip install --quiet mypy
+
+          # dbt
+          python -m venv services/dbt/venv
+          services/dbt/venv/bin/pip install --quiet mypy
+
+          # airflow
+          python -m venv services/airflow/venv
+          services/airflow/venv/bin/pip install --quiet mypy types-requests
+
+          # great-expectations
+          python -m venv quality/great-expectations/venv
+          quality/great-expectations/venv/bin/pip install --quiet mypy types-PyYAML
+
+          # superset
+          python -m venv analytics/superset/venv
+          analytics/superset/venv/bin/pip install --quiet mypy types-requests
+
+          # lakehouse
+          python -m venv schemas/lakehouse/venv
+          schemas/lakehouse/venv/bin/pip install --quiet mypy
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: services/frontend
+
+      - name: Run pre-commit on all files
+        run: pre-commit run --all-files
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install simulation dependencies and run tests
+        working-directory: services/simulation
+        run: |
+          python -m venv venv
+          ./venv/bin/pip install --quiet -e ".[dev]"
+          ./venv/bin/pytest -v --tb=short
+
+      - name: Install stream-processor dependencies and run tests
+        working-directory: services/stream-processor
+        run: |
+          python -m venv venv
+          ./venv/bin/pip install --quiet -e ".[dev]"
+          ./venv/bin/pytest -v --tb=short
+
+      - name: Install spark-streaming dependencies and run tests
+        working-directory: services/spark-streaming
+        run: |
+          python -m venv venv
+          ./venv/bin/pip install --quiet pytest pyspark delta-spark
+          ./venv/bin/pytest -v --tb=short -m "not integration"
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: services/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: services/frontend
+
+      - name: Type check
+        run: npm run typecheck
+        working-directory: services/frontend
+
+      - name: Build
+        run: npm run build
+        working-directory: services/frontend
