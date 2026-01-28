@@ -34,16 +34,21 @@ class TestWorkflowStructure:
         assert WORKFLOW_PATH.exists(), f"Workflow file not found at {WORKFLOW_PATH}"
 
     def test_workflow_has_required_triggers(self):
-        """Workflow should trigger on push to main and pull requests."""
+        """Workflow should trigger after Checks workflow completes on main."""
         workflow = load_workflow()
         assert workflow is not None, "Workflow file not found"
 
         on_config = get_on_config(workflow)
-        assert "push" in on_config, "Workflow should trigger on push"
-        assert "pull_request" in on_config, "Workflow should trigger on pull_request"
+        # Integration tests run after Checks workflow completes (not on every push)
+        assert "workflow_run" in on_config, "Workflow should trigger on workflow_run"
 
-        push_branches = on_config.get("push", {}).get("branches", [])
-        assert "main" in push_branches, "Workflow should trigger on push to main"
+        workflow_run_config = on_config.get("workflow_run", {})
+        assert "Checks" in workflow_run_config.get(
+            "workflows", []
+        ), "Workflow should trigger after Checks workflow"
+        assert "main" in workflow_run_config.get(
+            "branches", []
+        ), "Workflow should trigger on main branch"
 
     def test_workflow_has_timeout(self):
         """Workflow should have 30-minute timeout configured."""

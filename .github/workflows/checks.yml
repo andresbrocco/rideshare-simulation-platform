@@ -65,7 +65,7 @@ jobs:
           schemas/lakehouse/venv/bin/pip install --quiet mypy
 
       - name: Install frontend dependencies
-        run: npm ci --omit=optional
+        run: npm ci
         working-directory: services/frontend
 
       - name: Run pre-commit on all files
@@ -123,7 +123,7 @@ jobs:
           cache-dependency-path: services/frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci --omit=optional
+        run: npm ci
         working-directory: services/frontend
 
       - name: Build
