@@ -31,7 +31,7 @@ except ImportError:
     DATABRICKS_AVAILABLE = False
 
     # Create a stub operator for testing when Databricks provider is not installed
-    class DatabricksSubmitRunOperator(PythonOperator):
+    class DatabricksSubmitRunOperator(PythonOperator):  # type: ignore[no-redef]
         """Stub operator used when Databricks provider is not installed."""
 
         def __init__(

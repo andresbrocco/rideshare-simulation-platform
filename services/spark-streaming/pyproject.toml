@@ -13,3 +13,11 @@ addopts = ["--strict-markers", "-ra"]
 markers = [
     "integration: marks tests as integration tests (require Docker services)",
 ]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_configs = true
+check_untyped_defs = true
+warn_redundant_casts = true
+explicit_package_bases = true

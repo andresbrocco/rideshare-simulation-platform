@@ -144,7 +144,7 @@ class SupersetClient:
         # Add charts to position
         for i, chart_id in enumerate(chart_ids):
             chart_key = f"CHART-{i}"
-            position_json["GRID_ID"]["children"].append(chart_key)
+            position_json["GRID_ID"]["children"].append(chart_key)  # type: ignore[index]
             position_json[chart_key] = {
                 "type": "CHART",
                 "id": chart_key,

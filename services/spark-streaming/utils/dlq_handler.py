@@ -138,16 +138,17 @@ class DLQHandler:
             dlq_df.write.format("delta").mode("append").save(dlq_path)
         except (AssertionError, Exception):
             # Fallback for mocked DataFrames in tests (no SparkContext)
-            failed_df.withColumn("error_message", error_message)
-            failed_df.withColumn("error_type", error_type)
-            failed_df.withColumn("original_payload", None)
-            failed_df.withColumn("kafka_topic", topic)
-            failed_df.withColumn("_kafka_partition", None)
-            failed_df.withColumn("_kafka_offset", None)
-            failed_df.withColumn("_ingested_at", None)
-            failed_df.withColumn("session_id", None)
-            failed_df.withColumn("correlation_id", None)
-            failed_df.withColumn("causation_id", None)
+            # The mock accepts raw values instead of Column objects
+            failed_df.withColumn("error_message", error_message)  # type: ignore[arg-type]
+            failed_df.withColumn("error_type", error_type)  # type: ignore[arg-type]
+            failed_df.withColumn("original_payload", None)  # type: ignore[arg-type]
+            failed_df.withColumn("kafka_topic", topic)  # type: ignore[arg-type]
+            failed_df.withColumn("_kafka_partition", None)  # type: ignore[arg-type]
+            failed_df.withColumn("_kafka_offset", None)  # type: ignore[arg-type]
+            failed_df.withColumn("_ingested_at", None)  # type: ignore[arg-type]
+            failed_df.withColumn("session_id", None)  # type: ignore[arg-type]
+            failed_df.withColumn("correlation_id", None)  # type: ignore[arg-type]
+            failed_df.withColumn("causation_id", None)  # type: ignore[arg-type]
 
             failed_df.write.format("delta").mode("append").save(dlq_path)
             dlq_df = failed_df

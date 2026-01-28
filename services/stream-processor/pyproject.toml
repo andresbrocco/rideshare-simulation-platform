@@ -24,3 +24,12 @@ build-backend = "setuptools.build_meta"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
+
+[tool.mypy]
+python_version = "3.13"
+ignore_missing_imports = true
+warn_unused_configs = true
+check_untyped_defs = true
+warn_redundant_casts = true
+explicit_package_bases = true
+mypy_path = "src"

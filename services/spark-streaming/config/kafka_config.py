@@ -44,8 +44,10 @@ class KafkaConfig:
 
         # Normalize to list: prioritize function args, then instance fields
         topic_list = topics or self.topics
-        if not topic_list and (topic or self.topic):
-            topic_list = [topic or self.topic]
+        if not topic_list:
+            single_topic = topic or self.topic
+            if single_topic:
+                topic_list = [single_topic]
 
         if topic_list:
             options["subscribe"] = ",".join(topic_list)

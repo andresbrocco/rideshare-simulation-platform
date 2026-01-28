@@ -1,0 +1,12 @@
+[project]
+name = "superset-rideshare"
+version = "0.1.0"
+description = "Apache Superset configuration and dashboards for rideshare analytics"
+requires-python = ">=3.11"
+
+[tool.mypy]
+python_version = "3.13"
+ignore_missing_imports = true
+warn_unused_configs = true
+check_untyped_defs = true
+warn_redundant_casts = true

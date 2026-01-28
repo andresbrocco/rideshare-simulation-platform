@@ -31,8 +31,55 @@ repos:
         language: system
         files: ^services/simulation/src/.*\.py$
         pass_filenames: false
-        # Uses strict settings from services/simulation/pyproject.toml
-        # TODO: Add stream-processor and spark-streaming once mypy is configured
+
+      - id: mypy-stream-processor
+        name: mypy (stream-processor)
+        entry: bash -c 'cd services/stream-processor && ./venv/bin/mypy src/'
+        language: system
+        files: ^services/stream-processor/src/.*\.py$
+        pass_filenames: false
+
+      - id: mypy-spark-streaming
+        name: mypy (spark-streaming)
+        entry: bash -c 'cd services/spark-streaming && ./venv/bin/mypy framework/ config/ jobs/ utils/'
+        language: system
+        files: ^services/spark-streaming/(framework|config|jobs|utils)/.*\.py$
+        pass_filenames: false
+
+      - id: mypy-dbt
+        name: mypy (dbt)
+        entry: bash -c 'cd services/dbt && ./venv/bin/mypy *.py'
+        language: system
+        files: ^services/dbt/[^/]+\.py$
+        pass_filenames: false
+
+      - id: mypy-airflow
+        name: mypy (airflow)
+        entry: bash -c 'cd services/airflow && ./venv/bin/mypy dags/'
+        language: system
+        files: ^services/airflow/dags/.*\.py$
+        pass_filenames: false
+
+      - id: mypy-great-expectations
+        name: mypy (great-expectations)
+        entry: bash -c 'cd quality/great-expectations && ./venv/bin/mypy *.py'
+        language: system
+        files: ^quality/great-expectations/[^/]+\.py$
+        pass_filenames: false
+
+      - id: mypy-superset
+        name: mypy (superset)
+        entry: bash -c 'cd analytics/superset && ./venv/bin/mypy superset_config.py dashboards/ tests/'
+        language: system
+        files: ^analytics/superset/(superset_config\.py|dashboards/.*\.py|tests/.*\.py)$
+        pass_filenames: false
+
+      - id: mypy-lakehouse
+        name: mypy (lakehouse)
+        entry: bash -c 'cd schemas/lakehouse && ./venv/bin/mypy schemas/ config/ scripts/'
+        language: system
+        files: ^schemas/lakehouse/(schemas|config|scripts)/.*\.py$
+        pass_filenames: false
 
       - id: frontend-lint-staged
         name: lint-staged (frontend)
