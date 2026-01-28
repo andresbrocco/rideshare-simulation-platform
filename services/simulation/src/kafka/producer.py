@@ -75,11 +75,15 @@ class KafkaProducer:
                 callback(err, msg)
 
         try:
-            self._producer.produce(topic, key=key, value=serialized, on_delivery=internal_callback)
+            self._producer.produce(
+                topic, key=key, value=serialized, on_delivery=internal_callback
+            )
         except BufferError:
             # Queue full - poll to make room and retry once
             self._producer.poll(1.0)
-            self._producer.produce(topic, key=key, value=serialized, on_delivery=internal_callback)
+            self._producer.produce(
+                topic, key=key, value=serialized, on_delivery=internal_callback
+            )
 
         if critical:
             self._producer.flush(timeout=5.0)

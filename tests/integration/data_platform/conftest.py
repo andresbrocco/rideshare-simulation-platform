@@ -495,16 +495,35 @@ def simulation_api_client(docker_compose):
 
 
 @pytest.fixture(scope="session")
-def stream_processor_healthy(docker_compose):
-    """Wait for stream processor /health endpoint to return 'healthy'.
+def stream_processor_healthy(wait_for_services):
+    """Wait for stream processor to be healthy AND consuming from Kafka.
 
-    Verifies kafka_connected and redis_connected are true.
-    URL: http://localhost:8080/health
+    Depends on wait_for_services (not just docker_compose) because
+    reset_all_state deletes and recreates Kafka topics, which disrupts
+    the stream processor's consumer. The probe must run AFTER the state
+    reset to verify the consumer has rebalanced onto the new topics.
+
+    Two-phase readiness check:
+    1. Poll /health until kafka_connected and redis_connected are true.
+    2. Send a probe message through the full Kafka → Stream Processor → Redis
+       pipeline to confirm the consumer is actually processing messages.
+
+    Phase 2 uses a probe message pattern: subscribe to Redis first, then
+    publish to Kafka, then wait for the message to appear in Redis. This
+    avoids the race condition where a message published before the Redis
+    subscriber is active would be lost.
     """
-    health_url = "http://localhost:8080/health"
-    max_attempts = 30
+    import queue
+    import threading
 
-    for attempt in range(max_attempts):
+    import redis as sync_redis
+    from confluent_kafka import Producer
+
+    # Phase 1: Wait for health endpoint
+    health_url = "http://localhost:8080/health"
+    max_health_attempts = 30
+
+    for attempt in range(max_health_attempts):
         try:
             response = httpx.get(health_url, timeout=5.0)
             if response.status_code == 200:
@@ -514,15 +533,89 @@ def stream_processor_healthy(docker_compose):
                     and data.get("kafka_connected") is True
                     and data.get("redis_connected") is True
                 ):
-                    yield
-                    return
+                    break
         except (httpx.RequestError, json.JSONDecodeError):
             pass
         time.sleep(2)
+    else:
+        raise TimeoutError(
+            f"Stream processor health check failed after {max_health_attempts * 2}s"
+        )
 
-    raise TimeoutError(
-        f"Stream processor did not become healthy within {max_attempts * 2} seconds"
-    )
+    # Phase 2: Probe message to verify end-to-end pipeline
+    # Retry because the consumer may need a few poll cycles after reporting healthy
+    max_probe_attempts = 5
+    producer = Producer({"bootstrap.servers": "localhost:9092"})
+    r = sync_redis.Redis(host="localhost", port=6379, decode_responses=True)
+
+    for attempt in range(max_probe_attempts):
+        probe_id = f"probe-{int(time.time() * 1000)}-{attempt}"
+        result_queue = queue.Queue()
+        stop_event = threading.Event()
+
+        # Subscribe to Redis BEFORE publishing to Kafka (avoids race condition)
+        def _listener():
+            pubsub = r.pubsub()
+            pubsub.subscribe("trip-updates")
+            try:
+                for msg in pubsub.listen():
+                    if stop_event.is_set():
+                        break
+                    if msg["type"] == "message":
+                        try:
+                            data = json.loads(msg["data"])
+                            if probe_id in json.dumps(data):
+                                result_queue.put(data)
+                                break
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+            finally:
+                pubsub.unsubscribe("trip-updates")
+                pubsub.close()
+
+        listener_thread = threading.Thread(target=_listener, daemon=True)
+        listener_thread.start()
+        time.sleep(0.3)  # Let subscriber register
+
+        # Now publish probe to Kafka
+        probe_event = json.dumps(
+            {
+                "event_type": "trip.requested",
+                "trip_id": probe_id,
+                "rider_id": "probe-rider",
+                "driver_id": None,
+                "timestamp": "2026-01-01T00:00:00Z",
+                "pickup_location": [-23.55, -46.63],
+                "dropoff_location": [-23.56, -46.65],
+                "pickup_zone_id": "probe-zone",
+                "dropoff_zone_id": "probe-zone",
+                "surge_multiplier": 1.0,
+                "fare": 10.0,
+            }
+        )
+        producer.produce("trips", probe_event.encode("utf-8"), key=probe_id.encode())
+        producer.flush(timeout=5.0)
+
+        # Wait for probe to arrive in Redis
+        try:
+            result_queue.get(timeout=5.0)
+            stop_event.set()
+            listener_thread.join(timeout=2.0)
+            break  # Pipeline confirmed working
+        except queue.Empty:
+            stop_event.set()
+            listener_thread.join(timeout=2.0)
+            if attempt < max_probe_attempts - 1:
+                time.sleep(1)
+    else:
+        r.close()
+        raise TimeoutError(
+            f"Stream processor probe failed after {max_probe_attempts} attempts. "
+            "Kafka → Stream Processor → Redis pipeline is not working."
+        )
+
+    r.close()
+    yield
 
 
 @pytest.fixture(scope="function")

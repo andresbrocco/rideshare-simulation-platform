@@ -96,7 +96,9 @@ class ZoneLoader:
             return None
 
     @staticmethod
-    def _calculate_centroid(polygon_coords: list[tuple[float, float]]) -> tuple[float, float]:
+    def _calculate_centroid(
+        polygon_coords: list[tuple[float, float]]
+    ) -> tuple[float, float]:
         if not polygon_coords:
             raise ValueError("Cannot calculate centroid of empty polygon")
 

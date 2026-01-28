@@ -220,6 +220,81 @@ def test_simulation_api_kafka_publishing(
     simulation_api_client.post("/simulation/stop")
 
 
+def _create_trip_event(trip_id: str) -> dict:
+    """Create a valid TripEvent payload for testing."""
+    return {
+        "event_type": "trip.requested",
+        "trip_id": trip_id,
+        "rider_id": "test-rider-001",
+        "driver_id": None,
+        "timestamp": "2026-01-20T10:00:00Z",
+        "pickup_location": [-23.5505, -46.6333],
+        "dropoff_location": [-23.5620, -46.6550],
+        "pickup_zone_id": "zone-centro",
+        "dropoff_zone_id": "zone-pinheiros",
+        "surge_multiplier": 1.0,
+        "fare": 25.50,
+    }
+
+
+def _publish_and_wait(
+    kafka_producer,
+    redis_client,
+    kafka_topic: str,
+    redis_channel: str,
+    event: dict,
+    target_id: str,
+    timeout: float = 5.0,
+) -> dict | None:
+    """Subscribe to Redis, publish to Kafka, wait for forwarded message.
+
+    Subscribes to the Redis channel BEFORE publishing to Kafka to avoid
+    the race condition where the stream processor forwards the message
+    before the subscriber is active.
+    """
+    result_queue = queue.Queue()
+    stop_event = threading.Event()
+
+    def listener():
+        pubsub = redis_client.pubsub()
+        pubsub.subscribe(redis_channel)
+        try:
+            for message in pubsub.listen():
+                if stop_event.is_set():
+                    break
+                if message["type"] == "message":
+                    try:
+                        data = json.loads(message["data"])
+                        if target_id in json.dumps(data):
+                            result_queue.put(data)
+                            break
+                    except json.JSONDecodeError:
+                        pass
+        finally:
+            pubsub.unsubscribe(redis_channel)
+            pubsub.close()
+
+    thread = threading.Thread(target=listener, daemon=True)
+    thread.start()
+    time.sleep(0.3)  # Let subscriber register
+
+    # Now publish to Kafka
+    kafka_producer.produce(
+        topic=kafka_topic,
+        value=json.dumps(event).encode("utf-8"),
+        key=target_id.encode("utf-8"),
+    )
+    kafka_producer.flush(timeout=5.0)
+
+    try:
+        return result_queue.get(timeout=timeout)
+    except queue.Empty:
+        return None
+    finally:
+        stop_event.set()
+        thread.join(timeout=2.0)
+
+
 @pytest.mark.core_pipeline
 @pytest.mark.usefixtures("stream_processor_healthy")
 def test_stream_processor_kafka_to_redis(
@@ -231,82 +306,38 @@ def test_stream_processor_kafka_to_redis(
     When a trip event is published to Kafka, it should appear in the
     Redis 'trip-updates' channel within 5 seconds.
 
+    The stream_processor_healthy fixture guarantees the Kafka → Stream
+    Processor → Redis pipeline is working before this test runs.
+
     Verifies:
     - Stream processor consumes from Kafka
     - Events are published to Redis pub/sub
     - Trip ID matches between Kafka and Redis
     """
-    # Create unique trip_id for this test
     test_trip_id = f"sp-test-{int(time.time() * 1000)}"
+    test_event = _create_trip_event(test_trip_id)
 
-    # Create a Redis pubsub subscriber in a background thread
-    redis_messages = queue.Queue()
-
-    def redis_listener():
-        pubsub = redis_publisher.pubsub()
-        pubsub.subscribe("trip-updates")
-        for message in pubsub.listen():
-            if message["type"] == "message":
-                try:
-                    data = json.loads(message["data"])
-                    redis_messages.put(data)
-                except json.JSONDecodeError:
-                    pass
-            # Stop after receiving relevant message or timeout
-            if not redis_messages.empty():
-                break
-
-    listener_thread = threading.Thread(target=redis_listener, daemon=True)
-    listener_thread.start()
-
-    # Give subscriber time to connect
-    time.sleep(0.5)
-
-    # Act: Publish trip event to Kafka
-    # Note: All required fields from TripEvent schema must be included
-    trip_event = {
-        "event_type": "trip.requested",
-        "trip_id": test_trip_id,
-        "rider_id": "test-rider-001",
-        "driver_id": None,  # No driver assigned yet for requested state
-        "timestamp": "2026-01-20T10:00:00Z",
-        "pickup_location": [-23.5505, -46.6333],
-        "dropoff_location": [-23.5620, -46.6550],
-        "pickup_zone_id": "zone-centro",
-        "dropoff_zone_id": "zone-pinheiros",
-        "surge_multiplier": 1.0,
-        "fare": 25.50,
-    }
-
-    kafka_producer.produce(
-        topic="trips",
-        value=json.dumps(trip_event).encode("utf-8"),
-        key=test_trip_id.encode("utf-8"),
+    # Subscribe to Redis BEFORE publishing to Kafka to avoid race condition
+    # where the message is forwarded before the subscriber is active
+    message = _publish_and_wait(
+        kafka_producer,
+        redis_publisher,
+        "trips",
+        "trip-updates",
+        test_event,
+        test_trip_id,
     )
-    kafka_producer.flush(timeout=5.0)
 
-    # Wait for message in Redis (5 second timeout)
-    try:
-        message = redis_messages.get(timeout=5.0)
+    # Assert: Message received in Redis
+    assert (
+        message is not None
+    ), f"Trip event {test_trip_id} not received in Redis within timeout"
 
-        # Assert: Message received in Redis
-        assert message is not None, "No message received in Redis"
-
-        # Note: Stream processor may transform the message structure
-        # Check if our trip_id is present in any form
-        message_str = json.dumps(message)
-        assert (
-            test_trip_id in message_str
-        ), f"Trip ID {test_trip_id} not found in Redis message: {message}"
-
-    except queue.Empty:
-        # Stream processor may aggregate messages or use different channels
-        # Check if test infrastructure is working by verifying Redis connection
-        assert redis_publisher.ping(), "Redis connection is working"
-        pytest.skip(
-            "No message received in Redis within timeout. "
-            "Stream processor may not be configured for this topic."
-        )
+    # Verify trip_id is in the message
+    message_str = json.dumps(message)
+    assert (
+        test_trip_id in message_str
+    ), f"Trip ID {test_trip_id} not found in Redis message: {message}"
 
 
 @pytest.mark.core_pipeline

@@ -152,7 +152,9 @@ def main() -> None:
             from pathlib import Path
 
             # Schema path is relative to simulation/src, schemas are in project root
-            schema_base_path = Path(__file__).parent.parent.parent / settings.kafka.schema_base_path
+            schema_base_path = (
+                Path(__file__).parent.parent.parent / settings.kafka.schema_base_path
+            )
             SerializerRegistry.initialize(
                 schema_registry_url=settings.kafka.schema_registry_url,
                 schema_base_path=schema_base_path,
@@ -162,7 +164,9 @@ def main() -> None:
                 f"Schema Registry integration enabled: {settings.kafka.schema_registry_url}"
             )
         except Exception as e:
-            logger.warning(f"Schema Registry unavailable, running without validation: {e}")
+            logger.warning(
+                f"Schema Registry unavailable, running without validation: {e}"
+            )
 
     redis_publisher = create_redis_publisher(settings)
     if redis_publisher:
@@ -242,7 +246,9 @@ def main() -> None:
     # Set factory reference on engine for spawner processes
     engine._agent_factory = agent_factory
 
-    logger.info(f"Simulation engine initialized (speed: {settings.simulation.speed_multiplier}x)")
+    logger.info(
+        f"Simulation engine initialized (speed: {settings.simulation.speed_multiplier}x)"
+    )
 
     # Create FastAPI app with real dependencies
     app = create_app(

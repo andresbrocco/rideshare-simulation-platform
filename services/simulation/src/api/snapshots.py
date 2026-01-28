@@ -32,7 +32,9 @@ class StateSnapshotManager:
     def __init__(self, client: aioredis.Redis[str]):
         self._client = client
 
-    def _get_drivers_from_engine(self, engine: SimulationEngine) -> list[dict[str, Any]]:
+    def _get_drivers_from_engine(
+        self, engine: SimulationEngine
+    ) -> list[dict[str, Any]]:
         """Extract driver state from engine's in-memory registry."""
         drivers = []
         for driver in engine._active_drivers.values():
@@ -76,7 +78,9 @@ class StateSnapshotManager:
                 if rider.rider_id in rider_trip_map:
                     trip = rider_trip_map[rider.rider_id]
                     rider_data["trip_state"] = (
-                        trip.state.value if hasattr(trip.state, "value") else str(trip.state)
+                        trip.state.value
+                        if hasattr(trip.state, "value")
+                        else str(trip.state)
                     )
                 else:
                     rider_data["trip_state"] = "offline"
@@ -109,16 +113,24 @@ class StateSnapshotManager:
                                 "driver_id": trip.driver_id,
                                 "rider_id": trip.rider_id,
                                 "pickup_latitude": (
-                                    trip.pickup_location[0] if trip.pickup_location else 0
+                                    trip.pickup_location[0]
+                                    if trip.pickup_location
+                                    else 0
                                 ),
                                 "pickup_longitude": (
-                                    trip.pickup_location[1] if trip.pickup_location else 0
+                                    trip.pickup_location[1]
+                                    if trip.pickup_location
+                                    else 0
                                 ),
                                 "dropoff_latitude": (
-                                    trip.dropoff_location[0] if trip.dropoff_location else 0
+                                    trip.dropoff_location[0]
+                                    if trip.dropoff_location
+                                    else 0
                                 ),
                                 "dropoff_longitude": (
-                                    trip.dropoff_location[1] if trip.dropoff_location else 0
+                                    trip.dropoff_location[1]
+                                    if trip.dropoff_location
+                                    else 0
                                 ),
                                 "route": trip.route or [],
                                 "pickup_route": trip.pickup_route or [],
@@ -143,7 +155,9 @@ class StateSnapshotManager:
                 return dict(surge_calc.current_surge)
         return {}
 
-    async def get_snapshot(self, engine: SimulationEngine | None = None) -> dict[str, Any]:
+    async def get_snapshot(
+        self, engine: SimulationEngine | None = None
+    ) -> dict[str, Any]:
         """Build snapshot from engine's in-memory state."""
         if not engine:
             return {
@@ -164,7 +178,9 @@ class StateSnapshotManager:
         # Compute detailed driver counts from snapshot data
         drivers_offline = sum(1 for d in drivers if d.get("status") == "offline")
         drivers_online = sum(1 for d in drivers if d.get("status") == "online")
-        drivers_en_route_pickup = sum(1 for d in drivers if d.get("status") == "en_route_pickup")
+        drivers_en_route_pickup = sum(
+            1 for d in drivers if d.get("status") == "en_route_pickup"
+        )
         drivers_en_route_destination = sum(
             1 for d in drivers if d.get("status") == "en_route_destination"
         )

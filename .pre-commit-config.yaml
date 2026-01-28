@@ -22,20 +22,17 @@ repos:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
 
-  # NOTE: mypy uses --ignore-missing-imports because the codebase has ~228 type errors
-  # that need to be fixed before strict checking can be enabled. The pyproject.toml
-  # has strict=true for local development, but pre-commit is lenient to avoid blocking.
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.14.1
-    hooks:
-      - id: mypy
-        additional_dependencies: [types-redis==4.6.0.20241004, types-requests>=2.31.0, pydantic==2.12.5]
-        args: [--ignore-missing-imports, --explicit-package-bases]
-        files: ^services/simulation/src/
-
-  # Frontend (React/TypeScript) hooks
+  # Local hooks (Python mypy, Frontend TypeScript/ESLint)
   - repo: local
     hooks:
+      - id: mypy-simulation
+        name: mypy (simulation)
+        entry: bash -c 'cd services/simulation && ./venv/bin/mypy src/'
+        language: system
+        files: ^services/simulation/src/.*\.py$
+        pass_filenames: false
+        # Uses strict settings from services/simulation/pyproject.toml
+        # TODO: Add stream-processor and spark-streaming once mypy is configured
 
       - id: frontend-lint-staged
         name: lint-staged (frontend)

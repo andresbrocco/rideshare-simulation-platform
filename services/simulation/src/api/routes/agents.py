@@ -156,7 +156,9 @@ def create_riders(
 
 @router.get("/spawn-status", response_model=SpawnQueueStatusResponse)
 @limiter.limit("60/minute")
-def get_spawn_status(request: Request, agent_factory: AgentFactoryDep) -> SpawnQueueStatusResponse:
+def get_spawn_status(
+    request: Request, agent_factory: AgentFactoryDep
+) -> SpawnQueueStatusResponse:
     """Get current spawn queue status.
 
     Returns the number of drivers and riders waiting to be spawned.
@@ -446,10 +448,12 @@ async def request_rider_trip(
 
     # Determine zones
     pickup_zone_id = (
-        zone_loader.find_zone_for_location(rider.location[0], rider.location[1]) or "unknown"
+        zone_loader.find_zone_for_location(rider.location[0], rider.location[1])
+        or "unknown"
     )
     dropoff_zone_id = (
-        zone_loader.find_zone_for_location(body.destination[0], body.destination[1]) or "unknown"
+        zone_loader.find_zone_for_location(body.destination[0], body.destination[1])
+        or "unknown"
     )
 
     # Get surge for pickup zone

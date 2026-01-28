@@ -52,7 +52,9 @@ class BaseAgentRepository(Generic[ModelT, DNAT]):
         if agent:
             agent.status = status
 
-    def update_rating(self, agent_id: str, new_rating: float, rating_count: int) -> None:
+    def update_rating(
+        self, agent_id: str, new_rating: float, rating_count: int
+    ) -> None:
         agent = self.session.get(self.model_class, agent_id)
         if agent:
             agent.current_rating = new_rating

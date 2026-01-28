@@ -148,7 +148,12 @@ def get_status(
         uptime = time.time() - _simulation_start_wall_time
 
     # Driver counts from registry (O(1) if get_all_status_counts exists)
-    driver_counts = {"online": 0, "offline": 0, "en_route_pickup": 0, "en_route_destination": 0}
+    driver_counts = {
+        "online": 0,
+        "offline": 0,
+        "en_route_pickup": 0,
+        "en_route_destination": 0,
+    }
     if driver_registry and hasattr(driver_registry, "get_all_status_counts"):
         driver_counts = driver_registry.get_all_status_counts()
     elif hasattr(engine, "_active_drivers"):

@@ -158,7 +158,9 @@ class ActiveTripInfo(BaseModel):
     state: str
     rider_id: str | None = None
     driver_id: str | None = None
-    counterpart_name: str | None = None  # Rider name (for driver) or driver name (for rider)
+    counterpart_name: str | None = (
+        None  # Rider name (for driver) or driver name (for rider)
+    )
     pickup_location: tuple[float, float]
     dropoff_location: tuple[float, float]
     surge_multiplier: float

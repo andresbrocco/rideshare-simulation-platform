@@ -7,7 +7,9 @@ import pytest
 @pytest.fixture
 def mock_simulation_engine_with_time(mock_simulation_engine):
     """Simulation engine with time configured."""
-    mock_simulation_engine.current_time.return_value = datetime(2025, 8, 18, 15, 0, 0, tzinfo=UTC)
+    mock_simulation_engine.current_time.return_value = datetime(
+        2025, 8, 18, 15, 0, 0, tzinfo=UTC
+    )
     mock_simulation_engine.active_driver_count = 5
     mock_simulation_engine.active_rider_count = 10
     return mock_simulation_engine
@@ -89,7 +91,9 @@ def test_reset_simulation(test_client, mock_simulation_engine, auth_headers):
 
 def test_change_speed_valid(test_client, mock_simulation_engine, auth_headers):
     """Changes speed multiplier."""
-    response = test_client.put("/simulation/speed", json={"multiplier": 10}, headers=auth_headers)
+    response = test_client.put(
+        "/simulation/speed", json={"multiplier": 10}, headers=auth_headers
+    )
 
     assert response.status_code == 200
     assert response.json()["speed"] == 10
@@ -98,7 +102,9 @@ def test_change_speed_valid(test_client, mock_simulation_engine, auth_headers):
 
 def test_change_speed_invalid(test_client, mock_simulation_engine, auth_headers):
     """Rejects invalid multiplier (must be positive integer)."""
-    response = test_client.put("/simulation/speed", json={"multiplier": 0}, headers=auth_headers)
+    response = test_client.put(
+        "/simulation/speed", json={"multiplier": 0}, headers=auth_headers
+    )
 
     assert response.status_code == 400
     assert "positive integer" in response.json()["detail"]

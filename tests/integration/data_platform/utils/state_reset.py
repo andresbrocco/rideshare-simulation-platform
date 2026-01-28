@@ -204,7 +204,11 @@ def restart_streaming_containers(project_root: str, action: str = "restart") -> 
         project_root: Path to project root directory
         action: One of "stop", "start", or "restart"
     """
-    containers = ["bronze-ingestion-high-volume", "bronze-ingestion-low-volume"]
+    containers = [
+        "bronze-ingestion-high-volume",
+        "bronze-ingestion-low-volume",
+        "stream-processor",
+    ]
     compose_file = os.path.join(project_root, "infrastructure/docker/compose.yml")
 
     print(f"[state_reset] {action.capitalize()}ing streaming containers: {containers}")

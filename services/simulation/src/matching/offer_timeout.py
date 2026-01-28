@@ -21,14 +21,19 @@ class OfferTimeoutManager:
     """Manages offer timeouts using SimPy processes"""
 
     def __init__(
-        self, env: simpy.Environment, kafka_producer: "KafkaProducer", timeout_seconds: int = 15
+        self,
+        env: simpy.Environment,
+        kafka_producer: "KafkaProducer",
+        timeout_seconds: int = 15,
     ) -> None:
         self.env = env
         self.kafka_producer = kafka_producer
         self.timeout_seconds = timeout_seconds
         self.pending_offers: dict[str, PendingOffer] = {}
 
-    def start_offer_timeout(self, trip: "Trip", driver_id: str, offer_sequence: int) -> None:
+    def start_offer_timeout(
+        self, trip: "Trip", driver_id: str, offer_sequence: int
+    ) -> None:
         process = self.env.process(self._timeout_process(trip.trip_id))
         pending_offer = PendingOffer(
             trip_id=trip.trip_id,

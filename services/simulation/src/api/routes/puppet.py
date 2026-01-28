@@ -66,7 +66,9 @@ def create_puppet_driver(
     """
     try:
         override_dict = (
-            request.dna_override.model_dump(exclude_none=True) if request.dna_override else None
+            request.dna_override.model_dump(exclude_none=True)
+            if request.dna_override
+            else None
         )
         zone_id = request.dna_override.zone_id if request.dna_override else None
 
@@ -100,7 +102,9 @@ def create_puppet_rider(
     """
     try:
         override_dict = (
-            request.dna_override.model_dump(exclude_none=True) if request.dna_override else None
+            request.dna_override.model_dump(exclude_none=True)
+            if request.dna_override
+            else None
         )
         zone_id = request.dna_override.zone_id if request.dna_override else None
 
@@ -328,7 +332,9 @@ def puppet_driver_drive_to_pickup(
     )
 
 
-@router.post("/drivers/{driver_id}/drive-to-destination", response_model=PuppetDriveResponse)
+@router.post(
+    "/drivers/{driver_id}/drive-to-destination", response_model=PuppetDriveResponse
+)
 def puppet_driver_drive_to_destination(
     driver_id: str,
     engine: SimulationEngineDep,
@@ -532,7 +538,9 @@ def puppet_driver_cancel_trip(
 # --- Rider Control Endpoints ---
 
 
-@router.post("/riders/{rider_id}/request-trip", response_model=PuppetTripRequestResponse)
+@router.post(
+    "/riders/{rider_id}/request-trip", response_model=PuppetTripRequestResponse
+)
 async def puppet_rider_request_trip(
     rider_id: str,
     body: PuppetTripRequestBody,
@@ -744,7 +752,9 @@ def teleport_driver(
 
     # Update geospatial index if driver is online
     if driver.status == "online" and matching_server:
-        matching_server._driver_index.update_driver_location(driver.driver_id, body.location)
+        matching_server._driver_index.update_driver_location(
+            driver.driver_id, body.location
+        )
 
     return PuppetActionResponse(
         success=True,
@@ -789,7 +799,9 @@ def teleport_rider(
     )
 
 
-@router.post("/drivers/{driver_id}/force-offer-timeout", response_model=PuppetActionResponse)
+@router.post(
+    "/drivers/{driver_id}/force-offer-timeout", response_model=PuppetActionResponse
+)
 def force_driver_offer_timeout(
     driver_id: str,
     engine: SimulationEngineDep,
@@ -826,7 +838,9 @@ def force_driver_offer_timeout(
     )
 
 
-@router.post("/riders/{rider_id}/force-patience-timeout", response_model=PuppetActionResponse)
+@router.post(
+    "/riders/{rider_id}/force-patience-timeout", response_model=PuppetActionResponse
+)
 def force_rider_patience_timeout(
     rider_id: str,
     engine: SimulationEngineDep,
@@ -853,7 +867,9 @@ def force_rider_patience_timeout(
     if not rider.active_trip:
         raise HTTPException(status_code=400, detail="No active trip for this rider")
 
-    matching_server.cancel_trip(rider.active_trip, cancelled_by="rider", reason="patience_timeout")
+    matching_server.cancel_trip(
+        rider.active_trip, cancelled_by="rider", reason="patience_timeout"
+    )
 
     return PuppetActionResponse(
         success=True,
