@@ -434,10 +434,10 @@ class TestProcessBatchWithMocking:
 
         mock_df.filter = MagicMock(side_effect=filter_side_effect)
 
-        # Mock withColumn for partitioning
+        # Mock withColumn().drop() chain for partitioning
         mock_partitioned_df = MagicMock()
         for topic_df in topic_dfs.values():
-            topic_df.withColumn.return_value = mock_partitioned_df
+            topic_df.withColumn.return_value.drop.return_value = mock_partitioned_df
 
         # Mock write builder
         mock_write = MagicMock()
@@ -488,9 +488,9 @@ class TestProcessBatchWithMocking:
         mock_gps_df.count.return_value = 100
         mock_df.filter.return_value = mock_gps_df
 
-        # Mock withColumn for partitioning
+        # Mock withColumn().drop() chain for partitioning
         mock_partitioned_df = MagicMock()
-        mock_gps_df.withColumn.return_value = mock_partitioned_df
+        mock_gps_df.withColumn.return_value.drop.return_value = mock_partitioned_df
 
         # Mock write builder
         mock_write = MagicMock()
@@ -553,8 +553,8 @@ class TestProcessBatchWithMocking:
             filter_call_count[0] += 1
             # Only first topic (trips) has messages
             mock_topic_df.count.return_value = 1 if idx == 0 else 0
-            # Connect withColumn to return the mock with write
-            mock_topic_df.withColumn.return_value = mock_partitioned_df
+            # Connect withColumn().drop() chain to return the mock with write
+            mock_topic_df.withColumn.return_value.drop.return_value = mock_partitioned_df
             return mock_topic_df
 
         mock_df.filter = MagicMock(side_effect=filter_side_effect)

@@ -258,10 +258,10 @@ class TestMultiTopicStreamingJob:
 
         mock_df.filter = MagicMock(side_effect=filter_side_effect)
 
-        # Mock withColumn for partitioning
+        # Mock withColumn().drop() chain for partitioning
         mock_partitioned_df = MagicMock()
-        mock_trips_df.withColumn.return_value = mock_partitioned_df
-        mock_payments_df.withColumn.return_value = mock_partitioned_df
+        mock_trips_df.withColumn.return_value.drop.return_value = mock_partitioned_df
+        mock_payments_df.withColumn.return_value.drop.return_value = mock_partitioned_df
 
         # Mock write builder
         mock_write = MagicMock()
@@ -302,9 +302,9 @@ class TestMultiTopicStreamingJob:
 
         mock_df.filter = MagicMock(side_effect=filter_side_effect)
 
-        # Mock write for non-empty topic
+        # Mock write for non-empty topic (withColumn().drop() chain)
         mock_partitioned_df = MagicMock()
-        mock_payments_df.withColumn.return_value = mock_partitioned_df
+        mock_payments_df.withColumn.return_value.drop.return_value = mock_partitioned_df
         mock_write = MagicMock()
         mock_partitioned_df.write = mock_write
         mock_write.format.return_value = mock_write

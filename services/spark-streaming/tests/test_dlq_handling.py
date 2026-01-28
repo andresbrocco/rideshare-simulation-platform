@@ -302,6 +302,8 @@ class TestDLQHandlerWriteToDLQ:
 
         mock_spark = MagicMock()
         mock_df = MagicMock()
+        # Chain withColumn calls back to same mock so write is accessible
+        mock_df.withColumn.return_value = mock_df
         handler = DLQHandler(dlq_base_path="s3a://lakehouse/bronze/dlq")
 
         handler.write_to_dlq(
@@ -321,6 +323,8 @@ class TestDLQHandlerWriteToDLQ:
 
         mock_spark = MagicMock()
         mock_df = MagicMock()
+        # Chain withColumn calls back to same mock so write is accessible
+        mock_df.withColumn.return_value = mock_df
         mock_writer = MagicMock()
         mock_df.write.format.return_value.mode.return_value = mock_writer
         handler = DLQHandler(dlq_base_path="s3a://lakehouse/bronze/dlq")
