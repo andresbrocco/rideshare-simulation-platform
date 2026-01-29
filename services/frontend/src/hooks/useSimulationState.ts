@@ -184,15 +184,17 @@ export function useSimulationState() {
           case 'driver_update':
             if ('rating' in data) {
               const existingDriver = prev.drivers.get(data.id);
-              // Skip update if driver doesn't exist in state (can't update partial data)
-              if (!existingDriver) break;
               newState.drivers = new Map(prev.drivers);
               newState.drivers.set(data.id, {
                 ...existingDriver,
                 ...(data as Partial<Driver>),
-                // Only update status if explicitly provided, preserve existing otherwise
-                status: 'status' in data ? (data as Driver).status : existingDriver.status,
-                heading: (data as Driver).heading ?? existingDriver.heading,
+                // Use defaults when driver doesn't exist (new driver)
+                status:
+                  'status' in data
+                    ? (data as Driver).status
+                    : (existingDriver?.status ?? 'offline'),
+                heading: (data as Driver).heading ?? existingDriver?.heading ?? 0,
+                rating_count: (data as Driver).rating_count ?? existingDriver?.rating_count ?? 0,
               });
             }
             break;
