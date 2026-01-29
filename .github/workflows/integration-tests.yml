@@ -61,6 +61,39 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e "."
 
+      - name: Install DBT for Silver/Gold layer tests
+        run: |
+          cd services/dbt
+          python -m venv venv
+          ./venv/bin/pip install --upgrade pip
+          ./venv/bin/pip install dbt-spark[PyHive]
+
+      - name: Create DBT profiles.yml and install packages
+        working-directory: services/dbt
+        run: |
+          # Create profiles.yml for CI (gitignored file)
+          mkdir -p profiles
+          cat > profiles/profiles.yml << 'EOF'
+          rideshare:
+            target: dev
+            outputs:
+              dev:
+                type: spark
+                method: thrift
+                host: localhost
+                port: 10000
+                user: airflow
+                schema: default
+                auth: NOSASL
+                threads: 4
+                connect_timeout: 60
+                connect_retries: 3
+          EOF
+          # Remove leading whitespace from YAML (heredoc preserves indentation)
+          sed -i 's/^          //' profiles/profiles.yml
+          # Install DBT packages (dbt_utils, dbt_expectations, etc.)
+          ./venv/bin/dbt deps --profiles-dir profiles --project-dir .
+
       - name: Build and start core and data-pipeline services
         run: |
           # Build images first

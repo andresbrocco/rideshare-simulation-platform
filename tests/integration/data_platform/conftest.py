@@ -819,9 +819,10 @@ def wait_for_bronze_ingestion(thrift_connection, published_events):
 
 @pytest.fixture(scope="session")
 def streaming_jobs_running(docker_compose):
-    """Verify all 8 Spark Structured Streaming jobs are running.
+    """Verify all Spark Structured Streaming jobs are running.
 
     Checks that spark-submit process exists in each streaming container.
+    Uses polling with timeout since Spark takes time to initialize.
     Session-scoped: runs once per test session.
 
     Note: As of the streaming consolidation (2026-01-26), services are consolidated:
@@ -833,18 +834,32 @@ def streaming_jobs_running(docker_compose):
         "rideshare-bronze-ingestion-low-volume",
     ]
 
-    for container in streaming_containers:
-        # Check if SparkSubmit process is running in container
-        # (Spark runs as java with org.apache.spark.deploy.SparkSubmit class)
-        result = subprocess.run(
-            ["docker", "exec", container, "pgrep", "-f", "SparkSubmit"],
-            capture_output=True,
-            text=True,
-        )
+    max_wait_seconds = 180  # Spark can take a while to start
+    poll_interval = 10
 
-        if result.returncode != 0:
+    for container in streaming_containers:
+        start_time = time.time()
+        job_running = False
+
+        while time.time() - start_time < max_wait_seconds:
+            # Check if SparkSubmit process is running in container
+            # (Spark runs as java with org.apache.spark.deploy.SparkSubmit class)
+            result = subprocess.run(
+                ["docker", "exec", container, "pgrep", "-f", "SparkSubmit"],
+                capture_output=True,
+                text=True,
+            )
+
+            if result.returncode == 0:
+                job_running = True
+                break
+
+            time.sleep(poll_interval)
+
+        if not job_running:
             raise RuntimeError(
-                f"Streaming job not running in {container}. " f"SparkSubmit process not found."
+                f"Streaming job not running in {container} after {max_wait_seconds}s. "
+                f"SparkSubmit process not found."
             )
 
     yield
