@@ -13,7 +13,7 @@ Event handlers that consume Kafka messages and transform them into Redis pub/sub
 ## Key Concepts
 
 **Pass-Through vs Windowed**: Handlers implement one of two strategies:
-- Pass-through handlers (Trip, DriverStatus, Surge, Profiles) immediately emit critical events that cannot be delayed or aggregated
+- Pass-through handlers (Trip, DriverStatus, Surge, Profiles, Rating) immediately emit critical events that cannot be delayed or aggregated
 - Windowed handlers (GPS) buffer high-volume events and emit aggregated results on flush to reduce frontend message rate
 
 **Aggregation Strategies** (GPS only):
@@ -25,7 +25,14 @@ Event handlers that consume Kafka messages and transform them into Redis pub/sub
 - `rider-updates`: GPS (riders), rider profiles
 - `trip-updates`: Trip state changes
 - `surge_updates`: Surge pricing changes
+- Ratings route to `driver-updates` or `rider-updates` based on ratee_type
 
 ## Non-Obvious Details
 
 All handlers inherit from `BaseHandler` which defines the contract: `handle()` processes individual messages, `flush()` emits buffered state. The `is_windowed` property determines whether the processor should call flush periodically. Validation errors are logged but do not raise exceptions, allowing the stream processor to continue processing subsequent messages.
+
+## Related Modules
+
+- **[services/simulation/src/redis_client](../../../simulation/src/redis_client/CONTEXT.md)** — Deprecated publisher replaced by these handlers; stream processor now owns Redis pub/sub publishing
+- **[services/frontend/src](../../../frontend/src/CONTEXT.md)** — Consumes Redis pub/sub events produced by handlers for real-time map updates
+- **[services/frontend/src/types](../../../frontend/src/types/CONTEXT.md)** — TypeScript types match the message structure produced by handlers

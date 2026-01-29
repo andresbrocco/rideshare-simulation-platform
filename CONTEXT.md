@@ -4,26 +4,25 @@
 
 ## Project Overview
 
-A ride-sharing simulation platform that generates realistic synthetic data for data engineering demonstrations. This system simulates drivers and riders interacting in São Paulo, Brazil, with autonomous agents making DNA-based behavioral decisions. Events flow through Kafka to a medallion lakehouse architecture (Bronze → Silver → Gold) for analytics, while a real-time control panel provides visualization and simulation control.
+This is a ride-sharing simulation platform that generates realistic synthetic data for data engineering demonstrations. The system simulates drivers and riders interacting in São Paulo, Brazil, with autonomous agents making behavioral decisions based on DNA-defined characteristics. Events flow through a medallion lakehouse architecture (Bronze → Silver → Gold) for analytics.
 
-The platform demonstrates event-driven microservices architecture, stream processing, data quality validation, and business intelligence dashboards using modern data engineering tools.
+The platform combines discrete-event simulation with event-driven microservices, processing GPS pings, trip lifecycles, and profile changes through Kafka, Spark Streaming, and DBT transformations. Real-time visualization via deck.gl provides insight into agent behavior and matching dynamics.
 
 ## Technology Stack
 
 | Category | Technology |
 |----------|------------|
-| Simulation | Python 3.13, SimPy (discrete-event), FastAPI |
-| Frontend | React 19, deck.gl, TypeScript, Vite |
-| Event Streaming | Kafka (KRaft mode), Confluent Schema Registry |
-| Stream Processing | Python with confluent-kafka |
-| Data Storage | Delta Lake (MinIO S3), SQLite, Redis, PostgreSQL |
-| Data Transformation | DBT with dbt-spark |
-| Data Orchestration | Apache Airflow 3.1.5 |
-| Data Quality | Great Expectations 1.10.0 |
-| Analytics | Apache Superset 6.0.0, Spark Thrift Server |
-| Infrastructure | Docker Compose, Terraform (planned) |
-| Testing | pytest, vitest, testcontainers |
-| Geo Services | OSRM routing, H3 spatial indexing |
+| Language | Python 3.13, TypeScript 5.9, SQL |
+| Simulation | SimPy, FastAPI |
+| Frontend | React 19, deck.gl 9.2, MapLibre GL |
+| Event Streaming | Kafka (KRaft), Confluent Schema Registry |
+| Data Platform | Spark 3.5 (Structured Streaming), Delta Lake 3.0, DBT |
+| Storage | MinIO (S3), Delta Lake, Redis, SQLite, PostgreSQL |
+| Orchestration | Apache Airflow 3.1 |
+| Monitoring | Prometheus, Grafana, cAdvisor |
+| Analytics | Apache Superset 6.0 |
+| Container Orchestration | Docker Compose, Kubernetes (Kind) |
+| Infrastructure | Terraform (AWS), ArgoCD |
 
 ## Quick Orientation
 
@@ -31,49 +30,48 @@ The platform demonstrates event-driven microservices architecture, stream proces
 
 | Entry | Path | Purpose |
 |-------|------|---------|
-| Main App | services/simulation/src/main.py | SimPy simulation engine + FastAPI control panel |
-| Stream Bridge | services/stream-processor/src/main.py | Kafka-to-Redis event bridge for real-time viz |
-| Frontend | services/frontend/src/main.tsx | React control panel with deck.gl map |
-| Bronze Ingestion | services/spark-streaming/jobs/*.py | Spark Structured Streaming to Delta Lake |
-| Data Transformation | services/dbt | DBT project for Silver/Gold layers |
-| Orchestration | services/airflow/dags/ | Airflow DAGs for pipeline scheduling |
+| Main Simulation | services/simulation/src/main.py | SimPy engine with integrated FastAPI control panel |
+| Stream Processor | services/stream-processor/src/main.py | Kafka-to-Redis event bridge with aggregation |
+| Control Panel UI | services/frontend/src/main.tsx | React visualization with real-time WebSocket updates |
+| Bronze Ingestion | services/spark-streaming/jobs/*.py | Kafka-to-Delta streaming jobs (2 jobs: high/low volume) |
+| Data Transformation | services/dbt | DBT models for Silver and Gold layers |
+| Orchestration | services/airflow/dags/*.py | Airflow DAGs for pipeline scheduling |
 
 ### Getting Started
 
+**Always use Docker - never run services locally.**
+
 ```bash
-# Setup
-cp .env.example .env
-cp services/frontend/.env.example services/frontend/.env
-
-# Start core services (simulation, kafka, redis, osrm, frontend)
+# Start core simulation services (recommended for daily development)
 docker compose -f infrastructure/docker/compose.yml --profile core up -d
-
-# Start data pipeline (minio, spark, streaming jobs, airflow)
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
 
 # Access services
 # - Frontend: http://localhost:5173
 # - Simulation API: http://localhost:8000
 # - API docs: http://localhost:8000/docs
 
-# Run tests
-cd services/simulation
-./venv/bin/pytest
+# Start data pipeline (Bronze/Silver/Gold transformations)
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
 
-# Frontend development
-cd services/frontend
-npm install
-npm run dev
+# Use Kubernetes for cloud parity testing
+./infrastructure/kubernetes/scripts/create-cluster.sh
+./infrastructure/kubernetes/scripts/deploy-services.sh
+./infrastructure/kubernetes/scripts/health-check.sh
+
+# Run tests
+cd services/simulation && ./venv/bin/pytest
+cd services/frontend && npm run test
+./venv/bin/pytest tests/integration/data_platform/ -m core_pipeline
 ```
 
 ## Documentation Map
 
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - System design, layers, data flows, deployment units
-- [DEPENDENCIES.md](docs/DEPENDENCIES.md) - Internal module graph and external packages
-- [PATTERNS.md](docs/PATTERNS.md) - Code patterns (error handling, state machines, medallion architecture)
-- [TESTING.md](docs/TESTING.md) - Test organization, fixtures, running tests
-- [SECURITY.md](docs/SECURITY.md) - API key authentication, PII masking, secrets management
-- [INFRASTRUCTURE.md](docs/INFRASTRUCTURE.md) - Docker Compose profiles, CI/CD, monitoring
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Event-driven microservices architecture, data flows, and component overview
+- [DEPENDENCIES.md](docs/DEPENDENCIES.md) - Internal module dependencies and external packages (47 runtime dependencies)
+- [PATTERNS.md](docs/PATTERNS.md) - Code patterns: error handling, state machines, geospatial indexing, medallion architecture
+- [TESTING.md](docs/TESTING.md) - Test organization (114+ test files), pytest/vitest usage, integration test setup
+- [SECURITY.md](docs/SECURITY.md) - API key authentication, PII masking, development security model
+- [INFRASTRUCTURE.md](docs/INFRASTRUCTURE.md) - Docker Compose profiles, CI/CD pipeline, deployment architecture
 
 ## Module Overview
 
@@ -81,202 +79,140 @@ Key modules in this codebase:
 
 | Module | Purpose | CONTEXT.md |
 |--------|---------|------------|
-| services/simulation | Discrete-event simulation engine with autonomous agents | [→](services/simulation/CONTEXT.md) |
-| services/stream-processor | Kafka-to-Redis bridge with GPS aggregation | [→](services/stream-processor/CONTEXT.md) |
-| services/frontend | Real-time deck.gl visualization and control UI | [→](services/frontend/CONTEXT.md) |
-| services/spark-streaming | Bronze layer Kafka-to-Delta ingestion with DLQ | [→](services/spark-streaming/CONTEXT.md) |
-| services/dbt | Medallion architecture transformations (Silver/Gold) | [→](services/dbt/CONTEXT.md) |
-| services/airflow | Pipeline orchestration and DLQ monitoring | [→](services/airflow/CONTEXT.md) |
-| schemas/kafka | JSON Schema definitions for 8 event types | [→](schemas/kafka/CONTEXT.md) |
-| schemas/lakehouse | Bronze layer PySpark schemas | [→](schemas/lakehouse/CONTEXT.md) |
-| quality/great-expectations | Data validation for Silver/Gold tables | [→](quality/great-expectations/CONTEXT.md) |
-| analytics/superset | BI dashboards with auto-provisioning | [→](analytics/superset/CONTEXT.md) |
-| infrastructure/docker | Profile-based container orchestration | [→](infrastructure/docker/CONTEXT.md) |
-| data/sao-paulo | São Paulo district boundaries and demand parameters | [→](data/sao-paulo/CONTEXT.md) |
+| services/simulation | Discrete-event simulation engine with agent-based modeling, matching, and trip lifecycle | [→](services/simulation/CONTEXT.md) |
+| services/stream-processor | Kafka-to-Redis event bridge with 100ms GPS aggregation | [→](services/stream-processor/CONTEXT.md) |
+| services/frontend/src | Real-time map visualization with deck.gl and simulation controls | [→](services/frontend/src/CONTEXT.md) |
+| services/spark-streaming | Bronze layer ingestion: Kafka → Delta Lake with DLQ fault tolerance | [→](services/spark-streaming/CONTEXT.md) |
+| services/dbt | Medallion architecture transformations: Bronze → Silver → Gold | [→](services/dbt/CONTEXT.md) |
+| services/simulation/src/matching | Driver-rider matching with H3 spatial index and surge pricing | [→](services/simulation/src/matching/CONTEXT.md) |
+| services/simulation/src/agents | Autonomous driver and rider agents with DNA-based behavior | [→](services/simulation/src/agents/CONTEXT.md) |
+| services/simulation/src/trips | Trip executor orchestrating 10-state trip lifecycle | [→](services/simulation/src/trips/CONTEXT.md) |
+| services/simulation/src/api/routes | FastAPI routes translating HTTP requests to simulation commands | [→](services/simulation/src/api/routes/CONTEXT.md) |
+| infrastructure/kubernetes | Kind cluster config, manifests, and lifecycle scripts | [→](infrastructure/kubernetes/CONTEXT.md) |
 
-## Key Architecture Patterns
+## Architecture Highlights
 
-### Event Flow Architecture
-
-Single source of truth with Kafka as the event backbone:
+### Event Flow
 
 ```
-Simulation → Kafka → Stream Processor → Redis → WebSocket → Frontend
-                  ↓
-              Spark Streaming → Bronze → DBT (Silver/Gold) → Superset
+Simulation (SimPy) → Kafka Topics (8 topics) → Stream Processor → Redis Pub/Sub → WebSocket → Frontend
+                                             ↓
+                                   Spark Streaming (Bronze) → DBT (Silver/Gold) → Superset Dashboards
 ```
 
-- Simulation publishes exclusively to Kafka (no direct Redis publishing)
-- Stream processor bridges Kafka to Redis pub/sub for real-time visualization
-- Reliability tiers: Critical events (trips, payments) get synchronous acks; high-volume events (GPS pings) use fire-and-forget
+**Single Source of Truth**: Simulation publishes exclusively to Kafka. A separate stream processor bridges Kafka to Redis for real-time visualization, eliminating duplicate events.
 
-### Trip State Machine
+### Key Patterns
 
-10-state finite state machine with validated transitions:
+**Trip State Machine**: 10 validated states with protected transitions. Happy path: REQUESTED → OFFER_SENT → MATCHED → DRIVER_EN_ROUTE → DRIVER_ARRIVED → STARTED → COMPLETED.
 
-```
-REQUESTED → OFFER_SENT → MATCHED → DRIVER_EN_ROUTE → DRIVER_ARRIVED → STARTED → COMPLETED
-                ↓
-         OFFER_EXPIRED/REJECTED → (retry with next driver)
-                ↓
-            CANCELLED (terminal)
-```
+**Agent DNA**: Immutable behavioral parameters (acceptance_rate, patience_minutes, service_quality) assigned at creation for reproducible behavior across simulations.
 
-Protection: STARTED state cannot transition to CANCELLED (rider is in vehicle).
+**H3 Spatial Indexing**: Driver locations indexed using H3 hexagons (resolution 7, ~5km) for O(1) neighbor lookups during matching.
 
-### Agent DNA
+**Two-Phase Pause**: Graceful pause drains in-flight trips before checkpointing to SQLite for crash recovery.
 
-Immutable behavioral parameters assigned at agent creation:
-- DriverDNA: acceptance_rate, min_trip_distance_km, service_quality_score, patience_minutes
-- RiderDNA: patience_minutes, price_sensitivity, rating_generosity
+**Medallion Architecture**: Bronze (raw Kafka events) → Silver (deduplication, SCD Type 2 profiles) → Gold (star schema, pre-aggregated metrics).
 
-Profile attributes (vehicle info, contact details) are separate and mutable, tracked via SCD Type 2.
+**Empty Source Guard**: DBT macro pattern prevents Delta Lake errors when Bronze tables are empty, enabling idempotent DBT runs.
 
-### Two-Phase Pause
+### Deployment Profiles
 
-Graceful checkpoint pattern:
-1. Pause request stops new trips
-2. Engine drains all in-flight trips (quiescence detection)
-3. Checkpoint writes complete state to SQLite
-4. Resume restores all agents and trips
+| Profile | Services | Use Case |
+|---------|----------|----------|
+| core | Kafka, Redis, OSRM, Simulation, Stream Processor, Frontend | Daily development with real-time visualization |
+| data-pipeline | MinIO, Spark, Bronze Ingestion, DBT, Airflow | Data engineering pipeline testing |
+| monitoring | Prometheus, Grafana, cAdvisor | Observability and metrics |
+| analytics | Superset, PostgreSQL, Redis | Business intelligence dashboards |
 
-### Medallion Architecture
+## Domain Concepts
 
-Three-layer lakehouse with increasing data quality:
+**Geospatial Scope**: São Paulo, Brazil - 96 districts, 32 subprefectures with zone-specific demand patterns and surge sensitivity.
 
-- **Bronze**: Raw events from Kafka with minimal transformation
-- **Silver**: Deduplicated, cleaned, with SCD Type 2 for profiles
-- **Gold**: Business-ready facts, dimensions, aggregates for BI
+**Surge Pricing**: Calculated per zone every 60 simulated seconds based on supply/demand ratio. Multipliers range 1.0x to 2.5x.
 
-### Empty Source Guard
+**Offer Timeout**: Drivers receive offers sequentially with 30-second acceptance window. OFFER_EXPIRED/OFFER_REJECTED triggers retry with next candidate.
 
-DBT macro pattern to prevent Delta Lake errors when source tables don't exist yet. Returns empty result with proper schema if source is missing, enabling idempotent DBT runs before Bronze data arrives.
+**Reliability Tiers**: Critical events (trips, payments) use synchronous Kafka acks; high-volume events (GPS pings) use fire-and-forget.
 
-### H3 Spatial Indexing
-
-Driver matching uses H3 hexagons (resolution 7, ~5km) for O(1) neighbor lookups. Route caching uses H3 cell pairs as keys.
-
-## Docker Compose Profiles
-
-| Profile | Services | Purpose |
-|---------|----------|---------|
-| core | kafka, redis, osrm, simulation, stream-processor, frontend | Main simulation services |
-| data-pipeline | minio, spark-thrift-server, spark-streaming-* (8 jobs), localstack, airflow | Data engineering pipeline & orchestration |
-| monitoring | prometheus, cadvisor, grafana | Observability metrics |
-| bi | superset, postgres-superset, redis-superset | Business intelligence dashboards |
-
-Start services:
-```bash
-# Core only
-docker compose -f infrastructure/docker/compose.yml --profile core up -d
-
-# Core + data pipeline
-docker compose -f infrastructure/docker/compose.yml --profile core --profile data-pipeline up -d
-```
+**Puppet Agents**: Special agents controllable via API for testing and demonstration (set destinations, trigger state changes).
 
 ## Development Workflow
 
-### Simulation Service (Python)
+### Running the System
 
 ```bash
-cd services/simulation
+# Core simulation (recommended starting point)
+docker compose -f infrastructure/docker/compose.yml --profile core up -d
 
-# Run all tests
-./venv/bin/pytest
+# View logs
+docker compose -f infrastructure/docker/compose.yml logs -f simulation
 
-# Run with coverage
-./venv/bin/pytest --cov=src --cov-report=term-missing
-
-# Linting and formatting
-./venv/bin/black src/ tests/
-./venv/bin/ruff check src/ tests/
-./venv/bin/mypy src/
+# Stop services
+docker compose -f infrastructure/docker/compose.yml --profile core down
 ```
 
-### Frontend (TypeScript)
+### Running Tests
 
 ```bash
-cd services/frontend
+# Simulation unit tests
+cd services/simulation && ./venv/bin/pytest -v
 
-# Development server with HMR
-npm run dev
+# Frontend tests
+cd services/frontend && npm run test
 
-# Tests
-npm run test
-
-# Type checking
-npm run typecheck
-
-# Linting
-npm run lint
+# Integration tests (automatically starts Docker services)
+./venv/bin/pytest tests/integration/data_platform/ -m core_pipeline
+./venv/bin/pytest tests/integration/data_platform/ -m resilience
 ```
 
-### Integration Tests
+### Pre-commit Hooks
 
-```bash
-# From project root
-./venv/bin/pytest tests/integration/data_platform/ -v
+Automatically run on commit:
+- black (Python formatting)
+- ruff (Python linting with auto-fix)
+- mypy (type checking on 8 Python services)
+- ESLint + Prettier (frontend)
+- TypeScript type checking (frontend)
 
-# Specific test categories
-./venv/bin/pytest tests/integration/data_platform/ -m core_pipeline    # Core event flow tests
-./venv/bin/pytest tests/integration/data_platform/ -m resilience       # Recovery/consistency tests
-./venv/bin/pytest tests/integration/data_platform/ -m feature_journey  # Bronze/Silver tests
-./venv/bin/pytest tests/integration/data_platform/ -m data_flow        # Data lineage tests
-```
+## Key Files
 
-## Key Domain Concepts
+| File | Purpose |
+|------|---------|
+| project_specs.md | Original project specification and requirements |
+| .env.example | Environment variable template |
+| infrastructure/docker/compose.yml | Multi-profile Docker Compose orchestration |
+| infrastructure/kubernetes/kind/cluster-config.yaml | Kind 3-node cluster configuration |
+| data/sao-paulo/zones.geojson | Geographic zone boundaries (96 districts) |
+| schemas/kafka/*.json | Event schemas registered with Confluent Schema Registry |
+| config/kafka_topics_*.yaml | Environment-specific topic configurations (8 topics) |
+| docs/NAMING_CONVENTIONS.md | Module naming patterns (Repository, Handler, Manager, etc.) |
 
-### Kafka Topics (8 total)
+## CI/CD
 
-- trips (4 partitions) - Trip lifecycle events
-- gps_pings (8 partitions) - Driver location updates
-- driver_status (2 partitions) - Driver availability changes
-- surge_updates (2 partitions) - Dynamic pricing per zone
-- ratings (2 partitions) - Trip rating events
-- payments (2 partitions) - Payment transaction events
-- driver_profiles (1 partition) - Driver profile changes (SCD Type 2)
-- rider_profiles (1 partition) - Rider profile changes (SCD Type 2)
-
-### Surge Pricing
-
-Calculated per zone every 60 simulated seconds:
-- Formula: `base_multiplier + (demand_factor * surge_sensitivity)`
-- Multipliers range from 1.0x to 2.5x
-- Zone-specific sensitivity configured in `data/sao-paulo/subprefecture_config.json`
-
-### Geographic Scope
-
-São Paulo, Brazil:
-- 96 districts (distritos)
-- 32 subprefectures
-- Zone boundaries in `data/sao-paulo/zones.geojson`
-- OSRM routing with local map data
+**GitHub Actions Workflow**: `.github/workflows/integration-tests.yml`
+- Triggers on push to main and pull requests
+- Starts core + data-pipeline profiles
+- Runs integration tests with pytest
+- 30-minute timeout, uploads logs on failure
 
 ## Authentication
 
-API key-based authentication:
-- Default key: `dev-api-key-change-in-production` (change for any non-local deployment)
-- REST: `X-API-Key` header
-- WebSocket: `Sec-WebSocket-Protocol: apikey.<key>` header
+**API Key**: Shared secret via `X-API-Key` header (REST) or `Sec-WebSocket-Protocol: apikey.<key>` (WebSocket)
 
-Protected endpoints: `/simulation/*`, `/agents/*`, `/puppet/*`, `/metrics/*`
-Unprotected: `/health`, `/health/detailed`
+**Default Development Key**: `dev-api-key-change-in-production` (intentionally self-documenting)
 
-## Pre-commit Hooks
+**Protected Endpoints**: `/simulation/*`, `/agents/*`, `/puppet/*`, `/metrics/*`
 
-Automatically run on commit:
-- Python: black, ruff, mypy (simulation/src/ only)
-- Frontend: ESLint, Prettier, TypeScript type checking
-- Large file check (500KB max, excludes specific GeoJSON files)
-
-Install: `pre-commit install`
+**Unprotected Endpoints**: `/health`, `/health/detailed` (for container orchestration)
 
 ---
 
-**Generated:** 2026-01-21
-**System Type:** Event-Driven Microservices with Medallion Lakehouse Architecture
-**Total Services:** 30+ containers across 4 Docker Compose profiles
-**Event Topics:** 8 Kafka topics
-**Lakehouse Layers:** Bronze (raw) → Silver (cleaned) → Gold (business-ready)
-**Geographic Scope:** São Paulo, Brazil (96 districts)
-**Documentation Coverage:** 48 CONTEXT.md files + 6 root docs
+**Generated**: 2026-01-28
+**System Type**: Event-Driven Microservices with Medallion Lakehouse Architecture
+**Services**: 11 independently deployable containers
+**Event Topics**: 8 Kafka topics with schema validation
+**Lakehouse Layers**: Bronze → Silver → Gold (Delta Lake on MinIO S3)
+**Geographic Scope**: São Paulo, Brazil (96 districts)
+**Primary Language**: Python 3.13 (simulation, stream-processor, spark-streaming, dbt, airflow)
+**Secondary Language**: TypeScript 5.9 (frontend)

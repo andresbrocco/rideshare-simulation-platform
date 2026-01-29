@@ -29,3 +29,9 @@ The checkpoint manager directly accesses SimPy environment state (`engine._env.n
 Route cache uses H3 cell pairs as composite keys (`origin_h3|dest_h3`) and stores OSRM routing results to avoid repeated API calls for common routes.
 
 The `utc_now()` utility returns timezone-naive datetimes representing UTC to match SQLite's TEXT datetime storage without timezone info.
+
+## Related Modules
+
+- **[services/simulation/src/db/repositories](./repositories/CONTEXT.md)** — Data access layer providing CRUD operations on ORM models defined here
+- **[services/simulation/src/api/routes](../../api/routes/CONTEXT.md)** — Triggers checkpoint creation via pause/stop endpoints
+- **[services/simulation/src/core](../../core/CONTEXT.md)** — Uses exception hierarchy for database error classification

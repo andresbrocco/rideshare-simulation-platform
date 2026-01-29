@@ -1,6 +1,6 @@
 # Docker Compose Setup
 
-This directory contains the Docker Compose configuration for the rideshare simulation platform.
+Docker Compose orchestration for the rideshare simulation platform.
 
 ## Quick Start
 
@@ -10,6 +10,12 @@ docker compose -f infrastructure/docker/compose.yml --profile core up -d
 
 # Start data pipeline services (minio, spark, localstack, airflow)
 docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
+
+# Start monitoring services (prometheus, cadvisor, grafana)
+docker compose -f infrastructure/docker/compose.yml --profile monitoring up -d
+
+# Start analytics services (superset)
+docker compose -f infrastructure/docker/compose.yml --profile analytics up -d
 
 # Start multiple profiles at once
 docker compose -f infrastructure/docker/compose.yml --profile core --profile data-pipeline up -d
@@ -26,7 +32,7 @@ docker compose -f infrastructure/docker/compose.yml --profile core down
 | Profile | Services | Use Case |
 |---------|----------|----------|
 | `core` | kafka, schema-registry, redis, osrm, simulation, stream-processor, frontend | Main simulation runtime |
-| `data-pipeline` | kafka, schema-registry, minio, spark-thrift-server, bronze-ingestion-*, localstack, airflow | ETL and data engineering |
+| `data-pipeline` | kafka, schema-registry, minio, spark-thrift-server, bronze-ingestion-high-volume, bronze-ingestion-low-volume, localstack, airflow | ETL and data engineering |
 | `monitoring` | prometheus, cadvisor, grafana | Observability and metrics |
 | `analytics` | superset, postgres-superset, redis-superset | Business intelligence dashboards |
 
@@ -242,6 +248,28 @@ docker compose -f infrastructure/docker/compose.yml down -v
 | `prometheus-data` | Prometheus metrics |
 | `grafana-data` | Grafana dashboards and settings |
 
+## Memory Limits
+
+All services have explicit memory limits to prevent resource exhaustion:
+
+| Service | Limit | Notes |
+|---------|-------|-------|
+| Kafka | 1GB | JVM heap 256-512MB |
+| Schema Registry | 512MB | JVM heap 128-256MB |
+| Redis | 128MB | |
+| OSRM | 1GB | Map data in memory |
+| Simulation | 1GB | |
+| Stream Processor | 256MB | |
+| Spark Thrift Server | 1GB | Driver memory 512MB |
+| Bronze Ingestion (each) | 768MB | Driver memory 512MB |
+| Airflow (each) | 384MB | |
+| Grafana | 192MB | |
+| Superset | 768MB | |
+
+If services are being OOM-killed, increase limits in `compose.yml` or Docker Desktop resources.
+
+---
+
 ## Troubleshooting
 
 ### Services Won't Start
@@ -311,22 +339,10 @@ docker container prune -f
 docker compose -f infrastructure/docker/compose.yml --profile core up -d
 ```
 
-## Memory Limits
+---
 
-All services have explicit memory limits to prevent resource exhaustion:
+## Related
 
-| Service | Limit | Notes |
-|---------|-------|-------|
-| Kafka | 1GB | JVM heap 256-512MB |
-| Schema Registry | 512MB | JVM heap 128-256MB |
-| Redis | 128MB | |
-| OSRM | 1GB | Map data in memory |
-| Simulation | 1GB | |
-| Stream Processor | 256MB | |
-| Spark Thrift Server | 1GB | Driver memory 512MB |
-| Spark Streaming (each) | 768MB | Driver memory 512MB |
-| Airflow (each) | 384MB | |
-| Grafana | 192MB | |
-| Superset | 768MB | |
-
-If services are being OOM-killed, increase limits in `compose.yml` or Docker Desktop resources.
+- [CONTEXT.md](CONTEXT.md) - Architecture context for Docker orchestration
+- [dockerfiles/](dockerfiles/) - Custom Dockerfile definitions
+- [../../CLAUDE.md](../../CLAUDE.md) - Project-level development guide

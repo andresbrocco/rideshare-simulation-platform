@@ -1,12 +1,279 @@
 # Rideshare Simulation Platform
 
-A ride-sharing simulation platform that generates realistic synthetic data for data engineering portfolio demonstrations.
+> A ride-sharing simulation platform generating realistic synthetic data for data engineering portfolio demonstrations. Simulates drivers and riders in Sao Paulo, Brazil with autonomous agents, event streaming through Kafka, and a medallion lakehouse architecture (Bronze -> Silver -> Gold).
 
-> **Repository Reorganization (2026-01-15)**: This monorepo was reorganized to improve structure.
-> Services are now under `services/`, data engineering under `data-platform/`, and infrastructure
-> under `infrastructure/`. Docker Compose service names remain unchanged for compatibility.
+## Quick Start
+
+### Prerequisites
+
+- Docker Desktop with 10GB RAM allocated
+- Docker Compose v2+
+- Node.js 20+ (for frontend development)
+- Python 3.13+ (for simulation development)
+
+### Setup
+
+```bash
+# Clone repository
+git clone <repo-url>
+cd rideshare-simulation-platform
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your settings (see Environment Setup below)
+
+# Start core services (simulation, frontend, kafka, redis, osrm, stream-processor)
+docker compose -f infrastructure/docker/compose.yml --profile core up -d
+
+# Access the application
+# - Frontend: http://localhost:5173
+# - Simulation API: http://localhost:8000
+# - API docs: http://localhost:8000/docs
+```
+
+### Verify Setup
+
+```bash
+# Check service health
+curl http://localhost:8000/health
+
+# Start simulation and spawn agents
+curl -X POST -H "X-API-Key: dev-api-key-change-in-production" \
+  http://localhost:8000/simulation/start
+
+curl -X POST -H "X-API-Key: dev-api-key-change-in-production" \
+  -H "Content-Type: application/json" \
+  -d '{"count": 50}' \
+  http://localhost:8000/agents/drivers
+
+curl -X POST -H "X-API-Key: dev-api-key-change-in-production" \
+  -H "Content-Type: application/json" \
+  -d '{"count": 100}' \
+  http://localhost:8000/agents/riders
+
+# Run tests
+cd services/simulation && ./venv/bin/pytest
+cd services/frontend && npm run test
+```
+
+## Port Reference
+
+| Port | Service | Description |
+|------|---------|-------------|
+| 5173 | Frontend | React visualization (Vite dev server) |
+| 8000 | Simulation | Control Panel API (FastAPI) |
+| 8080 | Stream Processor | Health/metrics HTTP API |
+| 9092 | Kafka | Kafka broker (PLAINTEXT_HOST) |
+| 8085 | Schema Registry | Confluent Schema Registry HTTP API |
+| 6379 | Redis | Redis server |
+| 5050 | OSRM | OSRM routing service |
+| 9000 | MinIO | MinIO S3 API |
+| 9001 | MinIO | MinIO web console |
+| 10000 | Spark Thrift Server | Spark Thrift JDBC/ODBC server |
+| 4041 | Spark Thrift Server | Spark Thrift UI |
+| 4566 | LocalStack | LocalStack unified endpoint |
+| 5432 | PostgreSQL (Airflow) | Airflow metadata database |
+| 8082 | Airflow | Airflow web UI |
+| 9090 | Prometheus | Prometheus metrics server |
+| 8083 | cAdvisor | cAdvisor container metrics API |
+| 3001 | Grafana | Grafana dashboards UI |
+| 5433 | PostgreSQL (Superset) | Superset metadata database |
+| 6380 | Redis (Superset) | Superset caching |
+| 8088 | Superset | Apache Superset BI platform |
+
+## Environment Variables
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker addresses | `localhost:9092` | Yes |
+| `KAFKA_SCHEMA_REGISTRY_URL` | Schema Registry endpoint URL | `http://schema-registry:8081` | Yes |
+| `REDIS_HOST` | Redis hostname | `localhost` | Yes |
+| `OSRM_BASE_URL` | OSRM routing service base URL | `http://localhost:5000` | Yes |
+| `API_KEY` | API key for Control Panel authentication | `dev-api-key-change-in-production` | Yes |
+| `VITE_API_URL` | Backend API URL (used by frontend) | `http://localhost:8000` | Yes |
+| `VITE_WS_URL` | WebSocket URL for real-time updates | `ws://localhost:8000/ws` | Yes |
+| `SIM_SPEED_MULTIPLIER` | Simulation speed (1=real-time, 1024=max) | `1` | No |
+| `SIM_LOG_LEVEL` | Logging verbosity (DEBUG, INFO, WARNING, ERROR) | `INFO` | No |
+| `SIM_CHECKPOINT_INTERVAL` | Checkpoint interval in simulated seconds | `300` | No |
+| `KAFKA_SECURITY_PROTOCOL` | Security protocol (PLAINTEXT, SASL_SSL) | `PLAINTEXT` | No |
+| `KAFKA_SASL_USERNAME` | Confluent Cloud API Key | - | No |
+| `KAFKA_SASL_PASSWORD` | Confluent Cloud API Secret | - | No |
+| `KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO` | Schema Registry credentials (key:secret) | - | No |
+| `REDIS_PORT` | Redis port | `6379` | No |
+| `REDIS_PASSWORD` | Redis password | - | No |
+| `REDIS_SSL` | Enable SSL/TLS for Redis | `false` | No |
+| `DATABRICKS_HOST` | Databricks workspace URL | - | No |
+| `DATABRICKS_TOKEN` | Databricks personal access token | - | No |
+| `DATABRICKS_CATALOG` | Unity Catalog name | `rideshare` | No |
+| `AWS_REGION` | AWS region | `us-east-1` | No |
+| `CORS_ORIGINS` | CORS allowed origins | `http://localhost:5173,http://localhost:3000` | No |
+| `PROCESSOR_WINDOW_SIZE_MS` | GPS aggregation window (ms) | `100` | No |
+| `PROCESSOR_AGGREGATION_STRATEGY` | Aggregation strategy (latest, sample) | `latest` | No |
+| `PROCESSOR_LOG_LEVEL` | Stream processor logging level | `INFO` | No |
+
+## Common Commands
+
+### Development
+
+```bash
+# Start Vite dev server (frontend)
+cd services/frontend && npm run dev
+
+# Start simulation with Docker Compose
+docker compose -f infrastructure/docker/compose.yml --profile core up -d
+```
+
+### Testing
+
+```bash
+# Run Vitest unit tests (frontend)
+cd services/frontend && npm run test
+
+# Run pytest test suite (simulation)
+cd services/simulation && ./venv/bin/pytest
+```
+
+### Linting and Formatting
+
+```bash
+# Frontend
+cd services/frontend
+npm run lint           # ESLint
+npm run format         # Prettier
+npm run typecheck      # TypeScript type checking
+
+# Simulation
+cd services/simulation
+./venv/bin/ruff check src/ tests/   # Ruff linter
+./venv/bin/black src/ tests/        # Black formatter
+./venv/bin/mypy src/                # Type checking
+```
+
+### Docker
+
+```bash
+# Start core services (kafka, redis, osrm, simulation, stream-processor, frontend)
+docker compose -f infrastructure/docker/compose.yml --profile core up -d
+
+# Start data pipeline services (minio, spark, airflow, localstack)
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
+
+# Start monitoring services (prometheus, cadvisor, grafana)
+docker compose -f infrastructure/docker/compose.yml --profile monitoring up -d
+
+# Start analytics services (superset, postgres-superset, redis-superset)
+docker compose -f infrastructure/docker/compose.yml --profile analytics up -d
+
+# View logs
+docker compose -f infrastructure/docker/compose.yml --profile core logs -f simulation
+
+# Stop services
+docker compose -f infrastructure/docker/compose.yml --profile core down
+```
+
+### Kubernetes (Kind)
+
+```bash
+# Create Kind cluster with 3 nodes
+./infrastructure/kubernetes/scripts/create-cluster.sh
+
+# Deploy all services to Kind cluster
+./infrastructure/kubernetes/scripts/deploy-services.sh
+
+# Check health of all pods
+./infrastructure/kubernetes/scripts/health-check.sh
+
+# Teardown Kind cluster
+./infrastructure/kubernetes/scripts/teardown.sh
+```
+
+## API Overview
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/simulation/start` | POST | Start the simulation engine |
+| `/simulation/pause` | POST | Initiate two-phase pause |
+| `/simulation/resume` | POST | Resume from paused state |
+| `/simulation/stop` | POST | Stop the simulation |
+| `/simulation/status` | GET | Get current simulation status |
+| `/agents/drivers` | POST | Queue driver agents for spawning |
+| `/agents/riders` | POST | Queue rider agents for spawning |
+| `/metrics/overview` | GET | Overview metrics (agent counts, trip stats) |
+| `/health` | GET | Basic health check (unprotected) |
+| `/health/detailed` | GET | Detailed health with dependency checks |
+
+See module READMEs for detailed endpoint documentation:
+- [Simulation API](services/simulation/README.md#api-endpoints)
+- [Stream Processor API](services/stream-processor/README.md#api-endpoints)
+
+## Project Structure
+
+```
+rideshare-simulation-platform/
+├── services/
+│   ├── simulation/          # SimPy simulation engine (README)
+│   ├── stream-processor/    # Kafka-to-Redis bridge (README)
+│   ├── frontend/            # React + deck.gl visualization (README)
+│   ├── spark-streaming/     # Bronze layer ingestion (README)
+│   ├── dbt/                 # Medallion transformations (README)
+│   └── airflow/             # Pipeline orchestration (README)
+├── infrastructure/
+│   ├── docker/              # Docker Compose (README)
+│   ├── kubernetes/          # Kind cluster + manifests (README)
+│   ├── monitoring/          # Prometheus + Grafana (README)
+│   └── terraform/           # Cloud infrastructure
+├── analytics/
+│   └── superset/            # BI dashboards (README)
+├── schemas/
+│   ├── kafka/               # Event schema definitions
+│   └── lakehouse/           # Bronze layer PySpark schemas
+├── quality/
+│   └── great-expectations/  # Data validation
+├── docs/                    # Architecture documentation
+├── data/                    # Geographic data (zones.geojson)
+└── config/                  # Topic and environment configs
+```
+
+**Key Services:**
+
+| Service | Purpose | README |
+|---------|---------|--------|
+| Simulation | Discrete-event simulation with autonomous agents | [README](services/simulation/README.md) |
+| Stream Processor | Kafka-to-Redis bridge with GPS aggregation | [README](services/stream-processor/README.md) |
+| Frontend | Real-time map visualization with deck.gl | [README](services/frontend/README.md) |
+| Spark Streaming | Bronze layer ingestion from Kafka to Delta Lake | [README](services/spark-streaming/README.md) |
+| DBT | Silver and Gold layer transformations | [README](services/dbt/README.md) |
+| Airflow | Pipeline orchestration and DLQ monitoring | [README](services/airflow/README.md) |
+| Superset | Business intelligence dashboards | [README](analytics/superset/README.md) |
+
+## Troubleshooting
+
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| Port already in use | Previous process | `lsof -i :<port>` to find process, then kill |
+| Kafka connection refused | Kafka not running | `docker compose -f infrastructure/docker/compose.yml --profile core up -d kafka` |
+| Redis connection error | Redis not running | `docker compose -f infrastructure/docker/compose.yml --profile core up -d redis` |
+| OSRM routing failed | OSRM service unavailable | `curl http://localhost:5050/health` to check |
+| WebSocket rejected | Missing API key | Use `Sec-WebSocket-Protocol: apikey.<key>` header |
+| Agents not spawning | Simulation not started | Call `POST /simulation/start` first |
+| Frontend blank map | MapLibre CSS not loaded | Check that maplibre-gl CSS is imported |
+| Docker OOM killed | Insufficient memory | Increase Docker Desktop memory to 10GB |
+
+## Documentation
+
+- [CONTEXT.md](CONTEXT.md) - Architecture overview (for AI agents)
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - System design and event flow
+- [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md) - Dependency graph
+- [docs/PATTERNS.md](docs/PATTERNS.md) - Code patterns and conventions
+- [docs/TESTING.md](docs/TESTING.md) - Testing approach and organization
+- [docs/SECURITY.md](docs/SECURITY.md) - Security model and authentication
+- [docs/INFRASTRUCTURE.md](docs/INFRASTRUCTURE.md) - Infrastructure setup
+
+---
 
 ## Environment Setup
+
+> Preserved from original README.md
 
 ### 1. Copy Environment Template
 
@@ -62,6 +329,8 @@ print(f"Speed multiplier: {settings.simulation.speed_multiplier}")
 ```
 
 ## Security
+
+> Preserved from original README.md
 
 This project uses a development-first security model optimized for local development and portfolio demonstrations. All data is synthetic.
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Manages Redis integration for state snapshots and pub/sub publishing. State snapshots enable WebSocket clients to recover simulation state on reconnection. The publishing layer has been **deprecated** in favor of the stream processor service consuming from Kafka.
+Manages Redis integration for state snapshots and event filtering. State snapshots enable WebSocket clients to recover simulation state on reconnection without replaying the full simulation. The publishing layer has been **deprecated** in favor of the stream processor service consuming from Kafka.
 
 ## Responsibility Boundaries
 
@@ -18,6 +18,12 @@ Manages Redis integration for state snapshots and pub/sub publishing. State snap
 
 ## Non-Obvious Details
 
-The module contains a **deprecated RedisPublisher** class that was part of the old dual-publishing architecture. The simulation now publishes exclusively to Kafka, and the separate stream processor service consumes those events and publishes to Redis pub/sub. RedisPublisher remains for backward compatibility but is no longer used in the main event flow.
+The module contains a **deprecated RedisPublisher** class that was part of the old dual-publishing architecture. The simulation now publishes exclusively to Kafka, and the separate stream processor service consumes those events and publishes to Redis pub/sub. RedisPublisher remains for backward compatibility but is no longer used in the main event flow (see `event_emitter.py` docstring).
 
 StateSnapshotManager uses async Redis client while RedisPublisher uses sync Redis client. This reflects their different usage contexts: snapshots are accessed from async API handlers, while the deprecated publisher was designed to work from SimPy processes.
+
+## Related Modules
+
+- **[services/stream-processor/src/handlers](../../../stream-processor/src/handlers/CONTEXT.md)** — Replaces deprecated RedisPublisher; consumes from Kafka and publishes to Redis pub/sub
+- **[services/simulation/src/api/routes](../api/routes/CONTEXT.md)** — Uses StateSnapshotManager for WebSocket state recovery on client reconnection
+- **[services/frontend/src](../../../frontend/src/CONTEXT.md)** — Consumes snapshots via WebSocket for initial state hydration

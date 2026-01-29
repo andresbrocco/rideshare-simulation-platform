@@ -28,8 +28,6 @@ Jobs run as consolidated Docker containers (2 containers by volume tier: high-vo
 
 ## Related Modules
 
-- **[schemas/kafka](../../schemas/kafka/CONTEXT.md)** — Event schema source; streaming jobs consume events conforming to these JSON schemas
-- **[schemas/lakehouse](../../schemas/lakehouse/CONTEXT.md)** — Bronze schema target; PySpark schemas must align with Kafka schemas for consistent ingestion
+- **[services/spark-streaming/jobs](./jobs/CONTEXT.md)** — Concrete job implementations consuming from Kafka topics
 - **[services/dbt](../dbt/CONTEXT.md)** — Downstream consumer; DBT staging models read from Bronze Delta tables created by streaming jobs
-- **[services/airflow](../airflow/CONTEXT.md)** — Monitors DLQ tables written by streaming jobs to detect parsing failures
-- **[config](../../config/CONTEXT.md)** — Uses partition counts defined in Kafka topic configs to optimize consumer parallelism
+- **[services/dbt/macros](../dbt/macros/CONTEXT.md)** — Provides empty source guard macro to safely handle empty Bronze tables created by streaming jobs

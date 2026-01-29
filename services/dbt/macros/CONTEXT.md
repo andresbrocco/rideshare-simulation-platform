@@ -12,12 +12,19 @@ Custom DBT macros that handle Delta Lake-specific edge cases and enforce medalli
 
 ## Key Concepts
 
-**Empty Source Guard** — Compile-time check that prevents `DeltaAnalysisException` when reading newly-created Delta tables that have no columns. Returns typed empty result sets to maintain schema compatibility.
+**Empty Source Guard** — Query-time pattern that prevents `DeltaAnalysisException` when reading Delta tables that have no columns. Uses UNION ALL with typed NULL columns and `WHERE 1=0` to maintain schema compatibility.
+
+**Delta Source** — Generates Delta table path syntax for Bronze layer sources stored in S3 (e.g., `delta.`s3a://rideshare-bronze/bronze_trips/``). Falls back to standard `source()` function for non-bronze sources.
 
 **Schema Name Override** — Bypasses DBT's default `target.schema` prefix to map custom schema names directly to Spark database names (e.g., `silver`, `gold`), enforcing clean lakehouse layer separation.
 
 ## Non-Obvious Details
 
-The `source_with_empty_guard` macro uses `run_query()` during the execution phase to check if tables exist, then generates a UNION ALL with an empty typed result set. This allows staging models to compile successfully even when upstream Bronze tables are missing or empty.
+The `source_with_empty_guard` macro uses a UNION ALL pattern with `WHERE 1=0` to handle empty Delta tables gracefully. It always attempts to read from the Delta path in S3, but the union with typed NULL columns ensures the query succeeds even if the table has no schema yet. This is a query-execution pattern, not a compile-time check.
 
 The `generate_schema_name` macro ignores DBT's standard schema concatenation pattern (which would create `target.schema + custom_schema`) and instead uses the custom schema name directly as the database name. This is specific to dbt-spark and necessary for the medallion architecture.
+
+## Related Modules
+
+- **[services/dbt/models](../models/CONTEXT.md)** — Uses these macros throughout staging and mart models for safe Bronze table access
+- **[services/dbt/models/staging](../models/staging/CONTEXT.md)** — Primary consumer of empty source guard macro for parsing Bronze JSON

@@ -41,3 +41,10 @@ Driver registry tracks drivers as "offline" from creation, transitioning to "onl
 The geospatial index uses H3's `grid_disk` for k-ring searches, with k calculated dynamically based on search radius: `k = max(1, int(radius_km * 1000 / 174) + 1)`. This ensures complete coverage at resolution 9.
 
 Offer timeout management (`OfferTimeoutManager`) is present but appears unused in current matching flow. Timeout logic is handled via puppet driver API timeout processing instead.
+
+## Related Modules
+
+- **[services/simulation/src/api/routes](../api/routes/CONTEXT.md)** — API endpoints call matching server for trip requests and puppet driver control
+- **[services/simulation/src/db/repositories](../db/repositories/CONTEXT.md)** — Persists trip state and caches routes used for driver ranking
+- **[services/frontend/src/components/inspector](../../../frontend/src/components/inspector/CONTEXT.md)** — Frontend inspector exposes puppet driver controls that interact with matching server
+- **[services/redis_client](../redis_client/CONTEXT.md)** — Publishes surge pricing updates for real-time frontend visualization

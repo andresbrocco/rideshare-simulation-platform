@@ -14,7 +14,7 @@ Apache Superset 6.0.0 BI stack for business intelligence dashboards and SQL expl
 
 **Auto-provisioning**: docker-entrypoint.sh automatically creates "Rideshare Lakehouse" database connection on container startup by directly inserting into PostgreSQL metadata database, eliminating manual configuration.
 
-**Multi-layer caching**: Redis uses 5 separate databases (0-5) for different cache concerns - Celery broker/results, general cache, data cache, filter state cache, and explore form cache.
+**Multi-layer caching**: Redis uses 6 separate databases (0-5) for different cache concerns - Celery broker (0), Celery results (0), query results (1), general cache (2), data cache (3), filter state cache (4), and explore form cache (5).
 
 **Virtual datasets**: All dashboards use SQL-based virtual datasets rather than physical tables, enabling dashboard creation before actual tables exist and allowing flexible query definition.
 
@@ -28,7 +28,7 @@ The entrypoint script waits for superset-init to complete by checking for ab_use
 
 Database connection uses NOSASL authentication mode (hive://spark-thrift-server:10000/default?auth=NOSASL) because development environment has no Kerberos. Production should enable authentication.
 
-Port conflicts avoided by running PostgreSQL on 5433 (not 5432) and Redis on 6380 (not 6379) to coexist with Airflow and simulation services.
+Port mappings expose services on non-standard host ports (PostgreSQL on 5433, Redis on 6380) to avoid conflicts with Airflow and simulation services, but internal container connections use standard ports (5432 for PostgreSQL, 6379 for Redis).
 
 Test fixtures handle both current API format (charts as string array) and legacy format (slices as object array) for backward compatibility across Superset versions.
 
@@ -37,3 +37,4 @@ Configuration uses environment variable for SECRET_KEY with development fallback
 ## Related Modules
 
 - **[services/dbt](../../services/dbt/CONTEXT.md)** — Data source; Superset dashboards query Gold dimensional models (fact_trips, dim_drivers, agg_zone_hourly_metrics) created by DBT transformations
+- **[infrastructure/monitoring](../../infrastructure/monitoring/CONTEXT.md)** — Shares observability domain; both provide visualization tools (Grafana for infrastructure metrics, Superset for business analytics)
