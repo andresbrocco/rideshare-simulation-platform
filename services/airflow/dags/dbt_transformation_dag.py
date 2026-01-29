@@ -27,7 +27,7 @@ with DAG(
 
     check_bronze_freshness = BashOperator(
         task_id="check_bronze_freshness",
-        bash_command='echo "Bronze freshness check passed"',
+        bash_command="python3 /opt/init-scripts/check_bronze_tables.py",
     )
 
     dbt_silver_run = BashOperator(
