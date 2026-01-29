@@ -68,6 +68,28 @@ jobs:
           ./venv/bin/pip install --upgrade pip
           ./venv/bin/pip install dbt-spark[PyHive]
 
+      - name: Create DBT profiles.yml for CI
+        run: |
+          mkdir -p services/dbt/profiles
+          cat > services/dbt/profiles/profiles.yml << 'EOF'
+          rideshare:
+            target: dev
+            outputs:
+              dev:
+                type: spark
+                method: thrift
+                host: localhost
+                port: 10000
+                user: airflow
+                schema: default
+                auth: NOSASL
+                threads: 4
+                connect_timeout: 60
+                connect_retries: 3
+          EOF
+          # Remove leading whitespace from YAML (heredoc preserves indentation)
+          sed -i 's/^          //' services/dbt/profiles/profiles.yml
+
       - name: Build and start core and data-pipeline services
         run: |
           # Build images first
