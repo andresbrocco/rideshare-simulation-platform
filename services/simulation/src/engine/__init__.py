@@ -435,22 +435,14 @@ class SimulationEngine:
         self._periodic_processes.append(rider_spawner)
 
     def _surge_update_process(self):  # type: ignore[no-untyped-def]
-        """Recalculate surge every 60 simulated seconds."""
+        """Recalculate surge every 60 simulated seconds.
+
+        Note: Per-zone SurgeUpdateEvent events with full schema compliance
+        are emitted by SurgePricingCalculator in surge_pricing.py.
+        """
         while True:
             if hasattr(self._matching_server, "update_surge_pricing"):
                 self._matching_server.update_surge_pricing()
-
-            if self._kafka_producer:
-                event = {
-                    "event_id": str(uuid4()),
-                    "event_type": "surge.updated",
-                    "timestamp": datetime.now(UTC).isoformat(),
-                }
-                self._kafka_producer.produce(
-                    topic="surge_updates",
-                    key="global",
-                    value=event,
-                )
 
             yield self._env.timeout(60)
 
@@ -612,6 +604,7 @@ class SimulationEngine:
     def _force_cancel_trips(self, trips: list["Trip"]) -> None:
         """Force-cancel all in-flight trips."""
         from db.repositories.trip_repository import TripRepository
+        from events.schemas import TripEvent
         from trip import TripState
 
         with self._sqlite_db() as session:
@@ -627,19 +620,26 @@ class SimulationEngine:
                 )
 
                 if self._kafka_producer:
-                    event = {
-                        "event_id": str(uuid4()),
-                        "event_type": "trip.cancelled",
-                        "timestamp": datetime.now(UTC).isoformat(),
-                        "trip_id": trip.trip_id,
-                        "cancelled_by": "system",
-                        "cancellation_reason": "system_pause",
-                        "cancellation_stage": trip.state.name.lower(),
-                    }
+                    event = TripEvent(
+                        event_type="trip.cancelled",
+                        trip_id=trip.trip_id,
+                        rider_id=trip.rider_id,
+                        driver_id=trip.driver_id,
+                        pickup_location=trip.pickup_location,
+                        dropoff_location=trip.dropoff_location,
+                        pickup_zone_id=trip.pickup_zone_id,
+                        dropoff_zone_id=trip.dropoff_zone_id,
+                        surge_multiplier=trip.surge_multiplier,
+                        fare=trip.fare,
+                        cancelled_by="system",
+                        cancellation_reason="system_pause",
+                        cancellation_stage=trip.state.name.lower(),
+                        timestamp=datetime.now(UTC).isoformat(),
+                    )
                     self._kafka_producer.produce(
                         topic="trips",
                         key=trip.trip_id,
-                        value=event,
+                        value=event.model_dump_json(),
                     )
             session.commit()
 

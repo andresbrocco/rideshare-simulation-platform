@@ -35,7 +35,8 @@
         "trip.completed",
         "trip.cancelled",
         "trip.offer_expired",
-        "trip.offer_rejected"
+        "trip.offer_rejected",
+        "trip.no_drivers_available"
       ],
       "description": "Type of trip state transition"
     },

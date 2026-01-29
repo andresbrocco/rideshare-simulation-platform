@@ -43,6 +43,7 @@ TripEventType = Literal[
     "trip.cancelled",
     "trip.offer_expired",
     "trip.offer_rejected",
+    "trip.no_drivers_available",
 ]
 
 # Type alias for cancellation actor
@@ -265,7 +266,7 @@ class MatchingServer:
         logger.info(f"Found {len(nearby_drivers)} nearby drivers")
         if not nearby_drivers:
             logger.warning(f"No nearby drivers found for trip {trip.trip_id}")
-            self._emit_no_drivers_event(trip.trip_id, rider_id)
+            self._emit_no_drivers_event(trip)
             # Remove from active trips since no match will happen
             self._active_trips.pop(trip.trip_id, None)
             return None
@@ -454,7 +455,7 @@ class MatchingServer:
             trip.transition_to(TripState.OFFER_REJECTED)
 
         logger.warning(f"All offers rejected for trip {trip.trip_id}")
-        self._emit_no_drivers_event(trip.trip_id, trip.rider_id)
+        self._emit_no_drivers_event(trip)
         # Remove from active trips since no match happened
         self._active_trips.pop(trip.trip_id, None)
         return None
@@ -760,23 +761,26 @@ class MatchingServer:
 
         self._publish_trip_event(event, trip.trip_id)
 
-    def _emit_no_drivers_event(self, trip_id: str, rider_id: str) -> None:
+    def _emit_no_drivers_event(self, trip: Trip) -> None:
         if not self._kafka_producer:
             return
 
-        event = {
-            "event_id": str(uuid4()),
-            "event_type": "no_drivers_available",
-            "trip_id": trip_id,
-            "rider_id": rider_id,
-            "timestamp": datetime.now(UTC).isoformat(),
-        }
-
-        self._kafka_producer.produce(
-            topic="trips",
-            key=trip_id,
-            value=event,
+        event = TripEvent(
+            event_type="trip.no_drivers_available",
+            trip_id=trip.trip_id,
+            rider_id=trip.rider_id,
+            driver_id=None,
+            pickup_location=trip.pickup_location,
+            dropoff_location=trip.dropoff_location,
+            pickup_zone_id=trip.pickup_zone_id,
+            dropoff_zone_id=trip.dropoff_zone_id,
+            surge_multiplier=trip.surge_multiplier,
+            fare=trip.fare,
+            offer_sequence=trip.offer_sequence,
+            timestamp=datetime.now(UTC).isoformat(),
         )
+
+        self._publish_trip_event(event, trip.trip_id)
 
     def clear(self) -> None:
         """Clear all matching server state for simulation reset."""
@@ -898,12 +902,12 @@ class MatchingServer:
 
             if result is None:
                 # All candidates exhausted, emit no_drivers event
-                self._emit_no_drivers_event(trip.trip_id, trip.rider_id)
+                self._emit_no_drivers_event(trip)
                 self._active_trips.pop(trip.trip_id, None)
         else:
             # No more candidates available
             logger.info(f"No remaining candidates for trip {trip_id} after puppet rejection")
-            self._emit_no_drivers_event(trip.trip_id, trip.rider_id)
+            self._emit_no_drivers_event(trip)
             self._active_trips.pop(trip.trip_id, None)
 
     def process_puppet_timeout(self, driver_id: str, trip_id: str) -> None:
@@ -947,12 +951,12 @@ class MatchingServer:
 
             if result is None:
                 # All candidates exhausted, emit no_drivers event
-                self._emit_no_drivers_event(trip.trip_id, trip.rider_id)
+                self._emit_no_drivers_event(trip)
                 self._active_trips.pop(trip.trip_id, None)
         else:
             # No more candidates available
             logger.info(f"No remaining candidates for trip {trip_id} after puppet timeout")
-            self._emit_no_drivers_event(trip.trip_id, trip.rider_id)
+            self._emit_no_drivers_event(trip)
             self._active_trips.pop(trip.trip_id, None)
 
     def signal_driver_arrived(self, driver_id: str, trip_id: str) -> None:

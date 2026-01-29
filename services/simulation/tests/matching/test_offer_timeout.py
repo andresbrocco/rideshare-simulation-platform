@@ -1,3 +1,4 @@
+import json
 from unittest.mock import Mock, call
 
 import pytest
@@ -48,7 +49,7 @@ def test_track_pending_offer(timeout_manager, sample_trip):
     timeout_manager.start_offer_timeout(sample_trip, "driver1", 1)
     assert "trip123" in timeout_manager.pending_offers
     pending = timeout_manager.pending_offers["trip123"]
-    assert pending.trip_id == "trip123"
+    assert pending.trip.trip_id == "trip123"
     assert pending.driver_id == "driver1"
     assert pending.offer_sequence == 1
     assert pending.timeout_process is not None
@@ -62,11 +63,12 @@ def test_offer_expires_after_timeout(env, mock_kafka_producer, sample_trip):
 
     mock_kafka_producer.produce.assert_called_once()
     call_args = mock_kafka_producer.produce.call_args
-    assert call_args[1]["topic"] == "trip.offer_expired"
-    event_data = call_args[1]["value"]
+    assert call_args[1]["topic"] == "trips"
+    event_data = json.loads(call_args[1]["value"])
     assert event_data["trip_id"] == "trip123"
     assert event_data["driver_id"] == "driver1"
     assert event_data["offer_sequence"] == 1
+    assert event_data["event_type"] == "trip.offer_expired"
     assert "trip123" not in manager.pending_offers
 
 
@@ -113,7 +115,7 @@ def test_increment_offer_sequence_on_expire(env, mock_kafka_producer):
 
     env.run(until=16)
 
-    call_args = mock_kafka_producer.produce.call_args[1]["value"]
+    call_args = json.loads(mock_kafka_producer.produce.call_args[1]["value"])
     assert call_args["offer_sequence"] == 1
 
 
@@ -180,7 +182,10 @@ def test_multiple_pending_offers(env, mock_kafka_producer):
     assert len(manager.pending_offers) == 0
     assert mock_kafka_producer.produce.call_count == 3
 
-    trip_ids = {call[1]["value"]["trip_id"] for call in mock_kafka_producer.produce.call_args_list}
+    trip_ids = {
+        json.loads(call[1]["value"])["trip_id"]
+        for call in mock_kafka_producer.produce.call_args_list
+    }
     assert trip_ids == {"trip1", "trip2", "trip3"}
 
 
@@ -215,10 +220,12 @@ def test_expired_offer_emits_event(env, mock_kafka_producer, sample_trip):
 
     mock_kafka_producer.produce.assert_called_once()
     call_args = mock_kafka_producer.produce.call_args
-    assert call_args[1]["topic"] == "trip.offer_expired"
+    assert call_args[1]["topic"] == "trips"
 
-    event_data = call_args[1]["value"]
+    event_data = json.loads(call_args[1]["value"])
     assert event_data["trip_id"] == "trip123"
     assert event_data["driver_id"] == "driver1"
     assert event_data["offer_sequence"] == 1
-    assert event_data["timestamp"] == 15
+    assert event_data["event_type"] == "trip.offer_expired"
+    # Timestamp is now ISO 8601 format
+    assert "timestamp" in event_data

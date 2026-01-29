@@ -29,6 +29,7 @@ class TripEvent(CorrelationMixin):
         "trip.cancelled",
         "trip.offer_expired",
         "trip.offer_rejected",
+        "trip.no_drivers_available",
     ]
     trip_id: str
     timestamp: str

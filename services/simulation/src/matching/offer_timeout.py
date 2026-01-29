@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class PendingOffer:
-    trip_id: str
+    trip: "Trip"  # Store full trip object for event emission
     driver_id: str
     offer_sequence: int
     timeout_process: simpy.Process
@@ -34,7 +34,7 @@ class OfferTimeoutManager:
     def start_offer_timeout(self, trip: "Trip", driver_id: str, offer_sequence: int) -> None:
         process = self.env.process(self._timeout_process(trip.trip_id))
         pending_offer = PendingOffer(
-            trip_id=trip.trip_id,
+            trip=trip,  # Store full trip object for event emission
             driver_id=driver_id,
             offer_sequence=offer_sequence,
             timeout_process=process,
@@ -53,16 +53,29 @@ class OfferTimeoutManager:
             pass
 
     def _emit_expiration_event(self, pending_offer: PendingOffer) -> None:
-        event_data = {
-            "trip_id": pending_offer.trip_id,
-            "driver_id": pending_offer.driver_id,
-            "offer_sequence": pending_offer.offer_sequence,
-            "timestamp": self.env.now,
-        }
+        from datetime import UTC, datetime
+
+        from events.schemas import TripEvent
+
+        trip = pending_offer.trip
+        event = TripEvent(
+            event_type="trip.offer_expired",
+            trip_id=trip.trip_id,
+            rider_id=trip.rider_id,
+            driver_id=pending_offer.driver_id,
+            pickup_location=trip.pickup_location,
+            dropoff_location=trip.dropoff_location,
+            pickup_zone_id=trip.pickup_zone_id,
+            dropoff_zone_id=trip.dropoff_zone_id,
+            surge_multiplier=trip.surge_multiplier,
+            fare=trip.fare,
+            offer_sequence=pending_offer.offer_sequence,
+            timestamp=datetime.now(UTC).isoformat(),
+        )
         self.kafka_producer.produce(
-            topic="trip.offer_expired",
-            key=pending_offer.trip_id,
-            value=event_data,
+            topic="trips",  # Correct topic (was "trip.offer_expired")
+            key=trip.trip_id,
+            value=event.model_dump_json(),
         )
 
     def clear_offer(self, trip_id: str, reason: str) -> None:
