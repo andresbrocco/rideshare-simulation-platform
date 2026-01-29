@@ -61,6 +61,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e "."
 
+      - name: Install DBT for Silver/Gold layer tests
+        run: |
+          cd services/dbt
+          python -m venv venv
+          ./venv/bin/pip install --upgrade pip
+          ./venv/bin/pip install dbt-spark[PyHive]
+
       - name: Build and start core and data-pipeline services
         run: |
           # Build images first
