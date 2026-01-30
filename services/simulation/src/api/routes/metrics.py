@@ -461,96 +461,34 @@ def get_performance_metrics(request: Request, engine: EngineDep) -> PerformanceM
 
 
 # Container configuration for infrastructure monitoring
+# Memory limits are now fetched dynamically from cAdvisor (spec.memory.limit)
 CONTAINER_CONFIG = {
     # Core profile
-    "rideshare-kafka": {
-        "display_name": "Kafka",
-        "memory_limit_bytes": 1 * 1024 * 1024 * 1024,  # 1 GB
-    },
-    "rideshare-schema-registry": {
-        "display_name": "Schema Registry",
-        "memory_limit_bytes": 384 * 1024 * 1024,  # 384 MB
-    },
-    "rideshare-redis": {
-        "display_name": "Redis",
-        "memory_limit_bytes": 128 * 1024 * 1024,  # 128 MB
-    },
-    "rideshare-osrm": {
-        "display_name": "OSRM",
-        "memory_limit_bytes": 1 * 1024 * 1024 * 1024,  # 1 GB
-    },
-    "rideshare-simulation": {
-        "display_name": "Simulation",
-        "memory_limit_bytes": 1 * 1024 * 1024 * 1024,  # 1 GB
-    },
-    "rideshare-stream-processor": {
-        "display_name": "Stream Processor",
-        "memory_limit_bytes": 256 * 1024 * 1024,  # 256 MB
-    },
-    "rideshare-frontend": {
-        "display_name": "Frontend",
-        "memory_limit_bytes": 384 * 1024 * 1024,  # 384 MB
-    },
+    "rideshare-kafka": {"display_name": "Kafka"},
+    "rideshare-schema-registry": {"display_name": "Schema Registry"},
+    "rideshare-redis": {"display_name": "Redis"},
+    "rideshare-osrm": {"display_name": "OSRM"},
+    "rideshare-simulation": {"display_name": "Simulation"},
+    "rideshare-stream-processor": {"display_name": "Stream Processor"},
+    "rideshare-frontend": {"display_name": "Frontend"},
     # Data Platform profile
-    "rideshare-minio": {
-        "display_name": "MinIO",
-        "memory_limit_bytes": 256 * 1024 * 1024,  # 256 MB
-    },
-    "rideshare-spark-thrift-server": {
-        "display_name": "Spark Thrift",
-        "memory_limit_bytes": 1024 * 1024 * 1024,  # 1 GB
-    },
-    "rideshare-bronze-ingestion-high-volume": {
-        "display_name": "Spark: High Volume",
-        "memory_limit_bytes": 768 * 1024 * 1024,  # 768 MB
-    },
-    "rideshare-bronze-ingestion-low-volume": {
-        "display_name": "Spark: Low Volume",
-        "memory_limit_bytes": 768 * 1024 * 1024,  # 768 MB
-    },
-    "rideshare-localstack": {
-        "display_name": "LocalStack",
-        "memory_limit_bytes": 384 * 1024 * 1024,  # 384 MB
-    },
+    "rideshare-minio": {"display_name": "MinIO"},
+    "rideshare-spark-thrift-server": {"display_name": "Spark Thrift"},
+    "rideshare-bronze-ingestion-high-volume": {"display_name": "Spark: High Volume"},
+    "rideshare-bronze-ingestion-low-volume": {"display_name": "Spark: Low Volume"},
+    "rideshare-localstack": {"display_name": "LocalStack"},
     # Monitoring profile
-    "rideshare-prometheus": {
-        "display_name": "Prometheus",
-        "memory_limit_bytes": 512 * 1024 * 1024,  # 512 MB
-    },
-    "rideshare-cadvisor": {
-        "display_name": "cAdvisor",
-        "memory_limit_bytes": 256 * 1024 * 1024,  # 256 MB
-    },
-    "rideshare-grafana": {
-        "display_name": "Grafana",
-        "memory_limit_bytes": 192 * 1024 * 1024,  # 192 MB
-    },
+    "rideshare-prometheus": {"display_name": "Prometheus"},
+    "rideshare-cadvisor": {"display_name": "cAdvisor"},
+    "rideshare-grafana": {"display_name": "Grafana"},
     # Quality Orchestration profile
-    "rideshare-postgres-airflow": {
-        "display_name": "Postgres (Airflow)",
-        "memory_limit_bytes": 256 * 1024 * 1024,  # 256 MB
-    },
-    "rideshare-airflow-webserver": {
-        "display_name": "Airflow Web",
-        "memory_limit_bytes": 384 * 1024 * 1024,  # 384 MB
-    },
-    "rideshare-airflow-scheduler": {
-        "display_name": "Airflow Scheduler",
-        "memory_limit_bytes": 384 * 1024 * 1024,  # 384 MB
-    },
+    "rideshare-postgres-airflow": {"display_name": "Postgres (Airflow)"},
+    "rideshare-airflow-webserver": {"display_name": "Airflow Web"},
+    "rideshare-airflow-scheduler": {"display_name": "Airflow Scheduler"},
     # BI profile
-    "rideshare-postgres-superset": {
-        "display_name": "Postgres (Superset)",
-        "memory_limit_bytes": 256 * 1024 * 1024,  # 256 MB
-    },
-    "rideshare-redis-superset": {
-        "display_name": "Redis (Superset)",
-        "memory_limit_bytes": 128 * 1024 * 1024,  # 128 MB
-    },
-    "rideshare-superset": {
-        "display_name": "Superset",
-        "memory_limit_bytes": 768 * 1024 * 1024,  # 768 MB
-    },
+    "rideshare-postgres-superset": {"display_name": "Postgres (Superset)"},
+    "rideshare-redis-superset": {"display_name": "Redis (Superset)"},
+    "rideshare-superset": {"display_name": "Superset"},
 }
 
 
@@ -611,9 +549,12 @@ def _calculate_cpu_percent(stats: list[dict[str, Any]]) -> float:
 
 
 def _parse_container_resource_metrics(
-    container_name: str, data: dict[str, Any], config: dict[str, Any]
+    container_name: str, data: dict[str, Any]
 ) -> tuple[float, float, float, float]:
     """Parse container resource metrics from cAdvisor data.
+
+    Memory limit is extracted from cAdvisor's spec.memory.limit field,
+    which reflects the actual Docker mem_limit setting from compose.yml.
 
     Returns: (memory_used_mb, memory_limit_mb, memory_percent, cpu_percent)
     """
@@ -625,9 +566,17 @@ def _parse_container_resource_metrics(
     memory_working_set = memory.get("working_set", 0)
     memory_used_mb = memory_working_set / (1024 * 1024)
 
-    # Get memory limit from config
-    memory_limit_bytes = config.get("memory_limit_bytes", 0)
-    memory_limit_mb = memory_limit_bytes / (1024 * 1024)
+    # Get memory limit from cAdvisor spec (actual Docker container limit)
+    spec = data.get("spec", {})
+    memory_limit_bytes = spec.get("memory", {}).get("limit", 0)
+
+    # Handle "unlimited" case: when no mem_limit is set in Docker,
+    # cAdvisor reports max uint64 or a very large value
+    MAX_REASONABLE_LIMIT = 64 * 1024 * 1024 * 1024  # 64 GB
+    if memory_limit_bytes == 0 or memory_limit_bytes > MAX_REASONABLE_LIMIT:
+        memory_limit_mb = 0.0
+    else:
+        memory_limit_mb = memory_limit_bytes / (1024 * 1024)
 
     # Calculate memory percentage
     memory_percent = (memory_used_mb / memory_limit_mb * 100) if memory_limit_mb > 0 else 0.0
@@ -1113,8 +1062,7 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
 
         # Get resource metrics from cAdvisor if available
         memory_used_mb = 0.0
-        memory_limit_bytes = cast(int, config.get("memory_limit_bytes", 0))
-        memory_limit_mb = float(memory_limit_bytes) / (1024 * 1024) if memory_limit_bytes else 0.0
+        memory_limit_mb = 0.0
         memory_percent = 0.0
         cpu_percent = 0.0
 
@@ -1122,7 +1070,7 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
             container_data = _find_container_in_cadvisor(container_name, cadvisor_data)
             if container_data:
                 memory_used_mb, memory_limit_mb, memory_percent, cpu_percent = (
-                    _parse_container_resource_metrics(container_name, container_data, config)
+                    _parse_container_resource_metrics(container_name, container_data)
                 )
             else:
                 # Container not found in cAdvisor - might be stopped
