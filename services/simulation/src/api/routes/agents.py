@@ -108,7 +108,11 @@ def create_drivers(
         settings = get_settings()
         immediate = mode == SpawnMode.IMMEDIATE
         queued = agent_factory.queue_drivers(body.count, immediate=immediate)
-        spawn_rate = settings.spawn.driver_spawn_rate
+        spawn_rate = (
+            settings.spawn.driver_immediate_spawn_rate
+            if immediate
+            else settings.spawn.driver_scheduled_spawn_rate
+        )
         return DriversCreateResponse(
             queued=queued,
             spawn_rate=spawn_rate,
@@ -144,7 +148,11 @@ def create_riders(
         settings = get_settings()
         immediate = mode == SpawnMode.IMMEDIATE
         queued = agent_factory.queue_riders(body.count, immediate=immediate)
-        spawn_rate = settings.spawn.rider_spawn_rate
+        spawn_rate = (
+            settings.spawn.rider_immediate_spawn_rate
+            if immediate
+            else settings.spawn.rider_scheduled_spawn_rate
+        )
         return RidersCreateResponse(
             queued=queued,
             spawn_rate=spawn_rate,

@@ -32,9 +32,9 @@ export default function ControlPanel({
   onStartPlacement,
 }: ControlPanelProps) {
   const [driverCount, setDriverCount] = useState(10);
-  const [riderCount, setRiderCount] = useState(200);
+  const [riderCount, setRiderCount] = useState(10);
   const [driverMode, setDriverMode] = useState<SpawnMode>('immediate');
-  const [riderMode, setRiderMode] = useState<SpawnMode>('scheduled');
+  const [riderMode, setRiderMode] = useState<SpawnMode>('immediate');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const {

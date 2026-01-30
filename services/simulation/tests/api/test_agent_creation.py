@@ -79,8 +79,8 @@ def test_create_single_rider(test_client, mock_agent_factory, auth_headers):
     assert response.status_code == 200
     data = response.json()
     assert data["queued"] == 1
-    assert data["spawn_rate"] == 40.0  # Default rider spawn rate
-    assert data["estimated_completion_seconds"] == 0.025  # 1 / 40
+    assert data["spawn_rate"] == 10.0  # Default scheduled rider spawn rate
+    assert data["estimated_completion_seconds"] == 0.1  # 1 / 10
     mock_agent_factory.queue_riders.assert_called_once_with(1, immediate=False)
 
 
@@ -93,8 +93,8 @@ def test_create_multiple_riders(test_client, mock_agent_factory, auth_headers):
     assert response.status_code == 200
     data = response.json()
     assert data["queued"] == 50
-    assert data["spawn_rate"] == 40.0
-    assert data["estimated_completion_seconds"] == 1.25  # 50 / 40
+    assert data["spawn_rate"] == 10.0  # Scheduled rider spawn rate
+    assert data["estimated_completion_seconds"] == 5.0  # 50 / 10
     mock_agent_factory.queue_riders.assert_called_once_with(50, immediate=False)
 
 
@@ -107,7 +107,7 @@ def test_create_riders_max_count(test_client, mock_agent_factory, auth_headers):
     assert response.status_code == 200
     data = response.json()
     assert data["queued"] == 2000
-    assert data["estimated_completion_seconds"] == 50.0  # 2000 / 40
+    assert data["estimated_completion_seconds"] == 200.0  # 2000 / 10
 
 
 def test_create_riders_capacity_limit(test_client, mock_agent_factory, auth_headers):

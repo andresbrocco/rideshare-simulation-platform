@@ -427,12 +427,56 @@ class SimulationEngine:
         surge_process = self._env.process(self._surge_update_process())  # type: ignore[no-untyped-call]
         self._periodic_processes.append(surge_process)
 
-        # Start agent spawner processes for continuous spawning
-        driver_spawner = self._env.process(self._driver_spawner_process())  # type: ignore[no-untyped-call]
-        self._periodic_processes.append(driver_spawner)
+        # Start 4 agent spawner processes (per-mode) for continuous spawning
+        settings = get_settings()
 
-        rider_spawner = self._env.process(self._rider_spawner_process())  # type: ignore[no-untyped-call]
-        self._periodic_processes.append(rider_spawner)
+        # Driver immediate: 2/s = 0.5s interval
+        driver_imm = self._env.process(
+            self._spawner_process(  # type: ignore[no-untyped-call]
+                lambda: (
+                    self._agent_factory.dequeue_driver_immediate() if self._agent_factory else False
+                ),
+                lambda: self._spawn_single_driver(immediate_online=True),
+                1.0 / settings.spawn.driver_immediate_spawn_rate,
+            )
+        )
+        self._periodic_processes.append(driver_imm)
+
+        # Driver scheduled: 10/s = 0.1s interval
+        driver_sched = self._env.process(
+            self._spawner_process(  # type: ignore[no-untyped-call]
+                lambda: (
+                    self._agent_factory.dequeue_driver_scheduled() if self._agent_factory else False
+                ),
+                lambda: self._spawn_single_driver(immediate_online=False),
+                1.0 / settings.spawn.driver_scheduled_spawn_rate,
+            )
+        )
+        self._periodic_processes.append(driver_sched)
+
+        # Rider immediate: 2/s = 0.5s interval
+        rider_imm = self._env.process(
+            self._spawner_process(  # type: ignore[no-untyped-call]
+                lambda: (
+                    self._agent_factory.dequeue_rider_immediate() if self._agent_factory else False
+                ),
+                lambda: self._spawn_single_rider(immediate_first_trip=True),
+                1.0 / settings.spawn.rider_immediate_spawn_rate,
+            )
+        )
+        self._periodic_processes.append(rider_imm)
+
+        # Rider scheduled: 10/s = 0.1s interval
+        rider_sched = self._env.process(
+            self._spawner_process(  # type: ignore[no-untyped-call]
+                lambda: (
+                    self._agent_factory.dequeue_rider_scheduled() if self._agent_factory else False
+                ),
+                lambda: self._spawn_single_rider(immediate_first_trip=False),
+                1.0 / settings.spawn.rider_scheduled_spawn_rate,
+            )
+        )
+        self._periodic_processes.append(rider_sched)
 
     def _surge_update_process(self):  # type: ignore[no-untyped-def]
         """Recalculate surge every 60 simulated seconds.
@@ -446,41 +490,17 @@ class SimulationEngine:
 
             yield self._env.timeout(60)
 
-    def _driver_spawner_process(self):  # type: ignore[no-untyped-def]
-        """Continuously spawn drivers from queue at configured rate.
+    def _spawner_process(self, dequeue_fn, spawn_fn, interval):  # type: ignore[no-untyped-def]
+        """Generic spawner for any queue/mode combination.
 
-        Spawns 1 driver per interval (2 drivers/sec = 0.5s interval).
-        Each spawned driver starts its run() process immediately, ensuring
-        GPS pings are naturally desynchronized across different spawn times.
+        Args:
+            dequeue_fn: Callable that returns True if an agent was dequeued, False otherwise
+            spawn_fn: Callable to spawn the agent
+            interval: Time between spawn attempts (1/rate)
         """
-        settings = get_settings()
-        interval = 1.0 / settings.spawn.driver_spawn_rate  # e.g., 0.5s for 2/sec
-
         while True:
-            # Only spawn when simulation is running and factory is set
-            if self._state == SimulationState.RUNNING and self._agent_factory is not None:
-                immediate = self._agent_factory.dequeue_driver()
-                if immediate is not None:
-                    self._spawn_single_driver(immediate_online=immediate)
-
-            yield self._env.timeout(interval)
-
-    def _rider_spawner_process(self):  # type: ignore[no-untyped-def]
-        """Continuously spawn riders from queue at configured rate.
-
-        Spawns 1 rider per interval (40 riders/sec = 0.025s interval).
-        Each spawned rider starts its run() process immediately.
-        """
-        settings = get_settings()
-        interval = 1.0 / settings.spawn.rider_spawn_rate  # e.g., 0.025s for 40/sec
-
-        while True:
-            # Only spawn when simulation is running and factory is set
-            if self._state == SimulationState.RUNNING and self._agent_factory is not None:
-                immediate = self._agent_factory.dequeue_rider()
-                if immediate is not None:
-                    self._spawn_single_rider(immediate_first_trip=immediate)
-
+            if self._state == SimulationState.RUNNING and dequeue_fn():
+                spawn_fn()
             yield self._env.timeout(interval)
 
     def _spawn_single_driver(self, immediate_online: bool = True) -> str | None:

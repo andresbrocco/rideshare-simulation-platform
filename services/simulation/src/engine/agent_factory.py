@@ -2,7 +2,6 @@
 
 import random
 import threading
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 from uuid import uuid4
 
@@ -10,15 +9,6 @@ from agents.dna import DriverDNA, RiderDNA
 from agents.dna_generator import generate_driver_dna, generate_rider_dna
 from agents.driver_agent import DriverAgent
 from agents.rider_agent import RiderAgent
-
-
-@dataclass
-class SpawnRequest:
-    """A request to spawn agents with a specific mode."""
-
-    count: int
-    immediate: bool
-
 
 if TYPE_CHECKING:
     from engine import SimulationEngine
@@ -54,9 +44,11 @@ class AgentFactory:
         self._max_drivers = 2000
         self._max_riders = 10000
 
-        # Spawn queue for continuous agent spawning (list of SpawnRequest)
-        self._driver_spawn_requests: list[SpawnRequest] = []
-        self._rider_spawn_requests: list[SpawnRequest] = []
+        # Spawn queues for continuous agent spawning (per-mode queues)
+        self._driver_immediate_requests: list[int] = []
+        self._driver_scheduled_requests: list[int] = []
+        self._rider_immediate_requests: list[int] = []
+        self._rider_scheduled_requests: list[int] = []
         self._spawn_lock = threading.Lock()
 
     def create_drivers(self, count: int) -> list[str]:
@@ -163,7 +155,10 @@ class AgentFactory:
         """
         self._check_driver_capacity(count)
         with self._spawn_lock:
-            self._driver_spawn_requests.append(SpawnRequest(count, immediate))
+            if immediate:
+                self._driver_immediate_requests.append(count)
+            else:
+                self._driver_scheduled_requests.append(count)
         return count
 
     def queue_riders(self, count: int, immediate: bool = False) -> int:
@@ -181,56 +176,93 @@ class AgentFactory:
         """
         self._check_rider_capacity(count)
         with self._spawn_lock:
-            self._rider_spawn_requests.append(SpawnRequest(count, immediate))
+            if immediate:
+                self._rider_immediate_requests.append(count)
+            else:
+                self._rider_scheduled_requests.append(count)
         return count
 
-    def dequeue_driver(self) -> bool | None:
-        """Dequeue one driver for spawning.
+    def dequeue_driver_immediate(self) -> bool:
+        """Dequeue one immediate-mode driver for spawning.
 
         Returns:
-            True for immediate mode, False for scheduled mode, None if queue empty
+            True if dequeued, False if queue empty
         """
         with self._spawn_lock:
-            while self._driver_spawn_requests:
-                request = self._driver_spawn_requests[0]
-                if request.count > 0:
-                    request.count -= 1
-                    return request.immediate
-                self._driver_spawn_requests.pop(0)
-            return None
+            while self._driver_immediate_requests:
+                if self._driver_immediate_requests[0] > 0:
+                    self._driver_immediate_requests[0] -= 1
+                    return True
+                self._driver_immediate_requests.pop(0)
+            return False
 
-    def dequeue_rider(self) -> bool | None:
-        """Dequeue one rider for spawning.
+    def dequeue_driver_scheduled(self) -> bool:
+        """Dequeue one scheduled-mode driver for spawning.
 
         Returns:
-            True for immediate mode, False for scheduled mode, None if queue empty
+            True if dequeued, False if queue empty
         """
         with self._spawn_lock:
-            while self._rider_spawn_requests:
-                request = self._rider_spawn_requests[0]
-                if request.count > 0:
-                    request.count -= 1
-                    return request.immediate
-                self._rider_spawn_requests.pop(0)
-            return None
+            while self._driver_scheduled_requests:
+                if self._driver_scheduled_requests[0] > 0:
+                    self._driver_scheduled_requests[0] -= 1
+                    return True
+                self._driver_scheduled_requests.pop(0)
+            return False
+
+    def dequeue_rider_immediate(self) -> bool:
+        """Dequeue one immediate-mode rider for spawning.
+
+        Returns:
+            True if dequeued, False if queue empty
+        """
+        with self._spawn_lock:
+            while self._rider_immediate_requests:
+                if self._rider_immediate_requests[0] > 0:
+                    self._rider_immediate_requests[0] -= 1
+                    return True
+                self._rider_immediate_requests.pop(0)
+            return False
+
+    def dequeue_rider_scheduled(self) -> bool:
+        """Dequeue one scheduled-mode rider for spawning.
+
+        Returns:
+            True if dequeued, False if queue empty
+        """
+        with self._spawn_lock:
+            while self._rider_scheduled_requests:
+                if self._rider_scheduled_requests[0] > 0:
+                    self._rider_scheduled_requests[0] -= 1
+                    return True
+                self._rider_scheduled_requests.pop(0)
+            return False
 
     def get_spawn_queue_status(self) -> dict[str, int]:
         """Get current spawn queue status.
 
         Returns:
-            Dictionary with drivers_queued and riders_queued counts
+            Dictionary with per-mode queue counts
         """
         with self._spawn_lock:
             return {
-                "drivers_queued": sum(r.count for r in self._driver_spawn_requests),
-                "riders_queued": sum(r.count for r in self._rider_spawn_requests),
+                "drivers_queued": sum(self._driver_immediate_requests)
+                + sum(self._driver_scheduled_requests),
+                "riders_queued": sum(self._rider_immediate_requests)
+                + sum(self._rider_scheduled_requests),
+                "drivers_immediate_queued": sum(self._driver_immediate_requests),
+                "drivers_scheduled_queued": sum(self._driver_scheduled_requests),
+                "riders_immediate_queued": sum(self._rider_immediate_requests),
+                "riders_scheduled_queued": sum(self._rider_scheduled_requests),
             }
 
     def clear_spawn_queues(self) -> None:
         """Clear all spawn queues. Used during reset."""
         with self._spawn_lock:
-            self._driver_spawn_requests.clear()
-            self._rider_spawn_requests.clear()
+            self._driver_immediate_requests.clear()
+            self._driver_scheduled_requests.clear()
+            self._rider_immediate_requests.clear()
+            self._rider_scheduled_requests.clear()
 
     def _get_random_location_in_zone(self, zone_id: str) -> tuple[float, float] | None:
         """Get a random location within a zone.
