@@ -47,15 +47,13 @@
     {%- set typed_null_list = typed_nulls | join(', ') -%}
 
     {#-
-      Read from Delta table path in S3.
-      Always assumes the table exists and uses COALESCE pattern to handle empty tables gracefully.
-      Delta tables are read from S3 (e.g., s3a://rideshare-bronze/bronze_trips/).
+      Read from Bronze table registered in Hive Metastore.
+      Uses UNION ALL pattern to handle empty tables gracefully.
     -#}
-    {%- set delta_path = 's3a://rideshare-bronze/' ~ source_table ~ '/' -%}
 
     (
         select {{ column_list }}
-        from delta.`{{ delta_path }}`
+        from bronze.{{ source_table }}
 
         union all
 

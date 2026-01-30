@@ -91,8 +91,8 @@ services:
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
       SCHEMA_REGISTRY_HEAP_OPTS: "-Xms128m -Xmx256m"
     depends_on:
-      kafka:
-        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     networks:
       - rideshare-network
     healthcheck:
@@ -177,8 +177,8 @@ services:
       - API_KEY=${API_KEY:-dev-api-key-change-in-production}
       - CORS_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177,http://localhost:5178
     depends_on:
-      kafka:
-        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
       schema-registry:
         condition: service_healthy
       redis:
@@ -219,8 +219,8 @@ services:
       - API_PORT=8080
       - LOG_LEVEL=${PROCESSOR_LOG_LEVEL:-INFO}
     depends_on:
-      kafka:
-        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     networks:
@@ -372,7 +372,7 @@ services:
       context: ../..
       dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
     container_name: rideshare-spark-thrift-server
-    mem_limit: 1024m
+    mem_limit: 2048m
     profiles:
       - data-pipeline
     ports:
@@ -381,8 +381,8 @@ services:
     command: >
       /opt/spark/bin/spark-submit
       --master local[2]
-      --driver-memory 512m
-      --conf spark.driver.maxResultSize=256m
+      --driver-memory 1536m
+      --conf spark.driver.maxResultSize=512m
       --class org.apache.spark.sql.hive.thriftserver.HiveThriftServer2
       --name "Thrift JDBC/ODBC Server"
       --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
@@ -404,8 +404,8 @@ services:
     volumes:
       - ../../services/spark-streaming:/opt/spark_streaming:ro
     depends_on:
-      minio:
-        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     networks:
       - rideshare-network
     healthcheck:
@@ -433,10 +433,10 @@ services:
     volumes:
       - ../../services/spark-streaming:/opt/spark_streaming:ro
     depends_on:
-      minio:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
     networks:
       - rideshare-network
     command: >
@@ -477,10 +477,10 @@ services:
     volumes:
       - ../../services/spark-streaming:/opt/spark_streaming:ro
     depends_on:
-      minio:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
     networks:
       - rideshare-network
     command: >
@@ -568,6 +568,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   airflow-webserver:
@@ -773,6 +774,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   redis-superset:
