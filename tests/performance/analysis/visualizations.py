@@ -63,6 +63,12 @@ class ChartGenerator:
             generated.extend(self.generate_cpu_heatmap(scenarios))
             generated.extend(self.generate_memory_heatmap(scenarios))
 
+        # Stress test charts
+        stress_scenarios = [s for s in scenarios if s["scenario_name"] == "stress_test"]
+        if stress_scenarios:
+            generated.extend(self.generate_stress_timeline(stress_scenarios[0]))
+            generated.extend(self.generate_stress_comparison(stress_scenarios[0]))
+
         return generated
 
     def generate_load_scaling_bar(
@@ -905,5 +911,280 @@ class ChartGenerator:
                 plt.close(fig_mpl)
 
                 generated.extend([str(html_path), str(png_path)])
+
+        return generated
+
+    def generate_stress_timeline(self, stress_scenario: dict[str, Any]) -> list[str]:
+        """Generate timeline charts for stress test showing resource usage over time.
+
+        Args:
+            stress_scenario: Stress test scenario result.
+
+        Returns:
+            List of generated file paths.
+        """
+        samples = stress_scenario.get("samples", [])
+        if not samples:
+            return []
+
+        metadata = stress_scenario.get("metadata", {})
+        trigger = metadata.get("trigger")
+        total_agents = metadata.get("total_agents_queued", 0)
+
+        # Priority containers to display
+        priority = [
+            "rideshare-simulation",
+            "rideshare-kafka",
+            "rideshare-redis",
+            "rideshare-osrm",
+            "rideshare-stream-processor",
+        ]
+
+        generated: list[str] = []
+
+        for metric in ["memory", "cpu"]:
+            metric_key = "memory_percent" if metric == "memory" else "cpu_percent"
+            y_label = "Memory %" if metric == "memory" else "CPU %"
+            threshold = stress_scenario.get("scenario_params", {}).get(
+                f"{metric}_threshold_percent", 90.0
+            )
+
+            # Determine the stop time (either trigger time or last sample)
+            first_ts = samples[0]["timestamp"] if samples else 0
+            last_ts = samples[-1]["timestamp"] if samples else 0
+            stop_time_seconds = last_ts - first_ts
+
+            # Find trigger time if the trigger matches this metric
+            trigger_time = None
+            if trigger and trigger.get("metric") == metric:
+                trigger_time = stop_time_seconds
+
+            # Plotly figure
+            fig = go.Figure()
+
+            # Add traces for each priority container
+            for container in priority:
+                timestamps: list[float] = []
+                values: list[float] = []
+
+                for sample in samples:
+                    rolling_avgs = sample.get("rolling_averages", {})
+                    if container in rolling_avgs:
+                        elapsed = sample["timestamp"] - first_ts
+                        timestamps.append(elapsed)
+                        values.append(rolling_avgs[container].get(metric_key, 0))
+
+                if timestamps:
+                    display_name = CONTAINER_CONFIG.get(container, {}).get(
+                        "display_name", container
+                    )
+                    fig.add_trace(
+                        go.Scatter(
+                            x=timestamps,
+                            y=values,
+                            mode="lines",
+                            name=display_name,
+                        )
+                    )
+
+            # Add threshold line
+            fig.add_hline(
+                y=threshold,
+                line_dash="dash",
+                line_color="red",
+                annotation_text=f"{threshold}% threshold",
+            )
+
+            # Add vertical marker where test stopped if trigger occurred
+            if trigger_time is not None and trigger.get("metric") == metric:
+                fig.add_vline(
+                    x=trigger_time,
+                    line_dash="dot",
+                    line_color="darkred",
+                    annotation_text=f"Stopped: {trigger.get('container', 'unknown')}",
+                )
+
+            fig.update_layout(
+                title=f"Stress Test {metric.title()} Timeline (Total Agents: {total_agents})",
+                xaxis_title="Time (seconds)",
+                yaxis_title=y_label,
+                yaxis_range=[0, max(100, threshold * 1.1)],
+            )
+
+            html_path = self.charts_dir / f"stress_timeline_{metric}.html"
+            fig.write_html(str(html_path))
+
+            # Matplotlib version
+            fig_mpl, ax = plt.subplots(figsize=(12, 6))
+
+            for container in priority:
+                timestamps = []
+                values = []
+
+                for sample in samples:
+                    rolling_avgs = sample.get("rolling_averages", {})
+                    if container in rolling_avgs:
+                        elapsed = sample["timestamp"] - first_ts
+                        timestamps.append(elapsed)
+                        values.append(rolling_avgs[container].get(metric_key, 0))
+
+                if timestamps:
+                    display_name = CONTAINER_CONFIG.get(container, {}).get(
+                        "display_name", container
+                    )
+                    ax.plot(timestamps, values, label=display_name)
+
+            # Add threshold line
+            ax.axhline(y=threshold, color="red", linestyle="--", label=f"{threshold}% threshold")
+
+            # Add vertical marker where test stopped
+            if trigger_time is not None and trigger.get("metric") == metric:
+                ax.axvline(
+                    x=trigger_time,
+                    color="darkred",
+                    linestyle=":",
+                    label=f"Stopped: {trigger.get('container', 'unknown')}",
+                )
+
+            ax.set_xlabel("Time (seconds)")
+            ax.set_ylabel(y_label)
+            ax.set_title(f"Stress Test {metric.title()} Timeline (Total Agents: {total_agents})")
+            ax.set_ylim(0, max(100, threshold * 1.1))
+            ax.legend(loc="upper left", fontsize="small")
+            ax.grid(alpha=0.3)
+
+            png_path = self.charts_dir / f"stress_timeline_{metric}.png"
+            fig_mpl.savefig(png_path, dpi=150, bbox_inches="tight")
+            plt.close(fig_mpl)
+
+            generated.extend([str(html_path), str(png_path)])
+
+        return generated
+
+    def generate_stress_comparison(self, stress_scenario: dict[str, Any]) -> list[str]:
+        """Generate bar charts comparing peak resource usage across containers.
+
+        Args:
+            stress_scenario: Stress test scenario result.
+
+        Returns:
+            List of generated file paths.
+        """
+        metadata = stress_scenario.get("metadata", {})
+        peak_values = metadata.get("peak_values", {})
+        total_agents = metadata.get("total_agents_queued", 0)
+
+        if not peak_values:
+            return []
+
+        # Get all containers with peak values, prioritize key containers
+        priority = [
+            "rideshare-simulation",
+            "rideshare-kafka",
+            "rideshare-redis",
+            "rideshare-osrm",
+            "rideshare-stream-processor",
+        ]
+
+        sorted_containers = [c for c in priority if c in peak_values]
+        sorted_containers.extend([c for c in sorted(peak_values.keys()) if c not in priority])
+
+        # Limit to top containers for readability
+        max_containers = 10
+        containers_to_show = sorted_containers[:max_containers]
+
+        generated: list[str] = []
+
+        for metric in ["memory", "cpu"]:
+            metric_key = f"{metric}_percent"
+            y_label = "Memory %" if metric == "memory" else "CPU %"
+
+            # Extract values and assign colors based on thresholds
+            display_names: list[str] = []
+            values: list[float] = []
+            colors: list[str] = []
+
+            for container in containers_to_show:
+                peak = peak_values.get(container, {})
+                value = peak.get(metric_key, 0)
+                display_name = CONTAINER_CONFIG.get(container, {}).get("display_name", container)
+
+                display_names.append(display_name)
+                values.append(value)
+
+                # Color based on threshold
+                if value >= 85:
+                    colors.append("red")
+                elif value >= 70:
+                    colors.append("orange")
+                else:
+                    colors.append("green")
+
+            if not values:
+                continue
+
+            # Plotly bar chart
+            fig = go.Figure(
+                data=[
+                    go.Bar(
+                        x=display_names,
+                        y=values,
+                        marker_color=colors,
+                        text=[f"{v:.1f}%" for v in values],
+                        textposition="auto",
+                    )
+                ]
+            )
+
+            fig.update_layout(
+                title=f"Stress Test Peak {metric.title()} Usage (Total Agents: {total_agents})",
+                xaxis_title="Container",
+                yaxis_title=y_label,
+                yaxis_range=[0, 100],
+            )
+
+            html_path = self.charts_dir / f"stress_comparison_{metric}.html"
+            fig.write_html(str(html_path))
+
+            # Matplotlib bar chart
+            fig_mpl, ax = plt.subplots(figsize=(12, 6))
+
+            x_pos = np.arange(len(display_names))
+            bars = ax.bar(x_pos, values, color=colors)
+
+            # Add value labels on bars
+            for i, (bar, val) in enumerate(zip(bars, values)):
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    bar.get_height() + 1,
+                    f"{val:.1f}%",
+                    ha="center",
+                    va="bottom",
+                    fontsize=8,
+                )
+
+            ax.set_xlabel("Container")
+            ax.set_ylabel(y_label)
+            ax.set_title(f"Stress Test Peak {metric.title()} Usage (Total Agents: {total_agents})")
+            ax.set_xticks(x_pos)
+            ax.set_xticklabels(display_names, rotation=45, ha="right", fontsize=9)
+            ax.set_ylim(0, 100)
+            ax.grid(axis="y", alpha=0.3)
+
+            # Add legend for color meaning
+            from matplotlib.patches import Patch
+
+            legend_elements = [
+                Patch(facecolor="green", label="<70% (normal)"),
+                Patch(facecolor="orange", label="70-85% (elevated)"),
+                Patch(facecolor="red", label=">=85% (critical)"),
+            ]
+            ax.legend(handles=legend_elements, loc="upper right", fontsize="small")
+
+            png_path = self.charts_dir / f"stress_comparison_{metric}.png"
+            fig_mpl.savefig(png_path, dpi=150, bbox_inches="tight")
+            plt.close(fig_mpl)
+
+            generated.extend([str(html_path), str(png_path)])
 
         return generated

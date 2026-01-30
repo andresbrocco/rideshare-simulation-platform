@@ -30,6 +30,7 @@ from .scenarios.baseline import BaselineScenario
 from .scenarios.duration_leak import DurationLeakScenario
 from .scenarios.load_scaling import LoadScalingScenario
 from .scenarios.reset_behavior import ResetBehaviorScenario
+from .scenarios.stress_test import StressTestScenario
 
 console = Console()
 
@@ -118,7 +119,7 @@ def cli() -> None:
 @click.option(
     "-s",
     "--scenario",
-    type=click.Choice(["all", "baseline", "load", "duration", "reset"]),
+    type=click.Choice(["all", "baseline", "load", "duration", "reset", "stress"]),
     default="all",
     help="Which scenario(s) to run",
 )
@@ -127,7 +128,12 @@ def cli() -> None:
     is_flag=True,
     help="Skip clean restart between scenarios (faster but less accurate)",
 )
-def run(scenario: str, skip_restart: bool) -> None:
+@click.option(
+    "--include-stress",
+    is_flag=True,
+    help="Include stress test when running 'all' scenarios (excluded by default)",
+)
+def run(scenario: str, skip_restart: bool, include_stress: bool) -> None:
     """Run performance test scenarios."""
     config = create_test_config()
     lifecycle, stats_collector, api_client, oom_detector = create_collectors(config)
@@ -215,6 +221,22 @@ def run(scenario: str, skip_restart: bool) -> None:
             console.rule("[bold cyan]Running Reset Behavior Test[/bold cyan]")
             result = run_scenario(
                 ResetBehaviorScenario,
+                config,
+                lifecycle,
+                stats_collector,
+                api_client,
+                oom_detector,
+            )
+            scenario_results.append(_result_to_dict(result))
+
+        # Stress test (excluded from "all" by default)
+        if scenario == "stress" or (scenario == "all" and include_stress):
+            console.rule(
+                f"[bold cyan]Running Stress Test: until {config.scenarios.stress_cpu_threshold_percent}% CPU "
+                f"or {config.scenarios.stress_memory_threshold_percent}% memory[/bold cyan]"
+            )
+            result = run_scenario(
+                StressTestScenario,
                 config,
                 lifecycle,
                 stats_collector,
