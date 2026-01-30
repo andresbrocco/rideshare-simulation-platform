@@ -183,18 +183,21 @@ export function useSimulationState() {
         switch (type) {
           case 'driver_update':
             if ('rating' in data) {
-              const existingDriver = prev.drivers.get(data.id);
+              const driverData = data as Partial<Driver> & { id: string };
+              const existingDriver = prev.drivers.get(driverData.id);
               newState.drivers = new Map(prev.drivers);
-              newState.drivers.set(data.id, {
+              newState.drivers.set(driverData.id, {
                 ...existingDriver,
-                ...(data as Partial<Driver>),
-                // Use defaults when driver doesn't exist (new driver)
-                status:
-                  'status' in data
-                    ? (data as Driver).status
-                    : (existingDriver?.status ?? 'offline'),
-                heading: (data as Driver).heading ?? existingDriver?.heading ?? 0,
-                rating_count: (data as Driver).rating_count ?? existingDriver?.rating_count ?? 0,
+                ...driverData,
+                // Required fields with defaults for new drivers
+                id: driverData.id,
+                latitude: driverData.latitude ?? existingDriver?.latitude ?? 0,
+                longitude: driverData.longitude ?? existingDriver?.longitude ?? 0,
+                rating: driverData.rating ?? existingDriver?.rating ?? 5.0,
+                zone: driverData.zone ?? existingDriver?.zone ?? '',
+                status: driverData.status ?? existingDriver?.status ?? 'offline',
+                heading: driverData.heading ?? existingDriver?.heading ?? 0,
+                rating_count: driverData.rating_count ?? existingDriver?.rating_count ?? 0,
               });
             }
             break;
