@@ -854,6 +854,7 @@ services:
     volumes:
       - ../../analytics/superset/superset_config.py:/app/pythonpath/superset_config.py:ro
       - ../../analytics/superset/docker-entrypoint.sh:/app/docker-entrypoint.sh:ro
+      - ../../analytics/superset/dashboards:/app/dashboards:ro
     depends_on:
       superset-init:
         condition: service_completed_successfully

@@ -98,4 +98,26 @@ conn.close()
 EOF
 
 echo "Starting Superset server..."
-exec /usr/bin/run-server.sh
+
+# Start the server in the background and import dashboards once ready
+/usr/bin/run-server.sh &
+SERVER_PID=$!
+
+# Wait for server to be ready, then import dashboards
+echo "Waiting for Superset server to be ready for dashboard import..."
+sleep 30  # Give the server time to initialize
+
+# Import dashboards (non-blocking - if it fails, server continues)
+if [ -d "/app/dashboards" ]; then
+    echo "Importing dashboards..."
+    python3 /app/dashboards/import_dashboards.py \
+        --base-url http://localhost:8088 \
+        --dashboards-dir /app/dashboards 2>&1 || {
+        echo "Dashboard import failed (non-blocking), server continues running..."
+    }
+else
+    echo "No dashboards directory mounted, skipping import"
+fi
+
+# Wait for server process
+wait $SERVER_PID
