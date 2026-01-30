@@ -42,8 +42,9 @@ class ScenarioConfig:
     load_levels: list[int] = field(default_factory=lambda: [10, 20, 40, 80])
     load_duration_seconds: int = 60
 
-    # Duration/leak test settings
-    duration_minutes: list[int] = field(default_factory=lambda: [1, 2, 4, 8])
+    # Duration/leak test settings (single continuous run with checkpoints)
+    duration_total_minutes: int = 8
+    duration_checkpoints: list[int] = field(default_factory=lambda: [1, 2, 4, 8])
     duration_agent_count: int = 40
 
     # Baseline test settings

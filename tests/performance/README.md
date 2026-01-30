@@ -32,7 +32,7 @@ Run from the project root directory using the simulation venv.
 # Load scaling only (10, 20, 40, 80 agents)
 ./services/simulation/venv/bin/python -m tests.performance.runner run -s load
 
-# Duration/leak tests only (1, 2, 4, 8 minutes)
+# Duration/leak test (single continuous 8-minute run with checkpoints at 1, 2, 4, 8 min)
 ./services/simulation/venv/bin/python -m tests.performance.runner run -s duration
 
 # Reset behavior only
@@ -62,10 +62,12 @@ Run from the project root directory using the simulation venv.
 - 5s settle time, 60s sampling
 - Generates scaling formulas (linear, power, log, exponential)
 
-### Duration/Leak Detection (1/2/4/8 minutes)
-- Fixed load (40 agents) for extended periods
-- Detects memory leaks via slope analysis
-- Flags leak if slope > 1 MB/min
+### Duration/Leak Detection (8-minute continuous run)
+- Single continuous test with 40 agents for 8 minutes (default)
+- Checkpoints recorded at 1, 2, 4, 8 minutes for trend analysis
+- Calculates slope per checkpoint segment and overall
+- Flags leak if any checkpoint slope > 1 MB/min
+- Single clean restart at start (not 4 separate tests)
 
 ### Reset Behavior
 - Verifies memory returns to baseline after reset

@@ -161,7 +161,8 @@ def run(scenario: str, skip_restart: bool) -> None:
             },
             "scenarios": {
                 "load_levels": config.scenarios.load_levels,
-                "duration_minutes": config.scenarios.duration_minutes,
+                "duration_total_minutes": config.scenarios.duration_total_minutes,
+                "duration_checkpoints": config.scenarios.duration_checkpoints,
             },
         },
         "scenarios": [],
@@ -198,20 +199,21 @@ def run(scenario: str, skip_restart: bool) -> None:
                 )
                 scenario_results.append(_result_to_dict(result))
 
-        # Duration/leak tests
+        # Duration/leak test (single continuous run with checkpoints)
         if scenario in ["all", "duration"]:
-            for minutes in config.scenarios.duration_minutes:
-                console.rule(f"[bold cyan]Running Duration Test: {minutes} minutes[/bold cyan]")
-                result = run_scenario(
-                    DurationLeakScenario,
-                    config,
-                    lifecycle,
-                    stats_collector,
-                    api_client,
-                    oom_detector,
-                    duration_minutes=minutes,
-                )
-                scenario_results.append(_result_to_dict(result))
+            console.rule(
+                f"[bold cyan]Running Duration Test: {config.scenarios.duration_total_minutes} minutes "
+                f"(checkpoints: {config.scenarios.duration_checkpoints})[/bold cyan]"
+            )
+            result = run_scenario(
+                DurationLeakScenario,
+                config,
+                lifecycle,
+                stats_collector,
+                api_client,
+                oom_detector,
+            )
+            scenario_results.append(_result_to_dict(result))
 
         # Reset behavior
         if scenario in ["all", "reset"]:

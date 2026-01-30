@@ -48,3 +48,7 @@ data/osrm/*.osm.pbf
 *.db
 *.sqlite
 services/spark_streaming
+
+# Performance test results
+tests/performance/results/
+!tests/performance/results/.gitkeep
