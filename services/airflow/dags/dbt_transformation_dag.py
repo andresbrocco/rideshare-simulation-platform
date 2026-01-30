@@ -62,6 +62,11 @@ with DAG(
     tags=["dbt", "gold", "transformation"],
 ) as gold_dag:
 
+    dbt_seed = BashOperator(
+        task_id="dbt_seed",
+        bash_command="cd /opt/dbt && dbt seed --profiles-dir /opt/dbt/profiles",
+    )
+
     dbt_gold_dimensions = BashOperator(
         task_id="dbt_gold_dimensions",
         bash_command="cd /opt/dbt && dbt run --select tag:dimensions --profiles-dir /opt/dbt/profiles",
@@ -99,7 +104,8 @@ with DAG(
     )
 
     (
-        dbt_gold_dimensions
+        dbt_seed
+        >> dbt_gold_dimensions
         >> dbt_gold_facts
         >> dbt_gold_aggregates
         >> dbt_gold_test
