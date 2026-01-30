@@ -57,6 +57,8 @@ def expected_dashboards():
         },
         "demand-analysis": {"chart_count": 6, "title": "Demand Analysis Dashboard"},
         "revenue-analytics": {"chart_count": 9, "title": "Revenue Analytics Dashboard"},
+        "bronze-pipeline": {"chart_count": 8, "title": "Bronze Pipeline Dashboard"},
+        "silver-quality": {"chart_count": 8, "title": "Silver Quality Dashboard"},
     }
 
 

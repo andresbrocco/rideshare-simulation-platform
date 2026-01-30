@@ -1,21 +1,99 @@
 # Superset Dashboards
 
-This directory contains exported Superset dashboards for version control and deployment automation.
+This directory contains dashboard creation scripts, SQL query libraries, and exported dashboard files for the Rideshare Lakehouse.
 
 ## Dashboard Overview
 
 All dashboards use virtual datasets with SQL queries and are configured with 5-minute auto-refresh intervals.
 
-| Dashboard | Slug | Charts | Purpose |
-|-----------|------|--------|---------|
-| Operations Dashboard | `operations` | 9 | Real-time platform monitoring |
-| Driver Performance Dashboard | `driver-performance` | 6 | Driver metrics and analytics |
-| Demand Analysis Dashboard | `demand-analysis` | 6 | Zone demand and surge patterns |
-| Revenue Analytics Dashboard | `revenue-analytics` | 9 | Revenue metrics and KPIs |
+| Dashboard | Slug | Charts | Layer | Purpose |
+|-----------|------|--------|-------|---------|
+| Operations Dashboard | `operations` | 9 | Gold | Real-time platform monitoring |
+| Driver Performance Dashboard | `driver-performance` | 6 | Gold | Driver metrics and analytics |
+| Demand Analysis Dashboard | `demand-analysis` | 6 | Gold | Zone demand and surge patterns |
+| Revenue Analytics Dashboard | `revenue-analytics` | 9 | Gold | Revenue metrics and KPIs |
+| Bronze Pipeline Dashboard | `bronze-pipeline` | 8 | Bronze | Ingestion metrics and DLQ monitoring |
+| Silver Quality Dashboard | `silver-quality` | 8 | Silver | Anomaly detection and data freshness |
+
+**Total: 6 dashboards, 46 charts**
+
+## Query Libraries
+
+SQL queries are centralized in three Python modules:
+
+| Module | Layer | Queries | Description |
+|--------|-------|---------|-------------|
+| `bronze_queries.py` | Bronze | 8 | Ingestion metrics, DLQ errors, Kafka partitions |
+| `silver_queries.py` | Silver | 8 | Anomalies, staging tables, data freshness |
+| `gold_queries.py` | Gold | 30 | Facts, dimensions, aggregates for 4 dashboards |
+
+### Bronze Layer Queries
+
+| Query | Description |
+|-------|-------------|
+| `TOTAL_EVENTS_24H` | Total events ingested across all topics |
+| `EVENTS_BY_TOPIC` | Event distribution by Kafka topic |
+| `INGESTION_RATE_HOURLY` | Hourly ingestion rate time series |
+| `DLQ_ERROR_COUNT` | Dead letter queue error count |
+| `DLQ_ERRORS_BY_TYPE` | DLQ errors grouped by error type |
+| `PARTITION_DISTRIBUTION` | Events per Kafka partition |
+| `LATEST_INGESTION` | Latest ingestion timestamp per topic |
+| `INGESTION_LAG` | Max lag between event and ingestion time |
+
+### Silver Layer Queries
+
+| Query | Description |
+|-------|-------------|
+| `TOTAL_ANOMALIES` | Total anomalies detected (24h) |
+| `ANOMALIES_BY_TYPE` | Anomaly distribution by type |
+| `ANOMALIES_OVER_TIME` | Hourly anomaly trend |
+| `GPS_OUTLIERS_COUNT` | GPS coordinates outside São Paulo bounds |
+| `IMPOSSIBLE_SPEEDS_COUNT` | Speeds exceeding 200 km/h |
+| `ZOMBIE_DRIVERS_LIST` | Drivers with no GPS for 10+ minutes |
+| `STAGING_ROW_COUNTS` | Row counts per staging table |
+| `STAGING_FRESHNESS` | Latest ingestion per staging table |
+
+### Gold Layer Queries
+
+Organized by dashboard:
+
+- **OPERATIONS_QUERIES** (9): Active trips, completed today, wait time, revenue, DLQ, hourly volume, pipeline lag, zone distribution
+- **DRIVER_PERFORMANCE_QUERIES** (6): Top drivers, ratings, payouts, utilization, trips per driver, status summary
+- **DEMAND_ANALYSIS_QUERIES** (6): Zone demand, surge trends, wait time by zone, hourly demand, top zones, surge events
+- **REVENUE_ANALYTICS_QUERIES** (9): Daily revenue, fees, trip count, zone revenue, revenue over time, fare by distance, payment methods, hourly revenue, top zones
+
+## Bronze Pipeline Dashboard
+
+**URL**: http://localhost:8088/superset/dashboard/bronze-pipeline/
+
+### Charts (8 total)
+
+1. **Total Events (24h)** - Big number showing total ingested events
+2. **DLQ Errors** - Dead letter queue error count
+3. **Max Ingestion Lag (s)** - Maximum lag between event timestamp and ingestion
+4. **Events by Topic** - Bar chart of event distribution across Kafka topics
+5. **Partition Distribution** - Bar chart showing events per Kafka partition
+6. **Ingestion Rate (Hourly)** - Time series of hourly ingestion rate
+7. **DLQ Errors by Type** - Pie chart of error type distribution
+8. **Latest Ingestion** - Table showing data freshness per topic
+
+## Silver Quality Dashboard
+
+**URL**: http://localhost:8088/superset/dashboard/silver-quality/
+
+### Charts (8 total)
+
+1. **Total Anomalies (24h)** - Big number showing detected anomalies
+2. **GPS Outliers** - Count of GPS coordinates outside bounds
+3. **Impossible Speeds** - Count of speeds > 200 km/h
+4. **Anomalies by Type** - Pie chart of anomaly type distribution
+5. **Anomalies Over Time** - Time series of hourly anomaly count
+6. **Staging Row Counts** - Bar chart of rows per staging table
+7. **Zombie Drivers** - Table of drivers with stale GPS data
+8. **Data Freshness** - Table of latest ingestion per staging table
 
 ## Operations Dashboard
 
-**File**: `operations.json`
 **URL**: http://localhost:8088/superset/dashboard/operations/
 
 ### Charts (9 total)
@@ -32,7 +110,6 @@ All dashboards use virtual datasets with SQL queries and are configured with 5-m
 
 ## Driver Performance Dashboard
 
-**File**: `driver-performance.json`
 **URL**: http://localhost:8088/superset/dashboard/driver-performance/
 
 ### Charts (6 total)
@@ -46,7 +123,6 @@ All dashboards use virtual datasets with SQL queries and are configured with 5-m
 
 ## Demand Analysis Dashboard
 
-**File**: `demand-analysis.json`
 **URL**: http://localhost:8088/superset/dashboard/demand-analysis/
 
 ### Charts (6 total)
@@ -60,7 +136,6 @@ All dashboards use virtual datasets with SQL queries and are configured with 5-m
 
 ## Revenue Analytics Dashboard
 
-**File**: `revenue-analytics.json`
 **URL**: http://localhost:8088/superset/dashboard/revenue-analytics/
 
 ### Charts (9 total)
@@ -85,14 +160,31 @@ All dashboards are created programmatically using Python scripts:
 ```bash
 cd analytics/superset/dashboards
 
-# Prerequisites
-python3 setup_database_connection.py
+# Prerequisites - ensure Superset is running
+docker compose -f infrastructure/docker/compose.yml --profile analytics up -d
 
-# Create individual dashboards
+# Create Gold layer dashboards
 ./venv/bin/python3 create_operations_dashboard_v2.py
 ./venv/bin/python3 create_driver_performance_dashboard.py
 ./venv/bin/python3 create_demand_analysis_dashboard.py
 ./venv/bin/python3 create_revenue_analytics_dashboard.py
+
+# Create Bronze/Silver layer dashboards
+./venv/bin/python3 create_bronze_pipeline_dashboard.py
+./venv/bin/python3 create_silver_quality_dashboard.py
+```
+
+## Importing Dashboards
+
+Dashboards can be imported from ZIP exports on container startup:
+
+```bash
+# Automatic import on startup (configured in docker-entrypoint.sh)
+# Or run manually:
+python3 import_dashboards.py --base-url http://localhost:8088
+
+# Force overwrite existing dashboards
+python3 import_dashboards.py --base-url http://localhost:8088 --force
 ```
 
 ## Exporting Dashboards
@@ -103,7 +195,7 @@ To export all dashboards to JSON for version control:
 bash analytics/superset/scripts/export-dashboards.sh
 ```
 
-This exports all 4 dashboards to JSON files in this directory.
+This exports all 6 dashboards to JSON files in this directory.
 
 ## Testing
 
@@ -115,7 +207,7 @@ cd analytics/superset/tests
 ```
 
 Tests verify:
-- All 4 dashboards exist with correct slugs
+- All 6 dashboards exist with correct slugs
 - Each dashboard has expected chart count
 - Exported JSON files are valid
 - Dashboard filters work correctly
@@ -124,15 +216,37 @@ Tests verify:
 
 ## Configuration
 
-- **Database**: Rideshare Gold Layer (PostgreSQL in dev, Spark Thrift Server in prod)
+- **Database**: Rideshare Lakehouse (Spark Thrift Server)
 - **Refresh Interval**: 300 seconds (5 minutes)
 - **Datasets**: Virtual datasets using SQL queries
-- **Development**: Uses mock data queries for testing
-- **Production**: Update SQL queries to reference actual Gold layer tables
+- **Tables**: Bronze (bronze.*), Silver (silver.*), Gold (gold.*)
+
+## File Structure
+
+```
+dashboards/
+├── README.md                              # This file
+├── bronze_queries.py                      # Bronze layer SQL queries
+├── silver_queries.py                      # Silver layer SQL queries
+├── gold_queries.py                        # Gold layer SQL queries
+├── import_dashboards.py                   # Dashboard import automation
+├── create_bronze_pipeline_dashboard.py   # Bronze dashboard creation
+├── create_silver_quality_dashboard.py    # Silver dashboard creation
+├── create_operations_dashboard_v2.py     # Operations dashboard creation
+├── create_driver_performance_dashboard.py # Driver dashboard creation
+├── create_demand_analysis_dashboard.py   # Demand dashboard creation
+├── create_revenue_analytics_dashboard.py # Revenue dashboard creation
+├── bronze-pipeline.json                   # Exported Bronze dashboard (ZIP)
+├── silver-quality.json                    # Exported Silver dashboard (ZIP)
+├── operations.json                        # Exported Operations dashboard (ZIP)
+├── driver-performance.json                # Exported Driver dashboard (ZIP)
+├── demand-analysis.json                   # Exported Demand dashboard (ZIP)
+└── revenue-analytics.json                 # Exported Revenue dashboard (ZIP)
+```
 
 ## Notes
 
-- Dashboard exports are ZIP files containing full dashboard configuration
-- JSON exports include all chart definitions and layout
+- Dashboard exports are ZIP files containing full dashboard configuration (YAML format)
 - Virtual datasets enable dashboard creation without requiring physical tables
-- Production deployment should update SQL queries to use actual Spark tables
+- All creation scripts share a common SupersetClient class pattern
+- Production deployment should update SQL queries if table names differ

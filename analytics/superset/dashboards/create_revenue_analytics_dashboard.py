@@ -18,6 +18,11 @@ import requests
 import json
 import sys
 
+from gold_queries import REVENUE_ANALYTICS_QUERIES
+
+# Database name must match what docker-entrypoint.sh creates
+DATABASE_NAME = "Rideshare Lakehouse"
+
 
 class SupersetClient:
     def __init__(self, base_url="http://localhost:8088", username="admin", password="admin"):
@@ -57,7 +62,7 @@ class SupersetClient:
             }
         )
 
-    def get_database_id(self, database_name="Rideshare Gold Layer"):
+    def get_database_id(self, database_name=DATABASE_NAME):
         url = f"{self.base_url}/api/v1/database/"
         response = self.session.get(url)
         if response.status_code != 200:
@@ -155,55 +160,55 @@ def main():
             "database": database_id,
             "schema": "",
             "table_name": "daily_revenue",
-            "sql": "SELECT 15420.50 as revenue",
+            "sql": REVENUE_ANALYTICS_QUERIES["daily_revenue"],
         },
         {
             "database": database_id,
             "schema": "",
             "table_name": "total_fees",
-            "sql": "SELECT 2340.75 as fees",
+            "sql": REVENUE_ANALYTICS_QUERIES["total_fees"],
         },
         {
             "database": database_id,
             "schema": "",
             "table_name": "trip_count_kpi",
-            "sql": "SELECT 456 as count",
+            "sql": REVENUE_ANALYTICS_QUERIES["trip_count_kpi"],
         },
         {
             "database": database_id,
             "schema": "",
             "table_name": "revenue_by_zone",
-            "sql": "SELECT 'zone_123' as zone_id, 3450.50 as revenue",
+            "sql": REVENUE_ANALYTICS_QUERIES["revenue_by_zone"],
         },
         {
             "database": database_id,
             "schema": "",
             "table_name": "revenue_over_time",
-            "sql": "SELECT NOW() as date, 15420.50 as revenue",
+            "sql": REVENUE_ANALYTICS_QUERIES["revenue_over_time"],
         },
         {
             "database": database_id,
             "schema": "",
             "table_name": "fare_by_distance",
-            "sql": "SELECT 5.2 as distance_km, 28.50 as fare",
+            "sql": REVENUE_ANALYTICS_QUERIES["fare_by_distance"],
         },
         {
             "database": database_id,
             "schema": "",
             "table_name": "payment_methods",
-            "sql": "SELECT 'credit_card' as method, 340 as count",
+            "sql": REVENUE_ANALYTICS_QUERIES["payment_methods"],
         },
         {
             "database": database_id,
             "schema": "",
             "table_name": "revenue_by_hour",
-            "sql": "SELECT 14 as hour, '2026-01-17' as date, 1250.50 as revenue",
+            "sql": REVENUE_ANALYTICS_QUERIES["revenue_by_hour"],
         },
         {
             "database": database_id,
             "schema": "",
             "table_name": "top_revenue_zones",
-            "sql": "SELECT 'zone_123' as zone_id, 'Downtown' as zone_name, 8450.75 as total_revenue",
+            "sql": REVENUE_ANALYTICS_QUERIES["top_revenue_zones"],
         },
     ]
 

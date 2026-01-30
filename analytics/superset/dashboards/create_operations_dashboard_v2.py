@@ -10,6 +10,11 @@ import requests
 import json
 import sys
 
+from gold_queries import OPERATIONS_QUERIES
+
+# Database name must match what docker-entrypoint.sh creates
+DATABASE_NAME = "Rideshare Lakehouse"
+
 
 class SupersetClient:
     def __init__(self, base_url="http://localhost:8088", username="admin", password="admin"):
@@ -50,7 +55,7 @@ class SupersetClient:
         )
 
     def get_database(self):
-        # Get Rideshare Gold Layer database
+        # Get Rideshare Lakehouse database
         list_url = f"{self.base_url}/api/v1/database/"
         response = self.session.get(list_url)
         if response.status_code != 200:
@@ -58,14 +63,14 @@ class SupersetClient:
 
         databases = response.json().get("result", [])
 
-        # Look for Rideshare Gold Layer
+        # Look for Rideshare Lakehouse (created by docker-entrypoint.sh)
         for db in databases:
             db_name = db.get("database_name", "")
-            if "Rideshare Gold Layer" in db_name:
+            if db_name == DATABASE_NAME:
                 return db.get("id")
 
         raise Exception(
-            "Rideshare Gold Layer database not found. Run setup_database_connection.py first."
+            f"Database '{DATABASE_NAME}' not found. Ensure Superset container started correctly."
         )
 
     def create_dataset(self, database_id, table_name, sql):
@@ -195,20 +200,17 @@ def main():
     database_id = client.get_database()
     print(f"Using database ID: {database_id}")
 
-    # Create virtual datasets with mock data (PostgreSQL syntax)
+    # Create virtual datasets using real Gold layer queries
     datasets = [
-        ("active_trips", "SELECT 42 as count"),
-        ("completed_today", "SELECT 156 as count"),
-        ("avg_wait_time", "SELECT 3.5 as avg_wait"),
-        ("total_revenue", "SELECT 2450.75 as revenue"),
-        ("dlq_errors_hourly", "SELECT NOW() as ts, 0 as count"),
-        ("dlq_errors_by_type", "SELECT 'validation' as type, 0 as count"),
-        ("hourly_trips", "SELECT NOW() as hour, 0 as count"),
-        ("pipeline_lag", "SELECT 15 as lag_seconds"),
-        (
-            "trips_by_zone",
-            "SELECT 'POLYGON((0 0,1 0,1 1,0 1,0 0))' as geom, 0 as count",
-        ),
+        ("active_trips", OPERATIONS_QUERIES["active_trips"]),
+        ("completed_today", OPERATIONS_QUERIES["completed_today"]),
+        ("avg_wait_time", OPERATIONS_QUERIES["avg_wait_time"]),
+        ("total_revenue", OPERATIONS_QUERIES["total_revenue"]),
+        ("dlq_errors_hourly", OPERATIONS_QUERIES["dlq_errors_hourly"]),
+        ("dlq_errors_by_type", OPERATIONS_QUERIES["dlq_errors_by_type"]),
+        ("hourly_trips", OPERATIONS_QUERIES["hourly_trips"]),
+        ("pipeline_lag", OPERATIONS_QUERIES["pipeline_lag"]),
+        ("trips_by_zone", OPERATIONS_QUERIES["trips_by_zone"]),
     ]
 
     dataset_ids = []

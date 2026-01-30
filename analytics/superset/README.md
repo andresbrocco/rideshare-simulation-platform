@@ -1,8 +1,21 @@
 # Apache Superset
 
-> Apache Superset BI stack for Gold layer dashboards and SQL exploration
+> Apache Superset BI stack for medallion lakehouse dashboards and SQL exploration
 
 ## Quick Reference
+
+### Dashboards Overview
+
+| Dashboard | Slug | Charts | Layer | Purpose |
+|-----------|------|--------|-------|---------|
+| Operations Dashboard | `operations` | 9 | Gold | Real-time platform monitoring |
+| Driver Performance Dashboard | `driver-performance` | 6 | Gold | Driver metrics and analytics |
+| Demand Analysis Dashboard | `demand-analysis` | 6 | Gold | Zone demand and surge patterns |
+| Revenue Analytics Dashboard | `revenue-analytics` | 9 | Gold | Revenue metrics and KPIs |
+| Bronze Pipeline Dashboard | `bronze-pipeline` | 8 | Bronze | Ingestion metrics and DLQ monitoring |
+| Silver Quality Dashboard | `silver-quality` | 8 | Silver | Anomaly detection and data freshness |
+
+**Total: 6 dashboards, 46 charts**
 
 ### Environment Variables
 
@@ -51,8 +64,11 @@ docker compose -f infrastructure/docker/compose.yml --profile analytics up -d --
 | File | Purpose |
 |------|---------|
 | `superset_config.py` | Main Superset configuration (database, Redis, caching, security) |
-| `docker-entrypoint.sh` | Container startup script with auto-provisioning |
-| `database-connections.md` | Guide for connecting to Spark Thrift Server |
+| `docker-entrypoint.sh` | Container startup script with auto-provisioning and dashboard import |
+| `dashboards/bronze_queries.py` | Bronze layer SQL queries |
+| `dashboards/silver_queries.py` | Silver layer SQL queries |
+| `dashboards/gold_queries.py` | Gold layer SQL queries |
+| `dashboards/import_dashboards.py` | Automated dashboard import script |
 
 ### Docker Services
 
@@ -68,7 +84,7 @@ docker compose -f infrastructure/docker/compose.yml --profile analytics up -d --
 
 - Docker Compose with `analytics` profile
 - Spark Thrift Server running on port 10000 (for data access)
-- Gold layer tables created by DBT transformations
+- Lakehouse tables created by DBT transformations
 - Network: `rideshare-network`
 
 ## Common Tasks
@@ -108,16 +124,16 @@ The Spark Thrift Server connection is **auto-provisioned** on startup. To verify
 -- In SQL Lab (SQL > SQL Editor):
 -- Select "Rideshare Lakehouse" database
 
--- Count trips in Gold layer
+-- Bronze layer queries
+SELECT COUNT(*) FROM bronze.bronze_trips;
+SELECT COUNT(*) FROM bronze.bronze_gps_pings;
+
+-- Silver layer queries
+SELECT COUNT(*) FROM silver.stg_trips;
+SELECT COUNT(*) FROM silver.anomalies_all;
+
+-- Gold layer queries
 SELECT COUNT(*) FROM gold.fact_trips;
-
--- View recent trips
-SELECT trip_id, pickup_time, dropoff_time, total_fare
-FROM gold.fact_trips
-ORDER BY pickup_time DESC
-LIMIT 10;
-
--- Check dimension tables
 SELECT COUNT(*) FROM gold.dim_drivers;
 SELECT COUNT(*) FROM gold.dim_riders;
 SELECT COUNT(*) FROM gold.dim_zones;
@@ -125,13 +141,13 @@ SELECT COUNT(*) FROM gold.dim_zones;
 
 ### Create a Dataset
 
-To build dashboards, register Gold layer tables:
+To build dashboards, register lakehouse tables:
 
 1. Navigate to **Data > Datasets**
 2. Click **+ Dataset**
 3. Configure:
    - **Database**: Rideshare Lakehouse
-   - **Schema**: gold
+   - **Schema**: gold (or bronze/silver)
    - **Table**: fact_trips (or other table)
 4. Click **Add**
 
@@ -176,6 +192,7 @@ docker compose -f infrastructure/docker/compose.yml --profile analytics up -d
 │ - FastAPI web server on port 8088                   │
 │ - Celery workers for async queries                  │
 │ - Auto-provisions Spark connection on startup       │
+│ - Auto-imports dashboards from ZIP exports          │
 └─────────────────┬───────────────────────────────────┘
                   │
        ┌──────────┴──────────┐
@@ -194,11 +211,42 @@ docker compose -f infrastructure/docker/compose.yml --profile analytics up -d
 └─────────────────┘   └─────────────────┘
 ```
 
+### Query Library Architecture
+
+```
+dashboards/
+├── bronze_queries.py    # Bronze layer SQL (8 queries)
+│   ├── TOTAL_EVENTS_24H
+│   ├── EVENTS_BY_TOPIC
+│   ├── INGESTION_RATE_HOURLY
+│   ├── DLQ_ERROR_COUNT
+│   ├── DLQ_ERRORS_BY_TYPE
+│   ├── PARTITION_DISTRIBUTION
+│   ├── LATEST_INGESTION
+│   └── INGESTION_LAG
+│
+├── silver_queries.py    # Silver layer SQL (8 queries)
+│   ├── TOTAL_ANOMALIES
+│   ├── ANOMALIES_BY_TYPE
+│   ├── ANOMALIES_OVER_TIME
+│   ├── GPS_OUTLIERS_COUNT
+│   ├── IMPOSSIBLE_SPEEDS_COUNT
+│   ├── ZOMBIE_DRIVERS_LIST
+│   ├── STAGING_ROW_COUNTS
+│   └── STAGING_FRESHNESS
+│
+└── gold_queries.py      # Gold layer SQL (30 queries)
+    ├── OPERATIONS_QUERIES (9)
+    ├── DRIVER_PERFORMANCE_QUERIES (6)
+    ├── DEMAND_ANALYSIS_QUERIES (6)
+    └── REVENUE_ANALYTICS_QUERIES (9)
+```
+
 ### Configuration Layers
 
 **superset_config.py:**
 - Database URI (PostgreSQL metadata)
-- Redis cache configuration (5 separate databases)
+- Redis cache configuration (6 separate databases)
 - Celery broker/result backend
 - Security settings (CSRF, secret key)
 - Feature flags (template processing)
@@ -208,7 +256,8 @@ docker compose -f infrastructure/docker/compose.yml --profile analytics up -d
 - Installs PyHive, Thrift, psycopg2-binary dependencies
 - Waits for PostgreSQL metadata database readiness
 - Auto-provisions "Rideshare Lakehouse" database connection
-- Starts Superset web server
+- Starts Superset web server in background
+- Imports dashboards via import_dashboards.py (non-blocking)
 
 **superset-init (one-time):**
 - Runs database migrations (`superset db upgrade`)
@@ -226,6 +275,125 @@ docker compose -f infrastructure/docker/compose.yml --profile analytics up -d
 | DB 4 | Filter state cache | 86400s | `superset_filter_` |
 | DB 5 | Explore form cache | 86400s | `superset_explore_` |
 
+## Dashboard Details
+
+### Bronze Pipeline Dashboard
+
+**URL**: http://localhost:8088/superset/dashboard/bronze-pipeline/
+
+Monitors the Bronze (raw ingestion) layer of the medallion lakehouse.
+
+| Chart | Type | Description |
+|-------|------|-------------|
+| Total Events (24h) | Big Number | Total events ingested across all Kafka topics |
+| DLQ Errors | Big Number | Dead letter queue error count |
+| Max Ingestion Lag | Big Number | Maximum lag between event and ingestion time |
+| Events by Topic | Bar Chart | Distribution of events across Kafka topics |
+| Partition Distribution | Bar Chart | Event distribution across Kafka partitions |
+| Ingestion Rate | Time Series | Hourly ingestion rate trend |
+| DLQ Errors by Type | Pie Chart | Error type distribution |
+| Latest Ingestion | Table | Data freshness per topic |
+
+### Silver Quality Dashboard
+
+**URL**: http://localhost:8088/superset/dashboard/silver-quality/
+
+Monitors data quality in the Silver (cleaned/validated) layer.
+
+| Chart | Type | Description |
+|-------|------|-------------|
+| Total Anomalies (24h) | Big Number | Total anomalies detected |
+| GPS Outliers | Big Number | GPS coordinates outside São Paulo bounds |
+| Impossible Speeds | Big Number | Speeds exceeding 200 km/h |
+| Anomalies by Type | Pie Chart | Distribution of anomaly types |
+| Anomalies Over Time | Time Series | Hourly anomaly trend |
+| Staging Row Counts | Bar Chart | Row counts per staging table |
+| Zombie Drivers | Table | Drivers with no GPS for 10+ minutes |
+| Data Freshness | Table | Latest ingestion per staging table |
+
+### Operations Dashboard
+
+**URL**: http://localhost:8088/superset/dashboard/operations/
+
+Real-time platform operations monitoring.
+
+| Chart | Type | Description |
+|-------|------|-------------|
+| Active Trips | Big Number | Currently in-progress trips |
+| Completed Today | Big Number | Trips completed today |
+| Average Wait Time | Big Number | Average wait time in minutes |
+| Total Revenue Today | Big Number | Daily revenue sum |
+| DLQ Errors Last Hour | Time Series | Error volume trend |
+| Total DLQ Errors | Pie Chart | Errors by type |
+| Hourly Trip Volume | Time Series | 24-hour trip throughput |
+| Pipeline Lag | Big Number | Event processing delay |
+| Trips by Zone Today | Bar Chart | Geographic distribution |
+
+### Driver Performance Dashboard
+
+**URL**: http://localhost:8088/superset/dashboard/driver-performance/
+
+Driver metrics and analytics.
+
+| Chart | Type | Description |
+|-------|------|-------------|
+| Top 10 Drivers | Bar Chart | Top performers by trip count |
+| Ratings Distribution | Histogram | Rating distribution |
+| Payouts Over Time | Time Series | Driver payout trends |
+| Utilization Heatmap | Heatmap | Driver utilization by date |
+| Trips vs Revenue | Scatter | Trip count vs revenue correlation |
+| Driver Status | Pie Chart | Status distribution |
+
+### Demand Analysis Dashboard
+
+**URL**: http://localhost:8088/superset/dashboard/demand-analysis/
+
+Zone demand and surge pricing analysis.
+
+| Chart | Type | Description |
+|-------|------|-------------|
+| Zone Demand Heatmap | Heatmap | Demand by zone and time |
+| Surge Multiplier Trends | Time Series | Surge pricing trends |
+| Wait Time by Zone | Bar Chart | Average wait by zone |
+| Demand by Hour | Area Chart | Hourly demand patterns |
+| Top Demand Zones | Table | Highest demand zones |
+| Surge Events Timeline | Bar Chart | Surge event history |
+
+### Revenue Analytics Dashboard
+
+**URL**: http://localhost:8088/superset/dashboard/revenue-analytics/
+
+Revenue metrics and KPIs.
+
+| Chart | Type | Description |
+|-------|------|-------------|
+| Daily Revenue | Big Number | Today's total revenue |
+| Total Fees | Big Number | Platform fees collected |
+| Trip Count | Big Number | Total trips today |
+| Revenue by Zone | Bar Chart | Zone revenue breakdown |
+| Revenue Over Time | Time Series | 7-day revenue trend |
+| Fare by Distance | Scatter | Distance vs fare analysis |
+| Payment Methods | Pie Chart | Payment type distribution |
+| Revenue by Hour | Heatmap | Revenue by hour and date |
+| Top Revenue Zones | Table | Highest revenue zones |
+
+## Testing
+
+Comprehensive test suite covers all dashboards:
+
+```bash
+cd analytics/superset/tests
+./venv/bin/pytest test_all_dashboards.py -v
+```
+
+Tests verify:
+- All 6 dashboards exist with correct slugs
+- Each dashboard has expected chart count
+- Exported JSON files are valid ZIP archives
+- Dashboard filters work correctly
+- All charts load successfully via API
+- Dashboard titles match expected values
+
 ## Troubleshooting
 
 | Symptom | Cause | Solution |
@@ -233,12 +401,13 @@ docker compose -f infrastructure/docker/compose.yml --profile analytics up -d
 | Connection refused on port 8088 | Superset not started or still initializing | Wait 60-90 seconds, check logs with `docker compose logs -f superset` |
 | Health check failing | Initialization incomplete | Check `superset-init` logs: `docker compose logs superset-init` |
 | Cannot connect to Spark | Thrift Server not running | Start data-pipeline profile: `docker compose --profile data-pipeline up -d` |
-| Tables not visible in SQL Lab | Gold layer not created yet | Run DBT transformations: `cd services/dbt && ./venv/bin/dbt run` |
+| Tables not visible in SQL Lab | Lakehouse layer not created yet | Run DBT transformations: `cd services/dbt && ./venv/bin/dbt run` |
 | Port 5433 already in use | Another PostgreSQL instance running | Stop conflicting service or change port in compose.yml |
 | Port 6380 already in use | Another Redis instance running | Stop conflicting service or change port in compose.yml |
 | "Rideshare Lakehouse" missing | Auto-provisioning failed | Check entrypoint logs, manually create connection via UI |
 | Query timeout in SQL Lab | Large dataset or slow Spark | Increase cache timeout in database settings, enable async execution |
 | Login fails with admin/admin | Admin user not created | Check `superset-init` logs, ensure `superset fab create-admin` ran successfully |
+| Dashboards not imported | import_dashboards.py failed | Check logs for import errors, run manually with `--force` flag |
 
 **Connection String Mismatch:**
 - If using `database-connections.md` guide, note that auto-provisioned connection is named **"Rideshare Lakehouse"**, not "Rideshare Gold Layer"
@@ -248,14 +417,13 @@ docker compose -f infrastructure/docker/compose.yml --profile analytics up -d
 
 - [CONTEXT.md](CONTEXT.md) - Architecture context and design decisions
 - [database-connections.md](database-connections.md) - Detailed Spark connection guide
-- [../../services/dbt/README.md](../../services/dbt/README.md) - DBT transformations that create Gold tables
+- [dashboards/README.md](dashboards/README.md) - Dashboard creation scripts documentation
+- [../../services/dbt/README.md](../../services/dbt/README.md) - DBT transformations that create lakehouse tables
 - [../../infrastructure/docker/compose.yml](../../infrastructure/docker/compose.yml) - Docker Compose configuration
 
 ---
 
 ## Additional Notes
-
-> Preserved from original README.md
 
 ### Port Allocation
 
@@ -264,7 +432,7 @@ docker compose -f infrastructure/docker/compose.yml --profile analytics up -d
 
 ### Default Behavior
 
-- No example dashboards loaded by default
+- Dashboards auto-imported on container startup from ZIP exports in dashboards/
 - Admin user created during initialization with credentials: `admin` / `admin`
 - Spark Thrift Server connection auto-provisioned on first startup
 - Database name: "Rideshare Lakehouse" (not manually configured)

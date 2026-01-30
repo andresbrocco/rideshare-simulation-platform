@@ -15,6 +15,11 @@ import requests
 import json
 import sys
 
+from gold_queries import DEMAND_ANALYSIS_QUERIES
+
+# Database name must match what docker-entrypoint.sh creates
+DATABASE_NAME = "Rideshare Lakehouse"
+
 
 class SupersetClient:
     def __init__(self, base_url="http://localhost:8088", username="admin", password="admin"):
@@ -54,7 +59,7 @@ class SupersetClient:
             }
         )
 
-    def get_database_id(self, database_name="Rideshare Gold Layer"):
+    def get_database_id(self, database_name=DATABASE_NAME):
         url = f"{self.base_url}/api/v1/database/"
         response = self.session.get(url)
         if response.status_code != 200:
@@ -147,37 +152,37 @@ def main():
             "database": database_id,
             "schema": "",
             "table_name": "zone_demand_heatmap",
-            "sql": "SELECT 'zone_123' as zone_id, '2026-01-17' as date, 150 as demand",
+            "sql": DEMAND_ANALYSIS_QUERIES["zone_demand_heatmap"],
         },
         {
             "database": database_id,
             "schema": "",
             "table_name": "surge_trends",
-            "sql": "SELECT NOW() as timestamp, 1.5 as surge_multiplier",
+            "sql": DEMAND_ANALYSIS_QUERIES["surge_trends"],
         },
         {
             "database": database_id,
             "schema": "",
             "table_name": "wait_time_by_zone",
-            "sql": "SELECT 'zone_123' as zone_id, 3.5 as avg_wait_minutes",
+            "sql": DEMAND_ANALYSIS_QUERIES["wait_time_by_zone"],
         },
         {
             "database": database_id,
             "schema": "",
             "table_name": "demand_by_hour",
-            "sql": "SELECT 14 as hour_of_day, 85 as request_count",
+            "sql": DEMAND_ANALYSIS_QUERIES["demand_by_hour"],
         },
         {
             "database": database_id,
             "schema": "",
             "table_name": "top_demand_zones",
-            "sql": "SELECT 'zone_123' as zone_id, 'Downtown' as zone_name, 450 as total_requests",
+            "sql": DEMAND_ANALYSIS_QUERIES["top_demand_zones"],
         },
         {
             "database": database_id,
             "schema": "",
             "table_name": "surge_events",
-            "sql": "SELECT NOW() as timestamp, 'zone_123' as zone_id, 2.0 as multiplier",
+            "sql": DEMAND_ANALYSIS_QUERIES["surge_events"],
         },
     ]
 

@@ -15,6 +15,11 @@ import requests
 import json
 import sys
 
+from gold_queries import DRIVER_PERFORMANCE_QUERIES
+
+# Database name must match what docker-entrypoint.sh creates
+DATABASE_NAME = "Rideshare Lakehouse"
+
 
 class SupersetClient:
     def __init__(self, base_url="http://localhost:8088", username="admin", password="admin"):
@@ -54,7 +59,7 @@ class SupersetClient:
             }
         )
 
-    def get_database_id(self, database_name="Rideshare Gold Layer"):
+    def get_database_id(self, database_name=DATABASE_NAME):
         url = f"{self.base_url}/api/v1/database/"
         response = self.session.get(url)
         if response.status_code != 200:
@@ -147,37 +152,37 @@ def main():
             "database": database_id,
             "schema": "",
             "table_name": "top_drivers",
-            "sql": "SELECT 'driver_123' as driver_id, 'John Smith' as driver_name, 45 as trip_count",
+            "sql": DRIVER_PERFORMANCE_QUERIES["top_drivers"],
         },
         {
             "database": database_id,
             "schema": "",
             "table_name": "driver_ratings",
-            "sql": "SELECT 4.8 as rating, 12 as driver_count",
+            "sql": DRIVER_PERFORMANCE_QUERIES["driver_ratings"],
         },
         {
             "database": database_id,
             "schema": "",
             "table_name": "driver_payouts",
-            "sql": "SELECT NOW() as date, 1250.50 as payout",
+            "sql": DRIVER_PERFORMANCE_QUERIES["driver_payouts"],
         },
         {
             "database": database_id,
             "schema": "",
             "table_name": "driver_utilization",
-            "sql": "SELECT 'driver_123' as driver_id, '2026-01-17' as date, 0.75 as utilization",
+            "sql": DRIVER_PERFORMANCE_QUERIES["driver_utilization"],
         },
         {
             "database": database_id,
             "schema": "",
             "table_name": "trips_per_driver",
-            "sql": "SELECT 'driver_123' as driver_id, 45 as trips, 320.5 as revenue",
+            "sql": DRIVER_PERFORMANCE_QUERIES["trips_per_driver"],
         },
         {
             "database": database_id,
             "schema": "",
             "table_name": "driver_status",
-            "sql": "SELECT 'available' as status, 120 as count",
+            "sql": DRIVER_PERFORMANCE_QUERIES["driver_status"],
         },
     ]
 
