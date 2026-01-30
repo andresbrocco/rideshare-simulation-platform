@@ -106,78 +106,120 @@ class ResetBehaviorScenario(BaseScenario):
         console.print("[green]Reset behavior test complete[/green]")
 
     def _analyze_reset_effectiveness(self) -> None:
-        """Compare post-reset memory to baseline."""
+        """Compare post-reset memory and CPU to baseline for all containers."""
         if not self._baseline_samples or not self._post_reset_samples:
             console.print("[yellow]Insufficient samples for analysis[/yellow]")
             return
 
         tolerance = self.config.scenarios.reset_tolerance_percent
 
-        # Focus on simulation container
-        container = "rideshare-simulation"
+        # Find all containers
+        all_containers: set[str] = set()
+        for sample in self._baseline_samples + self._load_samples + self._post_reset_samples:
+            all_containers.update(sample.get("containers", {}).keys())
 
-        # Calculate average baseline memory
-        baseline_mems = []
-        for sample in self._baseline_samples:
-            containers = sample.get("containers", {})
-            if container in containers:
-                baseline_mems.append(containers[container]["memory_used_mb"])
+        all_container_results: dict[str, dict[str, Any]] = {}
 
-        # Calculate average post-reset memory
-        post_reset_mems = []
-        for sample in self._post_reset_samples:
-            containers = sample.get("containers", {})
-            if container in containers:
-                post_reset_mems.append(containers[container]["memory_used_mb"])
+        for container in all_containers:
+            # Collect baseline data
+            baseline_mems: list[float] = []
+            baseline_cpus: list[float] = []
+            for sample in self._baseline_samples:
+                containers = sample.get("containers", {})
+                if container in containers:
+                    baseline_mems.append(containers[container]["memory_used_mb"])
+                    baseline_cpus.append(containers[container]["cpu_percent"])
 
-        if not baseline_mems or not post_reset_mems:
-            console.print(f"[yellow]No data for {container}[/yellow]")
-            return
+            # Collect load data
+            load_mems: list[float] = []
+            load_cpus: list[float] = []
+            for sample in self._load_samples:
+                containers = sample.get("containers", {})
+                if container in containers:
+                    load_mems.append(containers[container]["memory_used_mb"])
+                    load_cpus.append(containers[container]["cpu_percent"])
 
-        baseline_avg = sum(baseline_mems) / len(baseline_mems)
-        post_reset_avg = sum(post_reset_mems) / len(post_reset_mems)
+            # Collect post-reset data
+            post_reset_mems: list[float] = []
+            post_reset_cpus: list[float] = []
+            for sample in self._post_reset_samples:
+                containers = sample.get("containers", {})
+                if container in containers:
+                    post_reset_mems.append(containers[container]["memory_used_mb"])
+                    post_reset_cpus.append(containers[container]["cpu_percent"])
 
-        # Calculate load peak for reference
-        load_mems = []
-        for sample in self._load_samples:
-            containers = sample.get("containers", {})
-            if container in containers:
-                load_mems.append(containers[container]["memory_used_mb"])
-        load_peak = max(load_mems) if load_mems else 0
+            if not baseline_mems or not post_reset_mems:
+                continue
 
-        # Calculate difference percentage
-        if baseline_avg > 0:
-            diff_percent = ((post_reset_avg - baseline_avg) / baseline_avg) * 100
-        else:
-            diff_percent = 0
-
-        console.print(f"\n[bold]Reset Analysis for {container}:[/bold]")
-        console.print(f"  Baseline avg:   {baseline_avg:.1f} MB")
-        console.print(f"  Load peak:      {load_peak:.1f} MB")
-        console.print(f"  Post-reset avg: {post_reset_avg:.1f} MB")
-        console.print(f"  Difference:     {diff_percent:+.1f}%")
-
-        if abs(diff_percent) <= tolerance:
-            console.print(
-                f"[green bold]PASS: Post-reset within {tolerance}% of baseline[/green bold]"
-            )
-        else:
-            console.print(
-                f"[red bold]FAIL: Post-reset exceeds {tolerance}% tolerance "
-                f"({diff_percent:+.1f}%)[/red bold]"
+            # Calculate averages and peaks
+            baseline_mem_avg = sum(baseline_mems) / len(baseline_mems)
+            baseline_cpu_avg = sum(baseline_cpus) / len(baseline_cpus) if baseline_cpus else 0
+            load_mem_peak = max(load_mems) if load_mems else 0
+            load_cpu_peak = max(load_cpus) if load_cpus else 0
+            post_reset_mem_avg = sum(post_reset_mems) / len(post_reset_mems)
+            post_reset_cpu_avg = (
+                sum(post_reset_cpus) / len(post_reset_cpus) if post_reset_cpus else 0
             )
 
-        # Store results in metadata
+            # Calculate difference percentages
+            mem_diff_percent = 0.0
+            if baseline_mem_avg > 0:
+                mem_diff_percent = (
+                    (post_reset_mem_avg - baseline_mem_avg) / baseline_mem_avg
+                ) * 100
+
+            cpu_diff_percent = 0.0
+            if baseline_cpu_avg > 0:
+                cpu_diff_percent = (
+                    (post_reset_cpu_avg - baseline_cpu_avg) / baseline_cpu_avg
+                ) * 100
+
+            all_container_results[container] = {
+                "baseline_mem_avg_mb": round(baseline_mem_avg, 2),
+                "baseline_cpu_avg_percent": round(baseline_cpu_avg, 2),
+                "load_mem_peak_mb": round(load_mem_peak, 2),
+                "load_cpu_peak_percent": round(load_cpu_peak, 2),
+                "post_reset_mem_avg_mb": round(post_reset_mem_avg, 2),
+                "post_reset_cpu_avg_percent": round(post_reset_cpu_avg, 2),
+                "mem_diff_percent": round(mem_diff_percent, 2),
+                "cpu_diff_percent": round(cpu_diff_percent, 2),
+                "mem_passed": abs(mem_diff_percent) <= tolerance,
+                "cpu_passed": abs(cpu_diff_percent) <= tolerance,
+            }
+
+        # Log priority containers
+        priority = self.config.analysis.priority_containers
+        for container in priority:
+            if container not in all_container_results:
+                continue
+            result = all_container_results[container]
+            display = container.replace("rideshare-", "")
+
+            console.print(f"\n[bold]Reset Analysis for {display}:[/bold]")
+            console.print(
+                f"  Memory: baseline={result['baseline_mem_avg_mb']:.1f} MB, "
+                f"peak={result['load_mem_peak_mb']:.1f} MB, "
+                f"post={result['post_reset_mem_avg_mb']:.1f} MB ({result['mem_diff_percent']:+.1f}%)"
+            )
+            console.print(
+                f"  CPU:    baseline={result['baseline_cpu_avg_percent']:.1f}%, "
+                f"peak={result['load_cpu_peak_percent']:.1f}%, "
+                f"post={result['post_reset_cpu_avg_percent']:.1f}% ({result['cpu_diff_percent']:+.1f}%)"
+            )
+
+            if result["mem_passed"]:
+                console.print(
+                    f"[green bold]  PASS: Memory within {tolerance}% of baseline[/green bold]"
+                )
+            else:
+                console.print(f"[red bold]  FAIL: Memory exceeds {tolerance}% tolerance[/red bold]")
+
+        # Store results in samples
         self._samples.append(
             {
                 "analysis": {
-                    "container": container,
-                    "baseline_avg_mb": baseline_avg,
-                    "load_peak_mb": load_peak,
-                    "post_reset_avg_mb": post_reset_avg,
-                    "diff_percent": diff_percent,
                     "tolerance_percent": tolerance,
-                    "passed": abs(diff_percent) <= tolerance,
+                    "all_containers": all_container_results,
                 }
             }
         )

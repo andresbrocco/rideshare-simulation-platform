@@ -56,6 +56,30 @@ class ScenarioConfig:
     reset_tolerance_percent: float = 10.0
 
 
+@dataclass
+class AnalysisConfig:
+    """Configuration for analysis and visualization."""
+
+    # None = analyze all containers; otherwise filter to these
+    focus_containers: list[str] | None = None
+    # Memory leak threshold (MB per minute)
+    leak_threshold_mb_per_min: float = 1.0
+    # CPU leak threshold (percentage points per minute)
+    cpu_leak_threshold_per_min: float = 5.0
+    # Maximum containers per chart (for readability)
+    max_containers_per_chart: int = 10
+    # Priority containers shown first in summaries/charts
+    priority_containers: list[str] = field(
+        default_factory=lambda: [
+            "rideshare-simulation",
+            "rideshare-kafka",
+            "rideshare-redis",
+            "rideshare-osrm",
+            "rideshare-stream-processor",
+        ]
+    )
+
+
 # Container configuration - mirrors CONTAINER_CONFIG from metrics.py
 # Memory limits are fetched dynamically from cAdvisor
 CONTAINER_CONFIG: dict[str, dict[str, str]] = {
@@ -108,6 +132,7 @@ class TestConfig:
     docker: DockerConfig = field(default_factory=DockerConfig)
     sampling: SamplingConfig = field(default_factory=SamplingConfig)
     scenarios: ScenarioConfig = field(default_factory=ScenarioConfig)
+    analysis: AnalysisConfig = field(default_factory=AnalysisConfig)
     output_dir: Path = field(default_factory=lambda: Path("tests/performance/results"))
 
     def get_compose_base_command(self) -> list[str]:

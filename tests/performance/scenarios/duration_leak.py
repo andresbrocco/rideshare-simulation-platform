@@ -33,7 +33,8 @@ class DurationLeakScenario(BaseScenario):
         self.duration_minutes = self.config.scenarios.duration_total_minutes
         self.checkpoints = self.config.scenarios.duration_checkpoints
         self.agent_count = self.config.scenarios.duration_agent_count
-        self._checkpoint_data: dict[int, dict[str, Any]] = {}
+        # Per-checkpoint data: {checkpoint_min: {container: {memory_slope, cpu_slope, ...}}}
+        self._checkpoint_data: dict[int, dict[str, dict[str, Any]]] = {}
 
     @property
     def name(self) -> str:
@@ -106,8 +107,8 @@ class DurationLeakScenario(BaseScenario):
         # Process checkpoints from collected samples
         self._process_checkpoints()
 
-        # Calculate memory trend for key containers
-        self._analyze_memory_trend()
+        # Analyze trends for all containers (memory and CPU)
+        self._analyze_trends()
 
         # Stop simulation
         console.print("[cyan]Stopping simulation...[/cyan]")
@@ -123,14 +124,18 @@ class DurationLeakScenario(BaseScenario):
         )
 
     def _process_checkpoints(self) -> None:
-        """Process samples to extract checkpoint data."""
+        """Process samples to extract checkpoint data for all containers."""
         if len(self._samples) < 2:
             console.print("[yellow]Insufficient samples for checkpoint processing[/yellow]")
             return
 
         # Get first timestamp as reference
         first_ts = self._samples[0]["timestamp"]
-        container = "rideshare-simulation"
+
+        # Find all containers
+        all_containers: set[str] = set()
+        for sample in self._samples:
+            all_containers.update(sample.get("containers", {}).keys())
 
         for checkpoint_min in self.checkpoints:
             checkpoint_seconds = checkpoint_min * 60
@@ -157,100 +162,168 @@ class DurationLeakScenario(BaseScenario):
             if start_idx is None or end_idx is None or start_idx > end_idx:
                 continue
 
-            # Extract memory values for this checkpoint range
             checkpoint_samples = self._samples[start_idx : end_idx + 1]
-            memory_values: list[tuple[float, float]] = []
+            self._checkpoint_data[checkpoint_min] = {}
 
-            for sample in checkpoint_samples:
-                containers = sample.get("containers", {})
-                if container in containers:
-                    ts = sample["timestamp"]
-                    mem = containers[container]["memory_used_mb"]
-                    memory_values.append((ts, mem))
+            # Process each container
+            for container in all_containers:
+                memory_values: list[tuple[float, float]] = []
+                cpu_values: list[tuple[float, float]] = []
 
-            if len(memory_values) < 2:
-                continue
+                for sample in checkpoint_samples:
+                    containers = sample.get("containers", {})
+                    if container in containers:
+                        ts = sample["timestamp"]
+                        mem = containers[container]["memory_used_mb"]
+                        cpu = containers[container]["cpu_percent"]
+                        memory_values.append((ts, mem))
+                        cpu_values.append((ts, cpu))
 
-            # Calculate slope for this checkpoint segment
-            seg_first_ts, seg_first_mem = memory_values[0]
-            seg_last_ts, seg_last_mem = memory_values[-1]
-            seg_duration_min = (seg_last_ts - seg_first_ts) / 60
+                if len(memory_values) < 2:
+                    continue
 
-            slope_mb_per_min = 0.0
-            if seg_duration_min > 0:
-                slope_mb_per_min = (seg_last_mem - seg_first_mem) / seg_duration_min
+                # Calculate slopes for this checkpoint segment
+                seg_first_ts = memory_values[0][0]
+                seg_last_ts = memory_values[-1][0]
+                seg_duration_min = (seg_last_ts - seg_first_ts) / 60
 
-            # Calculate average memory for this segment
-            avg_memory = sum(m for _, m in memory_values) / len(memory_values)
+                # Memory slope
+                seg_first_mem = memory_values[0][1]
+                seg_last_mem = memory_values[-1][1]
+                memory_slope = 0.0
+                if seg_duration_min > 0:
+                    memory_slope = (seg_last_mem - seg_first_mem) / seg_duration_min
 
-            self._checkpoint_data[checkpoint_min] = {
-                "sample_indices": [start_idx, end_idx],
-                "sample_count": len(checkpoint_samples),
-                "memory_mb": round(seg_last_mem, 2),
-                "memory_avg_mb": round(avg_memory, 2),
-                "slope_mb_per_min": round(slope_mb_per_min, 3),
-            }
+                # CPU slope
+                seg_first_cpu = cpu_values[0][1]
+                seg_last_cpu = cpu_values[-1][1]
+                cpu_slope = 0.0
+                if seg_duration_min > 0:
+                    cpu_slope = (seg_last_cpu - seg_first_cpu) / seg_duration_min
 
-            console.print(
-                f"[dim]Checkpoint {checkpoint_min}m: "
-                f"{seg_last_mem:.1f} MB, slope={slope_mb_per_min:.3f} MB/min[/dim]"
-            )
+                # Calculate averages
+                avg_memory = sum(m for _, m in memory_values) / len(memory_values)
+                avg_cpu = sum(c for _, c in cpu_values) / len(cpu_values)
 
-    def _analyze_memory_trend(self) -> None:
-        """Analyze memory trend to detect potential leaks."""
+                self._checkpoint_data[checkpoint_min][container] = {
+                    "sample_indices": [start_idx, end_idx],
+                    "sample_count": len(checkpoint_samples),
+                    "memory_mb": round(seg_last_mem, 2),
+                    "memory_avg_mb": round(avg_memory, 2),
+                    "memory_slope_mb_per_min": round(memory_slope, 3),
+                    "cpu_percent": round(seg_last_cpu, 2),
+                    "cpu_avg_percent": round(avg_cpu, 2),
+                    "cpu_slope_percent_per_min": round(cpu_slope, 3),
+                }
+
+            # Log simulation container for backward compat
+            sim_data = self._checkpoint_data[checkpoint_min].get("rideshare-simulation", {})
+            if sim_data:
+                console.print(
+                    f"[dim]Checkpoint {checkpoint_min}m (simulation): "
+                    f"{sim_data.get('memory_mb', 0):.1f} MB, "
+                    f"slope={sim_data.get('memory_slope_mb_per_min', 0):.3f} MB/min[/dim]"
+                )
+
+    def _analyze_trends(self) -> None:
+        """Analyze memory and CPU trends to detect potential leaks for all containers."""
         if len(self._samples) < 2:
             console.print("[yellow]Insufficient samples for trend analysis[/yellow]")
             return
 
-        # Focus on simulation container
-        container = "rideshare-simulation"
-        memory_values: list[tuple[float, float]] = []
+        # Get thresholds from config
+        memory_threshold = self.config.analysis.leak_threshold_mb_per_min
+        cpu_threshold = self.config.analysis.cpu_leak_threshold_per_min
 
+        # Find all containers
+        all_containers: set[str] = set()
         for sample in self._samples:
-            containers = sample.get("containers", {})
-            if container in containers:
-                ts = sample["timestamp"]
-                mem = containers[container]["memory_used_mb"]
-                memory_values.append((ts, mem))
+            all_containers.update(sample.get("containers", {}).keys())
 
-        if len(memory_values) < 2:
-            console.print(f"[yellow]Insufficient data for {container}[/yellow]")
-            return
+        leak_analysis: dict[str, dict[str, Any]] = {}
 
-        # Calculate overall slope (MB per minute)
-        first_ts, first_mem = memory_values[0]
-        last_ts, last_mem = memory_values[-1]
-        duration_minutes = (last_ts - first_ts) / 60
+        for container in all_containers:
+            memory_values: list[tuple[float, float]] = []
+            cpu_values: list[tuple[float, float]] = []
 
-        overall_slope = 0.0
-        if duration_minutes > 0:
-            overall_slope = (last_mem - first_mem) / duration_minutes
+            for sample in self._samples:
+                containers = sample.get("containers", {})
+                if container in containers:
+                    ts = sample["timestamp"]
+                    mem = containers[container]["memory_used_mb"]
+                    cpu = containers[container]["cpu_percent"]
+                    memory_values.append((ts, mem))
+                    cpu_values.append((ts, cpu))
 
-        # Check checkpoint-to-checkpoint slopes for leaks
-        leak_detected = False
-        for checkpoint_min, data in sorted(self._checkpoint_data.items()):
-            if data["slope_mb_per_min"] > 1.0:
-                leak_detected = True
+            if len(memory_values) < 2:
+                continue
+
+            # Calculate overall slopes
+            first_ts = memory_values[0][0]
+            last_ts = memory_values[-1][0]
+            duration_minutes = (last_ts - first_ts) / 60
+
+            # Memory slope
+            first_mem = memory_values[0][1]
+            last_mem = memory_values[-1][1]
+            memory_slope = 0.0
+            if duration_minutes > 0:
+                memory_slope = (last_mem - first_mem) / duration_minutes
+
+            # CPU slope
+            first_cpu = cpu_values[0][1]
+            last_cpu = cpu_values[-1][1]
+            cpu_slope = 0.0
+            if duration_minutes > 0:
+                cpu_slope = (last_cpu - first_cpu) / duration_minutes
+
+            # Check checkpoint-to-checkpoint slopes for leaks
+            memory_leak_detected = False
+            cpu_leak_detected = False
+
+            for checkpoint_min, containers_data in sorted(self._checkpoint_data.items()):
+                if container in containers_data:
+                    checkpoint_data = containers_data[container]
+                    if checkpoint_data.get("memory_slope_mb_per_min", 0) > memory_threshold:
+                        memory_leak_detected = True
+                    if checkpoint_data.get("cpu_slope_percent_per_min", 0) > cpu_threshold:
+                        cpu_leak_detected = True
+
+            # Overall leak detection
+            has_memory_leak = memory_leak_detected or memory_slope > memory_threshold
+            has_cpu_leak = cpu_leak_detected or cpu_slope > cpu_threshold
+
+            leak_analysis[container] = {
+                "memory_slope_mb_per_min": round(memory_slope, 3),
+                "cpu_slope_percent_per_min": round(cpu_slope, 3),
+                "memory_leak_detected": has_memory_leak,
+                "cpu_leak_detected": has_cpu_leak,
+            }
+
+        # Log findings for priority containers
+        priority = self.config.analysis.priority_containers
+        for container in priority:
+            if container not in leak_analysis:
+                continue
+            analysis = leak_analysis[container]
+            display = container.replace("rideshare-", "")
+
+            if analysis["memory_leak_detected"]:
                 console.print(
-                    f"[red bold]POTENTIAL LEAK at checkpoint {checkpoint_min}m: "
-                    f"{data['slope_mb_per_min']:.2f} MB/min[/red bold]"
+                    f"[red bold]MEMORY LEAK: {display} "
+                    f"{analysis['memory_slope_mb_per_min']:.2f} MB/min[/red bold]"
+                )
+            elif analysis["cpu_leak_detected"]:
+                console.print(
+                    f"[yellow]CPU LEAK: {display} "
+                    f"{analysis['cpu_slope_percent_per_min']:.2f} %/min[/yellow]"
+                )
+            else:
+                console.print(
+                    f"[green]{display} stable: mem={analysis['memory_slope_mb_per_min']:.2f} MB/min, "
+                    f"cpu={analysis['cpu_slope_percent_per_min']:.2f} %/min[/green]"
                 )
 
-        # Report overall trend
-        if overall_slope > 1.0:
-            console.print(
-                f"[red bold]POTENTIAL LEAK: {container} overall trend "
-                f"{overall_slope:.2f} MB/min[/red bold]"
-            )
-        elif leak_detected:
-            console.print(
-                f"[yellow]{container} overall trend: {overall_slope:.2f} MB/min "
-                f"(leak detected in checkpoint segments)[/yellow]"
-            )
-        else:
-            console.print(f"[green]{container} memory stable: {overall_slope:.2f} MB/min[/green]")
-
-        # Store checkpoint data in metadata for results
+        # Store in metadata
         self._metadata["checkpoints"] = self._checkpoint_data
-        self._metadata["overall_slope_mb_per_min"] = round(overall_slope, 3)
-        self._metadata["leak_detected"] = leak_detected or overall_slope > 1.0
+        self._metadata["leak_analysis"] = leak_analysis

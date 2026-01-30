@@ -57,7 +57,8 @@ class SimulationAPIClient:
                 headers=self._get_headers(),
             )
             response.raise_for_status()
-            return response.json()
+            result: dict[str, Any] = response.json()
+            return result
 
     def _post(self, path: str, json: dict[str, Any] | None = None) -> dict[str, Any]:
         """Make a POST request."""
@@ -68,7 +69,8 @@ class SimulationAPIClient:
                 json=json or {},
             )
             response.raise_for_status()
-            return response.json()
+            result: dict[str, Any] = response.json()
+            return result
 
     def health_check(self) -> bool:
         """Check if the simulation API is healthy.
@@ -141,7 +143,8 @@ class SimulationAPIClient:
                 json={"count": count},
             )
             response.raise_for_status()
-            return response.json()
+            result: dict[str, Any] = response.json()
+            return result
 
     def queue_riders(self, count: int) -> dict[str, Any]:
         """Queue riders for spawning with immediate mode.
@@ -160,7 +163,8 @@ class SimulationAPIClient:
                 json={"count": count},
             )
             response.raise_for_status()
-            return response.json()
+            result: dict[str, Any] = response.json()
+            return result
 
     def get_spawn_status(self) -> SpawnStatus:
         """Get current spawn queue status.

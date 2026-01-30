@@ -17,7 +17,7 @@ import click
 from rich.console import Console
 from rich.table import Table
 
-from .analysis.resource_model import fit_load_scaling_results
+from .analysis.resource_model import fit_load_scaling_all_containers
 from .analysis.statistics import summarize_scenario_stats
 from .analysis.visualizations import ChartGenerator
 from .collectors.docker_lifecycle import DockerLifecycleManager
@@ -25,7 +25,7 @@ from .collectors.docker_stats import DockerStatsCollector
 from .collectors.oom_detector import OOMDetector
 from .collectors.simulation_api import SimulationAPIClient
 from .config import CONTAINER_CONFIG, TestConfig
-from .scenarios.base import ScenarioResult
+from .scenarios.base import BaseScenario, ScenarioResult
 from .scenarios.baseline import BaselineScenario
 from .scenarios.duration_leak import DurationLeakScenario
 from .scenarios.load_scaling import LoadScalingScenario
@@ -54,7 +54,7 @@ def create_collectors(config: TestConfig) -> tuple[
 
 
 def run_scenario(
-    scenario_class: type,
+    scenario_class: type[BaseScenario],
     config: TestConfig,
     lifecycle: DockerLifecycleManager,
     stats_collector: DockerStatsCollector,
@@ -91,20 +91,15 @@ def analyze_results(results: dict[str, Any]) -> dict[str, Any]:
 
     analysis: dict[str, Any] = {}
 
-    # Fit load scaling models
-    load_fit = fit_load_scaling_results(scenarios)
-    if "error" not in load_fit:
-        analysis["rideshare-simulation"] = {
-            "best_fit": load_fit.get("best_fit"),
-            "all_fits": load_fit.get("all_fits"),
-            "data_points": load_fit.get("data_points"),
-        }
+    # Fit load scaling models for ALL containers, both memory and cpu
+    all_container_fits = fit_load_scaling_all_containers(scenarios, None, ["memory", "cpu"])
+    analysis["container_fits"] = all_container_fits
 
-    # Per-scenario summaries
+    # Per-scenario summaries (includes all containers)
     scenario_summaries: list[dict[str, Any]] = []
     for scenario in scenarios:
         samples = scenario.get("samples", [])
-        summary = summarize_scenario_stats(samples)
+        summary = summarize_scenario_stats(samples, None)
         summary["scenario_name"] = scenario["scenario_name"]
         scenario_summaries.append(summary)
 
@@ -376,14 +371,41 @@ def _print_summary(results: dict[str, Any]) -> None:
     if total_oom > 0:
         console.print(f"  [red]OOM Events: {total_oom}[/red]")
 
-    # Best fit formula
+    # Scaling formulas for priority containers
     analysis = results.get("analysis", {})
-    sim_analysis = analysis.get("rideshare-simulation", {})
-    best_fit = sim_analysis.get("best_fit")
-    if best_fit:
-        console.print("\n[bold]Scaling Formula:[/bold]")
-        console.print(f"  {best_fit['formula']}")
-        console.print(f"  R² = {best_fit['r_squared']:.3f}")
+    container_fits = analysis.get("container_fits", {})
+
+    # Priority containers to show
+    priority_containers = [
+        "rideshare-simulation",
+        "rideshare-kafka",
+        "rideshare-redis",
+    ]
+
+    has_formulas = False
+    for container in priority_containers:
+        container_data = container_fits.get(container, {})
+        display = container.replace("rideshare-", "").title()
+
+        # Memory formula
+        memory_fit = container_data.get("memory", {})
+        memory_best = memory_fit.get("best_fit")
+
+        # CPU formula
+        cpu_fit = container_data.get("cpu", {})
+        cpu_best = cpu_fit.get("best_fit")
+
+        if memory_best or cpu_best:
+            if not has_formulas:
+                console.print("\n[bold]Scaling Formulas:[/bold]")
+                has_formulas = True
+            console.print(f"\n  [cyan]{display}:[/cyan]")
+            if memory_best:
+                console.print(
+                    f"    Memory: {memory_best['formula']} (R²={memory_best['r_squared']:.3f})"
+                )
+            if cpu_best:
+                console.print(f"    CPU:    {cpu_best['formula']} (R²={cpu_best['r_squared']:.3f})")
 
 
 if __name__ == "__main__":

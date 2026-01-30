@@ -59,6 +59,7 @@ class BaseScenario(ABC):
         self._oom_events: list[OOMEvent] = []
         self._aborted = False
         self._abort_reason: str | None = None
+        self._metadata: dict[str, Any] = {}
 
     @property
     @abstractmethod
@@ -286,6 +287,7 @@ class BaseScenario(ABC):
             oom_events=oom_event_dicts,
             aborted=self._aborted,
             abort_reason=self._abort_reason,
+            metadata=self._metadata,
         )
 
         status = "[red]ABORTED[/red]" if self._aborted else "[green]COMPLETED[/green]"

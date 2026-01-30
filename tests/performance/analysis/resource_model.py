@@ -47,7 +47,8 @@ class ResourceModelFitter:
 
     def _log_func(self, x: np.ndarray, a: float, b: float) -> np.ndarray:
         """Logarithmic: y = a * ln(x) + b"""
-        return a * np.log(x + 1) + b  # Add 1 to avoid ln(0)
+        result: np.ndarray = a * np.log(x + 1) + b  # Add 1 to avoid ln(0)
+        return result
 
     def _exp_func(self, x: np.ndarray, a: float, b: float, c: float) -> np.ndarray:
         """Exponential: y = a * e^(b*x) + c"""
@@ -59,7 +60,7 @@ class ResourceModelFitter:
         ss_tot = np.sum((y_actual - np.mean(y_actual)) ** 2)
         if ss_tot == 0:
             return 0.0
-        return 1 - (ss_res / ss_tot)
+        return float(1 - (ss_res / ss_tot))
 
     def _fit_linear(self, x: np.ndarray, y: np.ndarray) -> tuple[FitResult, np.ndarray] | None:
         """Fit linear model."""
@@ -220,68 +221,103 @@ class ResourceModelFitter:
         return results[0] if results else None
 
 
-def fit_load_scaling_results(
+def fit_load_scaling_all_containers(
     scenario_results: list[dict[str, Any]],
-    container_name: str = "rideshare-simulation",
-) -> dict[str, Any]:
-    """Fit resource models to load scaling test results.
+    container_names: list[str] | None = None,
+    metrics: list[str] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Fit resource models for all containers and metrics.
 
     Args:
         scenario_results: List of scenario result dicts from load scaling tests.
-        container_name: Container to analyze.
+        container_names: Containers to analyze (None = all containers found).
+        metrics: Metrics to fit ("memory", "cpu"). Default: ["memory", "cpu"].
 
     Returns:
-        Dict with fitting results.
+        Dict: {container: {memory: {best_fit, all_fits, data_points}, cpu: {...}}}
     """
     from .statistics import calculate_stats
 
-    # Extract (agent_count, memory_mean) pairs
-    data_points: list[tuple[int, float]] = []
+    if metrics is None:
+        metrics = ["memory", "cpu"]
 
-    for result in scenario_results:
-        if not result["scenario_name"].startswith("load_scaling_"):
-            continue
+    # Find all containers from samples if not specified
+    if container_names is None:
+        containers_found: set[str] = set()
+        for result in scenario_results:
+            if not result["scenario_name"].startswith("load_scaling_"):
+                continue
+            samples = result.get("samples", [])
+            for sample in samples:
+                containers_found.update(sample.get("containers", {}).keys())
+        container_names = sorted(containers_found)
 
-        agent_count = result["scenario_params"].get("total_agents", 0)
-        samples = result.get("samples", [])
+    results: dict[str, dict[str, Any]] = {}
 
-        stats = calculate_stats(samples, container_name)
-        if stats is not None:
-            data_points.append((agent_count, stats.memory_mean))
+    for container_name in container_names:
+        container_results: dict[str, Any] = {}
 
-    if not data_points:
-        return {"error": "No data points found"}
+        for metric in metrics:
+            # Extract data points for this container/metric
+            data_points: list[tuple[int, float]] = []
 
-    # Sort by agent count
-    data_points.sort(key=lambda p: p[0])
+            for result in scenario_results:
+                if not result["scenario_name"].startswith("load_scaling_"):
+                    continue
 
-    x = [p[0] for p in data_points]
-    y = [p[1] for p in data_points]
+                agent_count = result["scenario_params"].get("total_agents", 0)
+                samples = result.get("samples", [])
 
-    # Fit models
-    fitter = ResourceModelFitter()
-    all_fits = fitter.fit_all(x, y)
+                stats = calculate_stats(samples, container_name)
+                if stats is not None:
+                    if metric == "memory":
+                        data_points.append((agent_count, stats.memory_mean))
+                    elif metric == "cpu":
+                        data_points.append((agent_count, stats.cpu_mean))
 
-    if not all_fits:
-        return {"error": "No fits succeeded"}
+            if not data_points:
+                container_results[metric] = {"error": "No data points found"}
+                continue
 
-    best_fit = all_fits[0]
+            # Sort by agent count
+            data_points.sort(key=lambda p: p[0])
 
-    return {
-        "container": container_name,
-        "data_points": data_points,
-        "best_fit": {
-            "fit_type": best_fit.fit_type.value,
-            "formula": best_fit.formula,
-            "r_squared": best_fit.r_squared,
-            "coefficients": best_fit.coefficients,
-        },
-        "all_fits": [
-            {
-                "fit_type": f.fit_type.value,
-                "formula": f.formula,
-                "r_squared": f.r_squared,
+            x = [p[0] for p in data_points]
+            y = [p[1] for p in data_points]
+
+            # Fit models
+            fitter = ResourceModelFitter()
+            all_fits = fitter.fit_all(x, y)
+
+            if not all_fits:
+                container_results[metric] = {"error": "No fits succeeded"}
+                continue
+
+            # Update formula strings to reflect metric type
+            metric_unit = "memory_mb" if metric == "memory" else "cpu_percent"
+            for fit in all_fits:
+                fit.formula = fit.formula.replace("memory_mb", metric_unit)
+
+            best_fit = all_fits[0]
+
+            container_results[metric] = {
+                "data_points": data_points,
+                "best_fit": {
+                    "fit_type": best_fit.fit_type.value,
+                    "formula": best_fit.formula,
+                    "r_squared": best_fit.r_squared,
+                    "coefficients": best_fit.coefficients,
+                },
+                "all_fits": [
+                    {
+                        "fit_type": f.fit_type.value,
+                        "formula": f.formula,
+                        "r_squared": f.r_squared,
+                    }
+                    for f in all_fits
+                ],
             }
-            for f in all_fits
-        ],
-    }
+
+        results[container_name] = container_results
+
+    return results

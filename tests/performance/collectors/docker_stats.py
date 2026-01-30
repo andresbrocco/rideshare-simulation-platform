@@ -43,7 +43,8 @@ class DockerStatsCollector:
             with httpx.Client(timeout=5.0) as client:
                 response = client.get(self.cadvisor_url)
                 if response.status_code == 200:
-                    return response.json()
+                    result: dict[str, Any] = response.json()
+                    return result
         except Exception:
             pass
         return None
@@ -53,15 +54,17 @@ class DockerStatsCollector:
     ) -> dict[str, Any] | None:
         """Find a container's data in cAdvisor response by name."""
         for key, data in cadvisor_data.items():
+            container_data: dict[str, Any] = data
             # Check if the container name is in the key or in the aliases
             if container_name in key:
-                return data
-            aliases = data.get("aliases", [])
+                return container_data
+            aliases: list[str] = container_data.get("aliases", [])
             if container_name in aliases:
-                return data
+                return container_data
             # Check the name field
-            if data.get("name", "").endswith(container_name):
-                return data
+            name: str = container_data.get("name", "")
+            if name.endswith(container_name):
+                return container_data
         return None
 
     def _calculate_cpu_percent(self, stats: list[dict[str, Any]]) -> float:
@@ -96,7 +99,7 @@ class DockerStatsCollector:
         # cAdvisor reports CPU in nanoseconds, normalize to percentage
         cpu_percent = (cpu_delta / time_delta_ns) * 100
 
-        return max(0.0, min(cpu_percent, 100.0))
+        return float(max(0.0, min(cpu_percent, 100.0)))
 
     def _parse_container_resource_metrics(
         self, container_name: str, data: dict[str, Any]
