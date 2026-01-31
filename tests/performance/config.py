@@ -38,22 +38,12 @@ class SamplingConfig:
 class ScenarioConfig:
     """Configuration for test scenarios."""
 
-    # Load scaling test levels (drivers = riders at each level)
-    load_levels: list[int] = field(default_factory=lambda: [10, 20, 40, 80])
-    load_duration_seconds: int = 60
-
     # Duration/leak test settings (single continuous run with checkpoints)
     duration_total_minutes: int = 8
     duration_checkpoints: list[int] = field(default_factory=lambda: [1, 2, 4, 8])
-    duration_agent_count: int = 40
 
     # Baseline test settings
     baseline_duration_seconds: int = 30
-
-    # Reset test settings
-    reset_load_duration_seconds: int = 30
-    reset_post_duration_seconds: int = 30
-    reset_tolerance_percent: float = 10.0
 
     # Stress test settings
     stress_cpu_threshold_percent: float = 90.0

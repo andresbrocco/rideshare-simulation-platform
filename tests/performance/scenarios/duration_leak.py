@@ -28,11 +28,26 @@ class DurationLeakScenario(BaseScenario):
     9. Flag leak if any checkpoint slope > 1 MB/min
     """
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, agent_count: int, *args: Any, **kwargs: Any) -> None:
+        """Initialize duration/leak scenario.
+
+        Args:
+            agent_count: Number of drivers/riders to spawn (derived from stress test).
+            *args: Positional arguments passed to BaseScenario.
+            **kwargs: Keyword arguments passed to BaseScenario.
+
+        Raises:
+            ValueError: If agent_count is less than 2.
+        """
         super().__init__(*args, **kwargs)
+        if agent_count < 2:
+            raise ValueError(
+                f"agent_count must be at least 2, got {agent_count} "
+                "(derived from stress test drivers_queued // 2)"
+            )
         self.duration_minutes = self.config.scenarios.duration_total_minutes
         self.checkpoints = self.config.scenarios.duration_checkpoints
-        self.agent_count = self.config.scenarios.duration_agent_count
+        self.agent_count = agent_count
         # Per-checkpoint data: {checkpoint_min: {container: {memory_slope, cpu_slope, ...}}}
         self._checkpoint_data: dict[int, dict[str, dict[str, Any]]] = {}
 
@@ -43,7 +58,7 @@ class DurationLeakScenario(BaseScenario):
     @property
     def description(self) -> str:
         return (
-            f"Memory leak detection with {self.agent_count} agents "
+            f"Memory leak detection with {self.agent_count} agents (derived from stress test) "
             f"for {self.duration_minutes} minutes (checkpoints: {self.checkpoints})"
         )
 
@@ -55,6 +70,7 @@ class DurationLeakScenario(BaseScenario):
             "checkpoints": self.checkpoints,
             "drivers": self.agent_count,
             "riders": self.agent_count,
+            "agent_count_source": "stress_test_drivers_queued_half",
         }
 
     def execute(self) -> Iterator[dict[str, Any]]:

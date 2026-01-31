@@ -20,10 +20,8 @@ class FindingCategory(Enum):
     CPU_LEAK = "cpu_leak"
     HIGH_MEMORY_USAGE = "high_memory_usage"
     HIGH_CPU_USAGE = "high_cpu_usage"
-    RESET_FAILURE = "reset_failure"
     OOM_EVENT = "oom_event"
     STRESS_THRESHOLD = "stress_threshold"
-    SCALING_CONCERN = "scaling_concern"
 
 
 class OverallStatus(Enum):

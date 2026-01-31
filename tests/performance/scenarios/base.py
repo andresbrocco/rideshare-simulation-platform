@@ -49,12 +49,14 @@ class BaseScenario(ABC):
         stats_collector: DockerStatsCollector,
         api_client: SimulationAPIClient,
         oom_detector: OOMDetector,
+        skip_clean_restart: bool = False,
     ) -> None:
         self.config = config
         self.lifecycle = lifecycle
         self.stats_collector = stats_collector
         self.api_client = api_client
         self.oom_detector = oom_detector
+        self.skip_clean_restart = skip_clean_restart
         self._samples: list[dict[str, Any]] = []
         self._oom_events: list[OOMEvent] = []
         self._aborted = False
@@ -82,8 +84,8 @@ class BaseScenario(ABC):
         """Step 0: Clean environment before scenario.
 
         Performs:
-        1. docker compose down -v
-        2. docker compose up -d
+        1. docker compose down -v (unless skip_clean_restart is True)
+        2. docker compose up -d (unless skip_clean_restart is True)
         3. Wait for healthy
 
         Returns:
@@ -92,10 +94,13 @@ class BaseScenario(ABC):
         console.print(f"\n[bold cyan]Setting up scenario: {self.name}[/bold cyan]")
         console.print(f"[dim]{self.description}[/dim]")
 
-        # Clean restart
-        if not self.lifecycle.clean_restart():
-            console.print("[red]Setup failed: could not restart containers[/red]")
-            return False
+        # Clean restart (unless skipped for faster iteration)
+        if self.skip_clean_restart:
+            console.print("[yellow]Skipping clean restart (--skip-restart flag)[/yellow]")
+        else:
+            if not self.lifecycle.clean_restart():
+                console.print("[red]Setup failed: could not restart containers[/red]")
+                return False
 
         # Wait for API to be available
         console.print("[cyan]Waiting for Simulation API...[/cyan]")

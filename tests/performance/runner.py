@@ -2,10 +2,9 @@
 """Performance testing CLI runner.
 
 Usage:
-    ./venv/bin/python tests/performance/runner.py run           # All scenarios
-    ./venv/bin/python tests/performance/runner.py run -s load   # Specific scenario
-    ./venv/bin/python tests/performance/runner.py check         # Service status
-    ./venv/bin/python tests/performance/runner.py analyze <file> # Re-analyze
+    ./venv/bin/python tests/performance/runner.py run      # Run all 3 scenarios
+    ./venv/bin/python tests/performance/runner.py check    # Service status
+    ./venv/bin/python tests/performance/runner.py analyze <file>  # Re-analyze
 """
 
 import json
@@ -26,7 +25,6 @@ from .analysis.findings import (
     TestVerdict,
 )
 from .analysis.report_generator import ReportGenerator
-from .analysis.resource_model import fit_load_scaling_all_containers
 from .analysis.statistics import calculate_all_container_stats, summarize_scenario_stats
 from .analysis.visualizations import ChartGenerator
 from .collectors.docker_lifecycle import DockerLifecycleManager
@@ -37,8 +35,6 @@ from .config import CONTAINER_CONFIG, TestConfig
 from .scenarios.base import BaseScenario, ScenarioResult
 from .scenarios.baseline import BaselineScenario
 from .scenarios.duration_leak import DurationLeakScenario
-from .scenarios.load_scaling import LoadScalingScenario
-from .scenarios.reset_behavior import ResetBehaviorScenario
 from .scenarios.stress_test import StressTestScenario
 
 console = Console()
@@ -110,10 +106,6 @@ def analyze_results(
     scenarios = results.get("scenarios", [])
 
     analysis: dict[str, Any] = {}
-
-    # Fit load scaling models for ALL containers, both memory and cpu
-    all_container_fits = fit_load_scaling_all_containers(scenarios, None, ["memory", "cpu"])
-    analysis["container_fits"] = all_container_fits
 
     # Per-scenario summaries (includes all containers)
     scenario_summaries: list[dict[str, Any]] = []
@@ -253,32 +245,6 @@ def _generate_findings(results: dict[str, Any], config: TestConfig) -> list[Find
                         scenario_name=scenario_name,
                     )
                 )
-
-        # Check reset behavior failures
-        if scenario_name == "reset_behavior":
-            for sample in samples:
-                analysis = sample.get("analysis", {})
-                all_containers = analysis.get("all_containers", {})
-
-                for container, data in all_containers.items():
-                    display_name = CONTAINER_CONFIG.get(container, {}).get(
-                        "display_name", container
-                    )
-
-                    if not data.get("mem_passed", True):
-                        diff = data.get("mem_diff_percent", 0)
-                        findings.append(
-                            Finding(
-                                severity=Severity.WARNING,
-                                category=FindingCategory.RESET_FAILURE,
-                                container=container,
-                                message=f"{display_name} memory not fully released after reset ({diff:+.1f}%)",
-                                metric_value=diff,
-                                threshold=config.scenarios.reset_tolerance_percent,
-                                scenario_name=scenario_name,
-                                recommendation="Check for memory leaks or resource cleanup issues",
-                            )
-                        )
 
         # Check for memory leaks in duration tests
         if scenario_name == "duration_leak" or scenario_name.startswith("duration_leak_"):
@@ -503,24 +469,18 @@ def cli() -> None:
 
 @cli.command()
 @click.option(
-    "-s",
-    "--scenario",
-    type=click.Choice(["all", "baseline", "load", "duration", "reset", "stress"]),
-    default="all",
-    help="Which scenario(s) to run",
-)
-@click.option(
     "--skip-restart",
     is_flag=True,
     help="Skip clean restart between scenarios (faster but less accurate)",
 )
-@click.option(
-    "--include-stress",
-    is_flag=True,
-    help="Include stress test when running 'all' scenarios (excluded by default)",
-)
-def run(scenario: str, skip_restart: bool, include_stress: bool) -> None:
-    """Run performance test scenarios."""
+def run(skip_restart: bool) -> None:
+    """Run all performance test scenarios in sequence.
+
+    Executes three scenarios in order:
+    1. Baseline - Measure idle resource usage
+    2. Stress Test - Find maximum sustainable agent count
+    3. Duration/Leak - Run with half the stress test agents to detect memory leaks
+    """
     config = create_test_config()
     lifecycle, stats_collector, api_client, oom_detector = create_collectors(config)
 
@@ -547,101 +507,110 @@ def run(scenario: str, skip_restart: bool, include_stress: bool) -> None:
                 "warmup_seconds": config.sampling.warmup_seconds,
             },
             "scenarios": {
-                "load_levels": config.scenarios.load_levels,
                 "duration_total_minutes": config.scenarios.duration_total_minutes,
                 "duration_checkpoints": config.scenarios.duration_checkpoints,
+                "stress_cpu_threshold_percent": config.scenarios.stress_cpu_threshold_percent,
+                "stress_memory_threshold_percent": config.scenarios.stress_memory_threshold_percent,
             },
         },
         "scenarios": [],
     }
 
     scenario_results: list[dict[str, Any]] = []
+    aborted = False
+    abort_reason = None
 
     try:
-        # Baseline
-        if scenario in ["all", "baseline"]:
-            console.rule("[bold cyan]Running Baseline Scenario[/bold cyan]")
-            result = run_scenario(
-                BaselineScenario,
-                config,
-                lifecycle,
-                stats_collector,
-                api_client,
-                oom_detector,
-                skip_clean_restart=True,
-            )
-            scenario_results.append(_result_to_dict(result))
+        # 1. Run baseline
+        console.rule("[bold cyan]Step 1/3: Running Baseline Scenario[/bold cyan]")
+        baseline_result = run_scenario(
+            BaselineScenario,
+            config,
+            lifecycle,
+            stats_collector,
+            api_client,
+            oom_detector,
+            skip_clean_restart=skip_restart,
+        )
+        scenario_results.append(_result_to_dict(baseline_result))
 
-        # Load scaling
-        if scenario in ["all", "load"]:
-            for level in config.scenarios.load_levels:
-                console.rule(f"[bold cyan]Running Load Scaling: {level} agents[/bold cyan]")
-                result = run_scenario(
-                    LoadScalingScenario,
+        # 2. Run stress test
+        console.rule(
+            f"[bold cyan]Step 2/3: Running Stress Test "
+            f"(until {config.scenarios.stress_cpu_threshold_percent}% CPU "
+            f"or {config.scenarios.stress_memory_threshold_percent}% memory)[/bold cyan]"
+        )
+        stress_result = run_scenario(
+            StressTestScenario,
+            config,
+            lifecycle,
+            stats_collector,
+            api_client,
+            oom_detector,
+            skip_clean_restart=skip_restart,
+        )
+        scenario_results.append(_result_to_dict(stress_result))
+
+        # 3. Validate stress test produced usable results
+        stress_metadata = stress_result.metadata
+        if stress_result.aborted:
+            console.print(
+                "[red]Stress test aborted (likely OOM). "
+                "Cannot determine agent count for duration test.[/red]"
+            )
+            aborted = True
+            abort_reason = "stress_test_oom"
+        else:
+            drivers_queued = stress_metadata.get("drivers_queued", 0)
+            if drivers_queued < 2:
+                console.print(
+                    "[red]Stress test did not queue enough agents. Test run failed.[/red]"
+                )
+                aborted = True
+                abort_reason = "stress_test_insufficient_agents"
+            else:
+                # 4. Calculate duration agent count (half of stress test)
+                duration_agent_count = drivers_queued // 2
+                console.print(
+                    f"\n[cyan]Duration test will use {duration_agent_count} agents "
+                    f"(half of {drivers_queued} from stress test)[/cyan]\n"
+                )
+
+                # Store derived value in results metadata
+                results["derived_config"] = {
+                    "duration_agent_count": duration_agent_count,
+                    "stress_drivers_queued": drivers_queued,
+                }
+
+                # 5. Run duration/leak test with derived agent count
+                console.rule(
+                    f"[bold cyan]Step 3/3: Running Duration Test "
+                    f"({config.scenarios.duration_total_minutes} minutes, "
+                    f"{duration_agent_count} agents)[/bold cyan]"
+                )
+                duration_result = run_scenario(
+                    DurationLeakScenario,
                     config,
                     lifecycle,
                     stats_collector,
                     api_client,
                     oom_detector,
-                    agent_count=level,
-                    skip_clean_restart=True,
+                    agent_count=duration_agent_count,
+                    skip_clean_restart=skip_restart,
                 )
-                scenario_results.append(_result_to_dict(result))
-
-        # Duration/leak test (single continuous run with checkpoints)
-        if scenario in ["all", "duration"]:
-            console.rule(
-                f"[bold cyan]Running Duration Test: {config.scenarios.duration_total_minutes} minutes "
-                f"(checkpoints: {config.scenarios.duration_checkpoints})[/bold cyan]"
-            )
-            result = run_scenario(
-                DurationLeakScenario,
-                config,
-                lifecycle,
-                stats_collector,
-                api_client,
-                oom_detector,
-                skip_clean_restart=True,
-            )
-            scenario_results.append(_result_to_dict(result))
-
-        # Reset behavior
-        if scenario in ["all", "reset"]:
-            console.rule("[bold cyan]Running Reset Behavior Test[/bold cyan]")
-            result = run_scenario(
-                ResetBehaviorScenario,
-                config,
-                lifecycle,
-                stats_collector,
-                api_client,
-                oom_detector,
-                skip_clean_restart=True,
-            )
-            scenario_results.append(_result_to_dict(result))
-
-        # Stress test (excluded from "all" by default)
-        if scenario == "stress" or (scenario == "all" and include_stress):
-            console.rule(
-                f"[bold cyan]Running Stress Test: until {config.scenarios.stress_cpu_threshold_percent}% CPU "
-                f"or {config.scenarios.stress_memory_threshold_percent}% memory[/bold cyan]"
-            )
-            result = run_scenario(
-                StressTestScenario,
-                config,
-                lifecycle,
-                stats_collector,
-                api_client,
-                oom_detector,
-                skip_clean_restart=True,
-            )
-            scenario_results.append(_result_to_dict(result))
+                scenario_results.append(_result_to_dict(duration_result))
 
     except KeyboardInterrupt:
         console.print("\n[yellow]Test interrupted by user[/yellow]")
+        aborted = True
+        abort_reason = "user_interrupt"
 
     # Finalize results
     results["scenarios"] = scenario_results
     results["completed_at"] = datetime.now().isoformat()
+    if aborted:
+        results["aborted"] = True
+        results["abort_reason"] = abort_reason
 
     # Analyze
     console.print("\n[bold]Analyzing results...[/bold]")
@@ -858,12 +827,12 @@ def _print_summary(results: dict[str, Any], verdict: TestVerdict | None = None) 
             limit_str = f"{health.memory_limit_mb:.0f} MB" if health.memory_limit_mb > 0 else "N/A"
             percent_str = f"{health.memory_percent:.1f}%" if health.memory_percent > 0 else "N/A"
 
-            status_styles = {
+            health_status_styles: dict[str, str] = {
                 "healthy": "[green]OK[/green]",
                 "warning": "[yellow]WARN[/yellow]",
                 "critical": "[red]CRIT[/red]",
             }
-            status_display = status_styles.get(health.status, health.status)
+            status_display = health_status_styles.get(health.status, health.status)
 
             health_table.add_row(
                 health.display_name,
@@ -876,38 +845,17 @@ def _print_summary(results: dict[str, Any], verdict: TestVerdict | None = None) 
 
         console.print(health_table)
 
-    # Scaling formulas for priority containers
-    analysis = results.get("analysis", {})
-    container_fits = analysis.get("container_fits", {})
-
-    priority_containers = [
-        "rideshare-simulation",
-        "rideshare-kafka",
-        "rideshare-redis",
-    ]
-
-    has_formulas = False
-    for container in priority_containers:
-        container_data = container_fits.get(container, {})
-        display = container.replace("rideshare-", "").title()
-
-        memory_fit = container_data.get("memory", {})
-        memory_best = memory_fit.get("best_fit")
-
-        cpu_fit = container_data.get("cpu", {})
-        cpu_best = cpu_fit.get("best_fit")
-
-        if memory_best or cpu_best:
-            if not has_formulas:
-                console.print("\n[bold]Scaling Formulas:[/bold]")
-                has_formulas = True
-            console.print(f"\n  [cyan]{display}:[/cyan]")
-            if memory_best:
-                console.print(
-                    f"    Memory: {memory_best['formula']} (R²={memory_best['r_squared']:.3f})"
-                )
-            if cpu_best:
-                console.print(f"    CPU:    {cpu_best['formula']} (R²={cpu_best['r_squared']:.3f})")
+    # Derived configuration (stress → duration agent count)
+    derived_config = results.get("derived_config", {})
+    if derived_config:
+        console.print("\n[bold]Derived Configuration:[/bold]")
+        duration_agents = derived_config.get("duration_agent_count")
+        stress_drivers = derived_config.get("stress_drivers_queued")
+        if duration_agents and stress_drivers:
+            console.print(
+                f"  Duration test agents: {duration_agents} "
+                f"(half of {stress_drivers} from stress test)"
+            )
 
     # Recommendations
     if verdict and verdict.recommendations:

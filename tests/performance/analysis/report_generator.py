@@ -178,42 +178,20 @@ class ReportGenerator:
             lines.append("No container health data available.")
             lines.append("")
 
-        # Scaling Formulas
-        analysis = results.get("analysis", {})
-        container_fits = analysis.get("container_fits", {})
-
-        if container_fits:
-            lines.append("## Scaling Formulas")
+        # Derived Configuration (stress → duration agent count)
+        derived_config = results.get("derived_config", {})
+        if derived_config:
+            lines.append("## Derived Configuration")
             lines.append("")
-
-            priority_containers = [
-                "rideshare-simulation",
-                "rideshare-kafka",
-                "rideshare-redis",
-            ]
-
-            for container in priority_containers:
-                container_data = container_fits.get(container, {})
-                display = container.replace("rideshare-", "").title()
-
-                memory_fit = container_data.get("memory", {})
-                cpu_fit = container_data.get("cpu", {})
-
-                memory_best = memory_fit.get("best_fit")
-                cpu_best = cpu_fit.get("best_fit")
-
-                if memory_best or cpu_best:
-                    lines.append(f"### {display}")
-                    lines.append("")
-                    if memory_best:
-                        lines.append(
-                            f"- **Memory**: `{memory_best['formula']}` (R² = {memory_best['r_squared']:.3f})"
-                        )
-                    if cpu_best:
-                        lines.append(
-                            f"- **CPU**: `{cpu_best['formula']}` (R² = {cpu_best['r_squared']:.3f})"
-                        )
-                    lines.append("")
+            duration_agents = derived_config.get("duration_agent_count")
+            stress_drivers = derived_config.get("stress_drivers_queued")
+            if duration_agents and stress_drivers:
+                lines.append(
+                    f"The duration test used **{duration_agents} agents**, derived from "
+                    f"the stress test which queued {stress_drivers} drivers before reaching "
+                    "the resource threshold (duration_agents = stress_drivers // 2)."
+                )
+                lines.append("")
 
         # Recommendations
         if verdict.recommendations:

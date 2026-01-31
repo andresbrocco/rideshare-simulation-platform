@@ -1,6 +1,6 @@
 # Performance Testing Framework
 
-A performance testing framework to measure container resource usage, detect memory leaks, and generate resource scaling formulas for the rideshare simulation platform.
+A performance testing framework to measure container resource usage, detect memory leaks, and find resource thresholds for the rideshare simulation platform.
 
 ## Prerequisites
 
@@ -24,20 +24,10 @@ Run from the project root directory using the simulation venv.
 ./services/simulation/venv/bin/python -m tests.performance.runner run
 ```
 
-### Run Specific Scenarios
-```bash
-# Baseline only (0 agents)
-./services/simulation/venv/bin/python -m tests.performance.runner run -s baseline
-
-# Load scaling only (10, 20, 40, 80 agents)
-./services/simulation/venv/bin/python -m tests.performance.runner run -s load
-
-# Duration/leak test (single continuous 8-minute run with checkpoints at 1, 2, 4, 8 min)
-./services/simulation/venv/bin/python -m tests.performance.runner run -s duration
-
-# Reset behavior only
-./services/simulation/venv/bin/python -m tests.performance.runner run -s reset
-```
+This runs all three scenarios in sequence:
+1. **Baseline** - Measure idle resource usage
+2. **Stress Test** - Find maximum sustainable agent count
+3. **Duration/Leak** - Run with half the stress test agents to detect memory leaks
 
 ### Check Service Status
 ```bash
@@ -56,23 +46,61 @@ Run from the project root directory using the simulation venv.
 - 10s warmup, 30s sampling at 2s intervals
 - Establishes baseline for comparison
 
-### Load Scaling (10/20/40/80 agents)
-- Spawns N drivers + N riders with `mode=immediate`
-- Each agent level gets a clean environment restart
-- 5s settle time, 60s sampling
-- Generates scaling formulas (linear, power, log, exponential)
+### Stress Test
+- Spawns agents in batches until 90% CPU or memory threshold reached
+- Determines maximum sustainable agent count
+- Records which container and metric triggered the stop
+- Provides the agent count used for the duration test
 
-### Duration/Leak Detection (8-minute continuous run)
-- Single continuous test with 40 agents for 8 minutes (default)
+### Duration/Leak Detection
+- Runs for 8 minutes with agents derived from stress test (stress_drivers // 2)
 - Checkpoints recorded at 1, 2, 4, 8 minutes for trend analysis
 - Calculates slope per checkpoint segment and overall
 - Flags leak if any checkpoint slope > 1 MB/min
-- Single clean restart at start (not 4 separate tests)
 
-### Reset Behavior
-- Verifies memory returns to baseline after reset
-- Compares pre-load, under-load, and post-reset metrics
-- Passes if post-reset within 10% of baseline
+## Execution Flow
+
+```
+START
+  │
+  ▼
+┌──────────────┐
+│  1. Baseline │  (30s, 0 agents)
+│    Measure   │
+│ idle resources│
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│ 2. Stress    │  (until 90% threshold)
+│    Test      │
+│  Find max    │
+│  agents      │
+└──────┬───────┘
+       │
+       ├──── OOM or < 2 agents? ────▶ FAIL (save partial results)
+       │
+       ▼
+┌──────────────────────────────────┐
+│ Extract drivers_queued from      │
+│ stress test metadata             │
+│ duration_agents = drivers // 2   │
+└──────────────┬───────────────────┘
+               │
+               ▼
+┌──────────────┐
+│ 3. Duration  │  (8 min, N agents)
+│    Leak Test │
+│  Detect      │
+│  memory leaks│
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│   Analysis   │
+│   & Reports  │
+└──────────────┘
+```
 
 ## Test Protocol
 
@@ -100,34 +128,41 @@ Results are saved to `tests/performance/results/<timestamp>/`:
   "started_at": "2026-01-30T14:30:22Z",
   "completed_at": "2026-01-30T14:45:18Z",
   "config": { ... },
+  "derived_config": {
+    "duration_agent_count": 25,
+    "stress_drivers_queued": 50
+  },
   "scenarios": [
     {
-      "scenario_name": "load_scaling_40",
-      "scenario_params": {"drivers": 40, "riders": 40},
+      "scenario_name": "baseline",
+      "scenario_params": {...},
       "samples": [...],
       "oom_events": [],
       "aborted": false
+    },
+    {
+      "scenario_name": "stress_test",
+      "scenario_params": {...},
+      "metadata": {
+        "drivers_queued": 50,
+        "trigger": {"container": "rideshare-simulation", "metric": "memory", "value": 91.2}
+      }
+    },
+    {
+      "scenario_name": "duration_leak",
+      "scenario_params": {"drivers": 25, "riders": 25}
     }
   ],
-  "analysis": {
-    "rideshare-simulation": {
-      "best_fit": {
-        "fit_type": "linear",
-        "formula": "memory_mb = 2.45 * agents + 312.5",
-        "r_squared": 0.987
-      }
-    }
-  }
+  "analysis": {...}
 }
 ```
 
 ### Generated Charts (`charts/`)
-- `load_scaling_bar.html` + `.png` - Memory by container at each load level
-- `load_scaling_line.html` + `.png` - Memory vs agents with trend line
-- `duration_timeline.html` + `.png` - Memory over time for leak detection
-- `reset_comparison.html` + `.png` - Before/after reset comparison
-- `cpu_heatmap.html` + `.png` - CPU usage across scenarios/containers
-- `curve_fits.html` + `.png` - Scatter plot with all fit models
+- `overview/cpu_heatmap.html` + `.png` - CPU usage across scenarios/containers
+- `overview/memory_heatmap.html` + `.png` - Memory usage across scenarios/containers
+- `duration/duration_timeline_*.html` + `.png` - Memory over time for leak detection
+- `stress/stress_timeline_*.html` + `.png` - Resource usage during stress test
+- `stress/stress_comparison_*.html` + `.png` - Peak usage by container
 
 ## Configuration
 
@@ -136,7 +171,7 @@ Edit `config.py` to customize:
 - `APIConfig`: Simulation API URL and credentials
 - `DockerConfig`: cAdvisor URL, compose file path
 - `SamplingConfig`: Interval, warmup, settle times
-- `ScenarioConfig`: Load levels, duration times, tolerances
+- `ScenarioConfig`: Duration times, stress thresholds
 
 ## OOM Handling
 
@@ -144,27 +179,22 @@ Edit `config.py` to customize:
 - When OOM occurs:
   1. Event is logged with timestamp and container
   2. Scenario is marked as aborted
-  3. Testing continues with next scenario
+  3. If stress test OOMs, duration test cannot run (insufficient data)
 - Memory warnings logged when usage exceeds 95%
 
 ## Interpreting Results
 
-### Scaling Formula
-The best-fit formula predicts memory usage based on agent count:
-- **Linear**: `memory = slope * agents + intercept` - Good for stable systems
-- **Power**: `memory = a * agents^b + c` - Sub-linear growth is efficient
-- **Exponential**: Watch out! Memory grows faster than agent count
+### Stress Test Threshold
+The stress test stops when any container reaches 90% CPU or memory:
+- Records which container/metric triggered the stop
+- The number of drivers queued determines the duration test agent count
+- If < 2 drivers queued, the test fails (insufficient capacity)
 
 ### Leak Detection
 Memory slope in MB/min:
 - `< 0.5`: Normal fluctuation
 - `0.5 - 1.0`: Monitor closely
 - `> 1.0`: Potential leak, investigate
-
-### Reset Effectiveness
-Post-reset memory should be within 10% of baseline:
-- **PASS**: Memory properly released
-- **FAIL**: Memory not fully released, possible leak
 
 ## Troubleshooting
 
@@ -184,6 +214,5 @@ docker compose -f infrastructure/docker/compose.yml --profile core up -d
 - View logs: `docker compose ... logs simulation`
 
 ### OOM errors during tests
-- Reduce `load_levels` in config
 - Increase container memory limits in `compose.yml`
-- Run fewer scenarios at once
+- If stress test OOMs immediately, check baseline memory usage
