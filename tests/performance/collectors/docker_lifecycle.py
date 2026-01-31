@@ -3,11 +3,10 @@
 import subprocess
 import time
 from dataclasses import dataclass
-from typing import Any
 
 from rich.console import Console
 
-from ..config import TestConfig
+from ..config import CONTAINER_CONFIG, TestConfig
 
 console = Console()
 
@@ -35,27 +34,18 @@ class DockerLifecycleManager:
         """Get the base docker compose command with all profiles."""
         return self.config.get_compose_base_command()
 
-    def teardown_with_volumes(self, timeout: float = 300.0) -> tuple[bool, float]:
+    def teardown_with_volumes(self) -> tuple[bool, float]:
         """Tear down all containers and remove volumes.
-
-        Args:
-            timeout: Maximum time to wait for teardown.
 
         Returns:
             Tuple of (success, elapsed_seconds).
         """
         cmd = self.get_compose_command() + ["down", "-v"]
         console.print(f"[dim]Running: {' '.join(cmd)}[/dim]")
-        console.print(f"[dim]Timeout: {timeout:.0f}s[/dim]")
 
         start = time.time()
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True)
             elapsed = time.time() - start
 
             if result.returncode != 0:
@@ -67,36 +57,27 @@ class DockerLifecycleManager:
             console.print(f"[green]Teardown complete in {elapsed:.1f}s[/green]")
             return True, elapsed
 
-        except subprocess.TimeoutExpired:
-            elapsed = time.time() - start
-            console.print(f"[red]Teardown timed out after {elapsed:.1f}s[/red]")
-            return False, elapsed
         except Exception as e:
             elapsed = time.time() - start
             console.print(f"[red]Teardown error after {elapsed:.1f}s: {e}[/red]")
             return False, elapsed
 
-    def start_all_profiles(self, timeout: float = 900.0) -> tuple[bool, float]:
+    def start_all_profiles(self) -> tuple[bool, float]:
         """Start all containers with all profiles.
 
-        Args:
-            timeout: Maximum time to wait for startup.
+        Docker compose will wait for depends_on health conditions to be satisfied
+        before starting dependent containers, so this may take several minutes
+        for slow-starting services like Airflow.
 
         Returns:
             Tuple of (success, elapsed_seconds).
         """
         cmd = self.get_compose_command() + ["up", "-d"]
         console.print(f"[dim]Running: {' '.join(cmd)}[/dim]")
-        console.print(f"[dim]Timeout: {timeout:.0f}s[/dim]")
 
         start = time.time()
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True)
             elapsed = time.time() - start
 
             if result.returncode != 0:
@@ -114,15 +95,6 @@ class DockerLifecycleManager:
                 console.print(f"[dim]Started {len(lines)} containers[/dim]")
             return True, elapsed
 
-        except subprocess.TimeoutExpired:
-            elapsed = time.time() - start
-            console.print(
-                f"[red]Startup timed out after {elapsed:.1f}s (limit: {timeout:.0f}s)[/red]"
-            )
-            console.print(
-                "[yellow]Tip: Some containers may still be starting in the background[/yellow]"
-            )
-            return False, elapsed
         except Exception as e:
             elapsed = time.time() - start
             console.print(f"[red]Startup error after {elapsed:.1f}s: {e}[/red]")
@@ -180,188 +152,153 @@ class DockerLifecycleManager:
                 status=f"error: {e}",
             )
 
+    def _get_containers_for_profiles(self) -> list[str]:
+        """Get all container names for the active profiles.
+
+        Returns:
+            List of container names from CONTAINER_CONFIG matching active profiles.
+        """
+        active_profiles = self.config.docker.profiles
+        return [
+            name
+            for name, config in CONTAINER_CONFIG.items()
+            if config["profile"] in active_profiles
+        ]
+
+    def _get_display_name(self, container_name: str) -> str:
+        """Get display name for a container.
+
+        Args:
+            container_name: Full container name (e.g., rideshare-kafka).
+
+        Returns:
+            Display name from config or stripped container name.
+        """
+        config = CONTAINER_CONFIG.get(container_name)
+        if config:
+            return config["display_name"]
+        # Fallback: strip 'rideshare-' prefix
+        return container_name.replace("rideshare-", "").title()
+
     def wait_for_healthy(
         self,
-        timeout: float = 900.0,
-        check_interval: float = 5.0,
         required_containers: list[str] | None = None,
+        check_interval: float = 5.0,
     ) -> tuple[bool, float]:
         """Wait for all containers to be healthy.
 
         Args:
-            timeout: Maximum time to wait.
-            check_interval: Time between health checks.
             required_containers: List of container names to wait for.
-                               If None, uses core containers.
+                               If None, uses ALL containers from active profiles.
+            check_interval: Time between health checks.
 
         Returns:
             Tuple of (success, elapsed_seconds).
         """
         if required_containers is None:
-            # Default to core containers that must be healthy
-            required_containers = [
-                "rideshare-kafka",
-                "rideshare-redis",
-                "rideshare-osrm",
-                "rideshare-simulation",
-                "rideshare-cadvisor",
-                "rideshare-stream-processor",
-                "rideshare-frontend",
-            ]
+            required_containers = self._get_containers_for_profiles()
 
         start_time = time.time()
-        console.print(
-            f"[cyan]Waiting for {len(required_containers)} containers to be healthy...[/cyan]"
-        )
-        console.print(f"[dim]Timeout: {timeout:.0f}s[/dim]")
-        console.print(f"[dim]Containers: {', '.join(required_containers)}[/dim]")
+        total_containers = len(required_containers)
+        last_status_time = 0.0
 
-        while time.time() - start_time < timeout:
-            unhealthy = []
-            healthy_list = []
+        console.print(f"[cyan]Waiting for {total_containers} containers to be healthy...[/cyan]")
+
+        while True:
+            unhealthy_details: list[tuple[str, str]] = []  # (display_name, status)
+            healthy_count = 0
+
             for container in required_containers:
                 health = self.get_container_health(container)
-                if not health.healthy:
-                    unhealthy.append(f"{container}({health.status})")
+                if health.healthy:
+                    healthy_count += 1
                 else:
-                    healthy_list.append(container)
+                    display_name = self._get_display_name(container)
+                    unhealthy_details.append((display_name, health.status))
 
-            if not unhealthy:
-                elapsed = time.time() - start_time
+            elapsed = time.time() - start_time
+
+            if healthy_count == total_containers:
                 console.print(
-                    f"[green]All {len(required_containers)} containers healthy in {elapsed:.1f}s[/green]"
+                    f"[green]All {total_containers} containers healthy "
+                    f"in {elapsed:.1f}s[/green]"
                 )
                 return True, elapsed
 
-            elapsed = time.time() - start_time
-            remaining = timeout - elapsed
-            console.print(
-                f"[yellow]Waiting... {elapsed:.0f}s elapsed, {remaining:.0f}s remaining | "
-                f"Healthy: {len(healthy_list)}/{len(required_containers)} | "
-                f"Unhealthy: {', '.join(unhealthy[:3])}"
-                f"{'...' if len(unhealthy) > 3 else ''}[/yellow]"
-            )
-            time.sleep(check_interval)
+            # Show progress every 15 seconds
+            if elapsed - last_status_time >= 15.0:
+                last_status_time = elapsed
+                unhealthy_names = [f"{name} ({status})" for name, status in unhealthy_details[:5]]
+                if len(unhealthy_details) > 5:
+                    unhealthy_names.append(f"...and {len(unhealthy_details) - 5} more")
+                console.print(
+                    f"[yellow]Waiting... {elapsed:.0f}s | "
+                    f"Healthy: {healthy_count}/{total_containers} | "
+                    f"{', '.join(unhealthy_names)}[/yellow]"
+                )
 
-        elapsed = time.time() - start_time
-        console.print(f"[red]Timeout waiting for containers after {elapsed:.1f}s[/red]")
-        # Show final status of each container
-        for container in required_containers:
-            health = self.get_container_health(container)
-            status_color = "green" if health.healthy else "red"
-            console.print(f"[{status_color}]  {container}: {health.status}[/{status_color}]")
-        return False, elapsed
+            time.sleep(check_interval)
 
     def _log_container_states(self) -> None:
         """Log the current state of all expected containers for diagnostics."""
         console.print("\n[yellow]Container diagnostics:[/yellow]")
-        expected_containers = [
-            "rideshare-kafka",
-            "rideshare-redis",
-            "rideshare-osrm",
-            "rideshare-simulation",
-            "rideshare-cadvisor",
-            "rideshare-stream-processor",
-            "rideshare-frontend",
-            "rideshare-minio",
-            "rideshare-spark-thrift-server",
-            "rideshare-bronze-ingestion-high-volume",
-            "rideshare-bronze-ingestion-low-volume",
-            "rideshare-airflow-webserver",
-            "rideshare-airflow-scheduler",
-            "rideshare-prometheus",
-            "rideshare-grafana",
-        ]
-        for container in expected_containers:
+        expected_containers = self._get_containers_for_profiles()
+        for container in sorted(expected_containers):
             health = self.get_container_health(container)
-            status_icon = "[green]OK[/green]" if health.healthy else "[red]FAIL[/red]"
+            display_name = self._get_display_name(container)
+            status_icon = "[green]✓[/green]" if health.healthy else "[red]✗[/red]"
             console.print(
-                f"  {status_icon} {container}: running={health.running}, status={health.status}"
+                f"  {status_icon} {display_name} ({container}): "
+                f"running={health.running}, status={health.status}"
             )
 
-    def clean_restart(self, timeout: float = 1800.0) -> bool:
+    def clean_restart(self) -> bool:
         """Perform a clean restart: teardown with volumes, start fresh.
 
-        Uses dynamic timeout allocation: each phase gets remaining time
-        proportionally, so fast phases give more time to slower phases.
-
-        Args:
-            timeout: Total timeout for the entire operation (default 30 min).
+        Steps:
+        1. Teardown all containers and volumes
+        2. Start all containers (docker compose waits for depends_on health)
+        3. Verify all containers are healthy
 
         Returns:
             True if restart succeeded, False otherwise.
         """
+        all_containers = self._get_containers_for_profiles()
+
         console.print("[bold cyan]Performing clean restart...[/bold cyan]")
-        console.print(f"[dim]Total timeout budget: {timeout:.0f}s ({timeout/60:.0f} min)[/dim]")
+        console.print(f"[dim]Containers to start: {len(all_containers)}[/dim]")
 
         overall_start = time.time()
-        phase_results: dict[str, dict[str, Any]] = {}
 
-        # Phase 1: Teardown (usually fast, allocate 10% max)
-        teardown_timeout = min(timeout * 0.1, 300.0)  # Cap at 5 minutes
-        console.print("\n[bold]Phase 1/3: Teardown[/bold]")
-        success, teardown_elapsed = self.teardown_with_volumes(timeout=teardown_timeout)
-        phase_results["teardown"] = {
-            "success": success,
-            "elapsed_seconds": teardown_elapsed,
-            "timeout": teardown_timeout,
-        }
+        # Step 1: Teardown
+        console.print("\n[bold]Step 1/3: Teardown[/bold]")
+        success, _ = self.teardown_with_volumes()
         if not success:
-            console.print("[red]Phase 1 FAILED: Teardown did not complete[/red]")
-            console.print(f"[dim]Phase results: {phase_results}[/dim]")
+            console.print("[red]Step 1 FAILED: Teardown did not complete[/red]")
             return False
 
-        # Wait a moment for resources to be released
+        # Brief pause for resources to be released
         time.sleep(2.0)
 
-        # Calculate remaining time
-        total_elapsed = time.time() - overall_start
-        remaining = timeout - total_elapsed
-        console.print(f"[dim]Time used: {total_elapsed:.1f}s | Remaining: {remaining:.1f}s[/dim]")
-
-        if remaining < 30:
-            console.print("[red]Not enough time remaining for startup[/red]")
-            return False
-
-        # Phase 2: Start containers (allocate 15% of remaining, cap at 5 min)
-        startup_timeout = min(remaining * 0.15, 300.0)  # Cap at 5 min
-        console.print("\n[bold]Phase 2/3: Start containers[/bold]")
-        success, startup_elapsed = self.start_all_profiles(timeout=startup_timeout)
-        phase_results["startup"] = {
-            "success": success,
-            "elapsed_seconds": startup_elapsed,
-            "timeout": startup_timeout,
-        }
+        # Step 2: Start containers
+        console.print("\n[bold]Step 2/3: Start containers[/bold]")
+        console.print("[dim]Docker compose will wait for depends_on health conditions[/dim]")
+        success, _ = self.start_all_profiles()
         if not success:
-            console.print("[red]Phase 2 FAILED: Container startup did not complete[/red]")
-            console.print(f"[dim]Phase results: {phase_results}[/dim]")
+            console.print("[red]Step 2 FAILED: Container startup failed[/red]")
             self._log_container_states()
             return False
 
-        # Calculate remaining time for health checks
-        total_elapsed = time.time() - overall_start
-        remaining = timeout - total_elapsed
-        console.print(f"[dim]Time used: {total_elapsed:.1f}s | Remaining: {remaining:.1f}s[/dim]")
-
-        if remaining < 30:
-            console.print("[red]Not enough time remaining for health checks[/red]")
+        # Step 3: Verify all containers are healthy
+        console.print("\n[bold]Step 3/3: Verify all containers healthy[/bold]")
+        success, _ = self.wait_for_healthy(required_containers=all_containers)
+        if not success:
+            console.print("[red]Step 3 FAILED: Not all containers healthy[/red]")
             return False
 
-        # Phase 3: Wait for healthy (use all remaining time)
-        console.print("\n[bold]Phase 3/3: Wait for healthy[/bold]")
-        success, health_elapsed = self.wait_for_healthy(timeout=remaining)
-        phase_results["health_check"] = {
-            "success": success,
-            "elapsed_seconds": health_elapsed,
-            "timeout": remaining,
-        }
-
         total_elapsed = time.time() - overall_start
-        if success:
-            console.print(f"\n[green]Clean restart completed in {total_elapsed:.1f}s[/green]")
-        else:
-            console.print(f"\n[red]Clean restart failed after {total_elapsed:.1f}s[/red]")
-            console.print(f"[dim]Phase results: {phase_results}[/dim]")
-            self._log_container_states()
-
-        return success
+        console.print(
+            f"\n[green]Clean restart completed in {total_elapsed:.1f}s "
+            f"({total_elapsed/60:.1f} min)[/green]"
+        )
+        return True

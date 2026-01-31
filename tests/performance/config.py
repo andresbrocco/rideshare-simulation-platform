@@ -173,6 +173,18 @@ CONTAINER_CONFIG: dict[str, dict[str, str]] = {
 }
 
 
+def get_containers_for_profiles(profiles: list[str]) -> list[str]:
+    """Get all container names for the given profiles.
+
+    Args:
+        profiles: List of profile names (e.g., ["core", "data-pipeline"]).
+
+    Returns:
+        List of container names belonging to those profiles.
+    """
+    return [name for name, config in CONTAINER_CONFIG.items() if config["profile"] in profiles]
+
+
 @dataclass
 class TestConfig:
     """Main configuration combining all settings."""
@@ -190,3 +202,7 @@ class TestConfig:
         for profile in self.docker.profiles:
             cmd.extend(["--profile", profile])
         return cmd
+
+    def get_all_containers(self) -> list[str]:
+        """Get all container names for the configured profiles."""
+        return get_containers_for_profiles(self.docker.profiles)
