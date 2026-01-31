@@ -468,12 +468,7 @@ def cli() -> None:
 
 
 @cli.command()
-@click.option(
-    "--skip-restart",
-    is_flag=True,
-    help="Skip clean restart between scenarios (faster but less accurate)",
-)
-def run(skip_restart: bool) -> None:
+def run() -> None:
     """Run all performance test scenarios in sequence.
 
     Executes three scenarios in order:
@@ -530,7 +525,6 @@ def run(skip_restart: bool) -> None:
             stats_collector,
             api_client,
             oom_detector,
-            skip_clean_restart=skip_restart,
         )
         scenario_results.append(_result_to_dict(baseline_result))
 
@@ -547,7 +541,6 @@ def run(skip_restart: bool) -> None:
             stats_collector,
             api_client,
             oom_detector,
-            skip_clean_restart=skip_restart,
         )
         scenario_results.append(_result_to_dict(stress_result))
 
@@ -596,7 +589,6 @@ def run(skip_restart: bool) -> None:
                     api_client,
                     oom_detector,
                     agent_count=duration_agent_count,
-                    skip_clean_restart=skip_restart,
                 )
                 scenario_results.append(_result_to_dict(duration_result))
 

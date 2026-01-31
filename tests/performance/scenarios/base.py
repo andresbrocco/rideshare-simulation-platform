@@ -49,14 +49,12 @@ class BaseScenario(ABC):
         stats_collector: DockerStatsCollector,
         api_client: SimulationAPIClient,
         oom_detector: OOMDetector,
-        skip_clean_restart: bool = False,
     ) -> None:
         self.config = config
         self.lifecycle = lifecycle
         self.stats_collector = stats_collector
         self.api_client = api_client
         self.oom_detector = oom_detector
-        self.skip_clean_restart = skip_clean_restart
         self._samples: list[dict[str, Any]] = []
         self._oom_events: list[OOMEvent] = []
         self._aborted = False
@@ -85,7 +83,7 @@ class BaseScenario(ABC):
         """Whether this scenario requires a clean Docker restart before running.
 
         Scenarios can override to False when they can safely reuse the
-        previous scenario's container state. Ignored when --skip-restart is used.
+        previous scenario's container state.
         """
         return True
 
@@ -93,8 +91,8 @@ class BaseScenario(ABC):
         """Step 0: Clean environment before scenario.
 
         Performs:
-        1. docker compose down -v (unless skip_clean_restart is True)
-        2. docker compose up -d (unless skip_clean_restart is True)
+        1. docker compose down -v (unless requires_clean_restart is False)
+        2. docker compose up -d (unless requires_clean_restart is False)
         3. Wait for healthy
 
         Returns:
@@ -103,20 +101,15 @@ class BaseScenario(ABC):
         console.print(f"\n[bold cyan]Setting up scenario: {self.name}[/bold cyan]")
         console.print(f"[dim]{self.description}[/dim]")
 
-        # Determine if restart should happen
-        should_restart = not self.skip_clean_restart and self.requires_clean_restart
-
-        if not should_restart:
-            if self.skip_clean_restart:
-                console.print("[yellow]Skipping clean restart (--skip-restart flag)[/yellow]")
-            else:
-                console.print(
-                    f"[yellow]Skipping clean restart ({self.name} reuses previous state)[/yellow]"
-                )
-        else:
+        # Clean restart (unless scenario declares it can reuse previous state)
+        if self.requires_clean_restart:
             if not self.lifecycle.clean_restart():
                 console.print("[red]Setup failed: could not restart containers[/red]")
                 return False
+        else:
+            console.print(
+                f"[yellow]Skipping clean restart ({self.name} reuses previous state)[/yellow]"
+            )
 
         # Wait for API to be available
         console.print("[cyan]Waiting for Simulation API...[/cyan]")
