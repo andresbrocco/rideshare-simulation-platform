@@ -25,6 +25,8 @@ spec:
         - 512m
         - --conf
         - spark.driver.maxResultSize=256m
+        - --conf
+        - spark.driver.extraJavaOptions=-XX:+UseG1GC -XX:MaxGCPauseMillis=50 -XX:InitiatingHeapOccupancyPercent=35 -XX:+ExplicitGCInvokesConcurrent
         - --class
         - org.apache.spark.sql.hive.thriftserver.HiveThriftServer2
         - --name
@@ -39,9 +41,9 @@ spec:
         - hive.server2.transport.mode=binary
         resources:
           limits:
-            memory: "1024Mi"
+            memory: "2048Mi"
           requests:
-            memory: "512Mi"
+            memory: "1024Mi"
         ports:
         - containerPort: 10000
           name: thrift

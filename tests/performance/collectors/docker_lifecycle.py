@@ -3,6 +3,7 @@
 import subprocess
 import time
 from dataclasses import dataclass
+from typing import Any
 
 from rich.console import Console
 
@@ -204,6 +205,8 @@ class DockerLifecycleManager:
                 "rideshare-osrm",
                 "rideshare-simulation",
                 "rideshare-cadvisor",
+                "rideshare-stream-processor",
+                "rideshare-frontend",
             ]
 
         start_time = time.time()
@@ -249,6 +252,33 @@ class DockerLifecycleManager:
             console.print(f"[{status_color}]  {container}: {health.status}[/{status_color}]")
         return False, elapsed
 
+    def _log_container_states(self) -> None:
+        """Log the current state of all expected containers for diagnostics."""
+        console.print("\n[yellow]Container diagnostics:[/yellow]")
+        expected_containers = [
+            "rideshare-kafka",
+            "rideshare-redis",
+            "rideshare-osrm",
+            "rideshare-simulation",
+            "rideshare-cadvisor",
+            "rideshare-stream-processor",
+            "rideshare-frontend",
+            "rideshare-minio",
+            "rideshare-spark-thrift-server",
+            "rideshare-bronze-ingestion-high-volume",
+            "rideshare-bronze-ingestion-low-volume",
+            "rideshare-airflow-webserver",
+            "rideshare-airflow-scheduler",
+            "rideshare-prometheus",
+            "rideshare-grafana",
+        ]
+        for container in expected_containers:
+            health = self.get_container_health(container)
+            status_icon = "[green]OK[/green]" if health.healthy else "[red]FAIL[/red]"
+            console.print(
+                f"  {status_icon} {container}: running={health.running}, status={health.status}"
+            )
+
     def clean_restart(self, timeout: float = 1800.0) -> bool:
         """Perform a clean restart: teardown with volumes, start fresh.
 
@@ -265,12 +295,20 @@ class DockerLifecycleManager:
         console.print(f"[dim]Total timeout budget: {timeout:.0f}s ({timeout/60:.0f} min)[/dim]")
 
         overall_start = time.time()
+        phase_results: dict[str, dict[str, Any]] = {}
 
         # Phase 1: Teardown (usually fast, allocate 10% max)
         teardown_timeout = min(timeout * 0.1, 300.0)  # Cap at 5 minutes
         console.print("\n[bold]Phase 1/3: Teardown[/bold]")
         success, teardown_elapsed = self.teardown_with_volumes(timeout=teardown_timeout)
+        phase_results["teardown"] = {
+            "success": success,
+            "elapsed_seconds": teardown_elapsed,
+            "timeout": teardown_timeout,
+        }
         if not success:
+            console.print("[red]Phase 1 FAILED: Teardown did not complete[/red]")
+            console.print(f"[dim]Phase results: {phase_results}[/dim]")
             return False
 
         # Wait a moment for resources to be released
@@ -285,11 +323,19 @@ class DockerLifecycleManager:
             console.print("[red]Not enough time remaining for startup[/red]")
             return False
 
-        # Phase 2: Start containers (allocate 40% of remaining)
-        startup_timeout = remaining * 0.4
+        # Phase 2: Start containers (allocate 15% of remaining, cap at 5 min)
+        startup_timeout = min(remaining * 0.15, 300.0)  # Cap at 5 min
         console.print("\n[bold]Phase 2/3: Start containers[/bold]")
         success, startup_elapsed = self.start_all_profiles(timeout=startup_timeout)
+        phase_results["startup"] = {
+            "success": success,
+            "elapsed_seconds": startup_elapsed,
+            "timeout": startup_timeout,
+        }
         if not success:
+            console.print("[red]Phase 2 FAILED: Container startup did not complete[/red]")
+            console.print(f"[dim]Phase results: {phase_results}[/dim]")
+            self._log_container_states()
             return False
 
         # Calculate remaining time for health checks
@@ -304,11 +350,18 @@ class DockerLifecycleManager:
         # Phase 3: Wait for healthy (use all remaining time)
         console.print("\n[bold]Phase 3/3: Wait for healthy[/bold]")
         success, health_elapsed = self.wait_for_healthy(timeout=remaining)
+        phase_results["health_check"] = {
+            "success": success,
+            "elapsed_seconds": health_elapsed,
+            "timeout": remaining,
+        }
 
         total_elapsed = time.time() - overall_start
         if success:
             console.print(f"\n[green]Clean restart completed in {total_elapsed:.1f}s[/green]")
         else:
             console.print(f"\n[red]Clean restart failed after {total_elapsed:.1f}s[/red]")
+            console.print(f"[dim]Phase results: {phase_results}[/dim]")
+            self._log_container_states()
 
         return success

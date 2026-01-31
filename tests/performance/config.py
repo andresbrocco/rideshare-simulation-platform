@@ -65,15 +65,56 @@ class ScenarioConfig:
 
 
 @dataclass
+class ThresholdConfig:
+    """Configurable thresholds for performance analysis."""
+
+    # Memory thresholds
+    memory_leak_mb_per_min: float = 1.0
+    memory_warning_percent: float = 70.0
+    memory_critical_percent: float = 85.0
+
+    # CPU thresholds
+    cpu_leak_percent_per_min: float = 5.0
+    cpu_warning_percent: float = 70.0
+    cpu_critical_percent: float = 85.0
+
+    # Per-container overrides (container_name -> {threshold_name: value})
+    container_overrides: dict[str, dict[str, float]] = field(default_factory=dict)
+
+    def get_memory_leak_threshold(self, container: str) -> float:
+        """Get memory leak threshold for container."""
+        overrides = self.container_overrides.get(container, {})
+        return overrides.get("memory_leak_mb_per_min", self.memory_leak_mb_per_min)
+
+    def get_memory_warning_percent(self, container: str) -> float:
+        """Get memory warning threshold for container."""
+        overrides = self.container_overrides.get(container, {})
+        return overrides.get("memory_warning_percent", self.memory_warning_percent)
+
+    def get_memory_critical_percent(self, container: str) -> float:
+        """Get memory critical threshold for container."""
+        overrides = self.container_overrides.get(container, {})
+        return overrides.get("memory_critical_percent", self.memory_critical_percent)
+
+    def get_cpu_warning_percent(self, container: str) -> float:
+        """Get CPU warning threshold for container."""
+        overrides = self.container_overrides.get(container, {})
+        return overrides.get("cpu_warning_percent", self.cpu_warning_percent)
+
+    def get_cpu_critical_percent(self, container: str) -> float:
+        """Get CPU critical threshold for container."""
+        overrides = self.container_overrides.get(container, {})
+        return overrides.get("cpu_critical_percent", self.cpu_critical_percent)
+
+
+@dataclass
 class AnalysisConfig:
     """Configuration for analysis and visualization."""
 
     # None = analyze all containers; otherwise filter to these
     focus_containers: list[str] | None = None
-    # Memory leak threshold (MB per minute)
-    leak_threshold_mb_per_min: float = 1.0
-    # CPU leak threshold (percentage points per minute)
-    cpu_leak_threshold_per_min: float = 5.0
+    # Configurable thresholds
+    thresholds: ThresholdConfig = field(default_factory=ThresholdConfig)
     # Maximum containers per chart (for readability)
     max_containers_per_chart: int = 10
     # Priority containers shown first in summaries/charts
@@ -86,6 +127,16 @@ class AnalysisConfig:
             "rideshare-stream-processor",
         ]
     )
+
+    @property
+    def leak_threshold_mb_per_min(self) -> float:
+        """Backward compatibility: delegate to thresholds."""
+        return self.thresholds.memory_leak_mb_per_min
+
+    @property
+    def cpu_leak_threshold_per_min(self) -> float:
+        """Backward compatibility: delegate to thresholds."""
+        return self.thresholds.cpu_leak_percent_per_min
 
 
 # Container configuration - mirrors CONTAINER_CONFIG from metrics.py

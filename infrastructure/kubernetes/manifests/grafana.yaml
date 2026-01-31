@@ -49,9 +49,9 @@ spec:
         image: grafana/grafana:12.3.1
         resources:
           limits:
-            memory: "192Mi"
+            memory: "384Mi"
           requests:
-            memory: "96Mi"
+            memory: "192Mi"
         ports:
         - containerPort: 3000
           name: web

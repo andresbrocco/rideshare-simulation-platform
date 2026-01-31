@@ -194,6 +194,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 90s
+    restart: unless-stopped
 
   stream-processor:
     build:
@@ -849,7 +851,7 @@ services:
   superset:
     image: apache/superset:6.0.0
     container_name: rideshare-superset
-    mem_limit: 768m
+    mem_limit: 2g
     profiles:
       - analytics
     ports:
@@ -858,6 +860,9 @@ services:
     environment:
       SUPERSET_SECRET_KEY: dev-secret-key-change-in-production
       PYTHONPATH: /tmp/python-packages:/app/pythonpath
+      SERVER_WORKER_AMOUNT: "2"
+      GUNICORN_MAX_REQUESTS: "1000"
+      GUNICORN_MAX_REQUESTS_JITTER: "100"
     volumes:
       - ../../analytics/superset/superset_config.py:/app/pythonpath/superset_config.py:ro
       - ../../analytics/superset/docker-entrypoint.sh:/app/docker-entrypoint.sh:ro

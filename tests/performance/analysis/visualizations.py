@@ -48,7 +48,10 @@ class ChartGenerator:
 
         # Duration/leak timeline
         duration_scenarios = [
-            s for s in scenarios if s["scenario_name"].startswith("duration_leak_")
+            s
+            for s in scenarios
+            if s["scenario_name"] == "duration_leak"
+            or s["scenario_name"].startswith("duration_leak_")
         ]
         if duration_scenarios:
             generated.extend(self.generate_duration_timeline(duration_scenarios))
@@ -1188,3 +1191,212 @@ class ChartGenerator:
             generated.extend([str(html_path), str(png_path)])
 
         return generated
+
+    def _create_scenario_subdirs(self) -> dict[str, Path]:
+        """Create subdirectories for organizing charts by scenario type.
+
+        Returns:
+            Dictionary mapping scenario type to its directory path.
+        """
+        subdirs = {
+            "overview": self.charts_dir / "overview",
+            "load_scaling": self.charts_dir / "load_scaling",
+            "duration": self.charts_dir / "duration",
+            "reset": self.charts_dir / "reset",
+            "stress": self.charts_dir / "stress",
+        }
+
+        for subdir in subdirs.values():
+            subdir.mkdir(parents=True, exist_ok=True)
+
+        return subdirs
+
+    def generate_charts_by_scenario(self, results: dict[str, Any]) -> dict[str, list[str]]:
+        """Generate charts organized into scenario subdirectories.
+
+        Args:
+            results: Full test results dict.
+
+        Returns:
+            Dictionary mapping scenario type to list of generated chart paths.
+        """
+        subdirs = self._create_scenario_subdirs()
+        chart_paths: dict[str, list[str]] = {key: [] for key in subdirs}
+
+        scenarios = results.get("scenarios", [])
+
+        # Overview charts (heatmaps)
+        if scenarios:
+            # Temporarily change charts_dir for overview charts
+            original_dir = self.charts_dir
+            self.charts_dir = subdirs["overview"]
+            chart_paths["overview"].extend(self.generate_cpu_heatmap(scenarios))
+            chart_paths["overview"].extend(self.generate_memory_heatmap(scenarios))
+            self.charts_dir = original_dir
+
+        # Load scaling charts
+        load_scenarios = [s for s in scenarios if s["scenario_name"].startswith("load_scaling_")]
+        if load_scenarios:
+            original_dir = self.charts_dir
+            self.charts_dir = subdirs["load_scaling"]
+            chart_paths["load_scaling"].extend(self.generate_load_scaling_bar(load_scenarios))
+            chart_paths["load_scaling"].extend(self.generate_load_scaling_line(load_scenarios))
+            chart_paths["load_scaling"].extend(self.generate_curve_fits(load_scenarios, results))
+            self.charts_dir = original_dir
+
+        # Duration/leak charts
+        duration_scenarios = [
+            s
+            for s in scenarios
+            if s["scenario_name"] == "duration_leak"
+            or s["scenario_name"].startswith("duration_leak_")
+        ]
+        if duration_scenarios:
+            original_dir = self.charts_dir
+            self.charts_dir = subdirs["duration"]
+            chart_paths["duration"].extend(self.generate_duration_timeline(duration_scenarios))
+            self.charts_dir = original_dir
+
+        # Reset charts
+        reset_scenarios = [s for s in scenarios if s["scenario_name"] == "reset_behavior"]
+        if reset_scenarios:
+            original_dir = self.charts_dir
+            self.charts_dir = subdirs["reset"]
+            chart_paths["reset"].extend(self.generate_reset_comparison(reset_scenarios[0]))
+            self.charts_dir = original_dir
+
+        # Stress test charts
+        stress_scenarios = [s for s in scenarios if s["scenario_name"] == "stress_test"]
+        if stress_scenarios:
+            original_dir = self.charts_dir
+            self.charts_dir = subdirs["stress"]
+            chart_paths["stress"].extend(self.generate_stress_timeline(stress_scenarios[0]))
+            chart_paths["stress"].extend(self.generate_stress_comparison(stress_scenarios[0]))
+            self.charts_dir = original_dir
+
+        # Generate index page
+        index_path = self.generate_index_html(chart_paths)
+        if index_path:
+            chart_paths["overview"].insert(0, str(index_path))
+
+        return chart_paths
+
+    def generate_index_html(self, chart_paths: dict[str, list[str]]) -> Path | None:
+        """Generate HTML navigation page linking all charts.
+
+        Args:
+            chart_paths: Dictionary mapping scenario type to list of chart paths.
+
+        Returns:
+            Path to generated index.html, or None if no charts.
+        """
+        total_charts = sum(len(paths) for paths in chart_paths.values())
+        if total_charts == 0:
+            return None
+
+        html_content = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Performance Test Charts</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 { color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+        h2 { color: #555; margin-top: 30px; }
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 15px;
+        }
+        .chart-card {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-card a {
+            color: #007bff;
+            text-decoration: none;
+            display: block;
+            margin: 5px 0;
+        }
+        .chart-card a:hover { text-decoration: underline; }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+        .badge-html { background: #e3f2fd; color: #1976d2; }
+        .badge-png { background: #f3e5f5; color: #7b1fa2; }
+        .section-empty { color: #999; font-style: italic; }
+    </style>
+</head>
+<body>
+    <h1>Performance Test Charts</h1>
+"""
+
+        section_titles = {
+            "overview": "Overview",
+            "load_scaling": "Load Scaling",
+            "duration": "Duration/Leak Tests",
+            "reset": "Reset Behavior",
+            "stress": "Stress Tests",
+        }
+
+        for section_key, section_title in section_titles.items():
+            paths = chart_paths.get(section_key, [])
+            html_content += f"    <h2>{section_title}</h2>\n"
+
+            if not paths:
+                html_content += '    <p class="section-empty">No charts generated</p>\n'
+                continue
+
+            html_content += '    <div class="chart-grid">\n'
+
+            # Group by base name (html and png pairs)
+            seen_bases: set[str] = set()
+            for path in paths:
+                p = Path(path)
+                base_name = p.stem
+                if base_name in seen_bases:
+                    continue
+                seen_bases.add(base_name)
+
+                # Find all variants
+                html_path = p.with_suffix(".html")
+                png_path = p.with_suffix(".png")
+
+                html_content += '        <div class="chart-card">\n'
+                html_content += (
+                    f"            <strong>{base_name.replace('_', ' ').title()}</strong><br>\n"
+                )
+
+                rel_dir = p.parent.name
+                if html_path.exists() or str(html_path) in paths:
+                    html_content += f'            <a href="{rel_dir}/{html_path.name}">Interactive <span class="badge badge-html">HTML</span></a>\n'
+                if png_path.exists() or str(png_path) in paths:
+                    html_content += f'            <a href="{rel_dir}/{png_path.name}">Static <span class="badge badge-png">PNG</span></a>\n'
+
+                html_content += "        </div>\n"
+
+            html_content += "    </div>\n"
+
+        html_content += """</body>
+</html>
+"""
+
+        index_path = self.charts_dir / "index.html"
+        with open(index_path, "w") as f:
+            f.write(html_content)
+
+        return index_path
