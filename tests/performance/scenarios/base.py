@@ -80,6 +80,15 @@ class BaseScenario(ABC):
         """Scenario-specific parameters."""
         return {}
 
+    @property
+    def requires_clean_restart(self) -> bool:
+        """Whether this scenario requires a clean Docker restart before running.
+
+        Scenarios can override to False when they can safely reuse the
+        previous scenario's container state. Ignored when --skip-restart is used.
+        """
+        return True
+
     def setup(self) -> bool:
         """Step 0: Clean environment before scenario.
 
@@ -94,9 +103,16 @@ class BaseScenario(ABC):
         console.print(f"\n[bold cyan]Setting up scenario: {self.name}[/bold cyan]")
         console.print(f"[dim]{self.description}[/dim]")
 
-        # Clean restart (unless skipped for faster iteration)
-        if self.skip_clean_restart:
-            console.print("[yellow]Skipping clean restart (--skip-restart flag)[/yellow]")
+        # Determine if restart should happen
+        should_restart = not self.skip_clean_restart and self.requires_clean_restart
+
+        if not should_restart:
+            if self.skip_clean_restart:
+                console.print("[yellow]Skipping clean restart (--skip-restart flag)[/yellow]")
+            else:
+                console.print(
+                    f"[yellow]Skipping clean restart ({self.name} reuses previous state)[/yellow]"
+                )
         else:
             if not self.lifecycle.clean_restart():
                 console.print("[red]Setup failed: could not restart containers[/red]")

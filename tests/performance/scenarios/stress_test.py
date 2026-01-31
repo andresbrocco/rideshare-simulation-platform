@@ -115,6 +115,11 @@ class StressTestScenario(BaseScenario):
         return "stress_test"
 
     @property
+    def requires_clean_restart(self) -> bool:
+        """Stress test reuses baseline's idle state (0 agents)."""
+        return False
+
+    @property
     def description(self) -> str:
         return (
             f"Stress test: spawn agents until {self.params['cpu_threshold_percent']}% CPU "
