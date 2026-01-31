@@ -383,6 +383,7 @@ services:
       --master local[2]
       --driver-memory 1536m
       --conf spark.driver.maxResultSize=512m
+      --conf "spark.driver.extraJavaOptions=-XX:+UseG1GC -XX:MaxGCPauseMillis=50 -XX:InitiatingHeapOccupancyPercent=35 -XX:+ExplicitGCInvokesConcurrent"
       --class org.apache.spark.sql.hive.thriftserver.HiveThriftServer2
       --name "Thrift JDBC/ODBC Server"
       --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
@@ -394,6 +395,10 @@ services:
       --conf spark.hadoop.fs.s3a.connection.ssl.enabled=false
       --conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
       --conf spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
+      --conf spark.hadoop.fs.s3a.threads.max=64
+      --conf spark.hadoop.fs.s3a.connection.pool.size=64
+      --conf spark.hadoop.fs.s3a.connection.establish.timeout=5000
+      --conf spark.hadoop.fs.s3a.connection.timeout=200000
       --conf spark.sql.warehouse.dir=s3a://rideshare-silver/warehouse/
       --hiveconf hive.server2.thrift.port=10000
       --hiveconf hive.server2.thrift.bind.host=0.0.0.0
@@ -443,6 +448,7 @@ services:
       /opt/spark/bin/spark-submit
       --master local[2]
       --driver-memory 512m
+      --conf "spark.driver.extraJavaOptions=-XX:+UseG1GC -XX:MaxGCPauseMillis=50 -XX:InitiatingHeapOccupancyPercent=35"
       --name "streaming_high_volume"
       --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
       --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
@@ -487,6 +493,7 @@ services:
       /opt/spark/bin/spark-submit
       --master local[2]
       --driver-memory 512m
+      --conf "spark.driver.extraJavaOptions=-XX:+UseG1GC -XX:MaxGCPauseMillis=50 -XX:InitiatingHeapOccupancyPercent=35"
       --name "streaming_low_volume"
       --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
       --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
@@ -621,7 +628,7 @@ services:
   airflow-scheduler:
     image: apache/airflow:3.1.5
     container_name: rideshare-airflow-scheduler
-    mem_limit: 384m
+    mem_limit: 768m
     profiles:
       - data-pipeline
     environment:
@@ -723,7 +730,7 @@ services:
   grafana:
     image: grafana/grafana:12.3.1
     container_name: rideshare-grafana
-    mem_limit: 192m
+    mem_limit: 384m
     profiles:
       - monitoring
     ports:
