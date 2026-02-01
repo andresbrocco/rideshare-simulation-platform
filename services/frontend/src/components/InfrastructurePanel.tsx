@@ -170,6 +170,40 @@ export default function InfrastructurePanel({
             </div>
           )}
 
+          {/* System Totals */}
+          {data && data.cadvisor_available && (
+            <div className={styles.totalsSection}>
+              <div className={styles.totalsRow}>
+                <div className={styles.totalItem}>
+                  <span className={styles.totalLabel}>Total CPU</span>
+                  <span className={styles.totalValue}>
+                    {data.total_cpu_percent.toFixed(1)}%
+                    <span className={styles.totalSubtext}>of {data.total_cores} cores</span>
+                  </span>
+                  <div className={styles.progressTrack}>
+                    <div
+                      className={`${styles.progressFill} ${getProgressColor(data.total_cpu_percent)}`}
+                      style={{ width: `${Math.min(data.total_cpu_percent, 100)}%` }}
+                    />
+                  </div>
+                </div>
+                <div className={styles.totalItem}>
+                  <span className={styles.totalLabel}>Total Memory</span>
+                  <span className={styles.totalValue}>
+                    {formatMemory(data.total_memory_used_mb)} /{' '}
+                    {formatMemory(data.total_memory_capacity_mb)}
+                  </span>
+                  <div className={styles.progressTrack}>
+                    <div
+                      className={`${styles.progressFill} ${getProgressColor(data.total_memory_percent)}`}
+                      style={{ width: `${Math.min(data.total_memory_percent, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className={styles.serviceGrid}>
             {data?.services.map((service) => (
               <ServiceCard key={service.name} service={service} showResources={showResources} />

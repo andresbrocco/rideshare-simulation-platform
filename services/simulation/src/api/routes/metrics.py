@@ -39,6 +39,11 @@ router = APIRouter(dependencies=[Depends(verify_api_key)])
 CACHE_TTL = 0.5  # 500ms for responsive updates
 _metrics_cache: dict[str, Any] = {}
 
+# Module-level cache for machine info (rarely changes)
+_machine_info_cache: dict[str, Any] | None = None
+_machine_info_cache_time: float = 0.0
+MACHINE_INFO_CACHE_TTL = 300.0  # 5 minutes
+
 T = TypeVar("T")
 
 
@@ -492,6 +497,30 @@ CONTAINER_CONFIG = {
 }
 
 
+def _fetch_cadvisor_machine_info() -> dict[str, Any] | None:
+    """Fetch machine info from cAdvisor with caching.
+
+    Returns dict with num_cores, memory_capacity, etc.
+    """
+    global _machine_info_cache, _machine_info_cache_time
+
+    now = time.time()
+    if _machine_info_cache and (now - _machine_info_cache_time) < MACHINE_INFO_CACHE_TTL:
+        return _machine_info_cache
+
+    try:
+        with httpx.Client(timeout=3.0) as client:
+            response = client.get("http://cadvisor:8080/api/v1.3/machine")
+            if response.status_code == 200:
+                _machine_info_cache = response.json()
+                _machine_info_cache_time = now
+                return _machine_info_cache
+    except Exception as e:
+        logger.debug(f"Failed to fetch cAdvisor machine info: {e}")
+
+    return _machine_info_cache  # Return stale cache if fetch fails
+
+
 def _fetch_cadvisor_stats() -> dict[str, Any] | None:
     """Fetch container stats from cAdvisor API.
 
@@ -545,7 +574,7 @@ def _calculate_cpu_percent(stats: list[dict[str, Any]]) -> float:
     # cAdvisor reports CPU in nanoseconds, normalize to percentage
     cpu_percent = (cpu_delta / time_delta_ns) * 100
 
-    return max(0.0, min(cast(float, cpu_percent), 100.0))
+    return max(0.0, float(cpu_percent))  # No upper clamp - can exceed 100% for multi-core
 
 
 def _parse_container_resource_metrics(
@@ -1053,6 +1082,19 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
     cadvisor_data = _fetch_cadvisor_stats()
     cadvisor_available = cadvisor_data is not None
 
+    # Fetch machine info for system-wide totals
+    machine_info = _fetch_cadvisor_machine_info() if cadvisor_available else None
+    total_cores = machine_info.get("num_cores", 1) if machine_info else 1
+    # Memory capacity in bytes - convert to MB
+    memory_capacity_bytes = machine_info.get("memory_capacity", 0) if machine_info else 0
+    total_memory_capacity_mb = (
+        memory_capacity_bytes / (1024 * 1024) if memory_capacity_bytes else 0.0
+    )
+
+    # Accumulators for system-wide totals
+    total_cpu_raw = 0.0  # Sum of per-container CPU (percentage of 1 core)
+    total_memory_used = 0.0
+
     # Build service metrics list
     services = []
     for container_name, config in CONTAINER_CONFIG.items():
@@ -1072,6 +1114,9 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
                 memory_used_mb, memory_limit_mb, memory_percent, cpu_percent = (
                     _parse_container_resource_metrics(container_name, container_data)
                 )
+                # Accumulate totals (cpu_percent is per-core, memory is in MB)
+                total_cpu_raw += cpu_percent
+                total_memory_used += memory_used_mb
             else:
                 # Container not found in cAdvisor - might be stopped
                 if status == ContainerStatus.HEALTHY:
@@ -1106,9 +1151,24 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
     else:
         overall_status = ContainerStatus.DEGRADED
 
+    # Calculate normalized totals
+    # CPU: normalize by total cores (raw is percentage of 1 core)
+    total_cpu_percent = (total_cpu_raw / total_cores) if total_cores > 0 else 0.0
+    # Memory: calculate percentage of total capacity
+    total_memory_percent = (
+        (total_memory_used / total_memory_capacity_mb * 100)
+        if total_memory_capacity_mb > 0
+        else 0.0
+    )
+
     return InfrastructureResponse(
         services=services,
         overall_status=overall_status,
         cadvisor_available=cadvisor_available,
         timestamp=time.time(),
+        total_cpu_percent=round(total_cpu_percent, 1),
+        total_memory_used_mb=round(total_memory_used, 1),
+        total_memory_capacity_mb=round(total_memory_capacity_mb, 1),
+        total_memory_percent=round(total_memory_percent, 1),
+        total_cores=total_cores,
     )

@@ -163,3 +163,9 @@ class InfrastructureResponse(BaseModel):
     overall_status: ContainerStatus
     cadvisor_available: bool
     timestamp: float
+    # System-wide totals (normalized by total cores)
+    total_cpu_percent: float = 0.0  # Normalized by total cores
+    total_memory_used_mb: float = 0.0
+    total_memory_capacity_mb: float = 0.0  # From cAdvisor machine info
+    total_memory_percent: float = 0.0
+    total_cores: int = 1  # Auto-detected from cAdvisor

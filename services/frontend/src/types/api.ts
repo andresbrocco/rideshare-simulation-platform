@@ -442,4 +442,10 @@ export interface InfrastructureResponse {
   overall_status: ContainerStatus;
   cadvisor_available: boolean;
   timestamp: number;
+  // System-wide totals (normalized by total cores)
+  total_cpu_percent: number;
+  total_memory_used_mb: number;
+  total_memory_capacity_mb: number;
+  total_memory_percent: number;
+  total_cores: number;
 }
