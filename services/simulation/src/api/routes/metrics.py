@@ -1092,7 +1092,7 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
     )
 
     # Accumulators for system-wide totals
-    total_cpu_raw = 0.0  # Sum of per-container CPU (percentage of 1 core)
+    total_cpu_raw = 0.0  # Sum of per-container CPU (raw, percentage of 1 core each)
     total_memory_used = 0.0
 
     # Build service metrics list
@@ -1111,12 +1111,14 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         if cadvisor_available and cadvisor_data is not None:
             container_data = _find_container_in_cadvisor(container_name, cadvisor_data)
             if container_data:
-                memory_used_mb, memory_limit_mb, memory_percent, cpu_percent = (
+                memory_used_mb, memory_limit_mb, memory_percent, cpu_percent_raw = (
                     _parse_container_resource_metrics(container_name, container_data)
                 )
-                # Accumulate totals (cpu_percent is per-core, memory is in MB)
-                total_cpu_raw += cpu_percent
+                # Accumulate totals (cpu_percent_raw is per-core, memory is in MB)
+                total_cpu_raw += cpu_percent_raw
                 total_memory_used += memory_used_mb
+                # Normalize CPU for display (percentage of all cores)
+                cpu_percent = round(cpu_percent_raw / total_cores, 1) if total_cores > 0 else 0.0
             else:
                 # Container not found in cAdvisor - might be stopped
                 if status == ContainerStatus.HEALTHY:
