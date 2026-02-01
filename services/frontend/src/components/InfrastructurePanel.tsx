@@ -175,7 +175,9 @@ export default function InfrastructurePanel({
             <div className={styles.totalsSection}>
               <div className={styles.totalsRow}>
                 <div className={styles.totalItem}>
-                  <span className={styles.totalLabel}>Total CPU</span>
+                  <Tooltip text="Container usage only. May differ from Activity Monitor which includes Docker VM overhead.">
+                    <span className={styles.totalLabel}>Total CPU</span>
+                  </Tooltip>
                   <span className={styles.totalValue}>
                     {data.total_cpu_percent.toFixed(1)}%
                     <span className={styles.totalSubtext}>of {data.total_cores} cores</span>
@@ -188,7 +190,9 @@ export default function InfrastructurePanel({
                   </div>
                 </div>
                 <div className={styles.totalItem}>
-                  <span className={styles.totalLabel}>Total Memory</span>
+                  <Tooltip text="Container usage only. May differ from Activity Monitor which includes Docker VM overhead.">
+                    <span className={styles.totalLabel}>Total Memory</span>
+                  </Tooltip>
                   <span className={styles.totalValue}>
                     {formatMemory(data.total_memory_used_mb)} /{' '}
                     {formatMemory(data.total_memory_capacity_mb)}
