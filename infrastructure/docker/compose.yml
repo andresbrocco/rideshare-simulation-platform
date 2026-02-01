@@ -434,7 +434,7 @@ services:
       context: ../..
       dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
     container_name: rideshare-bronze-ingestion-high-volume
-    mem_limit: 768m
+    mem_limit: 1536m
     profiles:
       - data-pipeline
     environment:
@@ -456,7 +456,7 @@ services:
     command: >
       /opt/spark/bin/spark-submit
       --master local[2]
-      --driver-memory 512m
+      --driver-memory 1024m
       --conf "spark.driver.extraJavaOptions=-XX:+UseG1GC -XX:MaxGCPauseMillis=50 -XX:InitiatingHeapOccupancyPercent=35"
       --name "streaming_high_volume"
       --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
@@ -479,7 +479,7 @@ services:
       context: ../..
       dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
     container_name: rideshare-bronze-ingestion-low-volume
-    mem_limit: 768m
+    mem_limit: 1536m
     profiles:
       - data-pipeline
     environment:
@@ -501,7 +501,7 @@ services:
     command: >
       /opt/spark/bin/spark-submit
       --master local[2]
-      --driver-memory 512m
+      --driver-memory 1024m
       --conf "spark.driver.extraJavaOptions=-XX:+UseG1GC -XX:MaxGCPauseMillis=50 -XX:InitiatingHeapOccupancyPercent=35"
       --name "streaming_low_volume"
       --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
