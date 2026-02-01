@@ -21,7 +21,6 @@ Orchestrates the data lakehouse pipeline by scheduling DBT transformations, moni
 
 - Uses PyHive to query Spark Thrift Server instead of running Spark locally (Airflow container lacks Java)
 - DLQ queries tolerate missing tables gracefully (expected on first run before streaming jobs create them)
-- `streaming_jobs_dag.py` is deprecated; streaming jobs now managed as docker-compose services with automatic restart
 - Silver DAG includes Bronze freshness check (stub implementation)
 - Gold DAG generates Great Expectations data docs at end of pipeline for manual review
 - LocalExecutor spawns task subprocesses within scheduler; parallelism limited to 8 concurrent tasks

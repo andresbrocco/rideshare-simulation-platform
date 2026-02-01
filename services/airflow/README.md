@@ -32,8 +32,6 @@
 | `dbt_silver_transformation` | `@hourly` | Silver layer transformations with Great Expectations validation |
 | `dbt_gold_transformation` | `@daily` | Gold layer transformations (dimensions → facts → aggregates) |
 | `dlq_monitoring` | Every 15 min | Monitor DLQ tables for errors (threshold: 10) |
-| `bronze_initialization` | Manual | Initialize Bronze database in Hive metastore (one-time) |
-| `streaming_jobs_lifecycle` | None | DEPRECATED - managed via docker compose services |
 
 ### Commands
 
@@ -165,17 +163,6 @@ docker compose -f infrastructure/docker/compose.yml exec airflow-scheduler \
 # Or run DBT directly
 docker compose -f infrastructure/docker/compose.yml exec airflow-scheduler bash -c \
   "cd /opt/dbt && dbt run --select tag:silver --profiles-dir /opt/dbt/profiles"
-```
-
-### Initialize Bronze Layer (First Deployment)
-
-```bash
-# Trigger one-time Bronze initialization
-docker compose -f infrastructure/docker/compose.yml exec airflow-scheduler \
-  airflow dags trigger bronze_initialization
-
-# Check logs
-docker compose -f infrastructure/docker/compose.yml logs -f airflow-scheduler
 ```
 
 ## Architecture

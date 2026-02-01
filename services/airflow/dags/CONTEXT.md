@@ -21,14 +21,6 @@ Orchestrates the data pipeline transformations and quality checks for the ridesh
 - Uses branching logic: threshold exceeded → alert, otherwise → no-op
 - Threshold: 10 errors across all tables in 15-minute window
 
-**One-Time Initialization**
-- `bronze_init_dag.py` is a manual-trigger-only DAG for first deployment
-- Creates Bronze database and Hive metastore tables
-
-**Deprecated DAG**
-- `streaming_jobs_dag.py` is deprecated as of 2026-01-18
-- Streaming jobs now run as dedicated docker-compose services with auto-restart
-
 ## Non-Obvious Details
 
 **Silver DAG Task Flow**
