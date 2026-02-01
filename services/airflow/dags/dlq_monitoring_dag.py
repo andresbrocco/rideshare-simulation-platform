@@ -120,10 +120,9 @@ with DAG(
     "dlq_monitoring",
     default_args=default_args,
     description="Monitor DLQ tables for errors every 15 minutes",
-    schedule=timedelta(minutes=15),
+    schedule="3,18,33,48 * * * *",
     start_date=datetime(2026, 1, 1),
     catchup=False,
-    is_paused_upon_creation=False,
     tags=["monitoring", "dlq"],
 ) as dag:
 

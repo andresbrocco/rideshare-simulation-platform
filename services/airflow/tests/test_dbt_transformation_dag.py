@@ -107,16 +107,18 @@ def test_dbt_gold_aggregates_command(dagbag):
     assert "tag:aggregates" in aggregates_task.bash_command
 
 
-def test_schedule_hourly(dagbag):
-    """Verify Silver DAG runs hourly."""
+def test_silver_schedule_at_10(dagbag):
+    """Verify Silver DAG runs at :10 past each hour."""
     dag = dagbag.dags["dbt_silver_transformation"]
-    assert dag.schedule == "@hourly" or dag.schedule_interval == "@hourly"
+    schedule = getattr(dag, "schedule_interval", None) or dag.schedule
+    assert schedule == "10 * * * *"
 
 
-def test_schedule_daily(dagbag):
-    """Verify Gold DAG runs daily."""
+def test_gold_schedule_none(dagbag):
+    """Verify Gold DAG has no schedule (triggered by Silver)."""
     dag = dagbag.dags["dbt_gold_transformation"]
-    assert dag.schedule == "@daily" or dag.schedule_interval == "@daily"
+    schedule = getattr(dag, "schedule_interval", None) or dag.schedule
+    assert schedule is None
 
 
 def test_no_catchup(dagbag):
@@ -140,3 +142,49 @@ def test_failure_callback(dagbag):
     assert "retries" in gold_dag.default_args
     assert silver_dag.default_args["retries"] >= 1
     assert gold_dag.default_args["retries"] >= 1
+
+
+def test_silver_dag_has_conditional_trigger_tasks(dagbag):
+    """Verify Silver DAG has conditional Gold trigger logic."""
+    dag = dagbag.dags["dbt_silver_transformation"]
+    task_ids = {task.task_id for task in dag.tasks}
+    assert "check_should_trigger_gold" in task_ids
+    assert "trigger_gold_dag" in task_ids
+    assert "skip_gold_trigger" in task_ids
+
+
+def test_silver_conditional_trigger_dependencies(dagbag):
+    """Verify conditional trigger task dependencies."""
+    dag = dagbag.dags["dbt_silver_transformation"]
+    tasks = {task.task_id: task for task in dag.tasks}
+
+    check_task = tasks["check_should_trigger_gold"]
+    upstream_ids = {t.task_id for t in check_task.upstream_list}
+    assert "ge_silver_validation" in upstream_ids
+
+    downstream_ids = {t.task_id for t in check_task.downstream_list}
+    assert "trigger_gold_dag" in downstream_ids
+    assert "skip_gold_trigger" in downstream_ids
+
+
+def test_trigger_gold_dag_config(dagbag):
+    """Verify TriggerDagRunOperator configuration."""
+    dag = dagbag.dags["dbt_silver_transformation"]
+    tasks = {task.task_id: task for task in dag.tasks}
+    trigger_task = tasks["trigger_gold_dag"]
+    assert trigger_task.trigger_dag_id == "dbt_gold_transformation"
+    assert trigger_task.wait_for_completion is False
+
+
+def test_silver_validation_has_outlet(dagbag):
+    """Verify ge_silver_validation has SILVER_ASSET outlet."""
+    dag = dagbag.dags["dbt_silver_transformation"]
+    tasks = {task.task_id: task for task in dag.tasks}
+    assert len(tasks["ge_silver_validation"].outlets) > 0
+
+
+def test_gold_docs_has_outlet(dagbag):
+    """Verify ge_generate_data_docs has GOLD_ASSET outlet."""
+    dag = dagbag.dags["dbt_gold_transformation"]
+    tasks = {task.task_id: task for task in dag.tasks}
+    assert len(tasks["ge_generate_data_docs"].outlets) > 0

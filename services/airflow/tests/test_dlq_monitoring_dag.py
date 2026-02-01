@@ -1,7 +1,6 @@
 """Tests for DLQ monitoring DAG."""
 
 import pytest
-from datetime import timedelta
 from airflow.models import DagBag
 
 
@@ -32,13 +31,11 @@ def test_dag_structure(dagbag):
     assert "no_alert" in tasks
 
 
-def test_schedule_15_minutes(dagbag):
-    """Verify DAG runs every 15 minutes."""
+def test_schedule_15_minutes_offset(dagbag):
+    """Verify DAG runs every 15 minutes with 3-minute offset."""
     dag = dagbag.dags["dlq_monitoring"]
     schedule = getattr(dag, "schedule_interval", None) or dag.schedule
-
-    expected_interval = timedelta(minutes=15)
-    assert schedule == expected_interval or schedule == "*/15 * * * *"
+    assert schedule == "3,18,33,48 * * * *"
 
 
 def test_no_catchup(dagbag):

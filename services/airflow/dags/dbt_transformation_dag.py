@@ -3,6 +3,14 @@
 from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.providers.standard.operators.bash import BashOperator
+from airflow.providers.standard.operators.python import BranchPythonOperator
+from airflow.providers.standard.operators.empty import EmptyOperator
+from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOperator
+from airflow.sdk import Asset
+
+# Asset definitions for data lineage
+SILVER_ASSET = Asset("lakehouse://silver/transformed")
+GOLD_ASSET = Asset("lakehouse://gold/transformed")
 
 default_args = {
     "owner": "rideshare",
@@ -13,15 +21,14 @@ default_args = {
     "retry_delay": timedelta(minutes=5),
 }
 
-# Silver DAG - Runs hourly with Bronze freshness check
+# Silver DAG - Runs at :10 past each hour with Bronze freshness check
 with DAG(
     "dbt_silver_transformation",
     default_args=default_args,
-    description="DBT Silver layer transformations (hourly)",
-    schedule="@hourly",
+    description="DBT Silver layer transformations (hourly at :10)",
+    schedule="10 * * * *",
     start_date=datetime(2026, 1, 1),
     catchup=False,
-    is_paused_upon_creation=False,
     tags=["dbt", "silver", "transformation"],
 ) as silver_dag:
 
@@ -46,19 +53,42 @@ with DAG(
         cd /opt/great-expectations && \
         python3 run_checkpoint.py silver_validation || echo "WARNING: Silver validation failed" && exit 0
         """,
+        outlets=[SILVER_ASSET],
     )
 
-    check_bronze_freshness >> dbt_silver_run >> dbt_silver_test >> ge_silver_validation
+    def should_trigger_gold(**context) -> str:
+        """Trigger Gold DAG only at 2 AM."""
+        if context["logical_date"].hour == 2:
+            return "trigger_gold_dag"
+        return "skip_gold_trigger"
 
-# Gold DAG - Runs daily with dimensions -> facts -> aggregates
+    check_should_trigger_gold = BranchPythonOperator(
+        task_id="check_should_trigger_gold",
+        python_callable=should_trigger_gold,
+    )
+
+    trigger_gold_dag = TriggerDagRunOperator(
+        task_id="trigger_gold_dag",
+        trigger_dag_id="dbt_gold_transformation",
+        wait_for_completion=False,
+        reset_dag_run=True,
+        conf={"triggered_by": "silver_dag", "silver_logical_date": "{{ logical_date }}"},
+    )
+
+    skip_gold_trigger = EmptyOperator(task_id="skip_gold_trigger")
+
+    # Task dependencies
+    check_bronze_freshness >> dbt_silver_run >> dbt_silver_test >> ge_silver_validation
+    ge_silver_validation >> check_should_trigger_gold >> [trigger_gold_dag, skip_gold_trigger]
+
+# Gold DAG - Triggered by Silver DAG at 2 AM (no schedule)
 with DAG(
     "dbt_gold_transformation",
     default_args=default_args,
-    description="DBT Gold layer transformations (daily)",
-    schedule="@daily",
+    description="DBT Gold layer transformations (triggered by Silver at 2 AM)",
+    schedule=None,
     start_date=datetime(2026, 1, 1),
     catchup=False,
-    is_paused_upon_creation=False,
     tags=["dbt", "gold", "transformation"],
 ) as gold_dag:
 
@@ -101,6 +131,7 @@ with DAG(
         cd /opt/great-expectations && \
         python3 build_data_docs.py
         """,
+        outlets=[GOLD_ASSET],
     )
 
     (
