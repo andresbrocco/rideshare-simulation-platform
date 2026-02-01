@@ -11,7 +11,13 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: rideshare-kafka
-    mem_limit: 1g
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.5"
+        reservations:
+          cpus: "0.25"
     profiles:
       - core
       - data-pipeline
@@ -25,6 +31,13 @@ services:
       # Log retention - auto-delete since no consumers yet
       KAFKA_LOG_RETENTION_HOURS: 1
       KAFKA_LOG_RETENTION_BYTES: 536870912  # 512MB per partition
+
+      # Threading - increased for 23 partitions + 3 consumer groups
+      KAFKA_NUM_NETWORK_THREADS: "6"
+      KAFKA_NUM_IO_THREADS: "16"
+      # Socket buffers
+      KAFKA_SOCKET_SEND_BUFFER_BYTES: "102400"
+      KAFKA_SOCKET_RECEIVE_BUFFER_BYTES: "102400"
 
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
@@ -79,7 +92,13 @@ services:
   schema-registry:
     image: confluentinc/cp-schema-registry:7.5.0
     container_name: rideshare-schema-registry
-    mem_limit: 512m
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+        reservations:
+          cpus: "0.1"
     profiles:
       - core
       - data-pipeline
@@ -152,7 +171,13 @@ services:
       dockerfile: Dockerfile
       target: development
     container_name: rideshare-simulation
-    mem_limit: 1g
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "2.0"
+        reservations:
+          cpus: "0.25"
     profiles:
       - core
     ports:
@@ -202,7 +227,13 @@ services:
       context: ../../services/stream-processor
       dockerfile: Dockerfile
     container_name: rideshare-stream-processor
-    mem_limit: 256m
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "1.0"
+        reservations:
+          cpus: "0.25"
     profiles:
       - core
     ports:
@@ -374,7 +405,13 @@ services:
       context: ../..
       dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
     container_name: rideshare-spark-thrift-server
-    mem_limit: 2048m
+    deploy:
+      resources:
+        limits:
+          memory: 3072m
+          cpus: "2.0"
+        reservations:
+          cpus: "0.25"
     profiles:
       - data-pipeline
     ports:
@@ -383,8 +420,8 @@ services:
     command: >
       /opt/spark/bin/spark-submit
       --master local[2]
-      --driver-memory 1200m
-      --conf spark.driver.memoryOverhead=384m
+      --driver-memory 1800m
+      --conf spark.driver.memoryOverhead=512m
       --conf spark.driver.maxResultSize=512m
       --conf "spark.driver.extraJavaOptions=-XX:+UseG1GC -XX:MaxGCPauseMillis=50 -XX:InitiatingHeapOccupancyPercent=35 -XX:+ExplicitGCInvokesConcurrent"
       --class org.apache.spark.sql.hive.thriftserver.HiveThriftServer2
@@ -434,7 +471,13 @@ services:
       context: ../..
       dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
     container_name: rideshare-bronze-ingestion-high-volume
-    mem_limit: 1536m
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
+          cpus: "2.0"
+        reservations:
+          cpus: "0.25"
     profiles:
       - data-pipeline
     environment:
@@ -461,10 +504,18 @@ services:
       --name "streaming_high_volume"
       --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
       --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
+      --conf spark.driver.memoryOverhead=256m
+      --conf spark.driver.maxResultSize=256m
+      --conf spark.ui.retainedStages=100
+      --conf spark.ui.retainedJobs=100
+      --conf spark.ui.retainedDeadExecutors=10
+      --conf spark.sql.codegen.cache.maxEntries=100
       --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000
       --conf spark.hadoop.fs.s3a.access.key=minioadmin
       --conf spark.hadoop.fs.s3a.secret.key=minioadmin
       --conf spark.hadoop.fs.s3a.path.style.access=true
+      --conf spark.hadoop.fs.s3a.threads.max=8
+      --conf spark.hadoop.fs.s3a.connection.pool.size=8
       /opt/spark_streaming/jobs/bronze_ingestion_high_volume.py
     restart: unless-stopped
     healthcheck:
@@ -479,7 +530,13 @@ services:
       context: ../..
       dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
     container_name: rideshare-bronze-ingestion-low-volume
-    mem_limit: 1536m
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
+          cpus: "2.0"
+        reservations:
+          cpus: "0.25"
     profiles:
       - data-pipeline
     environment:
@@ -488,7 +545,7 @@ services:
       - SCHEMA_REGISTRY_URL=http://schema-registry:8081
       - KAFKA_TOPICS=trips,driver_status,surge_updates,ratings,payments,driver_profiles,rider_profiles
       - CHECKPOINT_BASE_PATH=s3a://rideshare-checkpoints/
-      - TRIGGER_INTERVAL=10 seconds
+      - TRIGGER_INTERVAL=30 seconds
     volumes:
       - ../../services/spark-streaming:/opt/spark_streaming:ro
     depends_on:
@@ -506,10 +563,18 @@ services:
       --name "streaming_low_volume"
       --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
       --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
+      --conf spark.driver.memoryOverhead=256m
+      --conf spark.driver.maxResultSize=256m
+      --conf spark.ui.retainedStages=100
+      --conf spark.ui.retainedJobs=100
+      --conf spark.ui.retainedDeadExecutors=10
+      --conf spark.sql.codegen.cache.maxEntries=100
       --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000
       --conf spark.hadoop.fs.s3a.access.key=minioadmin
       --conf spark.hadoop.fs.s3a.secret.key=minioadmin
       --conf spark.hadoop.fs.s3a.path.style.access=true
+      --conf spark.hadoop.fs.s3a.threads.max=8
+      --conf spark.hadoop.fs.s3a.connection.pool.size=8
       /opt/spark_streaming/jobs/bronze_ingestion_low_volume.py
     restart: unless-stopped
     healthcheck:
@@ -590,7 +655,13 @@ services:
   airflow-webserver:
     image: apache/airflow:3.1.5
     container_name: rideshare-airflow-webserver
-    mem_limit: 384m
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: "1.0"
+        reservations:
+          cpus: "0.1"
     profiles:
       - data-pipeline
     ports:
@@ -637,7 +708,13 @@ services:
   airflow-scheduler:
     image: apache/airflow:3.1.5
     container_name: rideshare-airflow-scheduler
-    mem_limit: 768m
+    deploy:
+      resources:
+        limits:
+          memory: 768m
+          cpus: "1.5"
+        reservations:
+          cpus: "0.25"
     profiles:
       - data-pipeline
     environment:

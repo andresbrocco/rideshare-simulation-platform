@@ -66,19 +66,21 @@ class MultiTopicStreamingJob(BaseStreamingJob):
         Returns:
             Original DataFrame (unchanged)
         """
-        if df.count() == 0:
+        # Use isEmpty() instead of count() - stops at first row, avoids full scan
+        if df.isEmpty():
             return df
 
         for topic in self.get_topic_names():
             topic_df = df.filter(col("topic") == topic)
 
-            if topic_df.count() == 0:
-                continue
-
             # Add partition column and drop the 'topic' column (not part of Bronze schema)
             partitioned_df = topic_df.withColumn(
                 "_ingestion_date", date_format(col("_ingested_at"), "yyyy-MM-dd")
             ).drop("topic")
+
+            # Use isEmpty() for efficiency - avoids materializing count
+            if partitioned_df.isEmpty():
+                continue
 
             bronze_path = self.get_bronze_path(topic)
 

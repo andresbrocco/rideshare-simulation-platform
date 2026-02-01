@@ -1,3 +1,17 @@
+{{
+    config(
+        tags=['seed_data_validation'],
+        enabled=false
+    )
+}}
+
+{#
+    This test validates impossible speed detection logic using seed data.
+    - driver_007: Should be flagged (teleportation at >200 km/h)
+    - driver_008: Should NOT be flagged (normal speed movement)
+    Disabled by default because it requires seed data with specific test entities.
+#}
+
 with impossible_speeds as (
     select * from {{ ref('anomalies_impossible_speeds') }}
 ),

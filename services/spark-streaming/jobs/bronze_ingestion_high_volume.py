@@ -23,12 +23,9 @@ if __name__ == "__main__":
     from spark_streaming.config.checkpoint_config import CheckpointConfig
     from spark_streaming.utils.error_handler import ErrorHandler
 
+    # Memory configs removed - Docker Compose controls allocation via spark-submit args
     spark = (
-        SparkSession.builder.appName("BronzeIngestionHighVolume")
-        .master("local[2]")
-        .config("spark.executor.memory", "768m")
-        .config("spark.driver.memory", "768m")
-        .getOrCreate()
+        SparkSession.builder.appName("BronzeIngestionHighVolume").master("local[2]").getOrCreate()
     )
 
     kafka_config = KafkaConfig(

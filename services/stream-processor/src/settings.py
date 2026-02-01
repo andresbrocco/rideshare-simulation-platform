@@ -15,6 +15,10 @@ class KafkaSettings(BaseSettings):
     session_timeout_ms: int = 30000
     max_poll_interval_ms: int = 300000
     batch_commit_size: int = 100
+    # Consumer fetch optimization - batch reads from Kafka
+    fetch_min_bytes: int = 10240  # 10KB minimum before returning
+    fetch_max_wait_ms: int = 100  # Max wait for fetch_min_bytes
+    max_partition_fetch_bytes: int = 1048576  # 1MB max per partition
 
     model_config = SettingsConfigDict(env_prefix="KAFKA_")
 

@@ -27,6 +27,12 @@ class KafkaProducer:
             "retries": 5,
             "max.in.flight.requests.per.connection": 5,
             "delivery.timeout.ms": 120000,
+            # Batching - tuned for 100ms stream processor window
+            # linger.ms should be < PROCESSOR_WINDOW_SIZE_MS (currently 100ms)
+            "linger.ms": 80,
+            "batch.size": 65536,  # 64KB - power of two
+            # Compression - LZ4 for fast compression of JSON payloads
+            "compression.type": "lz4",
         }
         self._producer = Producer(producer_config)
         self._failed_deliveries: list[dict[str, Any]] = []

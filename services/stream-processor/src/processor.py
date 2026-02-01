@@ -64,6 +64,10 @@ class StreamProcessor:
             "auto.commit.interval.ms": settings.kafka.auto_commit_interval_ms,
             "session.timeout.ms": settings.kafka.session_timeout_ms,
             "max.poll.interval.ms": settings.kafka.max_poll_interval_ms,
+            # Fetch optimization - batch reads from Kafka for efficiency
+            "fetch.min.bytes": settings.kafka.fetch_min_bytes,
+            "fetch.wait.max.ms": settings.kafka.fetch_max_wait_ms,
+            "max.partition.fetch.bytes": settings.kafka.max_partition_fetch_bytes,
         }
         self._consumer = Consumer(consumer_config)
 

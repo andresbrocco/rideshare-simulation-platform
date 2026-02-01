@@ -1,3 +1,17 @@
+{{
+    config(
+        tags=['seed_data_validation'],
+        enabled=false
+    )
+}}
+
+{#
+    This test validates GPS outlier detection logic using seed data with known outliers.
+    - driver_003, driver_005, driver_006: Should be flagged (coordinates outside São Paulo)
+    - driver_004: Should NOT be flagged (valid coordinates)
+    Disabled by default because it requires seed data with specific test entities.
+#}
+
 with gps_outliers as (
     select * from {{ ref('anomalies_gps_outliers') }}
 ),
