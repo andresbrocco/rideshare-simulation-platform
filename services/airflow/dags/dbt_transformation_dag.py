@@ -37,7 +37,7 @@ with DAG(
 
     dbt_silver_test = BashOperator(
         task_id="dbt_silver_test",
-        bash_command="cd /opt/dbt && dbt test --select tag:silver --profiles-dir /opt/dbt/profiles",
+        bash_command="cd /opt/dbt && dbt test --select tag:silver --threads 2 --profiles-dir /opt/dbt/profiles",
     )
 
     ge_silver_validation = BashOperator(
@@ -84,7 +84,7 @@ with DAG(
 
     dbt_gold_test = BashOperator(
         task_id="dbt_gold_test",
-        bash_command="cd /opt/dbt && dbt test --select tag:gold --profiles-dir /opt/dbt/profiles",
+        bash_command="cd /opt/dbt && dbt test --select tag:gold --threads 2 --profiles-dir /opt/dbt/profiles",
     )
 
     ge_gold_validation = BashOperator(

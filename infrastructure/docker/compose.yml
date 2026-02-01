@@ -411,6 +411,8 @@ services:
       --hiveconf hive.server2.thrift.bind.host=0.0.0.0
       --hiveconf hive.server2.authentication=NOSASL
       --hiveconf hive.server2.transport.mode=binary
+      --hiveconf hive.server2.thrift.min.worker.threads=2
+      --hiveconf hive.server2.thrift.max.worker.threads=4
     environment:
       - PYTHONPATH=/opt
     volumes:
