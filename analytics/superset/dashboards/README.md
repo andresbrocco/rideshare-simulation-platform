@@ -1,6 +1,6 @@
 # Superset Dashboards
 
-This directory contains dashboard creation scripts, SQL query libraries, and exported dashboard files for the Rideshare Lakehouse.
+This directory contains dashboard creation scripts and SQL query libraries for the Rideshare Lakehouse. Dashboards are provisioned programmatically on container startup.
 
 ## Dashboard Overview
 
@@ -174,28 +174,25 @@ docker compose -f infrastructure/docker/compose.yml --profile analytics up -d
 ./venv/bin/python3 create_silver_quality_dashboard.py
 ```
 
-## Importing Dashboards
+## Dashboard Provisioning
 
-Dashboards can be imported from ZIP exports on container startup:
+Dashboards are provisioned programmatically on container startup:
 
 ```bash
-# Automatic import on startup (configured in docker-entrypoint.sh)
+# Automatic provisioning on startup (configured in docker-entrypoint.sh)
 # Or run manually:
-python3 import_dashboards.py --base-url http://localhost:8088
+cd analytics/superset/dashboards
+python3 provision_dashboards.py --base-url http://localhost:8088
 
-# Force overwrite existing dashboards
-python3 import_dashboards.py --base-url http://localhost:8088 --force
+# Force recreate existing dashboards
+python3 provision_dashboards.py --base-url http://localhost:8088 --force
 ```
 
-## Exporting Dashboards
-
-To export all dashboards to JSON for version control:
-
-```bash
-bash analytics/superset/scripts/export-dashboards.sh
-```
-
-This exports all 6 dashboards to JSON files in this directory.
+The orchestrator:
+- Creates Bronze + Silver dashboards (required - data always exists)
+- Attempts Gold dashboards (optional - gracefully skips if tables missing)
+- Checks existence by slug before creating (idempotent)
+- Uses non-blocking failures (logs warnings, continues)
 
 ## Testing
 
@@ -226,27 +223,23 @@ Tests verify:
 ```
 dashboards/
 ├── README.md                              # This file
+├── superset_client.py                     # Shared Superset API client
+├── provision_dashboards.py                # Dashboard provisioning orchestrator
 ├── bronze_queries.py                      # Bronze layer SQL queries
 ├── silver_queries.py                      # Silver layer SQL queries
 ├── gold_queries.py                        # Gold layer SQL queries
-├── import_dashboards.py                   # Dashboard import automation
 ├── create_bronze_pipeline_dashboard.py   # Bronze dashboard creation
 ├── create_silver_quality_dashboard.py    # Silver dashboard creation
 ├── create_operations_dashboard_v2.py     # Operations dashboard creation
 ├── create_driver_performance_dashboard.py # Driver dashboard creation
 ├── create_demand_analysis_dashboard.py   # Demand dashboard creation
-├── create_revenue_analytics_dashboard.py # Revenue dashboard creation
-├── bronze-pipeline.json                   # Exported Bronze dashboard (ZIP)
-├── silver-quality.json                    # Exported Silver dashboard (ZIP)
-├── operations.json                        # Exported Operations dashboard (ZIP)
-├── driver-performance.json                # Exported Driver dashboard (ZIP)
-├── demand-analysis.json                   # Exported Demand dashboard (ZIP)
-└── revenue-analytics.json                 # Exported Revenue dashboard (ZIP)
+└── create_revenue_analytics_dashboard.py # Revenue dashboard creation
 ```
 
 ## Notes
 
-- Dashboard exports are ZIP files containing full dashboard configuration (YAML format)
 - Virtual datasets enable dashboard creation without requiring physical tables
-- All creation scripts share a common SupersetClient class pattern
+- All creation scripts use a shared SupersetClient class from superset_client.py
+- Each creation script exports a `create_<dashboard>(client)` function for the orchestrator
+- Scripts can also run standalone via `python3 create_*.py`
 - Production deployment should update SQL queries if table names differ

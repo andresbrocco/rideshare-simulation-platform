@@ -141,16 +141,15 @@ SERVER_PID=$!
 echo "Waiting for Superset server to be ready for dashboard import..."
 sleep 30  # Give the server time to initialize
 
-# Import dashboards (non-blocking - if it fails, server continues)
+# Provision dashboards programmatically (non-blocking - if it fails, server continues)
 if [ -d "/app/dashboards" ]; then
-    echo "Importing dashboards..."
-    python3 /app/dashboards/import_dashboards.py \
-        --base-url http://localhost:8088 \
-        --dashboards-dir /app/dashboards 2>&1 || {
-        echo "Dashboard import failed (non-blocking), server continues running..."
+    echo "Provisioning dashboards..."
+    cd /app/dashboards && python3 provision_dashboards.py \
+        --base-url http://localhost:8088 2>&1 || {
+        echo "Dashboard provisioning failed (non-blocking), server continues running..."
     }
 else
-    echo "No dashboards directory mounted, skipping import"
+    echo "No dashboards directory mounted, skipping provisioning"
 fi
 
 # Wait for server process

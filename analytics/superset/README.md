@@ -64,11 +64,11 @@ docker compose -f infrastructure/docker/compose.yml --profile analytics up -d --
 | File | Purpose |
 |------|---------|
 | `superset_config.py` | Main Superset configuration (database, Redis, caching, security) |
-| `docker-entrypoint.sh` | Container startup script with auto-provisioning and dashboard import |
+| `docker-entrypoint.sh` | Container startup script with auto-provisioning and dashboard creation |
 | `dashboards/bronze_queries.py` | Bronze layer SQL queries |
 | `dashboards/silver_queries.py` | Silver layer SQL queries |
 | `dashboards/gold_queries.py` | Gold layer SQL queries |
-| `dashboards/import_dashboards.py` | Automated dashboard import script |
+| `dashboards/provision_dashboards.py` | Automated dashboard provisioning orchestrator |
 
 ### Docker Services
 
@@ -192,7 +192,7 @@ docker compose -f infrastructure/docker/compose.yml --profile analytics up -d
 │ - FastAPI web server on port 8088                   │
 │ - Celery workers for async queries                  │
 │ - Auto-provisions Spark connection on startup       │
-│ - Auto-imports dashboards from ZIP exports          │
+│ - Auto-provisions dashboards via creation scripts   │
 └─────────────────┬───────────────────────────────────┘
                   │
        ┌──────────┴──────────┐
@@ -257,7 +257,7 @@ dashboards/
 - Waits for PostgreSQL metadata database readiness
 - Auto-provisions "Rideshare Lakehouse" database connection
 - Starts Superset web server in background
-- Imports dashboards via import_dashboards.py (non-blocking)
+- Provisions dashboards via provision_dashboards.py (non-blocking)
 
 **superset-init (one-time):**
 - Runs database migrations (`superset db upgrade`)
@@ -407,7 +407,7 @@ Tests verify:
 | "Rideshare Lakehouse" missing | Auto-provisioning failed | Check entrypoint logs, manually create connection via UI |
 | Query timeout in SQL Lab | Large dataset or slow Spark | Increase cache timeout in database settings, enable async execution |
 | Login fails with admin/admin | Admin user not created | Check `superset-init` logs, ensure `superset fab create-admin` ran successfully |
-| Dashboards not imported | import_dashboards.py failed | Check logs for import errors, run manually with `--force` flag |
+| Dashboards not created | provision_dashboards.py failed | Check logs for provisioning errors, run manually with `--force` flag |
 
 **Connection String Mismatch:**
 - If using `database-connections.md` guide, note that auto-provisioned connection is named **"Rideshare Lakehouse"**, not "Rideshare Gold Layer"
@@ -432,7 +432,7 @@ Tests verify:
 
 ### Default Behavior
 
-- Dashboards auto-imported on container startup from ZIP exports in dashboards/
+- Dashboards auto-provisioned on container startup via Python creation scripts in dashboards/
 - Admin user created during initialization with credentials: `admin` / `admin`
 - Spark Thrift Server connection auto-provisioned on first startup
 - Database name: "Rideshare Lakehouse" (not manually configured)

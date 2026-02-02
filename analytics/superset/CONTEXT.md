@@ -24,7 +24,7 @@ Apache Superset 6.0.0 BI stack for business intelligence dashboards and SQL expl
 
 **Auto-provisioning**: docker-entrypoint.sh automatically creates "Rideshare Lakehouse" database connection on container startup by directly inserting into PostgreSQL metadata database, eliminating manual configuration.
 
-**Automated Dashboard Import**: After server startup, docker-entrypoint.sh runs import_dashboards.py which authenticates via REST API, checks for existing dashboards by slug, and imports from ZIP files if not present. Import failures are non-blocking.
+**Automated Dashboard Provisioning**: After server startup, docker-entrypoint.sh runs provision_dashboards.py which authenticates via REST API, checks for existing dashboards by slug, and creates dashboards programmatically using Python scripts. Bronze and Silver dashboards are required; Gold dashboards are optional and gracefully skipped if underlying tables don't exist. Provisioning failures are non-blocking.
 
 **Multi-layer Caching**: Redis uses 6 separate databases (0-5) for different cache concerns - Celery broker (0), Celery results (0), query results (1), general cache (2), data cache (3), filter state cache (4), and explore form cache (5).
 

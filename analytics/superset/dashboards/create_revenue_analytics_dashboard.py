@@ -12,347 +12,178 @@ Charts:
 7. Payment Method Distribution (Pie Chart)
 8. Revenue by Hour (Heatmap)
 9. Top Revenue Zones (Table)
+
+Usage:
+    # Standalone execution
+    python3 create_revenue_analytics_dashboard.py
+
+    # Called by orchestrator
+    from create_revenue_analytics_dashboard import create_revenue_analytics_dashboard
+    create_revenue_analytics_dashboard(client)
 """
 
-import requests
-import json
 import sys
+from typing import Any, Optional
 
 from gold_queries import REVENUE_ANALYTICS_QUERIES
-
-# Database name must match what docker-entrypoint.sh creates
-DATABASE_NAME = "Rideshare Lakehouse"
+from superset_client import SupersetClient
 
 
-class SupersetClient:
-    def __init__(self, base_url="http://localhost:8088", username="admin", password="admin"):
-        self.base_url = base_url
-        self.session = requests.Session()
-        self._login(username, password)
-        self._get_csrf_token()
+# Dashboard configuration
+DASHBOARD_TITLE = "Revenue Analytics Dashboard"
+DASHBOARD_SLUG = "revenue-analytics"
+REFRESH_FREQUENCY = 300  # 5 minutes
 
-    def _login(self, username, password):
-        login_url = f"{self.base_url}/api/v1/security/login"
-        login_data = {
-            "username": username,
-            "password": password,
-            "provider": "db",
-            "refresh": True,
-        }
-        response = self.session.post(login_url, json=login_data)
-        if response.status_code != 200:
-            raise Exception(f"Login failed: {response.text}")
+# Dataset definitions: (table_name, query_key)
+DATASETS = [
+    ("daily_revenue", "daily_revenue"),
+    ("total_fees", "total_fees"),
+    ("trip_count_kpi", "trip_count_kpi"),
+    ("revenue_by_zone", "revenue_by_zone"),
+    ("revenue_over_time", "revenue_over_time"),
+    ("fare_by_distance", "fare_by_distance"),
+    ("payment_methods", "payment_methods"),
+    ("revenue_by_hour", "revenue_by_hour"),
+    ("top_revenue_zones", "top_revenue_zones"),
+]
 
-        token_data = response.json()
-        access_token = token_data.get("access_token")
-        self.session.headers.update({"Authorization": f"Bearer {access_token}"})
+# Chart definitions: (chart_name, viz_type, params)
+CHARTS: list[tuple[str, str, dict[str, Any]]] = [
+    (
+        "Daily Revenue",
+        "big_number_total",
+        {"viz_type": "big_number_total", "metrics": ["revenue"]},
+    ),
+    (
+        "Total Fees",
+        "big_number_total",
+        {"viz_type": "big_number_total", "metrics": ["fees"]},
+    ),
+    (
+        "Trip Count",
+        "big_number_total",
+        {"viz_type": "big_number_total", "metrics": ["count"]},
+    ),
+    (
+        "Revenue by Zone",
+        "dist_bar",
+        {"viz_type": "dist_bar", "metrics": ["revenue"], "groupby": ["zone_id"]},
+    ),
+    (
+        "Revenue Over Time",
+        "echarts_timeseries_line",
+        {"viz_type": "echarts_timeseries_line", "metrics": ["revenue"], "x_axis": "date"},
+    ),
+    (
+        "Average Fare by Distance",
+        "scatter",
+        {"viz_type": "scatter", "x": "distance_km", "y": "fare"},
+    ),
+    (
+        "Payment Method Distribution",
+        "pie",
+        {"viz_type": "pie", "metrics": ["count"], "groupby": ["method"]},
+    ),
+    (
+        "Revenue by Hour",
+        "heatmap",
+        {"viz_type": "heatmap", "metrics": ["revenue"], "groupby": ["hour", "date"]},
+    ),
+    (
+        "Top Revenue Zones",
+        "table",
+        {
+            "viz_type": "table",
+            "metrics": ["total_revenue"],
+            "groupby": ["zone_id", "zone_name"],
+            "row_limit": 10,
+        },
+    ),
+]
 
-    def _get_csrf_token(self):
-        csrf_url = f"{self.base_url}/api/v1/security/csrf_token/"
-        csrf_response = self.session.get(csrf_url)
-        if csrf_response.status_code != 200:
-            raise Exception(f"Failed to get CSRF token: {csrf_response.text}")
-
-        csrf_token = csrf_response.json().get("result")
-        self.session.headers.update(
-            {
-                "X-CSRFToken": csrf_token,
-                "Referer": self.base_url,
-                "Content-Type": "application/json",
-            }
-        )
-
-    def get_database_id(self, database_name=DATABASE_NAME):
-        url = f"{self.base_url}/api/v1/database/"
-        response = self.session.get(url)
-        if response.status_code != 200:
-            raise Exception(f"Failed to fetch databases: {response.text}")
-
-        databases = response.json().get("result", [])
-        for db in databases:
-            if db.get("database_name") == database_name:
-                return db.get("id")
-        raise Exception(f"Database '{database_name}' not found")
-
-    def create_dataset(self, dataset_config):
-        url = f"{self.base_url}/api/v1/dataset/"
-        response = self.session.post(url, json=dataset_config)
-        if response.status_code not in [200, 201]:
-            raise Exception(f"Failed to create dataset: {response.text}")
-        return response.json().get("id")
-
-    def create_chart(self, chart_config):
-        url = f"{self.base_url}/api/v1/chart/"
-        response = self.session.post(url, json=chart_config)
-        if response.status_code not in [200, 201]:
-            raise Exception(f"Failed to create chart: {response.text}")
-        return response.json().get("id")
-
-    def create_dashboard(self, title, slug):
-        dashboard_config = {"dashboard_title": title, "slug": slug, "published": True}
-        url = f"{self.base_url}/api/v1/dashboard/"
-        response = self.session.post(url, json=dashboard_config)
-        if response.status_code not in [200, 201]:
-            raise Exception(f"Failed to create dashboard: {response.text}")
-        return response.json().get("id")
-
-    def update_dashboard(self, dashboard_id, chart_ids):
-        position_json = {
-            "DASHBOARD_VERSION_KEY": "v2",
-            "GRID_ID": {
-                "type": "GRID",
-                "id": "GRID_ID",
-                "children": [f"CHART-{i}" for i in range(len(chart_ids))],
-                "parents": ["ROOT_ID"],
-            },
-        }
-
-        for i, chart_id in enumerate(chart_ids):
-            if i < 3:
-                width, height = 4, 4
-            else:
-                width, height = 6, 8
-
-            position_json[f"CHART-{i}"] = {
-                "type": "CHART",
-                "id": f"CHART-{i}",
-                "children": [],
-                "parents": ["GRID_ID"],
-                "meta": {"width": width, "height": height, "chartId": chart_id},
-            }
-
-        update_config = {
-            "position_json": json.dumps(position_json),
-            "json_metadata": json.dumps({"refresh_frequency": 300}),
-        }
-
-        url = f"{self.base_url}/api/v1/dashboard/{dashboard_id}"
-        response = self.session.put(url, json=update_config)
-        if response.status_code not in [200, 201]:
-            raise Exception(f"Failed to update dashboard: {response.text}")
-
-    def associate_charts(self, dashboard_id, chart_ids):
-        for chart_id in chart_ids:
-            chart_url = f"{self.base_url}/api/v1/chart/{chart_id}"
-            update_data = {"dashboards": [dashboard_id]}
-            response = self.session.put(chart_url, json=update_data)
-            if response.status_code not in [200, 201]:
-                raise Exception(f"Failed to associate chart {chart_id}: {response.text}")
-
-    def export_dashboard(self, dashboard_id, output_file):
-        url = f"{self.base_url}/api/v1/dashboard/export/"
-        params = {"q": json.dumps([dashboard_id])}
-        response = self.session.get(url, params=params)
-        if response.status_code != 200:
-            raise Exception(f"Failed to export dashboard: {response.text}")
-
-        with open(output_file, "wb") as f:
-            f.write(response.content)
+# Layout configuration: (width, height) for each chart
+# KPIs on top row (4 each), analytics charts below (6 each)
+LAYOUT = [
+    (4, 4),  # Daily Revenue
+    (4, 4),  # Total Fees
+    (4, 4),  # Trip Count
+    (6, 8),  # Revenue by Zone
+    (6, 8),  # Revenue Over Time
+    (6, 8),  # Average Fare by Distance
+    (6, 8),  # Payment Method Distribution
+    (6, 8),  # Revenue by Hour
+    (6, 8),  # Top Revenue Zones
+]
 
 
-def main():
-    client = SupersetClient()
+def create_revenue_analytics_dashboard(client: SupersetClient) -> Optional[int]:
+    """Create the Revenue Analytics Dashboard.
+
+    Args:
+        client: Authenticated SupersetClient instance
+
+    Returns:
+        Dashboard ID if created successfully, None otherwise
+
+    Raises:
+        Exception: If dashboard creation fails
+    """
+    # Get database ID
     database_id = client.get_database_id()
+    if database_id is None:
+        raise Exception("Database 'Rideshare Lakehouse' not found")
+
     print(f"Using database ID: {database_id}")
 
-    datasets = [
-        {
-            "database": database_id,
-            "schema": "",
-            "table_name": "daily_revenue",
-            "sql": REVENUE_ANALYTICS_QUERIES["daily_revenue"],
-        },
-        {
-            "database": database_id,
-            "schema": "",
-            "table_name": "total_fees",
-            "sql": REVENUE_ANALYTICS_QUERIES["total_fees"],
-        },
-        {
-            "database": database_id,
-            "schema": "",
-            "table_name": "trip_count_kpi",
-            "sql": REVENUE_ANALYTICS_QUERIES["trip_count_kpi"],
-        },
-        {
-            "database": database_id,
-            "schema": "",
-            "table_name": "revenue_by_zone",
-            "sql": REVENUE_ANALYTICS_QUERIES["revenue_by_zone"],
-        },
-        {
-            "database": database_id,
-            "schema": "",
-            "table_name": "revenue_over_time",
-            "sql": REVENUE_ANALYTICS_QUERIES["revenue_over_time"],
-        },
-        {
-            "database": database_id,
-            "schema": "",
-            "table_name": "fare_by_distance",
-            "sql": REVENUE_ANALYTICS_QUERIES["fare_by_distance"],
-        },
-        {
-            "database": database_id,
-            "schema": "",
-            "table_name": "payment_methods",
-            "sql": REVENUE_ANALYTICS_QUERIES["payment_methods"],
-        },
-        {
-            "database": database_id,
-            "schema": "",
-            "table_name": "revenue_by_hour",
-            "sql": REVENUE_ANALYTICS_QUERIES["revenue_by_hour"],
-        },
-        {
-            "database": database_id,
-            "schema": "",
-            "table_name": "top_revenue_zones",
-            "sql": REVENUE_ANALYTICS_QUERIES["top_revenue_zones"],
-        },
-    ]
-
+    # Create datasets
     dataset_ids = []
-    for ds in datasets:
-        try:
-            ds_id = client.create_dataset(ds)
-            dataset_ids.append(ds_id)
-            print(f"Created dataset: {ds['table_name']} (ID: {ds_id})")
-        except Exception as e:
-            error_msg = str(e)
-            if "already exists" in error_msg:
-                url = f"{client.base_url}/api/v1/dataset/?q=(page_size:100)"
-                response = client.session.get(url)
-                if response.status_code == 200:
-                    all_datasets = response.json().get("result", [])
-                    for existing_ds in all_datasets:
-                        if existing_ds.get("table_name") == ds["table_name"]:
-                            ds_id = existing_ds.get("id")
-                            dataset_ids.append(ds_id)
-                            print(f"Using existing dataset: {ds['table_name']} (ID: {ds_id})")
-                            break
-            else:
-                print(f"Warning: {e}")
-                continue
+    for table_name, query_key in DATASETS:
+        sql = REVENUE_ANALYTICS_QUERIES[query_key]
+        dataset_id = client.get_or_create_dataset(database_id, table_name, sql)
+        dataset_ids.append(dataset_id)
 
-    if len(dataset_ids) < 9:
-        print(f"Error: Only created {len(dataset_ids)} of 9 datasets")
-        sys.exit(1)
-
-    charts_config = [
-        {
-            "slice_name": "Daily Revenue",
-            "viz_type": "big_number_total",
-            "datasource_id": dataset_ids[0],
-            "datasource_type": "table",
-            "params": json.dumps({"viz_type": "big_number_total", "metrics": ["revenue"]}),
-        },
-        {
-            "slice_name": "Total Fees",
-            "viz_type": "big_number_total",
-            "datasource_id": dataset_ids[1],
-            "datasource_type": "table",
-            "params": json.dumps({"viz_type": "big_number_total", "metrics": ["fees"]}),
-        },
-        {
-            "slice_name": "Trip Count",
-            "viz_type": "big_number_total",
-            "datasource_id": dataset_ids[2],
-            "datasource_type": "table",
-            "params": json.dumps({"viz_type": "big_number_total", "metrics": ["count"]}),
-        },
-        {
-            "slice_name": "Revenue by Zone",
-            "viz_type": "dist_bar",
-            "datasource_id": dataset_ids[3],
-            "datasource_type": "table",
-            "params": json.dumps(
-                {"viz_type": "dist_bar", "metrics": ["revenue"], "groupby": ["zone_id"]}
-            ),
-        },
-        {
-            "slice_name": "Revenue Over Time",
-            "viz_type": "echarts_timeseries_line",
-            "datasource_id": dataset_ids[4],
-            "datasource_type": "table",
-            "params": json.dumps(
-                {
-                    "viz_type": "echarts_timeseries_line",
-                    "metrics": ["revenue"],
-                    "x_axis": "date",
-                }
-            ),
-        },
-        {
-            "slice_name": "Average Fare by Distance",
-            "viz_type": "scatter",
-            "datasource_id": dataset_ids[5],
-            "datasource_type": "table",
-            "params": json.dumps({"viz_type": "scatter", "x": "distance_km", "y": "fare"}),
-        },
-        {
-            "slice_name": "Payment Method Distribution",
-            "viz_type": "pie",
-            "datasource_id": dataset_ids[6],
-            "datasource_type": "table",
-            "params": json.dumps({"viz_type": "pie", "metrics": ["count"], "groupby": ["method"]}),
-        },
-        {
-            "slice_name": "Revenue by Hour",
-            "viz_type": "heatmap",
-            "datasource_id": dataset_ids[7],
-            "datasource_type": "table",
-            "params": json.dumps(
-                {
-                    "viz_type": "heatmap",
-                    "metrics": ["revenue"],
-                    "groupby": ["hour", "date"],
-                }
-            ),
-        },
-        {
-            "slice_name": "Top Revenue Zones",
-            "viz_type": "table",
-            "datasource_id": dataset_ids[8],
-            "datasource_type": "table",
-            "params": json.dumps(
-                {
-                    "viz_type": "table",
-                    "metrics": ["total_revenue"],
-                    "groupby": ["zone_id", "zone_name"],
-                    "row_limit": 10,
-                }
-            ),
-        },
-    ]
-
+    # Create charts
     chart_ids = []
-    for chart_cfg in charts_config:
-        try:
-            chart_id = client.create_chart(chart_cfg)
-            chart_ids.append(chart_id)
-            print(f"Created chart: {chart_cfg['slice_name']} (ID: {chart_id})")
-        except Exception as e:
-            print(f"Warning: {e}")
-            continue
+    for i, (chart_name, viz_type, params) in enumerate(CHARTS):
+        chart_id = client.get_or_create_chart(dataset_ids[i], chart_name, viz_type, params)
+        chart_ids.append(chart_id)
 
-    if len(chart_ids) < 9:
-        print(f"Error: Only created {len(chart_ids)} of 9 charts")
-        sys.exit(1)
+    # Create dashboard
+    dashboard_id = client.get_or_create_dashboard(
+        DASHBOARD_TITLE, DASHBOARD_SLUG, REFRESH_FREQUENCY
+    )
 
-    dashboard_id = client.create_dashboard("Revenue Analytics Dashboard", "revenue-analytics")
-    print(f"Created dashboard: Revenue Analytics Dashboard (ID: {dashboard_id})")
+    # Update dashboard with charts and layout
+    client.update_dashboard(dashboard_id, chart_ids, LAYOUT, REFRESH_FREQUENCY)
+    print("Updated dashboard metadata and layout")
 
-    client.update_dashboard(dashboard_id, chart_ids)
-    print("Updated dashboard with charts")
+    # Associate charts with dashboard
+    client.associate_charts_with_dashboard(dashboard_id, chart_ids)
+    print(f"Associated {len(chart_ids)} charts with dashboard")
 
-    client.associate_charts(dashboard_id, chart_ids)
-    print("Associated charts with dashboard")
+    return dashboard_id
 
-    output_file = "revenue-analytics-export.zip"
-    client.export_dashboard(dashboard_id, output_file)
-    print(f"Exported dashboard to {output_file}")
+
+def main() -> int:
+    """Main entry point for standalone execution.
+
+    Returns:
+        Exit code (0 for success, 1 for failure)
+    """
+    client = SupersetClient()
+    if not client.authenticate():
+        print("Failed to authenticate with Superset")
+        return 1
+
+    try:
+        dashboard_id = create_revenue_analytics_dashboard(client)
+        print(f"\nDashboard created successfully (ID: {dashboard_id})")
+        print(f"URL: http://localhost:8088/superset/dashboard/{DASHBOARD_SLUG}/")
+        return 0
+    except Exception as e:
+        print(f"Error creating dashboard: {e}")
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

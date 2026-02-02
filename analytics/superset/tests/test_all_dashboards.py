@@ -2,15 +2,13 @@
 Test all Superset dashboards.
 
 Tests verify that:
-1. All 4 dashboards exist and are accessible
+1. All 6 dashboards exist and are accessible
 2. Each dashboard has the expected number of charts
-3. Exported JSON files are valid
-4. Dashboard filters work correctly
-5. All charts query successfully
-6. Dashboards are accessible via API
+3. Dashboard filters work correctly
+4. All charts query successfully
+5. Dashboards are accessible via API
 """
 
-import os
 import pytest
 import requests
 
@@ -62,17 +60,10 @@ def expected_dashboards():
     }
 
 
-@pytest.fixture
-def dashboards_dir():
-    """Path to dashboards export directory."""
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-    return os.path.join(project_root, "analytics", "superset", "dashboards")
-
-
 def test_all_dashboards_exist(superset_session, superset_base_url, expected_dashboards):
-    """Verify all 4 dashboards accessible with slugs.
+    """Verify all 6 dashboards accessible with slugs.
 
-    Input: Expected dashboard slugs ['operations', 'driver-performance', 'demand-analysis', 'revenue-analytics']
+    Input: Expected dashboard slugs (all 6 medallion layer dashboards)
     Expected: All dashboards exist and are accessible via API
     """
     list_url = f"{superset_base_url}/api/v1/dashboard/"
@@ -126,32 +117,6 @@ def test_dashboard_charts_count(superset_session, superset_base_url, expected_da
         assert (
             chart_count == expected_count
         ), f"Dashboard '{slug}' expected {expected_count} charts, found {chart_count}"
-
-
-def test_exported_json_valid(dashboards_dir, expected_dashboards):
-    """Verify exported JSON is valid with required fields.
-
-    Input: Exported JSON files (ZIP format from Superset export)
-    Expected: Valid ZIP file containing dashboard export data
-    """
-    import zipfile
-
-    for slug in expected_dashboards.keys():
-        json_file = os.path.join(dashboards_dir, f"{slug}.json")
-
-        assert os.path.exists(json_file), f"Exported JSON file not found: {json_file}"
-
-        assert zipfile.is_zipfile(json_file), f"Export file {slug}.json is not a valid ZIP"
-
-        with zipfile.ZipFile(json_file, "r") as zf:
-            assert len(zf.namelist()) > 0, f"ZIP file {slug}.json is empty"
-
-            dashboard_yaml_files = [
-                name
-                for name in zf.namelist()
-                if name.endswith(".yaml") and "dashboard" in name.lower()
-            ]
-            assert len(dashboard_yaml_files) > 0, f"No dashboard YAML found in {slug}.json export"
 
 
 def test_dashboard_filters(superset_session, superset_base_url):
