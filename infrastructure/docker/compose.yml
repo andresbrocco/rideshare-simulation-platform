@@ -691,7 +691,7 @@ services:
       _AIRFLOW_WWW_USER_CREATE: 'true'
       _AIRFLOW_WWW_USER_USERNAME: admin
       _AIRFLOW_WWW_USER_PASSWORD: admin
-      _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-fab apache-airflow-providers-apache-spark pyhive thrift dbt-core dbt-spark[PyHive] great-expectations'
+      _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-fab apache-airflow-providers-apache-spark pyhive thrift dbt-core dbt-spark[PyHive] great-expectations requests'
     volumes:
       - ../../services/airflow/dags:/opt/airflow/dags
       - ../../services/airflow/logs:/opt/airflow/logs
@@ -699,6 +699,7 @@ services:
       - ../../services/airflow/config:/opt/airflow/config
       - ../../services/dbt:/opt/dbt
       - ../../quality/great-expectations:/opt/great-expectations
+      - ../../analytics/superset/dashboards:/opt/superset-dashboards:ro
     depends_on:
       postgres-airflow:
         condition: service_healthy
@@ -739,7 +740,7 @@ services:
       AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: 30
       AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-webserver:8080/execution/'
       DBT_SPARK_HOST: spark-thrift-server
-      _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-fab apache-airflow-providers-apache-spark pyhive thrift dbt-core dbt-spark[PyHive] great-expectations'
+      _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-fab apache-airflow-providers-apache-spark pyhive thrift dbt-core dbt-spark[PyHive] great-expectations requests'
     volumes:
       - ../../services/airflow/dags:/opt/airflow/dags
       - ../../services/airflow/logs:/opt/airflow/logs
@@ -748,6 +749,7 @@ services:
       - ../../services/dbt:/opt/dbt
       - ../../quality/great-expectations:/opt/great-expectations
       - ../../infrastructure/scripts:/opt/init-scripts:ro
+      - ../../analytics/superset/dashboards:/opt/superset-dashboards:ro
     depends_on:
       postgres-airflow:
         condition: service_healthy
