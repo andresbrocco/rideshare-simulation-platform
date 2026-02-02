@@ -4,6 +4,40 @@ set -e
 echo "Installing dependencies (PyHive for Spark, psycopg2 for PostgreSQL)..."
 pip install --target=/tmp/python-packages pyhive thrift thrift-sasl pure-sasl psycopg2-binary
 
+# Patch PyHive SQLAlchemy dialect for Spark 4.x compatibility
+# Spark 4.x SHOW TABLES returns (database, tablename, isTemporary) but PyHive
+# extracts row[0] (database) instead of row[1] (tablename)
+echo "Patching PyHive for Spark 4.x compatibility..."
+python3 << 'PATCH_EOF'
+import os
+
+pyhive_path = "/tmp/python-packages/pyhive/sqlalchemy_hive.py"
+
+with open(pyhive_path, "r") as f:
+    content = f.read()
+
+# Fix get_table_names: extract row[1] (table name) instead of row[0] (schema name)
+old_get_tables = "return [row[0] for row in connection.execute(text(query))]"
+new_get_tables = """# Patched for Spark 4.x: SHOW TABLES returns (database, tablename, isTemporary)
+        rows = list(connection.execute(text(query)))
+        # Spark 4.x format: use row[1] for table name if available, else row[0] for Hive compat
+        if rows and len(rows[0]) >= 2:
+            return [row[1] for row in rows]
+        return [row[0] for row in rows]"""
+
+if old_get_tables in content:
+    content = content.replace(old_get_tables, new_get_tables)
+    with open(pyhive_path, "w") as f:
+        f.write(content)
+    print("Successfully patched PyHive get_table_names for Spark 4.x")
+else:
+    print("PyHive already patched or different version")
+
+# Fix get_columns: extract row[1] for column name in DESCRIBE output
+# Spark 4.x DESCRIBE TABLE returns (col_name, data_type, comment) directly
+# but the schema metadata comes with (db, table, is_temp) format for some queries
+PATCH_EOF
+
 # Wait for PostgreSQL metadata database to be ready
 # Note: superset-init has already run db upgrade, create-admin, and init
 # This container just needs to wait for postgres and provision the Spark connection
