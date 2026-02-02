@@ -2,7 +2,7 @@
 set -e
 
 echo "Installing dependencies (PyHive for Spark, psycopg2 for PostgreSQL)..."
-pip install --target=/tmp/python-packages pyhive thrift thrift-sasl pure-sasl psycopg2-binary
+pip install --target=/tmp/python-packages pyhive thrift thrift-sasl pure-sasl psycopg2-binary prison requests
 
 # Patch PyHive SQLAlchemy dialect for Spark 4.x compatibility
 # Spark 4.x SHOW TABLES returns (database, tablename, isTemporary) but PyHive
@@ -141,15 +141,17 @@ SERVER_PID=$!
 echo "Waiting for Superset server to be ready for dashboard import..."
 sleep 30  # Give the server time to initialize
 
-# Provision dashboards programmatically (non-blocking - if it fails, server continues)
-if [ -d "/app/dashboards" ]; then
+# Provision dashboards using the new declarative module (non-blocking)
+if [ -d "/app/provisioning" ]; then
     echo "Provisioning dashboards..."
-    cd /app/dashboards && python3 provision_dashboards.py \
-        --base-url http://localhost:8088 2>&1 || {
+    cd /app && PYTHONPATH=/app:/tmp/python-packages python3 -m provisioning \
+        --base-url http://localhost:8088 \
+        --no-wait \
+        --skip-table-check 2>&1 || {
         echo "Dashboard provisioning failed (non-blocking), server continues running..."
     }
 else
-    echo "No dashboards directory mounted, skipping provisioning"
+    echo "No provisioning directory mounted, skipping dashboard provisioning"
 fi
 
 # Wait for server process

@@ -1,1 +1,1 @@
-"""Superset dashboard tests."""
+"""Tests for Superset dashboard provisioning."""

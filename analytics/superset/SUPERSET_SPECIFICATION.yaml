@@ -1,0 +1,1257 @@
+# =============================================================================
+# SUPERSET DASHBOARDS SPECIFICATION
+# =============================================================================
+#
+# This file defines the desired end-state for Apache Superset dashboards,
+# datasets, and charts for the Rideshare Simulation Platform.
+#
+# This is a SPECIFICATION file - it describes WHAT should exist, not HOW to
+# create it. Implementation details belong in the provisioning code.
+#
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# GLOBAL CONFIGURATION
+# -----------------------------------------------------------------------------
+
+global:
+  superset_version: "6.0.0"
+
+  database_connection:
+    name: "Rideshare Lakehouse"
+    description: "Spark Thrift Server connection to the medallion lakehouse"
+    sqlalchemy_uri: "hive://spark-thrift-server:10000/default?auth=NOSASL"
+    expose_in_sqllab: true
+    allow_run_async: true
+    cache_timeout_seconds: 300
+
+  defaults:
+    refresh_interval_seconds: 300  # 5 minutes
+    row_limit: 5000
+    color_scheme: "supersetColors"
+
+  credentials:
+    # NOTE: These are development defaults. Production must override.
+    admin_username: "admin"
+    admin_password: "admin"
+    secret_key: "dev-secret-key-change-in-production"
+
+# -----------------------------------------------------------------------------
+# DASHBOARDS
+# -----------------------------------------------------------------------------
+
+dashboards:
+
+  # ===========================================================================
+  # BRONZE LAYER: Pipeline Monitoring
+  # ===========================================================================
+
+  - name: "Bronze Pipeline Dashboard"
+    slug: "bronze-pipeline"
+    description: >
+      Monitors the Bronze (raw ingestion) layer of the medallion lakehouse.
+      Shows ingestion metrics, dead letter queue errors, Kafka partition
+      distribution, and data freshness across all topics.
+    layer: "bronze"
+    refresh_interval_seconds: 300
+
+    layout:
+      rows:
+        - charts: ["Total Events (24h)", "DLQ Errors", "Max Ingestion Lag (s)"]
+          description: "KPI row - key metrics at a glance"
+        - charts: ["Events by Topic", "Partition Distribution"]
+          description: "Distribution analysis"
+        - charts: ["Ingestion Rate (Hourly)"]
+          description: "Time series - full width"
+        - charts: ["DLQ Errors by Type", "Latest Ingestion"]
+          description: "Error analysis and freshness"
+
+    charts:
+      - name: "Total Events (24h)"
+        description: "Total events ingested across all Kafka topics in the last 24 hours"
+        visualization_type: "big_number_total"
+        dataset: "bronze_total_events_24h"
+        size: { width: 4, height: 3 }
+
+      - name: "DLQ Errors"
+        description: "Count of messages that failed processing and went to dead letter queue"
+        visualization_type: "big_number_total"
+        dataset: "bronze_dlq_error_count"
+        size: { width: 4, height: 3 }
+
+      - name: "Max Ingestion Lag (s)"
+        description: "Maximum delay between event timestamp and ingestion timestamp"
+        visualization_type: "big_number_total"
+        dataset: "bronze_ingestion_lag"
+        size: { width: 4, height: 3 }
+
+      - name: "Events by Topic"
+        description: "Distribution of ingested events across Kafka topics"
+        visualization_type: "bar_chart"
+        dataset: "bronze_events_by_topic"
+        dimensions: ["topic"]
+        metrics: ["event_count"]
+        size: { width: 6, height: 4 }
+
+      - name: "Partition Distribution"
+        description: "Event distribution across Kafka partitions (indicates load balancing)"
+        visualization_type: "bar_chart"
+        dataset: "bronze_partition_distribution"
+        dimensions: ["partition_id"]
+        metrics: ["event_count"]
+        size: { width: 6, height: 4 }
+
+      - name: "Ingestion Rate (Hourly)"
+        description: "Time series showing hourly ingestion throughput"
+        visualization_type: "time_series_line"
+        dataset: "bronze_ingestion_rate_hourly"
+        time_column: "hour"
+        metrics: ["event_count"]
+        size: { width: 12, height: 4 }
+
+      - name: "DLQ Errors by Type"
+        description: "Breakdown of DLQ errors by error type"
+        visualization_type: "pie_chart"
+        dataset: "bronze_dlq_errors_by_type"
+        dimensions: ["error_type"]
+        metrics: ["count"]
+        size: { width: 6, height: 4 }
+
+      - name: "Latest Ingestion"
+        description: "Data freshness - most recent ingestion timestamp per topic"
+        visualization_type: "table"
+        dataset: "bronze_latest_ingestion"
+        columns: ["topic", "latest_ingestion"]
+        size: { width: 6, height: 4 }
+
+  # ===========================================================================
+  # SILVER LAYER: Data Quality Monitoring
+  # ===========================================================================
+
+  - name: "Silver Quality Dashboard"
+    slug: "silver-quality"
+    description: >
+      Monitors data quality in the Silver (cleaned/validated) layer.
+      Shows anomaly detection results, staging table health, and data freshness.
+    layer: "silver"
+    refresh_interval_seconds: 300
+
+    layout:
+      rows:
+        - charts: ["Total Anomalies (24h)", "GPS Outliers", "Impossible Speeds"]
+          description: "KPI row - anomaly counts"
+        - charts: ["Anomalies by Type", "Anomalies Over Time"]
+          description: "Anomaly analysis"
+        - charts: ["Staging Row Counts"]
+          description: "Table health - full width"
+        - charts: ["Zombie Drivers", "Data Freshness"]
+          description: "Specific anomalies and freshness"
+
+    charts:
+      - name: "Total Anomalies (24h)"
+        description: "Total anomalies detected across all validation rules"
+        visualization_type: "big_number_total"
+        dataset: "silver_total_anomalies"
+        size: { width: 4, height: 3 }
+
+      - name: "GPS Outliers"
+        description: "GPS coordinates outside Sao Paulo geographic bounds"
+        visualization_type: "big_number_total"
+        dataset: "silver_gps_outliers_count"
+        business_rule: "Latitude not in [-23.8, -23.3], Longitude not in [-46.9, -46.3]"
+        size: { width: 4, height: 3 }
+
+      - name: "Impossible Speeds"
+        description: "Calculated speeds exceeding physical possibility"
+        visualization_type: "big_number_total"
+        dataset: "silver_impossible_speeds_count"
+        business_rule: "Speed > 200 km/h"
+        size: { width: 4, height: 3 }
+
+      - name: "Anomalies by Type"
+        description: "Distribution of anomalies by category"
+        visualization_type: "pie_chart"
+        dataset: "silver_anomalies_by_type"
+        dimensions: ["anomaly_type"]
+        metrics: ["count"]
+        size: { width: 6, height: 4 }
+
+      - name: "Anomalies Over Time"
+        description: "Hourly trend of detected anomalies"
+        visualization_type: "time_series_line"
+        dataset: "silver_anomalies_over_time"
+        time_column: "hour"
+        metrics: ["anomaly_count"]
+        size: { width: 6, height: 4 }
+
+      - name: "Staging Row Counts"
+        description: "Row counts per staging table - indicates data completeness"
+        visualization_type: "bar_chart"
+        dataset: "silver_staging_row_counts"
+        dimensions: ["table_name"]
+        metrics: ["row_count"]
+        size: { width: 12, height: 4 }
+
+      - name: "Zombie Drivers"
+        description: "Drivers marked active but with no GPS ping for 10+ minutes"
+        visualization_type: "table"
+        dataset: "silver_zombie_drivers_list"
+        columns: ["driver_id", "current_status", "last_gps_timestamp", "minutes_since_last_ping"]
+        row_limit: 20
+        size: { width: 6, height: 4 }
+
+      - name: "Data Freshness"
+        description: "Latest ingestion timestamp per staging table"
+        visualization_type: "table"
+        dataset: "silver_staging_freshness"
+        columns: ["table_name", "latest_timestamp"]
+        size: { width: 6, height: 4 }
+
+  # ===========================================================================
+  # GOLD LAYER: Operations Dashboard
+  # ===========================================================================
+
+  - name: "Operations Dashboard"
+    slug: "operations"
+    description: >
+      Real-time platform operations monitoring. Shows current trip activity,
+      wait times, revenue, and pipeline health.
+    layer: "gold"
+    refresh_interval_seconds: 300
+
+    layout:
+      rows:
+        - charts: ["Active Trips", "Completed Today", "Average Wait Time Today", "Total Revenue Today"]
+          description: "KPI row - real-time metrics"
+        - charts: ["DLQ Errors Last Hour", "Total DLQ Errors"]
+          description: "Error monitoring"
+        - charts: ["Hourly Trip Volume", "Pipeline Lag"]
+          description: "Throughput and latency"
+        - charts: ["Trips by Zone Today"]
+          description: "Geographic distribution"
+
+    charts:
+      - name: "Active Trips"
+        description: "Trips currently in progress (started but not completed)"
+        visualization_type: "big_number_total"
+        dataset: "gold_active_trips"
+        size: { width: 4, height: 4 }
+
+      - name: "Completed Today"
+        description: "Total trips completed today"
+        visualization_type: "big_number_total"
+        dataset: "gold_completed_today"
+        size: { width: 4, height: 4 }
+
+      - name: "Average Wait Time Today"
+        description: "Average minutes from match to pickup for today's trips"
+        visualization_type: "big_number_total"
+        dataset: "gold_avg_wait_time"
+        unit: "minutes"
+        size: { width: 4, height: 4 }
+
+      - name: "Total Revenue Today"
+        description: "Sum of all fares for completed trips today"
+        visualization_type: "big_number_total"
+        dataset: "gold_total_revenue"
+        unit: "BRL"
+        size: { width: 4, height: 4 }
+
+      - name: "DLQ Errors Last Hour"
+        description: "Time series of DLQ errors in the past hour"
+        visualization_type: "time_series_bar"
+        dataset: "gold_dlq_errors_hourly"
+        time_column: "ts"
+        metrics: ["error_count"]
+        note: "Placeholder - no DLQ data in Gold layer"
+        size: { width: 4, height: 4 }
+
+      - name: "Total DLQ Errors"
+        description: "DLQ errors grouped by error type"
+        visualization_type: "pie_chart"
+        dataset: "gold_dlq_errors_by_type"
+        dimensions: ["error_type"]
+        metrics: ["count"]
+        note: "Placeholder - no DLQ data in Gold layer"
+        size: { width: 4, height: 4 }
+
+      - name: "Hourly Trip Volume"
+        description: "Trip completions per hour for the last 24 hours"
+        visualization_type: "time_series_line"
+        dataset: "gold_hourly_trips"
+        time_column: "hour"
+        metrics: ["trip_count"]
+        size: { width: 4, height: 4 }
+
+      - name: "Pipeline Lag"
+        description: "Delay between event generation and availability in Gold layer"
+        visualization_type: "big_number_total"
+        dataset: "gold_pipeline_lag"
+        unit: "seconds"
+        note: "Placeholder - would need observability data"
+        size: { width: 4, height: 4 }
+
+      - name: "Trips by Zone Today"
+        description: "Geographic distribution of today's trips by pickup zone"
+        visualization_type: "bar_chart"  # Originally deck_polygon but bar is more universally supported
+        dataset: "gold_trips_by_zone"
+        dimensions: ["zone_name"]
+        metrics: ["trip_count"]
+        size: { width: 4, height: 4 }
+
+  # ===========================================================================
+  # GOLD LAYER: Driver Performance Dashboard
+  # ===========================================================================
+
+  - name: "Driver Performance Dashboard"
+    slug: "driver-performance"
+    description: >
+      Driver metrics and analytics. Shows top performers, rating distributions,
+      payouts, and utilization patterns.
+    layer: "gold"
+    refresh_interval_seconds: 300
+
+    layout:
+      rows:
+        - charts: ["Top 10 Drivers by Trips", "Driver Ratings Distribution"]
+          description: "Performance rankings"
+        - charts: ["Driver Payouts Over Time", "Driver Utilization Heatmap"]
+          description: "Time-based analysis"
+        - charts: ["Trips per Driver", "Driver Status Summary"]
+          description: "Distribution analysis"
+
+    charts:
+      - name: "Top 10 Drivers by Trips"
+        description: "Top performing drivers by completed trip count today"
+        visualization_type: "bar_chart"
+        dataset: "gold_top_drivers"
+        dimensions: ["driver_name"]
+        metrics: ["trip_count"]
+        row_limit: 10
+        size: { width: 6, height: 8 }
+
+      - name: "Driver Ratings Distribution"
+        description: "Histogram showing distribution of driver ratings"
+        visualization_type: "bar_chart"  # histogram
+        dataset: "gold_driver_ratings"
+        dimensions: ["rating_bucket"]
+        metrics: ["driver_count"]
+        size: { width: 6, height: 8 }
+
+      - name: "Driver Payouts Over Time"
+        description: "Total driver payouts trend over the last 7 days"
+        visualization_type: "time_series_line"
+        dataset: "gold_driver_payouts"
+        time_column: "date"
+        metrics: ["total_payout"]
+        size: { width: 6, height: 8 }
+
+      - name: "Driver Utilization Heatmap"
+        description: "Driver utilization percentage by driver and date"
+        visualization_type: "heatmap"
+        dataset: "gold_driver_utilization"
+        x_axis: "date"
+        y_axis: "driver_id"
+        metric: "utilization"
+        size: { width: 6, height: 8 }
+
+      - name: "Trips per Driver"
+        description: "Scatter plot showing relationship between trips and revenue"
+        visualization_type: "scatter"
+        dataset: "gold_trips_per_driver"
+        x_axis: "trips"
+        y_axis: "revenue"
+        entity: "driver_id"
+        size: { width: 6, height: 8 }
+
+      - name: "Driver Status Summary"
+        description: "Distribution of drivers by current status"
+        visualization_type: "pie_chart"
+        dataset: "gold_driver_status"
+        dimensions: ["status"]
+        metrics: ["driver_count"]
+        size: { width: 6, height: 8 }
+
+  # ===========================================================================
+  # GOLD LAYER: Demand Analysis Dashboard
+  # ===========================================================================
+
+  - name: "Demand Analysis Dashboard"
+    slug: "demand-analysis"
+    description: >
+      Zone demand and surge pricing analysis. Shows demand patterns,
+      surge events, and wait times by geographic area.
+    layer: "gold"
+    refresh_interval_seconds: 300
+
+    layout:
+      rows:
+        - charts: ["Zone Demand Heatmap", "Surge Multiplier Trends"]
+          description: "Demand and surge visualization"
+        - charts: ["Average Wait Time by Zone", "Demand by Hour of Day"]
+          description: "Time and zone analysis"
+        - charts: ["Top Demand Zones", "Surge Events Timeline"]
+          description: "Rankings and history"
+
+    charts:
+      - name: "Zone Demand Heatmap"
+        description: "Demand intensity by zone and time"
+        visualization_type: "heatmap"
+        dataset: "gold_zone_demand_heatmap"
+        x_axis: "timestamp"
+        y_axis: "zone_id"
+        metric: "demand"
+        size: { width: 6, height: 8 }
+
+      - name: "Surge Multiplier Trends"
+        description: "Average surge pricing multiplier over time"
+        visualization_type: "time_series_line"
+        dataset: "gold_surge_trends"
+        time_column: "timestamp"
+        metrics: ["surge_multiplier"]
+        size: { width: 6, height: 8 }
+
+      - name: "Average Wait Time by Zone"
+        description: "Average rider wait time by pickup zone"
+        visualization_type: "bar_chart"
+        dataset: "gold_wait_time_by_zone"
+        dimensions: ["zone_id"]
+        metrics: ["avg_wait_minutes"]
+        size: { width: 6, height: 8 }
+
+      - name: "Demand by Hour of Day"
+        description: "Aggregated demand pattern by hour (7-day average)"
+        visualization_type: "area_chart"
+        dataset: "gold_demand_by_hour"
+        dimensions: ["hour_of_day"]
+        metrics: ["request_count"]
+        size: { width: 6, height: 8 }
+
+      - name: "Top Demand Zones"
+        description: "Zones with highest trip request volume"
+        visualization_type: "table"
+        dataset: "gold_top_demand_zones"
+        columns: ["zone_id", "zone_name", "total_requests"]
+        row_limit: 10
+        size: { width: 6, height: 8 }
+
+      - name: "Surge Events Timeline"
+        description: "Timeline of surge pricing events (multiplier > 1.0)"
+        visualization_type: "time_series_bar"
+        dataset: "gold_surge_events"
+        time_column: "timestamp"
+        dimensions: ["zone_name"]
+        metrics: ["multiplier"]
+        size: { width: 6, height: 8 }
+
+  # ===========================================================================
+  # GOLD LAYER: Revenue Analytics Dashboard
+  # ===========================================================================
+
+  - name: "Revenue Analytics Dashboard"
+    slug: "revenue-analytics"
+    description: >
+      Revenue metrics and KPIs. Shows daily revenue, fees, payment methods,
+      and revenue distribution by zone and time.
+    layer: "gold"
+    refresh_interval_seconds: 300
+
+    layout:
+      rows:
+        - charts: ["Daily Revenue", "Total Fees", "Trip Count"]
+          description: "KPI row - top-level metrics"
+        - charts: ["Revenue by Zone", "Revenue Over Time"]
+          description: "Revenue breakdown"
+        - charts: ["Average Fare by Distance", "Payment Method Distribution"]
+          description: "Pricing and payment analysis"
+        - charts: ["Revenue by Hour", "Top Revenue Zones"]
+          description: "Temporal and geographic analysis"
+
+    charts:
+      - name: "Daily Revenue"
+        description: "Total revenue from all completed trips today"
+        visualization_type: "big_number_total"
+        dataset: "gold_daily_revenue"
+        unit: "BRL"
+        size: { width: 4, height: 4 }
+
+      - name: "Total Fees"
+        description: "Total platform fees collected today"
+        visualization_type: "big_number_total"
+        dataset: "gold_total_fees"
+        unit: "BRL"
+        size: { width: 4, height: 4 }
+
+      - name: "Trip Count"
+        description: "Total number of completed trips today"
+        visualization_type: "big_number_total"
+        dataset: "gold_trip_count_kpi"
+        size: { width: 4, height: 4 }
+
+      - name: "Revenue by Zone"
+        description: "Revenue breakdown by pickup zone"
+        visualization_type: "bar_chart"
+        dataset: "gold_revenue_by_zone"
+        dimensions: ["zone_id"]
+        metrics: ["revenue"]
+        size: { width: 6, height: 8 }
+
+      - name: "Revenue Over Time"
+        description: "Daily revenue trend for the last 7 days"
+        visualization_type: "time_series_line"
+        dataset: "gold_revenue_over_time"
+        time_column: "date"
+        metrics: ["revenue"]
+        size: { width: 6, height: 8 }
+
+      - name: "Average Fare by Distance"
+        description: "Scatter plot showing fare vs trip distance"
+        visualization_type: "scatter"
+        dataset: "gold_fare_by_distance"
+        x_axis: "distance_km"
+        y_axis: "avg_fare"
+        size: { width: 6, height: 8 }
+
+      - name: "Payment Method Distribution"
+        description: "Breakdown of trips by payment method"
+        visualization_type: "pie_chart"
+        dataset: "gold_payment_methods"
+        dimensions: ["method"]
+        metrics: ["count"]
+        size: { width: 6, height: 8 }
+
+      - name: "Revenue by Hour"
+        description: "Revenue heatmap by hour of day and date"
+        visualization_type: "heatmap"
+        dataset: "gold_revenue_by_hour"
+        x_axis: "hour"
+        y_axis: "date"
+        metric: "revenue"
+        size: { width: 6, height: 8 }
+
+      - name: "Top Revenue Zones"
+        description: "Zones generating the highest revenue (7-day total)"
+        visualization_type: "table"
+        dataset: "gold_top_revenue_zones"
+        columns: ["zone_id", "zone_name", "total_revenue"]
+        row_limit: 10
+        size: { width: 6, height: 8 }
+
+
+# -----------------------------------------------------------------------------
+# DATASETS (Virtual SQL Queries)
+# -----------------------------------------------------------------------------
+#
+# All datasets are VIRTUAL - they use SQL queries rather than physical tables.
+# This allows dashboards to be created before underlying tables exist.
+#
+# Naming convention:
+#   - Bronze: bronze_<metric_name>
+#   - Silver: silver_<metric_name>
+#   - Gold:   gold_<metric_name>
+#
+# -----------------------------------------------------------------------------
+
+datasets:
+
+  # ===========================================================================
+  # BRONZE LAYER DATASETS
+  # ===========================================================================
+  # Source tables: bronze.bronze_trips, bronze.bronze_gps_pings,
+  #                bronze.bronze_driver_status, bronze.bronze_surge_updates,
+  #                bronze.bronze_ratings, bronze.bronze_payments,
+  #                bronze.bronze_driver_profiles, bronze.bronze_rider_profiles,
+  #                bronze.bronze_dlq
+  # ===========================================================================
+
+  - name: "bronze_total_events_24h"
+    description: "Total events ingested across all topics in last 24 hours"
+    sql: |
+      SELECT SUM(event_count) as count
+      FROM (
+          SELECT COUNT(*) as event_count FROM bronze.bronze_trips
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          UNION ALL
+          SELECT COUNT(*) as event_count FROM bronze.bronze_gps_pings
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          UNION ALL
+          SELECT COUNT(*) as event_count FROM bronze.bronze_driver_status
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          UNION ALL
+          SELECT COUNT(*) as event_count FROM bronze.bronze_surge_updates
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          UNION ALL
+          SELECT COUNT(*) as event_count FROM bronze.bronze_ratings
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          UNION ALL
+          SELECT COUNT(*) as event_count FROM bronze.bronze_payments
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          UNION ALL
+          SELECT COUNT(*) as event_count FROM bronze.bronze_driver_profiles
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          UNION ALL
+          SELECT COUNT(*) as event_count FROM bronze.bronze_rider_profiles
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+      ) topic_counts
+
+  - name: "bronze_events_by_topic"
+    description: "Event distribution by Kafka topic (last 24 hours)"
+    sql: |
+      SELECT topic, event_count
+      FROM (
+          SELECT 'trips' as topic, COUNT(*) as event_count FROM bronze.bronze_trips
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          UNION ALL
+          SELECT 'gps_pings' as topic, COUNT(*) as event_count FROM bronze.bronze_gps_pings
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          UNION ALL
+          SELECT 'driver_status' as topic, COUNT(*) as event_count FROM bronze.bronze_driver_status
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          UNION ALL
+          SELECT 'surge_updates' as topic, COUNT(*) as event_count FROM bronze.bronze_surge_updates
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          UNION ALL
+          SELECT 'ratings' as topic, COUNT(*) as event_count FROM bronze.bronze_ratings
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          UNION ALL
+          SELECT 'payments' as topic, COUNT(*) as event_count FROM bronze.bronze_payments
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          UNION ALL
+          SELECT 'driver_profiles' as topic, COUNT(*) as event_count FROM bronze.bronze_driver_profiles
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          UNION ALL
+          SELECT 'rider_profiles' as topic, COUNT(*) as event_count FROM bronze.bronze_rider_profiles
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+      ) topic_counts
+      ORDER BY event_count DESC
+
+  - name: "bronze_ingestion_rate_hourly"
+    description: "Ingestion rate per hour (time series, last 24 hours)"
+    sql: |
+      SELECT hour, SUM(event_count) as event_count
+      FROM (
+          SELECT DATE_TRUNC('hour', _ingested_at) as hour, COUNT(*) as event_count
+          FROM bronze.bronze_trips
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          GROUP BY DATE_TRUNC('hour', _ingested_at)
+          UNION ALL
+          SELECT DATE_TRUNC('hour', _ingested_at) as hour, COUNT(*) as event_count
+          FROM bronze.bronze_gps_pings
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          GROUP BY DATE_TRUNC('hour', _ingested_at)
+          UNION ALL
+          SELECT DATE_TRUNC('hour', _ingested_at) as hour, COUNT(*) as event_count
+          FROM bronze.bronze_driver_status
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          GROUP BY DATE_TRUNC('hour', _ingested_at)
+          UNION ALL
+          SELECT DATE_TRUNC('hour', _ingested_at) as hour, COUNT(*) as event_count
+          FROM bronze.bronze_surge_updates
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          GROUP BY DATE_TRUNC('hour', _ingested_at)
+          UNION ALL
+          SELECT DATE_TRUNC('hour', _ingested_at) as hour, COUNT(*) as event_count
+          FROM bronze.bronze_ratings
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          GROUP BY DATE_TRUNC('hour', _ingested_at)
+          UNION ALL
+          SELECT DATE_TRUNC('hour', _ingested_at) as hour, COUNT(*) as event_count
+          FROM bronze.bronze_payments
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          GROUP BY DATE_TRUNC('hour', _ingested_at)
+          UNION ALL
+          SELECT DATE_TRUNC('hour', _ingested_at) as hour, COUNT(*) as event_count
+          FROM bronze.bronze_driver_profiles
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          GROUP BY DATE_TRUNC('hour', _ingested_at)
+          UNION ALL
+          SELECT DATE_TRUNC('hour', _ingested_at) as hour, COUNT(*) as event_count
+          FROM bronze.bronze_rider_profiles
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          GROUP BY DATE_TRUNC('hour', _ingested_at)
+      ) hourly_counts
+      GROUP BY hour
+      ORDER BY hour
+
+  - name: "bronze_dlq_error_count"
+    description: "Total DLQ errors (last 24 hours)"
+    sql: |
+      SELECT COALESCE(COUNT(*), 0) as count
+      FROM bronze.bronze_dlq
+      WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+
+  - name: "bronze_dlq_errors_by_type"
+    description: "DLQ errors by error type"
+    sql: |
+      SELECT
+          COALESCE(error_type, 'unknown') as error_type,
+          COUNT(*) as count
+      FROM bronze.bronze_dlq
+      WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+      GROUP BY error_type
+      ORDER BY count DESC
+
+  - name: "bronze_partition_distribution"
+    description: "Event count by Kafka partition (shows distribution across partitions)"
+    sql: |
+      SELECT partition_id, SUM(event_count) as event_count
+      FROM (
+          SELECT _kafka_partition as partition_id, COUNT(*) as event_count
+          FROM bronze.bronze_trips
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          GROUP BY _kafka_partition
+          UNION ALL
+          SELECT _kafka_partition as partition_id, COUNT(*) as event_count
+          FROM bronze.bronze_gps_pings
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          GROUP BY _kafka_partition
+          UNION ALL
+          SELECT _kafka_partition as partition_id, COUNT(*) as event_count
+          FROM bronze.bronze_driver_status
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          GROUP BY _kafka_partition
+          UNION ALL
+          SELECT _kafka_partition as partition_id, COUNT(*) as event_count
+          FROM bronze.bronze_surge_updates
+          WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+          GROUP BY _kafka_partition
+      ) partition_counts
+      GROUP BY partition_id
+      ORDER BY partition_id
+
+  - name: "bronze_latest_ingestion"
+    description: "Latest ingestion timestamp per topic (data freshness)"
+    sql: |
+      SELECT topic, latest_ingestion
+      FROM (
+          SELECT 'trips' as topic, MAX(_ingested_at) as latest_ingestion FROM bronze.bronze_trips
+          UNION ALL
+          SELECT 'gps_pings' as topic, MAX(_ingested_at) as latest_ingestion FROM bronze.bronze_gps_pings
+          UNION ALL
+          SELECT 'driver_status' as topic, MAX(_ingested_at) as latest_ingestion FROM bronze.bronze_driver_status
+          UNION ALL
+          SELECT 'surge_updates' as topic, MAX(_ingested_at) as latest_ingestion FROM bronze.bronze_surge_updates
+          UNION ALL
+          SELECT 'ratings' as topic, MAX(_ingested_at) as latest_ingestion FROM bronze.bronze_ratings
+          UNION ALL
+          SELECT 'payments' as topic, MAX(_ingested_at) as latest_ingestion FROM bronze.bronze_payments
+          UNION ALL
+          SELECT 'driver_profiles' as topic, MAX(_ingested_at) as latest_ingestion FROM bronze.bronze_driver_profiles
+          UNION ALL
+          SELECT 'rider_profiles' as topic, MAX(_ingested_at) as latest_ingestion FROM bronze.bronze_rider_profiles
+      ) topic_freshness
+      ORDER BY latest_ingestion DESC
+
+  - name: "bronze_ingestion_lag"
+    description: "Maximum ingestion lag (seconds between event timestamp and ingestion timestamp)"
+    sql: |
+      SELECT COALESCE(
+          MAX(
+              UNIX_TIMESTAMP(_ingested_at) - UNIX_TIMESTAMP(timestamp)
+          ),
+          0
+      ) as max_lag_seconds
+      FROM bronze.bronze_trips
+      WHERE _ingested_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+        AND timestamp IS NOT NULL
+
+  # ===========================================================================
+  # SILVER LAYER DATASETS
+  # ===========================================================================
+  # Source tables: silver.stg_trips, silver.stg_gps_pings, silver.stg_driver_status,
+  #                silver.stg_surge_updates, silver.stg_ratings, silver.stg_payments,
+  #                silver.stg_drivers, silver.stg_riders,
+  #                silver.anomalies_all, silver.anomalies_gps_outliers,
+  #                silver.anomalies_impossible_speeds, silver.anomalies_zombie_drivers
+  # ===========================================================================
+
+  - name: "silver_total_anomalies"
+    description: "Total anomalies detected (last 24 hours)"
+    sql: |
+      SELECT COUNT(*) as count
+      FROM silver.anomalies_all
+      WHERE detected_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+
+  - name: "silver_anomalies_by_type"
+    description: "Anomaly type distribution"
+    sql: |
+      SELECT
+          anomaly_type,
+          COUNT(*) as count
+      FROM silver.anomalies_all
+      WHERE detected_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+      GROUP BY anomaly_type
+      ORDER BY count DESC
+
+  - name: "silver_anomalies_over_time"
+    description: "Anomalies per hour (time series, last 24 hours)"
+    sql: |
+      SELECT
+          DATE_TRUNC('hour', detected_at) as hour,
+          COUNT(*) as anomaly_count
+      FROM silver.anomalies_all
+      WHERE detected_at >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+      GROUP BY DATE_TRUNC('hour', detected_at)
+      ORDER BY hour
+
+  - name: "silver_gps_outliers_count"
+    description: "GPS outliers count (boundary violations)"
+    business_rule: "lat not in [-23.8, -23.3], lon not in [-46.9, -46.3]"
+    sql: |
+      SELECT COUNT(*) as count
+      FROM silver.anomalies_gps_outliers
+      WHERE timestamp >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+
+  - name: "silver_impossible_speeds_count"
+    description: "Impossible speeds count (speeds > 200 km/h)"
+    sql: |
+      SELECT COUNT(*) as count
+      FROM silver.anomalies_impossible_speeds
+      WHERE timestamp >= DATE_SUB(CURRENT_TIMESTAMP(), 1)
+
+  - name: "silver_zombie_drivers_list"
+    description: "Zombie drivers list (active drivers with no GPS for 10+ minutes)"
+    sql: |
+      SELECT
+          driver_id,
+          current_status,
+          last_gps_timestamp,
+          last_status_timestamp,
+          ROUND(minutes_since_last_ping, 1) as minutes_since_last_ping
+      FROM silver.anomalies_zombie_drivers
+      ORDER BY minutes_since_last_ping DESC
+      LIMIT 20
+
+  - name: "silver_staging_row_counts"
+    description: "Row counts per staging table"
+    sql: |
+      SELECT table_name, row_count
+      FROM (
+          SELECT 'stg_trips' as table_name, COUNT(*) as row_count FROM silver.stg_trips
+          UNION ALL
+          SELECT 'stg_gps_pings' as table_name, COUNT(*) as row_count FROM silver.stg_gps_pings
+          UNION ALL
+          SELECT 'stg_driver_status' as table_name, COUNT(*) as row_count FROM silver.stg_driver_status
+          UNION ALL
+          SELECT 'stg_surge_updates' as table_name, COUNT(*) as row_count FROM silver.stg_surge_updates
+          UNION ALL
+          SELECT 'stg_ratings' as table_name, COUNT(*) as row_count FROM silver.stg_ratings
+          UNION ALL
+          SELECT 'stg_payments' as table_name, COUNT(*) as row_count FROM silver.stg_payments
+          UNION ALL
+          SELECT 'stg_drivers' as table_name, COUNT(*) as row_count FROM silver.stg_drivers
+          UNION ALL
+          SELECT 'stg_riders' as table_name, COUNT(*) as row_count FROM silver.stg_riders
+      ) table_counts
+      ORDER BY row_count DESC
+
+  - name: "silver_staging_freshness"
+    description: "Data freshness per staging table (latest _ingested_at timestamp)"
+    sql: |
+      SELECT table_name, latest_timestamp
+      FROM (
+          SELECT 'stg_trips' as table_name, MAX(_ingested_at) as latest_timestamp FROM silver.stg_trips
+          UNION ALL
+          SELECT 'stg_gps_pings' as table_name, MAX(_ingested_at) as latest_timestamp FROM silver.stg_gps_pings
+          UNION ALL
+          SELECT 'stg_driver_status' as table_name, MAX(_ingested_at) as latest_timestamp FROM silver.stg_driver_status
+          UNION ALL
+          SELECT 'stg_surge_updates' as table_name, MAX(_ingested_at) as latest_timestamp FROM silver.stg_surge_updates
+          UNION ALL
+          SELECT 'stg_ratings' as table_name, MAX(_ingested_at) as latest_timestamp FROM silver.stg_ratings
+          UNION ALL
+          SELECT 'stg_payments' as table_name, MAX(_ingested_at) as latest_timestamp FROM silver.stg_payments
+          UNION ALL
+          SELECT 'stg_drivers' as table_name, MAX(_ingested_at) as latest_timestamp FROM silver.stg_drivers
+          UNION ALL
+          SELECT 'stg_riders' as table_name, MAX(_ingested_at) as latest_timestamp FROM silver.stg_riders
+      ) table_freshness
+      ORDER BY latest_timestamp DESC
+
+  # ===========================================================================
+  # GOLD LAYER DATASETS - Operations
+  # ===========================================================================
+  # Source tables: gold.fact_trips, gold.fact_payments, gold.dim_zones,
+  #                gold.dim_drivers, gold.dim_riders, gold.dim_time,
+  #                gold.agg_hourly_zone_demand, gold.agg_daily_driver_performance,
+  #                gold.agg_daily_platform_revenue, gold.agg_surge_history
+  # ===========================================================================
+
+  - name: "gold_active_trips"
+    description: "Active trips (in-flight: started but not completed)"
+    sql: |
+      SELECT COUNT(*) as count
+      FROM gold.fact_trips
+      WHERE started_at IS NOT NULL AND completed_at IS NULL
+
+  - name: "gold_completed_today"
+    description: "Trips completed today"
+    sql: |
+      SELECT COUNT(*) as count
+      FROM gold.fact_trips
+      WHERE CAST(completed_at AS DATE) = CURRENT_DATE()
+
+  - name: "gold_avg_wait_time"
+    description: "Average wait time today (minutes from matched to started)"
+    sql: |
+      SELECT COALESCE(
+          ROUND(AVG(
+              (UNIX_TIMESTAMP(started_at) - UNIX_TIMESTAMP(matched_at)) / 60.0
+          ), 2),
+          0.0
+      ) as avg_wait_minutes
+      FROM gold.fact_trips
+      WHERE CAST(completed_at AS DATE) = CURRENT_DATE()
+        AND matched_at IS NOT NULL
+        AND started_at IS NOT NULL
+
+  - name: "gold_total_revenue"
+    description: "Total revenue today"
+    sql: |
+      SELECT COALESCE(ROUND(SUM(fp.total_fare), 2), 0.0) as revenue
+      FROM gold.fact_payments fp
+      JOIN gold.fact_trips ft ON fp.trip_key = ft.trip_key
+      WHERE CAST(ft.completed_at AS DATE) = CURRENT_DATE()
+
+  - name: "gold_dlq_errors_hourly"
+    description: "DLQ errors (placeholder - no DLQ data in Gold layer)"
+    sql: |
+      SELECT CURRENT_TIMESTAMP() as ts, 0 as error_count
+
+  - name: "gold_dlq_errors_by_type"
+    description: "DLQ errors by type (placeholder)"
+    sql: |
+      SELECT 'none' as error_type, 0 as count
+
+  - name: "gold_hourly_trips"
+    description: "Hourly trip volume (last 24 hours)"
+    sql: |
+      SELECT
+          DATE_TRUNC('hour', completed_at) as hour,
+          COUNT(*) as trip_count
+      FROM gold.fact_trips
+      WHERE completed_at >= DATE_SUB(CURRENT_TIMESTAMP(), 24)
+      GROUP BY DATE_TRUNC('hour', completed_at)
+      ORDER BY hour
+
+  - name: "gold_pipeline_lag"
+    description: "Pipeline lag (placeholder - would need observability data)"
+    sql: |
+      SELECT 0 as lag_seconds
+
+  - name: "gold_trips_by_zone"
+    description: "Trips by zone today (for geographic distribution)"
+    sql: |
+      SELECT
+          dz.zone_id,
+          dz.name as zone_name,
+          COUNT(*) as trip_count
+      FROM gold.fact_trips ft
+      JOIN gold.dim_zones dz ON ft.pickup_zone_key = dz.zone_key
+      WHERE CAST(ft.completed_at AS DATE) = CURRENT_DATE()
+      GROUP BY dz.zone_key, dz.zone_id, dz.name
+      ORDER BY trip_count DESC
+
+  # ===========================================================================
+  # GOLD LAYER DATASETS - Driver Performance
+  # ===========================================================================
+
+  - name: "gold_top_drivers"
+    description: "Top 10 drivers by trip count (today)"
+    sql: |
+      SELECT
+          dd.driver_id,
+          CONCAT(dd.first_name, ' ', dd.last_name) as driver_name,
+          dp.trips_completed as trip_count
+      FROM gold.agg_daily_driver_performance dp
+      JOIN gold.dim_drivers dd ON dp.driver_key = dd.driver_key
+      JOIN gold.dim_time dt ON dp.time_key = dt.time_key
+      WHERE dt.date_key = CURRENT_DATE()
+        AND dd.current_flag = true
+      ORDER BY dp.trips_completed DESC
+      LIMIT 10
+
+  - name: "gold_driver_ratings"
+    description: "Driver ratings distribution"
+    sql: |
+      SELECT
+          ROUND(dp.avg_rating, 1) as rating_bucket,
+          COUNT(*) as driver_count
+      FROM gold.agg_daily_driver_performance dp
+      JOIN gold.dim_time dt ON dp.time_key = dt.time_key
+      WHERE dt.date_key = CURRENT_DATE()
+        AND dp.avg_rating IS NOT NULL
+      GROUP BY ROUND(dp.avg_rating, 1)
+      ORDER BY rating_bucket
+
+  - name: "gold_driver_payouts"
+    description: "Driver payouts over time (last 7 days)"
+    sql: |
+      SELECT
+          dt.date_key as date,
+          SUM(dp.total_payout) as total_payout
+      FROM gold.agg_daily_driver_performance dp
+      JOIN gold.dim_time dt ON dp.time_key = dt.time_key
+      WHERE dt.date_key >= DATE_SUB(CURRENT_DATE(), 7)
+      GROUP BY dt.date_key
+      ORDER BY dt.date_key
+
+  - name: "gold_driver_utilization"
+    description: "Driver utilization heatmap (by driver and date)"
+    sql: |
+      SELECT
+          dd.driver_id,
+          dt.date_key as date,
+          dp.utilization_pct as utilization
+      FROM gold.agg_daily_driver_performance dp
+      JOIN gold.dim_drivers dd ON dp.driver_key = dd.driver_key
+      JOIN gold.dim_time dt ON dp.time_key = dt.time_key
+      WHERE dt.date_key >= DATE_SUB(CURRENT_DATE(), 7)
+        AND dd.current_flag = true
+
+  - name: "gold_trips_per_driver"
+    description: "Trips per driver scatter plot"
+    sql: |
+      SELECT
+          dd.driver_id,
+          dp.trips_completed as trips,
+          dp.total_payout as revenue
+      FROM gold.agg_daily_driver_performance dp
+      JOIN gold.dim_drivers dd ON dp.driver_key = dd.driver_key
+      JOIN gold.dim_time dt ON dp.time_key = dt.time_key
+      WHERE dt.date_key = CURRENT_DATE()
+        AND dd.current_flag = true
+
+  - name: "gold_driver_status"
+    description: "Driver status summary (from recent activity)"
+    sql: |
+      SELECT
+          'active' as status,
+          COUNT(DISTINCT dp.driver_key) as driver_count
+      FROM gold.agg_daily_driver_performance dp
+      JOIN gold.dim_time dt ON dp.time_key = dt.time_key
+      WHERE dt.date_key = CURRENT_DATE()
+        AND dp.online_minutes > 0
+
+  # ===========================================================================
+  # GOLD LAYER DATASETS - Demand Analysis
+  # ===========================================================================
+
+  - name: "gold_zone_demand_heatmap"
+    description: "Zone demand heatmap (hourly demand by zone)"
+    sql: |
+      SELECT
+          dz.zone_id,
+          dz.name as zone_name,
+          hzd.hour_timestamp as timestamp,
+          hzd.requested_trips as demand
+      FROM gold.agg_hourly_zone_demand hzd
+      JOIN gold.dim_zones dz ON hzd.zone_key = dz.zone_key
+      WHERE hzd.hour_timestamp >= DATE_SUB(CURRENT_TIMESTAMP(), 24)
+
+  - name: "gold_surge_trends"
+    description: "Surge multiplier trends over time"
+    sql: |
+      SELECT
+          hour_timestamp as timestamp,
+          AVG(avg_surge_multiplier) as surge_multiplier
+      FROM gold.agg_surge_history
+      WHERE hour_timestamp >= DATE_SUB(CURRENT_TIMESTAMP(), 24)
+      GROUP BY hour_timestamp
+      ORDER BY hour_timestamp
+
+  - name: "gold_wait_time_by_zone"
+    description: "Average wait time by zone"
+    sql: |
+      SELECT
+          dz.zone_id,
+          dz.name as zone_name,
+          ROUND(AVG(hzd.avg_wait_time_minutes), 2) as avg_wait_minutes
+      FROM gold.agg_hourly_zone_demand hzd
+      JOIN gold.dim_zones dz ON hzd.zone_key = dz.zone_key
+      WHERE hzd.hour_timestamp >= DATE_SUB(CURRENT_TIMESTAMP(), 24)
+        AND hzd.avg_wait_time_minutes IS NOT NULL
+      GROUP BY dz.zone_key, dz.zone_id, dz.name
+      ORDER BY avg_wait_minutes DESC
+
+  - name: "gold_demand_by_hour"
+    description: "Demand by hour of day (aggregated pattern)"
+    sql: |
+      SELECT
+          HOUR(hour_timestamp) as hour_of_day,
+          SUM(requested_trips) as request_count
+      FROM gold.agg_hourly_zone_demand
+      WHERE hour_timestamp >= DATE_SUB(CURRENT_TIMESTAMP(), 168)
+      GROUP BY HOUR(hour_timestamp)
+      ORDER BY hour_of_day
+
+  - name: "gold_top_demand_zones"
+    description: "Top demand zones"
+    sql: |
+      SELECT
+          dz.zone_id,
+          dz.name as zone_name,
+          SUM(hzd.requested_trips) as total_requests
+      FROM gold.agg_hourly_zone_demand hzd
+      JOIN gold.dim_zones dz ON hzd.zone_key = dz.zone_key
+      WHERE hzd.hour_timestamp >= DATE_SUB(CURRENT_TIMESTAMP(), 24)
+      GROUP BY dz.zone_key, dz.zone_id, dz.name
+      ORDER BY total_requests DESC
+      LIMIT 10
+
+  - name: "gold_surge_events"
+    description: "Surge events timeline"
+    sql: |
+      SELECT
+          sh.hour_timestamp as timestamp,
+          dz.zone_id,
+          dz.name as zone_name,
+          sh.max_surge_multiplier as multiplier
+      FROM gold.agg_surge_history sh
+      JOIN gold.dim_zones dz ON sh.zone_key = dz.zone_key
+      WHERE sh.hour_timestamp >= DATE_SUB(CURRENT_TIMESTAMP(), 24)
+        AND sh.max_surge_multiplier > 1.0
+      ORDER BY sh.hour_timestamp
+
+  # ===========================================================================
+  # GOLD LAYER DATASETS - Revenue Analytics
+  # ===========================================================================
+
+  - name: "gold_daily_revenue"
+    description: "Daily revenue (today's total)"
+    sql: |
+      SELECT COALESCE(SUM(total_revenue), 0.0) as revenue
+      FROM gold.agg_daily_platform_revenue dpr
+      JOIN gold.dim_time dt ON dpr.time_key = dt.time_key
+      WHERE dt.date_key = CURRENT_DATE()
+
+  - name: "gold_total_fees"
+    description: "Total platform fees (today)"
+    sql: |
+      SELECT COALESCE(SUM(total_platform_fees), 0.0) as fees
+      FROM gold.agg_daily_platform_revenue dpr
+      JOIN gold.dim_time dt ON dpr.time_key = dt.time_key
+      WHERE dt.date_key = CURRENT_DATE()
+
+  - name: "gold_trip_count_kpi"
+    description: "Trip count KPI (today)"
+    sql: |
+      SELECT COALESCE(SUM(total_trips), 0) as count
+      FROM gold.agg_daily_platform_revenue dpr
+      JOIN gold.dim_time dt ON dpr.time_key = dt.time_key
+      WHERE dt.date_key = CURRENT_DATE()
+
+  - name: "gold_revenue_by_zone"
+    description: "Revenue by zone (today)"
+    sql: |
+      SELECT
+          dz.zone_id,
+          dz.name as zone_name,
+          SUM(dpr.total_revenue) as revenue
+      FROM gold.agg_daily_platform_revenue dpr
+      JOIN gold.dim_zones dz ON dpr.zone_key = dz.zone_key
+      JOIN gold.dim_time dt ON dpr.time_key = dt.time_key
+      WHERE dt.date_key = CURRENT_DATE()
+      GROUP BY dz.zone_key, dz.zone_id, dz.name
+      ORDER BY revenue DESC
+
+  - name: "gold_revenue_over_time"
+    description: "Revenue over time (last 7 days)"
+    sql: |
+      SELECT
+          dt.date_key as date,
+          SUM(dpr.total_revenue) as revenue
+      FROM gold.agg_daily_platform_revenue dpr
+      JOIN gold.dim_time dt ON dpr.time_key = dt.time_key
+      WHERE dt.date_key >= DATE_SUB(CURRENT_DATE(), 7)
+      GROUP BY dt.date_key
+      ORDER BY dt.date_key
+
+  - name: "gold_fare_by_distance"
+    description: "Average fare by distance"
+    sql: |
+      SELECT
+          ROUND(ft.distance_km, 1) as distance_km,
+          ROUND(AVG(ft.fare), 2) as avg_fare
+      FROM gold.fact_trips ft
+      WHERE ft.distance_km IS NOT NULL
+        AND ft.distance_km > 0
+        AND ft.completed_at >= DATE_SUB(CURRENT_TIMESTAMP(), 168)
+      GROUP BY ROUND(ft.distance_km, 1)
+      ORDER BY distance_km
+
+  - name: "gold_payment_methods"
+    description: "Payment method distribution"
+    sql: |
+      SELECT
+          fp.payment_method_type as method,
+          COUNT(*) as count
+      FROM gold.fact_payments fp
+      JOIN gold.fact_trips ft ON fp.trip_key = ft.trip_key
+      WHERE ft.completed_at >= DATE_SUB(CURRENT_TIMESTAMP(), 168)
+      GROUP BY fp.payment_method_type
+      ORDER BY count DESC
+
+  - name: "gold_revenue_by_hour"
+    description: "Revenue by hour heatmap"
+    sql: |
+      SELECT
+          HOUR(ft.completed_at) as hour,
+          CAST(ft.completed_at AS DATE) as date,
+          SUM(fp.total_fare) as revenue
+      FROM gold.fact_payments fp
+      JOIN gold.fact_trips ft ON fp.trip_key = ft.trip_key
+      WHERE ft.completed_at >= DATE_SUB(CURRENT_TIMESTAMP(), 168)
+      GROUP BY HOUR(ft.completed_at), CAST(ft.completed_at AS DATE)
+      ORDER BY date, hour
+
+  - name: "gold_top_revenue_zones"
+    description: "Top revenue zones"
+    sql: |
+      SELECT
+          dz.zone_id,
+          dz.name as zone_name,
+          SUM(dpr.total_revenue) as total_revenue
+      FROM gold.agg_daily_platform_revenue dpr
+      JOIN gold.dim_zones dz ON dpr.zone_key = dz.zone_key
+      JOIN gold.dim_time dt ON dpr.time_key = dt.time_key
+      WHERE dt.date_key >= DATE_SUB(CURRENT_DATE(), 7)
+      GROUP BY dz.zone_key, dz.zone_id, dz.name
+      ORDER BY total_revenue DESC
+      LIMIT 10
+
+
+# -----------------------------------------------------------------------------
+# SUMMARY
+# -----------------------------------------------------------------------------
+#
+# Total Dashboards: 6
+#   - Bronze Layer: 1 (Pipeline monitoring)
+#   - Silver Layer: 1 (Data quality)
+#   - Gold Layer:   4 (Operations, Driver Performance, Demand Analysis, Revenue)
+#
+# Total Charts: 46
+#   - Bronze Pipeline:      8 charts
+#   - Silver Quality:       8 charts
+#   - Operations:           9 charts
+#   - Driver Performance:   6 charts
+#   - Demand Analysis:      6 charts
+#   - Revenue Analytics:    9 charts
+#
+# Total Datasets: 38
+#   - Bronze: 8 datasets
+#   - Silver: 8 datasets
+#   - Gold:   22 datasets (across 4 dashboards)
+#
+# Visualization Types Used:
+#   - big_number_total: KPIs and single-value metrics
+#   - bar_chart: Category comparisons
+#   - time_series_line: Trends over time
+#   - time_series_bar: Discrete time events
+#   - pie_chart: Proportional distributions
+#   - heatmap: Two-dimensional intensity
+#   - scatter: Correlation analysis
+#   - area_chart: Cumulative trends
+#   - table: Detailed tabular data
+#
+# -----------------------------------------------------------------------------

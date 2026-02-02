@@ -3,6 +3,21 @@ name = "superset-rideshare"
 version = "0.1.0"
 description = "Apache Superset configuration and dashboards for rideshare analytics"
 requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.31.0",
+    "prison>=0.2.1",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-v --tb=short"
 
 [tool.mypy]
 python_version = "3.13"

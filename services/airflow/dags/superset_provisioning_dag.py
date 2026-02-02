@@ -1,4 +1,8 @@
-"""Superset dashboard provisioning DAG triggered after Gold transformation."""
+"""Superset Dashboard Provisioning DAG.
+
+Provisions Superset dashboards declaratively after Gold layer transformations.
+Uses the new provisioning module for robust, idempotent dashboard creation.
+"""
 
 from datetime import datetime, timedelta
 
@@ -7,65 +11,151 @@ from airflow.providers.standard.operators.bash import BashOperator
 from airflow.providers.standard.operators.python import PythonOperator
 from airflow.sdk import Asset
 
-DASHBOARDS_ASSET = Asset("superset://dashboards/provisioned")
+# Asset definition for data lineage
+SUPERSET_DASHBOARDS_ASSET = Asset("superset://dashboards/provisioned")
 
 default_args = {
     "owner": "rideshare",
     "depends_on_past": False,
     "email_on_failure": False,
     "email_on_retry": False,
-    "retries": 2,
-    "retry_delay": timedelta(minutes=5),
+    "retries": 3,
+    "retry_delay": timedelta(minutes=2),
 }
 
 
-def check_superset_health(**context: object) -> bool:
-    """Check if Superset is healthy before provisioning."""
-    import time
+def provision_dashboards(
+    base_url: str = "http://superset:8088",
+    force: bool = False,
+    skip_table_check: bool = False,
+) -> dict[str, object]:
+    """Provision all Superset dashboards.
 
-    import requests
+    Args:
+        base_url: Superset base URL
+        force: Recreate existing dashboards
+        skip_table_check: Skip table existence verification
 
-    for i in range(5):
-        try:
-            response = requests.get("http://superset:8088/health", timeout=10)
-            if response.status_code == 200:
-                print("Superset is healthy")
-                return True
-        except requests.exceptions.RequestException as e:
-            print(f"Health check attempt {i + 1}/5 failed: {e}")
-        time.sleep(5)
+    Returns:
+        Summary of provisioning results
+    """
+    import logging
+    import sys
 
-    print("WARNING: Superset not reachable, provisioning may fail")
-    return False
+    # Add provisioning module to path (mounted in Airflow container)
+    sys.path.insert(0, "/opt/superset-provisioning")
+
+    from provisioning.provisioner import ProvisioningStatus, provision_dashboards
+
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
+    logger.info("Starting Superset dashboard provisioning...")
+    logger.info("Base URL: %s, Force: %s, Skip table check: %s", base_url, force, skip_table_check)
+
+    results = provision_dashboards(
+        base_url=base_url,
+        username="admin",
+        password="admin",
+        force=force,
+        skip_table_check=skip_table_check,
+        wait_for_healthy=True,
+        health_timeout=120,
+    )
+
+    # Build summary with explicit types
+    total = len(results)
+    success_count = 0
+    skipped_count = 0
+    failed_count = 0
+    dashboards_list: list[dict[str, object]] = []
+
+    for result in results:
+        if result.status == ProvisioningStatus.SUCCESS:
+            success_count += 1
+        elif result.status == ProvisioningStatus.SKIPPED:
+            skipped_count += 1
+        else:
+            failed_count += 1
+
+        dashboards_list.append(
+            {
+                "slug": result.dashboard_slug,
+                "status": result.status.value,
+                "dashboard_id": result.dashboard_id,
+                "error": result.error,
+            }
+        )
+
+    logger.info(
+        "Provisioning complete: %d success, %d skipped, %d failed",
+        success_count,
+        skipped_count,
+        failed_count,
+    )
+
+    # Fail the task if any dashboard failed
+    if failed_count > 0:
+        failed_dashboards = [d["slug"] for d in dashboards_list if d["status"] == "failed"]
+        raise RuntimeError(f"Dashboard provisioning failed for: {failed_dashboards}")
+
+    summary: dict[str, object] = {
+        "total": total,
+        "success": success_count,
+        "skipped": skipped_count,
+        "failed": failed_count,
+        "dashboards": dashboards_list,
+    }
+
+    return summary
 
 
 with DAG(
     "superset_dashboard_provisioning",
     default_args=default_args,
-    description="Provision Superset dashboards after Gold layer is ready",
-    schedule=None,
+    description="Provision Superset dashboards after Gold layer transformations",
+    schedule=None,  # Triggered by Gold DAG
     start_date=datetime(2026, 1, 1),
     catchup=False,
     tags=["superset", "dashboards", "provisioning"],
 ) as dag:
 
-    check_superset = PythonOperator(
+    # Check Superset health before attempting provisioning
+    check_superset_health = BashOperator(
         task_id="check_superset_health",
-        python_callable=check_superset_health,
-    )
-
-    provision_dashboards = BashOperator(
-        task_id="provision_dashboards",
         bash_command="""
-        cd /opt/superset-dashboards && \
-        python3 provision_dashboards.py --base-url http://superset:8088 \
-        || echo "WARNING: Dashboard provisioning encountered errors"
+        echo "Checking Superset health..."
+        for i in $(seq 1 30); do
+            if curl -sf http://superset:8088/health > /dev/null; then
+                echo "Superset is healthy"
+                exit 0
+            fi
+            echo "Waiting for Superset... ($i/30)"
+            sleep 10
+        done
+        echo "Superset health check failed"
+        exit 1
         """,
-        env={
-            "SUPERSET_ADMIN_USERNAME": "admin",
-            "SUPERSET_ADMIN_PASSWORD": "admin",
-        },
-        outlets=[DASHBOARDS_ASSET],
+        retries=2,
+        retry_delay=timedelta(minutes=1),
     )
 
-    check_superset >> provision_dashboards
+    # Provision dashboards using the new module
+    provision_dashboards_task = PythonOperator(
+        task_id="provision_dashboards",
+        python_callable=provision_dashboards,
+        op_kwargs={
+            "base_url": "http://superset:8088",
+            "force": False,
+            "skip_table_check": False,  # Verify tables exist in Gold layer
+        },
+        outlets=[SUPERSET_DASHBOARDS_ASSET],
+    )
+
+    # Log success
+    log_success = BashOperator(
+        task_id="log_success",
+        bash_command='echo "Superset dashboards provisioned successfully at $(date)"',
+    )
+
+    check_superset_health >> provision_dashboards_task >> log_success

@@ -11,11 +11,14 @@ check_untyped_defs = true
 warn_redundant_casts = true
 
 # These libraries have no type stubs or are not installed in CI
+# provisioning module is mounted at runtime in Docker container
 [[tool.mypy.overrides]]
 module = [
     "pyhive",
     "pyhive.*",
     "airflow",
     "airflow.*",
+    "provisioning",
+    "provisioning.*",
 ]
 ignore_missing_imports = true
