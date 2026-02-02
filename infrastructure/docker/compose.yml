@@ -481,7 +481,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1536m
+          memory: 2g
           cpus: "2.0"
         reservations:
           cpus: "0.25"
@@ -506,7 +506,7 @@ services:
     command: >
       /opt/spark/bin/spark-submit
       --master local[2]
-      --driver-memory 1024m
+      --driver-memory 1536m
       --conf "spark.driver.extraJavaOptions=-XX:+UseG1GC -XX:MaxGCPauseMillis=50 -XX:InitiatingHeapOccupancyPercent=35"
       --name "streaming_high_volume"
       --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
@@ -540,7 +540,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1536m
+          memory: 2g
           cpus: "2.0"
         reservations:
           cpus: "0.25"
@@ -565,7 +565,7 @@ services:
     command: >
       /opt/spark/bin/spark-submit
       --master local[2]
-      --driver-memory 1024m
+      --driver-memory 1536m
       --conf "spark.driver.extraJavaOptions=-XX:+UseG1GC -XX:MaxGCPauseMillis=50 -XX:InitiatingHeapOccupancyPercent=35"
       --name "streaming_low_volume"
       --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
