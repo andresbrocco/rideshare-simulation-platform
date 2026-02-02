@@ -62,6 +62,7 @@ services:
       interval: 10s
       timeout: 10s
       retries: 10
+    restart: unless-stopped
 
   kafka-init:
     image: confluentinc/cp-kafka:7.5.0
@@ -120,6 +121,7 @@ services:
       timeout: 10s
       retries: 12
       start_period: 30s
+    restart: unless-stopped
 
   redis:
     image: redis:8.0-alpine
@@ -138,6 +140,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    restart: unless-stopped
 
   osrm:
     build:
@@ -164,6 +167,7 @@ services:
       timeout: 5s
       retries: 10
       start_period: 180s
+    restart: unless-stopped
 
   simulation:
     build:
@@ -293,6 +297,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    restart: unless-stopped
 
   minio:
     build:
@@ -320,6 +325,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   minio-init:
     image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
@@ -465,6 +471,7 @@ services:
       timeout: 10s
       retries: 10
       start_period: 60s
+    restart: unless-stopped
 
   bronze-ingestion-high-volume:
     build:
@@ -627,6 +634,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    restart: unless-stopped
 
   postgres-airflow:
     image: postgres:16
