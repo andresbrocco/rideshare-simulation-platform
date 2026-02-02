@@ -7,8 +7,8 @@ scripts. It handles idempotency (skipping existing dashboards) and graceful
 failure for Gold dashboards when underlying tables don't exist.
 
 Dashboard Layers:
-- Bronze (required): bronze-pipeline - Always created, data always exists
-- Silver (required): silver-quality - Always created, data always exists
+- Bronze (optional): bronze-pipeline - Gracefully skipped if tables not yet ingested
+- Silver (optional): silver-quality - Gracefully skipped if tables not yet created
 - Gold (optional): operations, driver-performance, demand-analysis, revenue-analytics
                   - Gracefully skipped if underlying tables don't exist
 
@@ -33,23 +33,23 @@ from superset_client import SupersetClient
 
 # Dashboard registry: (module_name, create_function_name, slug, title, layer, required)
 DASHBOARD_REGISTRY: list[tuple[str, str, str, str, str, bool]] = [
-    # Bronze layer (required - data always exists)
+    # Bronze layer (optional - tables created after ingestion jobs run)
     (
         "create_bronze_pipeline_dashboard",
         "create_bronze_pipeline_dashboard",
         "bronze-pipeline",
         "Bronze Pipeline Dashboard",
         "Bronze",
-        True,
+        False,
     ),
-    # Silver layer (required - data always exists)
+    # Silver layer (optional - tables created after bronze processing)
     (
         "create_silver_quality_dashboard",
         "create_silver_quality_dashboard",
         "silver-quality",
         "Silver Quality Dashboard",
         "Silver",
-        True,
+        False,
     ),
     # Gold layer (optional - gracefully skip if tables missing)
     (

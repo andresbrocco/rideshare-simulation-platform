@@ -170,7 +170,7 @@ class SupersetClient:
             return False
 
         url = f"{self.base_url}/api/v1/dashboard/"
-        params = {"q": f'(filters:!((col:slug,opr:eq,value:"{slug}")))'}
+        params = {"q": f"(filters:!((col:slug,opr:eq,value:{slug})))"}
 
         try:
             response = self.session.get(url, params=params, timeout=self.timeout)
@@ -194,7 +194,7 @@ class SupersetClient:
             return None
 
         url = f"{self.base_url}/api/v1/dataset/"
-        params = {"q": f'(filters:!((col:table_name,opr:eq,value:"{table_name}")))'}
+        params = {"q": f"(filters:!((col:table_name,opr:eq,value:{table_name})))"}
 
         try:
             response = self.session.get(url, params=params, timeout=self.timeout)
@@ -220,7 +220,7 @@ class SupersetClient:
             return None
 
         url = f"{self.base_url}/api/v1/chart/"
-        params = {"q": f'(filters:!((col:slice_name,opr:eq,value:"{slice_name}")))'}
+        params = {"q": f"(filters:!((col:slice_name,opr:eq,value:'{slice_name}')))"}
 
         try:
             response = self.session.get(url, params=params, timeout=self.timeout)
@@ -246,7 +246,7 @@ class SupersetClient:
             return None
 
         url = f"{self.base_url}/api/v1/dashboard/"
-        params = {"q": f'(filters:!((col:slug,opr:eq,value:"{slug}")))'}
+        params = {"q": f"(filters:!((col:slug,opr:eq,value:{slug})))"}
 
         try:
             response = self.session.get(url, params=params, timeout=self.timeout)
