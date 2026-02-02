@@ -15,7 +15,9 @@ with trip_requests as (
 trip_completions as (
     select
         pickup_zone_key as zone_key,
-        date_trunc('hour', completed_at) as hour_timestamp,
+        -- Use requested_at to align completions with the same hour bucket as requests
+        -- This ensures completed_trips <= requested_trips for any given hour/zone
+        date_trunc('hour', requested_at) as hour_timestamp,
         case
             when matched_at is not null and started_at is not null
             then (unix_timestamp(started_at) - unix_timestamp(matched_at)) / 60.0
@@ -24,6 +26,7 @@ trip_completions as (
         surge_multiplier
     from {{ ref('fact_trips') }}
     where completed_at is not null
+      and requested_at is not null
 ),
 
 hourly_requests as (

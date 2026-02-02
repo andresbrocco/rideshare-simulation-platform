@@ -48,7 +48,8 @@ final as (
         payment_timestamp,
         total_fare,
         round(total_fare * 0.25, 2) as platform_fee,
-        round(total_fare * 0.75, 2) as driver_payout,
+        -- Derive driver_payout from total_fare minus platform_fee to ensure exact sum
+        total_fare - round(total_fare * 0.25, 2) as driver_payout,
         payment_method_type
     from with_dimensions
 )
