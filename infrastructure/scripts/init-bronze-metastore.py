@@ -34,6 +34,18 @@ BRONZE_TABLES = [
     "bronze_rider_profiles",
 ]
 
+# Dead Letter Queue tables for each topic (for failed/unparseable messages)
+DLQ_TABLES = [
+    "dlq_trips",
+    "dlq_gps_pings",
+    "dlq_driver_status",
+    "dlq_surge_updates",
+    "dlq_ratings",
+    "dlq_payments",
+    "dlq_driver_profiles",
+    "dlq_rider_profiles",
+]
+
 
 def get_connection():
     """Create connection to Spark Thrift Server with retry logic.
@@ -140,6 +152,104 @@ def init_bronze_tables(cursor):
                 raise
 
 
+def init_dlq_tables(cursor):
+    """Create Dead Letter Queue tables for failed/unparseable messages.
+
+    DLQ tables capture messages that fail processing with:
+    - raw_value: Original message that failed
+    - error_message: Description of what went wrong
+    - error_type: Category of error (parse_error, validation_error, etc.)
+    - kafka_topic: Source topic the message came from
+    - Standard Kafka metadata (_kafka_partition, _kafka_offset)
+    - Ingestion metadata (_ingested_at, _ingestion_date)
+    """
+    for table_name in DLQ_TABLES:
+        s3_path = f"s3a://rideshare-bronze/{table_name}/"
+        logger.info(f"Creating {table_name}...")
+
+        # Check if table path already has data
+        try:
+            cursor.execute(f"SELECT 1 FROM delta.`{s3_path}` LIMIT 1")
+            logger.info(f"  [SKIP] {table_name} already exists with data")
+            continue
+        except Exception as e:
+            if "PATH_NOT_FOUND" not in str(e) and "does not exist" not in str(e).lower():
+                raise
+
+        # Create empty Delta table with DLQ schema
+        create_sql = f"""
+            CREATE TABLE IF NOT EXISTS bronze.{table_name} (
+                raw_value STRING COMMENT 'Original message that failed processing',
+                error_message STRING COMMENT 'Description of the error',
+                error_type STRING COMMENT 'Error category (parse_error, validation_error, etc.)',
+                kafka_topic STRING COMMENT 'Source Kafka topic',
+                _kafka_partition INT NOT NULL COMMENT 'Kafka partition number',
+                _kafka_offset BIGINT NOT NULL COMMENT 'Kafka offset',
+                _ingested_at TIMESTAMP NOT NULL COMMENT 'Timestamp when error was recorded',
+                _ingestion_date STRING NOT NULL COMMENT 'Date partition (yyyy-MM-dd)'
+            )
+            USING DELTA
+            PARTITIONED BY (_ingestion_date)
+            LOCATION '{s3_path}'
+            COMMENT 'Dead letter queue for failed {table_name.replace("dlq_", "")} messages'
+        """
+
+        try:
+            cursor.execute(create_sql)
+            logger.info(f"  [OK] {table_name} created at {s3_path}")
+        except Exception as e:
+            if "already exists" in str(e).lower():
+                logger.info(f"  [SKIP] {table_name} already exists")
+            else:
+                raise
+
+
+def init_unified_dlq_view(cursor):
+    """Create unified bronze_dlq view that unions all per-topic DLQ tables.
+
+    The view provides:
+    - Single source of truth for all DLQ errors across topics
+    - No data duplication - auto-updates as per-topic tables receive errors
+    - Consistent column names with Bronze tables (_ingested_at, _kafka_partition, etc.)
+    """
+    logger.info("Creating unified bronze_dlq view...")
+
+    # Build UNION ALL query across all DLQ tables
+    select_template = """
+        SELECT
+            raw_value,
+            error_message,
+            error_type,
+            kafka_topic,
+            _kafka_partition,
+            _kafka_offset,
+            _ingested_at,
+            _ingestion_date
+        FROM bronze.{table_name}"""
+
+    union_parts = [select_template.format(table_name=table) for table in DLQ_TABLES]
+    union_query = "\n        UNION ALL\n".join(union_parts)
+
+    # Drop existing view if it exists (views can't use CREATE OR REPLACE in all Spark versions)
+    try:
+        cursor.execute("DROP VIEW IF EXISTS bronze.bronze_dlq")
+        logger.info("  Dropped existing bronze_dlq view")
+    except Exception as e:
+        logger.warning(f"  Could not drop existing view (may not exist): {e}")
+
+    create_view_sql = f"""
+        CREATE VIEW bronze.bronze_dlq AS
+        {union_query}
+    """
+
+    try:
+        cursor.execute(create_view_sql)
+        logger.info("  [OK] bronze.bronze_dlq view created")
+    except Exception as e:
+        logger.error(f"  [FAIL] Could not create bronze_dlq view: {e}")
+        raise
+
+
 def verify_bronze_tables(cursor):
     """Verify all Bronze tables exist and are readable."""
     logger.info("Verifying Bronze tables...")
@@ -154,6 +264,33 @@ def verify_bronze_tables(cursor):
         except Exception as e:
             logger.error(f"  [FAIL] {table_name}: {e}")
             raise
+
+
+def verify_dlq_tables(cursor):
+    """Verify DLQ tables and unified view exist and are readable."""
+    logger.info("Verifying DLQ tables...")
+
+    for table_name in DLQ_TABLES:
+        s3_path = f"s3a://rideshare-bronze/{table_name}/"
+        try:
+            cursor.execute(f"SELECT COUNT(*) FROM delta.`{s3_path}`")
+            result = cursor.fetchone()
+            row_count = result[0] if result else 0
+            logger.info(f"  [OK] {table_name}: {row_count} rows")
+        except Exception as e:
+            logger.error(f"  [FAIL] {table_name}: {e}")
+            raise
+
+    # Verify unified view
+    logger.info("Verifying unified bronze_dlq view...")
+    try:
+        cursor.execute("SELECT COUNT(*) FROM bronze.bronze_dlq")
+        result = cursor.fetchone()
+        row_count = result[0] if result else 0
+        logger.info(f"  [OK] bronze.bronze_dlq view: {row_count} rows")
+    except Exception as e:
+        logger.error(f"  [FAIL] bronze.bronze_dlq view: {e}")
+        raise
 
 
 def main():
@@ -178,11 +315,29 @@ def main():
         logger.info("-" * 40)
         init_bronze_tables(cursor)
 
-        # Step 3: Verify tables
+        # Step 3: Create DLQ tables
         logger.info("")
-        logger.info("Step 3: Verifying Bronze tables...")
+        logger.info("Step 3: Creating DLQ tables...")
+        logger.info("-" * 40)
+        init_dlq_tables(cursor)
+
+        # Step 4: Create unified DLQ view
+        logger.info("")
+        logger.info("Step 4: Creating unified DLQ view...")
+        logger.info("-" * 40)
+        init_unified_dlq_view(cursor)
+
+        # Step 5: Verify Bronze tables
+        logger.info("")
+        logger.info("Step 5: Verifying Bronze tables...")
         logger.info("-" * 40)
         verify_bronze_tables(cursor)
+
+        # Step 6: Verify DLQ tables
+        logger.info("")
+        logger.info("Step 6: Verifying DLQ tables...")
+        logger.info("-" * 40)
+        verify_dlq_tables(cursor)
 
         logger.info("")
         logger.info("=" * 60)

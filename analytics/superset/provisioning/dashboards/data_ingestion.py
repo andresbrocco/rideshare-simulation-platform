@@ -22,17 +22,29 @@ TOTAL_EVENTS_24H = DatasetDefinition(
     sql="""
     SELECT COUNT(*) as total_events
     FROM (
-        SELECT 1 FROM bronze.bronze_trips WHERE ingestion_timestamp >= current_timestamp - INTERVAL 24 HOURS
+        SELECT 1 FROM bronze.bronze_trips
+            WHERE _ingestion_date >= date_format(current_timestamp - INTERVAL 2 DAYS, 'yyyy-MM-dd')
+            AND _ingested_at >= current_timestamp - INTERVAL 24 HOURS
         UNION ALL
-        SELECT 1 FROM bronze.bronze_gps_pings WHERE ingestion_timestamp >= current_timestamp - INTERVAL 24 HOURS
+        SELECT 1 FROM bronze.bronze_gps_pings
+            WHERE _ingestion_date >= date_format(current_timestamp - INTERVAL 2 DAYS, 'yyyy-MM-dd')
+            AND _ingested_at >= current_timestamp - INTERVAL 24 HOURS
         UNION ALL
-        SELECT 1 FROM bronze.bronze_driver_status WHERE ingestion_timestamp >= current_timestamp - INTERVAL 24 HOURS
+        SELECT 1 FROM bronze.bronze_driver_status
+            WHERE _ingestion_date >= date_format(current_timestamp - INTERVAL 2 DAYS, 'yyyy-MM-dd')
+            AND _ingested_at >= current_timestamp - INTERVAL 24 HOURS
         UNION ALL
-        SELECT 1 FROM bronze.bronze_surge_updates WHERE ingestion_timestamp >= current_timestamp - INTERVAL 24 HOURS
+        SELECT 1 FROM bronze.bronze_surge_updates
+            WHERE _ingestion_date >= date_format(current_timestamp - INTERVAL 2 DAYS, 'yyyy-MM-dd')
+            AND _ingested_at >= current_timestamp - INTERVAL 24 HOURS
         UNION ALL
-        SELECT 1 FROM bronze.bronze_ratings WHERE ingestion_timestamp >= current_timestamp - INTERVAL 24 HOURS
+        SELECT 1 FROM bronze.bronze_ratings
+            WHERE _ingestion_date >= date_format(current_timestamp - INTERVAL 2 DAYS, 'yyyy-MM-dd')
+            AND _ingested_at >= current_timestamp - INTERVAL 24 HOURS
         UNION ALL
-        SELECT 1 FROM bronze.bronze_payments WHERE ingestion_timestamp >= current_timestamp - INTERVAL 24 HOURS
+        SELECT 1 FROM bronze.bronze_payments
+            WHERE _ingestion_date >= date_format(current_timestamp - INTERVAL 2 DAYS, 'yyyy-MM-dd')
+            AND _ingested_at >= current_timestamp - INTERVAL 24 HOURS
     ) events
     """,
     description="Total events ingested across all topics in last 24 hours",
@@ -43,17 +55,29 @@ EVENTS_BY_TOPIC = DatasetDefinition(
     sql="""
     SELECT topic, COUNT(*) as event_count
     FROM (
-        SELECT 'trips' as topic FROM bronze.bronze_trips WHERE ingestion_timestamp >= current_timestamp - INTERVAL 24 HOURS
+        SELECT 'trips' as topic FROM bronze.bronze_trips
+            WHERE _ingestion_date >= date_format(current_timestamp - INTERVAL 2 DAYS, 'yyyy-MM-dd')
+            AND _ingested_at >= current_timestamp - INTERVAL 24 HOURS
         UNION ALL
-        SELECT 'gps_pings' as topic FROM bronze.bronze_gps_pings WHERE ingestion_timestamp >= current_timestamp - INTERVAL 24 HOURS
+        SELECT 'gps_pings' as topic FROM bronze.bronze_gps_pings
+            WHERE _ingestion_date >= date_format(current_timestamp - INTERVAL 2 DAYS, 'yyyy-MM-dd')
+            AND _ingested_at >= current_timestamp - INTERVAL 24 HOURS
         UNION ALL
-        SELECT 'driver_status' as topic FROM bronze.bronze_driver_status WHERE ingestion_timestamp >= current_timestamp - INTERVAL 24 HOURS
+        SELECT 'driver_status' as topic FROM bronze.bronze_driver_status
+            WHERE _ingestion_date >= date_format(current_timestamp - INTERVAL 2 DAYS, 'yyyy-MM-dd')
+            AND _ingested_at >= current_timestamp - INTERVAL 24 HOURS
         UNION ALL
-        SELECT 'surge_updates' as topic FROM bronze.bronze_surge_updates WHERE ingestion_timestamp >= current_timestamp - INTERVAL 24 HOURS
+        SELECT 'surge_updates' as topic FROM bronze.bronze_surge_updates
+            WHERE _ingestion_date >= date_format(current_timestamp - INTERVAL 2 DAYS, 'yyyy-MM-dd')
+            AND _ingested_at >= current_timestamp - INTERVAL 24 HOURS
         UNION ALL
-        SELECT 'ratings' as topic FROM bronze.bronze_ratings WHERE ingestion_timestamp >= current_timestamp - INTERVAL 24 HOURS
+        SELECT 'ratings' as topic FROM bronze.bronze_ratings
+            WHERE _ingestion_date >= date_format(current_timestamp - INTERVAL 2 DAYS, 'yyyy-MM-dd')
+            AND _ingested_at >= current_timestamp - INTERVAL 24 HOURS
         UNION ALL
-        SELECT 'payments' as topic FROM bronze.bronze_payments WHERE ingestion_timestamp >= current_timestamp - INTERVAL 24 HOURS
+        SELECT 'payments' as topic FROM bronze.bronze_payments
+            WHERE _ingestion_date >= date_format(current_timestamp - INTERVAL 2 DAYS, 'yyyy-MM-dd')
+            AND _ingested_at >= current_timestamp - INTERVAL 24 HOURS
     ) events
     GROUP BY topic
     ORDER BY event_count DESC
@@ -65,16 +89,22 @@ INGESTION_RATE_HOURLY = DatasetDefinition(
     name="bronze_ingestion_rate_hourly",
     sql="""
     SELECT
-        date_trunc('hour', ingestion_timestamp) as hour,
+        date_trunc('hour', _ingested_at) as hour,
         COUNT(*) as events
     FROM (
-        SELECT ingestion_timestamp FROM bronze.bronze_trips WHERE ingestion_timestamp >= current_timestamp - INTERVAL 24 HOURS
+        SELECT _ingested_at FROM bronze.bronze_trips
+            WHERE _ingestion_date >= date_format(current_timestamp - INTERVAL 2 DAYS, 'yyyy-MM-dd')
+            AND _ingested_at >= current_timestamp - INTERVAL 24 HOURS
         UNION ALL
-        SELECT ingestion_timestamp FROM bronze.bronze_gps_pings WHERE ingestion_timestamp >= current_timestamp - INTERVAL 24 HOURS
+        SELECT _ingested_at FROM bronze.bronze_gps_pings
+            WHERE _ingestion_date >= date_format(current_timestamp - INTERVAL 2 DAYS, 'yyyy-MM-dd')
+            AND _ingested_at >= current_timestamp - INTERVAL 24 HOURS
         UNION ALL
-        SELECT ingestion_timestamp FROM bronze.bronze_driver_status WHERE ingestion_timestamp >= current_timestamp - INTERVAL 24 HOURS
+        SELECT _ingested_at FROM bronze.bronze_driver_status
+            WHERE _ingestion_date >= date_format(current_timestamp - INTERVAL 2 DAYS, 'yyyy-MM-dd')
+            AND _ingested_at >= current_timestamp - INTERVAL 24 HOURS
     ) events
-    GROUP BY date_trunc('hour', ingestion_timestamp)
+    GROUP BY date_trunc('hour', _ingested_at)
     ORDER BY hour
     """,
     description="Hourly ingestion rate time series",
@@ -85,7 +115,8 @@ DLQ_ERROR_COUNT = DatasetDefinition(
     sql="""
     SELECT COUNT(*) as error_count
     FROM bronze.bronze_dlq
-    WHERE ingestion_timestamp >= current_timestamp - INTERVAL 24 HOURS
+    WHERE _ingestion_date >= date_format(current_timestamp - INTERVAL 2 DAYS, 'yyyy-MM-dd')
+      AND _ingested_at >= current_timestamp - INTERVAL 24 HOURS
     """,
     description="Dead letter queue error count (24h)",
 )
@@ -97,7 +128,8 @@ DLQ_ERRORS_BY_TYPE = DatasetDefinition(
         COALESCE(error_type, 'unknown') as error_type,
         COUNT(*) as error_count
     FROM bronze.bronze_dlq
-    WHERE ingestion_timestamp >= current_timestamp - INTERVAL 24 HOURS
+    WHERE _ingestion_date >= date_format(current_timestamp - INTERVAL 2 DAYS, 'yyyy-MM-dd')
+      AND _ingested_at >= current_timestamp - INTERVAL 24 HOURS
     GROUP BY COALESCE(error_type, 'unknown')
     ORDER BY error_count DESC
     """,
@@ -108,11 +140,12 @@ PARTITION_DISTRIBUTION = DatasetDefinition(
     name="bronze_partition_distribution",
     sql="""
     SELECT
-        kafka_partition as partition,
+        _kafka_partition as partition,
         COUNT(*) as events
     FROM bronze.bronze_trips
-    WHERE ingestion_timestamp >= current_timestamp - INTERVAL 24 HOURS
-    GROUP BY kafka_partition
+    WHERE _ingestion_date >= date_format(current_timestamp - INTERVAL 2 DAYS, 'yyyy-MM-dd')
+      AND _ingested_at >= current_timestamp - INTERVAL 24 HOURS
+    GROUP BY _kafka_partition
     ORDER BY partition
     """,
     description="Events per Kafka partition",
@@ -121,19 +154,25 @@ PARTITION_DISTRIBUTION = DatasetDefinition(
 LATEST_INGESTION = DatasetDefinition(
     name="bronze_latest_ingestion",
     sql="""
-    SELECT topic, MAX(ingestion_timestamp) as latest_ingestion
+    SELECT topic, MAX(_ingested_at) as latest_ingestion
     FROM (
-        SELECT 'trips' as topic, ingestion_timestamp FROM bronze.bronze_trips
+        SELECT 'trips' as topic, _ingested_at FROM bronze.bronze_trips
+            WHERE _ingestion_date = date_format(current_date, 'yyyy-MM-dd')
         UNION ALL
-        SELECT 'gps_pings' as topic, ingestion_timestamp FROM bronze.bronze_gps_pings
+        SELECT 'gps_pings' as topic, _ingested_at FROM bronze.bronze_gps_pings
+            WHERE _ingestion_date = date_format(current_date, 'yyyy-MM-dd')
         UNION ALL
-        SELECT 'driver_status' as topic, ingestion_timestamp FROM bronze.bronze_driver_status
+        SELECT 'driver_status' as topic, _ingested_at FROM bronze.bronze_driver_status
+            WHERE _ingestion_date = date_format(current_date, 'yyyy-MM-dd')
         UNION ALL
-        SELECT 'surge_updates' as topic, ingestion_timestamp FROM bronze.bronze_surge_updates
+        SELECT 'surge_updates' as topic, _ingested_at FROM bronze.bronze_surge_updates
+            WHERE _ingestion_date = date_format(current_date, 'yyyy-MM-dd')
         UNION ALL
-        SELECT 'ratings' as topic, ingestion_timestamp FROM bronze.bronze_ratings
+        SELECT 'ratings' as topic, _ingested_at FROM bronze.bronze_ratings
+            WHERE _ingestion_date = date_format(current_date, 'yyyy-MM-dd')
         UNION ALL
-        SELECT 'payments' as topic, ingestion_timestamp FROM bronze.bronze_payments
+        SELECT 'payments' as topic, _ingested_at FROM bronze.bronze_payments
+            WHERE _ingestion_date = date_format(current_date, 'yyyy-MM-dd')
     ) events
     GROUP BY topic
     ORDER BY latest_ingestion DESC
@@ -146,15 +185,16 @@ INGESTION_LAG = DatasetDefinition(
     sql="""
     SELECT
         topic,
-        MAX(UNIX_TIMESTAMP(ingestion_timestamp) - UNIX_TIMESTAMP(event_timestamp)) as max_lag_seconds
+        MAX(UNIX_TIMESTAMP(_ingested_at) - UNIX_TIMESTAMP(_kafka_timestamp)) as max_lag_seconds
     FROM (
-        SELECT 'trips' as topic, ingestion_timestamp, created_at as event_timestamp FROM bronze.bronze_trips
-            WHERE ingestion_timestamp >= current_timestamp - INTERVAL 1 HOUR
+        SELECT 'trips' as topic, _ingested_at, _kafka_timestamp FROM bronze.bronze_trips
+            WHERE _ingestion_date = date_format(current_date, 'yyyy-MM-dd')
+            AND _ingested_at >= current_timestamp - INTERVAL 1 HOUR
     ) events
     GROUP BY topic
     ORDER BY max_lag_seconds DESC
     """,
-    description="Max lag between event and ingestion time",
+    description="Max lag between Kafka timestamp and ingestion time",
 )
 
 # =============================================================================
