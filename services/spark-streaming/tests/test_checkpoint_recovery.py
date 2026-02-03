@@ -404,7 +404,7 @@ class TestProcessBatchWithMocking:
 
         mock_spark = MagicMock()
         mock_df = MagicMock()
-        mock_df.count.return_value = 7  # One message per topic
+        mock_df.isEmpty.return_value = False  # Has messages
 
         # Create mocks for each topic's filtered DataFrame
         topic_dfs = {}
@@ -418,7 +418,6 @@ class TestProcessBatchWithMocking:
             "rider_profiles",
         ]:
             topic_df = MagicMock()
-            topic_df.count.return_value = 1
             topic_dfs[topic] = topic_df
 
         # Track filter calls to return correct mock
@@ -436,8 +435,12 @@ class TestProcessBatchWithMocking:
 
         # Mock withColumn().drop() chain for partitioning
         mock_partitioned_df = MagicMock()
+        mock_partitioned_df.isEmpty.return_value = False
         for topic_df in topic_dfs.values():
             topic_df.withColumn.return_value.drop.return_value = mock_partitioned_df
+
+        # Mock coalesce
+        mock_partitioned_df.coalesce.return_value = mock_partitioned_df
 
         # Mock write builder
         mock_write = MagicMock()
@@ -445,6 +448,7 @@ class TestProcessBatchWithMocking:
         mock_write.format.return_value = mock_write
         mock_write.mode.return_value = mock_write
         mock_write.partitionBy.return_value = mock_write
+        mock_write.option.return_value = mock_write
 
         job = BronzeIngestionLowVolume(
             spark=mock_spark,
@@ -481,16 +485,19 @@ class TestProcessBatchWithMocking:
 
         mock_spark = MagicMock()
         mock_df = MagicMock()
-        mock_df.count.return_value = 100  # 100 GPS pings
+        mock_df.isEmpty.return_value = False  # Has GPS pings
 
         # Create mock for gps_pings filtered DataFrame
         mock_gps_df = MagicMock()
-        mock_gps_df.count.return_value = 100
         mock_df.filter.return_value = mock_gps_df
 
         # Mock withColumn().drop() chain for partitioning
         mock_partitioned_df = MagicMock()
+        mock_partitioned_df.isEmpty.return_value = False
         mock_gps_df.withColumn.return_value.drop.return_value = mock_partitioned_df
+
+        # Mock coalesce
+        mock_partitioned_df.coalesce.return_value = mock_partitioned_df
 
         # Mock write builder
         mock_write = MagicMock()
@@ -498,6 +505,7 @@ class TestProcessBatchWithMocking:
         mock_write.format.return_value = mock_write
         mock_write.mode.return_value = mock_write
         mock_write.partitionBy.return_value = mock_write
+        mock_write.option.return_value = mock_write
 
         job = BronzeIngestionHighVolume(
             spark=mock_spark,
@@ -534,15 +542,23 @@ class TestProcessBatchWithMocking:
 
         mock_spark = MagicMock()
         mock_df = MagicMock()
-        mock_df.count.return_value = 1  # Only one message total
+        mock_df.isEmpty.return_value = False  # Has at least one message
 
-        # Mock write for non-empty topic
-        mock_partitioned_df = MagicMock()
+        # Mock write for non-empty topic (trips)
+        mock_partitioned_df_with_data = MagicMock()
+        mock_partitioned_df_with_data.isEmpty.return_value = False
+        mock_partitioned_df_with_data.coalesce.return_value = mock_partitioned_df_with_data
+
+        # Mock write for empty topics
+        mock_partitioned_df_empty = MagicMock()
+        mock_partitioned_df_empty.isEmpty.return_value = True
+
         mock_write = MagicMock()
-        mock_partitioned_df.write = mock_write
+        mock_partitioned_df_with_data.write = mock_write
         mock_write.format.return_value = mock_write
         mock_write.mode.return_value = mock_write
         mock_write.partitionBy.return_value = mock_write
+        mock_write.option.return_value = mock_write
 
         # Only trips has messages, other topics are empty
         filter_call_count = [0]
@@ -551,10 +567,13 @@ class TestProcessBatchWithMocking:
             mock_topic_df = MagicMock()
             idx = filter_call_count[0]
             filter_call_count[0] += 1
-            # Only first topic (trips) has messages
-            mock_topic_df.count.return_value = 1 if idx == 0 else 0
-            # Connect withColumn().drop() chain to return the mock with write
-            mock_topic_df.withColumn.return_value.drop.return_value = mock_partitioned_df
+            # Only first topic (trips) has messages - isEmpty returns False
+            if idx == 0:
+                mock_topic_df.withColumn.return_value.drop.return_value = (
+                    mock_partitioned_df_with_data
+                )
+            else:
+                mock_topic_df.withColumn.return_value.drop.return_value = mock_partitioned_df_empty
             return mock_topic_df
 
         mock_df.filter = MagicMock(side_effect=filter_side_effect)

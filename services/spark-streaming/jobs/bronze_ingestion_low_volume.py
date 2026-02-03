@@ -37,6 +37,7 @@ if __name__ == "__main__":
     from pyspark.sql import SparkSession
     from spark_streaming.config.kafka_config import KafkaConfig
     from spark_streaming.config.checkpoint_config import CheckpointConfig
+    from spark_streaming.config.delta_write_config import DeltaWriteConfig
     from spark_streaming.utils.error_handler import ErrorHandler
 
     # Memory configs removed - Docker Compose controls allocation via spark-submit args
@@ -56,6 +57,13 @@ if __name__ == "__main__":
 
     error_handler = ErrorHandler(dlq_table_path="s3a://rideshare-bronze/dlq/")
 
-    job = BronzeIngestionLowVolume(spark, kafka_config, checkpoint_config, error_handler)
+    # Low-volume topics: coalesce to 1 file per batch per topic
+    delta_write_config = DeltaWriteConfig(
+        default_coalesce_partitions=1,
+    )
+
+    job = BronzeIngestionLowVolume(
+        spark, kafka_config, checkpoint_config, error_handler, delta_write_config
+    )
     query = job.start()
     query.awaitTermination()

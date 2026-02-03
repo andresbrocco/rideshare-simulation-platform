@@ -84,9 +84,17 @@ class MultiTopicStreamingJob(BaseStreamingJob):
 
             bronze_path = self.get_bronze_path(topic)
 
+            # Apply coalesce to reduce small files
+            coalesce_partitions = self._delta_write_config.get_coalesce_partitions(topic)
+            if coalesce_partitions > 0:
+                partitioned_df = partitioned_df.coalesce(coalesce_partitions)
+
+            # Build write with Delta options
             write_builder = partitioned_df.write.format("delta").mode("append")
             if self.partition_columns:
                 write_builder = write_builder.partitionBy(*self.partition_columns)
+            for key, value in self._delta_write_config.to_write_options().items():
+                write_builder = write_builder.option(key, value)
             write_builder.save(bronze_path)
 
         return df

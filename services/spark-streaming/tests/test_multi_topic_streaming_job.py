@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 from spark_streaming.jobs.multi_topic_streaming_job import MultiTopicStreamingJob
 from spark_streaming.config.kafka_config import KafkaConfig
 from spark_streaming.config.checkpoint_config import CheckpointConfig
+from spark_streaming.config.delta_write_config import DeltaWriteConfig
 from spark_streaming.utils.error_handler import ErrorHandler
 
 
@@ -16,7 +17,7 @@ class _ConcreteMultiTopicJob(MultiTopicStreamingJob):
         return ["trips", "payments"]
 
 
-def create_test_job(spark=None):
+def create_test_job(spark=None, delta_write_config=None):
     """Create a test instance of MultiTopicStreamingJob."""
     if spark is None:
         spark = MagicMock()
@@ -31,7 +32,9 @@ def create_test_job(spark=None):
     )
     error_handler = ErrorHandler(dlq_table_path="s3a://test-dlq/")
 
-    return _ConcreteMultiTopicJob(spark, kafka_config, checkpoint_config, error_handler)
+    return _ConcreteMultiTopicJob(
+        spark, kafka_config, checkpoint_config, error_handler, delta_write_config
+    )
 
 
 class TestKafkaConfigMultiTopic:
@@ -224,7 +227,7 @@ class TestMultiTopicStreamingJob:
     def test_process_batch_empty_dataframe(self):
         """Verify process_batch handles empty dataframe."""
         mock_df = MagicMock()
-        mock_df.count.return_value = 0
+        mock_df.isEmpty.return_value = True
 
         job = create_test_job()
         result = job.process_batch(mock_df, batch_id=0)
@@ -238,13 +241,11 @@ class TestMultiTopicStreamingJob:
     def test_process_batch_routes_by_topic(self, mock_date_format, mock_col):
         """Verify process_batch routes messages to correct Bronze tables."""
         mock_df = MagicMock()
-        mock_df.count.return_value = 2
+        mock_df.isEmpty.return_value = False
 
         # Mock topic filtering
         mock_trips_df = MagicMock()
-        mock_trips_df.count.return_value = 1
         mock_payments_df = MagicMock()
-        mock_payments_df.count.return_value = 1
 
         def filter_side_effect(condition):
             # Return different mocks based on filter call order
@@ -260,8 +261,12 @@ class TestMultiTopicStreamingJob:
 
         # Mock withColumn().drop() chain for partitioning
         mock_partitioned_df = MagicMock()
+        mock_partitioned_df.isEmpty.return_value = False
         mock_trips_df.withColumn.return_value.drop.return_value = mock_partitioned_df
         mock_payments_df.withColumn.return_value.drop.return_value = mock_partitioned_df
+
+        # Mock coalesce - returns same mock to continue chain
+        mock_partitioned_df.coalesce.return_value = mock_partitioned_df
 
         # Mock write builder
         mock_write = MagicMock()
@@ -269,6 +274,7 @@ class TestMultiTopicStreamingJob:
         mock_write.format.return_value = mock_write
         mock_write.mode.return_value = mock_write
         mock_write.partitionBy.return_value = mock_write
+        mock_write.option.return_value = mock_write
 
         job = create_test_job()
         job.process_batch(mock_df, batch_id=0)
@@ -282,14 +288,12 @@ class TestMultiTopicStreamingJob:
     def test_process_batch_skips_empty_topics(self):
         """Verify process_batch skips topics with no messages."""
         mock_df = MagicMock()
-        mock_df.count.return_value = 1
+        mock_df.isEmpty.return_value = False
 
         # First topic has no messages, second has messages
         mock_empty_df = MagicMock()
-        mock_empty_df.count.return_value = 0
 
         mock_payments_df = MagicMock()
-        mock_payments_df.count.return_value = 1
 
         def filter_side_effect(condition):
             if filter_side_effect.call_count == 1:
@@ -302,14 +306,25 @@ class TestMultiTopicStreamingJob:
 
         mock_df.filter = MagicMock(side_effect=filter_side_effect)
 
+        # Empty topic partitioned df returns isEmpty = True
+        mock_empty_partitioned_df = MagicMock()
+        mock_empty_partitioned_df.isEmpty.return_value = True
+        mock_empty_df.withColumn.return_value.drop.return_value = mock_empty_partitioned_df
+
         # Mock write for non-empty topic (withColumn().drop() chain)
         mock_partitioned_df = MagicMock()
+        mock_partitioned_df.isEmpty.return_value = False
         mock_payments_df.withColumn.return_value.drop.return_value = mock_partitioned_df
+
+        # Mock coalesce
+        mock_partitioned_df.coalesce.return_value = mock_partitioned_df
+
         mock_write = MagicMock()
         mock_partitioned_df.write = mock_write
         mock_write.format.return_value = mock_write
         mock_write.mode.return_value = mock_write
         mock_write.partitionBy.return_value = mock_write
+        mock_write.option.return_value = mock_write
 
         job = create_test_job()
         with patch("spark_streaming.jobs.multi_topic_streaming_job.col"):
@@ -342,3 +357,102 @@ class TestMultiTopicImport:
         )
 
         assert MultiTopicStreamingJob is not None
+
+
+class TestDeltaWriteConfig:
+    """Tests for DeltaWriteConfig integration."""
+
+    def test_default_delta_write_config(self):
+        """Verify default DeltaWriteConfig is created when not provided."""
+        job = create_test_job()
+        assert job.delta_write_config is not None
+        assert job.delta_write_config.optimize_write is True
+        assert job.delta_write_config.auto_compact is True
+
+    def test_custom_delta_write_config(self):
+        """Verify custom DeltaWriteConfig is used when provided."""
+        config = DeltaWriteConfig(
+            optimize_write=False,
+            default_coalesce_partitions=4,
+            topic_coalesce_overrides={"trips": 2},
+        )
+        job = create_test_job(delta_write_config=config)
+
+        assert job.delta_write_config.optimize_write is False
+        assert job.delta_write_config.default_coalesce_partitions == 4
+        assert job.delta_write_config.get_coalesce_partitions("trips") == 2
+
+    @patch("spark_streaming.jobs.multi_topic_streaming_job.col")
+    @patch("spark_streaming.jobs.multi_topic_streaming_job.date_format")
+    def test_process_batch_applies_coalesce(self, mock_date_format, mock_col):
+        """Verify process_batch applies coalesce from config."""
+        mock_df = MagicMock()
+        mock_df.isEmpty.return_value = False
+
+        # Create mock filter result
+        mock_filtered_df = MagicMock()
+        mock_df.filter.return_value = mock_filtered_df
+
+        # Mock withColumn().drop() chain
+        mock_partitioned_df = MagicMock()
+        mock_partitioned_df.isEmpty.return_value = False
+        mock_filtered_df.withColumn.return_value.drop.return_value = mock_partitioned_df
+
+        # Mock coalesce - returns a new mock for writing
+        mock_coalesced_df = MagicMock()
+        mock_partitioned_df.coalesce.return_value = mock_coalesced_df
+
+        # Mock write builder
+        mock_write = MagicMock()
+        mock_coalesced_df.write = mock_write
+        mock_write.format.return_value = mock_write
+        mock_write.mode.return_value = mock_write
+        mock_write.partitionBy.return_value = mock_write
+        mock_write.option.return_value = mock_write
+
+        config = DeltaWriteConfig(default_coalesce_partitions=2)
+        job = create_test_job(delta_write_config=config)
+        job.process_batch(mock_df, batch_id=0)
+
+        # Verify coalesce was called with correct partition count
+        mock_partitioned_df.coalesce.assert_called_with(2)
+
+    @patch("spark_streaming.jobs.multi_topic_streaming_job.col")
+    @patch("spark_streaming.jobs.multi_topic_streaming_job.date_format")
+    def test_process_batch_applies_delta_options(self, mock_date_format, mock_col):
+        """Verify process_batch applies Delta write options from config."""
+        mock_df = MagicMock()
+        mock_df.isEmpty.return_value = False
+
+        # Create mock filter result
+        mock_filtered_df = MagicMock()
+        mock_df.filter.return_value = mock_filtered_df
+
+        # Mock withColumn().drop() chain
+        mock_partitioned_df = MagicMock()
+        mock_partitioned_df.isEmpty.return_value = False
+        mock_filtered_df.withColumn.return_value.drop.return_value = mock_partitioned_df
+
+        # Mock coalesce
+        mock_coalesced_df = MagicMock()
+        mock_partitioned_df.coalesce.return_value = mock_coalesced_df
+
+        # Mock write builder - track option calls
+        mock_write = MagicMock()
+        mock_coalesced_df.write = mock_write
+        mock_write.format.return_value = mock_write
+        mock_write.mode.return_value = mock_write
+        mock_write.partitionBy.return_value = mock_write
+        mock_write.option.return_value = mock_write
+
+        config = DeltaWriteConfig(optimize_write=True, auto_compact=True)
+        job = create_test_job(delta_write_config=config)
+        job.process_batch(mock_df, batch_id=0)
+
+        # Verify Delta options were set
+        option_calls = mock_write.option.call_args_list
+        option_keys = [call[0][0] for call in option_calls]
+
+        assert "delta.autoOptimize.optimizeWrite" in option_keys
+        assert "delta.autoOptimize.autoCompact" in option_keys
+        assert "delta.targetFileSize" in option_keys

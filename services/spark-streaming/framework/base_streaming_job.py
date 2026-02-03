@@ -5,6 +5,7 @@ from typing import Any, Optional
 
 from spark_streaming.config.kafka_config import KafkaConfig
 from spark_streaming.config.checkpoint_config import CheckpointConfig
+from spark_streaming.config.delta_write_config import DeltaWriteConfig
 from spark_streaming.utils.error_handler import ErrorHandler
 
 
@@ -17,11 +18,13 @@ class BaseStreamingJob(ABC):
         kafka_config: KafkaConfig,
         checkpoint_config: CheckpointConfig,
         error_handler: ErrorHandler,
+        delta_write_config: Optional[DeltaWriteConfig] = None,
     ):
         self._spark = spark
         self._kafka_config = kafka_config
         self._checkpoint_config = checkpoint_config
         self._error_handler = error_handler
+        self._delta_write_config = delta_write_config or DeltaWriteConfig()
         self._query = None
         self.starting_offsets = None
 
@@ -87,6 +90,10 @@ class BaseStreamingJob(ABC):
     @property
     def error_handler(self) -> ErrorHandler:
         return self._error_handler
+
+    @property
+    def delta_write_config(self) -> DeltaWriteConfig:
+        return self._delta_write_config
 
     @property
     def output_format(self) -> str:

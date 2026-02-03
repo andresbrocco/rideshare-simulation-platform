@@ -21,6 +21,7 @@ if __name__ == "__main__":
     from pyspark.sql import SparkSession
     from spark_streaming.config.kafka_config import KafkaConfig
     from spark_streaming.config.checkpoint_config import CheckpointConfig
+    from spark_streaming.config.delta_write_config import DeltaWriteConfig
     from spark_streaming.utils.error_handler import ErrorHandler
 
     # Memory configs removed - Docker Compose controls allocation via spark-submit args
@@ -38,6 +39,14 @@ if __name__ == "__main__":
     )
     error_handler = ErrorHandler(dlq_table_path="s3a://rideshare-bronze/dlq_gps_pings/")
 
-    job = BronzeIngestionHighVolume(spark, kafka_config, checkpoint_config, error_handler)
+    # GPS pings has 8 Kafka partitions - coalesce to 2 files per micro-batch
+    delta_write_config = DeltaWriteConfig(
+        default_coalesce_partitions=2,
+        topic_coalesce_overrides={"gps_pings": 2},
+    )
+
+    job = BronzeIngestionHighVolume(
+        spark, kafka_config, checkpoint_config, error_handler, delta_write_config
+    )
     query = job.start()
     query.awaitTermination()

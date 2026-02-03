@@ -6,6 +6,7 @@ from pyspark.sql import SparkSession
 from spark_streaming.jobs.bronze_ingestion_high_volume import BronzeIngestionHighVolume
 from spark_streaming.config.kafka_config import KafkaConfig
 from spark_streaming.config.checkpoint_config import CheckpointConfig
+from spark_streaming.config.delta_write_config import DeltaWriteConfig
 from spark_streaming.utils.error_handler import ErrorHandler
 
 
@@ -27,6 +28,28 @@ def high_volume_job(spark):
     error_handler = ErrorHandler(dlq_table_path="s3a://test-dlq/")
 
     return BronzeIngestionHighVolume(spark, kafka_config, checkpoint_config, error_handler)
+
+
+@pytest.fixture
+def high_volume_job_with_config(spark):
+    """Create high volume job with custom DeltaWriteConfig."""
+    kafka_config = KafkaConfig(
+        bootstrap_servers="kafka:9092",
+        schema_registry_url="http://sr:8081",
+    )
+    checkpoint_config = CheckpointConfig(
+        checkpoint_path="s3a://test-checkpoints/gps_pings/",
+        trigger_interval="10 seconds",
+    )
+    error_handler = ErrorHandler(dlq_table_path="s3a://test-dlq/")
+    delta_write_config = DeltaWriteConfig(
+        default_coalesce_partitions=2,
+        topic_coalesce_overrides={"gps_pings": 2},
+    )
+
+    return BronzeIngestionHighVolume(
+        spark, kafka_config, checkpoint_config, error_handler, delta_write_config
+    )
 
 
 def test_topic_names(high_volume_job):
@@ -51,3 +74,15 @@ def test_import_from_jobs_module():
 def test_partition_columns(high_volume_job):
     """Verify partition columns are set for ingestion date."""
     assert high_volume_job.partition_columns == ["_ingestion_date"]
+
+
+def test_default_delta_write_config(high_volume_job):
+    """Verify default DeltaWriteConfig is created."""
+    assert high_volume_job.delta_write_config is not None
+    assert high_volume_job.delta_write_config.optimize_write is True
+
+
+def test_custom_delta_write_config(high_volume_job_with_config):
+    """Verify custom DeltaWriteConfig is passed correctly."""
+    assert high_volume_job_with_config.delta_write_config.default_coalesce_partitions == 2
+    assert high_volume_job_with_config.delta_write_config.get_coalesce_partitions("gps_pings") == 2
