@@ -41,7 +41,7 @@ with_validity as (
         vehicle_year,
         license_plate,
         timestamp as valid_from,
-        coalesce(next_timestamp, cast('9999-12-31' as date)) as valid_to,
+        coalesce(next_timestamp, cast('9999-12-31 23:59:59' as timestamp)) as valid_to,
         case when next_timestamp is null then true else false end as current_flag
     from driver_changes
 ),
