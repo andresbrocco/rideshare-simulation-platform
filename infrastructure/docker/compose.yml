@@ -920,7 +920,7 @@ services:
     command: >
       /bin/sh -c "
       echo 'Installing dependencies to Superset venv...' &&
-      pip install --target=/app/.venv/lib/python3.10/site-packages pyhive thrift psycopg2-binary &&
+      pip install --target=/app/.venv/lib/python3.10/site-packages pyhive thrift psycopg2-binary cachelib &&
 
       echo 'Running database migrations...' &&
       superset db upgrade &&
