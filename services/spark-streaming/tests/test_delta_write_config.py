@@ -122,21 +122,22 @@ class TestToWriteOptions:
         assert options["delta.autoOptimize.optimizeWrite"] == "false"
         assert options["delta.autoOptimize.autoCompact"] == "false"
 
-    def test_file_size_converted_to_bytes(self):
-        """Verify target file size is converted to bytes."""
+    def test_no_target_file_size_option(self):
+        """Verify delta.targetFileSize is not included (removed in Delta 4.0)."""
         config = DeltaWriteConfig(target_file_size_mb=128)
         options = config.to_write_options()
 
-        expected_bytes = 128 * 1024 * 1024  # 134217728
-        assert options["delta.targetFileSize"] == str(expected_bytes)
+        # delta.targetFileSize was removed in Delta Lake 4.0
+        # File size is now controlled via spark.databricks.delta.optimizeWrite.fileSize
+        assert "delta.targetFileSize" not in options
 
-    def test_custom_file_size_conversion(self):
-        """Verify custom file size is converted correctly."""
+    def test_only_supported_options_returned(self):
+        """Verify only supported Delta Lake 4.0 options are returned."""
         config = DeltaWriteConfig(target_file_size_mb=256)
         options = config.to_write_options()
 
-        expected_bytes = 256 * 1024 * 1024  # 268435456
-        assert options["delta.targetFileSize"] == str(expected_bytes)
+        expected_keys = {"delta.autoOptimize.optimizeWrite", "delta.autoOptimize.autoCompact"}
+        assert set(options.keys()) == expected_keys
 
     def test_returns_dict_with_string_values(self):
         """Verify all option values are strings."""

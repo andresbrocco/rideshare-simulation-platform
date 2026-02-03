@@ -44,9 +44,14 @@ class DeltaWriteConfig:
 
         Returns:
             Dictionary of Delta Lake write options suitable for DataFrame.write.option().
+
+        Note:
+            Delta Lake 4.0 removed support for delta.targetFileSize as a write option.
+            File size optimization is handled by optimizeWrite using Spark's default
+            target size (typically 128MB). Use spark.databricks.delta.optimizeWrite.fileSize
+            SparkConf to override if needed.
         """
         return {
             "delta.autoOptimize.optimizeWrite": str(self.optimize_write).lower(),
             "delta.autoOptimize.autoCompact": str(self.auto_compact).lower(),
-            "delta.targetFileSize": str(self.target_file_size_mb * 1024 * 1024),
         }
