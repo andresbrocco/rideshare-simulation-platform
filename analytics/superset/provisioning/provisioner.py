@@ -197,6 +197,7 @@ class DashboardProvisioner:
                     datasource_id=dataset_id,
                     viz_type=chart_def.viz_type,
                     params=chart_def.get_params(),
+                    query_context=chart_def.get_query_context(dataset_id),
                     description=f"Part of {dashboard_def.title} dashboard",
                 )
                 # Handle response

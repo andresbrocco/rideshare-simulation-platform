@@ -21,10 +21,11 @@ DAILY_REVENUE = DatasetDefinition(
     name="gold_daily_revenue",
     sql="""
     SELECT
-        SUM(total_revenue) as daily_revenue,
-        SUM(total_trips) as trip_count
-    FROM gold.agg_daily_platform_revenue
-    WHERE date = CURRENT_DATE
+        SUM(r.total_revenue) as daily_revenue,
+        SUM(r.total_trips) as trip_count
+    FROM gold.agg_daily_platform_revenue r
+    JOIN gold.dim_time t ON r.time_key = t.time_key
+    WHERE t.date_key = CURRENT_DATE
     """,
     description="Daily revenue total",
 )
@@ -33,9 +34,10 @@ TOTAL_FEES = DatasetDefinition(
     name="gold_total_fees",
     sql="""
     SELECT
-        SUM(platform_fees) as total_fees
-    FROM gold.agg_daily_platform_revenue
-    WHERE date = CURRENT_DATE
+        SUM(r.total_platform_fees) as total_fees
+    FROM gold.agg_daily_platform_revenue r
+    JOIN gold.dim_time t ON r.time_key = t.time_key
+    WHERE t.date_key = CURRENT_DATE
     """,
     description="Platform fees collected today",
 )
@@ -44,9 +46,10 @@ TRIP_COUNT_TODAY = DatasetDefinition(
     name="gold_trip_count_today",
     sql="""
     SELECT
-        SUM(total_trips) as trip_count
-    FROM gold.agg_daily_platform_revenue
-    WHERE date = CURRENT_DATE
+        SUM(r.total_trips) as trip_count
+    FROM gold.agg_daily_platform_revenue r
+    JOIN gold.dim_time t ON r.time_key = t.time_key
+    WHERE t.date_key = CURRENT_DATE
     """,
     description="Total trips completed today",
 )
@@ -55,14 +58,14 @@ REVENUE_BY_ZONE = DatasetDefinition(
     name="gold_revenue_by_zone",
     sql="""
     SELECT
-        z.zone_name,
-        SUM(p.total_amount) as zone_revenue
+        z.name AS zone_name,
+        SUM(p.total_fare) as zone_revenue
     FROM gold.fact_payments p
-    JOIN gold.fact_trips t ON p.trip_id = t.trip_id
-    JOIN gold.dim_zones z ON t.pickup_zone_id = z.zone_id
-    WHERE DATE(p.processed_at) = CURRENT_DATE
-    AND p.payment_status = 'completed'
-    GROUP BY z.zone_name
+    JOIN gold.fact_trips t ON p.trip_key = t.trip_key
+    JOIN gold.dim_zones z ON t.pickup_zone_key = z.zone_key
+    JOIN gold.dim_time dt ON p.time_key = dt.time_key
+    WHERE dt.date_key = CURRENT_DATE
+    GROUP BY z.name
     ORDER BY zone_revenue DESC
     LIMIT 10
     """,
@@ -73,12 +76,13 @@ REVENUE_OVER_TIME = DatasetDefinition(
     name="gold_revenue_over_time",
     sql="""
     SELECT
-        date,
-        total_revenue,
-        platform_fees,
-        driver_earnings
-    FROM gold.agg_daily_platform_revenue
-    WHERE date >= CURRENT_DATE - INTERVAL 14 DAYS
+        t.date_key as date,
+        r.total_revenue,
+        r.total_platform_fees as platform_fees,
+        r.total_driver_payouts as driver_earnings
+    FROM gold.agg_daily_platform_revenue r
+    JOIN gold.dim_time t ON r.time_key = t.time_key
+    WHERE t.date_key >= CURRENT_DATE - INTERVAL 14 DAYS
     ORDER BY date
     """,
     description="Revenue trend over 14 days",
@@ -95,12 +99,11 @@ AVG_FARE_BY_DISTANCE = DatasetDefinition(
             WHEN t.distance_km < 20 THEN '10-20 km'
             ELSE '20+ km'
         END as distance_bucket,
-        AVG(p.total_amount) as avg_fare,
+        AVG(p.total_fare) as avg_fare,
         COUNT(*) as trip_count
     FROM gold.fact_payments p
-    JOIN gold.fact_trips t ON p.trip_id = t.trip_id
-    WHERE DATE(p.processed_at) >= CURRENT_DATE - INTERVAL 7 DAYS
-    AND p.payment_status = 'completed'
+    JOIN gold.fact_trips t ON p.trip_key = t.trip_key
+    WHERE DATE(p.payment_timestamp) >= CURRENT_DATE - INTERVAL 7 DAYS
     AND t.distance_km IS NOT NULL
     GROUP BY
         CASE
@@ -119,14 +122,13 @@ PAYMENT_METHODS = DatasetDefinition(
     name="gold_payment_methods",
     sql="""
     SELECT
-        pm.method_name as payment_method,
+        p.payment_method_type as payment_method,
         COUNT(*) as transaction_count,
-        SUM(p.total_amount) as total_amount
+        SUM(p.total_fare) as total_amount
     FROM gold.fact_payments p
-    JOIN gold.dim_payment_methods pm ON p.payment_method_id = pm.payment_method_id
-    WHERE DATE(p.processed_at) >= CURRENT_DATE - INTERVAL 7 DAYS
-    AND p.payment_status = 'completed'
-    GROUP BY pm.method_name
+    JOIN gold.dim_time t ON p.time_key = t.time_key
+    WHERE t.date_key >= CURRENT_DATE - INTERVAL 7 DAYS
+    GROUP BY p.payment_method_type
     ORDER BY total_amount DESC
     """,
     description="Payment method distribution",
@@ -136,13 +138,13 @@ REVENUE_BY_HOUR = DatasetDefinition(
     name="gold_revenue_by_hour",
     sql="""
     SELECT
-        HOUR(processed_at) as hour_of_day,
-        DATE(processed_at) as date,
-        SUM(total_amount) as hourly_revenue
-    FROM gold.fact_payments
-    WHERE processed_at >= current_timestamp - INTERVAL 7 DAYS
-    AND payment_status = 'completed'
-    GROUP BY HOUR(processed_at), DATE(processed_at)
+        hour(p.payment_timestamp) as hour_of_day,
+        t.date_key as date,
+        SUM(p.total_fare) as hourly_revenue
+    FROM gold.fact_payments p
+    JOIN gold.dim_time t ON p.time_key = t.time_key
+    WHERE t.date_key >= CURRENT_DATE - INTERVAL 7 DAYS
+    GROUP BY hour(p.payment_timestamp), t.date_key
     ORDER BY date, hour_of_day
     """,
     description="Revenue heatmap by hour and date",
@@ -152,16 +154,16 @@ TOP_REVENUE_ZONES = DatasetDefinition(
     name="gold_top_revenue_zones",
     sql="""
     SELECT
-        z.zone_name,
-        SUM(p.total_amount) as total_revenue,
+        z.name AS zone_name,
+        SUM(p.total_fare) as total_revenue,
         COUNT(*) as trip_count,
-        AVG(p.total_amount) as avg_fare
+        AVG(p.total_fare) as avg_fare
     FROM gold.fact_payments p
-    JOIN gold.fact_trips t ON p.trip_id = t.trip_id
-    JOIN gold.dim_zones z ON t.pickup_zone_id = z.zone_id
-    WHERE DATE(p.processed_at) >= CURRENT_DATE - INTERVAL 7 DAYS
-    AND p.payment_status = 'completed'
-    GROUP BY z.zone_name
+    JOIN gold.fact_trips t ON p.trip_key = t.trip_key
+    JOIN gold.dim_zones z ON t.pickup_zone_key = z.zone_key
+    JOIN gold.dim_time dt ON p.time_key = dt.time_key
+    WHERE dt.date_key >= CURRENT_DATE - INTERVAL 7 DAYS
+    GROUP BY z.name
     ORDER BY total_revenue DESC
     LIMIT 10
     """,

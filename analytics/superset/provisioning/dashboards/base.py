@@ -62,6 +62,76 @@ class ChartDefinition:
 
         return params
 
+    def get_query_context(self, datasource_id: int) -> dict[str, Any]:
+        """Build query_context for Superset API based on viz_type.
+
+        Args:
+            datasource_id: The dataset ID this chart queries
+
+        Returns:
+            query_context dict for Superset chart creation
+        """
+        query: dict[str, Any] = {
+            "row_limit": 1000,
+        }
+
+        # Viz-type specific handling
+        if self.viz_type == "big_number_total":
+            # Single metric, no dimensions
+            query["metrics"] = list(self.metrics)
+            query["columns"] = []
+            query["is_timeseries"] = False
+
+        elif self.viz_type in ("echarts_timeseries_line", "echarts_timeseries_bar"):
+            # Time-series charts require granularity
+            query["metrics"] = list(self.metrics)
+            query["columns"] = list(self.dimensions)
+            query["granularity"] = self.time_column
+            query["time_range"] = self.time_range
+            query["is_timeseries"] = True
+
+        elif self.viz_type == "heatmap":
+            # Heatmap needs exactly 2 dimensions
+            query["metrics"] = list(self.metrics)
+            query["columns"] = list(self.dimensions)
+
+        elif self.viz_type == "echarts_scatter":
+            # Scatter: metrics for x/y, dimensions for grouping
+            query["metrics"] = list(self.metrics)
+            query["columns"] = list(self.dimensions)
+
+        elif self.viz_type == "table":
+            # Table: dimensions as columns, metrics optional
+            query["columns"] = list(self.dimensions)
+            query["metrics"] = list(self.metrics) if self.metrics else []
+
+        elif self.viz_type in ("echarts_bar", "pie", "echarts_area"):
+            # Standard dimensional charts
+            query["metrics"] = list(self.metrics)
+            query["columns"] = list(self.dimensions)
+
+            # Area chart with time column
+            if self.viz_type == "echarts_area" and self.time_column:
+                query["granularity"] = self.time_column
+                query["time_range"] = self.time_range
+                query["is_timeseries"] = True
+
+        else:
+            # Default fallback
+            query["metrics"] = list(self.metrics)
+            query["columns"] = list(self.dimensions)
+            if self.time_column:
+                query["granularity"] = self.time_column
+                query["time_range"] = self.time_range
+
+        return {
+            "datasource": {"id": datasource_id, "type": "table"},
+            "force": False,
+            "queries": [query],
+            "result_format": "json",
+            "result_type": "full",
+        }
+
 
 @dataclass(frozen=True)
 class DashboardDefinition:

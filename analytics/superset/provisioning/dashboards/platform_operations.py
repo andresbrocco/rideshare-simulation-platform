@@ -22,9 +22,9 @@ ACTIVE_TRIPS = DatasetDefinition(
     sql="""
     SELECT COUNT(*) as active_trips
     FROM gold.fact_trips
-    WHERE status IN ('REQUESTED', 'MATCHED', 'DRIVER_EN_ROUTE', 'DRIVER_ARRIVED', 'STARTED')
+    WHERE trip_state = 'completed' AND completed_at >= current_timestamp - INTERVAL 1 HOUR
     """,
-    description="Currently active trips",
+    description="Recently completed trips (last hour as proxy for active)",
 )
 
 COMPLETED_TODAY = DatasetDefinition(
@@ -32,7 +32,7 @@ COMPLETED_TODAY = DatasetDefinition(
     sql="""
     SELECT COUNT(*) as completed_trips
     FROM gold.fact_trips
-    WHERE status = 'COMPLETED'
+    WHERE trip_state = 'completed'
     AND DATE(completed_at) = CURRENT_DATE
     """,
     description="Trips completed today",
@@ -42,11 +42,11 @@ AVERAGE_WAIT_TIME = DatasetDefinition(
     name="gold_average_wait_time",
     sql="""
     SELECT
-        AVG(UNIX_TIMESTAMP(pickup_at) - UNIX_TIMESTAMP(requested_at)) / 60 as avg_wait_minutes
+        AVG(unix_timestamp(started_at) - unix_timestamp(requested_at)) / 60 as avg_wait_minutes
     FROM gold.fact_trips
-    WHERE status = 'COMPLETED'
+    WHERE trip_state = 'completed'
     AND DATE(completed_at) = CURRENT_DATE
-    AND pickup_at IS NOT NULL
+    AND started_at IS NOT NULL
     AND requested_at IS NOT NULL
     """,
     description="Average wait time in minutes",
@@ -56,10 +56,10 @@ TOTAL_REVENUE_TODAY = DatasetDefinition(
     name="gold_total_revenue_today",
     sql="""
     SELECT
-        SUM(total_amount) as total_revenue
-    FROM gold.fact_payments
-    WHERE DATE(processed_at) = CURRENT_DATE
-    AND payment_status = 'completed'
+        SUM(p.total_fare) as total_revenue
+    FROM gold.fact_payments p
+    JOIN gold.dim_time t ON p.time_key = t.time_key
+    WHERE t.date_key = CURRENT_DATE
     """,
     description="Total revenue today",
 )
@@ -82,12 +82,12 @@ TRIPS_BY_ZONE = DatasetDefinition(
     name="gold_trips_by_zone",
     sql="""
     SELECT
-        z.zone_name,
+        z.name AS zone_name,
         COUNT(*) as trip_count
     FROM gold.fact_trips t
-    JOIN gold.dim_zones z ON t.pickup_zone_id = z.zone_id
+    JOIN gold.dim_zones z ON t.pickup_zone_key = z.zone_key
     WHERE DATE(t.requested_at) = CURRENT_DATE
-    GROUP BY z.zone_name
+    GROUP BY z.name
     ORDER BY trip_count DESC
     LIMIT 10
     """,

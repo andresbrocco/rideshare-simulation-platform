@@ -21,14 +21,14 @@ ZONE_DEMAND_HEATMAP = DatasetDefinition(
     name="gold_zone_demand_heatmap",
     sql="""
     SELECT
-        z.zone_name,
-        DATE(d.hour) as date,
-        SUM(d.trip_requests) as total_requests,
+        z.name AS zone_name,
+        DATE(d.hour_timestamp) as date,
+        SUM(d.requested_trips) as total_requests,
         AVG(d.avg_surge_multiplier) as avg_surge
     FROM gold.agg_hourly_zone_demand d
-    JOIN gold.dim_zones z ON d.zone_id = z.zone_id
-    WHERE d.hour >= current_timestamp - INTERVAL 7 DAYS
-    GROUP BY z.zone_name, DATE(d.hour)
+    JOIN gold.dim_zones z ON d.zone_key = z.zone_key
+    WHERE d.hour_timestamp >= current_timestamp - INTERVAL 7 DAYS
+    GROUP BY z.name, DATE(d.hour_timestamp)
     ORDER BY date, total_requests DESC
     """,
     description="Zone demand heatmap by date",
@@ -38,12 +38,11 @@ SURGE_TRENDS = DatasetDefinition(
     name="gold_surge_trends",
     sql="""
     SELECT
-        date_trunc('hour', effective_at) as hour,
-        AVG(surge_multiplier) as avg_surge,
-        MAX(surge_multiplier) as max_surge
+        hour_timestamp as hour,
+        avg_surge_multiplier as avg_surge,
+        max_surge_multiplier as max_surge
     FROM gold.agg_surge_history
-    WHERE effective_at >= current_timestamp - INTERVAL 24 HOURS
-    GROUP BY date_trunc('hour', effective_at)
+    WHERE hour_timestamp >= current_timestamp - INTERVAL 24 HOURS
     ORDER BY hour
     """,
     description="Surge multiplier trends over time",
@@ -53,12 +52,12 @@ WAIT_TIME_BY_ZONE = DatasetDefinition(
     name="gold_wait_time_by_zone",
     sql="""
     SELECT
-        z.zone_name,
-        AVG(d.avg_wait_time_seconds) / 60 as avg_wait_minutes
+        z.name AS zone_name,
+        AVG(d.avg_wait_time_minutes) as avg_wait_minutes
     FROM gold.agg_hourly_zone_demand d
-    JOIN gold.dim_zones z ON d.zone_id = z.zone_id
-    WHERE d.hour >= current_timestamp - INTERVAL 24 HOURS
-    GROUP BY z.zone_name
+    JOIN gold.dim_zones z ON d.zone_key = z.zone_key
+    WHERE d.hour_timestamp >= current_timestamp - INTERVAL 24 HOURS
+    GROUP BY z.name
     ORDER BY avg_wait_minutes DESC
     LIMIT 15
     """,
@@ -69,13 +68,12 @@ HOURLY_DEMAND_PATTERN = DatasetDefinition(
     name="gold_hourly_demand_pattern",
     sql="""
     SELECT
-        HOUR(hour) as hour_of_day,
-        SUM(trip_requests) as total_requests,
-        SUM(trips_completed) as completed,
-        SUM(trips_cancelled) as cancelled
+        hour(hour_timestamp) as hour_of_day,
+        SUM(requested_trips) as total_requests,
+        SUM(completed_trips) as completed
     FROM gold.agg_hourly_zone_demand
-    WHERE hour >= current_timestamp - INTERVAL 7 DAYS
-    GROUP BY HOUR(hour)
+    WHERE hour_timestamp >= current_timestamp - INTERVAL 7 DAYS
+    GROUP BY hour(hour_timestamp)
     ORDER BY hour_of_day
     """,
     description="Demand by hour of day (weekly aggregate)",
@@ -85,14 +83,14 @@ TOP_DEMAND_ZONES = DatasetDefinition(
     name="gold_top_demand_zones",
     sql="""
     SELECT
-        z.zone_name,
-        SUM(d.trip_requests) as total_requests,
-        SUM(d.trips_completed) as completed,
-        ROUND(SUM(d.trips_completed) * 100.0 / NULLIF(SUM(d.trip_requests), 0), 1) as fulfillment_rate
+        z.name AS zone_name,
+        SUM(d.requested_trips) as total_requests,
+        SUM(d.completed_trips) as completed,
+        ROUND(SUM(d.completed_trips) * 100.0 / NULLIF(SUM(d.requested_trips), 0), 1) as fulfillment_rate
     FROM gold.agg_hourly_zone_demand d
-    JOIN gold.dim_zones z ON d.zone_id = z.zone_id
-    WHERE d.hour >= current_timestamp - INTERVAL 24 HOURS
-    GROUP BY z.zone_name
+    JOIN gold.dim_zones z ON d.zone_key = z.zone_key
+    WHERE d.hour_timestamp >= current_timestamp - INTERVAL 24 HOURS
+    GROUP BY z.name
     ORDER BY total_requests DESC
     LIMIT 10
     """,
@@ -103,15 +101,14 @@ SURGE_EVENTS = DatasetDefinition(
     name="gold_surge_events",
     sql="""
     SELECT
-        date_trunc('hour', effective_at) as hour,
-        z.zone_name,
-        MAX(surge_multiplier) as peak_surge,
-        COUNT(*) as surge_updates
+        s.hour_timestamp as hour,
+        z.name AS zone_name,
+        s.max_surge_multiplier as peak_surge,
+        s.surge_update_count as surge_updates
     FROM gold.agg_surge_history s
-    JOIN gold.dim_zones z ON s.zone_id = z.zone_id
-    WHERE s.effective_at >= current_timestamp - INTERVAL 24 HOURS
-    AND s.surge_multiplier > 1.5
-    GROUP BY date_trunc('hour', effective_at), z.zone_name
+    JOIN gold.dim_zones z ON s.zone_key = z.zone_key
+    WHERE s.hour_timestamp >= current_timestamp - INTERVAL 24 HOURS
+    AND s.max_surge_multiplier > 1.5
     ORDER BY hour, peak_surge DESC
     """,
     description="Surge events timeline (>1.5x)",

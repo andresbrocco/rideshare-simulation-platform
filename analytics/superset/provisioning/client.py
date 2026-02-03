@@ -380,6 +380,7 @@ class SupersetClient:
         datasource_id: int,
         viz_type: str,
         params: dict[str, Any],
+        query_context: dict[str, Any] | None = None,
         description: str = "",
     ) -> dict[str, Any]:
         """Get existing chart or create new one (idempotent).
@@ -389,6 +390,7 @@ class SupersetClient:
             datasource_id: Dataset ID
             viz_type: Visualization type (e.g., "big_number_total", "bar", "pie")
             params: Chart-specific parameters
+            query_context: Query context for chart data fetching
             description: Optional description
 
         Returns:
@@ -400,17 +402,24 @@ class SupersetClient:
             return existing
 
         logger.info("Creating chart: %s (type=%s)", name, viz_type)
+
+        json_data: dict[str, Any] = {
+            "slice_name": name,
+            "datasource_id": datasource_id,
+            "datasource_type": "table",
+            "viz_type": viz_type,
+            "params": json.dumps(params),
+            "description": description,
+        }
+
+        # Add query_context if provided
+        if query_context is not None:
+            json_data["query_context"] = json.dumps(query_context)
+
         response = self._request(
             "POST",
             "/api/v1/chart/",
-            json_data={
-                "slice_name": name,
-                "datasource_id": datasource_id,
-                "datasource_type": "table",
-                "viz_type": viz_type,
-                "params": json.dumps(params),
-                "description": description,
-            },
+            json_data=json_data,
         )
         return response
 
