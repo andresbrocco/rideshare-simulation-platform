@@ -40,3 +40,69 @@ groups:
         annotations:
           summary: "cAdvisor down"
           description: "Container metrics collection is unavailable"
+
+  - name: simulation_health
+    interval: 30s
+    rules:
+      - alert: SimulationHighErrorRate
+        expr: sum(rate(simulation_errors_total[5m])) > 10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High simulation error rate"
+          description: "Simulation is experiencing {{ $value | humanize }} errors per second"
+
+      - alert: SimulationOSRMLatencyHigh
+        expr: histogram_quantile(0.95, rate(simulation_osrm_latency_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High OSRM latency"
+          description: "OSRM p95 latency is {{ $value | humanizeDuration }}"
+
+      - alert: StreamProcessorKafkaDisconnected
+        expr: stream_processor_kafka_connected == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Stream processor lost Kafka connection"
+          description: "Stream processor has been disconnected from Kafka for more than 1 minute"
+
+      - alert: StreamProcessorRedisDisconnected
+        expr: stream_processor_redis_connected == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Stream processor lost Redis connection"
+          description: "Stream processor has been disconnected from Redis for more than 1 minute"
+
+      - alert: SimulationQueueBacklog
+        expr: simulation_simpy_events > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High SimPy event queue depth"
+          description: "SimPy event queue has {{ $value }} pending events"
+
+      - alert: SimulationServiceDown
+        expr: up{job="simulation"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Simulation service down"
+          description: "Simulation service has been unreachable for more than 1 minute"
+
+      - alert: StreamProcessorServiceDown
+        expr: up{job="stream-processor"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Stream processor down"
+          description: "Stream processor service has been unreachable for more than 1 minute"

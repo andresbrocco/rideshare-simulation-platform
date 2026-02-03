@@ -5,9 +5,11 @@ import threading
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 from .metrics import get_metrics_collector
+from .prometheus_exporter import generate_prometheus_metrics, update_metrics_from_snapshot
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +120,22 @@ def get_metrics() -> MetricsResponse:
         uptime_seconds=snapshot.uptime_seconds,
         timestamp=snapshot.timestamp,
     )
+
+
+@app.get("/prometheus", response_class=PlainTextResponse)
+def get_prometheus_metrics() -> str:
+    """Returns metrics in Prometheus text format.
+
+    This endpoint bridges the existing metrics collector to Prometheus format.
+    """
+    collector = get_metrics_collector()
+    snapshot = collector.get_snapshot()
+
+    # Update Prometheus metrics from snapshot
+    update_metrics_from_snapshot(snapshot)
+
+    # Generate and return Prometheus format
+    return generate_prometheus_metrics().decode("utf-8")
 
 
 def run_api_server(host: str, port: int) -> None:

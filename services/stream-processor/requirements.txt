@@ -11,3 +11,6 @@ redis==5.2.1
 # HTTP API for health checks and metrics
 fastapi==0.115.6
 uvicorn==0.34.0
+
+# Prometheus metrics export
+prometheus-client>=0.21.0

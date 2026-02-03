@@ -1,12 +1,12 @@
 apiVersion: 1
 
 groups:
-  - name: pipeline_failures
+  - name: resource_thresholds
     folder: Alerts
     interval: 1m
     rules:
-      - uid: kafka_consumer_lag_high
-        title: High Kafka Consumer Lag
+      - uid: simulation_memory_high
+        title: High Simulation Memory Usage
         condition: A
         data:
           - refId: A
@@ -15,20 +15,20 @@ groups:
               to: 0
             datasourceUid: prometheus
             model:
-              expr: sum(kafka_consumer_lag) > 10000
+              expr: (container_memory_working_set_bytes{name="rideshare-simulation"} / container_spec_memory_limit_bytes{name="rideshare-simulation"}) > 0.9
               refId: A
         noDataState: NoData
         execErrState: Alerting
         for: 5m
         annotations:
-          description: Kafka consumer lag has exceeded 10,000 messages
-          summary: High consumer lag detected
+          description: Simulation container is using more than 90% of allocated memory
+          summary: High memory usage on Simulation
         labels:
           severity: warning
-          component: kafka
+          component: simulation
 
-      - uid: spark_job_failure
-        title: Spark Job Failure
+      - uid: stream_processor_memory_high
+        title: High Stream Processor Memory Usage
         condition: A
         data:
           - refId: A
@@ -37,44 +37,18 @@ groups:
               to: 0
             datasourceUid: prometheus
             model:
-              expr: increase(spark_job_failed_total[5m]) > 0
+              expr: (container_memory_working_set_bytes{name="rideshare-stream-processor"} / container_spec_memory_limit_bytes{name="rideshare-stream-processor"}) > 0.9
               refId: A
         noDataState: NoData
         execErrState: Alerting
-        for: 1m
+        for: 5m
         annotations:
-          description: Spark job has failed in the last 5 minutes
-          summary: Spark job failure detected
+          description: Stream processor container is using more than 90% of allocated memory
+          summary: High memory usage on Stream Processor
         labels:
-          severity: critical
-          component: spark
+          severity: warning
+          component: stream-processor
 
-      - uid: airflow_dag_failure
-        title: Airflow DAG Failure
-        condition: A
-        data:
-          - refId: A
-            relativeTimeRange:
-              from: 300
-              to: 0
-            datasourceUid: prometheus
-            model:
-              expr: increase(airflow_dag_run_failed_total[5m]) > 0
-              refId: A
-        noDataState: NoData
-        execErrState: Alerting
-        for: 1m
-        annotations:
-          description: Airflow DAG run has failed in the last 5 minutes
-          summary: DAG run failure detected
-        labels:
-          severity: critical
-          component: airflow
-
-  - name: resource_thresholds
-    folder: Alerts
-    interval: 1m
-    rules:
       - uid: kafka_memory_high
         title: High Kafka Memory Usage
         condition: A
@@ -85,7 +59,7 @@ groups:
               to: 0
             datasourceUid: prometheus
             model:
-              expr: (container_memory_usage_bytes{name="rideshare-kafka"} / container_spec_memory_limit_bytes{name="rideshare-kafka"}) > 0.9
+              expr: (container_memory_working_set_bytes{name="rideshare-kafka"} / container_spec_memory_limit_bytes{name="rideshare-kafka"}) > 0.9
               refId: A
         noDataState: NoData
         execErrState: Alerting
@@ -96,28 +70,6 @@ groups:
         labels:
           severity: warning
           component: kafka
-
-      - uid: spark_memory_high
-        title: High Spark Memory Usage
-        condition: A
-        data:
-          - refId: A
-            relativeTimeRange:
-              from: 300
-              to: 0
-            datasourceUid: prometheus
-            model:
-              expr: (container_memory_usage_bytes{name=~"rideshare-spark-.*"} / container_spec_memory_limit_bytes{name=~"rideshare-spark-.*"}) > 0.9
-              refId: A
-        noDataState: NoData
-        execErrState: Alerting
-        for: 5m
-        annotations:
-          description: Spark container is using more than 90% of allocated memory
-          summary: High memory usage on Spark
-        labels:
-          severity: warning
-          component: spark
 
       - uid: container_cpu_high
         title: High Container CPU Usage
@@ -140,3 +92,73 @@ groups:
         labels:
           severity: warning
           component: infrastructure
+
+  - name: simulation_alerts
+    folder: Alerts
+    interval: 1m
+    rules:
+      - uid: simulation_error_rate_high
+        title: High Simulation Error Rate
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: sum(rate(simulation_errors_total[5m])) > 10
+              refId: A
+        noDataState: NoData
+        execErrState: Alerting
+        for: 2m
+        annotations:
+          description: Simulation is experiencing high error rate
+          summary: High error rate in simulation
+        labels:
+          severity: warning
+          component: simulation
+
+      - uid: stream_processor_kafka_disconnected
+        title: Stream Processor Kafka Disconnected
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: stream_processor_kafka_connected == 0
+              refId: A
+        noDataState: NoData
+        execErrState: Alerting
+        for: 1m
+        annotations:
+          description: Stream processor has lost connection to Kafka
+          summary: Kafka connection lost
+        labels:
+          severity: critical
+          component: stream-processor
+
+      - uid: stream_processor_redis_disconnected
+        title: Stream Processor Redis Disconnected
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: stream_processor_redis_connected == 0
+              refId: A
+        noDataState: NoData
+        execErrState: Alerting
+        for: 1m
+        annotations:
+          description: Stream processor has lost connection to Redis
+          summary: Redis connection lost
+        labels:
+          severity: critical
+          component: stream-processor

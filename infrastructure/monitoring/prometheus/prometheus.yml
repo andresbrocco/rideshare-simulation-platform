@@ -22,31 +22,24 @@ scrape_configs:
         labels:
           service: 'cadvisor'
 
-  - job_name: 'kafka'
-    scrape_interval: 30s
+  # Simulation service
+  - job_name: 'simulation'
+    scrape_interval: 15s
+    metrics_path: '/api/v1/metrics/prometheus'
     static_configs:
-      - targets: ['kafka:9092']
+      - targets: ['simulation:8000']
         labels:
-          service: 'kafka'
+          service: 'simulation'
 
-  - job_name: 'spark-master'
-    scrape_interval: 30s
+  # Stream processor
+  - job_name: 'stream-processor'
+    scrape_interval: 15s
+    metrics_path: '/prometheus'
     static_configs:
-      - targets: ['spark-master:8080']
+      - targets: ['stream-processor:8080']
         labels:
-          service: 'spark-master'
+          service: 'stream-processor'
 
-  - job_name: 'spark-worker'
-    scrape_interval: 30s
-    static_configs:
-      - targets: ['spark-worker:8081']
-        labels:
-          service: 'spark-worker'
-
-  - job_name: 'airflow-webserver'
-    scrape_interval: 30s
-    metrics_path: '/api/v2/monitor/health'
-    static_configs:
-      - targets: ['airflow-webserver:8080']
-        labels:
-          service: 'airflow-webserver'
+  # NOTE: Kafka, Spark, Airflow exporters not implemented.
+  # These require additional containers (kafka-exporter, jmx-exporter, airflow-exporter).
+  # Container-level metrics are available via cAdvisor.

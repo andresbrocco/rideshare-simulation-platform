@@ -30,6 +30,7 @@ dependencies = [
     "python-multipart==0.0.20",
     "websockets==14.1",
     "slowapi>=0.1.9",
+    "prometheus-client>=0.21.0",
 ]
 
 [project.optional-dependencies]
@@ -114,5 +115,12 @@ module = [
     "polyline.*",
     "shapely",
     "shapely.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "prometheus_client",
+    "prometheus_client.*",
 ]
 ignore_missing_imports = true
