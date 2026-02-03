@@ -61,7 +61,7 @@ GPS_OUTLIERS_COUNT = DatasetDefinition(
     sql="""
     SELECT COUNT(*) as outlier_count
     FROM silver.anomalies_gps_outliers
-    WHERE detected_at >= current_timestamp - INTERVAL 24 HOURS
+    WHERE timestamp >= current_timestamp - INTERVAL 24 HOURS
     """,
     description="GPS coordinates outside Sao Paulo bounds",
 )
@@ -71,7 +71,7 @@ IMPOSSIBLE_SPEEDS_COUNT = DatasetDefinition(
     sql="""
     SELECT COUNT(*) as speed_violations
     FROM silver.anomalies_impossible_speeds
-    WHERE detected_at >= current_timestamp - INTERVAL 24 HOURS
+    WHERE timestamp >= current_timestamp - INTERVAL 24 HOURS
     """,
     description="Speeds exceeding 200 km/h",
 )
@@ -81,11 +81,11 @@ ZOMBIE_DRIVERS = DatasetDefinition(
     sql="""
     SELECT
         driver_id,
-        last_seen,
-        UNIX_TIMESTAMP(current_timestamp) - UNIX_TIMESTAMP(last_seen) as seconds_since_seen
+        last_gps_timestamp as last_seen,
+        CAST(minutes_since_last_ping * 60 AS INT) as seconds_since_seen
     FROM silver.anomalies_zombie_drivers
-    WHERE detected_at >= current_timestamp - INTERVAL 24 HOURS
-    ORDER BY seconds_since_seen DESC
+    WHERE last_status_timestamp >= current_timestamp - INTERVAL 24 HOURS
+    ORDER BY minutes_since_last_ping DESC
     LIMIT 20
     """,
     description="Drivers with no GPS for 10+ minutes",
@@ -122,17 +122,17 @@ STAGING_FRESHNESS = DatasetDefinition(
     sql="""
     SELECT table_name, latest_update
     FROM (
-        SELECT 'stg_trips' as table_name, MAX(updated_at) as latest_update FROM silver.stg_trips
+        SELECT 'stg_trips' as table_name, MAX(timestamp) as latest_update FROM silver.stg_trips
         UNION ALL
-        SELECT 'stg_gps_pings' as table_name, MAX(recorded_at) as latest_update FROM silver.stg_gps_pings
+        SELECT 'stg_gps_pings' as table_name, MAX(timestamp) as latest_update FROM silver.stg_gps_pings
         UNION ALL
-        SELECT 'stg_driver_status' as table_name, MAX(updated_at) as latest_update FROM silver.stg_driver_status
+        SELECT 'stg_driver_status' as table_name, MAX(timestamp) as latest_update FROM silver.stg_driver_status
         UNION ALL
-        SELECT 'stg_surge_updates' as table_name, MAX(updated_at) as latest_update FROM silver.stg_surge_updates
+        SELECT 'stg_surge_updates' as table_name, MAX(timestamp) as latest_update FROM silver.stg_surge_updates
         UNION ALL
-        SELECT 'stg_ratings' as table_name, MAX(created_at) as latest_update FROM silver.stg_ratings
+        SELECT 'stg_ratings' as table_name, MAX(timestamp) as latest_update FROM silver.stg_ratings
         UNION ALL
-        SELECT 'stg_payments' as table_name, MAX(processed_at) as latest_update FROM silver.stg_payments
+        SELECT 'stg_payments' as table_name, MAX(timestamp) as latest_update FROM silver.stg_payments
     ) freshness
     ORDER BY latest_update DESC
     """,

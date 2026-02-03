@@ -1,5 +1,6 @@
 """Superset REST API client with proper error handling and retry logic."""
 
+import json
 import logging
 import time
 from typing import Any
@@ -321,18 +322,25 @@ class SupersetClient:
             return existing
 
         logger.info("Creating dataset: %s", name)
-        response = self._request(
-            "POST",
-            "/api/v1/dataset/",
-            json_data={
-                "database": database_id,
-                "table_name": name,
-                "sql": sql,
-                "description": description,
-                "is_sqllab_view": True,  # Virtual dataset (SQL query)
-            },
-        )
-        return response
+        try:
+            response = self._request(
+                "POST",
+                "/api/v1/dataset/",
+                json_data={
+                    "database": database_id,
+                    "table_name": name,
+                    "sql": sql,
+                },
+            )
+            return response
+        except ValidationError as e:
+            # Handle race condition: dataset may have been created by a timed-out request
+            if "already exists" in str(e):
+                logger.debug("Dataset '%s' was created by a previous request, fetching it", name)
+                existing = self.get_dataset_by_name(name)
+                if existing:
+                    return existing
+            raise
 
     def delete_dataset(self, dataset_id: int) -> None:
         """Delete a dataset by ID.
@@ -400,7 +408,7 @@ class SupersetClient:
                 "datasource_id": datasource_id,
                 "datasource_type": "table",
                 "viz_type": viz_type,
-                "params": str(params),  # JSON string
+                "params": json.dumps(params),
                 "description": description,
             },
         )
@@ -487,9 +495,9 @@ class SupersetClient:
         """
         payload: dict[str, Any] = {}
         if position_json is not None:
-            payload["position_json"] = str(position_json)
+            payload["position_json"] = json.dumps(position_json)
         if json_metadata is not None:
-            payload["json_metadata"] = str(json_metadata)
+            payload["json_metadata"] = json.dumps(json_metadata)
 
         if not payload:
             # Nothing to update
@@ -518,8 +526,6 @@ class SupersetClient:
         # Get position_json if exists
         position_json_str = dashboard.get("result", {}).get("position_json", "{}")
         try:
-            import json
-
             position_json = json.loads(position_json_str) if position_json_str else {}
         except (json.JSONDecodeError, TypeError):
             position_json = {}

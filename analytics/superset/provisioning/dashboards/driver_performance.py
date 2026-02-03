@@ -22,15 +22,16 @@ TOP_DRIVERS_BY_TRIPS = DatasetDefinition(
     sql="""
     SELECT
         d.driver_id,
-        COALESCE(d.display_name, CONCAT('Driver-', SUBSTRING(d.driver_id, 1, 8))) as driver_name,
-        p.total_trips,
-        p.avg_rating,
-        p.total_earnings
+        COALESCE(CONCAT(d.first_name, ' ', d.last_name), CONCAT('Driver-', SUBSTRING(d.driver_id, 1, 8))) as driver_name,
+        SUM(p.trips_completed) as total_trips,
+        AVG(p.avg_rating) as avg_rating,
+        SUM(p.total_payout) as total_earnings
     FROM gold.agg_daily_driver_performance p
-    JOIN gold.dim_drivers d ON p.driver_id = d.driver_id AND d.is_current = true
-    WHERE p.date >= CURRENT_DATE - INTERVAL 7 DAYS
-    GROUP BY d.driver_id, d.display_name, p.total_trips, p.avg_rating, p.total_earnings
-    ORDER BY p.total_trips DESC
+    JOIN gold.dim_drivers d ON p.driver_key = d.driver_key AND d.current_flag = true
+    JOIN gold.dim_time t ON p.time_key = t.time_key
+    WHERE t.date_key >= CURRENT_DATE - INTERVAL 7 DAYS
+    GROUP BY d.driver_id, d.first_name, d.last_name
+    ORDER BY total_trips DESC
     LIMIT 10
     """,
     description="Top 10 drivers by trip count (last 7 days)",
@@ -43,7 +44,7 @@ RATINGS_DISTRIBUTION = DatasetDefinition(
         CAST(FLOOR(rating) AS INT) as rating_bucket,
         COUNT(*) as count
     FROM gold.fact_ratings
-    WHERE created_at >= current_timestamp - INTERVAL 7 DAYS
+    WHERE rating_timestamp >= current_timestamp - INTERVAL 7 DAYS
     GROUP BY CAST(FLOOR(rating) AS INT)
     ORDER BY rating_bucket
     """,
@@ -54,13 +55,14 @@ DRIVER_PAYOUTS = DatasetDefinition(
     name="gold_driver_payouts",
     sql="""
     SELECT
-        date,
-        SUM(total_earnings) as daily_payouts,
-        COUNT(DISTINCT driver_id) as active_drivers
-    FROM gold.agg_daily_driver_performance
-    WHERE date >= CURRENT_DATE - INTERVAL 14 DAYS
-    GROUP BY date
-    ORDER BY date
+        t.date_key as date,
+        SUM(p.total_payout) as daily_payouts,
+        COUNT(DISTINCT p.driver_key) as active_drivers
+    FROM gold.agg_daily_driver_performance p
+    JOIN gold.dim_time t ON p.time_key = t.time_key
+    WHERE t.date_key >= CURRENT_DATE - INTERVAL 14 DAYS
+    GROUP BY t.date_key
+    ORDER BY t.date_key
     """,
     description="Daily driver payouts over time",
 )
@@ -69,14 +71,15 @@ DRIVER_UTILIZATION = DatasetDefinition(
     name="gold_driver_utilization",
     sql="""
     SELECT
-        p.date,
-        COALESCE(d.display_name, CONCAT('Driver-', SUBSTRING(p.driver_id, 1, 8))) as driver_name,
-        p.utilization_rate
+        t.date_key as date,
+        COALESCE(CONCAT(d.first_name, ' ', d.last_name), CONCAT('Driver-', SUBSTRING(d.driver_id, 1, 8))) as driver_name,
+        p.utilization_pct as utilization_rate
     FROM gold.agg_daily_driver_performance p
-    JOIN gold.dim_drivers d ON p.driver_id = d.driver_id AND d.is_current = true
-    WHERE p.date >= CURRENT_DATE - INTERVAL 7 DAYS
-    AND p.utilization_rate > 0
-    ORDER BY p.date, p.utilization_rate DESC
+    JOIN gold.dim_drivers d ON p.driver_key = d.driver_key AND d.current_flag = true
+    JOIN gold.dim_time t ON p.time_key = t.time_key
+    WHERE t.date_key >= CURRENT_DATE - INTERVAL 7 DAYS
+    AND p.utilization_pct > 0
+    ORDER BY t.date_key, p.utilization_pct DESC
     LIMIT 100
     """,
     description="Driver utilization heatmap data",
@@ -86,15 +89,16 @@ TRIPS_VS_EARNINGS = DatasetDefinition(
     name="gold_trips_vs_earnings",
     sql="""
     SELECT
-        p.driver_id,
-        COALESCE(d.display_name, CONCAT('Driver-', SUBSTRING(p.driver_id, 1, 8))) as driver_name,
-        SUM(p.total_trips) as trips,
-        SUM(p.total_earnings) as earnings
+        d.driver_id,
+        COALESCE(CONCAT(d.first_name, ' ', d.last_name), CONCAT('Driver-', SUBSTRING(d.driver_id, 1, 8))) as driver_name,
+        SUM(p.trips_completed) as trips,
+        SUM(p.total_payout) as earnings
     FROM gold.agg_daily_driver_performance p
-    JOIN gold.dim_drivers d ON p.driver_id = d.driver_id AND d.is_current = true
-    WHERE p.date >= CURRENT_DATE - INTERVAL 7 DAYS
-    GROUP BY p.driver_id, d.display_name
-    HAVING SUM(p.total_trips) > 0
+    JOIN gold.dim_drivers d ON p.driver_key = d.driver_key AND d.current_flag = true
+    JOIN gold.dim_time t ON p.time_key = t.time_key
+    WHERE t.date_key >= CURRENT_DATE - INTERVAL 7 DAYS
+    GROUP BY d.driver_id, d.first_name, d.last_name
+    HAVING SUM(p.trips_completed) > 0
     """,
     description="Trips vs earnings scatter plot data",
 )
@@ -103,14 +107,14 @@ DRIVER_STATUS_SUMMARY = DatasetDefinition(
     name="gold_driver_status_summary",
     sql="""
     SELECT
-        status,
+        shift_preference as status,
         COUNT(*) as driver_count
     FROM gold.dim_drivers
-    WHERE is_current = true
-    GROUP BY status
+    WHERE current_flag = true
+    GROUP BY shift_preference
     ORDER BY driver_count DESC
     """,
-    description="Current driver status distribution",
+    description="Current driver status distribution (by shift preference)",
 )
 
 # =============================================================================
@@ -192,6 +196,7 @@ DRIVER_PERFORMANCE_DASHBOARD = DashboardDefinition(
     required_tables=(
         "gold.agg_daily_driver_performance",
         "gold.dim_drivers",
+        "gold.dim_time",
         "gold.fact_ratings",
     ),
     refresh_interval=300,
