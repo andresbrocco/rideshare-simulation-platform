@@ -1,5 +1,7 @@
 import os
 
+from cachelib.redis import RedisCache
+
 SECRET_KEY = os.environ.get("SUPERSET_SECRET_KEY", "dev-secret-key-change-in-production")
 
 SQLALCHEMY_DATABASE_URI = "postgresql://superset:superset@postgres-superset:5432/superset"
@@ -15,7 +17,7 @@ class CeleryConfig:
 
 CELERY_CONFIG = CeleryConfig
 
-RESULTS_BACKEND = {"type": "redis", "uri": "redis://redis-superset:6379/1"}
+RESULTS_BACKEND = RedisCache(host="redis-superset", port=6379, db=1)
 
 CACHE_CONFIG = {
     "CACHE_TYPE": "RedisCache",

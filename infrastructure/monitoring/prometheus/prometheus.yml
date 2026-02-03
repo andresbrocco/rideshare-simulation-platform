@@ -25,7 +25,10 @@ scrape_configs:
   # Simulation service
   - job_name: 'simulation'
     scrape_interval: 15s
-    metrics_path: '/api/v1/metrics/prometheus'
+    metrics_path: '/metrics/prometheus'
+    http_headers:
+      X-API-Key:
+        values: ['dev-api-key-change-in-production']
     static_configs:
       - targets: ['simulation:8000']
         labels:

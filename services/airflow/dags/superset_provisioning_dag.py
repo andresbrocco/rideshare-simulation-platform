@@ -43,6 +43,7 @@ def provision_dashboards(
     import sys
 
     # Add provisioning module to path (mounted in Airflow container)
+    # analytics/superset is mounted at /opt/superset-provisioning
     sys.path.insert(0, "/opt/superset-provisioning")
 
     from provisioning.provisioner import ProvisioningStatus, provision_dashboards
@@ -94,10 +95,15 @@ def provision_dashboards(
         failed_count,
     )
 
-    # Fail the task if any dashboard failed
+    # Fail the task if any dashboard failed OR if no dashboards were successfully created
     if failed_count > 0:
         failed_dashboards = [d["slug"] for d in dashboards_list if d["status"] == "failed"]
         raise RuntimeError(f"Dashboard provisioning failed for: {failed_dashboards}")
+
+    if success_count == 0:
+        raise RuntimeError(
+            "No dashboards were successfully provisioned (all were skipped or failed)"
+        )
 
     summary: dict[str, object] = {
         "total": total,
