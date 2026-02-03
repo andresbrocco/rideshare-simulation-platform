@@ -34,7 +34,7 @@ docker compose -f infrastructure/docker/compose.yml --profile core down
 | `core` | kafka, schema-registry, redis, osrm, simulation, stream-processor, frontend | Main simulation runtime |
 | `data-pipeline` | kafka, schema-registry, minio, spark-thrift-server, bronze-ingestion-high-volume, bronze-ingestion-low-volume, localstack, airflow | ETL and data engineering |
 | `monitoring` | prometheus, cadvisor, grafana | Observability and metrics |
-| `analytics` | superset, postgres-superset, redis-superset | Business intelligence dashboards |
+| `analytics` | superset, superset-celery-worker, postgres-superset, redis-superset | Business intelligence dashboards |
 
 ## Service Ports
 
@@ -264,7 +264,8 @@ All services have explicit memory limits to prevent resource exhaustion:
 | Bronze Ingestion (each) | 768MB | Driver memory 512MB |
 | Airflow (each) | 384MB | |
 | Grafana | 192MB | |
-| Superset | 768MB | |
+| Superset | 4GB | |
+| Superset Celery Worker | 1GB | Celery async query processor |
 
 If services are being OOM-killed, increase limits in `compose.yml` or Docker Desktop resources.
 

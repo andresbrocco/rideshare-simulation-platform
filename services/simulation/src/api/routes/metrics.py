@@ -499,6 +499,7 @@ CONTAINER_CONFIG = {
     "rideshare-postgres-superset": {"display_name": "Postgres (Superset)"},
     "rideshare-redis-superset": {"display_name": "Redis (Superset)"},
     "rideshare-superset": {"display_name": "Superset"},
+    "rideshare-superset-celery-worker": {"display_name": "Superset Celery"},
 }
 
 
@@ -1081,6 +1082,7 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         "rideshare-postgres-superset": no_health_endpoint,
         "rideshare-redis-superset": no_health_endpoint,
         "rideshare-superset": superset_result,
+        "rideshare-superset-celery-worker": no_health_endpoint,
     }
 
     # Fetch container resource metrics from cAdvisor

@@ -71,6 +71,28 @@ groups:
           severity: warning
           component: kafka
 
+      - uid: superset_celery_memory_high
+        title: High Superset Celery Worker Memory Usage
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: (container_memory_working_set_bytes{name="rideshare-superset-celery-worker"} / container_spec_memory_limit_bytes{name="rideshare-superset-celery-worker"}) > 0.9
+              refId: A
+        noDataState: NoData
+        execErrState: Alerting
+        for: 5m
+        annotations:
+          description: Superset Celery Worker is using more than 90% of allocated memory
+          summary: High memory usage on Superset Celery Worker
+        labels:
+          severity: warning
+          component: superset-celery-worker
+
       - uid: container_cpu_high
         title: High Container CPU Usage
         condition: A
