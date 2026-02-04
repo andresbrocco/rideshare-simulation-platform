@@ -1,5 +1,6 @@
 """DBT transformation DAGs for Silver and Gold layers."""
 
+import os
 from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.providers.standard.operators.bash import BashOperator
@@ -57,8 +58,9 @@ with DAG(
     )
 
     def should_trigger_gold(**context) -> str:
-        """Trigger Gold DAG only at 2 AM."""
-        if context["logical_date"].hour == 2:
+        """Trigger Gold DAG at 2 AM, or always when DEV_MODE is enabled."""
+        dev_mode = os.environ.get("DEV_MODE", "false").lower() == "true"
+        if dev_mode or context["logical_date"].hour == 2:
             return "trigger_gold_dag"
         return "skip_gold_trigger"
 
