@@ -149,9 +149,9 @@ DQ_GPS_ANOMALY_LOCATIONS = DatasetDefinition(
     sql="""
 SELECT
   entity_id,
+  entity_type,
   latitude,
   longitude,
-  anomaly_type,
   timestamp
 FROM silver.anomalies_gps_outliers
 WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '24' HOUR

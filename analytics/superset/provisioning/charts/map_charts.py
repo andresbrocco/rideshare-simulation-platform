@@ -164,7 +164,7 @@ GPS_ANOMALY_LOCATIONS_MAP = ChartDefinition(
         "groupby": [],
         "point_radius": "Auto",
         "point_radius_unit": "Pixels",
-        "mapbox_label": ["anomaly_type"],
+        "mapbox_label": ["entity_type"],
         "pandas_aggfunc": "sum",
         "render_while_dragging": True,
         "mapbox_style": "mapbox://styles/mapbox/dark-v9",
