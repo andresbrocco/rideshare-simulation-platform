@@ -1,179 +1,71 @@
-"""Platform Operations Dashboard (Gold layer).
+"""Platform Operations dashboard definition.
 
-Monitors:
-- Real-time trip activity
-- Platform KPIs
-- Zone-level metrics
-- Pipeline health
+This dashboard provides real-time operational health and performance monitoring
+for the rideshare platform using Gold and Silver layer data.
 """
 
-from provisioning.dashboards.base import (
-    ChartDefinition,
-    DashboardDefinition,
-    DatasetDefinition,
+from provisioning.dashboards.base import DashboardDefinition
+
+from ..charts.map_charts import PLATFORM_OPERATIONS_MAP_CHARTS
+from ..charts.platform_operations_charts import PLATFORM_OPERATIONS_CHARTS
+from ..datasets.gold_datasets import (
+    OPS_AVG_WAIT_TIME,
+    OPS_COMPLETED_TRIPS_TODAY,
+    OPS_HOURLY_TRIP_VOLUME,
+    OPS_HOURLY_ZONE_HEATMAP,
+    OPS_PROCESSING_DELAY,
+    OPS_ZONE_ACTIVITY_TODAY,
+)
+from ..datasets.map_datasets import (
+    OPS_ACTIVE_TRIP_LOCATIONS,
+    OPS_DRIVER_LOCATIONS,
+)
+from ..datasets.silver_datasets import (
+    OPS_ACTIVE_TRIPS,
+    OPS_ERRORS_BY_CATEGORY,
+    OPS_RECENT_ERRORS,
 )
 
-# =============================================================================
-# Dataset Definitions
-# =============================================================================
-
-ACTIVE_TRIPS = DatasetDefinition(
-    name="gold_active_trips",
-    sql="""
-    SELECT COUNT(*) as active_trips
-    FROM gold.fact_trips
-    WHERE trip_state = 'completed' AND completed_at >= current_timestamp - INTERVAL 1 HOUR
-    """,
-    description="Recently completed trips (last hour as proxy for active)",
+# Dataset tuple for this specific dashboard
+PLATFORM_OPERATIONS_DATASETS = (
+    # Silver layer datasets
+    OPS_ACTIVE_TRIPS,
+    OPS_RECENT_ERRORS,
+    OPS_ERRORS_BY_CATEGORY,
+    # Gold layer datasets
+    OPS_COMPLETED_TRIPS_TODAY,
+    OPS_AVG_WAIT_TIME,
+    OPS_HOURLY_TRIP_VOLUME,
+    OPS_PROCESSING_DELAY,
+    OPS_ZONE_ACTIVITY_TODAY,
+    OPS_HOURLY_ZONE_HEATMAP,
+    # Map datasets
+    OPS_DRIVER_LOCATIONS,
+    OPS_ACTIVE_TRIP_LOCATIONS,
 )
 
-COMPLETED_TODAY = DatasetDefinition(
-    name="gold_completed_today",
-    sql="""
-    SELECT COUNT(*) as completed_trips
-    FROM gold.fact_trips
-    WHERE trip_state = 'completed'
-    AND DATE(completed_at) = CURRENT_DATE
-    """,
-    description="Trips completed today",
-)
-
-AVERAGE_WAIT_TIME = DatasetDefinition(
-    name="gold_average_wait_time",
-    sql="""
-    SELECT
-        AVG(unix_timestamp(started_at) - unix_timestamp(requested_at)) / 60 as avg_wait_minutes
-    FROM gold.fact_trips
-    WHERE trip_state = 'completed'
-    AND DATE(completed_at) = CURRENT_DATE
-    AND started_at IS NOT NULL
-    AND requested_at IS NOT NULL
-    """,
-    description="Average wait time in minutes",
-)
-
-TOTAL_REVENUE_TODAY = DatasetDefinition(
-    name="gold_total_revenue_today",
-    sql="""
-    SELECT
-        SUM(p.total_fare) as total_revenue
-    FROM gold.fact_payments p
-    JOIN gold.dim_time t ON p.time_key = t.time_key
-    WHERE t.date_key = CURRENT_DATE
-    """,
-    description="Total revenue today",
-)
-
-HOURLY_TRIP_VOLUME = DatasetDefinition(
-    name="gold_hourly_trip_volume",
-    sql="""
-    SELECT
-        date_trunc('hour', requested_at) as hour,
-        COUNT(*) as trip_count
-    FROM gold.fact_trips
-    WHERE requested_at >= current_timestamp - INTERVAL 24 HOURS
-    GROUP BY date_trunc('hour', requested_at)
-    ORDER BY hour
-    """,
-    description="Hourly trip volume (24h)",
-)
-
-TRIPS_BY_ZONE = DatasetDefinition(
-    name="gold_trips_by_zone",
-    sql="""
-    SELECT
-        z.name AS zone_name,
-        COUNT(*) as trip_count
-    FROM gold.fact_trips t
-    JOIN gold.dim_zones z ON t.pickup_zone_key = z.zone_key
-    WHERE DATE(t.requested_at) = CURRENT_DATE
-    GROUP BY z.name
-    ORDER BY trip_count DESC
-    LIMIT 10
-    """,
-    description="Trip distribution by zone (today)",
-)
-
-# =============================================================================
-# Chart Definitions
-# =============================================================================
-
-CHARTS: tuple[ChartDefinition, ...] = (
-    ChartDefinition(
-        name="Active Trips",
-        dataset_name="gold_active_trips",
-        viz_type="big_number_total",
-        metrics=("active_trips",),
-        layout=(0, 0, 3, 3),
-        extra_params={"color_picker": {"r": 0, "g": 128, "b": 255}},  # Blue
-    ),
-    ChartDefinition(
-        name="Completed Today",
-        dataset_name="gold_completed_today",
-        viz_type="big_number_total",
-        metrics=("completed_trips",),
-        layout=(0, 3, 3, 3),
-        extra_params={"color_picker": {"r": 0, "g": 200, "b": 0}},  # Green
-    ),
-    ChartDefinition(
-        name="Avg Wait Time (min)",
-        dataset_name="gold_average_wait_time",
-        viz_type="big_number_total",
-        metrics=("avg_wait_minutes",),
-        layout=(0, 6, 3, 3),
-    ),
-    ChartDefinition(
-        name="Revenue Today",
-        dataset_name="gold_total_revenue_today",
-        viz_type="big_number_total",
-        metrics=("total_revenue",),
-        layout=(0, 9, 3, 3),
-        extra_params={
-            "color_picker": {"r": 0, "g": 128, "b": 0},
-            "y_axis_format": "$,.2f",
-        },
-    ),
-    ChartDefinition(
-        name="Hourly Trip Volume",
-        dataset_name="gold_hourly_trip_volume",
-        viz_type="echarts_timeseries_bar",
-        metrics=("trip_count",),
-        time_column="hour",
-        time_range="Last 24 hours",
-        layout=(3, 0, 6, 4),
-    ),
-    ChartDefinition(
-        name="Top Zones by Trips",
-        dataset_name="gold_trips_by_zone",
-        viz_type="echarts_bar",
-        metrics=("trip_count",),
-        dimensions=("zone_name",),
-        layout=(3, 6, 6, 4),
-        extra_params={"bar_stacked": False},
-    ),
-)
-
-# =============================================================================
-# Dashboard Definition
-# =============================================================================
+# Combine standard charts with map charts
+PLATFORM_OPERATIONS_ALL_CHARTS = PLATFORM_OPERATIONS_CHARTS + PLATFORM_OPERATIONS_MAP_CHARTS
 
 PLATFORM_OPERATIONS_DASHBOARD = DashboardDefinition(
     title="Platform Operations",
-    slug="operations",
-    datasets=(
-        ACTIVE_TRIPS,
-        COMPLETED_TODAY,
-        AVERAGE_WAIT_TIME,
-        TOTAL_REVENUE_TODAY,
-        HOURLY_TRIP_VOLUME,
-        TRIPS_BY_ZONE,
+    slug="platform-operations",
+    description=(
+        "Real-time operational health and performance monitoring for the "
+        "rideshare platform. Answers: Is the platform healthy? What's "
+        "happening right now?"
     ),
-    charts=CHARTS,
+    datasets=PLATFORM_OPERATIONS_DATASETS,
+    charts=PLATFORM_OPERATIONS_ALL_CHARTS,
     required_tables=(
         "gold.fact_trips",
         "gold.fact_payments",
+        "gold.agg_hourly_zone_demand",
         "gold.dim_zones",
+        "gold.dim_time",
+        "silver.stg_trips",
+        "silver.stg_driver_status",
+        "silver.anomalies_all",
     ),
-    refresh_interval=60,  # 1 minute for real-time monitoring
-    description="Real-time platform operations monitoring",
+    refresh_interval=60,
 )

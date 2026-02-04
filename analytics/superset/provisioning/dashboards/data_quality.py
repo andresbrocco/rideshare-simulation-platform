@@ -1,238 +1,66 @@
-"""Data Quality Monitoring Dashboard (Silver layer).
+"""Data Quality Monitoring dashboard definition.
 
-Monitors:
-- Anomaly detection results
-- Data validation metrics
-- Staging table freshness
-- Quality indicators
+This dashboard monitors data validation and quality metrics across
+Silver layer staging tables, tracking anomalies and data integrity.
 """
 
-from provisioning.dashboards.base import (
-    ChartDefinition,
-    DashboardDefinition,
-    DatasetDefinition,
+from provisioning.dashboards.base import DashboardDefinition
+
+from ..charts.data_quality_charts import DATA_QUALITY_CHARTS
+from ..charts.map_charts import DATA_QUALITY_MAP_CHARTS
+from ..datasets.map_datasets import DQ_GPS_ANOMALY_LOCATIONS
+from ..datasets.silver_datasets import (
+    DQ_ANOMALIES_BY_CATEGORY,
+    DQ_ANOMALIES_TREND,
+    DQ_GPS_OUTLIER_COUNT,
+    DQ_IMPOSSIBLE_SPEED_COUNT,
+    DQ_STAGING_FRESHNESS,
+    DQ_STAGING_ROW_COUNTS,
+    DQ_STALE_DRIVERS,
+    DQ_TOTAL_ANOMALIES,
 )
 
-# =============================================================================
-# Dataset Definitions
-# =============================================================================
-
-TOTAL_ANOMALIES = DatasetDefinition(
-    name="silver_total_anomalies",
-    sql="""
-    SELECT COUNT(*) as total_anomalies
-    FROM silver.anomalies_all
-    WHERE detected_at >= current_timestamp - INTERVAL 24 HOURS
-    """,
-    description="Total anomalies detected in last 24 hours",
+# Dataset tuple for this specific dashboard
+DATA_QUALITY_DATASETS = (
+    DQ_TOTAL_ANOMALIES,
+    DQ_GPS_OUTLIER_COUNT,
+    DQ_IMPOSSIBLE_SPEED_COUNT,
+    DQ_ANOMALIES_BY_CATEGORY,
+    DQ_ANOMALIES_TREND,
+    DQ_STALE_DRIVERS,
+    DQ_STAGING_ROW_COUNTS,
+    DQ_STAGING_FRESHNESS,
+    # Map dataset
+    DQ_GPS_ANOMALY_LOCATIONS,
 )
 
-ANOMALIES_BY_TYPE = DatasetDefinition(
-    name="silver_anomalies_by_type",
-    sql="""
-    SELECT
-        anomaly_type,
-        COUNT(*) as count
-    FROM silver.anomalies_all
-    WHERE detected_at >= current_timestamp - INTERVAL 24 HOURS
-    GROUP BY anomaly_type
-    ORDER BY count DESC
-    """,
-    description="Anomaly distribution by type",
-)
-
-ANOMALIES_OVER_TIME = DatasetDefinition(
-    name="silver_anomalies_over_time",
-    sql="""
-    SELECT
-        date_trunc('hour', detected_at) as hour,
-        anomaly_type,
-        COUNT(*) as count
-    FROM silver.anomalies_all
-    WHERE detected_at >= current_timestamp - INTERVAL 24 HOURS
-    GROUP BY date_trunc('hour', detected_at), anomaly_type
-    ORDER BY hour
-    """,
-    description="Hourly anomaly trend by type",
-)
-
-GPS_OUTLIERS_COUNT = DatasetDefinition(
-    name="silver_gps_outliers",
-    sql="""
-    SELECT COUNT(*) as outlier_count
-    FROM silver.anomalies_gps_outliers
-    WHERE timestamp >= current_timestamp - INTERVAL 24 HOURS
-    """,
-    description="GPS coordinates outside Sao Paulo bounds",
-)
-
-IMPOSSIBLE_SPEEDS_COUNT = DatasetDefinition(
-    name="silver_impossible_speeds",
-    sql="""
-    SELECT COUNT(*) as speed_violations
-    FROM silver.anomalies_impossible_speeds
-    WHERE timestamp >= current_timestamp - INTERVAL 24 HOURS
-    """,
-    description="Speeds exceeding 200 km/h",
-)
-
-ZOMBIE_DRIVERS = DatasetDefinition(
-    name="silver_zombie_drivers",
-    sql="""
-    SELECT
-        driver_id,
-        last_gps_timestamp as last_seen,
-        CAST(minutes_since_last_ping * 60 AS INT) as seconds_since_seen
-    FROM silver.anomalies_zombie_drivers
-    WHERE last_status_timestamp >= current_timestamp - INTERVAL 24 HOURS
-    ORDER BY minutes_since_last_ping DESC
-    LIMIT 20
-    """,
-    description="Drivers with no GPS for 10+ minutes",
-)
-
-STAGING_ROW_COUNTS = DatasetDefinition(
-    name="silver_staging_row_counts",
-    sql="""
-    SELECT table_name, row_count
-    FROM (
-        SELECT 'stg_trips' as table_name, COUNT(*) as row_count FROM silver.stg_trips
-        UNION ALL
-        SELECT 'stg_gps_pings' as table_name, COUNT(*) as row_count FROM silver.stg_gps_pings
-        UNION ALL
-        SELECT 'stg_driver_status' as table_name, COUNT(*) as row_count FROM silver.stg_driver_status
-        UNION ALL
-        SELECT 'stg_surge_updates' as table_name, COUNT(*) as row_count FROM silver.stg_surge_updates
-        UNION ALL
-        SELECT 'stg_ratings' as table_name, COUNT(*) as row_count FROM silver.stg_ratings
-        UNION ALL
-        SELECT 'stg_payments' as table_name, COUNT(*) as row_count FROM silver.stg_payments
-        UNION ALL
-        SELECT 'stg_drivers' as table_name, COUNT(*) as row_count FROM silver.stg_drivers
-        UNION ALL
-        SELECT 'stg_riders' as table_name, COUNT(*) as row_count FROM silver.stg_riders
-    ) counts
-    ORDER BY row_count DESC
-    """,
-    description="Row counts per staging table",
-)
-
-STAGING_FRESHNESS = DatasetDefinition(
-    name="silver_staging_freshness",
-    sql="""
-    SELECT table_name, latest_update
-    FROM (
-        SELECT 'stg_trips' as table_name, MAX(timestamp) as latest_update FROM silver.stg_trips
-        UNION ALL
-        SELECT 'stg_gps_pings' as table_name, MAX(timestamp) as latest_update FROM silver.stg_gps_pings
-        UNION ALL
-        SELECT 'stg_driver_status' as table_name, MAX(timestamp) as latest_update FROM silver.stg_driver_status
-        UNION ALL
-        SELECT 'stg_surge_updates' as table_name, MAX(timestamp) as latest_update FROM silver.stg_surge_updates
-        UNION ALL
-        SELECT 'stg_ratings' as table_name, MAX(timestamp) as latest_update FROM silver.stg_ratings
-        UNION ALL
-        SELECT 'stg_payments' as table_name, MAX(timestamp) as latest_update FROM silver.stg_payments
-    ) freshness
-    ORDER BY latest_update DESC
-    """,
-    description="Latest update per staging table",
-)
-
-# =============================================================================
-# Chart Definitions
-# =============================================================================
-
-CHARTS: tuple[ChartDefinition, ...] = (
-    ChartDefinition(
-        name="Total Anomalies (24h)",
-        dataset_name="silver_total_anomalies",
-        viz_type="big_number_total",
-        metrics=("total_anomalies",),
-        layout=(0, 0, 3, 3),
-        extra_params={"color_picker": {"r": 255, "g": 165, "b": 0}},  # Orange
-    ),
-    ChartDefinition(
-        name="GPS Outliers",
-        dataset_name="silver_gps_outliers",
-        viz_type="big_number_total",
-        metrics=("outlier_count",),
-        layout=(0, 3, 3, 3),
-    ),
-    ChartDefinition(
-        name="Impossible Speeds",
-        dataset_name="silver_impossible_speeds",
-        viz_type="big_number_total",
-        metrics=("speed_violations",),
-        layout=(0, 6, 3, 3),
-    ),
-    ChartDefinition(
-        name="Anomalies by Type",
-        dataset_name="silver_anomalies_by_type",
-        viz_type="pie",
-        metrics=("count",),
-        dimensions=("anomaly_type",),
-        layout=(0, 9, 3, 3),
-    ),
-    ChartDefinition(
-        name="Anomalies Over Time",
-        dataset_name="silver_anomalies_over_time",
-        viz_type="echarts_timeseries_line",
-        metrics=("count",),
-        dimensions=("anomaly_type",),
-        time_column="hour",
-        time_range="Last 24 hours",
-        layout=(3, 0, 6, 4),
-    ),
-    ChartDefinition(
-        name="Staging Table Sizes",
-        dataset_name="silver_staging_row_counts",
-        viz_type="echarts_bar",
-        metrics=("row_count",),
-        dimensions=("table_name",),
-        layout=(3, 6, 6, 4),
-    ),
-    ChartDefinition(
-        name="Zombie Drivers",
-        dataset_name="silver_zombie_drivers",
-        viz_type="table",
-        metrics=(),
-        dimensions=("driver_id", "last_seen", "seconds_since_seen"),
-        layout=(7, 0, 6, 4),
-    ),
-    ChartDefinition(
-        name="Data Freshness",
-        dataset_name="silver_staging_freshness",
-        viz_type="table",
-        metrics=(),
-        dimensions=("table_name", "latest_update"),
-        layout=(7, 6, 6, 4),
-    ),
-)
-
-# =============================================================================
-# Dashboard Definition
-# =============================================================================
+# Combine standard charts with map charts
+DATA_QUALITY_ALL_CHARTS = DATA_QUALITY_CHARTS + DATA_QUALITY_MAP_CHARTS
 
 DATA_QUALITY_DASHBOARD = DashboardDefinition(
     title="Data Quality Monitoring",
-    slug="silver-quality",
-    datasets=(
-        TOTAL_ANOMALIES,
-        ANOMALIES_BY_TYPE,
-        ANOMALIES_OVER_TIME,
-        GPS_OUTLIERS_COUNT,
-        IMPOSSIBLE_SPEEDS_COUNT,
-        ZOMBIE_DRIVERS,
-        STAGING_ROW_COUNTS,
-        STAGING_FRESHNESS,
+    slug="data-quality-monitoring",
+    description=(
+        "Monitor data validation and quality metrics across Silver layer "
+        "staging tables. Tracks anomalies including GPS outliers, impossible "
+        "speeds, and zombie drivers to ensure data integrity before analytics "
+        "consumption."
     ),
-    charts=CHARTS,
+    datasets=DATA_QUALITY_DATASETS,
+    charts=DATA_QUALITY_ALL_CHARTS,
     required_tables=(
+        "silver.stg_trips",
+        "silver.stg_gps_pings",
+        "silver.stg_driver_status",
+        "silver.stg_surge_updates",
+        "silver.stg_ratings",
+        "silver.stg_payments",
+        "silver.stg_drivers",
+        "silver.stg_riders",
         "silver.anomalies_all",
         "silver.anomalies_gps_outliers",
-        "silver.stg_trips",
+        "silver.anomalies_impossible_speeds",
+        "silver.anomalies_zombie_drivers",
     ),
     refresh_interval=300,
-    description="Monitor Silver layer data quality and anomaly detection",
 )

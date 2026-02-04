@@ -47,18 +47,86 @@ class ChartDefinition:
 
     def get_params(self) -> dict[str, Any]:
         """Build the chart params dict for Superset API."""
-        params: dict[str, Any] = {
-            "viz_type": self.viz_type,
-            "metrics": list(self.metrics),
-            "groupby": list(self.dimensions),
-        }
+        # Start with extra_params if provided (they take precedence)
+        params: dict[str, Any] = dict(self.extra_params) if self.extra_params else {}
 
-        if self.time_column:
-            params["granularity_sqla"] = self.time_column
-            params["time_range"] = self.time_range
+        # Always set viz_type
+        params.setdefault("viz_type", self.viz_type)
 
-        if self.extra_params:
-            params.update(self.extra_params)
+        # Chart-type-specific defaults
+        if self.viz_type == "big_number_total":
+            # Singular metric required
+            if self.metrics and "metric" not in params:
+                params["metric"] = self.metrics[0]
+
+        elif self.viz_type in ("echarts_timeseries_line", "echarts_timeseries_bar", "echarts_area"):
+            # Time-series charts need x_axis
+            if self.time_column and "x_axis" not in params:
+                params["x_axis"] = self.time_column
+            if self.metrics and "metrics" not in params:
+                params["metrics"] = list(self.metrics)
+            if self.dimensions and "groupby" not in params:
+                params["groupby"] = list(self.dimensions)
+            if self.time_range:
+                params.setdefault("time_range", self.time_range)
+
+        elif self.viz_type == "pie":
+            # Singular metric for pie
+            if self.metrics and "metric" not in params:
+                params["metric"] = self.metrics[0]
+            if self.dimensions and "groupby" not in params:
+                params["groupby"] = list(self.dimensions)
+
+        elif self.viz_type == "table":
+            # Table needs query_mode
+            params.setdefault("query_mode", "raw")
+            if self.dimensions and "all_columns" not in params:
+                params["all_columns"] = list(self.dimensions)
+
+        elif self.viz_type == "echarts_bar":
+            # Non-time-series bar chart
+            if self.metrics and "metrics" not in params:
+                params["metrics"] = list(self.metrics)
+            if self.dimensions:
+                if "groupby" not in params:
+                    params["groupby"] = list(self.dimensions)
+                if "x_axis" not in params:
+                    params["x_axis"] = self.dimensions[0]
+
+        elif self.viz_type in ("heatmap", "heatmap_v2"):
+            # Heatmap needs singular metric
+            if self.metrics and "metric" not in params:
+                params["metric"] = self.metrics[0]
+            # Use dimensions for x_axis and y_axis
+            if len(self.dimensions) >= 2:
+                params.setdefault("x_axis", self.dimensions[0])
+                params.setdefault("y_axis", self.dimensions[1])
+
+        elif self.viz_type == "deck_scatter":
+            # Mapbox scatter plot
+            if self.dimensions:
+                # Expect latitude, longitude columns
+                if len(self.dimensions) >= 2:
+                    params.setdefault(
+                        "spatial",
+                        {
+                            "latCol": self.dimensions[0],
+                            "lonCol": self.dimensions[1],
+                            "type": "latlong",
+                        },
+                    )
+
+        else:
+            # Default fallback
+            if self.metrics:
+                params.setdefault("metrics", list(self.metrics))
+            if self.dimensions:
+                params.setdefault("groupby", list(self.dimensions))
+
+        # Time range for time-aware charts
+        if self.time_column and self.time_range:
+            params.setdefault("time_range", self.time_range)
+            params.setdefault("granularity_sqla", self.time_column)
 
         return params
 
