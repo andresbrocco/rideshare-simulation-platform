@@ -165,20 +165,35 @@ class DashboardProvisioner:
                     sql=dataset_def.sql,
                     description=dataset_def.description,
                 )
-                # Handle both direct response and nested 'result' response
-                if "id" in result:
-                    dataset_ids[dataset_def.name] = result["id"]
-                elif "result" in result and "id" in result["result"]:
-                    dataset_ids[dataset_def.name] = result["result"]["id"]
-                else:
-                    # Try to get existing dataset
+                logger.debug(
+                    "Dataset API response for '%s': %s",
+                    dataset_def.name,
+                    result,
+                )
+                # Handle response - prefer nested result.id (POST response format)
+                # over root id (GET response format) to handle both correctly
+                dataset_id: int | None = None
+                if "result" in result and isinstance(result["result"], dict):
+                    dataset_id = result["result"].get("id")
+                if dataset_id is None and "id" in result:
+                    dataset_id = result["id"]
+                if dataset_id is None:
+                    # Fallback: try to fetch by name
                     existing_ds = self.client.get_dataset_by_name(dataset_def.name)
                     if existing_ds:
-                        dataset_ids[dataset_def.name] = existing_ds["id"]
-                    else:
-                        raise SupersetProvisioningError(
-                            f"Failed to get dataset ID for {dataset_def.name}"
-                        )
+                        dataset_id = existing_ds["id"]
+
+                if dataset_id is None:
+                    raise SupersetProvisioningError(
+                        f"Failed to get dataset ID for {dataset_def.name}. Response: {result}"
+                    )
+
+                logger.info(
+                    "Dataset '%s' has ID %d",
+                    dataset_def.name,
+                    dataset_id,
+                )
+                dataset_ids[dataset_def.name] = dataset_id
                 datasets_created += 1
 
             # Create charts
@@ -200,19 +215,36 @@ class DashboardProvisioner:
                     query_context=chart_def.get_query_context(dataset_id),
                     description=f"Part of {dashboard_def.title} dashboard",
                 )
-                # Handle response
-                if "id" in result:
-                    chart_ids.append(result["id"])
-                elif "result" in result and "id" in result["result"]:
-                    chart_ids.append(result["result"]["id"])
-                else:
+                logger.debug(
+                    "Chart API response for '%s': %s",
+                    chart_def.name,
+                    result,
+                )
+                # Handle response - prefer nested result.id (POST response format)
+                # over root id (GET response format) to handle both correctly
+                chart_id: int | None = None
+                if "result" in result and isinstance(result["result"], dict):
+                    chart_id = result["result"].get("id")
+                if chart_id is None and "id" in result:
+                    chart_id = result["id"]
+                if chart_id is None:
+                    # Fallback: try to fetch by name
                     existing_chart = self.client.get_chart_by_name(chart_def.name)
                     if existing_chart:
-                        chart_ids.append(existing_chart["id"])
-                    else:
-                        raise SupersetProvisioningError(
-                            f"Failed to get chart ID for {chart_def.name}"
-                        )
+                        chart_id = existing_chart["id"]
+
+                if chart_id is None:
+                    raise SupersetProvisioningError(
+                        f"Failed to get chart ID for {chart_def.name}. Response: {result}"
+                    )
+
+                logger.info(
+                    "Chart '%s' has ID %d (dataset_id=%d)",
+                    chart_def.name,
+                    chart_id,
+                    dataset_id,
+                )
+                chart_ids.append(chart_id)
                 charts_created += 1
 
             # Create or get dashboard
@@ -234,6 +266,11 @@ class DashboardProvisioner:
                         raise SupersetProvisioningError(f"Failed to get dashboard ID for {slug}")
 
             # Build and update layout
+            logger.info(
+                "Building layout for dashboard '%s' with chart IDs: %s",
+                slug,
+                chart_ids,
+            )
             position_json = self._build_layout(dashboard_def.charts, chart_ids)
             json_metadata = {
                 "refresh_frequency": dashboard_def.refresh_interval,
@@ -241,6 +278,12 @@ class DashboardProvisioner:
                 "expanded_slices": {},
                 "color_scheme": "supersetColors",
             }
+
+            logger.debug(
+                "Dashboard '%s' position_json: %s",
+                slug,
+                position_json,
+            )
 
             self.client.update_dashboard(
                 dashboard_id=dashboard_id,
