@@ -37,12 +37,12 @@ models:
         tests:
           - not_null
           - dbt_utils.expression_is_true:
-              expression: ">= -25 AND <= -23"
+              expression: "BETWEEN -25 AND -23"
       - name: centroid_longitude
         tests:
           - not_null
           - dbt_utils.expression_is_true:
-              expression: ">= -47 AND <= -46"
+              expression: "BETWEEN -47 AND -46"
 
   - name: dim_time
     description: Time dimension with date attributes.

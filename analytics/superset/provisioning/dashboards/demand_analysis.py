@@ -9,6 +9,10 @@ from provisioning.dashboards.base import DashboardDefinition
 from ..charts.demand_analysis_charts import DEMAND_ANALYSIS_CHARTS
 from ..charts.map_charts import DEMAND_ANALYSIS_MAP_CHARTS
 from ..datasets.gold_datasets import (
+    # Consolidated datasets
+    GOLD_HOURLY_ZONE_DEMAND,
+    GOLD_SURGE_HISTORY,
+    # Legacy datasets (for charts not yet migrated)
     GOLD_AVG_SURGE_24H,
     GOLD_AVG_WAIT_TIME_24H,
     GOLD_HOURLY_DEMAND_PATTERN,
@@ -25,7 +29,12 @@ from ..datasets.map_datasets import (
 )
 
 # Dataset tuple for this specific dashboard
+# Include both consolidated and legacy datasets during transition
 DEMAND_ANALYSIS_DATASETS = (
+    # Consolidated datasets (with metrics)
+    GOLD_HOURLY_ZONE_DEMAND,
+    GOLD_SURGE_HISTORY,
+    # Legacy datasets (until charts are migrated)
     GOLD_ZONE_DEMAND_HEATMAP,
     GOLD_SURGE_TRENDS,
     GOLD_WAIT_TIME_BY_ZONE,

@@ -21,7 +21,7 @@ validation_failures as (
     from driver_profile_changes
     where
         current_count != 1
-        or (current_valid_to is not null and current_valid_to != '9999-12-31'::date)
+        or (current_valid_to is not null and cast(current_valid_to as date) != cast('9999-12-31' as date))
         or version_count < 1
 )
 

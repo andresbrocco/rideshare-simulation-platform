@@ -269,7 +269,7 @@ class TestProvisionAll:
             ),
         ):
             results = mock_provisioner.provision_all(
-                dashboard_slugs=["bronze-pipeline", "silver-quality"]
+                dashboard_slugs=["data-ingestion-monitoring", "data-quality-monitoring"]
             )
 
         assert len(results) == 2

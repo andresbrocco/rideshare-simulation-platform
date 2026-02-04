@@ -5,6 +5,56 @@ from typing import Any
 
 
 @dataclass(frozen=True)
+class ColumnDefinition:
+    """Definition of a Superset dataset column configuration.
+
+    Attributes:
+        column_name: Name of the column in the SQL query
+        type: SQL type (VARCHAR, DATE, DECIMAL, BIGINT, DOUBLE, etc.)
+        verbose_name: Human-readable column label for UI
+        description: Column description for documentation
+        expression: SQL expression for calculated columns (None for physical columns)
+        filterable: Whether column appears in filter options
+        groupby: Whether column can be used for grouping
+        is_dttm: Whether this is a datetime column for time-series charts
+        python_date_format: Date format string for datetime parsing
+    """
+
+    column_name: str
+    type: str = "VARCHAR"
+    verbose_name: str = ""
+    description: str = ""
+    expression: str | None = None
+    filterable: bool = True
+    groupby: bool = True
+    is_dttm: bool = False
+    python_date_format: str | None = None
+
+
+@dataclass(frozen=True)
+class MetricDefinition:
+    """Definition of a Superset dataset metric (reusable aggregation).
+
+    Attributes:
+        metric_name: Unique metric identifier (e.g., "sum_revenue")
+        expression: SQL aggregation expression (e.g., "SUM(total_revenue)")
+        verbose_name: Human-readable metric label for UI
+        description: Metric description for documentation
+        d3format: D3.js format string for display (e.g., ",.2f", ",d", "SMART_NUMBER")
+        currency_symbol: Currency symbol for monetary values (e.g., "R$")
+        currency_position: Position of currency symbol ("prefix" or "suffix")
+    """
+
+    metric_name: str
+    expression: str
+    verbose_name: str = ""
+    description: str = ""
+    d3format: str = ",.2f"
+    currency_symbol: str | None = None
+    currency_position: str = "prefix"
+
+
+@dataclass(frozen=True)
 class DatasetDefinition:
     """Definition of a Superset dataset (virtual or physical).
 
@@ -12,11 +62,19 @@ class DatasetDefinition:
         name: Dataset name (used for lookup and creation)
         sql: SQL query for virtual dataset
         description: Optional description
+        columns: Tuple of column definitions for configuring column properties
+        metrics: Tuple of metric definitions for reusable aggregations
+        main_dttm_col: Primary datetime column for time-series charts
+        cache_timeout: Cache timeout in seconds (None = use default)
     """
 
     name: str
     sql: str
     description: str = ""
+    columns: tuple[ColumnDefinition, ...] = ()
+    metrics: tuple[MetricDefinition, ...] = ()
+    main_dttm_col: str | None = None
+    cache_timeout: int | None = None
 
 
 @dataclass(frozen=True)

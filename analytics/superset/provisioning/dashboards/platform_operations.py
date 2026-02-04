@@ -9,6 +9,9 @@ from provisioning.dashboards.base import DashboardDefinition
 from ..charts.map_charts import PLATFORM_OPERATIONS_MAP_CHARTS
 from ..charts.platform_operations_charts import PLATFORM_OPERATIONS_CHARTS
 from ..datasets.gold_datasets import (
+    # Consolidated datasets
+    GOLD_FACT_TRIPS,
+    # Legacy datasets (for charts not yet migrated)
     OPS_AVG_WAIT_TIME,
     OPS_COMPLETED_TRIPS_TODAY,
     OPS_HOURLY_TRIP_VOLUME,
@@ -21,18 +24,27 @@ from ..datasets.map_datasets import (
     OPS_DRIVER_LOCATIONS,
 )
 from ..datasets.silver_datasets import (
+    # Consolidated datasets
+    SILVER_ACTIVE_TRIPS,
+    SILVER_ANOMALIES,
+    # Legacy datasets (for charts not yet migrated)
     OPS_ACTIVE_TRIPS,
     OPS_ERRORS_BY_CATEGORY,
     OPS_RECENT_ERRORS,
 )
 
 # Dataset tuple for this specific dashboard
+# Include both consolidated and legacy datasets during transition
 PLATFORM_OPERATIONS_DATASETS = (
-    # Silver layer datasets
+    # Consolidated datasets (with metrics)
+    SILVER_ACTIVE_TRIPS,
+    SILVER_ANOMALIES,
+    GOLD_FACT_TRIPS,
+    # Legacy Silver layer datasets (until charts are migrated)
     OPS_ACTIVE_TRIPS,
     OPS_RECENT_ERRORS,
     OPS_ERRORS_BY_CATEGORY,
-    # Gold layer datasets
+    # Legacy Gold layer datasets (until charts are migrated)
     OPS_COMPLETED_TRIPS_TODAY,
     OPS_AVG_WAIT_TIME,
     OPS_HOURLY_TRIP_VOLUME,

@@ -1,9 +1,11 @@
 """Superset REST API client with proper error handling and retry logic."""
 
+from __future__ import annotations
+
 import json
 import logging
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import prison
 import requests
@@ -18,6 +20,9 @@ from provisioning.exceptions import (
     ValidationError,
 )
 from provisioning.retry import retry_on_transient_error
+
+if TYPE_CHECKING:
+    from provisioning.dashboards.base import DatasetDefinition
 
 logger = logging.getLogger(__name__)
 
@@ -350,6 +355,163 @@ class SupersetClient:
         """
         self._request("DELETE", f"/api/v1/dataset/{dataset_id}")
         logger.info("Deleted dataset id=%d", dataset_id)
+
+    def get_dataset_with_columns(self, dataset_id: int) -> dict[str, Any]:
+        """Fetch dataset with full column details including IDs.
+
+        Args:
+            dataset_id: Dataset ID to fetch
+
+        Returns:
+            Dataset record with columns array containing column IDs
+        """
+        response = self._request("GET", f"/api/v1/dataset/{dataset_id}")
+        return response.get("result", {})
+
+    @retry_on_transient_error(max_attempts=3)
+    def update_dataset(
+        self,
+        dataset_id: int,
+        description: str | None = None,
+        main_dttm_col: str | None = None,
+        cache_timeout: int | None = None,
+        columns: list[dict[str, Any]] | None = None,
+        metrics: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """Update dataset configuration including columns and metrics.
+
+        Args:
+            dataset_id: Dataset ID to update
+            description: Optional description update
+            main_dttm_col: Primary datetime column name
+            cache_timeout: Cache timeout in seconds
+            columns: List of column configuration dicts
+            metrics: List of metric configuration dicts
+
+        Returns:
+            Updated dataset record
+        """
+        # Build payload with only provided fields
+        payload: dict[str, Any] = {}
+
+        if description is not None:
+            payload["description"] = description
+        if main_dttm_col is not None:
+            payload["main_dttm_col"] = main_dttm_col
+        if cache_timeout is not None:
+            payload["cache_timeout"] = cache_timeout
+        if columns is not None:
+            payload["columns"] = columns
+        if metrics is not None:
+            payload["metrics"] = metrics
+
+        if not payload:
+            # Nothing to update, just return current state
+            return self.get_dataset_with_columns(dataset_id)
+
+        logger.debug(
+            "Updating dataset id=%d with payload keys: %s", dataset_id, list(payload.keys())
+        )
+        return self._request("PUT", f"/api/v1/dataset/{dataset_id}", json_data=payload)
+
+    def configure_dataset_from_definition(
+        self,
+        dataset_id: int,
+        dataset_def: DatasetDefinition,
+    ) -> dict[str, Any]:
+        """Configure dataset columns and metrics from a DatasetDefinition.
+
+        This method:
+        1. Fetches existing column IDs from the dataset
+        2. Builds column payload merging definition with existing IDs
+        3. Builds metrics payload from definition
+        4. Updates the dataset with all configuration
+
+        Args:
+            dataset_id: Dataset ID to configure
+            dataset_def: DatasetDefinition with columns and metrics
+
+        Returns:
+            Updated dataset record
+        """
+        # Skip if no columns or metrics to configure
+        if not dataset_def.columns and not dataset_def.metrics:
+            logger.debug(
+                "Dataset '%s' has no columns or metrics to configure",
+                dataset_def.name,
+            )
+            return {"id": dataset_id}
+
+        # Fetch existing columns to get their IDs
+        dataset = self.get_dataset_with_columns(dataset_id)
+        existing_columns = {c["column_name"]: c for c in dataset.get("columns", [])}
+
+        # Build columns payload
+        columns_payload: list[dict[str, Any]] = []
+        for col in dataset_def.columns:
+            col_dict: dict[str, Any] = {
+                "column_name": col.column_name,
+                "type": col.type,
+                "filterable": col.filterable,
+                "groupby": col.groupby,
+            }
+
+            # Include ID for existing columns (required for update)
+            if col.column_name in existing_columns:
+                col_dict["id"] = existing_columns[col.column_name]["id"]
+
+            # Optional fields
+            if col.verbose_name:
+                col_dict["verbose_name"] = col.verbose_name
+            if col.description:
+                col_dict["description"] = col.description
+            if col.expression:
+                col_dict["expression"] = col.expression
+            if col.is_dttm:
+                col_dict["is_dttm"] = True
+            if col.python_date_format:
+                col_dict["python_date_format"] = col.python_date_format
+
+            columns_payload.append(col_dict)
+
+        # Build metrics payload
+        metrics_payload: list[dict[str, Any]] = []
+        for m in dataset_def.metrics:
+            metric_dict: dict[str, Any] = {
+                "metric_name": m.metric_name,
+                "expression": m.expression,
+            }
+
+            if m.verbose_name:
+                metric_dict["verbose_name"] = m.verbose_name
+            if m.description:
+                metric_dict["description"] = m.description
+            if m.d3format:
+                metric_dict["d3format"] = m.d3format
+            if m.currency_symbol:
+                metric_dict["currency"] = {
+                    "symbol": m.currency_symbol,
+                    "symbolPosition": m.currency_position,
+                }
+
+            metrics_payload.append(metric_dict)
+
+        logger.info(
+            "Configuring dataset '%s' (id=%d): %d columns, %d metrics",
+            dataset_def.name,
+            dataset_id,
+            len(columns_payload),
+            len(metrics_payload),
+        )
+
+        return self.update_dataset(
+            dataset_id=dataset_id,
+            description=dataset_def.description if dataset_def.description else None,
+            main_dttm_col=dataset_def.main_dttm_col,
+            cache_timeout=dataset_def.cache_timeout,
+            columns=columns_payload if columns_payload else None,
+            metrics=metrics_payload if metrics_payload else None,
+        )
 
     # =========================================================================
     # Chart Operations

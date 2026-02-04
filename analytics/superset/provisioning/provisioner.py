@@ -196,6 +196,25 @@ class DashboardProvisioner:
                 dataset_ids[dataset_def.name] = dataset_id
                 datasets_created += 1
 
+            # Configure datasets (Phase 2: columns and metrics)
+            for dataset_def in dashboard_def.datasets:
+                if dataset_def.columns or dataset_def.metrics:
+                    ds_id = dataset_ids[dataset_def.name]
+                    try:
+                        self.client.configure_dataset_from_definition(ds_id, dataset_def)
+                        logger.info(
+                            "Configured dataset '%s': %d columns, %d metrics",
+                            dataset_def.name,
+                            len(dataset_def.columns),
+                            len(dataset_def.metrics),
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            "Failed to configure dataset '%s': %s",
+                            dataset_def.name,
+                            e,
+                        )
+
             # Create charts
             chart_ids: list[int] = []
             charts_created = 0

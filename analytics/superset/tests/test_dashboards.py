@@ -68,14 +68,19 @@ class TestDashboardDefinitions:
         valid_viz_types = {
             "big_number_total",
             "big_number",
+            "bubble_v2",
             "echarts_bar",
             "echarts_timeseries_bar",
             "echarts_timeseries_line",
+            "echarts_timeseries_scatter",
             "echarts_area",
             "echarts_scatter",
+            "heatmap",
+            "heatmap_v2",
+            "histogram_v2",
+            "mapbox",
             "pie",
             "table",
-            "heatmap",
         }
         for dash in ALL_DASHBOARDS:
             for chart in dash.charts:
@@ -212,12 +217,12 @@ class TestSpecificDashboards:
     @pytest.mark.parametrize(
         "slug,expected_chart_count",
         [
-            ("bronze-pipeline", 8),
-            ("silver-quality", 8),
-            ("operations", 6),
-            ("driver-performance", 6),
-            ("demand-analysis", 6),
-            ("revenue-analytics", 9),
+            ("data-ingestion-monitoring", 9),
+            ("data-quality-monitoring", 9),
+            ("platform-operations", 12),
+            ("driver-performance", 7),
+            ("demand-analysis", 11),
+            ("revenue-analytics", 10),
         ],
     )
     def test_dashboard_chart_counts(self, slug: str, expected_chart_count: int) -> None:
@@ -228,12 +233,17 @@ class TestSpecificDashboards:
 
     def test_bronze_dashboard_requires_bronze_tables(self) -> None:
         """Bronze dashboard requires bronze tables."""
-        bronze = next(d for d in ALL_DASHBOARDS if d.slug == "bronze-pipeline")
+        bronze = next(d for d in ALL_DASHBOARDS if d.slug == "data-ingestion-monitoring")
         assert any("bronze." in t for t in bronze.required_tables)
 
     def test_gold_dashboards_require_gold_tables(self) -> None:
         """Gold dashboards require gold tables."""
-        gold_slugs = {"operations", "driver-performance", "demand-analysis", "revenue-analytics"}
+        gold_slugs = {
+            "platform-operations",
+            "driver-performance",
+            "demand-analysis",
+            "revenue-analytics",
+        }
         for dash in ALL_DASHBOARDS:
             if dash.slug in gold_slugs:
                 assert any(

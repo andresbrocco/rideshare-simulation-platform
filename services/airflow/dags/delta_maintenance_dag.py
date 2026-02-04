@@ -2,7 +2,11 @@
 
 This DAG performs daily maintenance on Bronze Delta tables to:
 1. OPTIMIZE: Compact small files into larger ones for better read performance
-2. VACUUM: Remove old files no longer referenced by the Delta log
+2. VACUUM LITE: Remove old files no longer referenced by the Delta log
+
+VACUUM LITE (Delta 3.3+) uses the transaction log to identify files to delete,
+rather than listing the entire directory. This is significantly faster but won't
+catch orphaned files from failed writes that never made it into the log.
 
 Schedule: 3 AM daily (after Gold DAG completes at 2 AM)
 """
@@ -63,7 +67,11 @@ def optimize_table(table_name: str, **context: Any) -> dict[str, object]:
 def vacuum_table(
     table_name: str, retention_hours: int = VACUUM_RETENTION_HOURS, **context: Any
 ) -> dict[str, object]:
-    """Run VACUUM on a Delta table.
+    """Run VACUUM LITE on a Delta table.
+
+    Uses LITE mode (Delta 3.3+) which reads from the transaction log instead of
+    listing all files in the directory. This is faster but won't catch orphaned
+    files from failed writes that never made it into the log.
 
     Args:
         table_name: Name of the table to vacuum.
@@ -78,7 +86,7 @@ def vacuum_table(
     conn = hive.connect(host="spark-thrift-server", port=10000, auth="NOSASL")
     cursor = conn.cursor()
     try:
-        cursor.execute(f"VACUUM bronze.{table_name} RETAIN {retention_hours} HOURS")
+        cursor.execute(f"VACUUM bronze.{table_name} LITE RETAIN {retention_hours} HOURS")
         return {"table": table_name, "status": "success", "operation": "VACUUM"}
     except Exception as e:
         return {"table": table_name, "status": "failed", "error": str(e), "operation": "VACUUM"}
@@ -138,7 +146,7 @@ default_args = {
 with DAG(
     "delta_maintenance",
     default_args=default_args,
-    description="Daily OPTIMIZE and VACUUM for Bronze Delta tables",
+    description="Daily OPTIMIZE and VACUUM LITE for Bronze Delta tables",
     schedule="0 3 * * *",  # 3 AM daily
     start_date=datetime(2026, 1, 1),
     catchup=False,
