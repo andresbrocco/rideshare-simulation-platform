@@ -2,6 +2,7 @@
 
 These charts visualize real-time operational health and performance monitoring
 for the rideshare platform using Gold and Silver layer data.
+All charts use consolidated datasets with proper column/metric definitions.
 """
 
 from provisioning.dashboards.base import ChartDefinition
@@ -13,17 +14,12 @@ from provisioning.dashboards.base import ChartDefinition
 
 ACTIVE_TRIPS = ChartDefinition(
     name="Active Trips",
-    dataset_name="ops_active_trips",
+    dataset_name="silver_active_trips",
     viz_type="big_number_total",
-    metrics=("active_trips",),
+    metrics=("count_active",),
     layout=(0, 0, 3, 2),
     extra_params={
-        "metric": {
-            "expressionType": "SIMPLE",
-            "column": {"column_name": "active_trips", "type": "BIGINT"},
-            "aggregate": "MAX",
-            "label": "Active Trips",
-        },
+        "metric": "count_active",
         "header_font_size": 0.5,
         "subtitle": "Trips in progress",
         "subtitle_font_size": 0.15,
@@ -34,17 +30,14 @@ ACTIVE_TRIPS = ChartDefinition(
 
 COMPLETED_TRIPS_TODAY = ChartDefinition(
     name="Completed Trips Today",
-    dataset_name="ops_completed_trips_today",
+    dataset_name="gold_fact_trips",
     viz_type="big_number_total",
-    metrics=("completed_trips_today",),
+    metrics=("count_trips",),
+    time_column="date_key",
+    time_range="today",
     layout=(0, 3, 3, 2),
     extra_params={
-        "metric": {
-            "expressionType": "SIMPLE",
-            "column": {"column_name": "completed_trips_today", "type": "BIGINT"},
-            "aggregate": "MAX",
-            "label": "Completed Today",
-        },
+        "metric": "count_trips",
         "header_font_size": 0.5,
         "subtitle": "Since midnight",
         "subtitle_font_size": 0.15,
@@ -55,17 +48,14 @@ COMPLETED_TRIPS_TODAY = ChartDefinition(
 
 REVENUE_TODAY = ChartDefinition(
     name="Revenue Today",
-    dataset_name="ops_completed_trips_today",
+    dataset_name="gold_fact_trips",
     viz_type="big_number_total",
-    metrics=("revenue_today",),
+    metrics=("sum_fare",),
+    time_column="date_key",
+    time_range="today",
     layout=(0, 6, 3, 2),
     extra_params={
-        "metric": {
-            "expressionType": "SIMPLE",
-            "column": {"column_name": "revenue_today", "type": "DOUBLE"},
-            "aggregate": "MAX",
-            "label": "Revenue Today",
-        },
+        "metric": "sum_fare",
         "header_font_size": 0.5,
         "subtitle": "Total fares (BRL)",
         "subtitle_font_size": 0.15,
@@ -76,36 +66,19 @@ REVENUE_TODAY = ChartDefinition(
 
 AVG_WAIT_TIME = ChartDefinition(
     name="Avg Wait Time",
-    dataset_name="ops_avg_wait_time",
+    dataset_name="gold_fact_trips",
     viz_type="big_number_total",
-    metrics=("avg_wait_time_minutes",),
+    metrics=("avg_wait_time",),
+    time_column="date_key",
+    time_range="today",
     layout=(0, 9, 3, 2),
     extra_params={
-        "metric": {
-            "expressionType": "SIMPLE",
-            "column": {"column_name": "avg_wait_time_minutes", "type": "DOUBLE"},
-            "aggregate": "MAX",
-            "label": "Avg Wait Time",
-        },
+        "metric": "avg_wait_time",
         "header_font_size": 0.5,
         "subtitle": "Minutes (match to pickup)",
         "subtitle_font_size": 0.15,
         "show_metric_name": False,
         "y_axis_format": ".1f",
-        "conditional_formatting": [
-            {
-                "column": "avg_wait_time_minutes",
-                "operator": ">",
-                "targetValue": 10,
-                "colorScheme": "#FF0000",
-            },
-            {
-                "column": "avg_wait_time_minutes",
-                "operator": ">",
-                "targetValue": 5,
-                "colorScheme": "#FFA500",
-            },
-        ],
     },
 )
 
@@ -116,23 +89,17 @@ AVG_WAIT_TIME = ChartDefinition(
 
 HOURLY_TRIP_VOLUME = ChartDefinition(
     name="Hourly Trip Volume",
-    dataset_name="ops_hourly_trip_volume",
+    dataset_name="gold_fact_trips",
     viz_type="echarts_timeseries_bar",
-    metrics=("trips_completed",),
+    metrics=("count_trips",),
     time_column="hour_timestamp",
     time_range="Today",
     layout=(1, 0, 8, 3),
     extra_params={
         "x_axis": "hour_timestamp",
         "time_grain_sqla": "PT1H",
-        "metrics": [
-            {
-                "expressionType": "SIMPLE",
-                "column": {"column_name": "trips_completed", "type": "BIGINT"},
-                "aggregate": "SUM",
-                "label": "Trips Completed",
-            }
-        ],
+        "granularity_sqla": "hour_timestamp",
+        "metrics": ["count_trips"],
         "groupby": [],
         "orientation": "vertical",
         "show_value": True,
@@ -155,50 +122,33 @@ HOURLY_TRIP_VOLUME = ChartDefinition(
 
 RECENT_ERRORS = ChartDefinition(
     name="Recent Errors",
-    dataset_name="ops_recent_errors",
+    dataset_name="silver_anomalies",
     viz_type="big_number_total",
-    metrics=("error_count_last_hour",),
+    metrics=("count_anomalies",),
+    time_column="detected_at",
+    time_range="Last hour",
     layout=(1, 8, 2, 1),
     extra_params={
-        "metric": {
-            "expressionType": "SIMPLE",
-            "column": {"column_name": "error_count_last_hour", "type": "BIGINT"},
-            "aggregate": "MAX",
-            "label": "Errors (1h)",
-        },
+        "metric": "count_anomalies",
         "header_font_size": 0.4,
         "subtitle": "Last hour",
         "subtitle_font_size": 0.15,
         "show_metric_name": False,
         "y_axis_format": ",.0f",
-        "conditional_formatting": [
-            {
-                "column": "error_count_last_hour",
-                "operator": ">",
-                "targetValue": 10,
-                "colorScheme": "#FF0000",
-            },
-            {
-                "column": "error_count_last_hour",
-                "operator": ">",
-                "targetValue": 0,
-                "colorScheme": "#FFA500",
-            },
-        ],
     },
 )
 
 PROCESSING_DELAY = ChartDefinition(
     name="Processing Delay",
-    dataset_name="ops_processing_delay",
+    dataset_name="gold_fact_trips",
     viz_type="big_number_total",
-    metrics=("avg_processing_delay_minutes",),
+    time_column="date_key",
+    time_range="today",
     layout=(1, 10, 2, 1),
     extra_params={
         "metric": {
-            "expressionType": "SIMPLE",
-            "column": {"column_name": "avg_processing_delay_minutes", "type": "DOUBLE"},
-            "aggregate": "MAX",
+            "expressionType": "SQL",
+            "sqlExpression": "AVG((UNIX_TIMESTAMP(CURRENT_TIMESTAMP) - UNIX_TIMESTAMP(completed_at)) / 60.0)",
             "label": "Processing Delay",
         },
         "header_font_size": 0.4,
@@ -206,38 +156,28 @@ PROCESSING_DELAY = ChartDefinition(
         "subtitle_font_size": 0.15,
         "show_metric_name": False,
         "y_axis_format": ".1f",
-        "conditional_formatting": [
+        "adhoc_filters": [
             {
-                "column": "avg_processing_delay_minutes",
-                "operator": ">",
-                "targetValue": 15,
-                "colorScheme": "#FF0000",
-            },
-            {
-                "column": "avg_processing_delay_minutes",
-                "operator": ">",
-                "targetValue": 5,
-                "colorScheme": "#FFA500",
-            },
+                "expressionType": "SQL",
+                "sqlExpression": "completed_at >= CURRENT_TIMESTAMP - INTERVAL '1' HOUR",
+                "clause": "WHERE",
+            }
         ],
     },
 )
 
 ERRORS_BY_CATEGORY = ChartDefinition(
     name="Errors by Category",
-    dataset_name="ops_errors_by_category",
+    dataset_name="silver_anomalies",
     viz_type="pie",
-    metrics=("error_count",),
+    metrics=("count_anomalies",),
     dimensions=("anomaly_type",),
+    time_column="detected_at",
+    time_range="Last 24 hours",
     layout=(1, 8, 4, 2),
     extra_params={
         "groupby": ["anomaly_type"],
-        "metric": {
-            "expressionType": "SIMPLE",
-            "column": {"column_name": "error_count", "type": "BIGINT"},
-            "aggregate": "SUM",
-            "label": "Error Count",
-        },
+        "metric": "count_anomalies",
         "color_scheme": "supersetColors",
         "show_labels": True,
         "label_type": "key_percent",
@@ -263,23 +203,18 @@ ERRORS_BY_CATEGORY = ChartDefinition(
 
 TRIP_ACTIVITY_BY_ZONE = ChartDefinition(
     name="Trip Activity by Zone",
-    dataset_name="ops_zone_activity_today",
+    dataset_name="gold_fact_trips",
     viz_type="echarts_timeseries_bar",
-    metrics=("trip_count",),
+    metrics=("count_trips",),
     dimensions=("zone_name",),
+    time_column="date_key",
+    time_range="today",
     layout=(2, 0, 6, 3),
     extra_params={
         "x_axis": "zone_name",
         "x_axis_force_categorical": True,
-        "metrics": [
-            {
-                "expressionType": "SIMPLE",
-                "column": {"column_name": "trip_count", "type": "BIGINT"},
-                "aggregate": "SUM",
-                "label": "Trips",
-            }
-        ],
-        "groupby": [],
+        "metrics": ["count_trips"],
+        "groupby": ["zone_name"],
         "orientation": "vertical",
         "show_value": True,
         "color_scheme": "supersetColors",
@@ -302,22 +237,19 @@ TRIP_ACTIVITY_BY_ZONE = ChartDefinition(
 
 ZONE_ACTIVITY_HEATMAP = ChartDefinition(
     name="Zone Activity Heatmap",
-    dataset_name="ops_hourly_zone_heatmap",
+    dataset_name="gold_hourly_zone_demand",
     viz_type="heatmap_v2",
-    metrics=("completed_trips",),
+    metrics=("sum_completed",),
     dimensions=("hour_timestamp", "zone_name"),
     time_column="hour_timestamp",
+    time_range="today",
     layout=(2, 6, 6, 3),
     extra_params={
         "x_axis": "hour_timestamp",
         "groupby": "zone_name",
-        "metric": {
-            "expressionType": "SIMPLE",
-            "column": {"column_name": "completed_trips", "type": "BIGINT"},
-            "aggregate": "SUM",
-            "label": "Completed Trips",
-        },
+        "metric": "sum_completed",
         "time_grain_sqla": "PT1H",
+        "granularity_sqla": "hour_timestamp",
         "normalize_across": "heatmap",
         "legend_type": "continuous",
         "linear_color_scheme": "blue_white_yellow",

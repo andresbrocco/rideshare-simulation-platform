@@ -9,33 +9,15 @@ from provisioning.dashboards.base import DashboardDefinition
 from ..charts.driver_performance_charts import DRIVER_PERFORMANCE_CHARTS
 from ..charts.map_charts import DRIVER_PERFORMANCE_MAP_CHARTS
 from ..datasets.gold_datasets import (
-    # Consolidated datasets
     GOLD_DRIVER_PERFORMANCE,
     GOLD_RATINGS,
-    # Legacy datasets (for charts not yet migrated)
-    DS_ACTIVE_DRIVERS,
-    DS_PAYOUT_TRENDS,
-    DS_RATING_DISTRIBUTION,
-    DS_TOP_DRIVERS,
-    DS_TRIPS_VS_EARNINGS,
-    DS_UTILIZATION_HEATMAP,
 )
 from ..datasets.map_datasets import DP_DRIVER_HOME_LOCATIONS
 
-# Dataset tuple for this specific dashboard
-# Include both consolidated and legacy datasets during transition
+# Dataset tuple for this specific dashboard - consolidated datasets only
 DRIVER_PERFORMANCE_DATASETS = (
-    # Consolidated datasets (with metrics)
     GOLD_DRIVER_PERFORMANCE,
     GOLD_RATINGS,
-    # Legacy datasets (until charts are migrated)
-    DS_ACTIVE_DRIVERS,
-    DS_PAYOUT_TRENDS,
-    DS_TOP_DRIVERS,
-    DS_RATING_DISTRIBUTION,
-    DS_UTILIZATION_HEATMAP,
-    DS_TRIPS_VS_EARNINGS,
-    # Map dataset
     DP_DRIVER_HOME_LOCATIONS,
 )
 

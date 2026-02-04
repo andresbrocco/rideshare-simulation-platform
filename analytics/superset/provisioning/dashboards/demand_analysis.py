@@ -9,42 +9,18 @@ from provisioning.dashboards.base import DashboardDefinition
 from ..charts.demand_analysis_charts import DEMAND_ANALYSIS_CHARTS
 from ..charts.map_charts import DEMAND_ANALYSIS_MAP_CHARTS
 from ..datasets.gold_datasets import (
-    # Consolidated datasets
     GOLD_HOURLY_ZONE_DEMAND,
     GOLD_SURGE_HISTORY,
-    # Legacy datasets (for charts not yet migrated)
-    GOLD_AVG_SURGE_24H,
-    GOLD_AVG_WAIT_TIME_24H,
-    GOLD_HOURLY_DEMAND_PATTERN,
-    GOLD_SURGE_EVENTS,
-    GOLD_SURGE_TRENDS,
-    GOLD_TOP_DEMAND_ZONES,
-    GOLD_TOTAL_REQUESTS_24H,
-    GOLD_WAIT_TIME_BY_ZONE,
-    GOLD_ZONE_DEMAND_HEATMAP,
 )
 from ..datasets.map_datasets import (
     DEMAND_PICKUP_HOTSPOTS,
     DEMAND_SURGE_ZONES,
 )
 
-# Dataset tuple for this specific dashboard
-# Include both consolidated and legacy datasets during transition
+# Dataset tuple for this specific dashboard - consolidated datasets only
 DEMAND_ANALYSIS_DATASETS = (
-    # Consolidated datasets (with metrics)
     GOLD_HOURLY_ZONE_DEMAND,
     GOLD_SURGE_HISTORY,
-    # Legacy datasets (until charts are migrated)
-    GOLD_ZONE_DEMAND_HEATMAP,
-    GOLD_SURGE_TRENDS,
-    GOLD_WAIT_TIME_BY_ZONE,
-    GOLD_HOURLY_DEMAND_PATTERN,
-    GOLD_TOP_DEMAND_ZONES,
-    GOLD_SURGE_EVENTS,
-    GOLD_TOTAL_REQUESTS_24H,
-    GOLD_AVG_SURGE_24H,
-    GOLD_AVG_WAIT_TIME_24H,
-    # Map datasets
     DEMAND_PICKUP_HOTSPOTS,
     DEMAND_SURGE_ZONES,
 )

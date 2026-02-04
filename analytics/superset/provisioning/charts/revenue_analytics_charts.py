@@ -2,6 +2,7 @@
 
 These charts visualize financial performance, revenue breakdown,
 and payment analysis for business leadership.
+All charts use consolidated datasets with proper column/metric definitions.
 """
 
 from provisioning.dashboards.base import ChartDefinition
@@ -13,12 +14,14 @@ from provisioning.dashboards.base import ChartDefinition
 
 DAILY_REVENUE = ChartDefinition(
     name="Daily Revenue",
-    dataset_name="gold_daily_revenue",
+    dataset_name="gold_platform_revenue",
     viz_type="big_number_total",
-    metrics=("daily_revenue",),
+    metrics=("sum_revenue",),
+    time_column="date_key",
+    time_range="today",
     layout=(0, 0, 4, 2),
     extra_params={
-        "metric": "daily_revenue",
+        "metric": "sum_revenue",
         "subheader": "Total Fares Collected Today",
         "y_axis_format": "SMART_NUMBER",
         "header_font_size": 0.5,
@@ -29,12 +32,14 @@ DAILY_REVENUE = ChartDefinition(
 
 PLATFORM_FEES = ChartDefinition(
     name="Platform Fees",
-    dataset_name="gold_platform_fees",
+    dataset_name="gold_platform_revenue",
     viz_type="big_number_total",
-    metrics=("platform_fees",),
+    metrics=("sum_platform_fees",),
+    time_column="date_key",
+    time_range="today",
     layout=(0, 4, 4, 2),
     extra_params={
-        "metric": "platform_fees",
+        "metric": "sum_platform_fees",
         "subheader": "Platform Revenue (25% of Fares)",
         "y_axis_format": "SMART_NUMBER",
         "header_font_size": 0.5,
@@ -45,12 +50,14 @@ PLATFORM_FEES = ChartDefinition(
 
 TRIPS_TODAY = ChartDefinition(
     name="Trips Today",
-    dataset_name="gold_trip_count_today",
+    dataset_name="gold_platform_revenue",
     viz_type="big_number_total",
-    metrics=("trip_count",),
+    metrics=("sum_trips",),
+    time_column="date_key",
+    time_range="today",
     layout=(0, 8, 4, 2),
     extra_params={
-        "metric": "trip_count",
+        "metric": "sum_trips",
         "subheader": "Completed Trips Today",
         "y_axis_format": ",d",
         "header_font_size": 0.5,
@@ -66,17 +73,18 @@ TRIPS_TODAY = ChartDefinition(
 
 REVENUE_TREND_7_DAYS = ChartDefinition(
     name="Revenue Trend (7 Days)",
-    dataset_name="gold_revenue_trend",
+    dataset_name="gold_platform_revenue",
     viz_type="echarts_timeseries_line",
-    metrics=("total_revenue", "platform_fees", "driver_payouts"),
-    time_column="date",
+    metrics=("sum_revenue", "sum_platform_fees", "sum_driver_payouts"),
+    time_column="date_key",
     time_range="Last 7 days",
     layout=(2, 0, 8, 4),
     extra_params={
-        "x_axis": "date",
-        "metrics": ["total_revenue", "platform_fees", "driver_payouts"],
+        "x_axis": "date_key",
+        "metrics": ["sum_revenue", "sum_platform_fees", "sum_driver_payouts"],
         "groupby": [],
         "time_grain_sqla": "P1D",
+        "granularity_sqla": "date_key",
         "y_axis_format": "SMART_NUMBER",
         "show_legend": True,
         "legendOrientation": "top",
@@ -94,14 +102,16 @@ REVENUE_TREND_7_DAYS = ChartDefinition(
 
 PAYMENT_METHOD_DISTRIBUTION = ChartDefinition(
     name="Payment Method Distribution",
-    dataset_name="gold_payment_method_mix",
+    dataset_name="gold_payments",
     viz_type="pie",
-    metrics=("total_amount",),
-    dimensions=("payment_method",),
+    metrics=("sum_fare",),
+    dimensions=("payment_method_type",),
+    time_column="date_key",
+    time_range="Last 7 days",
     layout=(2, 8, 4, 4),
     extra_params={
-        "metric": "total_amount",
-        "groupby": ["payment_method"],
+        "metric": "sum_fare",
+        "groupby": ["payment_method_type"],
         "pie_label_type": "key_value_percent",
         "show_legend": True,
         "legendOrientation": "bottom",
@@ -123,20 +133,24 @@ PAYMENT_METHOD_DISTRIBUTION = ChartDefinition(
 
 REVENUE_BY_ZONE_TODAY = ChartDefinition(
     name="Revenue by Zone (Today)",
-    dataset_name="gold_revenue_by_zone_today",
+    dataset_name="gold_platform_revenue",
     viz_type="echarts_timeseries_bar",
-    metrics=("zone_revenue",),
+    metrics=("sum_revenue",),
     dimensions=("zone_name",),
+    time_column="date_key",
+    time_range="today",
     layout=(6, 0, 6, 4),
     extra_params={
         "x_axis": "zone_name",
-        "metrics": ["zone_revenue"],
-        "groupby": [],
+        "metrics": ["sum_revenue"],
+        "groupby": ["zone_name"],
         "orientation": "horizontal",
         "y_axis_format": "SMART_NUMBER",
         "show_legend": False,
         "bar_stacked": False,
         "order_desc": True,
+        "sort_series_type": "sum",
+        "sort_series_ascending": False,
         "row_limit": 10,
         "color_scheme": "supersetColors",
         "show_bar_value": True,
@@ -146,15 +160,17 @@ REVENUE_BY_ZONE_TODAY = ChartDefinition(
 
 REVENUE_BY_HOUR_OF_DAY = ChartDefinition(
     name="Revenue by Hour of Day",
-    dataset_name="gold_revenue_by_hour",
+    dataset_name="gold_payments",
     viz_type="echarts_timeseries_bar",
-    metrics=("hourly_revenue",),
+    metrics=("sum_fare",),
     dimensions=("hour_of_day",),
+    time_column="date_key",
+    time_range="today",
     layout=(6, 6, 6, 4),
     extra_params={
         "x_axis": "hour_of_day",
-        "metrics": ["hourly_revenue"],
-        "groupby": [],
+        "metrics": ["sum_fare"],
+        "groupby": ["hour_of_day"],
         "orientation": "vertical",
         "y_axis_format": "SMART_NUMBER",
         "x_axis_title": "Hour of Day",
@@ -164,7 +180,8 @@ REVENUE_BY_HOUR_OF_DAY = ChartDefinition(
         "color_scheme": "supersetColors",
         "show_bar_value": False,
         "rich_tooltip": True,
-        "x_axis_sort_asc": True,
+        "sort_series_type": "name",
+        "sort_series_ascending": True,
     },
 )
 
@@ -175,47 +192,57 @@ REVENUE_BY_HOUR_OF_DAY = ChartDefinition(
 
 TOP_REVENUE_ZONES_7_DAYS = ChartDefinition(
     name="Top Revenue Zones (7 Days)",
-    dataset_name="gold_top_revenue_zones",
+    dataset_name="gold_platform_revenue",
     viz_type="table",
+    time_column="date_key",
+    time_range="Last 7 days",
     layout=(10, 0, 7, 4),
     extra_params={
-        "query_mode": "raw",
-        "groupby": [
-            "zone_name",
-            "subprefecture",
-            "total_revenue",
-            "total_trips",
-            "platform_fees",
-            "avg_fare",
+        "query_mode": "aggregate",
+        "groupby": ["zone_name", "subprefecture"],
+        "metrics": [
+            {
+                "label": "Total Revenue",
+                "expressionType": "SQL",
+                "sqlExpression": "SUM(total_revenue)",
+            },
+            {
+                "label": "Trips",
+                "expressionType": "SQL",
+                "sqlExpression": "SUM(total_trips)",
+            },
+            {
+                "label": "Platform Fees",
+                "expressionType": "SQL",
+                "sqlExpression": "SUM(total_platform_fees)",
+            },
+            {
+                "label": "Avg Fare",
+                "expressionType": "SQL",
+                "sqlExpression": "AVG(avg_fare)",
+            },
         ],
-        "metrics": [],
-        "all_columns": [
-            "zone_name",
-            "subprefecture",
-            "total_revenue",
-            "total_trips",
-            "platform_fees",
-            "avg_fare",
-        ],
-        "order_by_cols": ['["total_revenue", false]'],
+        "all_columns": [],
+        "order_by_cols": [["Total Revenue", False]],
+        "row_limit": 15,
         "page_length": 10,
         "include_search": True,
         "table_timestamp_format": "%Y-%m-%d",
         "column_config": {
             "zone_name": {"columnWidth": 150},
             "subprefecture": {"columnWidth": 150},
-            "total_revenue": {
+            "Total Revenue": {
                 "d3SmallNumberFormat": "SMART_NUMBER",
                 "d3NumberFormat": "SMART_NUMBER",
                 "columnWidth": 120,
             },
-            "total_trips": {"d3NumberFormat": ",d", "columnWidth": 100},
-            "platform_fees": {
+            "Trips": {"d3NumberFormat": ",d", "columnWidth": 100},
+            "Platform Fees": {
                 "d3SmallNumberFormat": "SMART_NUMBER",
                 "d3NumberFormat": "SMART_NUMBER",
                 "columnWidth": 120,
             },
-            "avg_fare": {
+            "Avg Fare": {
                 "d3SmallNumberFormat": "SMART_NUMBER",
                 "d3NumberFormat": "SMART_NUMBER",
                 "columnWidth": 100,
@@ -227,14 +254,19 @@ TOP_REVENUE_ZONES_7_DAYS = ChartDefinition(
 
 FARE_VS_DURATION = ChartDefinition(
     name="Fare vs Duration",
-    dataset_name="gold_fare_vs_duration",
+    dataset_name="gold_fact_trips",
     viz_type="echarts_timeseries_scatter",
-    metrics=("fare",),
     dimensions=("duration_minutes", "surge_multiplier"),
+    time_column="date_key",
+    time_range="Last 7 days",
     layout=(10, 7, 5, 4),
     extra_params={
         "x_axis": "duration_minutes",
-        "y_axis": "fare",
+        "y_axis": {
+            "expressionType": "SQL",
+            "sqlExpression": "fare",
+            "label": "Fare",
+        },
         "metrics": [],
         "groupby": ["surge_multiplier"],
         "entity": "trip_key",
@@ -250,6 +282,13 @@ FARE_VS_DURATION = ChartDefinition(
         "row_limit": 500,
         "markerEnabled": True,
         "markerSize": 6,
+        "adhoc_filters": [
+            {
+                "expressionType": "SQL",
+                "sqlExpression": "duration_minutes IS NOT NULL AND duration_minutes > 0 AND duration_minutes < 120",
+                "clause": "WHERE",
+            }
+        ],
     },
 )
 

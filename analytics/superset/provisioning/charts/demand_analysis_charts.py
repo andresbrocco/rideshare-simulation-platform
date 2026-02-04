@@ -2,6 +2,7 @@
 
 These charts visualize demand patterns, surge pricing, and zone performance
 for driver positioning and capacity planning.
+All charts use consolidated datasets with proper column/metric definitions.
 """
 
 from provisioning.dashboards.base import ChartDefinition
@@ -13,12 +14,14 @@ from provisioning.dashboards.base import ChartDefinition
 
 TOTAL_REQUESTS_24H = ChartDefinition(
     name="Total Requests (24h)",
-    dataset_name="gold_total_requests_24h",
+    dataset_name="gold_hourly_zone_demand",
     viz_type="big_number_total",
-    metrics=("total_requests",),
+    metrics=("sum_requests",),
+    time_column="hour_timestamp",
+    time_range="Last 24 hours",
     layout=(0, 0, 4, 3),
     extra_params={
-        "metric": "total_requests",
+        "metric": "sum_requests",
         "subheader": "Trip Requests (Last 24h)",
         "y_axis_format": ",d",
         "color_picker": {"r": 31, "g": 119, "b": 180},
@@ -27,9 +30,11 @@ TOTAL_REQUESTS_24H = ChartDefinition(
 
 AVG_SURGE_MULTIPLIER = ChartDefinition(
     name="Avg Surge Multiplier",
-    dataset_name="gold_avg_surge_24h",
+    dataset_name="gold_hourly_zone_demand",
     viz_type="big_number_total",
     metrics=("avg_surge",),
+    time_column="hour_timestamp",
+    time_range="Last 24 hours",
     layout=(0, 4, 4, 3),
     extra_params={
         "metric": "avg_surge",
@@ -41,12 +46,14 @@ AVG_SURGE_MULTIPLIER = ChartDefinition(
 
 AVG_WAIT_TIME_DEMAND = ChartDefinition(
     name="Avg Wait Time",
-    dataset_name="gold_avg_wait_time_24h",
+    dataset_name="gold_hourly_zone_demand",
     viz_type="big_number_total",
-    metrics=("avg_wait_minutes",),
+    metrics=("avg_wait_time",),
+    time_column="hour_timestamp",
+    time_range="Last 24 hours",
     layout=(0, 8, 4, 3),
     extra_params={
-        "metric": "avg_wait_minutes",
+        "metric": "avg_wait_time",
         "subheader": "Avg Wait (minutes)",
         "y_axis_format": ",.1f",
         "color_picker": {"r": 44, "g": 160, "b": 44},
@@ -60,15 +67,17 @@ AVG_WAIT_TIME_DEMAND = ChartDefinition(
 
 DEMAND_BY_ZONE_AND_HOUR = ChartDefinition(
     name="Demand by Zone and Hour",
-    dataset_name="gold_zone_demand_heatmap",
+    dataset_name="gold_hourly_zone_demand",
     viz_type="heatmap_v2",
-    metrics=("total_requests",),
+    metrics=("sum_requests",),
     dimensions=("hour_of_day", "zone_name"),
+    time_column="hour_timestamp",
+    time_range="Last 7 days",
     layout=(3, 0, 8, 5),
     extra_params={
         "x_axis": "hour_of_day",
         "groupby": "zone_name",
-        "metric": "total_requests",
+        "metric": "sum_requests",
         "xscale_interval": 1,
         "yscale_interval": 1,
         "show_legend": True,
@@ -84,46 +93,60 @@ DEMAND_BY_ZONE_AND_HOUR = ChartDefinition(
 
 TOP_DEMAND_ZONES = ChartDefinition(
     name="Top Demand Zones",
-    dataset_name="gold_top_demand_zones",
+    dataset_name="gold_hourly_zone_demand",
     viz_type="table",
+    time_column="hour_timestamp",
+    time_range="Last 24 hours",
     layout=(3, 8, 4, 5),
     extra_params={
-        "query_mode": "raw",
-        "groupby": [
-            "zone_name",
-            "zone_code",
-            "total_requests",
-            "completed_trips",
-            "fulfillment_rate_pct",
-            "avg_wait_minutes",
-            "avg_surge",
+        "query_mode": "aggregate",
+        "groupby": ["zone_name", "zone_code"],
+        "metrics": [
+            {
+                "label": "Requests",
+                "expressionType": "SQL",
+                "sqlExpression": "SUM(requested_trips)",
+            },
+            {
+                "label": "Completed",
+                "expressionType": "SQL",
+                "sqlExpression": "SUM(completed_trips)",
+            },
+            {
+                "label": "Fulfillment %",
+                "expressionType": "SQL",
+                "sqlExpression": "ROUND(SUM(completed_trips) * 100.0 / NULLIF(SUM(requested_trips), 0), 1)",
+            },
+            {
+                "label": "Avg Wait (min)",
+                "expressionType": "SQL",
+                "sqlExpression": "ROUND(AVG(avg_wait_time_minutes), 1)",
+            },
+            {
+                "label": "Avg Surge",
+                "expressionType": "SQL",
+                "sqlExpression": "ROUND(AVG(avg_surge_multiplier), 2)",
+            },
         ],
-        "metrics": [],
-        "all_columns": [
-            "zone_name",
-            "zone_code",
-            "total_requests",
-            "completed_trips",
-            "fulfillment_rate_pct",
-            "avg_wait_minutes",
-            "avg_surge",
-        ],
+        "all_columns": [],
         "order_desc": True,
+        "order_by_cols": [["Requests", False]],
+        "row_limit": 10,
         "page_length": 10,
         "include_search": False,
         "table_timestamp_format": "smart_date",
         "conditional_formatting": [
             {
-                "column": "fulfillment_rate_pct",
-                "color_scheme": "green_scale",
+                "column": "Fulfillment %",
+                "colorScheme": "#28a745",
                 "operator": ">=",
-                "target_color_index": 0,
+                "targetValue": 80,
             },
             {
-                "column": "avg_wait_minutes",
-                "color_scheme": "red_scale",
+                "column": "Avg Wait (min)",
+                "colorScheme": "#dc3545",
                 "operator": ">=",
-                "target_color_index": 0,
+                "targetValue": 10,
             },
         ],
     },
@@ -136,15 +159,17 @@ TOP_DEMAND_ZONES = ChartDefinition(
 
 HOURLY_DEMAND_PATTERN = ChartDefinition(
     name="Hourly Demand Pattern",
-    dataset_name="gold_hourly_demand_pattern",
+    dataset_name="gold_hourly_zone_demand",
     viz_type="echarts_area",
-    metrics=("total_requests", "completed_trips"),
+    metrics=("sum_requests", "sum_completed"),
     dimensions=("hour_of_day",),
+    time_column="hour_timestamp",
+    time_range="Last 7 days",
     layout=(8, 0, 6, 4),
     extra_params={
         "x_axis": "hour_of_day",
-        "metrics": ["total_requests", "completed_trips"],
-        "groupby": [],
+        "metrics": ["sum_requests", "sum_completed"],
+        "groupby": ["hour_of_day"],
         "stack": False,
         "opacity": 0.7,
         "show_legend": True,
@@ -167,18 +192,18 @@ HOURLY_DEMAND_PATTERN = ChartDefinition(
 
 SURGE_PRICING_TRENDS = ChartDefinition(
     name="Surge Pricing Trends",
-    dataset_name="gold_surge_trends",
+    dataset_name="gold_surge_history",
     viz_type="echarts_timeseries_line",
     metrics=("avg_surge", "max_surge", "min_surge"),
-    time_column="hour",
+    time_column="hour_timestamp",
     time_range="Last 24 hours",
     layout=(8, 6, 6, 4),
     extra_params={
-        "x_axis": "hour",
+        "x_axis": "hour_timestamp",
         "metrics": ["avg_surge", "max_surge", "min_surge"],
         "groupby": [],
-        "granularity_sqla": "hour",
-        "time_range": "Last 24 hours",
+        "granularity_sqla": "hour_timestamp",
+        "time_grain_sqla": "PT1H",
         "show_legend": True,
         "legendOrientation": "top",
         "legendType": "scroll",
@@ -206,14 +231,16 @@ SURGE_PRICING_TRENDS = ChartDefinition(
 
 WAIT_TIME_BY_ZONE = ChartDefinition(
     name="Wait Time by Zone",
-    dataset_name="gold_wait_time_by_zone",
+    dataset_name="gold_hourly_zone_demand",
     viz_type="echarts_timeseries_bar",
-    metrics=("avg_wait_minutes",),
+    metrics=("avg_wait_time",),
     dimensions=("zone_name",),
+    time_column="hour_timestamp",
+    time_range="Last 24 hours",
     layout=(12, 0, 6, 4),
     extra_params={
         "x_axis": "zone_name",
-        "metrics": ["avg_wait_minutes"],
+        "metrics": ["avg_wait_time"],
         "groupby": ["zone_name"],
         "orientation": "horizontal",
         "show_legend": False,
@@ -230,49 +257,68 @@ WAIT_TIME_BY_ZONE = ChartDefinition(
         "show_extra_controls": True,
         "truncateXAxis": True,
         "xAxisLabelRotation": 45,
+        "row_limit": 15,
     },
 )
 
 SURGE_EVENT_HISTORY = ChartDefinition(
     name="Surge Event History",
-    dataset_name="gold_surge_events",
+    dataset_name="gold_surge_history",
     viz_type="table",
+    time_column="hour_timestamp",
+    time_range="Last 24 hours",
     layout=(12, 6, 6, 4),
     extra_params={
-        "query_mode": "raw",
-        "groupby": [
-            "hour",
-            "zone_name",
-            "peak_surge",
-            "avg_drivers",
-            "avg_pending",
-            "update_count",
+        "query_mode": "aggregate",
+        "groupby": ["hour_timestamp", "zone_name"],
+        "metrics": [
+            {
+                "label": "Peak Surge",
+                "expressionType": "SQL",
+                "sqlExpression": "ROUND(MAX(max_surge_multiplier), 2)",
+            },
+            {
+                "label": "Avg Drivers",
+                "expressionType": "SQL",
+                "sqlExpression": "ROUND(AVG(avg_available_drivers), 0)",
+            },
+            {
+                "label": "Avg Pending",
+                "expressionType": "SQL",
+                "sqlExpression": "ROUND(AVG(avg_pending_requests), 0)",
+            },
+            {
+                "label": "Updates",
+                "expressionType": "SQL",
+                "sqlExpression": "SUM(surge_update_count)",
+            },
         ],
-        "metrics": [],
-        "all_columns": [
-            "hour",
-            "zone_name",
-            "peak_surge",
-            "avg_drivers",
-            "avg_pending",
-            "update_count",
-        ],
+        "all_columns": [],
         "order_desc": True,
+        "order_by_cols": [["Peak Surge", False]],
+        "row_limit": 50,
         "page_length": 10,
         "include_search": True,
         "table_timestamp_format": "smart_date",
+        "adhoc_filters": [
+            {
+                "expressionType": "SQL",
+                "sqlExpression": "max_surge_multiplier > 1.5",
+                "clause": "HAVING",
+            }
+        ],
         "conditional_formatting": [
             {
-                "column": "peak_surge",
-                "color_scheme": "orange_scale",
+                "column": "Peak Surge",
+                "colorScheme": "#ff6600",
                 "operator": ">=",
-                "target_color_index": 0,
+                "targetValue": 2.0,
             },
             {
-                "column": "avg_pending",
-                "color_scheme": "red_scale",
+                "column": "Avg Pending",
+                "colorScheme": "#dc3545",
                 "operator": ">=",
-                "target_color_index": 0,
+                "targetValue": 5,
             },
         ],
     },

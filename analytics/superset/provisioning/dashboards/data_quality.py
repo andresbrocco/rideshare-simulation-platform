@@ -10,38 +10,16 @@ from ..charts.data_quality_charts import DATA_QUALITY_CHARTS
 from ..charts.map_charts import DATA_QUALITY_MAP_CHARTS
 from ..datasets.map_datasets import DQ_GPS_ANOMALY_LOCATIONS
 from ..datasets.silver_datasets import (
-    # Consolidated datasets
     SILVER_ANOMALIES,
     SILVER_STAGING_HEALTH,
     SILVER_STALE_DRIVERS,
-    # Legacy datasets (for charts not yet migrated)
-    DQ_ANOMALIES_BY_CATEGORY,
-    DQ_ANOMALIES_TREND,
-    DQ_GPS_OUTLIER_COUNT,
-    DQ_IMPOSSIBLE_SPEED_COUNT,
-    DQ_STAGING_FRESHNESS,
-    DQ_STAGING_ROW_COUNTS,
-    DQ_STALE_DRIVERS,
-    DQ_TOTAL_ANOMALIES,
 )
 
-# Dataset tuple for this specific dashboard
-# Include both consolidated and legacy datasets during transition
+# Dataset tuple for this specific dashboard - consolidated datasets only
 DATA_QUALITY_DATASETS = (
-    # Consolidated datasets (with metrics)
     SILVER_ANOMALIES,
     SILVER_STAGING_HEALTH,
     SILVER_STALE_DRIVERS,
-    # Legacy datasets (until charts are migrated)
-    DQ_TOTAL_ANOMALIES,
-    DQ_GPS_OUTLIER_COUNT,
-    DQ_IMPOSSIBLE_SPEED_COUNT,
-    DQ_ANOMALIES_BY_CATEGORY,
-    DQ_ANOMALIES_TREND,
-    DQ_STALE_DRIVERS,
-    DQ_STAGING_ROW_COUNTS,
-    DQ_STAGING_FRESHNESS,
-    # Map dataset
     DQ_GPS_ANOMALY_LOCATIONS,
 )
 

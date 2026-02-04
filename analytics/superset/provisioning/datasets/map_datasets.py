@@ -4,7 +4,7 @@ These datasets provide geographic data for mapbox visualizations across
 multiple dashboards, querying Silver and Gold layer tables.
 """
 
-from provisioning.dashboards.base import DatasetDefinition
+from provisioning.dashboards.base import ColumnDefinition, DatasetDefinition
 
 
 # =============================================================================
@@ -36,6 +36,12 @@ SELECT
 FROM latest_status
 WHERE rn = 1
 """,
+    columns=(
+        ColumnDefinition("driver_id", "VARCHAR", "Driver ID", filterable=True, groupby=True),
+        ColumnDefinition("status", "VARCHAR", "Status", filterable=True, groupby=True),
+        ColumnDefinition("latitude", "DOUBLE", "Latitude"),
+        ColumnDefinition("longitude", "DOUBLE", "Longitude"),
+    ),
 )
 
 OPS_ACTIVE_TRIP_LOCATIONS = DatasetDefinition(
@@ -68,6 +74,12 @@ LEFT JOIN gold.dim_zones dz ON ft.pickup_zone_key = dz.zone_key
 WHERE ft.pickup_lat IS NOT NULL
   AND ft.pickup_lon IS NOT NULL
 """,
+    columns=(
+        ColumnDefinition("trip_key", "BIGINT", "Trip Key"),
+        ColumnDefinition("latitude", "DOUBLE", "Latitude"),
+        ColumnDefinition("longitude", "DOUBLE", "Longitude"),
+        ColumnDefinition("zone_name", "VARCHAR", "Zone", filterable=True, groupby=True),
+    ),
 )
 
 
@@ -93,6 +105,13 @@ WHERE dt.date_key >= CURRENT_DATE - INTERVAL 1 DAY
   AND ft.pickup_lon IS NOT NULL
   AND ft.fare IS NOT NULL
 """,
+    columns=(
+        ColumnDefinition("trip_key", "BIGINT", "Trip Key"),
+        ColumnDefinition("latitude", "DOUBLE", "Latitude"),
+        ColumnDefinition("longitude", "DOUBLE", "Longitude"),
+        ColumnDefinition("fare", "DECIMAL", "Fare"),
+        ColumnDefinition("zone_name", "VARCHAR", "Zone", filterable=True, groupby=True),
+    ),
 )
 
 DEMAND_SURGE_ZONES = DatasetDefinition(
@@ -111,6 +130,15 @@ FROM silver.stg_surge_updates s
 INNER JOIN gold.dim_zones z ON s.zone_id = z.zone_id
 WHERE s.timestamp >= current_timestamp - INTERVAL 1 HOUR
 """,
+    columns=(
+        ColumnDefinition("zone_id", "INTEGER", "Zone ID"),
+        ColumnDefinition("zone_name", "VARCHAR", "Zone", filterable=True, groupby=True),
+        ColumnDefinition("latitude", "DOUBLE", "Latitude"),
+        ColumnDefinition("longitude", "DOUBLE", "Longitude"),
+        ColumnDefinition("surge_multiplier", "DOUBLE", "Surge Multiplier"),
+        ColumnDefinition("available_drivers", "INTEGER", "Available Drivers"),
+        ColumnDefinition("pending_requests", "INTEGER", "Pending Requests"),
+    ),
 )
 
 
@@ -136,6 +164,13 @@ WHERE dt.date_key >= CURRENT_DATE - INTERVAL 7 DAY
   AND ft.pickup_lon IS NOT NULL
   AND ft.fare IS NOT NULL
 """,
+    columns=(
+        ColumnDefinition("trip_key", "BIGINT", "Trip Key"),
+        ColumnDefinition("latitude", "DOUBLE", "Latitude"),
+        ColumnDefinition("longitude", "DOUBLE", "Longitude"),
+        ColumnDefinition("fare", "DECIMAL", "Fare"),
+        ColumnDefinition("zone_name", "VARCHAR", "Zone", filterable=True, groupby=True),
+    ),
 )
 
 
@@ -160,6 +195,16 @@ WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '24' HOUR
 ORDER BY timestamp DESC
 LIMIT 5000
 """,
+    columns=(
+        ColumnDefinition("entity_id", "VARCHAR", "Entity ID"),
+        ColumnDefinition("entity_type", "VARCHAR", "Entity Type", filterable=True, groupby=True),
+        ColumnDefinition("latitude", "DOUBLE", "Latitude"),
+        ColumnDefinition("longitude", "DOUBLE", "Longitude"),
+        ColumnDefinition(
+            "timestamp", "TIMESTAMP", "Timestamp", is_dttm=True, filterable=True, groupby=True
+        ),
+    ),
+    main_dttm_col="timestamp",
 )
 
 
@@ -182,6 +227,15 @@ WHERE d.current_flag = true
   AND d.home_lat IS NOT NULL
   AND d.home_lon IS NOT NULL
 """,
+    columns=(
+        ColumnDefinition("driver_id", "VARCHAR", "Driver ID"),
+        ColumnDefinition("latitude", "DOUBLE", "Latitude"),
+        ColumnDefinition("longitude", "DOUBLE", "Longitude"),
+        ColumnDefinition(
+            "shift_preference", "VARCHAR", "Shift Preference", filterable=True, groupby=True
+        ),
+        ColumnDefinition("driver_name", "VARCHAR", "Driver Name"),
+    ),
 )
 
 

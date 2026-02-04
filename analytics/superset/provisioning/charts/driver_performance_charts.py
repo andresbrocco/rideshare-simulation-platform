@@ -2,6 +2,7 @@
 
 These charts visualize driver metrics, ratings, and utilization analysis
 using Gold layer aggregated data.
+All charts use consolidated datasets with proper column/metric definitions.
 """
 
 from provisioning.dashboards.base import ChartDefinition
@@ -13,17 +14,14 @@ from provisioning.dashboards.base import ChartDefinition
 
 ACTIVE_DRIVERS_TODAY = ChartDefinition(
     name="Active Drivers Today",
-    dataset_name="ds_active_drivers",
+    dataset_name="gold_driver_performance",
     viz_type="big_number_total",
-    metrics=("active_driver_count",),
+    metrics=("count_active_drivers",),
+    time_column="date_key",
+    time_range="today",
     layout=(0, 0, 3, 2),
     extra_params={
-        "metric": {
-            "expressionType": "SIMPLE",
-            "column": {"column_name": "active_driver_count", "type": "BIGINT"},
-            "aggregate": "MAX",
-            "label": "Active Drivers",
-        },
+        "metric": "count_active_drivers",
         "header_font_size": 0.5,
         "subtitle": "Drivers with trips or online time today",
         "subtitle_font_size": 0.15,
@@ -33,23 +31,17 @@ ACTIVE_DRIVERS_TODAY = ChartDefinition(
 
 TOTAL_DRIVER_PAYOUTS_TREND = ChartDefinition(
     name="Total Driver Payouts (14-Day Trend)",
-    dataset_name="ds_payout_trends",
+    dataset_name="gold_driver_performance",
     viz_type="echarts_timeseries_line",
-    metrics=("daily_total_payout",),
+    metrics=("sum_payout",),
     time_column="date_key",
     time_range="Last 14 days",
     layout=(0, 3, 9, 4),
     extra_params={
         "x_axis": "date_key",
         "time_grain_sqla": "P1D",
-        "metrics": [
-            {
-                "expressionType": "SIMPLE",
-                "column": {"column_name": "daily_total_payout", "type": "DOUBLE"},
-                "aggregate": "SUM",
-                "label": "Total Payout",
-            }
-        ],
+        "granularity_sqla": "date_key",
+        "metrics": ["sum_payout"],
         "groupby": [],
         "color_scheme": "supersetColors",
         "area": True,
@@ -79,20 +71,38 @@ TOTAL_DRIVER_PAYOUTS_TREND = ChartDefinition(
 
 TOP_PERFORMING_DRIVERS = ChartDefinition(
     name="Top Performing Drivers Today",
-    dataset_name="ds_top_drivers",
+    dataset_name="gold_driver_performance",
     viz_type="table",
+    time_column="date_key",
+    time_range="today",
     layout=(1, 0, 6, 4),
     extra_params={
-        "query_mode": "raw",
-        "all_columns": [
-            "driver_name",
-            "vehicle",
-            "trips_completed",
-            "total_payout",
-            "avg_rating",
-            "utilization_pct",
+        "query_mode": "aggregate",
+        "groupby": ["driver_name", "vehicle"],
+        "metrics": [
+            {
+                "label": "Trips",
+                "expressionType": "SQL",
+                "sqlExpression": "SUM(trips_completed)",
+            },
+            {
+                "label": "Payout",
+                "expressionType": "SQL",
+                "sqlExpression": "SUM(total_payout)",
+            },
+            {
+                "label": "Rating",
+                "expressionType": "SQL",
+                "sqlExpression": "AVG(avg_rating)",
+            },
+            {
+                "label": "Utilization",
+                "expressionType": "SQL",
+                "sqlExpression": "AVG(utilization_pct)",
+            },
         ],
-        "order_by_cols": [["trips_completed", False]],
+        "all_columns": [],
+        "order_by_cols": [["Trips", False]],
         "row_limit": 10,
         "table_timestamp_format": "smart_date",
         "page_length": 10,
@@ -111,27 +121,23 @@ TOP_PERFORMING_DRIVERS = ChartDefinition(
                 "horizontalAlign": "left",
                 "columnWidth": 140,
             },
-            "trips_completed": {
-                "customColumnName": "Trips",
+            "Trips": {
                 "d3NumberFormat": ",d",
                 "horizontalAlign": "right",
                 "showCellBars": True,
                 "columnWidth": 80,
             },
-            "total_payout": {
-                "customColumnName": "Payout",
+            "Payout": {
                 "d3NumberFormat": "$,.2f",
                 "horizontalAlign": "right",
                 "columnWidth": 100,
             },
-            "avg_rating": {
-                "customColumnName": "Rating",
+            "Rating": {
                 "d3NumberFormat": ".1f",
                 "horizontalAlign": "center",
                 "columnWidth": 70,
             },
-            "utilization_pct": {
-                "customColumnName": "Utilization",
+            "Utilization": {
                 "d3NumberFormat": ".1f",
                 "horizontalAlign": "right",
                 "columnWidth": 90,
@@ -139,13 +145,13 @@ TOP_PERFORMING_DRIVERS = ChartDefinition(
         },
         "conditional_formatting": [
             {
-                "column": "avg_rating",
+                "column": "Rating",
                 "operator": ">=",
                 "targetValue": 4.5,
                 "colorScheme": "#28a745",
             },
             {
-                "column": "avg_rating",
+                "column": "Rating",
                 "operator": "<",
                 "targetValue": 3.5,
                 "colorScheme": "#dc3545",
@@ -156,9 +162,11 @@ TOP_PERFORMING_DRIVERS = ChartDefinition(
 
 DRIVER_RATING_DISTRIBUTION = ChartDefinition(
     name="Driver Rating Distribution",
-    dataset_name="ds_rating_distribution",
+    dataset_name="gold_ratings",
     viz_type="histogram_v2",
     dimensions=("rating",),
+    time_column="date_key",
+    time_range="Last 7 days",
     layout=(1, 6, 6, 4),
     extra_params={
         "column": "rating",
@@ -174,6 +182,15 @@ DRIVER_RATING_DISTRIBUTION = ChartDefinition(
         "y_axis_title": "Number of Ratings",
         "y_axis_format": ",d",
         "row_limit": 50000,
+        "adhoc_filters": [
+            {
+                "expressionType": "SIMPLE",
+                "subject": "ratee_type",
+                "operator": "==",
+                "comparator": "driver",
+                "clause": "WHERE",
+            }
+        ],
     },
 )
 
@@ -184,20 +201,17 @@ DRIVER_RATING_DISTRIBUTION = ChartDefinition(
 
 DRIVER_UTILIZATION_HEATMAP = ChartDefinition(
     name="Driver Utilization Heatmap",
-    dataset_name="ds_utilization_heatmap",
+    dataset_name="gold_driver_performance",
     viz_type="heatmap_v2",
-    metrics=("utilization_pct",),
-    dimensions=("day_name", "driver_name"),
+    metrics=("avg_utilization",),
+    dimensions=("day_name", "driver_name_short"),
+    time_column="date_key",
+    time_range="Last 7 days",
     layout=(2, 0, 6, 4),
     extra_params={
         "x_axis": "day_name",
-        "groupby": "driver_name",
-        "metric": {
-            "expressionType": "SIMPLE",
-            "column": {"column_name": "utilization_pct", "type": "DOUBLE"},
-            "aggregate": "AVG",
-            "label": "Utilization %",
-        },
+        "groupby": "driver_name_short",
+        "metric": "avg_utilization",
         "normalize_across": "heatmap",
         "legend_type": "continuous",
         "linear_color_scheme": "blue_white_yellow",
@@ -216,28 +230,27 @@ DRIVER_UTILIZATION_HEATMAP = ChartDefinition(
 
 TRIPS_VS_EARNINGS = ChartDefinition(
     name="Trips vs. Earnings (7-Day)",
-    dataset_name="ds_trips_vs_earnings",
+    dataset_name="gold_driver_performance",
     viz_type="bubble_v2",
+    time_column="date_key",
+    time_range="Last 7 days",
     layout=(2, 6, 6, 4),
     extra_params={
         "entity": "driver_name",
         "series": None,
         "x": {
-            "expressionType": "SIMPLE",
-            "column": {"column_name": "total_trips", "type": "BIGINT"},
-            "aggregate": "MAX",
+            "expressionType": "SQL",
+            "sqlExpression": "SUM(trips_completed)",
             "label": "Trips Completed",
         },
         "y": {
-            "expressionType": "SIMPLE",
-            "column": {"column_name": "total_earnings", "type": "DOUBLE"},
-            "aggregate": "MAX",
+            "expressionType": "SQL",
+            "sqlExpression": "SUM(total_payout)",
             "label": "Total Earnings",
         },
         "size": {
-            "expressionType": "SIMPLE",
-            "column": {"column_name": "avg_rating", "type": "DOUBLE"},
-            "aggregate": "MAX",
+            "expressionType": "SQL",
+            "sqlExpression": "AVG(avg_rating)",
             "label": "Avg Rating",
         },
         "row_limit": 100,

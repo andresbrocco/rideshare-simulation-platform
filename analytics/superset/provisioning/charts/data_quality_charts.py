@@ -2,6 +2,7 @@
 
 These charts visualize Silver layer data validation, anomaly tracking,
 and staging table health metrics.
+All charts use consolidated datasets with proper column/metric definitions.
 """
 
 from provisioning.dashboards.base import ChartDefinition
@@ -13,12 +14,14 @@ from provisioning.dashboards.base import ChartDefinition
 
 TOTAL_ANOMALIES_24H = ChartDefinition(
     name="Total Anomalies (24h)",
-    dataset_name="dq_total_anomalies",
+    dataset_name="silver_anomalies",
     viz_type="big_number_total",
-    metrics=("total_anomalies",),
+    metrics=("count_anomalies",),
+    time_column="detected_at",
+    time_range="Last 24 hours",
     layout=(0, 0, 3, 3),
     extra_params={
-        "metric": "total_anomalies",
+        "metric": "count_anomalies",
         "header_font_size": 0.4,
         "subtitle": "All anomaly types",
         "subtitle_font_size": 0.15,
@@ -29,12 +32,14 @@ TOTAL_ANOMALIES_24H = ChartDefinition(
 
 GPS_OUTLIERS_24H = ChartDefinition(
     name="GPS Outliers (24h)",
-    dataset_name="dq_gps_outlier_count",
+    dataset_name="silver_anomalies",
     viz_type="big_number_total",
-    metrics=("gps_outliers",),
+    metrics=("count_gps_outliers",),
+    time_column="detected_at",
+    time_range="Last 24 hours",
     layout=(0, 3, 3, 3),
     extra_params={
-        "metric": "gps_outliers",
+        "metric": "count_gps_outliers",
         "header_font_size": 0.4,
         "subtitle": "Outside Sao Paulo bounds",
         "subtitle_font_size": 0.15,
@@ -45,12 +50,14 @@ GPS_OUTLIERS_24H = ChartDefinition(
 
 IMPOSSIBLE_SPEEDS_24H = ChartDefinition(
     name="Impossible Speeds (24h)",
-    dataset_name="dq_impossible_speed_count",
+    dataset_name="silver_anomalies",
     viz_type="big_number_total",
-    metrics=("impossible_speeds",),
+    metrics=("count_impossible_speeds",),
+    time_column="detected_at",
+    time_range="Last 24 hours",
     layout=(0, 6, 3, 3),
     extra_params={
-        "metric": "impossible_speeds",
+        "metric": "count_impossible_speeds",
         "header_font_size": 0.4,
         "subtitle": "> 200 km/h calculated",
         "subtitle_font_size": 0.15,
@@ -61,13 +68,15 @@ IMPOSSIBLE_SPEEDS_24H = ChartDefinition(
 
 ANOMALIES_BY_CATEGORY = ChartDefinition(
     name="Anomalies by Category",
-    dataset_name="dq_anomalies_by_category",
+    dataset_name="silver_anomalies",
     viz_type="pie",
-    metrics=("count",),
+    metrics=("count_anomalies",),
     dimensions=("anomaly_type",),
+    time_column="detected_at",
+    time_range="Last 24 hours",
     layout=(0, 9, 3, 3),
     extra_params={
-        "metric": "count",
+        "metric": "count_anomalies",
         "groupby": ["anomaly_type"],
         "show_labels": True,
         "label_type": "key_percent",
@@ -92,17 +101,18 @@ ANOMALIES_BY_CATEGORY = ChartDefinition(
 
 ANOMALY_TREND_24H = ChartDefinition(
     name="Anomaly Trend (24h)",
-    dataset_name="dq_anomalies_trend",
+    dataset_name="silver_anomalies",
     viz_type="echarts_timeseries_line",
-    metrics=("count",),
+    metrics=("count_anomalies",),
     dimensions=("anomaly_type",),
-    time_column="hour",
+    time_column="hour_timestamp",
     time_range="Last 24 hours",
     layout=(3, 0, 12, 4),
     extra_params={
-        "x_axis": "hour",
+        "x_axis": "hour_timestamp",
         "time_grain_sqla": "PT1H",
-        "metrics": ["count"],
+        "granularity_sqla": "hour_timestamp",
+        "metrics": ["count_anomalies"],
         "groupby": ["anomaly_type"],
         "color_scheme": "supersetColors",
         "area": False,
@@ -135,12 +145,22 @@ ANOMALY_TREND_24H = ChartDefinition(
 
 STAGING_TABLE_ROW_COUNTS = ChartDefinition(
     name="Staging Table Row Counts",
-    dataset_name="dq_staging_row_counts",
+    dataset_name="silver_staging_health",
     viz_type="table",
+    metrics=("sum_rows",),
+    dimensions=("table_name",),
     layout=(7, 0, 6, 4),
     extra_params={
-        "query_mode": "raw",
-        "all_columns": ["table_name", "row_count"],
+        "query_mode": "aggregate",
+        "groupby": ["table_name"],
+        "metrics": [
+            {
+                "label": "Row Count",
+                "expressionType": "SQL",
+                "sqlExpression": "SUM(row_count)",
+            },
+        ],
+        "all_columns": [],
         "row_limit": 10,
         "table_timestamp_format": "smart_date",
         "page_length": 0,
@@ -150,7 +170,7 @@ STAGING_TABLE_ROW_COUNTS = ChartDefinition(
         "align_pn": False,
         "column_config": {
             "table_name": {"horizontalAlign": "left", "columnWidth": 200},
-            "row_count": {
+            "Row Count": {
                 "d3NumberFormat": ",.0f",
                 "horizontalAlign": "right",
                 "showCellBars": True,
@@ -161,12 +181,26 @@ STAGING_TABLE_ROW_COUNTS = ChartDefinition(
 
 DATA_FRESHNESS = ChartDefinition(
     name="Data Freshness",
-    dataset_name="dq_staging_freshness",
+    dataset_name="silver_staging_health",
     viz_type="table",
+    dimensions=("table_name",),
     layout=(7, 6, 6, 4),
     extra_params={
-        "query_mode": "raw",
-        "all_columns": ["table_name", "latest_event", "minutes_since_update"],
+        "query_mode": "aggregate",
+        "groupby": ["table_name"],
+        "metrics": [
+            {
+                "label": "Latest Event",
+                "expressionType": "SQL",
+                "sqlExpression": "MAX(latest_event)",
+            },
+            {
+                "label": "Minutes Since Update",
+                "expressionType": "SQL",
+                "sqlExpression": "MAX(minutes_since_update)",
+            },
+        ],
+        "all_columns": [],
         "row_limit": 10,
         "table_timestamp_format": "%Y-%m-%d %H:%M:%S",
         "page_length": 0,
@@ -176,8 +210,8 @@ DATA_FRESHNESS = ChartDefinition(
         "align_pn": False,
         "column_config": {
             "table_name": {"horizontalAlign": "left", "columnWidth": 180},
-            "latest_event": {"horizontalAlign": "center", "columnWidth": 180},
-            "minutes_since_update": {
+            "Latest Event": {"horizontalAlign": "center", "columnWidth": 180},
+            "Minutes Since Update": {
                 "d3NumberFormat": ",.1f",
                 "horizontalAlign": "right",
                 "columnWidth": 120,
@@ -185,13 +219,13 @@ DATA_FRESHNESS = ChartDefinition(
         },
         "conditional_formatting": [
             {
-                "column": "minutes_since_update",
+                "column": "Minutes Since Update",
                 "operator": ">",
                 "targetValue": 60,
                 "colorScheme": "#dc3545",
             },
             {
-                "column": "minutes_since_update",
+                "column": "Minutes Since Update",
                 "operator": "<=",
                 "targetValue": 10,
                 "colorScheme": "#28a745",
@@ -207,19 +241,32 @@ DATA_FRESHNESS = ChartDefinition(
 
 ZOMBIE_DRIVERS = ChartDefinition(
     name="Zombie Drivers (Stale GPS)",
-    dataset_name="dq_stale_drivers",
+    dataset_name="silver_stale_drivers",
     viz_type="table",
     layout=(11, 0, 12, 4),
     extra_params={
-        "query_mode": "raw",
-        "all_columns": [
-            "driver_id",
-            "current_status",
-            "last_gps_timestamp",
-            "last_status_timestamp",
-            "minutes_stale",
+        "query_mode": "aggregate",
+        "groupby": ["driver_id", "current_status"],
+        "metrics": [
+            {
+                "label": "Last GPS",
+                "expressionType": "SQL",
+                "sqlExpression": "MAX(last_gps_timestamp)",
+            },
+            {
+                "label": "Last Status",
+                "expressionType": "SQL",
+                "sqlExpression": "MAX(last_status_timestamp)",
+            },
+            {
+                "label": "Minutes Stale",
+                "expressionType": "SQL",
+                "sqlExpression": "MAX(minutes_since_last_ping)",
+            },
         ],
+        "all_columns": [],
         "row_limit": 50,
+        "order_by_cols": [["Minutes Stale", False]],
         "table_timestamp_format": "%Y-%m-%d %H:%M:%S",
         "page_length": 10,
         "include_search": True,
@@ -234,9 +281,9 @@ ZOMBIE_DRIVERS = ChartDefinition(
                 "truncateLongCells": True,
             },
             "current_status": {"horizontalAlign": "center", "columnWidth": 150},
-            "last_gps_timestamp": {"horizontalAlign": "center", "columnWidth": 180},
-            "last_status_timestamp": {"horizontalAlign": "center", "columnWidth": 180},
-            "minutes_stale": {
+            "Last GPS": {"horizontalAlign": "center", "columnWidth": 180},
+            "Last Status": {"horizontalAlign": "center", "columnWidth": 180},
+            "Minutes Stale": {
                 "d3NumberFormat": ",.1f",
                 "horizontalAlign": "right",
                 "columnWidth": 120,
@@ -244,13 +291,13 @@ ZOMBIE_DRIVERS = ChartDefinition(
         },
         "conditional_formatting": [
             {
-                "column": "minutes_stale",
+                "column": "Minutes Stale",
                 "operator": ">=",
                 "targetValue": 30,
                 "colorScheme": "#dc3545",
             },
             {
-                "column": "minutes_stale",
+                "column": "Minutes Stale",
                 "operator": "between",
                 "targetValueLeft": 10,
                 "targetValueRight": 30,
