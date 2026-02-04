@@ -33,6 +33,16 @@ models:
       - name: zone_id
         tests:
           - unique
+      - name: centroid_latitude
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= -25 AND <= -23"
+      - name: centroid_longitude
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= -47 AND <= -46"
 
   - name: dim_time
     description: Time dimension with date attributes.

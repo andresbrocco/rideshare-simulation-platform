@@ -567,6 +567,12 @@ layers:
           - name: surge_sensitivity
             type: double
             description: "Surge pricing sensitivity factor"
+          - name: centroid_latitude
+            type: double
+            description: "Zone centroid latitude (calculated from GeoJSON polygon)"
+          - name: centroid_longitude
+            type: double
+            description: "Zone centroid longitude (calculated from GeoJSON polygon)"
 
       - name: dim_time
         description: "Time dimension with date attributes (pre-generated for 2024-2026)"

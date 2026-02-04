@@ -15,7 +15,9 @@ final as (
         name,
         subprefecture,
         demand_multiplier,
-        surge_sensitivity
+        surge_sensitivity,
+        centroid_latitude,
+        centroid_longitude
     from zones_seed
 )
 
