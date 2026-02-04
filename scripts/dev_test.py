@@ -75,7 +75,11 @@ COMPOSE_FILE = "infrastructure/docker/compose.yml"
 SIMULATION_URL = "http://localhost:8000"
 AIRFLOW_URL = "http://localhost:8082"
 SIMULATION_API_KEY = "dev-api-key-change-in-production"
-AIRFLOW_AUTH = ("admin", "admin")
+AIRFLOW_USERNAME = "admin"
+AIRFLOW_PASSWORD = "admin"
+
+# Global state for Airflow JWT token
+_airflow_jwt_token: str | None = None
 
 DAGS_TO_ENABLE = [
     "dbt_silver_transformation",
@@ -185,12 +189,50 @@ def check_simulation_health() -> bool:
 
 def check_airflow_health() -> bool:
     """Check if Airflow is healthy."""
+    # Health endpoint doesn't require auth
     response = requests.get(
         f"{AIRFLOW_URL}/api/v2/monitor/health",
-        auth=AIRFLOW_AUTH,
         timeout=5,
     )
     return response.status_code == 200
+
+
+def get_airflow_jwt_token() -> str | None:
+    """Get JWT token from Airflow 3.x /auth/token endpoint.
+
+    Returns:
+        JWT access token, or None on failure
+    """
+    global _airflow_jwt_token
+    if _airflow_jwt_token:
+        return _airflow_jwt_token
+
+    try:
+        response = requests.post(
+            f"{AIRFLOW_URL}/auth/token",
+            json={"username": AIRFLOW_USERNAME, "password": AIRFLOW_PASSWORD},
+            headers={"Content-Type": "application/json"},
+            timeout=10,
+        )
+        if response.status_code in (200, 201):
+            _airflow_jwt_token = response.json()["access_token"]
+            return _airflow_jwt_token
+        log_error(f"Failed to get Airflow JWT token: {response.status_code}")
+        return None
+    except requests.RequestException as e:
+        log_error(f"Failed to get Airflow JWT token: {e}")
+        return None
+
+
+def airflow_api_headers() -> dict[str, str]:
+    """Get headers for Airflow API requests with JWT auth."""
+    token = get_airflow_jwt_token()
+    if token:
+        return {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+    return {"Content-Type": "application/json"}
 
 
 def wait_for_all_services() -> bool:
@@ -218,6 +260,9 @@ def start_simulation() -> bool:
         )
         if response.status_code in (200, 201):
             log_success("Simulation started")
+            return True
+        if response.status_code == 400 and "already running" in response.text.lower():
+            log_success("Simulation already running")
             return True
         log_error(f"Failed to start simulation: {response.status_code} - {response.text}")
         return False
@@ -284,9 +329,8 @@ def enable_dag(dag_id: str) -> bool:
     try:
         response = requests.patch(
             f"{AIRFLOW_URL}/api/v2/dags/{dag_id}",
-            auth=AIRFLOW_AUTH,
             json={"is_paused": False},
-            headers={"Content-Type": "application/json"},
+            headers=airflow_api_headers(),
             timeout=10,
         )
         if response.status_code == 200:
@@ -298,9 +342,48 @@ def enable_dag(dag_id: str) -> bool:
         return False
 
 
+def wait_for_dags_available(max_retries: int = 60, retry_interval: int = 5) -> bool:
+    """Wait for Airflow scheduler to parse DAGs."""
+    log_info("Waiting for Airflow DAGs to be parsed...")
+
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(
+                f"{AIRFLOW_URL}/api/v2/dags",
+                headers=airflow_api_headers(),
+                timeout=10,
+            )
+            if response.status_code == 200:
+                dags = response.json().get("dags", [])
+                dag_ids = {d["dag_id"] for d in dags}
+                missing = [d for d in DAGS_TO_ENABLE if d not in dag_ids]
+                if not missing:
+                    log_success("All DAGs are available")
+                    return True
+                if attempt > 0 and (attempt + 1) % 6 == 0:
+                    log_info(f"Still waiting for DAGs: {missing}")
+        except requests.RequestException:
+            pass
+
+        if attempt < max_retries - 1:
+            time.sleep(retry_interval)
+
+    log_warning("Not all DAGs became available, will try to enable what's there")
+    return False
+
+
 def enable_all_dags() -> bool:
     """Enable all configured DAGs."""
     log_step("Enabling Airflow DAGs")
+
+    # Get JWT token first
+    token = get_airflow_jwt_token()
+    if not token:
+        log_error("Could not obtain Airflow JWT token")
+        return False
+
+    # Wait for DAGs to be parsed by scheduler
+    wait_for_dags_available(max_retries=60, retry_interval=5)
 
     success_count = 0
     for dag_id in DAGS_TO_ENABLE:
@@ -320,12 +403,17 @@ def enable_all_dags() -> bool:
 
 def trigger_dag(dag_id: str) -> bool:
     """Manually trigger a DAG run."""
+    from datetime import datetime, timezone
+
     try:
+        payload = {
+            "logical_date": datetime.now(timezone.utc).isoformat(),
+            "conf": {},
+        }
         response = requests.post(
             f"{AIRFLOW_URL}/api/v2/dags/{dag_id}/dagRuns",
-            auth=AIRFLOW_AUTH,
-            json={},
-            headers={"Content-Type": "application/json"},
+            json=payload,
+            headers=airflow_api_headers(),
             timeout=10,
         )
         if response.status_code in (200, 201):
