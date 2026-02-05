@@ -466,11 +466,11 @@ services:
     networks:
       - rideshare-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:4040/json/ > /dev/null || exit 1"]
-      interval: 10s
-      timeout: 10s
+      test: ["CMD-SHELL", "/opt/spark/bin/beeline -u 'jdbc:hive2://localhost:10000/default;auth=noSasl' -n healthcheck -e 'SELECT 1' --silent=true 2>/dev/null || exit 1"]
+      interval: 15s
+      timeout: 30s
       retries: 10
-      start_period: 60s
+      start_period: 90s
     restart: unless-stopped
 
   bronze-ingestion-high-volume:
@@ -712,7 +712,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 10
-      start_period: 300s
+      start_period: 600s
     restart: unless-stopped
 
   airflow-scheduler:
