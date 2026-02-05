@@ -912,6 +912,7 @@ services:
       PYTHONPATH: /app/pythonpath
     volumes:
       - ../../analytics/superset/superset_config.py:/app/pythonpath/superset_config.py:ro
+      - ../../analytics/superset/superset-init-entrypoint.sh:/app/superset-init-entrypoint.sh:ro
     depends_on:
       postgres-superset:
         condition: service_healthy
@@ -919,30 +920,7 @@ services:
         condition: service_healthy
     networks:
       - rideshare-network
-    command: >
-      /bin/sh -c "
-      echo 'Installing dependencies to Superset venv...' &&
-      pip install --target=/app/.venv/lib/python3.10/site-packages pyhive thrift psycopg2-binary cachelib &&
-
-      echo 'Running database migrations...' &&
-      superset db upgrade &&
-
-      echo 'Waiting for migrations to settle...' &&
-      sleep 5 &&
-
-      echo 'Creating admin user...' &&
-      superset fab create-admin --username admin --firstname Admin --lastname User --email admin@superset.com --password admin || true &&
-
-      echo 'Initializing Superset (with retry)...' &&
-      for i in 1 2 3 4 5; do
-        superset init && break || {
-          echo \"Init attempt $$i failed, retrying in 5 seconds...\";
-          sleep 5;
-        };
-      done &&
-
-      echo 'Superset initialization complete!'
-      "
+    command: ["/bin/bash", "/app/superset-init-entrypoint.sh"]
 
   superset:
     image: apache/superset:6.0.0
