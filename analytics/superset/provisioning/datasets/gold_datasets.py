@@ -361,7 +361,6 @@ SELECT
     z.centroid_longitude,
     d.requested_trips,
     d.completed_trips,
-    d.cancelled_trips,
     d.completion_rate,
     d.avg_wait_time_minutes,
     d.avg_surge_multiplier
@@ -388,7 +387,6 @@ INNER JOIN gold.dim_zones z ON d.zone_key = z.zone_key
         ),
         ColumnDefinition("requested_trips", "BIGINT", "Requests", filterable=False, groupby=False),
         ColumnDefinition("completed_trips", "BIGINT", "Completed", filterable=False, groupby=False),
-        ColumnDefinition("cancelled_trips", "BIGINT", "Cancelled", filterable=False, groupby=False),
         ColumnDefinition(
             "completion_rate", "DOUBLE", "Completion Rate", filterable=False, groupby=False
         ),
@@ -418,12 +416,6 @@ INNER JOIN gold.dim_zones z ON d.zone_key = z.zone_key
             "sum_completed",
             "SUM(completed_trips)",
             "Completed Trips",
-            d3format=",d",
-        ),
-        MetricDefinition(
-            "sum_cancelled",
-            "SUM(cancelled_trips)",
-            "Cancelled Trips",
             d3format=",d",
         ),
         MetricDefinition(

@@ -160,7 +160,7 @@ SELECT
     _ingested_at,
     DATE_TRUNC('hour', _ingested_at) AS hour_timestamp,
     COALESCE(error_type, 'unknown') as error_type,
-    source_topic,
+    kafka_topic,
     error_message
 FROM bronze.bronze_dlq
 WHERE _ingestion_date >= date_format(current_timestamp - INTERVAL 2 DAYS, 'yyyy-MM-dd')
@@ -184,7 +184,7 @@ WHERE _ingestion_date >= date_format(current_timestamp - INTERVAL 2 DAYS, 'yyyy-
             groupby=True,
         ),
         ColumnDefinition("error_type", "VARCHAR", "Error Type", filterable=True, groupby=True),
-        ColumnDefinition("source_topic", "VARCHAR", "Source Topic", filterable=True, groupby=True),
+        ColumnDefinition("kafka_topic", "VARCHAR", "Kafka Topic", filterable=True, groupby=True),
         ColumnDefinition(
             "error_message", "VARCHAR", "Error Message", filterable=False, groupby=False
         ),

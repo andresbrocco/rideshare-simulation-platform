@@ -27,8 +27,7 @@ SELECT
     anomaly_type,
     entity_type,
     entity_id,
-    severity,
-    details
+    anomaly_details
 FROM silver.anomalies_all
 """,
     columns=(
@@ -63,8 +62,9 @@ FROM silver.anomalies_all
             groupby=True,
         ),
         ColumnDefinition("entity_id", "VARCHAR", "Entity ID", filterable=True, groupby=True),
-        ColumnDefinition("severity", "VARCHAR", "Severity", filterable=True, groupby=True),
-        ColumnDefinition("details", "VARCHAR", "Details", filterable=False, groupby=False),
+        ColumnDefinition(
+            "anomaly_details", "VARCHAR", "Anomaly Details", filterable=False, groupby=False
+        ),
     ),
     metrics=(
         MetricDefinition(
