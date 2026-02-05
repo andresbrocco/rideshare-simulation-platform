@@ -52,30 +52,36 @@ WITH latest_trip_states AS (
   SELECT
     trip_id,
     trip_state,
+    pickup_lat,
+    pickup_lon,
+    pickup_zone_id,
     timestamp,
     ROW_NUMBER() OVER (PARTITION BY trip_id ORDER BY timestamp DESC) AS rn
   FROM silver.stg_trips
   WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '24' HOUR
 ),
 active_trips AS (
-  SELECT trip_id
+  SELECT
+    trip_id,
+    pickup_lat,
+    pickup_lon,
+    pickup_zone_id
   FROM latest_trip_states
   WHERE rn = 1
     AND trip_state IN ('driver_en_route', 'driver_arrived', 'started')
 )
 SELECT
-  ft.trip_key,
-  ft.pickup_lat AS latitude,
-  ft.pickup_lon AS longitude,
+  at.trip_id,
+  at.pickup_lat AS latitude,
+  at.pickup_lon AS longitude,
   dz.name AS zone_name
-FROM gold.fact_trips ft
-INNER JOIN active_trips at ON ft.trip_id = at.trip_id
-LEFT JOIN gold.dim_zones dz ON ft.pickup_zone_key = dz.zone_key
-WHERE ft.pickup_lat IS NOT NULL
-  AND ft.pickup_lon IS NOT NULL
+FROM active_trips at
+LEFT JOIN gold.dim_zones dz ON at.pickup_zone_id = dz.zone_id
+WHERE at.pickup_lat IS NOT NULL
+  AND at.pickup_lon IS NOT NULL
 """,
     columns=(
-        ColumnDefinition("trip_key", "BIGINT", "Trip Key"),
+        ColumnDefinition("trip_id", "VARCHAR", "Trip ID"),
         ColumnDefinition("latitude", "DOUBLE", "Latitude"),
         ColumnDefinition("longitude", "DOUBLE", "Longitude"),
         ColumnDefinition("zone_name", "VARCHAR", "Zone", filterable=True, groupby=True),
@@ -205,6 +211,7 @@ LIMIT 5000
         ),
     ),
     main_dttm_col="timestamp",
+    allow_empty_results=True,
 )
 
 

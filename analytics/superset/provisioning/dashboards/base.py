@@ -66,6 +66,7 @@ class DatasetDefinition:
         metrics: Tuple of metric definitions for reusable aggregations
         main_dttm_col: Primary datetime column for time-series charts
         cache_timeout: Cache timeout in seconds (None = use default)
+        allow_empty_results: If True, 0 rows = WARN instead of FAIL during validation
     """
 
     name: str
@@ -75,6 +76,7 @@ class DatasetDefinition:
     metrics: tuple[MetricDefinition, ...] = ()
     main_dttm_col: str | None = None
     cache_timeout: int | None = None
+    allow_empty_results: bool = False
 
 
 @dataclass(frozen=True)
