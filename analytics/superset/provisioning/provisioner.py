@@ -284,6 +284,20 @@ class DashboardProvisioner:
                     else:
                         raise SupersetProvisioningError(f"Failed to get dashboard ID for {slug}")
 
+            # Associate charts with dashboard (required for proper dashboard functionality)
+            if chart_ids:
+                for chart_id in chart_ids:
+                    self.client.update_chart(
+                        chart_id=chart_id,
+                        dashboards=[dashboard_id],
+                    )
+                logger.info(
+                    "Associated %d charts with dashboard '%s' (id=%d)",
+                    len(chart_ids),
+                    slug,
+                    dashboard_id,
+                )
+
             # Build and update layout
             logger.info(
                 "Building layout for dashboard '%s' with chart IDs: %s",

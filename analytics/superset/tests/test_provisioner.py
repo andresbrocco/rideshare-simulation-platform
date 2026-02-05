@@ -89,7 +89,8 @@ class TestDashboardProvisioner:
         # 5. get_or_create_chart -> POST /api/v1/chart/ (create)
         # 6. get_or_create_dashboard -> get_dashboard_by_slug -> GET /api/v1/dashboard/
         # 7. get_or_create_dashboard -> POST /api/v1/dashboard/ (create)
-        # 8. update_dashboard -> PUT /api/v1/dashboard/{id}
+        # 8. update_chart -> PUT /api/v1/chart/{id} (associate with dashboard)
+        # 9. update_dashboard -> PUT /api/v1/dashboard/{id} (update layout)
         mock_session.request.side_effect = [
             mock_response_factory(200, {"result": []}),  # 1. Dashboard doesn't exist
             mock_response_factory(200, {"result": []}),  # 2. Dataset doesn't exist
@@ -98,7 +99,8 @@ class TestDashboardProvisioner:
             mock_response_factory(201, {"id": 20}),  # 5. Create chart
             mock_response_factory(200, {"result": []}),  # 6. Dashboard still doesn't exist
             mock_response_factory(201, {"id": 30}),  # 7. Create dashboard
-            mock_response_factory(200, {"result": {}}),  # 8. Update dashboard layout
+            mock_response_factory(200, {"result": {"id": 20}}),  # 8. Update chart
+            mock_response_factory(200, {"result": {}}),  # 9. Update dashboard layout
         ]
 
         result = mock_provisioner._provision_dashboard(test_dashboard)

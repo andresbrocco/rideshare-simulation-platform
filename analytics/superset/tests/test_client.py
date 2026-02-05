@@ -249,6 +249,29 @@ class TestDashboardOperations:
         assert result["id"] == 15
 
 
+class TestChartOperations:
+    """Tests for chart API operations."""
+
+    def test_update_chart_associates_dashboard(
+        self,
+        superset_client: SupersetClient,
+        mock_session: MagicMock,
+        mock_response_factory: Callable[[int, dict[str, Any]], MagicMock],
+    ) -> None:
+        """Updating chart with dashboards makes PUT request."""
+        mock_session.request.return_value = mock_response_factory(
+            200, {"result": {"id": 10, "dashboards": [{"id": 5}]}}
+        )
+
+        result = superset_client.update_chart(chart_id=10, dashboards=[5])
+
+        call_args = mock_session.request.call_args
+        assert call_args[1]["method"] == "PUT"
+        assert "/api/v1/chart/10" in call_args[1]["url"]
+        assert call_args[1]["json"]["dashboards"] == [5]
+        assert result["result"]["id"] == 10
+
+
 class TestHealthCheck:
     """Tests for health check functionality."""
 

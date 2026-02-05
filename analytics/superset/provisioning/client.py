@@ -594,6 +594,32 @@ class SupersetClient:
         self._request("DELETE", f"/api/v1/chart/{chart_id}")
         logger.info("Deleted chart id=%d", chart_id)
 
+    @retry_on_transient_error(max_attempts=3)
+    def update_chart(
+        self,
+        chart_id: int,
+        dashboards: list[int] | None = None,
+    ) -> dict[str, Any]:
+        """Update chart configuration including dashboard associations.
+
+        Args:
+            chart_id: Chart ID to update
+            dashboards: List of dashboard IDs to associate the chart with
+
+        Returns:
+            Updated chart record
+        """
+        payload: dict[str, Any] = {}
+
+        if dashboards is not None:
+            payload["dashboards"] = dashboards
+
+        if not payload:
+            return self._request("GET", f"/api/v1/chart/{chart_id}")
+
+        logger.debug("Updating chart id=%d with dashboards=%s", chart_id, dashboards)
+        return self._request("PUT", f"/api/v1/chart/{chart_id}", json_data=payload)
+
     # =========================================================================
     # Dashboard Operations
     # =========================================================================
@@ -676,47 +702,6 @@ class SupersetClient:
 
         logger.debug("Updating dashboard id=%d", dashboard_id)
         return self._request("PUT", f"/api/v1/dashboard/{dashboard_id}", json_data=payload)
-
-    def add_charts_to_dashboard(
-        self,
-        dashboard_id: int,
-        chart_ids: list[int],
-    ) -> dict[str, Any]:
-        """Add charts to a dashboard.
-
-        Args:
-            dashboard_id: Dashboard ID
-            chart_ids: List of chart IDs to add
-
-        Returns:
-            Updated dashboard
-        """
-        # Get current dashboard to merge charts
-        dashboard = self._request("GET", f"/api/v1/dashboard/{dashboard_id}")
-
-        # Get position_json if exists
-        position_json_str = dashboard.get("result", {}).get("position_json", "{}")
-        try:
-            position_json = json.loads(position_json_str) if position_json_str else {}
-        except (json.JSONDecodeError, TypeError):
-            position_json = {}
-
-        # Build layout with chart positions
-        for chart_id in chart_ids:
-            chart_key = f"CHART-{chart_id}"
-            position_json[chart_key] = {
-                "type": "CHART",
-                "id": chart_key,
-                "children": [],
-                "meta": {
-                    "chartId": chart_id,
-                    "width": 6,
-                    "height": 4,
-                },
-            }
-
-        # Update position_json
-        return self.update_dashboard(dashboard_id, position_json=position_json)
 
     def delete_dashboard(self, dashboard_id: int) -> None:
         """Delete a dashboard by ID.
