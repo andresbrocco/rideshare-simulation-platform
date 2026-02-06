@@ -830,6 +830,40 @@ services:
       start_period: 60s
     restart: unless-stopped
 
+  trino:
+    image: trinodb/trino:439
+    container_name: rideshare-trino
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: "2.0"
+        reservations:
+          cpus: "0.25"
+    profiles:
+      - data-pipeline
+    ports:
+      - "8084:8080"
+    environment:
+      - TRINO_ENVIRONMENT=docker
+    volumes:
+      - ../../services/trino/etc:/etc/trino:ro
+      - ../../services/trino/catalog:/etc/trino/catalog:ro
+    depends_on:
+      hive-metastore:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - rideshare-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/info"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
   prometheus:
     image: prom/prometheus:v3.9.1
     container_name: rideshare-prometheus
