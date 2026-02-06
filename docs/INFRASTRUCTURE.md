@@ -313,7 +313,7 @@ One-shot containers that bootstrap infrastructure:
 **Prometheus** (port 9090):
 - Scrape interval: 15 seconds
 - Retention: 7 days
-- Configuration: `infrastructure/monitoring/prometheus/prometheus.yml`
+- Configuration: `services/prometheus/prometheus.yml`
 
 **Metrics Targets**:
 - prometheus:9090 - Prometheus self-monitoring
@@ -329,8 +329,8 @@ One-shot containers that bootstrap infrastructure:
 **Grafana** (port 3001):
 - Data source: Prometheus
 - Default credentials: admin/admin
-- Dashboards: Provisioned from `infrastructure/monitoring/grafana/dashboards/`
-- Configuration: `infrastructure/monitoring/grafana/provisioning/`
+- Dashboards: Provisioned from `services/grafana/dashboards/`
+- Configuration: `services/grafana/provisioning/`
 
 ### Health Checks
 

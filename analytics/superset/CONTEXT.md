@@ -48,4 +48,5 @@ Configuration uses environment variable for SECRET_KEY with development fallback
 
 - **[services/dbt](../../services/dbt/CONTEXT.md)** — Data source; Superset dashboards query Gold dimensional models (fact_trips, dim_drivers, agg_zone_hourly_metrics) and Silver staging tables created by DBT transformations
 - **[services/bronze-ingestion](../../services/bronze-ingestion/CONTEXT.md)** — Data source for Bronze dashboards; Bronze Pipeline Dashboard monitors ingestion metrics from Bronze layer tables
-- **[infrastructure/monitoring](../../infrastructure/monitoring/CONTEXT.md)** — Shares observability domain; both provide visualization tools (Grafana for infrastructure metrics, Superset for business analytics)
+- **[services/grafana](../../services/grafana/CONTEXT.md)** — Shares observability domain; Grafana visualizes infrastructure metrics, Superset visualizes business analytics
+- **[services/prometheus](../../services/prometheus/CONTEXT.md)** — Provides metrics collection backing Grafana dashboards; complementary to Superset's analytics focus

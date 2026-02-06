@@ -41,4 +41,5 @@ Provides Kubernetes deployment configurations and tooling for running the ridesh
 - **[infrastructure/kubernetes/manifests](./manifests/CONTEXT.md)** — Contains the actual Kubernetes resource definitions deployed by this module's lifecycle scripts
 - **[infrastructure/kubernetes/scripts](./scripts/CONTEXT.md)** — Lifecycle management automation for cluster creation, deployment, health validation, and teardown
 - **[infrastructure/kubernetes/overlays](./overlays/CONTEXT.md)** — Environment-specific customizations via Kustomize for local and production deployments
-- **[infrastructure/monitoring](../monitoring/CONTEXT.md)** — Deploys alongside K8s services to provide cluster and service-level observability
+- **[services/grafana](../../services/grafana/CONTEXT.md)** — Provides visualization dashboards for cluster and service-level metrics
+- **[services/prometheus](../../services/prometheus/CONTEXT.md)** — Provides metrics collection for cluster and service-level observability

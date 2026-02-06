@@ -29,7 +29,8 @@ When creating workflows, use the following path structure:
 | Docker | `infrastructure/docker/` | `./infrastructure/docker` |
 | Terraform | `infrastructure/terraform/` | `./infrastructure/terraform` |
 | Kubernetes | `infrastructure/kubernetes/` | `./infrastructure/kubernetes` |
-| Monitoring | `infrastructure/monitoring/` | `./infrastructure/monitoring` |
+| Grafana | `services/grafana/` | `./services/grafana` |
+| Prometheus | `services/prometheus/` | `./services/prometheus` |
 
 ## Docker Compose
 

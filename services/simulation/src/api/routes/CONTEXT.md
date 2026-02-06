@@ -48,4 +48,4 @@ FastAPI route handlers that translate REST/WebSocket requests into simulation en
 - **[services/simulation/src/db](../../db/CONTEXT.md)** — Persistence layer for checkpoints triggered by pause/stop endpoints
 - **[services/frontend/src](../../../../frontend/src/CONTEXT.md)** — Primary API consumer; frontend calls these endpoints for simulation control
 - **[services/frontend/src/types](../../../../frontend/src/types/CONTEXT.md)** — TypeScript contracts mirroring the response schemas defined by these routes
-- **[infrastructure/monitoring](../../../../../infrastructure/monitoring/CONTEXT.md)** — Scrapes /metrics endpoints exposed by these routes for observability
+- **[services/prometheus](../../../../../services/prometheus/CONTEXT.md)** — Scrapes /metrics endpoints exposed by these routes for observability
