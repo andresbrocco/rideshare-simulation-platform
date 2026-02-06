@@ -771,6 +771,65 @@ services:
       start_period: 60s
     restart: unless-stopped
 
+  postgres-metastore:
+    image: postgres:16
+    container_name: rideshare-postgres-metastore
+    mem_limit: 256m
+    profiles:
+      - data-pipeline
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_USER: hive
+      POSTGRES_PASSWORD: hive
+      POSTGRES_DB: metastore
+    volumes:
+      - postgres-metastore-data:/var/lib/postgresql/data
+    networks:
+      - rideshare-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hive"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  hive-metastore:
+    build:
+      context: ../../services/hive-metastore
+      dockerfile: Dockerfile
+    container_name: rideshare-hive-metastore
+    mem_limit: 512m
+    profiles:
+      - data-pipeline
+    ports:
+      - "9083:9083"
+    environment:
+      SERVICE_NAME: metastore
+      DB_DRIVER: postgres
+      SERVICE_OPTS: >-
+        -Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver
+        -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://postgres-metastore:5432/metastore
+        -Djavax.jdo.option.ConnectionUserName=hive
+        -Djavax.jdo.option.ConnectionPassword=hive
+    depends_on:
+      postgres-metastore:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - ../../services/hive-metastore/hive-site.xml:/opt/hive/conf/hive-site.xml:ro
+    networks:
+      - rideshare-network
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/9083' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
   prometheus:
     image: prom/prometheus:v3.9.1
     container_name: rideshare-prometheus
@@ -1001,5 +1060,6 @@ volumes:
   postgres-airflow-data:
   postgres-superset-data:
   redis-superset-data:
+  postgres-metastore-data:
   prometheus-data:
   grafana-data:
