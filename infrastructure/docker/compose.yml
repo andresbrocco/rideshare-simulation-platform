@@ -953,6 +953,51 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  loki:
+    image: grafana/loki:2.9.4
+    container_name: rideshare-loki
+    mem_limit: 256m
+    profiles:
+      - monitoring
+    ports:
+      - "3100:3100"
+    volumes:
+      - ../../services/loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - rideshare-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  tempo:
+    image: grafana/tempo:2.3.1
+    container_name: rideshare-tempo
+    mem_limit: 512m
+    profiles:
+      - monitoring
+    ports:
+      - "3200:3200"   # Tempo HTTP (query API)
+      - "4319:4317"   # OTLP gRPC (from OTel Collector)
+    volumes:
+      - ../../services/tempo/tempo-config.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    networks:
+      - rideshare-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3200/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
   postgres-superset:
     image: postgres:16
     container_name: rideshare-postgres-superset
@@ -1099,3 +1144,5 @@ volumes:
   postgres-metastore-data:
   prometheus-data:
   grafana-data:
+  loki-data:
+  tempo-data:
