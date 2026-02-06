@@ -1,12 +1,46 @@
 apiVersion: 1
 
 providers:
-  - name: 'default'
+  # Monitoring folder (existing simulation-metrics dashboard)
+  - name: 'monitoring'
     orgId: 1
-    folder: ''
+    folder: 'Monitoring'
     type: file
     disableDeletion: false
     updateIntervalSeconds: 10
     allowUiUpdates: true
     options:
-      path: /etc/dashboards
+      path: /etc/dashboards/monitoring
+
+  # Data Engineering folder (Bronze/Silver dashboards)
+  - name: 'data-engineering'
+    orgId: 1
+    folder: 'Data Engineering'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/dashboards/data-engineering
+
+  # Business Intelligence folder (Gold dashboards)
+  - name: 'business-intelligence'
+    orgId: 1
+    folder: 'Business Intelligence'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/dashboards/business-intelligence
+
+  # Operations folder (Platform Operations dashboard)
+  - name: 'operations'
+    orgId: 1
+    folder: 'Operations'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/dashboards/operations

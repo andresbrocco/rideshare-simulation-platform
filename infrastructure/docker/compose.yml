@@ -205,6 +205,8 @@ services:
       - OSRM_BASE_URL=http://osrm:5000
       - API_KEY=${API_KEY:-dev-api-key-change-in-production}
       - CORS_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177,http://localhost:5178
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - DEPLOYMENT_ENV=local
     depends_on:
       kafka-init:
         condition: service_completed_successfully
@@ -943,6 +945,10 @@ services:
       - grafana-data:/var/lib/grafana
     depends_on:
       prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+      tempo:
         condition: service_healthy
     networks:
       - rideshare-network
