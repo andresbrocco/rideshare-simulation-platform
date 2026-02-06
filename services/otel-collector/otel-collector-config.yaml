@@ -1,0 +1,123 @@
+receivers:
+  # OTLP receiver for application metrics and traces
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+  # Filelog receiver for Docker container logs (replaces Promtail)
+  filelog:
+    include:
+      - /var/lib/docker/containers/*/*.log
+    start_at: end
+    include_file_path: true
+    operators:
+      # Parse Docker JSON log format
+      - type: json_parser
+        id: docker_parser
+        output: extract_metadata
+        timestamp:
+          parse_from: attributes.time
+          layout: '%Y-%m-%dT%H:%M:%S.%LZ'
+      # Extract container ID from file path
+      - type: regex_parser
+        id: extract_metadata
+        regex: '^/var/lib/docker/containers/(?P<container_id>[a-f0-9]+)/'
+        parse_from: attributes["log.file.path"]
+      # Parse application JSON logs
+      - type: json_parser
+        id: app_log_parser
+        parse_from: attributes.log
+        if: 'attributes.log != nil and attributes.log matches "^\\{"'
+
+processors:
+  # Batch for efficiency
+  batch:
+    timeout: 5s
+    send_batch_size: 1000
+
+  # Memory limiter for stability
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+
+  # Add resource attributes
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: local
+        action: upsert
+
+  # Extract log attributes for Loki labels
+  attributes/logs:
+    actions:
+      - key: level
+        from_attribute: body.level
+        action: upsert
+      - key: service
+        from_attribute: body.logger
+        action: upsert
+      - key: correlation_id
+        from_attribute: body.correlation_id
+        action: upsert
+      - key: trip_id
+        from_attribute: body.trip_id
+        action: upsert
+
+exporters:
+  # Prometheus remote write for metrics
+  prometheusremotewrite:
+    endpoint: http://prometheus:9090/api/v1/write
+    resource_to_telemetry_conversion:
+      enabled: true
+
+  # Loki exporter for logs
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+    labels:
+      attributes:
+        level: ""
+        service: ""
+        container_id: ""
+      resource:
+        service.name: "service"
+        deployment.environment: "env"
+
+  # OTLP exporter to Tempo for traces
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+
+  # Debug exporter (optional, for troubleshooting)
+  debug:
+    verbosity: basic
+
+service:
+  pipelines:
+    # Metrics pipeline: OTLP → Prometheus
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters: [prometheusremotewrite]
+
+    # Logs pipeline: Docker files → Loki
+    logs:
+      receivers: [filelog]
+      processors: [memory_limiter, attributes/logs, batch]
+      exporters: [loki]
+
+    # Traces pipeline: OTLP → Tempo
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters: [otlp/tempo]
+
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      address: 0.0.0.0:8888
