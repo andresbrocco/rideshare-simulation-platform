@@ -94,6 +94,7 @@ FROM silver.anomalies_all
     ),
     main_dttm_col="detected_at",
     cache_timeout=60,
+    allow_empty_results=True,
 )
 
 
@@ -303,6 +304,7 @@ FROM silver.anomalies_zombie_drivers
     ),
     main_dttm_col="last_status_timestamp",
     cache_timeout=60,
+    allow_empty_results=True,
 )
 
 

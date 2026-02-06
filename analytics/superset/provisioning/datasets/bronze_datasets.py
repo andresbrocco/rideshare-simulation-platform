@@ -205,6 +205,7 @@ WHERE _ingestion_date >= date_format(current_timestamp - INTERVAL 2 DAYS, 'yyyy-
     ),
     main_dttm_col="_ingested_at",
     cache_timeout=60,
+    allow_empty_results=True,
 )
 
 

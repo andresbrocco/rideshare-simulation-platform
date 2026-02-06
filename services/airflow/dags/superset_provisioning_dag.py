@@ -116,6 +116,82 @@ def provision_dashboards(
     return summary
 
 
+def validate_dataset_queries(
+    thrift_host: str = "spark-thrift-server",
+    thrift_port: int = 10000,
+) -> dict[str, object]:
+    """Validate all dataset SQL queries against Spark Thrift Server.
+
+    This task runs before dashboard provisioning to catch schema mismatches
+    and missing data early.
+
+    Args:
+        thrift_host: Spark Thrift Server hostname
+        thrift_port: Spark Thrift Server port
+
+    Returns:
+        Summary of validation results
+
+    Raises:
+        RuntimeError: If any critical validation failures occur
+    """
+    import logging
+    import sys
+
+    # Add provisioning module to path (mounted in Airflow container)
+    # analytics/superset is mounted at /opt/superset-provisioning
+    sys.path.insert(0, "/opt/superset-provisioning")
+
+    from provisioning.validators import ValidationStatus, validate_datasets
+
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
+    logger.info("Starting dataset SQL validation...")
+    logger.info("Thrift Server: %s:%d", thrift_host, thrift_port)
+
+    summary = validate_datasets(
+        host=thrift_host,
+        port=thrift_port,
+    )
+
+    # Build result summary with explicit types
+    results_list: list[dict[str, object]] = []
+    for result in summary.results:
+        results_list.append(
+            {
+                "dataset": result.dataset_name,
+                "status": result.status.value,
+                "row_count": result.row_count,
+                "error": result.error_message,
+                "execution_time": result.execution_time,
+            }
+        )
+
+    logger.info(
+        "Validation complete: %d passed, %d warned, %d failed",
+        summary.passed,
+        summary.warned,
+        summary.failed,
+    )
+
+    if summary.has_critical_failures:
+        failed_datasets = [
+            r.dataset_name for r in summary.results if r.status == ValidationStatus.FAIL
+        ]
+        raise RuntimeError(f"SQL validation failed for datasets: {failed_datasets}")
+
+    result_summary: dict[str, object] = {
+        "total": summary.total,
+        "passed": summary.passed,
+        "warned": summary.warned,
+        "failed": summary.failed,
+        "results": results_list,
+    }
+
+    return result_summary
+
+
 with DAG(
     "superset_dashboard_provisioning",
     default_args=default_args,
@@ -146,6 +222,16 @@ with DAG(
         retry_delay=timedelta(minutes=1),
     )
 
+    # Validate dataset SQL queries against Spark Thrift Server
+    validate_sql_task = PythonOperator(
+        task_id="validate_dataset_queries",
+        python_callable=validate_dataset_queries,
+        op_kwargs={
+            "thrift_host": "spark-thrift-server",
+            "thrift_port": 10000,
+        },
+    )
+
     # Provision dashboards using the new module
     provision_dashboards_task = PythonOperator(
         task_id="provision_dashboards",
@@ -164,4 +250,4 @@ with DAG(
         bash_command='echo "Superset dashboards provisioned successfully at $(date)"',
     )
 
-    check_superset_health >> provision_dashboards_task >> log_success
+    check_superset_health >> validate_sql_task >> provision_dashboards_task >> log_success

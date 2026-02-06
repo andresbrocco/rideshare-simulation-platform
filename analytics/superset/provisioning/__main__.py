@@ -5,6 +5,7 @@ Usage:
     python -m provisioning --force
     python -m provisioning --dashboard driver-performance
     python -m provisioning --skip-table-check
+    python -m provisioning --validate-sql --thrift-host localhost --thrift-port 10000
 """
 
 import argparse
@@ -39,6 +40,7 @@ Examples:
   python -m provisioning --force --skip-table-check
   python -m provisioning --dashboard bronze-pipeline --dashboard silver-quality
   python -m provisioning --list-dashboards
+  python -m provisioning --validate-sql --thrift-host localhost --thrift-port 10000
         """,
     )
 
@@ -97,6 +99,24 @@ Examples:
         help="Enable verbose logging",
     )
 
+    # SQL Validation options
+    parser.add_argument(
+        "--validate-sql",
+        action="store_true",
+        help="Validate dataset SQL queries against Spark Thrift Server and exit",
+    )
+    parser.add_argument(
+        "--thrift-host",
+        default="localhost",
+        help="Spark Thrift Server hostname (default: localhost)",
+    )
+    parser.add_argument(
+        "--thrift-port",
+        type=int,
+        default=10000,
+        help="Spark Thrift Server port (default: 10000)",
+    )
+
     args = parser.parse_args()
 
     setup_logging(args.verbose)
@@ -114,6 +134,27 @@ Examples:
             print(f"    Charts: {len(dash.charts)}, Required tables: {tables}")
             print()
         return 0
+
+    # SQL validation mode
+    if args.validate_sql:
+        from provisioning.validators import validate_datasets
+
+        logger.info("Running SQL validation against Spark Thrift Server")
+        logger.info("Host: %s, Port: %d", args.thrift_host, args.thrift_port)
+
+        try:
+            summary = validate_datasets(
+                host=args.thrift_host,
+                port=args.thrift_port,
+            )
+
+            if summary.has_critical_failures:
+                return 1
+            return 0
+
+        except Exception as e:
+            logger.exception("SQL validation failed: %s", e)
+            return 1
 
     # Validate dashboard slugs if provided
     if args.dashboards:
