@@ -11,6 +11,7 @@ from core.exceptions import (
     ValidationError,
 )
 from metrics import get_metrics_collector
+from metrics.prometheus_exporter import observe_latency
 
 
 class RouteResponse(BaseModel):
@@ -128,6 +129,7 @@ class OSRMClient:
             # Record successful latency
             latency_ms = (time.perf_counter() - start_time) * 1000
             collector.record_latency("osrm", latency_ms)
+            observe_latency("osrm", latency_ms)
 
             return result
 

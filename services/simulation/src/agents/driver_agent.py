@@ -33,6 +33,7 @@ from events.schemas import (
 from geo.gps_simulation import GPSSimulator
 from kafka.producer import KafkaProducer
 from metrics import get_metrics_collector
+from metrics.prometheus_exporter import observe_latency
 from redis_client.publisher import RedisPublisher
 from utils.async_helpers import run_coroutine_safe
 
@@ -651,6 +652,7 @@ class DriverAgent(EventEmitter):
             )
             latency_ms = (time.perf_counter() - start_time) * 1000
             collector.record_latency("kafka", latency_ms)
+            observe_latency("kafka", latency_ms)
 
         # NOTE: Direct Redis publishing disabled - using Kafka → Stream Processor → Redis path
         # See stream-processor service for event routing
@@ -683,6 +685,7 @@ class DriverAgent(EventEmitter):
             )
             latency_ms = (time.perf_counter() - start_time) * 1000
             collector.record_latency("kafka", latency_ms)
+            observe_latency("kafka", latency_ms)
 
         # NOTE: Direct Redis publishing disabled - testing Kafka → Stream Processor → Redis path
         # If this works, remove this commented block entirely

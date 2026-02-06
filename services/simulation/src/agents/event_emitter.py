@@ -19,6 +19,7 @@ from core.exceptions import NetworkError
 from kafka.producer import KafkaProducer
 from kafka.serializer_registry import SerializerRegistry
 from metrics import get_metrics_collector
+from metrics.prometheus_exporter import observe_latency
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,7 @@ class EventEmitter:
             self._kafka_producer.produce(topic=topic, key=key, value=json_str)
             latency_ms = (time.perf_counter() - start_time) * 1000
             collector.record_latency("kafka", latency_ms)
+            observe_latency("kafka", latency_ms)
         except NetworkError as e:
             # Transient network errors - log and continue (fire-and-forget for non-critical events)
             collector.record_error("kafka", "network_error")

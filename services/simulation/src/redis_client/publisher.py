@@ -1,11 +1,13 @@
 import json
 import logging
+import time
 from typing import Any
 
 import redis
 from redis.exceptions import ConnectionError
 
 from metrics import get_metrics_collector
+from metrics.prometheus_exporter import observe_latency
 from pubsub.channels import ALL_CHANNELS
 
 logger = logging.getLogger(__name__)
@@ -35,11 +37,16 @@ class RedisPublisher:
                 f"Channel '{channel}' is not a valid channel. Valid channels: {ALL_CHANNELS}"
             )
 
+        collector = get_metrics_collector()
+        start_time = time.perf_counter()
         try:
             json_message = json.dumps(message)
             self._client.publish(channel, json_message)
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            collector.record_latency("redis", latency_ms)
+            observe_latency("redis", latency_ms)
         except ConnectionError as e:
-            get_metrics_collector().record_error("redis", "connection_error")
+            collector.record_error("redis", "connection_error")
             logger.error(f"Failed to publish to channel {channel}: {e}")
 
     async def publish(self, channel: str, message: dict[str, Any]) -> None:

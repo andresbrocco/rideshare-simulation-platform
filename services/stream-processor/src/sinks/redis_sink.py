@@ -7,6 +7,7 @@ import time
 import redis
 
 from ..metrics import get_metrics_collector
+from ..prometheus_exporter import observe_redis_latency
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,7 @@ class RedisSink:
 
         collector = get_metrics_collector()
         collector.record_publish(latency_ms)
+        observe_redis_latency(latency_ms)
 
         return True
 
