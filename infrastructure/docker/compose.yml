@@ -2,10 +2,10 @@ name: rideshare-platform
 
 # Docker Compose Profiles:
 # - core: Simulation runtime services (kafka, redis, osrm, simulation, stream-processor, frontend)
-# - data-pipeline: ETL, streaming, and orchestration (minio, spark-*, localstack, airflow)
+# - data-pipeline: ETL, streaming, and orchestration (minio, spark-*, localstack, airflow, hive-metastore, trino)
 #   (Consolidated from data-platform + quality-orchestration on 2026-01-26)
-# - monitoring: Observability (prometheus, cadvisor, grafana)
-# - bi: Business intelligence (superset, superset-celery-worker, postgres-superset, redis-superset)
+# - monitoring: Observability (prometheus, cadvisor, grafana, otel-collector, loki, tempo)
+# - analytics: DEPRECATED (Superset removed 2026-02-06, migrated to Grafana)
 
 services:
   kafka:
@@ -1039,133 +1039,6 @@ services:
       start_period: 30s
     restart: unless-stopped
 
-  postgres-superset:
-    image: postgres:16
-    container_name: rideshare-postgres-superset
-    mem_limit: 256m
-    profiles:
-      - analytics
-    ports:
-      - "5433:5432"
-    environment:
-      POSTGRES_USER: superset
-      POSTGRES_PASSWORD: superset
-      POSTGRES_DB: superset
-    volumes:
-      - postgres-superset-data:/var/lib/postgresql/data
-    networks:
-      - rideshare-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U superset"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    restart: unless-stopped
-
-  redis-superset:
-    image: redis:8.0-alpine
-    container_name: rideshare-redis-superset
-    mem_limit: 128m
-    profiles:
-      - analytics
-    ports:
-      - "6380:6379"
-    volumes:
-      - redis-superset-data:/data
-    networks:
-      - rideshare-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    restart: unless-stopped
-
-  superset-init:
-    image: apache/superset:6.0.0
-    container_name: rideshare-superset-init
-    user: root
-    profiles:
-      - analytics
-    environment:
-      SUPERSET_SECRET_KEY: dev-secret-key-change-in-production
-      PYTHONPATH: /app/pythonpath
-    volumes:
-      - ../../analytics/superset/superset_config.py:/app/pythonpath/superset_config.py:ro
-      - ../../analytics/superset/superset-init-entrypoint.sh:/app/superset-init-entrypoint.sh:ro
-    depends_on:
-      postgres-superset:
-        condition: service_healthy
-      redis-superset:
-        condition: service_healthy
-    networks:
-      - rideshare-network
-    command: ["/bin/bash", "/app/superset-init-entrypoint.sh"]
-
-  superset:
-    image: apache/superset:6.0.0
-    container_name: rideshare-superset
-    mem_limit: 4g
-    profiles:
-      - analytics
-    ports:
-      - "8088:8088"
-    user: root
-    environment:
-      SUPERSET_SECRET_KEY: dev-secret-key-change-in-production
-      PYTHONPATH: /tmp/python-packages:/app/pythonpath
-      SERVER_WORKER_AMOUNT: "2"
-      GUNICORN_MAX_REQUESTS: "1000"
-      GUNICORN_MAX_REQUESTS_JITTER: "100"
-    volumes:
-      - ../../analytics/superset/superset_config.py:/app/pythonpath/superset_config.py:ro
-      - ../../analytics/superset/docker-entrypoint.sh:/app/docker-entrypoint.sh:ro
-      - ../../analytics/superset/provisioning:/app/provisioning:ro
-    depends_on:
-      superset-init:
-        condition: service_completed_successfully
-    networks:
-      - rideshare-network
-    command: ["/app/docker-entrypoint.sh"]
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 60s
-    restart: unless-stopped
-
-  superset-celery-worker:
-    image: apache/superset:6.0.0
-    container_name: rideshare-superset-celery-worker
-    mem_limit: 1g
-    profiles:
-      - analytics
-    user: root
-    environment:
-      SUPERSET_SECRET_KEY: dev-secret-key-change-in-production
-      PYTHONPATH: /tmp/python-packages:/app/pythonpath
-    volumes:
-      - ../../analytics/superset/superset_config.py:/app/pythonpath/superset_config.py:ro
-    depends_on:
-      superset:
-        condition: service_healthy
-    networks:
-      - rideshare-network
-    command: >
-      /bin/sh -c "
-      pip install --target=/tmp/python-packages pyhive thrift thrift-sasl pure-sasl psycopg2-binary &&
-      celery --app=superset.tasks.celery_app:app worker --pool=prefork --concurrency=2 --loglevel=INFO
-      "
-    healthcheck:
-      test: ["CMD-SHELL", "celery --app=superset.tasks.celery_app:app inspect ping -d celery@$$HOSTNAME"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-    restart: unless-stopped
-
 networks:
   rideshare-network:
     driver: bridge
@@ -1180,8 +1053,6 @@ volumes:
   minio-data:
   localstack-data:
   postgres-airflow-data:
-  postgres-superset-data:
-  redis-superset-data:
   postgres-metastore-data:
   prometheus-data:
   grafana-data:
