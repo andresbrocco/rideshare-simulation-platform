@@ -8,6 +8,7 @@ from typing import Any
 
 import redis
 from confluent_kafka import Consumer, KafkaError
+from opentelemetry import trace
 
 from .deduplication import EventDeduplicator
 from .handlers import (
@@ -25,6 +26,8 @@ from .settings import Settings
 from .sinks import RedisSink
 
 logger = logging.getLogger(__name__)
+
+tracer = trace.get_tracer(__name__)
 
 
 class StreamProcessor:
@@ -271,9 +274,11 @@ class StreamProcessor:
             return
 
         # Check for duplicate events using event_id
+        correlation_id: str | None = None
         try:
             event_data = json.loads(msg.value())
             event_id = event_data.get("event_id")
+            correlation_id = event_data.get("correlation_id")
             if event_id and self._deduplicator.is_duplicate(event_id):
                 return
         except (json.JSONDecodeError, TypeError):
@@ -285,23 +290,31 @@ class StreamProcessor:
         # Record consumption for metrics
         get_metrics_collector().record_consume()
 
-        try:
-            # Handle the message
-            results = handler.handle(msg.value())
+        with tracer.start_as_current_span("process_message") as span:
+            span.set_attribute("messaging.kafka.topic", topic)
+            span.set_attribute("messaging.kafka.partition", msg.partition())
+            span.set_attribute("messaging.kafka.offset", msg.offset())
+            if correlation_id:
+                span.set_attribute("correlation_id", correlation_id)
 
-            # Publish any immediate results (pass-through handlers)
-            if results:
-                published = self._redis_sink.publish_batch(results)
-                self.messages_published += published
+            try:
+                # Handle the message
+                results = handler.handle(msg.value())
 
-                # Track commits if auto_commit is disabled
-                if not self.settings.kafka.enable_auto_commit and published > 0:
-                    self._pending_commits += 1
-                    if self._pending_commits >= self._batch_commit_size:
-                        self._commit_offsets()
+                # Publish any immediate results (pass-through handlers)
+                if results:
+                    published = self._redis_sink.publish_batch(results)
+                    self.messages_published += published
 
-        except Exception as e:
-            logger.error(f"Error processing message from {topic}: {e}")
+                    # Track commits if auto_commit is disabled
+                    if not self.settings.kafka.enable_auto_commit and published > 0:
+                        self._pending_commits += 1
+                        if self._pending_commits >= self._batch_commit_size:
+                            self._commit_offsets()
+
+            except Exception as e:
+                span.record_exception(e)
+                logger.error(f"Error processing message from {topic}: {e}")
 
     def _commit_offsets(self) -> None:
         """Commit pending Kafka offsets."""

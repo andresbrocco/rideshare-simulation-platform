@@ -80,39 +80,55 @@ class MetricsCollector:
 
     def record_consume(self) -> None:
         """Record a consumed message."""
+        from . import prometheus_exporter
+
         now = time.time()
         with self._lock:
             self._messages_consumed += 1
             self._consume_timestamps.append(now)
             self._cleanup(now)
+        prometheus_exporter.record_consume()
 
     def record_publish(self, latency_ms: float) -> None:
         """Record a published message with latency."""
+        from . import prometheus_exporter
+
         now = time.time()
         with self._lock:
             self._messages_published += 1
             self._publish_timestamps.append(now)
             self._latency_samples.append((now, latency_ms))
             self._cleanup(now)
+        prometheus_exporter.record_publish()
+        prometheus_exporter.observe_redis_latency(latency_ms)
 
     def record_publish_error(self) -> None:
         """Record a publish error."""
+        from . import prometheus_exporter
+
         now = time.time()
         with self._lock:
             self._publish_errors += 1
             self._error_timestamps.append(now)
             self._cleanup(now)
+        prometheus_exporter.record_publish_error()
 
     def record_gps_aggregation(self, received: int, emitted: int) -> None:
         """Record GPS aggregation stats."""
+        from . import prometheus_exporter
+
         with self._lock:
             self._gps_received += received
             self._gps_emitted += emitted
+        prometheus_exporter.record_gps_aggregation(received, emitted)
 
     def record_validation_error(self, handler_type: str) -> None:
         """Record a validation error."""
+        from . import prometheus_exporter
+
         with self._lock:
             self._validation_errors += 1
+        prometheus_exporter.record_validation_error(handler_type)
 
     def record_retry(self) -> None:
         """Record a Redis publish retry."""
@@ -157,6 +173,8 @@ class MetricsCollector:
 
     def get_snapshot(self) -> StreamProcessorMetrics:
         """Get current metrics snapshot."""
+        from . import prometheus_exporter
+
         now = time.time()
 
         with self._lock:
@@ -193,7 +211,7 @@ class MetricsCollector:
                     elif name == "redis":
                         redis_connected = False
 
-            return StreamProcessorMetrics(
+            snapshot = StreamProcessorMetrics(
                 messages_consumed_total=self._messages_consumed,
                 messages_published_total=self._messages_published,
                 messages_consumed_per_sec=consumed_per_sec,
@@ -207,6 +225,11 @@ class MetricsCollector:
                 uptime_seconds=elapsed,
                 timestamp=now,
             )
+
+        # Update OTel observable gauge values for periodic callback reads
+        prometheus_exporter.update_snapshot_gauges(snapshot)
+
+        return snapshot
 
 
 # Global singleton

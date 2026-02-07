@@ -12,5 +12,10 @@ redis==5.2.1
 fastapi==0.115.6
 uvicorn==0.34.0
 
-# Prometheus metrics export
-prometheus-client>=0.21.0
+# OpenTelemetry core
+opentelemetry-api==1.39.1
+opentelemetry-sdk==1.39.1
+opentelemetry-exporter-otlp==1.39.1
+# Auto-instrumentation
+opentelemetry-instrumentation-fastapi==0.60b1
+opentelemetry-instrumentation-kafka-python==0.60b1

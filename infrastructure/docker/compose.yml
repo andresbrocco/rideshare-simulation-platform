@@ -257,6 +257,8 @@ services:
       - API_HOST=0.0.0.0
       - API_PORT=8080
       - LOG_LEVEL=${PROCESSOR_LOG_LEVEL:-INFO}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - DEPLOYMENT_ENV=local
     depends_on:
       kafka-init:
         condition: service_completed_successfully

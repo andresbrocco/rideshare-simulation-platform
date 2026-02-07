@@ -45,7 +45,7 @@ module = [
     "uvicorn.*",
     "fastapi",
     "fastapi.*",
-    "prometheus_client",
-    "prometheus_client.*",
+    "opentelemetry",
+    "opentelemetry.*",
 ]
 ignore_missing_imports = true

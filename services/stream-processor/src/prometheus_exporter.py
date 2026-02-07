@@ -1,146 +1,176 @@
-"""Prometheus metrics exporter for stream processor service.
+"""OpenTelemetry metrics exporter for stream processor service.
 
-Exports stream processor metrics in Prometheus format by bridging from
-the existing MetricsCollector snapshots.
+Exports stream processor metrics via OTLP to the OpenTelemetry Collector,
+which forwards them to Prometheus via remote_write. Metric names are
+preserved from the original prometheus_client implementation for Grafana
+dashboard compatibility.
 """
 
-from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram, generate_latest
+from __future__ import annotations
 
-from .metrics import StreamProcessorMetrics
+import threading
+from typing import TYPE_CHECKING
 
-# Use a separate registry to avoid default Python metrics
-REGISTRY = CollectorRegistry()
+from opentelemetry import metrics
+from opentelemetry.metrics import Observation
 
-# --- Counters (cumulative values) ---
+if TYPE_CHECKING:
+    from .metrics import StreamProcessorMetrics
 
-stream_processor_messages_consumed_total = Counter(
-    "stream_processor_messages_consumed_total",
-    "Total messages consumed from Kafka",
-    registry=REGISTRY,
+# ---------------------------------------------------------------------------
+# Meter
+# ---------------------------------------------------------------------------
+meter = metrics.get_meter("stream-processor")
+
+# ---------------------------------------------------------------------------
+# Counters (cumulative values)
+# ---------------------------------------------------------------------------
+stream_processor_messages_consumed_total = meter.create_counter(
+    name="stream_processor_messages_consumed_total",
+    description="Total messages consumed from Kafka",
+    unit="1",
 )
 
-stream_processor_messages_published_total = Counter(
-    "stream_processor_messages_published_total",
-    "Total messages published to Redis",
-    registry=REGISTRY,
+stream_processor_messages_published_total = meter.create_counter(
+    name="stream_processor_messages_published_total",
+    description="Total messages published to Redis",
+    unit="1",
 )
 
-stream_processor_gps_received_total = Counter(
-    "stream_processor_gps_received_total",
-    "Total GPS pings received",
-    registry=REGISTRY,
+stream_processor_gps_received_total = meter.create_counter(
+    name="stream_processor_gps_received_total",
+    description="Total GPS pings received",
+    unit="1",
 )
 
-stream_processor_gps_emitted_total = Counter(
-    "stream_processor_gps_emitted_total",
-    "Total aggregated GPS updates emitted",
-    registry=REGISTRY,
+stream_processor_gps_emitted_total = meter.create_counter(
+    name="stream_processor_gps_emitted_total",
+    description="Total aggregated GPS updates emitted",
+    unit="1",
 )
 
-stream_processor_publish_errors_total = Counter(
-    "stream_processor_publish_errors_total",
-    "Total Redis publish errors",
-    registry=REGISTRY,
+stream_processor_publish_errors_total = meter.create_counter(
+    name="stream_processor_publish_errors_total",
+    description="Total Redis publish errors",
+    unit="1",
 )
 
-stream_processor_validation_errors_total = Counter(
-    "stream_processor_validation_errors_total",
-    "Total validation errors by handler type",
-    ["handler_type"],
-    registry=REGISTRY,
+stream_processor_validation_errors_total = meter.create_counter(
+    name="stream_processor_validation_errors_total",
+    description="Total validation errors by handler type",
+    unit="1",
 )
 
-# --- Gauges (point-in-time values) ---
+# ---------------------------------------------------------------------------
+# Observable Gauges (values polled via callbacks from snapshot)
+# ---------------------------------------------------------------------------
 
-stream_processor_gps_aggregation_ratio = Gauge(
-    "stream_processor_gps_aggregation_ratio",
-    "Ratio of GPS pings received to updates emitted",
-    registry=REGISTRY,
+# Thread-safe container for the latest snapshot values so that OTel
+# callbacks can read them without holding a lock for too long.
+_snapshot_lock = threading.Lock()
+_snapshot_values: dict[str, float] = {
+    "gps_aggregation_ratio": 0.0,
+    "kafka_connected": 0.0,
+    "redis_connected": 0.0,
+    "uptime_seconds": 0.0,
+}
+
+
+def _observe(key: str) -> list[Observation]:
+    """Return a single observation for the given snapshot key."""
+    with _snapshot_lock:
+        return [Observation(value=_snapshot_values.get(key, 0.0))]
+
+
+stream_processor_gps_aggregation_ratio = meter.create_observable_gauge(
+    name="stream_processor_gps_aggregation_ratio",
+    callbacks=[lambda options: _observe("gps_aggregation_ratio")],
+    description="Ratio of GPS pings received to updates emitted",
+    unit="1",
 )
 
-stream_processor_kafka_connected = Gauge(
-    "stream_processor_kafka_connected",
-    "Whether Kafka connection is active (1=connected, 0=disconnected)",
-    registry=REGISTRY,
+stream_processor_kafka_connected = meter.create_observable_gauge(
+    name="stream_processor_kafka_connected",
+    callbacks=[lambda options: _observe("kafka_connected")],
+    description="Whether Kafka connection is active (1=connected, 0=disconnected)",
+    unit="1",
 )
 
-stream_processor_redis_connected = Gauge(
-    "stream_processor_redis_connected",
-    "Whether Redis connection is active (1=connected, 0=disconnected)",
-    registry=REGISTRY,
+stream_processor_redis_connected = meter.create_observable_gauge(
+    name="stream_processor_redis_connected",
+    callbacks=[lambda options: _observe("redis_connected")],
+    description="Whether Redis connection is active (1=connected, 0=disconnected)",
+    unit="1",
 )
 
-stream_processor_uptime_seconds = Gauge(
-    "stream_processor_uptime_seconds",
-    "Service uptime in seconds",
-    registry=REGISTRY,
+stream_processor_uptime_seconds = meter.create_observable_gauge(
+    name="stream_processor_uptime_seconds",
+    callbacks=[lambda options: _observe("uptime_seconds")],
+    description="Service uptime in seconds",
+    unit="s",
 )
 
-# --- Histograms (latency distributions) ---
-
-REDIS_LATENCY_BUCKETS = (0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, float("inf"))
-
-stream_processor_redis_publish_latency_seconds = Histogram(
-    "stream_processor_redis_publish_latency_seconds",
-    "Redis publish latency in seconds",
-    buckets=REDIS_LATENCY_BUCKETS,
-    registry=REGISTRY,
+# ---------------------------------------------------------------------------
+# Histograms (latency distributions)
+# ---------------------------------------------------------------------------
+stream_processor_redis_publish_latency_seconds = meter.create_histogram(
+    name="stream_processor_redis_publish_latency_seconds",
+    description="Redis publish latency in seconds",
+    unit="s",
 )
 
-# Track previous counter values to compute deltas
-_previous_consumed: int = 0
-_previous_published: int = 0
-_previous_errors: int = 0
+
+# ---------------------------------------------------------------------------
+# Helper functions for recording metrics
+# ---------------------------------------------------------------------------
 
 
-def update_metrics_from_snapshot(snapshot: StreamProcessorMetrics) -> None:
-    """Update Prometheus metrics from a MetricsCollector snapshot.
+def update_snapshot_gauges(snapshot: StreamProcessorMetrics) -> None:
+    """Update observable gauge values from a MetricsCollector snapshot.
 
-    This bridges the existing collector data to Prometheus format.
-    Call this before generating Prometheus output.
+    Called periodically so that OTel gauge callbacks return fresh values.
 
     Args:
         snapshot: Metrics snapshot from MetricsCollector
     """
-    global _previous_consumed, _previous_published, _previous_errors
-
-    # Update counters (compute deltas from cumulative totals)
-    if snapshot.messages_consumed_total > _previous_consumed:
-        delta = snapshot.messages_consumed_total - _previous_consumed
-        stream_processor_messages_consumed_total.inc(delta)
-        _previous_consumed = snapshot.messages_consumed_total
-
-    if snapshot.messages_published_total > _previous_published:
-        delta = snapshot.messages_published_total - _previous_published
-        stream_processor_messages_published_total.inc(delta)
-        _previous_published = snapshot.messages_published_total
-
-    if snapshot.publish_errors > _previous_errors:
-        delta = snapshot.publish_errors - _previous_errors
-        stream_processor_publish_errors_total.inc(delta)
-        _previous_errors = snapshot.publish_errors
-
-    # Update gauges
-    stream_processor_gps_aggregation_ratio.set(snapshot.gps_aggregation_ratio)
-    stream_processor_kafka_connected.set(1.0 if snapshot.kafka_connected else 0.0)
-    stream_processor_redis_connected.set(1.0 if snapshot.redis_connected else 0.0)
-    stream_processor_uptime_seconds.set(snapshot.uptime_seconds)
+    with _snapshot_lock:
+        _snapshot_values["gps_aggregation_ratio"] = snapshot.gps_aggregation_ratio
+        _snapshot_values["kafka_connected"] = 1.0 if snapshot.kafka_connected else 0.0
+        _snapshot_values["redis_connected"] = 1.0 if snapshot.redis_connected else 0.0
+        _snapshot_values["uptime_seconds"] = snapshot.uptime_seconds
 
 
 def observe_redis_latency(latency_ms: float) -> None:
-    """Observe a Redis publish latency sample for histogram tracking.
+    """Observe a Redis publish latency sample.
 
     Args:
         latency_ms: Latency in milliseconds
     """
     latency_seconds = latency_ms / 1000.0
-    stream_processor_redis_publish_latency_seconds.observe(latency_seconds)
+    stream_processor_redis_publish_latency_seconds.record(latency_seconds)
 
 
-def generate_prometheus_metrics() -> bytes:
-    """Generate Prometheus format metrics output.
+def record_consume() -> None:
+    """Record a consumed message."""
+    stream_processor_messages_consumed_total.add(1)
 
-    Returns:
-        Prometheus text format as bytes
-    """
-    return generate_latest(REGISTRY)
+
+def record_publish() -> None:
+    """Record a published message."""
+    stream_processor_messages_published_total.add(1)
+
+
+def record_publish_error() -> None:
+    """Record a publish error."""
+    stream_processor_publish_errors_total.add(1)
+
+
+def record_gps_aggregation(received: int, emitted: int) -> None:
+    """Record GPS aggregation stats."""
+    stream_processor_gps_received_total.add(received)
+    stream_processor_gps_emitted_total.add(emitted)
+
+
+def record_validation_error(handler_type: str) -> None:
+    """Record a validation error."""
+    stream_processor_validation_errors_total.add(1, {"handler_type": handler_type})
