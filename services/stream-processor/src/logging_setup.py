@@ -21,6 +21,7 @@ def setup_logging(
             logging.Formatter(
                 '{"timestamp": "%(asctime)s", "level": "%(levelname)s", '
                 '"logger": "%(name)s", "message": "%(message)s", '
+                '"service_name": "stream-processor", '
                 f'"environment": "{environment}"}}'
             )
         )

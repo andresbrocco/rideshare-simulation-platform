@@ -60,6 +60,9 @@ processors:
       - key: service
         from_attribute: body.logger
         action: upsert
+      - key: service_name
+        from_attribute: body.service_name
+        action: upsert
       - key: correlation_id
         from_attribute: body.correlation_id
         action: upsert
@@ -67,11 +70,18 @@ processors:
         from_attribute: body.trip_id
         action: upsert
 
+  # Copy service_name attribute to service.name resource attribute
+  transform/logs:
+    log_statements:
+      - context: log
+        statements:
+          - set(resource.attributes["service.name"], attributes["service_name"]) where attributes["service_name"] != nil
+
   # Loki label hints (tells loki exporter which attributes to promote to labels)
   attributes/loki_hints:
     actions:
       - key: loki.attribute.labels
-        value: level,service,container_id
+        value: level,service,service_name,container_id
         action: insert
 
   resource/loki_hints:
@@ -117,7 +127,7 @@ service:
     # Logs pipeline: Docker files → Loki
     logs:
       receivers: [filelog]
-      processors: [memory_limiter, attributes/logs, resource/loki_hints, attributes/loki_hints, batch]
+      processors: [memory_limiter, attributes/logs, transform/logs, resource, resource/loki_hints, attributes/loki_hints, batch]
       exporters: [loki]
 
     # Traces pipeline: OTLP → Tempo

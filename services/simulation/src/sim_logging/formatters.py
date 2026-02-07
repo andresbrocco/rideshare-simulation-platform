@@ -18,6 +18,7 @@ class JSONFormatter(logging.Formatter):
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
+            "service_name": "simulation",
             "env": self.environment,
         }
 
