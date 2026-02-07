@@ -1,3 +1,9 @@
+# Tempo configuration for rideshare-simulation-platform
+# Docs: https://grafana.com/docs/tempo/latest/configuration/
+
+# Enable result streaming from Tempo to Grafana via HTTP (required for Traces Drilldown)
+stream_over_http_enabled: true
+
 server:
   http_listen_port: 3200
 
@@ -15,18 +21,43 @@ ingester:
 
 compactor:
   compaction:
-    compacted_block_retention: 1h
+    compaction_window: 1h
+    max_block_bytes: 100_000_000
+    block_retention: 1h
+    compacted_block_retention: 10m
 
 storage:
   trace:
     backend: local
-    local:
-      path: /var/tempo/traces
+    block:
+      bloom_filter_false_positive: .05
     wal:
       path: /var/tempo/wal
+    local:
+      path: /var/tempo/blocks
+    pool:
+      max_workers: 100
+      queue_depth: 10000
 
+# Metrics generator: produces service graphs, span metrics, and TraceQL metrics
 metrics_generator:
+  processor:
+    span_metrics:
+      dimensions:
+        - http.method
+        - http.target
+        - http.status_code
+        - service.version
+    service_graphs:
+      dimensions:
+        - http.method
+        - http.target
+        - http.status_code
+        - service.version
+    local_blocks:
+      flush_to_storage: true
   registry:
+    collection_interval: 5s
     external_labels:
       source: tempo
       cluster: rideshare-simulation
@@ -36,3 +67,11 @@ metrics_generator:
     remote_write:
       - url: http://prometheus:9090/api/v1/write
         send_exemplars: true
+  traces_storage:
+    path: /var/tempo/generator/traces
+
+# Enable metrics generator processors
+overrides:
+  defaults:
+    metrics_generator:
+      processors: [service-graphs, span-metrics, local-blocks]

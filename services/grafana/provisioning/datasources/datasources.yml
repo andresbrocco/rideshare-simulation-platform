@@ -3,6 +3,7 @@ apiVersion: 1
 datasources:
   # Existing - Prometheus (keep as default)
   - name: Prometheus
+    uid: prometheus
     type: prometheus
     access: proxy
     url: http://prometheus:9090
@@ -13,6 +14,7 @@ datasources:
 
   # New - Trino (PostgreSQL protocol for Delta Lake)
   - name: Trino
+    uid: trino
     type: postgres
     access: proxy
     url: trino:8080
@@ -27,6 +29,7 @@ datasources:
 
   # New - Loki (log aggregation)
   - name: Loki
+    uid: loki
     type: loki
     access: proxy
     url: http://loki:3100
@@ -37,6 +40,7 @@ datasources:
 
   # New - Tempo (distributed tracing)
   - name: Tempo
+    uid: tempo
     type: tempo
     access: proxy
     url: http://tempo:3200

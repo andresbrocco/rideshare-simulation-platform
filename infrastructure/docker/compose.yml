@@ -948,7 +948,7 @@ services:
       loki:
         condition: service_healthy
       tempo:
-        condition: service_healthy
+        condition: service_started
     networks:
       - rideshare-network
     healthcheck:
@@ -982,7 +982,7 @@ services:
     restart: unless-stopped
 
   tempo:
-    image: grafana/tempo:2.3.1
+    image: grafana/tempo:2.10.0
     container_name: rideshare-tempo
     mem_limit: 512m
     profiles:
@@ -997,11 +997,9 @@ services:
     networks:
       - rideshare-network
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3200/ready"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      # Tempo 2.10.0 is a distroless image with no shell/wget/curl.
+      # Use NONE here since no CLI tools are available for Docker healthcheck.
+      disable: true
     restart: unless-stopped
 
   otel-collector:
@@ -1025,7 +1023,7 @@ services:
       loki:
         condition: service_healthy
       tempo:
-        condition: service_healthy
+        condition: service_started
     networks:
       - rideshare-network
     healthcheck:
