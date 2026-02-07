@@ -3,9 +3,7 @@ name: rideshare-platform
 # Docker Compose Profiles:
 # - core: Simulation runtime services (kafka, redis, osrm, simulation, stream-processor, frontend)
 # - data-pipeline: ETL, streaming, and orchestration (minio, spark-*, localstack, airflow, hive-metastore, trino)
-#   (Consolidated from data-platform + quality-orchestration on 2026-01-26)
 # - monitoring: Observability (prometheus, cadvisor, grafana, otel-collector, loki, tempo)
-# - analytics: DEPRECATED (Superset removed 2026-02-06, migrated to Grafana)
 
 services:
   kafka:
@@ -706,7 +704,6 @@ services:
       - ../../services/airflow/config:/opt/airflow/config
       - ../../services/dbt:/opt/dbt
       - ../../quality/great-expectations:/opt/great-expectations
-      - ../../analytics/superset:/opt/superset-provisioning:ro
     depends_on:
       postgres-airflow:
         condition: service_healthy
@@ -757,7 +754,6 @@ services:
       - ../../services/dbt:/opt/dbt
       - ../../quality/great-expectations:/opt/great-expectations
       - ../../infrastructure/scripts:/opt/init-scripts:ro
-      - ../../analytics/superset:/opt/superset-provisioning:ro
     depends_on:
       postgres-airflow:
         condition: service_healthy

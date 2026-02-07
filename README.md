@@ -77,9 +77,10 @@ cd services/frontend && npm run test
 | 9090 | Prometheus | Prometheus metrics server |
 | 8083 | cAdvisor | cAdvisor container metrics API |
 | 3001 | Grafana | Grafana dashboards UI |
-| 5433 | PostgreSQL (Superset) | Superset metadata database |
-| 6380 | Redis (Superset) | Superset caching |
-| 8088 | Superset | Apache Superset BI platform |
+| 4317 | OTel Collector | OpenTelemetry gRPC receiver |
+| 4318 | OTel Collector | OpenTelemetry HTTP receiver |
+| 3100 | Loki | Log aggregation API |
+| 3200 | Tempo | Distributed tracing API |
 
 ## Environment Variables
 
@@ -155,14 +156,11 @@ cd services/simulation
 # Start core services (kafka, redis, osrm, simulation, stream-processor, frontend)
 docker compose -f infrastructure/docker/compose.yml --profile core up -d
 
-# Start data pipeline services (minio, spark, airflow, localstack)
+# Start data pipeline services (minio, spark, hive-metastore, trino, airflow, localstack)
 docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
 
-# Start monitoring services (prometheus, cadvisor, grafana)
+# Start monitoring services (prometheus, grafana, otel-collector, loki, tempo)
 docker compose -f infrastructure/docker/compose.yml --profile monitoring up -d
-
-# Start analytics services (superset, postgres-superset, redis-superset)
-docker compose -f infrastructure/docker/compose.yml --profile analytics up -d
 
 # View logs
 docker compose -f infrastructure/docker/compose.yml --profile core logs -f simulation
@@ -216,14 +214,18 @@ rideshare-simulation-platform/
 │   ├── frontend/            # React + deck.gl visualization (README)
 │   ├── spark-streaming/     # Bronze layer ingestion (README)
 │   ├── dbt/                 # Medallion transformations (README)
-│   └── airflow/             # Pipeline orchestration (README)
+│   ├── airflow/             # Pipeline orchestration (README)
+│   ├── hive-metastore/      # Hive Metastore for Spark/Trino catalog
+│   ├── trino/               # Trino distributed SQL engine config
+│   ├── grafana/             # Grafana dashboards and provisioning
+│   ├── prometheus/          # Prometheus monitoring config
+│   ├── otel-collector/      # OpenTelemetry Collector config
+│   ├── loki/                # Loki log aggregation config
+│   └── tempo/               # Tempo distributed tracing config
 ├── infrastructure/
 │   ├── docker/              # Docker Compose (README)
 │   ├── kubernetes/          # Kind cluster + manifests (README)
-│   ├── monitoring/          # Prometheus + Grafana (README)
 │   └── terraform/           # Cloud infrastructure
-├── analytics/
-│   └── superset/            # BI dashboards (README)
 ├── schemas/
 │   ├── kafka/               # Event schema definitions
 │   └── lakehouse/           # Bronze layer PySpark schemas
@@ -244,7 +246,8 @@ rideshare-simulation-platform/
 | Spark Streaming | Bronze layer ingestion from Kafka to Delta Lake | [README](services/spark-streaming/README.md) |
 | DBT | Silver and Gold layer transformations | [README](services/dbt/README.md) |
 | Airflow | Pipeline orchestration and DLQ monitoring | [README](services/airflow/README.md) |
-| Superset | Business intelligence dashboards | [README](analytics/superset/README.md) |
+| Trino | Interactive SQL engine for lakehouse queries | — |
+| Grafana | Observability dashboards (metrics, logs, traces) | — |
 
 ## Troubleshooting
 

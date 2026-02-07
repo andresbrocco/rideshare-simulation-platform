@@ -67,13 +67,6 @@ repos:
         files: ^quality/great-expectations/[^/]+\.py$
         pass_filenames: false
 
-      - id: mypy-superset
-        name: mypy (superset)
-        entry: bash -c 'cd analytics/superset && ./venv/bin/mypy superset_config.py provisioning/'
-        language: system
-        files: ^analytics/superset/(superset_config\.py|provisioning/.*\.py)$
-        pass_filenames: false
-
       - id: mypy-lakehouse
         name: mypy (lakehouse)
         entry: bash -c 'cd schemas/lakehouse && ./venv/bin/mypy schemas/ config/ scripts/'
