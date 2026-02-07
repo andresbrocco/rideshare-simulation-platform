@@ -78,12 +78,21 @@ def init_lakehouse_databases(cursor):
     - bronze: Raw event data from Kafka streaming
     - silver: DBT staging models (cleaned/deduplicated)
     - gold: DBT dimension, fact, and aggregate tables
-    """
-    databases_to_create = ["bronze", "silver", "gold"]
 
-    for db_name in databases_to_create:
-        logger.info(f"Creating {db_name} database...")
-        cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db_name}")
+    Each database is created with an explicit S3 LOCATION so that Delta Lake
+    placeholder directories resolve to S3 instead of the local filesystem.
+    """
+    databases_to_create = {
+        "bronze": "s3a://rideshare-bronze/",
+        "silver": "s3a://rideshare-silver/",
+        "gold": "s3a://rideshare-gold/",
+    }
+
+    for db_name, location in databases_to_create.items():
+        logger.info(f"Creating {db_name} database at {location}...")
+        cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db_name} LOCATION '{location}'")
+        # Ensure location is correct even if database already existed
+        cursor.execute(f"ALTER DATABASE {db_name} SET LOCATION '{location}'")
         logger.info(f"  [OK] {db_name} database created")
 
     # Verify databases exist

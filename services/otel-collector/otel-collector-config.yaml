@@ -67,6 +67,19 @@ processors:
         from_attribute: body.trip_id
         action: upsert
 
+  # Loki label hints (tells loki exporter which attributes to promote to labels)
+  attributes/loki_hints:
+    actions:
+      - key: loki.attribute.labels
+        value: level,service,container_id
+        action: insert
+
+  resource/loki_hints:
+    attributes:
+      - key: loki.resource.labels
+        value: service.name,deployment.environment
+        action: insert
+
 exporters:
   # Prometheus remote write for metrics
   prometheusremotewrite:
@@ -77,14 +90,6 @@ exporters:
   # Loki exporter for logs
   loki:
     endpoint: http://loki:3100/loki/api/v1/push
-    labels:
-      attributes:
-        level: ""
-        service: ""
-        container_id: ""
-      resource:
-        service.name: "service"
-        deployment.environment: "env"
 
   # OTLP exporter to Tempo for traces
   otlp/tempo:
@@ -96,7 +101,12 @@ exporters:
   debug:
     verbosity: basic
 
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
 service:
+  extensions: [health_check]
   pipelines:
     # Metrics pipeline: OTLP → Prometheus
     metrics:
@@ -107,7 +117,7 @@ service:
     # Logs pipeline: Docker files → Loki
     logs:
       receivers: [filelog]
-      processors: [memory_limiter, attributes/logs, batch]
+      processors: [memory_limiter, attributes/logs, resource/loki_hints, attributes/loki_hints, batch]
       exporters: [loki]
 
     # Traces pipeline: OTLP → Tempo

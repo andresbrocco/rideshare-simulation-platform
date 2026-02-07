@@ -436,6 +436,7 @@ services:
       --name "Thrift JDBC/ODBC Server"
       --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
       --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
+      --conf spark.sql.warehouse.dir=s3a://rideshare-bronze/warehouse
       --conf spark.hadoop.hive.metastore.uris=thrift://hive-metastore:9083
       --conf spark.ui.retainedStages=100
       --conf spark.ui.retainedJobs=100
@@ -452,6 +453,7 @@ services:
       --conf spark.hadoop.fs.s3a.connection.pool.size=8
       --conf spark.hadoop.fs.s3a.connection.establish.timeout=5000
       --conf spark.hadoop.fs.s3a.connection.timeout=200000
+      --hiveconf hive.metastore.warehouse.dir=s3a://rideshare-bronze/warehouse
       --hiveconf hive.server2.thrift.port=10000
       --hiveconf hive.server2.thrift.bind.host=0.0.0.0
       --hiveconf hive.server2.authentication=NOSASL
@@ -850,7 +852,6 @@ services:
       - TRINO_ENVIRONMENT=docker
     volumes:
       - ../../services/trino/etc:/etc/trino:ro
-      - ../../services/trino/catalog:/etc/trino/catalog:ro
     depends_on:
       hive-metastore:
         condition: service_healthy
@@ -1028,11 +1029,10 @@ services:
     networks:
       - rideshare-network
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8888/"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      # Distroless image has no shell/wget/curl; health_check extension on :13133
+      # is configured in otel-collector-config.yaml for internal liveness.
+      # Use NONE here since no CLI tools are available for Docker healthcheck.
+      disable: true
     restart: unless-stopped
 
 networks:
