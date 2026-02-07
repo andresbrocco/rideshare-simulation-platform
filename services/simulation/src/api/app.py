@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Any, Literal
 import httpx
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -124,6 +126,12 @@ def create_app(
         description="REST API for controlling simulation and streaming real-time updates",
         lifespan=lifespan,
     )
+
+    # Auto-instrument FastAPI (generates traces for all HTTP requests)
+    FastAPIInstrumentor.instrument_app(app)
+
+    # Auto-instrument HTTPX (traces outbound HTTP calls, e.g. OSRM)
+    HTTPXClientInstrumentor().instrument()
 
     # Add rate limiter state and exception handler
     app.state.limiter = limiter

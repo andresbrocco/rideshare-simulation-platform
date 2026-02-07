@@ -1,164 +1,201 @@
-"""Prometheus metrics exporter for simulation service.
+"""OpenTelemetry metrics exporter for simulation service.
 
-Exports simulation metrics in Prometheus format by bridging from
-the existing MetricsCollector snapshots.
+Exports simulation metrics via OTLP to the OpenTelemetry Collector, which
+forwards them to Prometheus via remote_write. Metric names are preserved
+from the original prometheus_client implementation for Grafana dashboard
+compatibility.
 """
 
-from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram, generate_latest
+from __future__ import annotations
 
-from metrics.collector import PerformanceSnapshot
+import threading
+from typing import TYPE_CHECKING
 
-# Use a separate registry to avoid default Python metrics
-REGISTRY = CollectorRegistry()
+from opentelemetry import metrics
+from opentelemetry.metrics import Observation
 
-# --- Gauges (point-in-time values) ---
+if TYPE_CHECKING:
 
-# Agent counts
-simulation_drivers_online = Gauge(
-    "simulation_drivers_online",
-    "Number of drivers currently online",
-    registry=REGISTRY,
+    from metrics.collector import PerformanceSnapshot
+
+# ---------------------------------------------------------------------------
+# Meter
+# ---------------------------------------------------------------------------
+meter = metrics.get_meter("simulation")
+
+# ---------------------------------------------------------------------------
+# Counters (cumulative values)
+# ---------------------------------------------------------------------------
+simulation_events_total = meter.create_counter(
+    name="simulation_events_total",
+    description="Total events emitted by type",
+    unit="1",
 )
 
-simulation_riders_in_transit = Gauge(
-    "simulation_riders_in_transit",
-    "Number of riders currently in transit",
-    registry=REGISTRY,
+simulation_trips_completed_total = meter.create_counter(
+    name="simulation_trips_completed_total",
+    description="Total number of completed trips",
+    unit="1",
 )
 
-simulation_trips_active = Gauge(
-    "simulation_trips_active",
-    "Number of active trips",
-    registry=REGISTRY,
+simulation_trips_cancelled_total = meter.create_counter(
+    name="simulation_trips_cancelled_total",
+    description="Total number of cancelled trips",
+    unit="1",
 )
 
-# Trip quality metrics
-simulation_avg_fare = Gauge(
-    "simulation_avg_fare_dollars",
-    "Average trip fare in dollars",
-    registry=REGISTRY,
+simulation_errors_total = meter.create_counter(
+    name="simulation_errors_total",
+    description="Total errors by component and type",
+    unit="1",
 )
 
-simulation_avg_duration = Gauge(
-    "simulation_avg_duration_minutes",
-    "Average trip duration in minutes",
-    registry=REGISTRY,
+# ---------------------------------------------------------------------------
+# UpDownCounters (mutable counts that can go up or down)
+# ---------------------------------------------------------------------------
+simulation_drivers_online = meter.create_up_down_counter(
+    name="simulation_drivers_online",
+    description="Number of drivers currently online",
+    unit="1",
 )
 
-simulation_avg_wait = Gauge(
-    "simulation_avg_wait_seconds",
-    "Average rider wait time in seconds",
-    registry=REGISTRY,
+simulation_riders_in_transit = meter.create_up_down_counter(
+    name="simulation_riders_in_transit",
+    description="Number of riders currently in transit",
+    unit="1",
 )
 
-simulation_avg_pickup = Gauge(
-    "simulation_avg_pickup_seconds",
-    "Average pickup time in seconds",
-    registry=REGISTRY,
+simulation_trips_active = meter.create_up_down_counter(
+    name="simulation_trips_active",
+    description="Number of active trips",
+    unit="1",
 )
 
-# Matching metrics
-simulation_matching_success_rate = Gauge(
-    "simulation_matching_success_rate_percent",
-    "Matching success rate as a percentage",
-    registry=REGISTRY,
+simulation_offers_pending = meter.create_up_down_counter(
+    name="simulation_offers_pending",
+    description="Number of pending trip offers",
+    unit="1",
 )
 
-simulation_offers_pending = Gauge(
-    "simulation_offers_pending",
-    "Number of pending trip offers",
-    registry=REGISTRY,
+simulation_simpy_events = meter.create_up_down_counter(
+    name="simulation_simpy_events",
+    description="Number of events in SimPy queue",
+    unit="1",
 )
 
-# Queue depths
-simulation_simpy_events = Gauge(
-    "simulation_simpy_events",
-    "Number of events in SimPy queue",
-    registry=REGISTRY,
+# ---------------------------------------------------------------------------
+# Observable Gauges (values polled via callbacks from snapshot)
+# ---------------------------------------------------------------------------
+
+# Thread-safe container for the latest snapshot values so that OTel
+# callbacks can read them without holding a lock for too long.
+_snapshot_lock = threading.Lock()
+_snapshot_values: dict[str, float] = {
+    "avg_fare": 0.0,
+    "avg_duration_minutes": 0.0,
+    "avg_wait_seconds": 0.0,
+    "avg_pickup_seconds": 0.0,
+    "matching_success_rate": 0.0,
+    "memory_rss_mb": 0.0,
+    "memory_percent": 0.0,
+    "cpu_percent": 0.0,
+    "thread_count": 0.0,
+}
+
+
+def _observe(key: str) -> list[Observation]:
+    """Return a single observation for the given snapshot key."""
+    with _snapshot_lock:
+        return [Observation(value=_snapshot_values.get(key, 0.0))]
+
+
+simulation_avg_fare = meter.create_observable_gauge(
+    name="simulation_avg_fare_dollars",
+    callbacks=[lambda options: _observe("avg_fare")],
+    description="Average trip fare in dollars",
+    unit="USD",
 )
 
-# Resource metrics
-simulation_memory_rss_mb = Gauge(
-    "simulation_memory_rss_mb",
-    "Resident set size memory in MB",
-    registry=REGISTRY,
+simulation_avg_duration = meter.create_observable_gauge(
+    name="simulation_avg_duration_minutes",
+    callbacks=[lambda options: _observe("avg_duration_minutes")],
+    description="Average trip duration in minutes",
+    unit="min",
 )
 
-simulation_memory_percent = Gauge(
-    "simulation_memory_percent",
-    "Memory usage as percentage of system memory",
-    registry=REGISTRY,
+simulation_avg_wait = meter.create_observable_gauge(
+    name="simulation_avg_wait_seconds",
+    callbacks=[lambda options: _observe("avg_wait_seconds")],
+    description="Average rider wait time in seconds",
+    unit="s",
 )
 
-simulation_cpu_percent = Gauge(
-    "simulation_cpu_percent",
-    "CPU usage percentage",
-    registry=REGISTRY,
+simulation_avg_pickup = meter.create_observable_gauge(
+    name="simulation_avg_pickup_seconds",
+    callbacks=[lambda options: _observe("avg_pickup_seconds")],
+    description="Average pickup time in seconds",
+    unit="s",
 )
 
-simulation_thread_count = Gauge(
-    "simulation_thread_count",
-    "Number of active threads",
-    registry=REGISTRY,
+simulation_matching_success_rate = meter.create_observable_gauge(
+    name="simulation_matching_success_rate_percent",
+    callbacks=[lambda options: _observe("matching_success_rate")],
+    description="Matching success rate as a percentage",
+    unit="%",
 )
 
-# --- Counters (cumulative values) ---
-
-simulation_events_total = Counter(
-    "simulation_events_total",
-    "Total events emitted by type",
-    ["event_type"],
-    registry=REGISTRY,
+simulation_memory_rss_mb = meter.create_observable_gauge(
+    name="simulation_memory_rss_mb",
+    callbacks=[lambda options: _observe("memory_rss_mb")],
+    description="Resident set size memory in MB",
+    unit="MiB",
 )
 
-simulation_trips_completed_total = Counter(
-    "simulation_trips_completed_total",
-    "Total number of completed trips",
-    registry=REGISTRY,
+simulation_memory_percent = meter.create_observable_gauge(
+    name="simulation_memory_percent",
+    callbacks=[lambda options: _observe("memory_percent")],
+    description="Memory usage as percentage of system memory",
+    unit="%",
 )
 
-simulation_trips_cancelled_total = Counter(
-    "simulation_trips_cancelled_total",
-    "Total number of cancelled trips",
-    registry=REGISTRY,
+simulation_cpu_percent = meter.create_observable_gauge(
+    name="simulation_cpu_percent",
+    callbacks=[lambda options: _observe("cpu_percent")],
+    description="CPU usage percentage",
+    unit="%",
 )
 
-simulation_errors_total = Counter(
-    "simulation_errors_total",
-    "Total errors by component and type",
-    ["component", "error_type"],
-    registry=REGISTRY,
+simulation_thread_count = meter.create_observable_gauge(
+    name="simulation_thread_count",
+    callbacks=[lambda options: _observe("thread_count")],
+    description="Number of active threads",
+    unit="1",
 )
 
-# --- Histograms (latency distributions) ---
-
-# Bucket definitions based on observed latency ranges
-OSRM_LATENCY_BUCKETS = (0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, float("inf"))
-KAFKA_LATENCY_BUCKETS = (0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, float("inf"))
-REDIS_LATENCY_BUCKETS = (0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, float("inf"))
-
-simulation_osrm_latency_seconds = Histogram(
-    "simulation_osrm_latency_seconds",
-    "OSRM routing request latency in seconds",
-    buckets=OSRM_LATENCY_BUCKETS,
-    registry=REGISTRY,
+# ---------------------------------------------------------------------------
+# Histograms (latency distributions)
+# ---------------------------------------------------------------------------
+simulation_osrm_latency_seconds = meter.create_histogram(
+    name="simulation_osrm_latency_seconds",
+    description="OSRM routing request latency in seconds",
+    unit="s",
 )
 
-simulation_kafka_latency_seconds = Histogram(
-    "simulation_kafka_latency_seconds",
-    "Kafka publish latency in seconds",
-    buckets=KAFKA_LATENCY_BUCKETS,
-    registry=REGISTRY,
+simulation_kafka_latency_seconds = meter.create_histogram(
+    name="simulation_kafka_latency_seconds",
+    description="Kafka publish latency in seconds",
+    unit="s",
 )
 
-simulation_redis_latency_seconds = Histogram(
-    "simulation_redis_latency_seconds",
-    "Redis operation latency in seconds",
-    buckets=REDIS_LATENCY_BUCKETS,
-    registry=REGISTRY,
+simulation_redis_latency_seconds = meter.create_histogram(
+    name="simulation_redis_latency_seconds",
+    description="Redis operation latency in seconds",
+    unit="s",
 )
 
-# Track previous counter values to compute deltas
+# ---------------------------------------------------------------------------
+# Previous counter tracking (for delta computation from cumulative inputs)
+# ---------------------------------------------------------------------------
 _previous_event_counts: dict[str, float] = {}
 _previous_error_counts: dict[tuple[str, str], int] = {}
 _previous_trips_completed: int = 0
@@ -181,82 +218,57 @@ def update_metrics_from_snapshot(
     pending_offers: int = 0,
     simpy_events: int = 0,
 ) -> None:
-    """Update Prometheus metrics from a MetricsCollector snapshot.
+    """Update OTel metrics from a MetricsCollector snapshot.
 
-    This bridges the existing collector data to Prometheus format.
-    Call this before generating Prometheus output.
-
-    Args:
-        snapshot: Performance snapshot from MetricsCollector
-        trips_completed: Total completed trips (cumulative)
-        trips_cancelled: Total cancelled trips (cumulative)
-        drivers_online: Current online driver count
-        riders_in_transit: Current in-transit rider count
-        active_trips: Current active trip count
-        avg_fare: Average fare in dollars
-        avg_duration_minutes: Average trip duration
-        avg_wait_seconds: Average wait time
-        avg_pickup_seconds: Average pickup time
-        matching_success_rate: Success rate as percentage
-        pending_offers: Number of pending offers
-        simpy_events: SimPy event queue depth
+    For UpDownCounters, we compute the delta from the previous value so
+    the counter tracks real-time state. For observable gauges the values
+    are stored in the shared snapshot dict for callback reads.
     """
     global _previous_event_counts, _previous_error_counts
     global _previous_trips_completed, _previous_trips_cancelled
 
-    # Update gauges
-    simulation_drivers_online.set(drivers_online)
-    simulation_riders_in_transit.set(riders_in_transit)
-    simulation_trips_active.set(active_trips)
+    # --- Observable gauge values (stored for callback reads) ---
+    with _snapshot_lock:
+        _snapshot_values["avg_fare"] = avg_fare
+        _snapshot_values["avg_duration_minutes"] = avg_duration_minutes
+        _snapshot_values["avg_wait_seconds"] = avg_wait_seconds
+        _snapshot_values["avg_pickup_seconds"] = avg_pickup_seconds
+        _snapshot_values["matching_success_rate"] = matching_success_rate
+        _snapshot_values["memory_rss_mb"] = snapshot.memory_rss_mb
+        _snapshot_values["memory_percent"] = snapshot.memory_percent
+        _snapshot_values["cpu_percent"] = snapshot.cpu_percent
+        _snapshot_values["thread_count"] = float(snapshot.thread_count)
 
-    simulation_avg_fare.set(avg_fare)
-    simulation_avg_duration.set(avg_duration_minutes)
-    simulation_avg_wait.set(avg_wait_seconds)
-    simulation_avg_pickup.set(avg_pickup_seconds)
-
-    simulation_matching_success_rate.set(matching_success_rate)
-    simulation_offers_pending.set(pending_offers)
-    simulation_simpy_events.set(simpy_events)
-
-    simulation_memory_rss_mb.set(snapshot.memory_rss_mb)
-    simulation_memory_percent.set(snapshot.memory_percent)
-    simulation_cpu_percent.set(snapshot.cpu_percent)
-    simulation_thread_count.set(snapshot.thread_count)
-
-    # Update event counters (from rate * window_seconds approximation)
-    # The collector tracks events per second, we need cumulative counts
-    # We'll use the rate to estimate delta and increment
-    window_seconds = 60.0  # Default collector window
+    # --- Event counters (delta from rate * window) ---
+    window_seconds = 60.0
     for event_type, rate in snapshot.events_per_second.items():
-        # Estimate events in window
         estimated_count = rate * window_seconds
         prev_count = _previous_event_counts.get(event_type, 0.0)
-        # Only increment if count increased
         if estimated_count > prev_count:
             delta = estimated_count - prev_count
-            simulation_events_total.labels(event_type=event_type).inc(delta)
+            simulation_events_total.add(delta, {"event_type": event_type})
         _previous_event_counts[event_type] = estimated_count
 
-    # Update trip counters
+    # --- Trip counters ---
     if trips_completed > _previous_trips_completed:
         delta = trips_completed - _previous_trips_completed
-        simulation_trips_completed_total.inc(delta)
+        simulation_trips_completed_total.add(delta)
         _previous_trips_completed = trips_completed
 
     if trips_cancelled > _previous_trips_cancelled:
         delta = trips_cancelled - _previous_trips_cancelled
-        simulation_trips_cancelled_total.inc(delta)
+        simulation_trips_cancelled_total.add(delta)
         _previous_trips_cancelled = trips_cancelled
 
-    # Update error counters
+    # --- Error counters ---
     for component, error_stats in snapshot.errors.items():
         for error_type, count in error_stats.by_type.items():
             key = (component, error_type)
             prev = _previous_error_counts.get(key, 0)
             if count > prev:
                 delta = count - prev
-                simulation_errors_total.labels(component=component, error_type=error_type).inc(
-                    delta
+                simulation_errors_total.add(
+                    delta, {"component": component, "error_type": error_type}
                 )
             _previous_error_counts[key] = count
 
@@ -271,18 +283,8 @@ def observe_latency(component: str, latency_ms: float) -> None:
     latency_seconds = latency_ms / 1000.0
 
     if component == "osrm":
-        simulation_osrm_latency_seconds.observe(latency_seconds)
+        simulation_osrm_latency_seconds.record(latency_seconds)
     elif component == "kafka":
-        simulation_kafka_latency_seconds.observe(latency_seconds)
+        simulation_kafka_latency_seconds.record(latency_seconds)
     elif component == "redis":
-        simulation_redis_latency_seconds.observe(latency_seconds)
-
-
-def generate_prometheus_metrics() -> bytes:
-    """Generate Prometheus format metrics output.
-
-    Returns:
-        Prometheus text format as bytes
-    """
-    result: bytes = generate_latest(REGISTRY)
-    return result
+        simulation_redis_latency_seconds.record(latency_seconds)

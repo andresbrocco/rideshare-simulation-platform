@@ -30,7 +30,16 @@ dependencies = [
     "python-multipart==0.0.20",
     "websockets==14.1",
     "slowapi>=0.1.9",
-    "prometheus-client>=0.21.0",
+    # OpenTelemetry core
+    "opentelemetry-api==1.39.1",
+    "opentelemetry-sdk==1.39.1",
+    "opentelemetry-exporter-otlp==1.39.1",
+    # OpenTelemetry auto-instrumentation
+    "opentelemetry-instrumentation-fastapi==0.60b1",
+    # Note: kafka-python instrumentation omitted — this project uses confluent-kafka,
+    # and kafka-python's top-level `kafka` module shadows our local src/kafka/ package.
+    "opentelemetry-instrumentation-redis==0.60b1",
+    "opentelemetry-instrumentation-httpx==0.60b1",
 ]
 
 [project.optional-dependencies]
@@ -120,7 +129,7 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = [
-    "prometheus_client",
-    "prometheus_client.*",
+    "opentelemetry",
+    "opentelemetry.*",
 ]
 ignore_missing_imports = true

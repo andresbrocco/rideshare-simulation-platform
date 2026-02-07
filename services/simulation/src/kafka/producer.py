@@ -3,7 +3,9 @@ import logging
 from typing import Any
 
 from confluent_kafka import Producer
+from opentelemetry import trace
 
+from core.correlation import get_current_correlation_id
 from core.exceptions import NetworkError
 
 logger = logging.getLogger(__name__)
@@ -13,6 +15,9 @@ class KafkaProducerError(NetworkError):
     """Kafka producer error. Inherits from NetworkError (retryable)."""
 
     pass
+
+
+_tracer = trace.get_tracer(__name__)
 
 
 class KafkaProducer:
@@ -54,43 +59,57 @@ class KafkaProducer:
             callback: Optional delivery callback
             critical: If True, flush with timeout to ensure delivery
         """
-        # Serialize value to JSON string if it's not already a string
-        if isinstance(value, str):
-            serialized = value
-        elif isinstance(value, dict):
-            serialized = json.dumps(value)
-        elif hasattr(value, "model_dump_json"):
-            # Pydantic model
-            serialized = value.model_dump_json()
-        else:
-            serialized = json.dumps(value)
+        with _tracer.start_as_current_span("kafka.produce") as span:
+            span.set_attribute("messaging.system", "kafka")
+            span.set_attribute("messaging.destination.name", topic)
+            span.set_attribute("messaging.kafka.message.key", key)
 
-        # Create internal delivery callback that tracks failures
-        def internal_callback(err: Any, msg: Any) -> None:
-            if err is not None:
-                logger.error(f"Kafka delivery failed: {err.str()}")
-                self._failed_deliveries.append(
-                    {
-                        "topic": msg.topic() if msg else topic,
-                        "key": msg.key() if msg else key,
-                        "error": err.str() if hasattr(err, "str") else str(err),
-                    }
+            # Bridge correlation_id to trace span
+            correlation_id = get_current_correlation_id()
+            if correlation_id:
+                span.set_attribute("correlation_id", correlation_id)
+
+            # Serialize value to JSON string if it's not already a string
+            if isinstance(value, str):
+                serialized = value
+            elif isinstance(value, dict):
+                serialized = json.dumps(value)
+            elif hasattr(value, "model_dump_json"):
+                # Pydantic model
+                serialized = value.model_dump_json()
+            else:
+                serialized = json.dumps(value)
+
+            # Create internal delivery callback that tracks failures
+            def internal_callback(err: Any, msg: Any) -> None:
+                if err is not None:
+                    logger.error(f"Kafka delivery failed: {err.str()}")
+                    self._failed_deliveries.append(
+                        {
+                            "topic": msg.topic() if msg else topic,
+                            "key": msg.key() if msg else key,
+                            "error": err.str() if hasattr(err, "str") else str(err),
+                        }
+                    )
+                # Chain to user's callback if provided
+                if callback is not None:
+                    callback(err, msg)
+
+            try:
+                self._producer.produce(
+                    topic, key=key, value=serialized, on_delivery=internal_callback
                 )
-            # Chain to user's callback if provided
-            if callback is not None:
-                callback(err, msg)
+            except BufferError:
+                # Queue full - poll to make room and retry once
+                self._producer.poll(1.0)
+                self._producer.produce(
+                    topic, key=key, value=serialized, on_delivery=internal_callback
+                )
 
-        try:
-            self._producer.produce(topic, key=key, value=serialized, on_delivery=internal_callback)
-        except BufferError:
-            # Queue full - poll to make room and retry once
-            self._producer.poll(1.0)
-            self._producer.produce(topic, key=key, value=serialized, on_delivery=internal_callback)
-
-        if critical:
-            self._producer.flush(timeout=5.0)
-        else:
-            self._producer.poll(0)
+            if critical:
+                self._producer.flush(timeout=5.0)
+            else:
+                self._producer.poll(0)
 
     def flush(self) -> None:
         """Flush all pending messages."""

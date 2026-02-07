@@ -5,7 +5,6 @@ from typing import Annotated, Any, TypeVar, cast
 
 import httpx
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import PlainTextResponse
 
 from api.auth import verify_api_key
 from api.models.metrics import (
@@ -31,10 +30,6 @@ from api.models.metrics import (
 )
 from api.rate_limit import limiter
 from metrics import get_metrics_collector
-from metrics.prometheus_exporter import (
-    generate_prometheus_metrics,
-    update_metrics_from_snapshot,
-)
 from trip import TripState
 
 logger = logging.getLogger(__name__)
@@ -1182,87 +1177,6 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         total_cores=total_cores,
     )
 
-
-@router.get("/prometheus", response_class=PlainTextResponse)
-@limiter.limit("120/minute")
-def get_prometheus_metrics(
-    request: Request,
-    engine: EngineDep,
-    driver_registry: DriverRegistryDep,
-    matching_server: MatchingServerDep,
-) -> str:
-    """Returns metrics in Prometheus text format.
-
-    This endpoint bridges the existing metrics collector to Prometheus format.
-    It reuses cached snapshot data to minimize overhead.
-    """
-    collector = get_metrics_collector()
-    snapshot = collector.get_snapshot()
-
-    # Gather additional metrics from engine state
-    drivers_online = 0
-    if driver_registry:
-        drivers_online = driver_registry.get_all_status_counts().get("online", 0)
-
-    riders_in_transit = 0
-    if hasattr(engine, "_active_riders"):
-        for rider in engine._active_riders.values():
-            if hasattr(rider, "status") and rider.status == "in_trip":
-                riders_in_transit += 1
-
-    active_trips = 0
-    if hasattr(engine, "_get_in_flight_trips"):
-        active_trips = len(engine._get_in_flight_trips())
-
-    # Get trip stats from matching server
-    trips_completed = 0
-    trips_cancelled = 0
-    avg_fare = 0.0
-    avg_duration_minutes = 0.0
-    avg_wait_seconds = 0.0
-    avg_pickup_seconds = 0.0
-    matching_success_rate = 0.0
-    pending_offers = 0
-
-    if matching_server:
-        if hasattr(matching_server, "get_trip_stats"):
-            stats = matching_server.get_trip_stats()
-            trips_completed = stats.get("completed_count", 0)
-            trips_cancelled = stats.get("cancelled_count", 0)
-            avg_fare = stats.get("avg_fare", 0.0)
-            avg_duration_minutes = stats.get("avg_duration_minutes", 0.0)
-            avg_wait_seconds = stats.get("avg_wait_seconds", 0.0)
-            avg_pickup_seconds = stats.get("avg_pickup_seconds", 0.0)
-
-        if hasattr(matching_server, "get_matching_stats"):
-            matching_stats = matching_server.get_matching_stats()
-            offers_sent = matching_stats.get("offers_sent", 0)
-            offers_accepted = matching_stats.get("offers_accepted", 0)
-            if offers_sent > 0:
-                matching_success_rate = (offers_accepted / offers_sent) * 100
-            pending_offers = matching_stats.get("pending_offers", 0)
-
-    # Get SimPy queue depth
-    simpy_events = 0
-    if hasattr(engine, "_env") and hasattr(engine._env, "_queue"):
-        simpy_events = len(engine._env._queue)
-
-    # Update Prometheus metrics from snapshot
-    update_metrics_from_snapshot(
-        snapshot,
-        trips_completed=trips_completed,
-        trips_cancelled=trips_cancelled,
-        drivers_online=drivers_online,
-        riders_in_transit=riders_in_transit,
-        active_trips=active_trips,
-        avg_fare=avg_fare,
-        avg_duration_minutes=avg_duration_minutes,
-        avg_wait_seconds=avg_wait_seconds,
-        avg_pickup_seconds=avg_pickup_seconds,
-        matching_success_rate=matching_success_rate,
-        pending_offers=pending_offers,
-        simpy_events=simpy_events,
-    )
-
-    # Generate and return Prometheus format
-    return generate_prometheus_metrics().decode("utf-8")
+    # NOTE: /metrics/prometheus endpoint removed.
+    # Metrics are now exported via OTLP to the OTel Collector, which pushes
+    # to Prometheus via remote_write. See services/otel-collector/ config.

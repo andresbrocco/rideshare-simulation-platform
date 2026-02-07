@@ -3,8 +3,10 @@ import time
 import httpx
 import polyline
 import requests
+from opentelemetry import trace
 from pydantic import BaseModel
 
+from core.correlation import get_current_correlation_id
 from core.exceptions import (
     NetworkError,
     ServiceUnavailableError,
@@ -12,6 +14,8 @@ from core.exceptions import (
 )
 from metrics import get_metrics_collector
 from metrics.prometheus_exporter import observe_latency
+
+_tracer = trace.get_tracer(__name__)
 
 
 class RouteResponse(BaseModel):
@@ -103,42 +107,56 @@ class OSRMClient:
         )
         params = {"overview": "full", "geometries": "polyline"}
 
-        start_time = time.perf_counter()
-        collector = get_metrics_collector()
-        try:
-            response = requests.get(url, params=params, timeout=self.timeout)
+        with _tracer.start_as_current_span("osrm.get_route") as span:
+            span.set_attribute("http.method", "GET")
+            span.set_attribute("http.url", url)
 
-            if response.status_code >= 500:
-                collector.record_error("osrm", f"server_error_{response.status_code}")
-                raise OSRMServiceError(f"OSRM server error: {response.status_code}")
+            # Bridge correlation_id to trace span
+            correlation_id = get_current_correlation_id()
+            if correlation_id:
+                span.set_attribute("correlation_id", correlation_id)
 
-            data = response.json()
+            start_time = time.perf_counter()
+            collector = get_metrics_collector()
+            try:
+                response = requests.get(url, params=params, timeout=self.timeout)
 
-            if data.get("code") == "NoRoute":
-                collector.record_error("osrm", "no_route")
-                raise NoRouteFoundError("No route found between coordinates")
+                if response.status_code >= 500:
+                    collector.record_error("osrm", f"server_error_{response.status_code}")
+                    raise OSRMServiceError(f"OSRM server error: {response.status_code}")
 
-            route = data["routes"][0]
-            result = RouteResponse(
-                distance_meters=float(route["distance"]),
-                duration_seconds=float(route["duration"]),
-                geometry=decode_polyline(route["geometry"]),
-                osrm_code=data["code"],
-            )
+                data = response.json()
 
-            # Record successful latency
-            latency_ms = (time.perf_counter() - start_time) * 1000
-            collector.record_latency("osrm", latency_ms)
-            observe_latency("osrm", latency_ms)
+                if data.get("code") == "NoRoute":
+                    collector.record_error("osrm", "no_route")
+                    raise NoRouteFoundError("No route found between coordinates")
 
-            return result
+                route = data["routes"][0]
+                result = RouteResponse(
+                    distance_meters=float(route["distance"]),
+                    duration_seconds=float(route["duration"]),
+                    geometry=decode_polyline(route["geometry"]),
+                    osrm_code=data["code"],
+                )
 
-        except requests.Timeout as e:
-            collector.record_error("osrm", "timeout")
-            raise OSRMTimeoutError(f"Request timed out after {self.timeout}s") from e
-        except requests.RequestException as e:
-            collector.record_error("osrm", "network_error")
-            raise OSRMServiceError(f"Network error: {e}") from e
+                # Record successful latency
+                latency_ms = (time.perf_counter() - start_time) * 1000
+                collector.record_latency("osrm", latency_ms)
+                observe_latency("osrm", latency_ms)
+
+                span.set_attribute("osrm.distance_meters", result.distance_meters)
+                span.set_attribute("osrm.duration_seconds", result.duration_seconds)
+
+                return result
+
+            except requests.Timeout as e:
+                collector.record_error("osrm", "timeout")
+                span.record_exception(e)
+                raise OSRMTimeoutError(f"Request timed out after {self.timeout}s") from e
+            except requests.RequestException as e:
+                collector.record_error("osrm", "network_error")
+                span.record_exception(e)
+                raise OSRMServiceError(f"Network error: {e}") from e
 
     def _generate_cache_key(
         self, origin: tuple[float, float], destination: tuple[float, float]

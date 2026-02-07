@@ -4,13 +4,18 @@ import time
 from typing import Any
 
 import redis
+from opentelemetry import trace
 from redis.exceptions import ConnectionError
 
+from core.correlation import get_current_correlation_id
 from metrics import get_metrics_collector
 from metrics.prometheus_exporter import observe_latency
 from pubsub.channels import ALL_CHANNELS
 
 logger = logging.getLogger(__name__)
+
+
+_tracer = trace.get_tracer(__name__)
 
 
 class RedisPublisher:
@@ -37,17 +42,27 @@ class RedisPublisher:
                 f"Channel '{channel}' is not a valid channel. Valid channels: {ALL_CHANNELS}"
             )
 
-        collector = get_metrics_collector()
-        start_time = time.perf_counter()
-        try:
-            json_message = json.dumps(message)
-            self._client.publish(channel, json_message)
-            latency_ms = (time.perf_counter() - start_time) * 1000
-            collector.record_latency("redis", latency_ms)
-            observe_latency("redis", latency_ms)
-        except ConnectionError as e:
-            collector.record_error("redis", "connection_error")
-            logger.error(f"Failed to publish to channel {channel}: {e}")
+        with _tracer.start_as_current_span("redis.publish") as span:
+            span.set_attribute("db.system", "redis")
+            span.set_attribute("db.redis.channel", channel)
+
+            # Bridge correlation_id to trace span
+            correlation_id = get_current_correlation_id()
+            if correlation_id:
+                span.set_attribute("correlation_id", correlation_id)
+
+            collector = get_metrics_collector()
+            start_time = time.perf_counter()
+            try:
+                json_message = json.dumps(message)
+                self._client.publish(channel, json_message)
+                latency_ms = (time.perf_counter() - start_time) * 1000
+                collector.record_latency("redis", latency_ms)
+                observe_latency("redis", latency_ms)
+            except ConnectionError as e:
+                span.record_exception(e)
+                collector.record_error("redis", "connection_error")
+                logger.error(f"Failed to publish to channel {channel}: {e}")
 
     async def publish(self, channel: str, message: dict[str, Any]) -> None:
         """Async-compatible publish (wraps sync operation)."""
