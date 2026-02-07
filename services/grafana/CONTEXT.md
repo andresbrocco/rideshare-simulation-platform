@@ -8,7 +8,7 @@ Visualization and alerting service for the rideshare simulation platform. Provid
 
 - **Owns**: Dashboard JSON definitions, datasource provisioning, alert rule configuration, dashboard provisioning config
 - **Delegates to**: Prometheus for metrics storage and querying, Docker Compose for deployment orchestration
-- **Does not handle**: Metrics collection (Prometheus), container metrics export (cAdvisor), business analytics (Superset)
+- **Does not handle**: Metrics collection (Prometheus), container metrics export (cAdvisor)
 
 ## Key Concepts
 
@@ -29,5 +29,4 @@ Container-specific alerts use naming conventions from Docker Compose service nam
 ## Related Modules
 
 - **[services/prometheus](../prometheus/CONTEXT.md)** — Sole datasource; all Grafana dashboards and alerts query Prometheus metrics
-- **[analytics/superset](../../analytics/superset/CONTEXT.md)** — Complementary visualization; Grafana shows infrastructure metrics, Superset shows business analytics
 - **[infrastructure/docker](../../infrastructure/docker/CONTEXT.md)** — Deployment orchestration; defines Grafana container, volume mounts, and monitoring profile

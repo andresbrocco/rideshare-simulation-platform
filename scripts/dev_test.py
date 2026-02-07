@@ -86,7 +86,6 @@ DAGS_TO_ENABLE = [
     "dbt_gold_transformation",
     "dlq_monitoring",
     "delta_maintenance",
-    "superset_dashboard_provisioning",
 ]
 
 
@@ -537,7 +536,6 @@ def main() -> int:
     print("  - Frontend:   http://localhost:5173")
     print("  - Simulation: http://localhost:8000/docs")
     print("  - Airflow:    http://localhost:8082 (admin/admin)")
-    print("  - Superset:   http://localhost:8088 (admin/admin)")
     print()
 
     return 0

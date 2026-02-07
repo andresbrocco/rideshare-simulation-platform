@@ -56,10 +56,6 @@ jobs:
           python -m venv quality/great-expectations/venv
           quality/great-expectations/venv/bin/pip install --quiet mypy types-PyYAML
 
-          # superset
-          python -m venv analytics/superset/venv
-          analytics/superset/venv/bin/pip install --quiet mypy types-requests
-
           # lakehouse
           python -m venv schemas/lakehouse/venv
           schemas/lakehouse/venv/bin/pip install --quiet mypy

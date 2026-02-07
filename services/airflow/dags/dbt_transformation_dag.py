@@ -136,14 +136,6 @@ with DAG(
         outlets=[GOLD_ASSET],
     )
 
-    trigger_superset_provisioning = TriggerDagRunOperator(
-        task_id="trigger_superset_provisioning",
-        trigger_dag_id="superset_dashboard_provisioning",
-        wait_for_completion=False,
-        reset_dag_run=True,
-        conf={"triggered_by": "gold_dag", "gold_logical_date": "{{ logical_date }}"},
-    )
-
     (
         dbt_seed
         >> dbt_gold_dimensions
@@ -152,5 +144,4 @@ with DAG(
         >> dbt_gold_test
         >> ge_gold_validation
         >> ge_generate_data_docs
-        >> trigger_superset_provisioning
     )

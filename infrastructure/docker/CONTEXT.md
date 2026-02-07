@@ -17,7 +17,6 @@ Defines the containerized orchestration for the entire ride-sharing simulation p
 - `data-pipeline` - Data engineering services (minio, spark-thrift-server, spark-streaming-* (2 jobs), localstack, airflow)
   - Note: Consolidated from data-platform + quality-orchestration (2026-01-26)
 - `monitoring` - Observability (cadvisor, prometheus, grafana)
-- `analytics` - Apache Superset with supporting services
 - `test` - Test-specific services (test-data-producer, test-runner)
 
 **Spark Local Mode**: All Spark services run in local mode (`--master local[N]`) within their containers. Commented-out cluster mode (spark-master, spark-worker) preserved for reference from 2026-01-19 migration.
@@ -26,7 +25,6 @@ Defines the containerized orchestration for the entire ride-sharing simulation p
 - `kafka-init` - Creates topics with specified partitions
 - `minio-init` - Creates S3 buckets (bronze, silver, gold, checkpoints)
 - `bronze-init` - Initializes Bronze layer schemas via Spark Thrift
-- `superset-init` - Runs database migrations and creates admin user
 
 **Compose Files**: `compose.yml` defines the primary stack; `compose.test.yml` extends it with test-specific services using the same network.
 

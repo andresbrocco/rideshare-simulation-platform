@@ -20,7 +20,6 @@ The platform combines discrete-event simulation with event-driven microservices,
 | Storage | MinIO (S3), Delta Lake, Redis, SQLite, PostgreSQL |
 | Orchestration | Apache Airflow 3.1 |
 | Monitoring | Prometheus, Grafana, cAdvisor |
-| Analytics | Apache Superset 6.0 |
 | Container Orchestration | Docker Compose, Kubernetes (Kind) |
 | Infrastructure | Terraform (AWS), ArgoCD |
 
@@ -97,7 +96,7 @@ Key modules in this codebase:
 ```
 Simulation (SimPy) → Kafka Topics (8 topics) → Stream Processor → Redis Pub/Sub → WebSocket → Frontend
                                              ↓
-                                   Spark Streaming (Bronze) → DBT (Silver/Gold) → Superset Dashboards
+                                   Spark Streaming (Bronze) → DBT (Silver/Gold) → Grafana Dashboards
 ```
 
 **Single Source of Truth**: Simulation publishes exclusively to Kafka. A separate stream processor bridges Kafka to Redis for real-time visualization, eliminating duplicate events.
@@ -123,7 +122,6 @@ Simulation (SimPy) → Kafka Topics (8 topics) → Stream Processor → Redis Pu
 | core | Kafka, Redis, OSRM, Simulation, Stream Processor, Frontend | Daily development with real-time visualization |
 | data-pipeline | MinIO, Spark, Bronze Ingestion, DBT, Airflow | Data engineering pipeline testing |
 | monitoring | Prometheus, Grafana, cAdvisor | Observability and metrics |
-| analytics | Superset, PostgreSQL, Redis | Business intelligence dashboards |
 
 ## Domain Concepts
 

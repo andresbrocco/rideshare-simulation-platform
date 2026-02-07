@@ -14,9 +14,6 @@ docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -
 # Start monitoring services (prometheus, cadvisor, grafana)
 docker compose -f infrastructure/docker/compose.yml --profile monitoring up -d
 
-# Start analytics services (superset)
-docker compose -f infrastructure/docker/compose.yml --profile analytics up -d
-
 # Start multiple profiles at once
 docker compose -f infrastructure/docker/compose.yml --profile core --profile data-pipeline up -d
 
@@ -34,7 +31,6 @@ docker compose -f infrastructure/docker/compose.yml --profile core down
 | `core` | kafka, schema-registry, redis, osrm, simulation, stream-processor, frontend | Main simulation runtime |
 | `data-pipeline` | kafka, schema-registry, minio, spark-thrift-server, bronze-ingestion-high-volume, bronze-ingestion-low-volume, localstack, airflow | ETL and data engineering |
 | `monitoring` | prometheus, cadvisor, grafana | Observability and metrics |
-| `analytics` | superset, superset-celery-worker, postgres-superset, redis-superset | Business intelligence dashboards |
 
 ## Service Ports
 
@@ -69,14 +65,6 @@ docker compose -f infrastructure/docker/compose.yml --profile core down
 | Prometheus | 9090 | http://localhost:9090 |
 | Grafana | 3001 | http://localhost:3001 (admin/admin) |
 | cAdvisor | 8083 | http://localhost:8083 |
-
-### Analytics Profile
-
-| Service | Port | URL/Connection |
-|---------|------|----------------|
-| Superset | 8088 | http://localhost:8088 (admin/admin) |
-| Postgres (Superset) | 5433 | localhost:5433 (superset/superset) |
-| Redis (Superset) | 6380 | localhost:6380 |
 
 ## Connecting to Spark Thrift Server
 
@@ -264,8 +252,6 @@ All services have explicit memory limits to prevent resource exhaustion:
 | Bronze Ingestion (each) | 768MB | Driver memory 512MB |
 | Airflow (each) | 384MB | |
 | Grafana | 192MB | |
-| Superset | 4GB | |
-| Superset Celery Worker | 1GB | Celery async query processor |
 
 If services are being OOM-killed, increase limits in `compose.yml` or Docker Desktop resources.
 
