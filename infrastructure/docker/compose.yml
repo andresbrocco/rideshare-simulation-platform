@@ -948,7 +948,7 @@ services:
       loki:
         condition: service_healthy
       tempo:
-        condition: service_started
+        condition: service_healthy
     networks:
       - rideshare-network
     healthcheck:
@@ -982,7 +982,9 @@ services:
     restart: unless-stopped
 
   tempo:
-    image: grafana/tempo:2.10.0
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/dockerfiles/tempo.Dockerfile
     container_name: rideshare-tempo
     mem_limit: 512m
     profiles:
@@ -997,13 +999,17 @@ services:
     networks:
       - rideshare-network
     healthcheck:
-      # Tempo 2.10.0 is a distroless image with no shell/wget/curl.
-      # Use NONE here since no CLI tools are available for Docker healthcheck.
-      disable: true
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3200/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.96.0
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/dockerfiles/otel-collector.Dockerfile
     container_name: rideshare-otel-collector
     mem_limit: 768m
     profiles:
@@ -1023,14 +1029,15 @@ services:
       loki:
         condition: service_healthy
       tempo:
-        condition: service_started
+        condition: service_healthy
     networks:
       - rideshare-network
     healthcheck:
-      # Distroless image has no shell/wget/curl; health_check extension on :13133
-      # is configured in otel-collector-config.yaml for internal liveness.
-      # Use NONE here since no CLI tools are available for Docker healthcheck.
-      disable: true
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:13133/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
 
 networks:
