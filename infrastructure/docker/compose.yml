@@ -960,7 +960,7 @@ services:
     restart: unless-stopped
 
   loki:
-    image: grafana/loki:2.9.4
+    image: grafana/loki:3.6.5
     container_name: rideshare-loki
     mem_limit: 256m
     profiles:
@@ -974,7 +974,7 @@ services:
     networks:
       - rideshare-network
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3100/ready"]
+      test: ["CMD", "/usr/bin/loki", "-health"]
       interval: 10s
       timeout: 5s
       retries: 5
