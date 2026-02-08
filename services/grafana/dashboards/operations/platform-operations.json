@@ -217,12 +217,12 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "simulation_riders_waiting",
-          "legendFormat": "Riders Waiting",
+          "expr": "simulation_riders_in_transit",
+          "legendFormat": "Riders In Transit",
           "refId": "A"
         }
       ],
-      "title": "Riders Waiting",
+      "title": "Riders In Transit",
       "type": "stat"
     },
     {
@@ -255,7 +255,7 @@
               }
             ]
           },
-          "unit": "suffix:x"
+          "unit": "short"
         },
         "overrides": []
       },
@@ -285,12 +285,12 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "simulation_speed_multiplier",
-          "legendFormat": "Speed",
+          "expr": "simulation_offers_pending",
+          "legendFormat": "Pending Offers",
           "refId": "A"
         }
       ],
-      "title": "Simulation Speed",
+      "title": "Pending Offers",
       "type": "stat"
     },
     {
@@ -308,7 +308,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "${DS_TRINO}"
       },
       "fieldConfig": {
@@ -382,11 +382,11 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "${DS_TRINO}"
           },
-          "format": "time_series",
-          "rawSql": "SELECT\n  hour_timestamp as time,\n  trips_completed\nFROM delta.gold.trip_metrics_hourly_agg\nWHERE hour_timestamp >= current_timestamp - INTERVAL '24' HOUR\nORDER BY hour_timestamp",
+          "format": 1,
+          "rawSql": "SELECT\n  hour_timestamp as time,\n  completed_trips as trips_completed\nFROM delta.gold.agg_hourly_zone_demand\nWHERE hour_timestamp >= current_timestamp - INTERVAL '24' HOUR\nORDER BY hour_timestamp",
           "refId": "A"
         }
       ],
@@ -395,7 +395,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "${DS_TRINO}"
       },
       "fieldConfig": {
@@ -469,11 +469,11 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "${DS_TRINO}"
           },
-          "format": "time_series",
-          "rawSql": "SELECT\n  hour_timestamp as time,\n  avg_duration_minutes\nFROM delta.gold.trip_metrics_hourly_agg\nWHERE hour_timestamp >= current_timestamp - INTERVAL '24' HOUR\nORDER BY hour_timestamp",
+          "format": 1,
+          "rawSql": "SELECT\n  hour_timestamp as time,\n  avg_wait_time_minutes as avg_duration_minutes\nFROM delta.gold.agg_hourly_zone_demand\nWHERE hour_timestamp >= current_timestamp - INTERVAL '24' HOUR\nORDER BY hour_timestamp",
           "refId": "A"
         }
       ],
@@ -572,7 +572,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "rate(simulation_events_produced_total[5m])",
+          "expr": "rate(simulation_events_total[5m])",
           "legendFormat": "Events/sec",
           "refId": "A"
         }
@@ -769,7 +769,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "${DS_TRINO}"
       },
       "fieldConfig": {
@@ -820,11 +820,11 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "${DS_TRINO}"
           },
-          "format": "table",
-          "rawSql": "SELECT\n  trip_status,\n  COUNT(*) as trip_count\nFROM delta.gold.trips_fact\nWHERE completed_at >= current_timestamp - INTERVAL '24' HOUR\nGROUP BY trip_status\nORDER BY trip_count DESC",
+          "format": 0,
+          "rawSql": "SELECT\n  trip_state,\n  COUNT(*) as trip_count\nFROM delta.gold.fact_trips\nWHERE completed_at >= current_timestamp - INTERVAL '24' HOUR\nGROUP BY trip_state\nORDER BY trip_count DESC",
           "refId": "A"
         }
       ],
@@ -846,7 +846,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "${DS_TRINO}"
       },
       "fieldConfig": {
@@ -934,11 +934,11 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "${DS_TRINO}"
           },
-          "format": "table",
-          "rawSql": "SELECT\n  d.driver_id,\n  d.driver_name,\n  COUNT(t.trip_id) as total_trips,\n  AVG(t.trip_fare) as avg_fare,\n  AVG(t.trip_distance_km) as avg_distance\nFROM delta.gold.trips_fact t\nJOIN delta.gold.driver_dim d ON t.driver_id = d.driver_id\nWHERE t.completed_at >= current_timestamp - INTERVAL '24' HOUR\nGROUP BY d.driver_id, d.driver_name\nORDER BY total_trips DESC\nLIMIT 20",
+          "format": 0,
+          "rawSql": "SELECT\n  d.driver_id,\n  d.first_name || ' ' || d.last_name as driver_name,\n  COUNT(t.trip_key) as total_trips,\n  AVG(t.fare) as avg_fare,\n  AVG(t.distance_km) as avg_distance\nFROM delta.gold.fact_trips t\nJOIN delta.gold.dim_drivers d ON t.driver_key = d.driver_key\nWHERE t.completed_at >= current_timestamp - INTERVAL '24' HOUR\nGROUP BY d.driver_id, d.first_name, d.last_name\nORDER BY total_trips DESC\nLIMIT 20",
           "refId": "A"
         }
       ],
@@ -947,7 +947,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "${DS_TRINO}"
       },
       "fieldConfig": {
@@ -1036,11 +1036,11 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "${DS_TRINO}"
           },
-          "format": "table",
-          "rawSql": "SELECT\n  hour(hour_timestamp) as hour_of_day,\n  trips_completed,\n  avg_wait_time_minutes\nFROM delta.gold.trip_metrics_hourly_agg\nWHERE hour_timestamp >= current_timestamp - INTERVAL '24' HOUR\nORDER BY hour_of_day",
+          "format": 0,
+          "rawSql": "SELECT\n  hour(hour_timestamp) as hour_of_day,\n  SUM(completed_trips) as trips_completed,\n  AVG(avg_wait_time_minutes) as avg_wait_time_minutes\nFROM delta.gold.agg_hourly_zone_demand\nWHERE hour_timestamp >= current_timestamp - INTERVAL '24' HOUR\nGROUP BY hour(hour_timestamp)\nORDER BY hour_of_day",
           "refId": "A"
         }
       ],
@@ -1084,7 +1084,7 @@
         "multi": false,
         "name": "DS_TRINO",
         "options": [],
-        "query": "postgres",
+        "query": "trino-datasource",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,

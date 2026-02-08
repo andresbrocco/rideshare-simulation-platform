@@ -37,7 +37,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -82,12 +82,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(*) as total_requests\nFROM delta.gold.trips_fact\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY",
+          "rawSql": "SELECT COUNT(*) as total_requests\nFROM delta.gold.fact_trips\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY",
           "refId": "A"
         }
       ],
@@ -96,7 +96,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -150,12 +150,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT AVG(wait_time_minutes) as avg_wait\nFROM delta.gold.trips_fact\nWHERE completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND wait_time_minutes IS NOT NULL",
+          "rawSql": "SELECT AVG(date_diff('minute', requested_at, matched_at)) as avg_wait\nFROM delta.gold.fact_trips\nWHERE completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND matched_at IS NOT NULL",
           "refId": "A"
         }
       ],
@@ -164,7 +164,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -218,12 +218,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  CAST(SUM(CASE WHEN trip_status = 'completed' THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*) as completion_rate\nFROM delta.gold.trips_fact\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY",
+          "rawSql": "SELECT\n  CAST(SUM(CASE WHEN trip_state = 'completed' THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*) as completion_rate\nFROM delta.gold.fact_trips\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY",
           "refId": "A"
         }
       ],
@@ -232,7 +232,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -277,12 +277,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(DISTINCT rider_id) as unique_riders\nFROM delta.gold.trips_fact\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY",
+          "rawSql": "SELECT COUNT(DISTINCT rider_key) as unique_riders\nFROM delta.gold.fact_trips\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY",
           "refId": "A"
         }
       ],
@@ -304,7 +304,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -376,12 +376,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  hour(requested_at) as hour_of_day,\n  COUNT(*) as trip_count\nFROM delta.gold.trips_fact\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\nGROUP BY hour(requested_at)\nORDER BY hour_of_day",
+          "rawSql": "SELECT\n  hour(requested_at) as hour_of_day,\n  COUNT(*) as trip_count\nFROM delta.gold.fact_trips\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\nGROUP BY hour(requested_at)\nORDER BY hour_of_day",
           "refId": "A"
         }
       ],
@@ -390,7 +390,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -462,12 +462,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  day_of_week(requested_at) as day_num,\n  CASE day_of_week(requested_at)\n    WHEN 1 THEN 'Monday'\n    WHEN 2 THEN 'Tuesday'\n    WHEN 3 THEN 'Wednesday'\n    WHEN 4 THEN 'Thursday'\n    WHEN 5 THEN 'Friday'\n    WHEN 6 THEN 'Saturday'\n    WHEN 7 THEN 'Sunday'\n  END as day_name,\n  COUNT(*) as trip_count\nFROM delta.gold.trips_fact\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\nGROUP BY day_of_week(requested_at)\nORDER BY day_num",
+          "rawSql": "SELECT\n  day_of_week(requested_at) as day_num,\n  CASE day_of_week(requested_at)\n    WHEN 1 THEN 'Monday'\n    WHEN 2 THEN 'Tuesday'\n    WHEN 3 THEN 'Wednesday'\n    WHEN 4 THEN 'Thursday'\n    WHEN 5 THEN 'Friday'\n    WHEN 6 THEN 'Saturday'\n    WHEN 7 THEN 'Sunday'\n  END as day_name,\n  COUNT(*) as trip_count\nFROM delta.gold.fact_trips\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\nGROUP BY day_of_week(requested_at)\nORDER BY day_num",
           "refId": "A"
         }
       ],
@@ -489,7 +489,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -602,12 +602,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  date_trunc('hour', requested_at) as time,\n  AVG(wait_time_minutes) as avg_wait,\n  MAX(wait_time_minutes) as max_wait,\n  APPROX_PERCENTILE(wait_time_minutes, 0.95) as p95_wait\nFROM delta.gold.trips_fact\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\n  AND wait_time_minutes IS NOT NULL\nGROUP BY date_trunc('hour', requested_at)\nORDER BY time",
+          "rawSql": "SELECT\n  date_trunc('hour', requested_at) as time,\n  AVG(date_diff('minute', requested_at, matched_at)) as avg_wait,\n  MAX(date_diff('minute', requested_at, matched_at)) as max_wait,\n  APPROX_PERCENTILE(date_diff('minute', requested_at, matched_at), 0.95) as p95_wait\nFROM delta.gold.fact_trips\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\n  AND matched_at IS NOT NULL\nGROUP BY date_trunc('hour', requested_at)\nORDER BY time",
           "refId": "A"
         }
       ],
@@ -629,7 +629,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -701,12 +701,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  CASE\n    WHEN wait_time_minutes < 2 THEN '0-2 min'\n    WHEN wait_time_minutes < 5 THEN '2-5 min'\n    WHEN wait_time_minutes < 10 THEN '5-10 min'\n    WHEN wait_time_minutes < 15 THEN '10-15 min'\n    ELSE '15+ min'\n  END as wait_bucket,\n  COUNT(*) as trip_count\nFROM delta.gold.trips_fact\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\n  AND wait_time_minutes IS NOT NULL\nGROUP BY\n  CASE\n    WHEN wait_time_minutes < 2 THEN '0-2 min'\n    WHEN wait_time_minutes < 5 THEN '2-5 min'\n    WHEN wait_time_minutes < 10 THEN '5-10 min'\n    WHEN wait_time_minutes < 15 THEN '10-15 min'\n    ELSE '15+ min'\n  END\nORDER BY\n  CASE wait_bucket\n    WHEN '0-2 min' THEN 1\n    WHEN '2-5 min' THEN 2\n    WHEN '5-10 min' THEN 3\n    WHEN '10-15 min' THEN 4\n    ELSE 5\n  END",
+          "rawSql": "SELECT\n  CASE\n    WHEN date_diff('minute', requested_at, matched_at) < 2 THEN '0-2 min'\n    WHEN date_diff('minute', requested_at, matched_at) < 5 THEN '2-5 min'\n    WHEN date_diff('minute', requested_at, matched_at) < 10 THEN '5-10 min'\n    WHEN date_diff('minute', requested_at, matched_at) < 15 THEN '10-15 min'\n    ELSE '15+ min'\n  END as wait_bucket,\n  COUNT(*) as trip_count\nFROM delta.gold.fact_trips\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\n  AND matched_at IS NOT NULL\nGROUP BY\n  CASE\n    WHEN date_diff('minute', requested_at, matched_at) < 2 THEN '0-2 min'\n    WHEN date_diff('minute', requested_at, matched_at) < 5 THEN '2-5 min'\n    WHEN date_diff('minute', requested_at, matched_at) < 10 THEN '5-10 min'\n    WHEN date_diff('minute', requested_at, matched_at) < 15 THEN '10-15 min'\n    ELSE '15+ min'\n  END\nORDER BY\n  CASE wait_bucket\n    WHEN '0-2 min' THEN 1\n    WHEN '2-5 min' THEN 2\n    WHEN '5-10 min' THEN 3\n    WHEN '10-15 min' THEN 4\n    ELSE 5\n  END",
           "refId": "A"
         }
       ],
@@ -715,7 +715,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -768,12 +768,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  trip_status,\n  COUNT(*) as trip_count\nFROM delta.gold.trips_fact\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\nGROUP BY trip_status\nORDER BY trip_count DESC",
+          "rawSql": "SELECT\n  trip_state,\n  COUNT(*) as trip_count\nFROM delta.gold.fact_trips\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\nGROUP BY trip_state\nORDER BY trip_count DESC",
           "refId": "A"
         }
       ],
@@ -795,7 +795,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -896,12 +896,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  pickup_zone,\n  COUNT(*) as trip_count,\n  AVG(wait_time_minutes) as avg_wait,\n  CAST(SUM(CASE WHEN trip_status = 'completed' THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*) as completion_rate\nFROM delta.gold.trips_fact\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\n  AND pickup_zone IS NOT NULL\nGROUP BY pickup_zone\nORDER BY trip_count DESC\nLIMIT 20",
+          "rawSql": "SELECT\n  z.name as pickup_zone,\n  COUNT(*) as trip_count,\n  AVG(date_diff('minute', t.requested_at, t.matched_at)) as avg_wait,\n  CAST(SUM(CASE WHEN t.trip_state = 'completed' THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*) as completion_rate\nFROM delta.gold.fact_trips t\nJOIN delta.gold.dim_zones z ON t.pickup_zone_key = z.zone_key\nWHERE t.requested_at >= current_timestamp - INTERVAL '7' DAY\nGROUP BY z.name\nORDER BY trip_count DESC\nLIMIT 20",
           "refId": "A"
         }
       ],
@@ -910,7 +910,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -1011,12 +1011,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  CASE\n    WHEN hour(requested_at) BETWEEN 7 AND 9 THEN 'Morning Peak (7-9)'\n    WHEN hour(requested_at) BETWEEN 17 AND 19 THEN 'Evening Peak (17-19)'\n    ELSE 'Off-Peak'\n  END as time_period,\n  COUNT(*) as trip_count,\n  AVG(wait_time_minutes) as avg_wait\nFROM delta.gold.trips_fact\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\nGROUP BY\n  CASE\n    WHEN hour(requested_at) BETWEEN 7 AND 9 THEN 'Morning Peak (7-9)'\n    WHEN hour(requested_at) BETWEEN 17 AND 19 THEN 'Evening Peak (17-19)'\n    ELSE 'Off-Peak'\n  END\nORDER BY\n  CASE time_period\n    WHEN 'Morning Peak (7-9)' THEN 1\n    WHEN 'Evening Peak (17-19)' THEN 2\n    ELSE 3\n  END",
+          "rawSql": "SELECT\n  CASE\n    WHEN hour(requested_at) BETWEEN 7 AND 9 THEN 'Morning Peak (7-9)'\n    WHEN hour(requested_at) BETWEEN 17 AND 19 THEN 'Evening Peak (17-19)'\n    ELSE 'Off-Peak'\n  END as time_period,\n  COUNT(*) as trip_count,\n  AVG(date_diff('minute', requested_at, matched_at)) as avg_wait\nFROM delta.gold.fact_trips\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\nGROUP BY\n  CASE\n    WHEN hour(requested_at) BETWEEN 7 AND 9 THEN 'Morning Peak (7-9)'\n    WHEN hour(requested_at) BETWEEN 17 AND 19 THEN 'Evening Peak (17-19)'\n    ELSE 'Off-Peak'\n  END\nORDER BY\n  CASE time_period\n    WHEN 'Morning Peak (7-9)' THEN 1\n    WHEN 'Evening Peak (17-19)' THEN 2\n    ELSE 3\n  END",
           "refId": "A"
         }
       ],

@@ -833,7 +833,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 60s
+      start_period: 120s
     restart: unless-stopped
 
   trino:
@@ -938,6 +938,7 @@ services:
       GF_PATHS_PROVISIONING: /etc/grafana/provisioning
       GF_SERVER_ROOT_URL: http://localhost:3001
       GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_INSTALL_PLUGINS: trino-datasource
     volumes:
       - ../../services/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
       - ../../services/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
@@ -1013,6 +1014,7 @@ services:
       context: ../..
       dockerfile: infrastructure/docker/dockerfiles/otel-collector.Dockerfile
     container_name: rideshare-otel-collector
+    user: "0:0"
     mem_limit: 768m
     profiles:
       - monitoring

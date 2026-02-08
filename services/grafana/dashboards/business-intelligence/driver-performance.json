@@ -37,7 +37,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -82,12 +82,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(DISTINCT driver_id) as active_drivers\nFROM delta.gold.trips_fact\nWHERE completed_at >= current_timestamp - INTERVAL '7' DAY",
+          "rawSql": "SELECT COUNT(DISTINCT driver_key) as active_drivers\nFROM delta.gold.fact_trips\nWHERE completed_at >= current_timestamp - INTERVAL '7' DAY",
           "refId": "A"
         }
       ],
@@ -96,7 +96,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -150,12 +150,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT AVG(driver_rating) as avg_rating\nFROM delta.gold.trips_fact\nWHERE completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND driver_rating IS NOT NULL",
+          "rawSql": "SELECT AVG(r.rating) as avg_rating\nFROM delta.gold.fact_ratings r\nJOIN delta.gold.fact_trips t ON r.trip_key = t.trip_key\nWHERE t.completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND r.ratee_type = 'driver'",
           "refId": "A"
         }
       ],
@@ -164,7 +164,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -218,16 +218,16 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT AVG(acceptance_rate_pct) as avg_acceptance\nFROM delta.gold.driver_performance_daily_agg\nWHERE day_date >= format_datetime(current_timestamp - INTERVAL '7' DAY, 'yyyy-MM-dd')",
+          "rawSql": "SELECT AVG(utilization_pct) as avg_utilization\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= CAST(current_timestamp - INTERVAL '7' DAY AS DATE)",
           "refId": "A"
         }
       ],
-      "title": "Average Acceptance Rate %",
+      "title": "Average Utilization %",
       "type": "stat"
     },
     {
@@ -245,7 +245,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -319,12 +319,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  CAST(FLOOR(driver_rating) AS INTEGER) as rating_bucket,\n  COUNT(*) as trip_count\nFROM delta.gold.trips_fact\nWHERE completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND driver_rating IS NOT NULL\nGROUP BY CAST(FLOOR(driver_rating) AS INTEGER)\nORDER BY rating_bucket",
+          "rawSql": "SELECT\n  CAST(FLOOR(r.rating) AS INTEGER) as rating_bucket,\n  COUNT(*) as trip_count\nFROM delta.gold.fact_ratings r\nJOIN delta.gold.fact_trips t ON r.trip_key = t.trip_key\nWHERE t.completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND r.ratee_type = 'driver'\nGROUP BY CAST(FLOOR(r.rating) AS INTEGER)\nORDER BY rating_bucket",
           "refId": "A"
         }
       ],
@@ -333,7 +333,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -382,16 +382,16 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  CASE\n    WHEN d.dna_acceptance_rate >= 0.8 THEN 'High (80%+)'\n    WHEN d.dna_acceptance_rate >= 0.6 THEN 'Medium (60-80%)'\n    ELSE 'Low (<60%)'\n  END as acceptance_tier,\n  COUNT(DISTINCT d.driver_id) as driver_count\nFROM delta.gold.driver_dim d\nJOIN delta.gold.trips_fact t ON d.driver_id = t.driver_id\nWHERE t.completed_at >= current_timestamp - INTERVAL '7' DAY\nGROUP BY\n  CASE\n    WHEN d.dna_acceptance_rate >= 0.8 THEN 'High (80%+)'\n    WHEN d.dna_acceptance_rate >= 0.6 THEN 'Medium (60-80%)'\n    ELSE 'Low (<60%)'\n  END\nORDER BY driver_count DESC",
+          "rawSql": "SELECT\n  CASE\n    WHEN dp.utilization_pct >= 50 THEN 'High (50%+)'\n    WHEN dp.utilization_pct >= 20 THEN 'Medium (20-50%)'\n    ELSE 'Low (<20%)'\n  END as utilization_tier,\n  COUNT(DISTINCT dp.driver_key) as driver_count\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= CAST(current_timestamp - INTERVAL '7' DAY AS DATE)\nGROUP BY\n  CASE\n    WHEN dp.utilization_pct >= 50 THEN 'High (50%+)'\n    WHEN dp.utilization_pct >= 20 THEN 'Medium (20-50%)'\n    ELSE 'Low (<20%)'\n  END\nORDER BY driver_count DESC",
           "refId": "A"
         }
       ],
-      "title": "Acceptance Rate by Driver DNA",
+      "title": "Driver Utilization Tiers",
       "type": "piechart"
     },
     {
@@ -409,7 +409,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -475,7 +475,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "acceptance_rate"
+              "options": "utilization_rate"
             },
             "properties": [
               {
@@ -488,19 +488,19 @@
               },
               {
                 "id": "custom.axisLabel",
-                "value": "Acceptance Rate"
+                "value": "Utilization Rate"
               }
             ]
           },
           {
             "matcher": {
               "id": "byName",
-              "options": "avg_duration_hours"
+              "options": "avg_on_trip_minutes"
             },
             "properties": [
               {
                 "id": "unit",
-                "value": "h"
+                "value": "m"
               },
               {
                 "id": "custom.axisPlacement",
@@ -508,7 +508,7 @@
               },
               {
                 "id": "custom.axisLabel",
-                "value": "Duration (hours)"
+                "value": "On-Trip Minutes"
               }
             ]
           }
@@ -536,12 +536,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  CAST(day_date AS TIMESTAMP) as time,\n  AVG(avg_rating) as avg_rating,\n  AVG(acceptance_rate_pct) / 100.0 as acceptance_rate,\n  AVG(avg_trip_duration_minutes) / 60.0 as avg_duration_hours\nFROM delta.gold.driver_performance_daily_agg\nWHERE day_date >= format_datetime(current_timestamp - INTERVAL '7' DAY, 'yyyy-MM-dd')\nGROUP BY day_date\nORDER BY day_date",
+          "rawSql": "SELECT\n  CAST(dt.date_key AS TIMESTAMP) as time,\n  AVG(dp.avg_rating) as avg_rating,\n  AVG(dp.utilization_pct) / 100.0 as utilization_rate,\n  AVG(dp.on_trip_minutes) as avg_on_trip_minutes\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= CAST(current_timestamp - INTERVAL '7' DAY AS DATE)\nGROUP BY dt.date_key\nORDER BY dt.date_key",
           "refId": "A"
         }
       ],
@@ -563,7 +563,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -640,12 +640,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  d.driver_id,\n  d.driver_name,\n  COUNT(t.trip_id) as total_trips,\n  AVG(t.driver_rating) as avg_rating,\n  CAST(SUM(t.trip_fare) AS DECIMAL(10,2)) as total_earnings\nFROM delta.gold.driver_dim d\nJOIN delta.gold.trips_fact t ON d.driver_id = t.driver_id\nWHERE t.completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND t.trip_status = 'completed'\nGROUP BY d.driver_id, d.driver_name\nORDER BY total_trips DESC\nLIMIT 20",
+          "rawSql": "SELECT\n  d.driver_id,\n  d.first_name || ' ' || d.last_name as driver_name,\n  COUNT(t.trip_key) as total_trips,\n  AVG(r.rating) as avg_rating,\n  CAST(SUM(t.fare) AS DECIMAL(10,2)) as total_earnings\nFROM delta.gold.dim_drivers d\nJOIN delta.gold.fact_trips t ON d.driver_key = t.driver_key\nLEFT JOIN delta.gold.fact_ratings r ON t.trip_key = r.trip_key AND r.ratee_type = 'driver'\nWHERE t.completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND t.trip_state = 'completed'\nGROUP BY d.driver_id, d.first_name, d.last_name\nORDER BY total_trips DESC\nLIMIT 20",
           "refId": "A"
         }
       ],
@@ -654,7 +654,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -728,16 +728,16 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  d.driver_id,\n  d.dna_acceptance_rate * 100 as dna_acceptance,\n  AVG(CASE WHEN t.trip_status IN ('completed', 'cancelled') THEN 1.0 ELSE 0.0 END) * 100 as actual_acceptance,\n  COUNT(t.trip_id) as trip_count\nFROM delta.gold.driver_dim d\nJOIN delta.gold.trips_fact t ON d.driver_id = t.driver_id\nWHERE t.completed_at >= current_timestamp - INTERVAL '7' DAY\nGROUP BY d.driver_id, d.dna_acceptance_rate\nHAVING COUNT(t.trip_id) >= 10\nORDER BY trip_count DESC\nLIMIT 100",
+          "rawSql": "SELECT\n  d.driver_id,\n  dp.trips_completed,\n  dp.total_payout,\n  dp.avg_rating\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_drivers d ON dp.driver_key = d.driver_key\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= CAST(current_timestamp - INTERVAL '7' DAY AS DATE)\n  AND dp.trips_completed > 0\nORDER BY dp.trips_completed DESC\nLIMIT 100",
           "refId": "A"
         }
       ],
-      "title": "Driver DNA vs Actual Performance",
+      "title": "Driver Trips vs Earnings",
       "type": "xychart"
     }
   ],

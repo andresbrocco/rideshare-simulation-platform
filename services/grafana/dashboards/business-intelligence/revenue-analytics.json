@@ -37,7 +37,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -83,12 +83,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT SUM(trip_fare) as total_revenue\nFROM delta.gold.trips_fact\nWHERE completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND trip_status = 'completed'",
+          "rawSql": "SELECT SUM(fare) as total_revenue\nFROM delta.gold.fact_trips\nWHERE completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND trip_state = 'completed'",
           "refId": "A"
         }
       ],
@@ -97,7 +97,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -143,12 +143,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT AVG(trip_fare) as avg_fare\nFROM delta.gold.trips_fact\nWHERE completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND trip_status = 'completed'\n  AND trip_fare > 0",
+          "rawSql": "SELECT AVG(fare) as avg_fare\nFROM delta.gold.fact_trips\nWHERE completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND trip_state = 'completed'\n  AND fare > 0",
           "refId": "A"
         }
       ],
@@ -157,7 +157,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -202,12 +202,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(*) as paid_trips\nFROM delta.gold.trips_fact\nWHERE completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND trip_status = 'completed'",
+          "rawSql": "SELECT COUNT(*) as paid_trips\nFROM delta.gold.fact_trips\nWHERE completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND trip_state = 'completed'",
           "refId": "A"
         }
       ],
@@ -216,7 +216,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -262,12 +262,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  SUM(trip_fare) / NULLIF(COUNT(*), 0) as revenue_per_trip\nFROM delta.gold.trips_fact\nWHERE completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND trip_status = 'completed'",
+          "rawSql": "SELECT\n  SUM(fare) / NULLIF(COUNT(*), 0) as revenue_per_trip\nFROM delta.gold.fact_trips\nWHERE completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND trip_state = 'completed'",
           "refId": "A"
         }
       ],
@@ -289,7 +289,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -338,12 +338,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  p.payment_method,\n  SUM(p.amount) as total_revenue\nFROM delta.gold.payments_fact p\nJOIN delta.gold.trips_fact t ON p.trip_id = t.trip_id\nWHERE t.completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND p.status = 'completed'\nGROUP BY p.payment_method\nORDER BY total_revenue DESC",
+          "rawSql": "SELECT\n  p.payment_method_type,\n  SUM(p.total_fare) as total_revenue\nFROM delta.gold.fact_payments p\nJOIN delta.gold.fact_trips t ON p.trip_key = t.trip_key\nWHERE t.completed_at >= current_timestamp - INTERVAL '7' DAY\nGROUP BY p.payment_method_type\nORDER BY total_revenue DESC",
           "refId": "A"
         }
       ],
@@ -352,7 +352,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -426,12 +426,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  CASE\n    WHEN trip_fare < 10 THEN '$0-10'\n    WHEN trip_fare < 20 THEN '$10-20'\n    WHEN trip_fare < 30 THEN '$20-30'\n    WHEN trip_fare < 50 THEN '$30-50'\n    ELSE '$50+'\n  END as fare_bucket,\n  COUNT(*) as trip_count,\n  SUM(trip_fare) as revenue\nFROM delta.gold.trips_fact\nWHERE completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND trip_status = 'completed'\n  AND trip_fare > 0\nGROUP BY\n  CASE\n    WHEN trip_fare < 10 THEN '$0-10'\n    WHEN trip_fare < 20 THEN '$10-20'\n    WHEN trip_fare < 30 THEN '$20-30'\n    WHEN trip_fare < 50 THEN '$30-50'\n    ELSE '$50+'\n  END\nORDER BY\n  CASE fare_bucket\n    WHEN '$0-10' THEN 1\n    WHEN '$10-20' THEN 2\n    WHEN '$20-30' THEN 3\n    WHEN '$30-50' THEN 4\n    ELSE 5\n  END",
+          "rawSql": "SELECT\n  CASE\n    WHEN fare < 10 THEN '$0-10'\n    WHEN fare < 20 THEN '$10-20'\n    WHEN fare < 30 THEN '$20-30'\n    WHEN fare < 50 THEN '$30-50'\n    ELSE '$50+'\n  END as fare_bucket,\n  COUNT(*) as trip_count,\n  SUM(fare) as revenue\nFROM delta.gold.fact_trips\nWHERE completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND trip_state = 'completed'\n  AND fare > 0\nGROUP BY\n  CASE\n    WHEN fare < 10 THEN '$0-10'\n    WHEN fare < 20 THEN '$10-20'\n    WHEN fare < 30 THEN '$20-30'\n    WHEN fare < 50 THEN '$30-50'\n    ELSE '$50+'\n  END\nORDER BY\n  CASE fare_bucket\n    WHEN '$0-10' THEN 1\n    WHEN '$10-20' THEN 2\n    WHEN '$20-30' THEN 3\n    WHEN '$30-50' THEN 4\n    ELSE 5\n  END",
           "refId": "A"
         }
       ],
@@ -453,7 +453,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -559,12 +559,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  CAST(day_date AS TIMESTAMP) as time,\n  total_revenue,\n  total_trips,\n  avg_fare\nFROM delta.gold.revenue_metrics_daily_agg\nWHERE day_date >= format_datetime(current_timestamp - INTERVAL '7' DAY, 'yyyy-MM-dd')\nORDER BY day_date",
+          "rawSql": "SELECT\n  CAST(dt.date_key AS TIMESTAMP) as time,\n  r.total_revenue,\n  r.total_trips,\n  r.avg_fare\nFROM delta.gold.agg_daily_platform_revenue r\nJOIN delta.gold.dim_time dt ON r.time_key = dt.time_key\nWHERE dt.date_key >= CAST(current_timestamp - INTERVAL '7' DAY AS DATE)\nORDER BY dt.date_key",
           "refId": "A"
         }
       ],
@@ -586,7 +586,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -679,21 +679,21 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  payment_method,\n  COUNT(*) as total_attempts,\n  SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as successful,\n  CAST(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*) as success_rate\nFROM delta.gold.payments_fact\nWHERE created_at >= current_timestamp - INTERVAL '7' DAY\nGROUP BY payment_method\nORDER BY success_rate DESC",
+          "rawSql": "SELECT\n  payment_method_type,\n  COUNT(*) as total_payments,\n  SUM(total_fare) as total_amount,\n  AVG(total_fare) as avg_amount\nFROM delta.gold.fact_payments\nWHERE payment_timestamp >= current_timestamp - INTERVAL '7' DAY\nGROUP BY payment_method_type\nORDER BY total_payments DESC",
           "refId": "A"
         }
       ],
-      "title": "Payment Success Rate by Method",
+      "title": "Payment Breakdown by Method",
       "type": "table"
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -742,16 +742,16 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  failure_reason,\n  COUNT(*) as failure_count\nFROM delta.gold.payments_fact\nWHERE created_at >= current_timestamp - INTERVAL '7' DAY\n  AND status = 'failed'\n  AND failure_reason IS NOT NULL\nGROUP BY failure_reason\nORDER BY failure_count DESC",
+          "rawSql": "SELECT\n  payment_method_type,\n  COUNT(*) as payment_count,\n  SUM(platform_fee) as total_platform_fee,\n  AVG(platform_fee) as avg_platform_fee\nFROM delta.gold.fact_payments\nWHERE payment_timestamp >= current_timestamp - INTERVAL '7' DAY\nGROUP BY payment_method_type\nORDER BY total_platform_fee DESC",
           "refId": "A"
         }
       ],
-      "title": "Failed Payments by Reason",
+      "title": "Platform Fee by Payment Method",
       "type": "piechart"
     },
     {
@@ -769,7 +769,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -864,12 +864,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  hour(completed_at) as hour_of_day,\n  SUM(trip_fare) as total_revenue,\n  COUNT(*) as trip_count,\n  AVG(trip_fare) as avg_fare\nFROM delta.gold.trips_fact\nWHERE completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND trip_status = 'completed'\nGROUP BY hour(completed_at)\nORDER BY hour_of_day",
+          "rawSql": "SELECT\n  hour(completed_at) as hour_of_day,\n  SUM(fare) as total_revenue,\n  COUNT(*) as trip_count,\n  AVG(fare) as avg_fare\nFROM delta.gold.fact_trips\nWHERE completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND trip_state = 'completed'\nGROUP BY hour(completed_at)\nORDER BY hour_of_day",
           "refId": "A"
         }
       ],
@@ -878,7 +878,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "trino"
       },
       "fieldConfig": {
@@ -979,12 +979,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "trino"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  d.driver_id,\n  d.driver_name,\n  COUNT(t.trip_id) as total_trips,\n  SUM(t.trip_fare) as total_revenue,\n  AVG(t.trip_fare) as avg_fare,\n  SUM(t.trip_distance_km) as total_distance\nFROM delta.gold.driver_dim d\nJOIN delta.gold.trips_fact t ON d.driver_id = t.driver_id\nWHERE t.completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND t.trip_status = 'completed'\nGROUP BY d.driver_id, d.driver_name\nORDER BY total_revenue DESC\nLIMIT 20",
+          "rawSql": "SELECT\n  d.driver_id,\n  d.first_name || ' ' || d.last_name as driver_name,\n  COUNT(t.trip_key) as total_trips,\n  SUM(t.fare) as total_revenue,\n  AVG(t.fare) as avg_fare,\n  SUM(t.distance_km) as total_distance\nFROM delta.gold.dim_drivers d\nJOIN delta.gold.fact_trips t ON d.driver_key = t.driver_key\nWHERE t.completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND t.trip_state = 'completed'\nGROUP BY d.driver_id, d.first_name, d.last_name\nORDER BY total_revenue DESC\nLIMIT 20",
           "refId": "A"
         }
       ],

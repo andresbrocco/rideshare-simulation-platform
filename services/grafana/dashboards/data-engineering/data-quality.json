@@ -37,7 +37,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "${DS_TRINO}"
       },
       "fieldConfig": {
@@ -82,12 +82,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "${DS_TRINO}"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(*) as total_records\nFROM delta.silver.trips_staged\nWHERE processing_date >= format_datetime(current_timestamp - INTERVAL '24' HOUR, 'yyyy-MM-dd')",
+          "rawSql": "SELECT COUNT(*) as total_records\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR",
           "refId": "A"
         }
       ],
@@ -96,7 +96,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "${DS_TRINO}"
       },
       "fieldConfig": {
@@ -150,12 +150,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "${DS_TRINO}"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  CAST(SUM(CASE WHEN trip_id IS NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*) as null_rate\nFROM delta.silver.trips_staged\nWHERE processing_date >= format_datetime(current_timestamp - INTERVAL '24' HOUR, 'yyyy-MM-dd')",
+          "rawSql": "SELECT\n  CAST(SUM(CASE WHEN trip_id IS NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*) as null_rate\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR",
           "refId": "A"
         }
       ],
@@ -164,7 +164,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "${DS_TRINO}"
       },
       "fieldConfig": {
@@ -218,12 +218,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "${DS_TRINO}"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  (COUNT(*) - COUNT(DISTINCT trip_id)) * 100.0 / NULLIF(COUNT(*), 0) as duplicate_rate\nFROM delta.silver.trips_staged\nWHERE processing_date >= format_datetime(current_timestamp - INTERVAL '24' HOUR, 'yyyy-MM-dd')",
+          "rawSql": "SELECT\n  (COUNT(*) - COUNT(DISTINCT event_id)) * 100.0 / NULLIF(COUNT(*), 0) as duplicate_rate\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR",
           "refId": "A"
         }
       ],
@@ -232,7 +232,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "${DS_TRINO}"
       },
       "fieldConfig": {
@@ -285,12 +285,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "${DS_TRINO}"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(*) as violations\nFROM delta.silver.trips_staged\nWHERE processing_date >= format_datetime(current_timestamp - INTERVAL '24' HOUR, 'yyyy-MM-dd')\n  AND (\n    trip_id IS NULL\n    OR pickup_timestamp IS NULL\n    OR dropoff_timestamp IS NULL\n    OR pickup_timestamp > dropoff_timestamp\n  )",
+          "rawSql": "SELECT COUNT(*) as violations\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\n  AND (\n    trip_id IS NULL\n    OR timestamp IS NULL\n    OR event_type IS NULL\n  )",
           "refId": "A"
         }
       ],
@@ -312,7 +312,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "${DS_TRINO}"
       },
       "fieldConfig": {
@@ -375,12 +375,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "${DS_TRINO}"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  'trips_staged' as table_name,\n  CAST(SUM(CASE WHEN trip_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*) as completeness\nFROM delta.silver.trips_staged\nWHERE processing_date >= format_datetime(current_timestamp - INTERVAL '24' HOUR, 'yyyy-MM-dd')\nUNION ALL\nSELECT\n  'gps_pings_staged',\n  CAST(SUM(CASE WHEN ping_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*)\nFROM delta.silver.gps_pings_staged\nWHERE processing_date >= format_datetime(current_timestamp - INTERVAL '24' HOUR, 'yyyy-MM-dd')\nUNION ALL\nSELECT\n  'driver_status_staged',\n  CAST(SUM(CASE WHEN driver_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*)\nFROM delta.silver.driver_status_staged\nWHERE processing_date >= format_datetime(current_timestamp - INTERVAL '24' HOUR, 'yyyy-MM-dd')\nORDER BY completeness",
+          "rawSql": "SELECT\n  'stg_trips' as table_name,\n  CAST(SUM(CASE WHEN trip_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*) as completeness\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT\n  'stg_gps_pings',\n  CAST(SUM(CASE WHEN event_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*)\nFROM delta.silver.stg_gps_pings\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT\n  'stg_driver_status',\n  CAST(SUM(CASE WHEN driver_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*)\nFROM delta.silver.stg_driver_status\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nORDER BY completeness",
           "refId": "A"
         }
       ],
@@ -389,7 +389,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "${DS_TRINO}"
       },
       "fieldConfig": {
@@ -432,12 +432,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "${DS_TRINO}"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  'trip_id' as field_name,\n  SUM(CASE WHEN trip_id IS NULL THEN 1 ELSE 0 END) as null_count\nFROM delta.silver.trips_staged\nWHERE processing_date >= format_datetime(current_timestamp - INTERVAL '24' HOUR, 'yyyy-MM-dd')\nUNION ALL\nSELECT\n  'pickup_timestamp',\n  SUM(CASE WHEN pickup_timestamp IS NULL THEN 1 ELSE 0 END)\nFROM delta.silver.trips_staged\nWHERE processing_date >= format_datetime(current_timestamp - INTERVAL '24' HOUR, 'yyyy-MM-dd')\nUNION ALL\nSELECT\n  'dropoff_timestamp',\n  SUM(CASE WHEN dropoff_timestamp IS NULL THEN 1 ELSE 0 END)\nFROM delta.silver.trips_staged\nWHERE processing_date >= format_datetime(current_timestamp - INTERVAL '24' HOUR, 'yyyy-MM-dd')",
+          "rawSql": "SELECT\n  'trip_id' as field_name,\n  SUM(CASE WHEN trip_id IS NULL THEN 1 ELSE 0 END) as null_count\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT\n  'driver_id',\n  SUM(CASE WHEN driver_id IS NULL THEN 1 ELSE 0 END)\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT\n  'fare',\n  SUM(CASE WHEN fare IS NULL THEN 1 ELSE 0 END)\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR",
           "refId": "A"
         }
       ],
@@ -459,7 +459,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "${DS_TRINO}"
       },
       "fieldConfig": {
@@ -565,12 +565,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "${DS_TRINO}"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  date_trunc('hour', processing_timestamp) as time,\n  COUNT(*) as total_records,\n  SUM(CASE WHEN trip_id IS NULL THEN 1 ELSE 0 END) as null_records\nFROM delta.silver.trips_staged\nWHERE processing_timestamp >= current_timestamp - INTERVAL '24' HOUR\nGROUP BY date_trunc('hour', processing_timestamp)\nORDER BY time",
+          "rawSql": "SELECT\n  date_trunc('hour', _ingested_at) as time,\n  COUNT(*) as total_records,\n  SUM(CASE WHEN trip_id IS NULL THEN 1 ELSE 0 END) as null_records\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nGROUP BY date_trunc('hour', _ingested_at)\nORDER BY time",
           "refId": "A"
         }
       ],
@@ -592,7 +592,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "${DS_TRINO}"
       },
       "fieldConfig": {
@@ -703,21 +703,21 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "${DS_TRINO}"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  trip_id,\n  pickup_timestamp,\n  dropoff_timestamp,\n  date_diff('second', pickup_timestamp, dropoff_timestamp) as duration_seconds\nFROM delta.silver.trips_staged\nWHERE processing_date >= format_datetime(current_timestamp - INTERVAL '24' HOUR, 'yyyy-MM-dd')\n  AND (\n    pickup_timestamp > dropoff_timestamp\n    OR date_diff('second', pickup_timestamp, dropoff_timestamp) < 0\n    OR date_diff('second', pickup_timestamp, dropoff_timestamp) > 86400\n  )\nORDER BY processing_timestamp DESC\nLIMIT 50",
+          "rawSql": "SELECT\n  event_id,\n  trip_id,\n  event_type,\n  trip_state,\n  timestamp,\n  fare\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\n  AND (\n    trip_id IS NULL\n    OR fare IS NULL\n    OR fare < 0\n  )\nORDER BY _ingested_at DESC\nLIMIT 50",
           "refId": "A"
         }
       ],
-      "title": "Invalid Trip Durations",
+      "title": "Invalid Trip Records",
       "type": "table"
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "${DS_TRINO}"
       },
       "fieldConfig": {
@@ -770,12 +770,12 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "${DS_TRINO}"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(*) as violations\nFROM delta.silver.trips_staged\nWHERE processing_date >= format_datetime(current_timestamp - INTERVAL '24' HOUR, 'yyyy-MM-dd')\n  AND (\n    TRY_CAST(trip_fare AS DOUBLE) IS NULL\n    OR TRY_CAST(trip_distance AS DOUBLE) IS NULL\n  )",
+          "rawSql": "SELECT COUNT(*) as violations\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\n  AND (\n    TRY_CAST(fare AS DOUBLE) IS NULL\n    OR TRY_CAST(surge_multiplier AS DOUBLE) IS NULL\n  )",
           "refId": "A"
         }
       ],
@@ -797,7 +797,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "trino-datasource",
         "uid": "${DS_TRINO}"
       },
       "fieldConfig": {
@@ -850,16 +850,16 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "trino-datasource",
             "uid": "${DS_TRINO}"
           },
-          "format": "table",
+          "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  source,\n  COUNT(*) - COUNT(DISTINCT trip_id) as duplicate_count\nFROM delta.silver.trips_staged\nWHERE processing_date >= format_datetime(current_timestamp - INTERVAL '24' HOUR, 'yyyy-MM-dd')\nGROUP BY source\nORDER BY duplicate_count DESC",
+          "rawSql": "SELECT\n  event_type,\n  COUNT(*) - COUNT(DISTINCT event_id) as duplicate_count\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nGROUP BY event_type\nORDER BY duplicate_count DESC",
           "refId": "A"
         }
       ],
-      "title": "Duplicate Records by Source",
+      "title": "Duplicate Records by Event Type",
       "type": "barchart"
     }
   ],
@@ -881,7 +881,7 @@
         "multi": false,
         "name": "DS_TRINO",
         "options": [],
-        "query": "postgres",
+        "query": "trino-datasource",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,

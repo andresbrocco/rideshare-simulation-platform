@@ -12,20 +12,16 @@ datasources:
     jsonData:
       timeInterval: 15s
 
-  # New - Trino (PostgreSQL protocol for Delta Lake)
+  # New - Trino (HTTP REST API for Delta Lake)
   - name: Trino
     uid: trino
-    type: postgres
+    type: trino-datasource
     access: proxy
-    url: trino:8080
-    user: trino
-    database: delta
+    url: http://trino:8080
     isDefault: false
     editable: false
     jsonData:
-      sslmode: disable
-      postgresVersion: 1500
-      timescaledb: false
+      catalog: delta
 
   # New - Loki (log aggregation)
   - name: Loki
