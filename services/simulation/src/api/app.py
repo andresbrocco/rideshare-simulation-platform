@@ -42,6 +42,94 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class MetricsUpdater:
+    """Periodically pushes simulation metrics to the OTel exporter."""
+
+    def __init__(self, engine: SimulationEngine) -> None:
+        self._engine = engine
+        self._task: asyncio.Task[None] | None = None
+        self._interval = 15.0  # seconds
+
+    async def start(self) -> None:
+        self._task = asyncio.create_task(self._update_loop())
+
+    async def stop(self) -> None:
+        if self._task:
+            self._task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._task
+
+    async def _update_loop(self) -> None:
+        from metrics import get_metrics_collector
+        from metrics.prometheus_exporter import update_metrics_from_snapshot
+
+        while True:
+            try:
+                await asyncio.sleep(self._interval)
+                collector = get_metrics_collector()
+                snapshot = collector.get_snapshot()
+
+                # Gather live counts from engine
+                drivers_online = len(
+                    [d for d in self._engine._active_drivers.values() if d.status != "offline"]
+                )
+                riders_in_transit = len(
+                    [r for r in self._engine._active_riders.values() if r.status == "in_trip"]
+                )
+                active_trips = 0
+                pending_offers = 0
+                trips_completed = 0
+                trips_cancelled = 0
+                if hasattr(self._engine, "_matching_server") and self._engine._matching_server:
+                    ms = self._engine._matching_server
+                    active_trips = (
+                        len(ms.get_active_trips()) if hasattr(ms, "get_active_trips") else 0
+                    )
+                    trips_completed = getattr(ms, "_trips_completed", 0)
+                    trips_cancelled = getattr(ms, "_trips_cancelled", 0)
+                    pending_offers = getattr(ms, "_pending_offers_count", 0)
+
+                simpy_events = (
+                    len(self._engine._env._queue) if hasattr(self._engine._env, "_queue") else 0
+                )
+
+                # Compute avg metrics from matching server stats
+                avg_fare = 0.0
+                avg_duration_minutes = 0.0
+                avg_wait_seconds = 0.0
+                avg_pickup_seconds = 0.0
+                matching_success_rate = 0.0
+                if hasattr(self._engine, "_matching_server") and self._engine._matching_server:
+                    ms = self._engine._matching_server
+                    stats = getattr(ms, "_stats", None)
+                    if stats:
+                        avg_fare = getattr(stats, "avg_fare", 0.0)
+                        avg_duration_minutes = getattr(stats, "avg_duration_minutes", 0.0)
+                        avg_wait_seconds = getattr(stats, "avg_wait_seconds", 0.0)
+                        avg_pickup_seconds = getattr(stats, "avg_pickup_seconds", 0.0)
+                        matching_success_rate = getattr(stats, "matching_success_rate", 0.0)
+
+                update_metrics_from_snapshot(
+                    snapshot,
+                    trips_completed=trips_completed,
+                    trips_cancelled=trips_cancelled,
+                    drivers_online=drivers_online,
+                    riders_in_transit=riders_in_transit,
+                    active_trips=active_trips,
+                    avg_fare=avg_fare,
+                    avg_duration_minutes=avg_duration_minutes,
+                    avg_wait_seconds=avg_wait_seconds,
+                    avg_pickup_seconds=avg_pickup_seconds,
+                    matching_success_rate=matching_success_rate,
+                    pending_offers=pending_offers,
+                    simpy_events=simpy_events,
+                )
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                logger.exception("Error in metrics update loop")
+
+
 class StatusBroadcaster:
     """Periodically broadcasts simulation status to WebSocket clients."""
 
@@ -109,14 +197,18 @@ def create_app(
         snapshot_manager = StateSnapshotManager(redis_client)
         subscriber = RedisSubscriber(redis_client, connection_manager)
         broadcaster = StatusBroadcaster(engine, connection_manager, snapshot_manager)
+        metrics_updater = MetricsUpdater(engine)
 
         app.state.snapshot_manager = snapshot_manager
         app.state.subscriber = subscriber
         app.state.broadcaster = broadcaster
+        app.state.metrics_updater = metrics_updater
 
         await subscriber.start()
         await broadcaster.start()
+        await metrics_updater.start()
         yield
+        await metrics_updater.stop()
         await broadcaster.stop()
         await subscriber.stop()
 

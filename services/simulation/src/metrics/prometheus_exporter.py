@@ -56,31 +56,26 @@ simulation_errors_total = meter.create_counter(
 simulation_drivers_online = meter.create_up_down_counter(
     name="simulation_drivers_online",
     description="Number of drivers currently online",
-    unit="1",
 )
 
 simulation_riders_in_transit = meter.create_up_down_counter(
     name="simulation_riders_in_transit",
     description="Number of riders currently in transit",
-    unit="1",
 )
 
 simulation_trips_active = meter.create_up_down_counter(
     name="simulation_trips_active",
     description="Number of active trips",
-    unit="1",
 )
 
 simulation_offers_pending = meter.create_up_down_counter(
     name="simulation_offers_pending",
     description="Number of pending trip offers",
-    unit="1",
 )
 
 simulation_simpy_events = meter.create_up_down_counter(
     name="simulation_simpy_events",
     description="Number of events in SimPy queue",
-    unit="1",
 )
 
 # ---------------------------------------------------------------------------
@@ -113,7 +108,6 @@ simulation_avg_fare = meter.create_observable_gauge(
     name="simulation_avg_fare_dollars",
     callbacks=[lambda options: _observe("avg_fare")],
     description="Average trip fare in dollars",
-    unit="USD",
 )
 
 simulation_avg_duration = meter.create_observable_gauge(
@@ -148,7 +142,6 @@ simulation_memory_rss_mb = meter.create_observable_gauge(
     name="simulation_memory_rss_mb",
     callbacks=[lambda options: _observe("memory_rss_mb")],
     description="Resident set size memory in MB",
-    unit="MiB",
 )
 
 simulation_memory_percent = meter.create_observable_gauge(
@@ -169,7 +162,6 @@ simulation_thread_count = meter.create_observable_gauge(
     name="simulation_thread_count",
     callbacks=[lambda options: _observe("thread_count")],
     description="Number of active threads",
-    unit="1",
 )
 
 # ---------------------------------------------------------------------------
@@ -200,6 +192,11 @@ _previous_event_counts: dict[str, float] = {}
 _previous_error_counts: dict[tuple[str, str], int] = {}
 _previous_trips_completed: int = 0
 _previous_trips_cancelled: int = 0
+_previous_drivers_online: int = 0
+_previous_riders_in_transit: int = 0
+_previous_active_trips: int = 0
+_previous_pending_offers: int = 0
+_previous_simpy_events: int = 0
 
 
 def update_metrics_from_snapshot(
@@ -226,6 +223,8 @@ def update_metrics_from_snapshot(
     """
     global _previous_event_counts, _previous_error_counts
     global _previous_trips_completed, _previous_trips_cancelled
+    global _previous_drivers_online, _previous_riders_in_transit
+    global _previous_active_trips, _previous_pending_offers, _previous_simpy_events
 
     # --- Observable gauge values (stored for callback reads) ---
     with _snapshot_lock:
@@ -239,14 +238,40 @@ def update_metrics_from_snapshot(
         _snapshot_values["cpu_percent"] = snapshot.cpu_percent
         _snapshot_values["thread_count"] = float(snapshot.thread_count)
 
+    # --- UpDownCounters (delta from previous to track real-time state) ---
+    delta = drivers_online - _previous_drivers_online
+    if delta != 0:
+        simulation_drivers_online.add(delta)
+    _previous_drivers_online = drivers_online
+
+    delta = riders_in_transit - _previous_riders_in_transit
+    if delta != 0:
+        simulation_riders_in_transit.add(delta)
+    _previous_riders_in_transit = riders_in_transit
+
+    delta = active_trips - _previous_active_trips
+    if delta != 0:
+        simulation_trips_active.add(delta)
+    _previous_active_trips = active_trips
+
+    delta = pending_offers - _previous_pending_offers
+    if delta != 0:
+        simulation_offers_pending.add(delta)
+    _previous_pending_offers = pending_offers
+
+    delta = simpy_events - _previous_simpy_events
+    if delta != 0:
+        simulation_simpy_events.add(delta)
+    _previous_simpy_events = simpy_events
+
     # --- Event counters (delta from rate * window) ---
     window_seconds = 60.0
     for event_type, rate in snapshot.events_per_second.items():
         estimated_count = rate * window_seconds
         prev_count = _previous_event_counts.get(event_type, 0.0)
         if estimated_count > prev_count:
-            delta = estimated_count - prev_count
-            simulation_events_total.add(delta, {"event_type": event_type})
+            event_delta = estimated_count - prev_count
+            simulation_events_total.add(event_delta, {"event_type": event_type})
         _previous_event_counts[event_type] = estimated_count
 
     # --- Trip counters ---

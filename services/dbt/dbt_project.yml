@@ -26,6 +26,7 @@ models:
       +tags:
         - silver
     marts:
+      +file_format: delta
       dimensions:
         +schema: gold
         +materialized: table

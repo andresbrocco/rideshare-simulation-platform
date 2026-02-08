@@ -684,7 +684,7 @@ services:
     ports:
       - "8082:8080"
     environment:
-      DEV_MODE: ${DEV_MODE:-false}
+      DEV_MODE: ${DEV_MODE:-true}
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
       AIRFLOW__CORE__FERNET_KEY: "989ZwyjTUPqrIF5wxv6t2co6yYH94e5BVlrefZQ-Vy8="
@@ -736,7 +736,7 @@ services:
     profiles:
       - data-pipeline
     environment:
-      DEV_MODE: ${DEV_MODE:-false}
+      DEV_MODE: ${DEV_MODE:-true}
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
       AIRFLOW__CORE__FERNET_KEY: "989ZwyjTUPqrIF5wxv6t2co6yYH94e5BVlrefZQ-Vy8="

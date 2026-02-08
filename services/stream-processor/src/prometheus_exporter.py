@@ -93,14 +93,12 @@ stream_processor_kafka_connected = meter.create_observable_gauge(
     name="stream_processor_kafka_connected",
     callbacks=[lambda options: _observe("kafka_connected")],
     description="Whether Kafka connection is active (1=connected, 0=disconnected)",
-    unit="1",
 )
 
 stream_processor_redis_connected = meter.create_observable_gauge(
     name="stream_processor_redis_connected",
     callbacks=[lambda options: _observe("redis_connected")],
     description="Whether Redis connection is active (1=connected, 0=disconnected)",
-    unit="1",
 )
 
 stream_processor_uptime_seconds = meter.create_observable_gauge(
