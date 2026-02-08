@@ -30,6 +30,7 @@ dependencies = [
     "python-multipart==0.0.20",
     "websockets==14.1",
     "slowapi>=0.1.9",
+    "PyYAML>=6.0",
     # OpenTelemetry core
     "opentelemetry-api==1.39.1",
     "opentelemetry-sdk==1.39.1",
@@ -54,6 +55,7 @@ dev = [
     "types-requests>=2.31.0",
     "types-psutil>=5.9.0",
     "types-jsonschema>=4.25.0",
+    "types-PyYAML>=6.0",
     "respx==0.21.1",
 ]
 

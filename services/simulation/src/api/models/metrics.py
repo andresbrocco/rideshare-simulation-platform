@@ -169,3 +169,4 @@ class InfrastructureResponse(BaseModel):
     total_memory_capacity_mb: float = 0.0  # From cAdvisor machine info
     total_memory_percent: float = 0.0
     total_cores: int = 1  # Auto-detected from cAdvisor
+    discovery_error: str | None = None  # Error message if compose.yml parsing failed

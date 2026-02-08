@@ -188,6 +188,7 @@ services:
       - ../../services/simulation/src:/app/src:ro
       - ../../data:/app/data:ro
       - simulation-db:/app/db
+      - ./compose.yml:/app/compose.yml:ro
     environment:
       - SIM_SPEED_MULTIPLIER=${SIM_SPEED_MULTIPLIER:-1}
       - SIM_LOG_LEVEL=${SIM_LOG_LEVEL:-INFO}

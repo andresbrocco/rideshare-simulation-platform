@@ -1,4 +1,6 @@
+import functools
 import logging
+import pathlib
 import time
 from collections.abc import Callable
 from typing import Annotated, Any, TypeVar, cast
@@ -465,37 +467,104 @@ def get_performance_metrics(request: Request, engine: EngineDep) -> PerformanceM
     )
 
 
-# Container configuration for infrastructure monitoring
-# Memory limits are now fetched dynamically from cAdvisor (spec.memory.limit)
-CONTAINER_CONFIG = {
-    # Core profile
+COMPOSE_FILE_PATH = pathlib.Path("/app/compose.yml")
+
+# Display name overrides for containers where auto-generation is insufficient
+_DISPLAY_NAME_OVERRIDES: dict[str, str] = {
+    "rideshare-osrm": "OSRM",
+    "rideshare-minio": "MinIO",
+    "rideshare-cadvisor": "cAdvisor",
+    "rideshare-otel-collector": "OTel Collector",
+    "rideshare-spark-thrift-server": "Spark Thrift",
+    "rideshare-bronze-ingestion-high-volume": "Spark: High Volume",
+    "rideshare-bronze-ingestion-low-volume": "Spark: Low Volume",
+    "rideshare-postgres-airflow": "Postgres (Airflow)",
+    "rideshare-postgres-metastore": "Postgres (Metastore)",
+    "rideshare-airflow-webserver": "Airflow Web",
+    "rideshare-localstack": "LocalStack",
+}
+
+# Minimal fallback used when compose.yml is missing or malformed
+_FALLBACK_CONTAINER_CONFIG: dict[str, dict[str, str]] = {
     "rideshare-kafka": {"display_name": "Kafka"},
-    "rideshare-schema-registry": {"display_name": "Schema Registry"},
     "rideshare-redis": {"display_name": "Redis"},
     "rideshare-osrm": {"display_name": "OSRM"},
     "rideshare-simulation": {"display_name": "Simulation"},
     "rideshare-stream-processor": {"display_name": "Stream Processor"},
     "rideshare-frontend": {"display_name": "Frontend"},
-    # Data Platform profile
-    "rideshare-minio": {"display_name": "MinIO"},
-    "rideshare-spark-thrift-server": {"display_name": "Spark Thrift"},
-    "rideshare-bronze-ingestion-high-volume": {"display_name": "Spark: High Volume"},
-    "rideshare-bronze-ingestion-low-volume": {"display_name": "Spark: Low Volume"},
-    "rideshare-localstack": {"display_name": "LocalStack"},
-    # Monitoring profile
     "rideshare-prometheus": {"display_name": "Prometheus"},
-    "rideshare-cadvisor": {"display_name": "cAdvisor"},
     "rideshare-grafana": {"display_name": "Grafana"},
-    # Quality Orchestration profile
-    "rideshare-postgres-airflow": {"display_name": "Postgres (Airflow)"},
-    "rideshare-airflow-webserver": {"display_name": "Airflow Web"},
-    "rideshare-airflow-scheduler": {"display_name": "Airflow Scheduler"},
-    # BI profile
-    "rideshare-postgres-superset": {"display_name": "Postgres (Superset)"},
-    "rideshare-redis-superset": {"display_name": "Redis (Superset)"},
-    "rideshare-superset": {"display_name": "Superset"},
-    "rideshare-superset-celery-worker": {"display_name": "Superset Celery"},
 }
+
+
+def _generate_display_name(container_name: str) -> str:
+    """Generate a display name from a container name.
+
+    Strips the 'rideshare-' prefix, replaces hyphens with spaces, and title-cases.
+    """
+    name = container_name.removeprefix("rideshare-")
+    return name.replace("-", " ").title()
+
+
+@functools.cache
+def _discover_containers() -> tuple[dict[str, dict[str, str]], str | None]:
+    """Parse compose.yml to dynamically build the container configuration.
+
+    Returns a tuple of (container_config, error_message).
+    error_message is None on success, or a description of the problem on failure.
+    """
+    import yaml
+
+    if not COMPOSE_FILE_PATH.exists():
+        logger.warning("compose.yml not found at %s — using fallback", COMPOSE_FILE_PATH)
+        return (
+            _FALLBACK_CONTAINER_CONFIG,
+            f"compose.yml not found at {COMPOSE_FILE_PATH} — showing fallback services",
+        )
+
+    try:
+        raw = COMPOSE_FILE_PATH.read_text(encoding="utf-8")
+        compose: dict[str, Any] = yaml.safe_load(raw)
+    except Exception as exc:
+        logger.warning("Failed to parse compose.yml: %s — using fallback", exc)
+        return (
+            _FALLBACK_CONTAINER_CONFIG,
+            f"Failed to parse compose.yml: {exc} — showing fallback services",
+        )
+
+    services_section = compose.get("services")
+    if not isinstance(services_section, dict):
+        logger.warning("compose.yml has no 'services' section — using fallback")
+        return (
+            _FALLBACK_CONTAINER_CONFIG,
+            "compose.yml has no 'services' section — showing fallback services",
+        )
+
+    config: dict[str, dict[str, str]] = {}
+    project_name = compose.get("name", "rideshare-platform")
+    # Docker Compose derives container_name from: explicit container_name > {project}-{service}-1
+    # We handle both cases.
+    for service_name, service_def in services_section.items():
+        if not isinstance(service_def, dict):
+            continue
+
+        container_name = service_def.get("container_name")
+        if container_name is None:
+            # Derive from project name + service name (Docker Compose default)
+            container_name = f"{project_name}-{service_name}-1"
+
+        # Skip init containers (one-shot setup jobs)
+        if container_name.endswith("-init"):
+            continue
+
+        # Use override or auto-generate display name
+        display_name = _DISPLAY_NAME_OVERRIDES.get(
+            container_name, _generate_display_name(container_name)
+        )
+        config[container_name] = {"display_name": display_name}
+
+    logger.info("Discovered %d containers from compose.yml", len(config))
+    return config, None
 
 
 def _fetch_cadvisor_machine_info() -> dict[str, Any] | None:
@@ -1098,10 +1167,11 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
     total_memory_used = 0.0
 
     # Build service metrics list
+    container_config, discovery_error = _discover_containers()
     services = []
-    for container_name, config in CONTAINER_CONFIG.items():
+    for container_name, config in container_config.items():
         status, latency_ms, message = health_results.get(
-            container_name, (ContainerStatus.STOPPED, None, "Unknown")
+            container_name, (ContainerStatus.HEALTHY, None, "No health endpoint")
         )
 
         # Get resource metrics from cAdvisor if available
@@ -1175,6 +1245,7 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         total_memory_capacity_mb=round(total_memory_capacity_mb, 1),
         total_memory_percent=round(total_memory_percent, 1),
         total_cores=total_cores,
+        discovery_error=discovery_error,
     )
 
     # NOTE: /metrics/prometheus endpoint removed.
