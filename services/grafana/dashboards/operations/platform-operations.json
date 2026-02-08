@@ -15,6 +15,7 @@
       }
     ]
   },
+  "description": "Unified operations dashboard combining real-time Prometheus metrics with historical Gold layer analytics. Monitors live simulation state, system health, trip state distribution, driver activity, and hourly platform utilization. Dual-datasource: Prometheus (real-time) + Trino (historical).",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -73,6 +74,7 @@
         "x": 0,
         "y": 1
       },
+      "description": "Current driver count from Prometheus (real-time). Color thresholds: red (<50), yellow (50-100), green (100+). Uses operations-specific thresholds.",
       "id": 2,
       "options": {
         "colorMode": "value",
@@ -131,6 +133,7 @@
         "x": 6,
         "y": 1
       },
+      "description": "Current count of trips in non-terminal states. Real-time snapshot from Prometheus simulation_trips_active.",
       "id": 3,
       "options": {
         "colorMode": "value",
@@ -197,6 +200,7 @@
         "x": 12,
         "y": 1
       },
+      "description": "Riders currently in vehicles. Color thresholds: yellow at 20, red at 50 (high values may indicate capacity strain).",
       "id": 4,
       "options": {
         "colorMode": "value",
@@ -265,6 +269,7 @@
         "x": 18,
         "y": 1
       },
+      "description": "Ride offers awaiting driver acceptance. Displays \"N/A\" when no offers have been created yet. High values indicate matching backlog.",
       "id": 5,
       "options": {
         "colorMode": "value",
@@ -366,6 +371,7 @@
         "x": 0,
         "y": 6
       },
+      "description": "Hourly completed trip count from agg_hourly_zone_demand Gold table. Shows historical throughput over the past 24 hours (not real-time).",
       "id": 7,
       "options": {
         "legend": {
@@ -453,6 +459,7 @@
         "x": 12,
         "y": 6
       },
+      "description": "Hourly average wait time from the zone demand aggregation table. Shows rider wait time trends over the past 24 hours.",
       "id": 8,
       "options": {
         "legend": {
@@ -553,6 +560,7 @@
         "x": 0,
         "y": 14
       },
+      "description": "5-minute rate of total simulation events per second. Indicates real-time simulation engine throughput. Flat lines may indicate simulation pause or crash.",
       "id": 10,
       "options": {
         "legend": {
@@ -645,6 +653,7 @@
         "x": 12,
         "y": 14
       },
+      "description": "5-minute error rate with a red threshold line at 10 errors/sec. Sustained rates above threshold indicate systemic failures requiring investigation.",
       "id": 11,
       "options": {
         "legend": {
@@ -715,6 +724,7 @@
         "x": 0,
         "y": 22
       },
+      "description": "Donut chart showing current active trips vs recently completed and cancelled trips (5-minute window). Provides a real-time snapshot of trip lifecycle distribution.",
       "id": 13,
       "options": {
         "legend": {
@@ -797,6 +807,7 @@
         "x": 12,
         "y": 22
       },
+      "description": "Donut chart of all trip outcomes from the Gold layer over 24 hours. Provides historical context for the real-time view in the adjacent panel.",
       "id": 14,
       "options": {
         "legend": {
@@ -913,6 +924,7 @@
         "x": 0,
         "y": 30
       },
+      "description": "Top 20 drivers by completed trip count in the last 24 hours with average fare and distance. Operations-focused variant with 24-hour lookback.",
       "id": 16,
       "options": {
         "cellHeight": "sm",
@@ -1012,6 +1024,7 @@
         "x": 12,
         "y": 30
       },
+      "description": "Dual-axis bar chart: completed trips vs average wait time by hour of day. Identifies peak operational hours and corresponding service quality.",
       "id": 17,
       "options": {
         "barRadius": 0.05,

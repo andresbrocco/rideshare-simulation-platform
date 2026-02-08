@@ -15,6 +15,7 @@
       }
     ]
   },
+  "description": "Revenue analysis across the rideshare platform's Gold layer. Tracks total revenue, fare distribution, payment methods, platform fees, and top-earning drivers. All data queried from Delta Lake Gold tables via Trino with a 7-day lookback window.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -67,6 +68,7 @@
         "y": 1
       },
       "id": 2,
+      "description": "Sum of all fares from completed trips in the last 7 days. Queried from delta.gold.fact_trips where trip_state = 'completed'.",
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -127,6 +129,7 @@
         "y": 1
       },
       "id": 3,
+      "description": "Mean fare amount across completed trips with positive fares. Excludes zero-fare trips to avoid skewing the average.",
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -186,6 +189,7 @@
         "y": 1
       },
       "id": 4,
+      "description": "Count of trips that reached COMPLETED state in the last 7 days. Represents revenue-generating trip volume.",
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -246,6 +250,7 @@
         "y": 1
       },
       "id": 5,
+      "description": "Total revenue divided by trip count (with null-safe division). Equivalent to average fare but computed differently for cross-validation.",
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -317,6 +322,7 @@
         "y": 6
       },
       "id": 7,
+      "description": "Revenue distribution across payment methods (credit card, cash, wallet, etc.). Sourced from fact_payments joined with fact_trips. Donut chart shows relative share.",
       "options": {
         "legend": {
           "displayMode": "table",
@@ -411,6 +417,7 @@
         "y": 6
       },
       "id": 8,
+      "description": "Histogram of trip counts across 5 fare buckets ($0-10, $10-20, $20-30, $30-50, $50+). Shows the pricing distribution shape of the platform.",
       "options": {
         "legend": {
           "calcs": [],
@@ -544,6 +551,7 @@
         "y": 15
       },
       "id": 10,
+      "description": "Three daily metrics overlaid: total revenue (primary axis), total trips (secondary axis, dashed), and average fare (dashed). Sourced from agg_daily_platform_revenue pre-aggregated table.",
       "options": {
         "legend": {
           "calcs": ["mean", "max"],
@@ -660,6 +668,7 @@
         "y": 24
       },
       "id": 12,
+      "description": "Tabular breakdown of payment statistics per method: transaction count, total amount processed, and average transaction size.",
       "options": {
         "showHeader": true,
         "cellHeight": "sm",
@@ -721,6 +730,7 @@
         "y": 24
       },
       "id": 13,
+      "description": "Distribution of platform fees collected, grouped by payment method. Platform fees represent the marketplace's revenue margin on each transaction.",
       "options": {
         "legend": {
           "displayMode": "table",
@@ -849,6 +859,7 @@
         "y": 33
       },
       "id": 15,
+      "description": "Revenue and trip volume by hour (0-23) aggregated across the week. Reveals peak revenue hours. Dual-axis: revenue (left) vs trip count (right).",
       "options": {
         "legend": {
           "calcs": ["sum"],
@@ -960,6 +971,7 @@
         "y": 33
       },
       "id": 16,
+      "description": "Top 20 drivers ranked by total revenue. Includes trip count, average fare, and total distance driven.",
       "options": {
         "showHeader": true,
         "cellHeight": "sm",

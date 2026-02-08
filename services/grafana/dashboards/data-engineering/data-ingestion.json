@@ -15,6 +15,7 @@
       }
     ]
   },
+  "description": "Bronze layer ingestion pipeline monitoring. Tracks event volume across 6 data sources, dead letter queue (DLQ) error rates, ingestion delays, data freshness per table, and detailed error analysis. 24-hour lookback via Trino against Bronze Delta Lake tables.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -40,6 +41,7 @@
         "type": "trino-datasource",
         "uid": "trino"
       },
+      "description": "Combined event count from all 6 Bronze tables (trips, gps_pings, driver_status, surge_updates, ratings, payments). Overall pipeline throughput indicator.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -99,6 +101,7 @@
         "type": "trino-datasource",
         "uid": "trino"
       },
+      "description": "Count of records routed to Dead Letter Queue tables due to processing failures. Yellow at 10 errors, red at 50. DLQ captures events that failed validation, parsing, or schema checks.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -166,6 +169,7 @@
         "type": "trino-datasource",
         "uid": "trino"
       },
+      "description": "Maximum time gap between event occurrence and Bronze layer ingestion for trip events. Yellow at 300s (5 min), red at 600s (10 min). Indicates pipeline lag.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -234,6 +238,7 @@
         "type": "trino-datasource",
         "uid": "trino"
       },
+      "description": "Number of the 6 data source types that have ingested records in the last 24 hours. Expected value is 6 when all sources are active. Values below 6 indicate silent source failures.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -306,6 +311,7 @@
         "type": "trino-datasource",
         "uid": "trino"
       },
+      "description": "Donut chart showing relative event volume across the 6 data sources. GPS pings typically dominate due to high-frequency driver location updates.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -369,6 +375,7 @@
         "type": "trino-datasource",
         "uid": "trino"
       },
+      "description": "Distribution of DLQ errors by error classification (validation, parsing, schema mismatch, etc.). Identifies the dominant failure mode for targeted pipeline fixes.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -445,6 +452,7 @@
         "type": "trino-datasource",
         "uid": "trino"
       },
+      "description": "Hourly ingestion rate for the top 3 data sources (trips, gps_pings, driver_status). Shows throughput trends and identifies ingestion gaps or spikes.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -546,6 +554,7 @@
         "type": "trino-datasource",
         "uid": "trino"
       },
+      "description": "Daily event volume for the trips table over the past 7 days. Provides a weekly view of ingestion consistency and volume trends.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -634,6 +643,7 @@
         "type": "trino-datasource",
         "uid": "trino"
       },
+      "description": "Table showing the most recent ingestion timestamp for each of 8 Bronze tables. Stale timestamps (hours old) indicate ingestion pipeline failures for that source.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -726,6 +736,7 @@
         "type": "trino-datasource",
         "uid": "trino"
       },
+      "description": "Hourly DLQ error count with a red threshold line at 100 errors/hour. Shows error patterns over time — sustained high rates may indicate systemic issues.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -818,6 +829,7 @@
         "type": "trino-datasource",
         "uid": "trino"
       },
+      "description": "Detail table of the 50 most recent DLQ records with timestamp, source topic, error type, and error message. Primary debugging tool for pipeline failures.",
       "fieldConfig": {
         "defaults": {
           "color": {

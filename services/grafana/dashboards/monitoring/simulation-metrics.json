@@ -15,6 +15,7 @@
       }
     ]
   },
+  "description": "Real-time operational monitoring of the rideshare simulation engine. Tracks driver/rider activity, trip quality SLAs, event throughput, dependency latencies (OSRM, Kafka, Redis), error rates, and container resource usage. Data sourced from Prometheus via OpenTelemetry.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
@@ -74,6 +75,7 @@
         "y": 1
       },
       "id": 2,
+      "description": "Current number of drivers in online status, ready to accept ride offers. Color thresholds: red (<10), yellow (<50), green (50+). Sourced from simulation_drivers_online up-down counter.",
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -132,6 +134,7 @@
         "y": 1
       },
       "id": 3,
+      "description": "Riders currently traveling inside a vehicle (trips in STARTED state). Sourced from simulation_riders_in_transit.",
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -190,6 +193,7 @@
         "y": 1
       },
       "id": 4,
+      "description": "Trips in any non-terminal state (REQUESTED through STARTED). Excludes COMPLETED and CANCELLED.",
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -248,6 +252,7 @@
         "y": 1
       },
       "id": 5,
+      "description": "Percentage of ride offers accepted by drivers. Values below 80% may indicate supply/demand imbalance or driver DNA with low acceptance rates.",
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -349,6 +354,7 @@
         "y": 6
       },
       "id": 7,
+      "description": "Rolling-window average fare across recently completed trips (USD). Reflects base pricing, distance distribution, and active surge multipliers across São Paulo zones.",
       "options": {
         "legend": {
           "calcs": [],
@@ -436,6 +442,7 @@
         "y": 6
       },
       "id": 8,
+      "description": "Mean duration of completed trips. Affected by distance distribution and simulated traffic patterns in the São Paulo region.",
       "options": {
         "legend": {
           "calcs": [],
@@ -523,6 +530,7 @@
         "y": 6
       },
       "id": 9,
+      "description": "Average time riders wait from match to driver arrival (MATCHED to DRIVER_ARRIVED). Core rider experience SLA metric.",
       "options": {
         "legend": {
           "calcs": [],
@@ -610,6 +618,7 @@
         "y": 6
       },
       "id": 10,
+      "description": "Average time from driver arrival to trip start (DRIVER_ARRIVED to STARTED). High values may indicate pickup coordination issues.",
       "options": {
         "legend": {
           "calcs": [],
@@ -710,6 +719,7 @@
         "y": 13
       },
       "id": 12,
+      "description": "Event production rate broken down by event type (TRIP_REQUESTED, OFFER_SENT, MATCHED, etc.). Each event type corresponds to a trip state machine transition. Stacked to show composition.",
       "options": {
         "legend": {
           "calcs": ["mean", "last"],
@@ -797,6 +807,7 @@
         "y": 13
       },
       "id": 13,
+      "description": "Aggregate event throughput across all event types. Indicates overall simulation engine activity level.",
       "options": {
         "legend": {
           "calcs": ["mean", "max"],
@@ -892,6 +903,7 @@
         "y": 13
       },
       "id": 14,
+      "description": "Internal backpressure indicators. SimPy Queue = discrete-event engine backlog (high values mean simulation is falling behind real-time). Pending Offers = unaccepted ride offers held by drivers.",
       "options": {
         "legend": {
           "calcs": [],
@@ -1001,6 +1013,7 @@
         "y": 21
       },
       "id": 16,
+      "description": "Response time percentiles (p50/p95/p99) for OSRM routing service calls. OSRM calculates driving distances and ETAs for trip matching and fare estimation.",
       "options": {
         "legend": {
           "calcs": ["mean", "max"],
@@ -1106,6 +1119,7 @@
         "y": 21
       },
       "id": 17,
+      "description": "Publish latency percentiles (p50/p95/p99) for Kafka event broker. Measures time from event creation to broker acknowledgment.",
       "options": {
         "legend": {
           "calcs": ["mean", "max"],
@@ -1211,6 +1225,7 @@
         "y": 21
       },
       "id": 18,
+      "description": "Operation latency percentiles (p50/p95/p99) for Redis. Redis stores real-time state and serves as the pub/sub bridge to the frontend WebSocket layer.",
       "options": {
         "legend": {
           "calcs": ["mean", "max"],
@@ -1337,6 +1352,7 @@
         "y": 29
       },
       "id": 20,
+      "description": "Error rate broken down by component (matching, payment, kafka, osrm, redis). Stacked to show which subsystems contribute most to failures.",
       "options": {
         "legend": {
           "calcs": ["sum"],
@@ -1414,6 +1430,7 @@
         "y": 29
       },
       "id": 21,
+      "description": "Binary health indicators for the stream processor's Kafka consumer and Redis publisher connections. Green = connected, Red = disconnected.",
       "options": {
         "colorMode": "background",
         "graphMode": "none",
@@ -1511,6 +1528,7 @@
         "y": 29
       },
       "id": 22,
+      "description": "Continuous uptime of the stream processor service. Drops to zero indicate crashes or restarts.",
       "options": {
         "legend": {
           "calcs": [],
@@ -1611,6 +1629,7 @@
         "y": 37
       },
       "id": 24,
+      "description": "Working set memory (MB) for core containers: Simulation, Stream Processor, Kafka, Redis. Sourced from cAdvisor via container_memory_working_set_bytes.",
       "options": {
         "legend": {
           "calcs": ["mean", "max"],
@@ -1725,6 +1744,7 @@
         "y": 37
       },
       "id": 25,
+      "description": "CPU utilization (%) for core containers. Calculated from container_cpu_usage_seconds_total rate. Values above 80% may indicate compute bottlenecks.",
       "options": {
         "legend": {
           "calcs": ["mean", "max"],

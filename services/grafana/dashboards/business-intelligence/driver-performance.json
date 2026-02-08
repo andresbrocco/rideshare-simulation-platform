@@ -66,6 +66,7 @@
         "y": 1
       },
       "id": 2,
+      "description": "Count of distinct drivers who completed at least one trip. Measures active workforce size (excludes inactive/offline-only drivers).",
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -134,6 +135,7 @@
         "y": 1
       },
       "id": 3,
+      "description": "Mean driver rating from the fact_ratings table (ratee_type = 'driver'). Color thresholds: red (<4.0), yellow (4.0-4.5), green (4.5+). Scale is 1-5 stars.",
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -202,6 +204,7 @@
         "y": 1
       },
       "id": 4,
+      "description": "Mean utilization percentage from agg_daily_driver_performance. Represents ratio of on-trip time to total available time. Color thresholds: red (<60%), yellow (60-80%), green (80%+).",
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -304,6 +307,7 @@
         "y": 6
       },
       "id": 6,
+      "description": "Histogram of trip counts by rating bucket (1-5 stars, floored). Shows the shape of the rating distribution — ideally concentrated at 4-5 stars.",
       "options": {
         "legend": {
           "calcs": [],
@@ -361,6 +365,7 @@
         "y": 6
       },
       "id": 7,
+      "description": "Donut chart segmenting drivers into High (50%+), Medium (20-50%), and Low (<20%) utilization tiers. Shows workforce efficiency distribution.",
       "options": {
         "legend": {
           "displayMode": "table",
@@ -521,6 +526,7 @@
         "y": 15
       },
       "id": 9,
+      "description": "Three daily metrics overlaid: average rating (left axis, 0-5), utilization rate (right axis, %), and average on-trip minutes (right axis). Shows correlation between performance dimensions.",
       "options": {
         "legend": {
           "calcs": ["mean", "max"],
@@ -621,6 +627,7 @@
         "y": 24
       },
       "id": 11,
+      "description": "Top 20 drivers ranked by completed trip count, with average rating and total earnings. Identifies the most active and productive drivers.",
       "options": {
         "showHeader": true,
         "cellHeight": "sm",
@@ -713,6 +720,7 @@
         "y": 24
       },
       "id": 12,
+      "description": "Scatter plot of trips completed vs total payout for up to 100 drivers. Reveals the relationship between activity volume and compensation. Outliers may indicate high-surge or long-distance specialists.",
       "options": {
         "legend": {
           "calcs": [],
@@ -755,6 +763,7 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "Driver Performance",
+  "description": "Driver workforce analytics from the Gold layer. Monitors active driver count, ratings, utilization efficiency, performance trends, and individual driver rankings. 7-day lookback via Trino against agg_daily_driver_performance and related Gold tables.",
   "uid": "driver-performance",
   "version": 1,
   "weekStart": ""

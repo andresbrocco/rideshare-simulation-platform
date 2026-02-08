@@ -15,6 +15,7 @@
       }
     ]
   },
+  "description": "Silver layer data quality monitoring. Tracks record completeness, null rates, duplicate detection, schema violations, and data type casting failures across staging tables (stg_trips, stg_gps_pings, stg_driver_status). 24-hour lookback via Trino.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -66,6 +67,7 @@
         "y": 1
       },
       "id": 2,
+      "description": "Total records ingested into delta.silver.stg_trips in the last 24 hours. Baseline volume metric for quality rate calculations.",
       "options": {
         "colorMode": "value",
         "graphMode": "none",
@@ -134,6 +136,7 @@
         "y": 1
       },
       "id": 3,
+      "description": "Percentage of stg_trips records with null trip_id. Color thresholds: green (<2%), yellow (2-5%), red (5%+). Trip ID is the primary key — nulls indicate broken event linkage.",
       "options": {
         "colorMode": "value",
         "graphMode": "none",
@@ -202,6 +205,7 @@
         "y": 1
       },
       "id": 4,
+      "description": "Percentage of duplicate records detected by comparing total count to distinct event_id count. Stricter thresholds: yellow at 0.5%, red at 1%. Duplicates indicate Kafka at-least-once delivery or replay issues.",
       "options": {
         "colorMode": "value",
         "graphMode": "none",
@@ -269,6 +273,7 @@
         "y": 1
       },
       "id": 5,
+      "description": "Absolute count of records missing required fields (trip_id, timestamp, or event_type). These three fields are mandatory for downstream processing. Yellow at 10, red at 50.",
       "options": {
         "colorMode": "value",
         "graphMode": "none",
@@ -351,6 +356,7 @@
         "y": 6
       },
       "id": 7,
+      "description": "Horizontal bar chart comparing key field completeness (%) across three staging tables. Color scale: red (<90%), yellow (90-98%), green (98%+). Each table checks its primary identifier field.",
       "options": {
         "barRadius": 0.1,
         "barWidth": 0.6,
@@ -408,6 +414,7 @@
         "y": 6
       },
       "id": 8,
+      "description": "Donut chart showing which fields in stg_trips have the most null values (trip_id, driver_id, fare). Identifies the most problematic fields for targeted quality improvement.",
       "options": {
         "displayLabels": ["name", "percent"],
         "legend": {
@@ -549,6 +556,7 @@
         "y": 14
       },
       "id": 10,
+      "description": "Hourly time series of total records (blue) vs null records (red). Divergence between the lines indicates quality degradation. Flat null line = healthy ingestion.",
       "options": {
         "legend": {
           "calcs": ["mean", "max"],
@@ -683,6 +691,7 @@
         "y": 22
       },
       "id": 12,
+      "description": "Detail table of up to 50 records failing validation (null trip_id, null fare, or negative fare). Provides record-level visibility for debugging specific quality issues.",
       "options": {
         "cellHeight": "sm",
         "footer": {
@@ -754,6 +763,7 @@
         "y": 22
       },
       "id": 13,
+      "description": "Count of records where fare or surge_multiplier cannot be cast to DOUBLE. Indicates upstream schema drift or serialization errors. Yellow at 5, red at 20.",
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -826,6 +836,7 @@
         "y": 30
       },
       "id": 15,
+      "description": "Bar chart breaking down duplicates by event type. Reveals if duplication is concentrated in specific trip lifecycle events (e.g., GPS pings vs trip state changes).",
       "options": {
         "barRadius": 0.1,
         "barWidth": 0.6,

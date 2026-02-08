@@ -15,6 +15,7 @@
       }
     ]
   },
+  "description": "Rider demand patterns and service quality analysis from the Gold layer. Covers trip request volume, wait time trends, completion rates, trip state distribution, peak/off-peak analysis, and top pickup zones across São Paulo. 7-day lookback via Trino.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -66,6 +67,7 @@
         "y": 1
       },
       "id": 2,
+      "description": "Total count of trip requests (all states, not just completed). Represents raw demand volume regardless of outcome.",
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -134,6 +136,7 @@
         "y": 1
       },
       "id": 3,
+      "description": "Mean time from trip request to driver match (requested_at to matched_at). Color thresholds: green (<5 min), yellow (5-10 min), red (10+ min). Excludes unmatched trips.",
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -202,6 +205,7 @@
         "y": 1
       },
       "id": 4,
+      "description": "Percentage of requested trips that reached COMPLETED state. Color thresholds: red (<80%), yellow (80-90%), green (90%+). Includes cancellations and abandonments in the denominator.",
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -261,6 +265,7 @@
         "y": 1
       },
       "id": 5,
+      "description": "Count of distinct riders who requested at least one trip. Measures platform reach and rider engagement.",
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -353,6 +358,7 @@
         "y": 6
       },
       "id": 7,
+      "description": "Trip request distribution across 24 hours, aggregated over the week. Identifies peak demand hours (typically morning and evening commute).",
       "options": {
         "barRadius": 0.1,
         "barWidth": 0.8,
@@ -439,6 +445,7 @@
         "y": 6
       },
       "id": 8,
+      "description": "Trip request distribution across Monday-Sunday. Reveals weekly demand seasonality (weekday commute vs weekend leisure patterns).",
       "options": {
         "barRadius": 0.1,
         "barWidth": 0.8,
@@ -586,6 +593,7 @@
         "y": 15
       },
       "id": 10,
+      "description": "Hourly wait time statistics: average, maximum, and p95. Max wait (red dashed) shows worst-case rider experience. p95 (orange) shows the typical tail latency.",
       "options": {
         "legend": {
           "calcs": ["mean", "max"],
@@ -678,6 +686,7 @@
         "y": 24
       },
       "id": 12,
+      "description": "Histogram of trips bucketed by wait time (0-2, 2-5, 5-10, 10-15, 15+ minutes). Shows what percentage of riders experience acceptable vs. poor wait times.",
       "options": {
         "barRadius": 0.1,
         "barWidth": 0.8,
@@ -744,6 +753,7 @@
         "y": 24
       },
       "id": 13,
+      "description": "Donut chart of all trips by final state (completed, cancelled, etc.). Shows the overall trip lifecycle outcome distribution.",
       "options": {
         "displayLabels": ["percent"],
         "legend": {
@@ -877,6 +887,7 @@
         "y": 33
       },
       "id": 15,
+      "description": "Top 20 São Paulo zones ranked by trip request volume, with average wait time and completion rate per zone. Gradient gauge on trip count for visual comparison.",
       "options": {
         "showHeader": true,
         "cellHeight": "sm",
@@ -988,6 +999,7 @@
         "y": 33
       },
       "id": 16,
+      "description": "Comparison of trip volume and wait times across three periods: Morning Peak (7-9 AM), Evening Peak (5-7 PM), and Off-Peak. Dual-axis: bars for trips, line for wait time.",
       "options": {
         "barRadius": 0.1,
         "barWidth": 0.8,
