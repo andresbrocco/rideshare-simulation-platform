@@ -1244,7 +1244,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "histogram_quantile(0.50, rate(simulation_redis_latency_seconds_bucket[$__rate_interval]))",
+          "expr": "histogram_quantile(0.50, rate(simulation_redis_latency_seconds_bucket[$__rate_interval])) or vector(0)",
           "legendFormat": "p50",
           "refId": "A"
         },
@@ -1253,7 +1253,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "histogram_quantile(0.95, rate(simulation_redis_latency_seconds_bucket[$__rate_interval]))",
+          "expr": "histogram_quantile(0.95, rate(simulation_redis_latency_seconds_bucket[$__rate_interval])) or vector(0)",
           "legendFormat": "p95",
           "refId": "B"
         },
@@ -1262,7 +1262,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "histogram_quantile(0.99, rate(simulation_redis_latency_seconds_bucket[$__rate_interval]))",
+          "expr": "histogram_quantile(0.99, rate(simulation_redis_latency_seconds_bucket[$__rate_interval])) or vector(0)",
           "legendFormat": "p99",
           "refId": "C"
         }
@@ -1648,7 +1648,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "container_memory_working_set_bytes{name=\"rideshare-simulation\"} / 1024 / 1024",
+          "expr": "sum by (name) (container_memory_working_set_bytes{name=\"rideshare-simulation\"}) / 1024 / 1024",
           "legendFormat": "Simulation",
           "refId": "A"
         },
@@ -1657,7 +1657,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "container_memory_working_set_bytes{name=\"rideshare-stream-processor\"} / 1024 / 1024",
+          "expr": "sum by (name) (container_memory_working_set_bytes{name=\"rideshare-stream-processor\"}) / 1024 / 1024",
           "legendFormat": "Stream Processor",
           "refId": "B"
         },
@@ -1666,7 +1666,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "container_memory_working_set_bytes{name=\"rideshare-kafka\"} / 1024 / 1024",
+          "expr": "sum by (name) (container_memory_working_set_bytes{name=\"rideshare-kafka\"}) / 1024 / 1024",
           "legendFormat": "Kafka",
           "refId": "C"
         },
@@ -1675,7 +1675,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "container_memory_working_set_bytes{name=\"rideshare-redis\"} / 1024 / 1024",
+          "expr": "sum by (name) (container_memory_working_set_bytes{name=\"rideshare-redis\"}) / 1024 / 1024",
           "legendFormat": "Redis",
           "refId": "D"
         }
@@ -1763,7 +1763,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "rate(container_cpu_usage_seconds_total{name=\"rideshare-simulation\"}[$__rate_interval]) * 100",
+          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=\"rideshare-simulation\"}[$__rate_interval])) * 100",
           "legendFormat": "Simulation",
           "refId": "A"
         },
@@ -1772,7 +1772,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "rate(container_cpu_usage_seconds_total{name=\"rideshare-stream-processor\"}[$__rate_interval]) * 100",
+          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=\"rideshare-stream-processor\"}[$__rate_interval])) * 100",
           "legendFormat": "Stream Processor",
           "refId": "B"
         },
@@ -1781,7 +1781,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "rate(container_cpu_usage_seconds_total{name=\"rideshare-kafka\"}[$__rate_interval]) * 100",
+          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=\"rideshare-kafka\"}[$__rate_interval])) * 100",
           "legendFormat": "Kafka",
           "refId": "C"
         },
@@ -1790,7 +1790,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "rate(container_cpu_usage_seconds_total{name=\"rideshare-redis\"}[$__rate_interval]) * 100",
+          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=\"rideshare-redis\"}[$__rate_interval])) * 100",
           "legendFormat": "Redis",
           "refId": "D"
         }

@@ -85,9 +85,10 @@ class MetricsUpdater:
                     active_trips = (
                         len(ms.get_active_trips()) if hasattr(ms, "get_active_trips") else 0
                     )
-                    trips_completed = getattr(ms, "_trips_completed", 0)
-                    trips_cancelled = getattr(ms, "_trips_cancelled", 0)
-                    pending_offers = getattr(ms, "_pending_offers_count", 0)
+                    trip_stats = ms.get_trip_stats()
+                    trips_completed = trip_stats.get("completed_count", 0)
+                    trips_cancelled = trip_stats.get("cancelled_count", 0)
+                    pending_offers = 0
 
                 simpy_events = (
                     len(self._engine._env._queue) if hasattr(self._engine._env, "_queue") else 0
@@ -101,13 +102,17 @@ class MetricsUpdater:
                 matching_success_rate = 0.0
                 if hasattr(self._engine, "_matching_server") and self._engine._matching_server:
                     ms = self._engine._matching_server
-                    stats = getattr(ms, "_stats", None)
-                    if stats:
-                        avg_fare = getattr(stats, "avg_fare", 0.0)
-                        avg_duration_minutes = getattr(stats, "avg_duration_minutes", 0.0)
-                        avg_wait_seconds = getattr(stats, "avg_wait_seconds", 0.0)
-                        avg_pickup_seconds = getattr(stats, "avg_pickup_seconds", 0.0)
-                        matching_success_rate = getattr(stats, "matching_success_rate", 0.0)
+                    trip_stats = ms.get_trip_stats()
+                    avg_fare = trip_stats.get("avg_fare", 0.0)
+                    avg_duration_minutes = trip_stats.get("avg_duration_minutes", 0.0)
+                    avg_wait_seconds = trip_stats.get("avg_wait_seconds", 0.0)
+                    avg_pickup_seconds = trip_stats.get("avg_pickup_seconds", 0.0)
+
+                    matching_stats = ms.get_matching_stats()
+                    offers_sent = matching_stats.get("offers_sent", 0)
+                    offers_accepted = matching_stats.get("offers_accepted", 0)
+                    if offers_sent > 0:
+                        matching_success_rate = (offers_accepted / offers_sent) * 100.0
 
                 update_metrics_from_snapshot(
                     snapshot,

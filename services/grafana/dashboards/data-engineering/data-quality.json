@@ -227,7 +227,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  (COUNT(*) - COUNT(DISTINCT event_id)) * 100.0 / NULLIF(COUNT(*), 0) as duplicate_rate\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR",
+          "rawSql": "SELECT\n  (COUNT(*) - COUNT(DISTINCT trip_id)) * 100.0 / NULLIF(COUNT(*), 0) as duplicate_rate\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR",
           "refId": "A"
         }
       ],

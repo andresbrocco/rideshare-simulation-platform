@@ -226,7 +226,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT MAX(to_unixtime(current_timestamp) - to_unixtime(_ingested_at)) as max_delay_seconds\nFROM delta.bronze.bronze_trips\nWHERE _ingestion_date >= format_datetime(current_timestamp - INTERVAL '24' HOUR, 'yyyy-MM-dd')",
+          "rawSql": "SELECT MAX(to_unixtime(_ingested_at) - to_unixtime(CAST(timestamp AS TIMESTAMP))) as max_delay_seconds\nFROM delta.bronze.bronze_trips\nWHERE _ingestion_date >= format_datetime(current_timestamp - INTERVAL '24' HOUR, 'yyyy-MM-dd')",
           "refId": "A"
         }
       ],
@@ -568,7 +568,7 @@
             "barAlignment": 0,
             "drawStyle": "bars",
             "fillOpacity": 80,
-            "gradientMode": "scheme",
+            "gradientMode": "none",
             "hideFrom": {
               "legend": false,
               "tooltip": false,

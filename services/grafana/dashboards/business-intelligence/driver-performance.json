@@ -226,7 +226,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT AVG(utilization_pct) as avg_utilization\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= CAST(current_timestamp - INTERVAL '7' DAY AS DATE)",
+          "rawSql": "SELECT AVG(utilization_pct) as avg_utilization\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= current_date - INTERVAL '7' DAY",
           "refId": "A"
         }
       ],
@@ -264,7 +264,7 @@
             "barAlignment": 0,
             "drawStyle": "bars",
             "fillOpacity": 80,
-            "gradientMode": "scheme",
+            "gradientMode": "none",
             "hideFrom": {
               "legend": false,
               "tooltip": false,
@@ -328,7 +328,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  CAST(FLOOR(r.rating) AS INTEGER) as rating_bucket,\n  COUNT(*) as trip_count\nFROM delta.gold.fact_ratings r\nJOIN delta.gold.fact_trips t ON r.trip_key = t.trip_key\nWHERE t.completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND r.ratee_type = 'driver'\nGROUP BY CAST(FLOOR(r.rating) AS INTEGER)\nORDER BY rating_bucket",
+          "rawSql": "WITH ratings AS (\n  SELECT rating_val, rating_label\n  FROM UNNEST(ARRAY[1,2,3,4,5],\n              ARRAY['1 Star','2 Stars','3 Stars','4 Stars','5 Stars']) AS t(rating_val, rating_label)\n),\nrating_data AS (\n  SELECT CAST(FLOOR(r.rating) AS INTEGER) as rating_val, COUNT(*) as trip_count\n  FROM delta.gold.fact_ratings r\n  JOIN delta.gold.fact_trips t ON r.trip_key = t.trip_key\n  WHERE t.completed_at >= current_timestamp - INTERVAL '7' DAY AND r.ratee_type = 'driver'\n  GROUP BY CAST(FLOOR(r.rating) AS INTEGER)\n)\nSELECT rt.rating_label as rating_bucket, COALESCE(rd.trip_count, 0) as trip_count\nFROM ratings rt LEFT JOIN rating_data rd ON rt.rating_val = rd.rating_val\nORDER BY rt.rating_val",
           "refId": "A"
         }
       ],
@@ -472,6 +472,10 @@
             },
             "properties": [
               {
+                "id": "displayName",
+                "value": "Driver Rating (1-5)"
+              },
+              {
                 "id": "custom.axisLabel",
                 "value": "Rating (0-5)"
               }
@@ -483,6 +487,10 @@
               "options": "utilization_rate"
             },
             "properties": [
+              {
+                "id": "displayName",
+                "value": "Utilization Rate (%)"
+              },
               {
                 "id": "unit",
                 "value": "percentunit"
@@ -503,6 +511,10 @@
               "options": "avg_on_trip_minutes"
             },
             "properties": [
+              {
+                "id": "displayName",
+                "value": "On-Trip Time (min)"
+              },
               {
                 "id": "unit",
                 "value": "m"
@@ -667,37 +679,7 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "Actual Acceptance %",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "points",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 0,
-            "pointSize": 8,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "always",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
+            "mode": "thresholds"
           },
           "mappings": [],
           "thresholds": {
@@ -709,9 +691,38 @@
               }
             ]
           },
-          "unit": "percent"
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto",
+            "inspect": true
+          }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total_payout"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg_rating"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
@@ -722,16 +733,10 @@
       "id": 12,
       "description": "Scatter plot of trips completed vs total payout for up to 100 drivers. Reveals the relationship between activity volume and compensation. Outliers may indicate high-surge or long-distance specialists.",
       "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": false
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {"show": false, "reducer": ["sum"], "fields": ""},
+        "sortBy": [{"desc": true, "displayName": "trips_completed"}]
       },
       "targets": [
         {
@@ -746,7 +751,7 @@
         }
       ],
       "title": "Driver Trips vs Earnings",
-      "type": "xychart"
+      "type": "table"
     }
   ],
   "refresh": "5m",
