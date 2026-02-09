@@ -30,6 +30,7 @@ with DAG(
     schedule="10 * * * *",
     start_date=datetime(2026, 1, 1),
     catchup=False,
+    max_active_runs=1,
     tags=["dbt", "silver", "transformation"],
 ) as silver_dag:
 
@@ -92,6 +93,7 @@ with DAG(
     schedule=None,
     start_date=datetime(2026, 1, 1),
     catchup=False,
+    max_active_runs=1,
     tags=["dbt", "gold", "transformation"],
 ) as gold_dag:
 
