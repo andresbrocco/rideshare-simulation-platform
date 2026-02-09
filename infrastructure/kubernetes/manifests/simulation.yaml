@@ -110,7 +110,7 @@ spec:
         - name: API_KEY
           value: "dev-api-key-change-in-production"
         - name: CORS_ORIGINS
-          value: "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177,http://localhost:5178"
+          value: "http://localhost:5174,http://localhost:3000,http://localhost:5173,http://localhost:5175,http://localhost:5176,http://localhost:5177,http://localhost:5178"
         resources:
           limits:
             memory: "1Gi"

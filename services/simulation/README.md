@@ -22,7 +22,7 @@
 | `REDIS_SSL` | Enable SSL for Redis connection | `false` | No |
 | `OSRM_BASE_URL` | OSRM routing service base URL | `http://localhost:5050` | No |
 | `API_KEY` | API authentication key | `dev-api-key-change-in-production` | Yes |
-| `CORS_ORIGINS` | Allowed CORS origins (comma-separated) | `http://localhost:5173` | No |
+| `CORS_ORIGINS` | Allowed CORS origins (comma-separated) | `http://localhost:5174` | No |
 
 **Note:** Settings use Pydantic with prefix-based environment variable loading. Nested settings use double underscore (`__`) delimiter.
 

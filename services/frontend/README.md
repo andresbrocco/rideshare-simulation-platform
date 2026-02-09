@@ -19,7 +19,7 @@ Copy `.env.example` to `.env` and adjust URLs if needed.
 ```bash
 # Development
 npm install              # Install dependencies
-npm run dev              # Start development server (port 5173)
+npm run dev              # Start development server (port 5174)
 
 # Testing
 npm run test             # Run tests with Vitest
@@ -42,10 +42,10 @@ npm run preview          # Preview production build
 
 | Port | Service         | Description                    |
 | ---- | --------------- | ------------------------------ |
-| 5173 | Vite Dev Server | Development mode (HMR enabled) |
+| 5174 | Vite Dev Server | Development mode (HMR enabled) |
 | 80   | Nginx           | Production mode (Docker)       |
 
-**Docker Note:** Container exposes port 5173 internally, mapped to 5173 on host when running with Docker Compose.
+**Docker Note:** Container exposes port 5173 internally, mapped to 5174 on host when running with Docker Compose.
 
 ### Configuration
 
@@ -83,7 +83,7 @@ npm run preview          # Preview production build
 cd services/frontend
 npm install
 npm run dev
-# Access at http://localhost:5173
+# Access at http://localhost:5174
 
 # Docker Compose
 docker compose -f infrastructure/docker/compose.yml --profile core up -d frontend
@@ -176,7 +176,7 @@ Pre-commit hooks automatically run these checks.
 | "API key required"            | Missing authentication                    | Enter `dev-api-key-change-in-production` in login screen                                                |
 | Blank map / no tiles          | MapLibre GL CSS not loaded                | Check that `maplibre-gl` CSS is imported in `main.tsx`                                                  |
 | HMR not working in Docker     | File watcher polling disabled             | Set `usePolling: true` in vite.config.ts (already configured)                                           |
-| Port 5173 already in use      | Another Vite process running              | Kill existing process or change port in vite.config.ts                                                  |
+| Port 5174 already in use      | Another Vite process running              | Kill existing process or change port in vite.config.ts                                                  |
 | `npm install` fails in Docker | Platform mismatch (darwin/linux lockfile) | Dockerfile uses `npm install --force` to bypass platform checks                                         |
 
 ## Related

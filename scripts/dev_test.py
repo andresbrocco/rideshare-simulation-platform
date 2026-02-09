@@ -533,7 +533,7 @@ def main() -> int:
     print(f"{Colors.BOLD}{Colors.GREEN}  Dev test environment ready!{Colors.RESET}")
     print(f"{Colors.BOLD}{Colors.GREEN}{'=' * 60}{Colors.RESET}")
     print(f"\n{Colors.CYAN}Services:{Colors.RESET}")
-    print("  - Frontend:   http://localhost:5173")
+    print("  - Frontend:   http://localhost:5174")
     print("  - Simulation: http://localhost:8000/docs")
     print("  - Airflow:    http://localhost:8082 (admin/admin)")
     print()

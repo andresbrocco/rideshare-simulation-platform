@@ -208,7 +208,7 @@ The system deploys as 11 independent containers orchestrated via Docker Compose 
 |------|------------|---------|-------|-------------|
 | simulation | Simulation engine + FastAPI API | core | 8000 | kafka, redis, osrm |
 | stream-processor | Kafka-to-Redis event bridge | core | 8080 | kafka, redis |
-| frontend | React + deck.gl visualization | core | 3000, 5173 | simulation (API), stream-processor (via Redis) |
+| frontend | React + deck.gl visualization | core | 3000, 5174 | simulation (API), stream-processor (via Redis) |
 | kafka | Confluent Kafka broker | core | 9092 | - |
 | schema-registry | Confluent Schema Registry | core | 8085 | kafka |
 | redis | Key-value store + pub/sub | core | 6379 | - |
