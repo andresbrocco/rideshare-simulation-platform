@@ -1,22 +1,22 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: superset-postgres
+  name: postgres-metastore
   labels:
-    app: superset-postgres
+    app: postgres-metastore
 spec:
-  serviceName: superset-postgres
+  serviceName: postgres-metastore
   replicas: 1
   selector:
     matchLabels:
-      app: superset-postgres
+      app: postgres-metastore
   template:
     metadata:
       labels:
-        app: superset-postgres
+        app: postgres-metastore
     spec:
       containers:
-      - name: postgres
+      - name: postgres-metastore
         image: postgres:16-alpine
         resources:
           limits:
@@ -28,27 +28,29 @@ spec:
           name: postgres
         env:
         - name: POSTGRES_USER
-          value: superset
+          value: hive
         - name: POSTGRES_PASSWORD
-          value: superset
+          value: hive
         - name: POSTGRES_DB
-          value: superset
+          value: metastore
         livenessProbe:
           exec:
             command:
             - pg_isready
             - -U
-            - superset
+            - hive
           initialDelaySeconds: 30
           periodSeconds: 10
+          timeoutSeconds: 5
         readinessProbe:
           exec:
             command:
             - pg_isready
             - -U
-            - superset
-          initialDelaySeconds: 5
+            - hive
+          initialDelaySeconds: 10
           periodSeconds: 5
+          timeoutSeconds: 5
         volumeMounts:
         - name: data
           mountPath: /var/lib/postgresql/data
@@ -60,9 +62,9 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: superset-postgres
+  name: postgres-metastore
   labels:
-    app: superset-postgres
+    app: postgres-metastore
 spec:
   type: ClusterIP
   ports:
@@ -70,4 +72,4 @@ spec:
     targetPort: 5432
     name: postgres
   selector:
-    app: superset-postgres
+    app: postgres-metastore

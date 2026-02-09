@@ -9,11 +9,53 @@ data:
     apiVersion: 1
     datasources:
       - name: Prometheus
+        uid: prometheus
         type: prometheus
         access: proxy
         url: http://prometheus:9090
         isDefault: true
-        editable: true
+        editable: false
+        jsonData:
+          timeInterval: 15s
+
+      - name: Trino
+        uid: trino
+        type: trino-datasource
+        access: proxy
+        url: http://trino:8080
+        isDefault: false
+        editable: false
+        jsonData:
+          catalog: delta
+
+      - name: Loki
+        uid: loki
+        type: loki
+        access: proxy
+        url: http://loki:3100
+        isDefault: false
+        editable: false
+        jsonData:
+          maxLines: 1000
+
+      - name: Tempo
+        uid: tempo
+        type: tempo
+        access: proxy
+        url: http://tempo:3200
+        isDefault: false
+        editable: false
+        jsonData:
+          tracesToLogsV2:
+            datasourceUid: loki
+            filterByTraceID: true
+            filterBySpanID: true
+          tracesToMetrics:
+            datasourceUid: prometheus
+          nodeGraph:
+            enabled: true
+          serviceMap:
+            datasourceUid: prometheus
 
 ---
 apiVersion: apps/v1
@@ -44,6 +86,28 @@ spec:
             sleep 2
           done
           echo "Prometheus is ready"
+      - name: wait-for-loki
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z loki 3100; do
+            echo "Waiting for Loki..."
+            sleep 2
+          done
+          echo "Loki is ready"
+      - name: wait-for-tempo
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z tempo 3200; do
+            echo "Waiting for Tempo..."
+            sleep 2
+          done
+          echo "Tempo is ready"
       containers:
       - name: grafana
         image: grafana/grafana:12.3.1
@@ -66,6 +130,8 @@ spec:
           value: http://localhost:3001
         - name: GF_AUTH_ANONYMOUS_ENABLED
           value: "false"
+        - name: GF_INSTALL_PLUGINS
+          value: trino-datasource
         livenessProbe:
           httpGet:
             path: /api/health

@@ -55,8 +55,10 @@ spec:
           value: "8"
         - name: AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL
           value: "30"
+        - name: DBT_SPARK_HOST
+          value: spark-thrift-server
         - name: _PIP_ADDITIONAL_REQUIREMENTS
-          value: apache-airflow-providers-fab apache-airflow-providers-apache-spark pyhive thrift dbt-core dbt-spark[PyHive]
+          value: apache-airflow-providers-fab apache-airflow-providers-apache-spark pyhive thrift dbt-core dbt-spark[PyHive] great-expectations requests prison
         livenessProbe:
           tcpSocket:
             port: 8793

@@ -13,7 +13,7 @@ spec:
 
   source:
     repoURL: https://github.com/andresbrocco/rideshare-simulation-platform.git
-    targetRevision: phase-06-kubernetes-migration
+    targetRevision: main
     path: infrastructure/kubernetes/manifests
     directory:
       include: |

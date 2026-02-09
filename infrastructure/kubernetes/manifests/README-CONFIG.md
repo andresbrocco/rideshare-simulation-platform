@@ -6,8 +6,8 @@ This directory contains Kubernetes ConfigMaps and Secrets that centralize config
 
 ## Files
 
-- **configmap-core.yaml** - Core services configuration (Kafka, Redis, OSRM, Simulation, Stream Processor)
-- **configmap-data-platform.yaml** - Data platform configuration (MinIO, PostgreSQL, Spark, LocalStack)
+- **configmap-core.yaml** - Core services configuration (Kafka, Redis, OSRM, Simulation, Stream Processor, OTel)
+- **configmap-data-pipeline.yaml** - Data pipeline configuration (MinIO, PostgreSQL, Spark, Hive Metastore, Trino, LocalStack)
 - **secret-credentials.yaml** - Database passwords and service credentials
 - **secret-api-keys.yaml** - API keys and application secrets
 
@@ -16,7 +16,7 @@ This directory contains Kubernetes ConfigMaps and Secrets that centralize config
 ```bash
 # Apply all ConfigMaps and Secrets
 kubectl apply -f infrastructure/kubernetes/manifests/configmap-core.yaml
-kubectl apply -f infrastructure/kubernetes/manifests/configmap-data-platform.yaml
+kubectl apply -f infrastructure/kubernetes/manifests/configmap-data-pipeline.yaml
 kubectl apply -f infrastructure/kubernetes/manifests/secret-credentials.yaml
 kubectl apply -f infrastructure/kubernetes/manifests/secret-api-keys.yaml
 ```
@@ -83,24 +83,25 @@ envFrom:
 - Stream processor configuration
 - API and logging settings
 - CORS origins
+- OpenTelemetry configuration (OTLP endpoint, deployment environment, log format)
 
-### Data Platform Config (data-platform-config)
+### Data Pipeline Config (data-pipeline-config)
 - MinIO endpoint and settings
 - PostgreSQL (Airflow) connection details
-- PostgreSQL (Superset) connection details
-- Spark cluster settings
+- PostgreSQL (Hive Metastore) connection details
+- Hive Metastore URI
+- Trino host and port
+- Spark settings
 - LocalStack AWS emulator endpoint
-- Superset Redis settings
 
 ### App Credentials (app-credentials)
 - Redis passwords
 - MinIO root user/password and access keys
-- PostgreSQL passwords (Airflow, Superset)
+- PostgreSQL passwords (Airflow, Hive Metastore)
 - Kafka SASL credentials (for production)
 
 ### API Keys (api-keys)
 - Simulation API key
-- Superset secret key
 - Airflow Fernet key
 
 ## Production Considerations
@@ -128,9 +129,8 @@ envFrom:
 4. **Update sensitive values**:
    - MINIO_ROOT_PASSWORD
    - AIRFLOW_POSTGRES_PASSWORD
-   - SUPERSET_POSTGRES_PASSWORD
+   - POSTGRES_METASTORE_PASSWORD
    - API_KEY
-   - SUPERSET_SECRET_KEY
    - AIRFLOW_FERNET_KEY
    - KAFKA_SASL_USERNAME and KAFKA_SASL_PASSWORD (if using SASL)
    - REDIS_PASSWORD (recommended for production)

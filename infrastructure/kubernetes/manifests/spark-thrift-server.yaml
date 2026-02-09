@@ -14,23 +14,89 @@ spec:
       labels:
         app: spark-thrift-server
     spec:
+      initContainers:
+      - name: wait-for-hive-metastore
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z hive-metastore 9083; do
+            echo "Waiting for Hive Metastore..."
+            sleep 5
+          done
+          echo "Hive Metastore is ready"
+      - name: wait-for-minio
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z minio 9000; do
+            echo "Waiting for MinIO..."
+            sleep 2
+          done
+          echo "MinIO is ready"
       containers:
       - name: spark-thrift-server
-        image: apache/spark:4.0.0
+        image: rideshare-spark-streaming:local
+        imagePullPolicy: Never
         command:
         - /opt/spark/bin/spark-submit
         - --master
         - local[2]
         - --driver-memory
-        - 512m
+        - 1800m
         - --conf
-        - spark.driver.maxResultSize=256m
+        - spark.driver.memoryOverhead=512m
+        - --conf
+        - spark.driver.maxResultSize=512m
         - --conf
         - spark.driver.extraJavaOptions=-XX:+UseG1GC -XX:MaxGCPauseMillis=50 -XX:InitiatingHeapOccupancyPercent=35 -XX:+ExplicitGCInvokesConcurrent
+        - --conf
+        - spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
+        - --conf
+        - spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
+        - --conf
+        - spark.sql.warehouse.dir=s3a://rideshare-bronze/warehouse
+        - --conf
+        - spark.hadoop.hive.metastore.uris=thrift://hive-metastore:9083
+        - --conf
+        - spark.hadoop.fs.s3a.endpoint=http://minio:9000
+        - --conf
+        - spark.hadoop.fs.s3a.access.key=minioadmin
+        - --conf
+        - spark.hadoop.fs.s3a.secret.key=minioadmin
+        - --conf
+        - spark.hadoop.fs.s3a.path.style.access=true
+        - --conf
+        - spark.hadoop.fs.s3a.connection.ssl.enabled=false
+        - --conf
+        - spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
+        - --conf
+        - spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
+        - --conf
+        - spark.hadoop.fs.s3a.threads.max=8
+        - --conf
+        - spark.hadoop.fs.s3a.connection.pool.size=8
+        - --conf
+        - spark.hadoop.fs.s3a.connection.establish.timeout=5000
+        - --conf
+        - spark.hadoop.fs.s3a.connection.timeout=200000
+        - --conf
+        - spark.ui.retainedStages=100
+        - --conf
+        - spark.ui.retainedJobs=100
+        - --conf
+        - spark.ui.retainedDeadExecutors=10
+        - --conf
+        - spark.sql.codegen.cache.maxEntries=100
         - --class
         - org.apache.spark.sql.hive.thriftserver.HiveThriftServer2
         - --name
         - Thrift JDBC/ODBC Server
+        - --hiveconf
+        - hive.metastore.warehouse.dir=s3a://rideshare-bronze/warehouse
         - --hiveconf
         - hive.server2.thrift.port=10000
         - --hiveconf
@@ -39,11 +105,16 @@ spec:
         - hive.server2.authentication=NOSASL
         - --hiveconf
         - hive.server2.transport.mode=binary
+        - --hiveconf
+        - hive.server2.thrift.min.worker.threads=4
+        - --hiveconf
+        - hive.server2.thrift.max.worker.threads=16
         resources:
           limits:
-            memory: "2048Mi"
+            memory: "3072Mi"
           requests:
             memory: "1024Mi"
+            cpu: "250m"
         ports:
         - containerPort: 10000
           name: thrift
@@ -56,15 +127,16 @@ spec:
           httpGet:
             path: /json/
             port: 4040
-          initialDelaySeconds: 60
-          periodSeconds: 10
+          initialDelaySeconds: 90
+          periodSeconds: 15
           timeoutSeconds: 10
+          failureThreshold: 10
         readinessProbe:
           httpGet:
             path: /json/
             port: 4040
-          initialDelaySeconds: 30
-          periodSeconds: 5
+          initialDelaySeconds: 60
+          periodSeconds: 10
           timeoutSeconds: 10
 
 ---

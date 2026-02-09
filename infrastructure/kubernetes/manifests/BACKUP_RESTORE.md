@@ -10,7 +10,7 @@ The following PersistentVolumeClaims store critical application data:
 |----------|---------|-----------|--------------|
 | minio-data | MinIO | Delta Lake data (Bronze/Silver/Gold tables) | 10Gi |
 | airflow-postgres-data | Airflow PostgreSQL | Workflow metadata, DAG runs, task history | 5Gi |
-| superset-postgres-data | Superset PostgreSQL | Dashboards, charts, user settings | 5Gi |
+| postgres-metastore-data | Hive Metastore PostgreSQL | Table metadata, schema definitions | 5Gi |
 | kafka-data | Kafka | Message logs, topic data | 5Gi |
 
 ## Storage Class Configuration
@@ -56,17 +56,17 @@ kubectl exec $POSTGRES_POD -- pg_dump -U airflow -d airflow > airflow-backup-$(d
 kubectl exec $POSTGRES_POD -- pg_dump -U airflow -d airflow -Fc > airflow-backup-$(date +%Y%m%d-%H%M%S).dump
 ```
 
-#### Superset PostgreSQL
+#### Hive Metastore PostgreSQL
 
 ```bash
 # 1. Get the PostgreSQL pod name
-POSTGRES_POD=$(kubectl get pod -l app=superset-postgres -o jsonpath='{.items[0].metadata.name}')
+POSTGRES_POD=$(kubectl get pod -l app=postgres-metastore -o jsonpath='{.items[0].metadata.name}')
 
 # 2. Create SQL dump
-kubectl exec $POSTGRES_POD -- pg_dump -U superset -d superset > superset-backup-$(date +%Y%m%d-%H%M%S).sql
+kubectl exec $POSTGRES_POD -- pg_dump -U hive -d metastore > metastore-backup-$(date +%Y%m%d-%H%M%S).sql
 
 # Alternative: Binary dump (faster, smaller)
-kubectl exec $POSTGRES_POD -- pg_dump -U superset -d superset -Fc > superset-backup-$(date +%Y%m%d-%H%M%S).dump
+kubectl exec $POSTGRES_POD -- pg_dump -U hive -d metastore -Fc > metastore-backup-$(date +%Y%m%d-%H%M%S).dump
 ```
 
 ### Kafka
@@ -169,20 +169,20 @@ cat airflow-backup-YYYYMMDD-HHMMSS.dump | kubectl exec -i $POSTGRES_POD -- pg_re
 kubectl exec $POSTGRES_POD -- psql -U airflow -d airflow -c '\dt'
 ```
 
-#### Superset PostgreSQL
+#### Hive Metastore PostgreSQL
 
 ```bash
 # 1. Get the PostgreSQL pod name
-POSTGRES_POD=$(kubectl get pod -l app=superset-postgres -o jsonpath='{.items[0].metadata.name}')
+POSTGRES_POD=$(kubectl get pod -l app=postgres-metastore -o jsonpath='{.items[0].metadata.name}')
 
 # 2. For SQL dump restore
-kubectl exec -i $POSTGRES_POD -- psql -U superset -d superset < superset-backup-YYYYMMDD-HHMMSS.sql
+kubectl exec -i $POSTGRES_POD -- psql -U hive -d metastore < metastore-backup-YYYYMMDD-HHMMSS.sql
 
 # 3. For binary dump restore
-cat superset-backup-YYYYMMDD-HHMMSS.dump | kubectl exec -i $POSTGRES_POD -- pg_restore -U superset -d superset --clean --if-exists
+cat metastore-backup-YYYYMMDD-HHMMSS.dump | kubectl exec -i $POSTGRES_POD -- pg_restore -U hive -d metastore --clean --if-exists
 
 # 4. Verify restore
-kubectl exec $POSTGRES_POD -- psql -U superset -d superset -c '\dt'
+kubectl exec $POSTGRES_POD -- psql -U hive -d metastore -c '\dt'
 ```
 
 ### Kafka
@@ -246,7 +246,7 @@ If the entire cluster is lost:
 5. **Restore data using procedures above**:
    - Restore MinIO data
    - Restore Airflow PostgreSQL
-   - Restore Superset PostgreSQL
+   - Restore Hive Metastore PostgreSQL
    - (Optional) Restore Kafka logs
 
 ### Individual PVC Recovery
@@ -278,7 +278,7 @@ For production environments, implement automated backup schedules:
 |-----------|------------------|-----------|
 | MinIO (Delta Lake) | Daily at 2 AM | 30 days |
 | Airflow PostgreSQL | Daily at 3 AM | 14 days |
-| Superset PostgreSQL | Weekly | 4 weeks |
+| Hive Metastore PostgreSQL | Daily at 3 AM | 14 days |
 | Kafka Logs | Not recommended (transient data) | N/A |
 
 Use CronJobs in Kubernetes or external backup tools (Velero, Kasten K10) for automated backups.

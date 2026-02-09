@@ -17,14 +17,20 @@ data:
   AIRFLOW_POSTGRES_DB: "airflow"
   AIRFLOW_POSTGRES_USER: "airflow"
 
-  # PostgreSQL Configuration (Superset)
-  SUPERSET_POSTGRES_HOST: "superset-postgres"
-  SUPERSET_POSTGRES_PORT: "5432"
-  SUPERSET_POSTGRES_DB: "superset"
-  SUPERSET_POSTGRES_USER: "superset"
+  # PostgreSQL Configuration (Hive Metastore)
+  POSTGRES_METASTORE_HOST: "postgres-metastore"
+  POSTGRES_METASTORE_PORT: "5432"
+  POSTGRES_METASTORE_DB: "metastore"
+  POSTGRES_METASTORE_USER: "hive"
+
+  # Hive Metastore Configuration
+  HIVE_METASTORE_URI: "thrift://hive-metastore:9083"
+
+  # Trino Configuration
+  TRINO_HOST: "trino"
+  TRINO_PORT: "8080"
 
   # Spark Configuration
-  SPARK_MASTER_URL: "spark://spark-master:7077"
   SPARK_DRIVER_MEMORY: "512m"
   SPARK_EXECUTOR_MEMORY: "512m"
   SPARK_DRIVER_MAX_RESULT_SIZE: "256m"
@@ -36,7 +42,3 @@ data:
   # LocalStack Configuration
   LOCALSTACK_ENDPOINT: "http://localstack:4566"
   AWS_REGION: "us-east-1"
-
-  # Superset Redis Configuration
-  SUPERSET_REDIS_HOST: "superset-redis"
-  SUPERSET_REDIS_PORT: "6379"

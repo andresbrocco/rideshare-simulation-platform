@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-init
+  labels:
+    app: minio-init
+spec:
+  backoffLimit: 5
+  template:
+    metadata:
+      labels:
+        app: minio-init
+    spec:
+      initContainers:
+      - name: wait-for-minio
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z minio 9000; do
+            echo "Waiting for MinIO..."
+            sleep 2
+          done
+          echo "MinIO is ready"
+      containers:
+      - name: minio-init
+        image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+        command:
+        - /bin/sh
+        - -c
+        - |
+          mc alias set local http://minio:9000 minioadmin minioadmin &&
+          mc mb local/rideshare-bronze --ignore-existing &&
+          mc mb local/rideshare-silver --ignore-existing &&
+          mc mb local/rideshare-gold --ignore-existing &&
+          mc mb local/rideshare-checkpoints --ignore-existing &&
+          echo 'MinIO buckets initialized successfully'
+      restartPolicy: OnFailure

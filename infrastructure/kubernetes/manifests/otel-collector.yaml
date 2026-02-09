@@ -1,0 +1,200 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  labels:
+    app: otel-collector
+data:
+  config.yaml: |
+    receivers:
+      # OTLP receiver for application metrics and traces
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+      # NOTE: filelog receiver from Docker Compose is not used in K8s.
+      # In Docker, it reads /var/lib/docker/containers/*/*.log.
+      # In K8s, container log collection requires a DaemonSet with hostPath
+      # mounts to /var/log/pods/. For local dev, metrics + traces via OTLP
+      # push are sufficient. Add DaemonSet log collection as a future enhancement.
+
+    processors:
+      # Batch for efficiency
+      batch:
+        timeout: 5s
+        send_batch_size: 1000
+
+      # Memory limiter for stability
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 512
+        spike_limit_mib: 128
+
+      # Add resource attributes
+      resource:
+        attributes:
+          - key: deployment.environment
+            value: local
+            action: upsert
+
+    exporters:
+      # Prometheus remote write for metrics
+      prometheusremotewrite:
+        endpoint: http://prometheus:9090/api/v1/write
+        resource_to_telemetry_conversion:
+          enabled: true
+
+      # Loki exporter for logs (if any logs arrive via OTLP)
+      loki:
+        endpoint: http://loki:3100/loki/api/v1/push
+
+      # OTLP exporter to Tempo for traces
+      otlp/tempo:
+        endpoint: tempo:4317
+        tls:
+          insecure: true
+
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+    service:
+      extensions: [health_check]
+      pipelines:
+        # Metrics pipeline: OTLP -> Prometheus
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch, resource]
+          exporters: [prometheusremotewrite]
+
+        # Traces pipeline: OTLP -> Tempo
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch, resource]
+          exporters: [otlp/tempo]
+
+      telemetry:
+        logs:
+          level: info
+        metrics:
+          address: 0.0.0.0:8888
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  labels:
+    app: otel-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+    spec:
+      initContainers:
+      - name: wait-for-prometheus
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z prometheus 9090; do
+            echo "Waiting for Prometheus..."
+            sleep 2
+          done
+          echo "Prometheus is ready"
+      - name: wait-for-loki
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z loki 3100; do
+            echo "Waiting for Loki..."
+            sleep 2
+          done
+          echo "Loki is ready"
+      - name: wait-for-tempo
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z tempo 3200; do
+            echo "Waiting for Tempo..."
+            sleep 2
+          done
+          echo "Tempo is ready"
+      containers:
+      - name: otel-collector
+        image: otel/opentelemetry-collector-contrib:0.96.0
+        args:
+        - --config=/etc/otelcol-contrib/config.yaml
+        resources:
+          limits:
+            memory: "768Mi"
+          requests:
+            memory: "256Mi"
+        ports:
+        - containerPort: 4317
+          name: otlp-grpc
+        - containerPort: 4318
+          name: otlp-http
+        - containerPort: 8888
+          name: metrics
+        - containerPort: 13133
+          name: health
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 13133
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 13133
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+        volumeMounts:
+        - name: config
+          mountPath: /etc/otelcol-contrib
+      volumes:
+      - name: config
+        configMap:
+          name: otel-collector-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  labels:
+    app: otel-collector
+spec:
+  type: ClusterIP
+  ports:
+  - port: 4317
+    targetPort: 4317
+    name: otlp-grpc
+  - port: 4318
+    targetPort: 4318
+    name: otlp-http
+  - port: 8888
+    targetPort: 8888
+    name: metrics
+  - port: 13133
+    targetPort: 13133
+    name: health
+  selector:
+    app: otel-collector

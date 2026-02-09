@@ -28,7 +28,7 @@ kubectl get crd gatewayclasses.gateway.networking.k8s.io &>/dev/null || \
 
 echo ""
 
-# Deploy in order: storage, config/secrets, data platform, core services, networking
+# Deploy in order: storage, config/secrets, data platform, core services, monitoring, networking
 echo "Step 1: Deploying storage resources..."
 # StorageClass may already exist (Kind creates one by default), so don't fail on error
 set +e
@@ -38,27 +38,28 @@ kubectl apply -f pv-static.yaml
 kubectl apply -f pvc-minio.yaml
 kubectl apply -f pvc-kafka.yaml
 kubectl apply -f pvc-postgres-airflow.yaml
-kubectl apply -f pvc-postgres-superset.yaml
+kubectl apply -f pvc-postgres-metastore.yaml
 
 echo ""
 echo "Step 2: Deploying ConfigMaps and Secrets..."
 kubectl apply -f configmap-core.yaml
-kubectl apply -f configmap-data-platform.yaml
+kubectl apply -f configmap-data-pipeline.yaml
 kubectl apply -f secret-credentials.yaml
 kubectl apply -f secret-api-keys.yaml
 
 echo ""
 echo "Step 3: Deploying data platform services..."
 kubectl apply -f minio.yaml
-kubectl apply -f spark-master.yaml
-kubectl apply -f spark-worker.yaml
+kubectl apply -f minio-init.yaml
+kubectl apply -f postgres-metastore.yaml
+kubectl apply -f hive-metastore.yaml
 kubectl apply -f spark-thrift-server.yaml
+kubectl apply -f trino.yaml
+kubectl apply -f bronze-ingestion.yaml
+kubectl apply -f bronze-init.yaml
 kubectl apply -f airflow-postgres.yaml
-kubectl apply -f airflow-scheduler.yaml
 kubectl apply -f airflow-webserver.yaml
-kubectl apply -f superset-postgres.yaml
-kubectl apply -f superset-redis.yaml
-kubectl apply -f superset.yaml
+kubectl apply -f airflow-scheduler.yaml
 kubectl apply -f localstack.yaml
 
 echo ""
@@ -74,6 +75,10 @@ kubectl apply -f frontend.yaml
 echo ""
 echo "Step 5: Deploying monitoring services..."
 kubectl apply -f prometheus.yaml
+kubectl apply -f loki.yaml
+kubectl apply -f tempo.yaml
+kubectl apply -f otel-collector.yaml
+kubectl apply -f cadvisor.yaml
 kubectl apply -f grafana.yaml
 
 echo ""
@@ -88,7 +93,7 @@ set -e
 
 echo ""
 echo "============================================"
-echo "✓ All manifests applied successfully!"
+echo "All manifests applied successfully!"
 echo "============================================"
 echo ""
 echo "Waiting for critical pods to be ready (timeout: 5 minutes)..."

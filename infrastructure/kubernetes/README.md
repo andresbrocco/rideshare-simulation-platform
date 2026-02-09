@@ -25,9 +25,9 @@
   # Deploys all Kubernetes manifests in order:
   # 1. Storage (StorageClass, PVs, PVCs)
   # 2. Config/Secrets (ConfigMaps, Secrets)
-  # 3. Data platform (MinIO, Spark, Airflow, Superset, LocalStack)
+  # 3. Data platform (MinIO, Hive Metastore, Spark, Trino, Bronze Ingestion, Airflow, LocalStack)
   # 4. Core services (Kafka, Redis, OSRM, Simulation, Stream Processor, Frontend)
-  # 5. Monitoring (Prometheus, Grafana)
+  # 5. Monitoring (Prometheus, Loki, Tempo, OTel Collector, cAdvisor, Grafana)
   # 6. Networking (Gateway API resources)
 
 ./infrastructure/kubernetes/scripts/health-check.sh
@@ -66,6 +66,8 @@
 - Simulation API: http://localhost/api/
 - Airflow: http://localhost/airflow/
 - Grafana: http://localhost/grafana/
+- Prometheus: http://localhost/prometheus/
+- Trino: http://localhost/trino/
 
 **Port Forwarding:**
 ```bash
@@ -77,6 +79,11 @@ kubectl port-forward svc/argocd-server -n argocd 8080:443
 kubectl port-forward svc/simulation 8000:8000
 kubectl port-forward svc/kafka 9092:9092
 kubectl port-forward svc/redis 6379:6379
+kubectl port-forward svc/grafana 3001:3001
+kubectl port-forward svc/loki 3100:3100
+kubectl port-forward svc/tempo 3200:3200
+kubectl port-forward svc/trino 8084:8080
+kubectl port-forward svc/minio 9000:9000 9001:9001
 ```
 
 **NodePort (mapped to localhost):**
@@ -98,16 +105,28 @@ kubectl port-forward svc/redis 6379:6379
 # 1. Create Kind cluster
 ./infrastructure/kubernetes/scripts/create-cluster.sh
 
-# 2. Deploy all services
+# 2. Build and load custom images
+docker build -t rideshare-simulation:local services/simulation/
+docker build -t rideshare-stream-processor:local services/stream-processor/
+docker build -t rideshare-frontend:local --target production services/frontend/
+docker build -t rideshare-osrm:local services/osrm/
+docker build -t rideshare-minio:local services/minio/
+docker build -t rideshare-spark-streaming:local -f services/spark-streaming/Dockerfile .
+docker build -t rideshare-hive-metastore:local services/hive-metastore/
+kind load docker-image rideshare-simulation:local rideshare-stream-processor:local \
+  rideshare-frontend:local rideshare-osrm:local rideshare-minio:local \
+  rideshare-spark-streaming:local rideshare-hive-metastore:local --name rideshare-local
+
+# 3. Deploy all services
 ./infrastructure/kubernetes/scripts/deploy-services.sh
 
-# 3. Verify health
+# 4. Verify health
 ./infrastructure/kubernetes/scripts/health-check.sh
 
-# 4. Run smoke tests
+# 5. Run smoke tests
 ./infrastructure/kubernetes/scripts/smoke-test.sh
 
-# 5. Access services via Ingress
+# 6. Access services via Ingress
 open http://localhost/
 ```
 
@@ -246,9 +265,9 @@ Services are deployed in strict order to satisfy dependencies:
 
 1. **Storage Layer** — StorageClass, PersistentVolumes, PersistentVolumeClaims
 2. **Configuration** — ConfigMaps (environment variables), Secrets (credentials, API keys)
-3. **Data Platform** — MinIO, Spark (master/worker/thrift-server), Airflow (postgres/scheduler/webserver), Superset (postgres/redis/app), LocalStack
+3. **Data Platform** — MinIO, Hive Metastore (postgres-metastore + hive-metastore), Spark Thrift Server, Trino, Bronze Ingestion, Airflow (postgres/scheduler/webserver), LocalStack
 4. **Core Services** — Kafka, Schema Registry, Redis, OSRM, Simulation, Stream Processor, Frontend
-5. **Monitoring** — Prometheus, Grafana
+5. **Monitoring** — Prometheus, Loki, Tempo, OTel Collector, cAdvisor, Grafana
 6. **Networking** — GatewayClass, Gateway, HTTPRoute resources
 
 ### Resource Allocation

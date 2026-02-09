@@ -69,8 +69,10 @@ spec:
           value: admin
         - name: _AIRFLOW_WWW_USER_PASSWORD
           value: admin
+        - name: DBT_SPARK_HOST
+          value: spark-thrift-server
         - name: _PIP_ADDITIONAL_REQUIREMENTS
-          value: apache-airflow-providers-fab apache-airflow-providers-apache-spark pyhive thrift dbt-core dbt-spark[PyHive]
+          value: apache-airflow-providers-fab apache-airflow-providers-apache-spark pyhive thrift dbt-core dbt-spark[PyHive] great-expectations requests prison
         livenessProbe:
           httpGet:
             path: /api/v2/monitor/health

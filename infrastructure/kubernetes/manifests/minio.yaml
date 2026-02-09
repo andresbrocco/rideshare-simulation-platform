@@ -16,7 +16,8 @@ spec:
     spec:
       containers:
       - name: minio
-        image: quay.io/minio/minio:latest
+        image: rideshare-minio:local
+        imagePullPolicy: Never
         command:
         - minio
         - server

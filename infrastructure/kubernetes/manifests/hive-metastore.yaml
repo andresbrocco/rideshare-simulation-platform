@@ -1,0 +1,175 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hive-site-config
+  labels:
+    app: hive-metastore
+data:
+  hive-site.xml: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <configuration>
+      <!-- Metastore Configuration -->
+      <property>
+        <name>metastore.thrift.uris</name>
+        <value>thrift://hive-metastore:9083</value>
+        <description>Thrift URI for the remote metastore</description>
+      </property>
+
+      <property>
+        <name>metastore.warehouse.dir</name>
+        <value>s3a://rideshare-silver/warehouse/</value>
+        <description>Default location for managed tables</description>
+      </property>
+
+      <!-- PostgreSQL Backend Configuration -->
+      <property>
+        <name>javax.jdo.option.ConnectionDriverName</name>
+        <value>org.postgresql.Driver</value>
+      </property>
+
+      <property>
+        <name>javax.jdo.option.ConnectionURL</name>
+        <value>jdbc:postgresql://postgres-metastore:5432/metastore</value>
+      </property>
+
+      <property>
+        <name>javax.jdo.option.ConnectionUserName</name>
+        <value>hive</value>
+      </property>
+
+      <property>
+        <name>javax.jdo.option.ConnectionPassword</name>
+        <value>hive</value>
+      </property>
+
+      <!-- S3A / MinIO Configuration -->
+      <property>
+        <name>fs.s3a.endpoint</name>
+        <value>http://minio:9000</value>
+      </property>
+
+      <property>
+        <name>fs.s3a.access.key</name>
+        <value>minioadmin</value>
+      </property>
+
+      <property>
+        <name>fs.s3a.secret.key</name>
+        <value>minioadmin</value>
+      </property>
+
+      <property>
+        <name>fs.s3a.path.style.access</name>
+        <value>true</value>
+      </property>
+
+      <property>
+        <name>fs.s3a.connection.ssl.enabled</name>
+        <value>false</value>
+      </property>
+
+      <property>
+        <name>fs.s3a.impl</name>
+        <value>org.apache.hadoop.fs.s3a.S3AFileSystem</value>
+      </property>
+    </configuration>
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hive-metastore
+  labels:
+    app: hive-metastore
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hive-metastore
+  template:
+    metadata:
+      labels:
+        app: hive-metastore
+    spec:
+      initContainers:
+      - name: wait-for-postgres-metastore
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z postgres-metastore 5432; do
+            echo "Waiting for PostgreSQL Metastore..."
+            sleep 2
+          done
+          echo "PostgreSQL Metastore is ready"
+      - name: wait-for-minio
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z minio 9000; do
+            echo "Waiting for MinIO..."
+            sleep 2
+          done
+          echo "MinIO is ready"
+      containers:
+      - name: hive-metastore
+        image: rideshare-hive-metastore:local
+        imagePullPolicy: Never
+        resources:
+          limits:
+            memory: "512Mi"
+          requests:
+            memory: "256Mi"
+        ports:
+        - containerPort: 9083
+          name: thrift
+        env:
+        - name: SERVICE_NAME
+          value: metastore
+        - name: DB_DRIVER
+          value: postgres
+        - name: SERVICE_OPTS
+          value: >-
+            -Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver
+            -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://postgres-metastore:5432/metastore
+            -Djavax.jdo.option.ConnectionUserName=hive
+            -Djavax.jdo.option.ConnectionPassword=hive
+        livenessProbe:
+          tcpSocket:
+            port: 9083
+          initialDelaySeconds: 120
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          tcpSocket:
+            port: 9083
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+        volumeMounts:
+        - name: hive-site
+          mountPath: /opt/hive/conf/hive-site.xml
+          subPath: hive-site.xml
+      volumes:
+      - name: hive-site
+        configMap:
+          name: hive-site-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hive-metastore
+  labels:
+    app: hive-metastore
+spec:
+  type: ClusterIP
+  ports:
+  - port: 9083
+    targetPort: 9083
+    name: thrift
+  selector:
+    app: hive-metastore

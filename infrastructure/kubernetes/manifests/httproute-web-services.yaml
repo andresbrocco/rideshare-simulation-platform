@@ -25,21 +25,6 @@ spec:
     - name: airflow-webserver
       port: 8082
 
-  # Superset - /superset/ -> /
-  - matches:
-    - path:
-        type: PathPrefix
-        value: /superset/
-    filters:
-    - type: URLRewrite
-      urlRewrite:
-        path:
-          type: ReplacePrefixMatch
-          replacePrefixMatch: /
-    backendRefs:
-    - name: superset
-      port: 8088
-
   # Grafana - /grafana/ -> /
   - matches:
     - path:
@@ -69,3 +54,18 @@ spec:
     backendRefs:
     - name: prometheus
       port: 9090
+
+  # Trino - /trino/ -> /
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /trino/
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /
+    backendRefs:
+    - name: trino
+      port: 8080
