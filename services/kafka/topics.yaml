@@ -1,0 +1,40 @@
+# Kafka Topic Definitions — Rideshare Simulation Platform
+# Source of truth for all Kafka topics.
+# Parsed by create-topics.sh on startup via the kafka-init service.
+#
+# Format: YAML documents separated by ---
+#   name: <topic>
+#   partitions: <count>
+#   replication_factor: <count>
+---
+name: trips
+partitions: 4
+replication_factor: 1
+---
+name: gps_pings
+partitions: 8
+replication_factor: 1
+---
+name: driver_status
+partitions: 2
+replication_factor: 1
+---
+name: surge_updates
+partitions: 2
+replication_factor: 1
+---
+name: ratings
+partitions: 2
+replication_factor: 1
+---
+name: payments
+partitions: 2
+replication_factor: 1
+---
+name: driver_profiles
+partitions: 1
+replication_factor: 1
+---
+name: rider_profiles
+partitions: 1
+replication_factor: 1

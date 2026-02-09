@@ -71,20 +71,10 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-      echo 'Creating Kafka topics...' &&
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic trips --partitions 4 --replication-factor 1 &&
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic gps_pings --partitions 8 --replication-factor 1 &&
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic driver_status --partitions 2 --replication-factor 1 &&
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic surge_updates --partitions 2 --replication-factor 1 &&
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic ratings --partitions 2 --replication-factor 1 &&
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic payments --partitions 2 --replication-factor 1 &&
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic driver_profiles --partitions 1 --replication-factor 1 &&
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic rider_profiles --partitions 1 --replication-factor 1 &&
-      echo 'Kafka topics created successfully' &&
-      kafka-topics --bootstrap-server kafka:29092 --list
-      "
+    volumes:
+      - ../../services/kafka/topics.yaml:/etc/kafka/topics.yaml:ro
+      - ../../services/kafka/create-topics.sh:/etc/kafka/create-topics.sh:ro
+    entrypoint: ["/bin/sh", "/etc/kafka/create-topics.sh"]
     networks:
       - rideshare-network
 
