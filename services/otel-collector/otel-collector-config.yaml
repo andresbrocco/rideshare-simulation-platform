@@ -41,8 +41,8 @@ processors:
   # Memory limiter for stability
   memory_limiter:
     check_interval: 1s
-    limit_mib: 512
-    spike_limit_mib: 128
+    limit_mib: 180
+    spike_limit_mib: 50
 
   # Add resource attributes
   resource:

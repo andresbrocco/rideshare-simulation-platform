@@ -137,7 +137,7 @@ services:
       args:
         OSRM_MAP_SOURCE: ${OSRM_MAP_SOURCE:-local}
     container_name: rideshare-osrm
-    mem_limit: 1g
+    mem_limit: 384m
     profiles:
       - core
     platform: linux/amd64
@@ -270,7 +270,7 @@ services:
       dockerfile: Dockerfile
       target: development
     container_name: rideshare-frontend
-    mem_limit: 384m
+    mem_limit: 256m
     profiles:
       - core
     ports:
@@ -611,7 +611,7 @@ services:
   localstack:
     image: localstack/localstack:4.12.0
     container_name: rideshare-localstack
-    mem_limit: 384m
+    mem_limit: 128m
     profiles:
       - data-pipeline
     ports:
@@ -798,7 +798,7 @@ services:
       context: ../../services/hive-metastore
       dockerfile: Dockerfile
     container_name: rideshare-hive-metastore
-    mem_limit: 512m
+    mem_limit: 768m
     profiles:
       - data-pipeline
     ports:
@@ -957,7 +957,7 @@ services:
   loki:
     image: grafana/loki:3.6.5
     container_name: rideshare-loki
-    mem_limit: 256m
+    mem_limit: 384m
     profiles:
       - monitoring
     ports:
@@ -981,7 +981,7 @@ services:
       context: ../../services/tempo
       dockerfile: Dockerfile
     container_name: rideshare-tempo
-    mem_limit: 512m
+    mem_limit: 768m
     profiles:
       - monitoring
     ports:
@@ -1007,7 +1007,7 @@ services:
       dockerfile: Dockerfile
     container_name: rideshare-otel-collector
     user: "0:0"
-    mem_limit: 768m
+    mem_limit: 256m
     profiles:
       - monitoring
     ports:
