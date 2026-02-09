@@ -137,7 +137,7 @@ services:
       args:
         OSRM_MAP_SOURCE: ${OSRM_MAP_SOURCE:-local}
     container_name: rideshare-osrm
-    mem_limit: 384m
+    mem_limit: 1g
     profiles:
       - core
     platform: linux/amd64
@@ -154,7 +154,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 180s
+      start_period: 300s
     restart: unless-stopped
 
   simulation:

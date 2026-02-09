@@ -4,11 +4,15 @@ set -e
 # São Paulo metro area extract (pre-built into Docker image)
 DATA_FILE="/data/sao-paulo.osrm"
 OSM_FILE="/data/sao-paulo.osm.pbf"
+PROCESSED_MARKER="/data/.osrm-processed"
 
-if [ -f "$DATA_FILE" ]; then
+if [ -f "$PROCESSED_MARKER" ]; then
     echo "OSRM data already processed, skipping..."
 else
     echo "Processing OSRM data for São Paulo metro area..."
+
+    # Clean up any partial data from a previous failed run
+    rm -f /data/sao-paulo.osrm*
 
     if [ ! -f "$OSM_FILE" ]; then
         echo "ERROR: OSM file not found at $OSM_FILE"
@@ -27,6 +31,7 @@ else
     echo "Step 3/3: Customizing..."
     osrm-customize /data/sao-paulo.osrm
 
+    touch "$PROCESSED_MARKER"
     echo "OSRM data processing complete!"
 fi
 
