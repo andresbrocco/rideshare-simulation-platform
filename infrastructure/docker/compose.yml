@@ -132,8 +132,8 @@ services:
 
   osrm:
     build:
-      context: ../..
-      dockerfile: infrastructure/docker/dockerfiles/osrm.Dockerfile
+      context: ../../services/osrm
+      dockerfile: Dockerfile
       args:
         OSRM_MAP_SOURCE: ${OSRM_MAP_SOURCE:-local}
     container_name: rideshare-osrm
@@ -297,8 +297,8 @@ services:
 
   minio:
     build:
-      context: ../..
-      dockerfile: infrastructure/docker/dockerfiles/minio.Dockerfile
+      context: ../../services/minio
+      dockerfile: Dockerfile
       args:
         MINIO_RELEASE: RELEASE.2025-10-15T17-29-55Z
     container_name: rideshare-minio
@@ -405,7 +405,7 @@ services:
   spark-thrift-server:
     build:
       context: ../..
-      dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
+      dockerfile: services/spark-streaming/Dockerfile
     container_name: rideshare-spark-thrift-server
     deploy:
       resources:
@@ -476,7 +476,7 @@ services:
   bronze-ingestion-high-volume:
     build:
       context: ../..
-      dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
+      dockerfile: services/spark-streaming/Dockerfile
     container_name: rideshare-bronze-ingestion-high-volume
     deploy:
       resources:
@@ -535,7 +535,7 @@ services:
   bronze-ingestion-low-volume:
     build:
       context: ../..
-      dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
+      dockerfile: services/spark-streaming/Dockerfile
     container_name: rideshare-bronze-ingestion-low-volume
     deploy:
       resources:
@@ -978,8 +978,8 @@ services:
 
   tempo:
     build:
-      context: ../..
-      dockerfile: infrastructure/docker/dockerfiles/tempo.Dockerfile
+      context: ../../services/tempo
+      dockerfile: Dockerfile
     container_name: rideshare-tempo
     mem_limit: 512m
     profiles:
@@ -1003,8 +1003,8 @@ services:
 
   otel-collector:
     build:
-      context: ../..
-      dockerfile: infrastructure/docker/dockerfiles/otel-collector.Dockerfile
+      context: ../../services/otel-collector
+      dockerfile: Dockerfile
     container_name: rideshare-otel-collector
     user: "0:0"
     mem_limit: 768m

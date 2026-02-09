@@ -151,11 +151,10 @@ docker build -f services/stream-processor/Dockerfile services/stream-processor
 docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
 
 # Build OSRM with local map data
-docker build -f infrastructure/docker/dockerfiles/osrm.Dockerfile \
-  --build-arg OSRM_MAP_SOURCE=local .
+docker compose -f infrastructure/docker/compose.yml --profile core build osrm
 
 # Build Spark with Delta Lake
-docker build -f infrastructure/docker/dockerfiles/spark-delta.Dockerfile .
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline build spark-thrift-server
 ```
 
 **Combined Profiles**:
@@ -188,9 +187,12 @@ docker compose -f infrastructure/docker/compose.yml --profile core down -v
 | services/simulation/Dockerfile | Multi-stage build with development and production targets | python:3.13-slim |
 | services/frontend/Dockerfile | Multi-stage build with development (Vite HMR) and production (Nginx) | node:20-alpine |
 | services/stream-processor/Dockerfile | Single-stage Python service | python:3.13-slim |
-| infrastructure/docker/dockerfiles/osrm.Dockerfile | OSRM with Sao Paulo map data (local or fetch modes) | osrm/osrm-backend:v5.25.0 |
-| infrastructure/docker/dockerfiles/spark-delta.Dockerfile | Spark with pre-installed Delta Lake JARs | apache/spark:4.0.0-python3 |
-| infrastructure/docker/dockerfiles/minio.Dockerfile | MinIO S3-compatible storage | minio/minio |
+| services/osrm/Dockerfile | OSRM with Sao Paulo map data (local or fetch modes) | osrm/osrm-backend:v5.25.0 |
+| services/spark-streaming/Dockerfile | Spark with pre-installed Delta Lake JARs | apache/spark:4.0.0-python3 |
+| services/minio/Dockerfile | MinIO S3-compatible storage | golang:1.25-alpine (build) → alpine:3.20 |
+| services/tempo/Dockerfile | Tempo with wget for health checks | grafana/tempo:2.10.0 |
+| services/otel-collector/Dockerfile | OTel Collector with wget for health checks | otel/opentelemetry-collector-contrib:0.96.0 |
+| services/hive-metastore/Dockerfile | Hive Metastore with PostgreSQL JDBC driver | apache/hive:4.0.0 |
 
 ### Initialization Services
 
@@ -276,8 +278,8 @@ One-shot containers that bootstrap infrastructure:
 |------|---------|
 | .env.example | Template for environment variables |
 | services/frontend/.env.example | Frontend-specific environment template |
-| data/sao-paulo/subprefecture_config.json | Zone-specific demand and surge parameters |
-| data/sao-paulo/zones.geojson | Geographic zone boundaries for Sao Paulo |
+| services/simulation/data/subprefecture_config.json | Zone-specific demand and surge parameters |
+| services/simulation/data/zones.geojson | Geographic zone boundaries for Sao Paulo |
 
 ## Logging & Monitoring
 
