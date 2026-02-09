@@ -276,8 +276,6 @@ One-shot containers that bootstrap infrastructure:
 |------|---------|
 | .env.example | Template for environment variables |
 | services/frontend/.env.example | Frontend-specific environment template |
-| config/kafka_topics_dev.yaml | Development Kafka topic configurations |
-| config/kafka_topics_prod.yaml | Production Kafka topic configurations |
 | data/sao-paulo/subprefecture_config.json | Zone-specific demand and surge parameters |
 | data/sao-paulo/zones.geojson | Geographic zone boundaries for Sao Paulo |
 

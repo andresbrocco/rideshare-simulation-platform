@@ -1,6 +1,6 @@
 # Kafka Topic Partitioning Strategy
 
-This document explains the **rationale** behind partitioning decisions. For actual partition counts and retention settings, see `config/kafka_topics_dev.yaml` and `config/kafka_topics_prod.yaml`.
+This document explains the **rationale** behind partitioning decisions. For actual partition counts and retention settings, see the `kafka-init` service in `infrastructure/docker/compose.yml`.
 
 ## Overview
 

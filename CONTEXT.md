@@ -183,7 +183,6 @@ Automatically run on commit:
 | infrastructure/kubernetes/kind/cluster-config.yaml | Kind 3-node cluster configuration |
 | data/sao-paulo/zones.geojson | Geographic zone boundaries (96 districts) |
 | schemas/kafka/*.json | Event schemas registered with Confluent Schema Registry |
-| config/kafka_topics_*.yaml | Environment-specific topic configurations (8 topics) |
 | docs/NAMING_CONVENTIONS.md | Module naming patterns (Repository, Handler, Manager, etc.) |
 
 ## CI/CD
