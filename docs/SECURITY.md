@@ -132,7 +132,7 @@ HTTP security headers.
 - Middleware: FastAPI `CORSMiddleware`
 - Module: `services/simulation/src/api/app.py`
 - Allowed origins: Configurable via `CORS_ORIGINS` environment variable
-- Default origins: `http://localhost:5174,http://localhost:3000`
+- Default origins: `http://localhost:5173,http://localhost:3000`
 - Allow credentials: `True`
 - Allow methods: All (`["*"]`)
 - Allow headers: All (`["*"]`)
@@ -174,7 +174,7 @@ Network isolation and exposure.
 | Service | Port | Protocol | Authentication |
 |---------|------|----------|----------------|
 | Simulation API | 8000 | HTTP | API key required |
-| Frontend | 3000, 5174 | HTTP | None (static assets) |
+| Frontend | 3000, 5173 | HTTP | None (static assets) |
 | Stream Processor | 8080 | HTTP | None (monitoring only) |
 | Kafka | 9092 | Kafka | SASL for cloud, none for local |
 | Redis | 6379 | Redis | Password optional |

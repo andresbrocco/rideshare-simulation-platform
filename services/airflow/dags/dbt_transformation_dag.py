@@ -58,11 +58,11 @@ with DAG(
     )
 
     def should_trigger_gold(**context) -> str:
-        """Trigger Gold DAG at 2 AM, for manual runs, or when DEV_MODE is enabled."""
-        dev_mode = os.environ.get("DEV_MODE", "false").lower() == "true"
+        """Trigger Gold DAG at 2 AM, for manual runs, or when not in PROD_MODE."""
+        prod_mode = os.environ.get("PROD_MODE", "false").lower() == "true"
         logical_date = context.get("logical_date")
-        # Trigger if: DEV_MODE enabled, manual run (no logical_date), or scheduled at 2 AM
-        if dev_mode or logical_date is None or logical_date.hour == 2:
+        # Trigger if: not PROD_MODE, manual run (no logical_date), or scheduled at 2 AM
+        if not prod_mode or logical_date is None or logical_date.hour == 2:
             return "trigger_gold_dag"
         return "skip_gold_trigger"
 

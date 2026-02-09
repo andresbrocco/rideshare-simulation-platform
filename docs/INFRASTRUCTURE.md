@@ -88,7 +88,7 @@
 |---------|-------|---------|------|
 | simulation | custom (python:3.13-slim) | Discrete-event simulation engine with FastAPI | 8000 |
 | stream-processor | custom (python:3.13-slim) | Kafka-to-Redis event bridge | 8080 |
-| frontend | custom (node:20-alpine) | React + deck.gl visualization UI | 3000, 5174 |
+| frontend | custom (node:20-alpine) | React + deck.gl visualization UI | 3000, 5173 |
 | kafka | confluentinc/cp-kafka:7.5.0 | KRaft-mode event streaming | 9092 |
 | schema-registry | confluentinc/cp-schema-registry:7.5.0 | JSON Schema validation | 8085 |
 | redis | redis:8.0-alpine | State snapshots + pub/sub | 6379 |
@@ -230,7 +230,7 @@ One-shot containers that bootstrap infrastructure:
 | REDIS_SSL | Enable SSL/TLS for Redis | false |
 | OSRM_BASE_URL | OSRM service base URL | http://osrm:5000 |
 | API_KEY | Control Panel API authentication key | dev-api-key-change-in-production |
-| CORS_ORIGINS | Allowed CORS origins (comma-separated) | http://localhost:5174,http://localhost:3000 |
+| CORS_ORIGINS | Allowed CORS origins (comma-separated) | http://localhost:3000,http://localhost:5173 |
 
 #### Stream Processor
 
@@ -464,7 +464,7 @@ docker compose -f infrastructure/docker/compose.yml --profile core up -d
 # Kafka, Redis, OSRM, Simulation should show "healthy" status
 
 # 7. Access services
-# - Frontend: http://localhost:5174 (or :3000 via Docker)
+# - Frontend: http://localhost:5173 (or :3000 via Docker)
 # - Simulation API: http://localhost:8000
 # - API docs: http://localhost:8000/docs
 

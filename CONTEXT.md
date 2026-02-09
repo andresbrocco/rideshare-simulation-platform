@@ -45,7 +45,7 @@ The platform combines discrete-event simulation with event-driven microservices,
 docker compose -f infrastructure/docker/compose.yml --profile core up -d
 
 # Access services
-# - Frontend: http://localhost:5174
+# - Frontend: http://localhost:5173
 # - Simulation API: http://localhost:8000
 # - API docs: http://localhost:8000/docs
 

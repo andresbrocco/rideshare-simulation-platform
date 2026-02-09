@@ -2,7 +2,7 @@
 """Dev test automation script for rideshare simulation platform.
 
 Automates the development test workflow:
-1. Docker compose down/up with DEV_MODE=true
+1. Docker compose down/up
 2. Wait for services to be healthy
 3. Start simulation and spawn agents
 4. Enable all Airflow DAGs
@@ -132,8 +132,8 @@ def docker_compose_down() -> None:
 
 
 def docker_compose_up() -> None:
-    """Start docker compose services with DEV_MODE=true."""
-    log_step("Starting Docker services with DEV_MODE=true")
+    """Start docker compose services."""
+    log_step("Starting Docker services")
     run_command(
         [
             "docker",
@@ -149,7 +149,6 @@ def docker_compose_up() -> None:
             "up",
             "-d",
         ],
-        env={"DEV_MODE": "true"},
     )
     log_success("Docker services started")
 
@@ -533,7 +532,7 @@ def main() -> int:
     print(f"{Colors.BOLD}{Colors.GREEN}  Dev test environment ready!{Colors.RESET}")
     print(f"{Colors.BOLD}{Colors.GREEN}{'=' * 60}{Colors.RESET}")
     print(f"\n{Colors.CYAN}Services:{Colors.RESET}")
-    print("  - Frontend:   http://localhost:5174")
+    print("  - Frontend:   http://localhost:5173")
     print("  - Simulation: http://localhost:8000/docs")
     print("  - Airflow:    http://localhost:8082 (admin/admin)")
     print()

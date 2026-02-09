@@ -100,7 +100,7 @@ class APISettings(BaseSettings):
 
 
 class CORSSettings(BaseSettings):
-    origins: str = "http://localhost:5174,http://localhost:3000"
+    origins: str = "http://localhost:5173,http://localhost:3000"
 
     model_config = SettingsConfigDict(env_prefix="CORS_")
 

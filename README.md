@@ -26,7 +26,7 @@ cp .env.example .env
 docker compose -f infrastructure/docker/compose.yml --profile core up -d
 
 # Access the application
-# - Frontend: http://localhost:5174
+# - Frontend: http://localhost:5173
 # - Simulation API: http://localhost:8000
 # - API docs: http://localhost:8000/docs
 ```
@@ -60,7 +60,7 @@ cd services/frontend && npm run test
 
 | Port | Service | Description |
 |------|---------|-------------|
-| 5174 | Frontend | React visualization (Vite dev server) |
+| 5173 | Frontend | React visualization (Vite dev server) |
 | 8000 | Simulation | Control Panel API (FastAPI) |
 | 8080 | Stream Processor | Health/metrics HTTP API |
 | 9092 | Kafka | Kafka broker (PLAINTEXT_HOST) |
@@ -107,7 +107,7 @@ cd services/frontend && npm run test
 | `DATABRICKS_TOKEN` | Databricks personal access token | - | No |
 | `DATABRICKS_CATALOG` | Unity Catalog name | `rideshare` | No |
 | `AWS_REGION` | AWS region | `us-east-1` | No |
-| `CORS_ORIGINS` | CORS allowed origins | `http://localhost:5174,http://localhost:3000` | No |
+| `CORS_ORIGINS` | CORS allowed origins | `http://localhost:5173,http://localhost:3000` | No |
 | `PROCESSOR_WINDOW_SIZE_MS` | GPS aggregation window (ms) | `100` | No |
 | `PROCESSOR_AGGREGATION_STRATEGY` | Aggregation strategy (latest, sample) | `latest` | No |
 | `PROCESSOR_LOG_LEVEL` | Stream processor logging level | `INFO` | No |
@@ -312,7 +312,7 @@ Edit `.env` and set the following required variables:
 - `REDIS_HOST` - Redis hostname (default: localhost)
 - `OSRM_BASE_URL` - OSRM routing service (default: http://localhost:5000)
 - `AWS_REGION` - AWS region (default: us-east-1)
-- `CORS_ORIGINS` - CORS allowed origins (default: http://localhost:5174,http://localhost:3000)
+- `CORS_ORIGINS` - CORS allowed origins (default: http://localhost:5173,http://localhost:3000)
 
 ### 3. Local Development
 

@@ -39,7 +39,7 @@ docker compose -f infrastructure/docker/compose.yml --profile core down
 | Service | Port | URL/Connection |
 |---------|------|----------------|
 | Simulation API | 8000 | http://localhost:8000 |
-| Frontend | 5174 | http://localhost:5174 |
+| Frontend | 5173 | http://localhost:5173 |
 | Stream Processor | 8080 | http://localhost:8080/health |
 | Kafka | 9092 | localhost:9092 |
 | Schema Registry | 8085 | http://localhost:8085 |
