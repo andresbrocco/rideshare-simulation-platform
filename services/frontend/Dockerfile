@@ -31,6 +31,8 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
+# Production builds need zones.geojson in public/ — sourced from services/simulation/data/
+# via Docker Compose bind mount in development; for production, widen the build context.
 
 RUN npm run build
 

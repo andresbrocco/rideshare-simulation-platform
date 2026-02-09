@@ -53,7 +53,7 @@
 - `trailing-whitespace` - Remove trailing whitespace
 - `end-of-file-fixer` - Ensure files end with newline
 - `check-yaml` - Validate YAML syntax
-- `check-added-large-files` - Block files >500KB (excludes `data/sao-paulo/distritos-sp-raw.geojson`, `data/osrm/sao-paulo-metro.osm.pbf`)
+- `check-added-large-files` - Block files >500KB (excludes `services/simulation/data/distritos-sp-raw.geojson`, `services/osrm/data/sao-paulo-metro.osm.pbf`)
 - `black==24.10.0` - Code formatting (Python 3.13)
 - `ruff==0.8.4` - Linting with auto-fix
 - `mypy==1.14.1` - Type checking (only `services/simulation/src/`)

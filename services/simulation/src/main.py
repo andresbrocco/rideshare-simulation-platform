@@ -217,7 +217,7 @@ def main() -> None:
     logger.info("Async Redis client configured")
 
     # Load geographic data
-    zones_path = os.environ.get("ZONES_PATH", "../data/sao-paulo/zones.geojson")
+    zones_path = os.environ.get("ZONES_PATH", "../data/zones.geojson")
     zone_loader = ZoneLoader(zones_path)
 
     # Initialize matching components

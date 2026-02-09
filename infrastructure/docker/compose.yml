@@ -176,7 +176,7 @@ services:
       - "8000:8000"
     volumes:
       - ../../services/simulation/src:/app/src:ro
-      - ../../data:/app/data:ro
+      - ../../services/simulation/data:/app/data:ro
       - simulation-db:/app/db
       - ./compose.yml:/app/compose.yml:ro
     environment:
@@ -278,6 +278,7 @@ services:
     volumes:
       - ../../services/frontend:/app
       - frontend-node-modules:/app/node_modules
+      - ../../services/simulation/data/zones.geojson:/app/public/zones.geojson:ro  # canonical source
     environment:
       - VITE_API_URL=http://localhost:8000
       - VITE_WS_URL=ws://localhost:8000/ws

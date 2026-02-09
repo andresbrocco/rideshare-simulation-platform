@@ -181,7 +181,7 @@ Automatically run on commit:
 | .env.example | Environment variable template |
 | infrastructure/docker/compose.yml | Multi-profile Docker Compose orchestration |
 | infrastructure/kubernetes/kind/cluster-config.yaml | Kind 3-node cluster configuration |
-| data/sao-paulo/zones.geojson | Geographic zone boundaries (96 districts) |
+| services/simulation/data/zones.geojson | Geographic zone boundaries (96 districts) |
 | schemas/kafka/*.json | Event schemas registered with Confluent Schema Registry |
 | docs/NAMING_CONVENTIONS.md | Module naming patterns (Repository, Handler, Manager, etc.) |
 

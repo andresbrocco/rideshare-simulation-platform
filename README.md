@@ -232,7 +232,7 @@ rideshare-simulation-platform/
 ├── quality/
 │   └── great-expectations/  # Data validation
 ├── docs/                    # Architecture documentation
-├── data/                    # Geographic data (zones.geojson)
+├── data/                    # OSRM routing data
 └── config/                  # Topic and environment configs
 ```
 

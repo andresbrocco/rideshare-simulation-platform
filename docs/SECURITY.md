@@ -243,7 +243,7 @@ Documented in `docs/security/production-checklist.md`:
 - Correlation IDs enable duplicate detection
 
 ### Geographic Data
-- Zone boundaries: `data/sao-paulo/zones.geojson` - public geographic data
+- Zone boundaries: `services/simulation/data/zones.geojson` - public geographic data
 - No sensitivity concerns (Sao Paulo districts are public information)
 
 ---

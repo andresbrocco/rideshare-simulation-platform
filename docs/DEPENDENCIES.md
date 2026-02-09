@@ -23,7 +23,7 @@ How modules within this codebase depend on each other.
 |--------|---------|----------------|
 | schemas/kafka | JSON Schema definitions for Kafka events | services/simulation, services/spark-streaming, services/stream-processor |
 | schemas/lakehouse | Bronze layer PySpark schema definitions | services/spark-streaming |
-| data/sao-paulo | Geographic reference data for São Paulo districts | services/simulation |
+| services/simulation/data | Geographic reference data for São Paulo districts (co-located) | services/simulation |
 | config | Environment-specific Kafka topic configurations | services/simulation, services/spark-streaming |
 
 ### Infrastructure and Quality Modules
@@ -39,7 +39,7 @@ How modules within this codebase depend on each other.
 
 ```
 [services/simulation] ──┬──> [schemas/kafka]
-                        ├──> [data/sao-paulo]
+                        ├──> [services/simulation/data]
                         ├──> [config]
                         └──> Kafka Topics
                                   │
@@ -97,9 +97,10 @@ Internal module structure within `services/simulation/src/`:
 - Uses JSON schemas for event validation: `trip_event.json`, `gps_ping_event.json`, `driver_status_event.json`, `surge_update_event.json`, `rating_event.json`, `payment_event.json`, `driver_profile_event.json`, `rider_profile_event.json`
 - Publishes events to Kafka topics with schema registry validation
 
-#### services/simulation → data/sao-paulo
+#### services/simulation → services/simulation/data
 - Uses `zones.geojson` for geographic zone boundaries and assignment
 - Uses `subprefecture_config.json` for demand parameters and surge sensitivity
+- Data is co-located within the simulation service directory
 
 #### services/stream-processor → Redis pub/sub
 - Consumes from Kafka topics: `gps_pings`, `trips`, `driver_status`, `surge_updates`

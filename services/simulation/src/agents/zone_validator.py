@@ -24,8 +24,8 @@ def _get_zones_path() -> Path:
     Checks in order:
     1. Path override (set via set_zones_path for testing)
     2. ZONES_GEOJSON_PATH environment variable
-    3. /app/data/sao-paulo/zones.geojson (Docker)
-    4. Relative to project root: data/sao-paulo/zones.geojson
+    3. /app/data/zones.geojson (Docker)
+    4. Relative to simulation root: data/zones.geojson
     """
     # Test override
     if _zones_path_override is not None:
@@ -37,20 +37,20 @@ def _get_zones_path() -> Path:
         return Path(env_path)
 
     # Docker path
-    docker_path = Path("/app/data/sao-paulo/zones.geojson")
+    docker_path = Path("/app/data/zones.geojson")
     if docker_path.exists():
         return docker_path
 
     # Local development: find relative to this file
-    # simulation/src/agents/zone_validator.py -> simulation/ -> project_root/
-    project_root = Path(__file__).parent.parent.parent.parent
-    local_path = project_root / "data" / "sao-paulo" / "zones.geojson"
+    # simulation/src/agents/zone_validator.py -> simulation/
+    simulation_root = Path(__file__).parent.parent.parent
+    local_path = simulation_root / "data" / "zones.geojson"
     if local_path.exists():
         return local_path
 
     raise FileNotFoundError(
         "Could not find zones.geojson. Set ZONES_GEOJSON_PATH environment variable "
-        "or ensure file exists at data/sao-paulo/zones.geojson"
+        "or ensure file exists at services/simulation/data/zones.geojson"
     )
 
 

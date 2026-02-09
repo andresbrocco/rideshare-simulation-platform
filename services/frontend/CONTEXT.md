@@ -43,4 +43,4 @@ Real-time visualization and control interface for the rideshare simulation platf
 
 - **[services/simulation](../simulation/CONTEXT.md)** — Simulation control partner; frontend issues lifecycle commands and puppet control via REST API, receives state updates
 - **[services/stream-processor](../stream-processor/CONTEXT.md)** — Real-time data bridge; stream-processor aggregates events from Kafka and publishes to Redis channels that frontend subscribes to
-- **[data/sao-paulo](../../data/sao-paulo/CONTEXT.md)** — Geographic visualization layer; zone boundaries rendered on map enable spatial understanding of surge pricing and agent distribution
+- **[simulation/data](../simulation/data/CONTEXT.md)** — Geographic visualization layer; zone boundaries rendered on map enable spatial understanding of surge pricing and agent distribution

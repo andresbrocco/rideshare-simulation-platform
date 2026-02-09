@@ -7,7 +7,7 @@ This script:
 2. Loads subprefecture config for demand/surge parameters
 3. Converts MultiPolygon to Polygon (uses largest polygon by area)
 4. Transforms properties to match our Zone model
-5. Saves the result to data/sao-paulo/zones.geojson
+5. Saves the result to services/simulation/data/zones.geojson
 """
 
 import json
@@ -23,10 +23,12 @@ GEOSAMPA_URL = (
     "https://raw.githubusercontent.com/codigourbano/distritos-sp/master/distritos-sp.geojson"
 )
 PROJECT_ROOT = Path(__file__).parent.parent
-CONFIG_PATH = PROJECT_ROOT / "data" / "sao-paulo" / "subprefecture_config.json"
-RAW_OUTPUT_PATH = PROJECT_ROOT / "data" / "sao-paulo" / "distritos-sp-raw.geojson"
-SIMPLIFIED_PATH = PROJECT_ROOT / "data" / "sao-paulo" / "distritos-sp-simplified.geojson"
-OUTPUT_PATH = PROJECT_ROOT / "data" / "sao-paulo" / "zones.geojson"
+CONFIG_PATH = PROJECT_ROOT / "services" / "simulation" / "data" / "subprefecture_config.json"
+RAW_OUTPUT_PATH = PROJECT_ROOT / "services" / "simulation" / "data" / "distritos-sp-raw.geojson"
+SIMPLIFIED_PATH = (
+    PROJECT_ROOT / "services" / "simulation" / "data" / "distritos-sp-simplified.geojson"
+)
+OUTPUT_PATH = PROJECT_ROOT / "services" / "simulation" / "data" / "zones.geojson"
 
 
 def check_mapshaper_available() -> bool:

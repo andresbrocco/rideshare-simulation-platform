@@ -7,7 +7,7 @@ Geographic reference data for the ride-sharing simulation, providing official S�
 ## Responsibility Boundaries
 
 - **Owns**: Official district boundaries (96 zones from GeoSampa), demand multipliers and surge sensitivity per subprefecture, simplified GeoJSON geometries for performance
-- **Delegates to**: `services/simulation/src/geo/zones.py` for parsing and loading, `services/simulation/src/agents/zone_validator.py` for validation logic, DBT models for dimensional modeling
+- **Delegates to**: `src/geo/zones.py` for parsing and loading, `src/agents/zone_validator.py` for validation logic, DBT models for dimensional modeling
 - **Does not handle**: Zone assignment logic (handled by geo module), surge pricing calculations (handled by matching server), runtime state or caching
 
 ## Key Concepts
@@ -42,6 +42,6 @@ Zone IDs (e.g., "PIN" for Pinheiros, "MOO" for Mooca) are three-letter abbreviat
 
 ## Related Modules
 
-- **[services/simulation/src/geo](../../services/simulation/src/geo/CONTEXT.md)** — Primary consumer; geo module loads zones.geojson for zone assignment and validation
-- **[services/simulation/src/matching](../../services/simulation/src/matching/CONTEXT.md)** — Uses zone-based surge sensitivity parameters for dynamic pricing calculations
-- **[services/frontend](../../services/frontend/CONTEXT.md)** — Visualizes zone boundaries on map to show geographic context for agents and surge pricing
+- **[src/geo](../src/geo/CONTEXT.md)** — Primary consumer; geo module loads zones.geojson for zone assignment and validation
+- **[src/matching](../src/matching/CONTEXT.md)** — Uses zone-based surge sensitivity parameters for dynamic pricing calculations
+- **[services/frontend](../../frontend/CONTEXT.md)** — Visualizes zone boundaries on map to show geographic context for agents and surge pricing

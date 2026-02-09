@@ -25,7 +25,7 @@ High-level components and their responsibilities (derived from CONTEXT.md files)
 | Data Quality | Lakehouse validation framework | quality/great-expectations |
 | Business Intelligence | Dashboard and visualization layer | analytics/superset |
 | Schema Registry | Event and table schema definitions | schemas/kafka, schemas/lakehouse |
-| Configuration | Environment-specific topic and zone configs | config/, data/sao-paulo |
+| Configuration | Environment-specific topic and zone configs | config/, services/simulation/data |
 | Infrastructure | Container orchestration and custom images | infrastructure/docker |
 
 ## Layer Structure
@@ -362,7 +362,7 @@ REQUESTED → OFFER_SENT → MATCHED → DRIVER_EN_ROUTE → DRIVER_ARRIVED → 
 - Formula: `base_multiplier + (demand_factor * surge_sensitivity)`
 - demand_factor = `max(0, (riders_waiting - available_drivers) / total_demand)`
 - Multipliers range from 1.0x to 2.5x
-- Surge sensitivity configured per zone in `data/sao-paulo/subprefecture_config.json`
+- Surge sensitivity configured per zone in `services/simulation/data/subprefecture_config.json`
 - Events published to `surge_updates` topic for real-time visualization
 
 ### Medallion Architecture
