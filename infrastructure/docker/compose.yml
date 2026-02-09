@@ -698,8 +698,8 @@ services:
       - ../../services/airflow/logs:/opt/airflow/logs
       - ../../services/airflow/plugins:/opt/airflow/plugins
       - ../../services/airflow/config:/opt/airflow/config
-      - ../../services/dbt:/opt/dbt
-      - ../../quality/great-expectations:/opt/great-expectations
+      - ../../tools/dbt:/opt/dbt
+      - ../../tools/great-expectations:/opt/great-expectations
     depends_on:
       postgres-airflow:
         condition: service_healthy
@@ -747,8 +747,8 @@ services:
       - ../../services/airflow/logs:/opt/airflow/logs
       - ../../services/airflow/plugins:/opt/airflow/plugins
       - ../../services/airflow/config:/opt/airflow/config
-      - ../../services/dbt:/opt/dbt
-      - ../../quality/great-expectations:/opt/great-expectations
+      - ../../tools/dbt:/opt/dbt
+      - ../../tools/great-expectations:/opt/great-expectations
       - ../../infrastructure/scripts:/opt/init-scripts:ro
     depends_on:
       postgres-airflow:

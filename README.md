@@ -229,7 +229,8 @@ rideshare-simulation-platform/
 ├── schemas/
 │   ├── kafka/               # Event schema definitions
 │   └── lakehouse/           # Bronze layer PySpark schemas
-├── quality/
+├── tools/
+│   ├── dbt/                 # Silver and Gold layer transformations
 │   └── great-expectations/  # Data validation
 ├── docs/                    # Architecture documentation
 ├── data/                    # OSRM routing data
@@ -244,7 +245,7 @@ rideshare-simulation-platform/
 | Stream Processor | Kafka-to-Redis bridge with GPS aggregation | [README](services/stream-processor/README.md) |
 | Frontend | Real-time map visualization with deck.gl | [README](services/frontend/README.md) |
 | Spark Streaming | Bronze layer ingestion from Kafka to Delta Lake | [README](services/spark-streaming/README.md) |
-| DBT | Silver and Gold layer transformations | [README](services/dbt/README.md) |
+| DBT | Silver and Gold layer transformations | [README](tools/dbt/README.md) |
 | Airflow | Pipeline orchestration and DLQ monitoring | [README](services/airflow/README.md) |
 | Trino | Interactive SQL engine for lakehouse queries | — |
 | Grafana | Observability dashboards (metrics, logs, traces) | — |

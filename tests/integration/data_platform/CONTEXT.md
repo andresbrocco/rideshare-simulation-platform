@@ -7,7 +7,7 @@ Validates end-to-end integration of the data platform across all services: the c
 ## Responsibility Boundaries
 
 - **Owns**: Integration test orchestration, Docker lifecycle management, test data generation, cross-service validation, core pipeline testing, and resilience testing of the complete data platform
-- **Delegates to**: Individual service health checks to service containers, schema definitions to production code in `schemas/`, DBT transformations to `services/dbt/`, data generation logic to fixture modules
+- **Delegates to**: Individual service health checks to service containers, schema definitions to production code in `schemas/`, DBT transformations to `tools/dbt/`, data generation logic to fixture modules
 - **Does not handle**: Unit testing of individual services, performance benchmarking, production monitoring, load testing, or vendor service validation (Airflow, Superset, Great Expectations)
 
 ## Key Concepts
@@ -39,6 +39,6 @@ Schema Registry enforcement tests verify the pipeline handles malformed events g
 
 - **[infrastructure/docker](../../../infrastructure/docker/CONTEXT.md)** — Uses Docker Compose profile system to orchestrate service dependencies for integration testing
 - **[services/spark-streaming](../../../services/spark-streaming/CONTEXT.md)** — Validates Bronze ingestion by verifying Kafka events from 2 consolidated streaming jobs appear in 8 Delta tables
-- **[services/dbt](../../../services/dbt/CONTEXT.md)** — Tests Silver/Gold transformations by querying dimensional models after DBT runs
+- **[tools/dbt](../../../tools/dbt/CONTEXT.md)** — Tests Silver/Gold transformations by querying dimensional models after DBT runs
 - **[services/airflow](../../../services/airflow/CONTEXT.md)** — Validates DAG execution and DLQ monitoring via Airflow API
 - **[schemas/kafka](../../../schemas/kafka/CONTEXT.md)** — Uses production schemas for test event generation to ensure realistic data contracts

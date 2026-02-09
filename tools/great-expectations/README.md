@@ -119,7 +119,7 @@ from great_expectations_provider.operators.great_expectations import GreatExpect
 
 validate_task = GreatExpectationsOperator(
     task_id='validate_silver_trips',
-    data_context_root_dir='quality/great-expectations/gx',
+    data_context_root_dir='tools/great-expectations/gx',
     checkpoint_name='silver_validation'
 )
 ```

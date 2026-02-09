@@ -13,8 +13,8 @@ How modules within this codebase depend on each other.
 | services/simulation | Discrete-event rideshare simulation engine with autonomous agents | services/frontend, tests/integration/data_platform |
 | services/stream-processor | Kafka-to-Redis bridge with GPS aggregation and event deduplication | services/frontend (via Redis pub/sub) |
 | services/frontend | Real-time visualization and control interface | None |
-| services/spark-streaming | Bronze layer Kafka-to-Delta ingestion | services/dbt, services/airflow |
-| services/dbt | Data transformation implementing medallion architecture | analytics/superset, quality/great-expectations |
+| services/spark-streaming | Bronze layer Kafka-to-Delta ingestion | tools/dbt, services/airflow |
+| tools/dbt | Data transformation implementing medallion architecture | analytics/superset, tools/great-expectations |
 | services/airflow | Data pipeline orchestration and monitoring | None |
 
 ### Data and Schema Modules
@@ -32,7 +32,7 @@ How modules within this codebase depend on each other.
 |--------|---------|----------------|
 | infrastructure/docker | Containerized orchestration for entire platform | All services |
 | infrastructure/docker/dockerfiles | Custom Docker image definitions | infrastructure/docker/compose.yml |
-| quality/great-expectations | Data quality validation for lakehouse layers | services/airflow |
+| tools/great-expectations | Data quality validation for lakehouse layers | services/airflow |
 | analytics/superset | Business intelligence stack configuration | None |
 
 ### Module Dependency Graph
@@ -48,15 +48,15 @@ How modules within this codebase depend on each other.
                                   └──> [services/spark-streaming] ──┬──> [schemas/lakehouse]
                                                                      └──> Bronze Delta Tables
                                                                                │
-                                                                               └──> [services/dbt] ──┬──> Silver/Gold Tables
+                                                                               └──> [tools/dbt] ──┬──> Silver/Gold Tables
                                                                                                      │
-                                                                                                     ├──> [quality/great-expectations]
+                                                                                                     ├──> [tools/great-expectations]
                                                                                                      │
                                                                                                      └──> [analytics/superset]
 
-[services/airflow] ──┬──> [services/dbt]
+[services/airflow] ──┬──> [tools/dbt]
                      ├──> [services/spark-streaming]
-                     └──> [quality/great-expectations]
+                     └──> [tools/great-expectations]
 
 [infrastructure/docker] ──> All Services
 ```
@@ -111,12 +111,12 @@ Internal module structure within `services/simulation/src/`:
 - Uses `bronze_trips_schema`, `bronze_gps_pings_schema`, `dlq_schema`
 - Applies schemas during Kafka-to-Delta ingestion
 
-#### services/dbt → Bronze Delta Tables
+#### tools/dbt → Bronze Delta Tables
 - Reads from Bronze tables created by Spark Streaming
 - Implements staging models with SCD Type 2 for profiles
 - Uses `source_with_empty_guard` macro to handle empty sources
 
-#### quality/great-expectations → Silver/Gold Tables
+#### tools/great-expectations → Silver/Gold Tables
 - Validates `silver_validation` checkpoint (schema, nullability, uniqueness)
 - Validates `gold_validation` checkpoint (business rules, aggregates)
 
@@ -198,7 +198,7 @@ Internal module structure within `services/simulation/src/`:
 | pyspark | 3.5.0 | Structured streaming engine |
 | delta-spark | 3.0.0 | Delta Lake format support |
 
-#### services/dbt (Python)
+#### tools/dbt (Python)
 
 | Package | Version | Purpose |
 |---------|---------|---------|
@@ -213,7 +213,7 @@ Internal module structure within `services/simulation/src/`:
 | apache-airflow | 3.1.5 | Workflow orchestration |
 | apache-airflow-providers-apache-spark | 5.0.0 | Spark integration |
 
-#### quality/great-expectations (Python)
+#### tools/great-expectations (Python)
 
 | Package | Version | Purpose |
 |---------|---------|---------|
@@ -299,7 +299,7 @@ None detected.
 - tests/integration: Python >=3.13
 - services/stream-processor: No explicit version constraint
 - services/spark-streaming: Compatible with Python 3.x (Spark 3.5.0)
-- quality/great-expectations: Compatible with Python 3.x
+- tools/great-expectations: Compatible with Python 3.x
 
 ### Frontend Dependencies
 

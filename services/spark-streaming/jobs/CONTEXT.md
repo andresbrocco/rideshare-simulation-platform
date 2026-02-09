@@ -28,4 +28,4 @@ The `__main__` blocks show job instantiation patterns using environment variable
 
 ## Related Modules
 
-- **[services/dbt/models/staging](../../dbt/models/staging/CONTEXT.md)** — Reads Bronze tables created by these jobs for Silver layer transformation
+- **[tools/dbt/models/staging](../../../tools/dbt/models/staging/CONTEXT.md)** — Reads Bronze tables created by these jobs for Silver layer transformation

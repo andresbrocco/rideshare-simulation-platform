@@ -20,9 +20,9 @@ High-level components and their responsibilities (derived from CONTEXT.md files)
 | Stream Processor | Kafka-to-Redis event bridge for real-time visualization | services/stream-processor |
 | Control Panel | Real-time visualization and simulation control UI | services/frontend |
 | Bronze Ingestion | Kafka-to-Delta streaming with fault tolerance | services/spark-streaming |
-| Data Transformation | Medallion architecture transformation layer | services/dbt |
+| Data Transformation | Medallion architecture transformation layer | tools/dbt |
 | Orchestration | Data pipeline scheduling and monitoring | services/airflow |
-| Data Quality | Lakehouse validation framework | quality/great-expectations |
+| Data Quality | Lakehouse validation framework | tools/great-expectations |
 | Business Intelligence | Dashboard and visualization layer | analytics/superset |
 | Schema Registry | Event and table schema definitions | schemas/kafka, schemas/lakehouse |
 | Configuration | Environment-specific topic and zone configs | config/, services/simulation/data |
@@ -185,8 +185,8 @@ Simulation Engine (SimPy)
 | Schema Registry API | Confluent Cloud | Validate and register schemas | services/simulation/src/kafka |
 | Redis Pub/Sub | Redis | Real-time event broadcasting | services/stream-processor |
 | Redis Key-Value | Redis | State snapshot storage | services/simulation/src/redis_client |
-| S3 API | MinIO | Lakehouse table storage | services/spark-streaming, services/dbt |
-| Thrift Server | Spark | SQL query interface | services/dbt, quality/great-expectations |
+| S3 API | MinIO | Lakehouse table storage | services/spark-streaming, tools/dbt |
+| Thrift Server | Spark | SQL query interface | tools/dbt, tools/great-expectations |
 
 ### External Services Consumed
 

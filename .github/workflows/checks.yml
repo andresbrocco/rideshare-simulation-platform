@@ -45,16 +45,16 @@ jobs:
           services/spark-streaming/venv/bin/pip install --quiet mypy
 
           # dbt
-          python -m venv services/dbt/venv
-          services/dbt/venv/bin/pip install --quiet mypy
+          python -m venv tools/dbt/venv
+          tools/dbt/venv/bin/pip install --quiet mypy
 
           # airflow
           python -m venv services/airflow/venv
           services/airflow/venv/bin/pip install --quiet mypy types-requests
 
           # great-expectations
-          python -m venv quality/great-expectations/venv
-          quality/great-expectations/venv/bin/pip install --quiet mypy types-PyYAML
+          python -m venv tools/great-expectations/venv
+          tools/great-expectations/venv/bin/pip install --quiet mypy types-PyYAML
 
           # lakehouse
           python -m venv schemas/lakehouse/venv

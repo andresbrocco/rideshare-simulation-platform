@@ -9,7 +9,7 @@ from pathlib import Path
 def test_all_models_have_descriptions():
     """Verify all models have descriptions in schema.yml files."""
     manifest_path = Path(
-        "/Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/services/dbt/target/manifest.json"
+        "/Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/tools/dbt/target/manifest.json"
     )
 
     assert manifest_path.exists(), "Run 'dbt compile' first to generate manifest.json"
@@ -40,7 +40,7 @@ def test_all_models_have_descriptions():
 def test_documentation_files_exist():
     """Verify all required documentation files exist."""
     base_path = Path(
-        "/Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/services/dbt"
+        "/Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/tools/dbt"
     )
 
     required_files = [
@@ -63,7 +63,7 @@ def test_documentation_files_exist():
 def test_doc_blocks_referenced_in_schema():
     """Verify doc blocks are referenced in schema.yml files."""
     base_path = Path(
-        "/Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/services/dbt"
+        "/Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/tools/dbt"
     )
 
     schema_files = [
@@ -88,7 +88,7 @@ def test_doc_blocks_referenced_in_schema():
 def test_catalog_json_exists():
     """Verify dbt docs generate creates catalog.json."""
     catalog_path = Path(
-        "/Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/services/dbt/target/catalog.json"
+        "/Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/tools/dbt/target/catalog.json"
     )
 
     assert catalog_path.exists(), "catalog.json not found. Run 'dbt docs generate' to create it."
@@ -97,7 +97,7 @@ def test_catalog_json_exists():
 def test_manifest_json_exists():
     """Verify dbt docs generate creates manifest.json."""
     manifest_path = Path(
-        "/Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/services/dbt/target/manifest.json"
+        "/Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/tools/dbt/target/manifest.json"
     )
 
     assert (
@@ -108,7 +108,7 @@ def test_manifest_json_exists():
 def test_lineage_shows_bronze_to_silver():
     """Verify lineage graph shows Bronze → Silver dependencies."""
     manifest_path = Path(
-        "/Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/services/dbt/target/manifest.json"
+        "/Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/tools/dbt/target/manifest.json"
     )
 
     assert manifest_path.exists(), "Run 'dbt compile' first to generate manifest.json"
@@ -137,7 +137,7 @@ def test_lineage_shows_bronze_to_silver():
 def test_lineage_shows_silver_to_gold():
     """Verify lineage graph shows Silver → Gold dependencies."""
     manifest_path = Path(
-        "/Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/services/dbt/target/manifest.json"
+        "/Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/tools/dbt/target/manifest.json"
     )
 
     assert manifest_path.exists(), "Run 'dbt compile' first to generate manifest.json"
@@ -171,7 +171,7 @@ def test_lineage_shows_silver_to_gold():
 def test_key_columns_have_descriptions():
     """Verify key columns have descriptions in schema.yml files."""
     manifest_path = Path(
-        "/Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/services/dbt/target/manifest.json"
+        "/Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/tools/dbt/target/manifest.json"
     )
 
     assert manifest_path.exists(), "Run 'dbt compile' first to generate manifest.json"

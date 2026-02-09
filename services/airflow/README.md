@@ -65,8 +65,8 @@ docker compose -f infrastructure/docker/compose.yml exec airflow-scheduler airfl
 - PostgreSQL 16 (postgres-airflow service)
 - Spark Thrift Server (for DBT tasks)
 - MinIO (for Great Expectations data docs)
-- DBT project at `services/dbt/`
-- Great Expectations suite at `quality/great-expectations/`
+- DBT project at `tools/dbt/`
+- Great Expectations suite at `tools/great-expectations/`
 
 ### Configuration
 
@@ -203,8 +203,8 @@ Access UI at http://localhost:8082
 ## Related
 
 - [CONTEXT.md](CONTEXT.md) - Architecture context
-- [services/dbt/](../dbt/) - DBT transformations
-- [quality/great-expectations/](../../quality/great-expectations/) - Data validation
+- [tools/dbt/](../../tools/dbt/) - DBT transformations
+- [tools/great-expectations/](../../tools/great-expectations/) - Data validation
 - [infrastructure/docker/compose.yml](../../infrastructure/docker/compose.yml) - Docker services
 
 ---

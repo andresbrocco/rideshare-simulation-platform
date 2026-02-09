@@ -179,7 +179,7 @@ BRONZE_TABLE_DDL = {
 
 # DLQ table DDL (Dead Letter Queue tables for invalid records)
 # Silver table DDL statements
-# These match the schemas defined in services/dbt/models/staging/ SQL files
+# These match the schemas defined in tools/dbt/models/staging/ SQL files
 # Silver layer tables are typically created by DBT, but we need them for tests
 SILVER_TABLE_DDL = {
     "silver.stg_trips": """
@@ -419,7 +419,7 @@ SILVER_TABLE_DDL = {
 }
 
 # Gold table DDL statements
-# These match the schemas defined in services/dbt/models/marts/ SQL files
+# These match the schemas defined in tools/dbt/models/marts/ SQL files
 # Gold layer tables are typically created by DBT, but we need them for tests
 GOLD_TABLE_DDL = {
     # Dimension tables

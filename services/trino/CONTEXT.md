@@ -31,6 +31,6 @@ Trino depends on both `hive-metastore` and `minio` being healthy before starting
 ## Related Modules
 
 - **[services/hive-metastore](../hive-metastore/CONTEXT.md)** — Provides table metadata via Thrift; Trino's Delta Lake connector requires it
-- **[services/dbt](../dbt/CONTEXT.md)** — Runs SQL transformations through Trino for the Silver and Gold layers
+- **[tools/dbt](../../tools/dbt/CONTEXT.md)** — Runs SQL transformations through Trino for the Silver and Gold layers
 - **[services/grafana](../grafana/CONTEXT.md)** — Queries Trino via the `trino-datasource` plugin for analytical dashboards
 - **[infrastructure/docker](../../infrastructure/docker/CONTEXT.md)** — Deployment orchestration; defines Trino container, resource limits, and volume mounts

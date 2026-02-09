@@ -245,14 +245,14 @@ REQUESTED → OFFER_SENT → MATCHED → DRIVER_EN_ROUTE → DRIVER_ARRIVED → 
 
 **Locations**:
 - Bronze: `services/spark-streaming/` (Kafka → Delta)
-- Silver: `services/dbt/models/staging/` (cleaning, deduplication)
-- Gold: `services/dbt/models/marts/` (star schema, aggregates)
+- Silver: `tools/dbt/models/staging/` (cleaning, deduplication)
+- Gold: `tools/dbt/models/marts/` (star schema, aggregates)
 
 ### Empty Source Guard
 
 **Pattern**: Prevent Delta Lake errors when source tables are empty.
 
-**Location**: `services/dbt/macros/empty_source_guard.sql`
+**Location**: `tools/dbt/macros/empty_source_guard.sql`
 
 **Implementation**: Macro checks if source has rows before transformation. Returns empty result set with correct schema if source is empty.
 
@@ -262,7 +262,7 @@ REQUESTED → OFFER_SENT → MATCHED → DRIVER_EN_ROUTE → DRIVER_ARRIVED → 
 
 **Pattern**: Slowly Changing Dimension Type 2 for profile history.
 
-**Location**: `services/dbt/models/marts/dim_drivers.sql`, `dim_riders.sql`
+**Location**: `tools/dbt/models/marts/dim_drivers.sql`, `dim_riders.sql`
 
 **Implementation**: Profile changes tracked with `valid_from`, `valid_to`, `is_current` columns. New record created on each profile update.
 

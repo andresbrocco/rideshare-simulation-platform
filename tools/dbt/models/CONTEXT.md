@@ -37,7 +37,7 @@ Transforms raw Kafka events from Bronze layer into a dimensional data warehouse 
 
 ## Related Modules
 
-- **[services/dbt/models/staging](./staging/CONTEXT.md)** — Silver layer implementation; parses Bronze JSON and applies deduplication and validation
-- **[services/dbt/macros](../macros/CONTEXT.md)** — Provides empty source guard and Delta source macros used throughout models
-- **[services/spark-streaming](../../spark-streaming/CONTEXT.md)** — Data source; models read Bronze Delta tables created by streaming jobs
+- **[tools/dbt/models/staging](./staging/CONTEXT.md)** — Silver layer implementation; parses Bronze JSON and applies deduplication and validation
+- **[tools/dbt/macros](../macros/CONTEXT.md)** — Provides empty source guard and Delta source macros used throughout models
+- **[services/spark-streaming](../../../services/spark-streaming/CONTEXT.md)** — Data source; models read Bronze Delta tables created by streaming jobs
 - **[analytics/superset](../../../analytics/superset/CONTEXT.md)** — Data consumer; Superset queries Gold dimensions and facts for dashboards

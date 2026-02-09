@@ -118,7 +118,7 @@ Aggregates:
 
 ```bash
 # Navigate to DBT directory
-cd services/dbt
+cd tools/dbt
 
 # Create virtual environment (if not exists)
 python3 -m venv venv

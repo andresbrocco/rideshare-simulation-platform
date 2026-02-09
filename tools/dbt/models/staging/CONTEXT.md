@@ -34,5 +34,5 @@ The staging layer transforms raw Bronze events into clean, validated datasets re
 
 ## Related Modules
 
-- **[services/dbt/macros](../../macros/CONTEXT.md)** — Provides delta_source and source_with_empty_guard macros used by all staging models
-- **[services/spark-streaming](../../../spark-streaming/CONTEXT.md)** — Data source; staging reads from Bronze Delta tables created by streaming jobs
+- **[tools/dbt/macros](../../macros/CONTEXT.md)** — Provides delta_source and source_with_empty_guard macros used by all staging models
+- **[services/spark-streaming](../../../../services/spark-streaming/CONTEXT.md)** — Data source; staging reads from Bronze Delta tables created by streaming jobs

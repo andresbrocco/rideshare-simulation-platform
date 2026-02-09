@@ -179,7 +179,7 @@ def main():
 
     # Step 2: Build staging layer
     if not run_command(
-        "cd /Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/services/dbt && ./venv/bin/dbt run --select staging",
+        "cd /Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/tools/dbt && ./venv/bin/dbt run --select staging",
         "Building staging layer",
     ):
         print("\n✗ FAILED: Staging layer build failed")
@@ -187,7 +187,7 @@ def main():
 
     # Step 3: Build dimension tables
     if not run_command(
-        "cd /Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/services/dbt && ./venv/bin/dbt run --select marts.dimensions",
+        "cd /Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/tools/dbt && ./venv/bin/dbt run --select marts.dimensions",
         "Building dimension tables",
     ):
         print("\n✗ FAILED: Dimension tables build failed")
@@ -195,7 +195,7 @@ def main():
 
     # Step 4: Build fact tables
     if not run_command(
-        "cd /Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/services/dbt && ./venv/bin/dbt run --select marts.facts",
+        "cd /Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/tools/dbt && ./venv/bin/dbt run --select marts.facts",
         "Building fact tables",
     ):
         print("\n✗ FAILED: Fact tables build failed")
@@ -203,7 +203,7 @@ def main():
 
     # Step 5: Build aggregate tables
     if not run_command(
-        "cd /Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/services/dbt && ./venv/bin/dbt run --select marts.aggregates",
+        "cd /Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/tools/dbt && ./venv/bin/dbt run --select marts.aggregates",
         "Building aggregate tables",
     ):
         print("\n✗ FAILED: Aggregate tables build failed")
@@ -211,7 +211,7 @@ def main():
 
     # Step 6: Run tests
     if not run_command(
-        "cd /Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/services/dbt && ./venv/bin/dbt test --select marts.aggregates",
+        "cd /Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/tools/dbt && ./venv/bin/dbt test --select marts.aggregates",
         "Testing aggregate tables",
     ):
         print("\n✗ FAILED: Aggregate table tests failed")

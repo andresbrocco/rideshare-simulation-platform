@@ -26,5 +26,5 @@ The `generate_schema_name` macro ignores DBT's standard schema concatenation pat
 
 ## Related Modules
 
-- **[services/dbt/models](../models/CONTEXT.md)** — Uses these macros throughout staging and mart models for safe Bronze table access
-- **[services/dbt/models/staging](../models/staging/CONTEXT.md)** — Primary consumer of empty source guard macro for parsing Bronze JSON
+- **[tools/dbt/models](../models/CONTEXT.md)** — Uses these macros throughout staging and mart models for safe Bronze table access
+- **[tools/dbt/models/staging](../models/staging/CONTEXT.md)** — Primary consumer of empty source guard macro for parsing Bronze JSON

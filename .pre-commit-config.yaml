@@ -48,9 +48,9 @@ repos:
 
       - id: mypy-dbt
         name: mypy (dbt)
-        entry: bash -c 'cd services/dbt && ./venv/bin/mypy *.py'
+        entry: bash -c 'cd tools/dbt && ./venv/bin/mypy *.py'
         language: system
-        files: ^services/dbt/[^/]+\.py$
+        files: ^tools/dbt/[^/]+\.py$
         pass_filenames: false
 
       - id: mypy-airflow
@@ -62,9 +62,9 @@ repos:
 
       - id: mypy-great-expectations
         name: mypy (great-expectations)
-        entry: bash -c 'cd quality/great-expectations && ./venv/bin/mypy *.py'
+        entry: bash -c 'cd tools/great-expectations && ./venv/bin/mypy *.py'
         language: system
-        files: ^quality/great-expectations/[^/]+\.py$
+        files: ^tools/great-expectations/[^/]+\.py$
         pass_filenames: false
 
       - id: mypy-lakehouse

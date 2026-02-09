@@ -33,7 +33,7 @@ The platform combines discrete-event simulation with event-driven microservices,
 | Stream Processor | services/stream-processor/src/main.py | Kafka-to-Redis event bridge with aggregation |
 | Control Panel UI | services/frontend/src/main.tsx | React visualization with real-time WebSocket updates |
 | Bronze Ingestion | services/spark-streaming/jobs/*.py | Kafka-to-Delta streaming jobs (2 jobs: high/low volume) |
-| Data Transformation | services/dbt | DBT models for Silver and Gold layers |
+| Data Transformation | tools/dbt | DBT models for Silver and Gold layers |
 | Orchestration | services/airflow/dags/*.py | Airflow DAGs for pipeline scheduling |
 
 ### Getting Started
@@ -82,7 +82,7 @@ Key modules in this codebase:
 | services/stream-processor | Kafka-to-Redis event bridge with 100ms GPS aggregation | [→](services/stream-processor/CONTEXT.md) |
 | services/frontend/src | Real-time map visualization with deck.gl and simulation controls | [→](services/frontend/src/CONTEXT.md) |
 | services/spark-streaming | Bronze layer ingestion: Kafka → Delta Lake with DLQ fault tolerance | [→](services/spark-streaming/CONTEXT.md) |
-| services/dbt | Medallion architecture transformations: Bronze → Silver → Gold | [→](services/dbt/CONTEXT.md) |
+| tools/dbt | Medallion architecture transformations: Bronze → Silver → Gold | [→](tools/dbt/CONTEXT.md) |
 | services/simulation/src/matching | Driver-rider matching with H3 spatial index and surge pricing | [→](services/simulation/src/matching/CONTEXT.md) |
 | services/simulation/src/agents | Autonomous driver and rider agents with DNA-based behavior | [→](services/simulation/src/agents/CONTEXT.md) |
 | services/simulation/src/trips | Trip executor orchestrating 10-state trip lifecycle | [→](services/simulation/src/trips/CONTEXT.md) |

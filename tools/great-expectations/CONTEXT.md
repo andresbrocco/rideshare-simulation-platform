@@ -38,5 +38,5 @@ Data quality validation layer for the rideshare simulation platform's lakehouse 
 
 ## Related Modules
 
-- **[services/dbt](../../services/dbt/CONTEXT.md)** — Validation target; Great Expectations validates Silver staging models and Gold dimensional models created by DBT
+- **[tools/dbt](../dbt/CONTEXT.md)** — Validation target; Great Expectations validates Silver staging models and Gold dimensional models created by DBT
 - **[services/airflow](../../services/airflow/CONTEXT.md)** — Orchestration partner; Airflow schedules Great Expectations checkpoint runs after DBT transformations

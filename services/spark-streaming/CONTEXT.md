@@ -29,5 +29,5 @@ Jobs run as consolidated Docker containers (2 containers by volume tier: high-vo
 ## Related Modules
 
 - **[services/spark-streaming/jobs](./jobs/CONTEXT.md)** — Concrete job implementations consuming from Kafka topics
-- **[services/dbt](../dbt/CONTEXT.md)** — Downstream consumer; DBT staging models read from Bronze Delta tables created by streaming jobs
-- **[services/dbt/macros](../dbt/macros/CONTEXT.md)** — Provides empty source guard macro to safely handle empty Bronze tables created by streaming jobs
+- **[tools/dbt](../../tools/dbt/CONTEXT.md)** — Downstream consumer; DBT staging models read from Bronze Delta tables created by streaming jobs
+- **[tools/dbt/macros](../../tools/dbt/macros/CONTEXT.md)** — Provides empty source guard macro to safely handle empty Bronze tables created by streaming jobs

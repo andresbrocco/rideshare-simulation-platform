@@ -63,13 +63,13 @@ jobs:
 
       - name: Install DBT for Silver/Gold layer tests
         run: |
-          cd services/dbt
+          cd tools/dbt
           python -m venv venv
           ./venv/bin/pip install --upgrade pip
           ./venv/bin/pip install dbt-spark[PyHive]
 
       - name: Create DBT profiles.yml and install packages
-        working-directory: services/dbt
+        working-directory: tools/dbt
         run: |
           # Create profiles.yml for CI (gitignored file)
           mkdir -p profiles
