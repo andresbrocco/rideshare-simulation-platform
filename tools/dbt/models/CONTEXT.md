@@ -7,7 +7,7 @@ Transforms raw Kafka events from Bronze layer into a dimensional data warehouse 
 ## Responsibility Boundaries
 
 - **Owns**: SQL transformation logic, incremental merge strategies, SCD Type 2 implementation, data quality tests, anomaly detection models
-- **Delegates to**: Bronze ingestion jobs (Databricks Structured Streaming) for raw Kafka-to-Delta persistence, Great Expectations for post-transformation validation, analytics tools (Superset, Looker) for visualization
+- **Delegates to**: Bronze ingestion jobs (Databricks Structured Streaming) for raw Kafka-to-Delta persistence, Great Expectations for post-transformation validation, analytics tools (Looker, Grafana) for visualization
 - **Does not handle**: Real-time streaming transformations, API serving, schema evolution in Bronze layer
 
 ## Key Concepts
@@ -40,4 +40,4 @@ Transforms raw Kafka events from Bronze layer into a dimensional data warehouse 
 - **[tools/dbt/models/staging](./staging/CONTEXT.md)** — Silver layer implementation; parses Bronze JSON and applies deduplication and validation
 - **[tools/dbt/macros](../macros/CONTEXT.md)** — Provides empty source guard and Delta source macros used throughout models
 - **[services/spark-streaming](../../../services/spark-streaming/CONTEXT.md)** — Data source; models read Bronze Delta tables created by streaming jobs
-- **[analytics/superset](../../../analytics/superset/CONTEXT.md)** — Data consumer; Superset queries Gold dimensions and facts for dashboards
+- **[services/looker](../../../services/looker/CONTEXT.md)** — Data consumer; Looker queries Gold dimensions and facts for dashboards

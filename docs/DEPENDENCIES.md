@@ -14,7 +14,7 @@ How modules within this codebase depend on each other.
 | services/stream-processor | Kafka-to-Redis bridge with GPS aggregation and event deduplication | services/frontend (via Redis pub/sub) |
 | services/frontend | Real-time visualization and control interface | None |
 | services/spark-streaming | Bronze layer Kafka-to-Delta ingestion | tools/dbt, services/airflow |
-| tools/dbt | Data transformation implementing medallion architecture | analytics/superset, tools/great-expectations |
+| tools/dbt | Data transformation implementing medallion architecture | services/looker, tools/great-expectations |
 | services/airflow | Data pipeline orchestration and monitoring | None |
 
 ### Data and Schema Modules
@@ -33,7 +33,7 @@ How modules within this codebase depend on each other.
 | infrastructure/docker | Containerized orchestration for entire platform | All services |
 | infrastructure/docker/dockerfiles | Custom Docker image definitions | infrastructure/docker/compose.yml |
 | tools/great-expectations | Data quality validation for lakehouse layers | services/airflow |
-| analytics/superset | Business intelligence stack configuration | None |
+| services/looker | Business intelligence stack configuration | None |
 
 ### Module Dependency Graph
 
@@ -52,7 +52,7 @@ How modules within this codebase depend on each other.
                                                                                                      │
                                                                                                      ├──> [tools/great-expectations]
                                                                                                      │
-                                                                                                     └──> [analytics/superset]
+                                                                                                     └──> [services/looker]
 
 [services/airflow] ──┬──> [tools/dbt]
                      ├──> [services/spark-streaming]
@@ -266,7 +266,6 @@ Runtime services required for operation:
 | OSRM | simulation | Routing calculations |
 | MinIO (S3-compatible) | spark-streaming, dbt | Lakehouse storage |
 | Spark Thrift Server | dbt, great-expectations | SQL interface to Delta tables |
-| PostgreSQL | superset | BI metadata storage |
 | LocalStack (S3 mock) | spark-streaming (dev/test) | Local S3 emulation |
 
 ### Docker Base Images
@@ -276,7 +275,6 @@ Runtime services required for operation:
 | apache/spark:4.0.0-python3 | spark-delta.Dockerfile | Spark with Delta Lake support |
 | minio/minio:latest | minio.Dockerfile | Object storage |
 | osrm/osrm-backend:latest | osrm.Dockerfile | Routing engine |
-| apache/superset:latest-dev | superset (via compose) | BI platform |
 | redis:7-alpine | compose.yml | Key-value store |
 | postgres:16-alpine | compose.yml | Relational database |
 

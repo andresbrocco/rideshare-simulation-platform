@@ -43,10 +43,6 @@ helm/
 │       │   ├── airflow-postgres.yaml
 │       │   ├── airflow-webserver.yaml
 │       │   └── airflow-scheduler.yaml
-│       ├── analytics/
-│       │   ├── superset-postgres.yaml
-│       │   ├── superset-redis.yaml
-│       │   └── superset.yaml
 │       └── monitoring/
 │           ├── prometheus.yaml
 │           └── grafana.yaml
@@ -128,7 +124,6 @@ helm uninstall rideshare
 Consider using official Helm charts for complex services:
 
 - **Apache Airflow**: https://airflow.apache.org/docs/helm-chart/
-- **Apache Superset**: https://github.com/apache/superset/tree/master/helm/superset
 - **Prometheus**: https://github.com/prometheus-community/helm-charts
 - **Grafana**: https://github.com/grafana/helm-charts
 - **MinIO**: https://github.com/minio/minio/tree/master/helm/minio

@@ -23,7 +23,7 @@ High-level components and their responsibilities (derived from CONTEXT.md files)
 | Data Transformation | Medallion architecture transformation layer | tools/dbt |
 | Orchestration | Data pipeline scheduling and monitoring | services/airflow |
 | Data Quality | Lakehouse validation framework | tools/great-expectations |
-| Business Intelligence | Dashboard and visualization layer | analytics/superset |
+| Business Intelligence | Dashboard and visualization layer | services/looker |
 | Schema Registry | Event and table schema definitions | schemas/kafka, schemas/lakehouse |
 | Configuration | Environment-specific topic and zone configs | config/, services/simulation/data |
 | Infrastructure | Container orchestration and custom images | infrastructure/docker |
@@ -34,7 +34,6 @@ The system follows a four-layer architecture with clear separation of concerns:
 
 ### Presentation Layer
 - **Frontend (React + deck.gl)** - Real-time map visualization with GPS buffering, route rendering, and simulation controls
-- **Superset** - Business intelligence dashboards for analytical queries
 - **REST API** - FastAPI endpoints for simulation lifecycle management (`/simulation/start`, `/pause`, `/resume`, `/stop`)
 - **WebSocket** - Real-time event streaming to frontend clients (`/ws` endpoint)
 
@@ -75,7 +74,6 @@ Responsibilities:
 - **Kafka (Confluent Cloud)** - Event log retention and replay capabilities
 - **Redis** - Ephemeral state snapshots (60s TTL) and pub/sub for visualization
 - **SQLite** - Simulation checkpoint persistence for crash recovery
-- **PostgreSQL** - Superset metadata storage
 
 Responsibilities:
 - Provide time-travel and versioning for lakehouse tables
@@ -117,7 +115,7 @@ Simulation Engine (SimPy)
                                                        Gold Delta Tables
                                                               │
                                                               ▼
-                                                      Superset Dashboards
+                                                      Looker / BI Dashboards
 ```
 
 ### Request Flow
@@ -152,7 +150,7 @@ Simulation Engine (SimPy)
 4. Silver staging models deduplicate and apply SCD Type 2 for profiles
 5. Gold marts create business-ready facts and aggregates
 6. Great Expectations validates data quality at each checkpoint
-7. Superset queries Gold tables via Spark Thrift Server
+7. Looker queries Gold tables via Spark Thrift Server
 
 ### Key Data Paths
 
@@ -174,7 +172,6 @@ Simulation Engine (SimPy)
 | WebSocket | /ws | Real-time event streaming to clients | Sec-WebSocket-Protocol: apikey.{key} |
 | Stream Processor Health | /health | Container orchestration healthcheck | None |
 | Spark Thrift Server | localhost:10000 | SQL interface to Delta tables | None (internal) |
-| Superset UI | localhost:8088 | Business intelligence dashboards | Username/password |
 
 ### APIs Consumed
 
@@ -197,7 +194,6 @@ Simulation Engine (SimPy)
 | OSRM | Route calculation and ETA | simulation/src/geo | OSRM_* env vars |
 | MinIO | S3-compatible lakehouse storage | spark-streaming, dbt | AWS_* env vars |
 | Spark Thrift Server | SQL interface to Delta tables | dbt, great-expectations | THRIFT_* env vars |
-| PostgreSQL | Superset metadata storage | superset | postgres-superset service |
 | LocalStack | S3 mock for testing | spark-streaming (test mode) | AWS_ENDPOINT_URL |
 
 ## Deployment Units
@@ -220,9 +216,6 @@ The system deploys as 11 independent containers orchestrated via Docker Compose 
 | airflow-webserver | Airflow UI and API server | data-pipeline | 8082 | postgres-airflow |
 | airflow-scheduler | DAG scheduler and executor | data-pipeline | - | airflow-webserver |
 | cadvisor | Container metrics collection | monitoring | 8081 | - |
-| postgres-superset | Superset metadata storage | bi | 5433 | - |
-| redis-superset | Superset cache layer | bi | 6380 | - |
-| superset | BI dashboard platform | bi | 8088 | postgres-superset, redis-superset, spark-thrift-server |
 
 ### Profile Groups
 
@@ -241,9 +234,6 @@ The system deploys as 11 independent containers orchestrated via Docker Compose 
 - Collects container resource metrics via cAdvisor
 - Provides Prometheus metrics and Grafana dashboards
 
-**bi** - Business intelligence
-- Provides BI dashboards via Superset
-
 ### Deployment Commands
 
 ```bash
@@ -254,7 +244,7 @@ docker compose -f infrastructure/docker/compose.yml --profile core up -d
 docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
 
 # Start all services
-docker compose -f infrastructure/docker/compose.yml --profile core --profile data-pipeline --profile monitoring --profile analytics up -d
+docker compose -f infrastructure/docker/compose.yml --profile core --profile data-pipeline --profile monitoring up -d
 ```
 
 ### Initialization Dependencies
@@ -268,7 +258,6 @@ Services use healthcheck dependencies to ensure proper startup order:
 5. Stream processor waits for kafka, redis healthy
 6. Spark streaming jobs wait for kafka, minio healthy
 7. DBT/Airflow wait for Bronze tables initialized
-8. Superset waits for postgres-superset, redis-superset, spark-thrift-server healthy
 
 ## Critical Architecture Patterns
 

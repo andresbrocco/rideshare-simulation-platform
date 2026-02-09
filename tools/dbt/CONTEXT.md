@@ -43,4 +43,4 @@ Staging models use `incremental_strategy: merge` with `_ingested_at` watermark t
 - **[services/spark-streaming](../../services/spark-streaming/CONTEXT.md)** — Data source; DBT reads from 8 Bronze Delta tables created by 2 consolidated streaming jobs
 - **[tools/dbt/models](./models/CONTEXT.md)** — Contains all transformation logic for Silver and Gold layers
 - **[tools/dbt/macros](./macros/CONTEXT.md)** — Provides custom macros like empty source guard and Delta source pattern used by models
-- **[analytics/superset](../../analytics/superset/CONTEXT.md)** — Data consumer; Superset dashboards query Gold dimensional models created by DBT
+- **[services/looker](../../services/looker/CONTEXT.md)** — Data consumer; Looker dashboards query Gold dimensional models created by DBT

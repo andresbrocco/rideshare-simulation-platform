@@ -27,4 +27,4 @@ Houses configuration and code projects that are orchestrated by other services (
 
 - **[services/airflow](../services/airflow/CONTEXT.md)** — Orchestrates both DBT runs and Great Expectations checkpoint executions
 - **[services/spark-streaming](../services/spark-streaming/CONTEXT.md)** — Creates Bronze Delta tables that DBT reads from
-- **[analytics/superset](../analytics/superset/CONTEXT.md)** — Queries Gold tables produced by DBT transformations
+- **[services/looker](../services/looker/CONTEXT.md)** — BI layer for Gold tables produced by DBT transformations
