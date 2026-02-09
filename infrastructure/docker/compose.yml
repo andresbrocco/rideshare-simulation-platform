@@ -798,7 +798,7 @@ services:
       context: ../../services/hive-metastore
       dockerfile: Dockerfile
     container_name: rideshare-hive-metastore
-    mem_limit: 768m
+    mem_limit: 1152m
     profiles:
       - data-pipeline
     ports:
