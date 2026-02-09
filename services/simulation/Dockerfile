@@ -54,7 +54,7 @@ COPY src /app/src
 
 RUN uv pip install --system .
 
-RUN mkdir -p /app/data/db && chown -R simuser:simuser /app
+RUN mkdir -p /app/db && chown -R simuser:simuser /app
 
 USER simuser
 
