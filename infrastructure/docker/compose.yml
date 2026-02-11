@@ -2,7 +2,8 @@ name: rideshare-platform
 
 # Docker Compose Profiles:
 # - core: Simulation runtime services (kafka, redis, osrm, simulation, stream-processor, frontend)
-# - data-pipeline: ETL, streaming, and orchestration (minio, spark-*, localstack, airflow, hive-metastore, trino)
+# - data-pipeline: ETL, ingestion, and orchestration (minio, bronze-ingestion, localstack, airflow, hive-metastore, trino)
+# - spark-testing: Spark Thrift Server for dual-engine DBT validation (optional, use with data-pipeline)
 # - monitoring: Observability (prometheus, cadvisor, grafana, otel-collector, loki, tempo)
 
 services:
@@ -343,6 +344,45 @@ services:
     networks:
       - rideshare-network
 
+  bronze-ingestion:
+    build:
+      context: ../../services/bronze-ingestion
+      dockerfile: Dockerfile
+    container_name: rideshare-bronze-ingestion
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+        reservations:
+          cpus: "0.1"
+    profiles:
+      - data-pipeline
+    ports:
+      - "8086:8080"
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_CONSUMER_GROUP=bronze-ingestion
+      - BATCH_INTERVAL_SECONDS=10
+      - S3_ENDPOINT=http://minio:9000
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
+      - BRONZE_BUCKET=rideshare-bronze
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
+    networks:
+      - rideshare-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
   # ============================================================================
   # COMMENTED OUT: Spark Cluster Mode (migrated to local mode 2026-01-19)
   # Each Spark service now runs in local mode within its container.
@@ -415,7 +455,7 @@ services:
         reservations:
           cpus: "0.25"
     profiles:
-      - data-pipeline
+      - spark-testing
     ports:
       - "10000:10000"
       - "4041:4040"
@@ -472,141 +512,6 @@ services:
       retries: 10
       start_period: 90s
     restart: unless-stopped
-
-  bronze-ingestion-high-volume:
-    build:
-      context: ../..
-      dockerfile: services/spark-streaming/Dockerfile
-    container_name: rideshare-bronze-ingestion-high-volume
-    deploy:
-      resources:
-        limits:
-          memory: 2g
-          cpus: "2.0"
-        reservations:
-          cpus: "0.25"
-    profiles:
-      - data-pipeline
-    environment:
-      - PYTHONPATH=/opt
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - KAFKA_TOPICS=gps_pings
-      - CHECKPOINT_BASE_PATH=s3a://rideshare-checkpoints/
-      - TRIGGER_INTERVAL=10 seconds
-    volumes:
-      - ../../services/spark-streaming:/opt/spark_streaming:ro
-    depends_on:
-      minio-init:
-        condition: service_completed_successfully
-      kafka-init:
-        condition: service_completed_successfully
-    networks:
-      - rideshare-network
-    command: >
-      /opt/spark/bin/spark-submit
-      --master local[2]
-      --driver-memory 1536m
-      --conf "spark.driver.extraJavaOptions=-XX:+UseG1GC -XX:MaxGCPauseMillis=50 -XX:InitiatingHeapOccupancyPercent=35"
-      --name "streaming_high_volume"
-      --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
-      --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
-      --conf spark.driver.memoryOverhead=256m
-      --conf spark.driver.maxResultSize=256m
-      --conf spark.ui.retainedStages=100
-      --conf spark.ui.retainedJobs=100
-      --conf spark.ui.retainedDeadExecutors=10
-      --conf spark.sql.codegen.cache.maxEntries=100
-      --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000
-      --conf spark.hadoop.fs.s3a.access.key=minioadmin
-      --conf spark.hadoop.fs.s3a.secret.key=minioadmin
-      --conf spark.hadoop.fs.s3a.path.style.access=true
-      --conf spark.hadoop.fs.s3a.threads.max=8
-      --conf spark.hadoop.fs.s3a.connection.pool.size=8
-      /opt/spark_streaming/jobs/bronze_ingestion_high_volume.py
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pgrep -f 'spark-submit' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-
-  bronze-ingestion-low-volume:
-    build:
-      context: ../..
-      dockerfile: services/spark-streaming/Dockerfile
-    container_name: rideshare-bronze-ingestion-low-volume
-    deploy:
-      resources:
-        limits:
-          memory: 2g
-          cpus: "2.0"
-        reservations:
-          cpus: "0.25"
-    profiles:
-      - data-pipeline
-    environment:
-      - PYTHONPATH=/opt
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - KAFKA_TOPICS=trips,driver_status,surge_updates,ratings,payments,driver_profiles,rider_profiles
-      - CHECKPOINT_BASE_PATH=s3a://rideshare-checkpoints/
-      - TRIGGER_INTERVAL=30 seconds
-    volumes:
-      - ../../services/spark-streaming:/opt/spark_streaming:ro
-    depends_on:
-      minio-init:
-        condition: service_completed_successfully
-      kafka-init:
-        condition: service_completed_successfully
-    networks:
-      - rideshare-network
-    command: >
-      /opt/spark/bin/spark-submit
-      --master local[2]
-      --driver-memory 1536m
-      --conf "spark.driver.extraJavaOptions=-XX:+UseG1GC -XX:MaxGCPauseMillis=50 -XX:InitiatingHeapOccupancyPercent=35"
-      --name "streaming_low_volume"
-      --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
-      --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
-      --conf spark.driver.memoryOverhead=256m
-      --conf spark.driver.maxResultSize=256m
-      --conf spark.ui.retainedStages=100
-      --conf spark.ui.retainedJobs=100
-      --conf spark.ui.retainedDeadExecutors=10
-      --conf spark.sql.codegen.cache.maxEntries=100
-      --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000
-      --conf spark.hadoop.fs.s3a.access.key=minioadmin
-      --conf spark.hadoop.fs.s3a.secret.key=minioadmin
-      --conf spark.hadoop.fs.s3a.path.style.access=true
-      --conf spark.hadoop.fs.s3a.threads.max=8
-      --conf spark.hadoop.fs.s3a.connection.pool.size=8
-      /opt/spark_streaming/jobs/bronze_ingestion_low_volume.py
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pgrep -f 'spark-submit' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-
-  bronze-init:
-    image: apache/airflow:3.1.5
-    container_name: rideshare-bronze-init
-    profiles:
-      - data-pipeline
-    environment:
-      - _PIP_ADDITIONAL_REQUIREMENTS=pyhive thrift
-    volumes:
-      - ../../infrastructure/scripts:/opt/init-scripts:ro
-    depends_on:
-      spark-thrift-server:
-        condition: service_healthy
-    networks:
-      - rideshare-network
-    command: bash /opt/init-scripts/wait-for-thrift-and-init-bronze.sh
-    restart: "no"
 
   localstack:
     image: localstack/localstack:4.12.0
@@ -757,6 +662,7 @@ services:
         condition: service_healthy  # Ensure DB migrations complete before reserialization
       spark-thrift-server:
         condition: service_healthy
+        required: false
     networks:
       - rideshare-network
     # Reserialize DAGs on startup to ensure they're loaded in Airflow 3.x
