@@ -16,6 +16,8 @@ from src.engine.thread_coordinator import (
 )
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestCommandType:
     """Tests for CommandType enum values."""
 
@@ -60,6 +62,8 @@ class TestCommandType:
         assert CommandType.SHUTDOWN.value == "shutdown"
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestCommandDataclass:
     """Tests for Command dataclass structure."""
 
@@ -110,6 +114,8 @@ class TestCommandDataclass:
         assert isinstance(cmd.error, ValueError)
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestThreadCoordinatorInit:
     """Tests for ThreadCoordinator initialization."""
 
@@ -129,6 +135,8 @@ class TestThreadCoordinatorInit:
         assert coordinator.is_shutdown is False
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestHandlerRegistration:
     """Tests for handler registration."""
 
@@ -167,6 +175,8 @@ class TestHandlerRegistration:
         assert len([ct for ct in coordinator._handlers if ct == CommandType.PAUSE]) == 1
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestSendCommand:
     """Tests for send_command method."""
 
@@ -239,6 +249,8 @@ class TestSendCommand:
         thread.join()
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestProcessPendingCommands:
     """Tests for process_pending_commands method."""
 
@@ -297,6 +309,8 @@ class TestProcessPendingCommands:
         assert handler_calls[0] == {"count": 5}
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestErrorPropagation:
     """Tests for error propagation from handler to caller."""
 
@@ -343,6 +357,8 @@ class TestErrorPropagation:
         thread.join()
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestShutdownBehavior:
     """Tests for shutdown behavior."""
 
@@ -388,6 +404,8 @@ class TestShutdownBehavior:
         assert results == ["completed"]
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestConcurrentCommands:
     """Tests for concurrent command processing."""
 
@@ -504,6 +522,8 @@ class TestConcurrentCommands:
         assert processing_order == list(range(10))
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestCommandQueueIntegration:
     """Integration tests for full command queue lifecycle."""
 

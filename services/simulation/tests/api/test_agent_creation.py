@@ -1,6 +1,7 @@
 import pytest
 
 
+@pytest.mark.unit
 def test_create_single_driver(test_client, mock_agent_factory, auth_headers):
     """Queues 1 driver for continuous spawning with immediate mode (default)."""
     mock_agent_factory.queue_drivers.return_value = 1
@@ -15,6 +16,7 @@ def test_create_single_driver(test_client, mock_agent_factory, auth_headers):
     mock_agent_factory.queue_drivers.assert_called_once_with(1, immediate=True)
 
 
+@pytest.mark.unit
 def test_create_multiple_drivers(test_client, mock_agent_factory, auth_headers):
     """Queues multiple drivers for continuous spawning."""
     mock_agent_factory.queue_drivers.return_value = 10
@@ -29,6 +31,7 @@ def test_create_multiple_drivers(test_client, mock_agent_factory, auth_headers):
     mock_agent_factory.queue_drivers.assert_called_once_with(10, immediate=True)
 
 
+@pytest.mark.unit
 def test_create_drivers_max_count(test_client, mock_agent_factory, auth_headers):
     """Queues max allowed (100) drivers."""
     mock_agent_factory.queue_drivers.return_value = 100
@@ -41,6 +44,7 @@ def test_create_drivers_max_count(test_client, mock_agent_factory, auth_headers)
     assert data["estimated_completion_seconds"] == 50.0  # 100 / 2
 
 
+@pytest.mark.unit
 def test_create_drivers_exceeds_max(test_client, mock_agent_factory, auth_headers):
     """Rejects count > 100 (validation limit)."""
     response = test_client.post("/agents/drivers", json={"count": 501}, headers=auth_headers)
@@ -49,6 +53,7 @@ def test_create_drivers_exceeds_max(test_client, mock_agent_factory, auth_header
     mock_agent_factory.queue_drivers.assert_not_called()
 
 
+@pytest.mark.unit
 def test_create_drivers_below_min(test_client, mock_agent_factory, auth_headers):
     """Rejects count < 1."""
     response = test_client.post("/agents/drivers", json={"count": 0}, headers=auth_headers)
@@ -57,6 +62,7 @@ def test_create_drivers_below_min(test_client, mock_agent_factory, auth_headers)
     mock_agent_factory.queue_drivers.assert_not_called()
 
 
+@pytest.mark.unit
 def test_create_drivers_capacity_limit(test_client, mock_agent_factory, auth_headers):
     """Enforces 2000 driver limit."""
     mock_agent_factory.queue_drivers.side_effect = ValueError(
@@ -70,6 +76,7 @@ def test_create_drivers_capacity_limit(test_client, mock_agent_factory, auth_hea
     assert "capacity" in data["detail"].lower()
 
 
+@pytest.mark.unit
 def test_create_single_rider(test_client, mock_agent_factory, auth_headers):
     """Queues 1 rider for continuous spawning with scheduled mode (default)."""
     mock_agent_factory.queue_riders.return_value = 1
@@ -84,6 +91,7 @@ def test_create_single_rider(test_client, mock_agent_factory, auth_headers):
     mock_agent_factory.queue_riders.assert_called_once_with(1, immediate=False)
 
 
+@pytest.mark.unit
 def test_create_multiple_riders(test_client, mock_agent_factory, auth_headers):
     """Queues multiple riders for continuous spawning."""
     mock_agent_factory.queue_riders.return_value = 50
@@ -98,6 +106,7 @@ def test_create_multiple_riders(test_client, mock_agent_factory, auth_headers):
     mock_agent_factory.queue_riders.assert_called_once_with(50, immediate=False)
 
 
+@pytest.mark.unit
 def test_create_riders_max_count(test_client, mock_agent_factory, auth_headers):
     """Queues max per-request (2000) riders."""
     mock_agent_factory.queue_riders.return_value = 2000
@@ -110,6 +119,7 @@ def test_create_riders_max_count(test_client, mock_agent_factory, auth_headers):
     assert data["estimated_completion_seconds"] == 200.0  # 2000 / 10
 
 
+@pytest.mark.unit
 def test_create_riders_capacity_limit(test_client, mock_agent_factory, auth_headers):
     """Enforces 10000 rider limit."""
     mock_agent_factory.queue_riders.side_effect = ValueError(
@@ -123,6 +133,7 @@ def test_create_riders_capacity_limit(test_client, mock_agent_factory, auth_head
     assert "capacity" in data["detail"].lower()
 
 
+@pytest.mark.unit
 def test_get_spawn_status(test_client, mock_agent_factory, auth_headers):
     """Gets current spawn queue status."""
     mock_agent_factory.get_spawn_queue_status.return_value = {
@@ -138,6 +149,7 @@ def test_get_spawn_status(test_client, mock_agent_factory, auth_headers):
     assert data["riders_queued"] == 100
 
 
+@pytest.mark.unit
 def test_create_drivers_scheduled_mode(test_client, mock_agent_factory, auth_headers):
     """Queues drivers with scheduled mode (follow DNA shift_preference)."""
     mock_agent_factory.queue_drivers.return_value = 5
@@ -150,6 +162,7 @@ def test_create_drivers_scheduled_mode(test_client, mock_agent_factory, auth_hea
     mock_agent_factory.queue_drivers.assert_called_once_with(5, immediate=False)
 
 
+@pytest.mark.unit
 def test_create_drivers_immediate_mode(test_client, mock_agent_factory, auth_headers):
     """Queues drivers with immediate mode (go online immediately)."""
     mock_agent_factory.queue_drivers.return_value = 5
@@ -162,6 +175,7 @@ def test_create_drivers_immediate_mode(test_client, mock_agent_factory, auth_hea
     mock_agent_factory.queue_drivers.assert_called_once_with(5, immediate=True)
 
 
+@pytest.mark.unit
 def test_create_riders_immediate_mode(test_client, mock_agent_factory, auth_headers):
     """Queues riders with immediate mode (request trip immediately)."""
     mock_agent_factory.queue_riders.return_value = 10
@@ -174,6 +188,7 @@ def test_create_riders_immediate_mode(test_client, mock_agent_factory, auth_head
     mock_agent_factory.queue_riders.assert_called_once_with(10, immediate=True)
 
 
+@pytest.mark.unit
 def test_create_riders_scheduled_mode(test_client, mock_agent_factory, auth_headers):
     """Queues riders with scheduled mode (follow DNA avg_rides_per_week)."""
     mock_agent_factory.queue_riders.return_value = 10

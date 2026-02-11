@@ -15,6 +15,8 @@ def no_noise_simulator():
     return GPSSimulator(noise_meters=0.0, dropout_probability=0.0)
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_gaussian_noise_applied(gps_simulator):
     coords = (-23.55, -46.63)
     noisy_lat, noisy_lon = gps_simulator.add_noise(*coords)
@@ -28,6 +30,8 @@ def test_gaussian_noise_applied(gps_simulator):
     assert offset_meters < 100
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_noise_distribution():
     simulator = GPSSimulator(noise_meters=10.0, dropout_probability=0.0)
     coords = (-23.55, -46.63)
@@ -46,6 +50,8 @@ def test_noise_distribution():
     assert 5 < mean_offset < 15
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_no_noise_when_disabled(no_noise_simulator):
     coords = (-23.55, -46.63)
     noisy_lat, noisy_lon = no_noise_simulator.add_noise(*coords)
@@ -54,6 +60,8 @@ def test_no_noise_when_disabled(no_noise_simulator):
     assert noisy_lon == coords[1]
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_gps_dropout_probability():
     simulator = GPSSimulator(noise_meters=10.0, dropout_probability=0.1)
     trials = 1000
@@ -63,6 +71,8 @@ def test_gps_dropout_probability():
     assert 50 < dropouts < 150
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_no_dropout_when_disabled(no_noise_simulator):
     trials = 100
 
@@ -71,6 +81,8 @@ def test_no_dropout_when_disabled(no_noise_simulator):
     assert dropouts == 0
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_polyline_interpolation_start(gps_simulator):
     polyline = [
         (-23.55, -46.63),
@@ -84,6 +96,8 @@ def test_polyline_interpolation_start(gps_simulator):
     assert lon == polyline[0][1]
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_polyline_interpolation_end(gps_simulator):
     polyline = [
         (-23.55, -46.63),
@@ -97,6 +111,8 @@ def test_polyline_interpolation_end(gps_simulator):
     assert lon == polyline[-1][1]
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_polyline_interpolation_midpoint(gps_simulator):
     polyline = [
         (-23.55, -46.63),
@@ -109,6 +125,8 @@ def test_polyline_interpolation_midpoint(gps_simulator):
     assert -46.65 < lon < -46.63
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_heading_calculation(gps_simulator):
     from_coords = (-23.55, -46.63)
     to_coords = (-23.54, -46.63)
@@ -119,6 +137,8 @@ def test_heading_calculation(gps_simulator):
     assert heading > 350 or heading < 10
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_heading_calculation_east(gps_simulator):
     from_coords = (-23.55, -46.63)
     to_coords = (-23.55, -46.62)
@@ -128,6 +148,8 @@ def test_heading_calculation_east(gps_simulator):
     assert 80 < heading < 100
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_speed_calculation(gps_simulator):
     distance_meters = 100
     time_seconds = 10
@@ -137,6 +159,8 @@ def test_speed_calculation(gps_simulator):
     assert speed == 10.0
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_speed_calculation_zero_time(gps_simulator):
     distance_meters = 100
     time_seconds = 0
@@ -146,6 +170,8 @@ def test_speed_calculation_zero_time(gps_simulator):
     assert speed == 0.0
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_gps_accuracy_field(gps_simulator):
     accuracy = gps_simulator.get_gps_accuracy()
 

@@ -16,6 +16,10 @@ from events.schemas import (
 )
 
 
+@pytest.mark.unit
+@pytest.mark.critical
+@pytest.mark.unit
+@pytest.mark.critical
 class TestTripEvent:
     def test_trip_event_valid(self):
         event = TripEvent(
@@ -88,6 +92,10 @@ class TestTripEvent:
         assert data["pickup_location"] == [40.7128, -74.0060]
 
 
+@pytest.mark.unit
+@pytest.mark.critical
+@pytest.mark.unit
+@pytest.mark.critical
 class TestGPSPingEvent:
     def test_gps_ping_event_driver(self):
         event = GPSPingEvent(
@@ -133,6 +141,10 @@ class TestGPSPingEvent:
             )
 
 
+@pytest.mark.unit
+@pytest.mark.critical
+@pytest.mark.unit
+@pytest.mark.critical
 class TestDriverStatusEvent:
     def test_driver_status_event_valid(self):
         event = DriverStatusEvent(
@@ -159,6 +171,10 @@ class TestDriverStatusEvent:
         assert event.previous_status is None
 
 
+@pytest.mark.unit
+@pytest.mark.critical
+@pytest.mark.unit
+@pytest.mark.critical
 class TestSurgeUpdateEvent:
     def test_surge_update_event_valid(self):
         event = SurgeUpdateEvent(
@@ -174,6 +190,10 @@ class TestSurgeUpdateEvent:
         assert event.new_multiplier == 1.5
 
 
+@pytest.mark.unit
+@pytest.mark.critical
+@pytest.mark.unit
+@pytest.mark.critical
 class TestRatingEvent:
     def test_rating_event_valid(self):
         event = RatingEvent(
@@ -207,6 +227,10 @@ class TestRatingEvent:
             )
 
 
+@pytest.mark.unit
+@pytest.mark.critical
+@pytest.mark.unit
+@pytest.mark.critical
 class TestPaymentEvent:
     def test_payment_event_valid(self):
         event = PaymentEvent(
@@ -244,6 +268,10 @@ class TestPaymentEvent:
         assert event.driver_payout_amount == 75.00
 
 
+@pytest.mark.unit
+@pytest.mark.critical
+@pytest.mark.unit
+@pytest.mark.critical
 class TestDriverProfileEvent:
     def test_driver_profile_event_created(self):
         event = DriverProfileEvent(
@@ -266,6 +294,10 @@ class TestDriverProfileEvent:
         assert event.driver_id == "driver_001"
 
 
+@pytest.mark.unit
+@pytest.mark.critical
+@pytest.mark.unit
+@pytest.mark.critical
 class TestRiderProfileEvent:
     def test_rider_profile_event_updated(self):
         event = RiderProfileEvent(

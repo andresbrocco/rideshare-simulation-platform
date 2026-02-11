@@ -4,6 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 
+@pytest.mark.unit
 class TestChannelConstants:
     def test_channel_constants_defined(self):
         from pubsub.channels import (
@@ -21,6 +22,7 @@ class TestChannelConstants:
         assert len(ALL_CHANNELS) == 4
 
 
+@pytest.mark.unit
 class TestDriverUpdateMessage:
     def test_driver_update_message_valid(self):
         from pubsub.channels import DriverUpdateMessage
@@ -62,6 +64,7 @@ class TestDriverUpdateMessage:
         assert "timestamp" in data
 
 
+@pytest.mark.unit
 class TestRiderUpdateMessage:
     def test_rider_update_message_valid(self):
         from pubsub.channels import RiderUpdateMessage
@@ -78,6 +81,7 @@ class TestRiderUpdateMessage:
         assert msg.trip_id == "trip-456"
 
 
+@pytest.mark.unit
 class TestTripUpdateMessage:
     def test_trip_update_message_valid(self):
         from pubsub.channels import TripUpdateMessage
@@ -120,6 +124,7 @@ class TestTripUpdateMessage:
         assert msg.rider_id == "rider-789"
 
 
+@pytest.mark.unit
 class TestSurgeUpdateMessage:
     def test_surge_update_message_valid(self):
         from pubsub.channels import SurgeUpdateMessage
@@ -154,6 +159,7 @@ class TestSurgeUpdateMessage:
         assert msg.request_count == 15
 
 
+@pytest.mark.unit
 class TestMessageTimestamp:
     def test_message_timestamp_format(self):
         from pubsub.channels import DriverUpdateMessage
@@ -173,6 +179,7 @@ class TestMessageTimestamp:
         assert parsed.tzinfo is not None or msg.timestamp.endswith("Z")
 
 
+@pytest.mark.unit
 class TestValidation:
     def test_message_missing_required_field(self):
         from pubsub.channels import DriverUpdateMessage

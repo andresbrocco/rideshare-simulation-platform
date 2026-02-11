@@ -8,6 +8,8 @@ from redis.exceptions import ConnectionError
 from pubsub.channels import ALL_CHANNELS
 from redis_client.publisher import RedisPublisher
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def redis_config():

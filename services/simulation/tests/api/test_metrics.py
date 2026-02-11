@@ -52,6 +52,7 @@ def test_client_with_registry(
         yield TestClient(app, raise_server_exceptions=False)
 
 
+@pytest.mark.unit
 def test_get_overview_metrics(
     test_client_with_registry,
     mock_simulation_engine_with_data,
@@ -71,6 +72,7 @@ def test_get_overview_metrics(
     assert "active_trips" in data
 
 
+@pytest.mark.unit
 def test_overview_includes_all_fields(test_client_with_registry, auth_headers):
     """All required fields present."""
     response = test_client_with_registry.get("/metrics/overview", headers=auth_headers)
@@ -85,6 +87,7 @@ def test_overview_includes_all_fields(test_client_with_registry, auth_headers):
     assert "completed_trips_today" in data
 
 
+@pytest.mark.unit
 def test_get_zone_metrics(test_client_with_registry, auth_headers):
     """Returns per-zone metrics."""
     response = test_client_with_registry.get("/metrics/zones", headers=auth_headers)
@@ -94,6 +97,7 @@ def test_get_zone_metrics(test_client_with_registry, auth_headers):
     assert isinstance(data, list)
 
 
+@pytest.mark.unit
 def test_zone_metrics_includes_surge(test_client_with_registry, auth_headers):
     """Zone metrics include surge."""
     response = test_client_with_registry.get("/metrics/zones", headers=auth_headers)
@@ -104,6 +108,7 @@ def test_zone_metrics_includes_surge(test_client_with_registry, auth_headers):
         assert "surge_multiplier" in data[0]
 
 
+@pytest.mark.unit
 def test_zone_metrics_includes_supply(test_client_with_registry, auth_headers):
     """Zone metrics include drivers."""
     response = test_client_with_registry.get("/metrics/zones", headers=auth_headers)
@@ -114,6 +119,7 @@ def test_zone_metrics_includes_supply(test_client_with_registry, auth_headers):
         assert "online_drivers" in data[0]
 
 
+@pytest.mark.unit
 def test_zone_metrics_includes_demand(test_client_with_registry, auth_headers):
     """Zone metrics include waiting riders."""
     response = test_client_with_registry.get("/metrics/zones", headers=auth_headers)
@@ -124,6 +130,7 @@ def test_zone_metrics_includes_demand(test_client_with_registry, auth_headers):
         assert "waiting_riders" in data[0]
 
 
+@pytest.mark.unit
 def test_get_trip_metrics(test_client_with_registry, auth_headers):
     """Returns trip statistics."""
     response = test_client_with_registry.get("/metrics/trips", headers=auth_headers)
@@ -135,6 +142,7 @@ def test_get_trip_metrics(test_client_with_registry, auth_headers):
     assert "avg_fare" in data
 
 
+@pytest.mark.unit
 def test_trip_metrics_avg_fare(test_client_with_registry, auth_headers):
     """Calculates average fare."""
     response = test_client_with_registry.get("/metrics/trips", headers=auth_headers)
@@ -145,6 +153,7 @@ def test_trip_metrics_avg_fare(test_client_with_registry, auth_headers):
     assert isinstance(data["avg_fare"], int | float)
 
 
+@pytest.mark.unit
 def test_get_driver_metrics(test_client_with_registry, mock_driver_registry, auth_headers):
     """Returns driver status counts."""
     response = test_client_with_registry.get("/metrics/drivers", headers=auth_headers)
@@ -158,6 +167,7 @@ def test_get_driver_metrics(test_client_with_registry, mock_driver_registry, aut
     assert "total" in data
 
 
+@pytest.mark.unit
 def test_driver_metrics_sum_to_total(test_client_with_registry, mock_driver_registry, auth_headers):
     """Status counts sum to total."""
     response = test_client_with_registry.get("/metrics/drivers", headers=auth_headers)
@@ -171,6 +181,7 @@ def test_driver_metrics_sum_to_total(test_client_with_registry, mock_driver_regi
     assert status_sum == total
 
 
+@pytest.mark.unit
 def test_metrics_caching(test_client_with_registry, auth_headers):
     """Caches metrics briefly."""
     response1 = test_client_with_registry.get("/metrics/overview", headers=auth_headers)
@@ -181,6 +192,7 @@ def test_metrics_caching(test_client_with_registry, auth_headers):
     assert response1.json() == response2.json()
 
 
+@pytest.mark.unit
 def test_metrics_cache_expiry(
     test_client_with_registry, mock_simulation_engine_with_data, auth_headers
 ):

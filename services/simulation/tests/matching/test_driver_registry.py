@@ -21,6 +21,7 @@ def populated_registry():
     return reg
 
 
+@pytest.mark.unit
 def test_registry_init(registry):
     assert registry.get_status_count("online") == 0
     assert registry.get_status_count("offline") == 0
@@ -28,12 +29,14 @@ def test_registry_init(registry):
     assert registry.get_status_count("en_route_destination") == 0
 
 
+@pytest.mark.unit
 def test_register_driver(registry):
     registry.register_driver("driver1", "offline", zone_id="pinheiros")
     assert registry.get_status_count("offline") == 1
     assert registry.get_zone_driver_count("pinheiros", "offline") == 1
 
 
+@pytest.mark.unit
 def test_update_driver_status(registry):
     registry.register_driver("driver1", "online", zone_id="pinheiros")
     registry.update_driver_status("driver1", "en_route_pickup")
@@ -44,6 +47,7 @@ def test_update_driver_status(registry):
     assert registry.get_zone_driver_count("pinheiros", "en_route_pickup") == 1
 
 
+@pytest.mark.unit
 def test_unregister_driver(registry):
     registry.register_driver("driver1", "online", zone_id="pinheiros")
     assert registry.get_status_count("online") == 1
@@ -53,6 +57,7 @@ def test_unregister_driver(registry):
     assert registry.get_zone_driver_count("pinheiros", "online") == 0
 
 
+@pytest.mark.unit
 def test_get_status_count(populated_registry):
     assert populated_registry.get_status_count("online") == 3
     assert populated_registry.get_status_count("en_route_pickup") == 1
@@ -60,6 +65,7 @@ def test_get_status_count(populated_registry):
     assert populated_registry.get_status_count("en_route_destination") == 0
 
 
+@pytest.mark.unit
 def test_get_zone_driver_count(populated_registry):
     assert populated_registry.get_zone_driver_count("pinheiros", "online") == 2
     assert populated_registry.get_zone_driver_count("pinheiros", "en_route_pickup") == 1
@@ -67,6 +73,7 @@ def test_get_zone_driver_count(populated_registry):
     assert populated_registry.get_zone_driver_count("vila_madalena", "offline") == 1
 
 
+@pytest.mark.unit
 def test_get_available_drivers_in_zone(populated_registry):
     available = populated_registry.get_available_drivers_in_zone("pinheiros")
     assert len(available) == 2
@@ -75,6 +82,7 @@ def test_get_available_drivers_in_zone(populated_registry):
     assert "driver3" not in available  # en_route_pickup, not available
 
 
+@pytest.mark.unit
 def test_status_transition_online_to_en_route_pickup(registry):
     """Driver goes directly from online to en_route_pickup when accepting a trip."""
     registry.register_driver("driver1", "online", zone_id="pinheiros")
@@ -84,6 +92,7 @@ def test_status_transition_online_to_en_route_pickup(registry):
     assert registry.get_status_count("en_route_pickup") == 1
 
 
+@pytest.mark.unit
 def test_status_transition_en_route_pickup_to_destination(registry):
     registry.register_driver("driver1", "en_route_pickup", zone_id="pinheiros")
     registry.update_driver_status("driver1", "en_route_destination")
@@ -92,6 +101,7 @@ def test_status_transition_en_route_pickup_to_destination(registry):
     assert registry.get_status_count("en_route_destination") == 1
 
 
+@pytest.mark.unit
 def test_status_transition_en_route_to_online(registry):
     registry.register_driver("driver1", "en_route_destination", zone_id="pinheiros")
     registry.update_driver_status("driver1", "online")
@@ -100,6 +110,7 @@ def test_status_transition_en_route_to_online(registry):
     assert registry.get_status_count("online") == 1
 
 
+@pytest.mark.unit
 def test_status_transition_online_to_offline(registry):
     registry.register_driver("driver1", "online", zone_id="pinheiros")
     registry.update_driver_status("driver1", "offline")
@@ -108,12 +119,14 @@ def test_status_transition_online_to_offline(registry):
     assert registry.get_status_count("offline") == 1
 
 
+@pytest.mark.unit
 def test_multiple_zones(populated_registry):
     assert populated_registry.get_zone_driver_count("pinheiros", "online") == 2
     assert populated_registry.get_zone_driver_count("vila_madalena", "online") == 1
     assert populated_registry.get_zone_driver_count("pinheiros", "en_route_pickup") == 1
 
 
+@pytest.mark.unit
 def test_driver_zone_update(registry):
     registry.register_driver("driver1", "online", zone_id="pinheiros")
     assert registry.get_zone_driver_count("pinheiros", "online") == 1
@@ -123,6 +136,7 @@ def test_driver_zone_update(registry):
     assert registry.get_zone_driver_count("vila_madalena", "online") == 1
 
 
+@pytest.mark.unit
 def test_get_all_statuses_summary(populated_registry):
     summary = populated_registry.get_all_status_counts()
 
@@ -132,16 +146,19 @@ def test_get_all_statuses_summary(populated_registry):
     assert summary["en_route_destination"] == 0
 
 
+@pytest.mark.unit
 def test_unregister_nonexistent_driver(registry):
     registry.unregister_driver("nonexistent")
     assert registry.get_status_count("online") == 0
 
 
+@pytest.mark.unit
 def test_update_status_of_nonexistent_driver(registry):
     registry.update_driver_status("nonexistent", "en_route_pickup")
     assert registry.get_status_count("en_route_pickup") == 0
 
 
+@pytest.mark.unit
 def test_update_driver_location(registry):
     registry.register_driver("driver1", "online", zone_id="pinheiros", location=(-23.561, -46.682))
 
@@ -152,11 +169,13 @@ def test_update_driver_location(registry):
     assert "driver1" in drivers
 
 
+@pytest.mark.unit
 def test_register_driver_without_zone(registry):
     registry.register_driver("driver1", "offline")
     assert registry.get_status_count("offline") == 1
 
 
+@pytest.mark.unit
 def test_available_drivers_excludes_all_non_online_statuses(registry):
     registry.register_driver("driver1", "online", zone_id="pinheiros")
     registry.register_driver("driver2", "offline", zone_id="pinheiros")

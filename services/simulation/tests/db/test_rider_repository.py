@@ -10,6 +10,7 @@ from src.db.schema import Rider
 from tests.factories import DNAFactory
 
 
+@pytest.mark.unit
 class TestRiderRepository:
     """Test rider repository CRUD operations."""
 

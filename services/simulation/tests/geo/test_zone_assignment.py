@@ -23,6 +23,7 @@ def zone_service(zone_loader):
     return ZoneAssignmentService(zone_loader)
 
 
+@pytest.mark.unit
 class TestPointInsideZone:
     def test_point_inside_zone(self, zone_service):
         """Point clearly inside PIN (Pinheiros) zone"""
@@ -43,6 +44,7 @@ class TestPointInsideZone:
         assert zone_id == "SEE"
 
 
+@pytest.mark.unit
 class TestPointOnBorder:
     def test_point_on_border_nearest_centroid(self, zone_service):
         """Point on zone border falls back to nearest centroid"""
@@ -51,6 +53,7 @@ class TestPointOnBorder:
         assert zone_id in ["PIN", "BVI", "SEE"]
 
 
+@pytest.mark.unit
 class TestPointOutsideAllZones:
     def test_point_outside_all_zones_nearest(self, zone_service):
         """Point outside all zones but within 50km returns nearest"""
@@ -65,6 +68,7 @@ class TestPointOutsideAllZones:
         assert zone_id in ["PIN", "BVI", "SEE"]
 
 
+@pytest.mark.unit
 class TestInvalidCoordinates:
     def test_invalid_coords_far_from_zones(self, zone_service):
         """Coordinates >50km from all zones raise error"""
@@ -80,6 +84,7 @@ class TestInvalidCoordinates:
             zone_service.get_zone_id(lat, lon)
 
 
+@pytest.mark.unit
 class TestCentroidDistanceCalculation:
     def test_centroid_distance_calculation(self, zone_service):
         """Verify Haversine distance calculation accuracy"""
@@ -100,6 +105,7 @@ class TestCentroidDistanceCalculation:
         assert distance < 0.001
 
 
+@pytest.mark.unit
 class TestCachePerformance:
     def test_zone_cache_performance(self, zone_service):
         """Cache improves repeated lookups"""
@@ -129,6 +135,7 @@ class TestCachePerformance:
         assert zone_id_1 == zone_id_2
 
 
+@pytest.mark.unit
 class TestBatchZoneAssignment:
     def test_batch_zone_assignment(self, zone_service):
         """Assigns zones for multiple coordinates"""
@@ -161,6 +168,7 @@ class TestBatchZoneAssignment:
             zone_service.get_zone_batch(coords)
 
 
+@pytest.mark.unit
 class TestRealSaoPauloCoords:
     def test_zone_assignment_sao_paulo_coords(self, zone_service):
         """Real Sao Paulo coordinates get assigned correctly"""
@@ -175,6 +183,7 @@ class TestRealSaoPauloCoords:
             assert zone_id == expected_zone
 
 
+@pytest.mark.unit
 class TestH3CacheKeyGeneration:
     def test_h3_cache_key_format(self, zone_service):
         """Cache key is H3 cell ID at resolution 9"""
@@ -219,6 +228,7 @@ class TestH3CacheKeyGeneration:
         assert stats["misses"] == 2
 
 
+@pytest.mark.unit
 class TestLRUEviction:
     def test_lru_eviction_when_cache_full(self, zone_loader):
         """LRU eviction removes oldest entries when cache exceeds maxsize"""
@@ -244,6 +254,7 @@ class TestLRUEviction:
         assert stats["misses"] == 5
 
 
+@pytest.mark.unit
 class TestCacheStatistics:
     def test_cache_stats_tracking(self, zone_service):
         """Statistics track requests, hits, misses correctly"""

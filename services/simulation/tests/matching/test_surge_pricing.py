@@ -50,6 +50,8 @@ def mock_kafka_producer():
     return MagicMock()
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_surge_calculator_init(env, mock_zone_loader, driver_registry):
     calculator = SurgePricingCalculator(
         env=env,
@@ -61,6 +63,8 @@ def test_surge_calculator_init(env, mock_zone_loader, driver_registry):
     assert calculator.get_surge("pinheiros") == 1.0
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_surge_no_demand(env, mock_zone_loader, driver_registry, mock_kafka_producer):
     calculator = SurgePricingCalculator(
         env=env,
@@ -79,6 +83,8 @@ def test_surge_no_demand(env, mock_zone_loader, driver_registry, mock_kafka_prod
     assert calculator.get_surge("pinheiros") == 1.0
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_surge_balanced(env, mock_zone_loader, driver_registry, mock_kafka_producer):
     calculator = SurgePricingCalculator(
         env=env,
@@ -97,6 +103,8 @@ def test_surge_balanced(env, mock_zone_loader, driver_registry, mock_kafka_produ
     assert calculator.get_surge("pinheiros") == 1.0
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_surge_ratio_2_0(env, mock_zone_loader, driver_registry, mock_kafka_producer):
     calculator = SurgePricingCalculator(
         env=env,
@@ -115,6 +123,8 @@ def test_surge_ratio_2_0(env, mock_zone_loader, driver_registry, mock_kafka_prod
     assert calculator.get_surge("pinheiros") == 1.5
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_surge_ratio_3_0(env, mock_zone_loader, driver_registry, mock_kafka_producer):
     calculator = SurgePricingCalculator(
         env=env,
@@ -133,6 +143,8 @@ def test_surge_ratio_3_0(env, mock_zone_loader, driver_registry, mock_kafka_prod
     assert calculator.get_surge("pinheiros") == 2.5
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_surge_ratio_above_3_0(env, mock_zone_loader, driver_registry, mock_kafka_producer):
     calculator = SurgePricingCalculator(
         env=env,
@@ -151,6 +163,8 @@ def test_surge_ratio_above_3_0(env, mock_zone_loader, driver_registry, mock_kafk
     assert calculator.get_surge("pinheiros") == 2.5
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_surge_linear_interpolation(env, mock_zone_loader, driver_registry, mock_kafka_producer):
     calculator = SurgePricingCalculator(
         env=env,
@@ -169,6 +183,8 @@ def test_surge_linear_interpolation(env, mock_zone_loader, driver_registry, mock
     assert calculator.get_surge("pinheiros") == 1.25
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_surge_update_every_60_seconds(env, mock_zone_loader, driver_registry, mock_kafka_producer):
     calculator = SurgePricingCalculator(
         env=env,
@@ -187,6 +203,8 @@ def test_surge_update_every_60_seconds(env, mock_zone_loader, driver_registry, m
     assert env.now == 120
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_surge_per_zone(env, mock_zone_loader, driver_registry, mock_kafka_producer):
     calculator = SurgePricingCalculator(
         env=env,
@@ -208,6 +226,8 @@ def test_surge_per_zone(env, mock_zone_loader, driver_registry, mock_kafka_produ
     assert calculator.get_surge("vila_madalena") == 1.0
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_surge_event_emission(env, mock_zone_loader, driver_registry, mock_kafka_producer):
     calculator = SurgePricingCalculator(
         env=env,
@@ -235,6 +255,8 @@ def test_surge_event_emission(env, mock_zone_loader, driver_registry, mock_kafka
     assert event.pending_requests == 20
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_no_event_if_unchanged(env, mock_zone_loader, driver_registry, mock_kafka_producer):
     calculator = SurgePricingCalculator(
         env=env,
@@ -253,6 +275,8 @@ def test_no_event_if_unchanged(env, mock_zone_loader, driver_registry, mock_kafk
     assert not mock_kafka_producer.produce.called
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_zero_drivers_available(env, mock_zone_loader, driver_registry, mock_kafka_producer):
     calculator = SurgePricingCalculator(
         env=env,
@@ -268,6 +292,8 @@ def test_zero_drivers_available(env, mock_zone_loader, driver_registry, mock_kaf
     assert calculator.get_surge("pinheiros") == 2.5
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_zero_requests(env, mock_zone_loader, driver_registry, mock_kafka_producer):
     calculator = SurgePricingCalculator(
         env=env,
@@ -286,6 +312,8 @@ def test_zero_requests(env, mock_zone_loader, driver_registry, mock_kafka_produc
     assert calculator.get_surge("pinheiros") == 1.0
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_get_current_surge(env, mock_zone_loader, driver_registry):
     calculator = SurgePricingCalculator(
         env=env,
@@ -303,6 +331,8 @@ def test_get_current_surge(env, mock_zone_loader, driver_registry):
     assert calculator.get_surge("pinheiros") == 1.5
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestSurgePricingKafkaOnly:
     """Tests to verify SurgePricingCalculator emits to Kafka only, not Redis.
 

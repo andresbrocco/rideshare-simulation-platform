@@ -119,6 +119,8 @@ def trip_executor(
     )
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestTripFullFlow:
     def test_trip_full_flow_success(
         self, simpy_env, trip_executor, driver_agent, rider_agent, trip
@@ -133,6 +135,8 @@ class TestTripFullFlow:
         assert rider_agent.active_trip is None
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestTripEvents:
     def test_trip_driver_en_route_event(self, simpy_env, trip_executor, mock_kafka_producer):
         process = simpy_env.process(trip_executor.execute())
@@ -211,6 +215,8 @@ class TestTripEvents:
         assert len(payment_calls) > 0
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestTripCancellation:
     def test_trip_driver_wait_timeout(
         self,
@@ -303,6 +309,8 @@ class TestTripCancellation:
         assert trip.cancelled_by == "rider"
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestGPSUpdates:
     def test_trip_gps_updates_during_transit(self, simpy_env, trip_executor, mock_kafka_producer):
         process = simpy_env.process(trip_executor.execute())
@@ -333,6 +341,8 @@ class TestGPSUpdates:
         assert rider_agent.location != initial_location
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestTripTiming:
     def test_trip_timing_pickup_drive(self, simpy_env, trip_executor, mock_osrm_client):
         start_time = simpy_env.now
@@ -355,6 +365,8 @@ class TestTripTiming:
         assert elapsed > 600
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestAgentStatusTransitions:
     def test_trip_driver_status_transitions(self, simpy_env, trip_executor, driver_agent):
         assert driver_agent.status == "online"
@@ -375,6 +387,8 @@ class TestAgentStatusTransitions:
         assert rider_agent.status == "offline"
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestDriverOfferResponse:
     def test_driver_receive_offer_accepts(self, simpy_env, dna_factory, mock_kafka_producer):
         accepting_dna = dna_factory.driver_dna(acceptance_rate=1.0)
@@ -417,6 +431,8 @@ class TestDriverOfferResponse:
         assert accepts is False
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestNotificationHandlers:
     def test_rider_on_match_found(self, simpy_env, rider_dna, mock_kafka_producer):
         rider = RiderAgent(

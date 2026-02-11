@@ -19,6 +19,8 @@ def mock_kafka_producer():
     return Mock()
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestDriverShiftLifecycle:
     def test_driver_shift_starts(self, mock_kafka_producer, dna_factory: DNAFactory):
         """Test that driver goes online at shift start.

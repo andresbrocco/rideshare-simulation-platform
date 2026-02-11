@@ -11,6 +11,7 @@ from src.db.schema import RouteCache
 from src.db.utils import utc_now
 
 
+@pytest.mark.unit
 class TestRouteCacheRepository:
     """Test route cache repository operations."""
 

@@ -82,6 +82,7 @@ def get_event_by_type(events, event_type):
     return None
 
 
+@pytest.mark.unit
 def test_started_event_emitted(engine, mock_kafka_producer):
     """Emits simulation.started on start."""
     engine.start()
@@ -93,6 +94,7 @@ def test_started_event_emitted(engine, mock_kafka_producer):
     assert started_event["event_type"] == "simulation.started"
 
 
+@pytest.mark.unit
 def test_started_event_fields(engine, mock_kafka_producer):
     """Includes correct fields."""
     engine.start()
@@ -105,6 +107,7 @@ def test_started_event_fields(engine, mock_kafka_producer):
     assert started_event["trigger"] == "user_request"
 
 
+@pytest.mark.unit
 def test_paused_event_emitted(fast_running_engine):
     """Emits simulation.paused on pause."""
     with patch.object(fast_running_engine, "_get_in_flight_trips", return_value=[]):
@@ -118,6 +121,7 @@ def test_paused_event_emitted(fast_running_engine):
     assert paused_event["event_type"] == "simulation.paused"
 
 
+@pytest.mark.unit
 def test_paused_event_trigger_quiescence(fast_running_engine):
     """Includes quiescence trigger."""
     with patch.object(fast_running_engine, "_get_in_flight_trips", return_value=[]):
@@ -130,6 +134,7 @@ def test_paused_event_trigger_quiescence(fast_running_engine):
     assert paused_event["trigger"] == "quiescence_achieved"
 
 
+@pytest.mark.unit
 def test_resumed_event_emitted(fast_running_engine):
     """Emits simulation.resumed on resume."""
     with patch.object(fast_running_engine, "_get_in_flight_trips", return_value=[]):
@@ -147,6 +152,7 @@ def test_resumed_event_emitted(fast_running_engine):
     assert resumed_event["event_type"] == "simulation.resumed"
 
 
+@pytest.mark.unit
 def test_resumed_event_fields(fast_running_engine):
     """Includes correct fields."""
     with patch.object(fast_running_engine, "_get_in_flight_trips", return_value=[]):
@@ -165,6 +171,7 @@ def test_resumed_event_fields(fast_running_engine):
     assert resumed_event["trigger"] == "user_request"
 
 
+@pytest.mark.unit
 def test_reset_event_emitted(running_engine, mock_kafka_producer):
     """Emits simulation.reset on reset."""
     mock_kafka_producer.produce.reset_mock()
@@ -177,6 +184,7 @@ def test_reset_event_emitted(running_engine, mock_kafka_producer):
     assert reset_event is not None
 
 
+@pytest.mark.unit
 def test_speed_changed_event_emitted(running_engine, mock_kafka_producer):
     """Emits simulation.speed_changed."""
     mock_kafka_producer.produce.reset_mock()
@@ -190,6 +198,7 @@ def test_speed_changed_event_emitted(running_engine, mock_kafka_producer):
     assert speed_event["event_type"] == "simulation.speed_changed"
 
 
+@pytest.mark.unit
 def test_speed_changed_event_fields(running_engine, mock_kafka_producer):
     """Includes speed fields."""
     mock_kafka_producer.produce.reset_mock()
@@ -203,6 +212,7 @@ def test_speed_changed_event_fields(running_engine, mock_kafka_producer):
     assert speed_event["new_speed"] == 10
 
 
+@pytest.mark.unit
 def test_event_includes_active_counts(mock_kafka_producer, mock_sqlite_db):
     """Includes active agent counts."""
     from src.agents.driver_agent import DriverAgent
@@ -241,6 +251,7 @@ def test_event_includes_active_counts(mock_kafka_producer, mock_sqlite_db):
     assert started_event["active_riders"] == 3
 
 
+@pytest.mark.unit
 def test_event_includes_in_flight_trips(fast_running_engine):
     """Includes in-flight trip count."""
     from src.trip import Trip, TripState
@@ -272,6 +283,7 @@ def test_event_includes_in_flight_trips(fast_running_engine):
         assert draining_event["in_flight_trips"] == 7
 
 
+@pytest.mark.unit
 def test_event_timestamp_iso8601(engine, mock_kafka_producer):
     """Timestamp in ISO 8601 UTC format."""
     engine.start()
@@ -289,6 +301,7 @@ def test_event_timestamp_iso8601(engine, mock_kafka_producer):
     assert parsed.tzinfo is not None
 
 
+@pytest.mark.unit
 def test_event_published_to_kafka(engine, mock_kafka_producer):
     """Events published to simulation-control topic."""
     engine.start()
@@ -305,6 +318,7 @@ def test_event_published_to_kafka(engine, mock_kafka_producer):
         assert call[1]["topic"] == "simulation-control"
 
 
+@pytest.mark.unit
 def test_event_unique_id(fast_engine):
     """Each event has unique ID."""
     fast_engine.start()

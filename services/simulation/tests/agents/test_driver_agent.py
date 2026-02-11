@@ -31,6 +31,7 @@ def driver_agent(simpy_env, driver_dna, mock_kafka_producer):
     return agent
 
 
+@pytest.mark.unit
 class TestDriverAgentInit:
     def test_driver_agent_init(self, simpy_env, driver_dna, mock_kafka_producer):
         agent = DriverAgent(
@@ -51,6 +52,7 @@ class TestDriverAgentInit:
         assert driver_agent.rating_count == 0
 
 
+@pytest.mark.unit
 class TestDriverDNAImmutability:
     def test_driver_dna_immutability(self, driver_agent, driver_dna, dna_factory: DNAFactory):
         original_acceptance = driver_dna.acceptance_rate
@@ -64,6 +66,7 @@ class TestDriverDNAImmutability:
         assert driver_agent.dna.acceptance_rate == original_acceptance
 
 
+@pytest.mark.unit
 class TestDriverStatusTransitions:
     def test_driver_status_transition_offline_to_online(self, driver_agent, mock_kafka_producer):
         driver_agent.update_location(-23.55, -46.63)
@@ -120,6 +123,7 @@ class TestDriverStatusTransitions:
         mock_kafka_producer.produce.assert_called()
 
 
+@pytest.mark.unit
 class TestDriverStateManagement:
     def test_driver_location_update(self, driver_agent, mock_kafka_producer):
         driver_agent.update_location(-23.55, -46.63)
@@ -142,6 +146,7 @@ class TestDriverStateManagement:
         assert driver_agent.rating_count == 2
 
 
+@pytest.mark.unit
 class TestDriverEventEmission:
     def test_driver_status_event_emission(self, driver_agent, mock_kafka_producer):
         driver_agent.update_location(-23.55, -46.63)
@@ -162,6 +167,7 @@ class TestDriverEventEmission:
         assert event.location == (-23.55, -46.63)
 
 
+@pytest.mark.unit
 class TestDriverSimpyProcess:
     def test_driver_agent_is_simpy_process(self, driver_agent, simpy_env):
         process = simpy_env.process(driver_agent.run())

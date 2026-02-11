@@ -8,6 +8,7 @@ from src.db.schema import Trip as TripModel
 from src.trip import TripState
 
 
+@pytest.mark.unit
 class TestTripRepository:
     """Test trip repository CRUD operations."""
 

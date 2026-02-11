@@ -46,6 +46,7 @@ def offer():
     }
 
 
+@pytest.mark.unit
 class TestDriverResponseTime:
     def test_driver_response_time(self, simpy_env, driver_agent, offer):
         def test_process():
@@ -86,6 +87,7 @@ class TestDriverResponseTime:
         assert max(response_times) <= 10.0
 
 
+@pytest.mark.unit
 class TestDriverAcceptanceProbability:
     def test_driver_acceptance_probability(
         self, simpy_env, dna_factory, mock_kafka_producer, offer
@@ -185,6 +187,7 @@ class TestDriverAcceptanceProbability:
         assert 60 <= acceptances <= 80
 
 
+@pytest.mark.unit
 class TestDriverRiderRatingThreshold:
     def test_driver_reject_low_rated_rider(
         self, simpy_env, dna_factory, mock_kafka_producer, offer
@@ -282,6 +285,7 @@ class TestDriverRiderRatingThreshold:
         assert acceptances < 100
 
 
+@pytest.mark.unit
 class TestDriverResponseTransitions:
     def test_driver_response_accept_transition(
         self, simpy_env, dna_factory, mock_kafka_producer, offer
@@ -331,6 +335,7 @@ class TestDriverResponseTransitions:
         simpy_env.run()
 
 
+@pytest.mark.unit
 class TestDriverResponseTimeout:
     def test_driver_response_timeout_compliance(
         self, simpy_env, dna_factory, mock_kafka_producer, offer
@@ -355,6 +360,7 @@ class TestDriverResponseTimeout:
         simpy_env.run()
 
 
+@pytest.mark.unit
 class TestDriverSurgeAcceptanceCalculation:
     def test_driver_surge_acceptance_modifier_calculation(
         self, simpy_env, dna_factory, mock_kafka_producer, offer

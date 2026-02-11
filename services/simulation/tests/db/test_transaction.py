@@ -22,6 +22,7 @@ def session_maker(engine):
     return sessionmaker(bind=engine)
 
 
+@pytest.mark.unit
 class TestTransaction:
     """Tests for the transaction context manager."""
 
@@ -82,6 +83,7 @@ class TestTransaction:
             assert session.get(SimulationMetadata, "partial2") is None
 
 
+@pytest.mark.unit
 class TestSavepoint:
     """Tests for the savepoint context manager."""
 

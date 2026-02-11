@@ -80,12 +80,16 @@ def create_trip(trip_id: str, state: TripState, rider_id="rider1") -> Trip:
     )
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_pause_from_running_enters_draining(running_engine):
     """Pause transitions to DRAINING first."""
     running_engine.pause()
     assert running_engine.state == SimulationState.DRAINING
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_draining_stops_new_requests(running_engine):
     """No new trip requests accepted in DRAINING."""
     with patch.object(running_engine, "_get_in_flight_trips", return_value=[]):
@@ -107,6 +111,8 @@ def test_draining_stops_new_requests(running_engine):
             )
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_draining_tracks_in_flight_trips(running_engine):
     """Counts non-terminal trips."""
     trips = [
@@ -121,6 +127,8 @@ def test_draining_tracks_in_flight_trips(running_engine):
         assert count == 2
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_draining_waits_for_quiescence(fast_running_engine):
     """Waits for all trips to complete."""
     in_flight_trips = [
@@ -145,6 +153,8 @@ def test_draining_waits_for_quiescence(fast_running_engine):
         assert fast_running_engine.state == SimulationState.PAUSED
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_force_cancel_reason(running_engine):
     """Force-cancelled trips have correct metadata."""
     trip = create_trip("trip1", TripState.MATCHED)
@@ -156,6 +166,8 @@ def test_force_cancel_reason(running_engine):
     assert trip.cancellation_reason == "system_pause"
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_quiescence_achieved_trigger(fast_running_engine):
     """Emits correct trigger on natural completion."""
     with patch.object(fast_running_engine, "_get_in_flight_trips", return_value=[]):
@@ -180,6 +192,8 @@ def test_quiescence_achieved_trigger(fast_running_engine):
         assert paused_event["trigger"] == "quiescence_achieved"
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_paused_state_after_drain(fast_running_engine):
     """Transitions to PAUSED after drain."""
     with patch.object(fast_running_engine, "_get_in_flight_trips", return_value=[]):
@@ -189,6 +203,8 @@ def test_paused_state_after_drain(fast_running_engine):
         assert fast_running_engine.state == SimulationState.PAUSED
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_paused_emits_event(fast_running_engine):
     """Emits simulation.paused event."""
     with patch.object(fast_running_engine, "_get_in_flight_trips", return_value=[]):
@@ -213,6 +229,8 @@ def test_paused_emits_event(fast_running_engine):
         assert paused_event["in_flight_trips"] == 0
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_resume_from_paused(fast_running_engine):
     """Resume transitions back to RUNNING."""
     with patch.object(fast_running_engine, "_get_in_flight_trips", return_value=[]):
@@ -225,6 +243,8 @@ def test_resume_from_paused(fast_running_engine):
         assert fast_running_engine.state == SimulationState.RUNNING
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_resume_restarts_processes(fast_running_engine):
     """Restarts agent processes on resume."""
     with patch.object(fast_running_engine, "_get_in_flight_trips", return_value=[]):
@@ -239,6 +259,8 @@ def test_resume_restarts_processes(fast_running_engine):
         assert resumed_process_count == initial_process_count * 2
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_terminal_states_excluded(running_engine):
     """Only counts non-terminal trips."""
     trips = [
@@ -257,6 +279,8 @@ def test_terminal_states_excluded(running_engine):
         assert count == 3
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_pause_invalid_from_stopped(engine):
     """Cannot pause from STOPPED."""
     assert engine.state == SimulationState.STOPPED

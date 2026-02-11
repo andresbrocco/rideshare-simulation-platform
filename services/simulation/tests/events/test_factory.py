@@ -10,6 +10,7 @@ from events.schemas import GPSPingEvent, RatingEvent, TripEvent
 from trip import Trip, TripState
 
 
+@pytest.mark.unit
 class TestEventFactoryCreate:
     """Tests for EventFactory.create method."""
 
@@ -122,6 +123,7 @@ class TestEventFactoryCreate:
             assert event.session_id is None
 
 
+@pytest.mark.unit
 class TestEventFactoryCreateForTrip:
     """Tests for EventFactory.create_for_trip method."""
 

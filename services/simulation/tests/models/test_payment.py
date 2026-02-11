@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from src.payment import Payment
 
 
+@pytest.mark.unit
 class TestPayment:
     def test_payment_valid(self):
         payment = Payment(

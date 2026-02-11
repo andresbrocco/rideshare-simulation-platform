@@ -16,6 +16,7 @@ from src.core.exceptions import (
 )
 
 
+@pytest.mark.unit
 class TestExceptionHierarchy:
     """Test that exception classes follow the correct inheritance."""
 
@@ -35,6 +36,7 @@ class TestExceptionHierarchy:
         assert issubclass(FatalError, SimulationError)
 
 
+@pytest.mark.unit
 class TestExceptionAttributes:
     """Test exception message and details handling."""
 
@@ -65,6 +67,7 @@ class TestExceptionAttributes:
         assert err.details["field"] == "email"
 
 
+@pytest.mark.unit
 class TestExceptionCatching:
     """Test that exceptions can be caught at appropriate levels."""
 

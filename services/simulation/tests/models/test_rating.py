@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from src.rating import Rating
 
 
+@pytest.mark.unit
 class TestRating:
     def test_rating_valid(self):
         trip_id = uuid4()

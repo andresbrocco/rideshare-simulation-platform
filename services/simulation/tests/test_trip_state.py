@@ -5,6 +5,10 @@ import pytest
 from src.trip import Trip, TripState
 
 
+@pytest.mark.unit
+@pytest.mark.critical
+@pytest.mark.unit
+@pytest.mark.critical
 class TestTripStateEnum:
     """Test TripState enum."""
 
@@ -28,6 +32,10 @@ class TestTripStateEnum:
         assert TripState.COMPLETED.to_event_type() == "trip.completed"
 
 
+@pytest.mark.unit
+@pytest.mark.critical
+@pytest.mark.unit
+@pytest.mark.critical
 class TestTripCreation:
     """Test trip creation."""
 
@@ -59,6 +67,10 @@ class TestTripCreation:
         assert trip.cancellation_stage is None
 
 
+@pytest.mark.unit
+@pytest.mark.critical
+@pytest.mark.unit
+@pytest.mark.critical
 class TestValidTransitions:
     """Test valid state transitions."""
 
@@ -149,6 +161,10 @@ class TestValidTransitions:
         assert trip.state == TripState.COMPLETED
 
 
+@pytest.mark.unit
+@pytest.mark.critical
+@pytest.mark.unit
+@pytest.mark.critical
 class TestInvalidTransitions:
     """Test invalid state transitions."""
 
@@ -203,6 +219,10 @@ class TestInvalidTransitions:
             trip.transition_to(TripState.STARTED)
 
 
+@pytest.mark.unit
+@pytest.mark.critical
+@pytest.mark.unit
+@pytest.mark.critical
 class TestCancellations:
     """Test trip cancellations."""
 

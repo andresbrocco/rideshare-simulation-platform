@@ -11,6 +11,8 @@ from engine import SimulationEngine, SimulationState
 from tests.engine.conftest import create_mock_sqlite_db
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestSimulationEngineInit:
     def test_engine_init(self):
         """Creates SimulationEngine with initial state."""
@@ -38,6 +40,8 @@ class TestSimulationEngineInit:
         assert len(engine._active_riders) == 0
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestSimulationEngineStateTransitions:
     def test_engine_start_transitions_to_running(self):
         """Start transitions from STOPPED to RUNNING."""
@@ -135,6 +139,8 @@ class TestSimulationEngineStateTransitions:
             engine.transition_state(SimulationState.RUNNING)
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestSimulationEngineAgentRegistration:
     def test_engine_register_driver_agent(self):
         """Registers driver with engine."""
@@ -189,6 +195,8 @@ class TestSimulationEngineAgentRegistration:
         assert engine._active_riders["rider_456"] == rider
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestSimulationEngineAgentProcesses:
     def test_engine_start_launches_agent_processes(self):
         """Starts all registered agent processes."""
@@ -254,6 +262,8 @@ class TestSimulationEngineAgentProcesses:
         assert rider3.run.called
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestSimulationEngineStep:
     def test_engine_step_advances_simulation(self, fast_engine):
         """Advances simulation by time step."""
@@ -264,6 +274,8 @@ class TestSimulationEngineStep:
         assert fast_engine._env.now == initial_time + 60
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestSimulationEngineMatchingIntegration:
     @pytest.mark.asyncio
     async def test_engine_matching_server_integration(self):
@@ -300,6 +312,8 @@ class TestSimulationEngineMatchingIntegration:
         assert matching_server.request_match.called
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestSimulationEngineActiveCounts:
     def test_engine_active_counts(self):
         """Tracks counts of active agents."""

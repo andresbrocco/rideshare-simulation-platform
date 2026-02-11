@@ -15,6 +15,7 @@ def index():
     return DriverGeospatialIndex(h3_resolution=9)
 
 
+@pytest.mark.unit
 class TestDriverGeospatialIndexInit:
     def test_index_init(self, index):
         assert index._h3_resolution == 9
@@ -23,6 +24,7 @@ class TestDriverGeospatialIndexInit:
         assert index._driver_status == {}
 
 
+@pytest.mark.unit
 class TestAddDriver:
     def test_add_driver(self, index):
         index.add_driver("driver_1", -23.55, -46.63, "online")
@@ -44,6 +46,7 @@ class TestAddDriver:
         assert "driver_2" in index._h3_cells[cell]
 
 
+@pytest.mark.unit
 class TestUpdateDriverLocation:
     def test_update_driver_location(self, index):
         index.add_driver("driver_1", -23.55, -46.63, "online")
@@ -70,6 +73,7 @@ class TestUpdateDriverLocation:
         assert index._driver_locations["driver_1"] == (-23.5501, -46.6301)
 
 
+@pytest.mark.unit
 class TestRemoveDriver:
     def test_remove_driver(self, index):
         index.add_driver("driver_1", -23.55, -46.63, "online")
@@ -86,6 +90,7 @@ class TestRemoveDriver:
         index.remove_driver("nonexistent_driver")
 
 
+@pytest.mark.unit
 class TestFindNearestDrivers:
     def test_find_nearest_drivers(self, index):
         # Add drivers at known distances from Paulista
@@ -132,6 +137,7 @@ class TestFindNearestDrivers:
         assert distances == sorted(distances)
 
 
+@pytest.mark.unit
 class TestStatusFiltering:
     def test_filter_by_status_online(self, index):
         index.add_driver("driver_online", -23.55, -46.63, "online")
@@ -178,6 +184,7 @@ class TestStatusFiltering:
         assert "driver_offline" not in driver_ids
 
 
+@pytest.mark.unit
 class TestH3CellBucketing:
     def test_h3_cell_bucketing(self, index):
         # Drivers in same neighborhood should be in same or adjacent cells
@@ -204,6 +211,7 @@ class TestH3CellBucketing:
         assert results[0][1] == pytest.approx(0.0, abs=0.001)
 
 
+@pytest.mark.unit
 class TestUpdateDriverStatus:
     def test_update_driver_status(self, index):
         index.add_driver("driver_1", -23.55, -46.63, "online")

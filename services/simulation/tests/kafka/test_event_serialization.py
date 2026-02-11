@@ -41,6 +41,7 @@ def schema_path():
     return Path(__file__).parent.parent.parent.parent.parent / "schemas" / "kafka"
 
 
+@pytest.mark.unit
 def test_serialize_trip_event(mock_schema_registry, schema_path):
     serializer = TripEventSerializer(mock_schema_registry, schema_path)
     event = TripEvent(
@@ -70,6 +71,7 @@ def test_serialize_trip_event(mock_schema_registry, schema_path):
     assert "event_id" in result
 
 
+@pytest.mark.unit
 def test_auto_generate_event_id(mock_schema_registry, schema_path):
     serializer = EventSerializer(mock_schema_registry, schema_path / "trip_event.json")
     event = TripEvent(
@@ -96,6 +98,7 @@ def test_auto_generate_event_id(mock_schema_registry, schema_path):
         pytest.fail("event_id is not a valid UUID")
 
 
+@pytest.mark.unit
 def test_preserve_existing_event_id(mock_schema_registry, schema_path):
     existing_id = uuid.uuid4()
     serializer = EventSerializer(mock_schema_registry, schema_path / "trip_event.json")
@@ -119,6 +122,7 @@ def test_preserve_existing_event_id(mock_schema_registry, schema_path):
     assert result["event_id"] == str(existing_id)
 
 
+@pytest.mark.unit
 def test_format_timestamp_iso8601(mock_schema_registry, schema_path):
     serializer = EventSerializer(mock_schema_registry, schema_path / "trip_event.json")
     dt = datetime(2025, 7, 29, 14, 30, 0, tzinfo=UTC)
@@ -141,6 +145,7 @@ def test_format_timestamp_iso8601(mock_schema_registry, schema_path):
     assert result["timestamp"] == "2025-07-29T14:30:00Z"
 
 
+@pytest.mark.unit
 def test_serialize_with_schema_validation(mock_schema_registry, schema_path):
     serializer = TripEventSerializer(mock_schema_registry, schema_path)
     event = TripEvent(
@@ -163,6 +168,7 @@ def test_serialize_with_schema_validation(mock_schema_registry, schema_path):
     assert result is not None
 
 
+@pytest.mark.unit
 def test_reject_invalid_event(mock_schema_registry, schema_path):
     from jsonschema import ValidationError
 
@@ -186,6 +192,7 @@ def test_reject_invalid_event(mock_schema_registry, schema_path):
         serializer.serialize(event)
 
 
+@pytest.mark.unit
 def test_serialize_gps_ping_with_nulls(mock_schema_registry, schema_path):
     serializer = GPSPingEventSerializer(mock_schema_registry, schema_path)
     event = GPSPingEvent(
@@ -206,6 +213,7 @@ def test_serialize_gps_ping_with_nulls(mock_schema_registry, schema_path):
     assert result["trip_id"] is None
 
 
+@pytest.mark.unit
 def test_serialize_payment_event(mock_schema_registry, schema_path):
     serializer = PaymentEventSerializer(mock_schema_registry, schema_path)
     event = PaymentEvent(
@@ -230,6 +238,7 @@ def test_serialize_payment_event(mock_schema_registry, schema_path):
     assert result["driver_payout_amount"] == 20.40
 
 
+@pytest.mark.unit
 def test_typed_serializer_trip(mock_schema_registry, schema_path):
     serializer = TripEventSerializer(mock_schema_registry, schema_path)
     event = TripEvent(
@@ -252,6 +261,7 @@ def test_typed_serializer_trip(mock_schema_registry, schema_path):
     assert result["event_type"] == "trip.requested"
 
 
+@pytest.mark.unit
 def test_typed_serializer_registers_schema(mock_schema_registry, schema_path):
     serializer = TripEventSerializer(mock_schema_registry, schema_path)
     event = TripEvent(

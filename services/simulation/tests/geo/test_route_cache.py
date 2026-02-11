@@ -6,6 +6,8 @@ import pytest
 from src.geo.osrm_client import OSRMClient, RouteResponse
 from src.geo.route_cache import RouteCacheService
 
+pytestmark = [pytest.mark.unit, pytest.mark.slow]
+
 
 @pytest.fixture
 def mock_osrm_client():
@@ -24,6 +26,8 @@ def route_cache_service(mock_osrm_client):
     return RouteCacheService(osrm_client=mock_osrm_client, maxsize=10)
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_h3_cell_from_coords():
     lat, lng = -23.55, -46.63
     resolution = 9
@@ -34,6 +38,8 @@ def test_h3_cell_from_coords():
     assert h3_cell.startswith("89")
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_cache_key_generation(route_cache_service):
     origin = (-23.55, -46.63)
     destination = (-23.56, -46.64)

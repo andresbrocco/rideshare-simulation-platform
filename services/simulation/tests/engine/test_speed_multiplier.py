@@ -55,29 +55,34 @@ def engine_100x(mock_dependencies):
     return engine
 
 
+@pytest.mark.unit
 def test_engine_default_speed(engine):
     """Engine starts at 1x speed (real-time)."""
     assert engine.speed_multiplier == 1
 
 
+@pytest.mark.unit
 def test_set_speed_1x(engine):
     """Sets speed to 1x real-time."""
     engine.set_speed(1)
     assert engine.speed_multiplier == 1
 
 
+@pytest.mark.unit
 def test_set_speed_10x(engine):
     """Sets speed to 10x accelerated."""
     engine.set_speed(10)
     assert engine.speed_multiplier == 10
 
 
+@pytest.mark.unit
 def test_set_speed_100x(engine):
     """Sets speed to 100x accelerated."""
     engine.set_speed(100)
     assert engine.speed_multiplier == 100
 
 
+@pytest.mark.unit
 def test_set_speed_invalid(engine):
     """Rejects invalid multiplier (must be positive integer)."""
     with pytest.raises(ValueError, match="Speed multiplier must be a positive integer"):
@@ -87,6 +92,7 @@ def test_set_speed_invalid(engine):
         engine.set_speed(-1)
 
 
+@pytest.mark.unit
 def test_speed_change_emits_event(engine):
     """Emits simulation.speed_changed event."""
     producer_mock = engine._kafka_producer

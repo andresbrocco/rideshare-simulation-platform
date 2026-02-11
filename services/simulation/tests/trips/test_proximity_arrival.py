@@ -129,6 +129,7 @@ def mock_osrm_client_for_proximity():
     return client
 
 
+@pytest.mark.unit
 class TestProximityArrivalDetection:
     """Tests for GPS-based proximity arrival detection."""
 
@@ -268,6 +269,7 @@ class TestProximityArrivalDetection:
         assert trip_with_far_pickup.state == TripState.COMPLETED
 
 
+@pytest.mark.unit
 class TestProximityWithCancellation:
     """Tests for proximity detection interaction with cancellation scenarios."""
 
@@ -331,6 +333,7 @@ class TestProximityWithCancellation:
         assert trip_with_far_pickup.cancellation_reason == "changed_mind"
 
 
+@pytest.mark.unit
 class TestProximityGPSUpdates:
     """Tests for GPS updates during proximity-enabled trips."""
 
@@ -400,6 +403,7 @@ class TestProximityGPSUpdates:
         assert final_location == trip_with_far_pickup.dropoff_location
 
 
+@pytest.mark.unit
 class TestSimulationSettingsValidation:
     """Tests for SimulationSettings validation."""
 

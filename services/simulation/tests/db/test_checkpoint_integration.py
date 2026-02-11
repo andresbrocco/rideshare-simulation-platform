@@ -188,6 +188,7 @@ def create_rider_agent(
     )
 
 
+@pytest.mark.unit
 class TestCleanCheckpointIntegration:
     """Integration tests for clean (graceful) checkpoint recovery."""
 
@@ -316,6 +317,7 @@ class TestCleanCheckpointIntegration:
         assert engine2._env.now == original_time + 100
 
 
+@pytest.mark.unit
 class TestDirtyCheckpointIntegration:
     """Integration tests for dirty (crash) checkpoint recovery."""
 
@@ -488,6 +490,7 @@ class TestDirtyCheckpointIntegration:
         assert engine2._env.now == original_time + 100
 
 
+@pytest.mark.unit
 class TestCheckpointMetadataPreservation:
     """Tests for preserving engine metadata across checkpoint/restore."""
 

@@ -10,6 +10,7 @@ from src.geo.distance import (
 )
 
 
+@pytest.mark.unit
 class TestHaversineDistanceM:
     """Tests for haversine_distance_m function."""
 
@@ -77,6 +78,7 @@ class TestHaversineDistanceM:
         assert 60_000 <= distance <= 80_000
 
 
+@pytest.mark.unit
 class TestHaversineDistanceKm:
     """Tests for haversine_distance_km function."""
 
@@ -97,6 +99,7 @@ class TestHaversineDistanceKm:
         assert distance == pytest.approx(0.0, abs=0.000001)
 
 
+@pytest.mark.unit
 class TestIsWithinProximity:
     """Tests for is_within_proximity function."""
 
@@ -172,6 +175,7 @@ class TestIsWithinProximity:
         )
 
 
+@pytest.mark.unit
 class TestEarthRadius:
     """Tests for earth radius constant."""
 

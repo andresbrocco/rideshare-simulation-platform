@@ -10,6 +10,7 @@ from src.db.schema import Driver
 from tests.factories import DNAFactory
 
 
+@pytest.mark.unit
 class TestDriverRepository:
     """Test driver repository CRUD operations."""
 

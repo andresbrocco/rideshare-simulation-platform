@@ -14,6 +14,8 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from unittest.mock import Mock
 
+import pytest
+
 from src.matching.agent_registry_manager import AgentRegistryManager
 from src.matching.driver_geospatial_index import DriverGeospatialIndex
 from src.matching.driver_registry import DriverRegistry
@@ -38,6 +40,7 @@ def create_matching_server() -> MatchingServer:
     )
 
 
+@pytest.mark.unit
 class TestDriverRegistryConcurrentStatusUpdates:
     """Test that concurrent status updates don't corrupt counts."""
 
@@ -141,6 +144,7 @@ class TestDriverRegistryConcurrentStatusUpdates:
             ), f"Iteration {iteration}: Errors occurred during concurrent operations: {errors}"
 
 
+@pytest.mark.unit
 class TestDriverRegistryConcurrentZoneQueries:
     """Test that zone queries don't raise RuntimeError during updates."""
 
@@ -265,6 +269,7 @@ class TestDriverRegistryConcurrentZoneQueries:
             ), f"Iteration {iteration}: Errors during concurrent zone operations: {errors}"
 
 
+@pytest.mark.unit
 class TestMatchingServerConcurrentTripAccess:
     """Test that concurrent trip access doesn't raise errors."""
 
@@ -424,6 +429,7 @@ class TestMatchingServerConcurrentTripAccess:
             ), f"Iteration {iteration}: Errors during concurrent pending offers access: {errors}"
 
 
+@pytest.mark.unit
 class TestAgentRegistryManagerAtomicUpdates:
     """Test that multi-registry updates are atomic."""
 

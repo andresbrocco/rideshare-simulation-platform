@@ -74,6 +74,7 @@ def create_trip(trip_id: str = "trip-1", state: TripState = TripState.COMPLETED)
     return trip
 
 
+@pytest.mark.unit
 class TestRatingOnlyForCompletedTrips:
     def test_no_rating_for_cancelled_trip(self):
         """Ratings should only be submitted for completed trips."""
@@ -90,6 +91,7 @@ class TestRatingOnlyForCompletedTrips:
         assert rider_rating is None
 
 
+@pytest.mark.unit
 class TestSubmissionProbability:
     def test_neutral_submission_rate(self):
         """~60% submission rate for neutral trip experiences (ratings 3-4)."""
@@ -133,6 +135,7 @@ class TestSubmissionProbability:
         assert 0.60 <= rate <= 0.80
 
 
+@pytest.mark.unit
 class TestDriverRatesRider:
     def test_driver_rates_rider_emits_event(self):
         """Driver submits rating for rider and emits rating event."""
@@ -152,6 +155,7 @@ class TestDriverRatesRider:
             assert call_args.kwargs["topic"] == "ratings"
 
 
+@pytest.mark.unit
 class TestRiderRatesDriver:
     def test_rider_rates_driver_emits_event(self):
         """Rider submits rating for driver and emits rating event."""
@@ -171,6 +175,7 @@ class TestRiderRatesDriver:
             assert call_args.kwargs["topic"] == "ratings"
 
 
+@pytest.mark.unit
 class TestRatingValueBasedOnDNA:
     def test_high_behavior_factor_yields_higher_ratings(self):
         """High behavior_factor riders should receive higher ratings from drivers."""
@@ -211,6 +216,7 @@ class TestRatingValueBasedOnDNA:
         assert mean_low <= 4.0
 
 
+@pytest.mark.unit
 class TestRatingValueDistribution:
     def test_high_quality_dna_rating_distribution(self):
         """High quality DNA should yield higher mean ratings."""
@@ -229,6 +235,7 @@ class TestRatingValueDistribution:
         assert 3.0 <= mean_rating <= 4.2
 
 
+@pytest.mark.unit
 class TestRatingValueRange:
     def test_rating_values_are_valid(self):
         """All rating values should be integers between 1 and 5."""
@@ -245,6 +252,7 @@ class TestRatingValueRange:
                 assert 1 <= rating <= 5
 
 
+@pytest.mark.unit
 class TestRatingEventEmission:
     def test_rating_event_has_correct_fields(self):
         """Rating event should contain all required fields."""
@@ -269,6 +277,7 @@ class TestRatingEventEmission:
             assert 1 <= event.rating <= 5
 
 
+@pytest.mark.unit
 class TestAgentRatingUpdates:
     def test_agent_rating_count_increments(self):
         """Agent's rating_count should increment when receiving a rating."""
@@ -298,6 +307,7 @@ class TestAgentRatingUpdates:
         assert driver.rating_count == 2
 
 
+@pytest.mark.unit
 class TestIndependentSubmission:
     def test_driver_and_rider_submit_independently(self):
         """Driver and rider should make independent submission decisions."""

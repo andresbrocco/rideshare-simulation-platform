@@ -14,6 +14,10 @@ from src.core.exceptions import (
 from src.core.retry import RetryConfig, with_retry, with_retry_sync
 
 
+@pytest.mark.unit
+@pytest.mark.critical
+@pytest.mark.unit
+@pytest.mark.critical
 class TestRetryConfig:
     """Test RetryConfig defaults and customization."""
 
@@ -40,6 +44,10 @@ class TestRetryConfig:
         assert config.retryable_exceptions == (NetworkError, ValueError)
 
 
+@pytest.mark.unit
+@pytest.mark.critical
+@pytest.mark.unit
+@pytest.mark.critical
 class TestWithRetryAsync:
     """Test async retry functionality."""
 
@@ -194,6 +202,10 @@ class TestWithRetryAsync:
         assert call_count == 2
 
 
+@pytest.mark.unit
+@pytest.mark.critical
+@pytest.mark.unit
+@pytest.mark.critical
 class TestWithRetrySync:
     """Test synchronous retry functionality."""
 

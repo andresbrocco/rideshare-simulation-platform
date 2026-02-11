@@ -18,6 +18,7 @@ def invalid_zones_path():
     return Path(__file__).parent.parent / "fixtures" / "invalid_zones.geojson"
 
 
+@pytest.mark.unit
 class TestZoneModel:
     def test_zone_model_valid(self):
         zone = Zone(
@@ -112,6 +113,7 @@ class TestZoneModel:
         assert abs(centroid[1] - expected_lat) < 0.0001
 
 
+@pytest.mark.unit
 class TestGeoJSONParsing:
     def test_geojson_feature_parsing(self):
         feature = {
@@ -161,6 +163,7 @@ class TestGeoJSONParsing:
         assert zone is None
 
 
+@pytest.mark.unit
 class TestZoneLoader:
     def test_zone_loader_loads_file(self, sample_zones_path):
         loader = ZoneLoader(sample_zones_path)

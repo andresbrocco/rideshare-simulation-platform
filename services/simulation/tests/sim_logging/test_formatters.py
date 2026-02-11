@@ -8,6 +8,7 @@ import pytest
 from src.sim_logging import DevFormatter, JSONFormatter
 
 
+@pytest.mark.unit
 class TestJSONFormatter:
     """Tests for JSONFormatter."""
 
@@ -61,6 +62,7 @@ class TestJSONFormatter:
         assert "env" in data
 
 
+@pytest.mark.unit
 class TestDevFormatter:
     """Tests for DevFormatter."""
 

@@ -60,6 +60,7 @@ def sample_trip():
     )
 
 
+@pytest.mark.unit
 @pytest.mark.asyncio
 class TestNotificationDispatch:
     """Test NotificationDispatch class."""

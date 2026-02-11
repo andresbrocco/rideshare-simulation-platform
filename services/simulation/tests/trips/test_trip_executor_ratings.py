@@ -97,6 +97,7 @@ def mock_osrm_client_for_ratings():
     return client
 
 
+@pytest.mark.unit
 class TestCompletedTripEmitsRatings:
     """Tests to verify TripExecutor emits rating events after trip completion."""
 
@@ -192,6 +193,7 @@ class TestCompletedTripEmitsRatings:
         )
 
 
+@pytest.mark.unit
 class TestCancelledTripNoRatings:
     """Tests to verify cancelled trips don't emit ratings."""
 
@@ -267,6 +269,7 @@ class TestCancelledTripNoRatings:
         assert len(kafka_rating_calls) == 0
 
 
+@pytest.mark.unit
 class TestRatingEventContent:
     """Tests for rating event content validation."""
 

@@ -48,6 +48,7 @@ def rider_agent(simpy_env, rider_dna, mock_kafka_producer):
     )
 
 
+@pytest.mark.unit
 class TestRiderAgentInit:
     def test_rider_agent_init(self, simpy_env, rider_dna, mock_kafka_producer):
         agent = RiderAgent(
@@ -68,6 +69,7 @@ class TestRiderAgentInit:
         assert rider_agent.rating_count == 0
 
 
+@pytest.mark.unit
 class TestRiderDNAImmutability:
     def test_rider_dna_immutability(self, rider_agent, rider_dna, dna_factory: DNAFactory):
         original_behavior = rider_dna.behavior_factor
@@ -79,6 +81,7 @@ class TestRiderDNAImmutability:
         assert rider_agent.dna.behavior_factor == original_behavior
 
 
+@pytest.mark.unit
 class TestRiderStatusTransitions:
     def test_rider_status_transition_offline_to_waiting(self, rider_agent):
         rider_agent.request_trip("trip_001")
@@ -105,6 +108,7 @@ class TestRiderStatusTransitions:
         assert rider_agent.active_trip is None
 
 
+@pytest.mark.unit
 class TestRiderStateManagement:
     def test_rider_location_update(self, rider_agent):
         rider_agent.update_location(-23.55, -46.63)
@@ -125,6 +129,7 @@ class TestRiderStateManagement:
         assert rider_agent.rating_count == 2
 
 
+@pytest.mark.unit
 class TestRiderSimpyProcess:
     def test_rider_agent_is_simpy_process(self, rider_agent, simpy_env):
         process = simpy_env.process(rider_agent.run())
@@ -132,6 +137,7 @@ class TestRiderSimpyProcess:
         simpy_env.run(until=1)
 
 
+@pytest.mark.unit
 class TestRiderDestinationSelection:
     def test_rider_frequent_destination_selection(self, rider_agent, rider_dna):
         random.seed(42)
@@ -149,6 +155,7 @@ class TestRiderDestinationSelection:
         assert frequent_count > 60
 
 
+@pytest.mark.unit
 class TestRiderZoneBasedGeneration:
     """Tests for zone-based coordinate generation."""
 

@@ -8,6 +8,7 @@ def traffic_model():
     return TrafficModel()
 
 
+@pytest.mark.unit
 class TestMorningRushHour:
     def test_morning_rush_peak(self, traffic_model):
         """Peak morning rush hour at 8:00 AM should have ~1.40 multiplier."""
@@ -20,6 +21,7 @@ class TestMorningRushHour:
         assert 1.0 < multiplier < 1.40
 
 
+@pytest.mark.unit
 class TestEveningRushHour:
     def test_evening_rush_peak(self, traffic_model):
         """Peak evening rush hour at 6:00 PM should have ~1.40 multiplier."""
@@ -32,6 +34,7 @@ class TestEveningRushHour:
         assert 1.0 < multiplier < 1.40
 
 
+@pytest.mark.unit
 class TestNightHours:
     def test_night_hours_peak(self, traffic_model):
         """Peak night hours at 2:00 AM should have ~0.85 multiplier."""
@@ -45,6 +48,7 @@ class TestNightHours:
         assert 0.85 <= multiplier <= 1.05
 
 
+@pytest.mark.unit
 class TestBaselineHours:
     def test_midday_baseline(self, traffic_model):
         """Midday at 1:00 PM should have ~1.0 baseline multiplier."""
@@ -57,6 +61,7 @@ class TestBaselineHours:
         assert 0.95 <= multiplier <= 1.10
 
 
+@pytest.mark.unit
 class TestSigmoidSmoothing:
     def test_sigmoid_smoothing_transition(self, traffic_model):
         """7:30 AM should show smooth transition into rush hour."""
@@ -71,6 +76,7 @@ class TestSigmoidSmoothing:
         assert 0.85 <= multiplier <= 1.45
 
 
+@pytest.mark.unit
 class TestMultiplierBounds:
     def test_multiplier_never_below_minimum(self, traffic_model):
         """Multiplier should never go below 0.85."""
@@ -85,6 +91,7 @@ class TestMultiplierBounds:
             assert multiplier <= 1.40, f"Hour {hour} has multiplier {multiplier} > 1.40"
 
 
+@pytest.mark.unit
 class TestApplyToRoute:
     def test_apply_multiplier_to_duration(self, traffic_model):
         """Applying 1.4x multiplier to 600s duration should give 840s."""

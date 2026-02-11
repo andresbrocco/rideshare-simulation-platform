@@ -35,6 +35,7 @@ def rider_repo(db_session):
     return RiderRepository(db_session)
 
 
+@pytest.mark.unit
 class TestDriverPersistence:
     def test_driver_persist_on_creation(
         self,
@@ -259,6 +260,7 @@ class TestDriverPersistence:
             assert loaded_agent.dna.first_name == driver_dna.first_name
 
 
+@pytest.mark.unit
 class TestRiderPersistence:
     def test_rider_persist_on_creation(
         self,

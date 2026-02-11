@@ -85,6 +85,8 @@ def create_mock_driver(
     return driver
 
 
+@pytest.mark.unit
+@pytest.mark.critical
 class TestMatchingServerInit:
     def test_matching_server_init(
         self,
@@ -110,6 +112,8 @@ class TestMatchingServerInit:
         assert server._pending_offers == {}
 
 
+@pytest.mark.unit
+@pytest.mark.critical
 class TestFindNearbyDrivers:
     @pytest.mark.asyncio
     async def test_find_nearby_drivers(
@@ -224,6 +228,8 @@ def create_dna_with_acceptance_rate(acceptance_rate: float) -> DriverDNA:
     )
 
 
+@pytest.mark.unit
+@pytest.mark.critical
 class TestRankDrivers:
     def test_rank_drivers_by_composite_score(
         self,
@@ -289,6 +295,8 @@ class TestRankDrivers:
         assert 0.9 <= score <= 0.95
 
 
+@pytest.mark.unit
+@pytest.mark.critical
 class TestSendOffer:
     def test_send_offer_to_top_candidate(
         self,
@@ -327,6 +335,8 @@ class TestSendOffer:
         assert trip.offer_sequence == 1
 
 
+@pytest.mark.unit
+@pytest.mark.critical
 class TestHandleOfferResponses:
     def test_handle_offer_accepted(
         self,
@@ -399,6 +409,8 @@ class TestHandleOfferResponses:
         assert accepted is False
 
 
+@pytest.mark.unit
+@pytest.mark.critical
 class TestOfferCycle:
     def test_handle_offer_rejected_cycles_to_next(
         self,
@@ -485,6 +497,8 @@ class TestOfferCycle:
         assert mock_notification_dispatch.send_driver_offer.call_count == 5
 
 
+@pytest.mark.unit
+@pytest.mark.critical
 class TestNoDriversAvailable:
     @pytest.mark.asyncio
     async def test_no_drivers_in_range(
@@ -511,6 +525,8 @@ class TestNoDriversAvailable:
         assert result == []
 
 
+@pytest.mark.unit
+@pytest.mark.critical
 class TestMatchFlow:
     @pytest.mark.asyncio
     async def test_match_flow_happy_path(
@@ -651,6 +667,8 @@ class TestMatchFlow:
         assert result is None
 
 
+@pytest.mark.unit
+@pytest.mark.critical
 class TestPuppetReOfferFlow:
     """Tests for puppet driver rejection continuing to next candidate."""
 
@@ -885,6 +903,8 @@ class TestPuppetReOfferFlow:
         assert trip.state == TripState.MATCHED
 
 
+@pytest.mark.unit
+@pytest.mark.critical
 class TestMatchingServerKafkaOnly:
     """Tests to verify MatchingServer emits trip state events to Kafka only, not Redis.
 
@@ -988,6 +1008,8 @@ class TestMatchingServerKafkaOnly:
         assert mock_kafka_producer.produce.called
 
 
+@pytest.mark.unit
+@pytest.mark.critical
 class TestRouteClearOnCancellation:
     """Tests for route clearing when trips are cancelled.
 
@@ -1102,6 +1124,8 @@ class TestRouteClearOnCancellation:
         assert not mock_redis_publisher.publish.called
 
 
+@pytest.mark.unit
+@pytest.mark.critical
 class TestBoundedTripHistory:
     """Tests for bounded trip history to prevent memory growth."""
 

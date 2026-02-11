@@ -78,7 +78,8 @@ addopts = [
 ]
 markers = [
     "unit: Unit tests (fast, isolated)",
-    "slow: Slow-running tests",
+    "slow: Slow-running tests (>1 second)",
+    "critical: Critical path tests (trip state, matching, events)",
 ]
 
 [tool.black]

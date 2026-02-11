@@ -13,6 +13,7 @@ from src.trip import TripState
 from tests.factories import DNAFactory
 
 
+@pytest.mark.unit
 class TestDatabaseCreation:
     """Test database creation."""
 
@@ -30,6 +31,7 @@ class TestDatabaseCreation:
         assert "simulation_metadata" in tables
 
 
+@pytest.mark.unit
 class TestDriversTable:
     """Test drivers table schema."""
 
@@ -53,6 +55,7 @@ class TestDriversTable:
         assert columns["id"]["primary_key"] == 1
 
 
+@pytest.mark.unit
 class TestRidersTable:
     """Test riders table schema."""
 
@@ -76,6 +79,7 @@ class TestRidersTable:
         assert columns["id"]["primary_key"] == 1
 
 
+@pytest.mark.unit
 class TestTripsTable:
     """Test trips table schema."""
 
@@ -109,6 +113,7 @@ class TestTripsTable:
         assert columns["trip_id"]["primary_key"] == 1
 
 
+@pytest.mark.unit
 class TestMetadataTable:
     """Test simulation metadata table."""
 
@@ -126,6 +131,7 @@ class TestMetadataTable:
         assert columns["key"]["primary_key"] == 1
 
 
+@pytest.mark.unit
 class TestDriverDNASerialization:
     """Test driver DNA JSON serialization."""
 
@@ -159,6 +165,7 @@ class TestDriverDNASerialization:
             assert retrieved_dna.vehicle_make == driver_dna.vehicle_make
 
 
+@pytest.mark.unit
 class TestRiderDNASerialization:
     """Test rider DNA JSON serialization."""
 
@@ -191,6 +198,7 @@ class TestRiderDNASerialization:
             assert retrieved_dna.payment_method_type == rider_dna.payment_method_type
 
 
+@pytest.mark.unit
 class TestDriverLocationStorage:
     """Test driver location tuple storage."""
 
@@ -219,6 +227,7 @@ class TestDriverLocationStorage:
             assert lon == -46.6544
 
 
+@pytest.mark.unit
 class TestTripStateEnumStorage:
     """Test trip state enum storage."""
 
@@ -250,6 +259,7 @@ class TestTripStateEnumStorage:
             assert TripState(retrieved.state) == TripState.MATCHED
 
 
+@pytest.mark.unit
 class TestIndexesCreated:
     """Test indexes exist for query performance."""
 
@@ -273,6 +283,7 @@ class TestIndexesCreated:
         assert "idx_trip_rider" in trip_index_names
 
 
+@pytest.mark.unit
 class TestSchemaMigrationSupport:
     """Test schema version tracking."""
 

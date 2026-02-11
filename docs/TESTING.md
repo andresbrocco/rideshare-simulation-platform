@@ -365,8 +365,9 @@ Integration tests run on GitHub Actions via `.github/workflows/integration-tests
 ## Test Markers
 
 **Simulation Service:**
-- `unit` - Unit tests (fast, isolated)
-- `slow` - Slow-running tests
+- `unit` - Unit tests (fast, isolated, no external dependencies)
+- `slow` - Slow-running tests (>1 second, typically SimPy simulations or large data operations)
+- `critical` - Critical path tests (trip state machine, matching, event schemas, Kafka producer, retry logic)
 
 **Integration Tests:**
 - `integration` - Integration tests (slower, external dependencies)
@@ -379,18 +380,34 @@ Integration tests run on GitHub Actions via `.github/workflows/integration-tests
 
 **Usage:**
 ```bash
-# Run only unit tests
+# Run all unit tests (from services/simulation/)
 ./venv/bin/pytest -m unit
+
+# Run fast unit tests only (exclude slow tests)
+./venv/bin/pytest -m "unit and not slow"
+
+# Run critical path tests only
+./venv/bin/pytest -m critical
+
+# Run slow tests only
+./venv/bin/pytest -m slow
+
+# Skip slow tests
+./venv/bin/pytest -m "not slow"
 
 # Run core pipeline tests (requires core profile)
 ./venv/bin/pytest -m core_pipeline
 
 # Run resilience tests (requires core + data-pipeline profiles)
 ./venv/bin/pytest -m resilience
-
-# Skip slow tests
-./venv/bin/pytest -m "not slow"
 ```
+
+**Marker Application Guidelines:**
+- All simulation unit tests have `@pytest.mark.unit`
+- Tests taking >1 second also have `@pytest.mark.slow`
+- Critical path tests (trip state, matching, events) also have `@pytest.mark.critical`
+- Markers are applied at class level (applies to all methods) or function level
+- Multiple markers can be combined (e.g., `@pytest.mark.unit` and `@pytest.mark.critical`)
 
 ---
 

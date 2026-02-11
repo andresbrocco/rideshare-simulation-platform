@@ -19,6 +19,8 @@ def mock_kafka_producer():
     return Mock()
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestRiderRequestTiming:
     """Test that riders request trips based on their DNA frequency settings.
 
@@ -60,6 +62,8 @@ class TestRiderRequestTiming:
         assert len(trip_requests) >= 2
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestRiderRequestCreatesTrip:
     def test_rider_request_creates_trip(
         self, simpy_env, mock_kafka_producer, dna_factory: DNAFactory
@@ -83,6 +87,8 @@ class TestRiderRequestCreatesTrip:
         simpy_env.run(until=20)
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestRiderPatienceTimeout:
     def test_rider_patience_timeout(self, simpy_env, mock_kafka_producer, dna_factory: DNAFactory):
         dna = dna_factory.rider_dna(avg_rides_per_week=100000, patience_threshold=180)
@@ -146,6 +152,8 @@ class TestRiderPatienceTimeout:
         assert event["cancellation_reason"] == "patience_timeout"
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestRiderMatchAccepted:
     def test_rider_match_accepted(self, simpy_env, mock_kafka_producer, dna_factory: DNAFactory):
         dna = dna_factory.rider_dna(avg_rides_per_week=100000)
@@ -215,6 +223,8 @@ class TestRiderMatchAccepted:
         simpy_env.run(until=20)
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestRiderTripCompletion:
     def test_rider_trip_completion(self, simpy_env, mock_kafka_producer, dna_factory: DNAFactory):
         dna = dna_factory.rider_dna(avg_rides_per_week=100000)

@@ -7,6 +7,7 @@ import pytest
 from src.sim_logging import get_logger, setup_logging
 
 
+@pytest.mark.unit
 class TestSetupLogging:
     """Tests for setup_logging function."""
 
@@ -36,6 +37,7 @@ class TestSetupLogging:
         assert urllib3_logger.level >= logging.WARNING
 
 
+@pytest.mark.unit
 class TestGetLogger:
     """Tests for get_logger function."""
 

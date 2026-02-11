@@ -7,6 +7,7 @@ import pytest
 from kafka.data_corruption import CorruptionType, DataCorruptor, get_corruptor
 
 
+@pytest.mark.unit
 class TestDataCorruptorInit:
     def test_default_rate_is_zero(self):
         corruptor = DataCorruptor()
@@ -35,6 +36,7 @@ class TestDataCorruptorInit:
         assert corruptor.corruption_rate == 0.0
 
 
+@pytest.mark.unit
 class TestShouldCorrupt:
     def test_never_corrupts_at_zero(self):
         corruptor = DataCorruptor(corruption_rate=0.0)
@@ -47,6 +49,7 @@ class TestShouldCorrupt:
         assert all(results)
 
 
+@pytest.mark.unit
 class TestCorruptionTypes:
     @pytest.fixture
     def sample_event(self):
@@ -142,6 +145,7 @@ class TestCorruptionTypes:
         assert parsed["fare"] < 0
 
 
+@pytest.mark.unit
 class TestTopicAwareCorruption:
     def test_gps_ping_corruption(self):
         event = {
@@ -174,6 +178,7 @@ class TestTopicAwareCorruption:
         assert parsed["rating"] == 10
 
 
+@pytest.mark.unit
 class TestFactoryFunction:
     def test_get_corruptor_returns_instance(self, monkeypatch):
         monkeypatch.setenv("MALFORMED_EVENT_RATE", "0.03")

@@ -35,6 +35,7 @@ def timestamp():
     return datetime.now().isoformat()
 
 
+@pytest.mark.unit
 def test_gps_ping_driver_should_publish(event_filter, timestamp):
     event = GPSPingEvent(
         entity_type="driver",
@@ -49,6 +50,7 @@ def test_gps_ping_driver_should_publish(event_filter, timestamp):
     assert event_filter.should_publish(event) is True
 
 
+@pytest.mark.unit
 def test_gps_ping_rider_should_publish(event_filter, timestamp):
     event = GPSPingEvent(
         entity_type="rider",
@@ -63,6 +65,7 @@ def test_gps_ping_rider_should_publish(event_filter, timestamp):
     assert event_filter.should_publish(event) is True
 
 
+@pytest.mark.unit
 def test_gps_ping_transform_reduced_fields(event_filter, timestamp):
     event = GPSPingEvent(
         entity_type="driver",
@@ -82,6 +85,7 @@ def test_gps_ping_transform_reduced_fields(event_filter, timestamp):
     assert message.trip_id == "trip-123"
 
 
+@pytest.mark.unit
 def test_trip_requested_should_publish(event_filter, timestamp):
     event = TripEvent(
         event_type="trip.requested",
@@ -99,6 +103,7 @@ def test_trip_requested_should_publish(event_filter, timestamp):
     assert event_filter.should_publish(event) is True
 
 
+@pytest.mark.unit
 def test_trip_matched_should_publish(event_filter, timestamp):
     event = TripEvent(
         event_type="trip.matched",
@@ -116,6 +121,7 @@ def test_trip_matched_should_publish(event_filter, timestamp):
     assert event_filter.should_publish(event) is True
 
 
+@pytest.mark.unit
 def test_trip_offer_sent_should_not_publish(event_filter, timestamp):
     event = TripEvent(
         event_type="trip.offer_sent",
@@ -134,6 +140,7 @@ def test_trip_offer_sent_should_not_publish(event_filter, timestamp):
     assert event_filter.should_publish(event) is False
 
 
+@pytest.mark.unit
 def test_trip_offer_expired_should_not_publish(event_filter, timestamp):
     event = TripEvent(
         event_type="trip.offer_expired",
@@ -152,6 +159,7 @@ def test_trip_offer_expired_should_not_publish(event_filter, timestamp):
     assert event_filter.should_publish(event) is False
 
 
+@pytest.mark.unit
 def test_trip_offer_rejected_should_not_publish(event_filter, timestamp):
     event = TripEvent(
         event_type="trip.offer_rejected",
@@ -170,6 +178,7 @@ def test_trip_offer_rejected_should_not_publish(event_filter, timestamp):
     assert event_filter.should_publish(event) is False
 
 
+@pytest.mark.unit
 def test_driver_status_should_publish(event_filter, timestamp):
     event = DriverStatusEvent(
         driver_id="driver-1",
@@ -182,6 +191,7 @@ def test_driver_status_should_publish(event_filter, timestamp):
     assert event_filter.should_publish(event) is True
 
 
+@pytest.mark.unit
 def test_surge_update_should_publish(event_filter, timestamp):
     event = SurgeUpdateEvent(
         zone_id="zone-1",
@@ -194,6 +204,7 @@ def test_surge_update_should_publish(event_filter, timestamp):
     assert event_filter.should_publish(event) is True
 
 
+@pytest.mark.unit
 def test_rating_event_should_not_publish(event_filter, timestamp):
     event = RatingEvent(
         trip_id="trip-1",
@@ -209,6 +220,7 @@ def test_rating_event_should_not_publish(event_filter, timestamp):
     assert event_filter.should_publish(event) is False
 
 
+@pytest.mark.unit
 def test_payment_event_should_not_publish(event_filter, timestamp):
     event = PaymentEvent(
         payment_id="pay-1",
@@ -226,6 +238,7 @@ def test_payment_event_should_not_publish(event_filter, timestamp):
     assert event_filter.should_publish(event) is False
 
 
+@pytest.mark.unit
 def test_driver_profile_event_should_publish(event_filter, timestamp):
     """Driver profile events should be published for immediate map visibility."""
     event = DriverProfileEvent(
@@ -247,6 +260,7 @@ def test_driver_profile_event_should_publish(event_filter, timestamp):
     assert event_filter.should_publish(event) is True
 
 
+@pytest.mark.unit
 def test_rider_profile_event_should_publish(event_filter, timestamp):
     """Rider profile events should be published for immediate map visibility."""
     event = RiderProfileEvent(
@@ -264,6 +278,7 @@ def test_rider_profile_event_should_publish(event_filter, timestamp):
     assert event_filter.should_publish(event) is True
 
 
+@pytest.mark.unit
 def test_transform_gps_to_driver_update(event_filter, timestamp):
     event_with_trip = GPSPingEvent(
         entity_type="driver",
@@ -301,6 +316,7 @@ def test_transform_gps_to_driver_update(event_filter, timestamp):
     assert message.trip_id is None
 
 
+@pytest.mark.unit
 def test_transform_trip_to_trip_update(event_filter, timestamp):
     event = TripEvent(
         event_type="trip.matched",
@@ -329,6 +345,7 @@ def test_transform_trip_to_trip_update(event_filter, timestamp):
     assert message.timestamp == timestamp
 
 
+@pytest.mark.unit
 def test_transform_driver_profile_to_driver_update(event_filter, timestamp):
     """Driver profile events should transform to DriverUpdateMessage at home location."""
     event = DriverProfileEvent(
@@ -358,6 +375,7 @@ def test_transform_driver_profile_to_driver_update(event_filter, timestamp):
     assert message.timestamp == timestamp
 
 
+@pytest.mark.unit
 def test_transform_rider_profile_to_rider_update(event_filter, timestamp):
     """Rider profile events should transform to RiderUpdateMessage at home location."""
     event = RiderProfileEvent(

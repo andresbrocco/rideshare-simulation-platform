@@ -10,6 +10,8 @@ from src.geo.osrm_client import (
     RouteResponse,
 )
 
+pytestmark = [pytest.mark.unit, pytest.mark.slow]
+
 
 @pytest.fixture
 def osrm_client() -> OSRMClient:
@@ -116,6 +118,8 @@ async def test_osrm_timeout(osrm_client: OSRMClient):
             await osrm_client.get_route(origin=(-23.55, -46.63), destination=(-23.56, -46.64))
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_route_cache_key_generation(osrm_client: OSRMClient):
     key1 = osrm_client._generate_cache_key((-23.55, -46.63), (-23.56, -46.64))
     key2 = osrm_client._generate_cache_key((-23.55, -46.63), (-23.56, -46.64))

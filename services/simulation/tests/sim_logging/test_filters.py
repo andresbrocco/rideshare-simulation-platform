@@ -7,6 +7,7 @@ import pytest
 from src.sim_logging import DefaultCorrelationFilter, PIIFilter
 
 
+@pytest.mark.unit
 class TestPIIFilter:
     """Tests for PIIFilter."""
 
@@ -59,6 +60,7 @@ class TestPIIFilter:
         assert "555-123-4567" not in record.msg
 
 
+@pytest.mark.unit
 class TestDefaultCorrelationFilter:
     """Tests for DefaultCorrelationFilter."""
 

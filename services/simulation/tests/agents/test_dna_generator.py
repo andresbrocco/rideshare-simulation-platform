@@ -10,12 +10,14 @@ from agents.dna_generator import generate_driver_dna, generate_rider_dna
 from agents.zone_validator import is_location_in_any_zone
 
 
+@pytest.mark.unit
 def test_generate_driver_dna_valid():
     """Test that generate_driver_dna returns a valid DriverDNA instance."""
     dna = generate_driver_dna()
     assert isinstance(dna, DriverDNA)
 
 
+@pytest.mark.unit
 def test_driver_home_location_in_zone():
     """Test all home locations are within a zone boundary."""
     for _ in range(20):
@@ -24,6 +26,7 @@ def test_driver_home_location_in_zone():
         assert is_location_in_any_zone(lat, lon), f"Location ({lat}, {lon}) not in any zone"
 
 
+@pytest.mark.unit
 def test_driver_acceptance_rate_range():
     """Test all acceptance_rate values are in [0.7, 0.95]."""
     for _ in range(100):
@@ -31,6 +34,7 @@ def test_driver_acceptance_rate_range():
         assert 0.7 <= dna.acceptance_rate <= 0.95
 
 
+@pytest.mark.unit
 def test_driver_response_time_range():
     """Test all response_time values are in [3.0, 12.0] seconds."""
     for _ in range(100):
@@ -38,6 +42,7 @@ def test_driver_response_time_range():
         assert 3.0 <= dna.response_time <= 12.0
 
 
+@pytest.mark.unit
 def test_driver_service_quality_range():
     """Test all service_quality values are in [0.6, 1.0]."""
     for _ in range(100):
@@ -45,6 +50,7 @@ def test_driver_service_quality_range():
         assert 0.6 <= dna.service_quality <= 1.0
 
 
+@pytest.mark.unit
 def test_driver_shift_preference_distribution():
     """Test shift_preference uses all enum values."""
     shifts = [generate_driver_dna().shift_preference for _ in range(200)]
@@ -54,6 +60,7 @@ def test_driver_shift_preference_distribution():
     assert all(isinstance(s, ShiftPreference) for s in shifts)
 
 
+@pytest.mark.unit
 def test_driver_vehicle_info_plausible():
     """Test vehicle info is plausible (valid makes, years 2015-2025)."""
     valid_makes = {"Volkswagen", "Fiat", "Chevrolet", "Toyota", "Honda", "Hyundai"}
@@ -65,6 +72,7 @@ def test_driver_vehicle_info_plausible():
         assert len(dna.vehicle_model) > 0
 
 
+@pytest.mark.unit
 def test_driver_license_plate_format():
     """Test license plates match ABC-1234 or ABC1D23 format."""
     old_pattern = re.compile(r"^[A-Z]{3}-\d{4}$")
@@ -78,6 +86,7 @@ def test_driver_license_plate_format():
         ), f"Invalid license plate format: {plate}"
 
 
+@pytest.mark.unit
 def test_driver_name_from_pool():
     """Test names come from predefined Brazilian name list."""
     first_names = set()
@@ -92,6 +101,7 @@ def test_driver_name_from_pool():
     assert len(last_names) >= 5, "Should have variety in last names"
 
 
+@pytest.mark.unit
 def test_driver_email_phone_generated():
     """Test email has valid format and phone has 11 digits."""
     email_pattern = re.compile(r"^[\w.-]+@[\w.-]+\.\w+$")
@@ -103,6 +113,7 @@ def test_driver_email_phone_generated():
         assert phone_pattern.match(dna.phone), f"Invalid phone: {dna.phone}"
 
 
+@pytest.mark.unit
 def test_driver_unique_ids():
     """Test no duplicate driver_id values (if exposed in future)."""
     dnas = [generate_driver_dna() for _ in range(100)]
@@ -112,6 +123,7 @@ def test_driver_unique_ids():
     assert len(identifiers) == len(set(identifiers))
 
 
+@pytest.mark.unit
 def test_driver_preferred_zones_valid():
     """Test preferred_zones contains 1-3 zone IDs."""
     for _ in range(20):
@@ -125,12 +137,14 @@ def test_driver_preferred_zones_valid():
 # ============================================================================
 
 
+@pytest.mark.unit
 def test_generate_rider_dna_valid():
     """Test that generate_rider_dna returns a valid RiderDNA instance."""
     dna = generate_rider_dna()
     assert isinstance(dna, RiderDNA)
 
 
+@pytest.mark.unit
 def test_rider_home_location_in_zone():
     """Test all home locations are within a zone boundary."""
     for _ in range(20):
@@ -139,6 +153,7 @@ def test_rider_home_location_in_zone():
         assert is_location_in_any_zone(lat, lon), f"Location ({lat}, {lon}) not in any zone"
 
 
+@pytest.mark.unit
 def test_rider_frequent_destinations_count():
     """Test riders have 2-5 frequent destinations."""
     for _ in range(50):
@@ -146,6 +161,7 @@ def test_rider_frequent_destinations_count():
         assert 2 <= len(dna.frequent_destinations) <= 5
 
 
+@pytest.mark.unit
 def test_rider_destinations_within_20km():
     """Test all destinations are within 20km of home location."""
     for _ in range(50):
@@ -157,6 +173,7 @@ def test_rider_destinations_within_20km():
             assert distance <= 20.0, f"Destination {distance:.1f}km from home (max 20km)"
 
 
+@pytest.mark.unit
 def test_rider_destinations_minimum_distance():
     """Test destinations are at least 0.8km from home to avoid very short trips."""
     for _ in range(50):
@@ -168,6 +185,7 @@ def test_rider_destinations_minimum_distance():
             assert distance >= 0.5, f"Destination only {distance:.2f}km from home (min ~0.8km)"
 
 
+@pytest.mark.unit
 def test_rider_destination_weights_sum():
     """Test destination weights are valid and sum to approximately 1.0."""
     for _ in range(30):
@@ -178,6 +196,7 @@ def test_rider_destination_weights_sum():
         assert abs(total - 1.0) < 0.01, f"Weights sum to {total}, expected ~1.0"
 
 
+@pytest.mark.unit
 def test_rider_patience_threshold_range():
     """Test patience threshold is in valid range [120, 300] seconds."""
     for _ in range(100):
@@ -185,6 +204,7 @@ def test_rider_patience_threshold_range():
         assert 120 <= dna.patience_threshold <= 300
 
 
+@pytest.mark.unit
 def test_rider_max_surge_range():
     """Test max surge multiplier is in valid range [1.5, 3.0]."""
     for _ in range(100):
@@ -192,6 +212,7 @@ def test_rider_max_surge_range():
         assert 1.5 <= dna.max_surge_multiplier <= 3.0
 
 
+@pytest.mark.unit
 def test_rider_behavior_factor_range():
     """Test behavior factor is in valid range [0.5, 1.0]."""
     for _ in range(100):
@@ -199,6 +220,7 @@ def test_rider_behavior_factor_range():
         assert 0.5 <= dna.behavior_factor <= 1.0
 
 
+@pytest.mark.unit
 def test_rider_avg_rides_per_week_range():
     """Test avg_rides_per_week is in realistic range [1, 15]."""
     for _ in range(100):
@@ -206,6 +228,7 @@ def test_rider_avg_rides_per_week_range():
         assert 1 <= dna.avg_rides_per_week <= 15
 
 
+@pytest.mark.unit
 def test_rider_payment_method_valid():
     """Test payment method type is valid."""
     valid_types = {"credit_card", "digital_wallet"}
@@ -214,6 +237,7 @@ def test_rider_payment_method_valid():
         assert dna.payment_method_type in valid_types
 
 
+@pytest.mark.unit
 def test_rider_payment_masked_format():
     """Test masked payment info has correct format."""
     credit_card_pattern = re.compile(r"^\*{4}\d{4}$")
@@ -231,6 +255,7 @@ def test_rider_payment_masked_format():
             ), f"Invalid wallet: {dna.payment_method_masked}"
 
 
+@pytest.mark.unit
 def test_rider_name_from_pool():
     """Test names are selected from Brazilian name pool."""
     first_names = set()
@@ -245,6 +270,7 @@ def test_rider_name_from_pool():
     assert len(last_names) >= 5, "Should have variety in last names"
 
 
+@pytest.mark.unit
 def test_rider_email_phone_generated():
     """Test email has valid format and phone has 11 digits."""
     email_pattern = re.compile(r"^[\w.-]+@[\w.-]+\.\w+$")
@@ -256,6 +282,7 @@ def test_rider_email_phone_generated():
         assert phone_pattern.match(dna.phone), f"Invalid phone: {dna.phone}"
 
 
+@pytest.mark.unit
 def test_rider_time_affinity_optional():
     """Test time affinity is included for some destinations."""
     has_affinity = False
@@ -277,6 +304,7 @@ def test_rider_time_affinity_optional():
     assert has_no_affinity, "Some destinations should have no time affinity"
 
 
+@pytest.mark.unit
 def test_rider_payment_method_distribution():
     """Test credit card is more common than digital wallet (~70/30)."""
     credit_count = 0

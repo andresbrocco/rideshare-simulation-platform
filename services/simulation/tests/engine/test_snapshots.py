@@ -7,6 +7,7 @@ import pytest
 from src.engine.snapshots import AgentSnapshot, SimulationSnapshot, TripSnapshot
 
 
+@pytest.mark.unit
 class TestAgentSnapshotImmutability:
     """Tests for AgentSnapshot frozen dataclass."""
 
@@ -92,6 +93,7 @@ class TestAgentSnapshotImmutability:
         assert snapshot.type == "rider"
 
 
+@pytest.mark.unit
 class TestAgentSnapshotSerialization:
     """Tests for AgentSnapshot serialization to dict."""
 
@@ -135,6 +137,7 @@ class TestAgentSnapshotSerialization:
         assert set(data.keys()) == expected_keys
 
 
+@pytest.mark.unit
 class TestTripSnapshotImmutability:
     """Tests for TripSnapshot frozen dataclass."""
 
@@ -201,6 +204,7 @@ class TestTripSnapshotImmutability:
         assert snapshot.state == "REQUESTED"
 
 
+@pytest.mark.unit
 class TestTripSnapshotSerialization:
     """Tests for TripSnapshot serialization to dict."""
 
@@ -243,6 +247,7 @@ class TestTripSnapshotSerialization:
             assert data["created_at"] == created
 
 
+@pytest.mark.unit
 class TestSimulationSnapshotImmutability:
     """Tests for SimulationSnapshot frozen dataclass."""
 
@@ -385,6 +390,7 @@ class TestSimulationSnapshotImmutability:
         assert isinstance(snapshot.active_trips, tuple)
 
 
+@pytest.mark.unit
 class TestSimulationSnapshotSerialization:
     """Tests for SimulationSnapshot serialization to dict."""
 

@@ -42,6 +42,7 @@ def valid_trip_event():
     }
 
 
+@pytest.mark.unit
 def test_registry_client_init(sr_config):
     with patch("kafka.schema_registry.SchemaRegistryClient") as mock_client:
         registry = SchemaRegistry(sr_config)
@@ -49,6 +50,7 @@ def test_registry_client_init(sr_config):
         assert registry is not None
 
 
+@pytest.mark.unit
 def test_register_schema(sr_config, trip_schema):
     with patch("kafka.schema_registry.SchemaRegistryClient") as mock_client_class:
         mock_client = Mock()
@@ -63,6 +65,7 @@ def test_register_schema(sr_config, trip_schema):
         mock_client.register_schema.assert_called_once()
 
 
+@pytest.mark.unit
 def test_register_schema_idempotent(sr_config, trip_schema):
     with patch("kafka.schema_registry.SchemaRegistryClient") as mock_client_class:
         mock_client = Mock()
@@ -78,6 +81,7 @@ def test_register_schema_idempotent(sr_config, trip_schema):
         assert schema_id_1 == schema_id_2 == 12345
 
 
+@pytest.mark.unit
 def test_get_schema_by_id(sr_config, trip_schema):
     with patch("kafka.schema_registry.SchemaRegistryClient") as mock_client_class:
         mock_client = Mock()
@@ -94,6 +98,7 @@ def test_get_schema_by_id(sr_config, trip_schema):
         mock_client.get_schema.assert_called_once_with(12345)
 
 
+@pytest.mark.unit
 def test_schema_caching(sr_config, trip_schema):
     with patch("kafka.schema_registry.SchemaRegistryClient") as mock_client_class:
         mock_client = Mock()
@@ -112,6 +117,7 @@ def test_schema_caching(sr_config, trip_schema):
         mock_client.get_schema.assert_called_once_with(12345)
 
 
+@pytest.mark.unit
 def test_validate_message_valid(sr_config, trip_schema, valid_trip_event):
     with patch("kafka.schema_registry.SchemaRegistryClient"):
         registry = SchemaRegistry(sr_config)
@@ -121,6 +127,7 @@ def test_validate_message_valid(sr_config, trip_schema, valid_trip_event):
         assert result is True
 
 
+@pytest.mark.unit
 def test_validate_message_invalid(sr_config, trip_schema):
     with patch("kafka.schema_registry.SchemaRegistryClient"):
         registry = SchemaRegistry(sr_config)
@@ -135,6 +142,7 @@ def test_validate_message_invalid(sr_config, trip_schema):
             registry.validate_message(invalid_event, schema_str)
 
 
+@pytest.mark.unit
 def test_validate_message_type_mismatch(sr_config, trip_schema):
     with patch("kafka.schema_registry.SchemaRegistryClient"):
         registry = SchemaRegistry(sr_config)
@@ -152,6 +160,7 @@ def test_validate_message_type_mismatch(sr_config, trip_schema):
             registry.validate_message(invalid_event, schema_str)
 
 
+@pytest.mark.unit
 def test_check_compatibility(sr_config, trip_schema):
     with patch("kafka.schema_registry.SchemaRegistryClient") as mock_client_class:
         mock_client = Mock()
@@ -167,6 +176,7 @@ def test_check_compatibility(sr_config, trip_schema):
         mock_client.test_compatibility.assert_called_once()
 
 
+@pytest.mark.unit
 def test_check_compatibility_incompatible(sr_config, trip_schema):
     with patch("kafka.schema_registry.SchemaRegistryClient") as mock_client_class:
         mock_client = Mock()
@@ -190,6 +200,7 @@ def test_check_compatibility_incompatible(sr_config, trip_schema):
         assert is_compatible is False
 
 
+@pytest.mark.unit
 def test_get_latest_schema_version(sr_config, trip_schema):
     with patch("kafka.schema_registry.SchemaRegistryClient") as mock_client_class:
         mock_client = Mock()

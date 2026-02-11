@@ -53,6 +53,7 @@ def test_client_with_snapshot(
 WS_AUTH_HEADERS = {"sec-websocket-protocol": "apikey.test-api-key"}
 
 
+@pytest.mark.unit
 def test_websocket_connect_success(test_client_with_snapshot, mock_snapshot_manager):
     """Successfully connects with valid API key via protocol header."""
     with test_client_with_snapshot.websocket_connect("/ws", headers=WS_AUTH_HEADERS) as websocket:
@@ -63,6 +64,7 @@ def test_websocket_connect_success(test_client_with_snapshot, mock_snapshot_mana
         assert "surge" in data["data"]
 
 
+@pytest.mark.unit
 def test_websocket_connect_invalid_key(test_client_with_snapshot):
     """Rejects connection with invalid API key."""
     with (
@@ -74,6 +76,7 @@ def test_websocket_connect_invalid_key(test_client_with_snapshot):
         pass
 
 
+@pytest.mark.unit
 def test_websocket_connect_missing_key(test_client_with_snapshot):
     """Rejects connection with missing API key."""
     with (
@@ -83,6 +86,7 @@ def test_websocket_connect_missing_key(test_client_with_snapshot):
         pass
 
 
+@pytest.mark.unit
 def test_websocket_sends_snapshot(test_client_with_snapshot, mock_snapshot_manager):
     """Sends snapshot immediately on connection."""
     with test_client_with_snapshot.websocket_connect("/ws", headers=WS_AUTH_HEADERS) as websocket:
@@ -91,6 +95,7 @@ def test_websocket_sends_snapshot(test_client_with_snapshot, mock_snapshot_manag
         mock_snapshot_manager.get_snapshot.assert_called_once()
 
 
+@pytest.mark.unit
 def test_websocket_snapshot_includes_drivers(test_client_with_snapshot, mock_snapshot_manager):
     """Snapshot includes driver data."""
     with test_client_with_snapshot.websocket_connect("/ws", headers=WS_AUTH_HEADERS) as websocket:
@@ -99,6 +104,7 @@ def test_websocket_snapshot_includes_drivers(test_client_with_snapshot, mock_sna
         assert data["data"]["drivers"][0]["driver_id"] == "driver-1"
 
 
+@pytest.mark.unit
 def test_websocket_snapshot_includes_trips(test_client_with_snapshot, mock_snapshot_manager):
     """Snapshot includes trip data."""
     with test_client_with_snapshot.websocket_connect("/ws", headers=WS_AUTH_HEADERS) as websocket:
@@ -107,6 +113,7 @@ def test_websocket_snapshot_includes_trips(test_client_with_snapshot, mock_snaps
         assert data["data"]["trips"][0]["trip_id"] == "trip-1"
 
 
+@pytest.mark.unit
 def test_websocket_snapshot_includes_surge(test_client_with_snapshot, mock_snapshot_manager):
     """Snapshot includes surge pricing data."""
     with test_client_with_snapshot.websocket_connect("/ws", headers=WS_AUTH_HEADERS) as websocket:
@@ -115,6 +122,7 @@ def test_websocket_snapshot_includes_surge(test_client_with_snapshot, mock_snaps
         assert data["data"]["surge"]["zone-2"] == 1.0
 
 
+@pytest.mark.unit
 def test_websocket_streams_updates(test_client_with_snapshot, mock_snapshot_manager):
     """WebSocket can send and receive messages."""
     with test_client_with_snapshot.websocket_connect("/ws", headers=WS_AUTH_HEADERS) as websocket:
@@ -122,6 +130,7 @@ def test_websocket_streams_updates(test_client_with_snapshot, mock_snapshot_mana
         assert data["type"] == "snapshot"
 
 
+@pytest.mark.unit
 def test_websocket_multiple_clients(test_client_with_snapshot, mock_snapshot_manager):
     """Supports multiple concurrent WebSocket clients."""
     with (
@@ -134,6 +143,7 @@ def test_websocket_multiple_clients(test_client_with_snapshot, mock_snapshot_man
         assert data2["type"] == "snapshot"
 
 
+@pytest.mark.unit
 def test_websocket_disconnect_graceful(test_client_with_snapshot, mock_snapshot_manager):
     """Handles client disconnection gracefully."""
     with test_client_with_snapshot.websocket_connect("/ws", headers=WS_AUTH_HEADERS) as websocket:
@@ -141,6 +151,7 @@ def test_websocket_disconnect_graceful(test_client_with_snapshot, mock_snapshot_
         assert data["type"] == "snapshot"
 
 
+@pytest.mark.unit
 def test_websocket_reconnect(test_client_with_snapshot, mock_snapshot_manager):
     """Client can reconnect after disconnection."""
     with test_client_with_snapshot.websocket_connect("/ws", headers=WS_AUTH_HEADERS) as websocket:
@@ -152,6 +163,7 @@ def test_websocket_reconnect(test_client_with_snapshot, mock_snapshot_manager):
         assert data["type"] == "snapshot"
 
 
+@pytest.mark.unit
 class TestExtractApiKey:
     """Tests for extract_api_key helper function."""
 

@@ -38,6 +38,7 @@ def running_loop_in_thread():
     loop.close()
 
 
+@pytest.mark.unit
 class TestRunCoroutineSafe:
     def test_run_coroutine_safe_with_valid_loop(self, running_loop_in_thread):
         """When provided a running event loop, should schedule via run_coroutine_threadsafe."""

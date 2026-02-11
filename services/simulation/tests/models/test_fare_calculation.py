@@ -3,6 +3,7 @@ import pytest
 from src.fare import FareBreakdown, FareCalculator
 
 
+@pytest.mark.unit
 class TestFareCalculator:
     @pytest.fixture
     def calculator(self):

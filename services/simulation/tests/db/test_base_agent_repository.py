@@ -11,6 +11,7 @@ from src.db.schema import Driver, Rider
 from tests.factories import DNAFactory
 
 
+@pytest.mark.unit
 class TestBaseAgentRepositoryGenericBehavior:
     """Test that both repositories share identical behavior through base class."""
 
@@ -35,6 +36,7 @@ class TestBaseAgentRepositoryGenericBehavior:
         assert RiderRepository.model_class is Rider
 
 
+@pytest.mark.unit
 class TestBaseAgentRepositoryPolymorphism:
     """Test that both repos work interchangeably through base class interface."""
 
@@ -116,6 +118,7 @@ class TestBaseAgentRepositoryPolymorphism:
             assert all(isinstance(r, Rider) for r in riders)
 
 
+@pytest.mark.unit
 class TestBaseAgentRepositoryTypeIsolation:
     """Test that driver and rider data remain isolated."""
 
@@ -154,6 +157,7 @@ class TestBaseAgentRepositoryTypeIsolation:
             assert result is None
 
 
+@pytest.mark.unit
 class TestBaseAgentRepositoryExport:
     """Test that BaseAgentRepository is properly exported."""
 

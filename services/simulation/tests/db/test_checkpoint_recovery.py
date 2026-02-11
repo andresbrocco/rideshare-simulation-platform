@@ -15,6 +15,8 @@ from src.trip import TripState
 from tests.factories import DNAFactory
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestCheckpointMetadata:
     """Tests for checkpoint metadata operations."""
 
@@ -65,6 +67,8 @@ class TestCheckpointMetadata:
             assert info["checkpoint_version"] == "1.0.0"
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestCheckpointAgents:
     """Tests for checkpoint agent persistence."""
 
@@ -144,6 +148,8 @@ class TestCheckpointAgents:
             assert rider["dna"]["patience_threshold"] == 180
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestCheckpointTrips:
     """Tests for checkpoint trip persistence."""
 
@@ -237,6 +243,8 @@ class TestCheckpointTrips:
             assert trip.driver_id == "d1"
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestCheckpointRouteCache:
     """Tests for checkpoint route cache persistence."""
 
@@ -302,6 +310,8 @@ class TestCheckpointRouteCache:
             assert cached["duration"] == 450.0
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestCheckpointAtomicity:
     """Tests for checkpoint atomicity."""
 
@@ -365,6 +375,8 @@ class TestCheckpointAtomicity:
             assert rider_repo.get("r1") is None  # Rider never created
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestCleanVsDirtyCheckpoint:
     """Tests for clean vs dirty checkpoint detection."""
 
@@ -549,6 +561,8 @@ class TestCleanVsDirtyCheckpoint:
             assert info["in_flight_trips"] == 3
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestCheckpointRecovery:
     """Tests for checkpoint recovery scenarios."""
 
@@ -638,6 +652,8 @@ class TestCheckpointRecovery:
             assert checkpoint is None
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestLoadCheckpointMetadata:
     """Tests for loading checkpoint metadata."""
 
@@ -667,6 +683,8 @@ class TestLoadCheckpointMetadata:
             assert checkpoint["metadata"]["status"] == "PAUSED"
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestHasCheckpoint:
     """Tests for has_checkpoint method."""
 
@@ -699,6 +717,8 @@ class TestHasCheckpoint:
             assert manager.has_checkpoint() is False
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestCheckpointError:
     """Tests for CheckpointError exception."""
 

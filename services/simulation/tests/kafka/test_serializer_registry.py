@@ -55,6 +55,7 @@ def schema_base_path(tmp_path):
     return schemas_dir
 
 
+@pytest.mark.unit
 class TestSerializerRegistryInitialization:
     """Tests for SerializerRegistry initialization."""
 
@@ -104,6 +105,7 @@ class TestSerializerRegistryInitialization:
         assert SerializerRegistry.is_enabled() is False
 
 
+@pytest.mark.unit
 class TestSerializerRegistryGetSerializer:
     """Tests for get_serializer method."""
 
@@ -165,6 +167,7 @@ class TestSerializerRegistryGetSerializer:
             assert serializer is not None, f"Serializer for {topic} should not be None"
 
 
+@pytest.mark.unit
 class TestSerializerRegistryDisable:
     """Tests for disable functionality."""
 
@@ -201,6 +204,7 @@ class TestSerializerRegistryDisable:
         assert serializer is None
 
 
+@pytest.mark.unit
 class TestSerializerRegistryReset:
     """Tests for reset functionality."""
 
@@ -220,6 +224,7 @@ class TestSerializerRegistryReset:
         assert SerializerRegistry.is_enabled() is False
 
 
+@pytest.mark.unit
 class TestSerializerRegistrySingleton:
     """Tests for singleton pattern."""
 
@@ -236,6 +241,7 @@ class TestSerializerRegistrySingleton:
         assert instance1 is instance2
 
 
+@pytest.mark.unit
 class TestSerializerRegistryGracefulDegradation:
     """Tests for graceful degradation scenarios."""
 

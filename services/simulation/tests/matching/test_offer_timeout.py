@@ -39,12 +39,16 @@ def sample_trip():
     )
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_offer_timeout_manager_init(env, mock_kafka_producer):
     manager = OfferTimeoutManager(env, mock_kafka_producer, timeout_seconds=15)
     assert manager.timeout_seconds == 15
     assert manager.pending_offers == {}
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_track_pending_offer(timeout_manager, sample_trip):
     timeout_manager.start_offer_timeout(sample_trip, "driver1", 1)
     assert "trip123" in timeout_manager.pending_offers
@@ -55,6 +59,8 @@ def test_track_pending_offer(timeout_manager, sample_trip):
     assert pending.timeout_process is not None
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_offer_expires_after_timeout(env, mock_kafka_producer, sample_trip):
     manager = OfferTimeoutManager(env, mock_kafka_producer, timeout_seconds=15)
     manager.start_offer_timeout(sample_trip, "driver1", 1)
@@ -72,6 +78,8 @@ def test_offer_expires_after_timeout(env, mock_kafka_producer, sample_trip):
     assert "trip123" not in manager.pending_offers
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_offer_accepted_before_timeout(env, mock_kafka_producer, sample_trip):
     manager = OfferTimeoutManager(env, mock_kafka_producer, timeout_seconds=15)
     manager.start_offer_timeout(sample_trip, "driver1", 1)
@@ -84,6 +92,8 @@ def test_offer_accepted_before_timeout(env, mock_kafka_producer, sample_trip):
     assert "trip123" not in manager.pending_offers
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_offer_rejected_before_timeout(env, mock_kafka_producer, sample_trip):
     manager = OfferTimeoutManager(env, mock_kafka_producer, timeout_seconds=15)
     manager.start_offer_timeout(sample_trip, "driver1", 1)
@@ -96,6 +106,8 @@ def test_offer_rejected_before_timeout(env, mock_kafka_producer, sample_trip):
     assert "trip123" not in manager.pending_offers
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_increment_offer_sequence_on_expire(env, mock_kafka_producer):
     trip = Trip(
         trip_id="trip123",
@@ -119,6 +131,8 @@ def test_increment_offer_sequence_on_expire(env, mock_kafka_producer):
     assert call_args["offer_sequence"] == 1
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_concurrent_offer_invalidation(env, mock_kafka_producer, sample_trip):
     manager = OfferTimeoutManager(env, mock_kafka_producer, timeout_seconds=15)
     manager.start_offer_timeout(sample_trip, "driver1", 1)
@@ -131,6 +145,8 @@ def test_concurrent_offer_invalidation(env, mock_kafka_producer, sample_trip):
     assert "trip123" not in manager.pending_offers
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_multiple_pending_offers(env, mock_kafka_producer):
     manager = OfferTimeoutManager(env, mock_kafka_producer, timeout_seconds=15)
 
@@ -189,6 +205,8 @@ def test_multiple_pending_offers(env, mock_kafka_producer):
     assert trip_ids == {"trip1", "trip2", "trip3"}
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_clear_offer_on_match(env, mock_kafka_producer, sample_trip):
     manager = OfferTimeoutManager(env, mock_kafka_producer, timeout_seconds=15)
     manager.start_offer_timeout(sample_trip, "driver1", 1)
@@ -201,6 +219,8 @@ def test_clear_offer_on_match(env, mock_kafka_producer, sample_trip):
     assert "trip123" not in manager.pending_offers
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_simpy_timeout_integration(env, mock_kafka_producer, sample_trip):
     manager = OfferTimeoutManager(env, mock_kafka_producer, timeout_seconds=15)
     manager.start_offer_timeout(sample_trip, "driver1", 1)
@@ -212,6 +232,8 @@ def test_simpy_timeout_integration(env, mock_kafka_producer, sample_trip):
     mock_kafka_producer.produce.assert_called_once()
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 def test_expired_offer_emits_event(env, mock_kafka_producer, sample_trip):
     manager = OfferTimeoutManager(env, mock_kafka_producer, timeout_seconds=15)
     manager.start_offer_timeout(sample_trip, "driver1", 1)

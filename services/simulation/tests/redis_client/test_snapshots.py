@@ -6,6 +6,8 @@ import redis.asyncio as aioredis
 
 from redis_client.snapshots import SNAPSHOT_TTL, StateSnapshotManager
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def mock_redis():

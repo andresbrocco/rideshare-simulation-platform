@@ -13,6 +13,7 @@ from events.schemas import (
 )
 
 
+@pytest.mark.unit
 class TestCorrelationFields:
     """Test that events have proper correlation fields."""
 
@@ -138,6 +139,7 @@ class TestCorrelationFields:
         assert event.correlation_id == "trip-123"
 
 
+@pytest.mark.unit
 class TestSessionIdConsistency:
     """Test that session IDs remain consistent across events."""
 
@@ -185,6 +187,7 @@ class TestSessionIdConsistency:
         assert trip_event.session_id == gps_event.session_id == status_event.session_id
 
 
+@pytest.mark.unit
 class TestCorrelationChain:
     """Test causation chain for trip events."""
 
@@ -258,6 +261,7 @@ class TestCorrelationChain:
         assert complete_event.causation_id == str(match_event.event_id)
 
 
+@pytest.mark.unit
 class TestEventSerialization:
     """Test that correlation fields serialize correctly."""
 

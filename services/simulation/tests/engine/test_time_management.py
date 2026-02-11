@@ -27,12 +27,14 @@ def time_manager(mock_env, fixed_start_time):
     return TimeManager(fixed_start_time, mock_env)
 
 
+@pytest.mark.unit
 class TestTimeManagerInit:
     def test_time_manager_init(self, time_manager, fixed_start_time):
         """Initializes with simulation start time."""
         assert time_manager._simulation_start_time == fixed_start_time
 
 
+@pytest.mark.unit
 class TestCurrentTime:
     def test_current_time_at_zero(self, time_manager, fixed_start_time):
         """Returns start time when env.now=0."""
@@ -54,6 +56,7 @@ class TestCurrentTime:
         assert current == expected
 
 
+@pytest.mark.unit
 class TestTimestampFormatting:
     def test_format_timestamp_iso8601(self, time_manager):
         """Formats timestamp as ISO 8601 UTC."""
@@ -69,6 +72,7 @@ class TestTimestampFormatting:
         assert "2025-08-13" in formatted
 
 
+@pytest.mark.unit
 class TestTimeConversions:
     def test_simulated_seconds_to_datetime(self, time_manager, fixed_start_time):
         """Converts SimPy seconds to datetime."""
@@ -83,6 +87,7 @@ class TestTimeConversions:
         assert seconds == 10800
 
 
+@pytest.mark.unit
 class TestElapsedTime:
     def test_elapsed_time(self, time_manager, mock_env):
         """Calculates elapsed simulation time."""
@@ -91,6 +96,7 @@ class TestElapsedTime:
         assert elapsed == timedelta(seconds=5400)
 
 
+@pytest.mark.unit
 class TestDayCalculations:
     def test_simulation_day_number(self, time_manager, mock_env):
         """Gets current simulation day (0-indexed)."""
@@ -111,6 +117,7 @@ class TestDayCalculations:
         assert time_of_day == 0
 
 
+@pytest.mark.unit
 class TestBusinessHours:
     def test_is_business_hours_true(self, time_manager, mock_env):
         """Checks if current time is business hours (9 AM - 6 PM, Mon-Fri)."""
@@ -131,6 +138,7 @@ class TestBusinessHours:
         assert is_business is False
 
 
+@pytest.mark.unit
 class TestDurationFormatting:
     def test_format_duration_complex(self, time_manager):
         """Formats duration as human-readable."""

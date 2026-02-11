@@ -7,6 +7,7 @@ from agents.dna import DriverDNA, RiderDNA
 from tests.factories import DNAFactory
 
 
+@pytest.mark.unit
 class TestDriverDNA:
     """Test DriverDNA model."""
 
@@ -50,6 +51,7 @@ class TestDriverDNA:
         assert dna.shift_preference == "afternoon"
 
 
+@pytest.mark.unit
 class TestRiderDNA:
     """Test RiderDNA model."""
 

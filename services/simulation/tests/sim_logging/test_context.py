@@ -7,6 +7,7 @@ import pytest
 from src.sim_logging import log_context, log_trip_context
 
 
+@pytest.mark.unit
 class TestLogContext:
     """Tests for log_context context manager."""
 
@@ -42,6 +43,7 @@ class TestLogContext:
         assert record.rider_id == "rider-456"
 
 
+@pytest.mark.unit
 class TestLogTripContext:
     """Tests for log_trip_context context manager."""
 

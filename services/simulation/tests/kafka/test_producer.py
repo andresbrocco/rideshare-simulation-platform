@@ -1,8 +1,12 @@
 from unittest.mock import Mock, patch
 
+import pytest
+
 from kafka.producer import KafkaProducer
 
 
+@pytest.mark.unit
+@pytest.mark.critical
 class TestKafkaProducer:
     def test_producer_init(self):
         config = {"bootstrap.servers": "localhost:9092", "client.id": "test-producer"}
@@ -101,6 +105,8 @@ class TestKafkaProducer:
                 assert call_args[0][0] == 0
 
 
+@pytest.mark.unit
+@pytest.mark.critical
 class TestKafkaProducerReliability:
     """Tests for Kafka producer reliability features.
 

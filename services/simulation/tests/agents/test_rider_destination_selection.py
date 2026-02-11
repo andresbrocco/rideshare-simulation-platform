@@ -18,6 +18,7 @@ def dna_factory():
     return DNAFactory(seed=42)
 
 
+@pytest.mark.unit
 class TestDestinationFromHome:
     def test_destination_from_home_frequent(self, simpy_env, dna_factory, mock_kafka_producer):
         random.seed(42)
@@ -80,6 +81,7 @@ class TestDestinationFromHome:
         assert random_count > 10
 
 
+@pytest.mark.unit
 class TestDestinationFromNonHome:
     def test_destination_from_nonhome_return_home(
         self, simpy_env, dna_factory, mock_kafka_producer
@@ -174,6 +176,7 @@ class TestDestinationFromNonHome:
         assert random_count > 5
 
 
+@pytest.mark.unit
 class TestDestinationWeightedSelection:
     def test_destination_weighted_selection(self, simpy_env, dna_factory, mock_kafka_producer):
         random.seed(42)
@@ -224,6 +227,7 @@ class TestDestinationWeightedSelection:
             assert pytest.approx(mall_ratio, abs=0.1) == 0.2
 
 
+@pytest.mark.unit
 class TestDestinationTimeAffinity:
     def test_destination_time_affinity_match(self, simpy_env, dna_factory, mock_kafka_producer):
         random.seed(42)
@@ -318,6 +322,7 @@ class TestDestinationTimeAffinity:
             assert pytest.approx(work_ratio, abs=0.15) == 0.5
 
 
+@pytest.mark.unit
 class TestDestinationWeightNormalization:
     def test_destination_weight_normalization(self, simpy_env, dna_factory, mock_kafka_producer):
         random.seed(42)
@@ -361,6 +366,7 @@ class TestDestinationWeightNormalization:
             assert pytest.approx(gym_ratio, abs=0.1) == 0.4
 
 
+@pytest.mark.unit
 class TestDestinationRandomBounds:
     def test_destination_random_within_bounds(self, simpy_env, dna_factory, mock_kafka_producer):
         random.seed(42)
@@ -395,6 +401,7 @@ class TestDestinationRandomBounds:
             assert -46.85 <= lon <= -46.35
 
 
+@pytest.mark.unit
 class TestDestinationReturnType:
     def test_destination_returns_coordinates(self, simpy_env, dna_factory, mock_kafka_producer):
         dna = dna_factory.rider_dna()
@@ -415,6 +422,7 @@ class TestDestinationReturnType:
         assert isinstance(dest[1], float)
 
 
+@pytest.mark.unit
 class TestDestinationHomeDetection:
     def test_destination_home_detection(self, simpy_env, dna_factory, mock_kafka_producer):
         home = (-23.55, -46.63)

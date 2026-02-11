@@ -13,6 +13,7 @@ from src.agents.rider_agent import RiderAgent
 from tests.factories import DNAFactory
 
 
+@pytest.mark.unit
 class TestMutateDriverProfile:
     """Tests for driver profile mutation logic."""
 
@@ -96,6 +97,7 @@ class TestMutateDriverProfile:
         pytest.fail("Could not find a seed that triggers shift change")
 
 
+@pytest.mark.unit
 class TestMutateRiderProfile:
     """Tests for rider profile mutation logic."""
 
@@ -160,6 +162,7 @@ class TestMutateRiderProfile:
         pytest.fail("Could not find a seed that triggers email change")
 
 
+@pytest.mark.unit
 class TestDriverEmitsUpdateEvent:
     """Tests for driver profile update event emission."""
 
@@ -214,6 +217,7 @@ class TestDriverEmitsUpdateEvent:
         assert captured_events[0].event_type == "driver.updated"
 
 
+@pytest.mark.unit
 class TestRiderEmitsUpdateEvent:
     """Tests for rider profile update event emission."""
 
@@ -266,6 +270,7 @@ class TestRiderEmitsUpdateEvent:
         assert captured_events[0].event_type == "rider.updated"
 
 
+@pytest.mark.unit
 class TestPuppetNoProfileUpdates:
     """Tests to verify puppets don't emit profile updates."""
 
@@ -338,6 +343,7 @@ class TestPuppetNoProfileUpdates:
         assert len(profile_calls) == 0
 
 
+@pytest.mark.unit
 class TestProfileUpdateLoop:
     """Tests for the periodic profile update loop."""
 

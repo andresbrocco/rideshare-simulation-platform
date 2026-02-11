@@ -101,6 +101,8 @@ def mock_osrm_client_for_executor():
     return client
 
 
+@pytest.mark.unit
+@pytest.mark.slow
 class TestTripExecutorKafkaOnly:
     """Tests to verify TripExecutor emits to Kafka only, not Redis.
 

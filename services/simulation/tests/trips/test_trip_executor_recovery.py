@@ -105,6 +105,7 @@ def create_successful_route(origin, destination):
     )
 
 
+@pytest.mark.unit
 class TestRetrySettingsConfiguration:
     """Tests for OSRM retry configuration in settings."""
 
@@ -134,6 +135,7 @@ class TestRetrySettingsConfiguration:
             SimulationSettings(osrm_max_retries=11)
 
 
+@pytest.mark.unit
 class TestOSRMRetryLogic:
     """Tests for exponential backoff retry on OSRM failures."""
 
@@ -352,6 +354,7 @@ class TestOSRMRetryLogic:
         assert abs(delay3 - 2.0) < 0.01  # Third retry after 2.0s
 
 
+@pytest.mark.unit
 class TestCleanupHandler:
     """Tests for trip cleanup on unrecoverable failures."""
 
@@ -565,6 +568,7 @@ class TestCleanupHandler:
         assert rider_agent.statistics.trips_cancelled == initial_rider_cancelled + 1
 
 
+@pytest.mark.unit
 class TestCleanupFromDifferentStates:
     """Tests for cleanup at different trip lifecycle stages."""
 
@@ -646,6 +650,7 @@ class TestCleanupFromDifferentStates:
         assert sample_trip.cancellation_stage == "in_transit"
 
 
+@pytest.mark.unit
 class TestCleanupIdempotency:
     """Tests for idempotent cleanup operations."""
 
@@ -729,6 +734,7 @@ class TestCleanupIdempotency:
         assert sample_trip.state == TripState.CANCELLED
 
 
+@pytest.mark.unit
 class TestZeroRetryConfiguration:
     """Tests for disabled retry configuration."""
 

@@ -102,6 +102,7 @@ def sample_rider_dna():
     )
 
 
+@pytest.mark.unit
 def test_factory_init(agent_factory):
     """Creates AgentFactory with dependencies."""
     assert agent_factory is not None
@@ -112,6 +113,7 @@ def test_factory_init(agent_factory):
 
 @patch("engine.agent_factory.generate_driver_dna")
 @patch("engine.agent_factory.uuid4")
+@pytest.mark.unit
 def test_create_single_driver(
     mock_uuid, mock_gen_dna, agent_factory, mock_simulation_engine, sample_driver_dna
 ):
@@ -129,6 +131,7 @@ def test_create_single_driver(
 
 @patch("engine.agent_factory.generate_driver_dna")
 @patch("engine.agent_factory.uuid4")
+@pytest.mark.unit
 def test_create_multiple_drivers(
     mock_uuid, mock_gen_dna, agent_factory, mock_simulation_engine, sample_driver_dna
 ):
@@ -146,6 +149,7 @@ def test_create_multiple_drivers(
 
 @patch("engine.agent_factory.generate_rider_dna")
 @patch("engine.agent_factory.uuid4")
+@pytest.mark.unit
 def test_create_single_rider(
     mock_uuid, mock_gen_dna, agent_factory, mock_simulation_engine, sample_rider_dna
 ):
@@ -163,6 +167,7 @@ def test_create_single_rider(
 
 @patch("engine.agent_factory.generate_rider_dna")
 @patch("engine.agent_factory.uuid4")
+@pytest.mark.unit
 def test_create_multiple_riders(
     mock_uuid, mock_gen_dna, agent_factory, mock_simulation_engine, sample_rider_dna
 ):
@@ -179,6 +184,7 @@ def test_create_multiple_riders(
 
 
 @patch("engine.agent_factory.generate_driver_dna")
+@pytest.mark.unit
 def test_driver_dna_generated(mock_gen_dna, agent_factory, sample_driver_dna):
     """Uses DNA generator for drivers."""
     mock_gen_dna.return_value = sample_driver_dna
@@ -189,6 +195,7 @@ def test_driver_dna_generated(mock_gen_dna, agent_factory, sample_driver_dna):
 
 
 @patch("engine.agent_factory.generate_rider_dna")
+@pytest.mark.unit
 def test_rider_dna_generated(mock_gen_dna, agent_factory, sample_rider_dna):
     """Uses DNA generator for riders."""
     mock_gen_dna.return_value = sample_rider_dna
@@ -199,6 +206,7 @@ def test_rider_dna_generated(mock_gen_dna, agent_factory, sample_rider_dna):
 
 
 @patch("engine.agent_factory.generate_driver_dna")
+@pytest.mark.unit
 def test_agents_registered_with_engine(
     mock_gen_dna, agent_factory, mock_simulation_engine, sample_driver_dna
 ):
@@ -211,6 +219,7 @@ def test_agents_registered_with_engine(
 
 
 @patch("engine.agent_factory.generate_driver_dna")
+@pytest.mark.unit
 def test_agents_persisted_to_db(mock_gen_dna, agent_factory, sample_driver_dna):
     """Persists to SQLite database."""
     mock_gen_dna.return_value = sample_driver_dna
@@ -222,6 +231,7 @@ def test_agents_persisted_to_db(mock_gen_dna, agent_factory, sample_driver_dna):
 
 
 @patch("engine.agent_factory.generate_driver_dna")
+@pytest.mark.unit
 def test_driver_profile_events_emitted(
     mock_gen_dna, agent_factory, mock_kafka_producer, sample_driver_dna
 ):
@@ -234,6 +244,7 @@ def test_driver_profile_events_emitted(
 
 
 @patch("engine.agent_factory.generate_rider_dna")
+@pytest.mark.unit
 def test_rider_profile_events_emitted(
     mock_gen_dna, agent_factory, mock_kafka_producer, sample_rider_dna
 ):
@@ -246,6 +257,7 @@ def test_rider_profile_events_emitted(
 
 
 @patch("engine.agent_factory.generate_driver_dna")
+@pytest.mark.unit
 def test_agents_registered_but_not_started_immediately(
     mock_gen_dna, agent_factory, mock_simulation_engine, sample_driver_dna
 ):
@@ -262,6 +274,7 @@ def test_agents_registered_but_not_started_immediately(
 
 
 @patch("engine.agent_factory.generate_driver_dna")
+@pytest.mark.unit
 def test_agents_not_started_if_stopped(
     mock_gen_dna, agent_factory, mock_simulation_engine, sample_driver_dna
 ):
@@ -276,6 +289,7 @@ def test_agents_not_started_if_stopped(
 
 
 @patch("engine.agent_factory.generate_driver_dna")
+@pytest.mark.unit
 def test_driver_capacity_limit(
     mock_gen_dna, agent_factory, mock_simulation_engine, sample_driver_dna
 ):
@@ -290,6 +304,7 @@ def test_driver_capacity_limit(
 
 
 @patch("engine.agent_factory.generate_rider_dna")
+@pytest.mark.unit
 def test_rider_capacity_limit(
     mock_gen_dna, agent_factory, mock_simulation_engine, sample_rider_dna
 ):
@@ -304,6 +319,7 @@ def test_rider_capacity_limit(
 
 
 @patch("engine.agent_factory.generate_driver_dna")
+@pytest.mark.unit
 def test_capacity_check_incremental(
     mock_gen_dna, agent_factory, mock_simulation_engine, sample_driver_dna
 ):
@@ -319,6 +335,7 @@ def test_capacity_check_incremental(
 
 @patch("engine.agent_factory.generate_driver_dna")
 @patch("engine.agent_factory.uuid4")
+@pytest.mark.unit
 def test_returns_created_agent_ids(mock_uuid, mock_gen_dna, agent_factory, sample_driver_dna):
     """Returns list of created IDs."""
     driver_ids = [str(uuid4()) for _ in range(5)]
@@ -332,6 +349,7 @@ def test_returns_created_agent_ids(mock_uuid, mock_gen_dna, agent_factory, sampl
 
 
 @patch("engine.agent_factory.generate_driver_dna")
+@pytest.mark.unit
 def test_unique_agent_ids(mock_gen_dna, agent_factory, sample_driver_dna):
     """Each agent has unique ID."""
     mock_gen_dna.return_value = sample_driver_dna

@@ -14,6 +14,7 @@ from settings import (
 )
 
 
+@pytest.mark.unit
 class TestSimulationSettings:
     def test_defaults(self):
         settings = SimulationSettings()
@@ -42,6 +43,7 @@ class TestSimulationSettings:
             SimulationSettings(checkpoint_interval=30)
 
 
+@pytest.mark.unit
 class TestKafkaSettings:
     def test_defaults(self):
         settings = KafkaSettings()
@@ -66,6 +68,7 @@ class TestKafkaSettings:
         assert settings.bootstrap_servers == "custom:9092"
 
 
+@pytest.mark.unit
 class TestRedisSettings:
     def test_defaults(self):
         settings = RedisSettings()
@@ -80,6 +83,7 @@ class TestRedisSettings:
         assert settings.ssl is True
 
 
+@pytest.mark.unit
 class TestOSRMSettings:
     def test_default(self):
         settings = OSRMSettings()
@@ -94,6 +98,7 @@ class TestOSRMSettings:
             OSRMSettings(base_url="not-a-url")
 
 
+@pytest.mark.unit
 class TestDatabricksSettings:
     def test_defaults(self):
         settings = DatabricksSettings()
@@ -117,6 +122,7 @@ class TestDatabricksSettings:
             )
 
 
+@pytest.mark.unit
 class TestAWSSettings:
     def test_defaults(self):
         settings = AWSSettings()
@@ -125,6 +131,7 @@ class TestAWSSettings:
         assert settings.secret_access_key is None
 
 
+@pytest.mark.unit
 class TestAPISettings:
     def test_defaults(self):
         settings = APISettings()
@@ -135,6 +142,7 @@ class TestAPISettings:
         assert settings.key == "my-secret-key"
 
 
+@pytest.mark.unit
 class TestSettings:
     def test_integration(self, monkeypatch):
         monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")

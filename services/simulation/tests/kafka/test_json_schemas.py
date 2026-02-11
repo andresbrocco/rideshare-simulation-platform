@@ -55,6 +55,7 @@ def rider_profile_schema():
         return json.load(f)
 
 
+@pytest.mark.unit
 def test_trip_event_schema_valid(trip_event_schema):
     valid_event = {
         "event_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -77,6 +78,7 @@ def test_trip_event_schema_valid(trip_event_schema):
     validate(instance=valid_event, schema=trip_event_schema)
 
 
+@pytest.mark.unit
 def test_trip_event_missing_required(trip_event_schema):
     invalid_event = {
         "event_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -87,6 +89,7 @@ def test_trip_event_missing_required(trip_event_schema):
         validate(instance=invalid_event, schema=trip_event_schema)
 
 
+@pytest.mark.unit
 def test_trip_event_invalid_type(trip_event_schema):
     invalid_event = {
         "event_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -106,6 +109,7 @@ def test_trip_event_invalid_type(trip_event_schema):
         validate(instance=invalid_event, schema=trip_event_schema)
 
 
+@pytest.mark.unit
 def test_gps_ping_schema_valid(gps_ping_schema):
     valid_event = {
         "event_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -121,6 +125,7 @@ def test_gps_ping_schema_valid(gps_ping_schema):
     validate(instance=valid_event, schema=gps_ping_schema)
 
 
+@pytest.mark.unit
 def test_gps_ping_entity_type_enum(gps_ping_schema):
     valid_driver = {
         "event_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -145,6 +150,7 @@ def test_gps_ping_entity_type_enum(gps_ping_schema):
         validate(instance=invalid_event, schema=gps_ping_schema)
 
 
+@pytest.mark.unit
 def test_driver_status_enum(driver_status_schema):
     valid_event = {
         "event_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -163,6 +169,7 @@ def test_driver_status_enum(driver_status_schema):
         validate(instance=invalid_event, schema=driver_status_schema)
 
 
+@pytest.mark.unit
 def test_rating_value_range(rating_schema):
     for rating_value in [1, 2, 3, 4, 5]:
         valid_event = {
@@ -187,6 +194,7 @@ def test_rating_value_range(rating_schema):
         validate(instance=invalid_event, schema=rating_schema)
 
 
+@pytest.mark.unit
 def test_payment_schema_valid(payment_schema):
     valid_event = {
         "event_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -205,6 +213,7 @@ def test_payment_schema_valid(payment_schema):
     validate(instance=valid_event, schema=payment_schema)
 
 
+@pytest.mark.unit
 def test_profile_event_type_enum(driver_profile_schema, rider_profile_schema):
     valid_driver_created = {
         "event_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -251,6 +260,7 @@ def test_profile_event_type_enum(driver_profile_schema, rider_profile_schema):
     validate(instance=valid_rider, schema=rider_profile_schema)
 
 
+@pytest.mark.unit
 def test_all_schemas_have_event_id(
     trip_event_schema,
     gps_ping_schema,
@@ -278,6 +288,7 @@ def test_all_schemas_have_event_id(
         assert schema["properties"]["event_id"]["format"] == "uuid"
 
 
+@pytest.mark.unit
 def test_all_schemas_have_timestamp(
     trip_event_schema,
     gps_ping_schema,
