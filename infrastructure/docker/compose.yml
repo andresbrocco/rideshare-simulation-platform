@@ -767,6 +767,25 @@ services:
       start_period: 60s
     restart: unless-stopped
 
+  delta-table-init:
+    image: trinodb/trino:439
+    container_name: rideshare-delta-table-init
+    profiles:
+      - data-pipeline
+    depends_on:
+      trino:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      - TRINO_HOST=trino
+      - TRINO_PORT=8080
+    volumes:
+      - ../../infrastructure/scripts:/opt/init-scripts:ro
+    entrypoint: ["/bin/bash", "/opt/init-scripts/register-delta-tables.sh"]
+    networks:
+      - rideshare-network
+
   prometheus:
     image: prom/prometheus:v3.9.1
     container_name: rideshare-prometheus
