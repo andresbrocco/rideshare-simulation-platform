@@ -19,7 +19,8 @@ The platform combines discrete-event simulation with event-driven microservices,
 | Data Platform | Spark 3.5 (Structured Streaming), Delta Lake 3.0, DBT |
 | Storage | MinIO (S3), Delta Lake, Redis, SQLite, PostgreSQL |
 | Orchestration | Apache Airflow 3.1 |
-| Monitoring | Prometheus, Grafana, cAdvisor |
+| Monitoring | Prometheus, Grafana, cAdvisor, OpenTelemetry Collector, Loki, Tempo |
+| Query Engine | Trino 439 (interactive SQL over Delta Lake) |
 | Container Orchestration | Docker Compose, Kubernetes (Kind) |
 | Infrastructure | Terraform (AWS), ArgoCD |
 
@@ -35,6 +36,8 @@ The platform combines discrete-event simulation with event-driven microservices,
 | Bronze Ingestion | services/spark-streaming/jobs/*.py | Kafka-to-Delta streaming jobs (2 jobs: high/low volume) |
 | Data Transformation | tools/dbt | DBT models for Silver and Gold layers |
 | Orchestration | services/airflow/dags/*.py | Airflow DAGs for pipeline scheduling |
+| Analytics SQL | services/trino/etc/ | Trino configuration for interactive Delta Lake queries |
+| Telemetry Gateway | services/otel-collector/otel-collector-config.yaml | OTel Collector routing metrics, logs, traces |
 
 ### Getting Started
 
@@ -88,6 +91,12 @@ Key modules in this codebase:
 | services/simulation/src/trips | Trip executor orchestrating 10-state trip lifecycle | [→](services/simulation/src/trips/CONTEXT.md) |
 | services/simulation/src/api/routes | FastAPI routes translating HTTP requests to simulation commands | [→](services/simulation/src/api/routes/CONTEXT.md) |
 | infrastructure/kubernetes | Kind cluster config, manifests, and lifecycle scripts | [→](infrastructure/kubernetes/CONTEXT.md) |
+| services/trino | Distributed SQL query engine for interactive analytics over Delta Lake | [→](services/trino/CONTEXT.md) |
+| services/otel-collector | Unified telemetry gateway routing metrics, logs, and traces | [→](services/otel-collector/CONTEXT.md) |
+| services/loki | Log aggregation backend with label-based indexing | [→](services/loki/CONTEXT.md) |
+| services/tempo | Distributed tracing backend for span storage and querying | [→](services/tempo/CONTEXT.md) |
+| services/grafana | Dashboards and alerting across Prometheus, Loki, Tempo, and Trino | [→](services/grafana/CONTEXT.md) |
+| services/prometheus | Metrics storage with scrape and remote-write ingestion | [→](services/prometheus/CONTEXT.md) |
 
 ## Architecture Highlights
 
@@ -96,7 +105,7 @@ Key modules in this codebase:
 ```
 Simulation (SimPy) → Kafka Topics (8 topics) → Stream Processor → Redis Pub/Sub → WebSocket → Frontend
                                              ↓
-                                   Spark Streaming (Bronze) → DBT (Silver/Gold) → Grafana Dashboards
+                                   Spark Streaming (Bronze) → DBT (Silver/Gold) → Trino → Grafana BI Dashboards
 ```
 
 **Single Source of Truth**: Simulation publishes exclusively to Kafka. A separate stream processor bridges Kafka to Redis for real-time visualization, eliminating duplicate events.
@@ -115,13 +124,32 @@ Simulation (SimPy) → Kafka Topics (8 topics) → Stream Processor → Redis Pu
 
 **Empty Source Guard**: DBT macro pattern prevents Delta Lake errors when Bronze tables are empty, enabling idempotent DBT runs.
 
+### Observability Flow
+
+```
+Simulation ──── OTLP gRPC ──┐
+Stream Proc. ── OTLP gRPC ──┤
+                             ▼
+Docker Logs ── filelog ──► OTel Collector ──┬── remote_write ──► Prometheus (metrics)
+                                           ├── push API ──────► Loki (logs)
+                                           └── OTLP gRPC ─────► Tempo (traces)
+                                                                      │
+cAdvisor ── /metrics ──► Prometheus (scrape) ◄────────────────────────┘
+                              │                                        │
+                              └──────────► Grafana (4 datasources) ◄───┘
+```
+
+**Three Pillars**: Metrics (Prometheus), Logs (Loki), Traces (Tempo) — all routed through the OpenTelemetry Collector as a unified telemetry gateway.
+
+**Dual SQL Engines**: Spark Thrift Server handles write-heavy transformations (DBT, Great Expectations); Trino handles read-heavy interactive queries (Grafana BI dashboards). Both access the same Delta Lake tables via Hive Metastore.
+
 ### Deployment Profiles
 
 | Profile | Services | Use Case |
 |---------|----------|----------|
 | core | Kafka, Redis, OSRM, Simulation, Stream Processor, Frontend | Daily development with real-time visualization |
-| data-pipeline | MinIO, Spark, Bronze Ingestion, DBT, Airflow | Data engineering pipeline testing |
-| monitoring | Prometheus, Grafana, cAdvisor | Observability and metrics |
+| data-pipeline | MinIO, Spark, Hive Metastore, Trino, Bronze Ingestion, DBT, Airflow | Data engineering pipeline and interactive analytics |
+| monitoring | Prometheus, Grafana, cAdvisor, OTel Collector, Loki, Tempo | Full observability (metrics, logs, traces) |
 
 ## Domain Concepts
 
@@ -207,7 +235,7 @@ Automatically run on commit:
 
 **Generated**: 2026-01-28
 **System Type**: Event-Driven Microservices with Medallion Lakehouse Architecture
-**Services**: 11 independently deployable containers
+**Services**: 18 independently deployable containers
 **Event Topics**: 8 Kafka topics with schema validation
 **Lakehouse Layers**: Bronze → Silver → Gold (Delta Lake on MinIO S3)
 **Geographic Scope**: São Paulo, Brazil (96 districts)

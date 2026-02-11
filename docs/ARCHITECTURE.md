@@ -26,6 +26,10 @@ High-level components and their responsibilities (derived from CONTEXT.md files)
 | Business Intelligence | Dashboard and visualization layer | services/looker |
 | Schema Registry | Event and table schema definitions | schemas/kafka, schemas/lakehouse |
 | Configuration | Environment-specific topic and zone configs | config/, services/simulation/data |
+| Trino | Distributed SQL query engine for interactive analytics | services/trino |
+| OpenTelemetry Collector | Unified telemetry gateway for metrics, logs, traces | services/otel-collector |
+| Loki | Log aggregation backend | services/loki |
+| Tempo | Distributed tracing backend | services/tempo |
 | Infrastructure | Container orchestration and custom images | infrastructure/docker |
 
 ## Layer Structure
@@ -68,6 +72,21 @@ Responsibilities:
 - Maintain historical profile changes via SCD Type 2
 - Validate data quality at each transformation layer
 - Schedule incremental processing with dependency management
+
+### Monitoring Layer
+- **Prometheus** - Metrics storage and alerting rules (7d retention)
+- **Loki** - Log aggregation with label-based indexing
+- **Tempo** - Distributed tracing with span storage
+- **OpenTelemetry Collector** - Unified telemetry gateway routing metrics, logs, and traces to backends
+- **Grafana** - Visualization across all four datasources (Prometheus, Loki, Tempo, Trino)
+- **cAdvisor** - Container resource metrics exporter
+
+Responsibilities:
+- Collect application metrics via OTLP and container metrics via cAdvisor
+- Aggregate structured logs from Docker containers with label enrichment
+- Store and query distributed traces for request correlation
+- Provide dashboards for simulation monitoring, platform operations, data engineering, and business intelligence
+- Alert on pipeline failures (Kafka lag, Spark errors, DAG failures) and resource thresholds
 
 ### Storage Layer
 - **Delta Lake (MinIO S3)** - Lakehouse storage for Bronze/Silver/Gold tables with ACID guarantees
@@ -115,7 +134,10 @@ Simulation Engine (SimPy)
                                                        Gold Delta Tables
                                                               │
                                                               ▼
-                                                      Looker / BI Dashboards
+                                                      Trino (interactive SQL)
+                                                              │
+                                                              ▼
+                                                      Grafana BI Dashboards
 ```
 
 ### Request Flow
@@ -150,7 +172,15 @@ Simulation Engine (SimPy)
 4. Silver staging models deduplicate and apply SCD Type 2 for profiles
 5. Gold marts create business-ready facts and aggregates
 6. Great Expectations validates data quality at each checkpoint
-7. Looker queries Gold tables via Spark Thrift Server
+7. Trino queries Gold tables via Delta Lake connector for interactive BI dashboards in Grafana
+
+**Monitoring Flow:**
+1. Simulation and Stream Processor export metrics and traces via OTLP gRPC to OpenTelemetry Collector
+2. OTel Collector reads Docker container JSON logs via filelog receiver
+3. OTel Collector routes metrics to Prometheus (remote_write), logs to Loki (push API), traces to Tempo (OTLP gRPC)
+4. Prometheus also scrapes cAdvisor container metrics and OTel Collector self-metrics (pull)
+5. Grafana queries all four backends (Prometheus, Loki, Tempo, Trino) for unified observability
+6. Alert rules evaluate every 1 minute for pipeline failures and resource thresholds
 
 ### Key Data Paths
 
@@ -161,6 +191,7 @@ Simulation Engine (SimPy)
 | Profile Updates | Agent DNA → Kafka (profile event) → Bronze → Silver (SCD Type 2) → Gold Dimensions | Historical profile tracking via slowly changing dimensions |
 | Surge Pricing | MatchingServer → Zone supply/demand → SurgePricingCalculator → Kafka → Redis → Frontend | Dynamic pricing updates every 60 simulated seconds |
 | Data Quality | Gold Tables → Great Expectations → Validation Results → Airflow Alerts | Continuous validation with soft failure pattern |
+| Observability | Application → OTLP → OTel Collector → Prometheus/Loki/Tempo → Grafana | Unified metrics, logs, and traces pipeline |
 
 ## External Boundaries
 
@@ -172,6 +203,11 @@ Simulation Engine (SimPy)
 | WebSocket | /ws | Real-time event streaming to clients | Sec-WebSocket-Protocol: apikey.{key} |
 | Stream Processor Health | /health | Container orchestration healthcheck | None |
 | Spark Thrift Server | localhost:10000 | SQL interface to Delta tables | None (internal) |
+| Trino HTTP API | localhost:8084 | Interactive SQL queries over Delta Lake | None (internal) |
+| Grafana | localhost:3001 | Dashboards, alerting, and exploration | admin/admin |
+| Prometheus | localhost:9090 | Metrics queries and API | None (internal) |
+| Loki | localhost:3100 | Log queries via LogQL | None (internal) |
+| Tempo | localhost:3200 | Trace queries via TraceQL | None (internal) |
 
 ### APIs Consumed
 
@@ -183,6 +219,10 @@ Simulation Engine (SimPy)
 | Redis Pub/Sub | Redis | Real-time event broadcasting | services/stream-processor |
 | Redis Key-Value | Redis | State snapshot storage | services/simulation/src/redis_client |
 | S3 API | MinIO | Lakehouse table storage | services/spark-streaming, tools/dbt |
+| OTLP gRPC | OTel Collector | Export metrics and traces from applications | services/simulation, services/stream-processor |
+| Prometheus Remote Write | Prometheus | Push metrics from OTel Collector | services/otel-collector |
+| Loki Push API | Loki | Push logs from OTel Collector | services/otel-collector |
+| OTLP gRPC (Tempo) | Tempo | Push traces from OTel Collector | services/otel-collector |
 | Thrift Server | Spark | SQL query interface | tools/dbt, tools/great-expectations |
 
 ### External Services Consumed
@@ -195,6 +235,11 @@ Simulation Engine (SimPy)
 | MinIO | S3-compatible lakehouse storage | spark-streaming, dbt | AWS_* env vars |
 | Spark Thrift Server | SQL interface to Delta tables | dbt, great-expectations | THRIFT_* env vars |
 | LocalStack | S3 mock for testing | spark-streaming (test mode) | AWS_ENDPOINT_URL |
+| Trino | Interactive SQL over Delta Lake | grafana | TRINO_* config in services/trino/etc |
+| Hive Metastore | Table metadata catalog for Trino and Spark | trino, spark-thrift-server | thrift://hive-metastore:9083 |
+| OTel Collector | Telemetry routing gateway | simulation, stream-processor | OTEL_EXPORTER_OTLP_ENDPOINT env var |
+| Loki | Log aggregation | otel-collector, grafana | http://loki:3100 |
+| Tempo | Distributed tracing | otel-collector, grafana | tempo:4317 (gRPC), http://tempo:3200 (HTTP) |
 
 ## Deployment Units
 
@@ -216,6 +261,13 @@ The system deploys as 11 independent containers orchestrated via Docker Compose 
 | airflow-webserver | Airflow UI and API server | data-pipeline | 8082 | postgres-airflow |
 | airflow-scheduler | DAG scheduler and executor | data-pipeline | - | airflow-webserver |
 | cadvisor | Container metrics collection | monitoring | 8081 | - |
+| trino | Interactive SQL query engine over Delta Lake | data-pipeline | 8084 | hive-metastore, minio |
+| hive-metastore | Table metadata catalog for Spark and Trino | data-pipeline | 9083 | postgres-hive, minio |
+| grafana | Dashboards, alerting, observability UI | monitoring | 3001 | prometheus, loki, tempo |
+| prometheus | Metrics storage and alerting | monitoring | 9090 | - |
+| loki | Log aggregation | monitoring | 3100 | - |
+| tempo | Distributed tracing | monitoring | 3200 | - |
+| otel-collector | Telemetry routing (metrics, logs, traces) | monitoring | 4317, 4318, 8888 | prometheus, loki, tempo |
 
 ### Profile Groups
 
@@ -232,7 +284,10 @@ The system deploys as 11 independent containers orchestrated via Docker Compose 
 
 **monitoring** - Observability services
 - Collects container resource metrics via cAdvisor
-- Provides Prometheus metrics and Grafana dashboards
+- Routes application telemetry (metrics, logs, traces) through OpenTelemetry Collector
+- Stores metrics in Prometheus (7d retention), logs in Loki, traces in Tempo
+- Provides Grafana dashboards across 4 datasources (Prometheus, Loki, Tempo, Trino)
+- Alerts on pipeline failures and resource thresholds
 
 ### Deployment Commands
 
@@ -258,6 +313,10 @@ Services use healthcheck dependencies to ensure proper startup order:
 5. Stream processor waits for kafka, redis healthy
 6. Spark streaming jobs wait for kafka, minio healthy
 7. DBT/Airflow wait for Bronze tables initialized
+8. Prometheus starts independently (no dependencies)
+9. Loki and Tempo start independently
+10. OTel Collector waits for prometheus, loki, tempo healthy
+11. Grafana waits for prometheus, loki, tempo healthy
 
 ## Critical Architecture Patterns
 
@@ -315,6 +374,25 @@ Services use healthcheck dependencies to ensure proper startup order:
 - DLQ includes error message, timestamp, and raw event payload
 - Airflow DAG monitors DLQ growth and alerts on threshold
 - Enables debugging without blocking pipeline progress
+
+### Three Pillars of Observability
+
+**Unified Telemetry Gateway:**
+- OpenTelemetry Collector acts as the single telemetry router for the entire platform
+- Three pipelines: metrics (OTLP → Prometheus), logs (Docker filelog → Loki), traces (OTLP → Tempo)
+- Application services (simulation, stream-processor) export via OTLP gRPC, no longer expose /metrics endpoints
+- Container metrics collected separately by cAdvisor (scraped by Prometheus directly)
+- Log enrichment extracts structured fields (level, service, correlation_id, trip_id) as Loki labels
+- Grafana cross-links traces → logs (by traceID/spanID) and traces → metrics (service map)
+
+### Dual SQL Query Engines
+
+**Separation of Write and Read Workloads:**
+- Spark Thrift Server handles heavy transformation workloads (DBT writes, merges, SCD Type 2, Great Expectations validation, Airflow DLQ queries via PyHive)
+- Trino handles interactive analytical queries (Grafana BI dashboards querying Gold tables)
+- Both engines access the same Delta Lake tables via Hive Metastore for catalog metadata and MinIO for data storage
+- Trino uses the Delta Lake connector with non-concurrent writes enabled
+- This separation prevents BI queries from competing with transformation workloads for Spark resources
 
 ## Key Domain Concepts
 

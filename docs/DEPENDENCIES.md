@@ -16,6 +16,7 @@ How modules within this codebase depend on each other.
 | services/spark-streaming | Bronze layer Kafka-to-Delta ingestion | tools/dbt, services/airflow |
 | tools/dbt | Data transformation implementing medallion architecture | services/looker, tools/great-expectations |
 | services/airflow | Data pipeline orchestration and monitoring | None |
+| services/trino | Interactive SQL query engine over Delta Lake | services/grafana |
 
 ### Data and Schema Modules
 
@@ -34,6 +35,11 @@ How modules within this codebase depend on each other.
 | infrastructure/docker/dockerfiles | Custom Docker image definitions | infrastructure/docker/compose.yml |
 | tools/great-expectations | Data quality validation for lakehouse layers | services/airflow |
 | services/looker | Business intelligence stack configuration | None |
+| services/otel-collector | Unified telemetry gateway for metrics, logs, traces | services/prometheus (via remote_write), services/loki, services/tempo |
+| services/prometheus | Metrics storage and alerting rules | services/grafana |
+| services/loki | Log aggregation with label-based indexing | services/grafana |
+| services/tempo | Distributed tracing backend | services/grafana |
+| services/grafana | Dashboards and alerting across 4 datasources | None |
 
 ### Module Dependency Graph
 
@@ -41,22 +47,35 @@ How modules within this codebase depend on each other.
 [services/simulation] ──┬──> [schemas/kafka]
                         ├──> [services/simulation/data]
                         ├──> [config]
+                        ├──> OTLP ──> [services/otel-collector]
                         └──> Kafka Topics
                                   │
-                                  ├──> [services/stream-processor] ──> Redis ──> [services/frontend]
+                                  ├──> [services/stream-processor] ──┬──> Redis ──> [services/frontend]
+                                  │                                  └──> OTLP ──> [services/otel-collector]
                                   │
                                   └──> [services/spark-streaming] ──┬──> [schemas/lakehouse]
-                                                                     └──> Bronze Delta Tables
+                                                                     └──> Bronze Delta Tables (MinIO S3)
                                                                                │
                                                                                └──> [tools/dbt] ──┬──> Silver/Gold Tables
                                                                                                      │
                                                                                                      ├──> [tools/great-expectations]
                                                                                                      │
-                                                                                                     └──> [services/looker]
+                                                                                                     └──> [services/trino] ──> [services/grafana] (BI dashboards)
 
 [services/airflow] ──┬──> [tools/dbt]
                      ├──> [services/spark-streaming]
                      └──> [tools/great-expectations]
+
+[services/otel-collector] ──┬──> [services/prometheus] (remote_write + scrape)
+                            ├──> [services/loki] (push API)
+                            └──> [services/tempo] (OTLP gRPC)
+
+[services/prometheus] ◄── scrape ── [cadvisor]
+
+[services/grafana] ──┬──> [services/prometheus] (PromQL)
+                     ├──> [services/loki] (LogQL)
+                     ├──> [services/tempo] (TraceQL)
+                     └──> [services/trino] (SQL over Delta Lake)
 
 [infrastructure/docker] ──> All Services
 ```
@@ -119,6 +138,26 @@ Internal module structure within `services/simulation/src/`:
 #### tools/great-expectations → Silver/Gold Tables
 - Validates `silver_validation` checkpoint (schema, nullability, uniqueness)
 - Validates `gold_validation` checkpoint (business rules, aggregates)
+
+#### services/trino → Delta Lake (via Hive Metastore + MinIO)
+- Uses Delta Lake connector configured in `services/trino/etc/catalog/delta.properties`
+- Connects to Hive Metastore (`thrift://hive-metastore:9083`) for table metadata discovery
+- Reads data files from MinIO (`http://minio:9000`) via S3A protocol
+- Grafana BI dashboards (driver-performance, revenue-analytics, demand-analysis) query Gold tables through Trino
+
+#### services/otel-collector → Prometheus, Loki, Tempo
+- Receives OTLP metrics and traces from simulation and stream-processor via gRPC on port 4317
+- Reads Docker container JSON logs via filelog receiver from `/var/lib/docker/containers/`
+- Exports metrics to Prometheus via remote_write (`http://prometheus:9090/api/v1/write`)
+- Exports logs to Loki via push API (`http://loki:3100/loki/api/v1/push`)
+- Exports traces to Tempo via OTLP gRPC (`tempo:4317`)
+- Enriches logs with labels: level, service, service_name, correlation_id, trip_id
+
+#### services/grafana → Prometheus, Loki, Tempo, Trino
+- 4 provisioned datasources with cross-linking (Tempo traces → Loki logs, Tempo → Prometheus service map)
+- 7 dashboards across 4 categories: monitoring, operations, data-engineering, business-intelligence
+- BI dashboards query Trino (Gold Delta tables); operational dashboards query Prometheus (PromQL)
+- 2 alert groups: pipeline failures (critical, 1m eval) and resource thresholds (warning)
 
 #### services/frontend → Backend REST API & WebSocket
 - Simulation control: `/simulation/status`, `/simulation/start`, `/simulation/pause`, `/simulation/resume`, `/simulation/stop`, `/simulation/speed`
@@ -220,6 +259,13 @@ Internal module structure within `services/simulation/src/`:
 | great-expectations | 1.10.0 | Data validation framework |
 | pyspark | 3.5.0 | Spark integration for validation |
 
+#### services/trino
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| trinodb/trino | 439 | Distributed SQL query engine |
+| delta-lake-connector | (built-in) | Delta Lake table access via Hive Metastore |
+
 ### Development Dependencies
 
 #### services/simulation (Python)
@@ -267,6 +313,12 @@ Runtime services required for operation:
 | MinIO (S3-compatible) | spark-streaming, dbt | Lakehouse storage |
 | Spark Thrift Server | dbt, great-expectations | SQL interface to Delta tables |
 | LocalStack (S3 mock) | spark-streaming (dev/test) | Local S3 emulation |
+| Trino | grafana | Interactive SQL over Delta Lake Gold tables |
+| Hive Metastore | trino, spark-thrift-server | Table metadata catalog (backed by PostgreSQL) |
+| OpenTelemetry Collector | simulation, stream-processor | Telemetry routing gateway (metrics, logs, traces) |
+| Prometheus | grafana, otel-collector | Metrics storage and alerting (7d retention) |
+| Loki | grafana, otel-collector | Log aggregation with label-based indexing |
+| Tempo | grafana, otel-collector | Distributed tracing backend |
 
 ### Docker Base Images
 
@@ -277,6 +329,11 @@ Runtime services required for operation:
 | osrm/osrm-backend:latest | osrm.Dockerfile | Routing engine |
 | redis:7-alpine | compose.yml | Key-value store |
 | postgres:16-alpine | compose.yml | Relational database |
+| trinodb/trino:439 | compose.yml | SQL query engine |
+| grafana/grafana:12.3.1 | compose.yml | Dashboard and alerting UI |
+| prom/prometheus:v3.9.1 | compose.yml | Metrics storage |
+| grafana/loki:3.6.5 | compose.yml | Log aggregation |
+| ghcr.io/google/cadvisor:v0.53.0 | compose.yml | Container metrics exporter |
 
 ## Circular Dependencies
 
@@ -290,6 +347,8 @@ None detected.
 - FastAPI version 0.115.6 shared between simulation and stream-processor
 - Multiple Redis client versions: 7.1.0 (simulation) vs 5.2.1 (stream-processor)
 - Multiple confluent-kafka versions: 2.12.2 (simulation) vs 2.6.1 (stream-processor)
+- Grafana 12.3.1 with trino-datasource plugin installed at runtime via GF_INSTALL_PLUGINS
+- OTel Collector and Tempo use custom Dockerfiles built from contrib images
 
 ### Python Version Requirements
 
