@@ -16,11 +16,15 @@ class HealthState:
         self.max_age_seconds = max_age_seconds
         self.last_write_time: datetime | None = None
         self.messages_written: int = 0
+        self.dlq_messages: int = 0
         self.errors: int = 0
 
     def record_write(self, message_count: int) -> None:
         self.last_write_time = datetime.now(timezone.utc)
         self.messages_written += message_count
+
+    def record_dlq_write(self, message_count: int) -> None:
+        self.dlq_messages += message_count
 
     def record_error(self) -> None:
         self.errors += 1
@@ -36,6 +40,7 @@ class HealthState:
             "status": "healthy" if self.is_healthy() else "unhealthy",
             "last_write": self.last_write_time.isoformat() if self.last_write_time else None,
             "messages_written": self.messages_written,
+            "dlq_messages": self.dlq_messages,
             "errors": self.errors,
         }
 

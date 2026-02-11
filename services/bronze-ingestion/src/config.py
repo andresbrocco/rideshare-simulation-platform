@@ -4,6 +4,19 @@ from typing import Optional
 
 
 @dataclass
+class DLQConfig:
+    enabled: bool
+    validate_json: bool
+
+    @classmethod
+    def from_env(cls) -> "DLQConfig":
+        return cls(
+            enabled=os.getenv("DLQ_ENABLED", "true").lower() == "true",
+            validate_json=os.getenv("DLQ_VALIDATE_JSON", "false").lower() == "true",
+        )
+
+
+@dataclass
 class BronzeIngestionConfig:
     kafka_bootstrap_servers: str
     kafka_group_id: str
@@ -15,6 +28,7 @@ class BronzeIngestionConfig:
     aws_secret_access_key: Optional[str]
     aws_region: str
     bronze_bucket: str
+    dlq: DLQConfig
 
     @classmethod
     def from_env(cls) -> "BronzeIngestionConfig":
@@ -29,6 +43,7 @@ class BronzeIngestionConfig:
             aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", "minioadmin"),
             aws_region=os.getenv("AWS_REGION", "us-east-1"),
             bronze_bucket=os.getenv("BRONZE_BUCKET", "rideshare-bronze"),
+            dlq=DLQConfig.from_env(),
         )
 
     def get_storage_options(self) -> Optional[dict[str, str]]:

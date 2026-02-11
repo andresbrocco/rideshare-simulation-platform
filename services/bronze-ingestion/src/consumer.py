@@ -1,5 +1,10 @@
-from confluent_kafka import Consumer, KafkaException, Message
+import json
+from datetime import datetime, timezone
 from typing import Optional
+
+from confluent_kafka import Consumer, KafkaException, Message
+
+from src.dlq_writer import DLQRecord
 
 
 class KafkaConsumer:
@@ -51,6 +56,48 @@ class KafkaConsumer:
             raise KafkaException(msg.error())
 
         return msg
+
+    def validate_message(
+        self, msg: Message, validate_json: bool = False
+    ) -> tuple[Optional[str], Optional[str]]:
+        """Validate a Kafka message for encoding and optionally JSON structure.
+
+        Returns (error_type, error_message) if invalid, or (None, None) if valid.
+        """
+        raw_value = msg.value()
+        if raw_value is None:
+            return ("ENCODING_ERROR", "Message value is None")
+
+        try:
+            raw_value.decode("utf-8")
+        except UnicodeDecodeError as e:
+            return ("ENCODING_ERROR", f"UTF-8 decode failed: {e}")
+
+        if validate_json:
+            try:
+                json.loads(raw_value)
+            except (json.JSONDecodeError, ValueError) as e:
+                return ("JSON_PARSE_ERROR", f"JSON parse failed: {e}")
+
+        return (None, None)
+
+    def build_dlq_record(self, msg: Message, error_type: str, error_message: str) -> DLQRecord:
+        """Build a DLQRecord from a failed message."""
+        raw_value = msg.value()
+        if raw_value is not None:
+            original_payload = raw_value.decode("utf-8", errors="replace")
+        else:
+            original_payload = ""
+
+        return DLQRecord(
+            error_message=error_message,
+            error_type=error_type,
+            original_payload=original_payload,
+            kafka_topic=msg.topic() or "",
+            kafka_partition=msg.partition(),
+            kafka_offset=msg.offset(),
+            ingested_at=datetime.now(timezone.utc),
+        )
 
     def commit(self, messages: Optional[list[Message]] = None) -> None:
         self._ensure_consumer()

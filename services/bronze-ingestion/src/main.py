@@ -5,6 +5,7 @@ from typing import Optional, Any
 
 from src.consumer import KafkaConsumer
 from src.writer import DeltaWriter
+from src.dlq_writer import DLQWriter, DLQRecord
 from src.config import BronzeIngestionConfig
 from src.health import start_health_server, health_state
 
@@ -16,6 +17,7 @@ class IngestionService:
         self._running = True
         self._consumer: Optional[KafkaConsumer] = None
         self._writer: Optional[DeltaWriter] = None
+        self._dlq_writer: Optional[DLQWriter] = None
 
         signal.signal(signal.SIGINT, self._handle_shutdown)
         signal.signal(signal.SIGTERM, self._handle_shutdown)
@@ -26,6 +28,41 @@ class IngestionService:
 
     def _should_run(self) -> bool:
         return self._running
+
+    def _process_batch(
+        self,
+        message_batches: defaultdict[str, list[Any]],
+        dlq_batch: list[DLQRecord],
+    ) -> None:
+        """Write valid messages to Bronze and DLQ records to DLQ tables."""
+        all_messages: list[Any] = []
+
+        for topic, messages in message_batches.items():
+            if messages:
+                try:
+                    assert self._writer is not None
+                    self._writer.write_batch(messages, topic=topic)
+                    all_messages.extend(messages)
+                except Exception as e:
+                    health_state.record_error()
+                    print(f"Error writing batch for {topic}: {e}")
+                    raise
+
+        if dlq_batch and self._dlq_writer is not None:
+            try:
+                self._dlq_writer.write_batch(dlq_batch)
+                health_state.record_dlq_write(len(dlq_batch))
+                print(f"Wrote {len(dlq_batch)} messages to DLQ")
+            except Exception as e:
+                health_state.record_error()
+                print(f"Error writing DLQ batch: {e}")
+
+        if all_messages:
+            health_state.record_write(len(all_messages))
+
+        assert self._consumer is not None
+        if all_messages or dlq_batch:
+            self._consumer.commit(messages=all_messages or None)
 
     def run(self) -> None:
         config = BronzeIngestionConfig.from_env()
@@ -39,7 +76,15 @@ class IngestionService:
             base_path=config.delta_base_path, storage_options=config.get_storage_options()
         )
 
+        if config.dlq.enabled:
+            self._dlq_writer = DLQWriter(
+                base_path=config.delta_base_path,
+                storage_options=config.get_storage_options(),
+            )
+            print(f"DLQ routing enabled (validate_json={config.dlq.validate_json})")
+
         message_batches: defaultdict[str, list[Any]] = defaultdict(list)
+        dlq_batch: list[DLQRecord] = []
         last_write_time = time.time()
 
         while self._should_run():
@@ -47,38 +92,29 @@ class IngestionService:
 
             if msg is not None:
                 topic = msg.topic()
+
+                if config.dlq.enabled:
+                    error_type, error_message = self._consumer.validate_message(
+                        msg, validate_json=config.dlq.validate_json
+                    )
+                    if error_type is not None and error_message is not None:
+                        dlq_record = self._consumer.build_dlq_record(msg, error_type, error_message)
+                        dlq_batch.append(dlq_record)
+                        continue
+
                 if topic is not None:
                     message_batches[topic].append(msg)
 
             current_time = time.time()
             if current_time - last_write_time >= self.batch_interval_seconds:
-                all_messages = []
-
-                for topic, messages in message_batches.items():
-                    if messages:
-                        try:
-                            self._writer.write_batch(messages, topic=topic)
-                            all_messages.extend(messages)
-                        except Exception as e:
-                            health_state.record_error()
-                            print(f"Error writing batch for {topic}: {e}")
-                            raise
-
-                if all_messages:
-                    health_state.record_write(len(all_messages))
-                    self._consumer.commit(messages=all_messages)
-
+                self._process_batch(message_batches, dlq_batch)
                 message_batches.clear()
+                dlq_batch.clear()
                 last_write_time = current_time
 
-        if message_batches:
-            all_messages = []
-            for topic, messages in message_batches.items():
-                if messages:
-                    self._writer.write_batch(messages, topic=topic)
-                    all_messages.extend(messages)
-            if all_messages:
-                self._consumer.commit(messages=all_messages)
+        # Flush remaining messages on shutdown
+        if message_batches or dlq_batch:
+            self._process_batch(message_batches, dlq_batch)
 
         if self._consumer:
             self._consumer.close()

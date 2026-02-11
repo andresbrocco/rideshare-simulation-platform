@@ -100,8 +100,8 @@ class TestBatchWriteInterval:
 
     @patch("src.main.start_health_server")
     @patch("src.main.time.time")
-    @patch("src.consumer.KafkaConsumer")
-    @patch("src.writer.DeltaWriter")
+    @patch("src.main.KafkaConsumer")
+    @patch("src.main.DeltaWriter")
     def test_batch_write_every_ten_seconds(
         self, mock_writer_cls, mock_consumer_cls, mock_time, mock_health_server
     ):
@@ -121,6 +121,7 @@ class TestBatchWriteInterval:
             msg.topic = lambda: "trips"
 
         mock_consumer.poll.side_effect = messages + [None] * 10
+        mock_consumer.validate_message.return_value = (None, None)
 
         time_values = [i * 1.0 for i in range(30)]
         mock_time.side_effect = time_values
