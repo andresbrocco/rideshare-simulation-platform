@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from redis.asyncio import Redis
 
 from api.auth import verify_api_key
+from api.middleware.security_headers import SecurityHeadersMiddleware
 from api.models.health import (
     DetailedHealthResponse,
     ServiceHealth,
@@ -252,6 +253,8 @@ def create_app(
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    app.add_middleware(SecurityHeadersMiddleware)
 
     app.include_router(simulation.router, prefix="/simulation", tags=["simulation"])
     app.include_router(agents.router, prefix="/agents", tags=["agents"])
