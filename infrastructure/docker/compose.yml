@@ -692,7 +692,7 @@ services:
       _AIRFLOW_WWW_USER_CREATE: 'true'
       _AIRFLOW_WWW_USER_USERNAME: admin
       _AIRFLOW_WWW_USER_PASSWORD: admin
-      _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-fab apache-airflow-providers-apache-spark pyhive thrift dbt-core dbt-spark[PyHive] great-expectations requests prison'
+      _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-fab dbt-core dbt-duckdb==1.10.0 dbt-spark[PyHive] duckdb==1.4.4 deltalake==1.4.2 duckdb-engine==0.17.0 great-expectations requests prison'
     volumes:
       - ../../services/airflow/dags:/opt/airflow/dags
       - ../../services/airflow/logs:/opt/airflow/logs
@@ -741,7 +741,7 @@ services:
       AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: 30
       AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-webserver:8080/execution/'
       DBT_SPARK_HOST: spark-thrift-server
-      _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-fab apache-airflow-providers-apache-spark pyhive thrift dbt-core dbt-spark[PyHive] great-expectations requests prison'
+      _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-fab dbt-core dbt-duckdb==1.10.0 dbt-spark[PyHive] duckdb==1.4.4 deltalake==1.4.2 duckdb-engine==0.17.0 great-expectations requests prison'
     volumes:
       - ../../services/airflow/dags:/opt/airflow/dags
       - ../../services/airflow/logs:/opt/airflow/logs
@@ -756,7 +756,7 @@ services:
       airflow-webserver:
         condition: service_healthy  # Ensure DB migrations complete before reserialization
       spark-thrift-server:
-        condition: service_healthy  # Required for DBT tasks to connect
+        condition: service_healthy
     networks:
       - rideshare-network
     # Reserialize DAGs on startup to ensure they're loaded in Airflow 3.x

@@ -2,11 +2,10 @@
 
 This DAG performs daily maintenance on Bronze Delta tables to:
 1. OPTIMIZE: Compact small files into larger ones for better read performance
-2. VACUUM LITE: Remove old files no longer referenced by the Delta log
+2. VACUUM: Remove old files no longer referenced by the Delta log
 
-VACUUM LITE (Delta 3.3+) uses the transaction log to identify files to delete,
-rather than listing the entire directory. This is significantly faster but won't
-catch orphaned files from failed writes that never made it into the log.
+Uses delta-rs Python library to perform operations directly on Delta tables
+stored in MinIO (S3-compatible) without requiring Spark.
 
 Schedule: 3 AM daily (after Gold DAG completes at 2 AM)
 """
@@ -39,9 +38,20 @@ ALL_TABLES = BRONZE_TABLES + DLQ_TABLES
 # VACUUM retention in hours (7 days)
 VACUUM_RETENTION_HOURS = 168
 
+# MinIO storage options for delta-rs
+STORAGE_OPTIONS = {
+    "AWS_ENDPOINT_URL": "http://minio:9000",
+    "AWS_ACCESS_KEY_ID": "minioadmin",
+    "AWS_SECRET_ACCESS_KEY": "minioadmin",
+    "AWS_ALLOW_HTTP": "true",
+    "AWS_S3_ALLOW_UNSAFE_RENAME": "true",
+}
+
 
 def optimize_table(table_name: str, **context: Any) -> dict[str, object]:
-    """Run OPTIMIZE on a Delta table.
+    """Run OPTIMIZE on a Delta table using delta-rs.
+
+    Compacts small files into larger ones for better read performance.
 
     Args:
         table_name: Name of the table to optimize.
@@ -50,28 +60,27 @@ def optimize_table(table_name: str, **context: Any) -> dict[str, object]:
     Returns:
         Dictionary with table name and operation status.
     """
-    from pyhive import hive
+    from deltalake import DeltaTable
 
-    conn = hive.connect(host="spark-thrift-server", port=10000, auth="NOSASL")
-    cursor = conn.cursor()
     try:
-        cursor.execute(f"OPTIMIZE bronze.{table_name}")
-        return {"table": table_name, "status": "success", "operation": "OPTIMIZE"}
+        dt = DeltaTable(f"s3://rideshare-bronze/{table_name}/", storage_options=STORAGE_OPTIONS)
+        metrics = dt.optimize.compact()
+        return {
+            "table": table_name,
+            "status": "success",
+            "operation": "OPTIMIZE",
+            "metrics": metrics,
+        }
     except Exception as e:
         return {"table": table_name, "status": "failed", "error": str(e), "operation": "OPTIMIZE"}
-    finally:
-        cursor.close()
-        conn.close()
 
 
 def vacuum_table(
     table_name: str, retention_hours: int = VACUUM_RETENTION_HOURS, **context: Any
 ) -> dict[str, object]:
-    """Run VACUUM LITE on a Delta table.
+    """Run VACUUM on a Delta table using delta-rs.
 
-    Uses LITE mode (Delta 3.3+) which reads from the transaction log instead of
-    listing all files in the directory. This is faster but won't catch orphaned
-    files from failed writes that never made it into the log.
+    Removes old files no longer referenced by the Delta transaction log.
 
     Args:
         table_name: Name of the table to vacuum.
@@ -81,18 +90,16 @@ def vacuum_table(
     Returns:
         Dictionary with table name and operation status.
     """
-    from pyhive import hive
+    from deltalake import DeltaTable
 
-    conn = hive.connect(host="spark-thrift-server", port=10000, auth="NOSASL")
-    cursor = conn.cursor()
     try:
-        cursor.execute(f"VACUUM bronze.{table_name} LITE RETAIN {retention_hours} HOURS")
-        return {"table": table_name, "status": "success", "operation": "VACUUM"}
+        dt = DeltaTable(f"s3://rideshare-bronze/{table_name}/", storage_options=STORAGE_OPTIONS)
+        metrics = dt.vacuum(
+            retention_hours=retention_hours, enforce_retention_duration=False, dry_run=False
+        )
+        return {"table": table_name, "status": "success", "operation": "VACUUM", "metrics": metrics}
     except Exception as e:
         return {"table": table_name, "status": "failed", "error": str(e), "operation": "VACUUM"}
-    finally:
-        cursor.close()
-        conn.close()
 
 
 def summarize_results(**context: Any) -> dict[str, Any]:
@@ -146,7 +153,7 @@ default_args = {
 with DAG(
     "delta_maintenance",
     default_args=default_args,
-    description="Daily OPTIMIZE and VACUUM LITE for Bronze Delta tables",
+    description="Daily OPTIMIZE and VACUUM for Bronze Delta tables",
     schedule="0 3 * * *",  # 3 AM daily
     start_date=datetime(2026, 1, 1),
     catchup=False,

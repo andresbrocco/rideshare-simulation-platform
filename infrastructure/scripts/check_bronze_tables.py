@@ -10,16 +10,17 @@ Usage:
 Exit codes:
     0 - All Bronze tables exist and have data
     1 - One or more Bronze tables are missing (skip DBT run)
-    2 - Connection error to Spark Thrift Server
+    2 - Connection error to DuckDB or S3
 
 Environment:
     - Runs from Airflow scheduler container
-    - Connects to spark-thrift-server:10000
+    - Connects to MinIO via DuckDB's httpfs extension
 """
 
 import logging
 import sys
-import time
+
+import duckdb
 
 logging.basicConfig(
     level=logging.INFO,
@@ -40,28 +41,25 @@ REQUIRED_BRONZE_TABLES = [
 ]
 
 
-def check_table_exists(cursor, table_name: str) -> tuple[bool, int]:
-    """Check if a Bronze Delta table exists and has data.
+def check_table_exists(conn: duckdb.DuckDBPyConnection, table_name: str) -> tuple[bool, int]:
+    """Check if a Bronze Delta table exists and has data using DuckDB.
 
     Args:
-        cursor: PyHive cursor
-        table_name: Name of the Bronze table (e.g., 'bronze_trips')
+        conn: DuckDB connection with delta and httpfs extensions loaded.
+        table_name: Name of the Bronze table (e.g., 'bronze_trips').
 
     Returns:
-        Tuple of (exists: bool, row_count: int)
+        Tuple of (exists: bool, row_count: int).
     """
-    delta_path = f"s3a://rideshare-bronze/{table_name}/"
+    delta_path = f"s3://rideshare-bronze/{table_name}/"
     try:
-        # Try to count rows - this will fail if path doesn't exist
-        cursor.execute(f"SELECT COUNT(*) FROM delta.`{delta_path}`")
-        result = cursor.fetchone()
+        result = conn.execute(f"SELECT COUNT(*) FROM delta_scan('{delta_path}')").fetchone()
         row_count = result[0] if result else 0
         return True, row_count
     except Exception as e:
         error_str = str(e)
-        if "PATH_NOT_FOUND" in error_str or "does not exist" in error_str.lower():
+        if "No such file" in error_str or "does not exist" in error_str.lower():
             return False, 0
-        # Re-raise unexpected errors
         raise
 
 
@@ -69,48 +67,39 @@ def main() -> int:
     """Check all Bronze tables and report status.
 
     Returns:
-        Exit code: 0 if all tables ready, 1 if tables missing, 2 on connection error
+        Exit code: 0 if all tables ready, 1 if tables missing, 2 on connection error.
     """
-    try:
-        from pyhive import hive
-    except ImportError:
-        logger.error("pyhive not installed. Install with: pip install pyhive thrift")
-        return 2
-
     logger.info("=" * 60)
     logger.info("Bronze Layer Readiness Check")
     logger.info("=" * 60)
 
-    # Retry connection with backoff
-    max_retries = 3
-    conn = None
+    try:
+        conn = duckdb.connect(":memory:")
+        conn.install_extension("delta")
+        conn.install_extension("httpfs")
+        conn.load_extension("delta")
+        conn.load_extension("httpfs")
 
-    for attempt in range(max_retries):
-        try:
-            logger.info(
-                f"Connecting to Spark Thrift Server (attempt {attempt + 1}/{max_retries})..."
-            )
-            conn = hive.connect(host="spark-thrift-server", port=10000, auth="NOSASL")
-            logger.info("Connected to Spark Thrift Server")
-            break
-        except Exception as e:
-            if attempt < max_retries - 1:
-                logger.warning(f"Connection attempt {attempt + 1} failed: {e}")
-                time.sleep(5)
-            else:
-                logger.error(f"Failed to connect after {max_retries} attempts: {e}")
-                return 2
+        conn.execute("SET s3_endpoint='minio:9000'")
+        conn.execute("SET s3_access_key_id='minioadmin'")
+        conn.execute("SET s3_secret_access_key='minioadmin'")
+        conn.execute("SET s3_use_ssl=false")
+        conn.execute("SET s3_url_style='path'")
 
-    cursor = conn.cursor()
+        logger.info("Connected to DuckDB with Delta and S3 extensions")
+    except Exception as e:
+        logger.error(f"Failed to initialize DuckDB connection: {e}")
+        return 2
+
     try:
         existing_tables = []
         missing_tables = []
-        table_stats = {}
+        table_stats: dict[str, int] = {}
 
         for table_name in REQUIRED_BRONZE_TABLES:
             logger.info(f"Checking {table_name}...")
             try:
-                exists, row_count = check_table_exists(cursor, table_name)
+                exists, row_count = check_table_exists(conn, table_name)
                 if exists:
                     existing_tables.append(table_name)
                     table_stats[table_name] = row_count

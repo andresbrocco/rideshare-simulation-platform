@@ -14,8 +14,10 @@ warn_redundant_casts = true
 # provisioning module is mounted at runtime in Docker container
 [[tool.mypy.overrides]]
 module = [
-    "pyhive",
-    "pyhive.*",
+    "duckdb",
+    "duckdb.*",
+    "deltalake",
+    "deltalake.*",
     "airflow",
     "airflow.*",
     "provisioning",

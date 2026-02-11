@@ -1,6 +1,6 @@
 """DLQ monitoring DAG that checks error counts every 15 minutes.
 
-Connects to Spark Thrift Server via PyHive to query DLQ Delta tables.
+Connects to MinIO via DuckDB to query DLQ Delta tables for recent errors.
 """
 
 from datetime import datetime, timedelta
@@ -24,9 +24,6 @@ DLQ_TABLES = [
     "dlq_rider_profiles",
 ]
 
-THRIFT_HOST = "spark-thrift-server"
-THRIFT_PORT = 10000
-
 default_args = {
     "owner": "rideshare",
     "depends_on_past": False,
@@ -40,10 +37,10 @@ default_args = {
 def query_dlq_errors(**context):
     """Query all DLQ tables for error counts in the last 15 minutes.
 
-    Uses PyHive to connect to Spark Thrift Server instead of running
-    Spark locally (Airflow container doesn't have Java).
+    Uses DuckDB with delta and httpfs extensions to read Delta tables
+    directly from MinIO without requiring Spark.
     """
-    from pyhive import hive
+    import duckdb
     from datetime import datetime, timedelta
 
     error_counts = {}
@@ -51,19 +48,26 @@ def query_dlq_errors(**context):
     cutoff_time = (datetime.now() - timedelta(minutes=15)).strftime("%Y-%m-%d %H:%M:%S")
 
     try:
-        # Connect without SASL authentication (local development)
-        conn = hive.connect(host=THRIFT_HOST, port=THRIFT_PORT, auth="NOSASL")
-        cursor = conn.cursor()
+        conn = duckdb.connect(":memory:")
+        conn.install_extension("delta")
+        conn.install_extension("httpfs")
+        conn.load_extension("delta")
+        conn.load_extension("httpfs")
+
+        conn.execute("SET s3_endpoint='minio:9000'")
+        conn.execute("SET s3_access_key_id='minioadmin'")
+        conn.execute("SET s3_secret_access_key='minioadmin'")
+        conn.execute("SET s3_use_ssl=false")
+        conn.execute("SET s3_url_style='path'")
 
         for table in DLQ_TABLES:
             try:
                 query = f"""
                     SELECT COUNT(*) as cnt
-                    FROM bronze.{table}
+                    FROM delta_scan('s3://rideshare-bronze/{table}/')
                     WHERE _ingested_at >= '{cutoff_time}'
                 """
-                cursor.execute(query)
-                result = cursor.fetchone()
+                result = conn.execute(query).fetchone()
                 count = result[0] if result else 0
                 error_counts[table] = count
                 total_errors += count
@@ -73,10 +77,9 @@ def query_dlq_errors(**context):
                 print(f"Warning: Could not query {table}: {e}")
                 error_counts[table] = 0
 
-        cursor.close()
         conn.close()
     except Exception as e:
-        print(f"Error connecting to Spark Thrift Server: {e}")
+        print(f"Error connecting to DuckDB: {e}")
         print("DLQ tables may not exist yet - this is expected on first run")
         for table in DLQ_TABLES:
             error_counts[table] = 0
