@@ -4,14 +4,20 @@ sources:
   - name: bronze
     description: |
       Bronze layer raw data from Kafka streams stored in Delta format in MinIO.
-      Tables are read directly from S3 paths using Delta format.
+
+      Access pattern is adapter-specific:
+      - DuckDB: Direct S3 path access via delta_scan('s3://rideshare-bronze/{table}/')
+      - Spark/Glue: Hive Metastore catalog reference via bronze.{table}
+
+      The delta_source() macro handles the adapter dispatching automatically.
     meta:
       external_location: s3a://rideshare-bronze/
     tables:
       - name: bronze_trips
         description: Raw trip events from Kafka
         meta:
-          location: s3a://rideshare-bronze/bronze_trips/
+          s3_path: s3://rideshare-bronze/bronze_trips/
+          hive_table: bronze.bronze_trips
           file_format: delta
         columns:
           - name: _raw_value
@@ -30,7 +36,8 @@ sources:
       - name: bronze_gps_pings
         description: Raw GPS ping events from Kafka
         meta:
-          location: s3a://rideshare-bronze/bronze_gps_pings/
+          s3_path: s3://rideshare-bronze/bronze_gps_pings/
+          hive_table: bronze.bronze_gps_pings
           file_format: delta
         columns:
           - name: _raw_value
@@ -41,7 +48,8 @@ sources:
       - name: bronze_driver_status
         description: Raw driver status change events from Kafka
         meta:
-          location: s3a://rideshare-bronze/bronze_driver_status/
+          s3_path: s3://rideshare-bronze/bronze_driver_status/
+          hive_table: bronze.bronze_driver_status
           file_format: delta
         columns:
           - name: _raw_value
@@ -52,7 +60,8 @@ sources:
       - name: bronze_surge_updates
         description: Raw surge pricing update events from Kafka
         meta:
-          location: s3a://rideshare-bronze/bronze_surge_updates/
+          s3_path: s3://rideshare-bronze/bronze_surge_updates/
+          hive_table: bronze.bronze_surge_updates
           file_format: delta
         columns:
           - name: _raw_value
@@ -63,7 +72,8 @@ sources:
       - name: bronze_ratings
         description: Raw rating events from Kafka
         meta:
-          location: s3a://rideshare-bronze/bronze_ratings/
+          s3_path: s3://rideshare-bronze/bronze_ratings/
+          hive_table: bronze.bronze_ratings
           file_format: delta
         columns:
           - name: _raw_value
@@ -74,7 +84,8 @@ sources:
       - name: bronze_payments
         description: Raw payment events from Kafka
         meta:
-          location: s3a://rideshare-bronze/bronze_payments/
+          s3_path: s3://rideshare-bronze/bronze_payments/
+          hive_table: bronze.bronze_payments
           file_format: delta
         columns:
           - name: _raw_value
@@ -85,7 +96,8 @@ sources:
       - name: bronze_driver_profiles
         description: Raw driver profile events from Kafka
         meta:
-          location: s3a://rideshare-bronze/bronze_driver_profiles/
+          s3_path: s3://rideshare-bronze/bronze_driver_profiles/
+          hive_table: bronze.bronze_driver_profiles
           file_format: delta
         columns:
           - name: _raw_value
@@ -96,7 +108,8 @@ sources:
       - name: bronze_rider_profiles
         description: Raw rider profile events from Kafka
         meta:
-          location: s3a://rideshare-bronze/bronze_rider_profiles/
+          s3_path: s3://rideshare-bronze/bronze_rider_profiles/
+          hive_table: bronze.bronze_rider_profiles
           file_format: delta
         columns:
           - name: _raw_value

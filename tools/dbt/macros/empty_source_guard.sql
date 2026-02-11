@@ -47,13 +47,13 @@
     {%- set typed_null_list = typed_nulls | join(', ') -%}
 
     {#-
-      Read from Bronze table registered in Hive Metastore.
+      Read from Bronze table using adapter-aware delta_source macro.
       Uses UNION ALL pattern to handle empty tables gracefully.
     -#}
 
     (
         select {{ column_list }}
-        from bronze.{{ source_table }}
+        from {{ delta_source('bronze', source_table) }}
 
         union all
 
