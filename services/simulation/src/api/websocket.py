@@ -3,6 +3,7 @@ from typing import Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from fastapi.websockets import WebSocketState
 
+from api.rate_limit import ws_limiter
 from settings import get_settings
 
 router = APIRouter()
@@ -64,6 +65,12 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     settings = get_settings()
 
     if not api_key or api_key != settings.api.key:
+        await websocket.close(code=1008)
+        return
+
+    # Rate limit WebSocket connections per client
+    client_key = f"key:{api_key}"
+    if ws_limiter.is_limited(client_key):
         await websocket.close(code=1008)
         return
 

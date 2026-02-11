@@ -15,19 +15,19 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 if TYPE_CHECKING:
     from redis.asyncio import Redis
 
 from api.auth import verify_api_key
+from api.middleware.security_headers import SecurityHeadersMiddleware
 from api.models.health import (
     DetailedHealthResponse,
     ServiceHealth,
     StreamProcessorHealth,
 )
-from api.rate_limit import limiter
+from api.rate_limit import limiter, rate_limit_exceeded_handler
 from api.redis_subscriber import RedisSubscriber
 from api.routes import agents, metrics, puppet, simulation
 from api.snapshots import StateSnapshotManager
@@ -232,7 +232,7 @@ def create_app(
 
     # Add rate limiter state and exception handler
     app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
     # Set core dependencies immediately (not in lifespan) so they're available for testing
     app.state.simulation_engine = engine
@@ -253,6 +253,8 @@ def create_app(
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    app.add_middleware(SecurityHeadersMiddleware)
 
     app.include_router(simulation.router, prefix="/simulation", tags=["simulation"])
     app.include_router(agents.router, prefix="/agents", tags=["agents"])

@@ -137,8 +137,28 @@ HTTP security headers.
 - Allow methods: All (`["*"]`)
 - Allow headers: All (`["*"]`)
 
-### Other Headers
-No additional security headers configured (CSP, HSTS, X-Frame-Options, etc.).
+### HTTP Security Headers
+- Middleware: `SecurityHeadersMiddleware`
+- Module: `services/simulation/src/api/middleware/security_headers.py`
+- Applied to all HTTP responses globally
+
+**Configured headers:**
+
+| Header | Value | Purpose |
+|--------|-------|---------|
+| `Content-Security-Policy` | `default-src 'self'; connect-src 'self' ws: wss:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self'` | Mitigate XSS attacks, allow WebSocket connections |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` | Enforce HTTPS for 1 year including subdomains |
+| `X-Frame-Options` | `DENY` | Prevent clickjacking attacks |
+| `X-Content-Type-Options` | `nosniff` | Prevent MIME type sniffing |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | Control referrer information leakage |
+| `Permissions-Policy` | `camera=(), microphone=(), geolocation=()` | Disable unnecessary browser features |
+
+**CSP directives:**
+- `default-src 'self'`: Only load resources from same origin by default
+- `connect-src 'self' ws: wss:`: Allow WebSocket connections for real-time updates
+- `style-src 'self' 'unsafe-inline'`: Allow inline styles for frontend compatibility
+- `img-src 'self' data:`: Allow data URIs for inline images
+- `script-src 'self'`: Only execute scripts from same origin
 
 ## Logging and Monitoring
 
@@ -202,11 +222,9 @@ Security-relevant notes from documentation and code analysis.
 From `docs/security/development.md`:
 
 1. **Default API key:** `dev-api-key-change-in-production` is insecure if unchanged
-2. **No rate limiting:** All endpoints accept unlimited requests
-3. **HTTP transport:** No TLS encryption in local development
-4. **Unauthenticated monitoring:** `/health` and `/metrics` endpoints have no auth
-5. **No Content Security Policy:** No CSP headers configured
-6. **Permissive CORS:** Allows all methods and headers from configured origins
+2. **HTTP transport:** No TLS encryption in local development
+3. **Unauthenticated monitoring:** `/health` and `/metrics` endpoints have no auth
+4. **Permissive CORS:** Allows all methods and headers from configured origins
 
 ### Session Management
 - No session cookies or tokens
@@ -228,9 +246,9 @@ Documented in `docs/security/production-checklist.md`:
 - Enable HTTPS/TLS for all public endpoints
 - Move secrets to AWS Secrets Manager
 - Implement IAM roles with least privilege
-- Add API rate limiting
+- ✓ Add API rate limiting (implemented with tiered limits)
 - Enable network isolation with VPC and security groups
-- Add security headers (HSTS, CSP, X-Frame-Options)
+- ✓ Add security headers (HSTS, CSP, X-Frame-Options)
 - Migrate from SQLite to PostgreSQL
 - Implement audit logging
 - Configure monitoring alarms
