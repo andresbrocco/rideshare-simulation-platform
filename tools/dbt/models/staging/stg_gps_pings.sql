@@ -19,30 +19,30 @@ with source as (
         _ingested_at
     from {{ delta_source('bronze', 'bronze_gps_pings') }}
     {% if is_incremental() %}
-    where _ingested_at > (select coalesce(max(_ingested_at), to_timestamp('1970-01-01')) from {{ this }})
+    where _ingested_at > (select coalesce(max(_ingested_at), {{ to_ts("'1970-01-01'") }}) from {{ this }})
     {% endif %}
 ),
 
 parsed as (
     select
-        get_json_object(_raw_value, '$.event_id') as event_id,
-        get_json_object(_raw_value, '$.entity_type') as entity_type,
-        get_json_object(_raw_value, '$.entity_id') as entity_id,
-        to_timestamp(get_json_object(_raw_value, '$.timestamp')) as timestamp,
-        cast(get_json_object(_raw_value, '$.location[0]') as double) as latitude,
-        cast(get_json_object(_raw_value, '$.location[1]') as double) as longitude,
-        array(
-            cast(get_json_object(_raw_value, '$.location[0]') as double),
-            cast(get_json_object(_raw_value, '$.location[1]') as double)
+        {{ json_field('_raw_value', '$.event_id') }} as event_id,
+        {{ json_field('_raw_value', '$.entity_type') }} as entity_type,
+        {{ json_field('_raw_value', '$.entity_id') }} as entity_id,
+        {{ to_ts(json_field('_raw_value', '$.timestamp')) }} as timestamp,
+        cast({{ json_field('_raw_value', '$.location[0]') }} as double) as latitude,
+        cast({{ json_field('_raw_value', '$.location[1]') }} as double) as longitude,
+        {{ 'list_value' if target.type == 'duckdb' else 'array' }}(
+            cast({{ json_field('_raw_value', '$.location[0]') }} as double),
+            cast({{ json_field('_raw_value', '$.location[1]') }} as double)
         ) as location,
-        cast(get_json_object(_raw_value, '$.accuracy') as double) as accuracy,
-        cast(get_json_object(_raw_value, '$.heading') as double) as heading,
-        cast(get_json_object(_raw_value, '$.speed') as double) as speed,
-        get_json_object(_raw_value, '$.trip_id') as trip_id,
-        get_json_object(_raw_value, '$.trip_state') as trip_state,
+        cast({{ json_field('_raw_value', '$.accuracy') }} as double) as accuracy,
+        cast({{ json_field('_raw_value', '$.heading') }} as double) as heading,
+        cast({{ json_field('_raw_value', '$.speed') }} as double) as speed,
+        {{ json_field('_raw_value', '$.trip_id') }} as trip_id,
+        {{ json_field('_raw_value', '$.trip_state') }} as trip_state,
         _ingested_at
     from source
-    where get_json_object(_raw_value, '$.event_id') is not null
+    where {{ json_field('_raw_value', '$.event_id') }} is not null
 )
 
 select * from parsed

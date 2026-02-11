@@ -19,23 +19,23 @@ with source as (
         _ingested_at
     from {{ delta_source('bronze', 'bronze_surge_updates') }}
     {% if is_incremental() %}
-    where _ingested_at > (select coalesce(max(_ingested_at), to_timestamp('1970-01-01')) from {{ this }})
+    where _ingested_at > (select coalesce(max(_ingested_at), {{ to_ts("'1970-01-01'") }}) from {{ this }})
     {% endif %}
 ),
 
 parsed as (
     select
-        get_json_object(_raw_value, '$.event_id') as event_id,
-        get_json_object(_raw_value, '$.zone_id') as zone_id,
-        to_timestamp(get_json_object(_raw_value, '$.timestamp')) as timestamp,
-        cast(get_json_object(_raw_value, '$.previous_multiplier') as double) as previous_multiplier,
-        cast(get_json_object(_raw_value, '$.new_multiplier') as double) as new_multiplier,
-        cast(get_json_object(_raw_value, '$.available_drivers') as int) as available_drivers,
-        cast(get_json_object(_raw_value, '$.pending_requests') as int) as pending_requests,
-        cast(get_json_object(_raw_value, '$.calculation_window_seconds') as int) as calculation_window_seconds,
+        {{ json_field('_raw_value', '$.event_id') }} as event_id,
+        {{ json_field('_raw_value', '$.zone_id') }} as zone_id,
+        {{ to_ts(json_field('_raw_value', '$.timestamp')) }} as timestamp,
+        cast({{ json_field('_raw_value', '$.previous_multiplier') }} as double) as previous_multiplier,
+        cast({{ json_field('_raw_value', '$.new_multiplier') }} as double) as new_multiplier,
+        cast({{ json_field('_raw_value', '$.available_drivers') }} as int) as available_drivers,
+        cast({{ json_field('_raw_value', '$.pending_requests') }} as int) as pending_requests,
+        cast({{ json_field('_raw_value', '$.calculation_window_seconds') }} as int) as calculation_window_seconds,
         _ingested_at
     from source
-    where get_json_object(_raw_value, '$.event_id') is not null
+    where {{ json_field('_raw_value', '$.event_id') }} is not null
 )
 
 select * from parsed
