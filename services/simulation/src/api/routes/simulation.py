@@ -128,7 +128,7 @@ def change_speed(
 
 
 @router.get("/status", response_model=SimulationStatusResponse)
-@limiter.limit("30/minute")
+@limiter.limit("100/minute")
 def get_status(
     request: Request, engine: EngineDep, driver_registry: DriverRegistryDep
 ) -> SimulationStatusResponse:

@@ -46,11 +46,13 @@ def mock_engine_modules():
     else:
         sys.modules.pop("engine.agent_factory", None)
 
-    # Also clear api.app from cache so it reimports cleanly
+    # Also clear api modules from cache so they reimport cleanly
     sys.modules.pop("api.app", None)
     sys.modules.pop("api.routes.simulation", None)
     sys.modules.pop("api.routes.agents", None)
     sys.modules.pop("api.routes.metrics", None)
+    sys.modules.pop("api.rate_limit", None)
+    sys.modules.pop("api.websocket", None)
 
 
 @pytest.fixture
