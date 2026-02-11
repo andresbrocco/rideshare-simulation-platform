@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Bind-mounted from services/simulation/data/ by Docker Compose
+public/zones.geojson
