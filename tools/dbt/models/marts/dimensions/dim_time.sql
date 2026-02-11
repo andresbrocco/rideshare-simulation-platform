@@ -19,15 +19,15 @@ final as (
         extract(year from date_day) as year,
         extract(month from date_day) as month,
         extract(day from date_day) as day,
-        -- Convert Spark's dayofweek (1=Sun, 7=Sat) to ISO (1=Mon, 7=Sun)
+        -- Convert to ISO (1=Mon, 7=Sun) from normalized day_of_week (1=Sun, 7=Sat)
         case
-            when extract(dayofweek from date_day) = 1 then 7  -- Sunday
-            else extract(dayofweek from date_day) - 1         -- Mon-Sat shift down by 1
+            when {{ day_of_week('date_day') }} = 1 then 7  -- Sunday
+            else {{ day_of_week('date_day') }} - 1         -- Mon-Sat shift down by 1
         end as day_of_week,
-        -- Weekend is Saturday (7 in Spark) or Sunday (1 in Spark)
-        case when extract(dayofweek from date_day) in (1, 7) then true else false end as is_weekend,
-        date_format(date_day, 'EEEE') as day_name,
-        date_format(date_day, 'MMMM') as month_name,
+        -- Weekend is Saturday (7) or Sunday (1) in normalized day_of_week
+        case when {{ day_of_week('date_day') }} in (1, 7) then true else false end as is_weekend,
+        {{ format_date('date_day', 'EEEE') }} as day_name,
+        {{ format_date('date_day', 'MMMM') }} as month_name,
         extract(quarter from date_day) as quarter
     from date_spine
 )

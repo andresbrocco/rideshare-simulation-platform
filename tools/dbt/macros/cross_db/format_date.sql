@@ -10,6 +10,7 @@
 
   Format translations (Spark -> DuckDB):
     yyyy -> %Y
+    MMMM -> %B (month name)
     MM   -> %m
     dd   -> %d
     HH   -> %H
@@ -26,6 +27,7 @@
   {# Translate Spark format to strftime format #}
   {% set duckdb_format = format_string
       | replace('yyyy', '%Y')
+      | replace('MMMM', '%B')
       | replace('MM', '%m')
       | replace('dd', '%d')
       | replace('HH', '%H')

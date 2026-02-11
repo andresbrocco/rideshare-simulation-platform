@@ -51,7 +51,7 @@ zombie_candidates as (
         coalesce(g.last_gps_timestamp, s.last_status_timestamp) as last_gps_timestamp,
         s.last_status_timestamp,
         s.current_status,
-        (unix_timestamp(s.last_status_timestamp) - unix_timestamp(coalesce(g.last_gps_timestamp, s.last_status_timestamp))) / 60.0 as minutes_since_last_ping
+        ({{ epoch_seconds('s.last_status_timestamp') }} - {{ epoch_seconds('coalesce(g.last_gps_timestamp, s.last_status_timestamp)') }}) / 60.0 as minutes_since_last_ping
     from latest_status_per_driver s
     left join latest_gps_per_driver g on s.driver_id = g.driver_id
     where s.current_status in ('idle', 'dispatched', 'en_route_to_pickup', 'arrived_at_pickup', 'on_trip')

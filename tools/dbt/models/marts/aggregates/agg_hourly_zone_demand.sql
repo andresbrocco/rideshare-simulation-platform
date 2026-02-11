@@ -20,7 +20,7 @@ trip_completions as (
         date_trunc('hour', requested_at) as hour_timestamp,
         case
             when matched_at is not null and started_at is not null
-            then (unix_timestamp(started_at) - unix_timestamp(matched_at)) / 60.0
+            then ({{ epoch_seconds('started_at') }} - {{ epoch_seconds('matched_at') }}) / 60.0
             else null
         end as wait_time_minutes,
         surge_multiplier

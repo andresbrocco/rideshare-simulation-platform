@@ -106,7 +106,7 @@ final as (
         cast(null as double) as distance_km,
         case
             when started_at is not null and completed_at is not null
-            then (unix_timestamp(completed_at) - unix_timestamp(started_at)) / 60.0
+            then ({{ epoch_seconds('completed_at') }} - {{ epoch_seconds('started_at') }}) / 60.0
             else null
         end as duration_minutes
     from with_dimensions

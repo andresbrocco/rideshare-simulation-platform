@@ -43,7 +43,7 @@ speed_calculations as (
         previous_latitude,
         previous_longitude,
         previous_timestamp,
-        (unix_timestamp(timestamp) - unix_timestamp(previous_timestamp)) as time_diff_seconds,
+        ({{ epoch_seconds('timestamp') }} - {{ epoch_seconds('previous_timestamp') }}) as time_diff_seconds,
         -- Haversine distance approximation in km
         111.32 * sqrt(
             pow(latitude - previous_latitude, 2) +
@@ -51,11 +51,11 @@ speed_calculations as (
         ) as distance_km,
         -- Calculate speed in km/h
         case
-            when (unix_timestamp(timestamp) - unix_timestamp(previous_timestamp)) > 0 then
+            when ({{ epoch_seconds('timestamp') }} - {{ epoch_seconds('previous_timestamp') }}) > 0 then
                 (111.32 * sqrt(
                     pow(latitude - previous_latitude, 2) +
                     pow((longitude - previous_longitude) * cos(radians((latitude + previous_latitude) / 2)), 2)
-                )) / ((unix_timestamp(timestamp) - unix_timestamp(previous_timestamp)) / 3600.0)
+                )) / (({{ epoch_seconds('timestamp') }} - {{ epoch_seconds('previous_timestamp') }}) / 3600.0)
             else 0
         end as speed_kmh
     from gps_with_prev

@@ -49,7 +49,7 @@ final as (
         status,
         status_start,
         status_end,
-        (unix_timestamp(status_end) - unix_timestamp(status_start)) / 60.0 as duration_minutes,
+        ({{ epoch_seconds('status_end') }} - {{ epoch_seconds('status_start') }}) / 60.0 as duration_minutes,
         zone_key
     from with_dimensions
 )
