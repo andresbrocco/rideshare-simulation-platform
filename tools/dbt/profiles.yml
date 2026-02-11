@@ -1,13 +1,38 @@
 rideshare:
-  target: dev
+  target: local  # default for development
+
   outputs:
-    dev:
+    local:
+      type: duckdb
+      path: "{{ env_var('DUCKDB_PATH', '/tmp/rideshare.duckdb') }}"
+      extensions:
+        - delta
+        - httpfs
+      settings:
+        s3_endpoint: "{{ env_var('S3_ENDPOINT', 'minio:9000') }}"
+        s3_access_key_id: "{{ env_var('AWS_ACCESS_KEY_ID', 'minioadmin') }}"
+        s3_secret_access_key: "{{ env_var('AWS_SECRET_ACCESS_KEY', 'minioadmin') }}"
+        s3_use_ssl: false
+        s3_url_style: path
+      threads: 4
+
+    spark-local:
       type: spark
       method: thrift
-      host: spark-thrift-server
+      host: "{{ env_var('DBT_SPARK_HOST', 'spark-thrift-server') }}"
       port: 10000
       schema: default
       threads: 1
       connect_timeout: 60
       connect_retries: 3
       auth: NOSASL
+
+    cloud:
+      type: glue
+      role_arn: "{{ env_var('GLUE_ROLE_ARN') }}"
+      region: "{{ env_var('AWS_REGION', 'sa-east-1') }}"
+      workers: 2
+      worker_type: G.1X
+      schema: rideshare
+      threads: 4
+      glue_version: "4.0"

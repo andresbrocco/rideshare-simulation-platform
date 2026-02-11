@@ -22,11 +22,9 @@ models:
       +schema: silver
       +materialized: incremental
       +on_schema_change: fail
-      +incremental_strategy: merge
       +tags:
         - silver
     marts:
-      +file_format: delta
       dimensions:
         +schema: gold
         +materialized: table
