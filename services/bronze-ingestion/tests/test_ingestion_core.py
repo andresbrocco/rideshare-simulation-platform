@@ -98,10 +98,13 @@ class TestMetadataColumns:
 class TestBatchWriteInterval:
     """Test 3: Batch write interval"""
 
+    @patch("src.main.start_health_server")
     @patch("src.main.time.time")
     @patch("src.consumer.KafkaConsumer")
     @patch("src.writer.DeltaWriter")
-    def test_batch_write_every_ten_seconds(self, mock_writer_cls, mock_consumer_cls, mock_time):
+    def test_batch_write_every_ten_seconds(
+        self, mock_writer_cls, mock_consumer_cls, mock_time, mock_health_server
+    ):
         from src.main import IngestionService
 
         mock_consumer = MagicMock()

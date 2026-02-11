@@ -95,7 +95,66 @@ docker run --rm \
   -e S3_ENDPOINT=http://minio:9000 \
   -e AWS_ACCESS_KEY_ID=minioadmin \
   -e AWS_SECRET_ACCESS_KEY=minioadmin \
+  -p 8080:8080 \
   bronze-ingestion
+
+# Test health endpoint
+curl http://localhost:8080/health
+```
+
+## Docker Deployment
+
+### Resource Limits
+
+The service is designed to run with minimal resources:
+
+| Resource | Limit | Rationale |
+|----------|-------|-----------|
+| Memory | 256 MB | Batch accumulation (~10 seconds x 60 events/sec x ~1 KB/event = ~600 KB buffer) |
+| CPU | 0.5 cores | I/O-bound workload; librdkafka handles Kafka protocol efficiently |
+
+**Comparison to Spark Streaming:**
+- Spark (2 containers): 4 GB memory, no CPU limit
+- Python (1 container): 256 MB memory, 0.5 CPU cores
+- **Reduction:** 94% memory, controlled CPU usage
+
+### Health Endpoint
+
+The service exposes `GET /health` on port 8080 for Docker healthcheck:
+
+```json
+{"status": "healthy", "last_write": "2024-01-15T10:30:00+00:00", "messages_written": 150, "errors": 0}
+```
+
+- Returns HTTP 200 when healthy, 503 when unhealthy
+- Unhealthy if no successful write in last 60 seconds
+- Used by Docker HEALTHCHECK to restart unresponsive containers
+
+### Docker Compose Example
+
+```yaml
+bronze-ingestion:
+  build:
+    context: ./services/bronze-ingestion
+    dockerfile: Dockerfile
+  ports:
+    - "8080:8080"
+  environment:
+    KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    S3_ENDPOINT: http://minio:9000
+    AWS_ACCESS_KEY_ID: minioadmin
+    AWS_SECRET_ACCESS_KEY: minioadmin
+  deploy:
+    resources:
+      limits:
+        memory: 256M
+        cpus: '0.5'
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+    interval: 30s
+    timeout: 5s
+    retries: 3
+    start_period: 10s
 ```
 
 ## Dependencies

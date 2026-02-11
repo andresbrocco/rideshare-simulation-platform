@@ -6,6 +6,7 @@ from typing import Optional, Any
 from src.consumer import KafkaConsumer
 from src.writer import DeltaWriter
 from src.config import BronzeIngestionConfig
+from src.health import start_health_server, health_state
 
 
 class IngestionService:
@@ -29,6 +30,8 @@ class IngestionService:
     def run(self) -> None:
         config = BronzeIngestionConfig.from_env()
 
+        start_health_server(port=8080)
+
         self._consumer = KafkaConsumer(
             bootstrap_servers=config.kafka_bootstrap_servers, group_id=config.kafka_group_id
         )
@@ -36,7 +39,7 @@ class IngestionService:
             base_path=config.delta_base_path, storage_options=config.get_storage_options()
         )
 
-        message_batches = defaultdict(list)
+        message_batches: defaultdict[str, list[Any]] = defaultdict(list)
         last_write_time = time.time()
 
         while self._should_run():
@@ -57,10 +60,12 @@ class IngestionService:
                             self._writer.write_batch(messages, topic=topic)
                             all_messages.extend(messages)
                         except Exception as e:
+                            health_state.record_error()
                             print(f"Error writing batch for {topic}: {e}")
                             raise
 
                 if all_messages:
+                    health_state.record_write(len(all_messages))
                     self._consumer.commit(messages=all_messages)
 
                 message_batches.clear()
