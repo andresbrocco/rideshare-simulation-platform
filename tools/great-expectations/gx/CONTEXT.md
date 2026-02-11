@@ -6,7 +6,7 @@ Great Expectations data validation framework configured to validate the rideshar
 
 ## Responsibility Boundaries
 
-- **Owns**: Expectation suites for all lakehouse tables, validation checkpoints for Silver and Gold layers, Spark datasource configuration with S3/Delta Lake integration
+- **Owns**: Expectation suites for all lakehouse tables, validation checkpoints for Silver and Gold layers, DuckDB datasource configuration with S3/Delta Lake integration
 - **Delegates to**: Airflow/MWAA for validation execution scheduling, DBT for upstream data transformations
 - **Does not handle**: Data transformation logic (handled by DBT), validation result alerting (handled by orchestrator)
 
@@ -16,7 +16,7 @@ Great Expectations data validation framework configured to validate the rideshar
 
 **Checkpoints**: YAML files grouping multiple validation batches. `silver_validation.yml` validates 8 staging tables, `gold_validation.yml` validates 5 dimensions, 5 facts, and 2 aggregates.
 
-**Datasource**: Configured as `rideshare_spark` using SparkDFExecutionEngine with MinIO (S3-compatible) backend and Delta Lake catalog. Connects to local MinIO at `localhost:9000` with hardcoded credentials (dev only).
+**Datasource**: Configured as `rideshare_duckdb` using SqlAlchemyExecutionEngine with DuckDB. Connects to the dbt output file (DUCKDB_PATH) or creates in-memory delta_scan views from MinIO (S3-compatible) Delta tables. S3 settings configured at runtime in checkpoint runner scripts.
 
 **Store Backends**: Expectations stored in `expectations/`, validation results in `uncommitted/validations/`, checkpoints in `checkpoints/`. Data docs generated to `uncommitted/data_docs/local_site/`.
 

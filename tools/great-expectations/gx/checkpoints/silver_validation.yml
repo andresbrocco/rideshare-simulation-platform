@@ -3,42 +3,42 @@ config_version: 1.0
 class_name: Checkpoint
 validations:
   - batch_request:
-      datasource_name: rideshare_spark
+      datasource_name: rideshare_duckdb
       data_connector_name: default_inferred_data_connector
       data_asset_name: silver.stg_trips
     expectation_suite_name: silver_stg_trips
   - batch_request:
-      datasource_name: rideshare_spark
+      datasource_name: rideshare_duckdb
       data_connector_name: default_inferred_data_connector
       data_asset_name: silver.stg_gps_pings
     expectation_suite_name: silver_stg_gps_pings
   - batch_request:
-      datasource_name: rideshare_spark
+      datasource_name: rideshare_duckdb
       data_connector_name: default_inferred_data_connector
       data_asset_name: silver.stg_driver_status
     expectation_suite_name: silver_stg_driver_status
   - batch_request:
-      datasource_name: rideshare_spark
+      datasource_name: rideshare_duckdb
       data_connector_name: default_inferred_data_connector
       data_asset_name: silver.stg_surge_updates
     expectation_suite_name: silver_stg_surge_updates
   - batch_request:
-      datasource_name: rideshare_spark
+      datasource_name: rideshare_duckdb
       data_connector_name: default_inferred_data_connector
       data_asset_name: silver.stg_ratings
     expectation_suite_name: silver_stg_ratings
   - batch_request:
-      datasource_name: rideshare_spark
+      datasource_name: rideshare_duckdb
       data_connector_name: default_inferred_data_connector
       data_asset_name: silver.stg_payments
     expectation_suite_name: silver_stg_payments
   - batch_request:
-      datasource_name: rideshare_spark
+      datasource_name: rideshare_duckdb
       data_connector_name: default_inferred_data_connector
       data_asset_name: silver.stg_drivers
     expectation_suite_name: silver_stg_drivers
   - batch_request:
-      datasource_name: rideshare_spark
+      datasource_name: rideshare_duckdb
       data_connector_name: default_inferred_data_connector
       data_asset_name: silver.stg_riders
     expectation_suite_name: silver_stg_riders

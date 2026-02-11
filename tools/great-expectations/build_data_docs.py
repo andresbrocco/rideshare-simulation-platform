@@ -2,6 +2,8 @@
 """
 CLI wrapper for building Great Expectations data docs.
 GE 1.x removed the CLI, so this script provides a command-line interface.
+
+Generates static HTML documentation from stored validation results.
 """
 
 import sys
@@ -11,6 +13,10 @@ import great_expectations as gx
 def build_data_docs() -> int:
     """
     Build Great Expectations data documentation.
+
+    Renders HTML pages from stored validation results in
+    uncommitted/data_docs/local_site/. Does not require a live
+    data connection since it reads from the validation results store.
 
     Returns:
         0 if successful, 1 if failed

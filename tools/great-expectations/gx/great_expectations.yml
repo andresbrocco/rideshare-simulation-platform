@@ -84,22 +84,12 @@ data_docs_sites:
         class_name: DefaultSiteIndexBuilder
 
 datasources:
-  rideshare_spark:
+  rideshare_duckdb:
     class_name: Datasource
     execution_engine:
-      class_name: SparkDFExecutionEngine
-      spark_config:
-        spark.app.name: great_expectations
-        spark.sql.catalogImplementation: hive
-        spark.sql.hive.thriftServer.singleSession: "true"
-        spark.hadoop.fs.s3a.endpoint: http://localhost:9000
-        spark.hadoop.fs.s3a.access.key: minioadmin
-        spark.hadoop.fs.s3a.secret.key: minioadmin
-        spark.hadoop.fs.s3a.path.style.access: "true"
-        spark.hadoop.fs.s3a.impl: org.apache.hadoop.fs.s3a.S3AFileSystem
-        spark.sql.extensions: io.delta.sql.DeltaSparkSessionExtension
-        spark.sql.catalog.spark_catalog: org.apache.spark.sql.delta.catalog.DeltaCatalog
-        spark.jars.packages: io.delta:delta-spark_2.12:3.2.0,org.apache.hadoop:hadoop-aws:3.3.4
+      class_name: SqlAlchemyExecutionEngine
+      connection_string: "duckdb:///:memory:"
+      create_temp_table: false
     data_connectors:
       default_runtime_data_connector:
         class_name: RuntimeDataConnector

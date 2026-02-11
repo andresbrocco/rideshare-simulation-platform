@@ -194,7 +194,7 @@ def test_suite_execution():
     Expected: All expectations pass, validation results stored
 
     Note: This test validates suite structure. Actual execution requires
-    Spark Thrift Server and data to be present.
+    DuckDB with Delta tables populated in MinIO.
     """
     expectations_dir = Path(__file__).parent.parent / "gx" / "expectations" / "silver"
     expected_suites = [
