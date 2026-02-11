@@ -1,0 +1,4735 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Rideshare Simulation Control Panel API",
+    "description": "REST API for controlling simulation and streaming real-time updates",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/simulation/start": {
+      "post": {
+        "tags": [
+          "simulation"
+        ],
+        "summary": "Start Simulation",
+        "description": "Start the simulation.",
+        "operationId": "start_simulation_simulation_start_post",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/simulation/pause": {
+      "post": {
+        "tags": [
+          "simulation"
+        ],
+        "summary": "Pause Simulation",
+        "description": "Initiate two-phase pause (draining then paused).",
+        "operationId": "pause_simulation_simulation_pause_post",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/simulation/resume": {
+      "post": {
+        "tags": [
+          "simulation"
+        ],
+        "summary": "Resume Simulation",
+        "description": "Resume from paused state.",
+        "operationId": "resume_simulation_simulation_resume_post",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/simulation/stop": {
+      "post": {
+        "tags": [
+          "simulation"
+        ],
+        "summary": "Stop Simulation",
+        "description": "Stop the simulation.",
+        "operationId": "stop_simulation_simulation_stop_post",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/simulation/reset": {
+      "post": {
+        "tags": [
+          "simulation"
+        ],
+        "summary": "Reset Simulation",
+        "description": "Reset simulation to initial state, clearing all data.",
+        "operationId": "reset_simulation_simulation_reset_post",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/simulation/speed": {
+      "put": {
+        "tags": [
+          "simulation"
+        ],
+        "summary": "Change Speed",
+        "description": "Change simulation speed multiplier (any positive integer).",
+        "operationId": "change_speed_simulation_speed_put",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpeedChangeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeedChangeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/simulation/status": {
+      "get": {
+        "tags": [
+          "simulation"
+        ],
+        "summary": "Get Status",
+        "description": "Get current simulation status with detailed agent counts.",
+        "operationId": "get_status_simulation_status_get",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulationStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/drivers": {
+      "post": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Create Drivers",
+        "description": "Queue driver agents for continuous spawning.\n\nDrivers are spawned at a continuous rate (default: 2/sec) to prevent\nsynchronized GPS ping bursts. Use GET /agents/spawn-status to monitor progress.\n\nQuery Parameters:\n    mode: immediate (default) - drivers go online immediately\n          scheduled - drivers follow their DNA shift_preference schedule",
+        "operationId": "create_drivers_agents_drivers_post",
+        "parameters": [
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/SpawnMode",
+              "description": "immediate: go online immediately; scheduled: follow DNA shift_preference",
+              "default": "immediate"
+            },
+            "description": "immediate: go online immediately; scheduled: follow DNA shift_preference"
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DriverCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriversCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/riders": {
+      "post": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Create Riders",
+        "description": "Queue rider agents for continuous spawning.\n\nRiders are spawned at a continuous rate (default: 40/sec) to prevent\nsynchronized GPS ping bursts. Use GET /agents/spawn-status to monitor progress.\n\nQuery Parameters:\n    mode: immediate - riders request a trip immediately after spawning\n          scheduled (default) - riders follow their DNA avg_rides_per_week schedule",
+        "operationId": "create_riders_agents_riders_post",
+        "parameters": [
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/SpawnMode",
+              "description": "immediate: request trip immediately; scheduled: follow DNA avg_rides_per_week",
+              "default": "scheduled"
+            },
+            "description": "immediate: request trip immediately; scheduled: follow DNA avg_rides_per_week"
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RiderCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RidersCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/spawn-status": {
+      "get": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Get Spawn Status",
+        "description": "Get current spawn queue status.\n\nReturns the number of drivers and riders waiting to be spawned.",
+        "operationId": "get_spawn_status_agents_spawn_status_get",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpawnQueueStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/drivers/{driver_id}": {
+      "get": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Get Driver State",
+        "description": "Get full state and DNA for a driver.\n\nReturns the driver's current state (status, location, rating),\nactive trip info if any, and complete DNA parameters.",
+        "operationId": "get_driver_state_agents_drivers__driver_id__get",
+        "parameters": [
+          {
+            "name": "driver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Driver Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverStateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/riders/{rider_id}": {
+      "get": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Get Rider State",
+        "description": "Get full state and DNA for a rider.\n\nReturns the rider's current state (status, location, rating),\nactive trip info if any, and complete DNA parameters.",
+        "operationId": "get_rider_state_agents_riders__rider_id__get",
+        "parameters": [
+          {
+            "name": "rider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rider Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiderStateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/drivers/{driver_id}/status": {
+      "put": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Toggle Driver Status",
+        "description": "Toggle driver online/offline status.\n\nCan only toggle when driver has no active trip.",
+        "operationId": "toggle_driver_status_agents_drivers__driver_id__status_put",
+        "parameters": [
+          {
+            "name": "driver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Driver Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DriverStatusToggleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverStatusToggleResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/riders/{rider_id}/request-trip": {
+      "post": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Request Rider Trip",
+        "description": "Request a trip for a rider with specified destination.\n\nThe rider must be in 'offline' status to request a trip.",
+        "operationId": "request_rider_trip_agents_riders__rider_id__request_trip_post",
+        "parameters": [
+          {
+            "name": "rider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rider Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RiderTripRequestBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiderTripRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/puppet/drivers": {
+      "post": {
+        "tags": [
+          "puppet"
+        ],
+        "summary": "Create Puppet Driver",
+        "description": "Create a puppet driver at the specified location.\n\nPuppet drivers:\n- Start in 'offline' status\n- Emit GPS pings but take no autonomous actions\n- All state transitions triggered via API\n- Support optional DNA overrides for testing specific behaviors",
+        "operationId": "create_puppet_driver_agents_puppet_drivers_post",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PuppetDriverWithDNARequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PuppetDriverCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/puppet/riders": {
+      "post": {
+        "tags": [
+          "puppet"
+        ],
+        "summary": "Create Puppet Rider",
+        "description": "Create a puppet rider at the specified location.\n\nPuppet riders:\n- Start in 'offline' status\n- Emit GPS pings but take no autonomous actions\n- All state transitions triggered via API\n- Support optional DNA overrides for testing specific behaviors",
+        "operationId": "create_puppet_rider_agents_puppet_riders_post",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PuppetRiderWithDNARequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PuppetRiderCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/puppet/drivers/{driver_id}/go-online": {
+      "put": {
+        "tags": [
+          "puppet"
+        ],
+        "summary": "Puppet Driver Go Online",
+        "description": "Set puppet driver status to online.\n\nValid from: offline",
+        "operationId": "puppet_driver_go_online_agents_puppet_drivers__driver_id__go_online_put",
+        "parameters": [
+          {
+            "name": "driver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Driver Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PuppetActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/puppet/drivers/{driver_id}/go-offline": {
+      "put": {
+        "tags": [
+          "puppet"
+        ],
+        "summary": "Puppet Driver Go Offline",
+        "description": "Set puppet driver status to offline.\n\nValid from: online (with no active trip)",
+        "operationId": "puppet_driver_go_offline_agents_puppet_drivers__driver_id__go_offline_put",
+        "parameters": [
+          {
+            "name": "driver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Driver Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PuppetActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/puppet/drivers/{driver_id}/accept-offer": {
+      "post": {
+        "tags": [
+          "puppet"
+        ],
+        "summary": "Puppet Driver Accept Offer",
+        "description": "Accept the pending trip offer for this driver.\n\nValid from: online (with pending offer)",
+        "operationId": "puppet_driver_accept_offer_agents_puppet_drivers__driver_id__accept_offer_post",
+        "parameters": [
+          {
+            "name": "driver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Driver Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PuppetActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/puppet/drivers/{driver_id}/reject-offer": {
+      "post": {
+        "tags": [
+          "puppet"
+        ],
+        "summary": "Puppet Driver Reject Offer",
+        "description": "Reject the pending trip offer for this driver.\n\nValid from: online (with pending offer)",
+        "operationId": "puppet_driver_reject_offer_agents_puppet_drivers__driver_id__reject_offer_post",
+        "parameters": [
+          {
+            "name": "driver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Driver Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PuppetActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/puppet/drivers/{driver_id}/drive-to-pickup": {
+      "post": {
+        "tags": [
+          "puppet"
+        ],
+        "summary": "Puppet Driver Drive To Pickup",
+        "description": "Start driving the puppet driver to the pickup location.\n\nPrerequisites:\n- Driver must have accepted an offer (status: en_route_pickup)\n- Trip must be in DRIVER_EN_ROUTE state\n\nThis endpoint returns immediately. The driver will move along the\nOSRM route in the background, emitting GPS updates at regular intervals.\nUse the WebSocket or GET /agents/drivers/{id} to monitor progress.",
+        "operationId": "puppet_driver_drive_to_pickup_agents_puppet_drivers__driver_id__drive_to_pickup_post",
+        "parameters": [
+          {
+            "name": "driver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Driver Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PuppetDriveResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/puppet/drivers/{driver_id}/drive-to-destination": {
+      "post": {
+        "tags": [
+          "puppet"
+        ],
+        "summary": "Puppet Driver Drive To Destination",
+        "description": "Start driving the puppet driver to the destination.\n\nPrerequisites:\n- Driver must have started the trip (status: en_route_destination)\n- Trip must be in STARTED state\n\nThis endpoint returns immediately. The driver will move along the\nOSRM route in the background, emitting GPS updates at regular intervals.\nUse the WebSocket or GET /agents/drivers/{id} to monitor progress.",
+        "operationId": "puppet_driver_drive_to_destination_agents_puppet_drivers__driver_id__drive_to_destination_post",
+        "parameters": [
+          {
+            "name": "driver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Driver Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PuppetDriveResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/puppet/drivers/{driver_id}/arrive-pickup": {
+      "post": {
+        "tags": [
+          "puppet"
+        ],
+        "summary": "Puppet Driver Arrive Pickup",
+        "description": "Signal that driver has arrived at pickup location.\n\nValid from: en_route_pickup",
+        "operationId": "puppet_driver_arrive_pickup_agents_puppet_drivers__driver_id__arrive_pickup_post",
+        "parameters": [
+          {
+            "name": "driver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Driver Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PuppetActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/puppet/drivers/{driver_id}/start-trip": {
+      "post": {
+        "tags": [
+          "puppet"
+        ],
+        "summary": "Puppet Driver Start Trip",
+        "description": "Signal that rider has been picked up and trip is starting.\n\nValid from: en_route_pickup (after arrive-pickup)",
+        "operationId": "puppet_driver_start_trip_agents_puppet_drivers__driver_id__start_trip_post",
+        "parameters": [
+          {
+            "name": "driver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Driver Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PuppetActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/puppet/drivers/{driver_id}/complete-trip": {
+      "post": {
+        "tags": [
+          "puppet"
+        ],
+        "summary": "Puppet Driver Complete Trip",
+        "description": "Signal that trip has been completed at destination.\n\nValid from: en_route_destination (after start-trip)",
+        "operationId": "puppet_driver_complete_trip_agents_puppet_drivers__driver_id__complete_trip_post",
+        "parameters": [
+          {
+            "name": "driver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Driver Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PuppetActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/puppet/drivers/{driver_id}/cancel-trip": {
+      "post": {
+        "tags": [
+          "puppet"
+        ],
+        "summary": "Puppet Driver Cancel Trip",
+        "description": "Cancel the current trip (before pickup only).\n\nValid from: en_route_pickup",
+        "operationId": "puppet_driver_cancel_trip_agents_puppet_drivers__driver_id__cancel_trip_post",
+        "parameters": [
+          {
+            "name": "driver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Driver Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PuppetActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/puppet/riders/{rider_id}/request-trip": {
+      "post": {
+        "tags": [
+          "puppet"
+        ],
+        "summary": "Puppet Rider Request Trip",
+        "description": "Request a trip for the puppet rider.\n\nValid from: offline",
+        "operationId": "puppet_rider_request_trip_agents_puppet_riders__rider_id__request_trip_post",
+        "parameters": [
+          {
+            "name": "rider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rider Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PuppetTripRequestBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PuppetTripRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/puppet/riders/{rider_id}/cancel-trip": {
+      "post": {
+        "tags": [
+          "puppet"
+        ],
+        "summary": "Puppet Rider Cancel Trip",
+        "description": "Cancel the pending trip request.\n\nValid from: waiting",
+        "operationId": "puppet_rider_cancel_trip_agents_puppet_riders__rider_id__cancel_trip_post",
+        "parameters": [
+          {
+            "name": "rider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rider Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PuppetActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/puppet/drivers/{driver_id}/rating": {
+      "put": {
+        "tags": [
+          "puppet"
+        ],
+        "summary": "Update Driver Rating",
+        "description": "Update a puppet driver's rating for testing.\n\nAllows testing driver acceptance thresholds and rating-based matching.",
+        "operationId": "update_driver_rating_agents_puppet_drivers__driver_id__rating_put",
+        "parameters": [
+          {
+            "name": "driver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Driver Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RatingUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PuppetActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/puppet/riders/{rider_id}/rating": {
+      "put": {
+        "tags": [
+          "puppet"
+        ],
+        "summary": "Update Rider Rating",
+        "description": "Update a puppet rider's rating for testing.\n\nAllows testing driver acceptance based on rider rating thresholds.",
+        "operationId": "update_rider_rating_agents_puppet_riders__rider_id__rating_put",
+        "parameters": [
+          {
+            "name": "rider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rider Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RatingUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PuppetActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/puppet/drivers/{driver_id}/location": {
+      "put": {
+        "tags": [
+          "puppet"
+        ],
+        "summary": "Teleport Driver",
+        "description": "Teleport a puppet driver to a new location.\n\nUseful for testing geospatial matching logic.\nConstraint: Cannot teleport while in active trip.",
+        "operationId": "teleport_driver_agents_puppet_drivers__driver_id__location_put",
+        "parameters": [
+          {
+            "name": "driver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Driver Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocationUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PuppetActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/puppet/riders/{rider_id}/location": {
+      "put": {
+        "tags": [
+          "puppet"
+        ],
+        "summary": "Teleport Rider",
+        "description": "Teleport a puppet rider to a new location.\n\nUseful for testing zone-based surge pricing and matching.\nConstraint: Cannot teleport while in active trip.",
+        "operationId": "teleport_rider_agents_puppet_riders__rider_id__location_put",
+        "parameters": [
+          {
+            "name": "rider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rider Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocationUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PuppetActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/puppet/drivers/{driver_id}/force-offer-timeout": {
+      "post": {
+        "tags": [
+          "puppet"
+        ],
+        "summary": "Force Driver Offer Timeout",
+        "description": "Force a pending offer to timeout.\n\nSimulates offer expiry without waiting for actual timeout.\nValid from: online with pending offer",
+        "operationId": "force_driver_offer_timeout_agents_puppet_drivers__driver_id__force_offer_timeout_post",
+        "parameters": [
+          {
+            "name": "driver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Driver Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PuppetActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/puppet/riders/{rider_id}/force-patience-timeout": {
+      "post": {
+        "tags": [
+          "puppet"
+        ],
+        "summary": "Force Rider Patience Timeout",
+        "description": "Force the rider to timeout waiting.\n\nSimulates patience expiry without waiting for actual timeout.\nValid from: waiting",
+        "operationId": "force_rider_patience_timeout_agents_puppet_riders__rider_id__force_patience_timeout_post",
+        "parameters": [
+          {
+            "name": "rider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rider Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PuppetActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics/overview": {
+      "get": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "Get Overview Metrics",
+        "description": "Returns overview metrics with total counts.",
+        "operationId": "get_overview_metrics_metrics_overview_get",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OverviewMetrics"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics/zones": {
+      "get": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "Get Zone Metrics",
+        "description": "Returns per-zone metrics with supply, demand, and surge.",
+        "operationId": "get_zone_metrics_metrics_zones_get",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ZoneMetrics"
+                  },
+                  "title": "Response Get Zone Metrics Metrics Zones Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics/trips": {
+      "get": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "Get Trip Metrics",
+        "description": "Returns trip statistics including active, completed, and averages.",
+        "operationId": "get_trip_metrics_metrics_trips_get",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripMetrics"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics/drivers": {
+      "get": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "Get Driver Metrics",
+        "description": "Returns driver status counts.",
+        "operationId": "get_driver_metrics_metrics_drivers_get",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverMetrics"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics/riders": {
+      "get": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "Get Rider Metrics",
+        "description": "Returns rider status counts derived from trip states.\n\nRider states:\n- offline: No active trip (includes matching phase - ephemeral states)\n- to_pickup: Trip state in (DRIVER_EN_ROUTE, DRIVER_ARRIVED)\n- in_transit: Trip state is STARTED\n\nNote: Matching phase states (REQUESTED, OFFER_SENT, MATCHED, etc.) are\nephemeral and counted as offline since they transition too quickly to observe.",
+        "operationId": "get_rider_metrics_metrics_riders_get",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiderMetrics"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics/performance": {
+      "get": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "Get Performance Metrics",
+        "description": "Returns real-time performance metrics.\n\nIncludes:\n- Event throughput (events per second by type)\n- Latency statistics (OSRM, Kafka, Redis)\n- Error statistics (OSRM, Kafka, Redis)\n- Queue depths (pending offers, simpy events)\n- Memory and CPU usage\n- Stream processor metrics (optional)",
+        "operationId": "get_performance_metrics_metrics_performance_get",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerformanceMetrics"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics/infrastructure": {
+      "get": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "Get Infrastructure Metrics",
+        "description": "Returns unified infrastructure metrics for all services.\n\nCombines health check status with container resource metrics from cAdvisor.\nEach service includes:\n- Health status (healthy/degraded/unhealthy)\n- Health check latency\n- Memory usage and limit\n- CPU usage percentage",
+        "operationId": "get_infrastructure_metrics_metrics_infrastructure_get",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InfrastructureResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health Check",
+        "description": "Health check endpoint for monitoring (unauthenticated for infrastructure).",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Check Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/validate": {
+      "get": {
+        "summary": "Validate Api Key Endpoint",
+        "description": "Validate API key for login.\n\nThis endpoint requires a valid API key and returns 200 if valid.\nUsed by the frontend login screen to validate credentials.\nReturns 401 if the API key is invalid.",
+        "operationId": "validate_api_key_endpoint_auth_validate_get",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Validate Api Key Endpoint Auth Validate Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/detailed": {
+      "get": {
+        "summary": "Detailed Health Check",
+        "description": "Detailed health check for all services with latency metrics.",
+        "operationId": "detailed_health_check_health_detailed_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailedHealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ActiveTripInfo": {
+        "properties": {
+          "trip_id": {
+            "type": "string",
+            "title": "Trip Id"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "rider_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rider Id"
+          },
+          "driver_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driver Id"
+          },
+          "counterpart_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counterpart Name"
+          },
+          "pickup_location": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Pickup Location"
+          },
+          "dropoff_location": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Dropoff Location"
+          },
+          "surge_multiplier": {
+            "type": "number",
+            "title": "Surge Multiplier"
+          },
+          "fare": {
+            "type": "number",
+            "title": "Fare"
+          }
+        },
+        "type": "object",
+        "required": [
+          "trip_id",
+          "state",
+          "pickup_location",
+          "dropoff_location",
+          "surge_multiplier",
+          "fare"
+        ],
+        "title": "ActiveTripInfo",
+        "description": "Summary of an active trip."
+      },
+      "ContainerStatus": {
+        "type": "string",
+        "enum": [
+          "healthy",
+          "degraded",
+          "unhealthy",
+          "stopped"
+        ],
+        "title": "ContainerStatus",
+        "description": "Container health status."
+      },
+      "ControlResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "ControlResponse"
+      },
+      "DetailedHealthResponse": {
+        "properties": {
+          "overall_status": {
+            "type": "string",
+            "enum": [
+              "healthy",
+              "degraded",
+              "unhealthy"
+            ],
+            "title": "Overall Status"
+          },
+          "redis": {
+            "$ref": "#/components/schemas/ServiceHealth"
+          },
+          "osrm": {
+            "$ref": "#/components/schemas/ServiceHealth"
+          },
+          "kafka": {
+            "$ref": "#/components/schemas/ServiceHealth"
+          },
+          "simulation_engine": {
+            "$ref": "#/components/schemas/ServiceHealth"
+          },
+          "stream_processor": {
+            "$ref": "#/components/schemas/StreamProcessorHealth"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "overall_status",
+          "redis",
+          "osrm",
+          "kafka",
+          "simulation_engine",
+          "stream_processor",
+          "timestamp"
+        ],
+        "title": "DetailedHealthResponse",
+        "description": "Detailed health check response for all services."
+      },
+      "DriverCreateRequest": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count"
+        ],
+        "title": "DriverCreateRequest"
+      },
+      "DriverDNAOverride": {
+        "properties": {
+          "acceptance_rate": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acceptance Rate"
+          },
+          "cancellation_tendency": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancellation Tendency"
+          },
+          "service_quality": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Quality"
+          },
+          "response_time": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 12.0,
+                "minimum": 3.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response Time"
+          },
+          "min_rider_rating": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 5.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Rider Rating"
+          },
+          "surge_acceptance_modifier": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 2.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Surge Acceptance Modifier"
+          },
+          "home_location": {
+            "anyOf": [
+              {
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array",
+                "maxItems": 2,
+                "minItems": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Location"
+          },
+          "zone_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Id"
+          }
+        },
+        "type": "object",
+        "title": "DriverDNAOverride",
+        "description": "Partial driver DNA for overriding specific fields."
+      },
+      "DriverDNAResponse": {
+        "properties": {
+          "acceptance_rate": {
+            "type": "number",
+            "title": "Acceptance Rate"
+          },
+          "cancellation_tendency": {
+            "type": "number",
+            "title": "Cancellation Tendency"
+          },
+          "service_quality": {
+            "type": "number",
+            "title": "Service Quality"
+          },
+          "response_time": {
+            "type": "number",
+            "title": "Response Time"
+          },
+          "min_rider_rating": {
+            "type": "number",
+            "title": "Min Rider Rating"
+          },
+          "surge_acceptance_modifier": {
+            "type": "number",
+            "title": "Surge Acceptance Modifier"
+          },
+          "home_location": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Home Location"
+          },
+          "preferred_zones": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Preferred Zones"
+          },
+          "shift_preference": {
+            "type": "string",
+            "title": "Shift Preference"
+          },
+          "avg_hours_per_day": {
+            "type": "integer",
+            "title": "Avg Hours Per Day"
+          },
+          "avg_days_per_week": {
+            "type": "integer",
+            "title": "Avg Days Per Week"
+          },
+          "vehicle_make": {
+            "type": "string",
+            "title": "Vehicle Make"
+          },
+          "vehicle_model": {
+            "type": "string",
+            "title": "Vehicle Model"
+          },
+          "vehicle_year": {
+            "type": "integer",
+            "title": "Vehicle Year"
+          },
+          "license_plate": {
+            "type": "string",
+            "title": "License Plate"
+          },
+          "first_name": {
+            "type": "string",
+            "title": "First Name"
+          },
+          "last_name": {
+            "type": "string",
+            "title": "Last Name"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "phone": {
+            "type": "string",
+            "title": "Phone"
+          }
+        },
+        "type": "object",
+        "required": [
+          "acceptance_rate",
+          "cancellation_tendency",
+          "service_quality",
+          "response_time",
+          "min_rider_rating",
+          "surge_acceptance_modifier",
+          "home_location",
+          "preferred_zones",
+          "shift_preference",
+          "avg_hours_per_day",
+          "avg_days_per_week",
+          "vehicle_make",
+          "vehicle_model",
+          "vehicle_year",
+          "license_plate",
+          "first_name",
+          "last_name",
+          "email",
+          "phone"
+        ],
+        "title": "DriverDNAResponse",
+        "description": "Full driver DNA for API response."
+      },
+      "DriverMetrics": {
+        "properties": {
+          "online": {
+            "type": "integer",
+            "title": "Online"
+          },
+          "offline": {
+            "type": "integer",
+            "title": "Offline"
+          },
+          "en_route_pickup": {
+            "type": "integer",
+            "title": "En Route Pickup"
+          },
+          "en_route_destination": {
+            "type": "integer",
+            "title": "En Route Destination"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "online",
+          "offline",
+          "en_route_pickup",
+          "en_route_destination",
+          "total"
+        ],
+        "title": "DriverMetrics"
+      },
+      "DriverStateResponse": {
+        "properties": {
+          "driver_id": {
+            "type": "string",
+            "title": "Driver Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array",
+                "maxItems": 2,
+                "minItems": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "current_rating": {
+            "type": "number",
+            "title": "Current Rating"
+          },
+          "rating_count": {
+            "type": "integer",
+            "title": "Rating Count"
+          },
+          "active_trip": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ActiveTripInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pending_offer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PendingOfferInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextActionResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "zone_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Id"
+          },
+          "dna": {
+            "$ref": "#/components/schemas/DriverDNAResponse"
+          },
+          "statistics": {
+            "$ref": "#/components/schemas/DriverStatisticsResponse"
+          },
+          "is_ephemeral": {
+            "type": "boolean",
+            "title": "Is Ephemeral"
+          },
+          "is_puppet": {
+            "type": "boolean",
+            "title": "Is Puppet"
+          }
+        },
+        "type": "object",
+        "required": [
+          "driver_id",
+          "status",
+          "location",
+          "current_rating",
+          "rating_count",
+          "active_trip",
+          "zone_id",
+          "dna",
+          "statistics",
+          "is_ephemeral",
+          "is_puppet"
+        ],
+        "title": "DriverStateResponse",
+        "description": "Full driver state for inspection."
+      },
+      "DriverStatisticsResponse": {
+        "properties": {
+          "trips_completed": {
+            "type": "integer",
+            "title": "Trips Completed"
+          },
+          "trips_cancelled": {
+            "type": "integer",
+            "title": "Trips Cancelled"
+          },
+          "cancellation_rate": {
+            "type": "number",
+            "title": "Cancellation Rate"
+          },
+          "offers_received": {
+            "type": "integer",
+            "title": "Offers Received"
+          },
+          "offers_accepted": {
+            "type": "integer",
+            "title": "Offers Accepted"
+          },
+          "offers_rejected": {
+            "type": "integer",
+            "title": "Offers Rejected"
+          },
+          "offers_expired": {
+            "type": "integer",
+            "title": "Offers Expired"
+          },
+          "acceptance_rate": {
+            "type": "number",
+            "title": "Acceptance Rate"
+          },
+          "total_earnings": {
+            "type": "number",
+            "title": "Total Earnings"
+          },
+          "avg_fare": {
+            "type": "number",
+            "title": "Avg Fare"
+          },
+          "avg_pickup_time_seconds": {
+            "type": "number",
+            "title": "Avg Pickup Time Seconds"
+          },
+          "avg_trip_duration_minutes": {
+            "type": "number",
+            "title": "Avg Trip Duration Minutes"
+          },
+          "avg_rating_given": {
+            "type": "number",
+            "title": "Avg Rating Given"
+          }
+        },
+        "type": "object",
+        "required": [
+          "trips_completed",
+          "trips_cancelled",
+          "cancellation_rate",
+          "offers_received",
+          "offers_accepted",
+          "offers_rejected",
+          "offers_expired",
+          "acceptance_rate",
+          "total_earnings",
+          "avg_fare",
+          "avg_pickup_time_seconds",
+          "avg_trip_duration_minutes",
+          "avg_rating_given"
+        ],
+        "title": "DriverStatisticsResponse",
+        "description": "Session statistics for a driver."
+      },
+      "DriverStatusToggleRequest": {
+        "properties": {
+          "go_online": {
+            "type": "boolean",
+            "title": "Go Online",
+            "description": "True to go online, False to go offline"
+          }
+        },
+        "type": "object",
+        "required": [
+          "go_online"
+        ],
+        "title": "DriverStatusToggleRequest",
+        "description": "Request to toggle driver online/offline status."
+      },
+      "DriverStatusToggleResponse": {
+        "properties": {
+          "driver_id": {
+            "type": "string",
+            "title": "Driver Id"
+          },
+          "previous_status": {
+            "type": "string",
+            "title": "Previous Status"
+          },
+          "new_status": {
+            "type": "string",
+            "title": "New Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "driver_id",
+          "previous_status",
+          "new_status"
+        ],
+        "title": "DriverStatusToggleResponse",
+        "description": "Response for driver status toggle."
+      },
+      "DriversCreateResponse": {
+        "properties": {
+          "queued": {
+            "type": "integer",
+            "title": "Queued"
+          },
+          "spawn_rate": {
+            "type": "number",
+            "title": "Spawn Rate"
+          },
+          "estimated_completion_seconds": {
+            "type": "number",
+            "title": "Estimated Completion Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "queued",
+          "spawn_rate",
+          "estimated_completion_seconds"
+        ],
+        "title": "DriversCreateResponse",
+        "description": "Response for queued driver creation with continuous spawning."
+      },
+      "ErrorStats": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "default": 0
+          },
+          "per_second": {
+            "type": "number",
+            "title": "Per Second",
+            "default": 0.0
+          },
+          "by_type": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "By Type",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "title": "ErrorStats"
+      },
+      "ErrorSummary": {
+        "properties": {
+          "osrm": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorStats"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kafka": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorStats"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "redis": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorStats"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "ErrorSummary"
+      },
+      "EventsMetrics": {
+        "properties": {
+          "gps_pings_per_sec": {
+            "type": "number",
+            "title": "Gps Pings Per Sec"
+          },
+          "trip_events_per_sec": {
+            "type": "number",
+            "title": "Trip Events Per Sec"
+          },
+          "driver_status_per_sec": {
+            "type": "number",
+            "title": "Driver Status Per Sec"
+          },
+          "total_per_sec": {
+            "type": "number",
+            "title": "Total Per Sec"
+          }
+        },
+        "type": "object",
+        "required": [
+          "gps_pings_per_sec",
+          "trip_events_per_sec",
+          "driver_status_per_sec",
+          "total_per_sec"
+        ],
+        "title": "EventsMetrics"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "InfrastructureResponse": {
+        "properties": {
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceMetrics"
+            },
+            "type": "array",
+            "title": "Services"
+          },
+          "overall_status": {
+            "$ref": "#/components/schemas/ContainerStatus"
+          },
+          "cadvisor_available": {
+            "type": "boolean",
+            "title": "Cadvisor Available"
+          },
+          "timestamp": {
+            "type": "number",
+            "title": "Timestamp"
+          },
+          "total_cpu_percent": {
+            "type": "number",
+            "title": "Total Cpu Percent",
+            "default": 0.0
+          },
+          "total_memory_used_mb": {
+            "type": "number",
+            "title": "Total Memory Used Mb",
+            "default": 0.0
+          },
+          "total_memory_capacity_mb": {
+            "type": "number",
+            "title": "Total Memory Capacity Mb",
+            "default": 0.0
+          },
+          "total_memory_percent": {
+            "type": "number",
+            "title": "Total Memory Percent",
+            "default": 0.0
+          },
+          "total_cores": {
+            "type": "integer",
+            "title": "Total Cores",
+            "default": 1
+          },
+          "discovery_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discovery Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "services",
+          "overall_status",
+          "cadvisor_available",
+          "timestamp"
+        ],
+        "title": "InfrastructureResponse",
+        "description": "Response containing all service infrastructure metrics."
+      },
+      "LatencyMetrics": {
+        "properties": {
+          "avg_ms": {
+            "type": "number",
+            "title": "Avg Ms"
+          },
+          "p95_ms": {
+            "type": "number",
+            "title": "P95 Ms"
+          },
+          "p99_ms": {
+            "type": "number",
+            "title": "P99 Ms"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "avg_ms",
+          "p95_ms",
+          "p99_ms",
+          "count"
+        ],
+        "title": "LatencyMetrics"
+      },
+      "LatencySummary": {
+        "properties": {
+          "osrm": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LatencyMetrics"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kafka": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LatencyMetrics"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "redis": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LatencyMetrics"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "LatencySummary"
+      },
+      "LocationUpdateRequest": {
+        "properties": {
+          "location": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Location",
+            "description": "New location (lat, lon)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "location"
+        ],
+        "title": "LocationUpdateRequest",
+        "description": "Request to teleport an agent to a new location."
+      },
+      "MemoryMetrics": {
+        "properties": {
+          "rss_mb": {
+            "type": "number",
+            "title": "Rss Mb"
+          },
+          "percent": {
+            "type": "number",
+            "title": "Percent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rss_mb",
+          "percent"
+        ],
+        "title": "MemoryMetrics"
+      },
+      "NextActionResponse": {
+        "properties": {
+          "action_type": {
+            "type": "string",
+            "title": "Action Type"
+          },
+          "scheduled_at": {
+            "type": "number",
+            "title": "Scheduled At"
+          },
+          "scheduled_at_iso": {
+            "type": "string",
+            "title": "Scheduled At Iso"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action_type",
+          "scheduled_at",
+          "scheduled_at_iso",
+          "description"
+        ],
+        "title": "NextActionResponse",
+        "description": "Scheduled next action for an autonomous agent."
+      },
+      "OverviewMetrics": {
+        "properties": {
+          "total_drivers": {
+            "type": "integer",
+            "title": "Total Drivers"
+          },
+          "online_drivers": {
+            "type": "integer",
+            "title": "Online Drivers"
+          },
+          "total_riders": {
+            "type": "integer",
+            "title": "Total Riders"
+          },
+          "waiting_riders": {
+            "type": "integer",
+            "title": "Waiting Riders"
+          },
+          "in_transit_riders": {
+            "type": "integer",
+            "title": "In Transit Riders"
+          },
+          "active_trips": {
+            "type": "integer",
+            "title": "Active Trips"
+          },
+          "completed_trips_today": {
+            "type": "integer",
+            "title": "Completed Trips Today"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_drivers",
+          "online_drivers",
+          "total_riders",
+          "waiting_riders",
+          "in_transit_riders",
+          "active_trips",
+          "completed_trips_today"
+        ],
+        "title": "OverviewMetrics"
+      },
+      "PendingOfferInfo": {
+        "properties": {
+          "trip_id": {
+            "type": "string",
+            "title": "Trip Id"
+          },
+          "surge_multiplier": {
+            "type": "number",
+            "title": "Surge Multiplier"
+          },
+          "rider_rating": {
+            "type": "number",
+            "title": "Rider Rating"
+          },
+          "eta_seconds": {
+            "type": "integer",
+            "title": "Eta Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "trip_id",
+          "surge_multiplier",
+          "rider_rating",
+          "eta_seconds"
+        ],
+        "title": "PendingOfferInfo",
+        "description": "Info about a pending offer for a puppet driver."
+      },
+      "PerformanceMetrics": {
+        "properties": {
+          "events": {
+            "$ref": "#/components/schemas/EventsMetrics"
+          },
+          "latency": {
+            "$ref": "#/components/schemas/LatencySummary"
+          },
+          "errors": {
+            "$ref": "#/components/schemas/ErrorSummary",
+            "default": {}
+          },
+          "queue_depths": {
+            "$ref": "#/components/schemas/QueueDepths"
+          },
+          "memory": {
+            "$ref": "#/components/schemas/MemoryMetrics"
+          },
+          "resources": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResourceMetrics"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stream_processor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StreamProcessorMetrics"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timestamp": {
+            "type": "number",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "events",
+          "latency",
+          "queue_depths",
+          "memory",
+          "timestamp"
+        ],
+        "title": "PerformanceMetrics"
+      },
+      "PuppetActionResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "agent_id": {
+            "type": "string",
+            "title": "Agent Id"
+          },
+          "new_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success",
+          "message",
+          "agent_id"
+        ],
+        "title": "PuppetActionResponse",
+        "description": "Generic response for puppet agent actions."
+      },
+      "PuppetDriveResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "driver_id": {
+            "type": "string",
+            "title": "Driver Id"
+          },
+          "trip_id": {
+            "type": "string",
+            "title": "Trip Id"
+          },
+          "new_status": {
+            "type": "string",
+            "title": "New Status"
+          },
+          "route": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "title": "Route",
+            "description": "Route geometry for visualization"
+          },
+          "distance_meters": {
+            "type": "number",
+            "title": "Distance Meters"
+          },
+          "estimated_duration_seconds": {
+            "type": "number",
+            "title": "Estimated Duration Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success",
+          "message",
+          "driver_id",
+          "trip_id",
+          "new_status",
+          "route",
+          "distance_meters",
+          "estimated_duration_seconds"
+        ],
+        "title": "PuppetDriveResponse",
+        "description": "Response for puppet drive endpoints (drive-to-pickup, drive-to-destination)."
+      },
+      "PuppetDriverCreateResponse": {
+        "properties": {
+          "driver_id": {
+            "type": "string",
+            "title": "Driver Id"
+          },
+          "location": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Location"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "offline"
+          }
+        },
+        "type": "object",
+        "required": [
+          "driver_id",
+          "location"
+        ],
+        "title": "PuppetDriverCreateResponse",
+        "description": "Response for creating a puppet driver."
+      },
+      "PuppetDriverWithDNARequest": {
+        "properties": {
+          "location": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Location",
+            "description": "Initial location (lat, lon) for the puppet driver"
+          },
+          "dna_override": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DriverDNAOverride"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional DNA override fields"
+          },
+          "ephemeral": {
+            "type": "boolean",
+            "title": "Ephemeral",
+            "description": "If True, skip SQLite persistence",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "location"
+        ],
+        "title": "PuppetDriverWithDNARequest",
+        "description": "Request to create a puppet driver with optional DNA overrides."
+      },
+      "PuppetRiderCreateResponse": {
+        "properties": {
+          "rider_id": {
+            "type": "string",
+            "title": "Rider Id"
+          },
+          "location": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Location"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "offline"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rider_id",
+          "location"
+        ],
+        "title": "PuppetRiderCreateResponse",
+        "description": "Response for creating a puppet rider."
+      },
+      "PuppetRiderWithDNARequest": {
+        "properties": {
+          "location": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Location",
+            "description": "Initial location (lat, lon) for the puppet rider"
+          },
+          "dna_override": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RiderDNAOverride"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional DNA override fields"
+          },
+          "ephemeral": {
+            "type": "boolean",
+            "title": "Ephemeral",
+            "description": "If True, skip SQLite persistence",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "location"
+        ],
+        "title": "PuppetRiderWithDNARequest",
+        "description": "Request to create a puppet rider with optional DNA overrides."
+      },
+      "PuppetTripRequestBody": {
+        "properties": {
+          "destination": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Destination",
+            "description": "Destination coordinates (lat, lon)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "destination"
+        ],
+        "title": "PuppetTripRequestBody",
+        "description": "Request body for puppet rider trip request."
+      },
+      "PuppetTripRequestResponse": {
+        "properties": {
+          "rider_id": {
+            "type": "string",
+            "title": "Rider Id"
+          },
+          "trip_id": {
+            "type": "string",
+            "title": "Trip Id"
+          },
+          "pickup_location": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Pickup Location"
+          },
+          "destination": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Destination"
+          },
+          "surge_multiplier": {
+            "type": "number",
+            "title": "Surge Multiplier"
+          },
+          "estimated_fare": {
+            "type": "number",
+            "title": "Estimated Fare"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rider_id",
+          "trip_id",
+          "pickup_location",
+          "destination",
+          "surge_multiplier",
+          "estimated_fare"
+        ],
+        "title": "PuppetTripRequestResponse",
+        "description": "Response for puppet rider trip request."
+      },
+      "QueueDepths": {
+        "properties": {
+          "pending_offers": {
+            "type": "integer",
+            "title": "Pending Offers",
+            "default": 0
+          },
+          "simpy_events": {
+            "type": "integer",
+            "title": "Simpy Events",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "QueueDepths"
+      },
+      "RatingUpdateRequest": {
+        "properties": {
+          "rating": {
+            "type": "number",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Rating",
+            "description": "New rating (1.0-5.0)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rating"
+        ],
+        "title": "RatingUpdateRequest",
+        "description": "Request to update an agent's rating."
+      },
+      "ResourceMetrics": {
+        "properties": {
+          "memory_rss_mb": {
+            "type": "number",
+            "title": "Memory Rss Mb"
+          },
+          "memory_percent": {
+            "type": "number",
+            "title": "Memory Percent"
+          },
+          "cpu_percent": {
+            "type": "number",
+            "title": "Cpu Percent",
+            "default": 0.0
+          },
+          "thread_count": {
+            "type": "integer",
+            "title": "Thread Count",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "memory_rss_mb",
+          "memory_percent"
+        ],
+        "title": "ResourceMetrics"
+      },
+      "RiderCreateRequest": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "maximum": 2000.0,
+            "minimum": 1.0,
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count"
+        ],
+        "title": "RiderCreateRequest"
+      },
+      "RiderDNAOverride": {
+        "properties": {
+          "behavior_factor": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Behavior Factor"
+          },
+          "patience_threshold": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 300.0,
+                "minimum": 120.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Patience Threshold"
+          },
+          "max_surge_multiplier": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Surge Multiplier"
+          },
+          "avg_rides_per_week": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Rides Per Week"
+          },
+          "home_location": {
+            "anyOf": [
+              {
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array",
+                "maxItems": 2,
+                "minItems": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Location"
+          },
+          "zone_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Id"
+          }
+        },
+        "type": "object",
+        "title": "RiderDNAOverride",
+        "description": "Partial rider DNA for overriding specific fields."
+      },
+      "RiderDNAResponse": {
+        "properties": {
+          "behavior_factor": {
+            "type": "number",
+            "title": "Behavior Factor"
+          },
+          "patience_threshold": {
+            "type": "integer",
+            "title": "Patience Threshold"
+          },
+          "max_surge_multiplier": {
+            "type": "number",
+            "title": "Max Surge Multiplier"
+          },
+          "avg_rides_per_week": {
+            "type": "integer",
+            "title": "Avg Rides Per Week"
+          },
+          "frequent_destinations": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Frequent Destinations"
+          },
+          "home_location": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Home Location"
+          },
+          "first_name": {
+            "type": "string",
+            "title": "First Name"
+          },
+          "last_name": {
+            "type": "string",
+            "title": "Last Name"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "phone": {
+            "type": "string",
+            "title": "Phone"
+          },
+          "payment_method_type": {
+            "type": "string",
+            "title": "Payment Method Type"
+          },
+          "payment_method_masked": {
+            "type": "string",
+            "title": "Payment Method Masked"
+          }
+        },
+        "type": "object",
+        "required": [
+          "behavior_factor",
+          "patience_threshold",
+          "max_surge_multiplier",
+          "avg_rides_per_week",
+          "frequent_destinations",
+          "home_location",
+          "first_name",
+          "last_name",
+          "email",
+          "phone",
+          "payment_method_type",
+          "payment_method_masked"
+        ],
+        "title": "RiderDNAResponse",
+        "description": "Full rider DNA for API response."
+      },
+      "RiderMetrics": {
+        "properties": {
+          "offline": {
+            "type": "integer",
+            "title": "Offline"
+          },
+          "to_pickup": {
+            "type": "integer",
+            "title": "To Pickup"
+          },
+          "in_transit": {
+            "type": "integer",
+            "title": "In Transit"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "offline",
+          "to_pickup",
+          "in_transit",
+          "total"
+        ],
+        "title": "RiderMetrics"
+      },
+      "RiderStateResponse": {
+        "properties": {
+          "rider_id": {
+            "type": "string",
+            "title": "Rider Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array",
+                "maxItems": 2,
+                "minItems": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "current_rating": {
+            "type": "number",
+            "title": "Current Rating"
+          },
+          "rating_count": {
+            "type": "integer",
+            "title": "Rating Count"
+          },
+          "active_trip": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ActiveTripInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextActionResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "zone_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Id"
+          },
+          "dna": {
+            "$ref": "#/components/schemas/RiderDNAResponse"
+          },
+          "statistics": {
+            "$ref": "#/components/schemas/RiderStatisticsResponse"
+          },
+          "is_ephemeral": {
+            "type": "boolean",
+            "title": "Is Ephemeral"
+          },
+          "is_puppet": {
+            "type": "boolean",
+            "title": "Is Puppet"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rider_id",
+          "status",
+          "location",
+          "current_rating",
+          "rating_count",
+          "active_trip",
+          "zone_id",
+          "dna",
+          "statistics",
+          "is_ephemeral",
+          "is_puppet"
+        ],
+        "title": "RiderStateResponse",
+        "description": "Full rider state for inspection."
+      },
+      "RiderStatisticsResponse": {
+        "properties": {
+          "trips_completed": {
+            "type": "integer",
+            "title": "Trips Completed"
+          },
+          "trips_cancelled": {
+            "type": "integer",
+            "title": "Trips Cancelled"
+          },
+          "trips_requested": {
+            "type": "integer",
+            "title": "Trips Requested"
+          },
+          "cancellation_rate": {
+            "type": "number",
+            "title": "Cancellation Rate"
+          },
+          "requests_timed_out": {
+            "type": "integer",
+            "title": "Requests Timed Out"
+          },
+          "total_spent": {
+            "type": "number",
+            "title": "Total Spent"
+          },
+          "avg_fare": {
+            "type": "number",
+            "title": "Avg Fare"
+          },
+          "avg_wait_time_seconds": {
+            "type": "number",
+            "title": "Avg Wait Time Seconds"
+          },
+          "avg_pickup_wait_seconds": {
+            "type": "number",
+            "title": "Avg Pickup Wait Seconds"
+          },
+          "avg_rating_given": {
+            "type": "number",
+            "title": "Avg Rating Given"
+          },
+          "surge_trips_percentage": {
+            "type": "number",
+            "title": "Surge Trips Percentage"
+          }
+        },
+        "type": "object",
+        "required": [
+          "trips_completed",
+          "trips_cancelled",
+          "trips_requested",
+          "cancellation_rate",
+          "requests_timed_out",
+          "total_spent",
+          "avg_fare",
+          "avg_wait_time_seconds",
+          "avg_pickup_wait_seconds",
+          "avg_rating_given",
+          "surge_trips_percentage"
+        ],
+        "title": "RiderStatisticsResponse",
+        "description": "Session statistics for a rider."
+      },
+      "RiderTripRequestBody": {
+        "properties": {
+          "destination": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Destination",
+            "description": "(lat, lon) destination"
+          }
+        },
+        "type": "object",
+        "required": [
+          "destination"
+        ],
+        "title": "RiderTripRequestBody",
+        "description": "Request body for rider trip request."
+      },
+      "RiderTripRequestResponse": {
+        "properties": {
+          "rider_id": {
+            "type": "string",
+            "title": "Rider Id"
+          },
+          "trip_id": {
+            "type": "string",
+            "title": "Trip Id"
+          },
+          "pickup_location": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Pickup Location"
+          },
+          "destination": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Destination"
+          },
+          "surge_multiplier": {
+            "type": "number",
+            "title": "Surge Multiplier"
+          },
+          "estimated_fare": {
+            "type": "number",
+            "title": "Estimated Fare"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rider_id",
+          "trip_id",
+          "pickup_location",
+          "destination",
+          "surge_multiplier",
+          "estimated_fare"
+        ],
+        "title": "RiderTripRequestResponse",
+        "description": "Response for rider trip request."
+      },
+      "RidersCreateResponse": {
+        "properties": {
+          "queued": {
+            "type": "integer",
+            "title": "Queued"
+          },
+          "spawn_rate": {
+            "type": "number",
+            "title": "Spawn Rate"
+          },
+          "estimated_completion_seconds": {
+            "type": "number",
+            "title": "Estimated Completion Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "queued",
+          "spawn_rate",
+          "estimated_completion_seconds"
+        ],
+        "title": "RidersCreateResponse",
+        "description": "Response for queued rider creation with continuous spawning."
+      },
+      "ServiceHealth": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "healthy",
+              "degraded",
+              "unhealthy"
+            ],
+            "title": "Status"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "ServiceHealth",
+        "description": "Health status for a single service."
+      },
+      "ServiceMetrics": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ContainerStatus"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "memory_used_mb": {
+            "type": "number",
+            "title": "Memory Used Mb",
+            "default": 0.0
+          },
+          "memory_limit_mb": {
+            "type": "number",
+            "title": "Memory Limit Mb",
+            "default": 0.0
+          },
+          "memory_percent": {
+            "type": "number",
+            "title": "Memory Percent",
+            "default": 0.0
+          },
+          "cpu_percent": {
+            "type": "number",
+            "title": "Cpu Percent",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "status"
+        ],
+        "title": "ServiceMetrics",
+        "description": "Unified metrics for a single service/container."
+      },
+      "SimulationStatusResponse": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "stopped",
+              "running",
+              "draining",
+              "paused"
+            ],
+            "title": "State"
+          },
+          "speed_multiplier": {
+            "type": "integer",
+            "title": "Speed Multiplier"
+          },
+          "current_time": {
+            "type": "string",
+            "title": "Current Time"
+          },
+          "drivers_total": {
+            "type": "integer",
+            "title": "Drivers Total"
+          },
+          "drivers_offline": {
+            "type": "integer",
+            "title": "Drivers Offline"
+          },
+          "drivers_online": {
+            "type": "integer",
+            "title": "Drivers Online"
+          },
+          "drivers_en_route_pickup": {
+            "type": "integer",
+            "title": "Drivers En Route Pickup"
+          },
+          "drivers_en_route_destination": {
+            "type": "integer",
+            "title": "Drivers En Route Destination"
+          },
+          "riders_total": {
+            "type": "integer",
+            "title": "Riders Total"
+          },
+          "riders_offline": {
+            "type": "integer",
+            "title": "Riders Offline"
+          },
+          "riders_waiting": {
+            "type": "integer",
+            "title": "Riders Waiting"
+          },
+          "riders_in_trip": {
+            "type": "integer",
+            "title": "Riders In Trip"
+          },
+          "active_trips_count": {
+            "type": "integer",
+            "title": "Active Trips Count"
+          },
+          "uptime_seconds": {
+            "type": "number",
+            "title": "Uptime Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "speed_multiplier",
+          "current_time",
+          "drivers_total",
+          "drivers_offline",
+          "drivers_online",
+          "drivers_en_route_pickup",
+          "drivers_en_route_destination",
+          "riders_total",
+          "riders_offline",
+          "riders_waiting",
+          "riders_in_trip",
+          "active_trips_count",
+          "uptime_seconds"
+        ],
+        "title": "SimulationStatusResponse"
+      },
+      "SpawnMode": {
+        "type": "string",
+        "enum": [
+          "immediate",
+          "scheduled"
+        ],
+        "title": "SpawnMode",
+        "description": "Spawn mode for autonomous agents."
+      },
+      "SpawnQueueStatusResponse": {
+        "properties": {
+          "drivers_queued": {
+            "type": "integer",
+            "title": "Drivers Queued"
+          },
+          "riders_queued": {
+            "type": "integer",
+            "title": "Riders Queued"
+          }
+        },
+        "type": "object",
+        "required": [
+          "drivers_queued",
+          "riders_queued"
+        ],
+        "title": "SpawnQueueStatusResponse",
+        "description": "Current status of agent spawn queues."
+      },
+      "SpeedChangeRequest": {
+        "properties": {
+          "multiplier": {
+            "type": "integer",
+            "title": "Multiplier"
+          }
+        },
+        "type": "object",
+        "required": [
+          "multiplier"
+        ],
+        "title": "SpeedChangeRequest"
+      },
+      "SpeedChangeResponse": {
+        "properties": {
+          "speed": {
+            "type": "integer",
+            "title": "Speed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "speed"
+        ],
+        "title": "SpeedChangeResponse"
+      },
+      "StreamProcessorHealth": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "healthy",
+              "degraded",
+              "unhealthy"
+            ],
+            "title": "Status"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "kafka_connected": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kafka Connected"
+          },
+          "redis_connected": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redis Connected"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "StreamProcessorHealth",
+        "description": "Health status for stream processor service."
+      },
+      "StreamProcessorLatency": {
+        "properties": {
+          "avg_ms": {
+            "type": "number",
+            "title": "Avg Ms"
+          },
+          "p95_ms": {
+            "type": "number",
+            "title": "P95 Ms"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "avg_ms",
+          "p95_ms",
+          "count"
+        ],
+        "title": "StreamProcessorLatency",
+        "description": "Stream processor latency metrics."
+      },
+      "StreamProcessorMetrics": {
+        "properties": {
+          "messages_consumed_per_sec": {
+            "type": "number",
+            "title": "Messages Consumed Per Sec"
+          },
+          "messages_published_per_sec": {
+            "type": "number",
+            "title": "Messages Published Per Sec"
+          },
+          "gps_aggregation_ratio": {
+            "type": "number",
+            "title": "Gps Aggregation Ratio"
+          },
+          "redis_publish_latency": {
+            "$ref": "#/components/schemas/StreamProcessorLatency"
+          },
+          "publish_errors_per_sec": {
+            "type": "number",
+            "title": "Publish Errors Per Sec"
+          },
+          "kafka_connected": {
+            "type": "boolean",
+            "title": "Kafka Connected"
+          },
+          "redis_connected": {
+            "type": "boolean",
+            "title": "Redis Connected"
+          },
+          "uptime_seconds": {
+            "type": "number",
+            "title": "Uptime Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "messages_consumed_per_sec",
+          "messages_published_per_sec",
+          "gps_aggregation_ratio",
+          "redis_publish_latency",
+          "publish_errors_per_sec",
+          "kafka_connected",
+          "redis_connected",
+          "uptime_seconds"
+        ],
+        "title": "StreamProcessorMetrics",
+        "description": "Stream processor performance metrics."
+      },
+      "TripMetrics": {
+        "properties": {
+          "active_trips": {
+            "type": "integer",
+            "title": "Active Trips"
+          },
+          "completed_today": {
+            "type": "integer",
+            "title": "Completed Today"
+          },
+          "cancelled_today": {
+            "type": "integer",
+            "title": "Cancelled Today"
+          },
+          "avg_fare": {
+            "type": "number",
+            "title": "Avg Fare"
+          },
+          "avg_duration_minutes": {
+            "type": "number",
+            "title": "Avg Duration Minutes"
+          },
+          "avg_wait_seconds": {
+            "type": "number",
+            "title": "Avg Wait Seconds",
+            "default": 0.0
+          },
+          "avg_pickup_seconds": {
+            "type": "number",
+            "title": "Avg Pickup Seconds",
+            "default": 0.0
+          },
+          "offers_sent": {
+            "type": "integer",
+            "title": "Offers Sent",
+            "default": 0
+          },
+          "offers_accepted": {
+            "type": "integer",
+            "title": "Offers Accepted",
+            "default": 0
+          },
+          "offers_rejected": {
+            "type": "integer",
+            "title": "Offers Rejected",
+            "default": 0
+          },
+          "offers_expired": {
+            "type": "integer",
+            "title": "Offers Expired",
+            "default": 0
+          },
+          "matching_success_rate": {
+            "type": "number",
+            "title": "Matching Success Rate",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "active_trips",
+          "completed_today",
+          "cancelled_today",
+          "avg_fare",
+          "avg_duration_minutes"
+        ],
+        "title": "TripMetrics"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "ZoneMetrics": {
+        "properties": {
+          "zone_id": {
+            "type": "string",
+            "title": "Zone Id"
+          },
+          "zone_name": {
+            "type": "string",
+            "title": "Zone Name"
+          },
+          "online_drivers": {
+            "type": "integer",
+            "title": "Online Drivers"
+          },
+          "waiting_riders": {
+            "type": "integer",
+            "title": "Waiting Riders"
+          },
+          "active_trips": {
+            "type": "integer",
+            "title": "Active Trips"
+          },
+          "surge_multiplier": {
+            "type": "number",
+            "title": "Surge Multiplier"
+          }
+        },
+        "type": "object",
+        "required": [
+          "zone_id",
+          "zone_name",
+          "online_drivers",
+          "waiting_riders",
+          "active_trips",
+          "surge_multiplier"
+        ],
+        "title": "ZoneMetrics"
+      }
+    }
+  }
+}

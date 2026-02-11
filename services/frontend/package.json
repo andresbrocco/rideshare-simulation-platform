@@ -12,7 +12,8 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\"",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
-    "test": "vitest"
+    "test": "vitest",
+    "generate-types": "npx openapi-typescript ../../schemas/api/openapi.json -o src/types/api.generated.ts"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
@@ -52,6 +53,7 @@
     "globals": "^16.5.0",
     "jsdom": "^27.0.1",
     "lint-staged": "^16.2.7",
+    "openapi-typescript": "^7.13.0",
     "prettier": "^3.7.4",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.4",
