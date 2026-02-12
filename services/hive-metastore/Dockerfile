@@ -8,4 +8,9 @@ RUN chmod 644 /opt/hive/lib/postgresql-42.7.4.jar
 RUN cp /opt/hadoop/share/hadoop/tools/lib/hadoop-aws-3.3.6.jar /opt/hive/lib/ \
     && cp /opt/hadoop/share/hadoop/tools/lib/aws-java-sdk-bundle-1.12.367.jar /opt/hive/lib/
 
+COPY entrypoint-wrapper.sh /entrypoint-wrapper.sh
+RUN chmod +x /entrypoint-wrapper.sh
+
 USER hive
+
+ENTRYPOINT ["sh", "-c", "/entrypoint-wrapper.sh"]
