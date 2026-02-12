@@ -507,21 +507,27 @@ services:
       --hiveconf hive.metastore.warehouse.dir=s3a://rideshare-bronze/warehouse
       --hiveconf hive.server2.thrift.port=10000
       --hiveconf hive.server2.thrift.bind.host=0.0.0.0
-      --hiveconf hive.server2.authentication=NOSASL
+      --hiveconf hive.server2.authentication=LDAP
+      --hiveconf hive.server2.authentication.ldap.url=ldap://openldap:389
+      --hiveconf hive.server2.authentication.ldap.baseDN=dc=rideshare,dc=local
       --hiveconf hive.server2.transport.mode=binary
       --hiveconf hive.server2.thrift.min.worker.threads=4
       --hiveconf hive.server2.thrift.max.worker.threads=16
     environment:
       - PYTHONPATH=/opt
     depends_on:
+      openldap:
+        condition: service_healthy
       hive-metastore:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
+      secrets-init:
+        condition: service_completed_successfully
     networks:
       - rideshare-network
     healthcheck:
-      test: ["CMD-SHELL", "/opt/spark/bin/beeline -u 'jdbc:hive2://localhost:10000/default;auth=noSasl' -n healthcheck -e 'SELECT 1' --silent=true 2>/dev/null || exit 1"]
+      test: ["CMD-SHELL", "/opt/spark/bin/beeline -u 'jdbc:hive2://localhost:10000/default' -n admin -p admin -e 'SELECT 1' --silent=true 2>/dev/null || exit 1"]
       interval: 15s
       timeout: 30s
       retries: 10
