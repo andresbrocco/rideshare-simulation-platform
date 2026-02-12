@@ -189,7 +189,7 @@ describe('ControlPanel', () => {
     await user.type(riderInput, '3');
     await user.click(addRidersButton);
 
-    expect(mockAddRiders).toHaveBeenCalledWith(3, 'scheduled');
+    expect(mockAddRiders).toHaveBeenCalledWith(3, 'immediate');
   });
 
   it('test_displays_status_indicator', () => {

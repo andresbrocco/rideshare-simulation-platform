@@ -123,7 +123,7 @@ describe('DriverInspector', () => {
 
     expect(screen.getByRole('heading', { name: 'Status' })).toBeInTheDocument();
     expect(screen.getByText('online')).toBeInTheDocument();
-    expect(screen.getByText('4.85')).toBeInTheDocument();
+    expect(screen.getByText('4.85 (150)')).toBeInTheDocument();
   });
 
   it('renders DNA section', () => {

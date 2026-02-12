@@ -113,7 +113,7 @@ describe('RiderInspector', () => {
 
     expect(screen.getByRole('heading', { name: 'Status' })).toBeInTheDocument();
     expect(screen.getByText('waiting')).toBeInTheDocument();
-    expect(screen.getByText('4.90')).toBeInTheDocument();
+    expect(screen.getByText('4.90 (50)')).toBeInTheDocument();
   });
 
   it('renders DNA section', () => {

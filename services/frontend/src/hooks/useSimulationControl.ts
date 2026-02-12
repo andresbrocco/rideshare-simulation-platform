@@ -32,7 +32,21 @@ export function useSimulationControl(onStatusUpdate?: (status: SimulationStatus)
       });
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        let message = `API error: ${response.status}`;
+        try {
+          const body: unknown = await response.json();
+          if (
+            typeof body === 'object' &&
+            body !== null &&
+            'detail' in body &&
+            typeof (body as { detail: unknown }).detail === 'string'
+          ) {
+            message = (body as { detail: string }).detail;
+          }
+        } catch {
+          // response wasn't JSON — keep status-based message
+        }
+        throw new Error(message);
       }
 
       return response;
