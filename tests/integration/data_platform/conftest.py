@@ -53,7 +53,7 @@ from tests.integration.data_platform.fixtures.trip_events import generate_trip_l
 # Note: data-platform and quality-orchestration were consolidated into data-pipeline (2026-01-26)
 DOCKER_PROFILES = {
     "core": "Kafka, Redis, OSRM, Simulation, Stream Processor, Frontend",
-    "data-pipeline": "MinIO, Spark (Thrift Server + Streaming jobs), LocalStack, Airflow",
+    "data-pipeline": "MinIO, Bronze Ingestion, Hive Metastore, Trino, Airflow",
     "monitoring": "Prometheus, Grafana, cAdvisor",
     "bi": "Superset, Postgres for Superset, Redis for Superset",
 }
@@ -819,48 +819,43 @@ def wait_for_bronze_ingestion(thrift_connection, published_events):
 
 @pytest.fixture(scope="session")
 def streaming_jobs_running(docker_compose):
-    """Verify all Spark Structured Streaming jobs are running.
+    """Verify bronze-ingestion service is running.
 
-    Checks that spark-submit process exists in each streaming container.
-    Uses polling with timeout since Spark takes time to initialize.
+    Checks that the Python consumer health endpoint is reachable.
+    Uses polling with timeout since the service takes time to initialize.
     Session-scoped: runs once per test session.
 
-    Note: As of the streaming consolidation (2026-01-26), services are consolidated:
-    - bronze-ingestion-high-volume: handles gps_pings topic
-    - bronze-ingestion-low-volume: handles 7 other topics (trips, driver_status, etc.)
+    Note: As of the bronze-ingestion consolidation (2026-02-11), the lightweight
+    Python service replaces the two Spark containers and uses confluent-kafka
+    consumer semantics instead of Spark Structured Streaming.
     """
-    streaming_containers = [
-        "rideshare-bronze-ingestion-high-volume",
-        "rideshare-bronze-ingestion-low-volume",
-    ]
+    container = "rideshare-bronze-ingestion"
 
-    max_wait_seconds = 180  # Spark can take a while to start
-    poll_interval = 10
+    max_wait_seconds = 60  # Python service starts much faster than Spark
+    poll_interval = 5
 
-    for container in streaming_containers:
-        start_time = time.time()
-        job_running = False
+    start_time = time.time()
+    job_running = False
 
-        while time.time() - start_time < max_wait_seconds:
-            # Check if SparkSubmit process is running in container
-            # (Spark runs as java with org.apache.spark.deploy.SparkSubmit class)
-            result = subprocess.run(
-                ["docker", "exec", container, "pgrep", "-f", "SparkSubmit"],
-                capture_output=True,
-                text=True,
-            )
+    while time.time() - start_time < max_wait_seconds:
+        # Check if bronze-ingestion service is healthy via HTTP health check
+        result = subprocess.run(
+            ["docker", "exec", container, "curl", "-sf", "http://localhost:8080/health"],
+            capture_output=True,
+            text=True,
+        )
 
-            if result.returncode == 0:
-                job_running = True
-                break
+        if result.returncode == 0:
+            job_running = True
+            break
 
-            time.sleep(poll_interval)
+        time.sleep(poll_interval)
 
-        if not job_running:
-            raise RuntimeError(
-                f"Streaming job not running in {container} after {max_wait_seconds}s. "
-                f"SparkSubmit process not found."
-            )
+    if not job_running:
+        raise RuntimeError(
+            f"Bronze ingestion service not running in {container} after {max_wait_seconds}s. "
+            f"Health endpoint not responding."
+        )
 
     yield
 

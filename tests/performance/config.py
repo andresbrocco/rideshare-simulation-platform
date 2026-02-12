@@ -142,15 +142,7 @@ CONTAINER_CONFIG: dict[str, dict[str, str]] = {
     "rideshare-frontend": {"display_name": "Frontend", "profile": "core"},
     # Data Pipeline profile
     "rideshare-minio": {"display_name": "MinIO", "profile": "data-pipeline"},
-    "rideshare-spark-thrift-server": {"display_name": "Spark Thrift", "profile": "data-pipeline"},
-    "rideshare-bronze-ingestion-high-volume": {
-        "display_name": "Spark: High Volume",
-        "profile": "data-pipeline",
-    },
-    "rideshare-bronze-ingestion-low-volume": {
-        "display_name": "Spark: Low Volume",
-        "profile": "data-pipeline",
-    },
+    "rideshare-bronze-ingestion": {"display_name": "Bronze Ingestion", "profile": "data-pipeline"},
     "rideshare-localstack": {"display_name": "LocalStack", "profile": "data-pipeline"},
     # Monitoring profile
     "rideshare-prometheus": {"display_name": "Prometheus", "profile": "monitoring"},

@@ -108,9 +108,9 @@ def test_data_consistency_under_partial_failure(
     bronze_count_before = query_bronze_count()
     assert bronze_count_before == 10, f"Expected 10 rows before kill, found {bronze_count_before}"
 
-    # Act: Kill bronze-ingestion-low-volume container (simulate failure)
+    # Act: Kill bronze-ingestion container (simulate failure)
     kill_result = subprocess.run(
-        ["docker", "kill", "rideshare-bronze-ingestion-low-volume"],
+        ["docker", "kill", "rideshare-bronze-ingestion"],
         capture_output=True,
         text=True,
         cwd=project_root,
@@ -156,7 +156,7 @@ def test_data_consistency_under_partial_failure(
             "--profile",
             "data-pipeline",
             "start",
-            "bronze-ingestion-low-volume",
+            "bronze-ingestion",
         ],
         capture_output=True,
         text=True,
@@ -182,8 +182,8 @@ def test_data_consistency_under_partial_failure(
     )
 
     # Assert: At least 20 events in Bronze (filtered by test-specific IDs)
-    # Note: Spark Structured Streaming provides "at-least-once" semantics after a hard kill.
-    # Some events may be reprocessed if the checkpoint wasn't committed before the kill.
+    # Note: confluent-kafka consumer provides "at-least-once" semantics after a hard kill.
+    # Some events may be reprocessed if the offset wasn't committed before the kill.
     bronze_trips = query_table_filtered(
         thrift_connection,
         "bronze.bronze_trips",

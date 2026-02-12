@@ -67,7 +67,7 @@ def _delete_s3_prefix(bucket: str, prefix: str) -> int:
 
 
 # Bronze table DDL statements with explicit schemas
-# These match the schemas produced by Spark Streaming jobs in services/spark-streaming/
+# These match the schemas produced by the Bronze ingestion service in services/bronze-ingestion/
 # Bronze layer stores raw JSON from Kafka with metadata columns
 # Parsing happens in Silver layer via DBT
 BRONZE_TABLE_DDL = {
@@ -1142,7 +1142,7 @@ def ensure_bronze_tables_exist(connection: hive.Connection) -> List[str]:
 
     This function creates Bronze tables with proper schemas if they don't exist.
     Tables are created as empty Delta tables pointing to the expected S3 locations.
-    This allows tests to run even when Spark Streaming jobs haven't written any data yet.
+    This allows tests to run even when Bronze ingestion hasn't written any data yet.
 
     IMPORTANT: If a table doesn't exist in the metastore but has an empty Delta log
     at the S3 location (created by bronze-init without a schema), this function will

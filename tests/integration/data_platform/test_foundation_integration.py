@@ -31,8 +31,8 @@ class TestServiceHealth:
     def test_all_services_running(self, wait_for_services):
         """All data platform containers should be in running state.
 
-        Note: Spark runs in local mode (no spark-master/spark-worker).
-        Each streaming job and the thrift-server run Spark independently.
+        Note: Bronze ingestion uses a lightweight Python service with
+        confluent-kafka consumer (no Spark Structured Streaming).
         """
         project_root = _get_project_root()
         output = run_command(
@@ -50,24 +50,17 @@ class TestServiceHealth:
             if "rideshare-minio" in name:
                 services_found.add("minio")
                 assert state == "running", f"MinIO not running: {state}"
-            elif "rideshare-spark-thrift-server" in name:
-                services_found.add("spark-thrift-server")
-                assert state == "running", f"Thrift server not running: {state}"
             elif "rideshare-localstack" in name:
                 services_found.add("localstack")
                 assert state == "running", f"LocalStack not running: {state}"
-            elif "rideshare-bronze-ingestion-low-volume" in name:
-                services_found.add("bronze-ingestion-low-volume")
-                assert state == "running", f"Bronze ingestion low-volume not running: {state}"
+            elif "rideshare-bronze-ingestion" in name:
+                services_found.add("bronze-ingestion")
+                assert state == "running", f"Bronze ingestion not running: {state}"
 
-        # Spark runs in local mode now - no separate master/worker containers
-        # Note: As of streaming consolidation (2026-01-26), bronze-ingestion-low-volume
-        # handles trips and 6 other topics (driver_status, surge_updates, etc.)
         expected = {
             "minio",
-            "spark-thrift-server",
             "localstack",
-            "bronze-ingestion-low-volume",
+            "bronze-ingestion",
         }
         missing = expected - services_found
         assert not missing, f"Missing services: {missing}"
