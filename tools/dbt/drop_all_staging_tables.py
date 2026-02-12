@@ -1,9 +1,18 @@
 #!/usr/bin/env python3
 """Drop all staging tables to start fresh"""
 
+import os
+
 from pyhive import hive
 
-conn = hive.Connection(host="localhost", port=10000, database="default")
+conn = hive.Connection(
+    host="localhost",
+    port=10000,
+    database="default",
+    auth="LDAP",
+    username=os.getenv("HIVE_LDAP_USERNAME", "admin"),
+    password=os.getenv("HIVE_LDAP_PASSWORD", "admin"),
+)
 cursor = conn.cursor()
 
 print("Dropping all staging, dimension, and fact tables...")

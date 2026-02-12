@@ -73,14 +73,14 @@ docker compose -f infrastructure/docker/compose.yml --profile core down
 
 **Note:** Spark Thrift Server requires the `spark-testing` profile and is optional. It's used for dual-engine DBT validation alongside Trino.
 
-The Spark Thrift Server uses **NOSASL authentication** and **binary transport mode**. You must specify these in the connection string.
+The Spark Thrift Server uses **LDAP authentication** and **binary transport mode**. You must specify credentials in the connection string.
 
 ### Using Beeline (inside container)
 
 ```bash
 docker exec rideshare-spark-thrift-server /opt/spark/bin/beeline \
-  -u "jdbc:hive2://localhost:10000/default;auth=noSasl" \
-  -n airflow \
+  -u "jdbc:hive2://localhost:10000/default" \
+  -n admin -p admin \
   -e "SHOW DATABASES"
 ```
 

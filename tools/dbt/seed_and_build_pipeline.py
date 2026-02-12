@@ -4,9 +4,11 @@ Seed bronze data and build the entire DBT pipeline for aggregate table validatio
 This script ensures data exists at all layers before validating aggregate tables.
 """
 
-from pyhive import hive
+import os
 import subprocess
 import sys
+
+from pyhive import hive
 
 
 def run_command(cmd, description):
@@ -28,7 +30,14 @@ def seed_bronze_data():
     print("SEEDING BRONZE TABLES")
     print("=" * 60)
 
-    conn = hive.Connection(host="localhost", port=10000, database="default")
+    conn = hive.Connection(
+        host="localhost",
+        port=10000,
+        database="default",
+        auth="LDAP",
+        username=os.getenv("HIVE_LDAP_USERNAME", "admin"),
+        password=os.getenv("HIVE_LDAP_PASSWORD", "admin"),
+    )
     cursor = conn.cursor()
 
     # Insert bronze_trips (4 events for one complete trip lifecycle)

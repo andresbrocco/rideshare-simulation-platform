@@ -33,7 +33,9 @@ rideshare:
       threads: 1
       connect_timeout: 60
       connect_retries: 3
-      auth: NOSASL
+      auth: LDAP
+      user: "{{ env_var('HIVE_LDAP_USERNAME', 'admin') }}"
+      password: "{{ env_var('HIVE_LDAP_PASSWORD', 'admin') }}"
 
     cloud:
       type: glue

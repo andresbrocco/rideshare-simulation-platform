@@ -183,7 +183,14 @@ def reset_all_state(docker_compose):
 
     # 2. Drop all lakehouse tables from Hive metastore
     # This prevents orphaned metastore entries after we clear MinIO
-    thrift_conn = hive.Connection(host="localhost", port=10000, database="default", auth="NOSASL")
+    thrift_conn = hive.Connection(
+        host="localhost",
+        port=10000,
+        database="default",
+        auth="LDAP",
+        username=os.environ.get("HIVE_LDAP_USERNAME", "admin"),
+        password=os.environ.get("HIVE_LDAP_PASSWORD", "admin"),
+    )
     try:
         drop_lakehouse_tables(thrift_conn)
     finally:
@@ -389,7 +396,14 @@ def thrift_connection(wait_for_services):
 
     Connection pool for SQL queries against Delta tables.
     """
-    connection = hive.Connection(host="localhost", port=10000, database="default", auth="NOSASL")
+    connection = hive.Connection(
+        host="localhost",
+        port=10000,
+        database="default",
+        auth="LDAP",
+        username=os.environ.get("HIVE_LDAP_USERNAME", "admin"),
+        password=os.environ.get("HIVE_LDAP_PASSWORD", "admin"),
+    )
 
     yield connection
 

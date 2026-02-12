@@ -1,10 +1,19 @@
 #!/usr/bin/env python3
 """Create Bronze sample tables through Spark Thrift Server for testing"""
 
+import os
+
 from pyhive import hive
 
 # Connect to Spark Thrift Server
-conn = hive.Connection(host="localhost", port=10000, database="default")
+conn = hive.Connection(
+    host="localhost",
+    port=10000,
+    database="default",
+    auth="LDAP",
+    username=os.getenv("HIVE_LDAP_USERNAME", "admin"),
+    password=os.getenv("HIVE_LDAP_PASSWORD", "admin"),
+)
 cursor = conn.cursor()
 
 print("Creating Bronze tables as PARQUET for testing...")

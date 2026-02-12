@@ -1,9 +1,18 @@
 #!/usr/bin/env python3
 """Recreate Bronze tables with sample data using PARQUET format"""
 
+import os
+
 from pyhive import hive
 
-conn = hive.Connection(host="localhost", port=10000, database="default")
+conn = hive.Connection(
+    host="localhost",
+    port=10000,
+    database="default",
+    auth="LDAP",
+    username=os.getenv("HIVE_LDAP_USERNAME", "admin"),
+    password=os.getenv("HIVE_LDAP_PASSWORD", "admin"),
+)
 cursor = conn.cursor()
 
 print("Dropping existing Bronze tables...")

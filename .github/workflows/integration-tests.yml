@@ -107,9 +107,10 @@ jobs:
                 method: thrift
                 host: localhost
                 port: 10000
-                user: airflow
+                user: admin
+                password: admin
                 schema: default
-                auth: NOSASL
+                auth: LDAP
                 threads: 4
                 connect_timeout: 60
                 connect_retries: 3

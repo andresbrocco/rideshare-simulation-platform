@@ -15,9 +15,18 @@ Table names and schemas must match what the DBT staging models expect:
 - bronze_rider_profiles (not bronze_riders!)
 """
 
+import os
+
 from pyhive import hive
 
-conn = hive.Connection(host="localhost", port=10000, database="default")
+conn = hive.Connection(
+    host="localhost",
+    port=10000,
+    database="default",
+    auth="LDAP",
+    username=os.getenv("HIVE_LDAP_USERNAME", "admin"),
+    password=os.getenv("HIVE_LDAP_PASSWORD", "admin"),
+)
 cursor = conn.cursor()
 
 print("Dropping existing Bronze tables and views...")

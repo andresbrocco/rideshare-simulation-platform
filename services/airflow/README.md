@@ -142,7 +142,7 @@ Query DLQ manually:
 # Connect to Spark Thrift Server via PyHive
 docker compose -f infrastructure/docker/compose.yml exec airflow-scheduler python3 -c "
 from pyhive import hive
-conn = hive.connect(host='spark-thrift-server', port=10000, auth='NOSASL')
+conn = hive.connect(host='spark-thrift-server', port=10000, auth='LDAP', username='admin', password='admin')
 cursor = conn.cursor()
 cursor.execute('SELECT COUNT(*) FROM bronze.dlq_gps_pings')
 print(cursor.fetchone())
