@@ -237,6 +237,8 @@ services:
       - -c
       - |
         set -a && eval "$$(grep '^KAFKA_SASL_' /secrets/core.env)" && set +a
+        set -a && eval "$$(grep '^SCHEMA_REGISTRY_' /secrets/core.env)" && set +a
+        export KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO="${SCHEMA_REGISTRY_USER}:${SCHEMA_REGISTRY_PASSWORD}"
         exec python main.py
     depends_on:
       secrets-init:
