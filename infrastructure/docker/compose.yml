@@ -784,6 +784,42 @@ services:
       start_period: 120s
     restart: unless-stopped
 
+  openldap:
+    image: osixia/openldap:1.5.0
+    container_name: rideshare-openldap
+    mem_limit: 256m
+    profiles:
+      - data-pipeline
+    ports:
+      - "389:389"
+    environment:
+      LDAP_ORGANISATION: "Rideshare Platform"
+      LDAP_DOMAIN: "rideshare.local"
+      LDAP_TLS: "false"
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -a && . /secrets/data-pipeline.env && set +a
+        exec /container/tool/run --copy-service
+    depends_on:
+      secrets-init:
+        condition: service_completed_successfully
+    volumes:
+      - openldap-data:/var/lib/ldap
+      - openldap-config:/etc/ldap/slapd.d
+      - secrets-volume:/secrets:ro
+      - ../../infrastructure/openldap/bootstrap.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/bootstrap.ldif:ro
+    networks:
+      - rideshare-network
+    healthcheck:
+      test: ["CMD-SHELL", ". /secrets/data-pipeline.env && ldapsearch -x -H ldap://localhost:389 -b dc=rideshare,dc=local -D cn=admin,dc=rideshare,dc=local -w \"$$LDAP_ADMIN_PASSWORD\" -s base"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
   trino:
     image: trinodb/trino:439
     container_name: rideshare-trino
@@ -1030,4 +1066,6 @@ volumes:
   grafana-data:
   loki-data:
   tempo-data:
+  openldap-data:
+  openldap-config:
   secrets-volume:

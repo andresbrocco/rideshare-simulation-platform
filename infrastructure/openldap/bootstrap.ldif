@@ -1,0 +1,13 @@
+# Service user for Hive/Thrift connections
+# This user will authenticate to Spark Thrift Server via LDAP
+dn: ou=users,dc=rideshare,dc=local
+objectClass: organizationalUnit
+ou: users
+
+dn: cn=admin,ou=users,dc=rideshare,dc=local
+objectClass: inetOrgPerson
+cn: admin
+sn: Admin
+uid: admin
+userPassword: admin
+mail: admin@rideshare.local
