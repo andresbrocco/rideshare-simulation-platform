@@ -58,6 +58,11 @@ with DAG(
         outlets=[SILVER_ASSET],
     )
 
+    export_silver_to_s3 = BashOperator(
+        task_id="export_silver_to_s3",
+        bash_command="python3 /opt/init-scripts/export-dbt-to-s3.py --layer silver",
+    )
+
     def should_trigger_gold(**context) -> str:
         """Trigger Gold DAG at 2 AM, for manual runs, or when not in PROD_MODE."""
         prod_mode = os.environ.get("PROD_MODE", "false").lower() == "true"
@@ -82,8 +87,14 @@ with DAG(
     skip_gold_trigger = EmptyOperator(task_id="skip_gold_trigger")
 
     # Task dependencies
-    check_bronze_freshness >> dbt_silver_run >> dbt_silver_test >> ge_silver_validation
-    ge_silver_validation >> check_should_trigger_gold >> [trigger_gold_dag, skip_gold_trigger]
+    (
+        check_bronze_freshness
+        >> dbt_silver_run
+        >> dbt_silver_test
+        >> ge_silver_validation
+        >> export_silver_to_s3
+    )
+    export_silver_to_s3 >> check_should_trigger_gold >> [trigger_gold_dag, skip_gold_trigger]
 
 # Gold DAG - Triggered by Silver DAG at 2 AM (no schedule)
 with DAG(
@@ -130,6 +141,11 @@ with DAG(
         """,
     )
 
+    export_gold_to_s3 = BashOperator(
+        task_id="export_gold_to_s3",
+        bash_command="python3 /opt/init-scripts/export-dbt-to-s3.py --layer gold",
+    )
+
     ge_generate_data_docs = BashOperator(
         task_id="ge_generate_data_docs",
         bash_command="""
@@ -146,5 +162,6 @@ with DAG(
         >> dbt_gold_aggregates
         >> dbt_gold_test
         >> ge_gold_validation
+        >> export_gold_to_s3
         >> ge_generate_data_docs
     )
