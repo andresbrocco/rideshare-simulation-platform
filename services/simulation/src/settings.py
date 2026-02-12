@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -47,14 +47,33 @@ class KafkaSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="KAFKA_")
 
+    @model_validator(mode="after")
+    def validate_credentials_provided(self) -> "KafkaSettings":
+        missing = []
+        if not self.sasl_username:
+            missing.append("KAFKA_SASL_USERNAME")
+        if not self.sasl_password:
+            missing.append("KAFKA_SASL_PASSWORD")
+        if not self.schema_registry_basic_auth_user_info:
+            missing.append("KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO")
+        if missing:
+            raise ValueError(f"Required credentials not provided: {', '.join(missing)}")
+        return self
+
 
 class RedisSettings(BaseSettings):
     host: str = "localhost"
     port: int = 6379
-    password: str | None = None
+    password: str = ""
     ssl: bool = False
 
     model_config = SettingsConfigDict(env_prefix="REDIS_")
+
+    @model_validator(mode="after")
+    def validate_credentials_provided(self) -> "RedisSettings":
+        if not self.password:
+            raise ValueError("Required credential not provided: REDIS_PASSWORD")
+        return self
 
 
 class OSRMSettings(BaseSettings):
@@ -97,6 +116,12 @@ class APISettings(BaseSettings):
     key: str = ""
 
     model_config = SettingsConfigDict(env_prefix="API_")
+
+    @model_validator(mode="after")
+    def validate_credentials_provided(self) -> "APISettings":
+        if not self.key:
+            raise ValueError("Required credential not provided: API_KEY")
+        return self
 
 
 class CORSSettings(BaseSettings):

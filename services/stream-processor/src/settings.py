@@ -1,6 +1,6 @@
 """Configuration settings for stream processor."""
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -26,16 +26,33 @@ class KafkaSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="KAFKA_")
 
+    @model_validator(mode="after")
+    def validate_credentials_provided(self) -> "KafkaSettings":
+        missing = []
+        if not self.sasl_username:
+            missing.append("KAFKA_SASL_USERNAME")
+        if not self.sasl_password:
+            missing.append("KAFKA_SASL_PASSWORD")
+        if missing:
+            raise ValueError(f"Required credentials not provided: {', '.join(missing)}")
+        return self
+
 
 class RedisSettings(BaseSettings):
     """Redis connection configuration."""
 
     host: str = "localhost"
     port: int = 6379
-    password: str | None = None
+    password: str = ""
     db: int = 0
 
     model_config = SettingsConfigDict(env_prefix="REDIS_")
+
+    @model_validator(mode="after")
+    def validate_credentials_provided(self) -> "RedisSettings":
+        if not self.password:
+            raise ValueError("Required credential not provided: REDIS_PASSWORD")
+        return self
 
 
 class APISettings(BaseSettings):

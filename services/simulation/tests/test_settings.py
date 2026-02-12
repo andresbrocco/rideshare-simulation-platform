@@ -49,8 +49,13 @@ class TestKafkaSettings:
         settings = KafkaSettings()
         assert settings.bootstrap_servers == "localhost:9092"
         assert settings.security_protocol == "PLAINTEXT"
-        assert settings.sasl_username == ""
-        assert settings.sasl_password == ""
+
+    def test_credentials_required(self, monkeypatch):
+        monkeypatch.delenv("KAFKA_SASL_USERNAME", raising=False)
+        monkeypatch.delenv("KAFKA_SASL_PASSWORD", raising=False)
+        monkeypatch.delenv("KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO", raising=False)
+        with pytest.raises(ValidationError):
+            KafkaSettings()
 
     def test_valid_config(self):
         settings = KafkaSettings(
@@ -74,8 +79,12 @@ class TestRedisSettings:
         settings = RedisSettings()
         assert settings.host == "localhost"
         assert settings.port == 6379
-        assert settings.password is None
         assert settings.ssl is False
+
+    def test_password_required(self, monkeypatch):
+        monkeypatch.delenv("REDIS_PASSWORD", raising=False)
+        with pytest.raises(ValidationError):
+            RedisSettings()
 
     def test_with_password(self):
         settings = RedisSettings(host="redis.example.com", password="secret", ssl=True)
@@ -133,9 +142,10 @@ class TestAWSSettings:
 
 @pytest.mark.unit
 class TestAPISettings:
-    def test_defaults(self):
-        settings = APISettings()
-        assert settings.key == ""
+    def test_key_required(self, monkeypatch):
+        monkeypatch.delenv("API_KEY", raising=False)
+        with pytest.raises(ValidationError):
+            APISettings()
 
     def test_valid_key(self):
         settings = APISettings(key="my-secret-key")
@@ -151,6 +161,7 @@ class TestSettings:
         monkeypatch.setenv("KAFKA_SCHEMA_REGISTRY_URL", "http://localhost:8081")
         monkeypatch.setenv("KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO", "key:secret")
         monkeypatch.setenv("REDIS_HOST", "localhost")
+        monkeypatch.setenv("REDIS_PASSWORD", "redis-secret")
         monkeypatch.setenv("DATABRICKS_HOST", "https://dbc-12345.cloud.databricks.com")
         monkeypatch.setenv("DATABRICKS_TOKEN", "token")
         monkeypatch.setenv("API_KEY", "test-key")
@@ -167,6 +178,7 @@ class TestSettings:
         monkeypatch.setenv("KAFKA_SCHEMA_REGISTRY_URL", "http://localhost:8081")
         monkeypatch.setenv("KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO", "key:secret")
         monkeypatch.setenv("REDIS_HOST", "localhost")
+        monkeypatch.setenv("REDIS_PASSWORD", "redis-secret")
         monkeypatch.setenv("DATABRICKS_HOST", "https://dbc-12345.cloud.databricks.com")
         monkeypatch.setenv("DATABRICKS_TOKEN", "token")
         monkeypatch.setenv("API_KEY", "test-key")

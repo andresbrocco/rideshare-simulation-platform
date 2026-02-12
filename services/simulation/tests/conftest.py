@@ -6,6 +6,14 @@ import os
 os.environ.setdefault("GPS_PING_INTERVAL_MOVING", "60")
 os.environ.setdefault("GPS_PING_INTERVAL_IDLE", "60")
 
+# Credential fields have no defaults (services must fail without secrets).
+# Provide test values so Settings() can be constructed in tests.
+os.environ.setdefault("KAFKA_SASL_USERNAME", "test-user")
+os.environ.setdefault("KAFKA_SASL_PASSWORD", "test-password")
+os.environ.setdefault("KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO", "test-user:test-password")
+os.environ.setdefault("REDIS_PASSWORD", "test-password")
+os.environ.setdefault("API_KEY", "test-api-key")
+
 from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import Mock
