@@ -27,8 +27,8 @@ Run from the project root directory using the simulation venv.
 This runs all four scenarios in sequence:
 1. **Baseline** - Measure idle resource usage
 2. **Stress Test** - Find maximum sustainable agent count
-3. **Duration/Leak** - 3-phase lifecycle observation (active + drain + cooldown)
-4. **Speed Scaling** - Double speed multiplier each step until threshold
+3. **Speed Scaling** - Double speed multiplier each step until threshold
+4. **Duration/Leak** - 3-phase lifecycle at best proven speed
 
 ### Check Service Status
 ```bash
@@ -52,10 +52,12 @@ This runs all four scenarios in sequence:
 - CPU thresholds are per-container: scaled by effective cores (e.g., 90% * 1.5 cores = 135%)
 - Determines maximum sustainable agent count
 - Records which container and metric triggered the stop
-- Provides the agent count used for duration and speed scaling tests
+- Provides the agent count used for speed scaling and duration tests
 
 ### Duration/Leak Detection (3-phase)
-Runs through an explicit lifecycle with per-phase sampling rates:
+Runs at the best proven speed from the speed scaling test (falls back to 1x if speed
+scaling was aborted or all steps hit thresholds). Runs through an explicit lifecycle
+with per-phase sampling rates:
 
 | Phase | Duration | Sampling | What happens |
 |-------|----------|----------|--------------|
@@ -104,18 +106,25 @@ START
        |
        v
 +--------------+
-| 3. Duration  |  (5m active + drain + 10m cooldown)
-|    Leak Test |
-|  3-phase     |
-|  lifecycle   |
-+------+-------+
-       |
-       v
-+--------------+
-| 4. Speed     |  (2x -> 1024x, 8m/step)
+| 3. Speed     |  (2x -> 1024x, 8m/step)
 |    Scaling   |
 |  Test speed  |
 |  limits      |
++------+-------+
+       |
+       v
++----------------------------------+
+| Derive max_reliable_speed from   |
+| speed scaling step results       |
+| (fallback: 1x if aborted)       |
++----------------------------------+
+       |
+       v
++--------------+
+| 4. Duration  |  (5m active + drain + 10m cooldown)
+|    Leak Test |  at max_reliable_speed
+|  3-phase     |
+|  lifecycle   |
 +------+-------+
        |
        v
@@ -163,7 +172,8 @@ Results are saved to `tests/performance/results/<timestamp>/`:
   "config": { ... },
   "derived_config": {
     "duration_agent_count": 25,
-    "stress_drivers_queued": 50
+    "stress_drivers_queued": 50,
+    "duration_speed_multiplier": 8
   },
   "scenarios": [
     {
@@ -181,19 +191,20 @@ Results are saved to `tests/performance/results/<timestamp>/`:
       }
     },
     {
-      "scenario_name": "duration_leak",
-      "metadata": {
-        "phase_timestamps": {"active_start": ..., "active_end": ..., ...},
-        "phase_sample_counts": {"active": 150, "drain": 12, "cooldown": 75},
-        "cooldown_analysis": {"rideshare-simulation": {"delta_mb": -12.5, "memory_released": true}}
-      }
-    },
-    {
       "scenario_name": "speed_scaling",
       "metadata": {
         "step_results": [{"multiplier": 2, "agent_count": 25, "threshold_hit": false}, ...],
         "max_speed_achieved": 64,
         "stopped_by_threshold": true
+      }
+    },
+    {
+      "scenario_name": "duration_leak",
+      "scenario_params": {"speed_multiplier": 8, "speed_source": "speed_scaling_max_reliable"},
+      "metadata": {
+        "phase_timestamps": {"active_start": ..., "active_end": ..., ...},
+        "phase_sample_counts": {"active": 150, "drain": 12, "cooldown": 75},
+        "cooldown_analysis": {"rideshare-simulation": {"delta_mb": -12.5, "memory_released": true}}
       }
     }
   ],

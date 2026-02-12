@@ -33,16 +33,20 @@ class DurationLeakScenario(BaseScenario):
     8. Analyze per-phase slopes and cooldown memory delta
     """
 
-    def __init__(self, agent_count: int, *args: Any, **kwargs: Any) -> None:
+    def __init__(
+        self, agent_count: int, speed_multiplier: int = 1, *args: Any, **kwargs: Any
+    ) -> None:
         """Initialize duration/leak scenario.
 
         Args:
             agent_count: Number of drivers/riders to spawn (derived from stress test).
+            speed_multiplier: Simulation speed multiplier (derived from speed scaling test).
             *args: Positional arguments passed to BaseScenario.
             **kwargs: Keyword arguments passed to BaseScenario.
 
         Raises:
             ValueError: If agent_count is less than 2.
+            ValueError: If speed_multiplier is less than 1.
         """
         super().__init__(*args, **kwargs)
         if agent_count < 2:
@@ -50,10 +54,13 @@ class DurationLeakScenario(BaseScenario):
                 f"agent_count must be at least 2, got {agent_count} "
                 "(derived from stress test drivers_queued // 2)"
             )
+        if speed_multiplier < 1:
+            raise ValueError(f"speed_multiplier must be at least 1, got {speed_multiplier}")
         self.active_minutes = self.config.scenarios.duration_active_minutes
         self.cooldown_minutes = self.config.scenarios.duration_cooldown_minutes
         self.drain_timeout = self.config.scenarios.duration_drain_timeout_seconds
         self.agent_count = agent_count
+        self.speed_multiplier = speed_multiplier
         self._phase_timestamps: dict[str, float] = {}
         self._phase_sample_counts: dict[str, int] = {}
 
@@ -63,10 +70,13 @@ class DurationLeakScenario(BaseScenario):
 
     @property
     def description(self) -> str:
-        return (
+        desc = (
             f"Memory leak detection with {self.agent_count} agents: "
             f"{self.active_minutes}m active + drain + {self.cooldown_minutes}m cooldown"
         )
+        if self.speed_multiplier > 1:
+            desc += f" at {self.speed_multiplier}x speed"
+        return desc
 
     @property
     def params(self) -> dict[str, Any]:
@@ -77,6 +87,8 @@ class DurationLeakScenario(BaseScenario):
             "drivers": self.agent_count,
             "riders": self.agent_count,
             "agent_count_source": "stress_test_drivers_queued_half",
+            "speed_multiplier": self.speed_multiplier,
+            "speed_source": "speed_scaling_max_reliable",
         }
 
     def execute(self) -> Iterator[dict[str, Any]]:
@@ -88,6 +100,15 @@ class DurationLeakScenario(BaseScenario):
         except Exception as e:
             console.print(f"[yellow]Start response: {e}[/yellow]")
         yield {"phase": "simulation_started"}
+
+        # Set speed multiplier if > 1x
+        if self.speed_multiplier > 1:
+            console.print(f"[cyan]Setting speed to {self.speed_multiplier}x...[/cyan]")
+            try:
+                self.api_client.set_speed(self.speed_multiplier)
+            except Exception as e:
+                console.print(f"[yellow]Set speed response: {e}[/yellow]")
+            yield {"phase": "speed_set", "speed_multiplier": self.speed_multiplier}
 
         # Queue drivers (API limits to 100 per request, so batch if needed)
         console.print(f"[cyan]Queuing {self.agent_count} drivers (mode=immediate)...[/cyan]")

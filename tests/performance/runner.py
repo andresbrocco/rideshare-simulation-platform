@@ -475,8 +475,8 @@ def run() -> None:
     Executes four scenarios in order:
     1. Baseline - Measure idle resource usage
     2. Stress Test - Find maximum sustainable agent count
-    3. Duration/Leak - 3-phase lifecycle (active + drain + cooldown)
-    4. Speed Scaling - Double speed multiplier each step until threshold
+    3. Speed Scaling - Double speed multiplier each step until threshold
+    4. Duration/Leak - 3-phase lifecycle at best proven speed
     """
     config = create_test_config()
     lifecycle, stats_collector, api_client, oom_detector = create_collectors(config)
@@ -580,28 +580,9 @@ def run() -> None:
                     "stress_drivers_queued": drivers_queued,
                 }
 
-                # 5. Run duration/leak test with derived agent count
-                active_min = config.scenarios.duration_active_minutes
-                cooldown_min = config.scenarios.duration_cooldown_minutes
+                # 5. Run speed scaling test
                 console.rule(
-                    f"[bold cyan]Step 3/4: Running Duration Test "
-                    f"({active_min}m+drain+{cooldown_min}m, "
-                    f"{duration_agent_count} agents)[/bold cyan]"
-                )
-                duration_result = run_scenario(
-                    DurationLeakScenario,
-                    config,
-                    lifecycle,
-                    stats_collector,
-                    api_client,
-                    oom_detector,
-                    agent_count=duration_agent_count,
-                )
-                scenario_results.append(_result_to_dict(duration_result))
-
-                # 6. Run speed scaling test
-                console.rule(
-                    f"[bold cyan]Step 4/4: Running Speed Scaling Test "
+                    f"[bold cyan]Step 3/4: Running Speed Scaling Test "
                     f"(2x-{config.scenarios.speed_scaling_max_multiplier}x, "
                     f"{config.scenarios.speed_scaling_step_duration_minutes}m/step, "
                     f"base agents={duration_agent_count})[/bold cyan]"
@@ -616,6 +597,35 @@ def run() -> None:
                     agent_count=duration_agent_count,
                 )
                 scenario_results.append(_result_to_dict(speed_result))
+
+                # 6. Derive max reliable speed from speed scaling results
+                max_reliable_speed = _derive_max_reliable_speed(speed_result)
+                console.print(
+                    f"\n[cyan]Derived max reliable speed: {max_reliable_speed}x "
+                    f"(duration test will run at this speed)[/cyan]\n"
+                )
+                results["derived_config"]["duration_speed_multiplier"] = max_reliable_speed
+
+                # 7. Run duration/leak test at best proven speed
+                active_min = config.scenarios.duration_active_minutes
+                cooldown_min = config.scenarios.duration_cooldown_minutes
+                speed_label = f", {max_reliable_speed}x speed" if max_reliable_speed > 1 else ""
+                console.rule(
+                    f"[bold cyan]Step 4/4: Running Duration Test "
+                    f"({active_min}m+drain+{cooldown_min}m, "
+                    f"{duration_agent_count} agents{speed_label})[/bold cyan]"
+                )
+                duration_result = run_scenario(
+                    DurationLeakScenario,
+                    config,
+                    lifecycle,
+                    stats_collector,
+                    api_client,
+                    oom_detector,
+                    agent_count=duration_agent_count,
+                    speed_multiplier=max_reliable_speed,
+                )
+                scenario_results.append(_result_to_dict(duration_result))
 
     except KeyboardInterrupt:
         console.print("\n[yellow]Test interrupted by user[/yellow]")
@@ -756,6 +766,43 @@ def analyze(results_file: str) -> None:
     _print_summary(results, verdict)
 
 
+def _derive_max_reliable_speed(speed_result: ScenarioResult) -> int:
+    """Derive the maximum reliable speed multiplier from a speed scaling result.
+
+    Rules:
+    - If the scenario was aborted (e.g., OOM) or has no step results, returns 1.
+    - If stopped by threshold, returns the multiplier from the last step where
+      threshold was NOT hit (the last known-good speed), or 1 if the first step hit.
+    - If all steps passed, returns max_speed_achieved from metadata.
+
+    Args:
+        speed_result: Result from SpeedScalingScenario.
+
+    Returns:
+        The highest speed multiplier that was stable, minimum 1.
+    """
+    if speed_result.aborted:
+        return 1
+
+    step_results = speed_result.metadata.get("step_results", [])
+    if not step_results:
+        return 1
+
+    stopped_by_threshold = speed_result.metadata.get("stopped_by_threshold", False)
+
+    if stopped_by_threshold:
+        # Find last step where threshold was NOT hit
+        last_good_multiplier = 1
+        for step in step_results:
+            if not step.get("threshold_hit", False):
+                last_good_multiplier = step.get("multiplier", 1)
+        return last_good_multiplier
+
+    # All steps passed — use max_speed_achieved
+    max_speed: int = speed_result.metadata.get("max_speed_achieved", 1)
+    return max(max_speed, 1)
+
+
 def _result_to_dict(result: ScenarioResult) -> dict[str, Any]:
     """Convert ScenarioResult to dict."""
     return {
@@ -862,7 +909,7 @@ def _print_summary(results: dict[str, Any], verdict: TestVerdict | None = None) 
 
         console.print(health_table)
 
-    # Derived configuration (stress → duration agent count)
+    # Derived configuration (stress → duration agent count, speed scaling → speed)
     derived_config = results.get("derived_config", {})
     if derived_config:
         console.print("\n[bold]Derived Configuration:[/bold]")
@@ -872,6 +919,11 @@ def _print_summary(results: dict[str, Any], verdict: TestVerdict | None = None) 
             console.print(
                 f"  Duration test agents: {duration_agents} "
                 f"(half of {stress_drivers} from stress test)"
+            )
+        duration_speed = derived_config.get("duration_speed_multiplier")
+        if duration_speed:
+            console.print(
+                f"  Duration test speed: {duration_speed}x " f"(max reliable from speed scaling)"
             )
 
     # Speed scaling results
