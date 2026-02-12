@@ -583,6 +583,12 @@ services:
       AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: 30
       AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-webserver:8080/execution/'
       DBT_SPARK_HOST: spark-thrift-server
+      # S3/MinIO credentials for delta-rs (used by DuckDB delta extension and dbt-duckdb)
+      AWS_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_ALLOW_HTTP: "true"
+      AWS_REGION: us-east-1
       _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-fab dbt-core dbt-duckdb==1.10.0 dbt-spark[PyHive] duckdb==1.4.4 deltalake==1.4.2 duckdb-engine==0.17.0 great-expectations requests prison'
     volumes:
       - ../../services/airflow/dags:/opt/airflow/dags
