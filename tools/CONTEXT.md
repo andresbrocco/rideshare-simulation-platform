@@ -7,8 +7,8 @@ Houses configuration and code projects that are orchestrated by other services (
 ## Responsibility Boundaries
 
 - **Owns**: DBT transformation models (Silver/Gold layers), Great Expectations validation suites, data quality contracts
-- **Delegates to**: Airflow for scheduling and orchestration, Spark Thrift Server for query execution, MinIO for storage
-- **Does not handle**: Data ingestion (Spark Streaming), real-time processing (Stream Processor), or container lifecycle management
+- **Delegates to**: Airflow for scheduling and orchestration, Trino for query execution, MinIO for storage
+- **Does not handle**: Data ingestion (Bronze Ingestion service), real-time processing (Stream Processor), or container lifecycle management
 
 ## Contents
 
@@ -26,5 +26,5 @@ Houses configuration and code projects that are orchestrated by other services (
 ## Related Modules
 
 - **[services/airflow](../services/airflow/CONTEXT.md)** — Orchestrates both DBT runs and Great Expectations checkpoint executions
-- **[services/spark-streaming](../services/spark-streaming/CONTEXT.md)** — Creates Bronze Delta tables that DBT reads from
+- **[services/bronze-ingestion](../services/bronze-ingestion/CONTEXT.md)** — Creates Bronze Delta tables that DBT reads from
 - **[services/looker](../services/looker/CONTEXT.md)** — BI layer for Gold tables produced by DBT transformations

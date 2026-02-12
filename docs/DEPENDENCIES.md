@@ -13,7 +13,7 @@ How modules within this codebase depend on each other.
 | services/simulation | Discrete-event rideshare simulation engine with autonomous agents | services/frontend, tests/integration/data_platform |
 | services/stream-processor | Kafka-to-Redis bridge with GPS aggregation and event deduplication | services/frontend (via Redis pub/sub) |
 | services/frontend | Real-time visualization and control interface | None |
-| services/spark-streaming | Bronze layer Kafka-to-Delta ingestion | tools/dbt, services/airflow |
+| services/bronze-ingestion | Bronze layer Kafka-to-Delta ingestion (Python + delta-rs) | tools/dbt, services/airflow |
 | tools/dbt | Data transformation implementing medallion architecture | services/looker, tools/great-expectations |
 | services/airflow | Data pipeline orchestration and monitoring | None |
 | services/trino | Interactive SQL query engine over Delta Lake | services/grafana |
@@ -22,10 +22,10 @@ How modules within this codebase depend on each other.
 
 | Module | Purpose | Depended On By |
 |--------|---------|----------------|
-| schemas/kafka | JSON Schema definitions for Kafka events | services/simulation, services/spark-streaming, services/stream-processor |
-| schemas/lakehouse | Bronze layer PySpark schema definitions | services/spark-streaming |
+| schemas/kafka | JSON Schema definitions for Kafka events | services/simulation, services/bronze-ingestion, services/stream-processor |
+| schemas/lakehouse | Bronze layer table schema definitions | services/bronze-ingestion |
 | services/simulation/data | Geographic reference data for São Paulo districts (co-located) | services/simulation |
-| config | Environment-specific Kafka topic configurations | services/simulation, services/spark-streaming |
+| config | Environment-specific Kafka topic configurations | services/simulation, services/bronze-ingestion |
 
 ### Infrastructure and Quality Modules
 
@@ -53,7 +53,7 @@ How modules within this codebase depend on each other.
                                   ├──> [services/stream-processor] ──┬──> Redis ──> [services/frontend]
                                   │                                  └──> OTLP ──> [services/otel-collector]
                                   │
-                                  └──> [services/spark-streaming] ──┬──> [schemas/lakehouse]
+                                  └──> [services/bronze-ingestion] ──┬──> [schemas/lakehouse]
                                                                      └──> Bronze Delta Tables (MinIO S3)
                                                                                │
                                                                                └──> [tools/dbt] ──┬──> Silver/Gold Tables
@@ -63,7 +63,7 @@ How modules within this codebase depend on each other.
                                                                                                      └──> [services/trino] ──> [services/grafana] (BI dashboards)
 
 [services/airflow] ──┬──> [tools/dbt]
-                     ├──> [services/spark-streaming]
+                     ├──> [services/bronze-ingestion]
                      └──> [tools/great-expectations]
 
 [services/otel-collector] ──┬──> [services/prometheus] (remote_write + scrape)
@@ -126,12 +126,12 @@ Internal module structure within `services/simulation/src/`:
 - Publishes to Redis channels: `driver-updates`, `rider-updates`, `trip-updates`, `surge_updates`
 - Aggregation window: 100ms batching for GPS updates
 
-#### services/spark-streaming → schemas/lakehouse
-- Uses `bronze_trips_schema`, `bronze_gps_pings_schema`, `dlq_schema`
+#### services/bronze-ingestion → schemas/lakehouse
+- Uses PyArrow schemas for Bronze table validation
 - Applies schemas during Kafka-to-Delta ingestion
 
 #### tools/dbt → Bronze Delta Tables
-- Reads from Bronze tables created by Spark Streaming
+- Reads from Bronze tables created by bronze-ingestion
 - Implements staging models with SCD Type 2 for profiles
 - Uses `source_with_empty_guard` macro to handle empty sources
 
@@ -230,12 +230,13 @@ Internal module structure within `services/simulation/src/`:
 | maplibre-gl | 5.14.0 | Map rendering library |
 | react-hot-toast | 2.6.0 | Toast notifications |
 
-#### services/spark-streaming (Python)
+#### services/bronze-ingestion (Python)
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| pyspark | 3.5.0 | Structured streaming engine |
-| delta-spark | 3.0.0 | Delta Lake format support |
+| confluent-kafka | 2.8.0 | Kafka consumer |
+| deltalake | 0.25.5 | Delta Lake writes via delta-rs |
+| pyarrow | 19.0.1 | Arrow columnar format |
 
 #### tools/dbt (Python)
 
@@ -307,14 +308,12 @@ Runtime services required for operation:
 
 | Service | Used By | Purpose |
 |---------|---------|---------|
-| Kafka (Confluent Cloud) | simulation, spark-streaming, stream-processor | Event streaming backbone |
+| Kafka (Confluent Cloud) | simulation, bronze-ingestion, stream-processor | Event streaming backbone |
 | Redis | simulation, stream-processor, frontend | State snapshots and pub/sub |
 | OSRM | simulation | Routing calculations |
-| MinIO (S3-compatible) | spark-streaming, dbt | Lakehouse storage |
-| Spark Thrift Server | dbt, great-expectations | SQL interface to Delta tables |
-| LocalStack (S3 mock) | spark-streaming (dev/test) | Local S3 emulation |
+| MinIO (S3-compatible) | bronze-ingestion, dbt | Lakehouse storage |
 | Trino | grafana | Interactive SQL over Delta Lake Gold tables |
-| Hive Metastore | trino, spark-thrift-server | Table metadata catalog (backed by PostgreSQL) |
+| Hive Metastore | trino | Table metadata catalog (backed by PostgreSQL) |
 | OpenTelemetry Collector | simulation, stream-processor | Telemetry routing gateway (metrics, logs, traces) |
 | Prometheus | grafana, otel-collector | Metrics storage and alerting (7d retention) |
 | Loki | grafana, otel-collector | Log aggregation with label-based indexing |
@@ -343,7 +342,7 @@ None detected.
 
 ### Version Consistency
 
-- PySpark version 3.5.0 used consistently across spark-streaming, dbt, and great-expectations
+- DuckDB used as the local transformation engine via dbt-duckdb
 - FastAPI version 0.115.6 shared between simulation and stream-processor
 - Multiple Redis client versions: 7.1.0 (simulation) vs 5.2.1 (stream-processor)
 - Multiple confluent-kafka versions: 2.12.2 (simulation) vs 2.6.1 (stream-processor)
@@ -355,7 +354,7 @@ None detected.
 - services/simulation: Python >=3.13
 - tests/integration: Python >=3.13
 - services/stream-processor: No explicit version constraint
-- services/spark-streaming: Compatible with Python 3.x (Spark 3.5.0)
+- services/bronze-ingestion: Python >=3.13
 - tools/great-expectations: Compatible with Python 3.x
 
 ### Frontend Dependencies

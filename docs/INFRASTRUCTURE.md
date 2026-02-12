@@ -41,8 +41,8 @@
 - `MINIO_ENDPOINT=minio:9000`
 - `KAFKA_BOOTSTRAP_SERVERS=kafka:9092`
 - `SCHEMA_REGISTRY_URL=http://schema-registry:8085`
-- `SPARK_THRIFT_HOST=spark-thrift-server`
-- `SPARK_THRIFT_PORT=10000`
+- `SPARK_THRIFT_HOST=spark-thrift-server` (optional, spark-testing profile only)
+- `SPARK_THRIFT_PORT=10000` (optional, spark-testing profile only)
 - `LOCALSTACK_ENDPOINT=http://localstack:4566`
 
 ### Pre-commit Hooks
@@ -78,7 +78,8 @@
 | Profile | Purpose | Services |
 |---------|---------|----------|
 | core | Main simulation services | kafka, schema-registry, redis, osrm, simulation, stream-processor, frontend |
-| data-pipeline | Data engineering + orchestration | minio, spark-thrift-server, spark-streaming-* (2 jobs), localstack, postgres-airflow, airflow-webserver, airflow-scheduler |
+| data-pipeline | Data engineering + orchestration | minio, bronze-ingestion, hive-metastore, trino, postgres-airflow, airflow-webserver, airflow-scheduler, localstack |
+| spark-testing | Optional dual-engine validation | spark-thrift-server |
 | monitoring | Observability | prometheus, cadvisor, grafana |
 | bi | Business intelligence | postgres-superset, redis-superset, superset |
 
@@ -99,10 +100,9 @@
 | Service | Image | Purpose | Port |
 |---------|-------|---------|------|
 | minio | custom (minio/minio) | S3-compatible lakehouse storage | 9000, 9001 |
-| spark-thrift-server | custom (apache/spark:4.0.0-python3) | SQL interface to Delta tables | 10000, 4041 |
-| bronze-ingestion-high-volume | custom | Bronze ingestion for gps_pings (high volume) | - |
-| bronze-ingestion-low-volume | custom | Bronze ingestion for 7 low-volume topics | - |
-| localstack | localstack/localstack:4.12.0 | S3/SNS/SQS mock for testing | 4566 |
+| bronze-ingestion | custom (python:3.13-slim) | Kafka → Delta Lake ingestion (all 8 topics) | - |
+| hive-metastore | custom (apache/hive:4.0.0) | Table metadata catalog for Trino | 9083 |
+| trino | trinodb/trino:479 | Interactive SQL over Delta Lake | 8084 |
 
 ### Orchestration Services
 
@@ -153,8 +153,8 @@ docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -
 # Build OSRM with local map data
 docker compose -f infrastructure/docker/compose.yml --profile core build osrm
 
-# Build Spark with Delta Lake
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline build spark-thrift-server
+# Build Spark Thrift Server (optional, spark-testing profile)
+docker compose -f infrastructure/docker/compose.yml --profile spark-testing build spark-thrift-server
 ```
 
 **Combined Profiles**:
@@ -188,7 +188,7 @@ docker compose -f infrastructure/docker/compose.yml --profile core down -v
 | services/frontend/Dockerfile | Multi-stage build with development (Vite HMR) and production (Nginx) | node:20-alpine |
 | services/stream-processor/Dockerfile | Single-stage Python service | python:3.13-slim |
 | services/osrm/Dockerfile | OSRM with Sao Paulo map data (local or fetch modes) | osrm/osrm-backend:v5.25.0 |
-| services/spark-streaming/Dockerfile | Spark with pre-installed Delta Lake JARs | apache/spark:4.0.0-python3 |
+| services/bronze-ingestion/Dockerfile | Lightweight Kafka-to-Delta ingestion | python:3.13-slim |
 | services/minio/Dockerfile | MinIO S3-compatible storage | golang:1.25-alpine (build) → alpine:3.20 |
 | services/tempo/Dockerfile | Tempo with wget for health checks | grafana/tempo:2.10.0 |
 | services/otel-collector/Dockerfile | OTel Collector with wget for health checks | otel/opentelemetry-collector-contrib:0.96.0 |
@@ -202,7 +202,7 @@ One-shot containers that bootstrap infrastructure:
 |---------|---------|---------|
 | kafka-init | Create 8 Kafka topics with specified partitions | After kafka healthy |
 | minio-init | Create S3 buckets (bronze, silver, gold, checkpoints) | After minio healthy |
-| bronze-init | Initialize Bronze layer schemas via Spark Thrift | After spark-thrift-server healthy |
+| bronze-init | Register Bronze layer Delta tables via Trino | After trino, hive-metastore healthy |
 | superset-init | Run database migrations and create admin user | After postgres-superset, redis-superset healthy |
 
 ## Configuration Management
@@ -255,14 +255,14 @@ One-shot containers that bootstrap infrastructure:
 | VITE_API_URL | Backend API URL | http://localhost:8000 |
 | VITE_WS_URL | WebSocket URL for real-time updates | ws://localhost:8000/ws |
 
-#### Spark Streaming Jobs
+#### Bronze Ingestion Service
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
 | KAFKA_BOOTSTRAP_SERVERS | Kafka broker addresses | kafka:29092 |
-| SCHEMA_REGISTRY_URL | Schema Registry endpoint | http://schema-registry:8081 |
-| CHECKPOINT_PATH | Spark checkpoint location on S3 | s3a://rideshare-checkpoints/{topic}/ |
-| TRIGGER_INTERVAL | Streaming batch interval | 10 seconds |
+| MINIO_ENDPOINT | MinIO S3 endpoint | http://minio:9000 |
+| MINIO_ACCESS_KEY | MinIO access key | minioadmin |
+| MINIO_SECRET_KEY | MinIO secret key | minioadmin |
 
 #### Airflow
 
@@ -303,10 +303,10 @@ One-shot containers that bootstrap infrastructure:
 - Output: Browser console
 - Features: Toast notifications for user-facing errors (react-hot-toast)
 
-**Spark Streaming**:
-- Library: Log4j via PySpark
+**Bronze Ingestion**:
+- Library: Python `logging` module
 - Output: stdout
-- Format: Spark standard logging format
+- Format: Structured text logs
 
 ### Monitoring
 
@@ -407,14 +407,14 @@ Visualization:
 └── frontend (depends on: simulation)
 
 Data Platform (parallel with core):
-├── spark-thrift-server (depends on: minio)
-├── spark-streaming-* jobs (depends on: kafka, minio)
-└── localstack (independent)
+├── bronze-ingestion (depends on: kafka, minio)
+├── hive-metastore (depends on: postgres-metastore, minio)
+└── trino (depends on: hive-metastore, minio)
 
 Orchestration:
 ├── postgres-airflow (independent)
 ├── airflow-webserver (depends on: postgres-airflow)
-└── airflow-scheduler (depends on: airflow-webserver, spark-thrift-server)
+└── airflow-scheduler (depends on: airflow-webserver)
 
 Monitoring:
 ├── prometheus (independent)
@@ -571,8 +571,7 @@ All services have explicit memory limits to prevent resource exhaustion:
 | stream-processor | 256m | Event aggregation |
 | frontend | 384m | Node.js dev server |
 | minio | 256m | S3-compatible storage |
-| spark-thrift-server | 1024m | SQL interface |
-| spark-streaming-* | 768m | Each streaming job |
+| bronze-ingestion | 256m | Lightweight Python Kafka-to-Delta service |
 | airflow-webserver | 384m | Airflow UI |
 | airflow-scheduler | 384m | DAG scheduler |
 | prometheus | 512m | 7-day metric retention |

@@ -26,7 +26,7 @@ The `minio-init` sidecar runs `mc mb --ignore-existing` for each bucket, then ex
 
 ## Related Modules
 
-- **[services/spark-streaming](../spark-streaming/CONTEXT.md)** — Primary writer; Bronze ingestion jobs write Delta tables and checkpoints to MinIO
+- **[services/bronze-ingestion](../bronze-ingestion/CONTEXT.md)** — Primary writer; Bronze ingestion writes Delta tables to MinIO
 - **[services/hive-metastore](../hive-metastore/)** — Stores Delta table metadata pointing to S3 paths in MinIO
 - **[services/trino](../trino/)** — Queries Delta tables stored in MinIO via Hive Metastore catalog
 - **[services/airflow](../airflow/CONTEXT.md)** — Orchestrates data pipeline jobs that read from and write to MinIO

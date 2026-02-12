@@ -19,7 +19,7 @@ High-level components and their responsibilities (derived from CONTEXT.md files)
 | Simulation Engine | Discrete-event rideshare simulation with autonomous agents | services/simulation |
 | Stream Processor | Kafka-to-Redis event bridge for real-time visualization | services/stream-processor |
 | Control Panel | Real-time visualization and simulation control UI | services/frontend |
-| Bronze Ingestion | Kafka-to-Delta streaming with fault tolerance | services/spark-streaming |
+| Bronze Ingestion | Kafka-to-Delta ingestion via Python consumer (confluent-kafka + delta-rs) | services/bronze-ingestion |
 | Data Transformation | Medallion architecture transformation layer | tools/dbt |
 | Orchestration | Data pipeline scheduling and monitoring | services/airflow |
 | Data Quality | Lakehouse validation framework | tools/great-expectations |
@@ -60,15 +60,15 @@ Responsibilities:
 - Enforce schema validation at publish time
 
 ### Data Platform Layer
-- **Bronze (Spark Streaming)** - Raw event ingestion with DLQ for malformed records
+- **Bronze (Python + delta-rs)** - Raw event ingestion from Kafka to Delta Lake
 - **Silver (DBT Staging)** - Deduplication, cleaning, SCD Type 2 profile tracking
 - **Gold (DBT Marts)** - Business-ready facts (trips, payments, ratings), dimensions (drivers, riders, zones), and aggregates
 - **Great Expectations** - Data validation checkpoints for Silver and Gold layers
-- **Airflow** - Orchestrates DBT runs, monitors DLQ, initializes Bronze tables
+- **Airflow** - Orchestrates DBT runs (DuckDB in-process), monitors DLQ, initializes Bronze tables
 
 Responsibilities:
-- Ingest events from Kafka with exactly-once semantics
-- Transform raw events into analytics-ready tables
+- Ingest events from Kafka to Delta Lake via lightweight Python consumer
+- Transform raw events into analytics-ready tables (DuckDB locally, Spark/Glue in cloud)
 - Maintain historical profile changes via SCD Type 2
 - Validate data quality at each transformation layer
 - Schedule incremental processing with dependency management
@@ -116,7 +116,7 @@ Simulation Engine (SimPy)
          └─> Kafka Producer ──────────────┬───────────────────┐
                                           │                   │
                                           ▼                   ▼
-                                 Stream Processor    Spark Streaming Jobs
+                                 Stream Processor    Bronze Ingestion (Python)
                                           │                   │
                                           ▼                   ▼
                                    Redis Pub/Sub      Bronze Delta Tables
@@ -166,9 +166,9 @@ Simulation Engine (SimPy)
 5. Frontend buffers GPS updates and renders on deck.gl map layers
 
 **Data Platform Flow:**
-1. Spark Streaming jobs consume from Kafka topics with checkpointing
-2. Bronze layer writes raw events to Delta tables with DLQ for errors
-3. Airflow triggers DBT runs on schedule (Bronze → Silver → Gold)
+1. Python Bronze ingestion consumer reads from Kafka topics (confluent-kafka)
+2. Bronze layer writes raw events to Delta tables via delta-rs
+3. Airflow triggers DBT runs on schedule (Bronze → Silver → Gold, DuckDB in-process)
 4. Silver staging models deduplicate and apply SCD Type 2 for profiles
 5. Gold marts create business-ready facts and aggregates
 6. Great Expectations validates data quality at each checkpoint
@@ -202,7 +202,6 @@ Simulation Engine (SimPy)
 | Simulation Control REST | /simulation | Start/pause/resume/stop simulation | X-API-Key header |
 | WebSocket | /ws | Real-time event streaming to clients | Sec-WebSocket-Protocol: apikey.{key} |
 | Stream Processor Health | /health | Container orchestration healthcheck | None |
-| Spark Thrift Server | localhost:10000 | SQL interface to Delta tables | None (internal) |
 | Trino HTTP API | localhost:8084 | Interactive SQL queries over Delta Lake | None (internal) |
 | Grafana | localhost:3001 | Dashboards, alerting, and exploration | admin/admin |
 | Prometheus | localhost:9090 | Metrics queries and API | None (internal) |
@@ -218,25 +217,23 @@ Simulation Engine (SimPy)
 | Schema Registry API | Confluent Cloud | Validate and register schemas | services/simulation/src/kafka |
 | Redis Pub/Sub | Redis | Real-time event broadcasting | services/stream-processor |
 | Redis Key-Value | Redis | State snapshot storage | services/simulation/src/redis_client |
-| S3 API | MinIO | Lakehouse table storage | services/spark-streaming, tools/dbt |
+| S3 API | MinIO | Lakehouse table storage | services/bronze-ingestion, tools/dbt |
 | OTLP gRPC | OTel Collector | Export metrics and traces from applications | services/simulation, services/stream-processor |
 | Prometheus Remote Write | Prometheus | Push metrics from OTel Collector | services/otel-collector |
 | Loki Push API | Loki | Push logs from OTel Collector | services/otel-collector |
 | OTLP gRPC (Tempo) | Tempo | Push traces from OTel Collector | services/otel-collector |
-| Thrift Server | Spark | SQL query interface | tools/dbt, tools/great-expectations |
+| DuckDB | In-process | Analytical SQL engine for DBT transformations | tools/dbt |
 
 ### External Services Consumed
 
 | Service | Purpose | Module | Configuration |
 |---------|---------|--------|---------------|
-| Kafka (Confluent Cloud) | Event streaming backbone | simulation, spark-streaming, stream-processor | KAFKA_* env vars |
+| Kafka (Confluent Cloud) | Event streaming backbone | simulation, bronze-ingestion, stream-processor | KAFKA_* env vars |
 | Redis | State snapshots and pub/sub | simulation, stream-processor | REDIS_* env vars |
 | OSRM | Route calculation and ETA | simulation/src/geo | OSRM_* env vars |
-| MinIO | S3-compatible lakehouse storage | spark-streaming, dbt | AWS_* env vars |
-| Spark Thrift Server | SQL interface to Delta tables | dbt, great-expectations | THRIFT_* env vars |
-| LocalStack | S3 mock for testing | spark-streaming (test mode) | AWS_ENDPOINT_URL |
+| MinIO | S3-compatible lakehouse storage | bronze-ingestion, dbt | AWS_* env vars |
 | Trino | Interactive SQL over Delta Lake | grafana | TRINO_* config in services/trino/etc |
-| Hive Metastore | Table metadata catalog for Trino and Spark | trino, spark-thrift-server | thrift://hive-metastore:9083 |
+| Hive Metastore | Table metadata catalog for Trino | trino | thrift://hive-metastore:9083 |
 | OTel Collector | Telemetry routing gateway | simulation, stream-processor | OTEL_EXPORTER_OTLP_ENDPOINT env var |
 | Loki | Log aggregation | otel-collector, grafana | http://loki:3100 |
 | Tempo | Distributed tracing | otel-collector, grafana | tempo:4317 (gRPC), http://tempo:3200 (HTTP) |
@@ -255,14 +252,12 @@ The system deploys as 11 independent containers orchestrated via Docker Compose 
 | redis | Key-value store + pub/sub | core | 6379 | - |
 | osrm | Route calculation service | core | 5050 | - |
 | minio | S3-compatible object storage | data-pipeline | 9000, 9001 | - |
-| spark-thrift-server | SQL interface to lakehouse | data-pipeline | 10000 | minio |
-| spark-streaming-* | Bronze ingestion jobs (2 instances) | data-pipeline | - | kafka, minio |
-| localstack | S3 mock for testing | data-pipeline | 4566 | - |
+| bronze-ingestion | Kafka → Delta Lake Python consumer | data-pipeline | - | kafka, minio |
 | airflow-webserver | Airflow UI and API server | data-pipeline | 8082 | postgres-airflow |
 | airflow-scheduler | DAG scheduler and executor | data-pipeline | - | airflow-webserver |
 | cadvisor | Container metrics collection | monitoring | 8081 | - |
 | trino | Interactive SQL query engine over Delta Lake | data-pipeline | 8084 | hive-metastore, minio |
-| hive-metastore | Table metadata catalog for Spark and Trino | data-pipeline | 9083 | postgres-hive, minio |
+| hive-metastore | Table metadata catalog for Trino | data-pipeline | 9083 | postgres-hive, minio |
 | grafana | Dashboards, alerting, observability UI | monitoring | 3001 | prometheus, loki, tempo |
 | prometheus | Metrics storage and alerting | monitoring | 9090 | - |
 | loki | Log aggregation | monitoring | 3100 | - |
@@ -311,8 +306,8 @@ Services use healthcheck dependencies to ensure proper startup order:
 3. OSRM waits for map data initialization
 4. Simulation waits for kafka, redis, osrm all healthy
 5. Stream processor waits for kafka, redis healthy
-6. Spark streaming jobs wait for kafka, minio healthy
-7. DBT/Airflow wait for Bronze tables initialized
+6. Bronze ingestion waits for kafka, minio healthy
+7. Airflow waits for Bronze tables initialized (DBT runs in-process via DuckDB)
 8. Prometheus starts independently (no dependencies)
 9. Loki and Tempo start independently
 10. OTel Collector waits for prometheus, loki, tempo healthy
@@ -370,7 +365,7 @@ Services use healthcheck dependencies to ensure proper startup order:
 ### Dead Letter Queue Pattern
 
 **Fault Tolerance:**
-- Spark Streaming captures malformed records to DLQ Delta tables
+- Bronze ingestion captures malformed records to DLQ Delta tables
 - DLQ includes error message, timestamp, and raw event payload
 - Airflow DAG monitors DLQ growth and alerts on threshold
 - Enables debugging without blocking pipeline progress
@@ -385,14 +380,50 @@ Services use healthcheck dependencies to ensure proper startup order:
 - Log enrichment extracts structured fields (level, service, correlation_id, trip_id) as Loki labels
 - Grafana cross-links traces → logs (by traceID/spanID) and traces → metrics (service map)
 
-### Dual SQL Query Engines
+### Dual-Engine Architecture
 
-**Separation of Write and Read Workloads:**
-- Spark Thrift Server handles heavy transformation workloads (DBT writes, merges, SCD Type 2, Great Expectations validation, Airflow DLQ queries via PyHive)
-- Trino handles interactive analytical queries (Grafana BI dashboards querying Gold tables)
-- Both engines access the same Delta Lake tables via Hive Metastore for catalog metadata and MinIO for data storage
-- Trino uses the Delta Lake connector with non-concurrent writes enabled
-- This separation prevents BI queries from competing with transformation workloads for Spark resources
+**Right-Sizing Tools for Scale:**
+
+The simulation generates ~60 concurrent trips producing ~50 MB/hour of event data. At this scale, Spark is overkill (designed for 10M+ row datasets), while DuckDB is optimal (in-process analytics on datasets <1 GB). Cloud deployment uses Spark/Glue where data volumes justify distributed computation.
+
+**Local-to-Cloud Component Mapping:**
+
+| Role | Local (Docker) | Cloud (AWS) | Rationale |
+|------|---------------|-------------|-----------|
+| Bronze ingestion | Python + confluent-kafka + delta-rs (~256 MB) | AWS Glue Streaming or Python on ECS | Simple data mover pattern; no computation needed |
+| Transformations (DBT) | DuckDB (dbt-duckdb, in-process) | AWS Glue (dbt-glue, Spark SQL) | DBT models are engine-agnostic via dispatch macros |
+| Table catalog | DuckDB internal catalog | AWS Glue Data Catalog | Both provide schema registry for Delta tables |
+| Object storage | MinIO (S3-compatible) | AWS S3 | Same S3 API, same Delta Lake format |
+| Table format | Delta Lake | Delta Lake | Identical — no conversion needed |
+| BI query engine | Trino (trinodb/trino:479) | Amazon Athena (managed Trino) | Athena IS managed Trino — same SQL dialect |
+| BI dashboards | Grafana (Docker) | Grafana Cloud or ECS | Same dashboard JSON |
+| Orchestration | Airflow (Docker, LocalExecutor) | MWAA (Managed Airflow) | Same DAG code |
+
+**DBT Dispatch Macros:**
+
+| Macro | DuckDB Implementation | Spark Implementation | Usage |
+|-------|----------------------|---------------------|--------|
+| `json_field(col, path)` | `json_extract_string(col, path)` | `get_json_object(col, path)` | All 8 staging models |
+| `to_ts(expr)` | `cast(expr as timestamp)` | `to_timestamp(expr)` | All staging models |
+| `epoch_seconds(ts)` | `epoch(ts)` | `unix_timestamp(ts)` | Anomaly detection, facts |
+
+The same SQL model file executes on:
+- `dbt run --target local` → DuckDB
+- `dbt run --target cloud` → AWS Glue (Spark)
+
+**Resource Comparison:**
+
+Before (Spark local mode): ~8.4 GB (2 Spark Streaming containers + Spark Thrift Server + Hive Metastore)
+After (DuckDB local mode): ~1.7 GB (1 Python container + Hive Metastore for Trino)
+Reduction: 79% memory savings, <10s startup (vs. ~2min for Spark JVM)
+
+**Engineering Judgment:**
+
+This architecture demonstrates:
+1. Right-sizing tools for scale: DuckDB for <1 GB datasets, Spark for 10+ GB datasets
+2. Cloud parity: Local development mirrors cloud architecture (same Delta format, same SQL)
+3. Cost optimization: Spark/Glue charges per DPU-second — zero cost when idle
+4. Developer experience: Fast local iteration with DuckDB, confident cloud deployment with Glue
 
 ## Key Domain Concepts
 

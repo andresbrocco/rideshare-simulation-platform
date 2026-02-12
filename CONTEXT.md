@@ -6,7 +6,7 @@
 
 This is a ride-sharing simulation platform that generates realistic synthetic data for data engineering demonstrations. The system simulates drivers and riders interacting in São Paulo, Brazil, with autonomous agents making behavioral decisions based on DNA-defined characteristics. Events flow through a medallion lakehouse architecture (Bronze → Silver → Gold) for analytics.
 
-The platform combines discrete-event simulation with event-driven microservices, processing GPS pings, trip lifecycles, and profile changes through Kafka, Spark Streaming, and DBT transformations. Real-time visualization via deck.gl provides insight into agent behavior and matching dynamics.
+The platform combines discrete-event simulation with event-driven microservices, processing GPS pings, trip lifecycles, and profile changes through Kafka, a Python-based Bronze ingestion layer, and DBT transformations (DuckDB locally, Spark/Glue in the cloud). Real-time visualization via deck.gl provides insight into agent behavior and matching dynamics.
 
 ## Technology Stack
 
@@ -16,7 +16,7 @@ The platform combines discrete-event simulation with event-driven microservices,
 | Simulation | SimPy, FastAPI |
 | Frontend | React 19, deck.gl 9.2, MapLibre GL |
 | Event Streaming | Kafka (KRaft), Confluent Schema Registry |
-| Data Platform | Spark 3.5 (Structured Streaming), Delta Lake 3.0, DBT |
+| Data Platform | DuckDB (dbt-duckdb), Delta Lake (delta-rs), DBT |
 | Storage | MinIO (S3), Delta Lake, Redis, SQLite, PostgreSQL |
 | Orchestration | Apache Airflow 3.1 |
 | Monitoring | Prometheus, Grafana, cAdvisor, OpenTelemetry Collector, Loki, Tempo |
@@ -33,7 +33,7 @@ The platform combines discrete-event simulation with event-driven microservices,
 | Main Simulation | services/simulation/src/main.py | SimPy engine with integrated FastAPI control panel |
 | Stream Processor | services/stream-processor/src/main.py | Kafka-to-Redis event bridge with aggregation |
 | Control Panel UI | services/frontend/src/main.tsx | React visualization with real-time WebSocket updates |
-| Bronze Ingestion | services/spark-streaming/jobs/*.py | Kafka-to-Delta streaming jobs (2 jobs: high/low volume) |
+| Bronze Ingestion | services/bronze-ingestion/src/main.py | Kafka-to-Delta Python consumer (confluent-kafka + delta-rs) |
 | Data Transformation | tools/dbt | DBT models for Silver and Gold layers |
 | Orchestration | services/airflow/dags/*.py | Airflow DAGs for pipeline scheduling |
 | Analytics SQL | services/trino/etc/ | Trino configuration for interactive Delta Lake queries |
@@ -84,7 +84,7 @@ Key modules in this codebase:
 | services/simulation | Discrete-event simulation engine with agent-based modeling, matching, and trip lifecycle | [→](services/simulation/CONTEXT.md) |
 | services/stream-processor | Kafka-to-Redis event bridge with 100ms GPS aggregation | [→](services/stream-processor/CONTEXT.md) |
 | services/frontend/src | Real-time map visualization with deck.gl and simulation controls | [→](services/frontend/src/CONTEXT.md) |
-| services/spark-streaming | Bronze layer ingestion: Kafka → Delta Lake with DLQ fault tolerance | [→](services/spark-streaming/CONTEXT.md) |
+| services/bronze-ingestion | Bronze layer ingestion: Kafka → Delta Lake via Python consumer (confluent-kafka + delta-rs) | [→](services/bronze-ingestion/CONTEXT.md) |
 | tools/dbt | Medallion architecture transformations: Bronze → Silver → Gold | [→](tools/dbt/CONTEXT.md) |
 | services/simulation/src/matching | Driver-rider matching with H3 spatial index and surge pricing | [→](services/simulation/src/matching/CONTEXT.md) |
 | services/simulation/src/agents | Autonomous driver and rider agents with DNA-based behavior | [→](services/simulation/src/agents/CONTEXT.md) |
@@ -105,7 +105,7 @@ Key modules in this codebase:
 ```
 Simulation (SimPy) → Kafka Topics (8 topics) → Stream Processor → Redis Pub/Sub → WebSocket → Frontend
                                              ↓
-                                   Spark Streaming (Bronze) → DBT (Silver/Gold) → Trino → Grafana BI Dashboards
+                                   Bronze Ingestion (Python) → DBT (Silver/Gold) → Trino → Grafana BI Dashboards
 ```
 
 **Single Source of Truth**: Simulation publishes exclusively to Kafka. A separate stream processor bridges Kafka to Redis for real-time visualization, eliminating duplicate events.
@@ -141,15 +141,30 @@ cAdvisor ── /metrics ──► Prometheus (scrape) ◄───────�
 
 **Three Pillars**: Metrics (Prometheus), Logs (Loki), Traces (Tempo) — all routed through the OpenTelemetry Collector as a unified telemetry gateway.
 
-**Dual SQL Engines**: Spark Thrift Server handles write-heavy transformations (DBT, Great Expectations); Trino handles read-heavy interactive queries (Grafana BI dashboards). Both access the same Delta Lake tables via Hive Metastore.
+**Dual-Engine Architecture**: DuckDB handles local transformations (DBT in-process with Airflow); Trino handles interactive BI queries (Grafana dashboards). Cloud deployment swaps DuckDB for Spark/Glue while keeping the same DBT models via dispatch macros.
 
 ### Deployment Profiles
 
 | Profile | Services | Use Case |
 |---------|----------|----------|
 | core | Kafka, Redis, OSRM, Simulation, Stream Processor, Frontend | Daily development with real-time visualization |
-| data-pipeline | MinIO, Spark, Hive Metastore, Trino, Bronze Ingestion, DBT, Airflow | Data engineering pipeline and interactive analytics |
+| data-pipeline | MinIO, Bronze Ingestion, Hive Metastore, Trino, Airflow | Data engineering pipeline and interactive analytics |
 | monitoring | Prometheus, Grafana, cAdvisor, OTel Collector, Loki, Tempo | Full observability (metrics, logs, traces) |
+
+## Cloud Readiness
+
+The local architecture mirrors the cloud architecture with equivalent components:
+
+| Role | Local (Docker) | Cloud (AWS) |
+|------|---------------|-------------|
+| Bronze ingestion | Python + delta-rs | Glue Streaming or ECS |
+| Transformations | DuckDB (dbt-duckdb) | AWS Glue (dbt-glue) |
+| Table catalog | DuckDB internal | Glue Data Catalog |
+| Object storage | MinIO | S3 |
+| BI queries | Trino | Athena |
+| Orchestration | Airflow (Docker) | MWAA |
+
+DBT models use dispatch macros to execute on both DuckDB and Spark/Glue without modification.
 
 ## Domain Concepts
 
@@ -239,5 +254,5 @@ Automatically run on commit:
 **Event Topics**: 8 Kafka topics with schema validation
 **Lakehouse Layers**: Bronze → Silver → Gold (Delta Lake on MinIO S3)
 **Geographic Scope**: São Paulo, Brazil (96 districts)
-**Primary Language**: Python 3.13 (simulation, stream-processor, spark-streaming, dbt, airflow)
+**Primary Language**: Python 3.13 (simulation, stream-processor, bronze-ingestion, dbt, airflow)
 **Secondary Language**: TypeScript 5.9 (frontend)

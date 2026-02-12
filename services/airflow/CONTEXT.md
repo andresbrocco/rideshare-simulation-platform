@@ -29,4 +29,4 @@ Orchestrates the data lakehouse pipeline by scheduling DBT transformations, moni
 
 - **[tools/dbt](../../tools/dbt/CONTEXT.md)** — Primary orchestration target; Airflow schedules DBT transformations for Silver and Gold layers
 - **[tools/great-expectations](../../tools/great-expectations/CONTEXT.md)** — Data quality partner; Airflow triggers Great Expectations checkpoints after DBT runs
-- **[services/spark-streaming](../spark-streaming/CONTEXT.md)** — Monitors streaming job health by querying DLQ tables for parsing failures
+- **[services/bronze-ingestion](../bronze-ingestion/CONTEXT.md)** — Monitors Bronze ingestion health by querying DLQ tables for parsing failures

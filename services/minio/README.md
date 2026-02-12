@@ -21,7 +21,7 @@ S3-compatible object storage for the rideshare data lakehouse.
 | rideshare-bronze | Raw event data from Kafka |
 | rideshare-silver | Cleaned and deduplicated data |
 | rideshare-gold | Business-ready aggregates |
-| rideshare-checkpoints | Spark Streaming checkpoints |
+| rideshare-checkpoints | Bronze ingestion checkpoints |
 
 ## Configuration
 

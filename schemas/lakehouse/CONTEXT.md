@@ -33,4 +33,4 @@ The `DeltaConfig` utility uses SQL ALTER TABLE commands rather than DataFrame wr
 ## Related Modules
 
 - **[../kafka](../kafka/CONTEXT.md)** — Schema source; lakehouse PySpark schemas must align with Kafka JSON schemas
-- **[services/spark-streaming](../../services/spark-streaming/CONTEXT.md)** — Schema consumer; 2 consolidated streaming jobs apply these schemas during Bronze ingestion to 8 topic tables
+- **[services/bronze-ingestion](../../services/bronze-ingestion/CONTEXT.md)** — Schema consumer; Python ingestion consumer applies these schemas during Bronze ingestion to 8 topic tables

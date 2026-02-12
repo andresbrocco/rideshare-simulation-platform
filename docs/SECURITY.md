@@ -202,7 +202,7 @@ Network isolation and exposure.
 | Schema Registry | 8085 | HTTP | Basic auth for cloud |
 
 ### Service-to-Service Communication
-- Kafka broker: Accessed by simulation, spark-streaming, stream-processor
+- Kafka broker: Accessed by simulation, bronze-ingestion, stream-processor
 - Redis: Accessed by simulation, stream-processor
 - OSRM: Accessed by simulation only
 - No service mesh or mutual TLS

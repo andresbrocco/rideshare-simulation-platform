@@ -191,7 +191,8 @@ SKIP_DOCKER_TEARDOWN=1 ./venv/bin/pytest tests/integration/data_platform/ -v
 
 **Available Docker Profiles:**
 - `core` - Kafka, Redis, OSRM, Simulation, Stream Processor, Frontend
-- `data-pipeline` - MinIO, Spark Thrift Server, Spark Streaming jobs, LocalStack, Airflow
+- `data-pipeline` - MinIO, Bronze Ingestion, Hive Metastore, Trino, LocalStack, Airflow
+- `spark-testing` - Spark Thrift Server (optional dual-engine validation)
 - `monitoring` - Prometheus, Grafana, cAdvisor
 - `analytics` - Superset, Postgres for Superset, Redis for Superset
 

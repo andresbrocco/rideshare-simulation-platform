@@ -87,11 +87,14 @@ curl http://localhost:9000/minio/health/live
 
 ### Trino starts but shows no tables
 
-Tables are created by Spark streaming jobs and dbt transformations. Ensure the data pipeline has run at least once:
+Tables are registered by the `bronze-init` service (via Trino) and populated by the bronze ingestion service and DBT transformations. Ensure the data pipeline has run at least once:
 
 ```bash
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline logs spark-thrift-server
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline logs bronze-ingestion
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline logs bronze-init
 ```
+
+Note: If you need Spark Thrift Server for dual-engine DBT testing, use the `spark-testing` profile.
 
 ### Out of memory errors
 

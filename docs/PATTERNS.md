@@ -244,7 +244,7 @@ REQUESTED → OFFER_SENT → MATCHED → DRIVER_EN_ROUTE → DRIVER_ARRIVED → 
 **Pattern**: Layered data transformation with increasing quality.
 
 **Locations**:
-- Bronze: `services/spark-streaming/` (Kafka → Delta)
+- Bronze: `services/bronze-ingestion/` (Kafka → Delta)
 - Silver: `tools/dbt/models/staging/` (cleaning, deduplication)
 - Gold: `tools/dbt/models/marts/` (star schema, aggregates)
 

@@ -38,8 +38,9 @@ Orchestrates the data pipeline transformations and quality checks for the ridesh
 6. Generate Great Expectations data documentation
 
 **DLQ Monitoring Implementation**
-- Uses PyHive instead of PySpark because Airflow container lacks Java
-- Connects to Spark Thrift Server at `spark-thrift-server:10000` with `NOSASL` auth
+- Uses PyHive to query DLQ tables via Trino or Spark Thrift Server
+- Default connection: Trino at `trino:8080` (HTTP)
+- Optional: Spark Thrift Server at `spark-thrift-server:10000` with `NOSASL` auth (requires spark-testing profile)
 - Gracefully handles missing tables (expected on first run)
 - Uses XCom to pass error counts between tasks for branching logic
 

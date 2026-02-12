@@ -31,6 +31,5 @@ The health check uses a raw TCP socket test (`bash -c 'echo > /dev/tcp/localhost
 ## Related Modules
 
 - **[services/trino](../trino/CONTEXT.md)** — Connects to Hive Metastore via Thrift for Delta Lake table metadata resolution
-- **[services/spark-streaming](../spark-streaming/CONTEXT.md)** — Uses Hive Metastore as the catalog for Spark SQL operations
 - **[services/postgres](../postgres/CONTEXT.md)** — postgres-metastore instance provides catalog persistence
 - **[infrastructure/docker](../../infrastructure/docker/CONTEXT.md)** — Deployment orchestration; defines hive-metastore service and build context

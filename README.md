@@ -69,8 +69,7 @@ cd services/frontend && npm run test
 | 5050 | OSRM | OSRM routing service |
 | 9000 | MinIO | MinIO S3 API |
 | 9001 | MinIO | MinIO web console |
-| 10000 | Spark Thrift Server | Spark Thrift JDBC/ODBC server |
-| 4041 | Spark Thrift Server | Spark Thrift UI |
+| 8084 | Trino | Trino HTTP API (Delta Lake queries) |
 | 4566 | LocalStack | LocalStack unified endpoint |
 | 5432 | PostgreSQL (Airflow) | Airflow metadata database |
 | 8082 | Airflow | Airflow web UI |
@@ -156,7 +155,7 @@ cd services/simulation
 # Start core services (kafka, redis, osrm, simulation, stream-processor, frontend)
 docker compose -f infrastructure/docker/compose.yml --profile core up -d
 
-# Start data pipeline services (minio, spark, hive-metastore, trino, airflow, localstack)
+# Start data pipeline services (minio, bronze-ingestion, hive-metastore, trino, airflow)
 docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
 
 # Start monitoring services (prometheus, grafana, otel-collector, loki, tempo)
@@ -212,10 +211,9 @@ rideshare-simulation-platform/
 │   ├── simulation/          # SimPy simulation engine (README)
 │   ├── stream-processor/    # Kafka-to-Redis bridge (README)
 │   ├── frontend/            # React + deck.gl visualization (README)
-│   ├── spark-streaming/     # Bronze layer ingestion (README)
-│   ├── dbt/                 # Medallion transformations (README)
+│   ├── bronze-ingestion/    # Kafka → Delta Lake ingestion (README)
 │   ├── airflow/             # Pipeline orchestration (README)
-│   ├── hive-metastore/      # Hive Metastore for Spark/Trino catalog
+│   ├── hive-metastore/      # Hive Metastore for Trino catalog
 │   ├── trino/               # Trino distributed SQL engine config
 │   ├── grafana/             # Grafana dashboards and provisioning
 │   ├── prometheus/          # Prometheus monitoring config
@@ -228,7 +226,7 @@ rideshare-simulation-platform/
 │   └── terraform/           # Cloud infrastructure
 ├── schemas/
 │   ├── kafka/               # Event schema definitions
-│   └── lakehouse/           # Bronze layer PySpark schemas
+│   └── lakehouse/           # Bronze layer table schemas
 ├── tools/
 │   ├── dbt/                 # Silver and Gold layer transformations
 │   └── great-expectations/  # Data validation
@@ -244,7 +242,7 @@ rideshare-simulation-platform/
 | Simulation | Discrete-event simulation with autonomous agents | [README](services/simulation/README.md) |
 | Stream Processor | Kafka-to-Redis bridge with GPS aggregation | [README](services/stream-processor/README.md) |
 | Frontend | Real-time map visualization with deck.gl | [README](services/frontend/README.md) |
-| Spark Streaming | Bronze layer ingestion from Kafka to Delta Lake | [README](services/spark-streaming/README.md) |
+| Bronze Ingestion | Kafka → Delta Lake ingestion (Python + delta-rs) | [README](services/bronze-ingestion/README.md) |
 | DBT | Silver and Gold layer transformations | [README](tools/dbt/README.md) |
 | Airflow | Pipeline orchestration and DLQ monitoring | [README](services/airflow/README.md) |
 | Trino | Interactive SQL engine for lakehouse queries | — |
@@ -262,6 +260,54 @@ rideshare-simulation-platform/
 | Agents not spawning | Simulation not started | Call `POST /simulation/start` first |
 | Frontend blank map | MapLibre CSS not loaded | Check that maplibre-gl CSS is imported |
 | Docker OOM killed | Insufficient memory | Increase Docker Desktop memory to 10GB |
+
+## Architecture Strategy: DuckDB Local, Spark Cloud
+
+This project uses a **dual-engine architecture** for data transformations:
+
+| Environment | Bronze Ingestion | Transformations (DBT) | Table Catalog | BI Queries |
+|-------------|------------------|----------------------|---------------|------------|
+| **Local (Docker)** | Python + delta-rs | DuckDB (dbt-duckdb) | DuckDB internal | Trino |
+| **Cloud (AWS)** | Glue Streaming | AWS Glue (dbt-glue) | Glue Data Catalog | Athena |
+
+### Why This Approach?
+
+**Local development uses DuckDB:**
+- Current data volume: ~60 concurrent trips, ~50 MB/hour
+- DuckDB executes queries in milliseconds (vs. seconds for Spark)
+- Resource usage: ~400 MB (vs. ~8.4 GB for Spark local mode)
+- Startup time: <10 seconds (vs. ~2 minutes for Spark JVM)
+
+**Cloud deployment uses Spark/Glue:**
+- Designed for production scale (10M+ rows, 10K+ events/sec)
+- AWS Glue is serverless Spark — no persistent clusters, pay per DPU-second
+- Spark excels at distributed computation when data volume justifies it
+- Athena (managed Trino) provides the same BI query interface
+
+**Engineering judgment:** Use the right tool for the scale. DuckDB is appropriate for current local volumes. Spark/Glue is appropriate for cloud scale.
+
+### DBT Model Compatibility
+
+DBT models use **dispatch macros** to work on both engines:
+- `{{ json_field('_raw_value', '$.event_id') }}` → `get_json_object()` on Spark, `json_extract_string()` on DuckDB
+- Same SQL logic, different function implementations
+- Models are tested locally on DuckDB, deployed to Glue without modification
+
+### Resource Savings
+
+**Before (Spark local mode):**
+- Bronze ingestion: 4 GB (2 Spark Streaming containers)
+- DBT execution: 3 GB (Spark Thrift Server)
+- Hive Metastore: 1.4 GB
+- **Total:** ~8.4 GB
+
+**After (DuckDB local mode):**
+- Bronze ingestion: 256 MB (1 Python container)
+- DBT execution: In-process with Airflow
+- Hive Metastore: 1.4 GB (still needed by Trino)
+- **Total:** ~1.7 GB
+
+**Memory reduction:** 79% (from 8.4 GB to 1.7 GB)
 
 ## Documentation
 

@@ -319,7 +319,7 @@ See `services/airflow/dags/dbt_transformation_dag.py` for implementation.
 - [models/CONTEXT.md](models/CONTEXT.md) - Model organization and patterns
 - [models/staging/CONTEXT.md](models/staging/CONTEXT.md) - Silver layer details
 - [macros/CONTEXT.md](macros/CONTEXT.md) - Macro library
-- [../spark-streaming/](../spark-streaming/) - Bronze layer ingestion
+- [../../services/bronze-ingestion/](../../services/bronze-ingestion/) - Bronze layer ingestion
 - [../airflow/](../airflow/) - Orchestration DAGs
 
 ---
