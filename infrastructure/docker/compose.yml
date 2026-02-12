@@ -153,12 +153,22 @@ services:
       - core
     ports:
       - "6379:6379"
+    command:
+      - sh
+      - -c
+      - |
+        set -a && . /secrets/core.env && set +a
+        exec redis-server --requirepass "$$REDIS_PASSWORD"
+    depends_on:
+      secrets-init:
+        condition: service_completed_successfully
     volumes:
       - redis-data:/data
+      - secrets-volume:/secrets:ro
     networks:
       - rideshare-network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", ". /secrets/core.env && redis-cli -a \"$$REDIS_PASSWORD\" ping"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -238,6 +248,7 @@ services:
       - |
         set -a && eval "$$(grep '^KAFKA_SASL_' /secrets/core.env)" && set +a
         set -a && eval "$$(grep '^SCHEMA_REGISTRY_' /secrets/core.env)" && set +a
+        set -a && eval "$$(grep '^REDIS_PASSWORD' /secrets/core.env)" && set +a
         export KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO="${SCHEMA_REGISTRY_USER}:${SCHEMA_REGISTRY_PASSWORD}"
         exec python main.py
     depends_on:
@@ -303,6 +314,7 @@ services:
       - -c
       - |
         set -a && eval "$$(grep '^KAFKA_SASL_' /secrets/core.env)" && set +a
+        set -a && eval "$$(grep '^REDIS_PASSWORD' /secrets/core.env)" && set +a
         exec python -m src.main
     depends_on:
       secrets-init:
