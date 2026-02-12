@@ -39,7 +39,7 @@ spec:
           echo "MinIO is ready"
       containers:
       - name: spark-thrift-server
-        image: rideshare-spark-streaming:local
+        image: apache/spark:4.0.0-python3
         imagePullPolicy: Never
         command:
         - /opt/spark/bin/spark-submit

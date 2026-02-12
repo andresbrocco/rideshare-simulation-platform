@@ -35,10 +35,12 @@ helm/
 │       │   └── stream-processor.yaml
 │       ├── data-platform/
 │       │   ├── minio.yaml
-│       │   ├── spark-master.yaml
-│       │   ├── spark-worker.yaml
-│       │   ├── spark-thrift-server.yaml
+│       │   ├── bronze-ingestion.yaml
+│       │   ├── hive-metastore.yaml
+│       │   ├── trino.yaml
 │       │   └── localstack.yaml
+│       ├── spark-testing/
+│       │   └── spark-thrift-server.yaml
 │       ├── orchestration/
 │       │   ├── airflow-postgres.yaml
 │       │   ├── airflow-webserver.yaml
@@ -60,15 +62,14 @@ resources:
     memory: 1Gi
   simulation:
     memory: 1Gi
-  spark:
-    master:
-      memory: 512Mi
-    worker:
-      memory: 2Gi
+  bronzeIngestion:
+    memory: 256Mi
+  trino:
+    memory: 2Gi
 
 replicaCounts:
   simulation: 1
-  sparkWorker: 1
+  bronzeIngestion: 1
 
 persistence:
   enabled: false  # Use emptyDir for dev
@@ -77,31 +78,30 @@ persistence:
 
 ### 3. Template Example
 ```yaml
-# templates/data-platform/spark-master.yaml
+# templates/data-platform/bronze-ingestion.yaml
 apiVersion: apps/v1
-kind: StatefulSet
+kind: Deployment
 metadata:
-  name: {{ include "rideshare.fullname" . }}-spark-master
+  name: {{ include "rideshare.fullname" . }}-bronze-ingestion
   labels:
     {{- include "rideshare.labels" . | nindent 4 }}
-    app: spark-master
+    app: bronze-ingestion
 spec:
-  serviceName: spark-master
-  replicas: {{ .Values.replicaCounts.sparkMaster | default 1 }}
+  replicas: {{ .Values.replicaCounts.bronzeIngestion | default 1 }}
   selector:
     matchLabels:
-      app: spark-master
+      app: bronze-ingestion
   template:
     metadata:
       labels:
-        app: spark-master
+        app: bronze-ingestion
     spec:
       containers:
-      - name: spark-master
-        image: {{ .Values.images.spark.repository }}:{{ .Values.images.spark.tag }}
+      - name: bronze-ingestion
+        image: {{ .Values.images.bronzeIngestion.repository }}:{{ .Values.images.bronzeIngestion.tag }}
         resources:
           limits:
-            memory: {{ .Values.resources.spark.master.memory }}
+            memory: {{ .Values.resources.bronzeIngestion.memory }}
 ```
 
 ### 4. Installation Commands

@@ -5,108 +5,126 @@ metadata:
   labels:
     app: bronze-init
 data:
-  wait-for-thrift-and-init-bronze.sh: |
+  register-delta-tables.sh: |
     #!/bin/bash
     set -e
 
-    echo "================================================================"
-    echo "Bronze Layer Initialization Service"
-    echo "================================================================"
+    # Register Delta table locations in Hive Metastore via Trino.
+    # Replaces the old Spark Thrift / PyHive based initialization.
+    # Idempotent - safe to re-run at any time.
 
-    # Wait for Spark Thrift Server to be ready
-    echo "Waiting for Spark Thrift Server to be ready..."
-    MAX_RETRIES=30
-    RETRY_COUNT=0
+    TRINO_HOST="${TRINO_HOST:-trino}"
+    TRINO_PORT="${TRINO_PORT:-8080}"
 
-    while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-      if nc -z spark-thrift-server 10000 2>/dev/null; then
-        echo "Spark Thrift Server is ready"
-        break
-      fi
+    BRONZE_TABLES=(
+        bronze_gps_pings
+        bronze_trips
+        bronze_driver_status
+        bronze_surge_updates
+        bronze_ratings
+        bronze_payments
+        bronze_driver_profiles
+        bronze_rider_profiles
+    )
 
-      RETRY_COUNT=$((RETRY_COUNT + 1))
-      echo "  Attempt $RETRY_COUNT/$MAX_RETRIES: Thrift Server not ready yet, waiting..."
-      sleep 5
-    done
+    DLQ_TABLES=(
+        dlq_bronze_gps_pings
+        dlq_bronze_trips
+        dlq_bronze_driver_status
+        dlq_bronze_surge_updates
+        dlq_bronze_ratings
+        dlq_bronze_payments
+        dlq_bronze_driver_profiles
+        dlq_bronze_rider_profiles
+    )
 
-    if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-      echo "Timed out waiting for Spark Thrift Server"
-      exit 1
-    fi
+    REGISTERED=0
+    SKIPPED=0
+    FAILED=0
 
-    # Additional wait to ensure Thrift Server is fully initialized
-    echo "Waiting additional 5 seconds for Thrift Server to fully initialize..."
-    sleep 5
-
-    # Run Bronze initialization
-    echo "Running Bronze metastore initialization..."
-    python3 /opt/init-scripts/init-bronze-metastore.py
-
-    # Exit with success code
-    echo "================================================================"
-    echo "Bronze initialization complete"
-    echo "================================================================"
-    exit 0
-
-  init-bronze-metastore.py: |
-    """Initialize Bronze layer Delta Lake tables in the Hive Metastore via Spark Thrift Server."""
-    from pyhive import hive
-    import time
-
-    THRIFT_HOST = "spark-thrift-server"
-    THRIFT_PORT = 10000
-
-    # Bronze tables to register (topic name -> Delta Lake path)
-    BRONZE_TABLES = {
-        "gps_pings": "s3a://rideshare-bronze/gps_pings",
-        "trips": "s3a://rideshare-bronze/trips",
-        "driver_status": "s3a://rideshare-bronze/driver_status",
-        "surge_updates": "s3a://rideshare-bronze/surge_updates",
-        "ratings": "s3a://rideshare-bronze/ratings",
-        "payments": "s3a://rideshare-bronze/payments",
-        "driver_profiles": "s3a://rideshare-bronze/driver_profiles",
-        "rider_profiles": "s3a://rideshare-bronze/rider_profiles",
+    execute_trino() {
+        local sql="$1"
+        trino --server "http://${TRINO_HOST}:${TRINO_PORT}" \
+              --catalog delta \
+              --schema default \
+              --execute "$sql" 2>&1
     }
 
-    def connect_with_retry(host: str, port: int, max_retries: int = 5) -> hive.Connection:
-        for attempt in range(1, max_retries + 1):
-            try:
-                conn = hive.connect(host=host, port=port, auth="NOSASL")
-                print(f"Connected to Thrift Server at {host}:{port}")
-                return conn
-            except Exception as e:
-                print(f"  Attempt {attempt}/{max_retries}: Connection failed: {e}")
-                if attempt < max_retries:
-                    time.sleep(5)
-        raise ConnectionError(f"Failed to connect after {max_retries} attempts")
+    wait_for_trino() {
+        local max_retries=30
+        local attempt=0
 
-    def main() -> None:
-        conn = connect_with_retry(THRIFT_HOST, THRIFT_PORT)
-        cursor = conn.cursor()
+        echo "Waiting for Trino at ${TRINO_HOST}:${TRINO_PORT}..."
 
-        # Create database if not exists
-        cursor.execute("CREATE DATABASE IF NOT EXISTS bronze")
-        print("Database 'bronze' ready")
+        while [ "$attempt" -lt "$max_retries" ]; do
+            if execute_trino "SELECT 1" > /dev/null 2>&1; then
+                echo "Trino is ready"
+                return 0
+            fi
 
-        # Register each Delta table
-        for table_name, path in BRONZE_TABLES.items():
-            full_name = f"bronze.{table_name}"
-            try:
-                cursor.execute(
-                    f"CREATE TABLE IF NOT EXISTS {full_name} "
-                    f"USING DELTA LOCATION '{path}'"
-                )
-                print(f"  Registered: {full_name} -> {path}")
-            except Exception as e:
-                # Table may not exist yet if no data has been written
-                print(f"  Skipped {full_name}: {e}")
+            attempt=$((attempt + 1))
+            echo "  Attempt ${attempt}/${max_retries}: Trino not ready, waiting 5s..."
+            sleep 5
+        done
 
-        cursor.close()
-        conn.close()
-        print("Bronze metastore initialization complete")
+        echo "ERROR: Timed out waiting for Trino"
+        return 1
+    }
 
-    if __name__ == "__main__":
-        main()
+    register_table() {
+        local table_name="$1"
+        local bucket="$2"
+        local location="s3://${bucket}/${table_name}/"
+
+        local existing
+        existing=$(execute_trino "SHOW TABLES LIKE '${table_name}'" 2>/dev/null || true)
+        if echo "$existing" | grep -q "${table_name}"; then
+            echo "  [SKIP] ${table_name} - already registered"
+            SKIPPED=$((SKIPPED + 1))
+            return 0
+        fi
+
+        local output
+        output=$(execute_trino "CALL delta.system.register_table(schema_name => 'default', table_name => '${table_name}', table_location => '${location}')" 2>&1)
+        local exit_code=$?
+
+        if [ "$exit_code" -eq 0 ]; then
+            echo "  [OK] ${table_name} - registered at ${location}"
+            REGISTERED=$((REGISTERED + 1))
+            return 0
+        fi
+
+        echo "  [WARN] ${table_name} - not found at ${location} (data not ingested yet)"
+        FAILED=$((FAILED + 1))
+        return 0
+    }
+
+    echo "=============================================="
+    echo "Delta Table Registration"
+    echo "=============================================="
+
+    wait_for_trino
+
+    echo ""
+    echo "--- Bronze Tables (${#BRONZE_TABLES[@]}) ---"
+    for table in "${BRONZE_TABLES[@]}"; do
+        register_table "$table" "rideshare-bronze"
+    done
+
+    echo ""
+    echo "--- DLQ Tables (${#DLQ_TABLES[@]}) ---"
+    for table in "${DLQ_TABLES[@]}"; do
+        register_table "$table" "rideshare-bronze"
+    done
+
+    echo ""
+    echo "=============================================="
+    echo "Registration Summary"
+    echo "=============================================="
+    echo "  Registered: ${REGISTERED}"
+    echo "  Skipped: ${SKIPPED}"
+    echo "  Not found (no data yet): ${FAILED}"
+    echo "Done"
 
 ---
 apiVersion: batch/v1
@@ -123,29 +141,28 @@ spec:
         app: bronze-init
     spec:
       initContainers:
-      - name: wait-for-spark-thrift-server
+      - name: wait-for-trino
         image: busybox:1.36
         command:
         - sh
         - -c
         - |
-          until nc -z spark-thrift-server 10000; do
-            echo "Waiting for Spark Thrift Server..."
+          until nc -z trino 8080; do
+            echo "Waiting for Trino..."
             sleep 5
           done
-          echo "Spark Thrift Server is ready"
+          echo "Trino is ready"
       containers:
       - name: bronze-init
-        image: apache/airflow:3.1.5
+        image: trinodb/trino:439
         command:
         - bash
-        - -c
-        - |
-          pip install pyhive thrift --quiet &&
-          bash /opt/init-scripts/wait-for-thrift-and-init-bronze.sh
+        - /opt/init-scripts/register-delta-tables.sh
         env:
-        - name: _PIP_ADDITIONAL_REQUIREMENTS
-          value: pyhive thrift
+        - name: TRINO_HOST
+          value: trino
+        - name: TRINO_PORT
+          value: "8080"
         volumeMounts:
         - name: scripts
           mountPath: /opt/init-scripts

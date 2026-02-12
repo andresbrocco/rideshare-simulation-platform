@@ -111,11 +111,11 @@ docker build -t rideshare-stream-processor:local services/stream-processor/
 docker build -t rideshare-frontend:local --target production services/frontend/
 docker build -t rideshare-osrm:local services/osrm/
 docker build -t rideshare-minio:local services/minio/
-docker build -t rideshare-spark-streaming:local -f services/spark-streaming/Dockerfile .
+docker build -t rideshare-bronze-ingestion:local services/bronze-ingestion/
 docker build -t rideshare-hive-metastore:local services/hive-metastore/
 kind load docker-image rideshare-simulation:local rideshare-stream-processor:local \
   rideshare-frontend:local rideshare-osrm:local rideshare-minio:local \
-  rideshare-spark-streaming:local rideshare-hive-metastore:local --name rideshare-local
+  rideshare-bronze-ingestion:local rideshare-hive-metastore:local --name rideshare-local
 
 # 3. Deploy all services
 ./infrastructure/kubernetes/scripts/deploy-services.sh

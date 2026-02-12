@@ -15,8 +15,8 @@ echo "------------------------------------------"
 
 declare -a MANIFESTS=(
     "minio.yaml"
-    "spark-master.yaml"
-    "spark-worker.yaml"
+    "bronze-ingestion.yaml"
+    "bronze-init.yaml"
     "spark-thrift-server.yaml"
     "localstack.yaml"
     "airflow-postgres.yaml"
@@ -57,8 +57,7 @@ echo "--------------------------------------------------------------------------
 
 declare -a POD_LABELS=(
     "app=minio"
-    "app=spark-master"
-    "app=spark-worker"
+    "app=bronze-ingestion"
     "app=spark-thrift-server"
     "app=localstack"
     "app=airflow-postgres"
@@ -90,7 +89,7 @@ if [ ${TIMEOUT_COUNT} -gt 0 ]; then
     echo "Timed out: ${TIMEOUT_COUNT} pods"
     echo ""
     echo "Pod status:"
-    kubectl get pods -l 'app in (minio,spark-master,spark-worker,spark-thrift-server,localstack,airflow-postgres,airflow-webserver,airflow-scheduler,superset-postgres,superset-redis,superset,prometheus,grafana)'
+    kubectl get pods -l 'app in (minio,bronze-ingestion,spark-thrift-server,localstack,airflow-postgres,airflow-webserver,airflow-scheduler,superset-postgres,superset-redis,superset,prometheus,grafana)'
     exit 1
 fi
 
@@ -100,12 +99,11 @@ echo "Test 3: Verifying resource allocations..."
 echo "------------------------------------------"
 
 # Expected memory allocations (adjusted to fit 5.6GB limit)
-# Total: 5.56GB (within 5.6GB spec)
+# Total: 4.82GB (within 5.6GB spec)
 # Format: app:memory
 declare -a EXPECTED_MEMORY=(
     "minio:256Mi"
-    "spark-master:512Mi"
-    "spark-worker:1024Mi"
+    "bronze-ingestion:256Mi"
     "spark-thrift-server:1024Mi"
     "localstack:512Mi"
     "airflow-postgres:256Mi"
@@ -154,8 +152,7 @@ echo "------------------------------------------"
 
 declare -a EXPECTED_SERVICES=(
     "minio"
-    "sparkmaster"
-    "sparkworker"
+    "bronze-ingestion"
     "spark-thrift-server"
     "localstack"
     "airflow-postgres"
@@ -195,7 +192,7 @@ echo "=========================================="
 echo ""
 echo "Next steps for manual verification:"
 echo "  1. MinIO console: kubectl port-forward svc/minio 9001:9001"
-echo "  2. Spark master UI: kubectl port-forward svc/sparkmaster 8080:8080"
+echo "  2. Bronze ingestion health: kubectl port-forward svc/bronze-ingestion 8086:8080"
 echo "  3. Spark thrift server: kubectl port-forward svc/spark-thrift-server 10000:10000"
 echo "  4. Airflow UI: kubectl port-forward svc/airflow-webserver 8082:8082"
 echo "  5. Superset UI: kubectl port-forward svc/superset 8088:8088"

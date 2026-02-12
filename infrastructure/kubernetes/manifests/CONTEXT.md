@@ -16,7 +16,8 @@ Kubernetes resource definitions for deploying the rideshare simulation platform 
 
 **Service Inventory**:
 - **Core**: kafka, schema-registry, redis, osrm, simulation, stream-processor, frontend
-- **Data Pipeline**: minio, minio-init (Job), postgres-metastore, hive-metastore, spark-thrift-server, trino, bronze-ingestion (high+low volume), bronze-init (Job), airflow-postgres, airflow-webserver, airflow-scheduler, localstack
+- **Data Pipeline**: minio, minio-init (Job), postgres-metastore, hive-metastore, trino, bronze-ingestion, bronze-init (Job), airflow-postgres, airflow-webserver, airflow-scheduler, localstack
+- **Spark Testing** (optional): spark-thrift-server (for dual-engine DBT validation)
 - **Monitoring**: prometheus, loki, tempo, otel-collector, cadvisor (DaemonSet), grafana
 
 **Gateway API**: Uses Kubernetes Gateway API (not Ingress) for HTTP routing. The `gateway.yaml` defines the entry point, while `httproute-*.yaml` files define path-based routing rules with URL rewriting.
@@ -33,7 +34,7 @@ Kubernetes resource definitions for deploying the rideshare simulation platform 
 
 ## Non-Obvious Details
 
-**Image Pull Policy**: Uses `imagePullPolicy: Never` for custom images (simulation, stream-processor, frontend, minio, spark-streaming, hive-metastore) as these are built locally and loaded into Kind with `kind load docker-image`.
+**Image Pull Policy**: Uses `imagePullPolicy: Never` for custom images (simulation, stream-processor, frontend, minio, bronze-ingestion, hive-metastore) as these are built locally and loaded into Kind with `kind load docker-image`.
 
 **Kafka Listener Configuration**: Kafka exposes three ports: 9092 (external), 29092 (internal cluster communication), 29093 (KRaft controller). Internal services connect via `kafka-0.kafka.default.svc.cluster.local:29092`.
 
