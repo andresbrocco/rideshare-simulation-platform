@@ -40,10 +40,6 @@ jobs:
           python -m venv services/stream-processor/venv
           services/stream-processor/venv/bin/pip install --quiet -e services/stream-processor/[dev]
 
-          # spark-streaming (uses Python 3.11 locally, but 3.13 works for mypy)
-          python -m venv services/spark-streaming/venv
-          services/spark-streaming/venv/bin/pip install --quiet mypy
-
           # dbt
           python -m venv tools/dbt/venv
           tools/dbt/venv/bin/pip install --quiet mypy
@@ -95,12 +91,6 @@ jobs:
           ./venv/bin/pip install --quiet -e ".[dev]"
           ./venv/bin/pytest -v --tb=short
 
-      - name: Install spark-streaming dependencies and run tests
-        working-directory: services/spark-streaming
-        run: |
-          python -m venv venv
-          ./venv/bin/pip install --quiet pytest pyspark delta-spark
-          ./venv/bin/pytest -v --tb=short -m "not integration"
 
   frontend-build:
     needs: lint-and-typecheck

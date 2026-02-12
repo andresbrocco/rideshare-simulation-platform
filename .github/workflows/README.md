@@ -18,9 +18,9 @@ When creating workflows, use the following path structure:
 
 | Component | Path | Working Directory |
 |-----------|------|-------------------|
-| DBT | `data-platform/dbt/` | `./data-platform/dbt` |
-| Spark Streaming | `data-platform/streaming/` | `./data-platform/streaming` |
-| Orchestration (DAGs) | `data-platform/orchestration/` | `./data-platform/orchestration` |
+| DBT | `tools/dbt/` | `./tools/dbt` |
+| Bronze Ingestion | `services/bronze-ingestion/` | `./services/bronze-ingestion` |
+| Orchestration (DAGs) | `services/airflow/dags/` | `./services/airflow/dags` |
 
 ### Infrastructure
 
