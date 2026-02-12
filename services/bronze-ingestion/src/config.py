@@ -20,6 +20,10 @@ class DLQConfig:
 class BronzeIngestionConfig:
     kafka_bootstrap_servers: str
     kafka_group_id: str
+    kafka_security_protocol: str
+    kafka_sasl_mechanism: str
+    kafka_sasl_username: str
+    kafka_sasl_password: str
     delta_base_path: str
     batch_interval_seconds: int
     kafka_poll_timeout_ms: int
@@ -35,6 +39,10 @@ class BronzeIngestionConfig:
         return cls(
             kafka_bootstrap_servers=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:29092"),
             kafka_group_id=os.getenv("KAFKA_CONSUMER_GROUP", "bronze-ingestion"),
+            kafka_security_protocol=os.getenv("KAFKA_SECURITY_PROTOCOL", "PLAINTEXT"),
+            kafka_sasl_mechanism=os.getenv("KAFKA_SASL_MECHANISM", "PLAIN"),
+            kafka_sasl_username=os.getenv("KAFKA_SASL_USERNAME", ""),
+            kafka_sasl_password=os.getenv("KAFKA_SASL_PASSWORD", ""),
             delta_base_path=os.getenv("DELTA_BASE_PATH", "s3a://rideshare-bronze"),
             batch_interval_seconds=int(os.getenv("BATCH_INTERVAL_SECONDS", "10")),
             kafka_poll_timeout_ms=int(os.getenv("KAFKA_POLL_TIMEOUT_MS", "1000")),

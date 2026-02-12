@@ -8,6 +8,10 @@ class KafkaSettings(BaseSettings):
     """Kafka consumer configuration."""
 
     bootstrap_servers: str = "localhost:9092"
+    security_protocol: str = "PLAINTEXT"
+    sasl_mechanism: str = "PLAIN"
+    sasl_username: str = ""
+    sasl_password: str = ""
     group_id: str = "stream-processor"
     auto_offset_reset: str = "latest"
     enable_auto_commit: bool = False

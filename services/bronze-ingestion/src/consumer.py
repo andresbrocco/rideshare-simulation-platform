@@ -20,9 +20,21 @@ class KafkaConsumer:
         "rider_profiles",
     ]
 
-    def __init__(self, bootstrap_servers: str, group_id: str):
+    def __init__(
+        self,
+        bootstrap_servers: str,
+        group_id: str,
+        security_protocol: str = "PLAINTEXT",
+        sasl_mechanism: str = "PLAIN",
+        sasl_username: str = "",
+        sasl_password: str = "",
+    ):
         self.bootstrap_servers = bootstrap_servers
         self.group_id = group_id
+        self.security_protocol = security_protocol
+        self.sasl_mechanism = sasl_mechanism
+        self.sasl_username = sasl_username
+        self.sasl_password = sasl_password
         self._consumer: Optional[Consumer] = None
 
     @property
@@ -41,6 +53,18 @@ class KafkaConsumer:
                 "auto.offset.reset": "earliest",
                 "enable.auto.commit": False,
             }
+
+            # Add SASL configuration if not using PLAINTEXT
+            if self.security_protocol != "PLAINTEXT":
+                config.update(
+                    {
+                        "security.protocol": self.security_protocol,
+                        "sasl.mechanism": self.sasl_mechanism,
+                        "sasl.username": self.sasl_username,
+                        "sasl.password": self.sasl_password,
+                    }
+                )
+
             self._consumer = Consumer(config)
             self._consumer.subscribe(self.TOPICS)
 

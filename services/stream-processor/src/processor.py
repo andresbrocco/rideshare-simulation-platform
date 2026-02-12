@@ -72,6 +72,18 @@ class StreamProcessor:
             "fetch.wait.max.ms": settings.kafka.fetch_max_wait_ms,
             "max.partition.fetch.bytes": settings.kafka.max_partition_fetch_bytes,
         }
+
+        # Add SASL configuration if not using PLAINTEXT
+        if settings.kafka.security_protocol != "PLAINTEXT":
+            consumer_config.update(
+                {
+                    "security.protocol": settings.kafka.security_protocol,
+                    "sasl.mechanism": settings.kafka.sasl_mechanism,
+                    "sasl.username": settings.kafka.sasl_username,
+                    "sasl.password": settings.kafka.sasl_password,
+                }
+            )
+
         self._consumer = Consumer(consumer_config)
 
         # Initialize Redis sink

@@ -70,7 +70,12 @@ class IngestionService:
         start_health_server(port=8080)
 
         self._consumer = KafkaConsumer(
-            bootstrap_servers=config.kafka_bootstrap_servers, group_id=config.kafka_group_id
+            bootstrap_servers=config.kafka_bootstrap_servers,
+            group_id=config.kafka_group_id,
+            security_protocol=config.kafka_security_protocol,
+            sasl_mechanism=config.kafka_sasl_mechanism,
+            sasl_username=config.kafka_sasl_username,
+            sasl_password=config.kafka_sasl_password,
         )
         self._writer = DeltaWriter(
             base_path=config.delta_base_path, storage_options=config.get_storage_options()

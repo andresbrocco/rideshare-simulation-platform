@@ -213,13 +213,14 @@ services:
       - ../../services/simulation/data:/app/data:ro
       - simulation-db:/app/db
       - ./compose.yml:/app/compose.yml:ro
+      - secrets-volume:/secrets:ro
     environment:
       - SIM_SPEED_MULTIPLIER=${SIM_SPEED_MULTIPLIER:-1}
       - SIM_LOG_LEVEL=${SIM_LOG_LEVEL:-INFO}
       - SIM_CHECKPOINT_INTERVAL=${SIM_CHECKPOINT_INTERVAL:-300}
       - SIM_DB_PATH=/app/db/simulation.db
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - KAFKA_SECURITY_PROTOCOL=PLAINTEXT
+      - KAFKA_SECURITY_PROTOCOL=SASL_PLAINTEXT
       - KAFKA_SCHEMA_REGISTRY_URL=http://schema-registry:8081
       - REDIS_HOST=redis
       - REDIS_PORT=6379
@@ -231,7 +232,15 @@ services:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - DEPLOYMENT_ENV=local
       - LOG_FORMAT=json
+    command:
+      - bash
+      - -c
+      - |
+        set -a && eval "$$(grep '^KAFKA_SASL_' /secrets/core.env)" && set +a
+        exec python main.py
     depends_on:
+      secrets-init:
+        condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
       schema-registry:
@@ -268,8 +277,11 @@ services:
       - core
     ports:
       - "8080:8080"
+    volumes:
+      - secrets-volume:/secrets:ro
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_SECURITY_PROTOCOL=SASL_PLAINTEXT
       - KAFKA_GROUP_ID=stream-processor
       - KAFKA_AUTO_OFFSET_RESET=latest
       - REDIS_HOST=redis
@@ -284,7 +296,15 @@ services:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - DEPLOYMENT_ENV=local
       - LOG_FORMAT=json
+    command:
+      - bash
+      - -c
+      - |
+        set -a && eval "$$(grep '^KAFKA_SASL_' /secrets/core.env)" && set +a
+        exec python -m src.main
     depends_on:
+      secrets-init:
+        condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
       redis:
@@ -393,15 +413,26 @@ services:
       - data-pipeline
     ports:
       - "8086:8080"
+    volumes:
+      - secrets-volume:/secrets:ro
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_SECURITY_PROTOCOL=SASL_PLAINTEXT
       - KAFKA_CONSUMER_GROUP=bronze-ingestion
       - BATCH_INTERVAL_SECONDS=10
       - S3_ENDPOINT=http://minio:9000
       - AWS_ACCESS_KEY_ID=minioadmin
       - AWS_SECRET_ACCESS_KEY=minioadmin
       - BRONZE_BUCKET=rideshare-bronze
+    command:
+      - bash
+      - -c
+      - |
+        set -a && eval "$$(grep '^KAFKA_SASL_' /secrets/core.env)" && set +a
+        exec python -m src.main
     depends_on:
+      secrets-init:
+        condition: service_completed_successfully
       minio-init:
         condition: service_completed_successfully
       kafka-init:
