@@ -603,7 +603,7 @@ class SimulationEngine:
 
     def _run_drain_process(self):  # type: ignore[no-untyped-def]
         """Monitor quiescence and transition to PAUSED."""
-        timeout_at = self._env.now + 600
+        timeout_at = self._env.now + 7200
         trigger = "quiescence_achieved"
 
         while True:

@@ -30,6 +30,6 @@ State transition validation enforces valid paths via VALID_STATE_TRANSITIONS dic
 
 Agent processes are started immediately during continuous spawning (_spawn_single_driver, _spawn_single_rider) but bulk creation via AgentFactory defers process start until next step() cycle. This desynchronizes GPS pings naturally.
 
-Drain process timeout is 600 simulated seconds. If quiescence isn't achieved, all in-flight trips are force-cancelled with system metadata before transitioning to PAUSED.
+Drain process timeout is 7200 simulated seconds (2 hours). If quiescence isn't achieved, all in-flight trips are force-cancelled with system metadata before transitioning to PAUSED.
 
 Snapshots module provides frozen dataclasses for immutable state transfer between threads. These are used by ThreadCoordinator command responses to avoid mutation issues.
