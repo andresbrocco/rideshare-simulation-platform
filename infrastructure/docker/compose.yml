@@ -115,6 +115,10 @@ services:
       SCHEMA_REGISTRY_HEAP_OPTS: "-Xms128m -Xmx256m"
       SCHEMA_REGISTRY_KAFKASTORE_SECURITY_PROTOCOL: SASL_PLAINTEXT
       SCHEMA_REGISTRY_KAFKASTORE_SASL_MECHANISM: PLAIN
+      SCHEMA_REGISTRY_AUTHENTICATION_METHOD: BASIC
+      SCHEMA_REGISTRY_AUTHENTICATION_ROLES: admin
+      SCHEMA_REGISTRY_AUTHENTICATION_REALM: SchemaRegistry
+      SCHEMA_REGISTRY_OPTS: "-Djava.security.auth.login.config=/etc/schema-registry/jaas.conf"
     command:
       - bash
       - -c
@@ -129,10 +133,12 @@ services:
         condition: service_completed_successfully
     volumes:
       - secrets-volume:/secrets:ro
+      - ../../services/schema-registry/jaas.conf:/etc/schema-registry/jaas.conf:ro
+      - ../../services/schema-registry/users.properties:/etc/schema-registry/users.properties:ro
     networks:
       - rideshare-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/subjects"]
+      test: ["CMD", "curl", "-f", "-u", "admin:admin", "http://localhost:8081/subjects"]
       interval: 10s
       timeout: 10s
       retries: 12
