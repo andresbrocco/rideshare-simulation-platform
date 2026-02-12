@@ -91,8 +91,8 @@ register_table() {
 
     # Try to register existing Delta table (requires _delta_log at location)
     local output
-    output=$(execute_trino "CALL delta.system.register_table(schema_name => 'default', table_name => '${table_name}', table_location => '${location}')" 2>&1)
-    local exit_code=$?
+    local exit_code
+    output=$(execute_trino "CALL delta.system.register_table(schema_name => 'default', table_name => '${table_name}', table_location => '${location}')" 2>&1) && exit_code=0 || exit_code=$?
 
     if [ "$exit_code" -eq 0 ]; then
         echo "  [OK] ${table_name} - registered at ${location}"
