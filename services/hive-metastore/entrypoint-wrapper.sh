@@ -10,6 +10,15 @@ DB_PORT="${DB_PORT:-5432}"
 MAX_RETRIES=30
 RETRY_INTERVAL=2
 
+# Source credentials from secrets volume (written by secrets-init)
+echo "Hive Metastore: Loading credentials from secrets volume"
+set -a && . /secrets/data-pipeline.env && set +a
+
+# Substitute environment variables in hive-site.xml template
+echo "Hive Metastore: Substituting environment variables in hive-site.xml"
+envsubst < /opt/hive/conf/hive-site.xml.template > /opt/hive/conf/hive-site.xml
+echo "Hive Metastore: hive-site.xml generated successfully"
+
 echo "Waiting for PostgreSQL at ${DB_HOST}:${DB_PORT}..."
 
 for i in $(seq 1 $MAX_RETRIES); do
