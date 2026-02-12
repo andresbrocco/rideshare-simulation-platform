@@ -237,7 +237,6 @@ services:
       - REDIS_PASSWORD=
       - REDIS_SSL=false
       - OSRM_BASE_URL=http://osrm:5000
-      - API_KEY=${API_KEY:-dev-api-key-change-in-production}
       - CORS_ORIGINS=http://localhost:3000,http://localhost:5173
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - DEPLOYMENT_ENV=local
@@ -249,7 +248,8 @@ services:
         set -a && eval "$$(grep '^KAFKA_SASL_' /secrets/core.env)" && set +a
         set -a && eval "$$(grep '^SCHEMA_REGISTRY_' /secrets/core.env)" && set +a
         set -a && eval "$$(grep '^REDIS_PASSWORD' /secrets/core.env)" && set +a
-        export KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO="${SCHEMA_REGISTRY_USER}:${SCHEMA_REGISTRY_PASSWORD}"
+        set -a && eval "$$(grep '^API_KEY' /secrets/core.env)" && set +a
+        export KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO="$$SCHEMA_REGISTRY_USER:$$SCHEMA_REGISTRY_PASSWORD"
         exec python main.py
     depends_on:
       secrets-init:
@@ -376,12 +376,18 @@ services:
     ports:
       - "9000:9000"
       - "9001:9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    command: server /data --console-address ":9001"
+    depends_on:
+      secrets-init:
+        condition: service_completed_successfully
+    command:
+      - sh
+      - -c
+      - |
+        set -a && . /secrets/data-pipeline.env && set +a
+        exec minio server /data --console-address ":9001"
     volumes:
       - minio-data:/data
+      - secrets-volume:/secrets:ro
     networks:
       - rideshare-network
     healthcheck:
@@ -397,11 +403,16 @@ services:
     profiles:
       - data-pipeline
     depends_on:
+      secrets-init:
+        condition: service_completed_successfully
       minio:
         condition: service_healthy
+    volumes:
+      - secrets-volume:/secrets:ro
     entrypoint: >
       /bin/sh -c "
-      mc alias set local http://minio:9000 minioadmin minioadmin &&
+      . /secrets/data-pipeline.env &&
+      mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD &&
       mc mb local/rideshare-bronze --ignore-existing &&
       mc mb local/rideshare-silver --ignore-existing &&
       mc mb local/rideshare-gold --ignore-existing &&
@@ -435,14 +446,15 @@ services:
       - KAFKA_CONSUMER_GROUP=bronze-ingestion
       - BATCH_INTERVAL_SECONDS=10
       - S3_ENDPOINT=http://minio:9000
-      - AWS_ACCESS_KEY_ID=minioadmin
-      - AWS_SECRET_ACCESS_KEY=minioadmin
       - BRONZE_BUCKET=rideshare-bronze
     command:
       - bash
       - -c
       - |
         set -a && eval "$$(grep '^KAFKA_SASL_' /secrets/core.env)" && set +a
+        set -a && eval "$$(grep '^MINIO_' /secrets/data-pipeline.env)" && set +a
+        export AWS_ACCESS_KEY_ID="$$MINIO_ROOT_USER"
+        export AWS_SECRET_ACCESS_KEY="$$MINIO_ROOT_PASSWORD"
         exec python -m src.main
     depends_on:
       secrets-init:
@@ -476,45 +488,51 @@ services:
     ports:
       - "10000:10000"
       - "4041:4040"
-    command: >
-      /opt/spark/bin/spark-submit
-      --master local[2]
-      --driver-memory 1800m
-      --conf spark.driver.memoryOverhead=512m
-      --conf spark.driver.maxResultSize=512m
-      --conf "spark.driver.extraJavaOptions=-XX:+UseG1GC -XX:MaxGCPauseMillis=50 -XX:InitiatingHeapOccupancyPercent=35 -XX:+ExplicitGCInvokesConcurrent"
-      --class org.apache.spark.sql.hive.thriftserver.HiveThriftServer2
-      --name "Thrift JDBC/ODBC Server"
-      --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
-      --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
-      --conf spark.sql.warehouse.dir=s3a://rideshare-bronze/warehouse
-      --conf spark.hadoop.hive.metastore.uris=thrift://hive-metastore:9083
-      --conf spark.ui.retainedStages=100
-      --conf spark.ui.retainedJobs=100
-      --conf spark.ui.retainedDeadExecutors=10
-      --conf spark.sql.codegen.cache.maxEntries=100
-      --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000
-      --conf spark.hadoop.fs.s3a.access.key=minioadmin
-      --conf spark.hadoop.fs.s3a.secret.key=minioadmin
-      --conf spark.hadoop.fs.s3a.path.style.access=true
-      --conf spark.hadoop.fs.s3a.connection.ssl.enabled=false
-      --conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
-      --conf spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
-      --conf spark.hadoop.fs.s3a.threads.max=8
-      --conf spark.hadoop.fs.s3a.connection.pool.size=8
-      --conf spark.hadoop.fs.s3a.connection.establish.timeout=5000
-      --conf spark.hadoop.fs.s3a.connection.timeout=200000
-      --hiveconf hive.metastore.warehouse.dir=s3a://rideshare-bronze/warehouse
-      --hiveconf hive.server2.thrift.port=10000
-      --hiveconf hive.server2.thrift.bind.host=0.0.0.0
-      --hiveconf hive.server2.authentication=LDAP
-      --hiveconf hive.server2.authentication.ldap.url=ldap://openldap:389
-      --hiveconf hive.server2.authentication.ldap.baseDN=dc=rideshare,dc=local
-      --hiveconf hive.server2.transport.mode=binary
-      --hiveconf hive.server2.thrift.min.worker.threads=4
-      --hiveconf hive.server2.thrift.max.worker.threads=16
+    command:
+      - bash
+      - -c
+      - |
+        set -a && . /secrets/data-pipeline.env && set +a
+        exec /opt/spark/bin/spark-submit \
+          --master local[2] \
+          --driver-memory 1800m \
+          --conf spark.driver.memoryOverhead=512m \
+          --conf spark.driver.maxResultSize=512m \
+          --conf "spark.driver.extraJavaOptions=-XX:+UseG1GC -XX:MaxGCPauseMillis=50 -XX:InitiatingHeapOccupancyPercent=35 -XX:+ExplicitGCInvokesConcurrent" \
+          --class org.apache.spark.sql.hive.thriftserver.HiveThriftServer2 \
+          --name "Thrift JDBC/ODBC Server" \
+          --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension \
+          --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog \
+          --conf spark.sql.warehouse.dir=s3a://rideshare-bronze/warehouse \
+          --conf spark.hadoop.hive.metastore.uris=thrift://hive-metastore:9083 \
+          --conf spark.ui.retainedStages=100 \
+          --conf spark.ui.retainedJobs=100 \
+          --conf spark.ui.retainedDeadExecutors=10 \
+          --conf spark.sql.codegen.cache.maxEntries=100 \
+          --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000 \
+          --conf spark.hadoop.fs.s3a.access.key="$$MINIO_ROOT_USER" \
+          --conf spark.hadoop.fs.s3a.secret.key="$$MINIO_ROOT_PASSWORD" \
+          --conf spark.hadoop.fs.s3a.path.style.access=true \
+          --conf spark.hadoop.fs.s3a.connection.ssl.enabled=false \
+          --conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem \
+          --conf spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider \
+          --conf spark.hadoop.fs.s3a.threads.max=8 \
+          --conf spark.hadoop.fs.s3a.connection.pool.size=8 \
+          --conf spark.hadoop.fs.s3a.connection.establish.timeout=5000 \
+          --conf spark.hadoop.fs.s3a.connection.timeout=200000 \
+          --hiveconf hive.metastore.warehouse.dir=s3a://rideshare-bronze/warehouse \
+          --hiveconf hive.server2.thrift.port=10000 \
+          --hiveconf hive.server2.thrift.bind.host=0.0.0.0 \
+          --hiveconf hive.server2.authentication=LDAP \
+          --hiveconf hive.server2.authentication.ldap.url=ldap://openldap:389 \
+          --hiveconf hive.server2.authentication.ldap.baseDN=dc=rideshare,dc=local \
+          --hiveconf hive.server2.transport.mode=binary \
+          --hiveconf hive.server2.thrift.min.worker.threads=4 \
+          --hiveconf hive.server2.thrift.max.worker.threads=16
     environment:
       - PYTHONPATH=/opt
+    volumes:
+      - secrets-volume:/secrets:ro
     depends_on:
       openldap:
         condition: service_healthy
@@ -599,16 +617,26 @@ services:
       - data-pipeline
     ports:
       - "5432:5432"
+    depends_on:
+      secrets-init:
+        condition: service_completed_successfully
     environment:
-      POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: airflow
       POSTGRES_DB: airflow
+    command:
+      - sh
+      - -c
+      - |
+        set -a && . /secrets/data-pipeline.env && set +a
+        export POSTGRES_USER="$$POSTGRES_AIRFLOW_USER"
+        export POSTGRES_PASSWORD="$$POSTGRES_AIRFLOW_PASSWORD"
+        exec docker-entrypoint.sh postgres
     volumes:
       - postgres-airflow-data:/var/lib/postgresql/data
+      - secrets-volume:/secrets:ro
     networks:
       - rideshare-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      test: ["CMD-SHELL", ". /secrets/data-pipeline.env && pg_isready -U \"$$POSTGRES_AIRFLOW_USER\""]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -632,11 +660,6 @@ services:
     environment:
       PROD_MODE: ${PROD_MODE:-false}
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
-      AIRFLOW__CORE__FERNET_KEY: "989ZwyjTUPqrIF5wxv6t2co6yYH94e5BVlrefZQ-Vy8="
-      AIRFLOW__CORE__INTERNAL_API_SECRET_KEY: "-mszrjJhmspCQdvqihrR6DIrme0unbToVPUk40brcPE="
-      AIRFLOW__API_AUTH__JWT_SECRET: "LZzI1GGTMbhAuzQhC9wfN7n0yaVe3ANAUsTl6jVbVSw"
-      AIRFLOW__API__SECRET_KEY: "D2rCEm60_xUtsSSxMXh9tOEWGgEadUX39FRaMesKvl0"
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW__CORE__AUTH_MANAGER: 'airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager'
@@ -645,8 +668,6 @@ services:
       AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-webserver:8080/execution/'
       _AIRFLOW_DB_MIGRATE: 'true'
       _AIRFLOW_WWW_USER_CREATE: 'true'
-      _AIRFLOW_WWW_USER_USERNAME: admin
-      _AIRFLOW_WWW_USER_PASSWORD: admin
       _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-fab dbt-core dbt-duckdb==1.10.0 dbt-spark[PyHive] duckdb==1.4.4 deltalake==1.4.2 duckdb-engine==0.17.0 great-expectations requests prison'
     volumes:
       - ../../services/airflow/dags:/opt/airflow/dags
@@ -655,12 +676,23 @@ services:
       - ../../services/airflow/config:/opt/airflow/config
       - ../../tools/dbt:/opt/dbt
       - ../../tools/great-expectations:/opt/great-expectations
+      - secrets-volume:/secrets:ro
     depends_on:
+      secrets-init:
+        condition: service_completed_successfully
       postgres-airflow:
         condition: service_healthy
     networks:
       - rideshare-network
-    command: api-server
+    command:
+      - bash
+      - -c
+      - |
+        set -a && . /secrets/data-pipeline.env && set +a
+        export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql+psycopg2://$$POSTGRES_AIRFLOW_USER:$$POSTGRES_AIRFLOW_PASSWORD@postgres-airflow:5432/airflow"
+        export _AIRFLOW_WWW_USER_USERNAME="$$AIRFLOW_ADMIN_USERNAME"
+        export _AIRFLOW_WWW_USER_PASSWORD="$$AIRFLOW_ADMIN_PASSWORD"
+        exec airflow api-server
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/v2/monitor/health', timeout=3)"]
       interval: 30s
@@ -684,11 +716,6 @@ services:
     environment:
       PROD_MODE: ${PROD_MODE:-false}
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
-      AIRFLOW__CORE__FERNET_KEY: "989ZwyjTUPqrIF5wxv6t2co6yYH94e5BVlrefZQ-Vy8="
-      AIRFLOW__CORE__INTERNAL_API_SECRET_KEY: "-mszrjJhmspCQdvqihrR6DIrme0unbToVPUk40brcPE="
-      AIRFLOW__API_AUTH__JWT_SECRET: "LZzI1GGTMbhAuzQhC9wfN7n0yaVe3ANAUsTl6jVbVSw"
-      AIRFLOW__API__SECRET_KEY: "D2rCEm60_xUtsSSxMXh9tOEWGgEadUX39FRaMesKvl0"
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW__CORE__AUTH_MANAGER: 'airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager'
@@ -696,10 +723,8 @@ services:
       AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: 30
       AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-webserver:8080/execution/'
       DBT_SPARK_HOST: spark-thrift-server
-      # S3/MinIO credentials for delta-rs (used by DuckDB delta extension and dbt-duckdb)
+      # S3/MinIO non-secret config (credentials sourced at runtime from secrets volume)
       AWS_ENDPOINT_URL: http://minio:9000
-      AWS_ACCESS_KEY_ID: minioadmin
-      AWS_SECRET_ACCESS_KEY: minioadmin
       AWS_ALLOW_HTTP: "true"
       AWS_REGION: us-east-1
       _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-fab dbt-core dbt-duckdb==1.10.0 dbt-spark[PyHive] duckdb==1.4.4 deltalake==1.4.2 duckdb-engine==0.17.0 great-expectations requests prison'
@@ -711,7 +736,10 @@ services:
       - ../../tools/dbt:/opt/dbt
       - ../../tools/great-expectations:/opt/great-expectations
       - ../../infrastructure/scripts:/opt/init-scripts:ro
+      - secrets-volume:/secrets:ro
     depends_on:
+      secrets-init:
+        condition: service_completed_successfully
       postgres-airflow:
         condition: service_healthy
       airflow-webserver:
@@ -721,8 +749,15 @@ services:
         required: false
     networks:
       - rideshare-network
-    # Reserialize DAGs on startup to ensure they're loaded in Airflow 3.x
-    command: bash -c "airflow dags reserialize && exec airflow scheduler"
+    command:
+      - bash
+      - -c
+      - |
+        set -a && . /secrets/data-pipeline.env && set +a
+        export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql+psycopg2://$$POSTGRES_AIRFLOW_USER:$$POSTGRES_AIRFLOW_PASSWORD@postgres-airflow:5432/airflow"
+        export AWS_ACCESS_KEY_ID="$$MINIO_ROOT_USER"
+        export AWS_SECRET_ACCESS_KEY="$$MINIO_ROOT_PASSWORD"
+        airflow dags reserialize && exec airflow scheduler
     healthcheck:
       test: ["CMD", "python", "-c", "import socket; s = socket.socket(); s.settimeout(3); s.connect(('localhost', 8793)); s.close()"]
       interval: 10s
@@ -739,16 +774,26 @@ services:
       - data-pipeline
     ports:
       - "5434:5432"
+    depends_on:
+      secrets-init:
+        condition: service_completed_successfully
     environment:
-      POSTGRES_USER: hive
-      POSTGRES_PASSWORD: hive
       POSTGRES_DB: metastore
+    command:
+      - sh
+      - -c
+      - |
+        set -a && . /secrets/data-pipeline.env && set +a
+        export POSTGRES_USER="$$POSTGRES_METASTORE_USER"
+        export POSTGRES_PASSWORD="$$POSTGRES_METASTORE_PASSWORD"
+        exec docker-entrypoint.sh postgres
     volumes:
       - postgres-metastore-data:/var/lib/postgresql/data
+      - secrets-volume:/secrets:ro
     networks:
       - rideshare-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hive"]
+      test: ["CMD-SHELL", ". /secrets/data-pipeline.env && pg_isready -U \"$$POSTGRES_METASTORE_USER\""]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -948,19 +993,26 @@ services:
     ports:
       - "3001:3000"
     environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
       GF_PATHS_PROVISIONING: /etc/grafana/provisioning
       GF_SERVER_ROOT_URL: http://localhost:3001
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_INSTALL_PLUGINS: trino-datasource
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -a && . /secrets/monitoring.env && set +a
+        exec /run.sh
     volumes:
       - ../../services/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
       - ../../services/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
       - ../../services/grafana/dashboards:/etc/dashboards:ro
       - ../../services/grafana/provisioning/alerting:/etc/grafana/provisioning/alerting:ro
       - grafana-data:/var/lib/grafana
+      - secrets-volume:/secrets:ro
     depends_on:
+      secrets-init:
+        condition: service_completed_successfully
       prometheus:
         condition: service_healthy
       loki:
