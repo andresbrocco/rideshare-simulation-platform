@@ -455,7 +455,9 @@ services:
     container_name: rideshare-localstack
     mem_limit: 128m
     profiles:
+      - core
       - data-pipeline
+      - monitoring
     ports:
       - "4566:4566"
       - "4510-4559:4510-4559"
@@ -477,6 +479,33 @@ services:
       retries: 5
       start_period: 10s
     restart: unless-stopped
+
+  secrets-init:
+    image: python:3.12-slim
+    container_name: rideshare-secrets-init
+    profiles:
+      - core
+      - data-pipeline
+      - monitoring
+    volumes:
+      - secrets-volume:/secrets
+      - ../../infrastructure/scripts/seed-secrets.py:/app/seed-secrets.py:ro
+      - ../../infrastructure/scripts/fetch-secrets.py:/app/fetch-secrets.py:ro
+    environment:
+      - AWS_ENDPOINT_URL=http://localstack:4566
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+    depends_on:
+      localstack:
+        condition: service_healthy
+    command: >
+      sh -c "pip install boto3 mypy-boto3-secretsmanager &&
+             python /app/seed-secrets.py &&
+             python /app/fetch-secrets.py"
+    networks:
+      - rideshare-network
+    restart: "no"
 
   postgres-airflow:
     image: postgres:16
@@ -923,3 +952,4 @@ volumes:
   grafana-data:
   loki-data:
   tempo-data:
+  secrets-volume:
