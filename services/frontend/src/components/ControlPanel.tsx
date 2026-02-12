@@ -31,8 +31,8 @@ export default function ControlPanel({
   onStatusUpdate,
   onStartPlacement,
 }: ControlPanelProps) {
-  const [driverCount, setDriverCount] = useState(10);
-  const [riderCount, setRiderCount] = useState(10);
+  const [driverCount, setDriverCount] = useState(50);
+  const [riderCount, setRiderCount] = useState(50);
   const [driverMode, setDriverMode] = useState<SpawnMode>('immediate');
   const [riderMode, setRiderMode] = useState<SpawnMode>('immediate');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -190,6 +190,7 @@ export default function ControlPanel({
             value={driverCount}
             onChange={(e) => setDriverCount(parseInt(e.target.value) || 0)}
             min="1"
+            max="100"
             className={styles.input}
           />
           <Tooltip text="Immediate: go online immediately. Scheduled: follow shift schedule from DNA.">
@@ -217,6 +218,7 @@ export default function ControlPanel({
             value={riderCount}
             onChange={(e) => setRiderCount(parseInt(e.target.value) || 0)}
             min="1"
+            max="2000"
             className={styles.input}
           />
           <Tooltip text="Immediate: request trip now. Scheduled: follow ride frequency from DNA.">
