@@ -32,7 +32,7 @@ parsed as (
     select
         {{ json_field('_raw_value', '$.event_id') }} as event_id,
         {{ json_field('_raw_value', '$.event_type') }} as event_type,
-        lower(coalesce({{ safe_array_element(split_string(json_field('_raw_value', '$.event_type'), '\\.'), 2) }}, {{ json_field('_raw_value', '$.event_type') }})) as trip_state,
+        lower(coalesce({{ safe_array_element(split_string(json_field('_raw_value', '$.event_type'), '.'), 2) }}, {{ json_field('_raw_value', '$.event_type') }})) as trip_state,
         {{ to_ts(json_field('_raw_value', '$.timestamp')) }} as timestamp,
         {{ json_field('_raw_value', '$.trip_id') }} as trip_id,
         {{ json_field('_raw_value', '$.rider_id') }} as rider_id,
