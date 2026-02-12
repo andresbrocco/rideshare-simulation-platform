@@ -1,8 +1,7 @@
 """Dead Letter Queue writer for malformed Kafka messages.
 
 Routes messages that fail validation (encoding errors, JSON parse errors)
-to topic-specific DLQ Delta tables. Schema matches the existing Spark-based
-DLQ implementation in services/spark-streaming/utils/dlq_handler.py.
+to topic-specific DLQ Delta tables.
 """
 
 from dataclasses import dataclass

@@ -475,9 +475,7 @@ _DISPLAY_NAME_OVERRIDES: dict[str, str] = {
     "rideshare-minio": "MinIO",
     "rideshare-cadvisor": "cAdvisor",
     "rideshare-otel-collector": "OTel Collector",
-    "rideshare-spark-thrift-server": "Spark Thrift",
-    "rideshare-bronze-ingestion-high-volume": "Spark: High Volume",
-    "rideshare-bronze-ingestion-low-volume": "Spark: Low Volume",
+    "rideshare-bronze-ingestion": "Bronze Ingestion",
     "rideshare-postgres-airflow": "Postgres (Airflow)",
     "rideshare-postgres-metastore": "Postgres (Metastore)",
     "rideshare-airflow-webserver": "Airflow Web",
@@ -1128,11 +1126,9 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         "rideshare-simulation": simulation_result,
         "rideshare-stream-processor": stream_processor_result,
         "rideshare-frontend": no_health_endpoint,
-        # Data Platform profile
+        # Data Pipeline profile
         "rideshare-minio": minio_result,
-        "rideshare-spark-thrift-server": spark_thrift_result,
-        "rideshare-bronze-ingestion-high-volume": no_health_endpoint,
-        "rideshare-bronze-ingestion-low-volume": no_health_endpoint,
+        "rideshare-bronze-ingestion": no_health_endpoint,
         "rideshare-localstack": localstack_result,
         # Monitoring profile
         "rideshare-prometheus": prometheus_result,

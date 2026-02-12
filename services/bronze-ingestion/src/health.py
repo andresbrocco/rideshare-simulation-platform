@@ -8,12 +8,12 @@ class HealthState:
     """Shared state for health monitoring.
 
     Tracks write activity and errors to determine service health.
-    The service is considered healthy if a successful write occurred
-    within the configured threshold (default: 60 seconds).
+    The service is considered healthy when no errors have occurred.
+    A successful write resets the error count, allowing recovery
+    from transient failures.
     """
 
-    def __init__(self, max_age_seconds: int = 60):
-        self.max_age_seconds = max_age_seconds
+    def __init__(self) -> None:
         self.last_write_time: datetime | None = None
         self.messages_written: int = 0
         self.dlq_messages: int = 0
@@ -22,6 +22,7 @@ class HealthState:
     def record_write(self, message_count: int) -> None:
         self.last_write_time = datetime.now(timezone.utc)
         self.messages_written += message_count
+        self.errors = 0
 
     def record_dlq_write(self, message_count: int) -> None:
         self.dlq_messages += message_count
@@ -30,10 +31,7 @@ class HealthState:
         self.errors += 1
 
     def is_healthy(self) -> bool:
-        if self.last_write_time is None:
-            return False
-        age = (datetime.now(timezone.utc) - self.last_write_time).total_seconds()
-        return age < self.max_age_seconds
+        return self.errors == 0
 
     def to_dict(self) -> dict[str, str | int | None]:
         return {
