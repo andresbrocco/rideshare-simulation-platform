@@ -99,7 +99,7 @@ class DockerStatsCollector:
         # cAdvisor reports CPU in nanoseconds, normalize to percentage
         cpu_percent = (cpu_delta / time_delta_ns) * 100
 
-        return float(max(0.0, min(cpu_percent, 100.0)))
+        return float(max(0.0, cpu_percent))
 
     def _parse_container_resource_metrics(
         self, container_name: str, data: dict[str, Any]

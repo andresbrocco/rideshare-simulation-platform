@@ -1,0 +1,290 @@
+"""Speed scaling scenario: increase speed multiplier until threshold reached."""
+
+import time
+from typing import Any, Iterator
+
+from rich.console import Console
+
+from .base import BaseScenario
+from .stress_test import ContainerRollingStats, RollingStats, ThresholdTrigger
+
+console = Console()
+
+
+class SpeedScalingScenario(BaseScenario):
+    """Speed scaling test: double speed multiplier each step until threshold hit.
+
+    Each step resets the simulation, sets a new speed multiplier, spawns
+    a scaled-down number of agents, and collects metrics. The agent count
+    is inversely proportional to speed: faster simulation = fewer agents
+    needed to maintain comparable event throughput.
+
+    Protocol:
+    1. Step 0: Clean environment (down -v, up -d, wait healthy)
+    2. For each speed step (2, 4, 8, ..., max_multiplier):
+       a. Reset simulation
+       b. Set speed multiplier
+       c. Start simulation
+       d. Queue scaled agents (base_count // multiplier, min 1)
+       e. Wait spawn, settle
+       f. Collect samples for step duration
+       g. Check thresholds
+       h. Stop simulation
+       i. Break if threshold hit
+    3. Store step results in metadata
+    """
+
+    def __init__(self, agent_count: int, *args: Any, **kwargs: Any) -> None:
+        """Initialize speed scaling scenario.
+
+        Args:
+            agent_count: Base agent count (from stress test, will be scaled down per step).
+            *args: Positional arguments passed to BaseScenario.
+            **kwargs: Keyword arguments passed to BaseScenario.
+        """
+        super().__init__(*args, **kwargs)
+        self.base_agent_count = agent_count
+        self.step_duration_minutes = self.config.scenarios.speed_scaling_step_duration_minutes
+        self.max_multiplier = self.config.scenarios.speed_scaling_max_multiplier
+        self._step_results: list[dict[str, Any]] = []
+        self._stopped_by_threshold = False
+
+    @property
+    def name(self) -> str:
+        return "speed_scaling"
+
+    @property
+    def requires_clean_restart(self) -> bool:
+        return True
+
+    @property
+    def description(self) -> str:
+        return (
+            f"Speed scaling: double multiplier from 2x to {self.max_multiplier}x, "
+            f"{self.step_duration_minutes}m per step, "
+            f"base agents={self.base_agent_count}"
+        )
+
+    @property
+    def params(self) -> dict[str, Any]:
+        return {
+            "base_agent_count": self.base_agent_count,
+            "step_duration_minutes": self.step_duration_minutes,
+            "max_multiplier": self.max_multiplier,
+            "agent_count_source": "stress_test_drivers_queued_half",
+        }
+
+    def execute(self) -> Iterator[dict[str, Any]]:
+        """Execute speed scaling test."""
+        multiplier = 2
+        step_number = 0
+
+        while multiplier <= self.max_multiplier:
+            if self._aborted:
+                console.print("[red]Test aborted due to OOM[/red]")
+                break
+
+            step_number += 1
+            agent_count = max(1, self.base_agent_count // multiplier)
+
+            console.print(
+                f"\n[bold cyan]Speed Step {step_number}: "
+                f"{multiplier}x speed, {agent_count} agents[/bold cyan]"
+            )
+
+            step_result = self._run_step(step_number, multiplier, agent_count)
+            self._step_results.append(step_result)
+
+            yield {
+                "phase": "step_complete",
+                "step": step_number,
+                "multiplier": multiplier,
+                "threshold_hit": step_result["threshold_hit"],
+            }
+
+            if step_result["threshold_hit"] or self._aborted:
+                self._stopped_by_threshold = step_result["threshold_hit"]
+                break
+
+            multiplier *= 2
+
+        # Store metadata
+        max_speed = self._step_results[-1]["multiplier"] if self._step_results else 1
+        self._metadata["step_results"] = self._step_results
+        self._metadata["total_steps"] = len(self._step_results)
+        self._metadata["max_speed_achieved"] = max_speed
+        self._metadata["stopped_by_threshold"] = self._stopped_by_threshold
+
+        console.print(
+            f"\n[green]Speed scaling complete: {len(self._step_results)} steps, "
+            f"max speed {max_speed}x"
+            f"{' (threshold hit)' if self._stopped_by_threshold else ''}[/green]"
+        )
+
+    def _run_step(self, step_number: int, multiplier: int, agent_count: int) -> dict[str, Any]:
+        """Run a single speed step.
+
+        Args:
+            step_number: Step index (1-based).
+            multiplier: Speed multiplier for this step.
+            agent_count: Number of drivers/riders to spawn.
+
+        Returns:
+            Dict with step results including speed, agent_count, threshold info.
+        """
+        step_start = time.time()
+        trigger: ThresholdTrigger | None = None
+
+        # Reset simulation for clean state
+        console.print("[cyan]Resetting simulation...[/cyan]")
+        try:
+            self.api_client.reset()
+        except Exception as e:
+            console.print(f"[yellow]Reset response: {e}[/yellow]")
+
+        # Set speed multiplier
+        console.print(f"[cyan]Setting speed to {multiplier}x...[/cyan]")
+        try:
+            self.api_client.set_speed(multiplier)
+        except Exception as e:
+            console.print(f"[yellow]Set speed response: {e}[/yellow]")
+
+        # Start simulation
+        console.print("[cyan]Starting simulation...[/cyan]")
+        try:
+            self.api_client.start()
+        except Exception as e:
+            console.print(f"[yellow]Start response: {e}[/yellow]")
+
+        # Queue agents
+        console.print(f"[cyan]Queuing {agent_count} drivers + {agent_count} riders...[/cyan]")
+        remaining = agent_count
+        while remaining > 0:
+            batch = min(remaining, 100)
+            try:
+                self.api_client.queue_drivers(batch)
+            except Exception as e:
+                console.print(f"[yellow]Driver queue failed: {e}[/yellow]")
+            remaining -= batch
+
+        remaining = agent_count
+        while remaining > 0:
+            batch = min(remaining, 2000)
+            try:
+                self.api_client.queue_riders(batch)
+            except Exception as e:
+                console.print(f"[yellow]Rider queue failed: {e}[/yellow]")
+            remaining -= batch
+
+        # Wait for spawn
+        console.print("[cyan]Waiting for spawn...[/cyan]")
+        self.api_client.wait_for_spawn_complete(timeout=120.0)
+
+        # Settle
+        self._wait_for_steady_state(self.config.sampling.settle_seconds)
+
+        # Collect samples for step duration
+        step_duration_seconds = self.step_duration_minutes * 60
+        console.print(f"[cyan]Collecting samples for {self.step_duration_minutes}m...[/cyan]")
+        step_samples = self._collect_samples(step_duration_seconds)
+
+        # Check thresholds using rolling window
+        trigger = self._check_step_thresholds(step_samples)
+
+        if trigger:
+            console.print(
+                f"[red bold]THRESHOLD REACHED: {trigger.container} "
+                f"{trigger.metric}={trigger.value:.1f}% >= {trigger.threshold}%[/red bold]"
+            )
+
+        # Stop simulation
+        console.print("[cyan]Stopping simulation...[/cyan]")
+        try:
+            self.api_client.stop()
+        except Exception as e:
+            console.print(f"[yellow]Stop response: {e}[/yellow]")
+
+        step_duration = time.time() - step_start
+
+        return {
+            "step": step_number,
+            "multiplier": multiplier,
+            "agent_count": agent_count,
+            "sample_count": len(step_samples),
+            "duration_seconds": round(step_duration, 2),
+            "threshold_hit": trigger is not None,
+            "trigger": (
+                {
+                    "container": trigger.container,
+                    "metric": trigger.metric,
+                    "value": round(trigger.value, 2),
+                    "threshold": round(trigger.threshold, 2),
+                }
+                if trigger
+                else None
+            ),
+        }
+
+    def _check_step_thresholds(self, step_samples: list[dict[str, Any]]) -> ThresholdTrigger | None:
+        """Check if any container exceeded thresholds during this step.
+
+        Builds rolling stats from step samples and checks against per-container
+        CPU thresholds (scaled by effective cores) and memory thresholds.
+
+        Args:
+            step_samples: Samples collected during this step.
+
+        Returns:
+            ThresholdTrigger if threshold exceeded, None otherwise.
+        """
+        if not step_samples:
+            return None
+
+        base_cpu_threshold = self.config.scenarios.stress_cpu_threshold_percent
+        memory_threshold = self.config.scenarios.stress_memory_threshold_percent
+        thresholds = self.config.analysis.thresholds
+
+        rolling_window_samples = int(
+            self.config.scenarios.stress_rolling_window_seconds
+            / self.config.sampling.interval_seconds
+        )
+
+        # Build rolling stats from step samples
+        container_stats: dict[str, ContainerRollingStats] = {}
+
+        for sample in step_samples:
+            for container_name, container_data in sample.get("containers", {}).items():
+                if container_name not in container_stats:
+                    container_stats[container_name] = ContainerRollingStats(
+                        memory_percent=RollingStats.with_window(rolling_window_samples),
+                        cpu_percent=RollingStats.with_window(rolling_window_samples),
+                    )
+
+                stats = container_stats[container_name]
+                stats.memory_percent.add(container_data.get("memory_percent", 0.0))
+                stats.cpu_percent.add(container_data.get("cpu_percent", 0.0))
+
+        # Check thresholds on final rolling averages
+        for container_name, stats in container_stats.items():
+            # Memory threshold
+            memory_avg = stats.memory_percent.average
+            if memory_avg >= memory_threshold:
+                return ThresholdTrigger(
+                    container=container_name,
+                    metric="memory",
+                    value=memory_avg,
+                    threshold=memory_threshold,
+                )
+
+            # CPU threshold (scaled by effective cores)
+            cpu_threshold = thresholds.get_stress_cpu_threshold(container_name, base_cpu_threshold)
+            cpu_avg = stats.cpu_percent.average
+            if cpu_avg >= cpu_threshold:
+                return ThresholdTrigger(
+                    container=container_name,
+                    metric="cpu",
+                    value=cpu_avg,
+                    threshold=cpu_threshold,
+                )
+
+        return None

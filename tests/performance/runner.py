@@ -35,6 +35,7 @@ from .config import CONTAINER_CONFIG, TestConfig
 from .scenarios.base import BaseScenario, ScenarioResult
 from .scenarios.baseline import BaselineScenario
 from .scenarios.duration_leak import DurationLeakScenario
+from .scenarios.speed_scaling import SpeedScalingScenario
 from .scenarios.stress_test import StressTestScenario
 
 console = Console()
@@ -471,10 +472,11 @@ def cli() -> None:
 def run() -> None:
     """Run all performance test scenarios in sequence.
 
-    Executes three scenarios in order:
+    Executes four scenarios in order:
     1. Baseline - Measure idle resource usage
     2. Stress Test - Find maximum sustainable agent count
-    3. Duration/Leak - Run with half the stress test agents to detect memory leaks
+    3. Duration/Leak - 3-phase lifecycle (active + drain + cooldown)
+    4. Speed Scaling - Double speed multiplier each step until threshold
     """
     config = create_test_config()
     lifecycle, stats_collector, api_client, oom_detector = create_collectors(config)
@@ -502,10 +504,13 @@ def run() -> None:
                 "warmup_seconds": config.sampling.warmup_seconds,
             },
             "scenarios": {
-                "duration_total_minutes": config.scenarios.duration_total_minutes,
-                "duration_checkpoints": config.scenarios.duration_checkpoints,
+                "duration_active_minutes": config.scenarios.duration_active_minutes,
+                "duration_cooldown_minutes": config.scenarios.duration_cooldown_minutes,
+                "duration_drain_timeout_seconds": config.scenarios.duration_drain_timeout_seconds,
                 "stress_cpu_threshold_percent": config.scenarios.stress_cpu_threshold_percent,
                 "stress_memory_threshold_percent": config.scenarios.stress_memory_threshold_percent,
+                "speed_scaling_step_duration_minutes": config.scenarios.speed_scaling_step_duration_minutes,
+                "speed_scaling_max_multiplier": config.scenarios.speed_scaling_max_multiplier,
             },
         },
         "scenarios": [],
@@ -517,7 +522,7 @@ def run() -> None:
 
     try:
         # 1. Run baseline
-        console.rule("[bold cyan]Step 1/3: Running Baseline Scenario[/bold cyan]")
+        console.rule("[bold cyan]Step 1/4: Running Baseline Scenario[/bold cyan]")
         baseline_result = run_scenario(
             BaselineScenario,
             config,
@@ -530,7 +535,7 @@ def run() -> None:
 
         # 2. Run stress test
         console.rule(
-            f"[bold cyan]Step 2/3: Running Stress Test "
+            f"[bold cyan]Step 2/4: Running Stress Test "
             f"(until {config.scenarios.stress_cpu_threshold_percent}% CPU "
             f"or {config.scenarios.stress_memory_threshold_percent}% memory)[/bold cyan]"
         )
@@ -576,9 +581,11 @@ def run() -> None:
                 }
 
                 # 5. Run duration/leak test with derived agent count
+                active_min = config.scenarios.duration_active_minutes
+                cooldown_min = config.scenarios.duration_cooldown_minutes
                 console.rule(
-                    f"[bold cyan]Step 3/3: Running Duration Test "
-                    f"({config.scenarios.duration_total_minutes} minutes, "
+                    f"[bold cyan]Step 3/4: Running Duration Test "
+                    f"({active_min}m+drain+{cooldown_min}m, "
                     f"{duration_agent_count} agents)[/bold cyan]"
                 )
                 duration_result = run_scenario(
@@ -591,6 +598,24 @@ def run() -> None:
                     agent_count=duration_agent_count,
                 )
                 scenario_results.append(_result_to_dict(duration_result))
+
+                # 6. Run speed scaling test
+                console.rule(
+                    f"[bold cyan]Step 4/4: Running Speed Scaling Test "
+                    f"(2x-{config.scenarios.speed_scaling_max_multiplier}x, "
+                    f"{config.scenarios.speed_scaling_step_duration_minutes}m/step, "
+                    f"base agents={duration_agent_count})[/bold cyan]"
+                )
+                speed_result = run_scenario(
+                    SpeedScalingScenario,
+                    config,
+                    lifecycle,
+                    stats_collector,
+                    api_client,
+                    oom_detector,
+                    agent_count=duration_agent_count,
+                )
+                scenario_results.append(_result_to_dict(speed_result))
 
     except KeyboardInterrupt:
         console.print("\n[yellow]Test interrupted by user[/yellow]")
@@ -848,6 +873,23 @@ def _print_summary(results: dict[str, Any], verdict: TestVerdict | None = None) 
                 f"  Duration test agents: {duration_agents} "
                 f"(half of {stress_drivers} from stress test)"
             )
+
+    # Speed scaling results
+    scenarios = results.get("scenarios", [])
+    speed_scenarios = [s for s in scenarios if s.get("scenario_name") == "speed_scaling"]
+    if speed_scenarios:
+        speed_meta = speed_scenarios[0].get("metadata", {})
+        total_steps = speed_meta.get("total_steps", 0)
+        max_speed = speed_meta.get("max_speed_achieved", 0)
+        stopped = speed_meta.get("stopped_by_threshold", False)
+
+        console.print("\n[bold]Speed Scaling Results:[/bold]")
+        console.print(f"  Steps completed: {total_steps}")
+        console.print(f"  Max speed achieved: {max_speed}x")
+        if stopped:
+            console.print("  [yellow]Stopped by threshold[/yellow]")
+        else:
+            console.print("  [green]Completed all steps[/green]")
 
     # Recommendations
     if verdict and verdict.recommendations:

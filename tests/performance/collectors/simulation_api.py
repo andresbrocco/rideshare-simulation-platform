@@ -72,6 +72,18 @@ class SimulationAPIClient:
             result: dict[str, Any] = response.json()
             return result
 
+    def _put(self, path: str, json: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Make a PUT request."""
+        with httpx.Client(timeout=self.timeout) as client:
+            response = client.put(
+                f"{self.base_url}{path}",
+                headers=self._get_headers(),
+                json=json or {},
+            )
+            response.raise_for_status()
+            result: dict[str, Any] = response.json()
+            return result
+
     def health_check(self) -> bool:
         """Check if the simulation API is healthy.
 
@@ -117,6 +129,25 @@ class SimulationAPIClient:
             Response from the API.
         """
         return self._post("/simulation/stop")
+
+    def pause(self) -> dict[str, Any]:
+        """Pause simulation (triggers RUNNING -> DRAINING -> PAUSED).
+
+        Returns:
+            Response from the API.
+        """
+        return self._post("/simulation/pause")
+
+    def set_speed(self, multiplier: int) -> dict[str, Any]:
+        """Set simulation speed multiplier.
+
+        Args:
+            multiplier: Speed multiplier value.
+
+        Returns:
+            Response from the API.
+        """
+        return self._put("/simulation/speed", json={"multiplier": multiplier})
 
     def reset(self) -> dict[str, Any]:
         """Reset the simulation to initial state.
@@ -200,6 +231,35 @@ class SimulationAPIClient:
             status = self.get_spawn_status()
             if status.drivers_pending == 0 and status.riders_pending == 0:
                 return True
+            time.sleep(check_interval)
+
+        return False
+
+    def wait_for_state(
+        self,
+        target_state: str,
+        timeout: float = 120.0,
+        check_interval: float = 2.0,
+    ) -> bool:
+        """Poll GET /simulation/status until state matches target_state.
+
+        Args:
+            target_state: The state to wait for.
+            timeout: Maximum time to wait in seconds.
+            check_interval: Time between checks in seconds.
+
+        Returns:
+            True if reached target state, False on timeout.
+        """
+        start_time = time.time()
+
+        while time.time() - start_time < timeout:
+            try:
+                status = self.get_simulation_status()
+                if status.state.lower() == target_state.lower():
+                    return True
+            except Exception:
+                pass
             time.sleep(check_interval)
 
         return False

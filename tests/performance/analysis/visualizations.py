@@ -480,11 +480,21 @@ class ChartGenerator:
                     annotation_text=f"Stopped: {trigger.get('container', 'unknown')}",
                 )
 
+            # Dynamic y-axis for CPU (can exceed 100% on multi-core), fixed for memory
+            all_trace_values: list[float] = []
+            for trace in fig.data:
+                if hasattr(trace, "y") and trace.y is not None:
+                    all_trace_values.extend(v for v in trace.y if isinstance(v, (int, float)))
+            if metric == "cpu" and all_trace_values:
+                timeline_y_max = max(100.0, max(all_trace_values) * 1.15, threshold * 1.1)
+            else:
+                timeline_y_max = max(100.0, threshold * 1.1)
+
             fig.update_layout(
                 title=f"Stress Test {metric.title()} Timeline (Total Agents: {total_agents})",
                 xaxis_title="Time (seconds)",
                 yaxis_title=y_label,
-                yaxis_range=[0, max(100, threshold * 1.1)],
+                yaxis_range=[0, timeline_y_max],
             )
 
             html_path = self.charts_dir / f"stress_timeline_{metric}.html"
@@ -525,7 +535,7 @@ class ChartGenerator:
             ax.set_xlabel("Time (seconds)")
             ax.set_ylabel(y_label)
             ax.set_title(f"Stress Test {metric.title()} Timeline (Total Agents: {total_agents})")
-            ax.set_ylim(0, max(100, threshold * 1.1))
+            ax.set_ylim(0, timeline_y_max)
             ax.legend(loc="upper left", fontsize="small")
             ax.grid(alpha=0.3)
 
@@ -612,11 +622,17 @@ class ChartGenerator:
                 ]
             )
 
+            # Dynamic y-axis for CPU (can exceed 100% on multi-core), fixed for memory
+            if metric == "cpu" and values:
+                y_max = max(100.0, max(values) * 1.15)
+            else:
+                y_max = 100.0
+
             fig.update_layout(
                 title=f"Stress Test Peak {metric.title()} Usage (Total Agents: {total_agents})",
                 xaxis_title="Container",
                 yaxis_title=y_label,
-                yaxis_range=[0, 100],
+                yaxis_range=[0, y_max],
             )
 
             html_path = self.charts_dir / f"stress_comparison_{metric}.html"
@@ -644,7 +660,7 @@ class ChartGenerator:
             ax.set_title(f"Stress Test Peak {metric.title()} Usage (Total Agents: {total_agents})")
             ax.set_xticks(x_pos)
             ax.set_xticklabels(display_names, rotation=45, ha="right", fontsize=9)
-            ax.set_ylim(0, 100)
+            ax.set_ylim(0, y_max)
             ax.grid(axis="y", alpha=0.3)
 
             # Add legend for color meaning
@@ -675,6 +691,7 @@ class ChartGenerator:
             "overview": self.charts_dir / "overview",
             "duration": self.charts_dir / "duration",
             "stress": self.charts_dir / "stress",
+            "speed_scaling": self.charts_dir / "speed_scaling",
         }
 
         for subdir in subdirs.values():
@@ -725,6 +742,16 @@ class ChartGenerator:
             self.charts_dir = subdirs["stress"]
             chart_paths["stress"].extend(self.generate_stress_timeline(stress_scenarios[0]))
             chart_paths["stress"].extend(self.generate_stress_comparison(stress_scenarios[0]))
+            self.charts_dir = original_dir
+
+        # Speed scaling charts
+        speed_scenarios = [s for s in scenarios if s["scenario_name"] == "speed_scaling"]
+        if speed_scenarios:
+            original_dir = self.charts_dir
+            self.charts_dir = subdirs["speed_scaling"]
+            chart_paths["speed_scaling"].extend(
+                self.generate_speed_scaling_chart(speed_scenarios[0])
+            )
             self.charts_dir = original_dir
 
         # Generate index page
@@ -802,6 +829,7 @@ class ChartGenerator:
             "overview": "Overview",
             "duration": "Duration/Leak Tests",
             "stress": "Stress Tests",
+            "speed_scaling": "Speed Scaling Tests",
         }
 
         for section_key, section_title in section_titles.items():
@@ -851,3 +879,126 @@ class ChartGenerator:
             f.write(html_content)
 
         return index_path
+
+    def generate_speed_scaling_chart(self, speed_scenario: dict[str, Any]) -> list[str]:
+        """Generate grouped bar chart of mean CPU and memory per step per priority container.
+
+        Args:
+            speed_scenario: Speed scaling scenario result.
+
+        Returns:
+            List of generated file paths.
+        """
+        metadata = speed_scenario.get("metadata", {})
+        step_results = metadata.get("step_results", [])
+        samples = speed_scenario.get("samples", [])
+
+        if not step_results or not samples:
+            return []
+
+        priority = [
+            "rideshare-simulation",
+            "rideshare-kafka",
+            "rideshare-redis",
+            "rideshare-osrm",
+            "rideshare-stream-processor",
+        ]
+
+        # Build per-step, per-container averages from samples
+        # We need to partition samples by step using step_results sample counts
+        step_data: list[dict[str, dict[str, float]]] = []
+        sample_offset = 0
+
+        for step in step_results:
+            step_sample_count = step.get("sample_count", 0)
+            step_samples = samples[sample_offset : sample_offset + step_sample_count]
+            sample_offset += step_sample_count
+
+            container_avgs: dict[str, dict[str, float]] = {}
+            for container in priority:
+                cpu_vals: list[float] = []
+                mem_vals: list[float] = []
+
+                for s in step_samples:
+                    c_data = s.get("containers", {}).get(container, {})
+                    if c_data:
+                        cpu_vals.append(c_data.get("cpu_percent", 0.0))
+                        mem_vals.append(c_data.get("memory_percent", 0.0))
+
+                if cpu_vals:
+                    container_avgs[container] = {
+                        "cpu_mean": sum(cpu_vals) / len(cpu_vals),
+                        "memory_mean": sum(mem_vals) / len(mem_vals),
+                    }
+
+            step_data.append(container_avgs)
+
+        if not step_data:
+            return []
+
+        generated: list[str] = []
+        step_labels = [f"{s['multiplier']}x" for s in step_results]
+
+        for metric in ["cpu", "memory"]:
+            metric_key = f"{metric}_mean"
+            y_label = "CPU %" if metric == "cpu" else "Memory %"
+
+            # Plotly grouped bar chart
+            fig = go.Figure()
+
+            for container in priority:
+                display_name = CONTAINER_CONFIG.get(container, {}).get("display_name", container)
+                values = [sd.get(container, {}).get(metric_key, 0.0) for sd in step_data]
+                fig.add_trace(go.Bar(name=display_name, x=step_labels, y=values))
+
+            # Dynamic y-axis for CPU
+            all_vals = [sd.get(c, {}).get(metric_key, 0.0) for sd in step_data for c in priority]
+            if metric == "cpu" and all_vals:
+                chart_y_max = max(100.0, max(all_vals) * 1.15)
+            else:
+                chart_y_max = 100.0
+
+            fig.update_layout(
+                title=f"Speed Scaling: Mean {metric.title()} Per Step",
+                xaxis_title="Speed Multiplier",
+                yaxis_title=y_label,
+                yaxis_range=[0, chart_y_max],
+                barmode="group",
+            )
+
+            html_path = self.charts_dir / f"speed_scaling_{metric}.html"
+            fig.write_html(str(html_path))
+
+            # Matplotlib version
+            fig_mpl, ax = plt.subplots(figsize=(12, 6))
+
+            x = np.arange(len(step_labels))
+            width = 0.15
+            offset = -(len(priority) - 1) * width / 2
+
+            for i, container in enumerate(priority):
+                display_name = CONTAINER_CONFIG.get(container, {}).get("display_name", container)
+                values = [sd.get(container, {}).get(metric_key, 0.0) for sd in step_data]
+                ax.bar(
+                    x + offset + i * width,
+                    values,
+                    width,
+                    label=display_name,
+                )
+
+            ax.set_xlabel("Speed Multiplier")
+            ax.set_ylabel(y_label)
+            ax.set_title(f"Speed Scaling: Mean {metric.title()} Per Step")
+            ax.set_xticks(x)
+            ax.set_xticklabels(step_labels)
+            ax.set_ylim(0, chart_y_max)
+            ax.legend(fontsize="small")
+            ax.grid(axis="y", alpha=0.3)
+
+            png_path = self.charts_dir / f"speed_scaling_{metric}.png"
+            fig_mpl.savefig(png_path, dpi=150, bbox_inches="tight")
+            plt.close(fig_mpl)
+
+            generated.extend([str(html_path), str(png_path)])
+
+        return generated

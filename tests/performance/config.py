@@ -19,9 +19,7 @@ class DockerConfig:
 
     cadvisor_url: str = "http://localhost:8083"
     compose_file: str = "infrastructure/docker/compose.yml"
-    profiles: list[str] = field(
-        default_factory=lambda: ["core", "data-pipeline", "monitoring", "analytics"]
-    )
+    profiles: list[str] = field(default_factory=lambda: ["core", "data-pipeline", "monitoring"])
 
 
 @dataclass
@@ -29,6 +27,8 @@ class SamplingConfig:
     """Configuration for metric sampling."""
 
     interval_seconds: float = 2.0
+    drain_interval_seconds: float = 4.0
+    cooldown_interval_seconds: float = 8.0
     warmup_seconds: float = 10.0
     settle_seconds: float = 5.0
     min_samples: int = 10
@@ -38,9 +38,10 @@ class SamplingConfig:
 class ScenarioConfig:
     """Configuration for test scenarios."""
 
-    # Duration/leak test settings (single continuous run with checkpoints)
-    duration_total_minutes: int = 8
-    duration_checkpoints: list[int] = field(default_factory=lambda: [1, 2, 4, 8])
+    # Duration/leak test settings (3-phase: active → drain → cooldown)
+    duration_active_minutes: int = 5
+    duration_cooldown_minutes: int = 10
+    duration_drain_timeout_seconds: int = 600
 
     # Baseline test settings
     baseline_duration_seconds: int = 30
@@ -52,6 +53,10 @@ class ScenarioConfig:
     stress_spawn_batch_size: int = 10
     stress_spawn_interval_seconds: float = 3.0
     stress_max_duration_minutes: int = 30
+
+    # Speed scaling test settings
+    speed_scaling_step_duration_minutes: int = 8
+    speed_scaling_max_multiplier: int = 1024
 
 
 @dataclass
@@ -95,6 +100,11 @@ class ThresholdConfig:
         """Get CPU critical threshold for container."""
         overrides = self.container_overrides.get(container, {})
         return overrides.get("cpu_critical_percent", self.cpu_critical_percent)
+
+    def get_stress_cpu_threshold(self, container: str, base_threshold: float) -> float:
+        """Effective stress CPU threshold = base_threshold * effective_cores."""
+        cores = get_cpu_cores_for_container(container)
+        return base_threshold * cores
 
 
 @dataclass
@@ -163,6 +173,25 @@ CONTAINER_CONFIG: dict[str, dict[str, str]] = {
     "rideshare-redis-superset": {"display_name": "Redis (Superset)", "profile": "analytics"},
     "rideshare-superset": {"display_name": "Superset", "profile": "analytics"},
 }
+
+# Effective CPU parallelism per container (accounts for Docker limits AND threading model)
+CONTAINER_CPU_CORES: dict[str, float] = {
+    "rideshare-simulation": 1.0,  # Python GIL — single-threaded despite 2.0 Docker cores
+    "rideshare-kafka": 1.5,  # Docker limit, JVM multi-threaded
+    "rideshare-schema-registry": 0.5,  # Docker limit
+    "rideshare-stream-processor": 1.0,  # Docker limit, Python
+    "rideshare-bronze-ingestion": 0.5,  # Docker limit
+    "rideshare-airflow-webserver": 1.0,  # Docker limit
+    "rideshare-airflow-scheduler": 1.5,  # Docker limit
+    "rideshare-trino": 2.0,  # Docker limit, JVM multi-threaded
+    "rideshare-spark-thrift-server": 2.0,  # Docker limit, JVM multi-threaded
+}
+# Unlisted containers default to 1.0 core
+
+
+def get_cpu_cores_for_container(container: str) -> float:
+    """Get effective CPU core count for a container."""
+    return CONTAINER_CPU_CORES.get(container, 1.0)
 
 
 def get_containers_for_profiles(profiles: list[str]) -> list[str]:

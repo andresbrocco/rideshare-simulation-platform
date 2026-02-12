@@ -1,5 +1,6 @@
-"""Duration/leak detection scenario: measure memory over extended time."""
+"""Duration/leak detection scenario: 3-phase lifecycle observation."""
 
+import time
 from typing import Any, Iterator
 
 from rich.console import Console
@@ -10,22 +11,26 @@ console = Console()
 
 
 class DurationLeakScenario(BaseScenario):
-    """Duration test for memory leak detection.
+    """Duration test for memory leak detection with 3 explicit phases.
 
-    Runs with a fixed number of agents for an extended period (default 8 minutes)
-    with checkpoints at 1, 2, 4, 8 minutes to detect memory leaks.
-    Slope > 1 MB/min flagged as potential leak.
+    Runs with a fixed number of agents through an active → drain → cooldown
+    lifecycle to observe resource behavior during normal operation and
+    after shutdown.
+
+    Phases:
+        1. Active (5 min, 2s sampling) - Agents running, trips cycling
+        2. Drain (variable, 4s sampling) - pause() called, wait for PAUSED
+        3. Cooldown (10 min, 8s sampling) - System idle, observe resource release
 
     Protocol:
     1. Step 0: Clean environment (down -v, up -d, wait healthy)
     2. Start simulation
-    3. Queue 40 drivers (mode=immediate)
-    4. Queue 40 riders (mode=immediate)
-    5. Wait for steady state
-    6. Sample every 2s for full duration
-    7. Record checkpoint snapshots at 1, 2, 4, 8 minutes
-    8. Calculate memory trend (slope) overall and per-checkpoint
-    9. Flag leak if any checkpoint slope > 1 MB/min
+    3. Queue N drivers + N riders (mode=immediate)
+    4. Wait for spawn complete, settle
+    5. Phase 1: Active sampling
+    6. Phase 2: Pause and drain
+    7. Phase 3: Cooldown observation
+    8. Analyze per-phase slopes and cooldown memory delta
     """
 
     def __init__(self, agent_count: int, *args: Any, **kwargs: Any) -> None:
@@ -45,11 +50,12 @@ class DurationLeakScenario(BaseScenario):
                 f"agent_count must be at least 2, got {agent_count} "
                 "(derived from stress test drivers_queued // 2)"
             )
-        self.duration_minutes = self.config.scenarios.duration_total_minutes
-        self.checkpoints = self.config.scenarios.duration_checkpoints
+        self.active_minutes = self.config.scenarios.duration_active_minutes
+        self.cooldown_minutes = self.config.scenarios.duration_cooldown_minutes
+        self.drain_timeout = self.config.scenarios.duration_drain_timeout_seconds
         self.agent_count = agent_count
-        # Per-checkpoint data: {checkpoint_min: {container: {memory_slope, cpu_slope, ...}}}
-        self._checkpoint_data: dict[int, dict[str, dict[str, Any]]] = {}
+        self._phase_timestamps: dict[str, float] = {}
+        self._phase_sample_counts: dict[str, int] = {}
 
     @property
     def name(self) -> str:
@@ -58,23 +64,23 @@ class DurationLeakScenario(BaseScenario):
     @property
     def description(self) -> str:
         return (
-            f"Memory leak detection with {self.agent_count} agents (derived from stress test) "
-            f"for {self.duration_minutes} minutes (checkpoints: {self.checkpoints})"
+            f"Memory leak detection with {self.agent_count} agents: "
+            f"{self.active_minutes}m active + drain + {self.cooldown_minutes}m cooldown"
         )
 
     @property
     def params(self) -> dict[str, Any]:
         return {
-            "duration_minutes": self.duration_minutes,
-            "duration_seconds": self.duration_minutes * 60,
-            "checkpoints": self.checkpoints,
+            "active_minutes": self.active_minutes,
+            "cooldown_minutes": self.cooldown_minutes,
+            "drain_timeout_seconds": self.drain_timeout,
             "drivers": self.agent_count,
             "riders": self.agent_count,
             "agent_count_source": "stress_test_drivers_queued_half",
         }
 
     def execute(self) -> Iterator[dict[str, Any]]:
-        """Execute duration/leak test."""
+        """Execute 3-phase duration/leak test."""
         # Start simulation
         console.print("[cyan]Starting simulation...[/cyan]")
         try:
@@ -83,14 +89,22 @@ class DurationLeakScenario(BaseScenario):
             console.print(f"[yellow]Start response: {e}[/yellow]")
         yield {"phase": "simulation_started"}
 
-        # Queue drivers
+        # Queue drivers (API limits to 100 per request, so batch if needed)
         console.print(f"[cyan]Queuing {self.agent_count} drivers (mode=immediate)...[/cyan]")
-        self.api_client.queue_drivers(self.agent_count)
+        remaining_drivers = self.agent_count
+        while remaining_drivers > 0:
+            batch = min(remaining_drivers, 100)
+            self.api_client.queue_drivers(batch)
+            remaining_drivers -= batch
         yield {"phase": "drivers_queued"}
 
-        # Queue riders
+        # Queue riders (API limits to 2000 per request, so batch if needed)
         console.print(f"[cyan]Queuing {self.agent_count} riders (mode=immediate)...[/cyan]")
-        self.api_client.queue_riders(self.agent_count)
+        remaining_riders = self.agent_count
+        while remaining_riders > 0:
+            batch = min(remaining_riders, 2000)
+            self.api_client.queue_riders(batch)
+            remaining_riders -= batch
         yield {"phase": "riders_queued"}
 
         # Wait for spawn queues to empty
@@ -111,20 +125,70 @@ class DurationLeakScenario(BaseScenario):
         self._wait_for_steady_state(self.config.sampling.settle_seconds)
         yield {"phase": "settle_complete"}
 
-        # Collect samples for extended duration
-        duration_seconds = self.duration_minutes * 60
+        # ── Phase 1: ACTIVE ──
+        active_seconds = self.active_minutes * 60
+        active_interval = self.config.sampling.interval_seconds
         console.print(
-            f"[cyan]Collecting samples for {self.duration_minutes} minutes "
-            f"({duration_seconds}s) with checkpoints at {self.checkpoints} min...[/cyan]"
+            f"[bold cyan]Phase 1/3: ACTIVE ({self.active_minutes}m, "
+            f"{active_interval}s sampling)[/bold cyan]"
         )
-        samples = self._collect_samples(duration_seconds)
-        yield {"phase": "sampling_complete", "sample_count": len(samples)}
+        self._phase_timestamps["active_start"] = time.time()
+        active_samples = self._collect_samples(active_seconds, active_interval)
+        self._phase_timestamps["active_end"] = time.time()
+        self._phase_sample_counts["active"] = len(active_samples)
+        yield {"phase": "active_complete", "sample_count": len(active_samples)}
 
-        # Process checkpoints from collected samples
-        self._process_checkpoints()
+        if self._aborted:
+            self._store_metadata()
+            return
 
-        # Analyze trends for all containers (memory and CPU)
-        self._analyze_trends()
+        # ── Phase 2: DRAIN ──
+        drain_interval = self.config.sampling.drain_interval_seconds
+        console.print(
+            f"[bold cyan]Phase 2/3: DRAIN (timeout {self.drain_timeout}s, "
+            f"{drain_interval}s sampling)[/bold cyan]"
+        )
+        console.print("[cyan]Calling pause()...[/cyan]")
+        try:
+            self.api_client.pause()
+        except Exception as e:
+            console.print(f"[yellow]Pause response: {e}[/yellow]")
+
+        self._phase_timestamps["drain_start"] = time.time()
+        drain_samples = self._collect_samples_until_state(
+            target_state="paused",
+            timeout=float(self.drain_timeout),
+            interval=drain_interval,
+        )
+        self._phase_timestamps["drain_end"] = time.time()
+        self._phase_sample_counts["drain"] = len(drain_samples)
+        drain_duration = self._phase_timestamps["drain_end"] - self._phase_timestamps["drain_start"]
+        console.print(
+            f"[green]Drain completed in {drain_duration:.1f}s "
+            f"({len(drain_samples)} samples)[/green]"
+        )
+        yield {"phase": "drain_complete", "sample_count": len(drain_samples)}
+
+        if self._aborted:
+            self._store_metadata()
+            return
+
+        # ── Phase 3: COOLDOWN ──
+        cooldown_seconds = self.cooldown_minutes * 60
+        cooldown_interval = self.config.sampling.cooldown_interval_seconds
+        console.print(
+            f"[bold cyan]Phase 3/3: COOLDOWN ({self.cooldown_minutes}m, "
+            f"{cooldown_interval}s sampling)[/bold cyan]"
+        )
+        self._phase_timestamps["cooldown_start"] = time.time()
+        cooldown_samples = self._collect_samples(cooldown_seconds, cooldown_interval)
+        self._phase_timestamps["cooldown_end"] = time.time()
+        self._phase_sample_counts["cooldown"] = len(cooldown_samples)
+        yield {"phase": "cooldown_complete", "sample_count": len(cooldown_samples)}
+
+        # Analyze phases
+        self._analyze_phases()
+        self._analyze_cooldown()
 
         # Stop simulation
         console.print("[cyan]Stopping simulation...[/cyan]")
@@ -134,135 +198,118 @@ class DurationLeakScenario(BaseScenario):
             console.print(f"[yellow]Stop response: {e}[/yellow]")
         yield {"phase": "simulation_stopped"}
 
+        self._store_metadata()
+
+        total_samples = (
+            self._phase_sample_counts.get("active", 0)
+            + self._phase_sample_counts.get("drain", 0)
+            + self._phase_sample_counts.get("cooldown", 0)
+        )
         console.print(
-            f"[green]Duration test ({self.duration_minutes}m) complete: "
-            f"{len(samples)} samples collected, {len(self._checkpoint_data)} checkpoints[/green]"
+            f"[green]Duration test ({self.active_minutes}m+drain+{self.cooldown_minutes}m) "
+            f"complete: {total_samples} samples collected[/green]"
         )
 
-    def _process_checkpoints(self) -> None:
-        """Process samples to extract checkpoint data for all containers."""
-        if len(self._samples) < 2:
-            console.print("[yellow]Insufficient samples for checkpoint processing[/yellow]")
-            return
+    def _collect_samples_until_state(
+        self, target_state: str, timeout: float, interval: float
+    ) -> list[dict[str, Any]]:
+        """Collect samples until simulation reaches target state or timeout.
 
-        # Get first timestamp as reference
-        first_ts = self._samples[0]["timestamp"]
+        Args:
+            target_state: State to wait for (e.g., "paused").
+            timeout: Maximum wall-clock seconds to wait.
+            interval: Seconds between samples.
 
-        # Find all containers
-        all_containers: set[str] = set()
-        for sample in self._samples:
-            all_containers.update(sample.get("containers", {}).keys())
+        Returns:
+            List of samples collected during the drain phase.
+        """
+        samples: list[dict[str, Any]] = []
+        start_time = time.time()
+        sample_count = 0
 
-        for checkpoint_min in self.checkpoints:
-            checkpoint_seconds = checkpoint_min * 60
+        while time.time() - start_time < timeout:
+            if self._aborted:
+                console.print("[red]Drain aborted due to OOM[/red]")
+                break
 
-            # Find samples belonging to this checkpoint
-            # Checkpoint N covers samples from previous checkpoint to N minutes
-            prev_checkpoint = 0
-            for i, cp in enumerate(self.checkpoints):
-                if cp == checkpoint_min and i > 0:
-                    prev_checkpoint = self.checkpoints[i - 1]
+            sample = self._collect_sample()
+            samples.append(sample)
+            sample_count += 1
+
+            elapsed = time.time() - start_time
+            console.print(
+                f"[dim]Drain sample {sample_count}: elapsed={elapsed:.1f}s[/dim]",
+                end="\r",
+            )
+
+            # Check if simulation reached target state
+            try:
+                status = self.api_client.get_simulation_status()
+                if status.state.lower() == target_state.lower():
+                    console.print(f"\n[green]Simulation reached '{target_state}' state[/green]")
                     break
+            except Exception:
+                pass
 
-            prev_seconds = prev_checkpoint * 60
-            start_idx = None
-            end_idx = None
+            # Sleep until next sample time
+            next_sample_time = start_time + (sample_count * interval)
+            sleep_time = next_sample_time - time.time()
+            if sleep_time > 0:
+                time.sleep(sleep_time)
 
-            for i, sample in enumerate(self._samples):
-                elapsed = sample["timestamp"] - first_ts
-                if elapsed >= prev_seconds and start_idx is None:
-                    start_idx = i
-                if elapsed <= checkpoint_seconds:
-                    end_idx = i
+        else:
+            console.print(
+                f"\n[yellow]Drain timeout reached ({timeout}s) "
+                f"without reaching '{target_state}' state[/yellow]"
+            )
 
-            if start_idx is None or end_idx is None or start_idx > end_idx:
-                continue
+        console.print()  # Clear the progress line
+        return samples
 
-            checkpoint_samples = self._samples[start_idx : end_idx + 1]
-            self._checkpoint_data[checkpoint_min] = {}
+    def _get_phase_samples(self, phase: str) -> list[dict[str, Any]]:
+        """Get samples belonging to a specific phase by sample count boundaries.
 
-            # Process each container
-            for container in all_containers:
-                memory_values: list[tuple[float, float]] = []
-                cpu_values: list[tuple[float, float]] = []
+        Args:
+            phase: Phase name ("active", "drain", or "cooldown").
 
-                for sample in checkpoint_samples:
-                    containers = sample.get("containers", {})
-                    if container in containers:
-                        ts = sample["timestamp"]
-                        mem = containers[container]["memory_used_mb"]
-                        cpu = containers[container]["cpu_percent"]
-                        memory_values.append((ts, mem))
-                        cpu_values.append((ts, cpu))
+        Returns:
+            Slice of self._samples for the given phase.
+        """
+        active_count = self._phase_sample_counts.get("active", 0)
+        drain_count = self._phase_sample_counts.get("drain", 0)
 
-                if len(memory_values) < 2:
-                    continue
+        if phase == "active":
+            return self._samples[:active_count]
+        elif phase == "drain":
+            return self._samples[active_count : active_count + drain_count]
+        elif phase == "cooldown":
+            return self._samples[active_count + drain_count :]
+        return []
 
-                # Calculate slopes for this checkpoint segment
-                seg_first_ts = memory_values[0][0]
-                seg_last_ts = memory_values[-1][0]
-                seg_duration_min = (seg_last_ts - seg_first_ts) / 60
+    def _compute_slopes(self, samples: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
+        """Compute memory and CPU slopes per container from a set of samples.
 
-                # Memory slope
-                seg_first_mem = memory_values[0][1]
-                seg_last_mem = memory_values[-1][1]
-                memory_slope = 0.0
-                if seg_duration_min > 0:
-                    memory_slope = (seg_last_mem - seg_first_mem) / seg_duration_min
+        Args:
+            samples: List of sample dicts.
 
-                # CPU slope
-                seg_first_cpu = cpu_values[0][1]
-                seg_last_cpu = cpu_values[-1][1]
-                cpu_slope = 0.0
-                if seg_duration_min > 0:
-                    cpu_slope = (seg_last_cpu - seg_first_cpu) / seg_duration_min
-
-                # Calculate averages
-                avg_memory = sum(m for _, m in memory_values) / len(memory_values)
-                avg_cpu = sum(c for _, c in cpu_values) / len(cpu_values)
-
-                self._checkpoint_data[checkpoint_min][container] = {
-                    "sample_indices": [start_idx, end_idx],
-                    "sample_count": len(checkpoint_samples),
-                    "memory_mb": round(seg_last_mem, 2),
-                    "memory_avg_mb": round(avg_memory, 2),
-                    "memory_slope_mb_per_min": round(memory_slope, 3),
-                    "cpu_percent": round(seg_last_cpu, 2),
-                    "cpu_avg_percent": round(avg_cpu, 2),
-                    "cpu_slope_percent_per_min": round(cpu_slope, 3),
-                }
-
-            # Log simulation container for backward compat
-            sim_data = self._checkpoint_data[checkpoint_min].get("rideshare-simulation", {})
-            if sim_data:
-                console.print(
-                    f"[dim]Checkpoint {checkpoint_min}m (simulation): "
-                    f"{sim_data.get('memory_mb', 0):.1f} MB, "
-                    f"slope={sim_data.get('memory_slope_mb_per_min', 0):.3f} MB/min[/dim]"
-                )
-
-    def _analyze_trends(self) -> None:
-        """Analyze memory and CPU trends to detect potential leaks for all containers."""
-        if len(self._samples) < 2:
-            console.print("[yellow]Insufficient samples for trend analysis[/yellow]")
-            return
-
-        # Get thresholds from config
-        memory_threshold = self.config.analysis.leak_threshold_mb_per_min
-        cpu_threshold = self.config.analysis.cpu_leak_threshold_per_min
+        Returns:
+            Dict mapping container -> {"memory_slope_mb_per_min", "cpu_slope_percent_per_min"}.
+        """
+        if len(samples) < 2:
+            return {}
 
         # Find all containers
         all_containers: set[str] = set()
-        for sample in self._samples:
+        for sample in samples:
             all_containers.update(sample.get("containers", {}).keys())
 
-        leak_analysis: dict[str, dict[str, Any]] = {}
+        slopes: dict[str, dict[str, float]] = {}
 
         for container in all_containers:
             memory_values: list[tuple[float, float]] = []
             cpu_values: list[tuple[float, float]] = []
 
-            for sample in self._samples:
+            for sample in samples:
                 containers = sample.get("containers", {})
                 if container in containers:
                     ts = sample["timestamp"]
@@ -274,44 +321,47 @@ class DurationLeakScenario(BaseScenario):
             if len(memory_values) < 2:
                 continue
 
-            # Calculate overall slopes
             first_ts = memory_values[0][0]
             last_ts = memory_values[-1][0]
-            duration_minutes = (last_ts - first_ts) / 60
+            duration_min = (last_ts - first_ts) / 60
 
-            # Memory slope
-            first_mem = memory_values[0][1]
-            last_mem = memory_values[-1][1]
             memory_slope = 0.0
-            if duration_minutes > 0:
-                memory_slope = (last_mem - first_mem) / duration_minutes
-
-            # CPU slope
-            first_cpu = cpu_values[0][1]
-            last_cpu = cpu_values[-1][1]
             cpu_slope = 0.0
-            if duration_minutes > 0:
-                cpu_slope = (last_cpu - first_cpu) / duration_minutes
+            if duration_min > 0:
+                memory_slope = (memory_values[-1][1] - memory_values[0][1]) / duration_min
+                cpu_slope = (cpu_values[-1][1] - cpu_values[0][1]) / duration_min
 
-            # Check checkpoint-to-checkpoint slopes for leaks
-            memory_leak_detected = False
-            cpu_leak_detected = False
-
-            for checkpoint_min, containers_data in sorted(self._checkpoint_data.items()):
-                if container in containers_data:
-                    checkpoint_data = containers_data[container]
-                    if checkpoint_data.get("memory_slope_mb_per_min", 0) > memory_threshold:
-                        memory_leak_detected = True
-                    if checkpoint_data.get("cpu_slope_percent_per_min", 0) > cpu_threshold:
-                        cpu_leak_detected = True
-
-            # Overall leak detection
-            has_memory_leak = memory_leak_detected or memory_slope > memory_threshold
-            has_cpu_leak = cpu_leak_detected or cpu_slope > cpu_threshold
-
-            leak_analysis[container] = {
+            slopes[container] = {
                 "memory_slope_mb_per_min": round(memory_slope, 3),
                 "cpu_slope_percent_per_min": round(cpu_slope, 3),
+            }
+
+        return slopes
+
+    def _analyze_phases(self) -> None:
+        """Analyze memory and CPU slopes per phase per container."""
+        memory_threshold = self.config.analysis.leak_threshold_mb_per_min
+        cpu_threshold = self.config.analysis.cpu_leak_threshold_per_min
+
+        phase_analysis: dict[str, dict[str, dict[str, float]]] = {}
+        leak_analysis: dict[str, dict[str, Any]] = {}
+
+        for phase in ("active", "drain", "cooldown"):
+            phase_samples = self._get_phase_samples(phase)
+            slopes = self._compute_slopes(phase_samples)
+            phase_analysis[phase] = slopes
+
+        # Build per-container leak summary from active phase
+        active_slopes: dict[str, dict[str, float]] = phase_analysis.get("active", {})
+        for container, container_slopes in active_slopes.items():
+            mem_slope = container_slopes["memory_slope_mb_per_min"]
+            cpu_slope = container_slopes["cpu_slope_percent_per_min"]
+            has_memory_leak = mem_slope > memory_threshold
+            has_cpu_leak = cpu_slope > cpu_threshold
+
+            leak_analysis[container] = {
+                "memory_slope_mb_per_min": mem_slope,
+                "cpu_slope_percent_per_min": cpu_slope,
                 "memory_leak_detected": has_memory_leak,
                 "cpu_leak_detected": has_cpu_leak,
             }
@@ -327,19 +377,88 @@ class DurationLeakScenario(BaseScenario):
             if analysis["memory_leak_detected"]:
                 console.print(
                     f"[red bold]MEMORY LEAK: {display} "
-                    f"{analysis['memory_slope_mb_per_min']:.2f} MB/min[/red bold]"
+                    f"{analysis['memory_slope_mb_per_min']:.2f} MB/min (active phase)[/red bold]"
                 )
             elif analysis["cpu_leak_detected"]:
                 console.print(
                     f"[yellow]CPU LEAK: {display} "
-                    f"{analysis['cpu_slope_percent_per_min']:.2f} %/min[/yellow]"
+                    f"{analysis['cpu_slope_percent_per_min']:.2f} %/min (active phase)[/yellow]"
                 )
             else:
                 console.print(
-                    f"[green]{display} stable: mem={analysis['memory_slope_mb_per_min']:.2f} MB/min, "
+                    f"[green]{display} stable: "
+                    f"mem={analysis['memory_slope_mb_per_min']:.2f} MB/min, "
                     f"cpu={analysis['cpu_slope_percent_per_min']:.2f} %/min[/green]"
                 )
 
-        # Store in metadata
-        self._metadata["checkpoints"] = self._checkpoint_data
+        self._metadata["phase_analysis"] = phase_analysis
         self._metadata["leak_analysis"] = leak_analysis
+
+    def _analyze_cooldown(self) -> None:
+        """Compare per-container memory at cooldown end vs active end (drain start)."""
+        active_samples = self._get_phase_samples("active")
+        cooldown_samples = self._get_phase_samples("cooldown")
+
+        if not active_samples or not cooldown_samples:
+            console.print("[yellow]Insufficient data for cooldown analysis[/yellow]")
+            return
+
+        active_end_sample = active_samples[-1]
+        cooldown_end_sample = cooldown_samples[-1]
+
+        cooldown_analysis: dict[str, dict[str, float]] = {}
+
+        all_containers: set[str] = set()
+        all_containers.update(active_end_sample.get("containers", {}).keys())
+        all_containers.update(cooldown_end_sample.get("containers", {}).keys())
+
+        for container in all_containers:
+            active_data = active_end_sample.get("containers", {}).get(container, {})
+            cooldown_data = cooldown_end_sample.get("containers", {}).get(container, {})
+
+            active_mem = active_data.get("memory_used_mb", 0.0)
+            cooldown_mem = cooldown_data.get("memory_used_mb", 0.0)
+
+            if active_mem > 0:
+                delta_mb = cooldown_mem - active_mem
+                delta_percent = (delta_mb / active_mem) * 100
+                released = delta_mb < 0
+
+                cooldown_analysis[container] = {
+                    "active_end_mb": round(active_mem, 2),
+                    "cooldown_end_mb": round(cooldown_mem, 2),
+                    "delta_mb": round(delta_mb, 2),
+                    "delta_percent": round(delta_percent, 2),
+                    "memory_released": released,
+                }
+
+        # Log cooldown results for priority containers
+        priority = self.config.analysis.priority_containers
+        for container in priority:
+            if container not in cooldown_analysis:
+                continue
+            data = cooldown_analysis[container]
+            display = container.replace("rideshare-", "")
+            delta = data["delta_mb"]
+
+            if data["memory_released"]:
+                console.print(
+                    f"[green]{display}: released {abs(delta):.1f} MB "
+                    f"({data['active_end_mb']:.1f} -> {data['cooldown_end_mb']:.1f} MB)[/green]"
+                )
+            else:
+                console.print(
+                    f"[yellow]{display}: retained +{delta:.1f} MB "
+                    f"({data['active_end_mb']:.1f} -> {data['cooldown_end_mb']:.1f} MB)[/yellow]"
+                )
+
+        self._metadata["cooldown_analysis"] = cooldown_analysis
+
+    def _store_metadata(self) -> None:
+        """Store phase timestamps and sample counts in metadata."""
+        self._metadata["phase_timestamps"] = self._phase_timestamps
+        self._metadata["phase_sample_counts"] = self._phase_sample_counts
+        if "drain_start" in self._phase_timestamps and "drain_end" in self._phase_timestamps:
+            self._metadata["drain_duration_seconds"] = round(
+                self._phase_timestamps["drain_end"] - self._phase_timestamps["drain_start"], 2
+            )

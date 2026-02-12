@@ -318,14 +318,18 @@ class StressTestScenario(BaseScenario):
     def _check_thresholds(self) -> ThresholdTrigger | None:
         """Check if any container's rolling average exceeds thresholds.
 
+        CPU thresholds are scaled per-container based on effective CPU cores
+        (e.g., a 1.5-core container has a threshold of 90% * 1.5 = 135%).
+
         Returns:
             ThresholdTrigger if threshold exceeded, None otherwise.
         """
-        cpu_threshold = self.config.scenarios.stress_cpu_threshold_percent
+        base_cpu_threshold = self.config.scenarios.stress_cpu_threshold_percent
         memory_threshold = self.config.scenarios.stress_memory_threshold_percent
+        thresholds = self.config.analysis.thresholds
 
         for container_name, stats in self._rolling_stats.items():
-            # Check memory threshold
+            # Check memory threshold (not scaled by cores)
             memory_avg = stats.memory_percent.average
             if memory_avg >= memory_threshold:
                 return ThresholdTrigger(
@@ -335,7 +339,8 @@ class StressTestScenario(BaseScenario):
                     threshold=memory_threshold,
                 )
 
-            # Check CPU threshold
+            # Check CPU threshold (scaled by effective cores)
+            cpu_threshold = thresholds.get_stress_cpu_threshold(container_name, base_cpu_threshold)
             cpu_avg = stats.cpu_percent.average
             if cpu_avg >= cpu_threshold:
                 return ThresholdTrigger(
