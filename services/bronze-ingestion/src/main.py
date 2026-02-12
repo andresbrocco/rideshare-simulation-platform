@@ -76,6 +76,9 @@ class IngestionService:
             base_path=config.delta_base_path, storage_options=config.get_storage_options()
         )
 
+        self._writer.initialize_tables(KafkaConsumer.TOPICS)
+        print(f"Initialized {len(KafkaConsumer.TOPICS)} bronze Delta tables")
+
         if config.dlq.enabled:
             self._dlq_writer = DLQWriter(
                 base_path=config.delta_base_path,

@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Any, Optional
 import pyarrow as pa
-from deltalake import write_deltalake
+from deltalake import DeltaTable, write_deltalake
 from confluent_kafka import Message
 
 
@@ -20,6 +20,26 @@ class DeltaWriter:
     def __init__(self, base_path: str, storage_options: Optional[dict[str, str]] = None):
         self.base_path = base_path
         self.storage_options = storage_options
+
+    def initialize_tables(self, topics: list[str]) -> None:
+        """Create empty Delta tables for all topics if they don't exist yet.
+
+        Ensures _delta_log/ metadata is present so downstream checks
+        (e.g. check_bronze_tables.py) see every table immediately,
+        even before Kafka messages arrive for that topic.
+        """
+        for topic in topics:
+            table_path = f"{self.base_path}/bronze_{topic}"
+            try:
+                DeltaTable.create(
+                    table_uri=table_path,
+                    schema=self.SCHEMA,
+                    mode="ignore",
+                    partition_by=["_ingestion_date"],
+                    storage_options=self.storage_options,
+                )
+            except Exception as e:
+                print(f"Warning: could not initialize table bronze_{topic}: {e}")
 
     def add_metadata(self, kafka_message: Message) -> dict[str, Any]:
         timestamp_type, timestamp_ms = kafka_message.timestamp()

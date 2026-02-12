@@ -20,6 +20,7 @@ EXPOSE 8080
 
 # Set Python path so "from src.module import ..." works
 ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
 
 # Health check using the HTTP health endpoint
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s \

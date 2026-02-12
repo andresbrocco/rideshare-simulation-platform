@@ -369,3 +369,70 @@ class TestBronzeSchemaCompatibility:
 
         finally:
             shutil.rmtree(temp_dir)
+
+
+class TestInitializeTables:
+    """Test: Empty Delta tables are created at startup for all topics."""
+
+    def test_creates_empty_delta_tables_for_all_topics(self):
+        from src.writer import DeltaWriter
+
+        temp_dir = tempfile.mkdtemp()
+        try:
+            writer = DeltaWriter(base_path=temp_dir)
+            topics = ["trips", "gps_pings", "surge_updates"]
+
+            writer.initialize_tables(topics)
+
+            for topic in topics:
+                table_path = f"{temp_dir}/bronze_{topic}"
+                assert DeltaTable.is_deltatable(table_path)
+                dt = DeltaTable(table_path)
+                assert len(dt.file_uris()) == 0
+                assert "_ingestion_date" in dt.metadata().partition_columns
+        finally:
+            shutil.rmtree(temp_dir)
+
+    def test_idempotent_skips_existing_tables(self):
+        from src.writer import DeltaWriter
+
+        temp_dir = tempfile.mkdtemp()
+        try:
+            writer = DeltaWriter(base_path=temp_dir)
+            topics = ["trips"]
+
+            writer.initialize_tables(topics)
+            writer.initialize_tables(topics)
+
+            dt = DeltaTable(f"{temp_dir}/bronze_trips")
+            assert dt.version() == 0
+        finally:
+            shutil.rmtree(temp_dir)
+
+    def test_existing_data_not_affected(self):
+        from src.writer import DeltaWriter
+
+        temp_dir = tempfile.mkdtemp()
+        try:
+            writer = DeltaWriter(base_path=temp_dir)
+
+            messages = []
+            for i in range(3):
+                msg = Mock()
+                msg.partition = lambda: 0
+                msg.offset = lambda i=i: i
+                msg.timestamp = lambda: (1, 1705315800000)
+                msg.value = lambda i=i: f'{{"id": {i}}}'.encode()
+                msg.topic = lambda: "trips"
+                messages.append(msg)
+
+            writer.write_batch(messages, topic="trips")
+            files_before = len(DeltaTable(f"{temp_dir}/bronze_trips").file_uris())
+
+            writer.initialize_tables(["trips"])
+            files_after = len(DeltaTable(f"{temp_dir}/bronze_trips").file_uris())
+
+            assert files_before > 0
+            assert files_after == files_before
+        finally:
+            shutil.rmtree(temp_dir)
