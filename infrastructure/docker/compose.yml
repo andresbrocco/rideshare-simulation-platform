@@ -383,69 +383,8 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  # ============================================================================
-  # COMMENTED OUT: Spark Cluster Mode (migrated to local mode 2026-01-19)
-  # Each Spark service now runs in local mode within its container.
-  # Preserved for reference - uncomment to restore cluster mode if needed.
-  # ============================================================================
-  # spark-master:
-  #   build:
-  #     context: ../..
-  #     dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
-  #   container_name: rideshare-spark-master
-  #   mem_limit: 512m
-  #   profiles:
-  #     - data-platform
-  #   ports:
-  #     - "7077:7077"
-  #     - "4040:8080"
-  #   command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
-  #   environment:
-  #     - PYTHONPATH=/opt
-  #   volumes:
-  #     - ../../services/spark-streaming:/opt/spark_streaming:ro
-  #   networks:
-  #     - rideshare-network
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:8080"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 10
-  #     start_period: 30s
-  #
-  # spark-worker:
-  #   build:
-  #     context: ../..
-  #     dockerfile: infrastructure/docker/dockerfiles/spark-delta.Dockerfile
-  #   container_name: rideshare-spark-worker
-  #   mem_limit: 3g
-  #   profiles:
-  #     - data-platform
-  #   ports:
-  #     - "8081:8081"
-  #   command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker -m 2g -c 4 --webui-port 8081 spark://spark-master:7077
-  #   environment:
-  #     - PYTHONPATH=/opt
-  #   volumes:
-  #     - ../../services/spark-streaming:/opt/spark_streaming:ro
-  #   depends_on:
-  #     spark-master:
-  #       condition: service_healthy
-  #     minio:
-  #       condition: service_healthy
-  #   networks:
-  #     - rideshare-network
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:8081"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 10
-  #     start_period: 30s
-
   spark-thrift-server:
-    build:
-      context: ../..
-      dockerfile: services/spark-streaming/Dockerfile
+    image: apache/spark:4.0.0-python3
     container_name: rideshare-spark-thrift-server
     deploy:
       resources:
@@ -496,8 +435,6 @@ services:
       --hiveconf hive.server2.thrift.max.worker.threads=16
     environment:
       - PYTHONPATH=/opt
-    volumes:
-      - ../../services/spark-streaming:/opt/spark_streaming:ro
     depends_on:
       hive-metastore:
         condition: service_healthy

@@ -18,4 +18,4 @@ Retained configuration files for services that don't have their own Dockerfile. 
 
 ## Non-Obvious Details
 
-**Historical note**: This directory previously contained Dockerfiles for OSRM, MinIO, Spark+Delta, Tempo, and OTel Collector. These have been moved to `services/osrm/`, `services/minio/`, `services/spark-streaming/`, `services/tempo/`, and `services/otel-collector/` respectively.
+**Historical note**: This directory previously contained Dockerfiles for OSRM, MinIO, Spark+Delta, Tempo, and OTel Collector. These have been moved to `services/osrm/`, `services/minio/`, `services/tempo/`, and `services/otel-collector/` respectively. The Spark Streaming service has been replaced by `services/bronze-ingestion/`.

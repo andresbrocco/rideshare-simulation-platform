@@ -8,7 +8,7 @@ Docker Compose orchestration for the rideshare simulation platform.
 # Start core services (simulation, frontend, kafka, redis, osrm, stream-processor)
 docker compose -f infrastructure/docker/compose.yml --profile core up -d
 
-# Start data pipeline services (minio, spark, localstack, airflow)
+# Start data pipeline services (minio, bronze-ingestion, hive-metastore, trino, airflow, localstack)
 docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
 
 # Start monitoring services (prometheus, cadvisor, grafana)
@@ -29,7 +29,8 @@ docker compose -f infrastructure/docker/compose.yml --profile core down
 | Profile | Services | Use Case |
 |---------|----------|----------|
 | `core` | kafka, schema-registry, redis, osrm, simulation, stream-processor, frontend | Main simulation runtime |
-| `data-pipeline` | kafka, schema-registry, minio, spark-thrift-server, bronze-ingestion-high-volume, bronze-ingestion-low-volume, localstack, airflow | ETL and data engineering |
+| `data-pipeline` | kafka, schema-registry, minio, bronze-ingestion, hive-metastore, trino, localstack, airflow | ETL and data engineering |
+| `spark-testing` | spark-thrift-server | Optional dual-engine DBT validation |
 | `monitoring` | prometheus, cadvisor, grafana | Observability and metrics |
 
 ## Service Ports
@@ -52,11 +53,13 @@ docker compose -f infrastructure/docker/compose.yml --profile core down
 |---------|------|----------------|
 | MinIO Console | 9001 | http://localhost:9001 (minioadmin/minioadmin) |
 | MinIO API | 9000 | http://localhost:9000 |
-| Spark Thrift Server | 10000 | See [Connecting to Spark Thrift Server](#connecting-to-spark-thrift-server) |
-| Spark UI (Thrift) | 4041 | http://localhost:4041 |
+| Trino | 8084 | http://localhost:8084 |
+| Hive Metastore | 9083 | thrift://localhost:9083 |
 | Airflow | 8082 | http://localhost:8082 (admin/admin) |
 | LocalStack | 4566 | http://localhost:4566 |
 | Postgres (Airflow) | 5432 | localhost:5432 (airflow/airflow) |
+| Spark Thrift Server (spark-testing profile) | 10000 | See [Connecting to Spark Thrift Server](#connecting-to-spark-thrift-server) |
+| Spark UI (Thrift, spark-testing profile) | 4041 | http://localhost:4041 |
 
 ### Monitoring Profile
 
@@ -67,6 +70,8 @@ docker compose -f infrastructure/docker/compose.yml --profile core down
 | cAdvisor | 8083 | http://localhost:8083 |
 
 ## Connecting to Spark Thrift Server
+
+**Note:** Spark Thrift Server requires the `spark-testing` profile and is optional. It's used for dual-engine DBT validation alongside Trino.
 
 The Spark Thrift Server uses **NOSASL authentication** and **binary transport mode**. You must specify these in the connection string.
 
@@ -248,8 +253,8 @@ All services have explicit memory limits to prevent resource exhaustion:
 | OSRM | 1GB | Map data in memory |
 | Simulation | 1GB | |
 | Stream Processor | 256MB | |
-| Spark Thrift Server | 1GB | Driver memory 512MB |
-| Bronze Ingestion (each) | 768MB | Driver memory 512MB |
+| Bronze Ingestion | 256MB | Lightweight Python service |
+| Spark Thrift Server (spark-testing) | 1GB | Driver memory 512MB |
 | Airflow (each) | 384MB | |
 | Grafana | 192MB | |
 
@@ -297,18 +302,17 @@ docker exec rideshare-airflow-scheduler airflow dags reserialize
 docker compose -f infrastructure/docker/compose.yml --profile data-pipeline restart airflow-webserver
 ```
 
-### Spark Streaming Job Failures
+### Bronze Ingestion Failures
 
-Check streaming job logs:
+Check bronze ingestion logs:
 
 ```bash
-docker logs rideshare-bronze-ingestion-high-volume --tail 100
-docker logs rideshare-bronze-ingestion-low-volume --tail 100
+docker logs rideshare-bronze-ingestion --tail 100
 ```
 
 Common issues:
-- MinIO not ready: Jobs depend on MinIO healthcheck
-- Kafka not ready: Jobs depend on Kafka healthcheck
+- MinIO not ready: Service depends on MinIO healthcheck
+- Kafka not ready: Service depends on Kafka healthcheck
 - Checkpoint corruption: Remove checkpoints in MinIO and restart
 
 ### Clean Restart

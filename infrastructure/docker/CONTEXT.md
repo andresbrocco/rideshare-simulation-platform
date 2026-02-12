@@ -14,12 +14,12 @@ Defines the containerized orchestration for the entire ride-sharing simulation p
 
 **Profiles**: Services are organized into logical groups that can be started independently:
 - `core` - Simulation runtime (kafka, redis, osrm, simulation, stream-processor, frontend)
-- `data-pipeline` - Data engineering services (minio, spark-thrift-server, spark-streaming-* (2 jobs), localstack, airflow)
-  - Note: Consolidated from data-platform + quality-orchestration (2026-01-26)
+- `data-pipeline` - Data engineering services (minio, bronze-ingestion, hive-metastore, trino, airflow)
 - `monitoring` - Observability (cadvisor, prometheus, grafana)
+- `spark-testing` - Dual-engine DBT testing (spark-thrift-server)
 - `test` - Test-specific services (test-data-producer, test-runner)
 
-**Spark Local Mode**: All Spark services run in local mode (`--master local[N]`) within their containers. Commented-out cluster mode (spark-master, spark-worker) preserved for reference from 2026-01-19 migration.
+**Dual-Engine Architecture**: Local development uses DuckDB (dbt-duckdb) for transformations and Python + delta-rs for Bronze ingestion. The `spark-testing` profile provides a Spark Thrift Server for validating DBT model compatibility before cloud deployment.
 
 **Initialization Services**: One-shot containers that bootstrap infrastructure:
 - `kafka-init` - Creates topics with specified partitions
