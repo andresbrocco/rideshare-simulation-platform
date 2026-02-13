@@ -565,7 +565,7 @@ services:
   localstack:
     image: localstack/localstack:4.12.0
     container_name: rideshare-localstack
-    mem_limit: 128m
+    mem_limit: 256m
     profiles:
       - core
       - data-pipeline
