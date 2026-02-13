@@ -15,9 +15,8 @@ class SpeedScalingScenario(BaseScenario):
     """Speed scaling test: double speed multiplier each step until threshold hit.
 
     Each step resets the simulation, sets a new speed multiplier, spawns
-    a scaled-down number of agents, and collects metrics. The agent count
-    is inversely proportional to speed: faster simulation = fewer agents
-    needed to maintain comparable event throughput.
+    a fixed number of agents, and collects metrics. The agent count stays
+    constant across all steps to isolate the effect of speed on system load.
 
     Protocol:
     1. Step 0: Clean environment (down -v, up -d, wait healthy)
@@ -25,7 +24,7 @@ class SpeedScalingScenario(BaseScenario):
        a. Reset simulation
        b. Set speed multiplier
        c. Start simulation
-       d. Queue scaled agents (base_count // multiplier, min 1)
+       d. Queue agents (fixed count across all steps)
        e. Wait spawn, settle
        f. Collect samples for step duration
        g. Check thresholds
@@ -38,7 +37,7 @@ class SpeedScalingScenario(BaseScenario):
         """Initialize speed scaling scenario.
 
         Args:
-            agent_count: Base agent count (from stress test, will be scaled down per step).
+            agent_count: Fixed agent count used for every step (from stress test).
             *args: Positional arguments passed to BaseScenario.
             **kwargs: Keyword arguments passed to BaseScenario.
         """
@@ -62,16 +61,15 @@ class SpeedScalingScenario(BaseScenario):
         return (
             f"Speed scaling: double multiplier from 2x to {self.max_multiplier}x, "
             f"{self.step_duration_minutes}m per step, "
-            f"base agents={self.base_agent_count}"
+            f"{self.base_agent_count} agents (fixed)"
         )
 
     @property
     def params(self) -> dict[str, Any]:
         return {
-            "base_agent_count": self.base_agent_count,
+            "agent_count": self.base_agent_count,
             "step_duration_minutes": self.step_duration_minutes,
             "max_multiplier": self.max_multiplier,
-            "agent_count_source": "stress_test_drivers_queued_half",
         }
 
     def execute(self) -> Iterator[dict[str, Any]]:
@@ -85,7 +83,7 @@ class SpeedScalingScenario(BaseScenario):
                 break
 
             step_number += 1
-            agent_count = max(1, self.base_agent_count // multiplier)
+            agent_count = self.base_agent_count
 
             console.print(
                 f"\n[bold cyan]Speed Step {step_number}: "
