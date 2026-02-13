@@ -51,3 +51,5 @@ services/osrm/data/*.osm.pbf
 # Performance test results
 tests/performance/results/
 !tests/performance/results/.gitkeep
+
+HUMAN-CURATED-PREFERENCES.md

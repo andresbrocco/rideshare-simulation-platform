@@ -94,7 +94,7 @@ One row per completed trip:
 - **Filter**: Only includes trips with state='completed'
 
 **Business Rules**:
-- Distance calculated from coordinates (not yet implemented)
+- Distance is currently `cast(null as double)` — calculation from coordinates not yet implemented
 - Duration derived from state timestamps
 - Surge multiplier range validated (1.0 - 2.5)
 

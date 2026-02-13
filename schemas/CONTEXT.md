@@ -30,6 +30,7 @@ DLQ schema captures original payload as string to enable forensic analysis of ma
 
 ## Related Modules
 
-- **[services/simulation](../services/simulation/CONTEXT.md)** — Schema producer; simulation emits events conforming to Kafka JSON schemas
-- **[services/bronze-ingestion](../services/bronze-ingestion/CONTEXT.md)** — Schema consumer; Python ingestion consumer writes events to 8 Bronze Delta tables
-- **[config](../config/CONTEXT.md)** — Partition configuration companion; topic configs reference schema field names as partition keys
+- **[schemas/api](api/CONTEXT.md)** — Sibling schema module defining OpenAPI contract for REST API; both ensure type safety at system boundaries
+- **[schemas/lakehouse/schemas](lakehouse/schemas/CONTEXT.md)** — PySpark schema implementations that must stay aligned with Kafka schemas for Bronze ingestion
+- **[services/simulation/src/kafka](../services/simulation/src/kafka)** — Event producers that publish to topics defined by these schemas
+- **[services/bronze-ingestion](../services/bronze-ingestion/CONTEXT.md)** — Consumes events using PySpark schemas to write Bronze layer Delta tables

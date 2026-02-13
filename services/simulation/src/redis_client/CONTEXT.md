@@ -2,13 +2,13 @@
 
 ## Purpose
 
-Manages Redis integration for state snapshots and event filtering. State snapshots enable WebSocket clients to recover simulation state on reconnection without replaying the full simulation. The publishing layer has been **deprecated** in favor of the stream processor service consuming from Kafka.
+Manages Redis integration for state snapshots, event filtering, and pub/sub publishing. State snapshots enable WebSocket clients to recover simulation state on reconnection without replaying the full simulation. RedisPublisher provides direct Redis pub/sub publishing and is actively used alongside the stream processor service.
 
 ## Responsibility Boundaries
 
 - **Owns**: State snapshot storage and retrieval with TTL management, event filtering logic for visualization
 - **Delegates to**: Stream processor service (services/stream-processor/) for pub/sub publishing from Kafka
-- **Does not handle**: Direct event publishing to Redis pub/sub (now handled by stream processor)
+- **Does not handle**: Kafka event consumption (handled by stream processor)
 
 ## Key Concepts
 
@@ -18,12 +18,12 @@ Manages Redis integration for state snapshots and event filtering. State snapsho
 
 ## Non-Obvious Details
 
-The module contains a **deprecated RedisPublisher** class that was part of the old dual-publishing architecture. The simulation now publishes exclusively to Kafka, and the separate stream processor service consumes those events and publishes to Redis pub/sub. RedisPublisher remains for backward compatibility but is no longer used in the main event flow (see `event_emitter.py` docstring).
+The module contains a **RedisPublisher** class that is actively instantiated in `main.py` and passed to MatchingServer, SurgePricingCalculator, and SimulationEngine. It provides direct Redis pub/sub publishing alongside the stream processor service which consumes from Kafka and also publishes to Redis.
 
-StateSnapshotManager uses async Redis client while RedisPublisher uses sync Redis client. This reflects their different usage contexts: snapshots are accessed from async API handlers, while the deprecated publisher was designed to work from SimPy processes.
+StateSnapshotManager uses async Redis client while RedisPublisher uses sync Redis client. This reflects their different usage contexts: snapshots are accessed from async API handlers, while RedisPublisher was designed to work from SimPy processes.
 
 ## Related Modules
 
-- **[services/stream-processor/src/handlers](../../../stream-processor/src/handlers/CONTEXT.md)** — Replaces deprecated RedisPublisher; consumes from Kafka and publishes to Redis pub/sub
-- **[services/simulation/src/api/routes](../api/routes/CONTEXT.md)** — Uses StateSnapshotManager for WebSocket state recovery on client reconnection
-- **[services/frontend/src](../../../frontend/src/CONTEXT.md)** — Consumes snapshots via WebSocket for initial state hydration
+- **[services/stream-processor/src](../../../stream-processor/src/CONTEXT.md)** — Also publishes to Redis pub/sub channels after consuming from Kafka; provides alternative event delivery path
+- **[src/agents](../agents/CONTEXT.md)** — Agents emit events that flow through Redis for frontend delivery; state snapshots cache agent positions
+- **[services/frontend/src/components](../../../frontend/src/components/CONTEXT.md)** — Frontend consumes Redis pub/sub messages via WebSocket for real-time visualization updates

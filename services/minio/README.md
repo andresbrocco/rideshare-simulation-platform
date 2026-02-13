@@ -1,119 +1,139 @@
-# MinIO Object Storage
+# MinIO
 
-> MinIO RELEASE.2025-10-15T17-29-55Z (built from source)
+> S3-compatible object storage for the medallion lakehouse architecture (Bronze, Silver, Gold buckets)
 
-## Purpose
+## Quick Reference
 
-S3-compatible object storage for the rideshare data lakehouse.
+### Environment Variables
 
-**Files in this directory:**
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `MINIO_ROOT_USER` | MinIO root username | Injected from `rideshare/minio` secret | Yes |
+| `MINIO_ROOT_PASSWORD` | MinIO root password | Injected from `rideshare/minio` secret | Yes |
 
-| File | Purpose |
-|------|---------|
-| `Dockerfile` | Multi-stage build from Go source for ARM64/AMD64 compatibility |
-| `README.md` | This file |
-| `CONTEXT.md` | Architecture context for AI agents |
+**Note:** Credentials are managed via LocalStack Secrets Manager and injected by the `secrets-init` service. See `CLAUDE.md` for details.
 
-## Buckets
+### Ports
 
-| Bucket | Purpose |
-|--------|---------|
-| rideshare-bronze | Raw event data from Kafka |
-| rideshare-silver | Cleaned and deduplicated data |
-| rideshare-gold | Business-ready aggregates |
-| rideshare-checkpoints | Bronze ingestion checkpoints |
+| Port | Service | URL |
+|------|---------|-----|
+| 9000 | S3 API | http://localhost:9000 |
+| 9001 | Web Console | http://localhost:9001 |
+
+### Buckets
+
+| Bucket | Layer | Purpose |
+|--------|-------|---------|
+| `rideshare-bronze` | Bronze | Raw event data ingestion |
+| `rideshare-silver` | Silver | Cleaned and validated data |
+| `rideshare-gold` | Gold | Business-ready analytics tables |
+
+Buckets are created automatically by the `minio-init` service on startup.
+
+### Health Check
+
+```bash
+# Check MinIO health
+curl -f http://localhost:9000/minio/health/live
+```
+
+## Common Tasks
+
+### Start MinIO
+
+```bash
+# Start MinIO with data-pipeline profile
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d minio
+
+# Wait for health check to pass
+docker compose -f infrastructure/docker/compose.yml ps minio
+```
+
+### Access Web Console
+
+1. Navigate to http://localhost:9001
+2. Login with credentials from LocalStack Secrets Manager (default: `admin` / `admin`)
+3. Browse buckets: `rideshare-bronze`, `rideshare-silver`, `rideshare-gold`
+
+### List Buckets Using mc CLI
+
+```bash
+# Exec into minio-init container (has mc client)
+docker exec -it rideshare-minio-init sh
+
+# List buckets
+mc ls local/
+
+# List objects in bronze bucket
+mc ls local/rideshare-bronze/
+```
+
+### Upload Files Manually
+
+```bash
+# Upload a file to bronze bucket
+mc cp /path/to/file.json local/rideshare-bronze/prefix/
+```
+
+### Query Bucket Policies
+
+```bash
+# Get bucket policy
+mc policy get local/rideshare-bronze
+
+# Set public read policy (not recommended for production)
+mc policy set download local/rideshare-bronze
+```
 
 ## Configuration
 
-| Setting | Value | Description |
-|---------|-------|-------------|
-| S3 API Port | 9000 | S3-compatible API endpoint |
-| Console Port | 9001 | Web UI for bucket management |
-| Username | `minioadmin` | Default access key |
-| Password | `minioadmin` | Default secret key |
-| Memory Limit | 512MB | Docker container memory limit |
-| Profile | `data-pipeline` | Docker Compose profile |
+| File | Purpose |
+|------|---------|
+| `Dockerfile` | Custom MinIO build from source (RELEASE.2025-10-15T17-29-55Z) |
+| `infrastructure/docker/compose.yml` | Service definition, volume mounts, health checks |
 
-## Local Development
+### Volume Mounts
 
-Start MinIO:
-```bash
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d minio minio-init
-```
+- `/data` → `minio-data` volume (persistent object storage)
 
-Access the console at http://localhost:9001 with:
-- Username: `minioadmin`
-- Password: `minioadmin`
+## Prerequisites
 
-## API Access
-
-MinIO S3 API is available at http://localhost:9000.
-
-Python example:
-```python
-import boto3
-
-s3 = boto3.client(
-    "s3",
-    endpoint_url="http://localhost:9000",
-    aws_access_key_id="minioadmin",
-    aws_secret_access_key="minioadmin",
-)
-
-s3.list_buckets()
-```
-
-## Bucket Management
-
-List buckets using MinIO Client:
-```bash
-docker run --rm --network rideshare-network --entrypoint /bin/sh \
-  quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z \
-  -c "mc alias set local http://minio:9000 minioadmin minioadmin && mc ls local/"
-```
-
-Re-initialize buckets:
-```bash
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up minio-init
-```
+- Docker Compose
+- `secrets-init` service completed (provides MinIO credentials)
 
 ## Troubleshooting
 
-### MinIO not starting
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| `minio` service unhealthy | Health check failing at `/minio/health/live` | Check container logs: `docker compose -f infrastructure/docker/compose.yml logs minio` |
+| Buckets not created | `minio-init` service failed | Check init logs: `docker compose -f infrastructure/docker/compose.yml logs minio-init` |
+| Access denied errors | Invalid credentials | Verify `secrets-init` completed and secrets are readable in `/secrets/minio.env` |
+| Connection refused on 9000 | Service not started or port conflict | Ensure `--profile data-pipeline` is used; check `docker compose ps` |
+| Web console shows blank page | Browser cache or network issue | Clear browser cache, verify http://localhost:9001 is accessible |
 
-Check container logs:
+### Debug Secrets
+
 ```bash
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline logs minio
+# Check if secrets are available
+docker compose -f infrastructure/docker/compose.yml exec minio cat /secrets/minio.env
+
+# Verify secrets-init completed
+docker compose -f infrastructure/docker/compose.yml logs secrets-init
 ```
 
-### Buckets not created
+### Inspect Storage
 
-The `minio-init` sidecar creates buckets on startup. Check its logs:
 ```bash
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline logs minio-init
+# Check data volume
+docker volume inspect rideshare-simulation-platform_minio-data
+
+# View bucket contents from host
+docker compose -f infrastructure/docker/compose.yml exec minio ls -la /data/
 ```
 
-Re-run bucket initialization:
-```bash
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up minio-init
-```
+## Related
 
-### S3 connection refused from other services
-
-Verify MinIO is healthy:
-```bash
-curl http://localhost:9000/minio/health/live
-```
-
-Ensure services are on the same Docker network (`rideshare-network`).
-
-### Console not accessible
-
-The console runs on port 9001, not 9000. Navigate to http://localhost:9001.
-
-## References
-
-- [CONTEXT.md](CONTEXT.md) - Architecture and design decisions
-- [MinIO Documentation](https://min.io/docs/minio/linux/index.html)
-- [MinIO Docker Guide](https://min.io/docs/minio/container/index.html)
-- [infrastructure/docker/compose.yml](../../infrastructure/docker/compose.yml) - Docker service definitions
+- [CONTEXT.md](CONTEXT.md) — Architecture context
+- [../../infrastructure/docker/compose.yml](../../infrastructure/docker/compose.yml) — Service definition
+- [../bronze-ingestion/README.md](../bronze-ingestion/README.md) — Kafka → Bronze ingestion
+- [../../tools/dbt/README.md](../../tools/dbt/README.md) — Bronze → Silver → Gold transformations

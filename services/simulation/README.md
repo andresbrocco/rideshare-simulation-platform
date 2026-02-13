@@ -1,6 +1,6 @@
 # Simulation Service
 
-> Discrete-event simulation engine generating realistic synthetic rideshare data with autonomous agent behavior
+> Discrete-event rideshare simulation engine orchestrating drivers, riders, and trips with FastAPI control panel and real-time WebSocket updates
 
 ## Quick Reference
 
@@ -8,325 +8,360 @@
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `SIM_SPEED_MULTIPLIER` | Simulation speed (1x to 1024x realtime) | `1` | No |
+| `SIM_SPEED_MULTIPLIER` | Simulation speed multiplier (1x to 1024x) | `1.0` | No |
 | `SIM_LOG_LEVEL` | Logging level (DEBUG, INFO, WARNING, ERROR) | `INFO` | No |
 | `SIM_CHECKPOINT_INTERVAL` | Checkpoint interval in simulated seconds | `300` | No |
-| `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker addresses | - | Yes |
-| `KAFKA_SECURITY_PROTOCOL` | Security protocol | `SASL_PLAINTEXT` | No |
-| `KAFKA_SASL_USERNAME` | SASL username for Kafka authentication | `admin` (via secrets) | Yes |
-| `KAFKA_SASL_PASSWORD` | SASL password for Kafka authentication | `admin` (via secrets) | Yes |
-| `KAFKA_SCHEMA_REGISTRY_URL` | Schema Registry URL | - | Yes |
-| `KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO` | Schema Registry credentials (user:password) | `admin:admin` (via secrets) | Yes |
-| `REDIS_HOST` | Redis server hostname | `localhost` | No |
-| `REDIS_PORT` | Redis server port | `6379` | No |
-| `REDIS_PASSWORD` | Redis AUTH password | `admin` (via secrets) | Yes |
-| `REDIS_SSL` | Enable SSL for Redis connection | `false` | No |
-| `OSRM_BASE_URL` | OSRM routing service base URL | `http://localhost:5050` | No |
-| `API_KEY` | API authentication key | `dev-api-key-change-in-production` | Yes |
-| `CORS_ORIGINS` | Allowed CORS origins (comma-separated) | `http://localhost:5173` | No |
-
-**Note:** Settings use Pydantic with prefix-based environment variable loading. Nested settings use double underscore (`__`) delimiter. Credentials are injected from LocalStack Secrets Manager via the `secrets-init` service.
+| `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker addresses | `kafka:9092` | Yes |
+| `KAFKA_SASL_USERNAME` | Kafka SASL username | - | Yes |
+| `KAFKA_SASL_PASSWORD` | Kafka SASL password | - | Yes |
+| `REDIS_HOST` | Redis host | `redis` | Yes |
+| `REDIS_PORT` | Redis port | `6379` | Yes |
+| `REDIS_PASSWORD` | Redis AUTH password | - | Yes |
+| `OSRM_BASE_URL` | OSRM routing service URL | `http://osrm:5000` | Yes |
+| `API_KEY` | API authentication key | - | Yes |
+| `CORS_ORIGINS` | Allowed CORS origins (comma-separated) | `*` | No |
 
 ### API Endpoints
+
+#### Health & Status
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Basic health check (Kafka, Redis, stream-processor) |
+| GET | `/health/detailed` | Detailed health check including OSRM |
+| GET | `/simulation/status` | Get current simulation status |
+
+```bash
+# Basic health check
+curl -H "X-API-Key: admin" http://localhost:8000/health
+
+# Detailed health with dependencies
+curl -H "X-API-Key: admin" http://localhost:8000/health/detailed
+
+# Simulation status
+curl -H "X-API-Key: admin" http://localhost:8000/simulation/status
+```
 
 #### Simulation Control
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/simulation/start` | Start the simulation engine |
-| POST | `/simulation/pause` | Initiate two-phase pause (DRAINING → PAUSED) |
+| POST | `/simulation/start` | Start simulation |
+| POST | `/simulation/pause` | Pause simulation (graceful drain) |
 | POST | `/simulation/resume` | Resume from paused state |
-| POST | `/simulation/stop` | Stop the simulation |
-| POST | `/simulation/reset` | Reset to initial state, clear all agents |
+| POST | `/simulation/stop` | Stop simulation |
+| POST | `/simulation/reset` | Reset simulation state |
 | PUT | `/simulation/speed` | Change simulation speed multiplier |
-| GET | `/simulation/status` | Get current simulation status and state |
+
+```bash
+# Start simulation
+curl -X POST -H "X-API-Key: admin" http://localhost:8000/simulation/start
+
+# Pause (enters DRAINING state, waits for trips to complete)
+curl -X POST -H "X-API-Key: admin" http://localhost:8000/simulation/pause
+
+# Resume from pause
+curl -X POST -H "X-API-Key: admin" http://localhost:8000/simulation/resume
+
+# Change speed (2x faster)
+curl -X PUT -H "X-API-Key: admin" \
+  -H "Content-Type: application/json" \
+  -d '{"speed_multiplier": 2.0}' \
+  http://localhost:8000/simulation/speed
+
+# Stop simulation
+curl -X POST -H "X-API-Key: admin" http://localhost:8000/simulation/stop
+
+# Reset to initial state
+curl -X POST -H "X-API-Key: admin" http://localhost:8000/simulation/reset
+```
 
 #### Agent Management
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/agents/drivers` | Queue driver agents for spawning |
-| POST | `/agents/riders` | Queue rider agents for spawning |
+| POST | `/agents/drivers` | Create autonomous drivers |
+| POST | `/agents/riders` | Create autonomous riders |
 | GET | `/agents/spawn-status` | Get spawn queue status |
-| GET | `/agents/drivers/{driver_id}` | Get driver state and DNA |
-| GET | `/agents/riders/{rider_id}` | Get rider state and DNA |
+| GET | `/agents/drivers/{driver_id}` | Get driver state |
+| GET | `/agents/riders/{rider_id}` | Get rider state |
 | PUT | `/agents/drivers/{driver_id}/status` | Toggle driver online/offline |
-| POST | `/agents/riders/{rider_id}/request-trip` | Request trip for specific rider |
+| POST | `/agents/riders/{rider_id}/request-trip` | Request trip for rider |
 
-#### Puppet Agents (Testing/Demo)
+```bash
+# Create 10 autonomous drivers
+curl -X POST -H "X-API-Key: admin" \
+  -H "Content-Type: application/json" \
+  -d '{"count": 10}' \
+  http://localhost:8000/agents/drivers
+
+# Create 5 autonomous riders
+curl -X POST -H "X-API-Key: admin" \
+  -H "Content-Type: application/json" \
+  -d '{"count": 5}' \
+  http://localhost:8000/agents/riders
+
+# Get spawn queue status
+curl -H "X-API-Key: admin" http://localhost:8000/agents/spawn-status
+
+# Get driver state
+curl -H "X-API-Key: admin" http://localhost:8000/agents/drivers/driver-123
+
+# Toggle driver online/offline
+curl -X PUT -H "X-API-Key: admin" \
+  -H "Content-Type: application/json" \
+  -d '{"online": true}' \
+  http://localhost:8000/agents/drivers/driver-123/status
+```
+
+#### Puppet Agent Control
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/agents/puppet/drivers` | Create controllable puppet driver |
-| POST | `/agents/puppet/riders` | Create controllable puppet rider |
-| PUT | `/agents/puppet/drivers/{driver_id}/go-online` | Set puppet driver online |
-| POST | `/agents/puppet/drivers/{driver_id}/accept-offer` | Accept pending trip offer |
-| POST | `/agents/puppet/drivers/{driver_id}/drive-to-pickup` | Start driving to pickup location |
+| POST | `/puppet/drivers` | Create manually-controlled driver |
+| POST | `/puppet/riders` | Create manually-controlled rider |
+| PUT | `/puppet/drivers/{driver_id}/go-online` | Puppet driver go online |
+| PUT | `/puppet/drivers/{driver_id}/go-offline` | Puppet driver go offline |
+| POST | `/puppet/drivers/{driver_id}/accept-offer` | Accept trip offer |
+| POST | `/puppet/drivers/{driver_id}/reject-offer` | Reject trip offer |
+| POST | `/puppet/riders/{rider_id}/request-trip` | Request trip as puppet rider |
+
+```bash
+# Create puppet driver (manual control)
+curl -X POST -H "X-API-Key: admin" \
+  -H "Content-Type: application/json" \
+  -d '{"location": {"lat": -23.5505, "lng": -46.6333}}' \
+  http://localhost:8000/puppet/drivers
+
+# Accept trip offer
+curl -X POST -H "X-API-Key: admin" \
+  http://localhost:8000/puppet/drivers/puppet-driver-1/accept-offer
+```
 
 #### Metrics
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/metrics/overview` | Overview metrics (agent counts, trip stats) |
-| GET | `/metrics/zones` | Per-zone metrics (surge, supply/demand) |
-| GET | `/metrics/trips` | Trip statistics and state distribution |
-| GET | `/metrics/drivers` | Driver status counts |
-| GET | `/metrics/riders` | Rider status counts |
-| GET | `/metrics/performance` | Real-time performance metrics |
-| GET | `/metrics/infrastructure` | Infrastructure health metrics |
-
-#### Health Checks
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Basic health check (unprotected) |
-| GET | `/health/detailed` | Detailed health with dependency checks |
+| GET | `/metrics/overview` | Overview metrics (active agents, trips) |
+| GET | `/metrics/zones` | Zone-level metrics (H3 hexagons) |
+| GET | `/metrics/trips` | Trip metrics (states, durations, revenue) |
+| GET | `/metrics/drivers` | Driver metrics (utilization, earnings) |
+| GET | `/metrics/riders` | Rider metrics (wait times, cancellations) |
+| GET | `/metrics/performance` | Performance metrics (event rates, latency) |
+| GET | `/metrics/infrastructure` | Infrastructure health (Kafka, Redis, OSRM) |
 
 ```bash
-# Authentication (REST API)
-curl -H "X-API-Key: dev-api-key-change-in-production" \
-  http://localhost:8000/simulation/status
+# Overview metrics
+curl -H "X-API-Key: admin" http://localhost:8000/metrics/overview
 
-# Start simulation
-curl -X POST -H "X-API-Key: dev-api-key-change-in-production" \
-  http://localhost:8000/simulation/start
+# Trip metrics
+curl -H "X-API-Key: admin" http://localhost:8000/metrics/trips
 
-# Queue driver agents
-curl -X POST -H "X-API-Key: dev-api-key-change-in-production" \
-  -H "Content-Type: application/json" \
-  -d '{"count": 10}' \
-  http://localhost:8000/agents/drivers
-
-# Get metrics
-curl -H "X-API-Key: dev-api-key-change-in-production" \
-  http://localhost:8000/metrics/overview
+# Infrastructure health
+curl -H "X-API-Key: admin" http://localhost:8000/metrics/infrastructure
 ```
 
-#### WebSocket Endpoint
+### WebSocket
 
-```bash
-# WebSocket connection (real-time updates)
-# Uses Sec-WebSocket-Protocol header for API key authentication
-wscat -c "ws://localhost:8000/ws" \
-  -s "apikey.dev-api-key-change-in-production"
+#### Real-Time Updates
+
+| Endpoint | Description | Auth |
+|----------|-------------|------|
+| `ws://localhost:8000/ws` | Real-time simulation updates | `Sec-WebSocket-Protocol: apikey.{API_KEY}` |
+
+```javascript
+// Connect to WebSocket (browser)
+const ws = new WebSocket('ws://localhost:8000/ws', ['apikey.admin']);
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  console.log('Update:', data);
+};
+
+// Python example
+import websockets
+import asyncio
+
+async def connect():
+    uri = "ws://localhost:8000/ws"
+    async with websockets.connect(uri, subprotocols=["apikey.admin"]) as ws:
+        async for message in ws:
+            print(f"Received: {message}")
+
+asyncio.run(connect())
 ```
 
 ### Commands
 
 ```bash
-# All commands run from services/simulation/ directory
-cd services/simulation
-
 # Testing
-./venv/bin/pytest                                    # Run all tests
-./venv/bin/pytest tests/test_trip_state.py -v       # Run specific test file
-./venv/bin/pytest -m unit                            # Run unit tests only
-./venv/bin/pytest --cov=src --cov-report=term-missing  # Run with coverage
+./venv/bin/pytest                              # Run all tests
+./venv/bin/pytest -m unit                      # Unit tests only
+./venv/bin/pytest -m integration               # Integration tests
+./venv/bin/pytest tests/test_file.py -v        # Single file with verbose
+./venv/bin/pytest --cov=src --cov-report=html  # Coverage report
 
-# Code Quality
-./venv/bin/black src/ tests/                         # Format code
-./venv/bin/ruff check src/ tests/                    # Lint code
-./venv/bin/mypy src/                                 # Type check
+# Linting & Formatting
+./venv/bin/ruff check src/ tests/              # Lint code
+./venv/bin/black src/ tests/                   # Format code
+./venv/bin/mypy src/                           # Type check
 
-# Development (Docker)
-docker compose -f infrastructure/docker/compose.yml --profile core up -d
+# Docker
+docker compose -f infrastructure/docker/compose.yml --profile core up -d simulation
 docker compose -f infrastructure/docker/compose.yml logs -f simulation
-docker compose -f infrastructure/docker/compose.yml --profile core down
+docker compose -f infrastructure/docker/compose.yml restart simulation
 ```
 
-### Configuration Files
+### Configuration
 
 | File | Purpose |
 |------|---------|
-| `pyproject.toml` | Python project configuration, dependencies, tool settings |
+| `pyproject.toml` | Python package configuration, dependencies, tool settings |
+| `Dockerfile` | Container build instructions |
 | `src/settings.py` | Pydantic settings with environment variable loading |
-| `.env` | Local environment variables (not committed) |
-| `.env.example` | Environment variable template |
-
-### Database Tables
-
-The simulation uses SQLite for state persistence and checkpointing.
-
-| Table | Purpose |
-|-------|---------|
-| `drivers` | Driver agent state (DNA, location, status, rating) |
-| `riders` | Rider agent state (DNA, location, status, rating) |
-| `trips` | Trip lifecycle state (10-state machine, timestamps, cancellation data) |
-| `simulation_metadata` | Simulation metadata (session_id, environment time, state) |
-| `route_cache` | H3-indexed OSRM route cache (distance, duration, polyline) |
-
-**Indexes:**
-- `idx_driver_status` on `drivers.status`
-- `idx_rider_status` on `riders.status`
-- `idx_trip_state` on `trips.state`
-- `idx_trip_driver` on `trips.driver_id`
-- `idx_trip_rider` on `trips.rider_id`
-- `idx_route_cache_created` on `route_cache.created_at`
 
 ### Prerequisites
 
-**Runtime Dependencies:**
-- Python 3.13+
-- SimPy 4.1.1 (discrete-event simulation)
-- FastAPI 0.115.6 + Uvicorn 0.34.0 (API server)
-- SQLAlchemy 2.0.45 (ORM)
-- Redis 7.1.0 (pub/sub, state snapshots)
-- Confluent Kafka 2.12.2 (event publishing)
-- H3 4.3.1 (geospatial indexing)
-- Pydantic 2.12.5 (settings, schemas)
-- Shapely 2.1.2 (geometry operations)
-- Faker 28.0.0+ (synthetic data generation)
-
-**Development Dependencies:**
-- pytest 9.0.2 + pytest-asyncio 1.3.0
-- black 24.10.0 (formatting)
-- ruff 0.8.4 (linting)
-- mypy 1.14.1 (type checking)
-
-**External Services:**
-- Kafka (event streaming, source of truth)
-- Redis (via stream-processor → frontend)
-- OSRM (route calculations)
-- Confluent Schema Registry (event schema validation)
+- **Python**: 3.13+
+- **Dependencies** (see `pyproject.toml`):
+  - SimPy 4.1.1 (discrete-event simulation)
+  - FastAPI 0.115.6 + Uvicorn 0.34.0
+  - Confluent Kafka 2.12.2 (event publishing)
+  - Redis 7.1.0 (pub/sub bridge)
+  - SQLAlchemy 2.0.45 (checkpoint persistence)
+  - H3 4.3.1 (geospatial indexing)
+  - Pydantic 2.12.5 (settings, validation)
+  - OpenTelemetry 1.39.1 (distributed tracing)
+- **External Services**:
+  - Kafka (event streaming)
+  - Redis (pub/sub for WebSocket updates)
+  - OSRM (route calculations)
+  - Stream Processor (Kafka to Redis bridge)
 
 ## Common Tasks
 
-### Start the Simulation with Agents
+### Start a Basic Simulation
 
 ```bash
-# Start via Docker Compose (recommended)
+# 1. Start dependencies via Docker (from project root)
 docker compose -f infrastructure/docker/compose.yml --profile core up -d
 
-# Wait for services to be healthy
-docker compose -f infrastructure/docker/compose.yml ps
+# 2. Verify health
+curl -H "X-API-Key: admin" http://localhost:8000/health/detailed
 
-# Start simulation and spawn agents via API
-curl -X POST -H "X-API-Key: dev-api-key-change-in-production" \
-  http://localhost:8000/simulation/start
-
-curl -X POST -H "X-API-Key: dev-api-key-change-in-production" \
+# 3. Create agents
+curl -X POST -H "X-API-Key: admin" \
   -H "Content-Type: application/json" \
-  -d '{"count": 50}' \
+  -d '{"count": 20}' \
   http://localhost:8000/agents/drivers
 
-curl -X POST -H "X-API-Key: dev-api-key-change-in-production" \
+curl -X POST -H "X-API-Key: admin" \
   -H "Content-Type: application/json" \
-  -d '{"count": 100}' \
+  -d '{"count": 10}' \
   http://localhost:8000/agents/riders
+
+# 4. Start simulation
+curl -X POST -H "X-API-Key: admin" http://localhost:8000/simulation/start
+
+# 5. Monitor via metrics
+curl -H "X-API-Key: admin" http://localhost:8000/metrics/overview
 ```
 
-### Run Tests with Coverage
+### Test with Puppet Agents
 
 ```bash
-cd services/simulation
+# Create puppet driver and rider
+DRIVER_ID=$(curl -X POST -H "X-API-Key: admin" \
+  -H "Content-Type: application/json" \
+  -d '{"location": {"lat": -23.5505, "lng": -46.6333}}' \
+  http://localhost:8000/puppet/drivers | jq -r '.driver_id')
 
-# Run all tests with coverage report
-./venv/bin/pytest --cov=src --cov-report=term-missing
+RIDER_ID=$(curl -X POST -H "X-API-Key: admin" \
+  -H "Content-Type: application/json" \
+  -d '{"location": {"lat": -23.5505, "lng": -46.6333}}' \
+  http://localhost:8000/puppet/riders | jq -r '.rider_id')
 
-# Run only unit tests (fast)
-./venv/bin/pytest -m unit -v
+# Go online and request trip
+curl -X PUT -H "X-API-Key: admin" \
+  http://localhost:8000/puppet/drivers/$DRIVER_ID/go-online
 
-# Run specific test with short traceback
-./venv/bin/pytest tests/test_trip_state.py -v --tb=short
-```
+curl -X POST -H "X-API-Key: admin" \
+  -H "Content-Type: application/json" \
+  -d '{"pickup": {"lat": -23.5505, "lng": -46.6333}, "dropoff": {"lat": -23.5605, "lng": -46.6433}}' \
+  http://localhost:8000/puppet/riders/$RIDER_ID/request-trip
 
-### Debug Simulation State
-
-```bash
-# Get detailed status
-curl -H "X-API-Key: dev-api-key-change-in-production" \
-  http://localhost:8000/simulation/status | jq
-
-# Get infrastructure health
-curl -H "X-API-Key: dev-api-key-change-in-production" \
-  http://localhost:8000/health/detailed | jq
-
-# Check spawn queue
-curl -H "X-API-Key: dev-api-key-change-in-production" \
-  http://localhost:8000/agents/spawn-status | jq
-
-# View simulation logs
-docker compose -f infrastructure/docker/compose.yml logs -f simulation
+# Accept the offer
+curl -X POST -H "X-API-Key: admin" \
+  http://localhost:8000/puppet/drivers/$DRIVER_ID/accept-offer
 ```
 
 ### Change Simulation Speed
 
 ```bash
-# Speed up to 10x realtime
-curl -X PUT -H "X-API-Key: dev-api-key-change-in-production" \
+# Speed up 10x
+curl -X PUT -H "X-API-Key: admin" \
   -H "Content-Type: application/json" \
-  -d '{"multiplier": 10}' \
+  -d '{"speed_multiplier": 10.0}' \
   http://localhost:8000/simulation/speed
 
-# Maximum speed (1024x)
-curl -X PUT -H "X-API-Key: dev-api-key-change-in-production" \
+# Slow down to half speed
+curl -X PUT -H "X-API-Key: admin" \
   -H "Content-Type: application/json" \
-  -d '{"multiplier": 1024}' \
+  -d '{"speed_multiplier": 0.5}' \
   http://localhost:8000/simulation/speed
 ```
 
-### Graceful Pause and Resume
+### Graceful Pause with Trip Completion
 
 ```bash
-# Initiate two-phase pause (RUNNING → DRAINING → PAUSED)
-curl -X POST -H "X-API-Key: dev-api-key-change-in-production" \
-  http://localhost:8000/simulation/pause
+# Initiate pause (enters DRAINING state)
+curl -X POST -H "X-API-Key: admin" http://localhost:8000/simulation/pause
 
-# Wait for DRAINING to complete (polls status)
-# In-flight trips drain for up to 600 seconds
+# Monitor status (wait for PAUSED)
+watch -n 1 'curl -s -H "X-API-Key: admin" http://localhost:8000/simulation/status | jq .state'
 
-# Resume from paused state
-curl -X POST -H "X-API-Key: dev-api-key-change-in-production" \
-  http://localhost:8000/simulation/resume
+# Resume when ready
+curl -X POST -H "X-API-Key: admin" http://localhost:8000/simulation/resume
 ```
 
-### Create Puppet Agent for Testing
+### Run Tests with Coverage
 
 ```bash
-# Create puppet driver
-curl -X POST -H "X-API-Key: dev-api-key-change-in-production" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "location": {"lat": -23.5505, "lon": -46.6333},
-    "acceptance_rate": 1.0
-  }' \
-  http://localhost:8000/agents/puppet/drivers
+# Unit tests (fast)
+./venv/bin/pytest -m unit -v
 
-# Set puppet driver online
-curl -X PUT -H "X-API-Key: dev-api-key-change-in-production" \
-  http://localhost:8000/agents/puppet/drivers/{driver_id}/go-online
+# Integration tests (requires dependencies)
+docker compose -f infrastructure/docker/compose.yml --profile core up -d
+./venv/bin/pytest -m integration -v
+
+# Full test suite with HTML coverage report
+./venv/bin/pytest --cov=src --cov-report=html
+open htmlcov/index.html  # View coverage report
 ```
 
 ## Troubleshooting
 
 | Symptom | Cause | Solution |
 |---------|-------|----------|
-| `ConnectionRefusedError` to Kafka | Kafka not running or wrong BOOTSTRAP_SERVERS | Verify Kafka is up: `docker compose ps kafka`. Check `KAFKA_BOOTSTRAP_SERVERS` env var |
-| `redis.exceptions.ConnectionError` | Redis not running or wrong credentials | Verify Redis: `docker compose ps redis`. Check `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` |
-| `OSRM routing failed` in logs | OSRM service unavailable | Verify OSRM: `curl http://localhost:5050/health`. Ensure OSRM container is running |
-| Agents not spawning | Simulation not in RUNNING state | Check status: `GET /simulation/status`. Must call `/simulation/start` first |
-| WebSocket connection rejected | Missing or invalid API key | Use `Sec-WebSocket-Protocol: apikey.<key>` header. Verify `API_KEY` env var |
-| `StateTransitionError` in logs | Invalid trip state transition | Review trip state machine in `src/trips/trip.py`. Check logs for transition source/target states |
-| Simulation freezes at DRAINING | In-flight trips not completing | Wait up to 600s or check logs for stuck trips. Force-cancel occurs after timeout |
-| High memory usage | Too many agents or routes cached | Reduce agent count or clear route cache. Monitor with `GET /metrics/infrastructure` |
-| Schema validation errors | Schema mismatch with Schema Registry | Verify schemas in `schemas/kafka/`. Check Schema Registry compatibility mode |
-| SQLite database locked | Concurrent checkpoint access | Ensure only one simulation instance per database file. Check `SIM_CHECKPOINT_INTERVAL` |
+| `401 Unauthorized` on API calls | Missing or invalid API key | Add `-H "X-API-Key: admin"` header |
+| WebSocket connection fails | Incorrect subprotocol format | Use `Sec-WebSocket-Protocol: apikey.{API_KEY}` header |
+| Health check fails (Kafka) | Kafka not ready or credentials wrong | Check `docker compose logs kafka` and verify `KAFKA_SASL_*` env vars |
+| Health check fails (Redis) | Redis not ready or password wrong | Check `docker compose logs redis` and verify `REDIS_PASSWORD` |
+| Health check fails (stream-processor) | Bridge service not running | Check `docker compose logs stream-processor` |
+| `Cannot start: already RUNNING` | Simulation already started | Call `/simulation/stop` or `/simulation/reset` first |
+| `Cannot resume: not PAUSED` | Simulation not in PAUSED state | Check `/simulation/status` - must be PAUSED to resume |
+| No GPS updates in frontend | Stream processor not publishing to Redis | Verify `stream-processor` health and Redis pub/sub channels |
+| Agents spawn slowly | Spawn queue backlog | Check `/agents/spawn-status` - agents spawn at max 10/second to avoid SimPy contention |
+| OSRM route calculation fails | OSRM service unreachable or no route | Check `docker compose logs osrm` and verify coordinates are in Sao Paulo area |
+| Type errors from mypy | Missing type stubs | Add to `[[tool.mypy.overrides]]` with `ignore_missing_imports = true` |
+| Import errors in tests | Incorrect Python path | Use `./venv/bin/pytest` (not global pytest) |
 
 ## Related
 
-- [CONTEXT.md](CONTEXT.md) — Architecture context, key concepts, non-obvious details
-- [../../CLAUDE.md](../../CLAUDE.md) — Project-wide development guide
-- [../stream-processor/README.md](../stream-processor/README.md) — Kafka-to-Redis event bridge
-- [../frontend/README.md](../frontend/README.md) — Real-time visualization frontend
-- [../../schemas/kafka/](../../schemas/kafka/) — Event schema definitions
+- [CONTEXT.md](CONTEXT.md) — Architecture context (agent DNA, state machines, event flow)
+- [../../README.md](../../README.md) — Project root README
+- [../stream-processor/README.md](../stream-processor/README.md) — Kafka to Redis bridge service
+- [../frontend/README.md](../frontend/README.md) — WebSocket visualization frontend
 - [../../docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) — System-wide architecture
 - [../../docs/PATTERNS.md](../../docs/PATTERNS.md) — Code patterns and conventions
-
----
-
-**Port:** 8000
-**Protocol:** HTTP + WebSocket
-**Authentication:** API Key (X-API-Key header or Sec-WebSocket-Protocol)
-**Event Output:** Kafka (8 topics)
-**State Persistence:** SQLite (checkpointing)
-**API Documentation:** http://localhost:8000/docs (OpenAPI/Swagger)
+- [../../docs/TESTING.md](../../docs/TESTING.md) — Testing strategy and fixtures

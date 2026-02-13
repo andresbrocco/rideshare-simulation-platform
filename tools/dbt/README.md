@@ -1,6 +1,6 @@
-# DBT - Medallion Lakehouse Transformation
+# DBT
 
-> Implements Silver and Gold layers of a medallion lakehouse architecture for ride-sharing analytics using dimensional modeling
+> Data transformation layer implementing medallion lakehouse architecture (Bronze → Silver → Gold) for ride-sharing analytics
 
 ## Quick Reference
 
@@ -8,379 +8,232 @@
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `DBT_TARGET` | Target environment (dev/prod) | `dev` | No |
-| `DBT_PROFILES_DIR` | Directory containing profiles.yml | `.` | No |
-| `DBT_SCHEMA` | Schema name for tables | `rideshare_dev` | No |
-| `DBT_SPARK_HOST` | Spark Thrift Server hostname | `localhost` | Yes |
-| `HIVE_LDAP_USERNAME` | LDAP username for Spark Thrift Server | `admin` (via secrets) | Yes |
-| `HIVE_LDAP_PASSWORD` | LDAP password for Spark Thrift Server | `admin` (via secrets) | Yes |
+| `DBT_SPARK_HOST` | Spark Thrift Server hostname | `localhost` / `spark-thrift-server` | Yes |
+| `HIVE_LDAP_USERNAME` | LDAP username for Spark/Hive authentication | `admin` | Yes |
+| `HIVE_LDAP_PASSWORD` | LDAP password for Spark/Hive authentication | `admin` | Yes |
+| `DUCKDB_PATH` | DuckDB database file path (local profile) | `/tmp/rideshare.duckdb` | No |
+| `S3_ENDPOINT` | MinIO/S3 endpoint (DuckDB profile) | `minio:9000` | No |
+| `AWS_ACCESS_KEY_ID` | S3 access key (DuckDB profile) | `minioadmin` | No |
+| `AWS_SECRET_ACCESS_KEY` | S3 secret key (DuckDB profile) | `minioadmin` | No |
+| `AWS_REGION` | AWS region | `us-east-1` / `sa-east-1` | No |
+| `GLUE_ROLE_ARN` | AWS Glue role ARN (cloud profile) | - | Cloud only |
 
 ### Commands
 
 ```bash
-# Run all models (incremental)
-./venv/bin/dbt run
+# Run transformations
+./venv/bin/dbt run                           # Run all models
+./venv/bin/dbt run --select staging          # Run staging layer only
+./venv/bin/dbt run --select marts            # Run marts layer only
+./venv/bin/dbt run --select marts.dimensions # Run dimensions only
+./venv/bin/dbt run --select marts.facts      # Run facts only
+./venv/bin/dbt run --select marts.aggregates # Run aggregates only
 
-# Run specific model
-./venv/bin/dbt run --select stg_trips
+# Test data quality
+./venv/bin/dbt test                          # Run all tests
+./venv/bin/dbt test --select staging         # Test staging layer
+./venv/bin/dbt test --select marts           # Test marts layer
 
-# Run with dependencies
-./venv/bin/dbt run --select +fact_trips
+# Build (run + test)
+./venv/bin/dbt build                         # Run and test all models
 
-# Full refresh (rebuild from scratch)
-./venv/bin/dbt run --full-refresh
-
-# Run tests
-./venv/bin/dbt test
-
-# Run tests for one model
-./venv/bin/dbt test --select stg_trips
+# Seed test data (from seeds/ directory)
+./venv/bin/dbt seed                          # Load CSV seeds into database
 
 # Generate documentation
-./venv/bin/dbt docs generate
+./venv/bin/dbt docs generate                 # Generate docs
+./venv/bin/dbt docs serve                    # Serve docs at localhost:8080
 
-# Serve documentation on http://localhost:8080
-./venv/bin/dbt docs serve --port 8080
-
-# Debug connection
-./venv/bin/dbt debug
+# Clean build artifacts
+./venv/bin/dbt clean                         # Remove target/ and dbt_packages/
 ```
 
-### Configuration Files
+### Configuration
 
 | File | Purpose |
 |------|---------|
-| `dbt_project.yml` | Project configuration, materialization strategies |
-| `profiles.yml` | Local connection profile (Spark Thrift Server) |
-| `profiles/cloud.yml` | Cloud connection profile (AWS Glue) |
-| `packages.yml` | DBT package dependencies (dbt-expectations) |
-| `models/staging/schema.yml` | Silver layer model definitions and tests |
-| `models/marts/dimensions/schema.yml` | Gold dimension definitions |
-| `models/marts/facts/schema.yml` | Gold fact definitions |
-| `models/marts/aggregates/schema.yml` | Gold aggregate definitions |
+| `dbt_project.yml` | Project configuration, model paths, materialization settings |
+| `profiles.yml` | Connection profiles (local DuckDB, Spark Thrift Server, AWS Glue) |
+| `packages.yml` | DBT package dependencies (dbt_expectations, dbt_date) |
 
-### Database Tables
+### Database Schemas
 
-**Bronze Layer (Input):**
-- `bronze_trips` - Raw trip events from Kafka
-- `bronze_gps_pings` - Raw GPS location data
-- `bronze_driver_status` - Raw driver availability changes
-- `bronze_surge_updates` - Raw surge pricing updates
-- `bronze_ratings` - Raw rating events
-- `bronze_payments` - Raw payment transactions
-- `bronze_driver_profiles` - Raw driver profile changes
-- `bronze_rider_profiles` - Raw rider profile changes
-
-**Silver Layer (Staging - Cleaned):**
-- `stg_trips` - Cleaned trip events with state transitions
-- `stg_gps_pings` - Validated GPS coordinates
-- `stg_driver_status` - Deduplicated driver status
-- `stg_surge_updates` - Validated surge multipliers
-- `stg_ratings` - Cleaned ratings
-- `stg_payments` - Validated payments
-- `stg_drivers` - Latest driver profiles
-- `stg_riders` - Latest rider profiles
-- `anomalies_gps_outliers` - GPS anomaly detection
-- `anomalies_impossible_speeds` - Speed validation
-- `anomalies_zombie_drivers` - Inactive driver detection
-- `anomalies_all` - Combined anomalies
-
-**Gold Layer (Marts - Business-Ready):**
-
-Dimensions:
-- `dim_drivers` - Driver dimension with SCD Type 2
-- `dim_riders` - Rider dimension
-- `dim_zones` - Geographic zones
-- `dim_time` - Time dimension
-- `dim_payment_methods` - Payment methods with SCD Type 2
-
-Facts:
-- `fact_trips` - Trip facts with metrics
-- `fact_payments` - Payment transactions
-- `fact_ratings` - Rating events
-- `fact_cancellations` - Trip cancellations
-- `fact_driver_activity` - Driver activity metrics
-
-Aggregates:
-- `agg_hourly_zone_demand` - Hourly demand by zone
-- `agg_daily_driver_performance` - Daily driver metrics
-- `agg_daily_platform_revenue` - Daily revenue rollup
-- `agg_surge_history` - Surge pricing history
+| Schema | Layer | Materialization | Tables |
+|--------|-------|----------------|---------|
+| `bronze` | Raw | Delta (external) | Raw Kafka events with `_raw_value` JSON |
+| `silver` | Staging | Incremental (merge) | Cleaned, parsed events (`stg_trips`, `stg_drivers`, `stg_payments`, etc.) |
+| `gold` | Marts | Table | Dimensional model (facts, dimensions, aggregates) |
 
 ### Prerequisites
 
-- Python 3.11+
-- Access to Spark/Hive metastore (local Thrift Server with LDAP auth, or AWS Glue)
-- Bronze layer tables populated with event data from Kafka
-- MinIO S3 (local) or AWS S3 (production) for Delta Lake storage
+**Required Services (Docker):**
+- Spark Thrift Server (port 10000) — Hive-compatible query engine
+- Hive Metastore (port 9083) — Metadata catalog for Delta tables
+- MinIO (port 9000) — S3-compatible object storage for Delta Lake
+- OpenLDAP (port 389) — Authentication for Spark Thrift Server
+
+**Required Python Packages:**
+```bash
+pip install dbt-core dbt-spark dbt-duckdb pyhive
+```
+
+**Start services:**
+```bash
+# Core + Data Pipeline profiles
+docker compose -f infrastructure/docker/compose.yml \
+  --profile core --profile data-pipeline up -d
+
+# Optional: Spark Thrift Server for dual-engine validation
+docker compose -f infrastructure/docker/compose.yml \
+  --profile spark-testing up -d
+```
 
 ## Common Tasks
 
-### Initial Setup
+### Run Full Pipeline from Bronze to Gold
 
 ```bash
-# Navigate to DBT directory
-cd tools/dbt
+# Ensure Bronze data exists (populated by bronze-ingestion service)
+# or seed test data using helper scripts
 
-# Create virtual environment (if not exists)
-python3 -m venv venv
+# Run full pipeline
+./venv/bin/dbt run && ./venv/bin/dbt test
 
-# Install DBT with Spark adapter
-./venv/bin/pip install dbt-core dbt-spark==1.10.0
-
-# Install package dependencies
-./venv/bin/dbt deps
-
-# Seed reference data (zones)
-./venv/bin/dbt seed
-
-# Full refresh (build everything from scratch)
-./venv/bin/dbt run --full-refresh
-
-# Run all tests
-./venv/bin/dbt test
+# Or use build for run + test
+./venv/bin/dbt build
 ```
 
-### Run Incremental Updates
+### Seed Test Data and Build Pipeline
 
 ```bash
-# Run only new data since last run
-./venv/bin/dbt run
+# Automated pipeline with data seeding
+./venv/bin/python seed_and_build_pipeline.py
 
-# Run specific layer
+# Or manually:
+./venv/bin/python setup_all_bronze_tables.py    # Create Bronze tables
+./venv/bin/python insert_test_data.py            # Insert test data
+./venv/bin/dbt run --select staging              # Build Silver layer
+./venv/bin/dbt run --select marts                # Build Gold layer
+```
+
+### Switch Between Profiles
+
+```bash
+# Use local DuckDB (default)
+./venv/bin/dbt run --target local
+
+# Use Spark Thrift Server
+./venv/bin/dbt run --target spark-local
+
+# Use AWS Glue (production)
+./venv/bin/dbt run --target cloud
+```
+
+### Clean and Rebuild
+
+```bash
+# Drop all Silver tables
+./venv/bin/python drop_all_staging_tables.py
+
+# Recreate Bronze tables
+./venv/bin/python recreate_bronze_tables.py
+
+# Rebuild everything
+./venv/bin/dbt clean
+./venv/bin/dbt deps    # Re-install packages
+./venv/bin/dbt build   # Run and test all models
+```
+
+### Add Anomaly Test Data
+
+```bash
+# Insert data that should trigger anomaly detection models
+./venv/bin/python insert_anomaly_test_data.py
+
+# Run anomaly models
+./venv/bin/dbt run --select staging.anomalies_*
+```
+
+### Verify Data at Each Layer
+
+```bash
+# Check Bronze data exists
+./venv/bin/python verify_bronze_data.py
+
+# Check Silver layer
 ./venv/bin/dbt run --select staging
-./venv/bin/dbt run --select marts.dimensions
-./venv/bin/dbt run --select marts.facts
-./venv/bin/dbt run --select marts.aggregates
+./venv/bin/dbt test --select staging
 
-# Run model and all upstream dependencies
-./venv/bin/dbt run --select +fact_trips
-
-# Run model and all downstream dependents
-./venv/bin/dbt run --select stg_trips+
+# Check Gold layer
+./venv/bin/dbt run --select marts
+./venv/bin/dbt test --select marts
 ```
 
-### Debug Issues
+## Troubleshooting
 
-```bash
-# Show compiled SQL without running
-./venv/bin/dbt compile --select stg_trips
-
-# Run with verbose logging
-./venv/bin/dbt run --select stg_trips --debug
-
-# Test connection to warehouse
-./venv/bin/dbt debug
-
-# Run one specific test
-./venv/bin/dbt test --select stg_trips_unique_event_id
-
-# Store test failures for analysis
-./venv/bin/dbt test --store-failures
-```
-
-### Generate and View Documentation
-
-```bash
-# Generate documentation (creates catalog, manifest, lineage graph)
-./venv/bin/dbt docs generate
-
-# Serve documentation site at http://localhost:8080
-./venv/bin/dbt docs serve --port 8080
-```
-
-Documentation includes:
-- Interactive lineage graph showing Bronze → Silver → Gold flow
-- Model descriptions and column-level documentation
-- Compiled SQL for each model
-- All tests associated with each model
-- Full data dictionary
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| `DELTA_READ_TABLE_WITHOUT_COLUMNS` error | Bronze Delta table exists but has no data/schema | Models use `source_with_empty_guard` macro to handle this. Check Bronze ingestion service is running. |
+| `Connection refused` to port 10000 | Spark Thrift Server not running | `docker compose --profile data-pipeline up -d spark-thrift-server` |
+| `Authentication failed` | Invalid LDAP credentials | Check `HIVE_LDAP_USERNAME` and `HIVE_LDAP_PASSWORD` (default: admin/admin) |
+| `Table not found: bronze_trips` | Bronze tables not created | Run `./venv/bin/python setup_all_bronze_tables.py` |
+| Incremental models rebuild every time | `_ingested_at` watermark not working | Check `is_incremental()` macro and `unique_key` in model config |
+| SCD Type 2 overlapping validity periods | Bug in SCD logic | Run `./venv/bin/dbt test --select test_scd_validity` to validate |
+| Missing macros from packages | Packages not installed | Run `./venv/bin/dbt deps` to install `dbt_expectations` and `dbt_date` |
+| `get_json_object()` returns NULL | JSON field name mismatch | Check Bronze `_raw_value` structure matches staging model parsing |
 
 ## Data Architecture
 
 ### Medallion Layers
 
-**Bronze** (Raw events from Kafka):
-- Managed by Bronze ingestion service
-- Delta format with ACID guarantees
-- No transformations, schema enforcement only
-
-**Silver** (Cleaned and validated):
-- Staging models with incremental materialization
-- Deduplication by event_id
-- Type casting and null handling
-- Anomaly detection
-- Merge strategy for upserts
-
-**Gold** (Business-ready dimensional model):
-- Star schema (facts + dimensions)
-- Surrogate keys for dimensions
-- SCD Type 2 for driver and payment method dimensions
-- Pre-aggregated metrics for performance
-- Full refresh strategy
-
-### Key Features
-
-- **Incremental Processing**: Only process new data since last run using watermark timestamps
-- **SCD Type 2**: Track historical changes to driver profiles and payment methods with valid_from/valid_to
-- **Data Quality**: 100+ tests covering uniqueness, nulls, ranges, relationships, custom business rules
-- **Anomaly Detection**: Identify GPS outliers, impossible speeds, zombie drivers
-- **Empty Source Guard**: Macros prevent full table drops when Bronze tables are empty
-- **Documentation**: Comprehensive docs generated from code + markdown with lineage graph
-
-### Materialization Strategies
-
-| Layer | Materialization | Strategy | Reason |
-|-------|----------------|----------|---------|
-| Staging | `incremental` | Merge on event_id | Process only new events efficiently |
-| Dimensions | `table` | Full refresh | Maintain complete history for SCD Type 2 |
-| Facts | `table` | Full refresh | Ensure referential integrity with dimensions |
-| Aggregates | `table` | Full refresh | Rebuild from facts for consistency |
-
-All models use Delta format for ACID transactions:
-```sql
-{{ config(file_format='delta') }}
+```
+Bronze (External)          Silver (Staging)           Gold (Marts)
+─────────────────          ────────────────           ────────────
+bronze_trips       →  stg_trips            →  fact_trips
+bronze_drivers     →  stg_drivers          →  dim_drivers (SCD Type 2)
+bronze_riders      →  stg_riders           →  dim_riders
+bronze_payments    →  stg_payments         →  fact_payments
+bronze_ratings     →  stg_ratings          →  fact_ratings
+bronze_gps_pings   →  stg_gps_pings        →  (N/A - analysis only)
+bronze_driver_status → stg_driver_status   →  fact_driver_activity
+bronze_surge_updates → stg_surge_updates   →  agg_surge_history
+                                            →  dim_zones
+                                            →  dim_time
+                                            →  dim_payment_methods (SCD Type 2)
+                                            →  agg_daily_driver_performance
+                                            →  agg_hourly_zone_demand
+                                            →  agg_daily_platform_revenue
 ```
 
-## Testing
+### Anomaly Detection Models
 
-### Test Types
+| Model | Detects | Location |
+|-------|---------|----------|
+| `anomalies_impossible_speeds` | GPS pings showing speeds >150 km/h | `staging/` |
+| `anomalies_zombie_drivers` | Drivers receiving pings while offline | `staging/` |
+| `anomalies_gps_outliers` | GPS coordinates outside São Paulo bounds | `staging/` |
+| `anomalies_all` | Union of all anomaly tables | `staging/` |
 
-- **Generic Tests**: Reusable (unique, not_null, relationships, accepted_values)
-- **Custom Generic Tests**: Project-specific (scd_validity, fee_percentage, no_future_dates)
-- **Singular Tests**: One-off SQL queries (revenue consistency, utilization bounds, surge range)
-- **Expression Tests**: Inline assertions (completed_trips <= requested_trips)
-- **dbt-expectations**: Advanced tests (value ranges, distributions, patterns)
+### Custom Macros
 
-### Test Coverage
+| Macro | Purpose | Location |
+|-------|---------|----------|
+| `source_with_empty_guard` | Prevents failure on empty Bronze tables | `macros/empty_source_guard.sql` |
+| `delta_source` | Read Delta tables from S3/MinIO | `macros/delta_source.sql` |
+| Cross-DB macros | Handle SQL dialect differences (Spark vs DuckDB) | `macros/cross_db/` |
 
-- 100% of primary keys: unique
-- 100% of foreign keys: relationships
-- All enum fields: accepted_values
-- All numeric measures: accepted_range
-- All timestamps: no_future_dates
-- Critical business rules: custom tests
+### Custom Tests
 
-### Test Execution
-
-```bash
-# All tests
-./venv/bin/dbt test
-
-# One model
-./venv/bin/dbt test --select stg_trips
-
-# One test type
-./venv/bin/dbt test --select test_type:generic
-./venv/bin/dbt test --select test_type:singular
-
-# Store failures for analysis
-./venv/bin/dbt test --store-failures
-```
-
-## Deployment
-
-### Local Development
-
-Uses `profiles.yml` with Spark Thrift Server on localhost:10000 via LDAP authentication. Credentials are sourced from the `secrets-init` service (`HIVE_LDAP_USERNAME`/`HIVE_LDAP_PASSWORD`).
-
-```bash
-./venv/bin/dbt run --target dev
-```
-
-### Production (Cloud)
-
-Uses `profiles/cloud.yml` with AWS Glue.
-
-```bash
-./venv/bin/dbt run --target prod --profiles-dir profiles
-```
-
-### Orchestration
-
-DBT transformations are orchestrated by Airflow DAGs:
-
-**Silver Layer (`dbt_silver_transformation` DAG)**
-- Schedule: `@hourly`
-- Models: Staging models with incremental merge strategy
-- Tests: Run after staging models complete
-- Alerts: On test failures
-
-**Gold Layer (`dbt_gold_transformation` DAG)**
-- Schedule: `@daily`
-- Models: Dimensions → Facts → Aggregates (in dependency order)
-- Strategy: Full refresh for dimensions, incremental for facts
-- Tests: Run after each layer completes
-- Alerts: On failures
-
-See `services/airflow/dags/dbt_transformation_dag.py` for implementation.
+| Test | Purpose | Location |
+|------|---------|----------|
+| `test_scd_validity` | Validates SCD Type 2 non-overlapping windows | `tests/generic/test_scd_validity.sql` |
+| `test_fare_calculation` | Validates fare = base_fare + distance * rate | `tests/generic/test_fare_calculation.sql` |
+| `test_no_future_dates` | Ensures timestamps are not in future | `tests/generic/test_no_future_dates.sql` |
+| Anomaly tests | Validate anomaly detection logic | `tests/test_*_detection.sql` |
 
 ## Related
 
-- [CONTEXT.md](CONTEXT.md) - Architecture context and design decisions
-- [models/CONTEXT.md](models/CONTEXT.md) - Model organization and patterns
-- [models/staging/CONTEXT.md](models/staging/CONTEXT.md) - Silver layer details
-- [macros/CONTEXT.md](macros/CONTEXT.md) - Macro library
-- [../../services/bronze-ingestion/](../../services/bronze-ingestion/) - Bronze layer ingestion
-- [../airflow/](../airflow/) - Orchestration DAGs
-
----
-
-## Troubleshooting
-
-> Preserved from original README.md
-
-### Issue: Tests failing after schema change
-
-**Solution**: Run full refresh
-```bash
-./venv/bin/dbt run --full-refresh --select stg_trips
-```
-
-### Issue: Incremental model not picking up new data
-
-**Solution**: Check watermark timestamp
-```sql
-select max(_ingested_at) from stg_trips
-```
-
-### Issue: Lineage graph not showing dependencies
-
-**Solution**: Regenerate docs
-```bash
-./venv/bin/dbt docs generate
-```
-
-### Issue: SCD Type 2 validity overlaps
-
-**Solution**: Check source data for duplicate timestamps
-```sql
-select driver_id, timestamp, count(*)
-from bronze_driver_profiles
-group by driver_id, timestamp
-having count(*) > 1
-```
-
----
-
-## Contributing
-
-> Preserved from original README.md
-
-1. Create feature branch
-2. Update models and tests
-3. Run `./venv/bin/dbt test` to ensure quality
-4. Update documentation (schema.yml, doc_blocks.md)
-5. Generate and review docs (`./venv/bin/dbt docs generate && ./venv/bin/dbt docs serve`)
-6. Submit PR with lineage graph screenshot
-
----
-
-## Resources
-
-> Preserved from original README.md
-
-- [DBT Documentation](https://docs.getdbt.com)
-- [DBT Utils Package](https://github.com/dbt-labs/dbt-utils)
-- [Star Schema Design](https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/)
-- [Slowly Changing Dimensions](https://en.wikipedia.org/wiki/Slowly_changing_dimension)
+- [CONTEXT.md](CONTEXT.md) — Architecture, SCD Type 2, empty source guard pattern
+- [../../docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) — Overall system architecture
+- [../great-expectations/](../great-expectations/) — Additional data quality validation
+- [../../services/airflow/](../../services/airflow/) — Orchestration for DBT runs

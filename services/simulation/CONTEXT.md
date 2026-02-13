@@ -43,11 +43,3 @@ Surge pricing updates every 60 simulated seconds via a dedicated SimPy process t
 Checkpoint/restore functionality uses SQLite to persist simulation state (environment time, agent states, trip states). Restoration requires validating state consistency and rebuilding in-memory references for all agents and trips.
 
 The session_id (UUID) uniquely identifies each simulation run for distributed tracing across Kafka events. It is regenerated on reset() to distinguish separate simulation sessions in downstream analytics.
-
-## Related Modules
-
-- **[services/stream-processor](../stream-processor/CONTEXT.md)** — Forms a data flow pipeline with simulation; consumes Kafka events produced by simulation and publishes to Redis pub/sub for frontend delivery
-- **[services/frontend](../frontend/CONTEXT.md)** — Visualization partner; subscribes to simulation state via WebSocket and controls lifecycle via REST API
-- **[schemas/kafka](../../schemas/kafka/CONTEXT.md)** — Defines the event contract; simulation produces events conforming to these JSON schemas
-- **[data](data/CONTEXT.md)** — Provides geographic foundation; zones determine agent placement, surge pricing calculations, and spatial validation
-- **[config](../../config/CONTEXT.md)** — Topic partitioning configuration ensures simulation events maintain ordering guarantees

@@ -1,347 +1,292 @@
-# Docker Compose Setup
+# infrastructure/docker
 
-Docker Compose orchestration for the rideshare simulation platform.
+> Docker Compose orchestration for containerized deployment with profile-based service grouping
 
-## Quick Start
+## Quick Reference
 
+### Profiles
+
+| Profile | Services | Purpose |
+|---------|----------|---------|
+| `core` | kafka, schema-registry, redis, osrm, simulation, stream-processor, control-panel-frontend, localstack, secrets-init, kafka-init | Simulation runtime services |
+| `data-pipeline` | minio, bronze-ingestion, localstack, postgres-airflow, airflow-webserver, airflow-scheduler, postgres-metastore, hive-metastore, openldap, trino, secrets-init, minio-init | ETL, ingestion, and orchestration |
+| `spark-testing` | spark-thrift-server | Spark Thrift Server for dual-engine DBT validation (optional, use with data-pipeline) |
+| `monitoring` | prometheus, cadvisor, grafana, otel-collector, loki, tempo | Observability stack |
+
+### Ports
+
+| Service | Port | Internal Port | Description |
+|---------|------|---------------|-------------|
+| kafka | 9092 | 9092 | Kafka broker (SASL_PLAINTEXT) |
+| schema-registry | 8085 | 8081 | Confluent Schema Registry |
+| redis | 6379 | 6379 | Redis cache |
+| osrm | 5050 | 5000 | OSRM routing engine |
+| simulation | 8000 | 8000 | Simulation API |
+| stream-processor | 8080 | 8080 | Stream processor health/metrics |
+| control-panel-frontend | 5173 | 5173 | Frontend UI |
+| minio | 9000 | 9000 | MinIO S3-compatible storage |
+| bronze-ingestion | 8086 | 8080 | Bronze layer ingestion service |
+| spark-thrift-server | 10000 | 10000 | Spark Thrift Server (optional) |
+| localstack | 4566 | 4566 | LocalStack (AWS emulation) |
+| postgres-airflow | 5432 | 5432 | PostgreSQL for Airflow metadata |
+| airflow-webserver | 8082 | 8080 | Airflow web UI |
+| postgres-metastore | 5434 | 5432 | PostgreSQL for Hive Metastore |
+| hive-metastore | 9083 | 9083 | Hive Metastore Thrift service |
+| openldap | 389 | 389 | OpenLDAP directory service |
+| trino | 8084 | 8080 | Trino query engine |
+| prometheus | 9090 | 9090 | Prometheus metrics |
+| cadvisor | 8083 | 8080 | Container metrics |
+| grafana | 3001 | 3000 | Grafana dashboards |
+| loki | 3100 | 3100 | Loki log aggregation |
+| tempo | 3200 | 3200 | Tempo distributed tracing |
+| otel-collector | 4317 | 4317 | OpenTelemetry Collector (gRPC) |
+
+### Commands
+
+Start core services:
 ```bash
-# Start core services (simulation, frontend, kafka, redis, osrm, stream-processor)
+docker compose -f infrastructure/docker/compose.yml --profile core up -d
+```
+
+Start data pipeline services:
+```bash
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
+```
+
+Start monitoring services:
+```bash
+docker compose -f infrastructure/docker/compose.yml --profile monitoring up -d
+```
+
+Start all services:
+```bash
+docker compose -f infrastructure/docker/compose.yml --profile core --profile data-pipeline --profile monitoring up -d
+```
+
+View service logs:
+```bash
+docker compose -f infrastructure/docker/compose.yml --profile core logs -f simulation
+```
+
+Stop services:
+```bash
+docker compose -f infrastructure/docker/compose.yml --profile core down
+```
+
+Check secrets initialization:
+```bash
+docker compose -f infrastructure/docker/compose.yml logs secrets-init
+```
+
+### Configuration Files
+
+- **compose.yml**: Main production/development compose file with all services
+- **compose.test.yml**: Test-specific compose configuration
+
+### Initialization Services
+
+The orchestration includes init containers that run once on startup:
+
+| Service | Purpose | Dependencies |
+|---------|---------|--------------|
+| `secrets-init` | Seeds LocalStack Secrets Manager and writes credentials to `/secrets/` volume | localstack |
+| `kafka-init` | Creates Kafka topics from `services/kafka/topics.yaml` | kafka (healthy), secrets-init |
+| `minio-init` | Creates MinIO buckets and policies | minio (healthy), secrets-init |
+
+All application services depend on `secrets-init` completing successfully before starting.
+
+### Healthcheck Dependencies
+
+Services use healthcheck-based dependencies to ensure proper startup ordering:
+
+- **simulation** waits for: kafka-init, schema-registry, redis, osrm, stream-processor (all healthy)
+- **stream-processor** waits for: kafka-init, schema-registry, redis (all healthy)
+- **bronze-ingestion** waits for: kafka-init, schema-registry, minio (all healthy)
+- **airflow-scheduler** waits for: postgres-airflow (healthy), airflow-init (completed)
+- **trino** waits for: hive-metastore (healthy)
+
+## Common Tasks
+
+### Start a minimal development environment
+```bash
+# Core simulation + frontend only
 docker compose -f infrastructure/docker/compose.yml --profile core up -d
 
-# Start data pipeline services (minio, bronze-ingestion, hive-metastore, trino, airflow, localstack)
+# Access frontend at http://localhost:5173
+# Access simulation API at http://localhost:8000
+```
+
+### Add data pipeline to running environment
+```bash
+# Start data-pipeline profile (will reuse existing localstack from core)
 docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
 
-# Start monitoring services (prometheus, cadvisor, grafana)
-docker compose -f infrastructure/docker/compose.yml --profile monitoring up -d
-
-# Start multiple profiles at once
-docker compose -f infrastructure/docker/compose.yml --profile core --profile data-pipeline up -d
-
-# View logs
-docker compose -f infrastructure/docker/compose.yml --profile core logs -f
-
-# Stop services
-docker compose -f infrastructure/docker/compose.yml --profile core down
+# Access Airflow at http://localhost:8082
+# Access Trino at http://localhost:8084
+# Access MinIO at http://localhost:9000
 ```
 
-## Available Profiles
-
-| Profile | Services | Use Case |
-|---------|----------|----------|
-| `core` | kafka, schema-registry, redis, osrm, simulation, stream-processor, frontend | Main simulation runtime |
-| `data-pipeline` | kafka, schema-registry, minio, bronze-ingestion, hive-metastore, trino, localstack, airflow | ETL and data engineering |
-| `spark-testing` | spark-thrift-server | Optional dual-engine DBT validation |
-| `monitoring` | prometheus, cadvisor, grafana | Observability and metrics |
-
-## Service Ports
-
-### Core Profile
-
-| Service | Port | URL/Connection |
-|---------|------|----------------|
-| Simulation API | 8000 | http://localhost:8000 |
-| Frontend | 5173 | http://localhost:5173 |
-| Stream Processor | 8080 | http://localhost:8080/health |
-| Kafka | 9092 | localhost:9092 |
-| Schema Registry | 8085 | http://localhost:8085 |
-| Redis | 6379 | localhost:6379 |
-| OSRM | 5050 | http://localhost:5050 |
-
-### Data Pipeline Profile
-
-| Service | Port | URL/Connection |
-|---------|------|----------------|
-| MinIO Console | 9001 | http://localhost:9001 (minioadmin/minioadmin) |
-| MinIO API | 9000 | http://localhost:9000 |
-| Trino | 8084 | http://localhost:8084 |
-| Hive Metastore | 9083 | thrift://localhost:9083 |
-| Airflow | 8082 | http://localhost:8082 (admin/admin) |
-| LocalStack | 4566 | http://localhost:4566 |
-| Postgres (Airflow) | 5432 | localhost:5432 (airflow/airflow) |
-| Spark Thrift Server (spark-testing profile) | 10000 | See [Connecting to Spark Thrift Server](#connecting-to-spark-thrift-server) |
-| Spark UI (Thrift, spark-testing profile) | 4041 | http://localhost:4041 |
-
-### Monitoring Profile
-
-| Service | Port | URL/Connection |
-|---------|------|----------------|
-| Prometheus | 9090 | http://localhost:9090 |
-| Grafana | 3001 | http://localhost:3001 (admin/admin) |
-| cAdvisor | 8083 | http://localhost:8083 |
-
-## Connecting to Spark Thrift Server
-
-**Note:** Spark Thrift Server requires the `spark-testing` profile and is optional. It's used for dual-engine DBT validation alongside Trino.
-
-The Spark Thrift Server uses **LDAP authentication** and **binary transport mode**. You must specify credentials in the connection string.
-
-### Using Beeline (inside container)
-
+### Inspect secrets
 ```bash
-docker exec rideshare-spark-thrift-server /opt/spark/bin/beeline \
-  -u "jdbc:hive2://localhost:10000/default" \
-  -n admin -p admin \
-  -e "SHOW DATABASES"
+# Check if secrets were initialized
+docker compose -f infrastructure/docker/compose.yml logs secrets-init
+
+# Inspect secrets volume (requires running container)
+docker compose -f infrastructure/docker/compose.yml --profile core run --rm simulation cat /secrets/core.env
 ```
 
-### Common Beeline Queries
-
+### Rebuild a service after code changes
 ```bash
-# List all databases
-docker exec rideshare-spark-thrift-server /opt/spark/bin/beeline \
-  -u "jdbc:hive2://localhost:10000/default" \
-  -n admin -p admin \
-  -e "SHOW DATABASES"
-
-# List tables in bronze layer
-docker exec rideshare-spark-thrift-server /opt/spark/bin/beeline \
-  -u "jdbc:hive2://localhost:10000/default" \
-  -n admin -p admin \
-  -e "SHOW TABLES IN bronze"
-
-# Query a table
-docker exec rideshare-spark-thrift-server /opt/spark/bin/beeline \
-  -u "jdbc:hive2://localhost:10000/default" \
-  -n admin -p admin \
-  -e "SELECT * FROM bronze.bronze_trips LIMIT 10"
-
-# Interactive session
-docker exec -it rideshare-spark-thrift-server /opt/spark/bin/beeline \
-  -u "jdbc:hive2://localhost:10000/default" \
-  -n admin -p admin
+# Rebuild and restart simulation service
+docker compose -f infrastructure/docker/compose.yml --profile core build simulation
+docker compose -f infrastructure/docker/compose.yml --profile core up -d simulation
 ```
 
-### JDBC Connection String (for external tools)
-
-```
-jdbc:hive2://localhost:10000/default
-```
-
-**Note:** Spark Thrift Server uses LDAP authentication. Provide username and password (`admin`/`admin` for local dev). Credentials are managed by the `secrets-init` service via OpenLDAP.
-
-## Secrets
-
-All services depend on the `secrets-init` service to populate credentials from LocalStack Secrets Manager. See `infrastructure/scripts/seed-secrets.py` for the full secrets inventory.
-
-## Common Commands
-
-### Viewing Logs
-
+### Clean up volumes and restart fresh
 ```bash
-# All services in a profile
-docker compose -f infrastructure/docker/compose.yml --profile core logs -f
+# Stop all services
+docker compose -f infrastructure/docker/compose.yml --profile core --profile data-pipeline --profile monitoring down
 
-# Specific service
-docker compose -f infrastructure/docker/compose.yml --profile core logs -f simulation
+# Remove volumes (WARNING: deletes all data)
+docker compose -f infrastructure/docker/compose.yml --profile core --profile data-pipeline --profile monitoring down -v
 
-# Last N lines
-docker compose -f infrastructure/docker/compose.yml --profile core logs --tail 100 kafka
+# Restart
+docker compose -f infrastructure/docker/compose.yml --profile core up -d
 ```
 
-### Service Management
-
+### Check resource usage
 ```bash
-# Check service status
-docker compose -f infrastructure/docker/compose.yml --profile core ps
+# View memory/CPU stats
+docker stats
 
-# Restart a specific service
-docker compose -f infrastructure/docker/compose.yml --profile core restart simulation
-
-# Rebuild and restart a service
-docker compose -f infrastructure/docker/compose.yml --profile core up -d --build simulation
-
-# Stop without removing volumes
-docker compose -f infrastructure/docker/compose.yml --profile core down
-
-# Stop and remove volumes (clean slate)
-docker compose -f infrastructure/docker/compose.yml --profile core down -v
+# View specific service stats
+docker stats rideshare-kafka rideshare-simulation rideshare-stream-processor
 ```
-
-### Executing Commands in Containers
-
-```bash
-# Open a shell
-docker exec -it rideshare-simulation bash
-
-# Run a one-off command
-docker exec rideshare-kafka kafka-topics --bootstrap-server localhost:9092 --list
-```
-
-## Kafka Commands
-
-```bash
-# List topics
-docker exec rideshare-kafka kafka-topics --bootstrap-server localhost:9092 --list
-
-# Describe a topic
-docker exec rideshare-kafka kafka-topics --bootstrap-server localhost:9092 --describe --topic trips
-
-# Consume messages (from beginning)
-docker exec rideshare-kafka kafka-console-consumer \
-  --bootstrap-server localhost:9092 \
-  --topic trips \
-  --from-beginning \
-  --max-messages 5
-
-# Consume messages (live)
-docker exec rideshare-kafka kafka-console-consumer \
-  --bootstrap-server localhost:9092 \
-  --topic gps_pings
-
-# Check consumer group lag
-docker exec rideshare-kafka kafka-consumer-groups \
-  --bootstrap-server localhost:9092 \
-  --describe --group stream-processor
-```
-
-## MinIO (S3-compatible Storage)
-
-```bash
-# Install mc client locally (or use docker)
-docker run --rm -it --network rideshare-network minio/mc alias set local http://minio:9000 minioadmin minioadmin
-
-# List buckets
-docker exec rideshare-minio mc ls local/
-
-# List files in bronze bucket
-docker exec rideshare-minio mc ls local/rideshare-bronze/
-
-# Copy a file locally
-docker exec rideshare-minio mc cp local/rideshare-bronze/some-file.parquet /tmp/
-```
-
-## Environment Variables
-
-These can be set in your shell or a `.env` file in the project root:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SIM_SPEED_MULTIPLIER` | 1 | Simulation speed (higher = faster) |
-| `SIM_LOG_LEVEL` | INFO | Logging level (DEBUG, INFO, WARNING, ERROR) |
-| `SIM_CHECKPOINT_INTERVAL` | 300 | Checkpoint interval in seconds |
-| `API_KEY` | `admin` (via secrets) | API authentication key |
-| `OSRM_MAP_SOURCE` | local | OSRM map source (local or download) |
-| `PROCESSOR_WINDOW_SIZE_MS` | 100 | Stream processor aggregation window |
-
-## Volume Management
-
-Named volumes persist data between restarts:
-
-```bash
-# List volumes
-docker volume ls | grep rideshare
-
-# Inspect a volume
-docker volume inspect rideshare-platform_kafka-data
-
-# Remove all project volumes (data loss!)
-docker compose -f infrastructure/docker/compose.yml down -v
-```
-
-| Volume | Purpose |
-|--------|---------|
-| `kafka-data` | Kafka logs and data |
-| `redis-data` | Redis persistence |
-| `osrm-data` | OSRM map data |
-| `simulation-db` | SQLite simulation state |
-| `minio-data` | S3 bucket data |
-| `postgres-airflow-data` | Airflow metadata DB |
-| `prometheus-data` | Prometheus metrics |
-| `grafana-data` | Grafana dashboards and settings |
-
-## Memory Limits
-
-All services have explicit memory limits to prevent resource exhaustion:
-
-| Service | Limit | Notes |
-|---------|-------|-------|
-| Kafka | 1GB | JVM heap 256-512MB |
-| Schema Registry | 512MB | JVM heap 128-256MB |
-| Redis | 128MB | |
-| OSRM | 1GB | Map data in memory |
-| Simulation | 1GB | |
-| Stream Processor | 256MB | |
-| Bronze Ingestion | 256MB | Lightweight Python service |
-| Spark Thrift Server (spark-testing) | 1GB | Driver memory 512MB |
-| Airflow (each) | 384MB | |
-| Grafana | 192MB | |
-
-If services are being OOM-killed, increase limits in `compose.yml` or Docker Desktop resources.
-
----
 
 ## Troubleshooting
 
-### Services Won't Start
+### Service won't start - "secrets-init" not completed
 
-1. Check if ports are already in use:
-   ```bash
-   lsof -i :8000  # Check simulation port
-   lsof -i :9092  # Check kafka port
-   ```
+**Symptom**: Services fail with "dependency failed to start: secrets-init"
 
-2. Check Docker resources (Docker Desktop > Settings > Resources)
-   - Recommended: 8GB RAM, 4 CPUs
+**Cause**: LocalStack not ready or secrets initialization script failed
 
-3. Check service health:
-   ```bash
-   docker compose -f infrastructure/docker/compose.yml --profile core ps
-   ```
-
-### Kafka Connection Issues
-
-- **From host machine:** Use `localhost:9092`
-- **From containers:** Use `kafka:29092`
-
-### OSRM Takes Long to Start
-
-First startup downloads/processes map data. The healthcheck has a 3-minute `start_period` to accommodate this. Check progress:
-
+**Solution**:
 ```bash
-docker compose -f infrastructure/docker/compose.yml --profile core logs -f osrm
+# Check secrets-init logs
+docker compose -f infrastructure/docker/compose.yml logs secrets-init
+
+# Check localstack logs
+docker compose -f infrastructure/docker/compose.yml logs localstack
+
+# Manually re-run secrets initialization
+./venv/bin/python infrastructure/scripts/seed-secrets.py
+
+# Restart dependent services
+docker compose -f infrastructure/docker/compose.yml --profile core restart simulation
 ```
 
-### Airflow DAGs Not Visible
+### Kafka healthcheck failing
 
-DAGs are reserialized on scheduler startup. If DAGs still don't appear:
+**Symptom**: Kafka shows as unhealthy, other services won't start
 
+**Cause**: SASL authentication not configured, or broker not ready
+
+**Solution**:
 ```bash
-docker exec rideshare-airflow-scheduler airflow dags reserialize
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline restart airflow-webserver
+# Check Kafka logs
+docker compose -f infrastructure/docker/compose.yml logs kafka
+
+# Verify JAAS config was created
+docker compose -f infrastructure/docker/compose.yml exec kafka cat /tmp/kafka_jaas.conf
+
+# Verify client properties
+docker compose -f infrastructure/docker/compose.yml exec kafka cat /tmp/kafka-client.properties
+
+# Manually test broker API
+docker compose -f infrastructure/docker/compose.yml exec kafka kafka-broker-api-versions \
+  --bootstrap-server localhost:9092 \
+  --command-config /tmp/kafka-client.properties
 ```
 
-### Bronze Ingestion Failures
+### Simulation can't connect to Redis
 
-Check bronze ingestion logs:
+**Symptom**: Simulation logs show "Redis connection refused" or "NOAUTH Authentication required"
 
+**Cause**: Redis password not loaded from secrets volume
+
+**Solution**:
 ```bash
-docker logs rideshare-bronze-ingestion --tail 100
+# Verify secrets volume is mounted
+docker compose -f infrastructure/docker/compose.yml exec simulation ls -la /secrets/
+
+# Check if REDIS_PASSWORD is set in environment
+docker compose -f infrastructure/docker/compose.yml exec simulation env | grep REDIS
+
+# Verify Redis is healthy
+docker compose -f infrastructure/docker/compose.yml ps redis
+
+# Restart simulation to reload secrets
+docker compose -f infrastructure/docker/compose.yml restart simulation
 ```
 
-Common issues:
-- MinIO not ready: Service depends on MinIO healthcheck
-- Kafka not ready: Service depends on Kafka healthcheck
-- Checkpoint corruption: Remove checkpoints in MinIO and restart
+### Out of memory errors
 
-### Clean Restart
+**Symptom**: Services crash with OOM errors or "Container killed"
 
-For a completely fresh start:
+**Cause**: Resource limits too low for workload, or memory leak
 
+**Solution**:
 ```bash
-# Stop all services and remove volumes
-docker compose -f infrastructure/docker/compose.yml --profile core --profile data-pipeline --profile monitoring --profile analytics down -v
+# Check current memory limits
+docker compose -f infrastructure/docker/compose.yml config | grep -A 3 "limits:"
 
-# Remove any orphaned containers
-docker container prune -f
+# Increase limits in compose.yml (example for Kafka):
+# deploy:
+#   resources:
+#     limits:
+#       memory: 2g  # was 1g
 
-# Start fresh
-docker compose -f infrastructure/docker/compose.yml --profile core up -d
+# Restart service
+docker compose -f infrastructure/docker/compose.yml --profile core up -d kafka
 ```
 
----
+### Schema Registry authentication fails
+
+**Symptom**: "401 Unauthorized" when accessing Schema Registry
+
+**Cause**: Basic auth credentials not provided
+
+**Solution**:
+```bash
+# Check Schema Registry is healthy
+docker compose -f infrastructure/docker/compose.yml ps schema-registry
+
+# Test with correct credentials (from secrets)
+curl -u admin:admin http://localhost:8085/subjects
+
+# Verify JAAS config
+docker compose -f infrastructure/docker/compose.yml exec schema-registry cat /etc/schema-registry/jaas.conf
+```
+
+### Port conflicts
+
+**Symptom**: "port is already allocated" when starting services
+
+**Cause**: Another process using the same port
+
+**Solution**:
+```bash
+# Find process using port (example: 9092)
+lsof -i :9092
+
+# Kill process or change port mapping in compose.yml
+# Example: change "9092:9092" to "9093:9092"
+```
 
 ## Related
 
 - [CONTEXT.md](CONTEXT.md) - Architecture context for Docker orchestration
-- [dockerfiles/](dockerfiles/) - Custom Dockerfile definitions
-- [../../CLAUDE.md](../../CLAUDE.md) - Project-level development guide
+- [../../services/simulation/README.md](../../services/simulation/README.md) - Simulation service operational guide
+- [../../services/kafka/README.md](../../services/kafka/README.md) - Kafka configuration
+- [../../infrastructure/scripts/README.md](../../infrastructure/scripts/README.md) - Infrastructure scripts including secrets management

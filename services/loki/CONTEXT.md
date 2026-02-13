@@ -24,10 +24,4 @@ Configuration for the Grafana Loki log aggregation backend. Loki stores and inde
 
 Loki is label-oriented, not full-text indexed. High-cardinality labels (e.g., request IDs, user IDs) should not be promoted to Loki labels — they cause index explosion. The OTel Collector config controls which attributes become labels via `loki.attribute.labels` hints.
 
-The `reject_old_samples` and `reject_old_samples_max_age` settings prevent ingestion of logs older than 168 hours, matching the retention window.
-
-## Related Modules
-
-- **[services/otel-collector](../otel-collector/CONTEXT.md)** — Collects and pushes logs to Loki via the Loki exporter
-- **[services/grafana](../grafana/CONTEXT.md)** — Visualizes logs via Loki data source
-- **[infrastructure/docker](../../infrastructure/docker/CONTEXT.md)** — Deployment orchestration; defines Loki service in monitoring profile
+The retention window of 168 hours is enforced by the compactor. Note that `reject_old_samples` and `reject_old_samples_max_age` are not currently configured in `loki-config.yaml`.

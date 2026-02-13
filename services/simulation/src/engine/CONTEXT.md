@@ -33,3 +33,9 @@ Agent processes are started immediately during continuous spawning (_spawn_singl
 Drain process timeout is 7200 simulated seconds (2 hours). If quiescence isn't achieved, all in-flight trips are force-cancelled with system metadata before transitioning to PAUSED.
 
 Snapshots module provides frozen dataclasses for immutable state transfer between threads. These are used by ThreadCoordinator command responses to avoid mutation issues.
+
+## Related Modules
+
+- **[src/agents](../agents/CONTEXT.md)** — Agent processes that the engine manages; engine starts and coordinates agent SimPy processes within its environment
+- **[src/matching](../matching/CONTEXT.md)** — Matching server that engine coordinates with for trip execution; engine calls start_pending_trip_executions() each step
+- **[src/api/routes](../api/routes/CONTEXT.md)** — FastAPI routes that use ThreadCoordinator to safely invoke engine commands from the web server thread

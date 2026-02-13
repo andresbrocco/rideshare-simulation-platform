@@ -33,3 +33,9 @@ Orchestrates the complete trip lifecycle from driver-rider match through complet
 **Why completion stats calculated here**: Trip timing metrics (pickup_time, wait_time, trip_duration) are derived from Trip timestamps and recorded to driver/rider statistics before calling `complete_trip()` on agents.
 
 **Why STARTED state cannot cancel**: Trip state machine forbids cancelling once rider is in vehicle. See `VALID_TRANSITIONS` in `trip.py` - STARTED only transitions to COMPLETED.
+
+## Related Modules
+
+- **[src/matching](../matching/CONTEXT.md)** — Queues trip executions after successful match; TripExecutor starts from matching server's pending queue
+- **[src/agents](../agents/CONTEXT.md)** — Driver and rider agents whose state TripExecutor updates during journey phases
+- **[src/events](../events/CONTEXT.md)** — Event schemas that TripExecutor uses to emit trip lifecycle events to Kafka

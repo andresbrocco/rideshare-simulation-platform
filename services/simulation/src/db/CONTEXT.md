@@ -6,7 +6,7 @@ SQLite persistence layer for simulation state checkpoint and recovery. Enables g
 
 ## Responsibility Boundaries
 
-- **Owns**: SQLAlchemy ORM models, checkpoint creation/restoration, agent and trip persistence, route caching
+- **Owns**: SQLAlchemy ORM models, checkpoint creation/restoration, agent and trip persistence, route caching, transaction management
 - **Delegates to**: Repositories for CRUD operations, domain models for business logic validation
 - **Does not handle**: Event publishing (Kafka), real-time state propagation (Redis), business logic (agents, trips, matching)
 
@@ -18,7 +18,7 @@ SQLite persistence layer for simulation state checkpoint and recovery. Enables g
 
 **Two-Phase Recovery**: On dirty checkpoint restoration, in-flight trips are cancelled during recovery to ensure clean state and prevent duplicate event publishing to Kafka.
 
-**Repository Pattern**: Generic `BaseAgentRepository` provides CRUD for drivers/riders. `TripRepository` manages trip state transitions with automatic timestamp updates.
+**Transaction Management**: Explicit `transaction()` and `savepoint()` context managers ensure atomic operations. Checkpoints use transactions to guarantee all-or-nothing persistence.
 
 **Location Storage**: Coordinates stored as comma-delimited strings (`"lat,lon"`) in SQLite for simplicity. DNA objects serialized as JSON.
 
@@ -30,8 +30,10 @@ Route cache uses H3 cell pairs as composite keys (`origin_h3|dest_h3`) and store
 
 The `utc_now()` utility returns timezone-naive datetimes representing UTC to match SQLite's TEXT datetime storage without timezone info.
 
+The `save_from_engine()` method captures full runtime state including matching server internals (surge multipliers, reserved drivers) for complete restoration.
+
 ## Related Modules
 
-- **[services/simulation/src/db/repositories](./repositories/CONTEXT.md)** — Data access layer providing CRUD operations on ORM models defined here
-- **[services/simulation/src/api/routes](../../api/routes/CONTEXT.md)** — Triggers checkpoint creation via pause/stop endpoints
-- **[services/simulation/src/core](../../core/CONTEXT.md)** — Uses exception hierarchy for database error classification
+- **[src/db/repositories](repositories/CONTEXT.md)** — Repository layer that provides CRUD operations using ORM models defined here
+- **[src/engine](../engine/CONTEXT.md)** — Simulation engine that triggers checkpoint saves and restores state during initialization
+- **[src/agents](../agents/CONTEXT.md)** — Agent domain models that are persisted to database via repositories

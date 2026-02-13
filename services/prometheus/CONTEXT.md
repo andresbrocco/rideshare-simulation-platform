@@ -12,7 +12,7 @@ Metrics collection and storage service for the rideshare simulation platform. Ac
 
 ## Key Concepts
 
-**Scrape Targets**: Prometheus actively polls metrics endpoints every 15-30 seconds from statically-defined targets — prometheus (self), cadvisor, kafka, spark-master, spark-worker, airflow-webserver.
+**Scrape Targets**: Prometheus actively polls metrics endpoints every 15-30 seconds from statically-defined targets — prometheus (self), cadvisor, and otel-collector. Other services (simulation, stream-processor) push metrics via OTLP remote_write through the OTel Collector.
 
 **Alert Rules**: Defined in `rules/alerts.yml` with two groups — Prometheus health (PrometheusDown, PrometheusScrapeFailure) and container health (HighContainerMemoryUsage, ContainerDown).
 
@@ -30,6 +30,6 @@ Scrape targets reference Docker Compose service names (e.g., `cadvisor:8080`, `k
 
 ## Related Modules
 
-- **[services/grafana](../grafana/CONTEXT.md)** — Primary consumer; all Grafana dashboards query Prometheus as their datasource
-- **[services/simulation/src/api/routes](../simulation/src/api/routes/CONTEXT.md)** — Exposes /metrics endpoints that Prometheus scrapes for simulation performance data
-- **[infrastructure/docker](../../infrastructure/docker/CONTEXT.md)** — Deployment orchestration; defines Prometheus container, volume mounts, and monitoring profile
+- **[services/grafana](../grafana/CONTEXT.md)** — Primary consumer of Prometheus metrics; queries time-series data for dashboard visualizations and alerting
+- **[services/grafana/provisioning/datasources](../grafana/provisioning/datasources/CONTEXT.md)** — Configures Prometheus as Grafana datasource with specific UID reference
+- **[services/simulation/src/metrics](../simulation/src/metrics/CONTEXT.md)** — Exports simulation metrics via OTel that Prometheus scrapes through OTel Collector

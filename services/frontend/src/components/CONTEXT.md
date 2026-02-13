@@ -36,6 +36,7 @@ React components that compose the ride-sharing simulation control panel and real
 
 ## Related Modules
 
-- **[services/frontend/src/components/inspector](./inspector/CONTEXT.md)** — Detailed entity inspection panels with puppet control interfaces
-- **[services/frontend/src/types](../types/CONTEXT.md)** — TypeScript type definitions for agent states, trips, and UI configuration
-- **[services/simulation/src/api/routes](../../../simulation/src/api/routes/CONTEXT.md)** — Backend API providing control operations and state queries
+- **[src/components/inspector](inspector/CONTEXT.md)** — Detailed entity inspection popups for drivers, riders, and zones; provides puppet control interface
+- **[src/layers](../layers/CONTEXT.md)** — deck.gl layer factory functions that these components use to render agents and routes on the map
+- **[schemas/api](../../../../schemas/api/CONTEXT.md)** — OpenAPI spec generates TypeScript types used by components for type-safe API interaction
+- **[services/stream-processor/src](../../../stream-processor/src/CONTEXT.md)** — Publishes real-time updates to Redis that components receive via WebSocket subscriptions

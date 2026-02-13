@@ -41,3 +41,11 @@ This module defines the autonomous actors in the rideshare simulation: drivers a
 **Thread-Safe Event Loop Access**: Agents run in SimPy thread but emit events to Kafka via async coroutines on main thread's event loop. Uses asyncio.run_coroutine_threadsafe to schedule coroutines from SimPy thread, with fallback_sync=True in run_coroutine_safe for environments without running event loop.
 
 **Rating Submission Probability**: Not all completed trips result in ratings. should_submit_rating() uses exponential distribution favoring submission of extreme ratings (1-star and 5-star have higher probability than 3-star). Implements realistic rating behavior where neutral experiences don't generate feedback.
+
+## Related Modules
+
+- **[src/matching](../matching/CONTEXT.md)** — Matching engine that agents interact with for ride requests; agents submit requests and respond to match offers
+- **[src/engine](../engine/CONTEXT.md)** — SimPy orchestrator that manages agent process lifecycle; agents run as SimPy processes within the engine's environment
+- **[src/events](../events/CONTEXT.md)** — Event factory for creating structured events; agents use EventFactory to emit standardized events to Kafka
+- **[src/trips](../trips/CONTEXT.md)** — Trip execution coordinator; TripExecutor manages the journey after matching while agents track trip participation
+- **[services/stream-processor/src](../../../stream-processor/src/CONTEXT.md)** — Consumes agent events from Kafka and routes to Redis for frontend WebSocket delivery

@@ -23,11 +23,3 @@ S3-compatible object storage serving as the persistence layer for the rideshare 
 Built from source (`RELEASE.2025-10-15T17-29-55Z`) because the official MinIO Docker images on Docker Hub are AMD64-only. Building from Go source with `CGO_ENABLED=0` produces a static binary that runs natively on ARM64 (Apple Silicon) without emulation overhead.
 
 The `minio-init` sidecar runs `mc mb --ignore-existing` for each bucket, then exits. It depends on the MinIO health check, not a fixed sleep delay.
-
-## Related Modules
-
-- **[services/bronze-ingestion](../bronze-ingestion/CONTEXT.md)** — Primary writer; Bronze ingestion writes Delta tables to MinIO
-- **[services/hive-metastore](../hive-metastore/)** — Stores Delta table metadata pointing to S3 paths in MinIO
-- **[services/trino](../trino/)** — Queries Delta tables stored in MinIO via Hive Metastore catalog
-- **[services/airflow](../airflow/CONTEXT.md)** — Orchestrates data pipeline jobs that read from and write to MinIO
-- **[infrastructure/docker](../../infrastructure/docker/)** — Deployment orchestration; defines MinIO and minio-init services

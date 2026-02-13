@@ -28,11 +28,13 @@ The staging layer transforms raw Bronze events into clean, validated datasets re
 
 **SCD Type 2 Preparation**: Driver profiles (`stg_drivers`) preserve all create/update events to enable SCD Type 2 tracking in Gold layer. Rider profiles (`stg_riders`) do not use SCD Type 2 and only track current state.
 
-**Platform Fee Calculation**: Payment models validate that `platform_fee_amount + driver_payout_amount = fare_amount` through filtering (`where fare_amount > 0 and platform_fee_amount > 0 and driver_payout_amount > 0`).
+**Platform Fee Calculation**: Payment models filter for positive values only (`where fare_amount > 0 and platform_fee_amount > 0 and driver_payout_amount > 0`) but do not validate the equation `platform_fee_amount + driver_payout_amount = fare_amount`.
 
 **Sao Paulo Bounds**: GPS coordinate validation uses hardcoded bounds (latitude: -23.8 to -23.3, longitude: -46.9 to -46.3) specific to the simulation geography.
 
 ## Related Modules
 
-- **[tools/dbt/macros](../../macros/CONTEXT.md)** — Provides delta_source and source_with_empty_guard macros used by all staging models
-- **[services/bronze-ingestion](../../../../services/bronze-ingestion/CONTEXT.md)** — Data source; staging reads from Bronze Delta tables created by the Python ingestion consumer
+- **[schemas/lakehouse/schemas](../../../../schemas/lakehouse/schemas/CONTEXT.md)** — Bronze Delta table schemas that staging models read from for Silver transformations
+- **[services/bronze-ingestion](../../../../services/bronze-ingestion/CONTEXT.md)** — Upstream ingestion service that populates Bronze tables before staging models run
+- **[models/marts](../marts/CONTEXT.md)** — Gold layer models that read from staging models to build dimensional star schema
+- **[tools/great-expectations](../../../../tools/great-expectations/CONTEXT.md)** — Data quality expectations validate staging model outputs after Silver transformations

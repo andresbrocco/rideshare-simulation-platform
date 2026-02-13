@@ -23,9 +23,3 @@ Container resource metrics exporter that collects CPU, memory, network, and disk
 The host port mapping is 8083→8080 because port 8080 is already used by Trino in the data-pipeline profile. The Prometheus scrape config targets cAdvisor at `cadvisor:8080` (internal Docker network port, not the host-mapped port).
 
 cAdvisor automatically discovers and monitors all containers on the Docker host, including itself. No per-container configuration is needed.
-
-## Related Modules
-
-- **[services/prometheus](../prometheus/CONTEXT.md)** — Scrapes cAdvisor metrics for storage and querying
-- **[services/grafana](../grafana/CONTEXT.md)** — Visualizes container resource metrics from Prometheus
-- **[infrastructure/docker](../../infrastructure/docker/CONTEXT.md)** — Deployment orchestration; defines cAdvisor service in monitoring profile

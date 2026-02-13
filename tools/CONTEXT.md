@@ -22,9 +22,3 @@ Houses configuration and code projects that are orchestrated by other services (
 **Not Services**: Unlike modules in `services/`, these directories do not have Dockerfiles or run as containers. They are mounted into Airflow containers as volumes and executed within that context.
 
 **Data Quality Pipeline**: DBT transforms data first, then Great Expectations validates the results. Both are orchestrated by Airflow DAGs on schedule.
-
-## Related Modules
-
-- **[services/airflow](../services/airflow/CONTEXT.md)** — Orchestrates both DBT runs and Great Expectations checkpoint executions
-- **[services/bronze-ingestion](../services/bronze-ingestion/CONTEXT.md)** — Creates Bronze Delta tables that DBT reads from
-- **[services/looker](../services/looker/CONTEXT.md)** — BI layer for Gold tables produced by DBT transformations

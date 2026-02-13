@@ -1,134 +1,224 @@
-# LocalStack - AWS Service Emulation
+# LocalStack
 
-> LocalStack 4.12.0 (`localstack/localstack:4.12.0`)
+> Local AWS service emulation for Secrets Manager, SNS, and SQS during development.
 
-## Purpose
+## Quick Reference
 
-LocalStack provides local AWS cloud service emulation for development and testing.
+### Service Configuration
 
-**Files in this directory:**
+| Property | Value |
+|----------|-------|
+| Image | `localstack/localstack:4.12.0` |
+| Port | `4566` (unified endpoint) |
+| Additional Ports | `4510-4559` (individual service APIs) |
+| Health Check | `http://localhost:4566/_localstack/health` |
+| Profiles | `core`, `data-pipeline`, `monitoring` |
 
-| File | Purpose |
-|------|---------|
-| `test-services.sh` | Validation script that tests Secrets Manager, SNS, and SQS |
-| `README.md` | This file |
-| `CONTEXT.md` | Architecture context for AI agents |
+### Environment Variables
 
-## Enabled Services
+| Variable | Value | Purpose |
+|----------|-------|---------|
+| `SERVICES` | `secretsmanager,sns,sqs` | Enabled AWS services |
+| `PERSISTENCE` | `0` | Ephemeral data (lost on restart) |
+| `LOCALSTACK_HOST` | `localhost:4566` | Endpoint for service-to-service calls |
+| `DEBUG` | `0` | Debug logging disabled |
+| `LS_LOG` | `info` | Log level |
 
-- **Secrets Manager** - Store and retrieve secrets
-- **SNS** - Simple Notification Service for pub/sub messaging
-- **SQS** - Simple Queue Service for message queuing
+### AWS Services Available
 
-## Configuration
+| Service | Purpose | Used By |
+|---------|---------|---------|
+| **Secrets Manager** | Credential storage and retrieval | All services via `secrets-init` |
+| **SNS** | Pub/sub messaging | Currently unused, available for future features |
+| **SQS** | Message queuing | Currently unused, available for future features |
 
-| Setting | Value | Description |
-|---------|-------|-------------|
-| Endpoint | http://localhost:4566 | Unified API endpoint |
-| Service Range | 4510-4559 | Individual service API ports |
-| Memory | 512MB | Container memory limit |
-| Persistence | Disabled (`PERSISTENCE=0`) | Data is ephemeral |
-| Region | `us-east-1` | Default AWS region |
-| Credentials | `test`/`test` | Dummy credentials (any value works) |
-| Profile | `data-pipeline` | Docker Compose profile |
+### Secrets Managed
 
-## Quick Start
+All application credentials are stored in LocalStack Secrets Manager:
 
-```bash
-# Start LocalStack
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d localstack
+| Secret Path | Contains | Used By |
+|-------------|----------|---------|
+| `rideshare/api-key` | API authentication key | `simulation`, `frontend` |
+| `rideshare/minio` | S3-compatible storage credentials | `bronze-ingestion`, `airflow`, `trino` |
+| `rideshare/redis` | Redis AUTH password | `simulation`, `stream-processor` |
+| `rideshare/kafka` | SASL authentication | `kafka`, `simulation`, `stream-processor`, `bronze-ingestion` |
+| `rideshare/schema-registry` | Schema registry credentials | `simulation`, `stream-processor`, `bronze-ingestion` |
+| `rideshare/hive-thrift` | Hive Metastore authentication | `trino`, `hive-metastore` |
+| `rideshare/ldap` | LDAP admin credentials | `openldap` (Kubernetes only) |
+| `rideshare/airflow` | Airflow webserver/database | `airflow` |
+| `rideshare/grafana` | Grafana admin credentials | `grafana` |
+| `rideshare/postgres-airflow` | Airflow database | `postgres-airflow`, `airflow` |
+| `rideshare/postgres-metastore` | Hive Metastore database | `postgres-metastore`, `hive-metastore` |
 
-# Check health
-curl http://localhost:4566/_localstack/health
-```
+All secrets default to `admin` for username/password or format-compliant dev values for cryptographic keys.
 
-## AWS CLI Usage
-
-Configure dummy credentials:
+### AWS CLI Configuration
 
 ```bash
 export AWS_ACCESS_KEY_ID="test"
 export AWS_SECRET_ACCESS_KEY="test"
 export AWS_DEFAULT_REGION="us-east-1"
+export AWS_ENDPOINT_URL="http://localhost:4566"
 ```
 
-All commands require `--endpoint-url`:
+LocalStack accepts any credentials (no IAM validation). Convention is to use `test`/`test`.
+
+## Common Tasks
+
+### Verify Services Are Running
 
 ```bash
-# Secrets Manager
-aws --endpoint-url=http://localhost:4566 secretsmanager create-secret \
-    --name my-secret --secret-string "secret-value"
+# Check LocalStack health
+curl http://localhost:4566/_localstack/health
 
-# SNS
-aws --endpoint-url=http://localhost:4566 sns create-topic --name my-topic
-
-# SQS
-aws --endpoint-url=http://localhost:4566 sqs create-queue --queue-name my-queue
+# Expected response (excerpt):
+{
+  "services": {
+    "secretsmanager": "running",  # pragma: allowlist secret
+    "sns": "running",
+    "sqs": "running"
+  }
+}
 ```
 
-## Python boto3 Usage
+### Test All Services
 
-```python
-import boto3
-
-# Configure client to use LocalStack
-client = boto3.client(
-    'secretsmanager',
-    endpoint_url='http://localhost:4566',
-    aws_access_key_id='test',
-    aws_secret_access_key='test',
-    region_name='us-east-1'
-)
-
-# Use normally
-client.create_secret(Name='my-secret', SecretString='my-value')
-```
-
-## Testing
-
-Run the test script to verify all services:
+Run the validation script (requires AWS CLI installed locally):
 
 ```bash
-./services/localstack/test-services.sh
+cd /Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/services/localstack
+./test-services.sh
 ```
+
+This creates test resources (secret, SNS topic, SQS queue) and verifies round-trip functionality.
+
+### List All Secrets
+
+```bash
+aws --endpoint-url=http://localhost:4566 secretsmanager list-secrets
+```
+
+### Retrieve a Secret
+
+```bash
+aws --endpoint-url=http://localhost:4566 \
+  secretsmanager get-secret-value \
+  --secret-id rideshare/api-key \
+  --query SecretString \
+  --output text
+```
+
+### Create a Custom Secret
+
+```bash
+aws --endpoint-url=http://localhost:4566 \
+  secretsmanager create-secret \
+  --name my-custom-secret \
+  --secret-string '{"username":"admin","password":"admin"}'  # pragma: allowlist secret
+```
+
+### Create an SNS Topic
+
+```bash
+aws --endpoint-url=http://localhost:4566 \
+  sns create-topic \
+  --name my-notifications
+```
+
+### Create an SQS Queue
+
+```bash
+aws --endpoint-url=http://localhost:4566 \
+  sqs create-queue \
+  --queue-name my-queue
+```
+
+### View LocalStack Logs
+
+```bash
+docker compose -f infrastructure/docker/compose.yml logs -f localstack
+```
+
+## Secrets Initialization Flow
+
+1. **LocalStack starts** - Health check waits for `/_localstack/health` to return 200
+2. **`secrets-init` service runs** - Depends on LocalStack health
+   - Runs `seed-secrets.py` to create all secrets in Secrets Manager
+   - Runs `fetch-secrets.py` to download secrets and write to `/secrets/*.env` files
+3. **Application services start** - Depend on `secrets-init` completion
+   - Read credentials from `/secrets/core.env`, `/secrets/data-pipeline.env`, etc.
+
+See `infrastructure/scripts/seed-secrets.py` for secret definitions.
 
 ## Troubleshooting
 
-### LocalStack not starting
+### LocalStack fails health check
 
-Check container logs:
-```bash
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline logs localstack
+**Symptom**: Container restarts repeatedly, `secrets-init` never runs.
+
+**Cause**: Insufficient memory allocation.
+
+**Solution**: LocalStack requires at least 256MB. Current config:
+```yaml
+mem_limit: 256m
 ```
 
-### Health check failing
+If still failing, temporarily increase to 512MB and file an issue.
 
-Verify the container is running and the endpoint is reachable:
+### Secrets not found after restart
+
+**Symptom**: Services fail with "Secret not found" errors after `docker compose down/up`.
+
+**Cause**: `PERSISTENCE=0` means all state is ephemeral.
+
+**Solution**: This is expected behavior. `secrets-init` recreates secrets on every startup. Verify:
 ```bash
+docker compose -f infrastructure/docker/compose.yml logs secrets-init
+```
+
+Look for "Successfully seeded X secrets" message.
+
+### AWS CLI commands fail
+
+**Symptom**: `aws` commands return connection errors.
+
+**Cause**: LocalStack not running or wrong endpoint.
+
+**Solution**:
+```bash
+# Check LocalStack is running
+docker compose -f infrastructure/docker/compose.yml ps localstack
+
+# Verify endpoint
 curl http://localhost:4566/_localstack/health
+
+# Ensure --endpoint-url is set
+aws --endpoint-url=http://localhost:4566 secretsmanager list-secrets
 ```
 
-The response should list each enabled service with `"running"` status.
+### Different secret values in Kubernetes vs Docker
 
-### Services missing from health response
+**Symptom**: Application works in Docker but fails in Kubernetes with auth errors.
 
-Ensure the `SERVICES` environment variable in Docker Compose includes the required services (`secretsmanager,sns,sqs`).
+**Cause**: Kubernetes uses External Secrets Operator (ESO) which may be out of sync.
 
-### State lost after restart
-
-This is expected behavior. `PERSISTENCE=0` means all data is ephemeral. Secrets, topics, and queues must be recreated after each container restart.
-
-### test-services.sh fails
-
-The test script requires the AWS CLI to be installed locally on the host machine. Install it via:
+**Solution**: Verify ESO is syncing from LocalStack:
 ```bash
-brew install awscli        # macOS
-pip install awscli          # pip
+kubectl get externalsecrets -A
+kubectl describe externalsecret <name> -n <namespace>
 ```
 
-## References
+See `infrastructure/kubernetes/CONTEXT.md` for ESO troubleshooting.
 
-- [CONTEXT.md](CONTEXT.md) - Architecture and design decisions
-- [LocalStack Documentation](https://docs.localstack.cloud/overview/)
-- [LocalStack AWS Service Coverage](https://docs.localstack.cloud/user-guide/aws/feature-coverage/)
-- [infrastructure/docker/compose.yml](../../infrastructure/docker/compose.yml) - Docker service definitions
+## Prerequisites
+
+- Docker with at least 256MB allocatable to LocalStack
+- AWS CLI (for testing and manual secret operations)
+- LocalStack will **not** work without `/var/run/docker.sock` mounted (required for some internal features)
+
+## Related
+
+- [CONTEXT.md](CONTEXT.md) - Architecture context for LocalStack emulation
+- [infrastructure/scripts/seed-secrets.py](/Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/infrastructure/scripts/seed-secrets.py) - Secret definitions and seeding logic
+- [infrastructure/scripts/fetch-secrets.py](/Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/infrastructure/scripts/fetch-secrets.py) - Secret retrieval and `.env` file generation
+- [infrastructure/kubernetes/CONTEXT.md](/Users/asbrocco/Documents/REPOS/de-portfolio/rideshare-simulation-platform/infrastructure/kubernetes/CONTEXT.md) - External Secrets Operator integration

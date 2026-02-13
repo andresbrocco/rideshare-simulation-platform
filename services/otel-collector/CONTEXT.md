@@ -33,12 +33,3 @@ The Dockerfile copies `wget` from a busybox stage because the base `otel/opentel
 The OTLP receiver listens on ports 4317 (gRPC) and 4318 (HTTP). Application services send telemetry to these ports. Tempo also receives OTLP, but on different host-mapped ports (4319) to avoid conflicts.
 
 Port 8888 exposes the collector's own internal metrics (pipeline throughput, dropped data, queue sizes). Port 13133 is the dedicated health check extension endpoint.
-
-## Related Modules
-
-- **[services/loki](../loki/CONTEXT.md)** — Receives parsed and enriched logs via Loki push API
-- **[services/tempo](../tempo/CONTEXT.md)** — Receives traces via OTLP gRPC export
-- **[services/prometheus](../prometheus/CONTEXT.md)** — Receives application metrics via Prometheus remote write
-- **[services/simulation](../simulation/CONTEXT.md)** — Produces metrics and traces via OpenTelemetry SDK
-- **[services/stream-processor](../stream-processor/CONTEXT.md)** — Produces metrics and traces via OpenTelemetry SDK
-- **[infrastructure/docker](../../infrastructure/docker/CONTEXT.md)** — Deployment orchestration; defines OTel Collector service in monitoring profile

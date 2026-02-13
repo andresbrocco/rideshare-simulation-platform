@@ -27,8 +27,3 @@ Runs on `linux/amd64` only because the OSRM backend image does not support ARM. 
 First startup is slow (approximately 3 minutes) because `osrm-extract`, `osrm-partition`, and `osrm-customize` must process the full OSM data file. Subsequent starts skip this step since processed data is persisted in the `osrm-data` named volume.
 
 The Sao Paulo bounding box used for map extraction (`-46.9233,-24.1044,-46.2664,-23.2566`) matches the simulation's `zones.geojson` boundaries, ensuring all simulation coordinates fall within the routable area.
-
-## Related Modules
-
-- **[services/simulation](../simulation/CONTEXT.md)** — Primary consumer; the simulation service calls OSRM for route calculations during trip matching and driver navigation
-- **[infrastructure/docker](../../infrastructure/docker/CONTEXT.md)** — Deployment orchestration; defines the OSRM service, volume mounts, and core profile

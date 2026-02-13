@@ -26,5 +26,6 @@ Action sections use separate components (DriverActionsSection, RiderActionsSecti
 
 ## Related Modules
 
-- **[services/frontend/src/types](../../types/CONTEXT.md)** — Defines agent state structures and trip state machine used by inspector rendering logic
-- **[services/simulation/src/matching](../../../../simulation/src/matching/CONTEXT.md)** — Backend matching logic that inspectors expose for puppet control (accept/reject offers)
+- **[services/simulation/src/api/routes](../../../../simulation/src/api/routes/CONTEXT.md)** — FastAPI puppet control endpoints that inspector action buttons invoke; buttons trigger commands like accept-offer or drive-to-pickup
+- **[services/simulation/src/agents](../../../../simulation/src/agents/CONTEXT.md)** — Agent DNA and state structures displayed in inspectors; DNA parameters shown in behavioral sections
+- **[src/components](../CONTEXT.md)** — Parent component layer that manages inspector popup state and provides data via props

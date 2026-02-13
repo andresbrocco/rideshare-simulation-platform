@@ -1,342 +1,242 @@
-# Kubernetes
+# infrastructure/kubernetes
 
-> Kubernetes deployment configurations and tooling for local and cloud environments
+> Kubernetes deployment configurations and tooling for running the rideshare simulation platform on Kind clusters
 
 ## Quick Reference
+
+### Commands
+
+```bash
+# Cluster Management
+bash infrastructure/kubernetes/scripts/create-cluster.sh      # Create Kind cluster with ESO
+bash infrastructure/kubernetes/scripts/deploy-services.sh     # Deploy all services
+bash infrastructure/kubernetes/scripts/health-check.sh        # Check cluster health
+bash infrastructure/kubernetes/scripts/smoke-test.sh          # Run connectivity tests
+bash infrastructure/kubernetes/scripts/teardown.sh            # Delete cluster
+bash infrastructure/kubernetes/scripts/teardown.sh --preserve-data  # Delete cluster with backup
+
+# Direct kubectl commands
+kubectl get pods                                              # List all pods
+kubectl get nodes                                             # List nodes
+kubectl logs <pod-name>                                       # View pod logs
+kubectl exec -it <pod-name> -- /bin/bash                      # Shell into pod
+```
 
 ### Environment Variables
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `CLUSTER_NAME` | Name of the Kind cluster | `rideshare-local` | No |
-| `PRESERVE_DATA` | Backup PVCs before teardown | `false` | No |
-| `BACKUP_DIR` | Directory for cluster backups | `/tmp` | No |
-
-### Commands
-
-```bash
-# Cluster Lifecycle
-./infrastructure/kubernetes/scripts/create-cluster.sh
-  # Creates Kind cluster with 3 nodes (1 control-plane + 2 workers)
-  # Configures port mappings for Ingress (80, 443)
-  # Waits for nodes to be Ready
-
-./infrastructure/kubernetes/scripts/deploy-services.sh
-  # Deploys all Kubernetes manifests in order:
-  # 1. Storage (StorageClass, PVs, PVCs)
-  # 2. Config/Secrets (ConfigMaps, Secrets)
-  # 3. Data platform (MinIO, Hive Metastore, Spark, Trino, Bronze Ingestion, Airflow, LocalStack)
-  # 4. Core services (Kafka, Redis, OSRM, Simulation, Stream Processor, Frontend)
-  # 5. Monitoring (Prometheus, Loki, Tempo, OTel Collector, cAdvisor, Grafana)
-  # 6. Networking (Gateway API resources)
-
-./infrastructure/kubernetes/scripts/health-check.sh
-  # Validates cluster health
-  # Checks node status
-  # Verifies critical services (Kafka, Redis, MinIO)
-  # Confirms PVC bindings
-
-./infrastructure/kubernetes/scripts/smoke-test.sh
-  # Runs connectivity tests for Kafka, Redis, MinIO
-  # Tests DNS resolution for services
-  # Validates persistent storage read/write
-
-./infrastructure/kubernetes/scripts/teardown.sh [--preserve-data] [--backup-dir=/path]
-  # Deletes Kind cluster
-  # Optional: --preserve-data backs up PVC data before deletion
-  # Optional: --backup-dir=/path specifies backup location
-```
+| `CLUSTER_NAME` | Kind cluster name | `rideshare-local` | No |
+| `BACKUP_DIR` | Backup directory for teardown | `/tmp` | No |
 
 ### Configuration Files
 
 | File | Purpose |
 |------|---------|
-| `kind/cluster-config.yaml` | Kind cluster definition (3 nodes, port mappings, network config) |
-| `manifests/*.yaml` | Kubernetes resource definitions for all services |
-| `argocd/*.yaml` | ArgoCD application definitions and sync policies |
-| `overlays/local/kustomization.yaml` | Local environment customizations |
-| `overlays/production/kustomization.yaml` | Production environment customizations |
-| `base/core/kustomization.yaml` | Base core services manifest list |
-| `base/data-pipeline/kustomization.yaml` | Base data pipeline manifest list |
+| `kind/cluster-config.yaml` | Kind cluster configuration (3 nodes: 1 control plane, 2 workers) |
+| `manifests/*.yaml` | Kubernetes manifests for all services |
+| `overlays/*/kustomization.yaml` | Kustomize overlays for different environments |
+| `argocd/applications/*.yaml` | ArgoCD Application definitions |
 
-### Service Access
+### Service Ports
 
-**Ingress (http://localhost/):**
-- Frontend: http://localhost/
-- Simulation API: http://localhost/api/
-- Airflow: http://localhost/airflow/
-- Grafana: http://localhost/grafana/
-- Prometheus: http://localhost/prometheus/
-- Trino: http://localhost/trino/
+| Service | Port | Protocol | Purpose |
+|---------|------|----------|---------|
+| Simulation API | 8000 | HTTP | REST API and WebSocket |
+| Stream Processor | 8080 | HTTP | Health and metrics |
+| Frontend | 80 | HTTP | Web UI (nginx) |
+| Kafka | 9092 | TCP | Broker (internal) |
+| Kafka | 29092 | TCP | External listener |
+| Redis | 6379 | TCP | Cache and state |
+| MinIO | 9000 | HTTP | S3 API |
+| MinIO Console | 9001 | HTTP | Admin UI |
+| Schema Registry | 8081 | HTTP | Avro schema management |
+| Prometheus | 9090 | HTTP | Metrics scraping |
+| Grafana | 3001 | HTTP | Dashboards |
+| Loki | 3100 | HTTP | Log ingestion |
+| Tempo | 3200 | HTTP | Trace ingestion |
+| OTEL Collector | 4317 | gRPC | OTLP traces/metrics |
+| OTEL Collector | 4318 | HTTP | OTLP traces/metrics |
+| Trino | 8080 | HTTP | SQL query engine |
+| Airflow Webserver | 8080 | HTTP | Workflow UI |
+| Hive Metastore | 9083 | Thrift | Catalog service |
+| LocalStack | 4566 | HTTP | AWS API emulation |
+| OSRM | 5000 | HTTP | Routing service |
 
-**Port Forwarding:**
-```bash
-# ArgoCD UI (HTTPS)
-kubectl port-forward svc/argocd-server -n argocd 8080:443
-# Access at: https://localhost:8080
+### NodePort Mappings (Kind)
 
-# Direct service access
-kubectl port-forward svc/simulation 8000:8000
-kubectl port-forward svc/kafka 9092:9092
-kubectl port-forward svc/redis 6379:6379
-kubectl port-forward svc/grafana 3001:3001
-kubectl port-forward svc/loki 3100:3100
-kubectl port-forward svc/tempo 3200:3200
-kubectl port-forward svc/trino 8084:8080
-kubectl port-forward svc/minio 9000:9000 9001:9001
-```
+| Host Port | Container Port | Purpose |
+|-----------|----------------|---------|
+| 80 | 80 | HTTP Ingress |
+| 443 | 443 | HTTPS Ingress |
+| 30000 | 30000 | NodePort range start |
+| 30001 | 30001 | NodePort range |
 
-**NodePort (mapped to localhost):**
-- Port 30000: Available for NodePort services
-- Port 30001: Available for NodePort services
+## Prerequisites
 
-### Prerequisites
-
-- Docker Desktop (or Docker Engine)
-- Kind CLI: `brew install kind` (macOS) or see [Kind installation](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)
-- kubectl CLI: `brew install kubectl` (macOS) or see [kubectl installation](https://kubernetes.io/docs/tasks/tools/)
-- 10GB available Docker memory (configured in Docker Desktop preferences)
+- **Docker Desktop**: 10GB+ RAM allocation
+- **kind**: v0.20.0+ (`brew install kind` or https://kind.sigs.k8s.io/)
+- **kubectl**: v1.28.0+ (`brew install kubectl`)
+- **Helm**: v3.12.0+ (for External Secrets Operator) (`brew install helm`)
 
 ## Common Tasks
 
 ### Create and Deploy Full Stack
 
 ```bash
-# 1. Create Kind cluster
-./infrastructure/kubernetes/scripts/create-cluster.sh
+# 1. Create cluster (3 nodes + ESO)
+bash infrastructure/kubernetes/scripts/create-cluster.sh
 
-# 2. Build and load custom images
-docker build -t rideshare-simulation:local services/simulation/
-docker build -t rideshare-stream-processor:local services/stream-processor/
-docker build -t rideshare-frontend:local --target production services/frontend/
-docker build -t rideshare-osrm:local services/osrm/
-docker build -t rideshare-minio:local services/minio/
-docker build -t rideshare-bronze-ingestion:local services/bronze-ingestion/
-docker build -t rideshare-hive-metastore:local services/hive-metastore/
-kind load docker-image rideshare-simulation:local rideshare-stream-processor:local \
-  rideshare-frontend:local rideshare-osrm:local rideshare-minio:local \
-  rideshare-bronze-ingestion:local rideshare-hive-metastore:local --name rideshare-local
+# 2. Deploy all services
+bash infrastructure/kubernetes/scripts/deploy-services.sh
 
-# 3. Deploy all services
-./infrastructure/kubernetes/scripts/deploy-services.sh
+# 3. Verify health
+bash infrastructure/kubernetes/scripts/health-check.sh
 
-# 4. Verify health
-./infrastructure/kubernetes/scripts/health-check.sh
+# 4. Run smoke tests
+bash infrastructure/kubernetes/scripts/smoke-test.sh
 
-# 5. Run smoke tests
-./infrastructure/kubernetes/scripts/smoke-test.sh
-
-# 6. Access services via Ingress
-open http://localhost/
+# 5. Check pod status
+kubectl get pods -o wide
 ```
 
-### Check Deployment Status
+### Access Services
 
 ```bash
-# View all pods
-kubectl get pods -o wide
+# Port-forward to access services locally
+kubectl port-forward svc/simulation 8000:8000      # Simulation API
+kubectl port-forward svc/frontend 3000:80          # Frontend
+kubectl port-forward svc/grafana 3001:3001         # Grafana
+kubectl port-forward svc/minio 9000:9000           # MinIO S3
+kubectl port-forward svc/minio 9001:9001           # MinIO Console
 
-# View services
-kubectl get svc
+# Access via NodePort (if configured)
+curl http://localhost:30000
+```
 
-# View PersistentVolumeClaims
-kubectl get pvc
+### View Logs
 
-# View Gateway API resources
-kubectl get gateway,httproute
-
-# View logs for specific service
+```bash
+# Tail logs for a service
 kubectl logs -f deployment/simulation
 kubectl logs -f deployment/stream-processor
+kubectl logs -f deployment/bronze-ingestion
 
-# View events
-kubectl get events --sort-by='.lastTimestamp'
+# View logs from all pods with a label
+kubectl logs -l app=simulation --all-containers=true -f
+
+# View logs from specific pod
+POD_NAME=$(kubectl get pods -l app=kafka --no-headers | awk '{print $1}' | head -n 1)
+kubectl logs -f $POD_NAME
 ```
 
-### Redeploy Single Service
+### Debug Pods
 
 ```bash
-# Update manifest
-vim infrastructure/kubernetes/manifests/simulation.yaml
-
-# Apply changes
-kubectl apply -f infrastructure/kubernetes/manifests/simulation.yaml
-
-# Watch rollout
-kubectl rollout status deployment/simulation
-```
-
-### Backup and Restore Data
-
-```bash
-# Teardown with data preservation
-./infrastructure/kubernetes/scripts/teardown.sh --preserve-data --backup-dir=/path/to/backups
-
-# Backup file created at: /path/to/backups/rideshare-k8s-backup-YYYYMMDD-HHMMSS.tar.gz
-
-# To restore:
-# 1. Create new cluster
-./infrastructure/kubernetes/scripts/create-cluster.sh
-
-# 2. Deploy services
-./infrastructure/kubernetes/scripts/deploy-services.sh
-
-# 3. Restore data (manual process - extract tarball and copy to PVCs)
-tar xzf /path/to/backups/rideshare-k8s-backup-YYYYMMDD-HHMMSS.tar.gz
-```
-
-### Debug Failed Pods
-
-```bash
-# Describe pod to see events
+# Describe pod (shows events, status, resource usage)
 kubectl describe pod <pod-name>
 
-# View logs (current and previous container)
-kubectl logs <pod-name>
-kubectl logs <pod-name> --previous
+# Get pod YAML
+kubectl get pod <pod-name> -o yaml
 
-# Execute into running pod
+# Shell into running pod
 kubectl exec -it <pod-name> -- /bin/bash
 
-# Check init container logs
-kubectl logs <pod-name> -c <init-container-name>
+# Run command in pod
+kubectl exec -i <pod-name> -- env
+kubectl exec -i <pod-name> -- curl http://localhost:8000/health
 ```
 
-### Update ArgoCD Applications
+### Check Storage
 
 ```bash
-# Install ArgoCD (if not already installed)
-kubectl apply -f infrastructure/kubernetes/argocd/install.yaml
+# List PersistentVolumeClaims
+kubectl get pvc
 
-# Deploy ArgoCD applications
-kubectl apply -f infrastructure/kubernetes/argocd/app-core-services.yaml
-kubectl apply -f infrastructure/kubernetes/argocd/app-data-pipeline.yaml
+# List PersistentVolumes
+kubectl get pv
 
-# Access ArgoCD UI
-kubectl port-forward svc/argocd-server -n argocd 8080:443
-# Get admin password
-kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
-
-# Sync applications via CLI
-kubectl patch application core-services -n argocd --type merge -p '{"operation":{"initiatedBy":{"username":"admin"},"sync":{"revision":"HEAD"}}}'
+# Describe PVC (shows binding status)
+kubectl describe pvc minio-storage
 ```
 
-### Adjust Resource Limits
+### Manage Secrets (External Secrets Operator)
 
 ```bash
-# Edit Kustomize overlay for local environment
-vim infrastructure/kubernetes/overlays/local/kustomization.yaml
+# Check ESO installation
+kubectl get pods -n external-secrets
 
-# Apply overlay
-kubectl apply -k infrastructure/kubernetes/overlays/local
+# List SecretStores
+kubectl get secretstore
+
+# List ExternalSecrets
+kubectl get externalsecret
+
+# Describe ExternalSecret (shows sync status)
+kubectl describe externalsecret api-keys
+
+# View synced Kubernetes Secret
+kubectl get secret api-keys -o yaml
 ```
+
+### Scale Deployments
+
+```bash
+# Scale simulation service
+kubectl scale deployment simulation --replicas=2
+
+# Scale stream processor
+kubectl scale deployment stream-processor --replicas=3
+
+# Check current replicas
+kubectl get deployment
+```
+
+### Cleanup and Teardown
+
+```bash
+# Delete cluster (no backup)
+bash infrastructure/kubernetes/scripts/teardown.sh
+
+# Delete cluster with data backup
+bash infrastructure/kubernetes/scripts/teardown.sh --preserve-data
+
+# Delete cluster with custom backup location
+BACKUP_DIR=/path/to/backups bash infrastructure/kubernetes/scripts/teardown.sh --preserve-data
+
+# Manual cleanup (if script fails)
+kind delete cluster --name rideshare-local
+```
+
+## Deployment Order
+
+The `deploy-services.sh` script deploys resources in dependency order:
+
+1. **Storage**: StorageClass, PersistentVolumes, PersistentVolumeClaims
+2. **Configuration**: ConfigMaps, Secrets, External Secrets Operator resources
+3. **Data Platform**: MinIO, LocalStack, Postgres, Hive Metastore, Trino, Airflow
+4. **Core Services**: Kafka, Schema Registry, Redis, OSRM, Simulation, Stream Processor, Frontend
+5. **Monitoring**: Prometheus, Loki, Tempo, OTEL Collector, cAdvisor, Grafana
+6. **Networking**: Gateway API resources (GatewayClass, Gateway, HTTPRoutes)
 
 ## Troubleshooting
 
 | Symptom | Cause | Solution |
 |---------|-------|----------|
-| Cluster creation fails | Kind binary not found | Install Kind: `brew install kind` |
-| Pods stuck in Pending | PVC not bound | Check PV availability: `kubectl get pv,pvc` |
-| Pods in ImagePullBackOff | Image not available in Kind | Load image: `kind load docker-image <image> --name rideshare-local` |
-| Gateway resources fail to apply | Gateway API CRDs not installed | Script auto-installs, but can manually run: `kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml` |
-| Init containers timeout | Dependency service not ready | Check dependency pod status: `kubectl get pods -l app=<dependency>` |
-| Cannot connect to http://localhost/ | Ingress not configured | Verify Gateway is Programmed: `kubectl get gateway rideshare-gateway` |
-| Health check fails | Services still starting | Wait 2-3 minutes for all pods to be Running, then rerun health-check.sh |
-| Smoke tests fail | Network connectivity issue | Check service DNS: `kubectl exec -it <pod> -- nslookup <service>` |
-| Out of memory errors | Docker Desktop memory too low | Increase Docker memory to 10GB in Docker Desktop preferences |
-| StorageClass immutable error | Attempting to modify existing StorageClass | Expected - Kind creates default StorageClass, script continues |
+| `Cluster not accessible` | Kind cluster not running | Run `kind get clusters` to verify, recreate with `create-cluster.sh` |
+| `Pods stuck in Pending` | Resource limits or PVC binding issues | Check `kubectl describe pod <name>` for events, verify PVCs with `kubectl get pvc` |
+| `ImagePullBackOff` | Docker images not available locally | Build images with Docker Compose first or use Kind's image loading |
+| `CrashLoopBackOff` | Application crash on startup | Check logs with `kubectl logs <pod>`, verify dependencies are running |
+| `ExternalSecret not syncing` | LocalStack not running or wrong endpoint | Verify LocalStack pod is running, check ESO controller logs |
+| `Service DNS not resolving` | CoreDNS issues | Check `kubectl get pods -n kube-system`, restart CoreDNS if needed |
+| `PVC not binding` | No available PersistentVolumes | Verify PVs exist with `kubectl get pv`, check PVC/PV storageClassName matches |
+| `ESO Helm install fails` | Helm not installed | Install Helm: `brew install helm` or https://helm.sh/docs/intro/install/ |
+| `Nodes not Ready` | Docker Desktop resource limits | Increase Docker Desktop memory to 10GB+, restart Docker |
+| `Port-forward fails` | Pod not running or wrong port | Verify pod is Running with `kubectl get pods`, check service port with `kubectl get svc` |
 
 ## Related
 
-- [CONTEXT.md](CONTEXT.md) — Architecture context and design decisions
-- [manifests/CONTEXT.md](manifests/CONTEXT.md) — Kubernetes resource definitions
-- [scripts/CONTEXT.md](scripts/CONTEXT.md) — Lifecycle management automation
-- [overlays/CONTEXT.md](overlays/CONTEXT.md) — Environment-specific customizations
-- [../docker/README.md](../docker/README.md) — Docker Compose alternative deployment
-- [../terraform/README.md](../terraform/README.md) — Cloud infrastructure provisioning
-
----
-
-## Architecture Notes
-
-### Deployment Order
-
-Services are deployed in strict order to satisfy dependencies:
-
-1. **Storage Layer** — StorageClass, PersistentVolumes, PersistentVolumeClaims
-2. **Configuration** — ConfigMaps (environment variables), Secrets (credentials, API keys)
-3. **Data Platform** — MinIO, Hive Metastore (postgres-metastore + hive-metastore), Spark Thrift Server, Trino, Bronze Ingestion, Airflow (postgres/scheduler/webserver), LocalStack
-4. **Core Services** — Kafka, Schema Registry, Redis, OSRM, Simulation, Stream Processor, Frontend
-5. **Monitoring** — Prometheus, Loki, Tempo, OTel Collector, cAdvisor, Grafana
-6. **Networking** — GatewayClass, Gateway, HTTPRoute resources
-
-### Resource Allocation
-
-**Kind Cluster Budget (10GB total):**
-- Control plane node: ~1GB
-- Worker node 1: ~4.5GB
-- Worker node 2: ~4.5GB
-- System overhead: ~1GB
-
-**Local vs Production:**
-- Local overlays use smaller resource limits suitable for laptop development
-- Production overlays use autoscaling and higher resource requests/limits
-
-### Static vs Dynamic Provisioning
-
-**Local (Kind):**
-- Uses static PersistentVolumes pre-created in `pv-static.yaml`
-- Predictable storage allocation for development
-- PVCs bind to pre-created PVs by matching capacity and access mode
-
-**Production (Cloud):**
-- Uses dynamic provisioning via StorageClass (e.g., EBS, GCE PD)
-- PVs created on-demand when PVCs are created
-- Managed by cloud provider's CSI driver
-
-### Init Containers Pattern
-
-All service manifests use init containers to wait for dependencies before starting the main container:
-
-```yaml
-initContainers:
-  - name: wait-for-kafka
-    image: busybox:1.36
-    command: ['sh', '-c', 'until nc -z kafka 9092; do sleep 2; done']
-```
-
-This prevents crash loops and ensures clean startup order.
-
-### Gateway API vs Ingress
-
-This deployment uses **Gateway API** (v1.0.0) instead of traditional Ingress:
-- **GatewayClass**: Defines gateway controller (Envoy Gateway)
-- **Gateway**: Listener configuration (HTTP on port 80)
-- **HTTPRoute**: Path-based routing to services
-
-Benefits: More expressive routing, role-oriented design, portable across implementations.
-
-### ArgoCD GitOps
-
-**Development:**
-- Auto-sync enabled for rapid iteration
-- Self-healing when cluster state drifts from Git
-- Application definitions in `argocd/app-*.yaml`
-
-**Production:**
-- Manual sync required for change control
-- Sync waves for ordered deployment
-- Sync policies in `argocd/sync-policy.yaml`
-
-### Kustomize Organization
-
-```
-base/
-  core/kustomization.yaml          # Core services manifest list
-  data-pipeline/kustomization.yaml # Data platform manifest list
-overlays/
-  local/kustomization.yaml         # Local env patches (smaller resources)
-  production/kustomization.yaml    # Production env patches (autoscaling, higher limits)
-```
-
-Apply with: `kubectl apply -k infrastructure/kubernetes/overlays/local`
+- [CONTEXT.md](CONTEXT.md) — Kubernetes architecture and GitOps patterns
+- [../docker/README.md](../docker/README.md) — Docker Compose alternative
+- [scripts/README.md](scripts/README.md) — Script documentation
+- [manifests/README.md](manifests/README.md) — Manifest organization

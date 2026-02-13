@@ -5,617 +5,383 @@
 ## CI/CD
 
 ### Pipeline
-
-**GitHub Actions** - Automated integration testing
+GitHub Actions
 
 ### Workflows
-
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| integration-tests.yml | push to main, pull_request | Run data platform integration tests |
+| checks.yml | push to main, PRs | Run linters, type checks, unit tests, frontend build |
+| integration-tests.yml | after Checks completes on main | Run integration tests with full Docker stack |
+| api-contract-validation.yml | push/PR affecting API/schemas | Validate OpenAPI spec and TypeScript types |
+| nightly-tests.yml | Daily 2 AM UTC, manual dispatch | Full test suite with coverage reports |
 
-### Integration Tests Workflow
-
-**File**: `.github/workflows/integration-tests.yml`
-
-**Execution Steps**:
+### Pipeline Steps (Checks Workflow)
 1. Checkout repository
-2. Set up Docker Buildx for efficient image building
-3. Cache Docker layers for faster builds
-4. Set up Python 3.13 environment
-5. Install test dependencies (pytest, pyyaml, boto3, httpx, confluent-kafka, pyhive)
-6. Start core and data-pipeline Docker Compose profiles
-7. Wait 60 seconds for service health checks
-8. Run integration tests with pytest from `tests/integration/`
+2. Set up Python 3.13 and Node.js 20
+3. Install dependencies (simulation, stream-processor, dbt, airflow, great-expectations, lakehouse, frontend)
+4. Run pre-commit hooks on all files (black, ruff, mypy, eslint, prettier, detect-secrets)
+5. Run unit tests (simulation, stream-processor)
+6. Build frontend
+
+### Pipeline Steps (Integration Tests)
+1. Free disk space (remove .NET, Android SDK, GHC, CodeQL)
+2. Checkout repository with LFS
+3. Set up Python 3.13
+4. Install test dependencies and DBT
+5. Build and start core + data-pipeline Docker Compose profiles
+6. Wait for services (MinIO, Kafka, Schema Registry, Redis, LocalStack, Spark Thrift Server)
+7. Verify secrets initialization
+8. Run integration tests
 9. Collect container logs on failure
-10. Upload test results as artifacts (30-day retention)
-11. Cleanup services and volumes
 
-**Configuration**:
-- Timeout: 30 minutes
-- Runner: ubuntu-latest
-- Docker Compose file: `infrastructure/docker/compose.yml`
-- Profiles used: `core`, `data-pipeline`
-
-**Environment Variables**:
-- `MINIO_ENDPOINT=minio:9000`
-- `KAFKA_BOOTSTRAP_SERVERS=kafka:9092`
-- `SCHEMA_REGISTRY_URL=http://schema-registry:8085`
-- `SPARK_THRIFT_HOST=spark-thrift-server` (optional, spark-testing profile only)
-- `SPARK_THRIFT_PORT=10000` (optional, spark-testing profile only)
-- `LOCALSTACK_ENDPOINT=http://localstack:4566`
-
-### Pre-commit Hooks
-
-**File**: `.pre-commit-config.yaml`
-
-**Python Hooks** (services/simulation):
-- `trailing-whitespace` - Remove trailing whitespace
-- `end-of-file-fixer` - Ensure files end with newline
-- `check-yaml` - Validate YAML syntax
-- `check-added-large-files` - Block files >500KB (excludes `services/simulation/data/distritos-sp-raw.geojson`, `services/osrm/data/sao-paulo-metro.osm.pbf`)
-- `black==24.10.0` - Code formatting (Python 3.13)
-- `ruff==0.8.4` - Linting with auto-fix
-- `mypy==1.14.1` - Type checking (only `services/simulation/src/`)
-
-**Frontend Hooks** (services/frontend):
-- `lint-staged` - ESLint and Prettier on staged files
-- `typecheck` - TypeScript type checking
-
-**Custom Hooks**:
-- `check-duplicate-class-names` - Prevent duplicate class names in Python files
+### Pre-Commit Hooks
+- trailing-whitespace
+- end-of-file-fixer
+- check-yaml (multi-document support)
+- check-added-large-files (500KB limit)
+- black (Python formatting)
+- ruff (Python linting with auto-fix)
+- mypy (type checking for simulation, stream-processor, dbt, airflow, great-expectations, lakehouse)
+- lint-staged (frontend ESLint/Prettier)
+- TypeScript type checking (frontend)
+- detect-secrets (baseline validation)
 
 ## Containerization
 
 ### Docker
+- Base images:
+  - Simulation: `python:3.13-slim`
+  - Stream Processor: `python:3.13-slim`
+  - Frontend: `node:20-alpine` (build), `nginx:alpine` (runtime)
+  - Bronze Ingestion: `python:3.13-slim`
+  - Hive Metastore: `apache/hive:4.0.0`
+  - OSRM: `osrm/osrm-backend:v5.27.1`
+  - MinIO: Custom with mc CLI
+  - Tempo: `grafana/tempo:2.3.1`
+  - OTel Collector: `otel/opentelemetry-collector-contrib:0.96.0`
 
-**Docker Compose File**: `infrastructure/docker/compose.yml`
+### Docker Compose
+- File: `infrastructure/docker/compose.yml`
+- Profiles:
+  | Profile | Services | Purpose |
+  |---------|----------|---------|
+  | core | kafka, schema-registry, redis, osrm, simulation, stream-processor, frontend | Simulation runtime |
+  | data-pipeline | minio, bronze-ingestion, localstack, airflow, hive-metastore, trino, postgres-airflow, postgres-metastore | ETL and lakehouse |
+  | monitoring | prometheus, cadvisor, grafana, otel-collector, loki, tempo | Observability |
+  | spark-testing | spark-thrift-server, openldap | Dual-engine DBT validation |
 
-**Profile-Based Deployment**: Services are organized into logical groups that can be started independently.
-
-### Docker Profiles
-
-| Profile | Purpose | Services |
-|---------|---------|----------|
-| core | Main simulation services | kafka, schema-registry, redis, osrm, simulation, stream-processor, frontend |
-| data-pipeline | Data engineering + orchestration | minio, bronze-ingestion, hive-metastore, trino, postgres-airflow, airflow-webserver, airflow-scheduler, localstack |
-| spark-testing | Optional dual-engine validation | spark-thrift-server |
-| monitoring | Observability | prometheus, cadvisor, grafana |
-| bi | Business intelligence | postgres-superset, redis-superset, superset |
-
-### Core Services
-
-| Service | Image | Purpose | Port |
-|---------|-------|---------|------|
-| simulation | custom (python:3.13-slim) | Discrete-event simulation engine with FastAPI | 8000 |
-| stream-processor | custom (python:3.13-slim) | Kafka-to-Redis event bridge | 8080 |
-| frontend | custom (node:20-alpine) | React + deck.gl visualization UI | 3000, 5173 |
-| kafka | confluentinc/cp-kafka:7.5.0 | KRaft-mode event streaming | 9092 |
-| schema-registry | confluentinc/cp-schema-registry:7.5.0 | JSON Schema validation | 8085 |
-| redis | redis:8.0-alpine | State snapshots + pub/sub | 6379 |
-| osrm | custom (osrm/osrm-backend:v5.25.0) | Route calculation service | 5050 |
-
-### Data Platform Services
-
-| Service | Image | Purpose | Port |
-|---------|-------|---------|------|
-| minio | custom (minio/minio) | S3-compatible lakehouse storage | 9000, 9001 |
-| bronze-ingestion | custom (python:3.13-slim) | Kafka → Delta Lake ingestion (all 8 topics) | - |
-| hive-metastore | custom (apache/hive:4.0.0) | Table metadata catalog for Trino | 9083 |
-| trino | trinodb/trino:479 | Interactive SQL over Delta Lake | 8084 |
-
-### Orchestration Services
-
-| Service | Image | Purpose | Port |
-|---------|-------|---------|------|
-| postgres-airflow | postgres:16 | Airflow metadata database | 5432 |
-| airflow-webserver | apache/airflow:3.1.5 | Airflow UI and API server | 8082 |
-| airflow-scheduler | apache/airflow:3.1.5 | DAG scheduler and executor | - |
-
-### Monitoring Services
-
-| Service | Image | Purpose | Port |
-|---------|-------|---------|------|
-| prometheus | prom/prometheus:v3.9.1 | Metrics collection and storage | 9090 |
-| cadvisor | ghcr.io/google/cadvisor:v0.53.0 | Container resource metrics | 8083 |
-| grafana | grafana/grafana:12.3.1 | Metrics visualization | 3001 |
-
-### BI Services
-
-| Service | Image | Purpose | Port |
-|---------|-------|---------|------|
-| postgres-superset | postgres:16 | Superset metadata storage | 5433 |
-| redis-superset | redis:8.0-alpine | Superset cache layer | 6380 |
-| superset | apache/superset:6.0.0 | Business intelligence platform | 8088 |
-
-### Docker Build Commands
-
-**Core Services**:
+### Build Commands
 ```bash
-# Start core simulation services
-docker compose -f infrastructure/docker/compose.yml --profile core up -d
+# Build specific service
+docker compose -f infrastructure/docker/compose.yml build simulation
 
-# Build simulation service
-docker build -f services/simulation/Dockerfile --target development services/simulation
-
-# Build frontend service
-docker build -f services/frontend/Dockerfile --target development services/frontend
-
-# Build stream processor
-docker build -f services/stream-processor/Dockerfile services/stream-processor
-```
-
-**Data Pipeline**:
-```bash
-# Start data pipeline services
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
-
-# Build OSRM with local map data
-docker compose -f infrastructure/docker/compose.yml --profile core build osrm
-
-# Build Spark Thrift Server (optional, spark-testing profile)
-docker compose -f infrastructure/docker/compose.yml --profile spark-testing build spark-thrift-server
-```
-
-**Combined Profiles**:
-```bash
-# Start core + data pipeline
-docker compose -f infrastructure/docker/compose.yml \
-  --profile core --profile data-pipeline up -d
+# Build all services in profile
+docker compose -f infrastructure/docker/compose.yml --profile core build
 ```
 
 ### Run Commands
-
 ```bash
-# View running containers
-docker compose -f infrastructure/docker/compose.yml ps
+# Start core services
+docker compose -f infrastructure/docker/compose.yml --profile core up -d
 
-# View logs for specific service
-docker compose -f infrastructure/docker/compose.yml logs -f simulation
+# Start multiple profiles
+docker compose -f infrastructure/docker/compose.yml --profile core --profile data-pipeline up -d
 
-# Stop all services
-docker compose -f infrastructure/docker/compose.yml --profile core --profile data-pipeline down
+# View logs
+docker compose -f infrastructure/docker/compose.yml --profile core logs -f simulation
 
-# Stop and remove volumes
-docker compose -f infrastructure/docker/compose.yml --profile core down -v
+# Stop services
+docker compose -f infrastructure/docker/compose.yml --profile core down
 ```
 
-### Custom Dockerfiles
+## Kubernetes
 
-| Dockerfile | Purpose | Base Image |
-|------------|---------|------------|
-| services/simulation/Dockerfile | Multi-stage build with development and production targets | python:3.13-slim |
-| services/frontend/Dockerfile | Multi-stage build with development (Vite HMR) and production (Nginx) | node:20-alpine |
-| services/stream-processor/Dockerfile | Single-stage Python service | python:3.13-slim |
-| services/osrm/Dockerfile | OSRM with Sao Paulo map data (local or fetch modes) | osrm/osrm-backend:v5.25.0 |
-| services/bronze-ingestion/Dockerfile | Lightweight Kafka-to-Delta ingestion | python:3.13-slim |
-| services/minio/Dockerfile | MinIO S3-compatible storage | golang:1.25-alpine (build) → alpine:3.20 |
-| services/tempo/Dockerfile | Tempo with wget for health checks | grafana/tempo:2.10.0 |
-| services/otel-collector/Dockerfile | OTel Collector with wget for health checks | otel/opentelemetry-collector-contrib:0.96.0 |
-| services/hive-metastore/Dockerfile | Hive Metastore with PostgreSQL JDBC driver | apache/hive:4.0.0 |
+### Cluster Type
+Kind (Kubernetes in Docker) - local development cluster
 
-### Initialization Services
+### Cluster Configuration
+- 1 control-plane node
+- 2 worker nodes
+- 10GB total Docker memory budget
+- Configuration: `infrastructure/kubernetes/kind/cluster-config.yaml`
 
-One-shot containers that bootstrap infrastructure:
+### Management Scripts
+| Script | Purpose |
+|--------|---------|
+| create-cluster.sh | Create Kind cluster and install External Secrets Operator |
+| deploy-services.sh | Deploy all services via Kustomize |
+| health-check.sh | Validate pod health and readiness |
+| smoke-test.sh | Test core functionality (simulation start, agent spawning) |
+| teardown.sh | Delete Kind cluster |
 
-| Service | Purpose | Trigger |
-|---------|---------|---------|
-| kafka-init | Create 8 Kafka topics with specified partitions | After kafka healthy |
-| minio-init | Create S3 buckets (bronze, silver, gold, checkpoints) | After minio healthy |
-| bronze-init | Register Bronze layer Delta tables via Trino | After trino, hive-metastore healthy |
-| superset-init | Run database migrations and create admin user | After postgres-superset, redis-superset healthy |
+### GitOps
+- Tool: ArgoCD
+- Installation: `infrastructure/kubernetes/argocd/install.yaml`
+- Applications:
+  - `app-core-services.yaml` - Core simulation services
+  - `app-data-pipeline.yaml` - Data lakehouse services
+- Sync Policy: Auto-sync with self-healing (local), manual sync (production)
+
+### Environment Overlays
+- Base: `infrastructure/kubernetes/base/`
+- Local: `infrastructure/kubernetes/overlays/local/`
+- Production: `infrastructure/kubernetes/overlays/production/`
+- Tool: Kustomize
+
+### Ingress
+- Gateway API (GatewayClass, Gateway, HTTPRoute)
+- Routes:
+  - `/api/` -> simulation:8000
+  - `/ws/` -> simulation:8000 (WebSocket)
+  - `/airflow/` -> airflow-webserver:8080
+  - `/grafana/` -> grafana:3000
 
 ## Configuration Management
 
+### Secrets Management
+- Source: AWS Secrets Manager (LocalStack for development, AWS for production)
+- Bootstrap: `secrets-init` service fetches secrets and writes to `/secrets` volume
+- Secrets:
+  | Secret | Keys | Purpose |
+  |--------|------|---------|
+  | rideshare/api-key | API_KEY | REST API authentication |
+  | rideshare/minio | MINIO_ROOT_USER, MINIO_ROOT_PASSWORD | S3 storage |
+  | rideshare/redis | REDIS_PASSWORD | Cache authentication |
+  | rideshare/kafka | KAFKA_SASL_USERNAME, KAFKA_SASL_PASSWORD | Event streaming |
+  | rideshare/schema-registry | SCHEMA_REGISTRY_USER, SCHEMA_REGISTRY_PASSWORD | Schema registry |
+  | rideshare/postgres-airflow | POSTGRES_USER, POSTGRES_PASSWORD | Airflow metadata DB |
+  | rideshare/postgres-metastore | POSTGRES_USER, POSTGRES_PASSWORD | Hive metastore DB |
+  | rideshare/airflow | FERNET_KEY, JWT_SECRET, API_SECRET_KEY, ADMIN_USERNAME, ADMIN_PASSWORD | Airflow encryption |
+  | rideshare/grafana | ADMIN_USER, ADMIN_PASSWORD | Grafana dashboards |
+  | rideshare/hive-thrift | LDAP_USERNAME, LDAP_PASSWORD | Spark Thrift auth |
+  | rideshare/ldap | LDAP_ADMIN_PASSWORD, LDAP_CONFIG_PASSWORD | LDAP server |
+
+### Secrets Initialization
+```bash
+# Manual seeding (runs automatically via secrets-init service)
+AWS_ENDPOINT_URL=http://localhost:4566 \
+AWS_ACCESS_KEY_ID=test \
+AWS_SECRET_ACCESS_KEY=test \
+AWS_DEFAULT_REGION=us-east-1 \
+./venv/bin/python3 infrastructure/scripts/seed-secrets.py
+```
+
 ### Environment Variables
+- Simulation settings: `SIM_*` (speed_multiplier, log_level, checkpoint_interval)
+- Kafka settings: `KAFKA_*` (bootstrap servers, security protocol, SASL credentials)
+- Redis settings: `REDIS_*` (host, port, password, SSL)
+- OSRM settings: `OSRM_*` (base_url, threads)
+- API settings: `API_*` (key, host, port)
+- CORS settings: `CORS_*` (allowed origins)
+- Stream processor: `PROCESSOR_*` (window size, aggregation strategy, topics)
+- OpenTelemetry: `OTEL_*` (exporter endpoint)
 
-**Source**: `.env` file (development), system environment (production)
-
-**Example file**: `.env.example`
-
-### Required Variables by Service
-
-#### Simulation Service
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| SIM_SPEED_MULTIPLIER | Simulation speed (1=real-time, 10=10x faster) | 1 |
-| SIM_LOG_LEVEL | Logging verbosity (DEBUG, INFO, WARNING, ERROR) | INFO |
-| SIM_CHECKPOINT_INTERVAL | Checkpoint interval in simulated seconds | 300 |
-| SIM_DB_PATH | SQLite database path for persistence | /app/db/simulation.db |
-| KAFKA_BOOTSTRAP_SERVERS | Kafka broker addresses | kafka:29092 |
-| KAFKA_SECURITY_PROTOCOL | Security protocol (PLAINTEXT or SASL_SSL) | PLAINTEXT |
-| KAFKA_SCHEMA_REGISTRY_URL | Schema Registry endpoint | http://schema-registry:8081 |
-| REDIS_HOST | Redis hostname | redis |
-| REDIS_PORT | Redis port | 6379 |
-| REDIS_PASSWORD | Redis password (optional) | - |
-| REDIS_SSL | Enable SSL/TLS for Redis | false |
-| OSRM_BASE_URL | OSRM service base URL | http://osrm:5000 |
-| API_KEY | Control Panel API authentication key | dev-api-key-change-in-production |
-| CORS_ORIGINS | Allowed CORS origins (comma-separated) | http://localhost:3000,http://localhost:5173 |
-
-#### Stream Processor
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| KAFKA_BOOTSTRAP_SERVERS | Kafka broker addresses | kafka:29092 |
-| KAFKA_GROUP_ID | Consumer group ID | stream-processor |
-| KAFKA_AUTO_OFFSET_RESET | Offset reset policy | latest |
-| REDIS_HOST | Redis hostname | redis |
-| REDIS_PORT | Redis port | 6379 |
-| PROCESSOR_WINDOW_SIZE_MS | GPS aggregation window in milliseconds | 100 |
-| PROCESSOR_AGGREGATION_STRATEGY | Aggregation strategy (latest or sample) | latest |
-| PROCESSOR_TOPICS | Kafka topics to consume (comma-separated) | gps_pings,trips,driver_status,surge_updates |
-| LOG_LEVEL | Logging verbosity | INFO |
-
-#### Frontend
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| VITE_API_URL | Backend API URL | http://localhost:8000 |
-| VITE_WS_URL | WebSocket URL for real-time updates | ws://localhost:8000/ws |
-
-#### Bronze Ingestion Service
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| KAFKA_BOOTSTRAP_SERVERS | Kafka broker addresses | kafka:29092 |
-| MINIO_ENDPOINT | MinIO S3 endpoint | http://minio:9000 |
-| MINIO_ACCESS_KEY | MinIO access key | minioadmin |
-| MINIO_SECRET_KEY | MinIO secret key | minioadmin |
-
-#### Airflow
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| AIRFLOW__CORE__EXECUTOR | Task executor type | LocalExecutor |
-| AIRFLOW__DATABASE__SQL_ALCHEMY_CONN | Metadata database connection | postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow |
-| AIRFLOW__CORE__PARALLELISM | Maximum parallel tasks | 8 |
-
-### Config Files
-
+### Configuration Files
 | File | Purpose |
 |------|---------|
 | .env.example | Template for environment variables |
-| services/frontend/.env.example | Frontend-specific environment template |
-| services/simulation/data/subprefecture_config.json | Zone-specific demand and surge parameters |
-| services/simulation/data/zones.geojson | Geographic zone boundaries for Sao Paulo |
+| services/kafka/topics.yaml | Kafka topic definitions |
+| services/prometheus/prometheus.yml | Metrics scrape configuration |
+| services/grafana/provisioning/datasources/datasources.yml | Grafana datasources |
+| infrastructure/kubernetes/manifests/configmap-core.yaml | Core services config (K8s) |
+| infrastructure/kubernetes/manifests/configmap-data-pipeline.yaml | Data pipeline config (K8s) |
 
 ## Logging & Monitoring
 
 ### Logging
+- Library: Python `logging` (simulation, stream-processor), console (frontend)
+- Format: JSON (structured logging in containers)
+- Aggregation: Loki (monitoring profile)
+- Output: stdout (collected by Docker/Kubernetes)
 
-**Simulation Service (Python)**:
-- Library: Python `logging` module with custom JSON formatter
-- Output: stdout (captured by Docker)
-- Format: JSON structured logs with correlation IDs
-- Features: PII masking (phone numbers, emails), contextual correlation IDs
-- Configuration: `SIM_LOG_LEVEL` environment variable
+### Metrics
+- Collection: Prometheus
+- Exporters:
+  - Simulation: OpenTelemetry -> OTel Collector -> Prometheus remote_write
+  - Stream Processor: OpenTelemetry -> OTel Collector -> Prometheus remote_write
+  - cAdvisor: Direct Prometheus scrape
+  - OTel Collector: Self-metrics on port 8888
+- Storage: Prometheus TSDB
+- Scrape interval: 15s
 
-**Stream Processor (Python)**:
-- Library: Python `logging` module
-- Output: stdout
-- Format: Structured text logs
-- Configuration: `LOG_LEVEL` environment variable
+### Distributed Tracing
+- Tool: Tempo
+- Protocol: OpenTelemetry (OTLP)
+- Endpoint: otel-collector:4317 (gRPC), otel-collector:4318 (HTTP)
+- Trace IDs: Propagated in event headers (`trace_id`, `span_id`, `trace_flags`)
 
-**Frontend (React)**:
-- Library: Console API (development only)
-- Output: Browser console
-- Features: Toast notifications for user-facing errors (react-hot-toast)
-
-**Bronze Ingestion**:
-- Library: Python `logging` module
-- Output: stdout
-- Format: Structured text logs
-
-### Monitoring
-
-**Prometheus** (port 9090):
-- Scrape interval: 15 seconds
-- Retention: 7 days
-- Configuration: `services/prometheus/prometheus.yml`
-
-**Metrics Targets**:
-- prometheus:9090 - Prometheus self-monitoring
-- cadvisor:8080 - Container resource metrics
-- kafka:9092 - Kafka broker metrics
-- airflow-webserver:8080 - Airflow health metrics
-
-**cAdvisor** (port 8083):
-- Container resource usage metrics (CPU, memory, network, disk)
-- Metrics exposed for Prometheus scraping
-- Privileged container with access to Docker socket
-
-**Grafana** (port 3001):
-- Data source: Prometheus
-- Default credentials: admin/admin
-- Dashboards: Provisioned from `services/grafana/dashboards/`
-- Configuration: `services/grafana/provisioning/`
+### Dashboards
+- Tool: Grafana
+- Port: 3001
+- Datasources: Prometheus, Trino, Loki, Tempo
+- Dashboards:
+  - Simulation Overview (agents, trips, matching performance)
+  - Container Metrics (cAdvisor data)
+  - Stream Processor (aggregation latency, Redis ops)
 
 ### Health Checks
-
-All services implement Docker healthchecks for orchestration:
-
-| Service | Endpoint | Method |
-|---------|----------|--------|
-| simulation | http://localhost:8000/health | HTTP GET |
-| stream-processor | http://localhost:8080/health | HTTP GET |
-| kafka | kafka-broker-api-versions | CLI command |
-| schema-registry | http://localhost:8081/subjects | HTTP GET |
-| redis | redis-cli ping | CLI command |
-| osrm | http://localhost:5000/route/v1/driving/... | HTTP GET |
-| minio | http://localhost:9000/minio/health/live | HTTP GET |
-| spark-thrift-server | http://localhost:4040/json/ | HTTP GET |
-| airflow-webserver | http://localhost:8080/api/v2/monitor/health | HTTP GET |
-| prometheus | http://localhost:9090/-/healthy | HTTP GET |
-| superset | http://localhost:8088/health | HTTP GET |
+- Simulation: `/health` (basic), `/health/detailed` (dependencies)
+- Stream Processor: `/health`
+- Kafka: `kafka-broker-api-versions`
+- Redis: `redis-cli ping`
+- MinIO: `/minio/health/live`
+- Schema Registry: `/subjects`
+- OSRM: `/route/v1/driving` test route
+- LocalStack: `/_localstack/health`
 
 ## Deployment
 
 ### Method
-
-**Docker Compose** - Profile-based container orchestration for development and testing
-
-**Production**: Terraform modules in `infrastructure/terraform/` for AWS deployment (ECS, RDS, ElastiCache, MSK)
+Docker Compose (local/development), Kubernetes with Kind (cloud parity testing)
 
 ### Environments
+| Environment | Access | Branch | Orchestration |
+|-------------|--------|--------|---------------|
+| Development | localhost:5173 | feature/* | Docker Compose (core profile) |
+| Integration Testing | localhost:5173 | main | Docker Compose (core + data-pipeline) |
+| Local Kubernetes | localhost:80 | main | Kind cluster |
+| Production | TBD | main | Kubernetes (roadmap) |
 
-| Environment | Method | Purpose |
-|-------------|--------|---------|
-| Development | Docker Compose (local) | Local development with hot reload |
-| Testing | Docker Compose (GitHub Actions) | Integration test execution |
-| Production | Terraform + AWS ECS | Cloud deployment (not implemented in current codebase) |
+### Deployment Process (Docker Compose)
+1. Start LocalStack (if using data-pipeline profile)
+2. Run `secrets-init` service to seed credentials
+3. Start services in dependency order (healthcheck-based)
+4. Wait for all healthchecks to pass (~60-90 seconds)
+5. Optionally run smoke tests
 
-### Deployment Process
+### Deployment Process (Kubernetes)
+1. Create Kind cluster: `./infrastructure/kubernetes/scripts/create-cluster.sh`
+2. Install External Secrets Operator
+3. Seed secrets to LocalStack
+4. Deploy services: `./infrastructure/kubernetes/scripts/deploy-services.sh`
+5. Wait for pods to be Ready
+6. Run health check: `./infrastructure/kubernetes/scripts/health-check.sh`
+7. Run smoke test: `./infrastructure/kubernetes/scripts/smoke-test.sh`
 
-**Local Development**:
-1. Copy `.env.example` to `.env` and configure variables
-2. Start desired profile(s) with `docker compose --profile <name> up -d`
-3. Wait for healthchecks to pass (30-60 seconds for full stack)
-4. Access services via localhost ports
-5. Monitor logs with `docker compose logs -f <service>`
-
-**CI/CD (GitHub Actions)**:
-1. Checkout code on push or pull request
-2. Set up Docker Buildx for layer caching
-3. Start core and data-pipeline profiles
-4. Run integration tests
-5. Upload artifacts on failure
-6. Clean up services and volumes
-
-### Service Dependencies
-
-Healthcheck-based startup order ensures proper initialization:
-
-```
-Infrastructure Layer (start first):
-├── kafka
-├── redis
-└── minio
-
-Schema Layer (wait for infrastructure):
-└── schema-registry (depends on: kafka)
-
-Routing Layer:
-└── osrm (independent, long startup ~180s)
-
-Core Services (wait for dependencies):
-├── stream-processor (depends on: kafka, redis)
-└── simulation (depends on: kafka, schema-registry, redis, osrm, stream-processor)
-
-Visualization:
-└── frontend (depends on: simulation)
-
-Data Platform (parallel with core):
-├── bronze-ingestion (depends on: kafka, minio)
-├── hive-metastore (depends on: postgres-metastore, minio)
-└── trino (depends on: hive-metastore, minio)
-
-Orchestration:
-├── postgres-airflow (independent)
-├── airflow-webserver (depends on: postgres-airflow)
-└── airflow-scheduler (depends on: airflow-webserver)
-
-Monitoring:
-├── prometheus (independent)
-├── cadvisor (independent)
-└── grafana (depends on: prometheus)
-
-BI:
-├── postgres-superset (independent)
-├── redis-superset (independent)
-└── superset (depends on: postgres-superset, redis-superset, spark-thrift-server)
-```
+### Resource Limits (Docker)
+| Service | Memory Limit | CPU Limit |
+|---------|--------------|-----------|
+| kafka | 1g | 1.5 |
+| schema-registry | 512m | 0.5 |
+| redis | 128m | - |
+| osrm | 1g | - |
+| simulation | 1g | 2.0 |
+| stream-processor | 256m | 1.0 |
+| frontend | 256m | - |
+| minio | 512m | - |
+| bronze-ingestion | 1g | - |
+| hive-metastore | 2g | - |
+| trino | 4g | - |
+| airflow-scheduler | 2g | - |
+| airflow-webserver | 1g | - |
+| prometheus | 512m | - |
+| grafana | 256m | - |
+| otel-collector | 512m | - |
+| loki | 512m | - |
+| tempo | 512m | - |
+| spark-thrift-server | 3g | - |
 
 ## Development Setup
 
 ### Prerequisites
-
-- Docker (version 20.10+)
-- Docker Compose (version 2.0+)
-- Python 3.13 (for local simulation development)
-- Node.js 20 (for local frontend development)
+- Docker Desktop with 10GB RAM allocated
+- Docker Compose v2+
+- Python 3.13+
+- Node.js 20+
 - Git LFS (for OSRM map data)
 
 ### Setup Steps
-
 ```bash
-# 1. Clone repository
+# Clone repository
 git clone <repo-url>
 cd rideshare-simulation-platform
 
-# 2. Install Git LFS and pull large files
-git lfs install
-git lfs pull
-
-# 3. Set up environment variables
+# Configure environment
 cp .env.example .env
-cp services/frontend/.env.example services/frontend/.env
-# Edit .env files with your configuration
+# Edit .env if needed (most values injected from secrets)
 
-# 4. Install pre-commit hooks
-pip install pre-commit
-pre-commit install
-
-# 5. Start core services
+# Start core services
 docker compose -f infrastructure/docker/compose.yml --profile core up -d
 
-# 6. Wait for services to be healthy (check with docker compose ps)
-# Kafka, Redis, OSRM, Simulation should show "healthy" status
+# Wait for services to be healthy
+sleep 60
 
-# 7. Access services
-# - Frontend: http://localhost:5173 (or :3000 via Docker)
-# - Simulation API: http://localhost:8000
-# - API docs: http://localhost:8000/docs
+# Verify health
+curl http://localhost:8000/health
 
-# 8. (Optional) Start data pipeline
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
+# Start simulation
+curl -X POST -H "X-API-Key: admin" http://localhost:8000/simulation/start
 
-# 9. (Optional) Start monitoring
-docker compose -f infrastructure/docker/compose.yml --profile monitoring up -d
-```
+# Spawn agents
+curl -X POST -H "X-API-Key: admin" \
+  -H "Content-Type: application/json" \
+  -d '{"count": 50}' \
+  http://localhost:8000/agents/drivers
 
-### Local Python Development (Simulation)
+curl -X POST -H "X-API-Key: admin" \
+  -H "Content-Type: application/json" \
+  -d '{"count": 100}' \
+  http://localhost:8000/agents/riders
 
-```bash
-cd services/simulation
-
-# Create virtual environment
-python3.13 -m venv venv
-
-# Activate virtual environment
-source venv/bin/activate  # Linux/Mac
-# or
-venv\Scripts\activate  # Windows
-
-# Install dependencies
-./venv/bin/pip install -e ".[dev]"
-
-# Run tests
-./venv/bin/pytest
-
-# Run linters
-./venv/bin/black src/ tests/
-./venv/bin/ruff check src/ tests/
-./venv/bin/mypy src/
-```
-
-### Local Frontend Development
-
-```bash
-cd services/frontend
-
-# Install dependencies
-npm install
-
-# Start development server with HMR
-npm run dev
-
-# Run linters
-npm run lint
-npm run typecheck
-
-# Build for production
-npm run build
+# Access frontend
+open http://localhost:5173
 ```
 
 ### Common Commands
-
 | Command | Purpose |
 |---------|---------|
-| `docker compose -f infrastructure/docker/compose.yml --profile core ps` | List running services |
-| `docker compose -f infrastructure/docker/compose.yml --profile core logs -f <service>` | Tail service logs |
-| `docker compose -f infrastructure/docker/compose.yml --profile core restart <service>` | Restart specific service |
-| `docker compose -f infrastructure/docker/compose.yml --profile core down` | Stop all services |
-| `docker compose -f infrastructure/docker/compose.yml --profile core down -v` | Stop and remove volumes |
-| `./venv/bin/pytest` | Run simulation tests (from services/simulation/) |
-| `./venv/bin/pytest -m unit` | Run unit tests only |
-| `./venv/bin/pytest --cov=src` | Run tests with coverage |
-| `npm run dev` | Start frontend dev server (from services/frontend/) |
-| `npm run lint` | Lint frontend code |
-| `npm run typecheck` | Type check TypeScript |
+| `docker compose -f infrastructure/docker/compose.yml --profile core up -d` | Start core services |
+| `docker compose -f infrastructure/docker/compose.yml --profile core logs -f` | View logs |
+| `docker compose -f infrastructure/docker/compose.yml --profile core down` | Stop services |
+| `cd services/simulation && ./venv/bin/pytest` | Run simulation tests |
+| `cd services/stream-processor && ./venv/bin/pytest` | Run stream processor tests |
+| `cd services/frontend && npm run dev` | Start frontend dev server |
+| `cd services/frontend && npm run test` | Run frontend tests |
+| `cd tools/dbt && ./venv/bin/dbt run` | Run DBT transformations |
+| `./infrastructure/kubernetes/scripts/create-cluster.sh` | Create Kind cluster |
+| `./infrastructure/kubernetes/scripts/deploy-services.sh` | Deploy to Kind |
+| `./infrastructure/kubernetes/scripts/health-check.sh` | Check K8s health |
+| `./infrastructure/kubernetes/scripts/teardown.sh` | Delete Kind cluster |
 
-## Infrastructure Notes
+### Port Reference
+See README.md Port Reference section for complete port mapping (22 services exposed on localhost).
 
-### Spark Deployment Model
+### Troubleshooting
+```bash
+# Check secrets initialization
+docker compose -f infrastructure/docker/compose.yml logs secrets-init
 
-**Local Mode** (current): Each Spark service runs in standalone local mode (`--master local[N]`) within its container. No central Spark cluster.
+# Verify Kafka topics created
+docker compose -f infrastructure/docker/compose.yml exec kafka \
+  kafka-topics --list --bootstrap-server localhost:9092 \
+  --command-config /tmp/kafka-client.properties
 
-**Cluster Mode** (commented out): Lines 297-354 in `compose.yml` preserve the previous cluster architecture (spark-master, spark-worker) for reference. Migrated to local mode on 2026-01-19 for simplified development.
+# Check Redis connectivity
+docker compose -f infrastructure/docker/compose.yml exec redis \
+  redis-cli -a admin ping
 
-### Kafka Configuration
+# View all service statuses
+docker compose -f infrastructure/docker/compose.yml ps
 
-**KRaft Mode**: Kafka runs in KRaft mode (no Zookeeper dependency) with combined broker/controller role.
+# Rebuild specific service
+docker compose -f infrastructure/docker/compose.yml build simulation
+docker compose -f infrastructure/docker/compose.yml up -d simulation
 
-**Topics**:
-- trips (4 partitions)
-- gps_pings (8 partitions)
-- driver_status (2 partitions)
-- surge_updates (2 partitions)
-- ratings (2 partitions)
-- payments (2 partitions)
-- driver_profiles (1 partition)
-- rider_profiles (1 partition)
+# Check Kubernetes pod status
+kubectl get pods -A
 
-**Retention**: 1 hour or 512MB per partition (development setting)
+# Describe failing pod
+kubectl describe pod <pod-name>
 
-### Memory Limits
-
-All services have explicit memory limits to prevent resource exhaustion:
-
-| Service | Memory Limit | Notes |
-|---------|--------------|-------|
-| kafka | 1g | With JVM heap 256m-512m |
-| redis | 128m | Ephemeral state snapshots |
-| simulation | 1g | Agent-based simulation |
-| stream-processor | 256m | Event aggregation |
-| frontend | 384m | Node.js dev server |
-| minio | 256m | S3-compatible storage |
-| bronze-ingestion | 256m | Lightweight Python Kafka-to-Delta service |
-| airflow-webserver | 384m | Airflow UI |
-| airflow-scheduler | 384m | DAG scheduler |
-| prometheus | 512m | 7-day metric retention |
-| cadvisor | 256m | Container metrics |
-| grafana | 192m | Dashboard UI |
-| superset | 768m | BI platform |
-
-### Network Architecture
-
-**Single Bridge Network**: All services communicate via `rideshare-network` bridge network.
-
-**Internal DNS**: Services resolve each other by container name (e.g., `kafka:29092`, `redis:6379`).
-
-**External Access**: Selected services expose ports to localhost for development access.
-
-### Volume Strategy
-
-**Named Volumes** (persistent data):
-- kafka-data
-- redis-data
-- osrm-data
-- simulation-db
-- minio-data
-- postgres-airflow-data
-- postgres-superset-data
-- prometheus-data
-- grafana-data
-
-**Bind Mounts** (development):
-- services/simulation/src -> /app/src (read-only)
-- services/frontend -> /app (development mode)
-
-**Volume Mount for node_modules**: Frontend uses named volume for node_modules to avoid host filesystem performance issues on Docker Desktop.
-
-### ARM/Apple Silicon Compatibility
-
-**Kafka JVM Flags**: G1 garbage collector settings for stability on ARM architecture.
-
-**OSRM Platform**: Explicitly set to `linux/amd64` via platform specification.
+# View pod logs
+kubectl logs <pod-name> -f
+```
 
 ---
 
-**Generated**: 2026-01-21
+**Generated**: 2026-02-13
 **Codebase**: rideshare-simulation-platform
-**Infrastructure Files Analyzed**: 15
-**Total Services**: 30+ containers (across all profiles)
-**Docker Compose Profiles**: 4 (core, data-pipeline, monitoring, analytics)
+**CI/CD**: GitHub Actions (4 workflows)
+**Containerization**: Docker Compose (4 profiles, 30+ services)
+**Deployment**: Docker Compose (local), Kind cluster (Kubernetes testing)
+**Monitoring**: Prometheus + Grafana + Loki + Tempo via OpenTelemetry

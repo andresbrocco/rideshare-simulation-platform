@@ -4,194 +4,196 @@
 
 ## System Type
 
-**Event-Driven Microservices with Medallion Lakehouse Architecture**
+**Event-Driven Data Engineering Platform with Discrete-Event Simulation**
 
-This is a ride-sharing simulation platform that generates realistic synthetic data for data engineering demonstrations. The system follows an event-driven microservices architecture where autonomous agents (drivers and riders) interact through a discrete-event simulation engine, producing event streams that flow through a medallion lakehouse pipeline (Bronze → Silver → Gold) for analytics.
+This system is a hybrid architecture combining a real-time discrete-event simulation engine with a complete data engineering pipeline. The simulation generates synthetic rideshare events (trips, GPS pings, driver status changes) that flow through a medallion lakehouse architecture (Bronze → Silver → Gold) for analytics and business intelligence.
 
-The platform consists of 11 independently deployable services orchestrated via Docker Compose, with Kafka serving as the central event backbone and Delta Lake providing the lakehouse storage layer.
+The platform is designed as a portfolio demonstration of modern data engineering patterns: event streaming, lakehouse architecture, dimensional modeling, data quality validation, and multi-environment deployment (Docker Compose, Kubernetes).
 
 ## Component Overview
 
-High-level components and their responsibilities (derived from CONTEXT.md files).
+High-level components and their responsibilities derived from CONTEXT.md files.
 
 | Component | Responsibility | Key Modules |
 |-----------|---------------|-------------|
-| Simulation Engine | Discrete-event rideshare simulation with autonomous agents | services/simulation |
-| Stream Processor | Kafka-to-Redis event bridge for real-time visualization | services/stream-processor |
-| Control Panel | Real-time visualization and simulation control UI | services/frontend |
-| Bronze Ingestion | Kafka-to-Delta ingestion via Python consumer (confluent-kafka + delta-rs) | services/bronze-ingestion |
-| Data Transformation | Medallion architecture transformation layer | tools/dbt |
-| Orchestration | Data pipeline scheduling and monitoring | services/airflow |
-| Data Quality | Lakehouse validation framework | tools/great-expectations |
-| Business Intelligence | Dashboard and visualization layer | services/looker |
-| Schema Registry | Event and table schema definitions | schemas/kafka, schemas/lakehouse |
-| Configuration | Environment-specific topic and zone configs | config/, services/simulation/data |
-| Trino | Distributed SQL query engine for interactive analytics | services/trino |
-| OpenTelemetry Collector | Unified telemetry gateway for metrics, logs, traces | services/otel-collector |
-| Loki | Log aggregation backend | services/loki |
-| Tempo | Distributed tracing backend | services/tempo |
-| Infrastructure | Container orchestration and custom images | infrastructure/docker |
+| **Simulation Engine** | Discrete-event simulation with SimPy, agent lifecycle, two-phase pause | services/simulation/src/engine, src/agents, src/trips |
+| **Event Streaming** | Kafka-based event backbone with schema validation | services/kafka, schemas/kafka |
+| **Stream Processing** | Kafka-to-Redis routing with GPS aggregation | services/stream-processor |
+| **Frontend** | Real-time visualization with deck.gl and WebSocket | services/frontend |
+| **Bronze Ingestion** | Kafka-to-Delta Lake raw data persistence | services/bronze-ingestion |
+| **Transformation (DBT)** | Medallion architecture transformations (Silver/Gold) | tools/dbt |
+| **Orchestration** | Airflow DAGs for pipeline scheduling and DLQ monitoring | services/airflow |
+| **Data Quality** | Great Expectations validation checkpoints | tools/great-expectations |
+| **Query Engine** | Trino SQL over Delta Lake tables | services/trino, services/hive-metastore |
+| **Observability** | Prometheus, Grafana, Loki, Tempo, OpenTelemetry | services/prometheus, services/grafana, services/otel-collector |
+| **Infrastructure** | Docker Compose and Kubernetes orchestration | infrastructure/docker, infrastructure/kubernetes |
+| **Secrets Management** | LocalStack Secrets Manager with profile-grouped credentials | infrastructure/scripts |
 
 ## Layer Structure
 
-The system follows a four-layer architecture with clear separation of concerns:
+The system follows a **five-layer architecture** from simulation through presentation:
 
-### Presentation Layer
-- **Frontend (React + deck.gl)** - Real-time map visualization with GPS buffering, route rendering, and simulation controls
-- **REST API** - FastAPI endpoints for simulation lifecycle management (`/simulation/start`, `/pause`, `/resume`, `/stop`)
-- **WebSocket** - Real-time event streaming to frontend clients (`/ws` endpoint)
+### 1. Simulation Layer
 
-Responsibilities:
-- Handle user interactions and visualization
-- Validate API requests with key-based authentication
-- Buffer and aggregate GPS updates for smooth rendering
-- Provide snapshot-on-connect pattern for state synchronization
+**Responsibility**: Generate realistic rideshare events using discrete-event simulation.
 
-### Event Streaming Layer
-- **Kafka Topics** - Event backbone with 8 topics: trips, gps_pings, driver_status, surge_updates, ratings, payments, driver_profiles, rider_profiles
-- **Stream Processor** - Kafka-to-Redis bridge with 100ms windowed aggregation
-- **Schema Registry** - JSON Schema validation with Confluent Cloud
-- **Reliability Tiers** - Critical events (trips, payments) use synchronous confirmation; high-volume events (GPS pings) use fire-and-forget
+- **SimPy Engine**: Manages simulation time, agent processes, and state machine (STOPPED → RUNNING → DRAINING → PAUSED)
+- **Agent Actors**: DriverAgent and RiderAgent with DNA-based behavioral parameters
+- **Trip Executor**: Orchestrates trip lifecycle from match through completion/cancellation
+- **Matching Server**: Driver-rider matchmaking with H3 geospatial indexing and surge pricing
+- **REST API**: FastAPI endpoints for simulation control, agent placement, puppet mode
+- **WebSocket Server**: Real-time state snapshots broadcast to frontend
 
-Responsibilities:
-- Provide single source of truth for all system events
-- Enable event deduplication through correlation IDs
-- Route events to appropriate consumers (Bronze ingestion, real-time visualization)
-- Enforce schema validation at publish time
+**Key Pattern**: Two-phase pause protocol ensures no trips are mid-execution during checkpointing. ThreadCoordinator provides command queue for safe cross-thread communication between FastAPI (main thread) and SimPy (background thread).
 
-### Data Platform Layer
-- **Bronze (Python + delta-rs)** - Raw event ingestion from Kafka to Delta Lake
-- **Silver (DBT Staging)** - Deduplication, cleaning, SCD Type 2 profile tracking
-- **Gold (DBT Marts)** - Business-ready facts (trips, payments, ratings), dimensions (drivers, riders, zones), and aggregates
-- **Great Expectations** - Data validation checkpoints for Silver and Gold layers
-- **Airflow** - Orchestrates DBT runs (DuckDB in-process), monitors DLQ, initializes Bronze tables
+### 2. Event Streaming Layer
 
-Responsibilities:
-- Ingest events from Kafka to Delta Lake via lightweight Python consumer
-- Transform raw events into analytics-ready tables (DuckDB locally, Spark/Glue in cloud)
-- Maintain historical profile changes via SCD Type 2
-- Validate data quality at each transformation layer
-- Schedule incremental processing with dependency management
+**Responsibility**: Durable event backbone for asynchronous communication.
 
-### Monitoring Layer
-- **Prometheus** - Metrics storage and alerting rules (7d retention)
-- **Loki** - Log aggregation with label-based indexing
-- **Tempo** - Distributed tracing with span storage
-- **OpenTelemetry Collector** - Unified telemetry gateway routing metrics, logs, and traces to backends
-- **Grafana** - Visualization across all four datasources (Prometheus, Loki, Tempo, Trino)
-- **cAdvisor** - Container resource metrics exporter
+- **Kafka Cluster**: 8 topics (trips, gps_pings, driver_status, surge_updates, ratings, payments, driver_profiles, rider_profiles)
+- **Schema Registry**: JSON schema validation for event contracts
+- **Stream Processor**: Routes events from Kafka to Redis pub/sub for frontend consumption, applies windowed GPS aggregation (100ms windows)
 
-Responsibilities:
-- Collect application metrics via OTLP and container metrics via cAdvisor
-- Aggregate structured logs from Docker containers with label enrichment
-- Store and query distributed traces for request correlation
-- Provide dashboards for simulation monitoring, platform operations, data engineering, and business intelligence
-- Alert on pipeline failures (Kafka lag, Spark errors, DAG failures) and resource thresholds
+**Key Pattern**: At-least-once delivery semantics with manual offset commits after successful processing. Event deduplication using Redis SET NX with TTL.
 
-### Storage Layer
-- **Delta Lake (MinIO S3)** - Lakehouse storage for Bronze/Silver/Gold tables with ACID guarantees
-- **Kafka (Confluent Cloud)** - Event log retention and replay capabilities
-- **Redis** - Ephemeral state snapshots (60s TTL) and pub/sub for visualization
-- **SQLite** - Simulation checkpoint persistence for crash recovery
+### 3. Medallion Lakehouse Layer
 
-Responsibilities:
-- Provide time-travel and versioning for lakehouse tables
-- Enable event replay for pipeline recovery
-- Cache current simulation state for fast API responses
-- Persist simulation checkpoints for recovery after crashes
+**Responsibility**: Multi-hop data refinement from raw events to analytics-ready datasets.
+
+#### Bronze Layer (Raw)
+- **Bronze Ingestion Service**: Consumes Kafka events, writes to Delta Lake tables in MinIO
+- **Schema**: Fixed metadata fields (_raw_value, _kafka_partition, _kafka_offset, _kafka_timestamp, _ingested_at, _ingestion_date)
+- **Dead Letter Queue**: Routes malformed messages to topic-specific dlq_bronze_* tables
+
+#### Silver Layer (Clean)
+- **DBT Staging Models**: JSON parsing, deduplication, coordinate validation, timestamp standardization
+- **Anomaly Detection**: GPS outliers, impossible speeds, zombie drivers
+- **Incremental Materialization**: Watermark on _ingested_at for efficient processing
+
+#### Gold Layer (Analytics)
+- **Star Schema**: Dimensional model with SCD Type 2 for driver/rider profiles
+- **Dimensions**: dim_drivers, dim_riders, dim_zones, dim_time, dim_payment_methods
+- **Facts**: fact_trips, fact_payments, fact_ratings, fact_cancellations, fact_driver_activity
+- **Aggregates**: Pre-computed metrics for dashboard performance
+
+### 4. Transformation & Orchestration Layer
+
+**Responsibility**: Pipeline scheduling, data quality enforcement, and query interface.
+
+- **Airflow DAGs**:
+  - `dbt_silver_transformation` (hourly with Bronze freshness checks)
+  - `dbt_gold_transformation` (triggered by Silver, dependency ordering: dimensions → facts → aggregates)
+  - `dlq_monitoring` (15-minute intervals, DuckDB queries over Delta tables)
+  - `delta_maintenance` (compaction and cleanup)
+- **Great Expectations**: Validation checkpoints for Silver and Gold layers with soft failure thresholds
+- **Trino**: Interactive SQL query engine with Hive Metastore catalog
+- **Dual-Engine DBT**: Primary development with dbt-duckdb, validation with dbt-spark via Thrift Server
+
+### 5. Presentation Layer
+
+**Responsibility**: Real-time visualization and analytics dashboards.
+
+- **Frontend (React)**: deck.gl layers for drivers, riders, zones, heatmaps; inspector popups; puppet mode controls
+- **Grafana**: Multi-datasource dashboards (Prometheus metrics, Trino lakehouse queries, Loki logs, Tempo traces)
+- **REST API**: Simulation control, agent placement, metrics snapshots
+- **WebSocket**: Real-time state updates with event filtering
 
 ## Data Flow
 
-How data moves through the system.
+How data moves through the system from simulation to analytics.
 
 ```
-Simulation Engine (SimPy)
-         │
-         ├─> Agents (Drivers/Riders) ─> DNA-based behavior
-         │
-         ├─> Matching Server ─> H3 spatial index ─> Driver-Rider matching
-         │
-         ├─> Trip Executor ─> OSRM routing ─> Multi-step lifecycle
-         │
-         └─> Kafka Producer ──────────────┬───────────────────┐
-                                          │                   │
-                                          ▼                   ▼
-                                 Stream Processor    Bronze Ingestion (Python)
-                                          │                   │
-                                          ▼                   ▼
-                                   Redis Pub/Sub      Bronze Delta Tables
-                                          │                   │
-                                          ▼                   ▼
-                                    WebSocket           DBT Transformations
-                                          │                   │
-                                          ▼                   ▼
-                                   Frontend UI         Silver Delta Tables
-                                                              │
-                                                              ▼
-                                                      Great Expectations
-                                                              │
-                                                              ▼
-                                                       Gold Delta Tables
-                                                              │
-                                                              ▼
-                                                      Trino (interactive SQL)
-                                                              │
-                                                              ▼
-                                                      Grafana BI Dashboards
+┌─────────────────────────────────────────────────────────────────┐
+│                      SIMULATION LAYER                           │
+│  ┌────────────┐  ┌──────────┐  ┌─────────────┐  ┌────────────┐│
+│  │SimPy Engine│→ │  Agents  │→ │Trip Executor│→ │Kafka Producer│
+│  └────────────┘  └──────────┘  └─────────────┘  └──────┬──────┘│
+└─────────────────────────────────────────────────────────┼───────┘
+                                                          ↓
+┌─────────────────────────────────────────────────────────┼───────┐
+│                   EVENT STREAMING LAYER                  │       │
+│                        ┌─────────┐                      │       │
+│                        │  Kafka  │←─────────────────────┘       │
+│                        └────┬────┘                              │
+│                             │                                   │
+│              ┌──────────────┼──────────────┐                    │
+│              ↓              ↓              ↓                    │
+│    ┌────────────────┐ ┌──────────┐ ┌───────────────┐           │
+│    │Stream Processor│ │  Bronze  │ │Schema Registry│           │
+│    │(GPS Aggregation)│ │Ingestion│ │               │           │
+│    └───────┬────────┘ └────┬─────┘ └───────────────┘           │
+└────────────┼───────────────┼────────────────────────────────────┘
+             ↓               ↓
+     ┌──────────┐   ┌────────────────┐
+     │  Redis   │   │ MinIO (S3)     │
+     │  Pub/Sub │   │ Delta Lake     │
+     └─────┬────┘   └────────┬───────┘
+           ↓                 ↓
+   ┌──────────────┐ ┌─────────────────────────────────────────┐
+   │  WebSocket   │ │     MEDALLION LAKEHOUSE LAYER           │
+   │   Server     │ │                                         │
+   └──────┬───────┘ │  Bronze Tables → DBT Silver → DBT Gold  │
+          ↓         │       ↓              ↓           ↓      │
+   ┌──────────────┐ │  Raw Events    Staging     Star Schema  │
+   │   Frontend   │ │                  ↓                      │
+   │   (React)    │ │         Great Expectations              │
+   └──────────────┘ └────────────┬────────────────────────────┘
+                                 ↓
+                    ┌─────────────────────────┐
+                    │ PRESENTATION LAYER      │
+                    │                         │
+                    │  ┌───────┐  ┌─────────┐│
+                    │  │ Trino │→ │ Grafana ││
+                    │  └───────┘  └─────────┘│
+                    └─────────────────────────┘
 ```
 
-### Request Flow
+### Request Flow Patterns
 
-**Simulation Lifecycle:**
-1. Frontend sends REST request to `/simulation/start` with API key authentication
-2. FastAPI controller validates request and invokes `ThreadCoordinator`
-3. SimPy environment starts in background thread with `AgentFactory` creating agents
-4. Agents execute behavior loops (e.g., rider requests trip, driver accepts offer)
-5. Events published to Kafka with schema validation and correlation IDs
-6. Simulation state snapshots written to Redis every 1 second with 60s TTL
-7. WebSocket clients receive snapshot on connection, then incremental updates
+#### 1. Real-Time State Updates
 
-**Event Publication Flow:**
-1. Agent emits event (e.g., `TripEvent` with state transition)
-2. `KafkaProducer` validates event against JSON schema
-3. Event serialized and published to appropriate topic with partition key
-4. Schema Registry confirms schema compatibility
-5. Kafka acknowledges write (synchronous for critical events, async for high-volume)
+```
+User Browser → WebSocket Connection → Redis Pub/Sub ← Stream Processor ← Kafka ← Simulation
+```
 
-**Real-Time Visualization Flow:**
-1. Stream Processor consumes from Kafka topics (gps_pings, trips, driver_status, surge_updates)
-2. GPS events aggregated in 100ms window to reduce message volume
-3. Events transformed and published to Redis pub/sub channels
-4. WebSocket server subscribes to Redis channels and broadcasts to connected clients
-5. Frontend buffers GPS updates and renders on deck.gl map layers
+**Characteristics**: Sub-second latency, GPS aggregation reduces bandwidth 10x, event deduplication via Redis.
 
-**Data Platform Flow:**
-1. Python Bronze ingestion consumer reads from Kafka topics (confluent-kafka)
-2. Bronze layer writes raw events to Delta tables via delta-rs
-3. Airflow triggers DBT runs on schedule (Bronze → Silver → Gold, DuckDB in-process)
-4. Silver staging models deduplicate and apply SCD Type 2 for profiles
-5. Gold marts create business-ready facts and aggregates
-6. Great Expectations validates data quality at each checkpoint
-7. Trino queries Gold tables via Delta Lake connector for interactive BI dashboards in Grafana
+#### 2. Simulation Control Commands
 
-**Monitoring Flow:**
-1. Simulation and Stream Processor export metrics and traces via OTLP gRPC to OpenTelemetry Collector
-2. OTel Collector reads Docker container JSON logs via filelog receiver
-3. OTel Collector routes metrics to Prometheus (remote_write), logs to Loki (push API), traces to Tempo (OTLP gRPC)
-4. Prometheus also scrapes cAdvisor container metrics and OTel Collector self-metrics (pull)
-5. Grafana queries all four backends (Prometheus, Loki, Tempo, Trino) for unified observability
-6. Alert rules evaluate every 1 minute for pipeline failures and resource thresholds
+```
+User Browser → REST API → ThreadCoordinator Command Queue → SimPy Engine
+             ← Response Event ← Command Processed ← SimPy Step Cycle
+```
+
+**Characteristics**: Blocking calls until SimPy processes command, two-phase pause for safe checkpointing.
+
+#### 3. Analytical Query Path
+
+```
+Grafana Dashboard → Trino Query → Hive Metastore (metadata) → Delta Lake (MinIO) → Result
+```
+
+**Characteristics**: Interactive SQL over lakehouse, supports time-travel queries, partition pruning.
+
+#### 4. Data Pipeline Orchestration
+
+```
+Airflow Scheduler → DAG Trigger → DBT Run → Delta Table Write → Great Expectations Validation
+                                      ↓
+                              DLQ Monitoring (DuckDB queries)
+```
+
+**Characteristics**: Hourly Silver transforms, on-demand Gold transforms, soft failure on validation errors.
 
 ### Key Data Paths
 
 | Flow | Path | Description |
 |------|------|-------------|
-| Trip Creation | RiderAgent → MatchingServer → TripExecutor → Kafka → Bronze → Silver → Gold | Complete trip lifecycle from request to analytics |
-| GPS Tracking | DriverAgent → GPSSimulator → Kafka → Stream Processor → Redis → Frontend | Real-time location updates with 100ms aggregation |
-| Profile Updates | Agent DNA → Kafka (profile event) → Bronze → Silver (SCD Type 2) → Gold Dimensions | Historical profile tracking via slowly changing dimensions |
-| Surge Pricing | MatchingServer → Zone supply/demand → SurgePricingCalculator → Kafka → Redis → Frontend | Dynamic pricing updates every 60 simulated seconds |
-| Data Quality | Gold Tables → Great Expectations → Validation Results → Airflow Alerts | Continuous validation with soft failure pattern |
-| Observability | Application → OTLP → OTel Collector → Prometheus/Loki/Tempo → Grafana | Unified metrics, logs, and traces pipeline |
+| Trip Lifecycle | Simulation → Kafka (trips topic) → Bronze Ingestion → Bronze Delta → DBT Silver (stg_trips) → DBT Gold (fact_trips) | Complete trip state transitions from REQUESTED to COMPLETED/CANCELLED |
+| GPS Tracking | Simulation → Kafka (gps_pings) → Stream Processor (100ms aggregation) → Redis → Frontend | Real-time location updates with 10x bandwidth reduction |
+| Driver Activity | Simulation → Kafka (driver_status) → Bronze → Silver (stg_driver_status) → Gold (fact_driver_activity) | Online/offline state changes with SCD Type 2 history |
+| Surge Pricing | Matching Server → Kafka (surge_updates) → Stream Processor → Redis → Frontend + Bronze → Gold (agg_surge_history) | Real-time surge multipliers for zone-level demand |
+| Profile Updates | Agent Creation → Kafka (driver_profiles, rider_profiles) → Bronze → Silver → Gold (dim_drivers, dim_riders) | DNA-based behavioral parameters with SCD Type 2 tracking |
 
 ## External Boundaries
 
@@ -199,300 +201,210 @@ Simulation Engine (SimPy)
 
 | API | Base Path | Purpose | Authentication |
 |-----|-----------|---------|----------------|
-| Simulation Control REST | /simulation | Start/pause/resume/stop simulation | X-API-Key header |
-| WebSocket | /ws | Real-time event streaming to clients | Sec-WebSocket-Protocol: apikey.{key} |
-| Stream Processor Health | /health | Container orchestration healthcheck | None |
-| Trino HTTP API | localhost:8084 | Interactive SQL queries over Delta Lake | None (internal) |
-| Grafana | localhost:3001 | Dashboards, alerting, and exploration | admin/admin |
-| Prometheus | localhost:9090 | Metrics queries and API | None (internal) |
-| Loki | localhost:3100 | Log queries via LogQL | None (internal) |
-| Tempo | localhost:3200 | Trace queries via TraceQL | None (internal) |
-
-### APIs Consumed
-
-| API | Provider | Purpose | Module |
-|-----|----------|---------|--------|
-| OSRM Routing | osrm/osrm-backend | Calculate routes between lat/lng coordinates | services/simulation/src/geo |
-| Kafka Producer API | Confluent Cloud | Publish events to topics | services/simulation/src/kafka |
-| Schema Registry API | Confluent Cloud | Validate and register schemas | services/simulation/src/kafka |
-| Redis Pub/Sub | Redis | Real-time event broadcasting | services/stream-processor |
-| Redis Key-Value | Redis | State snapshot storage | services/simulation/src/redis_client |
-| S3 API | MinIO | Lakehouse table storage | services/bronze-ingestion, tools/dbt |
-| OTLP gRPC | OTel Collector | Export metrics and traces from applications | services/simulation, services/stream-processor |
-| Prometheus Remote Write | Prometheus | Push metrics from OTel Collector | services/otel-collector |
-| Loki Push API | Loki | Push logs from OTel Collector | services/otel-collector |
-| OTLP gRPC (Tempo) | Tempo | Push traces from OTel Collector | services/otel-collector |
-| DuckDB | In-process | Analytical SQL engine for DBT transformations | tools/dbt |
+| REST API | /api/v1 | Simulation control, agent placement, metrics | X-API-Key header |
+| WebSocket | /ws | Real-time state snapshots with event filtering | Sec-WebSocket-Protocol: apikey.\<key\> |
+| Grafana | :3001 | Dashboards and alerting | Basic auth (admin/admin) |
+| Trino | :8080 | SQL queries over Delta Lake | LDAP (admin/admin) |
+| Airflow | :8081 | DAG management and monitoring | Basic auth (admin/admin) |
+| MinIO Console | :9001 | S3 bucket management | Access/secret key |
 
 ### External Services Consumed
 
-| Service | Purpose | Module | Configuration |
-|---------|---------|--------|---------------|
-| Kafka (Confluent Cloud) | Event streaming backbone | simulation, bronze-ingestion, stream-processor | KAFKA_* env vars |
-| Redis | State snapshots and pub/sub | simulation, stream-processor | REDIS_* env vars |
-| OSRM | Route calculation and ETA | simulation/src/geo | OSRM_* env vars |
-| MinIO | S3-compatible lakehouse storage | bronze-ingestion, dbt | AWS_* env vars |
-| Trino | Interactive SQL over Delta Lake | grafana | TRINO_* config in services/trino/etc |
-| Hive Metastore | Table metadata catalog for Trino | trino | thrift://hive-metastore:9083 |
-| OTel Collector | Telemetry routing gateway | simulation, stream-processor | OTEL_EXPORTER_OTLP_ENDPOINT env var |
-| Loki | Log aggregation | otel-collector, grafana | http://loki:3100 |
-| Tempo | Distributed tracing | otel-collector, grafana | tempo:4317 (gRPC), http://tempo:3200 (HTTP) |
+| Service | Purpose | Module | Connection |
+|---------|---------|--------|------------|
+| **PostgreSQL** | Airflow metadata, Hive Metastore catalog | services/airflow, services/hive-metastore | Port 5432 |
+| **Kafka** | Event streaming backbone | services/simulation, services/bronze-ingestion, services/stream-processor | Port 9092 (SASL_PLAINTEXT) |
+| **Schema Registry** | JSON schema validation | services/simulation | Port 8081 |
+| **Redis** | State snapshots, pub/sub | services/simulation, services/stream-processor, services/frontend | Port 6379 (AUTH) |
+| **OSRM** | Route calculations for Sao Paulo | services/simulation/src/geo | Port 5000 |
+| **MinIO** | S3-compatible lakehouse storage | services/bronze-ingestion, tools/dbt, services/trino | Port 9000 (S3 API) |
+| **Trino** | SQL query engine | services/grafana, tools/dbt | Port 8080 (HTTP) |
+| **Hive Metastore** | Table metadata catalog | services/trino | Port 9083 (Thrift) |
+| **LocalStack** | AWS Secrets Manager emulation | infrastructure/scripts | Port 4566 |
+| **OpenLDAP** | LDAP authentication for Spark Thrift | services/spark-thrift-server | Port 389 |
+| **Prometheus** | Metrics storage (7d retention) | services/grafana, services/otel-collector | Port 9090 |
+| **Loki** | Log aggregation | services/grafana, services/otel-collector | Port 3100 |
+| **Tempo** | Distributed tracing | services/grafana, services/otel-collector | Port 3200 |
+
+### External Dependencies
+
+**Python Runtime**: >=3.13 (simulation), >=3.11 (other services)
+
+**Critical Libraries**:
+- SimPy 4.1.1 (discrete-event simulation)
+- FastAPI 0.115.6 (REST/WebSocket API)
+- confluent-kafka 2.12.2-2.13.0 (Kafka clients)
+- deltalake 1.4.2 (Delta Lake Python bindings)
+- dbt-duckdb, dbt-spark (transformation engines)
+- deck.gl 9.2.5 (frontend visualization)
+
+**Infrastructure Images**:
+- apache/spark:4.0.0-python3 (Spark with Delta Lake)
+- trinodb/trino:439 (query engine)
+- grafana/grafana:12.3.1 (dashboards)
+- prom/prometheus:v3.9.1 (metrics)
+- grafana/loki:3.6.5 (logs)
+- grafana/tempo:2.7.4 (traces)
 
 ## Deployment Units
 
-The system deploys as 11 independent containers orchestrated via Docker Compose with profile-based activation.
+Services are organized into **profile-based deployment groups** for selective resource allocation.
 
-| Unit | Components | Profile | Ports | Dependencies |
-|------|------------|---------|-------|-------------|
-| simulation | Simulation engine + FastAPI API | core | 8000 | kafka, redis, osrm |
-| stream-processor | Kafka-to-Redis event bridge | core | 8080 | kafka, redis |
-| frontend | React + deck.gl visualization | core | 3000, 5173 | simulation (API), stream-processor (via Redis) |
-| kafka | Confluent Kafka broker | core | 9092 | - |
-| schema-registry | Confluent Schema Registry | core | 8085 | kafka |
-| redis | Key-value store + pub/sub | core | 6379 | - |
-| osrm | Route calculation service | core | 5050 | - |
-| minio | S3-compatible object storage | data-pipeline | 9000, 9001 | - |
-| bronze-ingestion | Kafka → Delta Lake Python consumer | data-pipeline | - | kafka, minio |
-| airflow-webserver | Airflow UI and API server | data-pipeline | 8082 | postgres-airflow |
-| airflow-scheduler | DAG scheduler and executor | data-pipeline | - | airflow-webserver |
-| cadvisor | Container metrics collection | monitoring | 8081 | - |
-| trino | Interactive SQL query engine over Delta Lake | data-pipeline | 8084 | hive-metastore, minio |
-| hive-metastore | Table metadata catalog for Trino | data-pipeline | 9083 | postgres-hive, minio |
-| grafana | Dashboards, alerting, observability UI | monitoring | 3001 | prometheus, loki, tempo |
-| prometheus | Metrics storage and alerting | monitoring | 9090 | - |
-| loki | Log aggregation | monitoring | 3100 | - |
-| tempo | Distributed tracing | monitoring | 3200 | - |
-| otel-collector | Telemetry routing (metrics, logs, traces) | monitoring | 4317, 4318, 8888 | prometheus, loki, tempo |
+| Profile | Components | Deployment | Purpose |
+|---------|------------|------------|---------|
+| **core** | simulation, frontend, kafka, redis, osrm, stream-processor | Docker: --profile core | Real-time simulation runtime |
+| **data-pipeline** | minio, bronze-ingestion, localstack, airflow, hive-metastore, trino | Docker: --profile data-pipeline | ETL, ingestion, orchestration |
+| **monitoring** | prometheus, cadvisor, grafana, otel-collector, loki, tempo | Docker: --profile monitoring | Observability stack |
+| **spark-testing** | spark-thrift-server, openldap | Docker: --profile spark-testing | DBT dual-engine validation (optional) |
 
-### Profile Groups
+### Deployment Environments
 
-**core** - Main simulation services
-- Runs simulation engine with agent-based modeling
-- Provides real-time visualization via WebSocket
-- Publishes events to Kafka for downstream processing
+#### Docker Compose (Local Development)
+- **File**: `infrastructure/docker/compose.yml`
+- **Secrets**: LocalStack Secrets Manager → secrets-init service → /secrets/ volume → profile-specific env files
+- **Networking**: Single bridge network with internal DNS
+- **Storage**: Named volumes for persistence
 
-**data-pipeline** - Data engineering services (consolidated from data-platform + quality-orchestration)
-- Ingests events from Kafka to Bronze Delta tables
-- Transforms data through Silver and Gold layers via DBT
-- Validates data quality with Great Expectations
-- Orchestrates pipelines with Airflow
+#### Kubernetes (Cloud Parity)
+- **Tool**: Kind cluster for local testing, real K8s for cloud
+- **Manifests**: `infrastructure/kubernetes/manifests/` with Kustomize overlays
+- **GitOps**: ArgoCD for continuous sync from Git repository
+- **Secrets**: External Secrets Operator syncs from LocalStack/AWS Secrets Manager
+- **Ingress**: Gateway API for HTTP routing
+- **Storage**: PersistentVolumeClaims with dynamic provisioning
 
-**monitoring** - Observability services
-- Collects container resource metrics via cAdvisor
-- Routes application telemetry (metrics, logs, traces) through OpenTelemetry Collector
-- Stores metrics in Prometheus (7d retention), logs in Loki, traces in Tempo
-- Provides Grafana dashboards across 4 datasources (Prometheus, Loki, Tempo, Trino)
-- Alerts on pipeline failures and resource thresholds
+#### Multi-Environment Strategy
+- Same container images across environments
+- Environment differences handled through overlays and env vars
+- LocalStack → AWS migration requires only `AWS_ENDPOINT_URL` change
 
-### Deployment Commands
+## Architecture Patterns
 
-```bash
-# Start core services only
-docker compose -f infrastructure/docker/compose.yml --profile core up -d
+### Event-Driven Architecture
 
-# Start data pipeline only
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
+**Pattern**: Simulation publishes domain events to Kafka, consumers react asynchronously.
 
-# Start all services
-docker compose -f infrastructure/docker/compose.yml --profile core --profile data-pipeline --profile monitoring up -d
-```
+**Benefits**: Loose coupling, horizontal scalability, temporal decoupling, audit trail.
 
-### Initialization Dependencies
+**Implementation**: 8 Kafka topics with Schema Registry validation, at-least-once delivery, manual offset commits.
 
-Services use healthcheck dependencies to ensure proper startup order:
+### Medallion Lakehouse Architecture
 
-1. Infrastructure services (kafka, redis, minio) start first
-2. Schema registry waits for kafka healthy
-3. OSRM waits for map data initialization
-4. Simulation waits for kafka, redis, osrm all healthy
-5. Stream processor waits for kafka, redis healthy
-6. Bronze ingestion waits for kafka, minio healthy
-7. Airflow waits for Bronze tables initialized (DBT runs in-process via DuckDB)
-8. Prometheus starts independently (no dependencies)
-9. Loki and Tempo start independently
-10. OTel Collector waits for prometheus, loki, tempo healthy
-11. Grafana waits for prometheus, loki, tempo healthy
+**Pattern**: Multi-hop data refinement (Bronze → Silver → Gold) with Delta Lake ACID guarantees.
 
-## Critical Architecture Patterns
+**Benefits**: Raw data preservation, incremental processing, time-travel queries, schema evolution.
 
-### Event Flow Architecture
+**Implementation**: Bronze (raw JSON in Delta), Silver (cleaned staging tables), Gold (star schema with SCD Type 2).
 
-**Single Source of Truth:**
-- Simulation publishes ALL events exclusively to Kafka
-- Stream processor consumes from Kafka and republishes to Redis
-- No direct Redis publishing from simulation (eliminates duplicate events)
-- Kafka provides event replay capability for pipeline recovery
+### Command Query Responsibility Segregation (CQRS)
 
-**Reliability Tiers:**
-- Tier 1 (Critical): Trip state changes, payments - synchronous delivery confirmation
-- Tier 2 (High-Volume): GPS pings, driver status - fire-and-forget with error logging
+**Pattern**: Separate write path (Kafka → Delta Lake) from read path (Trino SQL queries).
 
-### Two-Phase Pause Pattern
+**Benefits**: Optimized storage formats, independent scaling, polyglot persistence.
 
-**Graceful State Management:**
-1. Pause request triggers drain phase - no new trips accepted
-2. Engine waits for all in-flight trips to complete (quiescence detection)
-3. Checkpoint phase writes complete state to SQLite
-4. Resume loads checkpoint and restores all agents and trips
-5. Crash recovery uses last graceful checkpoint or initializes fresh state
+**Implementation**: Write path uses Delta Lake writer, read path uses Trino with Parquet columnar reads.
 
-### SCD Type 2 Profile Tracking
+### Discrete-Event Simulation
 
-**Historical Profile Changes:**
-- Agent DNA (behavioral parameters) is immutable at creation
-- Profile attributes (vehicle info, contact details) can change during simulation
-- Profile change events published to Kafka with correlation IDs
-- DBT Silver layer implements SCD Type 2 with effective dates
-- Gold dimensions maintain current and historical profile views
+**Pattern**: SimPy processes model agent behaviors as coroutines, environment advances time.
 
-### H3 Spatial Indexing
+**Benefits**: Deterministic replay, resource contention modeling, statistical analysis.
 
-**Geospatial Optimization:**
-- Driver locations indexed using H3 hexagons (resolution 7, ~5km)
-- Matching server queries nearby hexagons for candidate drivers
-- Route caching uses H3 cell pairs as keys
-- Zone assignment uses H3-to-GeoJSON polygon lookup
-- Surge pricing calculated per zone based on supply/demand ratio
+**Implementation**: SimulationEngine orchestrates SimPy environment, agents register processes, ThreadCoordinator bridges FastAPI/SimPy.
 
-### Empty Source Guard Pattern
+### Two-Phase Pause Protocol
 
-**DBT Safety:**
-- Custom macro `source_with_empty_guard` protects against missing Bronze tables
-- Returns empty result with proper schema if source doesn't exist
-- Prevents `DeltaAnalysisException` during initial deployment
-- Enables idempotent DBT runs before Bronze data arrives
+**Pattern**: RUNNING → DRAINING (monitor in-flight trips) → PAUSED (quiescent or timeout).
 
-### Dead Letter Queue Pattern
+**Benefits**: Safe checkpointing, no data corruption, graceful degradation.
 
-**Fault Tolerance:**
-- Bronze ingestion captures malformed records to DLQ Delta tables
-- DLQ includes error message, timestamp, and raw event payload
-- Airflow DAG monitors DLQ growth and alerts on threshold
-- Enables debugging without blocking pipeline progress
+**Implementation**: Drain process monitors trip repository, force-cancels after 7200 simulated seconds.
 
-### Three Pillars of Observability
+### DNA-Based Agent Behavior
 
-**Unified Telemetry Gateway:**
-- OpenTelemetry Collector acts as the single telemetry router for the entire platform
-- Three pipelines: metrics (OTLP → Prometheus), logs (Docker filelog → Loki), traces (OTLP → Tempo)
-- Application services (simulation, stream-processor) export via OTLP gRPC, no longer expose /metrics endpoints
-- Container metrics collected separately by cAdvisor (scraped by Prometheus directly)
-- Log enrichment extracts structured fields (level, service, correlation_id, trip_id) as Loki labels
-- Grafana cross-links traces → logs (by traceID/spanID) and traces → metrics (service map)
+**Pattern**: Immutable behavioral parameters assigned at agent creation, influence decision-making.
 
-### Dual-Engine Architecture
+**Benefits**: Reproducible agent behavior, emergent system dynamics, parameterized testing.
 
-**Right-Sizing Tools for Scale:**
+**Implementation**: DriverDNA and RiderDNA dataclasses with acceptance rates, patience thresholds, service quality.
 
-The simulation generates ~60 concurrent trips producing ~50 MB/hour of event data. At this scale, Spark is overkill (designed for 10M+ row datasets), while DuckDB is optimal (in-process analytics on datasets <1 GB). Cloud deployment uses Spark/Glue where data volumes justify distributed computation.
+### Slowly Changing Dimensions (SCD Type 2)
 
-**Local-to-Cloud Component Mapping:**
+**Pattern**: Track historical changes to dimensional attributes with valid_from/valid_to timestamps.
 
-| Role | Local (Docker) | Cloud (AWS) | Rationale |
-|------|---------------|-------------|-----------|
-| Bronze ingestion | Python + confluent-kafka + delta-rs (~256 MB) | AWS Glue Streaming or Python on ECS | Simple data mover pattern; no computation needed |
-| Transformations (DBT) | DuckDB (dbt-duckdb, in-process) | AWS Glue (dbt-glue, Spark SQL) | DBT models are engine-agnostic via dispatch macros |
-| Table catalog | DuckDB internal catalog | AWS Glue Data Catalog | Both provide schema registry for Delta tables |
-| Object storage | MinIO (S3-compatible) | AWS S3 | Same S3 API, same Delta Lake format |
-| Table format | Delta Lake | Delta Lake | Identical — no conversion needed |
-| BI query engine | Trino (trinodb/trino:479) | Amazon Athena (managed Trino) | Athena IS managed Trino — same SQL dialect |
-| BI dashboards | Grafana (Docker) | Grafana Cloud or ECS | Same dashboard JSON |
-| Orchestration | Airflow (Docker, LocalExecutor) | MWAA (Managed Airflow) | Same DAG code |
+**Benefits**: Historical analysis, temporal joins, regulatory compliance.
 
-**DBT Dispatch Macros:**
+**Implementation**: dim_drivers and dim_riders use row_number() over ordered profile updates, surrogate keys.
 
-| Macro | DuckDB Implementation | Spark Implementation | Usage |
-|-------|----------------------|---------------------|--------|
-| `json_field(col, path)` | `json_extract_string(col, path)` | `get_json_object(col, path)` | All 8 staging models |
-| `to_ts(expr)` | `cast(expr as timestamp)` | `to_timestamp(expr)` | All staging models |
-| `epoch_seconds(ts)` | `epoch(ts)` | `unix_timestamp(ts)` | Anomaly detection, facts |
+### Dead Letter Queue (DLQ)
 
-The same SQL model file executes on:
-- `dbt run --target local` → DuckDB
-- `dbt run --target cloud` → AWS Glue (Spark)
+**Pattern**: Route malformed messages to separate tables for investigation.
 
-**Resource Comparison:**
+**Benefits**: Pipeline resilience, data loss prevention, error visibility.
 
-Before (Spark local mode): ~8.4 GB (2 Spark Streaming containers + Spark Thrift Server + Hive Metastore)
-After (DuckDB local mode): ~1.7 GB (1 Python container + Hive Metastore for Trino)
-Reduction: 79% memory savings, <10s startup (vs. ~2min for Spark JVM)
+**Implementation**: Bronze ingestion writes to dlq_bronze_* tables with error_type and original payload, Airflow monitors every 15 minutes.
 
-**Engineering Judgment:**
+## Non-Obvious Design Decisions
 
-This architecture demonstrates:
-1. Right-sizing tools for scale: DuckDB for <1 GB datasets, Spark for 10+ GB datasets
-2. Cloud parity: Local development mirrors cloud architecture (same Delta format, same SQL)
-3. Cost optimization: Spark/Glue charges per DPU-second — zero cost when idle
-4. Developer experience: Fast local iteration with DuckDB, confident cloud deployment with Glue
+### Why SimPy Instead of Real-Time Scheduling?
 
-## Key Domain Concepts
+SimPy's discrete-event simulation allows deterministic replay and speed multipliers (10x-100x real-time) for rapid data generation. Real-time scheduling would limit throughput and complicate testing.
 
-### Trip State Machine
+### Why Two Kafka Consumers (Stream Processor + Bronze Ingestion)?
 
-10 states with validated transitions ensuring data integrity:
+Stream Processor optimizes for real-time frontend (GPS aggregation, low latency), while Bronze Ingestion optimizes for batch writes (larger batches, Delta Lake). Separate consumers allow independent scaling and failure domains.
 
-```
-REQUESTED → OFFER_SENT → MATCHED → DRIVER_EN_ROUTE → DRIVER_ARRIVED → STARTED → COMPLETED
-                │              │
-                ├─> OFFER_EXPIRED (retry with next driver)
-                ├─> OFFER_REJECTED (retry with next driver)
-                └─> CANCELLED (terminal state)
-```
+### Why LocalStack Secrets Manager?
 
-- Happy path: REQUESTED → OFFER_SENT → MATCHED → DRIVER_EN_ROUTE → DRIVER_ARRIVED → STARTED → COMPLETED
-- Offer cycle: OFFER_SENT can timeout (OFFER_EXPIRED) or be rejected, then retry with next candidate
-- CANCELLED is terminal and reachable from most non-terminal states
-- STARTED cannot be cancelled (rider is in vehicle, safety constraint)
+Provides AWS Secrets Manager API compatibility for local development without AWS costs. Production migration requires only endpoint change, no code changes. Secrets are profile-grouped to minimize credential exposure.
 
-### Agent DNA
+### Why DuckDB for Airflow DLQ Monitoring?
 
-**Immutable Behavioral Parameters:**
-- DriverDNA: acceptance_rate, min_trip_distance_km, service_quality_score, patience_minutes
-- RiderDNA: patience_minutes, price_sensitivity, rating_generosity
-- Assigned at agent creation and never modified
-- Enables reproducible behavior across simulations with same random seed
-- Profile attributes (vehicle, contact info) separate and mutable
+DuckDB's delta and httpfs extensions allow querying Delta Lake tables directly without Spark overhead. Lightweight alternative for scheduled queries in Airflow DAGs.
 
-### Surge Pricing
+### Why Dual-Engine DBT (DuckDB + Spark)?
 
-**Dynamic Pricing Algorithm:**
-- Calculated per zone every 60 simulated seconds
-- Formula: `base_multiplier + (demand_factor * surge_sensitivity)`
-- demand_factor = `max(0, (riders_waiting - available_drivers) / total_demand)`
-- Multipliers range from 1.0x to 2.5x
-- Surge sensitivity configured per zone in `services/simulation/data/subprefecture_config.json`
-- Events published to `surge_updates` topic for real-time visualization
+DuckDB provides fast local development with minimal resources. Spark validation ensures production parity with distributed execution. Cross-db macros abstract engine differences.
 
-### Medallion Architecture
+### Why Manual Kafka Offset Commits?
 
-**Three-Layer Lakehouse:**
+At-least-once delivery semantics require committing offsets only after successful downstream writes (Redis publish, Delta Lake write). Auto-commit would risk data loss on consumer failure.
 
-**Bronze Layer:**
-- Raw events from Kafka with minimal transformation
-- Schema enforcement via `schemas/lakehouse/*.py`
-- Partitioned by date for incremental processing
-- Retains all fields including metadata (`kafka_timestamp`, `kafka_partition`)
-- DLQ tables capture malformed records
+### Why Redis for Frontend State?
 
-**Silver Layer:**
-- Deduplication via correlation IDs
-- Data type standardization and cleaning
-- SCD Type 2 for profile dimensions (`dim_drivers_silver`, `dim_riders_silver`)
-- Business rule validation (e.g., trip duration > 0)
-- Incremental processing with watermark-based deduplication
+Redis pub/sub provides low-latency broadcast to multiple WebSocket clients. Simulation service publishes to Kafka (source of truth), Stream Processor handles fan-out to Redis, separating concerns.
 
-**Gold Layer:**
-- Business-ready fact tables (`fact_trips`, `fact_payments`, `fact_ratings`)
-- Current-state dimension tables (`dim_drivers`, `dim_riders`, `dim_zones`)
-- Pre-aggregated metrics (`agg_driver_stats_daily`, `agg_zone_metrics_hourly`)
-- Optimized for BI query performance
+## Scalability Characteristics
+
+### Horizontal Scaling Boundaries
+
+**Can Scale Horizontally**:
+- Kafka brokers (increase partitions)
+- Stream Processor instances (Kafka consumer group)
+- Bronze Ingestion instances (Kafka consumer group)
+- Trino workers (query parallelism)
+- Frontend replicas (stateless)
+
+**Cannot Scale Horizontally**:
+- Simulation Engine (single SimPy environment per instance, use multiple instances for parallel scenarios)
+- Redis (single instance, use Redis Cluster for HA)
+- Hive Metastore (single PostgreSQL backend)
+
+### Performance Bottlenecks
+
+**GPS Ping Volume**: 100+ pings/second per driver at 1000 agents. Stream Processor aggregation reduces Redis message rate 10x.
+
+**Delta Lake Writes**: Bronze Ingestion batches writes every 10 seconds to balance latency and I/O efficiency.
+
+**Trino Query Performance**: Partition pruning on _ingestion_date critical for interactive queries. Pre-computed aggregates avoid full scans.
+
+**Frontend Rendering**: deck.gl GPU layers handle 10K+ entities, but WebSocket message rate capped at 100 updates/second via GPS aggregation.
 
 ---
 
-**Generated:** 2026-01-21
-**Codebase:** rideshare-simulation-platform
-**System Type:** Event-Driven Microservices with Medallion Lakehouse Architecture
-**Total Components:** 11 deployable services
-**Event Topics:** 8 Kafka topics
-**Lakehouse Layers:** Bronze (raw) → Silver (cleaned) → Gold (business-ready)
-**Geographic Scope:** São Paulo, Brazil (96 districts, 32 subprefectures)
+**Generated**: 2026-02-13
+**Codebase**: rideshare-simulation-platform
+**System Type**: Event-Driven Data Engineering Platform
+**Total Components**: 15
+**Deployment Profiles**: 4
+**External Services**: 13

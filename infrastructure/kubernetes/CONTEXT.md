@@ -34,12 +34,12 @@ Provides Kubernetes deployment configurations and tooling for running the ridesh
 
 **Profile-Like Organization**: Services grouped into logical applications (core-services, data-pipeline) mirroring Docker Compose profiles, allowing selective deployment.
 
+**External Secrets Operator (ESO)**: Installed during cluster creation to sync secrets from LocalStack Secrets Manager into Kubernetes Secrets via ExternalSecret CRDs. Pods reference secrets via `secretKeyRef`.
+
 **Health Scripts Don't Fail Fast**: Health check and smoke test scripts collect all failures before exiting to provide complete diagnostic output rather than stopping at first error.
 
 ## Related Modules
 
-- **[infrastructure/kubernetes/manifests](./manifests/CONTEXT.md)** — Contains the actual Kubernetes resource definitions deployed by this module's lifecycle scripts
-- **[infrastructure/kubernetes/scripts](./scripts/CONTEXT.md)** — Lifecycle management automation for cluster creation, deployment, health validation, and teardown
-- **[infrastructure/kubernetes/overlays](./overlays/CONTEXT.md)** — Environment-specific customizations via Kustomize for local and production deployments
-- **[services/grafana](../../services/grafana/CONTEXT.md)** — Provides visualization dashboards for cluster and service-level metrics
-- **[services/prometheus](../../services/prometheus/CONTEXT.md)** — Provides metrics collection for cluster and service-level observability
+- **[infrastructure/docker](../docker/CONTEXT.md)** — Alternative deployment orchestration for local development; both use same profile organization and container images
+- **[infrastructure/kubernetes/argocd](argocd/CONTEXT.md)** — GitOps continuous deployment layer that monitors and syncs Kubernetes manifests from this directory
+- **[infrastructure/scripts](../scripts/CONTEXT.md)** — Provides secrets management scripts that ESO integrates with via LocalStack Secrets Manager

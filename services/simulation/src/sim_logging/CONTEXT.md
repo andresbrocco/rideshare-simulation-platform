@@ -25,3 +25,9 @@ Structured logging infrastructure with JSON/human-readable formatting, PII maski
 **Default Correlation ID**: `DefaultCorrelationFilter` adds `"-"` if no correlation_id exists. This is a fallback; proper correlation should use `src.core.correlation.CorrelationFilter` which integrates with the full tracing system.
 
 **Third-Party Suppression**: `setup_logging()` silences noisy libraries (confluent_kafka, urllib3) at WARNING level to prevent log pollution.
+
+## Related Modules
+
+- **[src/events](../events/CONTEXT.md)** — Events include correlation_id, session_id, causation_id fields that logging context propagates; enables tracing event chains through logs
+- **[src/agents](../agents/CONTEXT.md)** — Agents use log_context() to attach driver_id/rider_id to all log records during agent lifecycle operations
+- **[src/trips](../trips/CONTEXT.md)** — TripExecutor uses log_context(trip_id=...) to trace all trip execution logs back to specific trip instances

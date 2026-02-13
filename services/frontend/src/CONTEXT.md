@@ -35,10 +35,3 @@ The PerformanceContext tracks frontend metrics (FPS, WebSocket msg/sec) using re
 WebSocket authentication uses subprotocol `apikey.<key>` format since custom headers aren't supported in browser WebSocket API.
 
 useLayoutEffect updates callback refs before useEffect connection logic runs, ensuring handlers have the latest closures when messages arrive.
-
-## Related Modules
-
-- **[services/frontend/src/components](./components/CONTEXT.md)** — UI component implementations for control panel, map, inspector popups, and layer controls
-- **[services/frontend/src/types](./types/CONTEXT.md)** — TypeScript contracts mirroring backend domain models and WebSocket message structure
-- **[services/simulation/src/api/routes](../../simulation/src/api/routes/CONTEXT.md)** — Backend API endpoints for simulation control and agent manipulation
-- **[services/stream-processor/src/handlers](../../stream-processor/src/handlers/CONTEXT.md)** — Transforms Kafka events into WebSocket messages consumed by frontend

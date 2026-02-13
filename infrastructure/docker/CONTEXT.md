@@ -15,7 +15,7 @@ Defines the containerized orchestration for the entire ride-sharing simulation p
 **Profiles**: Services are organized into logical groups that can be started independently:
 - `core` - Simulation runtime (kafka, redis, osrm, simulation, stream-processor, frontend)
 - `data-pipeline` - Data engineering services (minio, bronze-ingestion, hive-metastore, trino, airflow)
-- `monitoring` - Observability (cadvisor, prometheus, grafana)
+- `monitoring` - Observability (cadvisor, prometheus, grafana, otel-collector, loki, tempo)
 - `spark-testing` - Dual-engine DBT testing (spark-thrift-server)
 - `test` - Test-specific services (test-data-producer, test-runner)
 
@@ -30,9 +30,9 @@ Defines the containerized orchestration for the entire ride-sharing simulation p
 
 ## Non-Obvious Details
 
-**Memory Limits**: All services have explicit `mem_limit` constraints to prevent resource exhaustion during local development (ranges from 128m for Redis to 3g for the commented-out spark-worker).
+**Memory Limits**: All services have explicit `mem_limit` constraints to prevent resource exhaustion during local development (ranges from 128m for Redis to 3072m for spark-thrift-server in the spark-testing profile).
 
-**Dual Listener Pattern**: Kafka exposes `PLAINTEXT` (internal at kafka:29092) and `PLAINTEXT_HOST` (external at localhost:9092) to support both container-to-container and host-to-container communication.
+**Dual Listener Pattern**: Kafka exposes `SASL_PLAINTEXT` for both internal (kafka:29092) and external (localhost:9092) listeners with SASL PLAIN authentication to support both container-to-container and host-to-container communication.
 
 **Healthcheck Dependencies**: Services use `condition: service_healthy` to enforce strict startup ordering. Critical path: kafka → schema-registry → simulation requires ~30-60 seconds for full stack readiness.
 
@@ -44,4 +44,7 @@ Defines the containerized orchestration for the entire ride-sharing simulation p
 
 ## Related Modules
 
-- **[tests/integration/data_platform](../../tests/integration/data_platform/CONTEXT.md)** — Uses Docker profile system for integration test orchestration; dynamically starts required profiles based on test markers
+- **[infrastructure/kubernetes](../kubernetes/CONTEXT.md)** — Alternative deployment orchestration using Kubernetes; mirrors the profile-based organization and uses identical container images
+- **[services/kafka](../../services/kafka/CONTEXT.md)** — Provides topic definitions referenced by kafka-init service for declarative topic creation
+- **[infrastructure/scripts](../scripts/CONTEXT.md)** — Bootstrap scripts used by secrets-init and minio-init services during container initialization
+- **[services/bronze-ingestion](../../services/bronze-ingestion/CONTEXT.md)** — Kafka-to-Delta ingestion service in the data-pipeline profile that depends on minio and kafka initialization

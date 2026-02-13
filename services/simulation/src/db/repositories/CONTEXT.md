@@ -30,5 +30,6 @@ Route cache uses SQLite's `INSERT ... ON CONFLICT DO UPDATE` (upsert) to avoid d
 
 ## Related Modules
 
-- **[services/simulation/src/db](../CONTEXT.md)** — Defines ORM models that repositories query and manipulate
-- **[services/simulation/src/matching](../../matching/CONTEXT.md)** — Uses repositories to persist trip state and cache routes for driver ranking
+- **[src/db](../CONTEXT.md)** — Parent database module containing ORM models that repositories query
+- **[src/agents](../../agents/CONTEXT.md)** — Agent domain models that repositories translate to/from ORM representations
+- **[src/engine](../../engine/CONTEXT.md)** — Uses repositories during checkpoint save/restore to persist and recover simulation state

@@ -34,10 +34,3 @@ Transforms raw Kafka events from Bronze layer into a dimensional data warehouse 
 **Anomaly Detection**: Separate view models (`anomalies_*`) flag data quality issues without blocking pipeline execution. Examples include impossible speeds (>200 km/h calculated via Haversine formula), GPS outliers beyond Sao Paulo bounds, and zombie drivers (active status with no GPS pings).
 
 **Empty Table Handling**: Profile dimension sources may be empty at first run. `source_with_empty_guard()` macro unions real data with typed NULL columns filtered by `where 1=0` to ensure consistent schema even when Delta tables are empty.
-
-## Related Modules
-
-- **[tools/dbt/models/staging](./staging/CONTEXT.md)** — Silver layer implementation; parses Bronze JSON and applies deduplication and validation
-- **[tools/dbt/macros](../macros/CONTEXT.md)** — Provides empty source guard and Delta source macros used throughout models
-- **[services/bronze-ingestion](../../../services/bronze-ingestion/CONTEXT.md)** — Data source; models read Bronze Delta tables created by the Python ingestion consumer
-- **[services/looker](../../../services/looker/CONTEXT.md)** — Data consumer; Looker queries Gold dimensions and facts for dashboards

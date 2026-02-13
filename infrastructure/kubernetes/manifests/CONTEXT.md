@@ -47,8 +47,3 @@ Kubernetes resource definitions for deploying the rideshare simulation platform 
 **OTel Collector K8s Adaptation**: The Docker Compose OTel Collector uses a `filelog` receiver to read Docker container logs from `/var/lib/docker/containers/`. In K8s, this is dropped; only OTLP-push metrics and traces are handled. Container log collection via DaemonSet would be a future enhancement.
 
 **Existing Documentation**: `README-CONFIG.md` explains ConfigMap/Secret usage patterns. `BACKUP_RESTORE.md` provides operational procedures for stateful data. Both should be verified against actual manifests as they may become outdated.
-
-## Related Modules
-
-- **[infrastructure/kubernetes/scripts](../scripts/CONTEXT.md)** — Uses these manifests to orchestrate deployment with dependency-aware ordering
-- **[infrastructure/kubernetes/overlays](../overlays/CONTEXT.md)** — Applies environment-specific patches to these base manifests via Kustomize

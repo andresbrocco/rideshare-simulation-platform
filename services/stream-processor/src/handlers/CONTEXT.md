@@ -30,9 +30,3 @@ Event handlers that consume Kafka messages and transform them into Redis pub/sub
 ## Non-Obvious Details
 
 All handlers inherit from `BaseHandler` which defines the contract: `handle()` processes individual messages, `flush()` emits buffered state. The `is_windowed` property determines whether the processor should call flush periodically. Validation errors are logged but do not raise exceptions, allowing the stream processor to continue processing subsequent messages.
-
-## Related Modules
-
-- **[services/simulation/src/redis_client](../../../simulation/src/redis_client/CONTEXT.md)** — Deprecated publisher replaced by these handlers; stream processor now owns Redis pub/sub publishing
-- **[services/frontend/src](../../../frontend/src/CONTEXT.md)** — Consumes Redis pub/sub events produced by handlers for real-time map updates
-- **[services/frontend/src/types](../../../frontend/src/types/CONTEXT.md)** — TypeScript types match the message structure produced by handlers

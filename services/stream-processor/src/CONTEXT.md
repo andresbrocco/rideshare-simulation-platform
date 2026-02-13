@@ -29,3 +29,10 @@ Topic subscription happens eagerly but partition assignment is asynchronous. The
 GPS aggregation state is cleared on each window flush. Metrics track aggregation ratios (messages received / messages emitted) to quantify bandwidth reduction.
 
 Profile events (driver_profiles, rider_profiles) are always enabled regardless of feature flags to ensure real-time agent visibility.
+
+## Related Modules
+
+- **[services/kafka](../../kafka/CONTEXT.md)** — Provides Kafka topics that stream processor consumes from; topic configuration affects consumption behavior
+- **[services/simulation/src/agents](../../simulation/src/agents/CONTEXT.md)** — Publishes events to Kafka that stream processor routes to Redis; agents emit GPS pings and status updates
+- **[services/frontend/src/components](../../frontend/src/components/CONTEXT.md)** — Subscribes to Redis channels populated by stream processor via WebSocket; receives real-time agent updates
+- **[services/frontend/src/layers](../../frontend/src/layers/CONTEXT.md)** — Renders visualization updates driven by stream processor's Redis publications

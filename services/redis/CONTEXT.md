@@ -25,10 +25,3 @@ In-memory state store for the rideshare simulation platform's real-time dashboar
 The 128MB memory limit is intentional — Redis only holds the latest state snapshots, not historical data. If Redis loses data on restart, the stream processor will repopulate current state from Kafka's latest offsets. There is no need for Redis persistence configuration (RDB/AOF) in this architecture.
 
 Data is persisted to a `redis-data` named volume for convenience during development restarts, but this data is fully reconstructable from Kafka.
-
-## Related Modules
-
-- **[services/stream-processor](../stream-processor/CONTEXT.md)** — Writes processed state data to Redis keys and publishes to pub/sub channels
-- **[services/frontend](../frontend/CONTEXT.md)** — Reads state data from Redis and subscribes to pub/sub for live WebSocket updates
-- **[services/simulation](../simulation/CONTEXT.md)** — Indirect dependency; simulation events flow through Kafka and stream processor before reaching Redis
-- **[infrastructure/docker](../../infrastructure/docker/CONTEXT.md)** — Deployment orchestration; defines Redis service, memory limit, and core profile

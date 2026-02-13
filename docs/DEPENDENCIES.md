@@ -6,183 +6,142 @@
 
 How modules within this codebase depend on each other.
 
-### Core Service Modules
+### Core Modules
 
 | Module | Purpose | Depended On By |
 |--------|---------|----------------|
-| services/simulation | Discrete-event rideshare simulation engine with autonomous agents | services/frontend, tests/integration/data_platform |
-| services/stream-processor | Kafka-to-Redis bridge with GPS aggregation and event deduplication | services/frontend (via Redis pub/sub) |
-| services/frontend | Real-time visualization and control interface | None |
-| services/bronze-ingestion | Bronze layer Kafka-to-Delta ingestion (Python + delta-rs) | tools/dbt, services/airflow |
-| tools/dbt | Data transformation implementing medallion architecture | services/looker, tools/great-expectations |
-| services/airflow | Data pipeline orchestration and monitoring | None |
-| services/trino | Interactive SQL query engine over Delta Lake | services/grafana |
-
-### Data and Schema Modules
-
-| Module | Purpose | Depended On By |
-|--------|---------|----------------|
-| schemas/kafka | JSON Schema definitions for Kafka events | services/simulation, services/bronze-ingestion, services/stream-processor |
-| schemas/lakehouse | Bronze layer table schema definitions | services/bronze-ingestion |
-| services/simulation/data | Geographic reference data for São Paulo districts (co-located) | services/simulation |
-| config | Environment-specific Kafka topic configurations | services/simulation, services/bronze-ingestion |
-
-### Infrastructure and Quality Modules
-
-| Module | Purpose | Depended On By |
-|--------|---------|----------------|
-| infrastructure/docker | Containerized orchestration for entire platform | All services |
-| infrastructure/docker/dockerfiles | Custom Docker image definitions | infrastructure/docker/compose.yml |
-| tools/great-expectations | Data quality validation for lakehouse layers | services/airflow |
-| services/looker | Business intelligence stack configuration | None |
-| services/otel-collector | Unified telemetry gateway for metrics, logs, traces | services/prometheus (via remote_write), services/loki, services/tempo |
-| services/prometheus | Metrics storage and alerting rules | services/grafana |
-| services/loki | Log aggregation with label-based indexing | services/grafana |
-| services/tempo | Distributed tracing backend | services/grafana |
-| services/grafana | Dashboards and alerting across 4 datasources | None |
+| services/simulation/src/engine | SimPy discrete-event simulation orchestration | services/simulation/src/api, services/simulation/tests |
+| services/simulation/src/agents | Autonomous rideshare actors (drivers, riders) with DNA-based behavior | services/simulation/src/engine, services/simulation/src/matching, services/simulation/src/trips |
+| services/simulation/src/matching | Driver-rider matchmaking with spatial indexing and surge pricing | services/simulation/src/engine, services/simulation/src/api |
+| services/simulation/src/trips | Trip lifecycle orchestration from match through completion | services/simulation/src/matching |
+| services/simulation/src/db | SQLite persistence for checkpoints and state recovery | services/simulation/src/engine, services/simulation/src/agents, services/simulation/src/matching |
+| services/stream-processor | Kafka-to-Redis event routing with deduplication | services/frontend |
+| services/bronze-ingestion | Kafka-to-Delta Bronze layer ingestion | tools/dbt, services/airflow |
+| schemas/lakehouse | PySpark StructType definitions for Bronze tables | services/bronze-ingestion |
+| schemas/api | OpenAPI 3.1 REST API contract | services/frontend, services/simulation |
 
 ### Module Dependency Graph
 
 ```
-[services/simulation] ──┬──> [schemas/kafka]
-                        ├──> [services/simulation/data]
-                        ├──> [config]
-                        ├──> OTLP ──> [services/otel-collector]
-                        └──> Kafka Topics
-                                  │
-                                  ├──> [services/stream-processor] ──┬──> Redis ──> [services/frontend]
-                                  │                                  └──> OTLP ──> [services/otel-collector]
-                                  │
-                                  └──> [services/bronze-ingestion] ──┬──> [schemas/lakehouse]
-                                                                     └──> Bronze Delta Tables (MinIO S3)
-                                                                               │
-                                                                               └──> [tools/dbt] ──┬──> Silver/Gold Tables
-                                                                                                     │
-                                                                                                     ├──> [tools/great-expectations]
-                                                                                                     │
-                                                                                                     └──> [services/trino] ──> [services/grafana] (BI dashboards)
+[services/simulation/src/engine] ──┬──> [services/simulation/src/agents]
+                                    ├──> [services/simulation/src/matching]
+                                    ├──> [services/simulation/src/db]
+                                    └──> [services/simulation/src/kafka]
 
-[services/airflow] ──┬──> [tools/dbt]
-                     ├──> [services/bronze-ingestion]
-                     └──> [tools/great-expectations]
+[services/simulation/src/agents] ──┬──> [services/simulation/src/geo]
+                                    ├──> [services/simulation/src/kafka]
+                                    ├──> [services/simulation/src/redis_client]
+                                    ├──> [services/simulation/src/db]
+                                    └──> [services/simulation/src/events]
 
-[services/otel-collector] ──┬──> [services/prometheus] (remote_write + scrape)
-                            ├──> [services/loki] (push API)
-                            └──> [services/tempo] (OTLP gRPC)
+[services/simulation/src/matching] ──┬──> [services/simulation/src/agents]
+                                      ├──> [services/simulation/src/geo]
+                                      ├──> [services/simulation/src/trips]
+                                      └──> [services/simulation/src/kafka]
 
-[services/prometheus] ◄── scrape ── [cadvisor]
+[services/simulation/src/trips] ──┬──> [services/simulation/src/agents]
+                                   ├──> [services/simulation/src/geo]
+                                   └──> [services/simulation/src/kafka]
 
-[services/grafana] ──┬──> [services/prometheus] (PromQL)
-                     ├──> [services/loki] (LogQL)
-                     ├──> [services/tempo] (TraceQL)
-                     └──> [services/trino] (SQL over Delta Lake)
+[services/simulation/src/api] ──┬──> [services/simulation/src/engine]
+                                 ├──> [services/simulation/src/matching]
+                                 ├──> [services/simulation/src/db]
+                                 └──> [services/simulation/src/metrics]
 
-[infrastructure/docker] ──> All Services
-```
+[services/simulation/src/db] ──> [services/simulation/src/agents/dna]
 
-### Simulation Service Internal Dependencies
+[services/stream-processor] ──┬──> Kafka (consume)
+                               └──> Redis (publish)
 
-Internal module structure within `services/simulation/src/`:
+[services/bronze-ingestion] ──┬──> Kafka (consume)
+                               ├──> schemas/lakehouse
+                               └──> MinIO (Delta Lake)
 
-```
-[main] ──┬──> [api]
-         ├──> [engine] ──┬──> [agents] ──┬──> [events]
-         │               │               ├──> [geo]
-         │               │               ├──> [kafka]
-         │               │               ├──> [redis_client]
-         │               │               └──> [db]
-         │               │
-         │               ├──> [matching] ──┬──> [agents]
-         │               │                 ├──> [geo]
-         │               │                 └──> [trips]
-         │               │
-         │               └──> [trips] ──┬──> [agents]
-         │                              ├──> [geo]
-         │                              └──> [kafka]
-         │
-         ├──> [db] ──> [agents/dna]
-         ├──> [geo]
-         ├──> [kafka] ──> [events]
-         └──> [core]
+[tools/dbt] ──┬──> Bronze Delta Tables (MinIO)
+              └──> tools/dbt/macros/cross_db
 
-[api] ──┬──> [engine]
-        ├──> [redis_client]
-        └──> [puppet]
+[tools/great-expectations] ──> Silver/Gold Delta Tables (DuckDB/MinIO)
+
+[services/airflow/dags] ──┬──> tools/dbt
+                           └──> tools/great-expectations
+
+[services/frontend/src/components] ──┬──> services/frontend/src/hooks
+                                      ├──> services/frontend/src/api
+                                      └──> services/frontend/src/types/api
+
+[services/frontend/src/layers] ──> services/frontend/src/types/api
+
+[infrastructure/kubernetes/argocd] ──> infrastructure/kubernetes/manifests
+
+[infrastructure/scripts] ──┬──> AWS Secrets Manager (LocalStack)
+                            ├──> MinIO
+                            └──> Trino
 ```
 
 ### Dependency Details
 
-#### services/simulation → schemas/kafka
-- Uses JSON schemas for event validation: `trip_event.json`, `gps_ping_event.json`, `driver_status_event.json`, `surge_update_event.json`, `rating_event.json`, `payment_event.json`, `driver_profile_event.json`, `rider_profile_event.json`
-- Publishes events to Kafka topics with schema registry validation
+#### services/simulation/src/engine → services/simulation/src/agents
+- Uses `DriverAgent` and `RiderAgent` for agent process registration
+- Uses `AgentFactory` for bulk agent creation
+- Coordinates agent lifecycle (creation, start, stop)
 
-#### services/simulation → services/simulation/data
-- Uses `zones.geojson` for geographic zone boundaries and assignment
-- Uses `subprefecture_config.json` for demand parameters and surge sensitivity
-- Data is co-located within the simulation service directory
+#### services/simulation/src/engine → services/simulation/src/matching
+- Uses `MatchingServer` for driver-rider matchmaking
+- Calls `start_pending_trip_executions()` each simulation step
 
-#### services/stream-processor → Redis pub/sub
-- Consumes from Kafka topics: `gps_pings`, `trips`, `driver_status`, `surge_updates`
+#### services/simulation/src/agents → services/simulation/src/kafka
+- Publishes events to Kafka topics: `trips`, `gps_pings`, `driver_status`, `ratings`, `driver_profiles`, `rider_profiles`
+- Uses `KafkaProducer` for event emission
+
+#### services/simulation/src/matching → services/simulation/src/trips
+- Queues `TripExecutor` processes for matched trips
+- Uses `TripExecutor` for autonomous trip orchestration
+
+#### services/simulation/src/trips → services/simulation/src/geo
+- Uses `OSRMClient` for route fetching with retry logic
+- Uses proximity-based arrival detection
+
+#### services/simulation/src/db → services/simulation/src/agents/dna
+- Persists DNA parameters as JSON in database
+- Uses DNA validators for data integrity
+
+#### services/stream-processor → Redis
+- Consumes from Kafka: `gps_pings`, `trips`, `driver_status`, `surge_updates`
 - Publishes to Redis channels: `driver-updates`, `rider-updates`, `trip-updates`, `surge_updates`
-- Aggregation window: 100ms batching for GPS updates
+- Aggregates GPS pings in 100ms batches
 
 #### services/bronze-ingestion → schemas/lakehouse
-- Uses PyArrow schemas for Bronze table validation
-- Applies schemas during Kafka-to-Delta ingestion
+- Uses `bronze_trips_schema`, `bronze_gps_pings_schema`, etc.
+- Applies schemas during Kafka message to Delta Lake write
 
 #### tools/dbt → Bronze Delta Tables
-- Reads from Bronze tables created by bronze-ingestion
-- Implements staging models with SCD Type 2 for profiles
-- Uses `source_with_empty_guard` macro to handle empty sources
+- Reads `bronze_trips`, `bronze_gps_pings`, `bronze_driver_status`, etc.
+- Implements staging models with SCD Type 2 for profile tables
 
-#### tools/great-expectations → Silver/Gold Tables
-- Validates `silver_validation` checkpoint (schema, nullability, uniqueness)
-- Validates `gold_validation` checkpoint (business rules, aggregates)
+#### tools/dbt/macros/cross_db → dbt-core
+- Uses `adapter.dispatch()` for multi-engine support (DuckDB, Spark, Trino)
+- Provides `json_field()`, `to_ts()`, `epoch_seconds()`, etc.
 
-#### services/trino → Delta Lake (via Hive Metastore + MinIO)
-- Uses Delta Lake connector configured in `services/trino/etc/catalog/delta.properties`
-- Connects to Hive Metastore (`thrift://hive-metastore:9083`) for table metadata discovery
-- Reads data files from MinIO (`http://minio:9000`) via S3A protocol
-- Grafana BI dashboards (driver-performance, revenue-analytics, demand-analysis) query Gold tables through Trino
+#### tools/great-expectations → tools/dbt
+- Validates Silver and Gold tables created by DBT
+- Uses DuckDB as validation engine
 
-#### services/otel-collector → Prometheus, Loki, Tempo
-- Receives OTLP metrics and traces from simulation and stream-processor via gRPC on port 4317
-- Reads Docker container JSON logs via filelog receiver from `/var/lib/docker/containers/`
-- Exports metrics to Prometheus via remote_write (`http://prometheus:9090/api/v1/write`)
-- Exports logs to Loki via push API (`http://loki:3100/loki/api/v1/push`)
-- Exports traces to Tempo via OTLP gRPC (`tempo:4317`)
-- Enriches logs with labels: level, service, service_name, correlation_id, trip_id
+#### services/airflow/dags → tools/dbt
+- Orchestrates `dbt_silver_transformation` and `dbt_gold_transformation` DAGs
+- Triggers DBT runs via BashOperator
 
-#### services/grafana → Prometheus, Loki, Tempo, Trino
-- 4 provisioned datasources with cross-linking (Tempo traces → Loki logs, Tempo → Prometheus service map)
-- 7 dashboards across 4 categories: monitoring, operations, data-engineering, business-intelligence
-- BI dashboards query Trino (Gold Delta tables); operational dashboards query Prometheus (PromQL)
-- 2 alert groups: pipeline failures (critical, 1m eval) and resource thresholds (warning)
+#### services/frontend/src/components → services/frontend/src/hooks
+- Uses `useSimulationState` for WebSocket state management
+- Uses `useSimulationControl` for API control commands
+- Uses `useAgentState` for driver/rider state inspection
 
-#### services/frontend → Backend REST API & WebSocket
-- Simulation control: `/simulation/status`, `/simulation/start`, `/simulation/pause`, `/simulation/resume`, `/simulation/stop`, `/simulation/speed`
-- Agent spawning: `/agents/drivers?mode=immediate|scheduled`, `/agents/riders?mode=immediate|scheduled`, `/agents/spawn-status`
-- Agent state: `/agents/drivers/{id}`, `/agents/riders/{id}`, `/agents/drivers/{id}/status`
-- Puppet agents: `/agents/puppet/drivers`, `/agents/puppet/riders` with action endpoints
-- WebSocket endpoint: `/ws` for real-time updates (drivers, riders, trips, surge, simulation status)
-- Authentication: API key via `X-API-Key` header or `Sec-WebSocket-Protocol`
+#### services/frontend/src/layers → services/frontend/src/types/api
+- Uses types from `api.generated.ts` (generated from OpenAPI schema)
+- Creates deck.gl layers from typed API responses
 
-#### services/simulation/src/agents → Multiple
-- Imports from `events.schemas` for event emission
-- Imports from `geo` for routing and GPS simulation
-- Imports from `kafka.producer` for event publishing
-- Imports from `redis_client.publisher` (deprecated direct publishing)
-- Imports from `db.repositories` for persistence
-
-#### services/simulation/src/matching → agents, geo, trips
-- Uses `DriverAgent` and `RiderAgent` from `agents`
-- Uses `OSRMClient` from `geo` for distance calculations
-- Uses `TripExecutor` from `trips` for trip orchestration
-
-#### services/simulation/src/trips → agents, geo, kafka
-- Uses `DriverAgent` and `RiderAgent` for trip participants
-- Uses `OSRMClient` for routing
-- Uses `KafkaProducer` for trip event publishing
+#### infrastructure/kubernetes/argocd → infrastructure/kubernetes/manifests
+- Uses GitOps to sync manifests for `core-services`, `data-pipeline`, `monitoring`
+- Auto-sync with self-heal enabled
 
 ## External Dependencies
 
@@ -190,82 +149,99 @@ Internal module structure within `services/simulation/src/`:
 
 #### services/simulation (Python)
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| simpy | 4.1.1 | Discrete-event simulation framework |
-| fastapi | 0.115.6 | Web framework for control panel API |
-| uvicorn | 0.34.0 | ASGI server |
-| pydantic | 2.12.5 | Data validation and settings |
-| sqlalchemy | 2.0.45 | ORM for SQLite persistence |
-| confluent-kafka | 2.12.2 | Kafka producer client |
-| redis | 7.1.0 | Redis client for state snapshots |
-| httpx | 0.28.1 | HTTP client for OSRM routing |
-| h3 | 4.3.1 | Geospatial hexagonal indexing |
-| shapely | 2.1.2 | Geometric operations |
-| jsonschema | 4.25.1 | JSON schema validation |
-| Faker | >=28.0.0 | Synthetic data generation |
-| psutil | >=5.9.0 | System metrics collection |
-| websockets | 14.1 | WebSocket server |
+| Package | Version | Used By | Purpose |
+|---------|---------|---------|---------|
+| simpy | 4.1.1 | src/engine, src/agents, src/trips | Discrete-event simulation framework |
+| fastapi | 0.115.6 | src/api | REST and WebSocket API framework |
+| uvicorn | 0.34.0 | src/main | ASGI server |
+| pydantic | 2.12.5 | src/agents, src/events, src/settings | Data validation and settings |
+| pydantic-settings | 2.7.1 | src/settings | Environment-based configuration |
+| sqlalchemy | 2.0.45 | src/db | ORM for SQLite persistence |
+| confluent-kafka | 2.12.2 | src/kafka | Kafka producer client |
+| redis | 7.1.0 | src/redis_client | State snapshots and pub/sub |
+| httpx | 0.28.1 | src/geo/osrm_client | HTTP client for OSRM routing |
+| h3 | 4.3.1 | src/matching | Hexagonal geospatial indexing |
+| shapely | 2.1.2 | src/geo | Geometric operations |
+| jsonschema | 4.25.1 | src/events | JSON schema validation |
+| Faker | >=28.0.0 | src/agents/dna | Brazilian synthetic data generation |
+| psutil | >=5.9.0 | src/metrics | System resource metrics |
+| websockets | 14.1 | src/api | WebSocket server |
+| opentelemetry-api | 1.39.1 | src/metrics | OTel metrics API |
+| opentelemetry-sdk | 1.39.1 | src/metrics | OTel SDK |
+| opentelemetry-exporter-otlp | 1.39.1 | src/metrics | OTel OTLP exporter |
+| opentelemetry-instrumentation-fastapi | 0.60b1 | src/api | FastAPI auto-instrumentation |
+| opentelemetry-instrumentation-redis | 0.60b1 | src/redis_client | Redis auto-instrumentation |
+| opentelemetry-instrumentation-httpx | 0.60b1 | src/geo | HTTPX auto-instrumentation |
 
 #### services/stream-processor (Python)
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| confluent-kafka | 2.6.1 | Kafka consumer client |
-| pydantic | 2.10.4 | Event schema validation |
-| redis | 5.2.1 | Redis pub/sub client |
-| fastapi | 0.115.6 | Health endpoint API |
-| uvicorn | 0.34.0 | ASGI server |
-
-#### services/frontend (TypeScript/React)
-
-| Package | Version | Purpose |
-|---------|---------|---------|
-| react | 19.2.1 | UI framework |
-| react-dom | 19.2.1 | React DOM renderer |
-| deck.gl | 9.2.5 | WebGL-based visualization |
-| @deck.gl/layers | 9.2.5 | Visualization layer primitives |
-| @deck.gl/aggregation-layers | 9.2.5 | Heatmap and hexagon layers |
-| react-map-gl | 8.1.0 | Mapbox/MapLibre wrapper |
-| maplibre-gl | 5.14.0 | Map rendering library |
-| react-hot-toast | 2.6.0 | Toast notifications |
+| Package | Version | Used By | Purpose |
+|---------|---------|---------|---------|
+| confluent-kafka | >=2.6.0 | src/consumer | Kafka consumer client |
+| pydantic | >=2.10.0 | src/handlers | Event schema validation |
+| pydantic-settings | >=2.7.0 | src/config | Configuration management |
+| redis | >=5.2.0 | src/sink | Redis pub/sub client |
 
 #### services/bronze-ingestion (Python)
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| confluent-kafka | 2.8.0 | Kafka consumer |
-| deltalake | 0.25.5 | Delta Lake writes via delta-rs |
-| pyarrow | 19.0.1 | Arrow columnar format |
+| Package | Version | Used By | Purpose |
+|---------|---------|---------|---------|
+| confluent-kafka | 2.13.0 | src/consumer | Kafka consumer with SASL auth |
+| deltalake | 1.4.2 | src/writer | Delta Lake writes via delta-rs |
+| pyarrow | >=15.0.0 | src/writer | Arrow columnar format |
+| python-dateutil | (latest) | src/writer | Date parsing utilities |
+
+#### services/frontend (TypeScript/React)
+
+| Package | Version | Used By | Purpose |
+|---------|---------|---------|---------|
+| react | 19.2.1 | src/components | UI framework |
+| react-dom | 19.2.1 | src/main | React DOM renderer |
+| deck.gl | 9.2.5 | src/layers | WebGL visualization framework |
+| @deck.gl/core | 9.2.5 | src/layers | Core deck.gl engine |
+| @deck.gl/layers | 9.2.5 | src/layers | Icon, path, scatterplot layers |
+| @deck.gl/aggregation-layers | 9.2.5 | src/layers | Heatmap and hexagon layers |
+| @deck.gl/geo-layers | 9.2.5 | src/layers | GeoJSON layers |
+| @deck.gl/react | 9.2.5 | src/components | React integration |
+| react-map-gl | 8.1.0 | src/components | MapLibre wrapper |
+| maplibre-gl | 5.14.0 | src/components | Map rendering engine |
+| react-hot-toast | 2.6.0 | src/lib/toast | Toast notifications |
 
 #### tools/dbt (Python)
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| dbt-spark | (via venv) | DBT adapter for Spark |
-| dbt-utils | 1.3.0 | Common DBT macros |
-| dbt_expectations | 0.10.1 | Data quality macros |
+| Package | Version | Used By | Purpose |
+|---------|---------|---------|---------|
+| dbt-duckdb | (via venv) | models/* | Local transformation engine |
+| dbt-spark | (via venv) | models/* | Spark integration for dual-engine validation |
+| dbt-utils | 1.3.0 | models/marts | Common macros |
+| dbt_expectations | 0.10.1 | models/staging | Data quality macros |
 
 #### services/airflow (Python)
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| apache-airflow | 3.1.5 | Workflow orchestration |
-| apache-airflow-providers-apache-spark | 5.0.0 | Spark integration |
+| Package | Version | Used By | Purpose |
+|---------|---------|---------|---------|
+| apache-airflow | 3.1.5 | dags/* | Workflow orchestration |
+| apache-airflow-providers-apache-spark | 5.0.0 | dags/* | Spark integration |
 
 #### tools/great-expectations (Python)
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| great-expectations | 1.10.0 | Data validation framework |
-| pyspark | 3.5.0 | Spark integration for validation |
+| Package | Version | Used By | Purpose |
+|---------|---------|---------|---------|
+| great-expectations | (via venv) | gx/expectations | Data validation framework |
+| duckdb | (via venv) | gx/datasources | DuckDB integration |
 
-#### services/trino
+#### tests/performance (Python)
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| trinodb/trino | 439 | Distributed SQL query engine |
-| delta-lake-connector | (built-in) | Delta Lake table access via Hive Metastore |
+| Package | Version | Used By | Purpose |
+|---------|---------|---------|---------|
+| httpx | >=0.28.0 | collectors/simulation_client | HTTP client for simulation API |
+| numpy | >=1.26.0 | scenarios/* | Statistical analysis |
+| scipy | >=1.12.0 | scenarios/* | Statistical functions |
+| matplotlib | >=3.8.0 | scenarios/* | Plotting |
+| plotly | >=5.18.0 | scenarios/* | Interactive visualizations |
+| pandas | >=2.2.0 | scenarios/* | Data manipulation |
+| rich | >=13.7.0 | runner | CLI output formatting |
+| click | >=8.1.0 | runner | CLI framework |
 
 ### Development Dependencies
 
@@ -277,9 +253,14 @@ Internal module structure within `services/simulation/src/`:
 | pytest-asyncio | 1.3.0 | Async test support |
 | pytest-cov | 7.0.0 | Coverage reporting |
 | black | 24.10.0 | Code formatting |
-| ruff | 0.8.4 | Linting |
-| mypy | 1.14.1 | Type checking |
-| respx | 0.21.1 | HTTP mocking |
+| ruff | 0.8.4 | Fast linting |
+| mypy | 1.14.1 | Static type checking |
+| types-redis | 4.6.0.20241004 | Type stubs for redis |
+| types-requests | >=2.31.0 | Type stubs for requests |
+| types-psutil | >=5.9.0 | Type stubs for psutil |
+| types-jsonschema | >=4.25.0 | Type stubs for jsonschema |
+| types-PyYAML | >=6.0 | Type stubs for PyYAML |
+| respx | 0.21.1 | HTTP mocking for tests |
 
 #### services/frontend (TypeScript)
 
@@ -289,50 +270,73 @@ Internal module structure within `services/simulation/src/`:
 | vite | 7.2.4 | Build tool |
 | vitest | 3.2.4 | Testing framework |
 | eslint | 9.39.1 | Linting |
+| eslint-plugin-react-hooks | 7.0.1 | React hooks linting |
+| eslint-plugin-react-refresh | 0.4.24 | React refresh linting |
 | prettier | 3.7.4 | Code formatting |
-| @testing-library/react | 16.3.1 | Component testing |
+| typescript-eslint | 8.46.4 | TypeScript ESLint parser |
+| @testing-library/react | 16.3.1 | React component testing |
+| @testing-library/jest-dom | 6.9.1 | DOM matchers |
+| openapi-typescript | 7.13.0 | OpenAPI to TypeScript type generation |
 
-#### tests/integration/data_platform (Python)
+#### Integration Tests (Python)
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| pytest | 9.0.2 | Testing framework |
-| testcontainers | 4.0.0 | Docker container management |
-| httpx | 0.27.2 | HTTP client for API tests |
+| pytest | >=8.0.0 | Testing framework |
+| pytest-asyncio | >=0.24.0 | Async support |
+| testcontainers | 4.0.0 | Docker container orchestration |
+| httpx | 0.27.2 | HTTP client |
+| websockets | 14.1 | WebSocket client |
+| boto3 | >=1.35.0 | AWS SDK (for LocalStack) |
+| confluent-kafka | >=2.6.0 | Kafka client |
+| PyHive | >=0.7.0 | Hive/Spark Thrift client |
+| redis | >=5.0.0 | Redis client |
 
 ## External Service Dependencies
 
-Runtime services required for operation:
+Runtime services required for operation.
 
 ### Infrastructure Services
 
 | Service | Used By | Purpose |
 |---------|---------|---------|
-| Kafka (Confluent Cloud) | simulation, bronze-ingestion, stream-processor | Event streaming backbone |
-| Redis | simulation, stream-processor, frontend | State snapshots and pub/sub |
-| OSRM | simulation | Routing calculations |
-| MinIO (S3-compatible) | bronze-ingestion, dbt | Lakehouse storage |
-| Trino | grafana | Interactive SQL over Delta Lake Gold tables |
-| Hive Metastore | trino | Table metadata catalog (backed by PostgreSQL) |
-| OpenTelemetry Collector | simulation, stream-processor | Telemetry routing gateway (metrics, logs, traces) |
-| Prometheus | grafana, otel-collector | Metrics storage and alerting (7d retention) |
-| Loki | grafana, otel-collector | Log aggregation with label-based indexing |
+| Kafka | simulation, bronze-ingestion, stream-processor | Event streaming backbone with SASL auth |
+| Schema Registry | simulation, bronze-ingestion | JSON schema validation for Kafka events |
+| Redis | simulation, stream-processor, frontend | State snapshots and pub/sub channels |
+| OSRM | simulation | Routing calculations for Sao Paulo |
+| MinIO (S3) | bronze-ingestion, dbt, airflow | Lakehouse storage (Bronze, Silver, Gold) |
+| Trino | grafana, airflow | Interactive SQL over Delta Lake |
+| Hive Metastore | trino | Table metadata catalog (PostgreSQL-backed) |
+| PostgreSQL | airflow, hive-metastore | Backend database |
+| LocalStack | infrastructure/scripts | AWS Secrets Manager emulation |
+| OpenLDAP | spark-thrift-server | LDAP authentication |
+
+### Observability Services
+
+| Service | Used By | Purpose |
+|---------|---------|---------|
+| OpenTelemetry Collector | simulation, stream-processor | Telemetry gateway (metrics, logs, traces) |
+| Prometheus | grafana, otel-collector | Metrics storage (7d retention) |
+| Loki | grafana, otel-collector | Log aggregation with label indexing |
 | Tempo | grafana, otel-collector | Distributed tracing backend |
+| Grafana | N/A | Dashboards and alerting (4 datasources) |
+| cAdvisor | prometheus | Container metrics exporter |
 
 ### Docker Base Images
 
 | Image | Used In | Purpose |
 |-------|---------|---------|
-| apache/spark:4.0.0-python3 | spark-delta.Dockerfile | Spark with Delta Lake support |
-| minio/minio:latest | minio.Dockerfile | Object storage |
-| osrm/osrm-backend:latest | osrm.Dockerfile | Routing engine |
-| redis:7-alpine | compose.yml | Key-value store |
-| postgres:16-alpine | compose.yml | Relational database |
-| trinodb/trino:439 | compose.yml | SQL query engine |
-| grafana/grafana:12.3.1 | compose.yml | Dashboard and alerting UI |
-| prom/prometheus:v3.9.1 | compose.yml | Metrics storage |
-| grafana/loki:3.6.5 | compose.yml | Log aggregation |
-| ghcr.io/google/cadvisor:v0.53.0 | compose.yml | Container metrics exporter |
+| apache/spark:4.0.0-python3 | infrastructure/docker/dockerfiles/spark-delta.Dockerfile | Spark with Delta Lake |
+| minio/minio:latest | infrastructure/docker/compose.yml | S3-compatible object storage |
+| osrm/osrm-backend:latest | infrastructure/docker/compose.yml | Routing engine |
+| redis:7-alpine | infrastructure/docker/compose.yml | Key-value store |
+| postgres:16-alpine | infrastructure/docker/compose.yml | Relational database |
+| trinodb/trino:439 | infrastructure/docker/compose.yml | SQL query engine |
+| grafana/grafana:12.3.1 | infrastructure/docker/compose.yml | Dashboards and alerting |
+| prom/prometheus:v3.9.1 | infrastructure/docker/compose.yml | Metrics storage |
+| grafana/loki:3.6.5 | infrastructure/docker/compose.yml | Log aggregation |
+| grafana/tempo:2.7.4 | infrastructure/docker/compose.yml | Tracing backend |
+| otel/opentelemetry-collector-contrib:0.120.1 | infrastructure/docker/compose.yml | Telemetry collector |
 
 ## Circular Dependencies
 
@@ -342,38 +346,49 @@ None detected.
 
 ### Version Consistency
 
-- DuckDB used as the local transformation engine via dbt-duckdb
-- FastAPI version 0.115.6 shared between simulation and stream-processor
-- Multiple Redis client versions: 7.1.0 (simulation) vs 5.2.1 (stream-processor)
-- Multiple confluent-kafka versions: 2.12.2 (simulation) vs 2.6.1 (stream-processor)
-- Grafana 12.3.1 with trino-datasource plugin installed at runtime via GF_INSTALL_PLUGINS
-- OTel Collector and Tempo use custom Dockerfiles built from contrib images
+- **FastAPI**: 0.115.6 shared between simulation and stream-processor
+- **confluent-kafka**: 2.12.2 (simulation) vs 2.13.0 (bronze-ingestion) vs >=2.6.0 (stream-processor)
+- **redis**: 7.1.0 (simulation) vs >=5.2.0 (stream-processor)
+- **pydantic**: 2.12.5 (simulation) vs >=2.10.0 (stream-processor)
+- **React**: 19.2.1 (latest with concurrent features)
+- **deck.gl**: 9.2.5 across all frontend visualization layers
 
 ### Python Version Requirements
 
-- services/simulation: Python >=3.13
-- tests/integration: Python >=3.13
-- services/stream-processor: No explicit version constraint
-- services/bronze-ingestion: Python >=3.13
-- tools/great-expectations: Compatible with Python 3.x
-
-### Frontend Dependencies
-
-- Using latest React 19.2.1 with concurrent features
-- deck.gl 9.2.5 provides stable WebGL visualization
-- All frontend dependencies are pinned to specific versions
+- `services/simulation`: >=3.13
+- `services/stream-processor`: >=3.11
+- `services/bronze-ingestion`: No explicit constraint
+- `tools/dbt`: >=3.11
+- `tools/great-expectations`: >=3.11
+- `pyproject.toml` (root): >=3.13
 
 ### Known Architecture Patterns
 
-- Event flow: Simulation → Kafka → Stream Processor → Redis → Frontend (eliminates duplicate events)
-- No direct Redis publishing from simulation (Kafka is source of truth)
-- Two-phase pause pattern for graceful checkpoint recovery
-- SCD Type 2 profile updates in DBT transformation layer
+- **Event Flow**: Simulation → Kafka → Stream Processor → Redis → Frontend (no direct Redis publishing)
+- **Two-Phase Pause**: RUNNING → DRAINING → PAUSED for safe checkpointing
+- **Thread Coordination**: ThreadCoordinator command queue for FastAPI ↔ SimPy communication
+- **SCD Type 2**: Profile updates tracked in DBT dimension tables
+- **Profile-Based Deployment**: Docker Compose profiles (core, data-pipeline, monitoring, spark-testing)
+- **Secrets Management**: LocalStack Secrets Manager with grouped env files per profile
+- **Multi-Engine DBT**: DuckDB (local) and Spark (validation) via cross-db macros
+
+### Observability Stack
+
+- **Metrics**: OTel Collector → Prometheus (remote_write + scrape) → Grafana
+- **Logs**: OTel Collector (filelog receiver + Docker JSON) → Loki → Grafana
+- **Traces**: OTel Collector (OTLP gRPC) → Tempo → Grafana
+- **Cross-linking**: Tempo traces → Loki logs, Tempo → Prometheus service map
+
+### DBT Dual-Engine Validation
+
+- **Primary**: dbt-duckdb for local development and CI
+- **Secondary**: dbt-spark via Spark Thrift Server for production parity testing
+- **Profile**: `spark-testing` Docker Compose profile enables Spark Thrift Server
 
 ---
 
-**Generated:** 2026-01-21
+**Generated:** 2026-02-13
 **Codebase:** rideshare-simulation-platform
-**Total Modules Analyzed:** 42 internal modules
-**External Runtime Dependencies:** 47 packages
-**External Development Dependencies:** 18 packages
+**Total Internal Modules Analyzed:** 46
+**External Runtime Dependencies:** 52 packages
+**External Development Dependencies:** 22 packages

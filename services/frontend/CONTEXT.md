@@ -38,9 +38,3 @@ Real-time visualization and control interface for the rideshare simulation platf
 - **Route Progress Overlap**: Completed and remaining routes include the current progress point in both arrays for visual continuity
 - **Event Deduplication**: Frontend caches last 1000 `event_id` values to handle potential duplicate WebSocket messages from reconnection windows
 - **README Discrepancy**: Existing README is Vite template boilerplate, does not document this application's architecture or data flow
-
-## Related Modules
-
-- **[services/simulation](../simulation/CONTEXT.md)** — Simulation control partner; frontend issues lifecycle commands and puppet control via REST API, receives state updates
-- **[services/stream-processor](../stream-processor/CONTEXT.md)** — Real-time data bridge; stream-processor aggregates events from Kafka and publishes to Redis channels that frontend subscribes to
-- **[simulation/data](../simulation/data/CONTEXT.md)** — Geographic visualization layer; zone boundaries rendered on map enable spatial understanding of surge pricing and agent distribution

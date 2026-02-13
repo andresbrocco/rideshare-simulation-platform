@@ -34,11 +34,3 @@ The `clean_*_tables` fixtures truncate Delta tables by deleting S3 objects direc
 WebSocket tests use `websockets.sync.client` with API key authentication via the `Sec-WebSocket-Protocol: apikey.<key>` subprotocol header, matching the production authentication mechanism.
 
 Schema Registry enforcement tests verify the pipeline handles malformed events gracefully—invalid events don't corrupt the system, and valid events published after invalid ones still flow correctly.
-
-## Related Modules
-
-- **[infrastructure/docker](../../../infrastructure/docker/CONTEXT.md)** — Uses Docker Compose profile system to orchestrate service dependencies for integration testing
-- **[services/bronze-ingestion](../../../services/bronze-ingestion/CONTEXT.md)** — Validates Bronze ingestion by verifying Kafka events appear in Delta tables
-- **[tools/dbt](../../../tools/dbt/CONTEXT.md)** — Tests Silver/Gold transformations by querying dimensional models after DBT runs
-- **[services/airflow](../../../services/airflow/CONTEXT.md)** — Validates DAG execution and DLQ monitoring via Airflow API
-- **[schemas/kafka](../../../schemas/kafka/CONTEXT.md)** — Uses production schemas for test event generation to ensure realistic data contracts

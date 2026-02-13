@@ -29,8 +29,3 @@ Lifecycle management scripts for local Kind cluster operations. Provides idempot
 - **Backup Mechanics**: `teardown.sh --preserve-data` uses `kubectl exec` with tar to extract data from running pods before cluster deletion. This avoids PV mount issues after teardown.
 
 - **Script Portability**: All scripts resolve `PROJECT_ROOT` via `SCRIPT_DIR` navigation to support execution from any working directory.
-
-## Related Modules
-
-- **[infrastructure/kubernetes/manifests](../manifests/CONTEXT.md)** — Deploys these resource definitions with dependency-aware ordering
-- **[infrastructure/kubernetes/overlays](../overlays/CONTEXT.md)** — Applies overlay patches during deployment via kustomize build

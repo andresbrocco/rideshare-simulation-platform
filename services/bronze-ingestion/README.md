@@ -1,273 +1,302 @@
-# Bronze Ingestion Service
+# Bronze Ingestion
 
-A Python-based Kafka-to-Delta ingestion service that consumes from multiple Kafka topics and writes raw data to Delta Lake tables in the bronze layer.
+> Kafka-to-Delta ingestion service for the Bronze layer with at-least-once semantics
 
-## Overview
+## Quick Reference
 
-This service implements the bronze layer of a medallion lakehouse architecture. It consumes messages from 8 Kafka topics, adds metadata columns, and writes batches to Delta Lake tables partitioned by ingestion date.
-
-## Features
-
-- **Multi-topic consumption**: Subscribes to 8 rideshare platform topics (gps_pings, trips, driver_status, surge_updates, ratings, payments, driver_profiles, rider_profiles)
-- **Metadata enrichment**: Adds Kafka metadata (_kafka_partition, _kafka_offset, _kafka_timestamp) and ingestion metadata (_ingested_at, _ingestion_date)
-- **Batch processing**: Configurable batch write interval (default: 10 seconds)
-- **Delta Lake integration**: Uses delta-rs (deltalake library) for native Delta Lake writes
-- **S3/MinIO support**: Configurable storage options for S3-compatible object storage
-- **At-least-once semantics**: Commits Kafka offsets only after successful Delta write
-- **Graceful shutdown**: Handles SIGINT/SIGTERM signals to flush remaining batches
-
-## Architecture
-
-```
-Kafka Topics → KafkaConsumer → [Batch Buffer] → DeltaWriter → Delta Tables (S3/MinIO)
-                                     ↓
-                            Offset Commit (after write success)
-```
-
-## Configuration
-
-Environment variables:
+### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `KAFKA_BOOTSTRAP_SERVERS` | `kafka:29092` | Kafka broker connection string |
+| `KAFKA_BOOTSTRAP_SERVERS` | `kafka:29092` | Kafka broker address |
 | `KAFKA_CONSUMER_GROUP` | `bronze-ingestion` | Consumer group ID |
-| `BATCH_INTERVAL_SECONDS` | `10` | Batch write interval in seconds |
+| `KAFKA_SECURITY_PROTOCOL` | `PLAINTEXT` | Security protocol (PLAINTEXT, SASL_PLAINTEXT) |
+| `KAFKA_SASL_MECHANISM` | `PLAIN` | SASL authentication mechanism |
+| `KAFKA_SASL_USERNAME` | `` | Kafka SASL username (from secrets) |
+| `KAFKA_SASL_PASSWORD` | `` | Kafka SASL password (from secrets) |
 | `DELTA_BASE_PATH` | `s3a://rideshare-bronze` | Base path for Delta tables |
+| `BATCH_INTERVAL_SECONDS` | `10` | Batch write interval |
+| `KAFKA_POLL_TIMEOUT_MS` | `1000` | Kafka poll timeout |
 | `S3_ENDPOINT` | `http://minio:9000` | S3/MinIO endpoint URL |
-| `AWS_ACCESS_KEY_ID` | `minioadmin` | S3 access key |
-| `AWS_SECRET_ACCESS_KEY` | `minioadmin` | S3 secret key |
+| `AWS_ACCESS_KEY_ID` | `minioadmin` | S3/MinIO access key (from MINIO_ROOT_USER) |
+| `AWS_SECRET_ACCESS_KEY` | `minioadmin` | S3/MinIO secret key (from MINIO_ROOT_PASSWORD) |
 | `AWS_REGION` | `us-east-1` | AWS region |
 | `BRONZE_BUCKET` | `rideshare-bronze` | S3 bucket name |
-| `KAFKA_POLL_TIMEOUT_MS` | `1000` | Kafka poll timeout in milliseconds |
+| `DLQ_ENABLED` | `true` | Enable Dead Letter Queue routing |
+| `DLQ_VALIDATE_JSON` | `false` | Validate JSON structure (strict mode) |
 
-## Delta Table Schema
+### API Endpoints
 
-All bronze tables have the following schema:
-
-| Column | Type | Description |
+| Method | Path | Description |
 |--------|------|-------------|
-| `_raw_value` | string | Raw JSON message from Kafka |
-| `_kafka_partition` | int32 | Source Kafka partition |
-| `_kafka_offset` | int64 | Kafka message offset |
-| `_kafka_timestamp` | timestamp(us, UTC) | Kafka message timestamp |
-| `_ingested_at` | timestamp(us, UTC) | Ingestion timestamp |
-| `_ingestion_date` | string | Partition key (yyyy-MM-dd) |
+| `GET` | `/health` | Health check with Kafka and MinIO status |
 
-Tables are partitioned by `_ingestion_date` for efficient querying and retention management.
-
-## Output
-
-Delta tables are written to:
-```
-s3a://rideshare-bronze/bronze_{topic}/
-```
-
-For example:
-- `s3a://rideshare-bronze/bronze_trips/`
-- `s3a://rideshare-bronze/bronze_gps_pings/`
-- `s3a://rideshare-bronze/bronze_ratings/`
-
-## Running
-
-### Local Testing
-
+**Health Endpoint Response:**
 ```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Run tests
-pytest tests/test_ingestion_core.py -v
-
-# Run service (requires Kafka and S3/MinIO)
-python -m src.main
+curl http://localhost:8086/health
 ```
-
-### Docker
-
-```bash
-# Build image
-docker build -t bronze-ingestion .
-
-# Run container
-docker run --rm \
-  -e KAFKA_BOOTSTRAP_SERVERS=kafka:29092 \
-  -e S3_ENDPOINT=http://minio:9000 \
-  -e AWS_ACCESS_KEY_ID=minioadmin \
-  -e AWS_SECRET_ACCESS_KEY=minioadmin \
-  -p 8080:8080 \
-  bronze-ingestion
-
-# Test health endpoint
-curl http://localhost:8080/health
-```
-
-## Docker Deployment
-
-### Resource Limits
-
-The service is designed to run with minimal resources:
-
-| Resource | Limit | Rationale |
-|----------|-------|-----------|
-| Memory | 256 MB | Batch accumulation (~10 seconds x 60 events/sec x ~1 KB/event = ~600 KB buffer) |
-| CPU | 0.5 cores | I/O-bound workload; librdkafka handles Kafka protocol efficiently |
-
-**Comparison to Spark Streaming:**
-- Spark (2 containers): 4 GB memory, no CPU limit
-- Python (1 container): 256 MB memory, 0.5 CPU cores
-- **Reduction:** 94% memory, controlled CPU usage
-
-### Health Endpoint
-
-The service exposes `GET /health` on port 8080 for Docker healthcheck:
 
 ```json
-{"status": "healthy", "last_write": "2024-01-15T10:30:00+00:00", "messages_written": 150, "errors": 0}
+{
+  "status": "healthy",
+  "last_write": "2026-02-13T14:32:15.123456Z",
+  "messages_written": 1234,
+  "dlq_messages": 5,
+  "errors": 0
+}
 ```
 
-- Returns HTTP 200 when healthy, 503 when unhealthy
-- Unhealthy if no successful write in last 60 seconds
-- Used by Docker HEALTHCHECK to restart unresponsive containers
+**Status Codes:**
+- `200 OK` - Service is healthy (errors == 0)
+- `503 Service Unavailable` - Service is unhealthy (errors > 0)
 
-### Docker Compose Example
+### Ports
 
-```yaml
-bronze-ingestion:
-  build:
-    context: ./services/bronze-ingestion
-    dockerfile: Dockerfile
-  ports:
-    - "8080:8080"
-  environment:
-    KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-    S3_ENDPOINT: http://minio:9000
-    AWS_ACCESS_KEY_ID: minioadmin
-    AWS_SECRET_ACCESS_KEY: minioadmin
-  deploy:
-    resources:
-      limits:
-        memory: 256M
-        cpus: '0.5'
-  healthcheck:
-    test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-    interval: 30s
-    timeout: 5s
-    retries: 3
-    start_period: 10s
-```
+| Port | Service | Description |
+|------|---------|-------------|
+| `8086` | HTTP | Health endpoint (mapped from container 8080) |
 
-## Dependencies
+### Kafka Topics Consumed
 
-- `confluent-kafka==2.13.0` - Kafka consumer client
-- `deltalake==1.4.2` - Delta Lake reader/writer (delta-rs)
-- `pyarrow>=15.0.0` - Arrow table manipulation
-- `python-dateutil` - Date/time utilities
-- `pytest>=7.0.0` - Testing framework
+The service subscribes to all core event topics:
 
-## Operational Behavior
+- `gps_pings` - Driver location updates
+- `trips` - Trip lifecycle events
+- `driver_status` - Driver availability changes
+- `surge_updates` - Dynamic pricing updates
+- `ratings` - Trip ratings
+- `payments` - Payment transactions
+- `driver_profiles` - Driver profile updates
+- `rider_profiles` - Rider profile updates
 
-### Batch Processing
+### Prerequisites
 
-Messages are accumulated in memory per topic. Every `BATCH_INTERVAL_SECONDS`:
-1. All accumulated messages per topic are written to their respective Delta tables
-2. Kafka consumer offsets are committed (only after successful writes)
-3. Batch buffer is cleared
+**Dependencies:**
+- Kafka broker (with SASL authentication)
+- MinIO/S3 (for Delta table storage)
+- Schema Registry (for Avro schema validation, if enabled)
 
-### Shutdown
+**Startup Order:**
+1. `secrets-init` - Seeds credentials from LocalStack Secrets Manager
+2. `kafka-init` - Creates Kafka topics
+3. `minio-init` - Creates S3 buckets
+4. `bronze-ingestion` - This service
 
-On receiving SIGINT or SIGTERM:
-1. Stop polling for new messages
-2. Flush all remaining batches to Delta tables
-3. Commit final offsets
-4. Close Kafka consumer gracefully
+## Common Tasks
 
-### Error Handling
+### Start the Service
 
-- Write failures: Exception raised, offsets NOT committed, service stops
-- Kafka errors: KafkaException raised with error details
-- Consumer rebalancing: Handled automatically by confluent-kafka
-
-## Testing
-
-Test suite covers:
-- Topic subscription verification
-- Metadata column injection
-- Batch write interval timing
-- Partition-by-date validation
-- Offset commit semantics
-- Schema compatibility with Spark implementation
-
-Run tests:
 ```bash
-pytest tests/test_ingestion_core.py -v --cov=src
+# Start with data-pipeline profile
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d bronze-ingestion
+
+# View logs
+docker compose -f infrastructure/docker/compose.yml logs -f bronze-ingestion
+```
+
+### Monitor Ingestion
+
+```bash
+# Check health status
+curl http://localhost:8086/health
+
+# View message counts and last write time
+curl -s http://localhost:8086/health | jq '.messages_written, .last_write'
+
+# Check for DLQ messages (malformed data)
+curl -s http://localhost:8086/health | jq '.dlq_messages'
+```
+
+### Query Bronze Tables
+
+```bash
+# List Delta tables in MinIO
+aws --endpoint-url http://localhost:9000 s3 ls s3://rideshare-bronze/
+
+# Query via Trino (requires data-pipeline profile)
+docker exec -it rideshare-trino trino --catalog iceberg --schema bronze
+```
+
+```sql
+-- Example: Query recent GPS pings
+SELECT * FROM iceberg.bronze.gps_pings
+ORDER BY _metadata.kafka_timestamp DESC
+LIMIT 10;
+
+-- Check DLQ for failed messages
+SELECT error_type, COUNT(*) as error_count
+FROM iceberg.bronze.dead_letter_queue
+GROUP BY error_type;
+```
+
+### Manually Test Kafka Consumption
+
+```bash
+# Produce test message to Kafka
+docker exec -it rideshare-kafka kafka-console-producer \
+  --broker-list kafka:29092 \
+  --topic gps_pings
+
+# Paste JSON payload:
+{"driver_id": "test-123", "lat": -23.550520, "lng": -46.633308, "timestamp": "2026-02-13T14:30:00Z"}
+```
+
+### Restart with Different Batch Interval
+
+```bash
+# Stop service
+docker compose -f infrastructure/docker/compose.yml stop bronze-ingestion
+
+# Override batch interval (e.g., 30 seconds)
+BATCH_INTERVAL_SECONDS=30 \
+docker compose -f infrastructure/docker/compose.yml up -d bronze-ingestion
 ```
 
 ## Troubleshooting
 
-### Consumer lag
+### Service Unhealthy (503 Response)
 
-Check if batch interval is too long or message volume is too high:
+**Symptom:**
 ```bash
-kafka-consumer-groups --bootstrap-server kafka:29092 \
+$ curl http://localhost:8086/health
+{"status": "unhealthy", "errors": 1, ...}
+```
+
+**Common Causes:**
+1. **Kafka connection failure** - Check `KAFKA_BOOTSTRAP_SERVERS` and SASL credentials
+2. **MinIO unreachable** - Verify `S3_ENDPOINT` and MinIO service health
+3. **Delta write failure** - Check MinIO bucket exists and credentials are correct
+
+**Debugging:**
+```bash
+# Check service logs for exceptions
+docker compose -f infrastructure/docker/compose.yml logs --tail=50 bronze-ingestion
+
+# Test Kafka connectivity
+docker exec -it rideshare-kafka kafka-broker-api-versions \
+  --bootstrap-server kafka:29092 \
+  --command-config /tmp/kafka_client.properties
+
+# Test MinIO connectivity
+docker exec -it rideshare-bronze-ingestion curl http://minio:9000/minio/health/live
+```
+
+### No Messages Being Ingested
+
+**Symptom:**
+```bash
+$ curl -s http://localhost:8086/health | jq '.messages_written'
+0
+```
+
+**Check:**
+1. **Kafka topics have data** - Verify upstream producers (simulation service)
+2. **Consumer group not committed** - Check Kafka consumer group lag
+3. **Service just started** - Wait for `BATCH_INTERVAL_SECONDS` (default 10s)
+
+**Debugging:**
+```bash
+# Check if topics exist and have messages
+docker exec -it rideshare-kafka kafka-run-class kafka.tools.GetOffsetShell \
+  --broker-list kafka:29092 --topic gps_pings
+
+# Check consumer group lag
+docker exec -it rideshare-kafka kafka-consumer-groups \
+  --bootstrap-server kafka:29092 \
   --group bronze-ingestion \
   --describe
 ```
 
-### Delta table access issues
+### DLQ Messages Increasing
 
-Verify S3 credentials and endpoint:
-```python
-from deltalake import DeltaTable
-dt = DeltaTable(
-    "s3a://rideshare-bronze/bronze_trips",
-    storage_options={
-        'AWS_ENDPOINT_URL': 'http://minio:9000',
-        'AWS_ACCESS_KEY_ID': 'minioadmin',
-        'AWS_SECRET_ACCESS_KEY': 'minioadmin',
-        'AWS_REGION': 'us-east-1',
-        'AWS_ALLOW_HTTP': 'true',
-    }
-)
-print(dt.to_pyarrow_table().schema)
-```
-
-### Missing partitions
-
-Ensure messages are flowing from Kafka and batch interval has elapsed:
+**Symptom:**
 ```bash
-# List partitions in Delta table
-aws s3 ls s3://rideshare-bronze/bronze_trips/ --recursive \
-  --endpoint-url http://minio:9000
+$ curl -s http://localhost:8086/health | jq '.dlq_messages'
+42  # Non-zero and growing
 ```
 
-## Design Decisions
+**Cause:** Malformed messages failing UTF-8 decoding or JSON validation (if `DLQ_VALIDATE_JSON=true`)
 
-### Why delta-rs instead of PySpark?
+**Investigation:**
+```sql
+-- Query DLQ in Trino to see error types
+SELECT error_type, error_message, kafka_topic, COUNT(*) as count
+FROM iceberg.bronze.dead_letter_queue
+GROUP BY error_type, error_message, kafka_topic
+ORDER BY count DESC;
 
-- **Lightweight**: No JVM or Spark cluster required
-- **Fast startup**: Immediate processing, no cluster initialization
-- **Resource efficient**: Lower memory footprint for simple ingestion
-- **Simpler deployment**: Single Python process, easier to containerize
+-- Inspect specific failed messages
+SELECT original_payload, error_message
+FROM iceberg.bronze.dead_letter_queue
+WHERE error_type = 'JSON_PARSE_ERROR'
+LIMIT 5;
+```
 
-### Why batch writes instead of micro-batches?
+### Delta Table Schema Mismatch
 
-- **Efficiency**: Reduces number of Delta transaction log entries
-- **Cost**: Fewer S3 API calls (write + commit operations)
-- **Performance**: Amortizes write overhead across multiple messages
-- **Configurable**: Can be tuned based on latency requirements
+**Symptom:** Service logs show schema evolution errors
 
-### Why manual offset commits?
+**Resolution:**
+```bash
+# Stop service
+docker compose -f infrastructure/docker/compose.yml stop bronze-ingestion
 
-- **Exactly-once semantics**: Only commit after successful Delta write
-- **Reprocessing safety**: Failed writes can be retried from last committed offset
-- **Data integrity**: No data loss even on service restart
+# Reset Delta tables (WARNING: deletes all data)
+docker exec -it rideshare-minio-client mc rm --recursive --force minio/rideshare-bronze/
 
-## Future Enhancements
+# Restart (tables will be reinitialized)
+docker compose -f infrastructure/docker/compose.yml up -d bronze-ingestion
+```
 
-- [ ] Schema validation against Avro/Protobuf schemas
-- [ ] Metrics export (Prometheus)
-- [ ] Dead letter queue for malformed messages
-- [ ] Backpressure handling
-- [ ] Dynamic topic discovery
-- [ ] Checkpoint state to Redis for faster recovery
+### Memory Issues (OOM)
+
+**Symptom:** Container restarts frequently
+
+**Tuning:**
+```yaml
+# In compose.yml, increase memory limit
+deploy:
+  resources:
+    limits:
+      memory: 512m  # Increase from 256m
+```
+
+Reduce batch interval to write smaller batches more frequently:
+```bash
+BATCH_INTERVAL_SECONDS=5 docker compose -f infrastructure/docker/compose.yml up -d bronze-ingestion
+```
+
+## Architecture Notes
+
+### At-Least-Once Semantics
+
+- Kafka offsets committed **after** successful Delta write
+- Retries on transient failures (network, MinIO backpressure)
+- Duplicate messages possible but idempotency handled downstream in Silver/Gold layers
+
+### Dead Letter Queue (DLQ)
+
+- **Encoding Errors:** Non-UTF-8 messages routed to `dead_letter_queue` table
+- **JSON Validation:** Optional strict mode (`DLQ_VALIDATE_JSON=true`) rejects malformed JSON
+- **Metadata Preserved:** Original payload, Kafka offset, partition, and error details stored
+
+### Batch Processing
+
+- Messages buffered in-memory until `BATCH_INTERVAL_SECONDS` elapsed
+- All accumulated batches flushed atomically per topic
+- Graceful shutdown flushes remaining messages
+
+### Delta Table Initialization
+
+On startup, the service initializes Delta tables for all subscribed topics:
+- Creates S3 bucket paths (`s3a://rideshare-bronze/<topic>/`)
+- Writes empty Delta `_delta_log/` metadata
+- DLQ table initialized as `dead_letter_queue`
+
+## Related
+
+- [CONTEXT.md](CONTEXT.md) - Architecture patterns and error handling details
+- [Simulation Service](../simulation/README.md) - Upstream Kafka producer
+- [Stream Processor](../stream-processor/README.md) - Parallel consumer for real-time WebSocket
+- [Airflow DAGs](../airflow/dags/README.md) - Bronze → Silver ETL orchestration
+- [Trino](../trino/README.md) - Query engine for Bronze layer Delta tables

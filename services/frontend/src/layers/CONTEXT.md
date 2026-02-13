@@ -31,3 +31,9 @@ Route split caching implements simple LRU eviction by deleting the oldest 20% of
 Driver and rider layers use different sizing strategies: drivers range 20-40px (more prominent), riders range 10-24px (smaller to reduce visual clutter). Scale factors can be applied to adjust all sizes proportionally for different zoom levels.
 
 Destination flags use `anchorY: 100` to position the flag pole at the dropoff point, making the flag appear planted at the location rather than floating above it.
+
+## Related Modules
+
+- **[src/components](../components/CONTEXT.md)** — React components that consume these layer factories to render the map visualization
+- **[services/simulation/src/trips](../../../simulation/src/trips/CONTEXT.md)** — TripExecutor tracks route progress indices that drive the route visualization split logic
+- **[services/stream-processor/src](../../../stream-processor/src/CONTEXT.md)** — Provides real-time updates of agent positions and trip states that trigger layer re-renders

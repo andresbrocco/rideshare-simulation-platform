@@ -1,113 +1,209 @@
-# PostgreSQL Configuration
+# PostgreSQL
 
-PostgreSQL 16 metadata databases for Airflow and Hive Metastore.
+> PostgreSQL 16 relational database service providing catalog and metadata persistence for the data pipeline layer
 
-## Purpose
+## Quick Reference
 
-This directory documents two independent PostgreSQL 16 instances that provide relational storage for the data pipeline layer. Both use the stock `postgres:16` image with no custom configuration files -- all settings are defined via environment variables in `infrastructure/docker/compose.yml`.
+### Docker Services
 
-## Instances
+| Service | Port (Host:Container) | Purpose | Profile |
+|---------|----------------------|---------|---------|
+| `postgres-airflow` | `5432:5432` | Airflow metadata database | `data-pipeline` |
+| `postgres-metastore` | `5434:5432` | Hive metastore backend | `data-pipeline` |
 
-| Instance | Host Port | User | Database | Volume | Purpose |
-|----------|-----------|------|----------|--------|---------|
-| `postgres-airflow` | `5432` | `airflow` | `airflow` | `postgres-airflow-data` | Airflow workflow metadata |
-| `postgres-metastore` | `5434` | `hive` | `metastore` | `postgres-metastore-data` | Hive Metastore catalog |
+### Environment Variables
 
-## Configuration
+Credentials are managed via **LocalStack Secrets Manager** and injected at runtime:
 
-| Setting | Value |
-|---------|-------|
-| **Image** | `postgres:16` |
-| **Memory Limit** | 256MB (each instance) |
-| **Profile** | `data-pipeline` |
-| **Custom Config Files** | None (stock image, env vars only) |
+| Variable | Secret Path | Purpose |
+|----------|-------------|---------|
+| `POSTGRES_AIRFLOW_USER` | `rideshare/postgres-airflow` | Airflow database username |
+| `POSTGRES_AIRFLOW_PASSWORD` | `rideshare/postgres-airflow` | Airflow database password |
+| `POSTGRES_METASTORE_USER` | `rideshare/postgres-metastore` | Metastore database username |
+| `POSTGRES_METASTORE_PASSWORD` | `rideshare/postgres-metastore` | Metastore database password |
 
-## Usage
+**Default Development Values**: All credentials default to `admin` for username/password.
 
-### Start Both Instances
+### Connection Strings
+
+**Airflow** (SQLAlchemy):
+```bash
+postgresql+psycopg2://${POSTGRES_AIRFLOW_USER}:${POSTGRES_AIRFLOW_PASSWORD}@postgres-airflow:5432/airflow
+```
+
+**Hive Metastore** (JDBC):
+```bash
+jdbc:postgresql://postgres-metastore:5432/metastore
+```
+
+### Data Volumes
+
+| Volume | Service | Data |
+|--------|---------|------|
+| `postgres-airflow-data` | postgres-airflow | DAG runs, task instances, XCom, connections |
+| `postgres-metastore-data` | postgres-metastore | Table definitions, partitions, schemas |
+
+## Common Tasks
+
+### Start PostgreSQL Services
+
+Both instances are part of the `data-pipeline` profile:
 
 ```bash
 docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d postgres-airflow postgres-metastore
 ```
 
-### Health Check
+### Check Service Health
 
 ```bash
-# postgres-airflow
-docker exec rideshare-postgres-airflow pg_isready -U airflow
+# Check both instances
+docker compose -f infrastructure/docker/compose.yml ps postgres-airflow postgres-metastore
 
-# postgres-metastore
-docker exec rideshare-postgres-metastore pg_isready -U hive
+# View logs
+docker compose -f infrastructure/docker/compose.yml logs postgres-airflow
+docker compose -f infrastructure/docker/compose.yml logs postgres-metastore
 ```
 
-### Connect via psql
+### Connect to Database
+
+**Airflow Instance** (from host):
+```bash
+psql -h localhost -p 5432 -U admin -d airflow
+# Password: admin
+```
+
+**Metastore Instance** (from host):
+```bash
+psql -h localhost -p 5434 -U admin -d metastore
+# Password: admin
+```
+
+**From another container** (using service name):
+```bash
+# Airflow
+docker compose -f infrastructure/docker/compose.yml exec airflow-webserver \
+  psql postgresql://admin:admin@postgres-airflow:5432/airflow  # pragma: allowlist secret
+
+# Metastore
+docker compose -f infrastructure/docker/compose.yml exec hive-metastore \
+  psql postgresql://admin:admin@postgres-metastore:5432/metastore  # pragma: allowlist secret
+```
+
+### Inspect Airflow Metadata
 
 ```bash
-# Airflow database
-psql -h localhost -p 5432 -U airflow -d airflow
+# List DAG runs
+psql -h localhost -p 5432 -U admin -d airflow -c "SELECT dag_id, state, execution_date FROM dag_run ORDER BY execution_date DESC LIMIT 10;"
 
-# Metastore database
-psql -h localhost -p 5434 -U hive -d metastore
+# Check task instance status
+psql -h localhost -p 5432 -U admin -d airflow -c "SELECT dag_id, task_id, state, start_date FROM task_instance WHERE dag_id='your_dag_id' ORDER BY start_date DESC LIMIT 10;"
 ```
 
-### View Logs
+### Inspect Hive Metastore Catalog
 
 ```bash
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline logs postgres-airflow
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline logs postgres-metastore
+# List tables
+psql -h localhost -p 5434 -U admin -d metastore -c "SELECT t.tbl_name, d.name as db_name FROM \"TBLS\" t JOIN \"DBS\" d ON t.db_id = d.db_id;"
+
+# Check partitions for a table
+psql -h localhost -p 5434 -U admin -d metastore -c "SELECT p.part_name FROM \"PARTITIONS\" p JOIN \"TBLS\" t ON p.tbl_id = t.tbl_id WHERE t.tbl_name = 'your_table_name';"
 ```
 
-### List Tables in Each Database
+### Reset Database (Development Only)
 
 ```bash
-# Airflow tables
-psql -h localhost -p 5432 -U airflow -d airflow -c "\dt"
+# Stop services and remove volumes
+docker compose -f infrastructure/docker/compose.yml down -v
 
-# Metastore tables
-psql -h localhost -p 5434 -U hive -d metastore -c "\dt"
+# Restart - databases will be reinitialized
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d postgres-airflow postgres-metastore
 ```
+
+## Prerequisites
+
+- Docker with Compose V2
+- `secrets-init` service must complete successfully (provides credentials)
+- 256MB available memory per instance
 
 ## Troubleshooting
 
-### postgres-airflow not healthy
+### Service Won't Start
 
-Check the container status and logs:
-
+**Check secrets initialization**:
 ```bash
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline ps postgres-airflow
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline logs postgres-airflow
+docker compose -f infrastructure/docker/compose.yml logs secrets-init
 ```
 
-### postgres-metastore not healthy
-
-Check the container status and logs:
-
+**Verify health check**:
 ```bash
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline ps postgres-metastore
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline logs postgres-metastore
+docker compose -f infrastructure/docker/compose.yml exec postgres-airflow pg_isready -U admin
+docker compose -f infrastructure/docker/compose.yml exec postgres-metastore pg_isready -U admin
 ```
 
-### Port 5432 already in use
+### Connection Refused
 
-A local PostgreSQL installation may conflict with `postgres-airflow`. Stop the local instance or change the host port in `infrastructure/docker/compose.yml`.
-
-### Stale data after schema changes
-
-If a service upgrade requires a schema migration that fails, remove the volume and let the service recreate it:
-
+**Check service is running**:
 ```bash
-# Airflow
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline down
-docker volume rm rideshare-simulation-platform_postgres-airflow-data
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d postgres-airflow
-
-# Metastore
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline down
-docker volume rm rideshare-simulation-platform_postgres-metastore-data
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d postgres-metastore
+docker compose -f infrastructure/docker/compose.yml ps postgres-airflow postgres-metastore
 ```
 
-## References
+**Verify port mapping**:
+```bash
+docker compose -f infrastructure/docker/compose.yml port postgres-airflow 5432
+docker compose -f infrastructure/docker/compose.yml port postgres-metastore 5432
+```
 
-- [PostgreSQL 16 Documentation](https://www.postgresql.org/docs/16/)
-- [PostgreSQL Docker Hub](https://hub.docker.com/_/postgres)
+### Airflow Can't Connect to Database
+
+**Check connection string** in airflow-webserver/airflow-scheduler environment:
+```bash
+docker compose -f infrastructure/docker/compose.yml exec airflow-webserver env | grep SQL_ALCHEMY_CONN
+```
+
+**Verify credentials** match between postgres-airflow and Airflow services:
+```bash
+docker compose -f infrastructure/docker/compose.yml exec postgres-airflow sh -c '. /secrets/data-pipeline.env && echo $POSTGRES_AIRFLOW_USER'
+```
+
+### Hive Metastore Can't Connect to Database
+
+**Check JDBC connection** in hive-metastore logs:
+```bash
+docker compose -f infrastructure/docker/compose.yml logs hive-metastore | grep -i "connection"
+```
+
+**Verify metastore database exists**:
+```bash
+psql -h localhost -p 5434 -U admin -c "\l"
+```
+
+### Data Loss After Restart
+
+**Verify named volumes exist**:
+```bash
+docker volume ls | grep postgres
+```
+
+**Check volume mounts**:
+```bash
+docker compose -f infrastructure/docker/compose.yml config | grep -A 5 "postgres-airflow-data"
+```
+
+### Performance Issues
+
+Both instances have 256MB memory limits. Check memory usage:
+```bash
+docker stats postgres-airflow postgres-metastore
+```
+
+If queries are slow, inspect database statistics:
+```bash
+psql -h localhost -p 5432 -U admin -d airflow -c "SELECT * FROM pg_stat_activity;"
+```
+
+## Related
+
+- [CONTEXT.md](CONTEXT.md) — Architecture and responsibility boundaries
+- [../../infrastructure/docker/compose.yml](../../infrastructure/docker/compose.yml) — Service definitions
+- [../airflow/CONTEXT.md](../airflow/CONTEXT.md) — Airflow workflow orchestration
+- [../hive-metastore/CONTEXT.md](../hive-metastore/CONTEXT.md) — Hive Metastore catalog service

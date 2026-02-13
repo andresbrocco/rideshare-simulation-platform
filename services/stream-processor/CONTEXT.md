@@ -27,6 +27,7 @@ Bridges Kafka event streams with Redis pub/sub for real-time frontend visualizat
 - trips → trip-updates
 - driver_status → driver-updates
 - surge_updates → surge_updates
+- ratings → trip-updates
 - driver_profiles → driver-updates
 - rider_profiles → rider-updates
 
@@ -41,9 +42,3 @@ Bridges Kafka event streams with Redis pub/sub for real-time frontend visualizat
 **Graceful Shutdown**: On SIGTERM/SIGINT, the processor flushes windowed state, commits pending offsets, and closes connections before exiting.
 
 **Metrics Collection**: Tracks throughput rates, GPS aggregation ratio, Redis publish latency, and connection health. Exposed via HTTP API at `/health` and `/metrics` endpoints.
-
-## Related Modules
-
-- **[services/simulation](../simulation/CONTEXT.md)** — Event source; simulation publishes to Kafka topics that stream-processor consumes
-- **[services/frontend](../frontend/CONTEXT.md)** — Event destination; frontend WebSocket subscribes to Redis channels that stream-processor publishes to
-- **[schemas/kafka](../../schemas/kafka/CONTEXT.md)** — Event schema contract; stream-processor validates and transforms events based on these definitions

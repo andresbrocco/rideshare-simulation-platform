@@ -39,9 +39,3 @@ Demand and surge parameters live in `subprefecture_config.json` rather than bein
 
 ### Zone IDs Use District Abbreviations
 Zone IDs (e.g., "PIN" for Pinheiros, "MOO" for Mooca) are three-letter abbreviations from the official GeoSampa dataset, not custom identifiers. These IDs are used throughout the system for partitioning, foreign keys, and visualization.
-
-## Related Modules
-
-- **[src/geo](../src/geo/CONTEXT.md)** — Primary consumer; geo module loads zones.geojson for zone assignment and validation
-- **[src/matching](../src/matching/CONTEXT.md)** — Uses zone-based surge sensitivity parameters for dynamic pricing calculations
-- **[services/frontend](../../frontend/CONTEXT.md)** — Visualizes zone boundaries on map to show geographic context for agents and surge pricing

@@ -12,7 +12,7 @@ FastAPI route handlers that translate REST/WebSocket requests into simulation en
 
 ## Key Concepts
 
-**Route Modules**: Four distinct route groups organized by concern:
+**Route Modules**: Three exported route groups (plus one internal module) organized by concern:
 - `simulation.py` - Lifecycle control (start/pause/resume/stop/reset), speed adjustment, status queries
 - `agents.py` - Agent creation, state inspection, control commands for autonomous agents
 - `puppet.py` - Manual control API for testing (puppet drivers/riders with step-by-step control)
@@ -44,8 +44,8 @@ FastAPI route handlers that translate REST/WebSocket requests into simulation en
 
 ## Related Modules
 
-- **[services/simulation/src/matching](../../matching/CONTEXT.md)** — Matching server called by routes for trip coordination and puppet driver offers
-- **[services/simulation/src/db](../../db/CONTEXT.md)** — Persistence layer for checkpoints triggered by pause/stop endpoints
-- **[services/frontend/src](../../../../frontend/src/CONTEXT.md)** — Primary API consumer; frontend calls these endpoints for simulation control
-- **[services/frontend/src/types](../../../../frontend/src/types/CONTEXT.md)** — TypeScript contracts mirroring the response schemas defined by these routes
-- **[services/prometheus](../../../../../services/prometheus/CONTEXT.md)** — Scrapes /metrics endpoints exposed by these routes for observability
+- **[src/engine](../../engine/CONTEXT.md)** — Simulation engine that routes invoke via ThreadCoordinator for thread-safe command execution
+- **[src/matching](../../matching/CONTEXT.md)** — Matching server accessed by routes for trip coordination and driver registry queries
+- **[src/agents](../../agents/CONTEXT.md)** — Agent factory and DNA generators used by agent creation endpoints
+- **[schemas/api](../../../../../schemas/api/CONTEXT.md)** — OpenAPI spec generated from these routes; defines request/response contracts
+- **[services/frontend/src/components/inspector](../../../../frontend/src/components/inspector/CONTEXT.md)** — Frontend inspector components that invoke puppet control endpoints

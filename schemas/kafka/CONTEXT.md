@@ -25,8 +25,3 @@ The `trip_event` schema covers 10 distinct trip states through a single event ty
 GPS ping events include `route_progress_index` and `pickup_route_progress_index` fields to enable percentage-complete calculations in real-time visualizations without requiring clients to store full route geometries.
 
 Payment events include both `platform_fee_percentage` (0.0-1.0) and `platform_fee_amount` to preserve the exact fee calculation at transaction time, protecting against rounding errors during analytics aggregations.
-
-## Related Modules
-
-- **[../lakehouse](../lakehouse/CONTEXT.md)** — Schema alignment partner; lakehouse PySpark schemas must mirror Kafka JSON schemas for Bronze ingestion
-- **[services/simulation/src/events](../../services/simulation/src/events/CONTEXT.md)** — Pydantic event models in simulation code correspond to these JSON schemas

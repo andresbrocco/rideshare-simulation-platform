@@ -1,77 +1,136 @@
-# Confluent Schema Registry
+# Schema Registry
 
-Confluent Schema Registry 7.5.0 for Avro schema management across Kafka topics.
+> Avro schema management service for Kafka topics - stores, validates, and enforces compatibility for message schemas
 
-## Purpose
+## Quick Reference
 
-Stock Confluent Schema Registry image with all configuration via environment variables in `compose.yml`. No configuration files exist in this directory — it serves as a documentation anchor in the service tree.
+### Environment Variables
 
-## Configuration
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `KAFKA_SCHEMA_REGISTRY_URL` | Schema Registry HTTP API URL | `http://schema-registry:8081` | Yes |
+| `SCHEMA_REGISTRY_USER` | HTTP Basic Auth username (from Secrets Manager) | `admin` (dev) | Yes |
+| `SCHEMA_REGISTRY_PASSWORD` | HTTP Basic Auth password (from Secrets Manager) | `admin` (dev) | Yes |
 
-| Setting | Value |
-|---------|-------|
-| Image | `confluentinc/cp-schema-registry:7.5.0` |
-| Port | `8085` (mapped to container port `8081`) |
-| Memory | `256MB` heap (`128m`-`256m`) |
-| Kafka Connection | `kafka:29092` |
-| Config Files | None (env-var configuration in `compose.yml`) |
+### API Endpoints
 
-## Usage
-
-### Start Schema Registry
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/subjects` | List all schema subjects (health check) |
+| GET | `/subjects/{subject}/versions` | List versions for a subject |
+| GET | `/subjects/{subject}/versions/latest` | Get latest schema version |
+| POST | `/subjects/{subject}/versions` | Register new schema version |
+| GET | `/schemas/ids/{id}` | Get schema by global ID |
+| GET | `/config` | Get global compatibility level |
 
 ```bash
-docker compose -f infrastructure/docker/compose.yml --profile core up -d schema-registry
+# List all registered schemas
+curl -u admin:admin http://localhost:8085/subjects
+
+# Get latest version of trips schema
+curl -u admin:admin http://localhost:8085/subjects/trips-value/versions/latest
+
+# Get schema by ID
+curl -u admin:admin http://localhost:8085/schemas/ids/1
 ```
 
-### Health Check / List Subjects
+### Configuration
+
+| File | Purpose |
+|------|---------|
+| `jaas.conf` | JAAS authentication configuration for HTTP Basic Auth |
+| `users.properties` | User credentials file (username:password,role) |
+
+### Kafka Schemas
+
+The platform registers 8 Avro schemas (lazy registration on first produce):
+
+| Schema Subject | Kafka Topic | Schema Location |
+|----------------|-------------|-----------------|
+| `trips-value` | `trips` | `schemas/kafka/trip_event.json` |
+| `gps_pings-value` | `gps_pings` | `schemas/kafka/gps_ping_event.json` |
+| `driver_status-value` | `driver_status` | `schemas/kafka/driver_status_event.json` |
+| `surge_updates-value` | `surge_updates` | `schemas/kafka/surge_update_event.json` |
+| `ratings-value` | `ratings` | `schemas/kafka/rating_event.json` |
+| `payments-value` | `payments` | `schemas/kafka/payment_event.json` |
+| `driver_profiles-value` | `driver_profiles` | `schemas/kafka/driver_profile_event.json` |
+| `rider_profiles-value` | `rider_profiles` | `schemas/kafka/rider_profile_event.json` |
+
+### Prerequisites
+
+- Kafka broker running and healthy (`kafka:29092`)
+- LocalStack Secrets Manager seeded with credentials (`rideshare/schema-registry`)
+- JVM 11+ (included in `confluentinc/cp-schema-registry:7.5.0`)
+
+## Common Tasks
+
+### Check Service Health
 
 ```bash
-curl http://localhost:8085/subjects
+# Via Docker
+docker compose -f infrastructure/docker/compose.yml --profile core ps schema-registry
+
+# Via API (requires Basic Auth)
+curl -u admin:admin http://localhost:8085/subjects
 ```
 
-### Get Latest Schema for a Subject
+### View Registered Schemas
 
 ```bash
-curl http://localhost:8085/subjects/trips-value/versions/latest
+# List all subjects
+curl -u admin:admin http://localhost:8085/subjects
+
+# Get schema details
+curl -u admin:admin http://localhost:8085/subjects/trips-value/versions/latest | jq
 ```
 
-### List All Schema Types
+### Register Schema Manually (Testing)
 
 ```bash
-curl http://localhost:8085/schemas/types
+# Register a test schema
+curl -X POST -u admin:admin \
+  -H "Content-Type: application/vnd.schemaregistry.v1+json" \
+  --data '{"schema": "{\"type\":\"record\",\"name\":\"Test\",\"fields\":[{\"name\":\"field1\",\"type\":\"string\"}]}"}' \
+  http://localhost:8085/subjects/test-value/versions
 ```
 
-### Get Schema by ID
+### Configure Compatibility Level
 
 ```bash
-curl http://localhost:8085/schemas/ids/1
+# Get global compatibility
+curl -u admin:admin http://localhost:8085/config
+
+# Set subject-specific compatibility (backward, forward, full, none)
+curl -X PUT -u admin:admin \
+  -H "Content-Type: application/vnd.schemaregistry.v1+json" \
+  --data '{"compatibility": "BACKWARD"}' \
+  http://localhost:8085/config/trips-value
 ```
 
-### View Logs
+### Debug Connection Issues
 
 ```bash
-docker compose -f infrastructure/docker/compose.yml --profile core logs -f schema-registry
+# Check if Schema Registry can reach Kafka
+docker compose -f infrastructure/docker/compose.yml --profile core logs schema-registry | grep -i "kafka"
+
+# Verify internal `_schemas` topic exists
+docker compose -f infrastructure/docker/compose.yml --profile core exec kafka kafka-topics --bootstrap-server localhost:9092 --list | grep _schemas
 ```
 
 ## Troubleshooting
 
-**No subjects returned**: Schemas are registered lazily when producers first serialize to a topic. Start the simulation service and produce some events before querying subjects.
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| `401 Unauthorized` when accessing API | Missing or incorrect Basic Auth credentials | Use `-u admin:admin` or set `KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO` in client |
+| Schemas not appearing after simulation start | Lazy registration - schemas only appear on first produce | Start simulation and send trip/GPS events, then check `/subjects` |
+| `KAFKASTORE_CONNECTION_FAILED` on startup | Kafka broker not healthy or `kafka-init` not complete | Check `kafka` service health; verify `depends_on: kafka-init` succeeded |
+| `_schemas` topic missing | Kafka broker restarted and topic lost (development) | Restart Schema Registry; it will auto-create `_schemas` topic |
+| Port 8085 connection refused from host | Schema Registry not started or health check failing | Check `docker compose ps`; review logs for JVM heap or auth config errors |
+| Clients get "Subject not found" | Schema not yet registered by producer | Ensure producer has serialized at least one message to the topic |
 
-**Schema Registry fails to start**: Verify that Kafka is healthy and `kafka-init` completed successfully:
-```bash
-docker compose -f infrastructure/docker/compose.yml --profile core ps kafka kafka-init
-```
+## Related
 
-**Connection refused on port 8085**: Check that the container is running and the port mapping is active:
-```bash
-docker compose -f infrastructure/docker/compose.yml --profile core ps schema-registry
-```
-
-**Schema compatibility errors**: Schema Registry enforces backward compatibility by default. If a schema change breaks compatibility, check the Avro schema definitions in `schemas/kafka/` and review the [Confluent compatibility documentation](https://docs.confluent.io/platform/7.5/schema-registry/fundamentals/schema-evolution.html).
-
-## References
-
-- [Confluent Schema Registry Documentation](https://docs.confluent.io/platform/7.5/schema-registry/index.html)
-- [Schema Registry API Reference](https://docs.confluent.io/platform/7.5/schema-registry/develop/api.html)
-- [Schema Evolution and Compatibility](https://docs.confluent.io/platform/7.5/schema-registry/fundamentals/schema-evolution.html)
+- [CONTEXT.md](CONTEXT.md) — Architecture context and design decisions
+- [../kafka/README.md](../kafka/README.md) — Kafka broker configuration
+- [../../schemas/kafka/](../../schemas/kafka/) — JSON Schema definitions for Kafka events
+- [../../docs/SECURITY.md](../../docs/SECURITY.md) — Authentication and credential management

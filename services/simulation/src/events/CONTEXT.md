@@ -19,8 +19,14 @@ Defines the canonical Pydantic event schemas that represent all observable state
 
 ## Non-Obvious Details
 
-TripEvent contains 10 event_type literals matching the trip state machine exactly (trip.requested, trip.offer_sent, trip.matched, etc.). The offer_sequence field tracks retry attempts when drivers reject offers. Cancellation fields (cancelled_by, cancellation_reason, cancellation_stage) are only populated for trip.cancelled events.
+TripEvent contains 11 event_type literals matching the trip state machine (including trip.no_drivers_available) (trip.requested, trip.offer_sent, trip.matched, etc.). The offer_sequence field tracks retry attempts when drivers reject offers. Cancellation fields (cancelled_by, cancellation_reason, cancellation_stage) are only populated for trip.cancelled events.
 
 GPS pings include both driver and rider locations. Rider pings during active trips carry trip_state to enable client-side filtering. The accuracy field simulates real GPS uncertainty.
 
 Profile events (DriverProfileEvent, RiderProfileEvent) support both creation and updates via event_type discriminator, enabling SCD Type 2 tracking in the data warehouse.
+
+## Related Modules
+
+- **[src/agents](../agents/CONTEXT.md)** — Agents emit events using these schemas; event structure enables distributed tracing of agent actions
+- **[src/trips](../trips/CONTEXT.md)** — TripExecutor emits trip lifecycle events using TripEvent, PaymentEvent, and GPSPingEvent schemas
+- **[schemas/lakehouse/schemas](../../../../schemas/lakehouse/schemas/CONTEXT.md)** — Bronze layer PySpark schemas must match these Pydantic definitions for successful ingestion

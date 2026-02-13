@@ -44,7 +44,6 @@ Offer timeout management (`OfferTimeoutManager`) is present but appears unused i
 
 ## Related Modules
 
-- **[services/simulation/src/api/routes](../api/routes/CONTEXT.md)** — API endpoints call matching server for trip requests and puppet driver control
-- **[services/simulation/src/db/repositories](../db/repositories/CONTEXT.md)** — Persists trip state and caches routes used for driver ranking
-- **[services/frontend/src/components/inspector](../../../frontend/src/components/inspector/CONTEXT.md)** — Frontend inspector exposes puppet driver controls that interact with matching server
-- **[services/redis_client](../redis_client/CONTEXT.md)** — Publishes surge pricing updates for real-time frontend visualization
+- **[src/agents](../agents/CONTEXT.md)** — Driver and rider agents that participate in matching; agents submit ride requests and respond to match offers via DNA-based decision logic
+- **[src/trips](../trips/CONTEXT.md)** — Trip executor that this module queues for execution after successful match; TripExecutor manages journey from pickup through completion
+- **[src/engine](../engine/CONTEXT.md)** — SimPy engine that coordinates thread-safe execution of pending trip processes queued by the matching server

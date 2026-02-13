@@ -29,8 +29,3 @@ Defines PySpark schemas for the Bronze layer of a medallion lakehouse architectu
 Tracing fields are nullable because not all events originate from user requests (e.g., system-generated surge updates). Metadata fields are non-nullable because they're added during ingestion and critical for exactly-once semantics.
 
 The `DeltaConfig` utility uses SQL ALTER TABLE commands rather than DataFrame write options because features must be enabled on existing tables post-creation.
-
-## Related Modules
-
-- **[../kafka](../kafka/CONTEXT.md)** — Schema source; lakehouse PySpark schemas must align with Kafka JSON schemas
-- **[services/bronze-ingestion](../../services/bronze-ingestion/CONTEXT.md)** — Schema consumer; Python ingestion consumer applies these schemas during Bronze ingestion to 8 topic tables

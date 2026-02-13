@@ -31,8 +31,3 @@ TypeScript type definitions for the frontend application, representing the contr
 **Performance Metrics Aggregation**: Latency metrics track avg/p95/p99 percentiles with sample counts. Event metrics measure throughput per second. Stream processor metrics include GPS aggregation ratio (how many GPS pings are batched before Redis publish).
 
 **Agent Inspection Types**: `DriverState` and `RiderState` provide deep inspection of agent internals including DNA, statistics, active trips, pending offers, and next scheduled action. Used by agent detail modals.
-
-## Related Modules
-
-- **[services/simulation/src/api/routes](../../../simulation/src/api/routes/CONTEXT.md)** — Backend API that defines canonical data structures mirrored by these types
-- **[services/stream-processor/src/handlers](../../../stream-processor/src/handlers/CONTEXT.md)** — Produces WebSocket messages matching the discriminated union types defined here

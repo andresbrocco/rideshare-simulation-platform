@@ -2,12 +2,12 @@
 
 ## Purpose
 
-Data quality validation layer for the rideshare simulation platform's lakehouse architecture. Validates data integrity, business rules, and referential constraints across Silver (staging) and Gold (dimensional) layers using Great Expectations 1.10.0 with Spark execution engine.
+Data quality validation layer for the rideshare simulation platform's lakehouse architecture. Validates data integrity, business rules, and referential constraints across Silver (staging) and Gold (dimensional) layers using Great Expectations 1.10.0 with DuckDB via SqlAlchemyExecutionEngine.
 
 ## Responsibility Boundaries
 
 - **Owns**: Expectation suite definitions (54 Silver + 119 Gold expectations), checkpoint configurations for Silver and Gold validations, data quality documentation generation
-- **Delegates to**: Spark Thrift Server for data access, MinIO for Delta Lake storage, Airflow for scheduled execution
+- **Delegates to**: DuckDB with delta/httpfs extensions for data access, MinIO for Delta Lake storage, Airflow for scheduled execution
 - **Does not handle**: Data transformation (handled by DBT), data ingestion (handled by Bronze ingestion service), alerting infrastructure (handled by Airflow)
 
 ## Key Concepts
@@ -20,7 +20,7 @@ Data quality validation layer for the rideshare simulation platform's lakehouse 
 
 **SCD Type 2 Validation**: Gold dimension tables (drivers, payment_methods) validate slowly changing dimension patterns with `valid_from`, `valid_to`, and `current_flag` checks.
 
-**Datasource Configuration**: Connects to Spark via Thrift Server on localhost:10000 with S3A protocol pointing to MinIO (localhost:9000). Uses Delta Lake format with Hive metastore catalog.
+**Datasource Configuration**: Datasource `rideshare_duckdb` uses SqlAlchemyExecutionEngine with `duckdb:///:memory:` connection string. DuckDB loads delta and httpfs extensions at runtime to query Delta tables directly from MinIO.
 
 ## Non-Obvious Details
 
@@ -38,5 +38,7 @@ Data quality validation layer for the rideshare simulation platform's lakehouse 
 
 ## Related Modules
 
-- **[tools/dbt](../dbt/CONTEXT.md)** — Validation target; Great Expectations validates Silver staging models and Gold dimensional models created by DBT
-- **[services/airflow](../../services/airflow/CONTEXT.md)** — Orchestration partner; Airflow schedules Great Expectations checkpoint runs after DBT transformations
+- **[tools/great-expectations/gx/expectations/gold/dimensions](gx/expectations/gold/dimensions/CONTEXT.md)** — Gold dimension expectation suites validating SCD Type 2 and dimension integrity
+- **[tools/dbt/models/marts](../dbt/models/marts/CONTEXT.md)** — DBT Gold layer models that Great Expectations validates after transformation
+- **[tools/dbt/models/staging](../dbt/models/staging/CONTEXT.md)** — DBT Silver layer models that Great Expectations validates after transformation
+- **[services/airflow/dags](../../services/airflow/dags/CONTEXT.md)** — Airflow DAGs that execute Great Expectations checkpoints after DBT runs

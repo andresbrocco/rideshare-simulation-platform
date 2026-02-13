@@ -4,25 +4,29 @@
 
 ## Project Overview
 
-This is a ride-sharing simulation platform that generates realistic synthetic data for data engineering demonstrations. The system simulates drivers and riders interacting in São Paulo, Brazil, with autonomous agents making behavioral decisions based on DNA-defined characteristics. Events flow through a medallion lakehouse architecture (Bronze → Silver → Gold) for analytics.
+This is an **event-driven data engineering platform** that combines a real-time discrete-event simulation engine with a complete medallion lakehouse pipeline. The system simulates a rideshare platform in Sao Paulo, Brazil, generating synthetic events (trips, GPS pings, driver status changes, surge pricing, ratings, payments) that flow through a Bronze → Silver → Gold data architecture for analytics and business intelligence.
 
-The platform combines discrete-event simulation with event-driven microservices, processing GPS pings, trip lifecycles, and profile changes through Kafka, a Python-based Bronze ingestion layer, and DBT transformations (DuckDB locally, Spark/Glue in the cloud). Real-time visualization via deck.gl provides insight into agent behavior and matching dynamics.
+Built as a portfolio demonstration of modern data engineering patterns: event streaming (Kafka), lakehouse architecture (Delta Lake), dimensional modeling (DBT), data quality validation (Great Expectations), and multi-environment deployment (Docker Compose, Kubernetes with ArgoCD).
+
+The simulation uses SimPy for discrete-event modeling with DNA-based agent behavior, allowing deterministic replay and speed multipliers (10x-100x real-time) for rapid synthetic data generation.
 
 ## Technology Stack
 
 | Category | Technology |
 |----------|------------|
-| Language | Python 3.13, TypeScript 5.9, SQL |
-| Simulation | SimPy, FastAPI |
-| Frontend | React 19, deck.gl 9.2, MapLibre GL |
-| Event Streaming | Kafka (KRaft), Confluent Schema Registry |
-| Data Platform | DuckDB (dbt-duckdb), Delta Lake (delta-rs), DBT |
-| Storage | MinIO (S3), Delta Lake, Redis, SQLite, PostgreSQL |
-| Orchestration | Apache Airflow 3.1 |
-| Monitoring | Prometheus, Grafana, cAdvisor, OpenTelemetry Collector, Loki, Tempo |
-| Query Engine | Trino 439 (interactive SQL over Delta Lake) |
-| Container Orchestration | Docker Compose, Kubernetes (Kind) |
-| Infrastructure | Terraform (AWS), ArgoCD |
+| **Language** | Python 3.13 (simulation, pipelines), TypeScript (frontend) |
+| **Simulation** | SimPy 4.1.1 (discrete-event), FastAPI 0.115.6 (REST/WebSocket) |
+| **Event Streaming** | Kafka (KRaft mode, SASL auth), Confluent Schema Registry |
+| **Lakehouse** | Delta Lake 1.4.2, MinIO (S3), Trino 439, Hive Metastore |
+| **Transformations** | DBT (dbt-duckdb primary, dbt-spark validation) |
+| **Orchestration** | Apache Airflow 3.1.5 |
+| **Data Quality** | Great Expectations, DBT tests |
+| **Frontend** | React 19.2.1, deck.gl 9.2.5, MapLibre, Vite |
+| **Observability** | OpenTelemetry, Prometheus, Loki, Tempo, Grafana |
+| **Caching** | Redis 7 (state snapshots, pub/sub) |
+| **Routing** | OSRM (Sao Paulo map data) |
+| **Secrets** | LocalStack Secrets Manager (dev), AWS Secrets Manager (prod) |
+| **Deployment** | Docker Compose (4 profiles), Kubernetes with Kind |
 
 ## Quick Orientation
 
@@ -30,50 +34,84 @@ The platform combines discrete-event simulation with event-driven microservices,
 
 | Entry | Path | Purpose |
 |-------|------|---------|
-| Main Simulation | services/simulation/src/main.py | SimPy engine with integrated FastAPI control panel |
-| Stream Processor | services/stream-processor/src/main.py | Kafka-to-Redis event bridge with aggregation |
-| Control Panel UI | services/frontend/src/main.tsx | React visualization with real-time WebSocket updates |
-| Bronze Ingestion | services/bronze-ingestion/src/main.py | Kafka-to-Delta Python consumer (confluent-kafka + delta-rs) |
-| Data Transformation | tools/dbt | DBT models for Silver and Gold layers |
-| Orchestration | services/airflow/dags/*.py | Airflow DAGs for pipeline scheduling |
-| Analytics SQL | services/trino/etc/ | Trino configuration for interactive Delta Lake queries |
-| Telemetry Gateway | services/otel-collector/otel-collector-config.yaml | OTel Collector routing metrics, logs, traces |
+| **Main Simulation Service** | services/simulation/src/main.py | SimPy engine + FastAPI REST API + WebSocket server |
+| **Stream Processor** | services/stream-processor/src/main.py | Kafka → Redis event routing with GPS aggregation |
+| **Bronze Ingestion** | services/bronze-ingestion/src/main.py | Kafka → Delta Lake raw data persistence |
+| **Control Panel** | services/frontend | React visualization and control UI |
+| **Airflow DAGs** | services/airflow/dags | Pipeline orchestration (Silver, Gold, DLQ, Delta maintenance) |
+| **DBT Project** | tools/dbt | Medallion transformations (Bronze → Silver → Gold) |
+| **Docker Compose** | infrastructure/docker/compose.yml | Multi-profile service orchestration |
 
 ### Getting Started
 
-**Always use Docker - never run services locally.**
-
 ```bash
-# Start core simulation services (recommended for daily development)
+# Setup
+cp .env.example .env
+
+# Start core services (simulation runtime)
 docker compose -f infrastructure/docker/compose.yml --profile core up -d
 
-# Access services
-# - Frontend: http://localhost:5173
-# - Simulation API: http://localhost:8000
-# - API docs: http://localhost:8000/docs
-
-# Start data pipeline (Bronze/Silver/Gold transformations)
+# Start data pipeline (lakehouse, DBT, Airflow)
 docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
 
-# Use Kubernetes for cloud parity testing
-./infrastructure/kubernetes/scripts/create-cluster.sh
-./infrastructure/kubernetes/scripts/deploy-services.sh
-./infrastructure/kubernetes/scripts/health-check.sh
+# Start monitoring (Prometheus, Grafana, Loki, Tempo)
+docker compose -f infrastructure/docker/compose.yml --profile monitoring up -d
 
-# Run tests
-cd services/simulation && ./venv/bin/pytest
-cd services/frontend && npm run test
-./venv/bin/pytest tests/integration/data_platform/ -m core_pipeline
+# All profiles at once
+docker compose -f infrastructure/docker/compose.yml \
+  --profile core --profile data-pipeline --profile monitoring up -d
+
+# Wait for services (~60-90s for all health checks)
+sleep 90
+
+# Start simulation
+curl -X POST -H "X-API-Key: admin" http://localhost:8000/simulation/start
+
+# Spawn agents
+curl -X POST -H "X-API-Key: admin" \
+  -H "Content-Type: application/json" \
+  -d '{"count": 50}' http://localhost:8000/agents/drivers
+
+# Access frontend
+open http://localhost:5173
+
+# Access Grafana dashboards
+open http://localhost:3001  # admin/admin
+
+# Access Airflow
+open http://localhost:8081  # admin/admin
+```
+
+### Run Tests
+
+```bash
+# Simulation service tests
+cd services/simulation
+./venv/bin/pytest
+
+# Frontend tests
+cd services/frontend
+npm run test
+
+# Integration tests (starts Docker)
+./venv/bin/pytest tests/integration/
+
+# DBT tests
+cd tools/dbt
+./venv/bin/dbt test
+
+# Performance tests
+./venv/bin/python tests/performance/runner.py run
 ```
 
 ## Documentation Map
 
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Event-driven microservices architecture, data flows, and component overview
-- [DEPENDENCIES.md](docs/DEPENDENCIES.md) - Internal module dependencies and external packages (47 runtime dependencies)
-- [PATTERNS.md](docs/PATTERNS.md) - Code patterns: error handling, state machines, geospatial indexing, medallion architecture
-- [TESTING.md](docs/TESTING.md) - Test organization (114+ test files), pytest/vitest usage, integration test setup
-- [SECURITY.md](docs/SECURITY.md) - API key authentication, PII masking, development security model
-- [INFRASTRUCTURE.md](docs/INFRASTRUCTURE.md) - Docker Compose profiles, CI/CD pipeline, deployment architecture
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) — System design, component overview, event flow, deployment units
+- [DEPENDENCIES.md](docs/DEPENDENCIES.md) — Module relationships, external packages, dependency graph
+- [PATTERNS.md](docs/PATTERNS.md) — Code patterns (error handling, logging, state machines, event-driven)
+- [TESTING.md](docs/TESTING.md) — Test organization, frameworks, fixtures, running tests
+- [SECURITY.md](docs/SECURITY.md) — Authentication (API keys), secrets management, validation, PII masking
+- [INFRASTRUCTURE.md](docs/INFRASTRUCTURE.md) — CI/CD, Docker Compose, Kubernetes, deployment, monitoring
 
 ## Module Overview
 
@@ -81,178 +119,172 @@ Key modules in this codebase:
 
 | Module | Purpose | CONTEXT.md |
 |--------|---------|------------|
-| services/simulation | Discrete-event simulation engine with agent-based modeling, matching, and trip lifecycle | [→](services/simulation/CONTEXT.md) |
-| services/stream-processor | Kafka-to-Redis event bridge with 100ms GPS aggregation | [→](services/stream-processor/CONTEXT.md) |
-| services/frontend/src | Real-time map visualization with deck.gl and simulation controls | [→](services/frontend/src/CONTEXT.md) |
-| services/bronze-ingestion | Bronze layer ingestion: Kafka → Delta Lake via Python consumer (confluent-kafka + delta-rs) | [→](services/bronze-ingestion/CONTEXT.md) |
-| tools/dbt | Medallion architecture transformations: Bronze → Silver → Gold | [→](tools/dbt/CONTEXT.md) |
-| services/simulation/src/matching | Driver-rider matching with H3 spatial index and surge pricing | [→](services/simulation/src/matching/CONTEXT.md) |
-| services/simulation/src/agents | Autonomous driver and rider agents with DNA-based behavior | [→](services/simulation/src/agents/CONTEXT.md) |
-| services/simulation/src/trips | Trip executor orchestrating 10-state trip lifecycle | [→](services/simulation/src/trips/CONTEXT.md) |
-| services/simulation/src/api/routes | FastAPI routes translating HTTP requests to simulation commands | [→](services/simulation/src/api/routes/CONTEXT.md) |
-| infrastructure/kubernetes | Kind cluster config, manifests, and lifecycle scripts | [→](infrastructure/kubernetes/CONTEXT.md) |
-| services/trino | Distributed SQL query engine for interactive analytics over Delta Lake | [→](services/trino/CONTEXT.md) |
-| services/otel-collector | Unified telemetry gateway routing metrics, logs, and traces | [→](services/otel-collector/CONTEXT.md) |
-| services/loki | Log aggregation backend with label-based indexing | [→](services/loki/CONTEXT.md) |
-| services/tempo | Distributed tracing backend for span storage and querying | [→](services/tempo/CONTEXT.md) |
-| services/grafana | Dashboards and alerting across Prometheus, Loki, Tempo, and Trino | [→](services/grafana/CONTEXT.md) |
-| services/prometheus | Metrics storage with scrape and remote-write ingestion | [→](services/prometheus/CONTEXT.md) |
+| **services/simulation** | Discrete-event simulation engine with SimPy, agents, matching, trip execution | [→](services/simulation/CONTEXT.md) |
+| **services/stream-processor** | Kafka-to-Redis event routing with GPS aggregation and deduplication | [→](services/stream-processor/src/CONTEXT.md) |
+| **services/bronze-ingestion** | Kafka-to-Delta Lake ingestion with DLQ handling | [→](services/bronze-ingestion/CONTEXT.md) |
+| **services/frontend** | Real-time visualization with deck.gl, WebSocket, puppet mode | [→](services/frontend/src/components/CONTEXT.md) |
+| **services/airflow** | Pipeline orchestration for DBT transformations and DLQ monitoring | [→](services/airflow/CONTEXT.md) |
+| **tools/dbt** | Bronze → Silver → Gold transformations with dual-engine support | [→](tools/dbt/models/marts/CONTEXT.md) |
+| **tools/great-expectations** | Data quality validation for Silver and Gold layers | [→](tools/great-expectations/CONTEXT.md) |
+| **services/grafana** | Multi-datasource dashboards (Prometheus, Trino, Loki, Tempo) | [→](services/grafana/CONTEXT.md) |
+| **infrastructure** | Docker Compose profiles, Kubernetes manifests, secrets management | [→](infrastructure/CONTEXT.md) |
+| **schemas** | Event schemas (Kafka JSON, lakehouse PySpark), OpenAPI contract | [→](schemas/CONTEXT.md) |
 
 ## Architecture Highlights
 
-### Event Flow
+### Five-Layer Architecture
 
-```
-Simulation (SimPy) → Kafka Topics (8 topics) → Stream Processor → Redis Pub/Sub → WebSocket → Frontend
-                                             ↓
-                                   Bronze Ingestion (Python) → DBT (Silver/Gold) → Trino → Grafana BI Dashboards
-```
+1. **Simulation Layer**: SimPy discrete-event engine with DNA-based agent behavior, two-phase pause protocol, H3 geospatial matching
+2. **Event Streaming Layer**: Kafka with schema validation, stream processor for Redis fan-out, at-least-once delivery
+3. **Medallion Lakehouse Layer**: Bronze (raw), Silver (clean), Gold (star schema with SCD Type 2)
+4. **Transformation & Orchestration**: Airflow DAGs schedule DBT runs, Great Expectations validation, Trino SQL queries
+5. **Presentation Layer**: React frontend with deck.gl, Grafana dashboards, REST API, WebSocket state updates
 
-**Single Source of Truth**: Simulation publishes exclusively to Kafka. A separate stream processor bridges Kafka to Redis for real-time visualization, eliminating duplicate events.
+### Key Data Flows
 
-### Key Patterns
-
-**Trip State Machine**: 10 validated states with protected transitions. Happy path: REQUESTED → OFFER_SENT → MATCHED → DRIVER_EN_ROUTE → DRIVER_ARRIVED → STARTED → COMPLETED.
-
-**Agent DNA**: Immutable behavioral parameters (acceptance_rate, patience_minutes, service_quality) assigned at creation for reproducible behavior across simulations.
-
-**H3 Spatial Indexing**: Driver locations indexed using H3 hexagons (resolution 7, ~5km) for O(1) neighbor lookups during matching.
-
-**Two-Phase Pause**: Graceful pause drains in-flight trips before checkpointing to SQLite for crash recovery.
-
-**Medallion Architecture**: Bronze (raw Kafka events) → Silver (deduplication, SCD Type 2 profiles) → Gold (star schema, pre-aggregated metrics).
-
-**Empty Source Guard**: DBT macro pattern prevents Delta Lake errors when Bronze tables are empty, enabling idempotent DBT runs.
-
-### Observability Flow
-
-```
-Simulation ──── OTLP gRPC ──┐
-Stream Proc. ── OTLP gRPC ──┤
-                             ▼
-Docker Logs ── filelog ──► OTel Collector ──┬── remote_write ──► Prometheus (metrics)
-                                           ├── push API ──────► Loki (logs)
-                                           └── OTLP gRPC ─────► Tempo (traces)
-                                                                      │
-cAdvisor ── /metrics ──► Prometheus (scrape) ◄────────────────────────┘
-                              │                                        │
-                              └──────────► Grafana (4 datasources) ◄───┘
-```
-
-**Three Pillars**: Metrics (Prometheus), Logs (Loki), Traces (Tempo) — all routed through the OpenTelemetry Collector as a unified telemetry gateway.
-
-**Dual-Engine Architecture**: DuckDB handles local transformations (DBT in-process with Airflow); Trino handles interactive BI queries (Grafana dashboards). Cloud deployment swaps DuckDB for Spark/Glue while keeping the same DBT models via dispatch macros.
+| Flow | Path | Latency |
+|------|------|---------|
+| **Real-Time State** | Simulation → Kafka → Stream Processor → Redis → WebSocket → Frontend | Sub-second |
+| **Trip Lifecycle** | Simulation → Kafka → Bronze → Silver (stg_trips) → Gold (fact_trips) | Minutes (hourly batch) |
+| **GPS Tracking** | Simulation → Kafka → Stream Processor (100ms aggregation) → Redis → Frontend | ~100ms |
+| **Analytics Query** | Grafana → Trino → Delta Lake (MinIO) → Dashboard | Seconds |
+| **Pipeline Orchestration** | Airflow → DBT → Delta Lake → Great Expectations | Hourly (Silver), on-demand (Gold) |
 
 ### Deployment Profiles
 
-| Profile | Services | Use Case |
-|---------|----------|----------|
-| core | Kafka, Redis, OSRM, Simulation, Stream Processor, Frontend | Daily development with real-time visualization |
-| data-pipeline | MinIO, Bronze Ingestion, Hive Metastore, Trino, Airflow | Data engineering pipeline and interactive analytics |
-| monitoring | Prometheus, Grafana, cAdvisor, OTel Collector, Loki, Tempo | Full observability (metrics, logs, traces) |
+| Profile | Services | Purpose |
+|---------|----------|---------|
+| **core** | kafka, redis, osrm, simulation, stream-processor, frontend | Real-time simulation runtime |
+| **data-pipeline** | minio, bronze-ingestion, localstack, airflow, hive-metastore, trino | ETL, lakehouse, orchestration |
+| **monitoring** | prometheus, cadvisor, grafana, otel-collector, loki, tempo | Observability stack |
+| **spark-testing** | spark-thrift-server, openldap | DBT dual-engine validation (optional) |
 
-## Cloud Readiness
+## Key Domain Concepts
 
-The local architecture mirrors the cloud architecture with equivalent components:
+**Trip State Machine**: 10 states with validated transitions
+- Happy path: REQUESTED → OFFER_SENT → MATCHED → DRIVER_EN_ROUTE → DRIVER_ARRIVED → STARTED → COMPLETED
+- CANCELLED reachable from most states (except STARTED — rider is in vehicle)
 
-| Role | Local (Docker) | Cloud (AWS) |
-|------|---------------|-------------|
-| Bronze ingestion | Python + delta-rs | Glue Streaming or ECS |
-| Transformations | DuckDB (dbt-duckdb) | AWS Glue (dbt-glue) |
-| Table catalog | DuckDB internal | Glue Data Catalog |
-| Object storage | MinIO | S3 |
-| BI queries | Trino | Athena |
-| Orchestration | Airflow (Docker) | MWAA |
+**Agent DNA**: Immutable behavioral parameters (acceptance rate, patience threshold, service quality) assigned at agent creation, influence decision-making throughout agent lifetime.
 
-DBT models use dispatch macros to execute on both DuckDB and Spark/Glue without modification.
+**Two-Phase Pause**: RUNNING → DRAINING (monitor active trips) → PAUSED (quiescent or timeout). Ensures no trips mid-execution during checkpointing.
 
-## Domain Concepts
+**Medallion Architecture**: Bronze (raw Kafka events with metadata), Silver (parsed, deduplicated, validated), Gold (star schema with SCD Type 2 for driver/rider profiles).
 
-**Geospatial Scope**: São Paulo, Brazil - 96 districts, 32 subprefectures with zone-specific demand patterns and surge sensitivity.
+**Event-Driven Flow**: Simulation publishes to Kafka (source of truth), Stream Processor fans out to Redis for frontend, Bronze Ingestion persists to Delta Lake.
 
-**Surge Pricing**: Calculated per zone every 60 simulated seconds based on supply/demand ratio. Multipliers range 1.0x to 2.5x.
+**H3 Geospatial Indexing**: Driver locations indexed using Uber H3 hexagons (resolution 7, ~5km) for O(1) neighbor lookups during matching.
 
-**Offer Timeout**: Drivers receive offers sequentially with 30-second acceptance window. OFFER_EXPIRED/OFFER_REJECTED triggers retry with next candidate.
+**Surge Pricing**: Zone-level demand monitoring with dynamic multipliers calculated by MatchingServer.
 
-**Reliability Tiers**: Critical events (trips, payments) use synchronous Kafka acks; high-volume events (GPS pings) use fire-and-forget.
+**GPS Aggregation**: Stream Processor batches GPS pings in 100ms windows, reducing Redis message rate 10x for frontend performance.
 
-**Puppet Agents**: Special agents controllable via API for testing and demonstration (set destinations, trigger state changes).
+## Secrets Management
 
-## Development Workflow
+**All credentials** are managed via **LocalStack Secrets Manager** for local development, AWS Secrets Manager for production.
 
-### Running the System
+The `secrets-init` service (Docker Compose) or External Secrets Operator (Kubernetes) automatically:
+1. Seeds secrets to LocalStack/AWS
+2. Fetches secrets and writes to `/secrets/` volume (Docker) or K8s Secrets
+3. Services read credentials from environment variables
 
+**Default development credentials**: `admin`/`admin` for all services, API key `admin`.
+
+Migration to production requires only changing `AWS_ENDPOINT_URL` from LocalStack to AWS — no code changes.
+
+## Port Reference
+
+| Service | Port | Purpose |
+|---------|------|---------|
+| Simulation API | 8000 | REST API + WebSocket |
+| Frontend | 5173 | React dev server |
+| Kafka | 9092 | SASL_PLAINTEXT |
+| Schema Registry | 8081 | JSON schema validation |
+| Redis | 6379 | State snapshots, pub/sub |
+| OSRM | 5000 | Routing calculations |
+| MinIO Console | 9001 | S3 bucket management |
+| Trino | 8080 | SQL query engine |
+| Airflow | 8081 | DAG management |
+| Grafana | 3001 | Dashboards |
+| Prometheus | 9090 | Metrics storage |
+| Loki | 3100 | Log aggregation |
+| Tempo | 3200 | Distributed tracing |
+
+See README.md for complete 22-service port mapping.
+
+## Common Tasks
+
+**Start simulation with agents**:
 ```bash
-# Core simulation (recommended starting point)
-docker compose -f infrastructure/docker/compose.yml --profile core up -d
+# Start simulation
+curl -X POST -H "X-API-Key: admin" http://localhost:8000/simulation/start
 
-# View logs
-docker compose -f infrastructure/docker/compose.yml logs -f simulation
-
-# Stop services
-docker compose -f infrastructure/docker/compose.yml --profile core down
+# Spawn drivers and riders
+curl -X POST -H "X-API-Key: admin" -H "Content-Type: application/json" \
+  -d '{"count": 50}' http://localhost:8000/agents/drivers
+curl -X POST -H "X-API-Key: admin" -H "Content-Type: application/json" \
+  -d '{"count": 100}' http://localhost:8000/agents/riders
 ```
 
-### Running Tests
-
+**Run DBT transformations**:
 ```bash
-# Simulation unit tests
-cd services/simulation && ./venv/bin/pytest -v
-
-# Frontend tests
-cd services/frontend && npm run test
-
-# Integration tests (automatically starts Docker services)
-./venv/bin/pytest tests/integration/data_platform/ -m core_pipeline
-./venv/bin/pytest tests/integration/data_platform/ -m resilience
+cd tools/dbt
+./venv/bin/dbt run --select staging    # Silver layer
+./venv/bin/dbt run --select marts      # Gold layer
+./venv/bin/dbt test                    # Data quality tests
 ```
 
-### Pre-commit Hooks
+**Check data pipeline health**:
+```bash
+# Verify Bronze tables exist
+./venv/bin/python infrastructure/scripts/check_bronze_tables.py
 
-Automatically run on commit:
-- black (Python formatting)
-- ruff (Python linting with auto-fix)
-- mypy (type checking on 8 Python services)
-- ESLint + Prettier (frontend)
-- TypeScript type checking (frontend)
+# Check Airflow DAG status
+open http://localhost:8081
 
-## Key Files
+# Query Gold tables via Trino
+curl http://localhost:8080/v1/statement -X POST \
+  -H "X-Trino-User: admin" \
+  -d "SELECT COUNT(*) FROM rideshare.gold.fact_trips"
+```
 
-| File | Purpose |
-|------|---------|
-| project_specs.md | Original project specification and requirements |
-| .env.example | Environment variable template |
-| infrastructure/docker/compose.yml | Multi-profile Docker Compose orchestration |
-| infrastructure/kubernetes/kind/cluster-config.yaml | Kind 3-node cluster configuration |
-| services/simulation/data/zones.geojson | Geographic zone boundaries (96 districts) |
-| schemas/kafka/*.json | Event schemas registered with Confluent Schema Registry |
-| docs/NAMING_CONVENTIONS.md | Module naming patterns (Repository, Handler, Manager, etc.) |
+**View observability**:
+```bash
+# Grafana dashboards
+open http://localhost:3001  # admin/admin
 
-## CI/CD
+# Prometheus metrics
+open http://localhost:9090
 
-**GitHub Actions Workflow**: `.github/workflows/integration-tests.yml`
-- Triggers on push to main and pull requests
-- Starts core + data-pipeline profiles
-- Runs integration tests with pytest
-- 30-minute timeout, uploads logs on failure
+# Loki logs
+# Access via Grafana datasource
 
-## Authentication
+# Tempo traces
+# Access via Grafana datasource
+```
 
-**API Key**: Shared secret via `X-API-Key` header (REST) or `Sec-WebSocket-Protocol: apikey.<key>` (WebSocket)
+## Key Gotchas
 
-**Default Development Key**: `dev-api-key-change-in-production` (intentionally self-documenting)
+**Docker Memory**: Allocate at least 10GB RAM to Docker Desktop. Full stack (all profiles) requires ~8-9GB.
 
-**Protected Endpoints**: `/simulation/*`, `/agents/*`, `/puppet/*`, `/metrics/*`
+**GPS Ping Volume**: At 1000 agents, simulation generates 100+ pings/second. Stream Processor aggregation reduces Redis rate 10x.
 
-**Unprotected Endpoints**: `/health`, `/health/detailed` (for container orchestration)
+**Secrets Init Dependency**: All services depend on `secrets-init` service completing. Check logs: `docker compose logs secrets-init`.
+
+**Kafka SASL Auth**: All Kafka clients require SASL credentials. Default: `admin`/`admin`.
+
+**DBT Empty Source Guard**: Custom macro prevents Delta Lake errors when Bronze tables exist but have no data. Required for Spark compatibility.
+
+**Two-Phase Pause Timeout**: DRAINING state waits up to 7200 simulated seconds for active trips to complete before force-canceling.
+
+**Frontend Route Cache**: Route geometry cached by H3 cells in frontend to avoid re-transmitting full paths. Clear cache if stale routes appear.
+
+**Integration Test Cleanup**: Set `SKIP_DOCKER_TEARDOWN=1` to keep services running between test runs for faster iteration.
 
 ---
 
-**Generated**: 2026-01-28
-**System Type**: Event-Driven Microservices with Medallion Lakehouse Architecture
-**Services**: 18 independently deployable containers
-**Event Topics**: 8 Kafka topics with schema validation
-**Lakehouse Layers**: Bronze → Silver → Gold (Delta Lake on MinIO S3)
-**Geographic Scope**: São Paulo, Brazil (96 districts)
-**Primary Language**: Python 3.13 (simulation, stream-processor, bronze-ingestion, dbt, airflow)
-**Secondary Language**: TypeScript 5.9 (frontend)
+**Generated**: 2026-02-13
+**System Type**: Event-Driven Data Engineering Platform with Discrete-Event Simulation
+**Deployment Profiles**: 4 (core, data-pipeline, monitoring, spark-testing)
+**Services**: 30+ containerized services
+**Documented Modules**: 46

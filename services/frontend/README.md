@@ -1,266 +1,416 @@
-# Frontend
+# Control Panel Frontend
 
-> Real-time geospatial visualization and control interface for rideshare simulation
+> Real-time React web interface for visualizing and controlling the rideshare simulation, built with Vite, deck.gl, and MapLibre GL.
 
 ## Quick Reference
 
 ### Environment Variables
 
-| Variable       | Description             | Default                  | Required |
-| -------------- | ----------------------- | ------------------------ | -------- |
-| `VITE_API_URL` | Simulation API base URL | `http://localhost:8000`  | Yes      |
-| `VITE_WS_URL`  | WebSocket endpoint URL  | `ws://localhost:8000/ws` | Yes      |
+| Variable         | Purpose                | Default                  | Example                          |
+| ---------------- | ---------------------- | ------------------------ | -------------------------------- |
+| `VITE_API_URL`   | REST API base URL      | `http://localhost:8000`  | `http://localhost:8000`          |
+| `VITE_WS_URL`    | WebSocket endpoint     | `ws://localhost:8000/ws` | `ws://localhost:8000/ws`         |
+| `VITE_LOG_LEVEL` | Frontend logging level | `info`                   | `debug`, `info`, `warn`, `error` |
 
-**Local Development:**
-Copy `.env.example` to `.env` and adjust URLs if needed.
+**Notes:**
+
+- All `VITE_*` variables are bundled at build time (Vite convention)
+- WebSocket requires `Sec-WebSocket-Protocol: apikey.<key>` header for authentication
+- REST API requires `X-API-Key` header for authentication
+
+### Docker Service
+
+**Service name:** `control-panel-frontend`
+
+```bash
+# Start frontend (requires simulation service)
+docker compose -f infrastructure/docker/compose.yml --profile core up -d control-panel-frontend
+
+# View logs
+docker compose -f infrastructure/docker/compose.yml logs -f control-panel-frontend
+
+# Stop frontend
+docker compose -f infrastructure/docker/compose.yml --profile core down
+```
+
+**Access:** http://localhost:5173
+
+**Health check:** HTTP GET to http://localhost:5173
+
+**Depends on:**
+
+- `simulation` service (API + WebSocket backend)
+
+### API Endpoints (Backend)
+
+The frontend consumes these endpoints from the `simulation` service:
+
+#### Authentication
+
+- `POST /auth/validate` - Validate API key
+
+#### Simulation Control
+
+- `GET /simulation/status` - Get simulation state
+- `POST /simulation/start` - Start simulation
+- `POST /simulation/pause` - Pause simulation
+- `POST /simulation/resume` - Resume simulation
+- `POST /simulation/reset` - Reset simulation
+- `PUT /simulation/speed` - Set speed multiplier
+
+#### Agent Management
+
+- `POST /agents/drivers?mode={immediate|scheduled}` - Add drivers
+- `POST /agents/riders?mode={immediate|scheduled}` - Add riders
+- `GET /agents/drivers/{driver_id}` - Get driver state
+- `GET /agents/riders/{rider_id}` - Get rider state
+- `PUT /agents/drivers/{driver_id}/status` - Toggle driver online/offline
+
+#### Puppet Agent Creation
+
+- `POST /agents/puppet/drivers` - Create puppet driver
+- `POST /agents/puppet/riders` - Create puppet rider
+
+#### Puppet Driver Actions
+
+- `POST /agents/puppet/drivers/{driver_id}/accept-offer` - Accept trip offer
+- `POST /agents/puppet/drivers/{driver_id}/reject-offer` - Reject trip offer
+- `POST /agents/puppet/drivers/{driver_id}/arrive-pickup` - Mark arrival at pickup
+- `POST /agents/puppet/drivers/{driver_id}/start-trip` - Start trip
+- `POST /agents/puppet/drivers/{driver_id}/complete-trip` - Complete trip
+- `POST /agents/puppet/drivers/{driver_id}/cancel-trip` - Cancel trip
+
+#### Puppet Rider Actions
+
+- `POST /agents/puppet/riders/{rider_id}/request-trip` - Request trip with destination
+- `POST /agents/puppet/riders/{rider_id}/cancel-trip` - Cancel trip
+
+#### Testing Controls
+
+- `PUT /agents/puppet/drivers/{driver_id}/rating` - Update driver rating
+- `PUT /agents/puppet/riders/{rider_id}/rating` - Update rider rating
+- `PUT /agents/puppet/drivers/{driver_id}/location` - Teleport driver
+- `PUT /agents/puppet/riders/{rider_id}/location` - Teleport rider
+- `POST /agents/puppet/drivers/{driver_id}/force-offer-timeout` - Force offer timeout
+- `POST /agents/puppet/riders/{rider_id}/force-patience-timeout` - Force patience timeout
+
+#### Metrics
+
+- `GET /metrics/overview` - Overview metrics
+- `GET /metrics/drivers` - Driver metrics
+- `GET /metrics/riders` - Rider metrics
+- `GET /metrics/trips` - Trip metrics
+- `GET /metrics/infrastructure` - Infrastructure health metrics
+
+#### WebSocket
+
+- `WS /ws` - Real-time updates for drivers, riders, trips, and surge pricing
+
+**Authentication:**
+
+```bash
+# REST API
+curl -H "X-API-Key: admin" http://localhost:8000/simulation/status
+
+# WebSocket (using wscat)
+wscat -c ws://localhost:8000/ws --subprotocol "apikey.admin"
+```
 
 ### Commands
 
+#### Development
+
 ```bash
-# Development
-npm install              # Install dependencies
-npm run dev              # Start development server (port 5173)
+# Start dev server (requires backend running)
+npm run dev
 
-# Testing
-npm run test             # Run tests with Vitest
-npm run test -- --watch  # Watch mode
-npm run test -- --coverage  # With coverage
+# Format code
+npm run format
 
-# Code Quality
-npm run typecheck        # TypeScript type checking
-npm run lint             # ESLint linting
-npm run lint:fix         # Auto-fix lint issues
-npm run format           # Format with Prettier
-npm run format:check     # Check formatting
-
-# Build
-npm run build            # Build for production (tsc + vite build)
-npm run preview          # Preview production build
+# Check formatting
+npm run format:check
 ```
 
-### Ports
+#### Build & Preview
 
-| Port | Service         | Description                    |
-| ---- | --------------- | ------------------------------ |
-| 5173 | Vite Dev Server | Development mode (HMR enabled) |
-| 80   | Nginx           | Production mode (Docker)       |
+```bash
+# Build for production
+npm run build
 
-**Docker Note:** Container exposes port 5173 internally, mapped to 5173 on host when running with Docker Compose.
+# Preview production build
+npm run preview
+```
 
-### Configuration
+#### Quality Checks
 
-| File               | Purpose                                                    |
-| ------------------ | ---------------------------------------------------------- |
-| `vite.config.ts`   | Vite build configuration, dev server settings, proxy rules |
-| `vitest.config.ts` | Vitest test runner configuration                           |
-| `eslint.config.js` | ESLint linting rules                                       |
-| `tsconfig.json`    | TypeScript compiler options                                |
-| `package.json`     | Dependencies and npm scripts                               |
-| `.env.example`     | Environment variable template                              |
+```bash
+# Type checking
+npm run typecheck
 
-**Vite Proxy Rules:**
+# Linting
+npm run lint
 
-- `/api` → `http://simulation:8000` (REST API)
-- `/ws` → `ws://simulation:8000` (WebSocket)
+# Fix linting issues
+npm run lint:fix
+
+# Run tests
+npm run test
+```
+
+#### Code Generation
+
+```bash
+# Generate TypeScript types from OpenAPI spec
+npm run generate-types
+```
+
+**Note:** Types are generated from `../../schemas/api/openapi.json` → `src/types/api.generated.ts`
+
+### Configuration Files
+
+| File                 | Purpose                                      |
+| -------------------- | -------------------------------------------- |
+| `vite.config.ts`     | Vite dev server, proxy, build config         |
+| `tsconfig.json`      | TypeScript compiler options                  |
+| `tsconfig.app.json`  | TypeScript config for app code               |
+| `tsconfig.node.json` | TypeScript config for Vite config            |
+| `eslint.config.js`   | ESLint rules (React, TypeScript)             |
+| `.prettierrc`        | Code formatting rules                        |
+| `package.json`       | Dependencies and scripts                     |
+| `Dockerfile`         | Multi-stage build (dev, builder, production) |
 
 ### Prerequisites
 
-- Node.js 20+ (Alpine Linux in Docker)
-- npm 10+
-- Dependencies:
-  - React 19.2.1 + TypeScript
-  - deck.gl 9.2.5 (geospatial rendering)
-  - react-map-gl 8.1.0 + MapLibre GL 5.14.0
-  - Vite 7.2.4 (build tool)
-  - Vitest 3.2.4 (testing)
+- **Node.js 20+** (Alpine in Docker)
+- **npm** (bundled with Node.js)
+- **Backend:** `simulation` service running on port 8000
+- **Map data:** `services/simulation/data/zones.geojson` (mounted via Docker)
 
 ## Common Tasks
 
-### Start Development Server
+### Start Development Environment
 
 ```bash
-# Local (recommended)
-cd services/frontend
-npm install
-npm run dev
-# Access at http://localhost:5173
+# 1. Start backend services first
+docker compose -f infrastructure/docker/compose.yml --profile core up -d simulation
 
-# Docker Compose
-docker compose -f infrastructure/docker/compose.yml --profile core up -d frontend
-docker compose -f infrastructure/docker/compose.yml logs -f frontend
+# 2. Start frontend
+docker compose -f infrastructure/docker/compose.yml --profile core up -d control-panel-frontend
+
+# 3. Access UI
+open http://localhost:5173
+
+# 4. Login with API key
+# Default: admin
 ```
 
-### Run Tests
+### Add Custom Environment Variables
 
 ```bash
-cd services/frontend
+# 1. Create .env file
+cat > services/frontend/.env << EOF
+VITE_API_URL=http://localhost:8000
+VITE_WS_URL=ws://localhost:8000/ws
+VITE_LOG_LEVEL=debug
+EOF
 
-# All tests
-npm run test
-
-# Watch mode (interactive)
-npm run test -- --watch
-
-# Coverage report
-npm run test -- --coverage
+# 2. Rebuild container (if using Docker)
+docker compose -f infrastructure/docker/compose.yml --profile core up -d --build control-panel-frontend
 ```
 
-### Authenticate with API
+**Note:** `.env` files are not checked into git. Use `.env.example` as a template.
 
-The frontend requires an API key to communicate with the simulation engine.
+### Update API Types
 
-**Development Key:** `dev-api-key-change-in-production`
+When the OpenAPI spec changes:
 
-1. Start the frontend and backend
-2. Login screen appears
-3. Enter the development API key
-4. Key is stored in sessionStorage
+```bash
+# 1. Update schemas/api/openapi.json
+# 2. Regenerate TypeScript types
+cd services/frontend
+npm run generate-types
 
-**How it works:**
-
-- REST API: Sends `X-API-Key` header
-- WebSocket: Uses `Sec-WebSocket-Protocol: apikey.<key>` header
+# 3. Review changes
+git diff src/types/api.generated.ts
+```
 
 ### Debug WebSocket Connection
 
 ```bash
-# Install wscat (if needed)
+# Check frontend logs for WebSocket errors
+docker compose -f infrastructure/docker/compose.yml logs -f control-panel-frontend
+
+# Test WebSocket manually
 npm install -g wscat
+wscat -c ws://localhost:8000/ws --subprotocol "apikey.admin"
 
-# Connect directly to WebSocket
-wscat -c "ws://localhost:8000/ws" -s "apikey.dev-api-key-change-in-production"
-
-# Observe events
-# Expected: driver-updates, rider-updates, trip-updates, surge_updates channels
+# Expected output:
+# < {"type":"connected","data":{}}
+# < {"type":"status","data":{"state":"running",...}}
 ```
 
-### Build Production Bundle
+### Profile Frontend Performance
+
+The frontend includes a built-in performance monitor:
+
+```typescript
+import { usePerformanceContext } from './hooks/usePerformanceContext';
+
+// In component:
+const { recordWsMessage, metrics } = usePerformanceContext();
+
+// Metrics tracked:
+// - WebSocket message rate
+// - Rendering FPS
+// - Memory usage (if available)
+```
+
+### Run Tests Locally
 
 ```bash
 cd services/frontend
 
-# Type check first
-npm run typecheck
+# Install dependencies (if not done)
+npm install
 
-# Build optimized bundle
-npm run build
+# Run all tests
+npm run test
 
-# Preview locally
-npm run preview
+# Run tests in watch mode
+npm run test -- --watch
+
+# Run tests with coverage
+npm run test -- --coverage
 ```
 
-Outputs to `dist/` directory. In production, Nginx serves these static files.
-
-### Fix Lint/Format Issues
+### Deploy Production Build
 
 ```bash
-cd services/frontend
+# Build production image
+docker build -t rideshare-frontend:prod --target production services/frontend/
 
-# Auto-fix ESLint issues
-npm run lint:fix
+# Run with Nginx
+docker run -p 80:80 rideshare-frontend:prod
 
-# Format all code
-npm run format
-
-# Verify formatting
-npm run format:check
+# Access UI
+open http://localhost
 ```
-
-Pre-commit hooks automatically run these checks.
 
 ## Troubleshooting
 
-| Symptom                       | Cause                                     | Solution                                                                                                |
-| ----------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| "WebSocket connection failed" | Simulation service not running            | Start simulation: `docker compose -f infrastructure/docker/compose.yml --profile core up -d simulation` |
-| "API key required"            | Missing authentication                    | Enter `dev-api-key-change-in-production` in login screen                                                |
-| Blank map / no tiles          | MapLibre GL CSS not loaded                | Check that `maplibre-gl` CSS is imported in `main.tsx`                                                  |
-| HMR not working in Docker     | File watcher polling disabled             | Set `usePolling: true` in vite.config.ts (already configured)                                           |
-| Port 5173 already in use      | Another Vite process running              | Kill existing process or change port in vite.config.ts                                                  |
-| `npm install` fails in Docker | Platform mismatch (darwin/linux lockfile) | Dockerfile uses `npm install --force` to bypass platform checks                                         |
+### Frontend Won't Start
+
+**Symptom:** `control-panel-frontend` exits immediately
+
+**Solutions:**
+
+```bash
+# 1. Check if simulation service is healthy
+docker compose -f infrastructure/docker/compose.yml ps simulation
+
+# 2. Check logs for errors
+docker compose -f infrastructure/docker/compose.yml logs control-panel-frontend
+
+# 3. Rebuild with fresh dependencies
+docker compose -f infrastructure/docker/compose.yml build --no-cache control-panel-frontend
+```
+
+### WebSocket Connection Fails
+
+**Symptom:** "Disconnected" indicator in UI
+
+**Solutions:**
+
+```bash
+# 1. Verify simulation service is running
+curl -H "X-API-Key: admin" http://localhost:8000/simulation/status
+
+# 2. Check CORS settings in simulation service
+# See services/simulation/.env for CORS_ORIGINS
+
+# 3. Verify WebSocket URL
+echo $VITE_WS_URL  # Should be ws://localhost:8000/ws
+
+# 4. Test WebSocket directly
+wscat -c ws://localhost:8000/ws --subprotocol "apikey.admin"
+```
+
+### Map Doesn't Load
+
+**Symptom:** Black screen or "Failed to load map" error
+
+**Solutions:**
+
+```bash
+# 1. Check zones.geojson is mounted
+docker compose -f infrastructure/docker/compose.yml \
+  exec control-panel-frontend ls -lh /app/public/zones.geojson
+
+# 2. Verify file permissions
+# zones.geojson should be readable (644)
+
+# 3. Check browser console for errors
+# Look for 404 errors on /zones.geojson
+```
+
+### API Requests Return 401 Unauthorized
+
+**Symptom:** All API calls fail with 401 status
+
+**Solutions:**
+
+```bash
+# 1. Check API key is set in session storage
+# Open browser DevTools → Application → Session Storage → apiKey
+
+# 2. Verify API key is valid
+curl -H "X-API-Key: admin" http://localhost:8000/auth/validate
+
+# 3. Clear session storage and re-login
+sessionStorage.clear()
+```
+
+### Build Fails with TypeScript Errors
+
+**Symptom:** `npm run build` fails with type errors
+
+**Solutions:**
+
+```bash
+# 1. Check for TypeScript errors
+npm run typecheck
+
+# 2. Regenerate API types
+npm run generate-types
+
+# 3. Clear TypeScript cache
+rm -rf node_modules/.cache/
+npm run build
+```
+
+### Hot Module Replacement (HMR) Not Working
+
+**Symptom:** Changes not reflected without full page reload
+
+**Solutions:**
+
+```bash
+# 1. Check Vite polling is enabled (required in Docker)
+# vite.config.ts should have:
+#   server: { watch: { usePolling: true } }
+
+# 2. Ensure files are bind-mounted, not copied
+# compose.yml should have:
+#   volumes:
+#     - ../../services/frontend:/app
+
+# 3. Restart dev server
+docker compose -f infrastructure/docker/compose.yml restart control-panel-frontend
+```
 
 ## Related
 
-- [CONTEXT.md](CONTEXT.md) — Frontend architecture and design patterns
-- [src/components/CONTEXT.md](src/components/CONTEXT.md) — React component structure
-- [src/types/CONTEXT.md](src/types/CONTEXT.md) — TypeScript type definitions
-- [../../CLAUDE.md](../../CLAUDE.md) — Project-wide development guide
-
----
-
-## Additional Notes
-
-> Preserved from original README.md
-
-### Features
-
-- **Interactive Map**: Deck.GL visualization with drivers, riders, zones, and routes
-- **Real-Time Updates**: WebSocket connection with live state synchronization
-- **Simulation Control**: Start/pause/reset, speed adjustment, agent spawning
-- **Agent Inspector**: Click any agent to view detailed state, DNA, and statistics
-- **Puppet Mode**: Manually control agents and step through trip lifecycles
-- **Layer Management**: Toggle visibility of layer groups
-- **Performance Monitoring**: WebSocket throughput, render FPS, latency metrics
-- **Infrastructure Health**: Container status via cAdvisor integration
-
-### Architecture
-
-```
-WebSocket → useWebSocket (dedup cache) → useSimulationState → useSimulationLayers → Deck.GL
-     ↓
-REST API → useSimulationControl → ControlPanel UI
-```
-
-#### Key Components
-
-| Component                 | Purpose                                       |
-| ------------------------- | --------------------------------------------- |
-| `Map.tsx`                 | Deck.GL + MapGL container                     |
-| `ControlPanel.tsx`        | Simulation controls (start/pause/reset/speed) |
-| `InspectorPopup.tsx`      | Agent inspection overlay                      |
-| `LayerControls.tsx`       | Layer visibility toggles                      |
-| `PerformancePanel.tsx`    | Metrics dashboard                             |
-| `InfrastructurePanel.tsx` | Container health monitoring                   |
-| `LoginScreen.tsx`         | API key authentication                        |
-| `AgentPlacement.tsx`      | Puppet mode agent placement                   |
-
-#### Custom Hooks
-
-| Hook                    | Purpose                                               |
-| ----------------------- | ----------------------------------------------------- |
-| `useWebSocket`          | WebSocket connection with reconnect and deduplication |
-| `useSimulationControl`  | API calls to simulation engine                        |
-| `useSimulationState`    | Centralized state management                          |
-| `useSimulationLayers`   | Constructs deck.gl layers from state                  |
-| `useAgentState`         | Individual agent state tracking                       |
-| `useZones`              | Zone boundary and surge data                          |
-| `useMetrics`            | Simulation metrics aggregation                        |
-| `useInfrastructure`     | Container health via cAdvisor                         |
-| `usePerformanceMetrics` | FPS, latency, throughput tracking                     |
-
-#### Layer Groups
-
-**Agents**: Drivers (by status), Riders (by state)
-**Routes**: Pickup routes, Trip routes
-**Zones**: Boundaries, Surge heatmap
-
-### Project Structure
-
-```
-src/
-├── components/         # React components
-│   ├── inspector/      # Agent inspector sub-components
-│   └── __tests__/      # Component tests
-├── hooks/              # Custom React hooks
-│   └── __tests__/      # Hook tests
-├── layers/             # Deck.GL layer definitions
-│   └── __tests__/      # Layer tests
-├── types/              # TypeScript interfaces
-├── contexts/           # React context providers
-├── utils/              # Utility functions
-│   └── __tests__/      # Utility tests
-├── constants/          # DNA presets for puppet mode
-├── lib/                # Third-party integrations
-├── assets/             # Static assets
-└── test/               # Test utilities and setup
-```
+- [CONTEXT.md](CONTEXT.md) - Architecture and component design
+- [services/simulation/README.md](../simulation/README.md) - Backend API reference
+- [schemas/api/openapi.json](../../schemas/api/openapi.json) - OpenAPI specification
+- [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) - System-wide architecture

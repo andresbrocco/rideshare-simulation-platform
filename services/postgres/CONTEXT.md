@@ -27,9 +27,3 @@ The two instances are completely independent -- they do not share data, users, o
 Both instances use 256MB memory limits. Health checks run `pg_isready` with the appropriate user (`-U airflow` or `-U hive`) every 5 seconds with a 30-second start period.
 
 This directory contains no custom configuration files. All PostgreSQL configuration is handled through environment variables (`POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`) in `infrastructure/docker/compose.yml`.
-
-## Related Modules
-
-- **[services/airflow](../airflow/CONTEXT.md)** — Both airflow-webserver and airflow-scheduler connect to postgres-airflow for workflow metadata
-- **[services/hive-metastore](../hive-metastore/CONTEXT.md)** — Connects to postgres-metastore for catalog persistence via JDBC
-- **[infrastructure/docker](../../infrastructure/docker/CONTEXT.md)** — Deployment orchestration; defines both PostgreSQL instances, volumes, and health checks

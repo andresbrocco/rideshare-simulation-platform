@@ -27,11 +27,3 @@ Avro schema management service for the rideshare simulation platform's Kafka top
 Schema Registry depends on `kafka-init` completing successfully (via `condition: service_completed_successfully` in compose.yml). This ensures that the Kafka broker is healthy and topics are created before Schema Registry attempts to connect and create its internal `_schemas` topic.
 
 The host port is mapped as `8085:8081` to avoid conflicts. Internal services reference Schema Registry at `http://schema-registry:8081`, while external access from the host uses port `8085`.
-
-## Related Modules
-
-- **[services/kafka](../kafka/CONTEXT.md)** — Provides the broker that Schema Registry connects to and stores schemas in
-- **[services/simulation](../simulation/CONTEXT.md)** — Primary schema producer; registers schemas when serializing simulation events
-- **[services/stream-processor](../stream-processor/CONTEXT.md)** — Schema consumer; looks up schemas when deserializing events from Kafka
-- **[schemas/kafka](../../schemas/kafka/CONTEXT.md)** — Avro schema definitions (.avsc files) used by producers and consumers
-- **[infrastructure/docker](../../infrastructure/docker/CONTEXT.md)** — Deployment orchestration; defines Schema Registry service, env vars, and core profile

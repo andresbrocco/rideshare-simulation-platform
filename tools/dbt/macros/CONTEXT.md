@@ -23,8 +23,3 @@ Custom DBT macros that handle Delta Lake-specific edge cases and enforce medalli
 The `source_with_empty_guard` macro uses a UNION ALL pattern with `WHERE 1=0` to handle empty Delta tables gracefully. It always attempts to read from the Delta path in S3, but the union with typed NULL columns ensures the query succeeds even if the table has no schema yet. This is a query-execution pattern, not a compile-time check.
 
 The `generate_schema_name` macro ignores DBT's standard schema concatenation pattern (which would create `target.schema + custom_schema`) and instead uses the custom schema name directly as the database name. This is specific to dbt-spark and necessary for the medallion architecture.
-
-## Related Modules
-
-- **[tools/dbt/models](../models/CONTEXT.md)** — Uses these macros throughout staging and mart models for safe Bronze table access
-- **[tools/dbt/models/staging](../models/staging/CONTEXT.md)** — Primary consumer of empty source guard macro for parsing Bronze JSON

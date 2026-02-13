@@ -27,10 +27,3 @@ The `trino-datasource` plugin in Grafana connects to Trino's HTTP API on port 80
 The host port mapping is `8084:8080` to avoid conflicts with other services that use port 8080 (such as the MinIO console or Airflow).
 
 Trino depends on both `hive-metastore` and `minio` being healthy before starting. If the metastore is unreachable, Trino will start but queries against the `delta` catalog will fail.
-
-## Related Modules
-
-- **[services/hive-metastore](../hive-metastore/CONTEXT.md)** — Provides table metadata via Thrift; Trino's Delta Lake connector requires it
-- **[tools/dbt](../../tools/dbt/CONTEXT.md)** — Runs SQL transformations through Trino for the Silver and Gold layers
-- **[services/grafana](../grafana/CONTEXT.md)** — Queries Trino via the `trino-datasource` plugin for analytical dashboards
-- **[infrastructure/docker](../../infrastructure/docker/CONTEXT.md)** — Deployment orchestration; defines Trino container, resource limits, and volume mounts

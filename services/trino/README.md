@@ -1,111 +1,112 @@
-# Trino Configuration
+# Trino
 
-Trino 439 distributed SQL query engine for interactive analytics over Delta Lake tables.
+> Distributed SQL query engine for interactive analytical queries over Delta Lake tables in the medallion lakehouse
 
-## Purpose
+## Quick Reference
 
-This directory contains Trino server configuration:
-- `etc/config.properties` — Coordinator and HTTP server settings
-- `etc/jvm.config` — JVM flags (heap size, GC tuning)
-- `etc/node.properties` — Node identity and data directory
-- `etc/catalog/delta.properties` — Delta Lake connector (Hive Metastore + MinIO)
+### Service
 
-## Configuration
+| Property | Value |
+|----------|-------|
+| Image | `trinodb/trino:439` |
+| Port | `8084` (host) → `8080` (container) |
+| Profile | `data-pipeline` |
+| Health Check | `http://localhost:8084/v1/info` |
 
-| Setting | Value |
-|---------|-------|
-| **Image** | `trinodb/trino:439` |
-| **Port** | `8084` (host) -> `8080` (container) |
-| **Memory Limit** | 2GB |
-| **CPU Limit** | 2.0 |
-| **JVM Heap** | 1GB (`-Xmx1G`) |
-| **Mode** | Single-node coordinator |
-| **Container Name** | `rideshare-trino` |
-| **Profile** | `data-pipeline` |
+### Prerequisites
 
-## Usage
+- **hive-metastore**: Table metadata and schema resolution (Thrift port 9083)
+- **minio**: S3-compatible object storage for Delta Lake data
+- **secrets-init**: Credentials from LocalStack Secrets Manager (`MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`)
 
-### Start Trino
+### Configuration
+
+| File | Purpose |
+|------|---------|
+| `etc/config.properties` | Coordinator settings, HTTP server port 8080, discovery URI |
+| `etc/jvm.config` | JVM tuning: 1GB heap, G1GC, 32MB region size, 256MB code cache |
+| `etc/node.properties` | Node identifier (auto-generated) |
+| `etc/catalog/delta.properties.template` | Delta Lake connector template (envsubst) |
+| `etc/catalog/delta.properties` | Generated Delta Lake connector config |
+| `entrypoint.sh` | Loads secrets and substitutes env vars before starting Trino |
+
+## Common Tasks
+
+### Query Delta Lake Tables
 
 ```bash
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d trino
+# Connect to Trino CLI (via Docker exec)
+docker exec -it trino trino
+
+# List catalogs
+SHOW CATALOGS;
+
+# Show schemas in delta catalog
+SHOW SCHEMAS FROM delta;
+
+# Query bronze layer
+SELECT * FROM delta.bronze.trips LIMIT 10;
+
+# Query silver layer (DBT-transformed)
+SELECT * FROM delta.silver.cleaned_trips LIMIT 10;
+
+# Query gold layer (analytics)
+SELECT * FROM delta.gold.trip_metrics_daily LIMIT 10;
 ```
 
-### Health Check
+### Test Trino Connection
 
 ```bash
+# Health check
 curl http://localhost:8084/v1/info
+
+# Grafana integration (trino-datasource plugin uses HTTP API)
+curl -u admin:admin http://localhost:8084/v1/statement \
+  -H "Content-Type: application/json" \
+  -d '{"query": "SELECT 1 AS test"}'
 ```
 
-### View Logs
+### Start Trino Service
 
 ```bash
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline logs trino
+# Start data-pipeline profile (includes trino, hive-metastore, minio)
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
+
+# Check Trino logs
+docker compose -f infrastructure/docker/compose.yml logs -f trino
+
+# Verify Trino is healthy
+docker compose -f infrastructure/docker/compose.yml ps trino
 ```
 
-### List Catalogs
+### Debug Catalog Issues
 
 ```bash
-docker exec rideshare-trino trino --execute "SHOW CATALOGS"
+# Check delta.properties generation
+docker exec -it trino cat /etc/trino/catalog/delta.properties
+
+# Verify Hive Metastore connectivity
+docker exec -it trino curl -v http://hive-metastore:9083
+
+# Check MinIO S3 access
+docker exec -it trino curl -v http://minio:9000/minio/health/live
 ```
-
-### List Tables
-
-```bash
-docker exec rideshare-trino trino --catalog delta --schema default --execute "SHOW TABLES"
-```
-
-### Run a Query
-
-```bash
-docker exec rideshare-trino trino --catalog delta --schema default --execute "SELECT * FROM trips LIMIT 10"
-```
-
-### Trino Web UI
-
-Open http://localhost:8084 in a browser to access the Trino Web UI for monitoring active queries and cluster status.
 
 ## Troubleshooting
 
-### Queries fail with "catalog not found"
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| `Connection refused` to metastore | Hive Metastore not running or unhealthy | Check `docker compose ps hive-metastore` and logs |
+| Queries fail with S3 errors | MinIO credentials incorrect or service down | Verify `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD` in `/secrets/data-pipeline.env` |
+| Port 8084 already in use | Another service using host port | Stop conflicting service or change host port mapping |
+| Trino starts but catalog queries fail | Metastore or MinIO not accessible | Ensure `hive-metastore` and `minio` are healthy before starting Trino |
+| `delta.properties` missing | `entrypoint.sh` failed to generate config | Check Trino logs for envsubst/sed errors; verify secrets volume mounted |
+| Grafana dashboard queries fail | Numeric format required for `trino-datasource` | Ensure `"format": 0` (table) or `"format": 1` (time_series) in JSON |
 
-Verify the Hive Metastore is healthy and reachable:
+## Related
 
-```bash
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline ps hive-metastore
-docker exec rideshare-hive-metastore bash -c 'echo > /dev/tcp/localhost/9083'
-```
-
-### Queries fail with S3 errors
-
-Check that MinIO is accessible and the required buckets exist:
-
-```bash
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline ps minio
-curl http://localhost:9000/minio/health/live
-```
-
-### Trino starts but shows no tables
-
-Tables are registered by the `bronze-init` service (via Trino) and populated by the bronze ingestion service and DBT transformations. Ensure the data pipeline has run at least once:
-
-```bash
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline logs bronze-ingestion
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline logs bronze-init
-```
-
-Note: If you need Spark Thrift Server for dual-engine DBT testing, use the `spark-testing` profile.
-
-### Out of memory errors
-
-Trino is limited to 2GB by Docker Compose and 1GB JVM heap. For large queries, check memory usage:
-
-```bash
-curl http://localhost:8084/v1/cluster/memory
-```
-
-## References
-
-- [Trino 439 Documentation](https://trino.io/docs/439/)
-- [Trino Delta Lake Connector](https://trino.io/docs/439/connector/delta-lake.html)
-- [Trino Docker Deployment](https://trino.io/docs/439/installation/containers.html)
+- [CONTEXT.md](CONTEXT.md) — Architecture and non-obvious details
+- [../hive-metastore/README.md](../hive-metastore/README.md) — Metadata service
+- [../minio/README.md](../minio/README.md) — Object storage
+- [../../tools/dbt/README.md](../../tools/dbt/README.md) — DBT transformations
+- [../../docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) — Medallion lakehouse design

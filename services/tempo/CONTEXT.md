@@ -29,10 +29,3 @@ Both are pushed to Prometheus via remote write (`http://prometheus:9090/api/v1/w
 The Dockerfile copies `wget` from a busybox stage because the base `grafana/tempo` image does not include it. Docker Compose uses `wget` for the container health check (`wget --no-verbose --tries=1 --spider http://localhost:3200/ready`).
 
 The `metrics_generator` remote write target must match the Prometheus service name in Docker Compose. If Prometheus is not running, Tempo will log remote write errors but continue to function for trace storage.
-
-## Related Modules
-
-- **[services/otel-collector](../otel-collector/CONTEXT.md)** — Collects and forwards traces to Tempo via OTLP gRPC
-- **[services/grafana](../grafana/CONTEXT.md)** — Visualizes traces via Tempo data source and Traces Drilldown
-- **[services/prometheus](../prometheus/CONTEXT.md)** — Receives generated span metrics and service graphs via remote write
-- **[infrastructure/docker](../../infrastructure/docker/CONTEXT.md)** — Deployment orchestration; defines Tempo service in monitoring profile

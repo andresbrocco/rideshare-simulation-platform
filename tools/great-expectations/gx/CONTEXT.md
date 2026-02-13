@@ -22,7 +22,7 @@ Great Expectations data validation framework configured to validate the rideshar
 
 ## Non-Obvious Details
 
-The configuration includes hardcoded MinIO credentials (`minioadmin/minioadmin`) and local endpoint (`localhost:9000`) — suitable only for development. Production deployments must override these via `config_variables_file_path` (points to `uncommitted/config_variables.yml`).
+Credentials are hardcoded as fallback defaults in `run_checkpoint.py` (not in `great_expectations.yml`). Production deployments must override these via environment variables or `config_variables_file_path` (points to `uncommitted/config_variables.yml`).
 
 Trip state validations enforce the simulation's 10-state trip lifecycle (REQUESTED through COMPLETED/CANCELLED). Surge multiplier validations enforce platform business rules (1.0x to 2.5x range).
 

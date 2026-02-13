@@ -27,7 +27,3 @@ Data is ephemeral by design — all state is lost on container restart. This pre
 The `test-services.sh` validation script requires the AWS CLI to be installed locally on the host machine. It creates test resources (a secret, an SNS topic, an SQS queue) and verifies round-trip functionality.
 
 Port range 4510-4559 is reserved for individual service APIs but the unified endpoint on 4566 is the primary access point for all services.
-
-## Related Modules
-
-- **[infrastructure/docker](../../infrastructure/docker/)** — Deployment orchestration; defines the LocalStack container under the `data-pipeline` profile

@@ -27,9 +27,3 @@ The Dockerfile downloads the PostgreSQL JDBC driver since the base image only sh
 The `hadoop-aws` and `aws-java-sdk-bundle` JARs are copied from Hadoop's tools directory into Hive's lib directory because they are not on the classpath by default, even though they ship with the base image.
 
 The health check uses a raw TCP socket test (`bash -c 'echo > /dev/tcp/localhost/9083'`) rather than a Thrift client, with a 120-second start period to accommodate schema initialization on first boot.
-
-## Related Modules
-
-- **[services/trino](../trino/CONTEXT.md)** — Connects to Hive Metastore via Thrift for Delta Lake table metadata resolution
-- **[services/postgres](../postgres/CONTEXT.md)** — postgres-metastore instance provides catalog persistence
-- **[infrastructure/docker](../../infrastructure/docker/CONTEXT.md)** — Deployment orchestration; defines hive-metastore service and build context

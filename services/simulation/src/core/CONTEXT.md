@@ -26,8 +26,3 @@ Foundation module providing cross-cutting concerns for error handling, retry log
 The exception hierarchy is load-bearing for retry logic - adding a new exception type requires deciding whether it inherits from `TransientError` or `PermanentError`, which automatically determines if `with_retry()` will retry it. This design makes retry decisions declarative at the exception definition site rather than at each call site.
 
 Correlation IDs are thread-safe via `contextvars` but require explicit context manager usage (`with_correlation()`) to activate. Simply setting the context variable directly will leak across unrelated operations if not properly reset.
-
-## Related Modules
-
-- **[services/simulation/src/matching](../../matching/CONTEXT.md)** — Uses retry decorators for transient network failures when calling OSRM and external services
-- **[services/simulation/src/db](../../db/CONTEXT.md)** — Raises PermanentError for validation failures and TransientError for database connection issues
