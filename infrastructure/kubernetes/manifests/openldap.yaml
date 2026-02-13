@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openldap
+  labels:
+    app: openldap
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openldap
+  template:
+    metadata:
+      labels:
+        app: openldap
+    spec:
+      containers:
+      - name: openldap
+        image: osixia/openldap:1.5.0
+        ports:
+        - containerPort: 389
+          name: ldap
+        env:
+        - name: LDAP_ORGANISATION
+          value: "Rideshare Platform"
+        - name: LDAP_DOMAIN
+          value: "rideshare.local"
+        - name: LDAP_TLS
+          value: "false"
+        - name: LDAP_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: LDAP_ADMIN_PASSWORD
+        resources:
+          limits:
+            memory: "256Mi"
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+        volumeMounts:
+        - name: bootstrap-ldif
+          mountPath: /container/service/slapd/assets/config/bootstrap/ldif/custom
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - ldapsearch -x -H ldap://localhost:389 -b dc=rideshare,dc=local -D cn=admin,dc=rideshare,dc=local -w ${LDAP_ADMIN_PASSWORD} -s base
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 5
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - ldapsearch -x -H ldap://localhost:389 -b dc=rideshare,dc=local -D cn=admin,dc=rideshare,dc=local -w ${LDAP_ADMIN_PASSWORD} -s base
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+      volumes:
+      - name: bootstrap-ldif
+        configMap:
+          name: openldap-bootstrap
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openldap
+  labels:
+    app: openldap
+spec:
+  type: ClusterIP
+  ports:
+  - port: 389
+    targetPort: 389
+    name: ldap
+  selector:
+    app: openldap
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openldap-bootstrap
+  labels:
+    app: openldap
+data:
+  bootstrap.ldif: |
+    dn: ou=users,dc=rideshare,dc=local
+    objectClass: organizationalUnit
+    ou: users
+
+    dn: cn=admin,ou=users,dc=rideshare,dc=local
+    objectClass: inetOrgPerson
+    cn: admin
+    sn: Admin
+    uid: admin
+    userPassword: admin
+    mail: admin@rideshare.local
