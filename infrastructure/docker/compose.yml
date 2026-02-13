@@ -57,11 +57,11 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
-    command:
-      - bash
+    entrypoint:
+      - /bin/sh
       - -c
       - |
-        set -a && source /secrets/core.env && set +a
+        set -a && . /secrets/core.env && set +a
         printf 'KafkaServer {\n    org.apache.kafka.common.security.plain.PlainLoginModule required\n    username="%s"\n    password="%s"\n    user_%s="%s";\n};\n' "$$KAFKA_SASL_USERNAME" "$$KAFKA_SASL_PASSWORD" "$$KAFKA_SASL_USERNAME" "$$KAFKA_SASL_PASSWORD" > /tmp/kafka_jaas.conf
         printf 'security.protocol=SASL_PLAINTEXT\nsasl.mechanism=PLAIN\nsasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username="%s" password="%s";\n' "$$KAFKA_SASL_USERNAME" "$$KAFKA_SASL_PASSWORD" > /tmp/kafka-client.properties
         exec /etc/confluent/docker/run
@@ -84,12 +84,22 @@ services:
       - core
       - data-pipeline
     depends_on:
+      secrets-init:
+        condition: service_completed_successfully
       kafka:
         condition: service_healthy
     volumes:
       - ../../services/kafka/topics.yaml:/etc/kafka/topics.yaml:ro
       - ../../services/kafka/create-topics.sh:/etc/kafka/create-topics.sh:ro
-    entrypoint: ["/bin/sh", "/etc/kafka/create-topics.sh"]
+      - secrets-volume:/secrets:ro
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -a && . /secrets/core.env && set +a
+        printf 'security.protocol=SASL_PLAINTEXT\nsasl.mechanism=PLAIN\nsasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username="%s" password="%s";\n' "$$KAFKA_SASL_USERNAME" "$$KAFKA_SASL_PASSWORD" > /tmp/kafka-client.properties
+        export KAFKA_COMMAND_CONFIG=/tmp/kafka-client.properties
+        exec /bin/sh /etc/kafka/create-topics.sh
     networks:
       - rideshare-network
 
@@ -119,11 +129,11 @@ services:
       SCHEMA_REGISTRY_AUTHENTICATION_ROLES: admin
       SCHEMA_REGISTRY_AUTHENTICATION_REALM: SchemaRegistry
       SCHEMA_REGISTRY_OPTS: "-Djava.security.auth.login.config=/etc/schema-registry/jaas.conf"
-    command:
-      - bash
+    entrypoint:
+      - /bin/sh
       - -c
       - |
-        set -a && source /secrets/core.env && set +a
+        set -a && . /secrets/core.env && set +a
         export SCHEMA_REGISTRY_KAFKASTORE_SASL_JAAS_CONFIG=$$(printf 'org.apache.kafka.common.security.plain.PlainLoginModule required username="%s" password="%s";' "$$KAFKA_SASL_USERNAME" "$$KAFKA_SASL_PASSWORD")
         exec /etc/confluent/docker/run
     depends_on:
@@ -153,8 +163,8 @@ services:
       - core
     ports:
       - "6379:6379"
-    command:
-      - sh
+    entrypoint:
+      - /bin/sh
       - -c
       - |
         set -a && . /secrets/core.env && set +a
@@ -241,8 +251,8 @@ services:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - DEPLOYMENT_ENV=local
       - LOG_FORMAT=json
-    command:
-      - bash
+    entrypoint:
+      - /bin/sh
       - -c
       - |
         set -a && eval "$$(grep '^KAFKA_SASL_' /secrets/core.env)" && set +a
@@ -309,8 +319,8 @@ services:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - DEPLOYMENT_ENV=local
       - LOG_FORMAT=json
-    command:
-      - bash
+    entrypoint:
+      - /bin/sh
       - -c
       - |
         set -a && eval "$$(grep '^KAFKA_SASL_' /secrets/core.env)" && set +a
@@ -379,8 +389,8 @@ services:
     depends_on:
       secrets-init:
         condition: service_completed_successfully
-    command:
-      - sh
+    entrypoint:
+      - /bin/sh
       - -c
       - |
         set -a && . /secrets/data-pipeline.env && set +a
@@ -447,8 +457,8 @@ services:
       - BATCH_INTERVAL_SECONDS=10
       - S3_ENDPOINT=http://minio:9000
       - BRONZE_BUCKET=rideshare-bronze
-    command:
-      - bash
+    entrypoint:
+      - /bin/sh
       - -c
       - |
         set -a && eval "$$(grep '^KAFKA_SASL_' /secrets/core.env)" && set +a
@@ -488,8 +498,8 @@ services:
     ports:
       - "10000:10000"
       - "4041:4040"
-    command:
-      - bash
+    entrypoint:
+      - /bin/sh
       - -c
       - |
         set -a && . /secrets/data-pipeline.env && set +a
@@ -622,8 +632,8 @@ services:
         condition: service_completed_successfully
     environment:
       POSTGRES_DB: airflow
-    command:
-      - sh
+    entrypoint:
+      - /bin/sh
       - -c
       - |
         set -a && . /secrets/data-pipeline.env && set +a
@@ -684,15 +694,15 @@ services:
         condition: service_healthy
     networks:
       - rideshare-network
-    command:
-      - bash
+    entrypoint:
+      - /bin/sh
       - -c
       - |
         set -a && . /secrets/data-pipeline.env && set +a
         export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql+psycopg2://$$POSTGRES_AIRFLOW_USER:$$POSTGRES_AIRFLOW_PASSWORD@postgres-airflow:5432/airflow"
         export _AIRFLOW_WWW_USER_USERNAME="$$AIRFLOW_ADMIN_USERNAME"
         export _AIRFLOW_WWW_USER_PASSWORD="$$AIRFLOW_ADMIN_PASSWORD"
-        exec airflow api-server
+        exec /usr/bin/dumb-init -- /entrypoint airflow api-server
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/v2/monitor/health', timeout=3)"]
       interval: 30s
@@ -749,15 +759,15 @@ services:
         required: false
     networks:
       - rideshare-network
-    command:
-      - bash
+    entrypoint:
+      - /bin/sh
       - -c
       - |
         set -a && . /secrets/data-pipeline.env && set +a
         export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql+psycopg2://$$POSTGRES_AIRFLOW_USER:$$POSTGRES_AIRFLOW_PASSWORD@postgres-airflow:5432/airflow"
         export AWS_ACCESS_KEY_ID="$$MINIO_ROOT_USER"
         export AWS_SECRET_ACCESS_KEY="$$MINIO_ROOT_PASSWORD"
-        airflow dags reserialize && exec airflow scheduler
+        airflow dags reserialize && exec /usr/bin/dumb-init -- /entrypoint airflow scheduler
     healthcheck:
       test: ["CMD", "python", "-c", "import socket; s = socket.socket(); s.settimeout(3); s.connect(('localhost', 8793)); s.close()"]
       interval: 10s
@@ -779,8 +789,8 @@ services:
         condition: service_completed_successfully
     environment:
       POSTGRES_DB: metastore
-    command:
-      - sh
+    entrypoint:
+      - /bin/sh
       - -c
       - |
         set -a && . /secrets/data-pipeline.env && set +a

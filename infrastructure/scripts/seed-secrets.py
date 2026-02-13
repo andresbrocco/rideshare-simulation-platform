@@ -56,7 +56,7 @@ SECRETS: dict[str, dict[str, str]] = {
     },
     "rideshare/minio": {
         "MINIO_ROOT_USER": "admin",
-        "MINIO_ROOT_PASSWORD": "admin",
+        "MINIO_ROOT_PASSWORD": "adminadmin",
     },
     "rideshare/redis": {
         "REDIS_PASSWORD": "admin",

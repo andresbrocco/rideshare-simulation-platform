@@ -3,6 +3,10 @@ set -e
 
 BOOTSTRAP_SERVER="${KAFKA_BOOTSTRAP_SERVER:-kafka:29092}"
 TOPICS_FILE="${TOPICS_CONFIG_PATH:-/etc/kafka/topics.yaml}"
+COMMAND_CONFIG_ARGS=""
+if [ -n "${KAFKA_COMMAND_CONFIG}" ]; then
+    COMMAND_CONFIG_ARGS="--command-config ${KAFKA_COMMAND_CONFIG}"
+fi
 
 echo "Creating Kafka topics from ${TOPICS_FILE}..."
 
@@ -15,6 +19,7 @@ create_topic() {
         echo "  ${topic_name} (partitions=${topic_partitions}, replication=${topic_replication})"
         kafka-topics \
             --bootstrap-server "${BOOTSTRAP_SERVER}" \
+            ${COMMAND_CONFIG_ARGS} \
             --create --if-not-exists \
             --topic "${topic_name}" \
             --partitions "${topic_partitions}" \
@@ -40,4 +45,4 @@ create_topic
 
 echo ""
 echo "Kafka topics created successfully"
-kafka-topics --bootstrap-server "${BOOTSTRAP_SERVER}" --list
+kafka-topics --bootstrap-server "${BOOTSTRAP_SERVER}" ${COMMAND_CONFIG_ARGS} --list

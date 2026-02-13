@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends gettext-base \
 
 COPY entrypoint-wrapper.sh /entrypoint-wrapper.sh
 RUN chmod +x /entrypoint-wrapper.sh
+RUN chown -R hive:hive /opt/hive/conf
 
 USER hive
 
