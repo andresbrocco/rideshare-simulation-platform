@@ -77,6 +77,8 @@ Key configuration files:
 - `logs/` - Task execution logs
 - `plugins/` - Custom plugins
 
+All Airflow connections are defined in `config/connections.yaml` and use credentials from LocalStack Secrets Manager (via environment variables injected by the `secrets-init` service).
+
 Installed providers (via `_PIP_ADDITIONAL_REQUIREMENTS`):
 - `apache-airflow-providers-fab` - Flask AppBuilder authentication
 - `apache-airflow-providers-apache-spark` - Spark integration

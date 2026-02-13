@@ -12,19 +12,20 @@
 | `SIM_LOG_LEVEL` | Logging level (DEBUG, INFO, WARNING, ERROR) | `INFO` | No |
 | `SIM_CHECKPOINT_INTERVAL` | Checkpoint interval in simulated seconds | `300` | No |
 | `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker addresses | - | Yes |
-| `KAFKA_SECURITY_PROTOCOL` | Security protocol (PLAINTEXT, SASL_SSL) | `PLAINTEXT` | No |
-| `KAFKA_SASL_USERNAME` | SASL username for Kafka authentication | - | Conditional |
-| `KAFKA_SASL_PASSWORD` | SASL password for Kafka authentication | - | Conditional |
+| `KAFKA_SECURITY_PROTOCOL` | Security protocol | `SASL_PLAINTEXT` | No |
+| `KAFKA_SASL_USERNAME` | SASL username for Kafka authentication | `admin` (via secrets) | Yes |
+| `KAFKA_SASL_PASSWORD` | SASL password for Kafka authentication | `admin` (via secrets) | Yes |
 | `KAFKA_SCHEMA_REGISTRY_URL` | Schema Registry URL | - | Yes |
+| `KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO` | Schema Registry credentials (user:password) | `admin:admin` (via secrets) | Yes |
 | `REDIS_HOST` | Redis server hostname | `localhost` | No |
 | `REDIS_PORT` | Redis server port | `6379` | No |
-| `REDIS_PASSWORD` | Redis authentication password | - | Conditional |
+| `REDIS_PASSWORD` | Redis AUTH password | `admin` (via secrets) | Yes |
 | `REDIS_SSL` | Enable SSL for Redis connection | `false` | No |
 | `OSRM_BASE_URL` | OSRM routing service base URL | `http://localhost:5050` | No |
 | `API_KEY` | API authentication key | `dev-api-key-change-in-production` | Yes |
 | `CORS_ORIGINS` | Allowed CORS origins (comma-separated) | `http://localhost:5173` | No |
 
-**Note:** Settings use Pydantic with prefix-based environment variable loading. Nested settings use double underscore (`__`) delimiter.
+**Note:** Settings use Pydantic with prefix-based environment variable loading. Nested settings use double underscore (`__`) delimiter. Credentials are injected from LocalStack Secrets Manager via the `secrets-init` service.
 
 ### API Endpoints
 

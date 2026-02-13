@@ -12,6 +12,8 @@
 | `DBT_PROFILES_DIR` | Directory containing profiles.yml | `.` | No |
 | `DBT_SCHEMA` | Schema name for tables | `rideshare_dev` | No |
 | `DBT_SPARK_HOST` | Spark Thrift Server hostname | `localhost` | Yes |
+| `HIVE_LDAP_USERNAME` | LDAP username for Spark Thrift Server | `admin` (via secrets) | Yes |
+| `HIVE_LDAP_PASSWORD` | LDAP password for Spark Thrift Server | `admin` (via secrets) | Yes |
 
 ### Commands
 
@@ -108,7 +110,7 @@ Aggregates:
 ### Prerequisites
 
 - Python 3.11+
-- Access to Spark/Hive metastore (local Thrift Server or AWS Glue)
+- Access to Spark/Hive metastore (local Thrift Server with LDAP auth, or AWS Glue)
 - Bronze layer tables populated with event data from Kafka
 - MinIO S3 (local) or AWS S3 (production) for Delta Lake storage
 
@@ -280,7 +282,7 @@ All models use Delta format for ACID transactions:
 
 ### Local Development
 
-Uses `profiles.yml` with Spark Thrift Server on localhost:10000.
+Uses `profiles.yml` with Spark Thrift Server on localhost:10000 via LDAP authentication. Credentials are sourced from the `secrets-init` service (`HIVE_LDAP_USERNAME`/`HIVE_LDAP_PASSWORD`).
 
 ```bash
 ./venv/bin/dbt run --target dev

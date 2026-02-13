@@ -16,6 +16,8 @@ Avro schema management service for the rideshare simulation platform's Kafka top
 
 **Internal Kafka Storage**: Schema Registry persists all schemas in a Kafka topic called `_schemas`. This means schema data survives Schema Registry restarts as long as the Kafka broker retains the topic. No external database is needed.
 
+**HTTP Basic Auth**: Schema Registry requires HTTP Basic Authentication for all API requests. Credentials are managed via the `secrets-init` service. Client services must set `KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO` to authenticate.
+
 **Environment-Variable Configuration**: All Schema Registry settings are configured via environment variables in `compose.yml`. There are no configuration files in this directory — it exists as a documentation anchor in the service tree.
 
 **Small Heap Size**: The JVM heap is set to 128m-256m (`SCHEMA_REGISTRY_HEAP_OPTS: -Xms128m -Xmx256m`) because the rideshare platform has only approximately 8 schemas. The default heap would be unnecessarily large.

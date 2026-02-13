@@ -11,9 +11,12 @@
 | `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka broker endpoints |
 | `KAFKA_GROUP_ID` | `stream-processor` | Consumer group identifier |
 | `KAFKA_AUTO_OFFSET_RESET` | `latest` | Offset reset strategy (`earliest` or `latest`) |
+| `KAFKA_SECURITY_PROTOCOL` | `SASL_PLAINTEXT` | Kafka security protocol |
+| `KAFKA_SASL_USERNAME` | `admin` (via secrets) | Kafka SASL username |
+| `KAFKA_SASL_PASSWORD` | `admin` (via secrets) | Kafka SASL password |
 | `REDIS_HOST` | `localhost` | Redis server hostname |
 | `REDIS_PORT` | `6379` | Redis server port |
-| `REDIS_PASSWORD` | (empty) | Redis authentication password |
+| `REDIS_PASSWORD` | `admin` (via secrets) | Redis AUTH password |
 | `PROCESSOR_WINDOW_SIZE_MS` | `100` | GPS aggregation window in milliseconds (50-5000) |
 | `PROCESSOR_AGGREGATION_STRATEGY` | `latest` | Aggregation strategy: `latest` or `sample` |
 | `PROCESSOR_TOPICS` | `gps_pings,trips,driver_status,surge_updates` | Comma-separated Kafka topics to consume |

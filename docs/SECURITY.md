@@ -81,32 +81,70 @@ Pydantic for data validation and settings management.
 
 How secrets are handled.
 
-### Storage
-- **Development:** Environment variables loaded from `.env` file (gitignored)
-- **Docker:** Environment variables passed via `compose.yml` with defaults
-- **Production:** Intended for AWS Secrets Manager (not currently implemented)
+### Architecture
 
-### Access
-- Loaded via: `services/simulation/src/settings.py` using Pydantic settings
+All secrets are stored in LocalStack Secrets Manager (local dev) or AWS Secrets Manager (cloud):
+
+| Secret Path | Purpose | Consumed By |
+|-------------|---------|-------------|
+| `rideshare/api-key` | Control Panel API authentication | Simulation, Frontend |
+| `rideshare/minio` | S3-compatible storage | MinIO, Spark, Hive, Trino |
+| `rideshare/redis` | Cache authentication | Redis server, clients |
+| `rideshare/kafka` | Message broker authentication | Kafka broker, all clients |
+| `rideshare/schema-registry` | Schema management auth | Schema Registry, clients |
+| `rideshare/hive-thrift` | SQL interface auth | DBT, Airflow, scripts |
+| `rideshare/ldap` | Directory service | OpenLDAP |
+| `rideshare/airflow` | Workflow orchestration | Airflow webserver, scheduler |
+| `rideshare/grafana` | Dashboard access | Grafana |
+| `rideshare/postgres-airflow` | Airflow metadata database | PostgreSQL, Airflow |
+| `rideshare/postgres-metastore` | Hive Metastore database | PostgreSQL, Hive |
+
+### Secret Injection
+
+The `secrets-init` service runs before all other services:
+1. Seeds LocalStack Secrets Manager with all credentials
+2. Fetches secrets and writes them to `/secrets/*.env` files on a shared volume
+3. All services source their credentials from these env files at startup
+
+Loaded via: `services/simulation/src/settings.py` using Pydantic settings
 - Never logged: PII filter masks sensitive patterns
 - Not exposed in API responses
 
-### Required Secrets
-| Secret | Purpose | Environment Variable |
-|--------|---------|---------------------|
-| API_KEY | REST and WebSocket authentication | API_KEY |
-| KAFKA_SASL_USERNAME | Confluent Cloud cluster access | KAFKA_SASL_USERNAME |
-| KAFKA_SASL_PASSWORD | Confluent Cloud cluster access | KAFKA_SASL_PASSWORD |
-| KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO | Schema Registry access | KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO |
-| REDIS_PASSWORD | Redis authentication (optional) | REDIS_PASSWORD |
-| AWS_ACCESS_KEY_ID | AWS services access (optional) | AWS_ACCESS_KEY_ID |
-| AWS_SECRET_ACCESS_KEY | AWS services access (optional) | AWS_SECRET_ACCESS_KEY |
+### Local Development
 
-### Default API Key
-Development default: `dev-api-key-change-in-production`
-- Intentionally self-documenting to indicate insecurity
-- Must be changed for any non-local deployment
-- Generation: `openssl rand -hex 32`
+Default credentials (dev mode only):
+- All usernames/passwords: `admin` / `admin`
+- API key: `admin`
+- Airflow Fernet key: Format-compliant generated key (reproducible for dev)
+
+**Never commit production credentials.** Use `.env.local` (gitignored) for local overrides if needed.
+
+### Authentication Mechanisms
+
+| Service | Mechanism | Protocol |
+|---------|-----------|----------|
+| Kafka | SASL PLAIN | SASL_PLAINTEXT |
+| Schema Registry | HTTP Basic Auth | HTTP |
+| Redis | AUTH | Redis protocol |
+| Spark Thrift | LDAP | HiveServer2 |
+| MinIO | Access Key / Secret Key | S3 API |
+| Airflow | Flask session + JWT | HTTP |
+| Grafana | Basic Auth | HTTP |
+
+### Secret Detection
+
+Pre-commit hook (`detect-secrets`) prevents accidental secret commits:
+- Scans all staged files for potential secrets
+- Uses `.secrets.baseline` for known-safe patterns
+- Blocks commits with detected secrets
+
+### Production Deployment Checklist
+
+- [ ] Configure AWS Secrets Manager with production credentials
+- [ ] Update `AWS_ENDPOINT_URL` to point to real AWS Secrets Manager
+- [ ] Rotate all default `admin` credentials to strong passwords
+- [ ] Generate secure Airflow Fernet key
+- [ ] Enable TLS for all services
 
 ## Cryptography
 
@@ -120,8 +158,8 @@ No encryption of data at rest or in transit in local development mode.
 
 **Transport security:**
 - Local development: HTTP (no TLS)
-- Kafka: PLAINTEXT for local broker, SASL_SSL for Confluent Cloud
-- Redis: TCP without TLS for local, optional SSL for ElastiCache
+- Kafka: SASL_PLAINTEXT for local broker, SASL_SSL for Confluent Cloud
+- Redis: AUTH over TCP for local, optional SSL for ElastiCache
 
 ## Security Headers
 
@@ -195,10 +233,10 @@ Network isolation and exposure.
 | Simulation API | 8000 | HTTP | API key required |
 | Frontend | 3000, 5173 | HTTP | None (static assets) |
 | Stream Processor | 8080 | HTTP | None (monitoring only) |
-| Kafka | 9092 | Kafka | SASL for cloud, none for local |
-| Redis | 6379 | Redis | Password optional |
+| Kafka | 9092 | Kafka | SASL_PLAINTEXT (all environments) |
+| Redis | 6379 | Redis | AUTH password required |
 | OSRM | 5050 | HTTP | None (internal) |
-| Schema Registry | 8085 | HTTP | Basic auth for cloud |
+| Schema Registry | 8085 | HTTP | HTTP Basic Auth required |
 
 ### Service-to-Service Communication
 - Kafka broker: Accessed by simulation, bronze-ingestion, stream-processor
@@ -220,7 +258,7 @@ Security-relevant notes from documentation and code analysis.
 ### Documented Limitations
 From `docs/security/development.md`:
 
-1. **Default API key:** `dev-api-key-change-in-production` is insecure if unchanged
+1. **Default credentials:** All services use `admin`/`admin` in dev mode — must be rotated for production
 2. **HTTP transport:** No TLS encryption in local development
 3. **Unauthenticated monitoring:** `/health` and `/metrics` endpoints have no auth
 4. **Permissive CORS:** Allows all methods and headers from configured origins
@@ -240,14 +278,17 @@ From `docs/security/development.md`:
 
 ### Production Hardening Checklist
 Documented in `docs/security/production-checklist.md`:
-- Replace default API key with cryptographically secure value
+- ✓ Centralized secrets management (LocalStack / AWS Secrets Manager)
+- ✓ Service authentication (Kafka SASL, Redis AUTH, Schema Registry Basic Auth, LDAP)
+- ✓ Secret detection pre-commit hook (detect-secrets)
+- ✓ Add API rate limiting (implemented with tiered limits)
+- ✓ Add security headers (HSTS, CSP, X-Frame-Options)
+- Replace default `admin` credentials with strong passwords
 - Migrate to ticket-based WebSocket authentication
 - Enable HTTPS/TLS for all public endpoints
-- Move secrets to AWS Secrets Manager
+- Switch `AWS_ENDPOINT_URL` from LocalStack to AWS Secrets Manager
 - Implement IAM roles with least privilege
-- ✓ Add API rate limiting (implemented with tiered limits)
 - Enable network isolation with VPC and security groups
-- ✓ Add security headers (HSTS, CSP, X-Frame-Options)
 - Migrate from SQLite to PostgreSQL
 - Implement audit logging
 - Configure monitoring alarms
@@ -268,6 +309,7 @@ Documented in `docs/security/production-checklist.md`:
 **Generated:** 2026-01-21
 **Codebase:** rideshare-simulation-platform
 **Security Model:** Development-first (local/demo environments)
-**Authentication Method:** Shared API key
-**Primary Risk:** Default credentials if deployed unchanged
-**Mitigation Strategy:** Self-documenting defaults and comprehensive production checklist
+**Authentication Method:** API key + per-service auth (SASL, Basic Auth, AUTH, LDAP)
+**Secrets Management:** LocalStack Secrets Manager (local) / AWS Secrets Manager (cloud)
+**Primary Risk:** Default `admin` credentials if deployed unchanged
+**Mitigation Strategy:** Centralized secrets with detect-secrets pre-commit hook

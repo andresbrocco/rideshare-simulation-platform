@@ -37,16 +37,16 @@ docker compose -f infrastructure/docker/compose.yml --profile core up -d
 # Check service health
 curl http://localhost:8000/health
 
-# Start simulation and spawn agents
-curl -X POST -H "X-API-Key: dev-api-key-change-in-production" \
+# Start simulation and spawn agents (API key injected from secrets, default: admin)
+curl -X POST -H "X-API-Key: admin" \
   http://localhost:8000/simulation/start
 
-curl -X POST -H "X-API-Key: dev-api-key-change-in-production" \
+curl -X POST -H "X-API-Key: admin" \
   -H "Content-Type: application/json" \
   -d '{"count": 50}' \
   http://localhost:8000/agents/drivers
 
-curl -X POST -H "X-API-Key: dev-api-key-change-in-production" \
+curl -X POST -H "X-API-Key: admin" \
   -H "Content-Type: application/json" \
   -d '{"count": 100}' \
   http://localhost:8000/agents/riders
@@ -63,9 +63,9 @@ cd services/frontend && npm run test
 | 5173 | Frontend | React visualization (Vite dev server) |
 | 8000 | Simulation | Control Panel API (FastAPI) |
 | 8080 | Stream Processor | Health/metrics HTTP API |
-| 9092 | Kafka | Kafka broker (PLAINTEXT_HOST) |
-| 8085 | Schema Registry | Confluent Schema Registry HTTP API |
-| 6379 | Redis | Redis server |
+| 9092 | Kafka | Kafka broker with SASL_PLAINTEXT authentication |
+| 8085 | Schema Registry | Confluent Schema Registry with HTTP Basic Auth |
+| 6379 | Redis | Redis server with AUTH password protection |
 | 5050 | OSRM | OSRM routing service |
 | 9000 | MinIO | MinIO S3 API |
 | 9001 | MinIO | MinIO web console |
@@ -83,24 +83,26 @@ cd services/frontend && npm run test
 
 ## Environment Variables
 
+> **Note:** Credentials are injected from LocalStack Secrets Manager via the `secrets-init` service. Do not set credential env vars directly in `.env` files.
+
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
 | `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker addresses | `localhost:9092` | Yes |
 | `KAFKA_SCHEMA_REGISTRY_URL` | Schema Registry endpoint URL | `http://schema-registry:8081` | Yes |
 | `REDIS_HOST` | Redis hostname | `localhost` | Yes |
 | `OSRM_BASE_URL` | OSRM routing service base URL | `http://localhost:5000` | Yes |
-| `API_KEY` | API key for Control Panel authentication | `dev-api-key-change-in-production` | Yes |
+| `API_KEY` | API key for Control Panel authentication | `admin` (via secrets) | Yes |
 | `VITE_API_URL` | Backend API URL (used by frontend) | `http://localhost:8000` | Yes |
 | `VITE_WS_URL` | WebSocket URL for real-time updates | `ws://localhost:8000/ws` | Yes |
 | `SIM_SPEED_MULTIPLIER` | Simulation speed (1=real-time, 1024=max) | `1` | No |
 | `SIM_LOG_LEVEL` | Logging verbosity (DEBUG, INFO, WARNING, ERROR) | `INFO` | No |
 | `SIM_CHECKPOINT_INTERVAL` | Checkpoint interval in simulated seconds | `300` | No |
-| `KAFKA_SECURITY_PROTOCOL` | Security protocol (PLAINTEXT, SASL_SSL) | `PLAINTEXT` | No |
-| `KAFKA_SASL_USERNAME` | Confluent Cloud API Key | - | No |
-| `KAFKA_SASL_PASSWORD` | Confluent Cloud API Secret | - | No |
-| `KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO` | Schema Registry credentials (key:secret) | - | No |
+| `KAFKA_SECURITY_PROTOCOL` | Security protocol (SASL_PLAINTEXT local, SASL_SSL cloud) | `SASL_PLAINTEXT` | No |
+| `KAFKA_SASL_USERNAME` | Kafka SASL username | `admin` (via secrets) | Yes |
+| `KAFKA_SASL_PASSWORD` | Kafka SASL password | `admin` (via secrets) | Yes |
+| `KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO` | Schema Registry credentials (user:password) | `admin:admin` (via secrets) | Yes |
 | `REDIS_PORT` | Redis port | `6379` | No |
-| `REDIS_PASSWORD` | Redis password | - | No |
+| `REDIS_PASSWORD` | Redis AUTH password | `admin` (via secrets) | Yes |
 | `REDIS_SSL` | Enable SSL/TLS for Redis | `false` | No |
 | `AWS_REGION` | AWS region | `us-east-1` | No |
 | `CORS_ORIGINS` | CORS allowed origins | `http://localhost:5173,http://localhost:3000` | No |
@@ -330,7 +332,9 @@ cp .env.example .env
 
 ### 2. Configure Required Variables
 
-Edit `.env` and set the following required variables:
+For local development with Docker Compose, **no manual configuration is needed** — the `secrets-init` service injects all credentials automatically.
+
+For cloud deployment, edit `.env` and set:
 
 **Kafka (Confluent Cloud)**
 - `KAFKA_BOOTSTRAP_SERVERS` - Your Confluent Cloud bootstrap servers
@@ -349,8 +353,7 @@ Edit `.env` and set the following required variables:
 **Optional Variables (have sensible defaults)**
 - `SIM_SPEED_MULTIPLIER` - Simulation speed (default: 1)
 - `SIM_LOG_LEVEL` - Logging level (default: INFO)
-- `REDIS_HOST` - Redis hostname (default: localhost)
-- `OSRM_BASE_URL` - OSRM routing service (default: http://localhost:5000)
+- `OSRM_BASE_URL` - OSRM routing service (default: http://localhost:5050)
 - `AWS_REGION` - AWS region (default: us-east-1)
 - `CORS_ORIGINS` - CORS allowed origins (default: http://localhost:5173,http://localhost:3000)
 
@@ -377,8 +380,34 @@ print(f"Speed multiplier: {settings.simulation.speed_multiplier}")
 
 This project uses a development-first security model optimized for local development and portfolio demonstrations. All data is synthetic.
 
-**Quick start:** The default API key (`dev-api-key-change-in-production`) works out of the box for local development.
+**Quick start:** Credentials are injected by the `secrets-init` service. Default API key for local development: `admin`.
 
 For details, see [Security Documentation](docs/security/README.md):
 - [Development Security Model](docs/security/development.md) - Current implementation
 - [Production Checklist](docs/security/production-checklist.md) - Hardening guide
+
+## Secrets Management
+
+All credentials are managed via LocalStack Secrets Manager (local) or AWS Secrets Manager (cloud).
+
+### Local Development
+
+1. Start services:
+   ```bash
+   docker compose -f infrastructure/docker/compose.yml --profile core --profile data-pipeline up -d
+   ```
+
+2. The `secrets-init` service automatically:
+   - Seeds LocalStack with all credentials
+   - Fetches secrets and writes them to shared volume
+   - All services load credentials from `/secrets/*.env` files
+
+3. Default credentials (dev mode):
+   - Username/Password: `admin` / `admin` (for all services)
+   - API Key: `admin`
+
+### Secrets in AWS
+
+For cloud deployment, update `AWS_ENDPOINT_URL` to point to real AWS Secrets Manager. All code and service configs remain identical.
+
+See `infrastructure/scripts/seed-secrets.py` for the full secrets inventory.

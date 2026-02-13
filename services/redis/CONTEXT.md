@@ -16,7 +16,9 @@ In-memory state store for the rideshare simulation platform's real-time dashboar
 
 **Pub/Sub for Live Updates**: The stream processor publishes state changes to Redis pub/sub channels. The frontend service subscribes to these channels and forwards updates to connected browser clients via WebSocket.
 
-**Stock Image Configuration**: Redis runs with default settings from the `redis:8.0-alpine` image. No custom `redis.conf` is mounted — all behavior relies on Alpine defaults with the memory limit enforced by Docker Compose.
+**AUTH Password Protection**: Redis requires password authentication via the `--requirepass` flag. The password is injected from LocalStack Secrets Manager via the `secrets-init` service. Client services must set `REDIS_PASSWORD` to connect.
+
+**Stock Image Configuration**: Redis runs with default settings from the `redis:8.0-alpine` image. No custom `redis.conf` is mounted — the `--requirepass` flag is set at startup from the secrets volume, and the memory limit is enforced by Docker Compose.
 
 ## Non-Obvious Details
 

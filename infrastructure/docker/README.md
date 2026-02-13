@@ -89,31 +89,39 @@ docker exec rideshare-spark-thrift-server /opt/spark/bin/beeline \
 ```bash
 # List all databases
 docker exec rideshare-spark-thrift-server /opt/spark/bin/beeline \
-  -u "jdbc:hive2://localhost:10000/default;auth=noSasl" -n airflow \
+  -u "jdbc:hive2://localhost:10000/default" \
+  -n admin -p admin \
   -e "SHOW DATABASES"
 
 # List tables in bronze layer
 docker exec rideshare-spark-thrift-server /opt/spark/bin/beeline \
-  -u "jdbc:hive2://localhost:10000/default;auth=noSasl" -n airflow \
+  -u "jdbc:hive2://localhost:10000/default" \
+  -n admin -p admin \
   -e "SHOW TABLES IN bronze"
 
 # Query a table
 docker exec rideshare-spark-thrift-server /opt/spark/bin/beeline \
-  -u "jdbc:hive2://localhost:10000/default;auth=noSasl" -n airflow \
+  -u "jdbc:hive2://localhost:10000/default" \
+  -n admin -p admin \
   -e "SELECT * FROM bronze.bronze_trips LIMIT 10"
 
 # Interactive session
 docker exec -it rideshare-spark-thrift-server /opt/spark/bin/beeline \
-  -u "jdbc:hive2://localhost:10000/default;auth=noSasl" -n airflow
+  -u "jdbc:hive2://localhost:10000/default" \
+  -n admin -p admin
 ```
 
 ### JDBC Connection String (for external tools)
 
 ```
-jdbc:hive2://localhost:10000/default;auth=noSasl
+jdbc:hive2://localhost:10000/default
 ```
 
-**Note:** The error message "Socket is closed by peer" or "too many concurrent connections" typically indicates a protocol mismatch, not actual connection limits. Ensure you include `auth=noSasl` in the connection string.
+**Note:** Spark Thrift Server uses LDAP authentication. Provide username and password (`admin`/`admin` for local dev). Credentials are managed by the `secrets-init` service via OpenLDAP.
+
+## Secrets
+
+All services depend on the `secrets-init` service to populate credentials from LocalStack Secrets Manager. See `infrastructure/scripts/seed-secrets.py` for the full secrets inventory.
 
 ## Common Commands
 
@@ -211,7 +219,7 @@ These can be set in your shell or a `.env` file in the project root:
 | `SIM_SPEED_MULTIPLIER` | 1 | Simulation speed (higher = faster) |
 | `SIM_LOG_LEVEL` | INFO | Logging level (DEBUG, INFO, WARNING, ERROR) |
 | `SIM_CHECKPOINT_INTERVAL` | 300 | Checkpoint interval in seconds |
-| `API_KEY` | dev-api-key-change-in-production | API authentication key |
+| `API_KEY` | `admin` (via secrets) | API authentication key |
 | `OSRM_MAP_SOURCE` | local | OSRM map source (local or download) |
 | `PROCESSOR_WINDOW_SIZE_MS` | 100 | Stream processor aggregation window |
 
