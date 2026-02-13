@@ -34,7 +34,7 @@ spec:
         - -c
         - |
           airflow db migrate
-          airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com || true
+          airflow users create --username admin --password "$AIRFLOW_ADMIN_PASSWORD" --firstname Admin --lastname User --role Admin --email admin@example.com || true
           exec airflow api-server
         resources:
           limits:
@@ -45,12 +45,20 @@ spec:
         - containerPort: 8080
           name: web
         env:
+        - name: AIRFLOW_POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: AIRFLOW_POSTGRES_PASSWORD
+        - name: AIRFLOW__CORE__FERNET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: FERNET_KEY
         - name: AIRFLOW__CORE__EXECUTOR
           value: LocalExecutor
         - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
-          value: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
-        - name: AIRFLOW__CORE__FERNET_KEY
-          value: ""
+          value: "postgresql+psycopg2://airflow:$(AIRFLOW_POSTGRES_PASSWORD)@airflow-postgres/airflow"
         - name: AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION
           value: "true"
         - name: AIRFLOW__CORE__LOAD_EXAMPLES
@@ -67,8 +75,13 @@ spec:
           value: "true"
         - name: _AIRFLOW_WWW_USER_USERNAME
           value: admin
+        - name: AIRFLOW_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: AIRFLOW_ADMIN_PASSWORD
         - name: _AIRFLOW_WWW_USER_PASSWORD
-          value: admin
+          value: "$(AIRFLOW_ADMIN_PASSWORD)"
         - name: DBT_SPARK_HOST
           value: spark-thrift-server
         - name: _PIP_ADDITIONAL_REQUIREMENTS

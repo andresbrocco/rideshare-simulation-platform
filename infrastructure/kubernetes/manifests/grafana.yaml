@@ -121,9 +121,15 @@ spec:
           name: web
         env:
         - name: GF_SECURITY_ADMIN_USER
-          value: admin
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: GRAFANA_ADMIN_USER
         - name: GF_SECURITY_ADMIN_PASSWORD
-          value: admin
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: GRAFANA_ADMIN_PASSWORD
         - name: GF_PATHS_PROVISIONING
           value: /etc/grafana/provisioning
         - name: GF_SERVER_ROOT_URL

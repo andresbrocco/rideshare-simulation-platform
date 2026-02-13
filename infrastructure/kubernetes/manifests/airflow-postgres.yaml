@@ -30,7 +30,10 @@ spec:
         - name: POSTGRES_USER
           value: airflow
         - name: POSTGRES_PASSWORD
-          value: airflow
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: AIRFLOW_POSTGRES_PASSWORD
         - name: POSTGRES_DB
           value: airflow
         livenessProbe:

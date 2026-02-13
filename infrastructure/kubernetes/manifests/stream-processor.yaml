@@ -58,7 +58,10 @@ spec:
         - name: REDIS_PORT
           value: "6379"
         - name: REDIS_PASSWORD
-          value: ""
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: REDIS_PASSWORD
         - name: PROCESSOR_WINDOW_SIZE_MS
           value: "100"
         - name: PROCESSOR_AGGREGATION_STRATEGY

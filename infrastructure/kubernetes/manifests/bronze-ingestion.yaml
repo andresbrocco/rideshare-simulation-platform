@@ -59,9 +59,15 @@ spec:
         - name: S3_ENDPOINT
           value: http://minio:9000
         - name: AWS_ACCESS_KEY_ID
-          value: minioadmin
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: MINIO_ACCESS_KEY
         - name: AWS_SECRET_ACCESS_KEY
-          value: minioadmin
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: MINIO_SECRET_KEY
         - name: BRONZE_BUCKET
           value: rideshare-bronze
         livenessProbe:

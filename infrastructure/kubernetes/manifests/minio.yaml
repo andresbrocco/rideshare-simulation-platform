@@ -36,9 +36,15 @@ spec:
           name: console
         env:
         - name: MINIO_ROOT_USER
-          value: minioadmin
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: MINIO_ROOT_USER
         - name: MINIO_ROOT_PASSWORD
-          value: minioadmin
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: MINIO_ROOT_PASSWORD
         livenessProbe:
           httpGet:
             path: /minio/health/live

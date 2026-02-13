@@ -28,13 +28,13 @@ data:
     node.id=trino-coordinator
     node.data-dir=/data/trino
 
-  delta.properties: |
+  delta.properties.template: |
     connector.name=delta_lake
     hive.metastore.uri=thrift://hive-metastore:9083
     hive.s3.endpoint=http://minio:9000
     hive.s3.path-style-access=true
-    hive.s3.aws-access-key=minioadmin
-    hive.s3.aws-secret-key=minioadmin
+    hive.s3.aws-access-key=${MINIO_ROOT_USER}
+    hive.s3.aws-secret-key=${MINIO_ROOT_PASSWORD}
     delta.enable-non-concurrent-writes=true
 
 ---
@@ -87,7 +87,21 @@ spec:
           cp /config-source/jvm.config /etc/trino/jvm.config
           cp /config-source/node.properties /etc/trino/node.properties
           mkdir -p /etc/trino/catalog
-          cp /config-source/delta.properties /etc/trino/catalog/delta.properties
+          sed \
+            -e "s|\${MINIO_ROOT_USER}|${MINIO_ROOT_USER}|g" \
+            -e "s|\${MINIO_ROOT_PASSWORD}|${MINIO_ROOT_PASSWORD}|g" \
+            /config-source/delta.properties.template > /etc/trino/catalog/delta.properties
+        env:
+        - name: MINIO_ROOT_USER
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: MINIO_ROOT_USER
+        - name: MINIO_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: MINIO_ROOT_PASSWORD
         volumeMounts:
         - name: config-source
           mountPath: /config-source

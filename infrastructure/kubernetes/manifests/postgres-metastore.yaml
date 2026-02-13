@@ -30,7 +30,10 @@ spec:
         - name: POSTGRES_USER
           value: hive
         - name: POSTGRES_PASSWORD
-          value: hive
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: POSTGRES_METASTORE_PASSWORD
         - name: POSTGRES_DB
           value: metastore
         livenessProbe:

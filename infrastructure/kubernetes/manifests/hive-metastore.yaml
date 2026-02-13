@@ -5,7 +5,7 @@ metadata:
   labels:
     app: hive-metastore
 data:
-  hive-site.xml: |
+  hive-site.xml.template: |
     <?xml version="1.0" encoding="UTF-8"?>
     <configuration>
       <!-- Metastore Configuration -->
@@ -34,12 +34,12 @@ data:
 
       <property>
         <name>javax.jdo.option.ConnectionUserName</name>
-        <value>hive</value>
+        <value>${POSTGRES_METASTORE_USER}</value>
       </property>
 
       <property>
         <name>javax.jdo.option.ConnectionPassword</name>
-        <value>hive</value>
+        <value>${POSTGRES_METASTORE_PASSWORD}</value>
       </property>
 
       <!-- S3A / MinIO Configuration -->
@@ -50,12 +50,12 @@ data:
 
       <property>
         <name>fs.s3a.access.key</name>
-        <value>minioadmin</value>
+        <value>${MINIO_ROOT_USER}</value>
       </property>
 
       <property>
         <name>fs.s3a.secret.key</name>
-        <value>minioadmin</value>
+        <value>${MINIO_ROOT_PASSWORD}</value>
       </property>
 
       <property>
@@ -118,6 +118,12 @@ spec:
       - name: hive-metastore
         image: rideshare-hive-metastore:local
         imagePullPolicy: Never
+        command:
+        - bash
+        - -c
+        - |
+          envsubst < /opt/hive/conf/hive-site.xml.template > /opt/hive/conf/hive-site.xml
+          exec /entrypoint.sh
         resources:
           limits:
             memory: "512Mi"
@@ -127,6 +133,26 @@ spec:
         - containerPort: 9083
           name: thrift
         env:
+        - name: POSTGRES_METASTORE_USER
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: POSTGRES_METASTORE_USER
+        - name: POSTGRES_METASTORE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: POSTGRES_METASTORE_PASSWORD
+        - name: MINIO_ROOT_USER
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: MINIO_ROOT_USER
+        - name: MINIO_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: MINIO_ROOT_PASSWORD
         - name: SERVICE_NAME
           value: metastore
         - name: DB_DRIVER
@@ -135,8 +161,8 @@ spec:
           value: >-
             -Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver
             -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://postgres-metastore:5432/metastore
-            -Djavax.jdo.option.ConnectionUserName=hive
-            -Djavax.jdo.option.ConnectionPassword=hive
+            -Djavax.jdo.option.ConnectionUserName=$(POSTGRES_METASTORE_USER)
+            -Djavax.jdo.option.ConnectionPassword=$(POSTGRES_METASTORE_PASSWORD)
         livenessProbe:
           tcpSocket:
             port: 9083
@@ -151,8 +177,8 @@ spec:
           timeoutSeconds: 5
         volumeMounts:
         - name: hive-site
-          mountPath: /opt/hive/conf/hive-site.xml
-          subPath: hive-site.xml
+          mountPath: /opt/hive/conf/hive-site.xml.template
+          subPath: hive-site.xml.template
       volumes:
       - name: hive-site
         configMap:
