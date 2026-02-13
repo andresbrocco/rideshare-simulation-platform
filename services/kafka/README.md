@@ -91,7 +91,7 @@ docker exec -it rideshare-kafka kafka-topics \
 # From host (requires kafka CLI installed)
 kafka-topics \
   --bootstrap-server localhost:9092 \
-  --command-config <(printf 'security.protocol=SASL_PLAINTEXT\nsasl.mechanism=PLAIN\nsasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username="admin" password="admin";\n') \  # pragma: allowlist secret
+  --command-config <(printf 'security.protocol=SASL_PLAINTEXT\nsasl.mechanism=PLAIN\nsasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username="admin" password="admin";\n') \
   --list
 ```
 

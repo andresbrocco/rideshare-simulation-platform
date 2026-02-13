@@ -82,11 +82,11 @@ psql -h localhost -p 5434 -U admin -d metastore
 ```bash
 # Airflow
 docker compose -f infrastructure/docker/compose.yml exec airflow-webserver \
-  psql postgresql://admin:admin@postgres-airflow:5432/airflow  # pragma: allowlist secret
+  psql postgresql://admin:admin@postgres-airflow:5432/airflow
 
 # Metastore
 docker compose -f infrastructure/docker/compose.yml exec hive-metastore \
-  psql postgresql://admin:admin@postgres-metastore:5432/metastore  # pragma: allowlist secret
+  psql postgresql://admin:admin@postgres-metastore:5432/metastore
 ```
 
 ### Inspect Airflow Metadata

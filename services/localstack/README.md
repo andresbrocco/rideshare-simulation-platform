@@ -74,7 +74,7 @@ curl http://localhost:4566/_localstack/health
 # Expected response (excerpt):
 {
   "services": {
-    "secretsmanager": "running",  # pragma: allowlist secret
+    "secretsmanager": "running",
     "sns": "running",
     "sqs": "running"
   }
@@ -114,7 +114,7 @@ aws --endpoint-url=http://localhost:4566 \
 aws --endpoint-url=http://localhost:4566 \
   secretsmanager create-secret \
   --name my-custom-secret \
-  --secret-string '{"username":"admin","password":"admin"}'  # pragma: allowlist secret
+  --secret-string '{"username":"admin","password":"admin"}'
 ```
 
 ### Create an SNS Topic

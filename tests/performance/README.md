@@ -60,7 +60,7 @@ Key configuration options in `tests/performance/config.py`:
 **API Settings:**
 ```python
 base_url: "http://localhost:8000"
-api_key: "admin"  # pragma: allowlist secret
+api_key: "admin"
 timeout: 30.0
 ```
 
