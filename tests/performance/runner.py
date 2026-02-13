@@ -601,8 +601,8 @@ def run() -> None:
                 # 6. Derive max reliable speed from speed scaling results
                 max_reliable_speed = _derive_max_reliable_speed(speed_result)
                 console.print(
-                    f"\n[cyan]Derived max reliable speed: {max_reliable_speed}x "
-                    f"(duration test will run at this speed)[/cyan]\n"
+                    f"\n[cyan]With {duration_agent_count} agents, the simulation "
+                    f"ran reliably up to {max_reliable_speed}x speed[/cyan]\n"
                 )
                 results["derived_config"]["duration_speed_multiplier"] = max_reliable_speed
 
@@ -770,9 +770,10 @@ def _derive_max_reliable_speed(speed_result: ScenarioResult) -> int:
     """Derive the maximum reliable speed multiplier from a speed scaling result.
 
     Rules:
-    - If the scenario was aborted (e.g., OOM) or has no step results, returns 1.
-    - If stopped by threshold, returns the multiplier from the last step where
-      threshold was NOT hit (the last known-good speed), or 1 if the first step hit.
+    - If no step results exist, returns 1.
+    - If aborted (e.g., OOM) or stopped by threshold, returns the multiplier
+      from the last step where threshold was NOT hit (the last known-good
+      speed), or 1 if the first step hit.
     - If all steps passed, returns max_speed_achieved from metadata.
 
     Args:
@@ -781,17 +782,13 @@ def _derive_max_reliable_speed(speed_result: ScenarioResult) -> int:
     Returns:
         The highest speed multiplier that was stable, minimum 1.
     """
-    if speed_result.aborted:
-        return 1
-
     step_results = speed_result.metadata.get("step_results", [])
     if not step_results:
         return 1
 
-    stopped_by_threshold = speed_result.metadata.get("stopped_by_threshold", False)
-
-    if stopped_by_threshold:
-        # Find last step where threshold was NOT hit
+    # Find last step where threshold was NOT hit (works for both
+    # aborted and threshold-stopped scenarios)
+    if speed_result.aborted or speed_result.metadata.get("stopped_by_threshold", False):
         last_good_multiplier = 1
         for step in step_results:
             if not step.get("threshold_hit", False):
@@ -921,9 +918,10 @@ def _print_summary(results: dict[str, Any], verdict: TestVerdict | None = None) 
                 f"(half of {stress_drivers} from stress test)"
             )
         duration_speed = derived_config.get("duration_speed_multiplier")
-        if duration_speed:
+        if duration_speed and duration_agents:
             console.print(
-                f"  Duration test speed: {duration_speed}x " f"(max reliable from speed scaling)"
+                f"  With {duration_agents} agents, simulation ran reliably "
+                f"up to {duration_speed}x speed"
             )
 
     # Speed scaling results

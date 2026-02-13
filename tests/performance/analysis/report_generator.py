@@ -194,10 +194,10 @@ class ReportGenerator:
                 lines.append("")
 
             duration_speed = derived_config.get("duration_speed_multiplier")
-            if duration_speed and duration_speed > 1:
+            if duration_speed and duration_agents:
                 lines.append(
-                    f"The duration test ran at **{duration_speed}x speed**, the highest "
-                    "multiplier that remained stable during the speed scaling test."
+                    f"With **{duration_agents} agents**, the simulation ran reliably "
+                    f"up to **{duration_speed}x speed**."
                 )
                 lines.append("")
 
