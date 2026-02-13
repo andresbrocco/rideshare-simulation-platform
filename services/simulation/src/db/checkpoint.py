@@ -104,7 +104,7 @@ class CheckpointManager:
         if checkpoint_type == "crash":
             logger.warning(
                 "Resuming from dirty checkpoint - potential duplicate events may occur. "
-                "Databricks consumers will deduplicate via event_id."
+                "Downstream consumers should deduplicate via event_id."
             )
 
         # Load metadata

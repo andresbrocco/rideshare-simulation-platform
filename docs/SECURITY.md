@@ -99,7 +99,6 @@ How secrets are handled.
 | KAFKA_SASL_PASSWORD | Confluent Cloud cluster access | KAFKA_SASL_PASSWORD |
 | KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO | Schema Registry access | KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO |
 | REDIS_PASSWORD | Redis authentication (optional) | REDIS_PASSWORD |
-| DATABRICKS_TOKEN | Databricks workspace access | DATABRICKS_TOKEN |
 | AWS_ACCESS_KEY_ID | AWS services access (optional) | AWS_ACCESS_KEY_ID |
 | AWS_SECRET_ACCESS_KEY | AWS services access (optional) | AWS_SECRET_ACCESS_KEY |
 

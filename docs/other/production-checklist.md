@@ -100,7 +100,6 @@ Default action: Forward to target group
 |--------|-----------------|--------|
 | API_KEY | Environment variable | AWS Secrets Manager |
 | KAFKA_SASL_PASSWORD | Environment variable | AWS Secrets Manager |
-| DATABRICKS_TOKEN | Environment variable | AWS Secrets Manager |
 | Redis password | Environment variable | AWS Secrets Manager |
 
 **Access pattern:**

@@ -8,7 +8,7 @@ Data quality validation layer for the rideshare simulation platform's lakehouse 
 
 - **Owns**: Expectation suite definitions (54 Silver + 119 Gold expectations), checkpoint configurations for Silver and Gold validations, data quality documentation generation
 - **Delegates to**: Spark Thrift Server for data access, MinIO for Delta Lake storage, Airflow for scheduled execution
-- **Does not handle**: Data transformation (handled by DBT), data ingestion (handled by Databricks Structured Streaming), alerting infrastructure (handled by Airflow)
+- **Does not handle**: Data transformation (handled by DBT), data ingestion (handled by Bronze ingestion service), alerting infrastructure (handled by Airflow)
 
 ## Key Concepts
 

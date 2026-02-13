@@ -3,8 +3,6 @@ from pydantic import ValidationError
 
 from settings import (
     APISettings,
-    AWSSettings,
-    DatabricksSettings,
     KafkaSettings,
     OSRMSettings,
     RedisSettings,
@@ -108,39 +106,6 @@ class TestOSRMSettings:
 
 
 @pytest.mark.unit
-class TestDatabricksSettings:
-    def test_defaults(self):
-        settings = DatabricksSettings()
-        assert settings.host == ""
-        assert settings.token == ""
-        assert settings.catalog == "rideshare"
-
-    def test_valid_config(self):
-        settings = DatabricksSettings(
-            host="https://dbc-12345.cloud.databricks.com",
-            token="dapi12345",
-        )
-        assert settings.host == "https://dbc-12345.cloud.databricks.com"
-        assert settings.catalog == "rideshare"
-
-    def test_invalid_host(self):
-        with pytest.raises(ValidationError):
-            DatabricksSettings(
-                host="http://insecure.databricks.com",
-                token="token",
-            )
-
-
-@pytest.mark.unit
-class TestAWSSettings:
-    def test_defaults(self):
-        settings = AWSSettings()
-        assert settings.region == "us-east-1"
-        assert settings.access_key_id is None
-        assert settings.secret_access_key is None
-
-
-@pytest.mark.unit
 class TestAPISettings:
     def test_key_required(self, monkeypatch):
         monkeypatch.delenv("API_KEY", raising=False)
@@ -162,8 +127,6 @@ class TestSettings:
         monkeypatch.setenv("KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO", "key:secret")
         monkeypatch.setenv("REDIS_HOST", "localhost")
         monkeypatch.setenv("REDIS_PASSWORD", "redis-secret")
-        monkeypatch.setenv("DATABRICKS_HOST", "https://dbc-12345.cloud.databricks.com")
-        monkeypatch.setenv("DATABRICKS_TOKEN", "token")
         monkeypatch.setenv("API_KEY", "test-key")
 
         settings = Settings()
@@ -179,8 +142,6 @@ class TestSettings:
         monkeypatch.setenv("KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO", "key:secret")
         monkeypatch.setenv("REDIS_HOST", "localhost")
         monkeypatch.setenv("REDIS_PASSWORD", "redis-secret")
-        monkeypatch.setenv("DATABRICKS_HOST", "https://dbc-12345.cloud.databricks.com")
-        monkeypatch.setenv("DATABRICKS_TOKEN", "token")
         monkeypatch.setenv("API_KEY", "test-key")
 
         settings = get_settings()

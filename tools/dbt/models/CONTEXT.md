@@ -7,7 +7,7 @@ Transforms raw Kafka events from Bronze layer into a dimensional data warehouse 
 ## Responsibility Boundaries
 
 - **Owns**: SQL transformation logic, incremental merge strategies, SCD Type 2 implementation, data quality tests, anomaly detection models
-- **Delegates to**: Bronze ingestion jobs (Databricks Structured Streaming) for raw Kafka-to-Delta persistence, Great Expectations for post-transformation validation, analytics tools (Looker, Grafana) for visualization
+- **Delegates to**: Bronze ingestion service for raw Kafka-to-Delta persistence, Great Expectations for post-transformation validation, analytics tools (Looker, Grafana) for visualization
 - **Does not handle**: Real-time streaming transformations, API serving, schema evolution in Bronze layer
 
 ## Key Concepts

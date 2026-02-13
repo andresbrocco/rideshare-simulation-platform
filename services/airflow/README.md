@@ -72,7 +72,7 @@ docker compose -f infrastructure/docker/compose.yml exec airflow-scheduler airfl
 
 Key configuration files:
 
-- `config/connections.yaml` - Airflow connections (Spark, Databricks)
+- `config/connections.yaml` - Airflow connections (Spark)
 - `dags/` - DAG definitions
 - `logs/` - Task execution logs
 - `plugins/` - Custom plugins

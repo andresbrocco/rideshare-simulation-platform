@@ -7,14 +7,14 @@ Implements the Silver and Gold layers of a medallion lakehouse architecture (Bro
 ## Responsibility Boundaries
 
 - **Owns**: Data transformation logic (Bronze to Silver to Gold), data quality tests, incremental processing strategy, SCD Type 2 implementation, anomaly detection
-- **Delegates to**: Databricks Structured Streaming (Bronze layer ingestion from Kafka), Spark Thrift Server (query execution), Airflow/MWAA (orchestration scheduling), Great Expectations (additional data validation)
+- **Delegates to**: Bronze ingestion service (Bronze layer ingestion from Kafka), Spark Thrift Server (query execution), Airflow/MWAA (orchestration scheduling), Great Expectations (additional data validation)
 - **Does not handle**: Raw event ingestion from Kafka, infrastructure provisioning, stream processing, or real-time serving
 
 ## Key Concepts
 
 ### Medallion Architecture Layers
 
-- **Bronze**: Raw Kafka events in Delta format with `_raw_value` JSON column (managed externally by Databricks Structured Streaming)
+- **Bronze**: Raw Kafka events in Delta format with `_raw_value` JSON column (managed externally by Bronze ingestion service)
 - **Silver** (`staging/`): Cleaned, parsed, deduplicated events using incremental materialization with merge strategy
 - **Gold** (`marts/`): Business-ready dimensional model (star schema) with surrogate keys
 

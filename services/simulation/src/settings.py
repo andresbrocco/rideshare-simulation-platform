@@ -89,29 +89,6 @@ class OSRMSettings(BaseSettings):
         return v.rstrip("/")
 
 
-class DatabricksSettings(BaseSettings):
-    host: str = ""
-    token: str = ""
-    catalog: str = "rideshare"
-
-    model_config = SettingsConfigDict(env_prefix="DATABRICKS_")
-
-    @field_validator("host")
-    @classmethod
-    def validate_host(cls, v: str) -> str:
-        if v and not v.startswith("https://"):
-            raise ValueError("Databricks host must start with https://")
-        return v.rstrip("/") if v else v
-
-
-class AWSSettings(BaseSettings):
-    region: str = "us-east-1"
-    access_key_id: str | None = None
-    secret_access_key: str | None = None
-
-    model_config = SettingsConfigDict(env_prefix="AWS_")
-
-
 class APISettings(BaseSettings):
     key: str = ""
 
@@ -201,8 +178,6 @@ class Settings(BaseSettings):
     kafka: KafkaSettings = Field(default_factory=KafkaSettings)
     redis: RedisSettings = Field(default_factory=RedisSettings)
     osrm: OSRMSettings = Field(default_factory=OSRMSettings)
-    databricks: DatabricksSettings = Field(default_factory=DatabricksSettings)
-    aws: AWSSettings = Field(default_factory=AWSSettings)
     api: APISettings = Field(default_factory=APISettings)
     cors: CORSSettings = Field(default_factory=CORSSettings)
     performance: PerformanceSettings = Field(default_factory=PerformanceSettings)

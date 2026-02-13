@@ -18,7 +18,7 @@ Aggregates (Business Metrics)
 
 ### Bronze Layer
 
-Raw event data ingested from Kafka topics via Databricks Structured Streaming:
+Raw event data ingested from Kafka topics via Bronze ingestion service:
 
 - `bronze_trips` - Trip lifecycle events
 - `bronze_gps_pings` - GPS location tracking

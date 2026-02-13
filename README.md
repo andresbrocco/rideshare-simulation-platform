@@ -102,9 +102,6 @@ cd services/frontend && npm run test
 | `REDIS_PORT` | Redis port | `6379` | No |
 | `REDIS_PASSWORD` | Redis password | - | No |
 | `REDIS_SSL` | Enable SSL/TLS for Redis | `false` | No |
-| `DATABRICKS_HOST` | Databricks workspace URL | - | No |
-| `DATABRICKS_TOKEN` | Databricks personal access token | - | No |
-| `DATABRICKS_CATALOG` | Unity Catalog name | `rideshare` | No |
 | `AWS_REGION` | AWS region | `us-east-1` | No |
 | `CORS_ORIGINS` | CORS allowed origins | `http://localhost:5173,http://localhost:3000` | No |
 | `PROCESSOR_WINDOW_SIZE_MS` | GPS aggregation window (ms) | `100` | No |
@@ -341,10 +338,6 @@ Edit `.env` and set the following required variables:
 - `KAFKA_SASL_PASSWORD` - Confluent Cloud API Secret (cluster-level)
 - `KAFKA_SCHEMA_REGISTRY_URL` - Schema Registry endpoint
 - `KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO` - Schema Registry credentials (`key:secret`)
-
-**Databricks**
-- `DATABRICKS_HOST` - Workspace URL (e.g., `https://dbc-xxxxx.cloud.databricks.com`)
-- `DATABRICKS_TOKEN` - Personal access token from User Settings > Developer > Access Tokens
 
 **API Authentication**
 - `API_KEY` - Generate a secure key with: `openssl rand -hex 32`

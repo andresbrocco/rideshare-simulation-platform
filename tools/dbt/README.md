@@ -50,7 +50,7 @@
 |------|---------|
 | `dbt_project.yml` | Project configuration, materialization strategies |
 | `profiles.yml` | Local connection profile (Spark Thrift Server) |
-| `profiles/cloud.yml` | Cloud connection profile (Databricks) |
+| `profiles/cloud.yml` | Cloud connection profile (AWS Glue) |
 | `packages.yml` | DBT package dependencies (dbt-expectations) |
 | `models/staging/schema.yml` | Silver layer model definitions and tests |
 | `models/marts/dimensions/schema.yml` | Gold dimension definitions |
@@ -108,7 +108,7 @@ Aggregates:
 ### Prerequisites
 
 - Python 3.11+
-- Access to Spark/Hive metastore (local Thrift Server or Databricks)
+- Access to Spark/Hive metastore (local Thrift Server or AWS Glue)
 - Bronze layer tables populated with event data from Kafka
 - MinIO S3 (local) or AWS S3 (production) for Delta Lake storage
 
@@ -199,7 +199,7 @@ Documentation includes:
 ### Medallion Layers
 
 **Bronze** (Raw events from Kafka):
-- Managed by Databricks Structured Streaming
+- Managed by Bronze ingestion service
 - Delta format with ACID guarantees
 - No transformations, schema enforcement only
 
@@ -288,7 +288,7 @@ Uses `profiles.yml` with Spark Thrift Server on localhost:10000.
 
 ### Production (Cloud)
 
-Uses `profiles/cloud.yml` with Databricks cluster.
+Uses `profiles/cloud.yml` with AWS Glue.
 
 ```bash
 ./venv/bin/dbt run --target prod --profiles-dir profiles

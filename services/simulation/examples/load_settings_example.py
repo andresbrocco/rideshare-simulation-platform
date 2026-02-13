@@ -40,15 +40,6 @@ def main():
         print(f"  Base URL: {settings.osrm.base_url}")
         print()
 
-        print("Databricks Settings:")
-        print(f"  Host: {settings.databricks.host}")
-        print(f"  Catalog: {settings.databricks.catalog}")
-        print()
-
-        print("AWS Settings:")
-        print(f"  Region: {settings.aws.region}")
-        print()
-
         print("Settings loaded successfully!")
 
     except Exception as e:
