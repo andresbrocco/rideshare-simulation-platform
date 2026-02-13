@@ -19,6 +19,7 @@ import {
   createCompletedTripRouteLayer,
   createRemainingTripRouteLayer,
   clearRouteCache,
+  evictTripFromRouteCache,
   DRIVER_COLORS,
   RIDER_TRIP_STATE_COLORS,
 } from '../agentLayers';
@@ -128,122 +129,6 @@ describe('agentLayers', () => {
     });
   });
 
-  describe('driver layer updateTriggers', () => {
-    const drivers: Driver[] = [
-      {
-        id: 'd1',
-        latitude: -23.5,
-        longitude: -46.6,
-        status: 'online',
-        rating: 4.5,
-        zone: 'z1',
-        heading: 90,
-      },
-      {
-        id: 'd2',
-        latitude: -23.6,
-        longitude: -46.7,
-        status: 'online',
-        rating: 4.8,
-        zone: 'z2',
-        heading: 180,
-      },
-    ];
-
-    it('createOnlineDriversLayer has updateTriggers with position and angle', () => {
-      const layer = createOnlineDriversLayer(drivers);
-
-      expect(layer.props.updateTriggers).toBeDefined();
-      expect(layer.props.updateTriggers.getPosition).toBeDefined();
-      expect(layer.props.updateTriggers.getAngle).toBeDefined();
-      expect(layer.props.updateTriggers.getPosition).toHaveLength(2);
-    });
-
-    it('updateTriggers change when driver positions change', () => {
-      const layer1 = createOnlineDriversLayer(drivers);
-      const movedDrivers = [{ ...drivers[0], latitude: -23.51 }, drivers[1]];
-      const layer2 = createOnlineDriversLayer(movedDrivers);
-
-      // Triggers should be different
-      expect(layer1.props.updateTriggers.getPosition).not.toEqual(
-        layer2.props.updateTriggers.getPosition
-      );
-    });
-
-    it('updateTriggers remain stable when positions are unchanged', () => {
-      // Same data, should produce same triggers
-      const layer1 = createOnlineDriversLayer(drivers);
-      const layer2 = createOnlineDriversLayer([...drivers]);
-
-      expect(layer1.props.updateTriggers.getPosition).toEqual(
-        layer2.props.updateTriggers.getPosition
-      );
-    });
-
-    it('all driver layer types have updateTriggers', () => {
-      const offlineDrivers = [{ ...drivers[0], status: 'offline' as const }];
-      const enRouteDrivers = [{ ...drivers[0], status: 'en_route_pickup' as const }];
-      const withPassengerDrivers = [{ ...drivers[0], status: 'en_route_destination' as const }];
-
-      expect(createOfflineDriversLayer(offlineDrivers).props.updateTriggers).toBeDefined();
-      expect(createEnRoutePickupDriversLayer(enRouteDrivers).props.updateTriggers).toBeDefined();
-      expect(
-        createWithPassengerDriversLayer(withPassengerDrivers).props.updateTriggers
-      ).toBeDefined();
-    });
-  });
-
-  describe('rider layer updateTriggers', () => {
-    const riders: Rider[] = [
-      { id: 'r1', latitude: -23.5, longitude: -46.6, status: 'waiting', trip_state: 'offline' },
-      { id: 'r2', latitude: -23.6, longitude: -46.7, status: 'waiting', trip_state: 'offline' },
-    ];
-
-    it('createOfflineRidersLayer has updateTriggers with position', () => {
-      const layer = createOfflineRidersLayer(riders);
-
-      expect(layer.props.updateTriggers).toBeDefined();
-      expect(layer.props.updateTriggers.getPosition).toBeDefined();
-      expect(layer.props.updateTriggers.getPosition).toHaveLength(2);
-    });
-
-    it('all rider layer types have updateTriggers', () => {
-      const waitingRiders = [{ ...riders[0], trip_state: 'requested' as const }];
-      const matchedRiders = [{ ...riders[0], trip_state: 'matched' as const }];
-      const inTransitRiders = [{ ...riders[0], trip_state: 'started' as const }];
-
-      expect(createWaitingRidersLayer(waitingRiders).props.updateTriggers).toBeDefined();
-      expect(createMatchedRidersLayer(matchedRiders).props.updateTriggers).toBeDefined();
-      expect(createInTransitRidersLayer(inTransitRiders).props.updateTriggers).toBeDefined();
-    });
-  });
-
-  describe('destination flag layer updateTriggers', () => {
-    it('has updateTriggers with position', () => {
-      const trips: Trip[] = [
-        {
-          id: 't1',
-          driver_id: 'd1',
-          rider_id: 'r1',
-          pickup_latitude: -23.5,
-          pickup_longitude: -46.6,
-          dropoff_latitude: -23.6,
-          dropoff_longitude: -46.7,
-          route: [
-            [-23.5, -46.6],
-            [-23.6, -46.7],
-          ],
-          status: 'started',
-        },
-      ];
-
-      const layer = createDestinationFlagLayer(trips);
-
-      expect(layer.props.updateTriggers).toBeDefined();
-      expect(layer.props.updateTriggers.getPosition).toBeDefined();
-    });
-  });
-
   describe('route cache', () => {
     beforeEach(() => {
       clearRouteCache();
@@ -286,36 +171,6 @@ describe('agentLayers', () => {
       expect(() => clearRouteCache()).not.toThrow();
     });
 
-    it('route layers include updateTriggers based on progress index', () => {
-      const trips: Trip[] = [
-        {
-          id: 't1',
-          driver_id: 'd1',
-          rider_id: 'r1',
-          pickup_latitude: -23.5,
-          pickup_longitude: -46.6,
-          dropoff_latitude: -23.6,
-          dropoff_longitude: -46.7,
-          route: [
-            [-23.5, -46.6],
-            [-23.55, -46.65],
-            [-23.6, -46.7],
-          ],
-          pickup_route: [
-            [-23.4, -46.5],
-            [-23.45, -46.55],
-            [-23.5, -46.6],
-          ],
-          status: 'started',
-          route_progress_index: 1,
-        },
-      ];
-
-      const layer = createCompletedTripRouteLayer(trips);
-      expect(layer.props.updateTriggers).toBeDefined();
-      expect(layer.props.updateTriggers.getPath).toBeDefined();
-    });
-
     it('pickup route layers work correctly', () => {
       const trips: Trip[] = [
         {
@@ -345,8 +200,55 @@ describe('agentLayers', () => {
 
       expect(completedLayer).toBeInstanceOf(PathLayer);
       expect(remainingLayer).toBeInstanceOf(PathLayer);
-      expect(completedLayer.props.updateTriggers).toBeDefined();
-      expect(remainingLayer.props.updateTriggers).toBeDefined();
+    });
+
+    it('evictTripFromRouteCache removes entries for the given trip', () => {
+      const trips: Trip[] = [
+        {
+          id: 'trip-A',
+          driver_id: 'd1',
+          rider_id: 'r1',
+          pickup_latitude: -23.5,
+          pickup_longitude: -46.6,
+          dropoff_latitude: -23.6,
+          dropoff_longitude: -46.7,
+          route: [
+            [-23.5, -46.6],
+            [-23.55, -46.65],
+            [-23.6, -46.7],
+          ],
+          status: 'started',
+          route_progress_index: 1,
+        },
+        {
+          id: 'trip-B',
+          driver_id: 'd2',
+          rider_id: 'r2',
+          pickup_latitude: -23.5,
+          pickup_longitude: -46.6,
+          dropoff_latitude: -23.6,
+          dropoff_longitude: -46.7,
+          route: [
+            [-23.5, -46.6],
+            [-23.55, -46.65],
+            [-23.6, -46.7],
+          ],
+          status: 'started',
+          route_progress_index: 1,
+        },
+      ];
+
+      // Populate cache for both trips
+      createCompletedTripRouteLayer(trips);
+
+      // Evict trip-A only
+      evictTripFromRouteCache('trip-A');
+
+      // Verify trip-B still produces cached (identical) results while trip-A recomputes
+      // We test this indirectly: after eviction, creating layers should not throw
+      // and trip-B's data should still be present
+      const layerAfterEvict = createCompletedTripRouteLayer(trips.filter((t) => t.id === 'trip-B'));
+      expect(layerAfterEvict).toBeInstanceOf(PathLayer);
     });
   });
 

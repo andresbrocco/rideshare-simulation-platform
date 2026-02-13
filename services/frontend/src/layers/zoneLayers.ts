@@ -19,9 +19,6 @@ export function createZoneLayer(zones: ZoneData[], visible: boolean) {
       return [...rgb, Math.round(opacity * 255)];
     },
     getLineColor: [255, 255, 255, 100],
-    updateTriggers: {
-      getFillColor: [zones.map((z) => z.surge)],
-    },
   });
 }
 

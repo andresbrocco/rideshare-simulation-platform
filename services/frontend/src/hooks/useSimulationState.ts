@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import type { Driver, Rider, Trip, SimulationStatus } from '../types/api';
 import type { WebSocketMessage } from '../types/websocket';
-import { clearRouteCache } from '../layers/agentLayers';
+import { clearRouteCache, evictTripFromRouteCache } from '../layers/agentLayers';
 
 // GPS ping data structure for buffering
 interface GPSPingData {
@@ -223,6 +223,7 @@ export function useSimulationState() {
               newState.trips = new Map(prev.trips);
 
               if (tripUpdate.status === 'completed' || tripUpdate.status === 'cancelled') {
+                evictTripFromRouteCache(tripUpdate.id);
                 newState.trips.delete(tripUpdate.id);
                 // Reset rider's trip_state to offline when trip completes/cancels
                 const rider = prev.riders.get(tripUpdate.rider_id);

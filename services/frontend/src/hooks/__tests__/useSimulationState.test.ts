@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useSimulationState } from '../useSimulationState';
+import * as agentLayers from '../../layers/agentLayers';
 import type {
   StateSnapshot,
   DriverUpdate,
@@ -748,6 +749,170 @@ describe('useSimulationState', () => {
     });
 
     expect(result.current.connected).toBe(false);
+  });
+
+  it('evicts route cache when trip completes', () => {
+    const evictSpy = vi.spyOn(agentLayers, 'evictTripFromRouteCache');
+    const { result } = renderHook(() => useSimulationState());
+
+    // Set up a trip via snapshot
+    const snapshot: StateSnapshot = {
+      type: 'snapshot',
+      data: {
+        drivers: [],
+        riders: [
+          { id: 'r1', latitude: -23.5, longitude: -46.6, status: 'in_trip', trip_state: 'started' },
+        ],
+        trips: [
+          {
+            id: 't1',
+            driver_id: 'd1',
+            rider_id: 'r1',
+            pickup_latitude: -23.5,
+            pickup_longitude: -46.6,
+            dropoff_latitude: -23.6,
+            dropoff_longitude: -46.7,
+            route: [
+              [-46.6, -23.5],
+              [-46.7, -23.6],
+            ],
+            status: 'started',
+          },
+        ],
+        surge: {},
+        simulation: {
+          state: 'RUNNING',
+          speed_multiplier: 1,
+          current_time: '2024-01-01T00:00:00',
+          drivers_total: 0,
+          drivers_offline: 0,
+          drivers_online: 0,
+          drivers_en_route_pickup: 0,
+          drivers_en_route_destination: 0,
+          riders_total: 1,
+          riders_offline: 0,
+          riders_waiting: 0,
+          riders_in_trip: 1,
+          active_trips_count: 1,
+          uptime_seconds: 0,
+        },
+      },
+    };
+
+    act(() => {
+      result.current.handleMessage(snapshot);
+    });
+
+    // Complete the trip
+    const tripUpdate: TripUpdate = {
+      type: 'trip_update',
+      data: {
+        id: 't1',
+        driver_id: 'd1',
+        rider_id: 'r1',
+        pickup_latitude: -23.5,
+        pickup_longitude: -46.6,
+        dropoff_latitude: -23.6,
+        dropoff_longitude: -46.7,
+        route: [
+          [-46.6, -23.5],
+          [-46.7, -23.6],
+        ],
+        status: 'completed',
+      },
+    };
+
+    act(() => {
+      result.current.handleMessage(tripUpdate);
+    });
+
+    expect(evictSpy).toHaveBeenCalledWith('t1');
+    evictSpy.mockRestore();
+  });
+
+  it('evicts route cache when trip is cancelled', () => {
+    const evictSpy = vi.spyOn(agentLayers, 'evictTripFromRouteCache');
+    const { result } = renderHook(() => useSimulationState());
+
+    // Set up a trip via snapshot
+    const snapshot: StateSnapshot = {
+      type: 'snapshot',
+      data: {
+        drivers: [],
+        riders: [
+          {
+            id: 'r1',
+            latitude: -23.5,
+            longitude: -46.6,
+            status: 'waiting',
+            trip_state: 'requested',
+          },
+        ],
+        trips: [
+          {
+            id: 't1',
+            driver_id: 'd1',
+            rider_id: 'r1',
+            pickup_latitude: -23.5,
+            pickup_longitude: -46.6,
+            dropoff_latitude: -23.6,
+            dropoff_longitude: -46.7,
+            route: [
+              [-46.6, -23.5],
+              [-46.7, -23.6],
+            ],
+            status: 'requested',
+          },
+        ],
+        surge: {},
+        simulation: {
+          state: 'RUNNING',
+          speed_multiplier: 1,
+          current_time: '2024-01-01T00:00:00',
+          drivers_total: 0,
+          drivers_offline: 0,
+          drivers_online: 0,
+          drivers_en_route_pickup: 0,
+          drivers_en_route_destination: 0,
+          riders_total: 1,
+          riders_offline: 0,
+          riders_waiting: 1,
+          riders_in_trip: 0,
+          active_trips_count: 1,
+          uptime_seconds: 0,
+        },
+      },
+    };
+
+    act(() => {
+      result.current.handleMessage(snapshot);
+    });
+
+    // Cancel the trip
+    const tripUpdate: TripUpdate = {
+      type: 'trip_update',
+      data: {
+        id: 't1',
+        driver_id: 'd1',
+        rider_id: 'r1',
+        pickup_latitude: -23.5,
+        pickup_longitude: -46.6,
+        dropoff_latitude: -23.6,
+        dropoff_longitude: -46.7,
+        route: [
+          [-46.6, -23.5],
+          [-46.7, -23.6],
+        ],
+        status: 'cancelled',
+      },
+    };
+
+    act(() => {
+      result.current.handleMessage(tripUpdate);
+    });
+
+    expect(evictSpy).toHaveBeenCalledWith('t1');
+    evictSpy.mockRestore();
   });
 
   // GPS Ping Batching Tests

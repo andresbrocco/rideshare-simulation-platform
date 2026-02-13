@@ -151,6 +151,18 @@ export function clearRouteCache(): void {
   routeSplitCache.clear();
 }
 
+/**
+ * Evict all cache entries for a specific trip. Call this when a trip completes or is cancelled
+ * to prevent stale route data from accumulating.
+ */
+export function evictTripFromRouteCache(tripId: string): void {
+  for (const key of routeSplitCache.keys()) {
+    if (key.startsWith(tripId + ':')) {
+      routeSplitCache.delete(key);
+    }
+  }
+}
+
 // ============================================================================
 // Driver Layers
 // ============================================================================
@@ -174,12 +186,6 @@ export function createOnlineDriversLayer(drivers: Driver[], scaleFactor: number 
 
     getPosition: (d: Driver) => [d.longitude, d.latitude],
     getAngle: (d: Driver) => 90 - (d.heading ?? 0), // Rotate icon to face direction of travel
-
-    // Tell deck.gl which accessor functions need recalculation
-    updateTriggers: {
-      getPosition: onlineDrivers.map((d) => `${d.id}:${d.latitude}:${d.longitude}`),
-      getAngle: onlineDrivers.map((d) => `${d.id}:${d.heading}`),
-    },
   });
 }
 
@@ -201,11 +207,6 @@ export function createOfflineDriversLayer(drivers: Driver[], scaleFactor: number
     getPosition: (d: Driver) => [d.longitude, d.latitude],
     getAngle: (d: Driver) => 90 - (d.heading ?? 0),
     getColor: [255, 255, 255, 200], // Slightly transparent for offline
-
-    updateTriggers: {
-      getPosition: offlineDrivers.map((d) => `${d.id}:${d.latitude}:${d.longitude}`),
-      getAngle: offlineDrivers.map((d) => `${d.id}:${d.heading}`),
-    },
   });
 }
 
@@ -228,11 +229,6 @@ export function createEnRoutePickupDriversLayer(drivers: Driver[], scaleFactor: 
 
     getPosition: (d: Driver) => [d.longitude, d.latitude],
     getAngle: (d: Driver) => 90 - (d.heading ?? 0),
-
-    updateTriggers: {
-      getPosition: enRoutePickupDrivers.map((d) => `${d.id}:${d.latitude}:${d.longitude}`),
-      getAngle: enRoutePickupDrivers.map((d) => `${d.id}:${d.heading}`),
-    },
   });
 }
 
@@ -255,11 +251,6 @@ export function createWithPassengerDriversLayer(drivers: Driver[], scaleFactor: 
 
     getPosition: (d: Driver) => [d.longitude, d.latitude],
     getAngle: (d: Driver) => 90 - (d.heading ?? 0),
-
-    updateTriggers: {
-      getPosition: withPassengerDrivers.map((d) => `${d.id}:${d.latitude}:${d.longitude}`),
-      getAngle: withPassengerDrivers.map((d) => `${d.id}:${d.heading}`),
-    },
   });
 }
 
@@ -280,10 +271,6 @@ export function createOfflineRidersLayer(riders: Rider[], scaleFactor: number = 
 
     getPosition: (d: Rider) => [d.longitude, d.latitude],
     getColor: [255, 255, 255, 255], // DEBUG: Full opacity to test visibility
-
-    updateTriggers: {
-      getPosition: offlineRiders.map((r) => `${r.id}:${r.latitude}:${r.longitude}`),
-    },
   });
 }
 
@@ -308,10 +295,6 @@ export function createWaitingRidersLayer(riders: Rider[], scaleFactor: number = 
     getSize: 28 * scaleFactor,
 
     getPosition: (d: Rider) => [d.longitude, d.latitude],
-
-    updateTriggers: {
-      getPosition: waitingRiders.map((r) => `${r.id}:${r.latitude}:${r.longitude}`),
-    },
   });
 }
 
@@ -334,10 +317,6 @@ export function createMatchedRidersLayer(riders: Rider[], scaleFactor: number = 
     getSize: 28 * scaleFactor,
 
     getPosition: (d: Rider) => [d.longitude, d.latitude],
-
-    updateTriggers: {
-      getPosition: matchedRiders.map((r) => `${r.id}:${r.latitude}:${r.longitude}`),
-    },
   });
 }
 
@@ -360,10 +339,6 @@ export function createEnRouteRidersLayer(riders: Rider[], scaleFactor: number = 
     getSize: 28 * scaleFactor,
 
     getPosition: (d: Rider) => [d.longitude, d.latitude],
-
-    updateTriggers: {
-      getPosition: enRouteRiders.map((r) => `${r.id}:${r.latitude}:${r.longitude}`),
-    },
   });
 }
 
@@ -386,10 +361,6 @@ export function createArrivedRidersLayer(riders: Rider[], scaleFactor: number = 
     getSize: 28 * scaleFactor,
 
     getPosition: (d: Rider) => [d.longitude, d.latitude],
-
-    updateTriggers: {
-      getPosition: arrivedRiders.map((r) => `${r.id}:${r.latitude}:${r.longitude}`),
-    },
   });
 }
 
@@ -412,10 +383,6 @@ export function createInTransitRidersLayer(riders: Rider[], scaleFactor: number 
     getSize: 28 * scaleFactor,
 
     getPosition: (d: Rider) => [d.longitude, d.latitude],
-
-    updateTriggers: {
-      getPosition: inTransitRiders.map((r) => `${r.id}:${r.latitude}:${r.longitude}`),
-    },
   });
 }
 
@@ -527,9 +494,6 @@ export function createCompletedPickupRouteLayer(
     getColor: [255, 100, 150, 80], // Faded pink/coral (~30% opacity)
     widthUnits: 'pixels',
     getWidth: 4 * scaleFactor,
-    updateTriggers: {
-      getPath: trailData.map((d) => d.trip.pickup_route_progress_index),
-    },
   });
 }
 
@@ -570,9 +534,6 @@ export function createRemainingPickupRouteLayer(
     widthUnits: 'pixels',
     getWidth: 4 * scaleFactor,
     getDashArray: [8, 4], // Dashed pattern
-    updateTriggers: {
-      getPath: remainingData.map((d) => d.trip.pickup_route_progress_index),
-    },
   });
 }
 
@@ -611,9 +572,6 @@ export function createCompletedTripRouteLayer(
     getColor: [0, 100, 255, 80], // Faded blue (~30% opacity)
     widthUnits: 'pixels',
     getWidth: 5 * scaleFactor,
-    updateTriggers: {
-      getPath: trailData.map((d) => d.trip.route_progress_index),
-    },
   });
 }
 
@@ -645,9 +603,6 @@ export function createRemainingTripRouteLayer(
     getColor: [0, 100, 255], // Solid blue
     widthUnits: 'pixels',
     getWidth: 5 * scaleFactor,
-    updateTriggers: {
-      getPath: remainingData.map((d) => d.trip.route_progress_index),
-    },
   });
 }
 
@@ -676,10 +631,6 @@ export function createDestinationFlagLayer(
     getSize: 29 * scaleFactor,
 
     getPosition: (d: Trip) => [d.dropoff_longitude, d.dropoff_latitude],
-
-    updateTriggers: {
-      getPosition: activeTrips.map((t) => `${t.id}:${t.dropoff_latitude}:${t.dropoff_longitude}`),
-    },
   });
 }
 
