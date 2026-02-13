@@ -852,9 +852,12 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
     async def check_schema_registry() -> tuple[ContainerStatus, float | None, str | None]:
         """Check Schema Registry health via subjects endpoint."""
         schema_registry_url = "http://schema-registry:8081/subjects"
+        auth_info = settings.kafka.schema_registry_basic_auth_user_info
+        parts = auth_info.split(":", 1) if auth_info and ":" in auth_info else []
+        auth: tuple[str, str] | None = (parts[0], parts[1]) if len(parts) == 2 else None
         try:
             start = time.perf_counter()
-            async with httpx.AsyncClient(timeout=3.0) as client:
+            async with httpx.AsyncClient(timeout=3.0, auth=auth) as client:
                 response = await client.get(schema_registry_url)
                 latency_ms = (time.perf_counter() - start) * 1000
                 if response.status_code == 200:

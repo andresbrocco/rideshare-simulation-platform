@@ -9,7 +9,7 @@ class APIConfig:
     """Configuration for the Simulation API client."""
 
     base_url: str = "http://localhost:8000"
-    api_key: str = "dev-api-key-change-in-production"
+    api_key: str = "admin"
     timeout: float = 30.0
 
 
