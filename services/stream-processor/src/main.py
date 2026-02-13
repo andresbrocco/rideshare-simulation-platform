@@ -43,6 +43,18 @@ def ensure_topics_exist(settings: Settings) -> None:
     admin_config: dict[str, str | int | float | bool] = {
         "bootstrap.servers": settings.kafka.bootstrap_servers,
     }
+
+    # Add SASL configuration if not using PLAINTEXT
+    if settings.kafka.security_protocol != "PLAINTEXT":
+        admin_config.update(
+            {
+                "security.protocol": settings.kafka.security_protocol,
+                "sasl.mechanism": settings.kafka.sasl_mechanism,
+                "sasl.username": settings.kafka.sasl_username,
+                "sasl.password": settings.kafka.sasl_password,
+            }
+        )
+
     admin = AdminClient(admin_config)
 
     # Get existing topics
