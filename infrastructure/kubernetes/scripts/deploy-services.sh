@@ -47,6 +47,11 @@ kubectl apply -f configmap-data-pipeline.yaml
 kubectl apply -f secret-credentials.yaml
 kubectl apply -f secret-api-keys.yaml
 
+# ESO auth credentials (must be applied before ExternalSecrets)
+kubectl apply -f external-secrets-namespace.yaml
+kubectl apply -f external-secrets-aws-credentials.yaml
+kubectl apply -f external-secrets-secretstore.yaml
+
 echo ""
 echo "Step 3: Deploying data platform services..."
 kubectl apply -f minio.yaml
@@ -61,6 +66,15 @@ kubectl apply -f airflow-postgres.yaml
 kubectl apply -f airflow-webserver.yaml
 kubectl apply -f airflow-scheduler.yaml
 kubectl apply -f localstack.yaml
+
+echo ""
+echo "Step 3b: Deploying ExternalSecret CRDs (syncs secrets from LocalStack)..."
+# ExternalSecrets require LocalStack to be running so ESO can sync.
+# ESO will retry automatically if LocalStack isn't ready yet.
+set +e
+kubectl apply -f external-secrets-api-keys.yaml 2>&1 | grep -v "no matches for kind" || true
+kubectl apply -f external-secrets-app-credentials.yaml 2>&1 | grep -v "no matches for kind" || true
+set -e
 
 echo ""
 echo "Step 4: Deploying core simulation services..."
