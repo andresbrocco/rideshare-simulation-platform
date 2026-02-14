@@ -12,6 +12,20 @@ class SimulationSettings(BaseSettings):
     checkpoint_enabled: bool = Field(default=True)
     resume_from_checkpoint: bool = Field(default=False)
 
+    # Checkpoint storage backend configuration
+    checkpoint_storage_type: Literal["sqlite", "s3"] = Field(
+        default="sqlite",
+        description="Checkpoint storage backend: sqlite for local, s3 for cloud",
+    )
+    checkpoint_s3_bucket: str = Field(
+        default="rideshare-checkpoints",
+        description="S3 bucket name for checkpoint storage (used when storage_type=s3)",
+    )
+    checkpoint_s3_prefix: str = Field(
+        default="simulation",
+        description="S3 key prefix for checkpoints (used when storage_type=s3)",
+    )
+
     # GPS-based arrival detection
     arrival_proximity_threshold_m: float = Field(
         default=50.0,
