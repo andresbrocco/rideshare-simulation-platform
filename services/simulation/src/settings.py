@@ -10,7 +10,7 @@ class SimulationSettings(BaseSettings):
     log_format: Literal["text", "json"] = "text"
     checkpoint_interval: int = Field(default=300, ge=60)
     checkpoint_enabled: bool = Field(default=True)
-    resume_from_checkpoint: bool = Field(default=False)
+    resume_from_checkpoint: bool = Field(default=True)
 
     # GPS-based arrival detection
     arrival_proximity_threshold_m: float = Field(
