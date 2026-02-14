@@ -188,7 +188,8 @@ export default function ControlPanel({
             id="driver-count"
             type="number"
             value={driverCount}
-            onChange={(e) => setDriverCount(parseInt(e.target.value) || 0)}
+            onChange={(e) => setDriverCount(Math.min(100, parseInt(e.target.value) || 0))}
+            onBlur={() => setDriverCount((v) => Math.max(1, v))}
             min="1"
             max="100"
             className={styles.input}
@@ -216,7 +217,8 @@ export default function ControlPanel({
             id="rider-count"
             type="number"
             value={riderCount}
-            onChange={(e) => setRiderCount(parseInt(e.target.value) || 0)}
+            onChange={(e) => setRiderCount(Math.min(2000, parseInt(e.target.value) || 0))}
+            onBlur={() => setRiderCount((v) => Math.max(1, v))}
             min="1"
             max="2000"
             className={styles.input}
