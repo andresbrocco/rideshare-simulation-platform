@@ -254,8 +254,21 @@ export function createWithPassengerDriversLayer(drivers: Driver[], scaleFactor: 
   });
 }
 
+// Trip states that have their own dedicated rider layers
+const ACTIVE_TRIP_STATES = new Set<string>([
+  'requested',
+  'offer_sent',
+  'matched',
+  'driver_en_route',
+  'driver_arrived',
+  'started',
+]);
+
 export function createOfflineRidersLayer(riders: Rider[], scaleFactor: number = 1) {
-  const offlineRiders = riders.filter((r) => !r.trip_state || r.trip_state === 'offline');
+  // Catch-all: render riders without a trip_state OR with any state not claimed by another layer
+  const offlineRiders = riders.filter(
+    (r) => !r.trip_state || !ACTIVE_TRIP_STATES.has(r.trip_state)
+  );
   return new IconLayer({
     id: 'offline-riders',
     data: offlineRiders,
