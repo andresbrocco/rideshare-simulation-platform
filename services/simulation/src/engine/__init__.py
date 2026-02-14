@@ -1,6 +1,7 @@
 """SimPy environment orchestrator for rideshare simulation."""
 
 import asyncio
+import logging
 import time
 from datetime import UTC, datetime, timedelta, timezone
 from enum import Enum
@@ -48,6 +49,8 @@ __all__ = [
     "TripSnapshot",
     "SimulationSnapshot",
 ]
+
+logger = logging.getLogger(__name__)
 
 
 class SimulationState(str, Enum):
@@ -478,6 +481,10 @@ class SimulationEngine:
         )
         self._periodic_processes.append(rider_sched)
 
+        if settings.simulation.checkpoint_enabled:
+            checkpoint_proc = self._env.process(self._checkpoint_process())  # type: ignore[no-untyped-call]
+            self._periodic_processes.append(checkpoint_proc)
+
     def _surge_update_process(self):  # type: ignore[no-untyped-def]
         """Recalculate surge every 60 simulated seconds.
 
@@ -489,6 +496,18 @@ class SimulationEngine:
                 self._matching_server.update_surge_pricing()
 
             yield self._env.timeout(60)
+
+    def _checkpoint_process(self):  # type: ignore[no-untyped-def]
+        """Periodically save simulation checkpoint."""
+        settings = get_settings()
+        interval = settings.simulation.checkpoint_interval
+        while True:
+            yield self._env.timeout(interval)
+            try:
+                self.save_checkpoint()
+                logger.info("Periodic checkpoint saved at sim_time=%.1f", self._env.now)
+            except Exception:
+                logger.exception("Periodic checkpoint failed")
 
     def _spawner_process(self, dequeue_fn, spawn_fn, interval):  # type: ignore[no-untyped-def]
         """Generic spawner for any queue/mode combination.
@@ -668,10 +687,18 @@ class SimulationEngine:
         trip.cancel(by="system", reason="system_pause", stage=trip.state.name.lower())
 
     def _transition_to_paused(self, trigger: str) -> None:
-        """Complete pause sequence and emit event."""
+        """Complete pause sequence, emit event, and save checkpoint."""
         old_state = self._state
         self._state = SimulationState.PAUSED
         self._emit_control_event("simulation.paused", old_state, trigger)
+
+        settings = get_settings()
+        if settings.simulation.checkpoint_enabled:
+            try:
+                self.save_checkpoint()
+                logger.info("Checkpoint saved on pause (trigger=%s)", trigger)
+            except Exception:
+                logger.exception("Checkpoint on pause failed")
 
     def _emit_control_event(
         self, event_type: str, old_state: SimulationState, trigger: str

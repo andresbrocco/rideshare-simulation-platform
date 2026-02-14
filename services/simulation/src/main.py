@@ -287,6 +287,14 @@ def main() -> None:
     # Set factory reference on engine for spawner processes
     engine._agent_factory = agent_factory
 
+    # Restore from checkpoint if configured
+    if settings.simulation.resume_from_checkpoint:
+        restored = engine.try_restore_from_checkpoint()
+        if restored:
+            logger.info("Simulation restored from checkpoint")
+        else:
+            logger.info("No checkpoint found, starting fresh simulation")
+
     logger.info(f"Simulation engine initialized (speed: {settings.simulation.speed_multiplier}x)")
 
     # Create FastAPI app with real dependencies
@@ -310,6 +318,14 @@ def main() -> None:
     def shutdown_handler(signum: int, frame: object) -> None:
         logger.info(f"Received signal {signum}, shutting down...")
         sim_runner.stop()
+
+        if settings.simulation.checkpoint_enabled:
+            try:
+                engine.save_checkpoint()
+                logger.info("Shutdown checkpoint saved")
+            except Exception:
+                logger.exception("Shutdown checkpoint failed")
+
         if engine.state.value == "running":
             engine.stop()
         if kafka_producer:
