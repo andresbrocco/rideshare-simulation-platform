@@ -411,6 +411,23 @@ class CheckpointManager:
 
                 engine._active_drivers[driver.driver_id] = driver
                 engine._matching_server.register_driver(driver)
+
+                # Register in AgentRegistryManager to populate DriverRegistry
+                # for status counts used by the API
+                if (
+                    hasattr(engine, "_agent_factory")
+                    and engine._agent_factory
+                    and hasattr(engine._agent_factory, "_registry_manager")
+                    and engine._agent_factory._registry_manager
+                ):
+                    rm = engine._agent_factory._registry_manager
+                    rm.register_driver(driver)
+                    # Update registry status from restored state (register_driver defaults to "offline")
+                    if driver_data["status"] != "offline":
+                        rm._driver_registry.update_driver_status(
+                            driver.driver_id, driver_data["status"]
+                        )
+
                 restored_drivers += 1
             except Exception as e:
                 logger.error(f"Failed to restore driver {driver_data.get('id')}: {e}")

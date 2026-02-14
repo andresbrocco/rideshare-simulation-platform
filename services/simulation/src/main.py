@@ -295,6 +295,10 @@ def main() -> None:
         else:
             logger.info("No checkpoint found, starting fresh simulation")
 
+    # Apply configured speed multiplier (default 1x, overridable via SIM_SPEED_MULTIPLIER)
+    if settings.simulation.speed_multiplier != 1:
+        engine.set_speed(settings.simulation.speed_multiplier)
+
     logger.info(f"Simulation engine initialized (speed: {settings.simulation.speed_multiplier}x)")
 
     # Create FastAPI app with real dependencies

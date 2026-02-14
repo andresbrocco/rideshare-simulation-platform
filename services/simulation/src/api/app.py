@@ -265,7 +265,7 @@ def create_app(
     @app.get("/health")
     async def health_check() -> dict[str, str]:
         """Health check endpoint for monitoring (unauthenticated for infrastructure)."""
-        return {"status": "ok"}
+        return {"status": "healthy"}
 
     @app.get("/auth/validate")
     async def validate_api_key_endpoint(
