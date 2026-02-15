@@ -117,6 +117,11 @@ with DAG(
         bash_command="python3 /opt/init-scripts/export-dbt-to-s3.py --layer silver",
     )
 
+    register_silver_trino_tables = BashOperator(
+        task_id="register_silver_trino_tables",
+        bash_command="python3 /opt/init-scripts/register-trino-tables.py --layer silver",
+    )
+
     def should_trigger_gold(**context) -> str:
         """Trigger Gold DAG at 2 AM, for manual runs, or when not in PROD_MODE."""
         prod_mode = os.environ.get("PROD_MODE", "false").lower() == "true"
@@ -148,7 +153,12 @@ with DAG(
         >> ge_silver_validation
         >> export_silver_to_s3
     )
-    export_silver_to_s3 >> check_should_trigger_gold >> [trigger_gold_dag, skip_gold_trigger]
+    (
+        export_silver_to_s3
+        >> register_silver_trino_tables
+        >> check_should_trigger_gold
+        >> [trigger_gold_dag, skip_gold_trigger]
+    )
 
 # Gold DAG - Triggered by Silver DAG at 2 AM (no schedule)
 with DAG(
@@ -200,6 +210,11 @@ with DAG(
         bash_command="python3 /opt/init-scripts/export-dbt-to-s3.py --layer gold",
     )
 
+    register_gold_trino_tables = BashOperator(
+        task_id="register_gold_trino_tables",
+        bash_command="python3 /opt/init-scripts/register-trino-tables.py --layer gold",
+    )
+
     ge_generate_data_docs = BashOperator(
         task_id="ge_generate_data_docs",
         bash_command="""
@@ -217,5 +232,6 @@ with DAG(
         >> dbt_gold_test
         >> ge_gold_validation
         >> export_gold_to_s3
+        >> register_gold_trino_tables
         >> ge_generate_data_docs
     )
