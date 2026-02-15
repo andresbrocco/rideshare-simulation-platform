@@ -1,0 +1,43 @@
+# Production patch: Point Hive Metastore to RDS and remove MinIO dependencies
+# - Removes wait-for-minio initContainer (no MinIO in production)
+# - Updates postgres readiness check to target RDS endpoint
+# - Removes MINIO_ROOT_USER / MINIO_ROOT_PASSWORD env vars (IRSA handles S3)
+# - Updates SERVICE_OPTS to connect to RDS instead of local postgres-metastore
+#
+# Replace <rds-endpoint> with Terraform output during deploy:
+#   terraform -chdir=infrastructure/terraform/platform output -raw rds_endpoint
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hive-metastore
+spec:
+  template:
+    spec:
+      initContainers:
+        - name: wait-for-minio
+          $patch: delete
+        - name: wait-for-postgres-metastore
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z <rds-endpoint> 5432; do
+                echo "Waiting for RDS PostgreSQL..."
+                sleep 2
+              done
+              echo "RDS PostgreSQL is ready"
+      containers:
+        - name: hive-metastore
+          env:
+            - name: MINIO_ROOT_USER
+              $patch: delete
+            - name: MINIO_ROOT_PASSWORD
+              $patch: delete
+            - name: SERVICE_OPTS
+              value: >-
+                -Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver
+                -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://<rds-endpoint>:5432/metastore
+                -Djavax.jdo.option.ConnectionUserName=$(POSTGRES_METASTORE_USER)
+                -Djavax.jdo.option.ConnectionPassword=$(POSTGRES_METASTORE_PASSWORD)
+            - name: AWS_REGION
+              value: "us-east-1"

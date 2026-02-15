@@ -1,0 +1,35 @@
+# Production patch: Remove MinIO dependencies from Trino Deployment
+# - Removes wait-for-minio initContainer (no MinIO in production)
+# - Simplifies setup-config to copy catalog file directly (no sed substitution)
+# - Removes MinIO credential env vars from setup-config
+# - Adds AWS_REGION for S3 access via IRSA
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trino
+spec:
+  template:
+    spec:
+      initContainers:
+        - name: wait-for-minio
+          $patch: delete
+        - name: setup-config
+          command:
+            - sh
+            - -c
+            - |
+              cp /config-source/config.properties /etc/trino/config.properties
+              cp /config-source/jvm.config /etc/trino/jvm.config
+              cp /config-source/node.properties /etc/trino/node.properties
+              mkdir -p /etc/trino/catalog
+              cp /config-source/delta.properties.template /etc/trino/catalog/delta.properties
+          env:
+            - name: MINIO_ROOT_USER
+              $patch: delete
+            - name: MINIO_ROOT_PASSWORD
+              $patch: delete
+      containers:
+        - name: trino
+          env:
+            - name: AWS_REGION
+              value: "us-east-1"

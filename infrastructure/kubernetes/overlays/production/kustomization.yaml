@@ -164,3 +164,33 @@ patches:
       kind: ExternalSecret
 
   # Core service manifests - Tickets 022-023
+
+  # Kafka: EBS-backed PVC replaces emptyDir for data persistence
+  - path: kafka-patch.yaml
+    target:
+      kind: StatefulSet
+      name: kafka
+
+  # Hive Metastore: RDS endpoint, remove MinIO initContainer and credentials
+  - path: hive-metastore-patch.yaml
+    target:
+      kind: Deployment
+      name: hive-metastore
+
+  # Hive site config: AWS S3 via IRSA instead of MinIO endpoint and credentials
+  - path: hive-site-config-patch.yaml
+    target:
+      kind: ConfigMap
+      name: hive-site-config
+
+  # Trino catalog: Remove MinIO S3 endpoint and static credentials
+  - path: trino-catalog-patch.yaml
+    target:
+      kind: ConfigMap
+      name: trino-config
+
+  # Trino deployment: Remove MinIO initContainer and credential references
+  - path: trino-patch.yaml
+    target:
+      kind: Deployment
+      name: trino

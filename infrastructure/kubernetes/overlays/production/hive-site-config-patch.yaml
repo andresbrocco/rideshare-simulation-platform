@@ -1,0 +1,62 @@
+# Production patch: Replace MinIO S3 config with AWS S3 via IRSA
+# Removes fs.s3a.endpoint, access.key, secret.key (MinIO-specific).
+# IRSA injects temporary credentials via projected service account token;
+# the default AWS credential chain picks them up automatically.
+#
+# Replace <rds-endpoint> with Terraform output during deploy.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hive-site-config
+data:
+  hive-site.xml.template: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <configuration>
+      <!-- Metastore Configuration -->
+      <property>
+        <name>metastore.thrift.uris</name>
+        <value>thrift://hive-metastore:9083</value>
+      </property>
+
+      <property>
+        <name>metastore.warehouse.dir</name>
+        <value>s3a://rideshare-silver/warehouse/</value>
+      </property>
+
+      <!-- PostgreSQL Backend (RDS) -->
+      <property>
+        <name>javax.jdo.option.ConnectionDriverName</name>
+        <value>org.postgresql.Driver</value>
+      </property>
+
+      <property>
+        <name>javax.jdo.option.ConnectionURL</name>
+        <value>jdbc:postgresql://<rds-endpoint>:5432/metastore</value>
+      </property>
+
+      <property>
+        <name>javax.jdo.option.ConnectionUserName</name>
+        <value>${POSTGRES_METASTORE_USER}</value>
+      </property>
+
+      <property>
+        <name>javax.jdo.option.ConnectionPassword</name>
+        <value>${POSTGRES_METASTORE_PASSWORD}</value>
+      </property>
+
+      <!-- S3A Configuration (IRSA provides credentials via default chain) -->
+      <property>
+        <name>fs.s3a.path.style.access</name>
+        <value>false</value>
+      </property>
+
+      <property>
+        <name>fs.s3a.connection.ssl.enabled</name>
+        <value>true</value>
+      </property>
+
+      <property>
+        <name>fs.s3a.impl</name>
+        <value>org.apache.hadoop.fs.s3a.S3AFileSystem</value>
+      </property>
+    </configuration>
