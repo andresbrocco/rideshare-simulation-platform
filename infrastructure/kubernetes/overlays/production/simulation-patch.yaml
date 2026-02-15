@@ -1,0 +1,39 @@
+# Production patch: Configure Simulation for AWS cloud environment
+# - Sets CORS_ORIGINS to production domain (replaces localhost origins)
+# - Sets DEPLOYMENT_ENV to production
+# - Configures S3 checkpoint saving via IRSA (restore not yet implemented)
+# - Sets AWS_REGION for IRSA-based S3 access
+#
+# Note: ConfigMap-based settings are patched separately in configmap-core-patch.yaml.
+# These env vars override ConfigMap values because they are set directly on the container.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simulation
+spec:
+  template:
+    spec:
+      containers:
+        - name: simulation
+          env:
+            # Production CORS origins
+            - name: CORS_ORIGINS
+              value: "https://ridesharing.portfolio.andresbrocco.com"
+
+            # Production deployment environment
+            - name: DEPLOYMENT_ENV
+              value: "production"
+
+            # S3 checkpoint configuration (save-only; S3 restore not yet implemented)
+            - name: CHECKPOINT_STORAGE_TYPE
+              value: "s3"
+            - name: CHECKPOINT_S3_BUCKET
+              value: "rideshare-checkpoints"
+            - name: CHECKPOINT_S3_PREFIX
+              value: "simulation"
+            - name: RESUME_FROM_CHECKPOINT
+              value: "false"
+
+            # Ensure AWS region is set for IRSA-based S3 access
+            - name: AWS_REGION
+              value: "us-east-1"

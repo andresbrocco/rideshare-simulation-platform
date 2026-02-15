@@ -194,3 +194,40 @@ patches:
     target:
       kind: Deployment
       name: trino
+
+  # Pipeline and monitoring manifests - Ticket 023
+
+  # Airflow: RDS connection, subpath serving, remove MinIO endpoint
+  - path: airflow-webserver-patch.yaml
+    target:
+      kind: Deployment
+      name: airflow-webserver
+
+  - path: airflow-scheduler-patch.yaml
+    target:
+      kind: Deployment
+      name: airflow-scheduler
+
+  # Bronze Ingestion: Remove MinIO dependencies, use IRSA for S3
+  - path: bronze-ingestion-patch.yaml
+    target:
+      kind: Deployment
+      name: bronze-ingestion
+
+  # Simulation: Production domain, S3 checkpoints, deployment env
+  - path: simulation-patch.yaml
+    target:
+      kind: Deployment
+      name: simulation
+
+  # Grafana: Subpath serving under /grafana, disable anonymous access
+  - path: grafana-patch.yaml
+    target:
+      kind: Deployment
+      name: grafana
+
+  # Prometheus: Kubernetes SD, kube-state-metrics, annotation-based pod discovery
+  - path: prometheus-config-patch.yaml
+    target:
+      kind: ConfigMap
+      name: prometheus-config
