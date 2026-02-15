@@ -1,0 +1,28 @@
+# Production patch: Replace emptyDir with EBS-backed PVC for Kafka data persistence
+# Base uses emptyDir (data lost on pod restart); production needs durable storage.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kafka
+spec:
+  template:
+    spec:
+      containers:
+        - name: kafka
+          env:
+            - name: AWS_REGION
+              value: "us-east-1"
+      volumes:
+        # Remove emptyDir volume; PVC is provided by volumeClaimTemplate below
+        - name: kafka-data
+          $patch: delete
+  volumeClaimTemplates:
+    - metadata:
+        name: kafka-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: rideshare-storage
+        resources:
+          requests:
+            storage: 10Gi

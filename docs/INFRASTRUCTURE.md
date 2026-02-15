@@ -240,7 +240,7 @@ Docker Compose (local/development), Kubernetes with Kind (cloud parity testing)
 | Development | localhost:5173 | feature/* | Docker Compose (core profile) |
 | Integration Testing | localhost:5173 | main | Docker Compose (core + data-pipeline) |
 | Local Kubernetes | localhost:80 | main | Kind cluster |
-| Production | TBD | main | Kubernetes (roadmap) |
+| Production | ridesharing.portfolio.andresbrocco.com | main | AWS EKS + ArgoCD |
 
 ### Deployment Process (Docker Compose)
 1. Start LocalStack (if using data-pipeline profile)
@@ -257,6 +257,31 @@ Docker Compose (local/development), Kubernetes with Kind (cloud parity testing)
 5. Wait for pods to be Ready
 6. Run health check: `./infrastructure/kubernetes/scripts/health-check.sh`
 7. Run smoke test: `./infrastructure/kubernetes/scripts/smoke-test.sh`
+
+### Cloud Deployment (AWS)
+
+The platform can be deployed to AWS EKS for public demos. See [CLOUD-DEPLOYMENT.md](CLOUD-DEPLOYMENT.md) for complete runbook.
+
+Architecture:
+
+- **Foundation** (always-on): CloudFront, S3, Route 53, ECR, Secrets Manager (~$7.50/mo)
+- **Platform** (on-demand): EKS cluster, RDS, ALB (~$0.65/hr)
+
+GitHub Actions workflows:
+
+| Workflow | Purpose |
+|----------|---------|
+| `build-and-push.yml` | Build and push Docker images to ECR |
+| `deploy-frontend.yml` | Deploy static frontend to S3 + CloudFront |
+| `deploy.yml` | Deploy platform (EKS, RDS, ALB) |
+| `teardown.yml` | Destroy platform, preserve foundation |
+
+Service URLs:
+
+- Frontend: https://ridesharing.portfolio.andresbrocco.com (always available)
+- API: https://api.ridesharing.portfolio.andresbrocco.com (when platform running)
+- Grafana: https://api.ridesharing.portfolio.andresbrocco.com/grafana/
+- Airflow: https://api.ridesharing.portfolio.andresbrocco.com/airflow/
 
 ### Resource Limits (Docker)
 | Service | Memory Limit | CPU Limit |

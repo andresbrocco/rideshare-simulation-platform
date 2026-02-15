@@ -1,0 +1,67 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rideshare-ingress
+  namespace: rideshare-prod
+  annotations:
+    # AWS Load Balancer Controller annotations
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/certificate-arn: <acm-cert-arn>
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "30"
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "5"
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
+  labels:
+    app: rideshare-platform
+spec:
+  rules:
+    - host: api.ridesharing.portfolio.andresbrocco.com
+      http:
+        paths:
+          # Simulation API and WebSocket
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: simulation
+                port:
+                  number: 8000
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: simulation
+                port:
+                  number: 8000
+
+          # Grafana dashboards
+          - path: /grafana
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 3000
+
+          # Airflow UI
+          - path: /airflow
+            pathType: Prefix
+            backend:
+              service:
+                name: airflow-webserver
+                port:
+                  number: 8080
+
+          # Trino query interface
+          - path: /trino
+            pathType: Prefix
+            backend:
+              service:
+                name: trino
+                port:
+                  number: 8080

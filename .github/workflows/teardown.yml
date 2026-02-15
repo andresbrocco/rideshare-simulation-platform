@@ -1,0 +1,133 @@
+name: Teardown Platform from AWS
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "teardown" to confirm platform destruction'
+        required: true
+        default: ''
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  teardown-platform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Validate confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "teardown" ]; then
+            echo "Error: Confirmation failed. You must type 'teardown' to proceed."
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.3
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rideshare-github-actions
+          aws-region: us-east-1
+
+      - name: Terraform Init (Platform)
+        working-directory: infrastructure/terraform/platform
+        run: terraform init
+
+      - name: Terraform Destroy (Platform)
+        working-directory: infrastructure/terraform/platform
+        run: terraform destroy -auto-approve
+
+      - name: Verify Route 53 api.* Record Removed
+        run: |
+          ZONE_ID=$(aws route53 list-hosted-zones-by-name \
+            --dns-name ridesharing.portfolio.andresbrocco.com \
+            --query 'HostedZones[0].Id' \
+            --output text | sed 's|/hostedzone/||')
+
+          if [ -z "$ZONE_ID" ]; then
+            echo "Warning: Hosted zone not found"
+            exit 0
+          fi
+
+          API_RECORD=$(aws route53 list-resource-record-sets \
+            --hosted-zone-id "$ZONE_ID" \
+            --query "ResourceRecordSets[?Name=='api.ridesharing.portfolio.andresbrocco.com.']" \
+            --output json)
+
+          if [ "$API_RECORD" = "[]" ]; then
+            echo "Verified: api.* Route 53 record removed"
+          else
+            echo "Warning: api.* Route 53 record still exists (may take time to propagate)"
+          fi
+
+      - name: Verify Foundation Resources Preserved
+        run: |
+          echo "Verifying foundation resources are intact..."
+
+          echo "Checking S3 buckets..."
+          aws s3 ls | grep rideshare-bronze && echo "Bronze bucket preserved" || echo "Bronze bucket missing"
+          aws s3 ls | grep rideshare-silver && echo "Silver bucket preserved" || echo "Silver bucket missing"
+          aws s3 ls | grep rideshare-gold && echo "Gold bucket preserved" || echo "Gold bucket missing"
+          aws s3 ls | grep rideshare-checkpoints && echo "Checkpoints bucket preserved" || echo "Checkpoints bucket missing"
+          aws s3 ls | grep rideshare-frontend && echo "Frontend bucket preserved" || echo "Frontend bucket missing"
+
+          echo "Checking ECR repositories..."
+          ECR_COUNT=$(aws ecr describe-repositories \
+            --query 'repositories[?contains(repositoryName, `rideshare`)].repositoryName' \
+            --output json | jq '. | length')
+          echo "$ECR_COUNT ECR repositories preserved"
+
+          echo "Checking Secrets Manager..."
+          SECRET_COUNT=$(aws secretsmanager list-secrets \
+            --query 'SecretList[?contains(Name, `rideshare`)].Name' \
+            --output json | jq '. | length')
+          echo "$SECRET_COUNT secrets preserved"
+
+          echo "Checking CloudFront..."
+          DISTRIBUTION=$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?Comment=='Frontend SPA distribution'].Id" \
+            --output text)
+          if [ -n "$DISTRIBUTION" ]; then
+            echo "CloudFront distribution preserved (ID: $DISTRIBUTION)"
+          else
+            echo "CloudFront distribution not found"
+          fi
+
+      - name: Teardown Summary
+        run: |
+          echo "================================"
+          echo "Platform Teardown Complete"
+          echo "================================"
+          echo ""
+          echo "DESTROYED:"
+          echo "  - EKS Cluster (rideshare-prod)"
+          echo "  - EC2 Instances (3x t3.xlarge worker nodes)"
+          echo "  - RDS PostgreSQL (t4g.micro)"
+          echo "  - ALB (Application Load Balancer)"
+          echo "  - EBS Volumes (Kafka, Prometheus data)"
+          echo "  - Route 53 api.* record"
+          echo ""
+          echo "PRESERVED:"
+          echo "  - S3 Buckets (lakehouse data, checkpoints, frontend)"
+          echo "  - ECR Images (all service images)"
+          echo "  - Secrets Manager (all credentials)"
+          echo "  - Route 53 Hosted Zone"
+          echo "  - CloudFront Distribution"
+          echo "  - ACM Certificate"
+          echo ""
+          echo "Frontend remains accessible at:"
+          echo "  https://ridesharing.portfolio.andresbrocco.com"
+          echo "  (Offline mode - API unavailable)"
+          echo ""
+          echo "Cost reduced to foundation-only: ~$8/month"
+          echo "================================"

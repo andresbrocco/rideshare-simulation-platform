@@ -1,0 +1,102 @@
+framework:
+  - terraform
+  - kubernetes
+compact: true
+quiet: true
+download-external-modules: false
+skip-path:
+  - infrastructure/kubernetes/argocd/install.yaml
+skip-check:
+  # --- Portfolio concessions: AWS cost/complexity trade-offs ---
+  # These checks enforce enterprise-grade security posture (KMS CMKs,
+  # WAF, cross-region replication, etc.) that add significant cost and
+  # complexity beyond the scope of a portfolio demo project.
+
+  # DynamoDB
+  - CKV_AWS_28    # DynamoDB PITR — bootstrap lock table only
+  - CKV_AWS_119   # DynamoDB KMS CMK encryption
+
+  # CloudFront
+  - CKV_AWS_86    # CloudFront access logging
+  - CKV_AWS_68    # CloudFront WAF
+  - CKV_AWS_310   # CloudFront origin failover — single S3 origin
+  - CKV_AWS_374   # CloudFront geo restriction — demo, global access
+
+  # ECR
+  - CKV_AWS_136   # ECR KMS encryption — default AES-256 sufficient
+  - CKV_AWS_51    # ECR immutable tags — dev workflow needs mutable
+
+  # S3
+  - CKV_AWS_144   # S3 cross-region replication
+  - CKV_AWS_145   # S3 KMS CMK encryption — default AES-256 sufficient
+  - CKV_AWS_18    # S3 access logging
+  - CKV2_AWS_61   # S3 lifecycle configuration
+  - CKV2_AWS_62   # S3 event notifications
+
+  # EKS
+  - CKV_AWS_37    # EKS control plane logging — cost
+  - CKV_AWS_38    # EKS secrets encryption with KMS
+  - CKV_AWS_39    # EKS public endpoint CIDR restriction
+  - CKV_AWS_58    # EKS public endpoint — needed for demo access
+
+  # VPC / Security Groups
+  - CKV_AWS_130   # VPC default SG restrict all traffic
+  - CKV2_AWS_11   # VPC flow logging enabled
+  - CKV2_AWS_12   # Default SG restrict all traffic
+  - CKV_AWS_260   # SG no ingress from 0.0.0.0 — demo ALB needs it
+  - CKV2_AWS_5    # SG attached to ENI
+
+  # RDS
+  - CKV_AWS_118   # RDS enhanced monitoring
+  - CKV_AWS_129   # RDS multi-AZ — cost for portfolio
+  - CKV_AWS_149   # RDS multi-AZ (related)
+  - CKV_AWS_157   # RDS IAM authentication
+  - CKV_AWS_161   # RDS IAM authentication (related)
+  - CKV_AWS_226   # RDS auto minor version upgrade
+  - CKV_AWS_353   # RDS performance insights KMS
+  - CKV_AWS_354   # RDS performance insights enabled
+  - CKV_AWS_355   # RDS performance insights retention
+  - CKV2_AWS_30   # RDS instance attached to backup plan
+  - CKV2_AWS_60   # RDS monitoring role
+  - CKV2_AWS_71   # RDS enhanced monitoring interval
+
+  # IAM
+  - CKV_AWS_290   # IAM policy resource wildcard — CI role needs it
+  - CKV_AWS_293   # IAM policy wildcard actions — CI role needs it
+  - CKV_AWS_300   # IAM role trust policy conditions
+  - CKV_AWS_382   # IAM principal conditions
+  - CKV2_AWS_23   # Route53 hosted zone query logging
+  - CKV2_AWS_32   # Secrets Manager auto-rotation
+  - CKV2_AWS_38   # IAM policy condition keys
+  - CKV2_AWS_39   # IAM policy version
+  - CKV2_AWS_47   # IAM customer-managed policy for admin
+  - CKV2_AWS_57   # Secrets Manager lifecycle
+
+  # --- Portfolio concessions: Kubernetes hardening ---
+  # These checks enforce pod-level hardening (read-only root FS,
+  # security contexts, resource limits, etc.) that would require
+  # changes to every container image. Acceptable for a demo cluster.
+
+  - CKV_K8S_8     # Liveness probe
+  - CKV_K8S_9     # Readiness probe
+  - CKV_K8S_10    # CPU requests
+  - CKV_K8S_11    # CPU limits
+  - CKV_K8S_12    # Memory requests
+  - CKV_K8S_13    # Memory limits
+  - CKV_K8S_14    # Image tag not :latest
+  - CKV_K8S_15    # Image pull policy Always
+  - CKV_K8S_16    # Privileged container
+  - CKV_K8S_20    # Run as non-root
+  - CKV_K8S_21    # Default namespace
+  - CKV_K8S_22    # Read-only root filesystem
+  - CKV_K8S_23    # Admission of root containers
+  - CKV_K8S_28    # Capabilities drop ALL
+  - CKV_K8S_29    # Apply security context to pod
+  - CKV_K8S_30    # Apply security context to container
+  - CKV_K8S_31    # Seccomp profile
+  - CKV_K8S_35    # Prefer using secrets as files
+  - CKV_K8S_37    # Capabilities below allowed set
+  - CKV_K8S_38    # Service account tokens auto-mount
+  - CKV_K8S_40    # Non-root containers
+  - CKV_K8S_43    # Image digest
+  - CKV2_K8S_6    # NetworkPolicy for all pods

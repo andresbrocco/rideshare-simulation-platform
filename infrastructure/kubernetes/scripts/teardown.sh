@@ -1,8 +1,6 @@
 #!/bin/bash
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 CLUSTER_NAME="${CLUSTER_NAME:-rideshare-local}"
 PRESERVE_DATA=false
 BACKUP_DIR="${BACKUP_DIR:-/tmp}"
@@ -45,7 +43,7 @@ if [ "$PRESERVE_DATA" = true ]; then
 
   # Create backup directory
   TEMP_BACKUP_DIR=$(mktemp -d)
-  trap "rm -rf $TEMP_BACKUP_DIR" EXIT
+  trap 'rm -rf $TEMP_BACKUP_DIR' EXIT
 
   echo "Exporting PVC data..."
 

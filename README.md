@@ -307,6 +307,24 @@ rideshare-simulation-platform/
 | **monitoring** | prometheus, cadvisor, grafana, otel-collector, loki, tempo | Observability stack |
 | **spark-testing** | spark-thrift-server, openldap | DBT dual-engine validation (optional) |
 
+## Cloud Deployment
+
+The platform can be deployed to AWS for public demos. The deployment is split into two layers:
+
+- **Foundation** (always-on, ~$7.50/mo): CloudFront CDN, S3 storage, Route 53 DNS, ECR container registry, Secrets Manager, IAM roles
+- **Platform** (on-demand, ~$0.65/hr): EKS cluster, RDS PostgreSQL, Application Load Balancer
+
+The React frontend is always accessible at `https://ridesharing.portfolio.andresbrocco.com`. When the platform is running, the full backend API is available at `https://api.ridesharing.portfolio.andresbrocco.com`.
+
+See the complete deployment runbook: [docs/CLOUD-DEPLOYMENT.md](docs/CLOUD-DEPLOYMENT.md)
+
+**Quick start:**
+
+1. Deploy foundation: `terraform apply` in `infrastructure/terraform/foundation`
+2. Delegate DNS: Add Route 53 NS records to domain registrar
+3. Deploy platform: GitHub Actions -> "Deploy Platform to AWS"
+4. Teardown when done: GitHub Actions -> "Teardown Platform from AWS"
+
 ## Data Architecture
 
 ### Kafka Topics

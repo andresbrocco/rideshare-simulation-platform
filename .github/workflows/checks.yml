@@ -27,6 +27,18 @@ jobs:
           cache: 'npm'
           cache-dependency-path: services/frontend/package-lock.json
 
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.14.3'
+          terraform_wrapper: false
+
+      - name: Install TFLint
+        uses: terraform-linters/setup-tflint@v4
+
+      - name: Init TFLint plugins
+        run: tflint --init --config .tflint.hcl
+
       - name: Install pre-commit
         run: pip install pre-commit
 

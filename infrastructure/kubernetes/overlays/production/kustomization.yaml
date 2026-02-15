@@ -2,19 +2,232 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 # Production overlay for AWS EKS
-# Production-grade resource limits, high availability, monitoring
+# Uses real AWS services (S3, RDS, Secrets Manager, ALB) instead of local alternatives
 
 resources:
-  - ../../base/core
-  - ../../base/data-pipeline
+  # Core Services
+  - ../../manifests/kafka.yaml
+  - ../../manifests/schema-registry.yaml
+  - ../../manifests/redis.yaml
+  - ../../manifests/osrm.yaml
+  - ../../manifests/simulation.yaml
+  - ../../manifests/stream-processor.yaml
+
+  # Data Pipeline
+  - ../../manifests/bronze-ingestion.yaml
+  - ../../manifests/bronze-init.yaml
+  - ../../manifests/hive-metastore.yaml
+  - ../../manifests/trino.yaml
+  - ../../manifests/airflow-webserver.yaml
+  - ../../manifests/airflow-scheduler.yaml
+
+  # Monitoring
+  - ../../manifests/prometheus.yaml
+  - ../../manifests/grafana.yaml
+  - ../../manifests/loki.yaml
+  - ../../manifests/tempo.yaml
+  - ../../manifests/otel-collector.yaml
+
+  # External Secrets (syncs from AWS Secrets Manager)
+  - ../../manifests/external-secrets-namespace.yaml
+  - secretstore-aws-patch.yaml  # replaces base localstack-secrets SecretStore
+  - ../../manifests/external-secrets-api-keys.yaml
+  - ../../manifests/external-secrets-app-credentials.yaml
+
+  # IRSA ServiceAccounts (pods assume IAM roles via projected tokens)
+  - serviceaccount-irsa-patches.yaml
+
+  # Storage (EBS gp3 replaces local-path provisioner)
+  - storageclass-ebs.yaml
+
+  # ConfigMaps (patched below)
+  - ../../manifests/configmap-core.yaml
+  - ../../manifests/configmap-data-pipeline.yaml
+
+  # ALB Ingress (replaces Gateway API)
+  - ingress-alb.yaml
 
 namespace: rideshare-prod
 
-# Overlays will be added in Phase 9 (AWS Infrastructure):
-# - Production resource limits
-# - EBS persistent volumes
-# - LoadBalancer services
-# - Production environment variables
-# - High availability (multiple replicas)
-# - Resource quotas
-# - Network policies
+images:
+  # Custom service images from ECR (replace <account-id> during deploy)
+  - name: rideshare-simulation
+    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/simulation
+    newTag: latest
+  - name: rideshare-stream-processor
+    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/stream-processor
+    newTag: latest
+  - name: rideshare-frontend
+    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/frontend
+    newTag: latest
+  - name: rideshare-bronze-ingestion
+    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/bronze-ingestion
+    newTag: latest
+  - name: rideshare-hive-metastore
+    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/hive-metastore
+    newTag: latest
+  - name: rideshare-osrm
+    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/osrm
+    newTag: latest
+  - name: otel/opentelemetry-collector-contrib
+    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/otel-collector
+    newTag: latest
+
+patches:
+  # ConfigMap patches for production environment
+  - path: configmap-core-patch.yaml
+    target:
+      kind: ConfigMap
+      name: core-config
+
+  - path: configmap-data-pipeline-patch.yaml
+    target:
+      kind: ConfigMap
+      name: data-pipeline-config
+
+  # Bind Deployments to their IRSA ServiceAccounts
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: placeholder
+      spec:
+        template:
+          spec:
+            serviceAccountName: simulation
+    target:
+      kind: Deployment
+      name: simulation
+
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: placeholder
+      spec:
+        template:
+          spec:
+            serviceAccountName: bronze-ingestion
+    target:
+      kind: Deployment
+      name: bronze-ingestion
+
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: placeholder
+      spec:
+        template:
+          spec:
+            serviceAccountName: airflow-scheduler
+    target:
+      kind: Deployment
+      name: airflow-scheduler
+
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: placeholder
+      spec:
+        template:
+          spec:
+            serviceAccountName: trino
+    target:
+      kind: Deployment
+      name: trino
+
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: placeholder
+      spec:
+        template:
+          spec:
+            serviceAccountName: hive-metastore
+    target:
+      kind: Deployment
+      name: hive-metastore
+
+  # Point ExternalSecrets to production SecretStore
+  - patch: |-
+      apiVersion: external-secrets.io/v1beta1
+      kind: ExternalSecret
+      metadata:
+        name: placeholder
+      spec:
+        secretStoreRef:
+          name: aws-secrets-manager
+    target:
+      kind: ExternalSecret
+
+  # Core service manifests - Tickets 022-023
+
+  # Kafka: EBS-backed PVC replaces emptyDir for data persistence
+  - path: kafka-patch.yaml
+    target:
+      kind: StatefulSet
+      name: kafka
+
+  # Hive Metastore: RDS endpoint, remove MinIO initContainer and credentials
+  - path: hive-metastore-patch.yaml
+    target:
+      kind: Deployment
+      name: hive-metastore
+
+  # Hive site config: AWS S3 via IRSA instead of MinIO endpoint and credentials
+  - path: hive-site-config-patch.yaml
+    target:
+      kind: ConfigMap
+      name: hive-site-config
+
+  # Trino catalog: Remove MinIO S3 endpoint and static credentials
+  - path: trino-catalog-patch.yaml
+    target:
+      kind: ConfigMap
+      name: trino-config
+
+  # Trino deployment: Remove MinIO initContainer and credential references
+  - path: trino-patch.yaml
+    target:
+      kind: Deployment
+      name: trino
+
+  # Pipeline and monitoring manifests - Ticket 023
+
+  # Airflow: RDS connection, subpath serving, remove MinIO endpoint
+  - path: airflow-webserver-patch.yaml
+    target:
+      kind: Deployment
+      name: airflow-webserver
+
+  - path: airflow-scheduler-patch.yaml
+    target:
+      kind: Deployment
+      name: airflow-scheduler
+
+  # Bronze Ingestion: Remove MinIO dependencies, use IRSA for S3
+  - path: bronze-ingestion-patch.yaml
+    target:
+      kind: Deployment
+      name: bronze-ingestion
+
+  # Simulation: Production domain, S3 checkpoints, deployment env
+  - path: simulation-patch.yaml
+    target:
+      kind: Deployment
+      name: simulation
+
+  # Grafana: Subpath serving under /grafana, disable anonymous access
+  - path: grafana-patch.yaml
+    target:
+      kind: Deployment
+      name: grafana
+
+  # Prometheus: Kubernetes SD, kube-state-metrics, annotation-based pod discovery
+  - path: prometheus-config-patch.yaml
+    target:
+      kind: ConfigMap
+      name: prometheus-config

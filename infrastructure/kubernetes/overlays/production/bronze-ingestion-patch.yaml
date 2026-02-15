@@ -1,0 +1,37 @@
+# Production patch: Remove MinIO dependencies from Bronze Ingestion
+# - Removes wait-for-minio initContainer (no MinIO in production)
+# - Removes S3_ENDPOINT env var (use default AWS S3 endpoint)
+# - Removes AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY (IRSA handles S3 access)
+# - Sets AWS_REGION for S3 access via IRSA
+# - Confirms BRONZE_BUCKET for explicit clarity
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bronze-ingestion
+spec:
+  template:
+    spec:
+      initContainers:
+        - name: wait-for-minio
+          $patch: delete
+
+      containers:
+        - name: bronze-ingestion
+          env:
+            # Remove S3_ENDPOINT (use default AWS S3)
+            - name: S3_ENDPOINT
+              $patch: delete
+
+            # Remove MinIO credentials (IRSA handles S3 access)
+            - name: AWS_ACCESS_KEY_ID
+              $patch: delete
+            - name: AWS_SECRET_ACCESS_KEY
+              $patch: delete
+
+            # Ensure AWS region is set for IRSA-based S3 access
+            - name: AWS_REGION
+              value: "us-east-1"
+
+            # Bronze bucket (explicit for production clarity)
+            - name: BRONZE_BUCKET
+              value: "rideshare-bronze"

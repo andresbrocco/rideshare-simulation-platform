@@ -1,0 +1,34 @@
+# Production patch: Point Airflow Scheduler to RDS and remove MinIO dependency
+# - Overrides SQL_ALCHEMY_CONN to use RDS endpoint instead of local airflow-postgres
+# - Removes AWS_ENDPOINT_URL (was for MinIO; production uses real AWS S3)
+# - Sets AWS_REGION for S3 access via IRSA
+# - Adds envFrom for ESO-synced RDS credentials
+#
+# Replace <rds-endpoint> with Terraform output during deploy:
+#   terraform -chdir=infrastructure/terraform/platform output -raw rds_endpoint
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airflow-scheduler
+spec:
+  template:
+    spec:
+      containers:
+        - name: airflow-scheduler
+          env:
+            # RDS connection for Airflow metadata database
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+              value: "postgresql+psycopg2://airflow:$(AIRFLOW_DB_PASSWORD)@<rds-endpoint>:5432/airflow"
+
+            # Remove MinIO endpoint override (use real AWS S3)
+            - name: AWS_ENDPOINT_URL
+              $patch: delete
+
+            # Ensure AWS region is set for IRSA-based S3 access
+            - name: AWS_REGION
+              value: "us-east-1"
+
+          envFrom:
+            # Reference ESO-synced secret for DB password
+            - secretRef:
+                name: postgres-airflow-credentials

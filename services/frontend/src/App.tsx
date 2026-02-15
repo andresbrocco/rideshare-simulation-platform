@@ -6,6 +6,8 @@ import ControlPanel from './components/ControlPanel';
 import LayerControls from './components/LayerControls';
 import InspectorPopup, { type InspectedEntity } from './components/InspectorPopup';
 import AgentPlacement from './components/AgentPlacement';
+import { OfflineMode } from './components/OfflineMode';
+import { useApiHealth } from './hooks/useApiHealth';
 import { useSimulationState } from './hooks/useSimulationState';
 import { useSimulationLayers } from './hooks/useSimulationLayers';
 import { useSimulationControl } from './hooks/useSimulationControl';
@@ -21,6 +23,26 @@ import type { PlacementMode } from './constants/dnaPresets';
 import './App.css';
 
 function AppContent() {
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  const { available, checking } = useApiHealth(apiUrl);
+
+  if (checking) {
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner" />
+        <p>Checking API availability...</p>
+      </div>
+    );
+  }
+
+  if (!available) {
+    return <OfflineMode />;
+  }
+
+  return <OnlineApp />;
+}
+
+function OnlineApp() {
   const [apiKey, setApiKey] = useState<string | null>(() => {
     return sessionStorage.getItem('apiKey');
   });
