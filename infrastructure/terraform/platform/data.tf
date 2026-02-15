@@ -8,7 +8,3 @@ data "terraform_remote_state" "foundation" {
     region = "us-east-1"
   }
 }
-
-# Current AWS account and region
-data "aws_caller_identity" "current" {}
-data "aws_region" "current" {}

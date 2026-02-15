@@ -5,7 +5,6 @@ module "eks" {
   project_name    = var.project_name
   cluster_version = var.cluster_version
 
-  vpc_id          = data.terraform_remote_state.foundation.outputs.vpc_id
   subnet_ids      = data.terraform_remote_state.foundation.outputs.public_subnet_ids
   eks_nodes_sg_id = data.terraform_remote_state.foundation.outputs.eks_nodes_sg_id
 
@@ -34,18 +33,13 @@ module "rds" {
 module "alb" {
   source = "./modules/alb"
 
-  cluster_name     = module.eks.cluster_name
-  cluster_endpoint = module.eks.cluster_endpoint
-  cluster_ca_data  = module.eks.cluster_certificate_authority_data
-
+  cluster_name      = module.eks.cluster_name
   oidc_provider_arn = module.eks.oidc_provider_arn
-  vpc_id            = data.terraform_remote_state.foundation.outputs.vpc_id
 }
 
 # DNS Module
 module "dns" {
   source = "./modules/dns"
 
-  route53_zone_id = data.terraform_remote_state.foundation.outputs.route53_zone_id
-  domain_name     = var.domain_name
+  domain_name = var.domain_name
 }

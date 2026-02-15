@@ -85,7 +85,7 @@ echo "Setting up port-forward to ArgoCD UI..."
 # Kill any existing port-forward on test port
 if lsof -Pi :${TEST_PORT} -sTCP:LISTEN -t >/dev/null 2>&1; then
     echo "  Port ${TEST_PORT} is in use, killing existing process..."
-    kill $(lsof -Pi :${TEST_PORT} -sTCP:LISTEN -t) 2>/dev/null || true
+    kill "$(lsof -Pi ":${TEST_PORT}" -sTCP:LISTEN -t)" 2>/dev/null || true
     sleep 2
 fi
 

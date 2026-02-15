@@ -10,11 +10,6 @@ variable "cluster_version" {
   default     = "1.31"
 }
 
-variable "vpc_id" {
-  description = "VPC ID from foundation"
-  type        = string
-}
-
 variable "subnet_ids" {
   description = "Subnet IDs for EKS cluster and nodes"
   type        = list(string)
