@@ -4,3436 +4,3496 @@
  */
 
 export interface paths {
-  '/simulation/start': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/simulation/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Simulation
+         * @description Start the simulation.
+         */
+        post: operations["start_simulation_simulation_start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Start Simulation
-     * @description Start the simulation.
-     */
-    post: operations['start_simulation_simulation_start_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/simulation/pause': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/simulation/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pause Simulation
+         * @description Initiate two-phase pause (draining then paused).
+         */
+        post: operations["pause_simulation_simulation_pause_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Pause Simulation
-     * @description Initiate two-phase pause (draining then paused).
-     */
-    post: operations['pause_simulation_simulation_pause_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/simulation/resume': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/simulation/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resume Simulation
+         * @description Resume from paused state.
+         */
+        post: operations["resume_simulation_simulation_resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Resume Simulation
-     * @description Resume from paused state.
-     */
-    post: operations['resume_simulation_simulation_resume_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/simulation/stop': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/simulation/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop Simulation
+         * @description Stop the simulation.
+         */
+        post: operations["stop_simulation_simulation_stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Stop Simulation
-     * @description Stop the simulation.
-     */
-    post: operations['stop_simulation_simulation_stop_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/simulation/reset': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/simulation/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Simulation
+         * @description Reset simulation to initial state, clearing all data.
+         */
+        post: operations["reset_simulation_simulation_reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Reset Simulation
-     * @description Reset simulation to initial state, clearing all data.
-     */
-    post: operations['reset_simulation_simulation_reset_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/simulation/speed': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/simulation/speed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change Speed
+         * @description Change simulation speed multiplier (any positive integer).
+         */
+        put: operations["change_speed_simulation_speed_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    /**
-     * Change Speed
-     * @description Change simulation speed multiplier (any positive integer).
-     */
-    put: operations['change_speed_simulation_speed_put'];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/simulation/status': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/simulation/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Status
+         * @description Get current simulation status with detailed agent counts.
+         */
+        get: operations["get_status_simulation_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Get Status
-     * @description Get current simulation status with detailed agent counts.
-     */
-    get: operations['get_status_simulation_status_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/drivers': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/drivers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Drivers
+         * @description Queue driver agents for continuous spawning.
+         *
+         *     Drivers are spawned at a continuous rate (default: 2/sec) to prevent
+         *     synchronized GPS ping bursts. Use GET /agents/spawn-status to monitor progress.
+         *
+         *     Query Parameters:
+         *         mode: immediate (default) - drivers go online immediately
+         *               scheduled - drivers follow their DNA shift_preference schedule
+         */
+        post: operations["create_drivers_agents_drivers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Create Drivers
-     * @description Queue driver agents for continuous spawning.
-     *
-     *     Drivers are spawned at a continuous rate (default: 2/sec) to prevent
-     *     synchronized GPS ping bursts. Use GET /agents/spawn-status to monitor progress.
-     *
-     *     Query Parameters:
-     *         mode: immediate (default) - drivers go online immediately
-     *               scheduled - drivers follow their DNA shift_preference schedule
-     */
-    post: operations['create_drivers_agents_drivers_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/riders': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/riders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Riders
+         * @description Queue rider agents for continuous spawning.
+         *
+         *     Riders are spawned at a continuous rate (default: 40/sec) to prevent
+         *     synchronized GPS ping bursts. Use GET /agents/spawn-status to monitor progress.
+         *
+         *     Query Parameters:
+         *         mode: immediate - riders request a trip immediately after spawning
+         *               scheduled (default) - riders follow their DNA avg_rides_per_week schedule
+         */
+        post: operations["create_riders_agents_riders_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Create Riders
-     * @description Queue rider agents for continuous spawning.
-     *
-     *     Riders are spawned at a continuous rate (default: 40/sec) to prevent
-     *     synchronized GPS ping bursts. Use GET /agents/spawn-status to monitor progress.
-     *
-     *     Query Parameters:
-     *         mode: immediate - riders request a trip immediately after spawning
-     *               scheduled (default) - riders follow their DNA avg_rides_per_week schedule
-     */
-    post: operations['create_riders_agents_riders_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/spawn-status': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/spawn-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Spawn Status
+         * @description Get current spawn queue status.
+         *
+         *     Returns the number of drivers and riders waiting to be spawned.
+         */
+        get: operations["get_spawn_status_agents_spawn_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Get Spawn Status
-     * @description Get current spawn queue status.
-     *
-     *     Returns the number of drivers and riders waiting to be spawned.
-     */
-    get: operations['get_spawn_status_agents_spawn_status_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/drivers/{driver_id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/drivers/{driver_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Driver State
+         * @description Get full state and DNA for a driver.
+         *
+         *     Returns the driver's current state (status, location, rating),
+         *     active trip info if any, and complete DNA parameters.
+         */
+        get: operations["get_driver_state_agents_drivers__driver_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Get Driver State
-     * @description Get full state and DNA for a driver.
-     *
-     *     Returns the driver's current state (status, location, rating),
-     *     active trip info if any, and complete DNA parameters.
-     */
-    get: operations['get_driver_state_agents_drivers__driver_id__get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/riders/{rider_id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/riders/{rider_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Rider State
+         * @description Get full state and DNA for a rider.
+         *
+         *     Returns the rider's current state (status, location, rating),
+         *     active trip info if any, and complete DNA parameters.
+         */
+        get: operations["get_rider_state_agents_riders__rider_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Get Rider State
-     * @description Get full state and DNA for a rider.
-     *
-     *     Returns the rider's current state (status, location, rating),
-     *     active trip info if any, and complete DNA parameters.
-     */
-    get: operations['get_rider_state_agents_riders__rider_id__get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/drivers/{driver_id}/status': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/drivers/{driver_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Toggle Driver Status
+         * @description Toggle driver online/offline status.
+         *
+         *     Can only toggle when driver has no active trip.
+         */
+        put: operations["toggle_driver_status_agents_drivers__driver_id__status_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    /**
-     * Toggle Driver Status
-     * @description Toggle driver online/offline status.
-     *
-     *     Can only toggle when driver has no active trip.
-     */
-    put: operations['toggle_driver_status_agents_drivers__driver_id__status_put'];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/riders/{rider_id}/request-trip': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/riders/{rider_id}/request-trip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Rider Trip
+         * @description Request a trip for a rider with specified destination.
+         *
+         *     The rider must be in 'offline' status to request a trip.
+         */
+        post: operations["request_rider_trip_agents_riders__rider_id__request_trip_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Request Rider Trip
-     * @description Request a trip for a rider with specified destination.
-     *
-     *     The rider must be in 'offline' status to request a trip.
-     */
-    post: operations['request_rider_trip_agents_riders__rider_id__request_trip_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/puppet/drivers': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/puppet/drivers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Puppet Driver
+         * @description Create a puppet driver at the specified location.
+         *
+         *     Puppet drivers:
+         *     - Start in 'offline' status
+         *     - Emit GPS pings but take no autonomous actions
+         *     - All state transitions triggered via API
+         *     - Support optional DNA overrides for testing specific behaviors
+         */
+        post: operations["create_puppet_driver_agents_puppet_drivers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Create Puppet Driver
-     * @description Create a puppet driver at the specified location.
-     *
-     *     Puppet drivers:
-     *     - Start in 'offline' status
-     *     - Emit GPS pings but take no autonomous actions
-     *     - All state transitions triggered via API
-     *     - Support optional DNA overrides for testing specific behaviors
-     */
-    post: operations['create_puppet_driver_agents_puppet_drivers_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/puppet/riders': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/puppet/riders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Puppet Rider
+         * @description Create a puppet rider at the specified location.
+         *
+         *     Puppet riders:
+         *     - Start in 'offline' status
+         *     - Emit GPS pings but take no autonomous actions
+         *     - All state transitions triggered via API
+         *     - Support optional DNA overrides for testing specific behaviors
+         */
+        post: operations["create_puppet_rider_agents_puppet_riders_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Create Puppet Rider
-     * @description Create a puppet rider at the specified location.
-     *
-     *     Puppet riders:
-     *     - Start in 'offline' status
-     *     - Emit GPS pings but take no autonomous actions
-     *     - All state transitions triggered via API
-     *     - Support optional DNA overrides for testing specific behaviors
-     */
-    post: operations['create_puppet_rider_agents_puppet_riders_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/puppet/drivers/{driver_id}/go-online': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/puppet/drivers/{driver_id}/go-online": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Puppet Driver Go Online
+         * @description Set puppet driver status to online.
+         *
+         *     Valid from: offline
+         */
+        put: operations["puppet_driver_go_online_agents_puppet_drivers__driver_id__go_online_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    /**
-     * Puppet Driver Go Online
-     * @description Set puppet driver status to online.
-     *
-     *     Valid from: offline
-     */
-    put: operations['puppet_driver_go_online_agents_puppet_drivers__driver_id__go_online_put'];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/puppet/drivers/{driver_id}/go-offline': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/puppet/drivers/{driver_id}/go-offline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Puppet Driver Go Offline
+         * @description Set puppet driver status to offline.
+         *
+         *     Valid from: online (with no active trip)
+         */
+        put: operations["puppet_driver_go_offline_agents_puppet_drivers__driver_id__go_offline_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    /**
-     * Puppet Driver Go Offline
-     * @description Set puppet driver status to offline.
-     *
-     *     Valid from: online (with no active trip)
-     */
-    put: operations['puppet_driver_go_offline_agents_puppet_drivers__driver_id__go_offline_put'];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/puppet/drivers/{driver_id}/accept-offer': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/puppet/drivers/{driver_id}/accept-offer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Puppet Driver Accept Offer
+         * @description Accept the pending trip offer for this driver.
+         *
+         *     Valid from: online (with pending offer)
+         */
+        post: operations["puppet_driver_accept_offer_agents_puppet_drivers__driver_id__accept_offer_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Puppet Driver Accept Offer
-     * @description Accept the pending trip offer for this driver.
-     *
-     *     Valid from: online (with pending offer)
-     */
-    post: operations['puppet_driver_accept_offer_agents_puppet_drivers__driver_id__accept_offer_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/puppet/drivers/{driver_id}/reject-offer': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/puppet/drivers/{driver_id}/reject-offer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Puppet Driver Reject Offer
+         * @description Reject the pending trip offer for this driver.
+         *
+         *     Valid from: online (with pending offer)
+         */
+        post: operations["puppet_driver_reject_offer_agents_puppet_drivers__driver_id__reject_offer_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Puppet Driver Reject Offer
-     * @description Reject the pending trip offer for this driver.
-     *
-     *     Valid from: online (with pending offer)
-     */
-    post: operations['puppet_driver_reject_offer_agents_puppet_drivers__driver_id__reject_offer_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/puppet/drivers/{driver_id}/drive-to-pickup': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/puppet/drivers/{driver_id}/drive-to-pickup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Puppet Driver Drive To Pickup
+         * @description Start driving the puppet driver to the pickup location.
+         *
+         *     Prerequisites:
+         *     - Driver must have accepted an offer (status: en_route_pickup)
+         *     - Trip must be in DRIVER_EN_ROUTE state
+         *
+         *     This endpoint returns immediately. The driver will move along the
+         *     OSRM route in the background, emitting GPS updates at regular intervals.
+         *     Use the WebSocket or GET /agents/drivers/{id} to monitor progress.
+         */
+        post: operations["puppet_driver_drive_to_pickup_agents_puppet_drivers__driver_id__drive_to_pickup_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Puppet Driver Drive To Pickup
-     * @description Start driving the puppet driver to the pickup location.
-     *
-     *     Prerequisites:
-     *     - Driver must have accepted an offer (status: en_route_pickup)
-     *     - Trip must be in DRIVER_EN_ROUTE state
-     *
-     *     This endpoint returns immediately. The driver will move along the
-     *     OSRM route in the background, emitting GPS updates at regular intervals.
-     *     Use the WebSocket or GET /agents/drivers/{id} to monitor progress.
-     */
-    post: operations['puppet_driver_drive_to_pickup_agents_puppet_drivers__driver_id__drive_to_pickup_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/puppet/drivers/{driver_id}/drive-to-destination': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/puppet/drivers/{driver_id}/drive-to-destination": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Puppet Driver Drive To Destination
+         * @description Start driving the puppet driver to the destination.
+         *
+         *     Prerequisites:
+         *     - Driver must have started the trip (status: en_route_destination)
+         *     - Trip must be in STARTED state
+         *
+         *     This endpoint returns immediately. The driver will move along the
+         *     OSRM route in the background, emitting GPS updates at regular intervals.
+         *     Use the WebSocket or GET /agents/drivers/{id} to monitor progress.
+         */
+        post: operations["puppet_driver_drive_to_destination_agents_puppet_drivers__driver_id__drive_to_destination_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Puppet Driver Drive To Destination
-     * @description Start driving the puppet driver to the destination.
-     *
-     *     Prerequisites:
-     *     - Driver must have started the trip (status: en_route_destination)
-     *     - Trip must be in STARTED state
-     *
-     *     This endpoint returns immediately. The driver will move along the
-     *     OSRM route in the background, emitting GPS updates at regular intervals.
-     *     Use the WebSocket or GET /agents/drivers/{id} to monitor progress.
-     */
-    post: operations['puppet_driver_drive_to_destination_agents_puppet_drivers__driver_id__drive_to_destination_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/puppet/drivers/{driver_id}/arrive-pickup': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/puppet/drivers/{driver_id}/arrive-pickup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Puppet Driver Arrive Pickup
+         * @description Signal that driver has arrived at pickup location.
+         *
+         *     Valid from: en_route_pickup
+         */
+        post: operations["puppet_driver_arrive_pickup_agents_puppet_drivers__driver_id__arrive_pickup_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Puppet Driver Arrive Pickup
-     * @description Signal that driver has arrived at pickup location.
-     *
-     *     Valid from: en_route_pickup
-     */
-    post: operations['puppet_driver_arrive_pickup_agents_puppet_drivers__driver_id__arrive_pickup_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/puppet/drivers/{driver_id}/start-trip': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/puppet/drivers/{driver_id}/start-trip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Puppet Driver Start Trip
+         * @description Signal that rider has been picked up and trip is starting.
+         *
+         *     Valid from: en_route_pickup (after arrive-pickup)
+         */
+        post: operations["puppet_driver_start_trip_agents_puppet_drivers__driver_id__start_trip_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Puppet Driver Start Trip
-     * @description Signal that rider has been picked up and trip is starting.
-     *
-     *     Valid from: en_route_pickup (after arrive-pickup)
-     */
-    post: operations['puppet_driver_start_trip_agents_puppet_drivers__driver_id__start_trip_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/puppet/drivers/{driver_id}/complete-trip': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/puppet/drivers/{driver_id}/complete-trip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Puppet Driver Complete Trip
+         * @description Signal that trip has been completed at destination.
+         *
+         *     Valid from: en_route_destination (after start-trip)
+         */
+        post: operations["puppet_driver_complete_trip_agents_puppet_drivers__driver_id__complete_trip_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Puppet Driver Complete Trip
-     * @description Signal that trip has been completed at destination.
-     *
-     *     Valid from: en_route_destination (after start-trip)
-     */
-    post: operations['puppet_driver_complete_trip_agents_puppet_drivers__driver_id__complete_trip_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/puppet/drivers/{driver_id}/cancel-trip': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/puppet/drivers/{driver_id}/cancel-trip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Puppet Driver Cancel Trip
+         * @description Cancel the current trip (before pickup only).
+         *
+         *     Valid from: en_route_pickup
+         */
+        post: operations["puppet_driver_cancel_trip_agents_puppet_drivers__driver_id__cancel_trip_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Puppet Driver Cancel Trip
-     * @description Cancel the current trip (before pickup only).
-     *
-     *     Valid from: en_route_pickup
-     */
-    post: operations['puppet_driver_cancel_trip_agents_puppet_drivers__driver_id__cancel_trip_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/puppet/riders/{rider_id}/request-trip': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/puppet/riders/{rider_id}/request-trip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Puppet Rider Request Trip
+         * @description Request a trip for the puppet rider.
+         *
+         *     Valid from: offline
+         */
+        post: operations["puppet_rider_request_trip_agents_puppet_riders__rider_id__request_trip_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Puppet Rider Request Trip
-     * @description Request a trip for the puppet rider.
-     *
-     *     Valid from: offline
-     */
-    post: operations['puppet_rider_request_trip_agents_puppet_riders__rider_id__request_trip_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/puppet/riders/{rider_id}/cancel-trip': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/puppet/riders/{rider_id}/cancel-trip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Puppet Rider Cancel Trip
+         * @description Cancel the pending trip request.
+         *
+         *     Valid from: waiting
+         */
+        post: operations["puppet_rider_cancel_trip_agents_puppet_riders__rider_id__cancel_trip_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Puppet Rider Cancel Trip
-     * @description Cancel the pending trip request.
-     *
-     *     Valid from: waiting
-     */
-    post: operations['puppet_rider_cancel_trip_agents_puppet_riders__rider_id__cancel_trip_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/puppet/drivers/{driver_id}/rating': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/puppet/drivers/{driver_id}/rating": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Driver Rating
+         * @description Update a puppet driver's rating for testing.
+         *
+         *     Allows testing driver acceptance thresholds and rating-based matching.
+         */
+        put: operations["update_driver_rating_agents_puppet_drivers__driver_id__rating_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    /**
-     * Update Driver Rating
-     * @description Update a puppet driver's rating for testing.
-     *
-     *     Allows testing driver acceptance thresholds and rating-based matching.
-     */
-    put: operations['update_driver_rating_agents_puppet_drivers__driver_id__rating_put'];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/puppet/riders/{rider_id}/rating': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/puppet/riders/{rider_id}/rating": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Rider Rating
+         * @description Update a puppet rider's rating for testing.
+         *
+         *     Allows testing driver acceptance based on rider rating thresholds.
+         */
+        put: operations["update_rider_rating_agents_puppet_riders__rider_id__rating_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    /**
-     * Update Rider Rating
-     * @description Update a puppet rider's rating for testing.
-     *
-     *     Allows testing driver acceptance based on rider rating thresholds.
-     */
-    put: operations['update_rider_rating_agents_puppet_riders__rider_id__rating_put'];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/puppet/drivers/{driver_id}/location': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/puppet/drivers/{driver_id}/location": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Teleport Driver
+         * @description Teleport a puppet driver to a new location.
+         *
+         *     Useful for testing geospatial matching logic.
+         *     Constraint: Cannot teleport while in active trip.
+         */
+        put: operations["teleport_driver_agents_puppet_drivers__driver_id__location_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    /**
-     * Teleport Driver
-     * @description Teleport a puppet driver to a new location.
-     *
-     *     Useful for testing geospatial matching logic.
-     *     Constraint: Cannot teleport while in active trip.
-     */
-    put: operations['teleport_driver_agents_puppet_drivers__driver_id__location_put'];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/puppet/riders/{rider_id}/location': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/puppet/riders/{rider_id}/location": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Teleport Rider
+         * @description Teleport a puppet rider to a new location.
+         *
+         *     Useful for testing zone-based surge pricing and matching.
+         *     Constraint: Cannot teleport while in active trip.
+         */
+        put: operations["teleport_rider_agents_puppet_riders__rider_id__location_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    /**
-     * Teleport Rider
-     * @description Teleport a puppet rider to a new location.
-     *
-     *     Useful for testing zone-based surge pricing and matching.
-     *     Constraint: Cannot teleport while in active trip.
-     */
-    put: operations['teleport_rider_agents_puppet_riders__rider_id__location_put'];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/puppet/drivers/{driver_id}/force-offer-timeout': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/puppet/drivers/{driver_id}/force-offer-timeout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Force Driver Offer Timeout
+         * @description Force a pending offer to timeout.
+         *
+         *     Simulates offer expiry without waiting for actual timeout.
+         *     Valid from: online with pending offer
+         */
+        post: operations["force_driver_offer_timeout_agents_puppet_drivers__driver_id__force_offer_timeout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Force Driver Offer Timeout
-     * @description Force a pending offer to timeout.
-     *
-     *     Simulates offer expiry without waiting for actual timeout.
-     *     Valid from: online with pending offer
-     */
-    post: operations['force_driver_offer_timeout_agents_puppet_drivers__driver_id__force_offer_timeout_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/agents/puppet/riders/{rider_id}/force-patience-timeout': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agents/puppet/riders/{rider_id}/force-patience-timeout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Force Rider Patience Timeout
+         * @description Force the rider to timeout waiting.
+         *
+         *     Simulates patience expiry without waiting for actual timeout.
+         *     Valid from: waiting
+         */
+        post: operations["force_rider_patience_timeout_agents_puppet_riders__rider_id__force_patience_timeout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Force Rider Patience Timeout
-     * @description Force the rider to timeout waiting.
-     *
-     *     Simulates patience expiry without waiting for actual timeout.
-     *     Valid from: waiting
-     */
-    post: operations['force_rider_patience_timeout_agents_puppet_riders__rider_id__force_patience_timeout_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/metrics/overview': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/metrics/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Overview Metrics
+         * @description Returns overview metrics with total counts.
+         */
+        get: operations["get_overview_metrics_metrics_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Get Overview Metrics
-     * @description Returns overview metrics with total counts.
-     */
-    get: operations['get_overview_metrics_metrics_overview_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/metrics/zones': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/metrics/zones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Zone Metrics
+         * @description Returns per-zone metrics with supply, demand, and surge.
+         */
+        get: operations["get_zone_metrics_metrics_zones_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Get Zone Metrics
-     * @description Returns per-zone metrics with supply, demand, and surge.
-     */
-    get: operations['get_zone_metrics_metrics_zones_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/metrics/trips': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/metrics/trips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Trip Metrics
+         * @description Returns trip statistics including active, completed, and averages.
+         */
+        get: operations["get_trip_metrics_metrics_trips_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Get Trip Metrics
-     * @description Returns trip statistics including active, completed, and averages.
-     */
-    get: operations['get_trip_metrics_metrics_trips_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/metrics/drivers': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/metrics/drivers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Driver Metrics
+         * @description Returns driver status counts.
+         */
+        get: operations["get_driver_metrics_metrics_drivers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Get Driver Metrics
-     * @description Returns driver status counts.
-     */
-    get: operations['get_driver_metrics_metrics_drivers_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/metrics/riders': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/metrics/riders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Rider Metrics
+         * @description Returns rider status counts derived from trip states.
+         *
+         *     Rider states:
+         *     - offline: No active trip (includes matching phase - ephemeral states)
+         *     - to_pickup: Trip state in (DRIVER_EN_ROUTE, DRIVER_ARRIVED)
+         *     - in_transit: Trip state is STARTED
+         *
+         *     Note: Matching phase states (REQUESTED, OFFER_SENT, MATCHED, etc.) are
+         *     ephemeral and counted as offline since they transition too quickly to observe.
+         */
+        get: operations["get_rider_metrics_metrics_riders_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Get Rider Metrics
-     * @description Returns rider status counts derived from trip states.
-     *
-     *     Rider states:
-     *     - offline: No active trip (includes matching phase - ephemeral states)
-     *     - to_pickup: Trip state in (DRIVER_EN_ROUTE, DRIVER_ARRIVED)
-     *     - in_transit: Trip state is STARTED
-     *
-     *     Note: Matching phase states (REQUESTED, OFFER_SENT, MATCHED, etc.) are
-     *     ephemeral and counted as offline since they transition too quickly to observe.
-     */
-    get: operations['get_rider_metrics_metrics_riders_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/metrics/performance': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/metrics/performance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Performance Metrics
+         * @description Returns real-time performance metrics.
+         *
+         *     Includes:
+         *     - Event throughput (events per second by type)
+         *     - Latency statistics (OSRM, Kafka, Redis)
+         *     - Error statistics (OSRM, Kafka, Redis)
+         *     - Queue depths (pending offers, simpy events)
+         *     - Memory and CPU usage
+         *     - Stream processor metrics (optional)
+         */
+        get: operations["get_performance_metrics_metrics_performance_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Get Performance Metrics
-     * @description Returns real-time performance metrics.
-     *
-     *     Includes:
-     *     - Event throughput (events per second by type)
-     *     - Latency statistics (OSRM, Kafka, Redis)
-     *     - Error statistics (OSRM, Kafka, Redis)
-     *     - Queue depths (pending offers, simpy events)
-     *     - Memory and CPU usage
-     *     - Stream processor metrics (optional)
-     */
-    get: operations['get_performance_metrics_metrics_performance_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/metrics/infrastructure': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/metrics/infrastructure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Infrastructure Metrics
+         * @description Returns unified infrastructure metrics for all services.
+         *
+         *     Combines health check status with container resource metrics from cAdvisor.
+         *     Each service includes:
+         *     - Health status (healthy/degraded/unhealthy)
+         *     - Health check latency
+         *     - Memory usage and limit
+         *     - CPU usage percentage
+         */
+        get: operations["get_infrastructure_metrics_metrics_infrastructure_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Get Infrastructure Metrics
-     * @description Returns unified infrastructure metrics for all services.
-     *
-     *     Combines health check status with container resource metrics from cAdvisor.
-     *     Each service includes:
-     *     - Health status (healthy/degraded/unhealthy)
-     *     - Health check latency
-     *     - Memory usage and limit
-     *     - CPU usage percentage
-     */
-    get: operations['get_infrastructure_metrics_metrics_infrastructure_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/health': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Health Check
+         * @description Health check endpoint for monitoring (unauthenticated for infrastructure).
+         */
+        get: operations["health_check_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Health Check
-     * @description Health check endpoint for monitoring (unauthenticated for infrastructure).
-     */
-    get: operations['health_check_health_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/auth/validate': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/auth/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Validate Api Key Endpoint
+         * @description Validate API key for login.
+         *
+         *     This endpoint requires a valid API key and returns 200 if valid.
+         *     Used by the frontend login screen to validate credentials.
+         *     Returns 401 if the API key is invalid.
+         */
+        get: operations["validate_api_key_endpoint_auth_validate_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Validate Api Key Endpoint
-     * @description Validate API key for login.
-     *
-     *     This endpoint requires a valid API key and returns 200 if valid.
-     *     Used by the frontend login screen to validate credentials.
-     *     Returns 401 if the API key is invalid.
-     */
-    get: operations['validate_api_key_endpoint_auth_validate_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/health/detailed': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/health/detailed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Detailed Health Check
+         * @description Detailed health check for all services with latency metrics.
+         */
+        get: operations["detailed_health_check_health_detailed_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Detailed Health Check
-     * @description Detailed health check for all services with latency metrics.
-     */
-    get: operations['detailed_health_check_health_detailed_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-  schemas: {
-    /**
-     * ActiveTripInfo
-     * @description Summary of an active trip.
-     */
-    ActiveTripInfo: {
-      /** Trip Id */
-      trip_id: string;
-      /** State */
-      state: string;
-      /** Rider Id */
-      rider_id?: string | null;
-      /** Driver Id */
-      driver_id?: string | null;
-      /** Counterpart Name */
-      counterpart_name?: string | null;
-      /** Pickup Location */
-      pickup_location: [number, number];
-      /** Dropoff Location */
-      dropoff_location: [number, number];
-      /** Surge Multiplier */
-      surge_multiplier: number;
-      /** Fare */
-      fare: number;
+    schemas: {
+        /**
+         * ActiveTripInfo
+         * @description Summary of an active trip.
+         */
+        ActiveTripInfo: {
+            /** Trip Id */
+            trip_id: string;
+            /** State */
+            state: string;
+            /** Rider Id */
+            rider_id?: string | null;
+            /** Driver Id */
+            driver_id?: string | null;
+            /** Counterpart Name */
+            counterpart_name?: string | null;
+            /** Pickup Location */
+            pickup_location: [
+                number,
+                number
+            ];
+            /** Dropoff Location */
+            dropoff_location: [
+                number,
+                number
+            ];
+            /** Surge Multiplier */
+            surge_multiplier: number;
+            /** Fare */
+            fare: number;
+        };
+        /**
+         * ContainerStatus
+         * @description Container health status.
+         * @enum {string}
+         */
+        ContainerStatus: "healthy" | "degraded" | "unhealthy" | "stopped";
+        /** ControlResponse */
+        ControlResponse: {
+            /** Status */
+            status: string;
+            /** Message */
+            message?: string | null;
+        };
+        /**
+         * DetailedHealthResponse
+         * @description Detailed health check response for all services.
+         */
+        DetailedHealthResponse: {
+            /**
+             * Overall Status
+             * @enum {string}
+             */
+            overall_status: "healthy" | "degraded" | "unhealthy";
+            redis: components["schemas"]["ServiceHealth"];
+            osrm: components["schemas"]["ServiceHealth"];
+            kafka: components["schemas"]["ServiceHealth"];
+            simulation_engine: components["schemas"]["ServiceHealth"];
+            stream_processor: components["schemas"]["StreamProcessorHealth"];
+            /** Timestamp */
+            timestamp: string;
+        };
+        /** DriverCreateRequest */
+        DriverCreateRequest: {
+            /** Count */
+            count: number;
+        };
+        /**
+         * DriverDNAOverride
+         * @description Partial driver DNA for overriding specific fields.
+         */
+        DriverDNAOverride: {
+            /** Acceptance Rate */
+            acceptance_rate?: number | null;
+            /** Cancellation Tendency */
+            cancellation_tendency?: number | null;
+            /** Service Quality */
+            service_quality?: number | null;
+            /** Response Time */
+            response_time?: number | null;
+            /** Min Rider Rating */
+            min_rider_rating?: number | null;
+            /** Surge Acceptance Modifier */
+            surge_acceptance_modifier?: number | null;
+            /** Home Location */
+            home_location?: [
+                number,
+                number
+            ] | null;
+            /** Zone Id */
+            zone_id?: string | null;
+        };
+        /**
+         * DriverDNAResponse
+         * @description Full driver DNA for API response.
+         */
+        DriverDNAResponse: {
+            /** Acceptance Rate */
+            acceptance_rate: number;
+            /** Cancellation Tendency */
+            cancellation_tendency: number;
+            /** Service Quality */
+            service_quality: number;
+            /** Response Time */
+            response_time: number;
+            /** Min Rider Rating */
+            min_rider_rating: number;
+            /** Surge Acceptance Modifier */
+            surge_acceptance_modifier: number;
+            /** Home Location */
+            home_location: [
+                number,
+                number
+            ];
+            /** Preferred Zones */
+            preferred_zones: string[];
+            /** Shift Preference */
+            shift_preference: string;
+            /** Avg Hours Per Day */
+            avg_hours_per_day: number;
+            /** Avg Days Per Week */
+            avg_days_per_week: number;
+            /** Vehicle Make */
+            vehicle_make: string;
+            /** Vehicle Model */
+            vehicle_model: string;
+            /** Vehicle Year */
+            vehicle_year: number;
+            /** License Plate */
+            license_plate: string;
+            /** First Name */
+            first_name: string;
+            /** Last Name */
+            last_name: string;
+            /** Email */
+            email: string;
+            /** Phone */
+            phone: string;
+        };
+        /** DriverMetrics */
+        DriverMetrics: {
+            /** Online */
+            online: number;
+            /** Offline */
+            offline: number;
+            /** En Route Pickup */
+            en_route_pickup: number;
+            /** En Route Destination */
+            en_route_destination: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * DriverStateResponse
+         * @description Full driver state for inspection.
+         */
+        DriverStateResponse: {
+            /** Driver Id */
+            driver_id: string;
+            /** Status */
+            status: string;
+            /** Location */
+            location: [
+                number,
+                number
+            ] | null;
+            /** Current Rating */
+            current_rating: number;
+            /** Rating Count */
+            rating_count: number;
+            active_trip: components["schemas"]["ActiveTripInfo"] | null;
+            pending_offer?: components["schemas"]["PendingOfferInfo"] | null;
+            next_action?: components["schemas"]["NextActionResponse"] | null;
+            /** Zone Id */
+            zone_id: string | null;
+            dna: components["schemas"]["DriverDNAResponse"];
+            statistics: components["schemas"]["DriverStatisticsResponse"];
+            /** Is Ephemeral */
+            is_ephemeral: boolean;
+            /** Is Puppet */
+            is_puppet: boolean;
+        };
+        /**
+         * DriverStatisticsResponse
+         * @description Session statistics for a driver.
+         */
+        DriverStatisticsResponse: {
+            /** Trips Completed */
+            trips_completed: number;
+            /** Trips Cancelled */
+            trips_cancelled: number;
+            /** Cancellation Rate */
+            cancellation_rate: number;
+            /** Offers Received */
+            offers_received: number;
+            /** Offers Accepted */
+            offers_accepted: number;
+            /** Offers Rejected */
+            offers_rejected: number;
+            /** Offers Expired */
+            offers_expired: number;
+            /** Acceptance Rate */
+            acceptance_rate: number;
+            /** Total Earnings */
+            total_earnings: number;
+            /** Avg Fare */
+            avg_fare: number;
+            /** Avg Pickup Time Seconds */
+            avg_pickup_time_seconds: number;
+            /** Avg Trip Duration Minutes */
+            avg_trip_duration_minutes: number;
+            /** Avg Rating Given */
+            avg_rating_given: number;
+        };
+        /**
+         * DriverStatusToggleRequest
+         * @description Request to toggle driver online/offline status.
+         */
+        DriverStatusToggleRequest: {
+            /**
+             * Go Online
+             * @description True to go online, False to go offline
+             */
+            go_online: boolean;
+        };
+        /**
+         * DriverStatusToggleResponse
+         * @description Response for driver status toggle.
+         */
+        DriverStatusToggleResponse: {
+            /** Driver Id */
+            driver_id: string;
+            /** Previous Status */
+            previous_status: string;
+            /** New Status */
+            new_status: string;
+        };
+        /**
+         * DriversCreateResponse
+         * @description Response for queued driver creation with continuous spawning.
+         */
+        DriversCreateResponse: {
+            /** Queued */
+            queued: number;
+            /** Spawn Rate */
+            spawn_rate: number;
+            /** Estimated Completion Seconds */
+            estimated_completion_seconds: number;
+        };
+        /** ErrorStats */
+        ErrorStats: {
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+            /**
+             * Per Second
+             * @default 0
+             */
+            per_second: number;
+            /**
+             * By Type
+             * @default {}
+             */
+            by_type: {
+                [key: string]: number;
+            };
+        };
+        /** ErrorSummary */
+        ErrorSummary: {
+            osrm?: components["schemas"]["ErrorStats"] | null;
+            kafka?: components["schemas"]["ErrorStats"] | null;
+            redis?: components["schemas"]["ErrorStats"] | null;
+        };
+        /** EventsMetrics */
+        EventsMetrics: {
+            /** Gps Pings Per Sec */
+            gps_pings_per_sec: number;
+            /** Trip Events Per Sec */
+            trip_events_per_sec: number;
+            /** Driver Status Per Sec */
+            driver_status_per_sec: number;
+            /** Total Per Sec */
+            total_per_sec: number;
+        };
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * InfrastructureResponse
+         * @description Response containing all service infrastructure metrics.
+         */
+        InfrastructureResponse: {
+            /** Services */
+            services: components["schemas"]["ServiceMetrics"][];
+            overall_status: components["schemas"]["ContainerStatus"];
+            /** Cadvisor Available */
+            cadvisor_available: boolean;
+            /** Timestamp */
+            timestamp: number;
+            /**
+             * Total Cpu Percent
+             * @default 0
+             */
+            total_cpu_percent: number;
+            /**
+             * Total Memory Used Mb
+             * @default 0
+             */
+            total_memory_used_mb: number;
+            /**
+             * Total Memory Capacity Mb
+             * @default 0
+             */
+            total_memory_capacity_mb: number;
+            /**
+             * Total Memory Percent
+             * @default 0
+             */
+            total_memory_percent: number;
+            /**
+             * Total Cores
+             * @default 1
+             */
+            total_cores: number;
+            /** Discovery Error */
+            discovery_error?: string | null;
+        };
+        /** LatencyMetrics */
+        LatencyMetrics: {
+            /** Avg Ms */
+            avg_ms: number;
+            /** P95 Ms */
+            p95_ms: number;
+            /** P99 Ms */
+            p99_ms: number;
+            /** Count */
+            count: number;
+        };
+        /** LatencySummary */
+        LatencySummary: {
+            osrm?: components["schemas"]["LatencyMetrics"] | null;
+            kafka?: components["schemas"]["LatencyMetrics"] | null;
+            redis?: components["schemas"]["LatencyMetrics"] | null;
+        };
+        /**
+         * LocationUpdateRequest
+         * @description Request to teleport an agent to a new location.
+         */
+        LocationUpdateRequest: {
+            /**
+             * Location
+             * @description New location (lat, lon)
+             */
+            location: [
+                number,
+                number
+            ];
+        };
+        /** MemoryMetrics */
+        MemoryMetrics: {
+            /** Rss Mb */
+            rss_mb: number;
+            /** Percent */
+            percent: number;
+        };
+        /**
+         * NextActionResponse
+         * @description Scheduled next action for an autonomous agent.
+         */
+        NextActionResponse: {
+            /** Action Type */
+            action_type: string;
+            /** Scheduled At */
+            scheduled_at: number;
+            /** Scheduled At Iso */
+            scheduled_at_iso: string;
+            /** Description */
+            description: string;
+        };
+        /** OverviewMetrics */
+        OverviewMetrics: {
+            /** Total Drivers */
+            total_drivers: number;
+            /** Online Drivers */
+            online_drivers: number;
+            /** Total Riders */
+            total_riders: number;
+            /** Waiting Riders */
+            waiting_riders: number;
+            /** In Transit Riders */
+            in_transit_riders: number;
+            /** Active Trips */
+            active_trips: number;
+            /** Completed Trips Today */
+            completed_trips_today: number;
+        };
+        /**
+         * PendingOfferInfo
+         * @description Info about a pending offer for a puppet driver.
+         */
+        PendingOfferInfo: {
+            /** Trip Id */
+            trip_id: string;
+            /** Surge Multiplier */
+            surge_multiplier: number;
+            /** Rider Rating */
+            rider_rating: number;
+            /** Eta Seconds */
+            eta_seconds: number;
+        };
+        /** PerformanceMetrics */
+        PerformanceMetrics: {
+            events: components["schemas"]["EventsMetrics"];
+            latency: components["schemas"]["LatencySummary"];
+            /** @default {} */
+            errors: components["schemas"]["ErrorSummary"];
+            queue_depths: components["schemas"]["QueueDepths"];
+            memory: components["schemas"]["MemoryMetrics"];
+            resources?: components["schemas"]["ResourceMetrics"] | null;
+            stream_processor?: components["schemas"]["StreamProcessorMetrics"] | null;
+            /** Timestamp */
+            timestamp: number;
+        };
+        /**
+         * PuppetActionResponse
+         * @description Generic response for puppet agent actions.
+         */
+        PuppetActionResponse: {
+            /** Success */
+            success: boolean;
+            /** Message */
+            message: string;
+            /** Agent Id */
+            agent_id: string;
+            /** New Status */
+            new_status?: string | null;
+        };
+        /**
+         * PuppetDriveResponse
+         * @description Response for puppet drive endpoints (drive-to-pickup, drive-to-destination).
+         */
+        PuppetDriveResponse: {
+            /** Success */
+            success: boolean;
+            /** Message */
+            message: string;
+            /** Driver Id */
+            driver_id: string;
+            /** Trip Id */
+            trip_id: string;
+            /** New Status */
+            new_status: string;
+            /**
+             * Route
+             * @description Route geometry for visualization
+             */
+            route: [
+                number,
+                number
+            ][];
+            /** Distance Meters */
+            distance_meters: number;
+            /** Estimated Duration Seconds */
+            estimated_duration_seconds: number;
+        };
+        /**
+         * PuppetDriverCreateResponse
+         * @description Response for creating a puppet driver.
+         */
+        PuppetDriverCreateResponse: {
+            /** Driver Id */
+            driver_id: string;
+            /** Location */
+            location: [
+                number,
+                number
+            ];
+            /**
+             * Status
+             * @default offline
+             */
+            status: string;
+        };
+        /**
+         * PuppetDriverWithDNARequest
+         * @description Request to create a puppet driver with optional DNA overrides.
+         */
+        PuppetDriverWithDNARequest: {
+            /**
+             * Location
+             * @description Initial location (lat, lon) for the puppet driver
+             */
+            location: [
+                number,
+                number
+            ];
+            /** @description Optional DNA override fields */
+            dna_override?: components["schemas"]["DriverDNAOverride"] | null;
+            /**
+             * Ephemeral
+             * @description If True, skip SQLite persistence
+             * @default true
+             */
+            ephemeral: boolean;
+        };
+        /**
+         * PuppetRiderCreateResponse
+         * @description Response for creating a puppet rider.
+         */
+        PuppetRiderCreateResponse: {
+            /** Rider Id */
+            rider_id: string;
+            /** Location */
+            location: [
+                number,
+                number
+            ];
+            /**
+             * Status
+             * @default offline
+             */
+            status: string;
+        };
+        /**
+         * PuppetRiderWithDNARequest
+         * @description Request to create a puppet rider with optional DNA overrides.
+         */
+        PuppetRiderWithDNARequest: {
+            /**
+             * Location
+             * @description Initial location (lat, lon) for the puppet rider
+             */
+            location: [
+                number,
+                number
+            ];
+            /** @description Optional DNA override fields */
+            dna_override?: components["schemas"]["RiderDNAOverride"] | null;
+            /**
+             * Ephemeral
+             * @description If True, skip SQLite persistence
+             * @default true
+             */
+            ephemeral: boolean;
+        };
+        /**
+         * PuppetTripRequestBody
+         * @description Request body for puppet rider trip request.
+         */
+        PuppetTripRequestBody: {
+            /**
+             * Destination
+             * @description Destination coordinates (lat, lon)
+             */
+            destination: [
+                number,
+                number
+            ];
+        };
+        /**
+         * PuppetTripRequestResponse
+         * @description Response for puppet rider trip request.
+         */
+        PuppetTripRequestResponse: {
+            /** Rider Id */
+            rider_id: string;
+            /** Trip Id */
+            trip_id: string;
+            /** Pickup Location */
+            pickup_location: [
+                number,
+                number
+            ];
+            /** Destination */
+            destination: [
+                number,
+                number
+            ];
+            /** Surge Multiplier */
+            surge_multiplier: number;
+            /** Estimated Fare */
+            estimated_fare: number;
+        };
+        /** QueueDepths */
+        QueueDepths: {
+            /**
+             * Pending Offers
+             * @default 0
+             */
+            pending_offers: number;
+            /**
+             * Simpy Events
+             * @default 0
+             */
+            simpy_events: number;
+        };
+        /**
+         * RatingUpdateRequest
+         * @description Request to update an agent's rating.
+         */
+        RatingUpdateRequest: {
+            /**
+             * Rating
+             * @description New rating (1.0-5.0)
+             */
+            rating: number;
+        };
+        /** ResourceMetrics */
+        ResourceMetrics: {
+            /** Memory Rss Mb */
+            memory_rss_mb: number;
+            /** Memory Percent */
+            memory_percent: number;
+            /**
+             * Cpu Percent
+             * @default 0
+             */
+            cpu_percent: number;
+            /**
+             * Thread Count
+             * @default 0
+             */
+            thread_count: number;
+        };
+        /** RiderCreateRequest */
+        RiderCreateRequest: {
+            /** Count */
+            count: number;
+        };
+        /**
+         * RiderDNAOverride
+         * @description Partial rider DNA for overriding specific fields.
+         */
+        RiderDNAOverride: {
+            /** Behavior Factor */
+            behavior_factor?: number | null;
+            /** Patience Threshold */
+            patience_threshold?: number | null;
+            /** Max Surge Multiplier */
+            max_surge_multiplier?: number | null;
+            /** Avg Rides Per Week */
+            avg_rides_per_week?: number | null;
+            /** Home Location */
+            home_location?: [
+                number,
+                number
+            ] | null;
+            /** Zone Id */
+            zone_id?: string | null;
+        };
+        /**
+         * RiderDNAResponse
+         * @description Full rider DNA for API response.
+         */
+        RiderDNAResponse: {
+            /** Behavior Factor */
+            behavior_factor: number;
+            /** Patience Threshold */
+            patience_threshold: number;
+            /** Max Surge Multiplier */
+            max_surge_multiplier: number;
+            /** Avg Rides Per Week */
+            avg_rides_per_week: number;
+            /** Frequent Destinations */
+            frequent_destinations: {
+                [key: string]: unknown;
+            }[];
+            /** Home Location */
+            home_location: [
+                number,
+                number
+            ];
+            /** First Name */
+            first_name: string;
+            /** Last Name */
+            last_name: string;
+            /** Email */
+            email: string;
+            /** Phone */
+            phone: string;
+            /** Payment Method Type */
+            payment_method_type: string;
+            /** Payment Method Masked */
+            payment_method_masked: string;
+        };
+        /** RiderMetrics */
+        RiderMetrics: {
+            /** Offline */
+            offline: number;
+            /** To Pickup */
+            to_pickup: number;
+            /** In Transit */
+            in_transit: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * RiderStateResponse
+         * @description Full rider state for inspection.
+         */
+        RiderStateResponse: {
+            /** Rider Id */
+            rider_id: string;
+            /** Status */
+            status: string;
+            /** Location */
+            location: [
+                number,
+                number
+            ] | null;
+            /** Current Rating */
+            current_rating: number;
+            /** Rating Count */
+            rating_count: number;
+            active_trip: components["schemas"]["ActiveTripInfo"] | null;
+            next_action?: components["schemas"]["NextActionResponse"] | null;
+            /** Zone Id */
+            zone_id: string | null;
+            dna: components["schemas"]["RiderDNAResponse"];
+            statistics: components["schemas"]["RiderStatisticsResponse"];
+            /** Is Ephemeral */
+            is_ephemeral: boolean;
+            /** Is Puppet */
+            is_puppet: boolean;
+        };
+        /**
+         * RiderStatisticsResponse
+         * @description Session statistics for a rider.
+         */
+        RiderStatisticsResponse: {
+            /** Trips Completed */
+            trips_completed: number;
+            /** Trips Cancelled */
+            trips_cancelled: number;
+            /** Trips Requested */
+            trips_requested: number;
+            /** Cancellation Rate */
+            cancellation_rate: number;
+            /** Requests Timed Out */
+            requests_timed_out: number;
+            /** Total Spent */
+            total_spent: number;
+            /** Avg Fare */
+            avg_fare: number;
+            /** Avg Wait Time Seconds */
+            avg_wait_time_seconds: number;
+            /** Avg Pickup Wait Seconds */
+            avg_pickup_wait_seconds: number;
+            /** Avg Rating Given */
+            avg_rating_given: number;
+            /** Surge Trips Percentage */
+            surge_trips_percentage: number;
+        };
+        /**
+         * RiderTripRequestBody
+         * @description Request body for rider trip request.
+         */
+        RiderTripRequestBody: {
+            /**
+             * Destination
+             * @description (lat, lon) destination
+             */
+            destination: [
+                number,
+                number
+            ];
+        };
+        /**
+         * RiderTripRequestResponse
+         * @description Response for rider trip request.
+         */
+        RiderTripRequestResponse: {
+            /** Rider Id */
+            rider_id: string;
+            /** Trip Id */
+            trip_id: string;
+            /** Pickup Location */
+            pickup_location: [
+                number,
+                number
+            ];
+            /** Destination */
+            destination: [
+                number,
+                number
+            ];
+            /** Surge Multiplier */
+            surge_multiplier: number;
+            /** Estimated Fare */
+            estimated_fare: number;
+        };
+        /**
+         * RidersCreateResponse
+         * @description Response for queued rider creation with continuous spawning.
+         */
+        RidersCreateResponse: {
+            /** Queued */
+            queued: number;
+            /** Spawn Rate */
+            spawn_rate: number;
+            /** Estimated Completion Seconds */
+            estimated_completion_seconds: number;
+        };
+        /**
+         * ServiceHealth
+         * @description Health status for a single service.
+         */
+        ServiceHealth: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "healthy" | "degraded" | "unhealthy";
+            /** Latency Ms */
+            latency_ms?: number | null;
+            /** Message */
+            message?: string | null;
+        };
+        /**
+         * ServiceMetrics
+         * @description Unified metrics for a single service/container.
+         */
+        ServiceMetrics: {
+            /** Name */
+            name: string;
+            status: components["schemas"]["ContainerStatus"];
+            /** Latency Ms */
+            latency_ms?: number | null;
+            /** Message */
+            message?: string | null;
+            /**
+             * Memory Used Mb
+             * @default 0
+             */
+            memory_used_mb: number;
+            /**
+             * Memory Limit Mb
+             * @default 0
+             */
+            memory_limit_mb: number;
+            /**
+             * Memory Percent
+             * @default 0
+             */
+            memory_percent: number;
+            /**
+             * Cpu Percent
+             * @default 0
+             */
+            cpu_percent: number;
+        };
+        /** SimulationStatusResponse */
+        SimulationStatusResponse: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "stopped" | "running" | "draining" | "paused";
+            /** Speed Multiplier */
+            speed_multiplier: number;
+            /** Current Time */
+            current_time: string;
+            /** Drivers Total */
+            drivers_total: number;
+            /** Drivers Offline */
+            drivers_offline: number;
+            /** Drivers Online */
+            drivers_online: number;
+            /** Drivers En Route Pickup */
+            drivers_en_route_pickup: number;
+            /** Drivers En Route Destination */
+            drivers_en_route_destination: number;
+            /** Riders Total */
+            riders_total: number;
+            /** Riders Offline */
+            riders_offline: number;
+            /** Riders Waiting */
+            riders_waiting: number;
+            /** Riders In Trip */
+            riders_in_trip: number;
+            /** Active Trips Count */
+            active_trips_count: number;
+            /** Uptime Seconds */
+            uptime_seconds: number;
+        };
+        /**
+         * SpawnMode
+         * @description Spawn mode for autonomous agents.
+         * @enum {string}
+         */
+        SpawnMode: "immediate" | "scheduled";
+        /**
+         * SpawnQueueStatusResponse
+         * @description Current status of agent spawn queues.
+         */
+        SpawnQueueStatusResponse: {
+            /** Drivers Queued */
+            drivers_queued: number;
+            /** Riders Queued */
+            riders_queued: number;
+        };
+        /** SpeedChangeRequest */
+        SpeedChangeRequest: {
+            /** Multiplier */
+            multiplier: number;
+        };
+        /** SpeedChangeResponse */
+        SpeedChangeResponse: {
+            /** Speed */
+            speed: number;
+        };
+        /**
+         * StreamProcessorHealth
+         * @description Health status for stream processor service.
+         */
+        StreamProcessorHealth: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "healthy" | "degraded" | "unhealthy";
+            /** Latency Ms */
+            latency_ms?: number | null;
+            /** Message */
+            message?: string | null;
+            /** Kafka Connected */
+            kafka_connected?: boolean | null;
+            /** Redis Connected */
+            redis_connected?: boolean | null;
+        };
+        /**
+         * StreamProcessorLatency
+         * @description Stream processor latency metrics.
+         */
+        StreamProcessorLatency: {
+            /** Avg Ms */
+            avg_ms: number;
+            /** P95 Ms */
+            p95_ms: number;
+            /** Count */
+            count: number;
+        };
+        /**
+         * StreamProcessorMetrics
+         * @description Stream processor performance metrics.
+         */
+        StreamProcessorMetrics: {
+            /** Messages Consumed Per Sec */
+            messages_consumed_per_sec: number;
+            /** Messages Published Per Sec */
+            messages_published_per_sec: number;
+            /** Gps Aggregation Ratio */
+            gps_aggregation_ratio: number;
+            redis_publish_latency: components["schemas"]["StreamProcessorLatency"];
+            /** Publish Errors Per Sec */
+            publish_errors_per_sec: number;
+            /** Kafka Connected */
+            kafka_connected: boolean;
+            /** Redis Connected */
+            redis_connected: boolean;
+            /** Uptime Seconds */
+            uptime_seconds: number;
+        };
+        /** TripMetrics */
+        TripMetrics: {
+            /** Active Trips */
+            active_trips: number;
+            /** Completed Today */
+            completed_today: number;
+            /** Cancelled Today */
+            cancelled_today: number;
+            /** Avg Fare */
+            avg_fare: number;
+            /** Avg Duration Minutes */
+            avg_duration_minutes: number;
+            /**
+             * Avg Wait Seconds
+             * @default 0
+             */
+            avg_wait_seconds: number;
+            /**
+             * Avg Pickup Seconds
+             * @default 0
+             */
+            avg_pickup_seconds: number;
+            /**
+             * Offers Sent
+             * @default 0
+             */
+            offers_sent: number;
+            /**
+             * Offers Accepted
+             * @default 0
+             */
+            offers_accepted: number;
+            /**
+             * Offers Rejected
+             * @default 0
+             */
+            offers_rejected: number;
+            /**
+             * Offers Expired
+             * @default 0
+             */
+            offers_expired: number;
+            /**
+             * Matching Success Rate
+             * @default 0
+             */
+            matching_success_rate: number;
+        };
+        /** ValidationError */
+        ValidationError: {
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
+        };
+        /** ZoneMetrics */
+        ZoneMetrics: {
+            /** Zone Id */
+            zone_id: string;
+            /** Zone Name */
+            zone_name: string;
+            /** Online Drivers */
+            online_drivers: number;
+            /** Waiting Riders */
+            waiting_riders: number;
+            /** Active Trips */
+            active_trips: number;
+            /** Surge Multiplier */
+            surge_multiplier: number;
+        };
     };
-    /**
-     * ContainerStatus
-     * @description Container health status.
-     * @enum {string}
-     */
-    ContainerStatus: 'healthy' | 'degraded' | 'unhealthy' | 'stopped';
-    /** ControlResponse */
-    ControlResponse: {
-      /** Status */
-      status: string;
-      /** Message */
-      message?: string | null;
-    };
-    /**
-     * DetailedHealthResponse
-     * @description Detailed health check response for all services.
-     */
-    DetailedHealthResponse: {
-      /**
-       * Overall Status
-       * @enum {string}
-       */
-      overall_status: 'healthy' | 'degraded' | 'unhealthy';
-      redis: components['schemas']['ServiceHealth'];
-      osrm: components['schemas']['ServiceHealth'];
-      kafka: components['schemas']['ServiceHealth'];
-      simulation_engine: components['schemas']['ServiceHealth'];
-      stream_processor: components['schemas']['StreamProcessorHealth'];
-      /** Timestamp */
-      timestamp: string;
-    };
-    /** DriverCreateRequest */
-    DriverCreateRequest: {
-      /** Count */
-      count: number;
-    };
-    /**
-     * DriverDNAOverride
-     * @description Partial driver DNA for overriding specific fields.
-     */
-    DriverDNAOverride: {
-      /** Acceptance Rate */
-      acceptance_rate?: number | null;
-      /** Cancellation Tendency */
-      cancellation_tendency?: number | null;
-      /** Service Quality */
-      service_quality?: number | null;
-      /** Response Time */
-      response_time?: number | null;
-      /** Min Rider Rating */
-      min_rider_rating?: number | null;
-      /** Surge Acceptance Modifier */
-      surge_acceptance_modifier?: number | null;
-      /** Home Location */
-      home_location?: [number, number] | null;
-      /** Zone Id */
-      zone_id?: string | null;
-    };
-    /**
-     * DriverDNAResponse
-     * @description Full driver DNA for API response.
-     */
-    DriverDNAResponse: {
-      /** Acceptance Rate */
-      acceptance_rate: number;
-      /** Cancellation Tendency */
-      cancellation_tendency: number;
-      /** Service Quality */
-      service_quality: number;
-      /** Response Time */
-      response_time: number;
-      /** Min Rider Rating */
-      min_rider_rating: number;
-      /** Surge Acceptance Modifier */
-      surge_acceptance_modifier: number;
-      /** Home Location */
-      home_location: [number, number];
-      /** Preferred Zones */
-      preferred_zones: string[];
-      /** Shift Preference */
-      shift_preference: string;
-      /** Avg Hours Per Day */
-      avg_hours_per_day: number;
-      /** Avg Days Per Week */
-      avg_days_per_week: number;
-      /** Vehicle Make */
-      vehicle_make: string;
-      /** Vehicle Model */
-      vehicle_model: string;
-      /** Vehicle Year */
-      vehicle_year: number;
-      /** License Plate */
-      license_plate: string;
-      /** First Name */
-      first_name: string;
-      /** Last Name */
-      last_name: string;
-      /** Email */
-      email: string;
-      /** Phone */
-      phone: string;
-    };
-    /** DriverMetrics */
-    DriverMetrics: {
-      /** Online */
-      online: number;
-      /** Offline */
-      offline: number;
-      /** En Route Pickup */
-      en_route_pickup: number;
-      /** En Route Destination */
-      en_route_destination: number;
-      /** Total */
-      total: number;
-    };
-    /**
-     * DriverStateResponse
-     * @description Full driver state for inspection.
-     */
-    DriverStateResponse: {
-      /** Driver Id */
-      driver_id: string;
-      /** Status */
-      status: string;
-      /** Location */
-      location: [number, number] | null;
-      /** Current Rating */
-      current_rating: number;
-      /** Rating Count */
-      rating_count: number;
-      active_trip: components['schemas']['ActiveTripInfo'] | null;
-      pending_offer?: components['schemas']['PendingOfferInfo'] | null;
-      next_action?: components['schemas']['NextActionResponse'] | null;
-      /** Zone Id */
-      zone_id: string | null;
-      dna: components['schemas']['DriverDNAResponse'];
-      statistics: components['schemas']['DriverStatisticsResponse'];
-      /** Is Ephemeral */
-      is_ephemeral: boolean;
-      /** Is Puppet */
-      is_puppet: boolean;
-    };
-    /**
-     * DriverStatisticsResponse
-     * @description Session statistics for a driver.
-     */
-    DriverStatisticsResponse: {
-      /** Trips Completed */
-      trips_completed: number;
-      /** Trips Cancelled */
-      trips_cancelled: number;
-      /** Cancellation Rate */
-      cancellation_rate: number;
-      /** Offers Received */
-      offers_received: number;
-      /** Offers Accepted */
-      offers_accepted: number;
-      /** Offers Rejected */
-      offers_rejected: number;
-      /** Offers Expired */
-      offers_expired: number;
-      /** Acceptance Rate */
-      acceptance_rate: number;
-      /** Total Earnings */
-      total_earnings: number;
-      /** Avg Fare */
-      avg_fare: number;
-      /** Avg Pickup Time Seconds */
-      avg_pickup_time_seconds: number;
-      /** Avg Trip Duration Minutes */
-      avg_trip_duration_minutes: number;
-      /** Avg Rating Given */
-      avg_rating_given: number;
-    };
-    /**
-     * DriverStatusToggleRequest
-     * @description Request to toggle driver online/offline status.
-     */
-    DriverStatusToggleRequest: {
-      /**
-       * Go Online
-       * @description True to go online, False to go offline
-       */
-      go_online: boolean;
-    };
-    /**
-     * DriverStatusToggleResponse
-     * @description Response for driver status toggle.
-     */
-    DriverStatusToggleResponse: {
-      /** Driver Id */
-      driver_id: string;
-      /** Previous Status */
-      previous_status: string;
-      /** New Status */
-      new_status: string;
-    };
-    /**
-     * DriversCreateResponse
-     * @description Response for queued driver creation with continuous spawning.
-     */
-    DriversCreateResponse: {
-      /** Queued */
-      queued: number;
-      /** Spawn Rate */
-      spawn_rate: number;
-      /** Estimated Completion Seconds */
-      estimated_completion_seconds: number;
-    };
-    /** ErrorStats */
-    ErrorStats: {
-      /**
-       * Count
-       * @default 0
-       */
-      count: number;
-      /**
-       * Per Second
-       * @default 0
-       */
-      per_second: number;
-      /**
-       * By Type
-       * @default {}
-       */
-      by_type: {
-        [key: string]: number;
-      };
-    };
-    /** ErrorSummary */
-    ErrorSummary: {
-      osrm?: components['schemas']['ErrorStats'] | null;
-      kafka?: components['schemas']['ErrorStats'] | null;
-      redis?: components['schemas']['ErrorStats'] | null;
-    };
-    /** EventsMetrics */
-    EventsMetrics: {
-      /** Gps Pings Per Sec */
-      gps_pings_per_sec: number;
-      /** Trip Events Per Sec */
-      trip_events_per_sec: number;
-      /** Driver Status Per Sec */
-      driver_status_per_sec: number;
-      /** Total Per Sec */
-      total_per_sec: number;
-    };
-    /** HTTPValidationError */
-    HTTPValidationError: {
-      /** Detail */
-      detail?: components['schemas']['ValidationError'][];
-    };
-    /**
-     * InfrastructureResponse
-     * @description Response containing all service infrastructure metrics.
-     */
-    InfrastructureResponse: {
-      /** Services */
-      services: components['schemas']['ServiceMetrics'][];
-      overall_status: components['schemas']['ContainerStatus'];
-      /** Cadvisor Available */
-      cadvisor_available: boolean;
-      /** Timestamp */
-      timestamp: number;
-      /**
-       * Total Cpu Percent
-       * @default 0
-       */
-      total_cpu_percent: number;
-      /**
-       * Total Memory Used Mb
-       * @default 0
-       */
-      total_memory_used_mb: number;
-      /**
-       * Total Memory Capacity Mb
-       * @default 0
-       */
-      total_memory_capacity_mb: number;
-      /**
-       * Total Memory Percent
-       * @default 0
-       */
-      total_memory_percent: number;
-      /**
-       * Total Cores
-       * @default 1
-       */
-      total_cores: number;
-      /** Discovery Error */
-      discovery_error?: string | null;
-    };
-    /** LatencyMetrics */
-    LatencyMetrics: {
-      /** Avg Ms */
-      avg_ms: number;
-      /** P95 Ms */
-      p95_ms: number;
-      /** P99 Ms */
-      p99_ms: number;
-      /** Count */
-      count: number;
-    };
-    /** LatencySummary */
-    LatencySummary: {
-      osrm?: components['schemas']['LatencyMetrics'] | null;
-      kafka?: components['schemas']['LatencyMetrics'] | null;
-      redis?: components['schemas']['LatencyMetrics'] | null;
-    };
-    /**
-     * LocationUpdateRequest
-     * @description Request to teleport an agent to a new location.
-     */
-    LocationUpdateRequest: {
-      /**
-       * Location
-       * @description New location (lat, lon)
-       */
-      location: [number, number];
-    };
-    /** MemoryMetrics */
-    MemoryMetrics: {
-      /** Rss Mb */
-      rss_mb: number;
-      /** Percent */
-      percent: number;
-    };
-    /**
-     * NextActionResponse
-     * @description Scheduled next action for an autonomous agent.
-     */
-    NextActionResponse: {
-      /** Action Type */
-      action_type: string;
-      /** Scheduled At */
-      scheduled_at: number;
-      /** Scheduled At Iso */
-      scheduled_at_iso: string;
-      /** Description */
-      description: string;
-    };
-    /** OverviewMetrics */
-    OverviewMetrics: {
-      /** Total Drivers */
-      total_drivers: number;
-      /** Online Drivers */
-      online_drivers: number;
-      /** Total Riders */
-      total_riders: number;
-      /** Waiting Riders */
-      waiting_riders: number;
-      /** In Transit Riders */
-      in_transit_riders: number;
-      /** Active Trips */
-      active_trips: number;
-      /** Completed Trips Today */
-      completed_trips_today: number;
-    };
-    /**
-     * PendingOfferInfo
-     * @description Info about a pending offer for a puppet driver.
-     */
-    PendingOfferInfo: {
-      /** Trip Id */
-      trip_id: string;
-      /** Surge Multiplier */
-      surge_multiplier: number;
-      /** Rider Rating */
-      rider_rating: number;
-      /** Eta Seconds */
-      eta_seconds: number;
-    };
-    /** PerformanceMetrics */
-    PerformanceMetrics: {
-      events: components['schemas']['EventsMetrics'];
-      latency: components['schemas']['LatencySummary'];
-      /** @default {} */
-      errors: components['schemas']['ErrorSummary'];
-      queue_depths: components['schemas']['QueueDepths'];
-      memory: components['schemas']['MemoryMetrics'];
-      resources?: components['schemas']['ResourceMetrics'] | null;
-      stream_processor?: components['schemas']['StreamProcessorMetrics'] | null;
-      /** Timestamp */
-      timestamp: number;
-    };
-    /**
-     * PuppetActionResponse
-     * @description Generic response for puppet agent actions.
-     */
-    PuppetActionResponse: {
-      /** Success */
-      success: boolean;
-      /** Message */
-      message: string;
-      /** Agent Id */
-      agent_id: string;
-      /** New Status */
-      new_status?: string | null;
-    };
-    /**
-     * PuppetDriveResponse
-     * @description Response for puppet drive endpoints (drive-to-pickup, drive-to-destination).
-     */
-    PuppetDriveResponse: {
-      /** Success */
-      success: boolean;
-      /** Message */
-      message: string;
-      /** Driver Id */
-      driver_id: string;
-      /** Trip Id */
-      trip_id: string;
-      /** New Status */
-      new_status: string;
-      /**
-       * Route
-       * @description Route geometry for visualization
-       */
-      route: [number, number][];
-      /** Distance Meters */
-      distance_meters: number;
-      /** Estimated Duration Seconds */
-      estimated_duration_seconds: number;
-    };
-    /**
-     * PuppetDriverCreateResponse
-     * @description Response for creating a puppet driver.
-     */
-    PuppetDriverCreateResponse: {
-      /** Driver Id */
-      driver_id: string;
-      /** Location */
-      location: [number, number];
-      /**
-       * Status
-       * @default offline
-       */
-      status: string;
-    };
-    /**
-     * PuppetDriverWithDNARequest
-     * @description Request to create a puppet driver with optional DNA overrides.
-     */
-    PuppetDriverWithDNARequest: {
-      /**
-       * Location
-       * @description Initial location (lat, lon) for the puppet driver
-       */
-      location: [number, number];
-      /** @description Optional DNA override fields */
-      dna_override?: components['schemas']['DriverDNAOverride'] | null;
-      /**
-       * Ephemeral
-       * @description If True, skip SQLite persistence
-       * @default true
-       */
-      ephemeral: boolean;
-    };
-    /**
-     * PuppetRiderCreateResponse
-     * @description Response for creating a puppet rider.
-     */
-    PuppetRiderCreateResponse: {
-      /** Rider Id */
-      rider_id: string;
-      /** Location */
-      location: [number, number];
-      /**
-       * Status
-       * @default offline
-       */
-      status: string;
-    };
-    /**
-     * PuppetRiderWithDNARequest
-     * @description Request to create a puppet rider with optional DNA overrides.
-     */
-    PuppetRiderWithDNARequest: {
-      /**
-       * Location
-       * @description Initial location (lat, lon) for the puppet rider
-       */
-      location: [number, number];
-      /** @description Optional DNA override fields */
-      dna_override?: components['schemas']['RiderDNAOverride'] | null;
-      /**
-       * Ephemeral
-       * @description If True, skip SQLite persistence
-       * @default true
-       */
-      ephemeral: boolean;
-    };
-    /**
-     * PuppetTripRequestBody
-     * @description Request body for puppet rider trip request.
-     */
-    PuppetTripRequestBody: {
-      /**
-       * Destination
-       * @description Destination coordinates (lat, lon)
-       */
-      destination: [number, number];
-    };
-    /**
-     * PuppetTripRequestResponse
-     * @description Response for puppet rider trip request.
-     */
-    PuppetTripRequestResponse: {
-      /** Rider Id */
-      rider_id: string;
-      /** Trip Id */
-      trip_id: string;
-      /** Pickup Location */
-      pickup_location: [number, number];
-      /** Destination */
-      destination: [number, number];
-      /** Surge Multiplier */
-      surge_multiplier: number;
-      /** Estimated Fare */
-      estimated_fare: number;
-    };
-    /** QueueDepths */
-    QueueDepths: {
-      /**
-       * Pending Offers
-       * @default 0
-       */
-      pending_offers: number;
-      /**
-       * Simpy Events
-       * @default 0
-       */
-      simpy_events: number;
-    };
-    /**
-     * RatingUpdateRequest
-     * @description Request to update an agent's rating.
-     */
-    RatingUpdateRequest: {
-      /**
-       * Rating
-       * @description New rating (1.0-5.0)
-       */
-      rating: number;
-    };
-    /** ResourceMetrics */
-    ResourceMetrics: {
-      /** Memory Rss Mb */
-      memory_rss_mb: number;
-      /** Memory Percent */
-      memory_percent: number;
-      /**
-       * Cpu Percent
-       * @default 0
-       */
-      cpu_percent: number;
-      /**
-       * Thread Count
-       * @default 0
-       */
-      thread_count: number;
-    };
-    /** RiderCreateRequest */
-    RiderCreateRequest: {
-      /** Count */
-      count: number;
-    };
-    /**
-     * RiderDNAOverride
-     * @description Partial rider DNA for overriding specific fields.
-     */
-    RiderDNAOverride: {
-      /** Behavior Factor */
-      behavior_factor?: number | null;
-      /** Patience Threshold */
-      patience_threshold?: number | null;
-      /** Max Surge Multiplier */
-      max_surge_multiplier?: number | null;
-      /** Avg Rides Per Week */
-      avg_rides_per_week?: number | null;
-      /** Home Location */
-      home_location?: [number, number] | null;
-      /** Zone Id */
-      zone_id?: string | null;
-    };
-    /**
-     * RiderDNAResponse
-     * @description Full rider DNA for API response.
-     */
-    RiderDNAResponse: {
-      /** Behavior Factor */
-      behavior_factor: number;
-      /** Patience Threshold */
-      patience_threshold: number;
-      /** Max Surge Multiplier */
-      max_surge_multiplier: number;
-      /** Avg Rides Per Week */
-      avg_rides_per_week: number;
-      /** Frequent Destinations */
-      frequent_destinations: {
-        [key: string]: unknown;
-      }[];
-      /** Home Location */
-      home_location: [number, number];
-      /** First Name */
-      first_name: string;
-      /** Last Name */
-      last_name: string;
-      /** Email */
-      email: string;
-      /** Phone */
-      phone: string;
-      /** Payment Method Type */
-      payment_method_type: string;
-      /** Payment Method Masked */
-      payment_method_masked: string;
-    };
-    /** RiderMetrics */
-    RiderMetrics: {
-      /** Offline */
-      offline: number;
-      /** To Pickup */
-      to_pickup: number;
-      /** In Transit */
-      in_transit: number;
-      /** Total */
-      total: number;
-    };
-    /**
-     * RiderStateResponse
-     * @description Full rider state for inspection.
-     */
-    RiderStateResponse: {
-      /** Rider Id */
-      rider_id: string;
-      /** Status */
-      status: string;
-      /** Location */
-      location: [number, number] | null;
-      /** Current Rating */
-      current_rating: number;
-      /** Rating Count */
-      rating_count: number;
-      active_trip: components['schemas']['ActiveTripInfo'] | null;
-      next_action?: components['schemas']['NextActionResponse'] | null;
-      /** Zone Id */
-      zone_id: string | null;
-      dna: components['schemas']['RiderDNAResponse'];
-      statistics: components['schemas']['RiderStatisticsResponse'];
-      /** Is Ephemeral */
-      is_ephemeral: boolean;
-      /** Is Puppet */
-      is_puppet: boolean;
-    };
-    /**
-     * RiderStatisticsResponse
-     * @description Session statistics for a rider.
-     */
-    RiderStatisticsResponse: {
-      /** Trips Completed */
-      trips_completed: number;
-      /** Trips Cancelled */
-      trips_cancelled: number;
-      /** Trips Requested */
-      trips_requested: number;
-      /** Cancellation Rate */
-      cancellation_rate: number;
-      /** Requests Timed Out */
-      requests_timed_out: number;
-      /** Total Spent */
-      total_spent: number;
-      /** Avg Fare */
-      avg_fare: number;
-      /** Avg Wait Time Seconds */
-      avg_wait_time_seconds: number;
-      /** Avg Pickup Wait Seconds */
-      avg_pickup_wait_seconds: number;
-      /** Avg Rating Given */
-      avg_rating_given: number;
-      /** Surge Trips Percentage */
-      surge_trips_percentage: number;
-    };
-    /**
-     * RiderTripRequestBody
-     * @description Request body for rider trip request.
-     */
-    RiderTripRequestBody: {
-      /**
-       * Destination
-       * @description (lat, lon) destination
-       */
-      destination: [number, number];
-    };
-    /**
-     * RiderTripRequestResponse
-     * @description Response for rider trip request.
-     */
-    RiderTripRequestResponse: {
-      /** Rider Id */
-      rider_id: string;
-      /** Trip Id */
-      trip_id: string;
-      /** Pickup Location */
-      pickup_location: [number, number];
-      /** Destination */
-      destination: [number, number];
-      /** Surge Multiplier */
-      surge_multiplier: number;
-      /** Estimated Fare */
-      estimated_fare: number;
-    };
-    /**
-     * RidersCreateResponse
-     * @description Response for queued rider creation with continuous spawning.
-     */
-    RidersCreateResponse: {
-      /** Queued */
-      queued: number;
-      /** Spawn Rate */
-      spawn_rate: number;
-      /** Estimated Completion Seconds */
-      estimated_completion_seconds: number;
-    };
-    /**
-     * ServiceHealth
-     * @description Health status for a single service.
-     */
-    ServiceHealth: {
-      /**
-       * Status
-       * @enum {string}
-       */
-      status: 'healthy' | 'degraded' | 'unhealthy';
-      /** Latency Ms */
-      latency_ms?: number | null;
-      /** Message */
-      message?: string | null;
-    };
-    /**
-     * ServiceMetrics
-     * @description Unified metrics for a single service/container.
-     */
-    ServiceMetrics: {
-      /** Name */
-      name: string;
-      status: components['schemas']['ContainerStatus'];
-      /** Latency Ms */
-      latency_ms?: number | null;
-      /** Message */
-      message?: string | null;
-      /**
-       * Memory Used Mb
-       * @default 0
-       */
-      memory_used_mb: number;
-      /**
-       * Memory Limit Mb
-       * @default 0
-       */
-      memory_limit_mb: number;
-      /**
-       * Memory Percent
-       * @default 0
-       */
-      memory_percent: number;
-      /**
-       * Cpu Percent
-       * @default 0
-       */
-      cpu_percent: number;
-    };
-    /** SimulationStatusResponse */
-    SimulationStatusResponse: {
-      /**
-       * State
-       * @enum {string}
-       */
-      state: 'stopped' | 'running' | 'draining' | 'paused';
-      /** Speed Multiplier */
-      speed_multiplier: number;
-      /** Current Time */
-      current_time: string;
-      /** Drivers Total */
-      drivers_total: number;
-      /** Drivers Offline */
-      drivers_offline: number;
-      /** Drivers Online */
-      drivers_online: number;
-      /** Drivers En Route Pickup */
-      drivers_en_route_pickup: number;
-      /** Drivers En Route Destination */
-      drivers_en_route_destination: number;
-      /** Riders Total */
-      riders_total: number;
-      /** Riders Offline */
-      riders_offline: number;
-      /** Riders Waiting */
-      riders_waiting: number;
-      /** Riders In Trip */
-      riders_in_trip: number;
-      /** Active Trips Count */
-      active_trips_count: number;
-      /** Uptime Seconds */
-      uptime_seconds: number;
-    };
-    /**
-     * SpawnMode
-     * @description Spawn mode for autonomous agents.
-     * @enum {string}
-     */
-    SpawnMode: 'immediate' | 'scheduled';
-    /**
-     * SpawnQueueStatusResponse
-     * @description Current status of agent spawn queues.
-     */
-    SpawnQueueStatusResponse: {
-      /** Drivers Queued */
-      drivers_queued: number;
-      /** Riders Queued */
-      riders_queued: number;
-    };
-    /** SpeedChangeRequest */
-    SpeedChangeRequest: {
-      /** Multiplier */
-      multiplier: number;
-    };
-    /** SpeedChangeResponse */
-    SpeedChangeResponse: {
-      /** Speed */
-      speed: number;
-    };
-    /**
-     * StreamProcessorHealth
-     * @description Health status for stream processor service.
-     */
-    StreamProcessorHealth: {
-      /**
-       * Status
-       * @enum {string}
-       */
-      status: 'healthy' | 'degraded' | 'unhealthy';
-      /** Latency Ms */
-      latency_ms?: number | null;
-      /** Message */
-      message?: string | null;
-      /** Kafka Connected */
-      kafka_connected?: boolean | null;
-      /** Redis Connected */
-      redis_connected?: boolean | null;
-    };
-    /**
-     * StreamProcessorLatency
-     * @description Stream processor latency metrics.
-     */
-    StreamProcessorLatency: {
-      /** Avg Ms */
-      avg_ms: number;
-      /** P95 Ms */
-      p95_ms: number;
-      /** Count */
-      count: number;
-    };
-    /**
-     * StreamProcessorMetrics
-     * @description Stream processor performance metrics.
-     */
-    StreamProcessorMetrics: {
-      /** Messages Consumed Per Sec */
-      messages_consumed_per_sec: number;
-      /** Messages Published Per Sec */
-      messages_published_per_sec: number;
-      /** Gps Aggregation Ratio */
-      gps_aggregation_ratio: number;
-      redis_publish_latency: components['schemas']['StreamProcessorLatency'];
-      /** Publish Errors Per Sec */
-      publish_errors_per_sec: number;
-      /** Kafka Connected */
-      kafka_connected: boolean;
-      /** Redis Connected */
-      redis_connected: boolean;
-      /** Uptime Seconds */
-      uptime_seconds: number;
-    };
-    /** TripMetrics */
-    TripMetrics: {
-      /** Active Trips */
-      active_trips: number;
-      /** Completed Today */
-      completed_today: number;
-      /** Cancelled Today */
-      cancelled_today: number;
-      /** Avg Fare */
-      avg_fare: number;
-      /** Avg Duration Minutes */
-      avg_duration_minutes: number;
-      /**
-       * Avg Wait Seconds
-       * @default 0
-       */
-      avg_wait_seconds: number;
-      /**
-       * Avg Pickup Seconds
-       * @default 0
-       */
-      avg_pickup_seconds: number;
-      /**
-       * Offers Sent
-       * @default 0
-       */
-      offers_sent: number;
-      /**
-       * Offers Accepted
-       * @default 0
-       */
-      offers_accepted: number;
-      /**
-       * Offers Rejected
-       * @default 0
-       */
-      offers_rejected: number;
-      /**
-       * Offers Expired
-       * @default 0
-       */
-      offers_expired: number;
-      /**
-       * Matching Success Rate
-       * @default 0
-       */
-      matching_success_rate: number;
-    };
-    /** ValidationError */
-    ValidationError: {
-      /** Location */
-      loc: (string | number)[];
-      /** Message */
-      msg: string;
-      /** Error Type */
-      type: string;
-    };
-    /** ZoneMetrics */
-    ZoneMetrics: {
-      /** Zone Id */
-      zone_id: string;
-      /** Zone Name */
-      zone_name: string;
-      /** Online Drivers */
-      online_drivers: number;
-      /** Waiting Riders */
-      waiting_riders: number;
-      /** Active Trips */
-      active_trips: number;
-      /** Surge Multiplier */
-      surge_multiplier: number;
-    };
-  };
-  responses: never;
-  parameters: never;
-  requestBodies: never;
-  headers: never;
-  pathItems: never;
+    responses: never;
+    parameters: never;
+    requestBodies: never;
+    headers: never;
+    pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
-  start_simulation_simulation_start_post: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ControlResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  pause_simulation_simulation_pause_post: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ControlResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  resume_simulation_simulation_resume_post: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ControlResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  stop_simulation_simulation_stop_post: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ControlResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  reset_simulation_simulation_reset_post: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ControlResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  change_speed_simulation_speed_put: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['SpeedChangeRequest'];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['SpeedChangeResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_status_simulation_status_get: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['SimulationStatusResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  create_drivers_agents_drivers_post: {
-    parameters: {
-      query?: {
-        /** @description immediate: go online immediately; scheduled: follow DNA shift_preference */
-        mode?: components['schemas']['SpawnMode'];
-      };
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['DriverCreateRequest'];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['DriversCreateResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  create_riders_agents_riders_post: {
-    parameters: {
-      query?: {
-        /** @description immediate: request trip immediately; scheduled: follow DNA avg_rides_per_week */
-        mode?: components['schemas']['SpawnMode'];
-      };
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['RiderCreateRequest'];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['RidersCreateResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_spawn_status_agents_spawn_status_get: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['SpawnQueueStatusResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_driver_state_agents_drivers__driver_id__get: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path: {
-        driver_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['DriverStateResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_rider_state_agents_riders__rider_id__get: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path: {
-        rider_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['RiderStateResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  toggle_driver_status_agents_drivers__driver_id__status_put: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path: {
-        driver_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['DriverStatusToggleRequest'];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['DriverStatusToggleResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  request_rider_trip_agents_riders__rider_id__request_trip_post: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path: {
-        rider_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['RiderTripRequestBody'];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['RiderTripRequestResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  create_puppet_driver_agents_puppet_drivers_post: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['PuppetDriverWithDNARequest'];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PuppetDriverCreateResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  create_puppet_rider_agents_puppet_riders_post: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['PuppetRiderWithDNARequest'];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PuppetRiderCreateResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  puppet_driver_go_online_agents_puppet_drivers__driver_id__go_online_put: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path: {
-        driver_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PuppetActionResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  puppet_driver_go_offline_agents_puppet_drivers__driver_id__go_offline_put: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path: {
-        driver_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PuppetActionResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  puppet_driver_accept_offer_agents_puppet_drivers__driver_id__accept_offer_post: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path: {
-        driver_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PuppetActionResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  puppet_driver_reject_offer_agents_puppet_drivers__driver_id__reject_offer_post: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path: {
-        driver_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PuppetActionResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  puppet_driver_drive_to_pickup_agents_puppet_drivers__driver_id__drive_to_pickup_post: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path: {
-        driver_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PuppetDriveResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  puppet_driver_drive_to_destination_agents_puppet_drivers__driver_id__drive_to_destination_post: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path: {
-        driver_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PuppetDriveResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  puppet_driver_arrive_pickup_agents_puppet_drivers__driver_id__arrive_pickup_post: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path: {
-        driver_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PuppetActionResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  puppet_driver_start_trip_agents_puppet_drivers__driver_id__start_trip_post: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path: {
-        driver_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PuppetActionResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  puppet_driver_complete_trip_agents_puppet_drivers__driver_id__complete_trip_post: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path: {
-        driver_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PuppetActionResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  puppet_driver_cancel_trip_agents_puppet_drivers__driver_id__cancel_trip_post: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path: {
-        driver_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PuppetActionResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  puppet_rider_request_trip_agents_puppet_riders__rider_id__request_trip_post: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path: {
-        rider_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['PuppetTripRequestBody'];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PuppetTripRequestResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  puppet_rider_cancel_trip_agents_puppet_riders__rider_id__cancel_trip_post: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path: {
-        rider_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PuppetActionResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  update_driver_rating_agents_puppet_drivers__driver_id__rating_put: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path: {
-        driver_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['RatingUpdateRequest'];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PuppetActionResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  update_rider_rating_agents_puppet_riders__rider_id__rating_put: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path: {
-        rider_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['RatingUpdateRequest'];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PuppetActionResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  teleport_driver_agents_puppet_drivers__driver_id__location_put: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path: {
-        driver_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['LocationUpdateRequest'];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PuppetActionResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  teleport_rider_agents_puppet_riders__rider_id__location_put: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path: {
-        rider_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['LocationUpdateRequest'];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PuppetActionResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  force_driver_offer_timeout_agents_puppet_drivers__driver_id__force_offer_timeout_post: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path: {
-        driver_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PuppetActionResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  force_rider_patience_timeout_agents_puppet_riders__rider_id__force_patience_timeout_post: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path: {
-        rider_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PuppetActionResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_overview_metrics_metrics_overview_get: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['OverviewMetrics'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_zone_metrics_metrics_zones_get: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ZoneMetrics'][];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_trip_metrics_metrics_trips_get: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['TripMetrics'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_driver_metrics_metrics_drivers_get: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['DriverMetrics'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_rider_metrics_metrics_riders_get: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['RiderMetrics'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_performance_metrics_metrics_performance_get: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PerformanceMetrics'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_infrastructure_metrics_metrics_infrastructure_get: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['InfrastructureResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  health_check_health_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            [key: string]: string;
-          };
-        };
-      };
-    };
-  };
-  validate_api_key_endpoint_auth_validate_get: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            [key: string]: string;
-          };
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  detailed_health_check_health_detailed_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['DetailedHealthResponse'];
-        };
-      };
-    };
-  };
+    start_simulation_simulation_start_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControlResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pause_simulation_simulation_pause_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControlResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resume_simulation_simulation_resume_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControlResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stop_simulation_simulation_stop_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControlResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_simulation_simulation_reset_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControlResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_speed_simulation_speed_put: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpeedChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpeedChangeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_status_simulation_status_get: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimulationStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_drivers_agents_drivers_post: {
+        parameters: {
+            query?: {
+                /** @description immediate: go online immediately; scheduled: follow DNA shift_preference */
+                mode?: components["schemas"]["SpawnMode"];
+            };
+            header: {
+                "x-api-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DriverCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriversCreateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_riders_agents_riders_post: {
+        parameters: {
+            query?: {
+                /** @description immediate: request trip immediately; scheduled: follow DNA avg_rides_per_week */
+                mode?: components["schemas"]["SpawnMode"];
+            };
+            header: {
+                "x-api-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RiderCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RidersCreateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_spawn_status_agents_spawn_status_get: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpawnQueueStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_driver_state_agents_drivers__driver_id__get: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path: {
+                driver_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverStateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_rider_state_agents_riders__rider_id__get: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path: {
+                rider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RiderStateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    toggle_driver_status_agents_drivers__driver_id__status_put: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path: {
+                driver_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DriverStatusToggleRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverStatusToggleResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_rider_trip_agents_riders__rider_id__request_trip_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path: {
+                rider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RiderTripRequestBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RiderTripRequestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_puppet_driver_agents_puppet_drivers_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PuppetDriverWithDNARequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PuppetDriverCreateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_puppet_rider_agents_puppet_riders_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PuppetRiderWithDNARequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PuppetRiderCreateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    puppet_driver_go_online_agents_puppet_drivers__driver_id__go_online_put: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path: {
+                driver_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PuppetActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    puppet_driver_go_offline_agents_puppet_drivers__driver_id__go_offline_put: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path: {
+                driver_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PuppetActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    puppet_driver_accept_offer_agents_puppet_drivers__driver_id__accept_offer_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path: {
+                driver_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PuppetActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    puppet_driver_reject_offer_agents_puppet_drivers__driver_id__reject_offer_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path: {
+                driver_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PuppetActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    puppet_driver_drive_to_pickup_agents_puppet_drivers__driver_id__drive_to_pickup_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path: {
+                driver_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PuppetDriveResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    puppet_driver_drive_to_destination_agents_puppet_drivers__driver_id__drive_to_destination_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path: {
+                driver_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PuppetDriveResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    puppet_driver_arrive_pickup_agents_puppet_drivers__driver_id__arrive_pickup_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path: {
+                driver_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PuppetActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    puppet_driver_start_trip_agents_puppet_drivers__driver_id__start_trip_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path: {
+                driver_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PuppetActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    puppet_driver_complete_trip_agents_puppet_drivers__driver_id__complete_trip_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path: {
+                driver_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PuppetActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    puppet_driver_cancel_trip_agents_puppet_drivers__driver_id__cancel_trip_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path: {
+                driver_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PuppetActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    puppet_rider_request_trip_agents_puppet_riders__rider_id__request_trip_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path: {
+                rider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PuppetTripRequestBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PuppetTripRequestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    puppet_rider_cancel_trip_agents_puppet_riders__rider_id__cancel_trip_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path: {
+                rider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PuppetActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_driver_rating_agents_puppet_drivers__driver_id__rating_put: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path: {
+                driver_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RatingUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PuppetActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_rider_rating_agents_puppet_riders__rider_id__rating_put: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path: {
+                rider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RatingUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PuppetActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    teleport_driver_agents_puppet_drivers__driver_id__location_put: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path: {
+                driver_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LocationUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PuppetActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    teleport_rider_agents_puppet_riders__rider_id__location_put: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path: {
+                rider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LocationUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PuppetActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    force_driver_offer_timeout_agents_puppet_drivers__driver_id__force_offer_timeout_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path: {
+                driver_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PuppetActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    force_rider_patience_timeout_agents_puppet_riders__rider_id__force_patience_timeout_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path: {
+                rider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PuppetActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_overview_metrics_metrics_overview_get: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OverviewMetrics"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_zone_metrics_metrics_zones_get: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZoneMetrics"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_trip_metrics_metrics_trips_get: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripMetrics"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_driver_metrics_metrics_drivers_get: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverMetrics"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_rider_metrics_metrics_riders_get: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RiderMetrics"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_performance_metrics_metrics_performance_get: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerformanceMetrics"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_infrastructure_metrics_metrics_infrastructure_get: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InfrastructureResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    health_check_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+    };
+    validate_api_key_endpoint_auth_validate_get: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-api-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    detailed_health_check_health_detailed_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailedHealthResponse"];
+                };
+            };
+        };
+    };
 }
