@@ -30,9 +30,12 @@ resources:
 
   # External Secrets (syncs from AWS Secrets Manager)
   - ../../manifests/external-secrets-namespace.yaml
-  - ../../manifests/external-secrets-secretstore.yaml
+  - secretstore-aws-patch.yaml  # replaces base localstack-secrets SecretStore
   - ../../manifests/external-secrets-api-keys.yaml
   - ../../manifests/external-secrets-app-credentials.yaml
+
+  # IRSA ServiceAccounts (pods assume IAM roles via projected tokens)
+  - serviceaccount-irsa-patches.yaml
 
   # Storage (EBS gp3 replaces local-path provisioner)
   - storageclass-ebs.yaml
@@ -82,6 +85,82 @@ patches:
       kind: ConfigMap
       name: data-pipeline-config
 
-  # IRSA annotations - Ticket 021
-  # External Secrets Store - Ticket 021
+  # Bind Deployments to their IRSA ServiceAccounts
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: placeholder
+      spec:
+        template:
+          spec:
+            serviceAccountName: simulation
+    target:
+      kind: Deployment
+      name: simulation
+
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: placeholder
+      spec:
+        template:
+          spec:
+            serviceAccountName: bronze-ingestion
+    target:
+      kind: Deployment
+      name: bronze-ingestion
+
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: placeholder
+      spec:
+        template:
+          spec:
+            serviceAccountName: airflow-scheduler
+    target:
+      kind: Deployment
+      name: airflow-scheduler
+
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: placeholder
+      spec:
+        template:
+          spec:
+            serviceAccountName: trino
+    target:
+      kind: Deployment
+      name: trino
+
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: placeholder
+      spec:
+        template:
+          spec:
+            serviceAccountName: hive-metastore
+    target:
+      kind: Deployment
+      name: hive-metastore
+
+  # Point ExternalSecrets to production SecretStore
+  - patch: |-
+      apiVersion: external-secrets.io/v1beta1
+      kind: ExternalSecret
+      metadata:
+        name: placeholder
+      spec:
+        secretStoreRef:
+          name: aws-secrets-manager
+    target:
+      kind: ExternalSecret
+
   # Core service manifests - Tickets 022-023
