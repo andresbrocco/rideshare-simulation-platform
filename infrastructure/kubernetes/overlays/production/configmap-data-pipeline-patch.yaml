@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: data-pipeline-config
+data:
+  # AWS region (kept explicit for production)
+  AWS_REGION: "us-east-1"
+
+  # RDS connection strings (replace <rds-endpoint> with Terraform output during deploy)
+  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "postgresql+psycopg2://airflow:CHANGEME@<rds-endpoint>:5432/airflow"
+  HIVE_METASTORE_DB_URL: "jdbc:postgresql://<rds-endpoint>:5432/metastore"
+
+  # RDS hosts replace in-cluster postgres (replace <rds-endpoint> during deploy)
+  AIRFLOW_POSTGRES_HOST: "<rds-endpoint>"
+  POSTGRES_METASTORE_HOST: "<rds-endpoint>"
+
+  # S3 bucket for bronze layer (replaces MinIO)
+  BRONZE_BUCKET: "rideshare-bronze"
+
+  # Remove MinIO/LocalStack references by setting empty values
+  # Deploy workflow should use ConfigMap generator for final values
+  MINIO_ENDPOINT: ""
+  LOCALSTACK_ENDPOINT: ""

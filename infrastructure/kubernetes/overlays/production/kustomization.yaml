@@ -34,12 +34,15 @@ resources:
   - ../../manifests/external-secrets-api-keys.yaml
   - ../../manifests/external-secrets-app-credentials.yaml
 
-  # Storage
-  - ../../manifests/storageclass.yaml
+  # Storage (EBS gp3 replaces local-path provisioner)
+  - storageclass-ebs.yaml
 
   # ConfigMaps (patched below)
   - ../../manifests/configmap-core.yaml
   - ../../manifests/configmap-data-pipeline.yaml
+
+  # ALB Ingress (replaces Gateway API)
+  - ingress-alb.yaml
 
 namespace: rideshare-prod
 
@@ -68,9 +71,17 @@ images:
     newTag: latest
 
 patches:
-  # ConfigMap patches - Ticket 020
-  # StorageClass patch - Ticket 020
-  # ALB Ingress - Ticket 020
+  # ConfigMap patches for production environment
+  - path: configmap-core-patch.yaml
+    target:
+      kind: ConfigMap
+      name: core-config
+
+  - path: configmap-data-pipeline-patch.yaml
+    target:
+      kind: ConfigMap
+      name: data-pipeline-config
+
   # IRSA annotations - Ticket 021
   # External Secrets Store - Ticket 021
   # Core service manifests - Tickets 022-023

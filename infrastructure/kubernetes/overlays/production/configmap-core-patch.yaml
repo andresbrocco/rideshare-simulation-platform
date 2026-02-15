@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: core-config
+data:
+  # Production domain for CORS (replaces localhost origins)
+  CORS_ORIGINS: "https://ridesharing.portfolio.andresbrocco.com"
+
+  # Production environment marker (replaces "local")
+  DEPLOYMENT_ENV: "production"
