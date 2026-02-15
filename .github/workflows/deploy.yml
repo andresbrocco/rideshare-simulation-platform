@@ -1,0 +1,149 @@
+name: Deploy Platform to AWS
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "deploy" to confirm platform deployment (~$0.65/hr cost)'
+        required: true
+        default: ''
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy-platform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Validate confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "deploy" ]; then
+            echo "Error: Confirmation failed. You must type 'deploy' to proceed."
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.3
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rideshare-github-actions
+          aws-region: us-east-1
+
+      - name: Terraform Init (Platform)
+        working-directory: infrastructure/terraform/platform
+        run: terraform init
+
+      - name: Terraform Plan (Platform)
+        working-directory: infrastructure/terraform/platform
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply (Platform)
+        working-directory: infrastructure/terraform/platform
+        run: terraform apply -auto-approve tfplan
+
+      - name: Get Terraform Outputs
+        id: tf-outputs
+        working-directory: infrastructure/terraform/platform
+        run: |
+          CLUSTER_NAME=$(terraform output -raw cluster_name)
+          CLUSTER_ENDPOINT=$(terraform output -raw cluster_endpoint)
+          echo "cluster_name=$CLUSTER_NAME" >> $GITHUB_OUTPUT
+          echo "cluster_endpoint=$CLUSTER_ENDPOINT" >> $GITHUB_OUTPUT
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --name ${{ steps.tf-outputs.outputs.cluster_name }} \
+            --region us-east-1
+
+      - name: Wait for EKS nodes to be ready
+        run: |
+          echo "Waiting for EKS nodes to reach Ready state..."
+          kubectl wait --for=condition=Ready nodes --all --timeout=300s
+
+      - name: Install ArgoCD
+        run: |
+          # Check if ArgoCD is already installed
+          if kubectl get namespace argocd &> /dev/null; then
+            echo "ArgoCD namespace already exists, skipping installation"
+          else
+            echo "Installing ArgoCD..."
+            kubectl create namespace argocd
+            kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/v3.2.3/manifests/install.yaml
+          fi
+
+          # Wait for ArgoCD server to be ready
+          echo "Waiting for ArgoCD server..."
+          kubectl wait --for=condition=available --timeout=300s \
+            deployment/argocd-server -n argocd
+
+      - name: Apply ArgoCD Applications
+        run: |
+          kubectl apply -f infrastructure/argocd/app-core-services.yaml
+          kubectl apply -f infrastructure/argocd/app-data-pipeline.yaml
+          kubectl apply -f infrastructure/argocd/app-monitoring.yaml
+
+          echo "ArgoCD applications created. Syncing..."
+          kubectl get applications -n argocd
+
+      - name: Health Checks
+        run: |
+          echo "Running health checks..."
+
+          echo "Checking pods in rideshare-prod namespace..."
+          kubectl get pods -n rideshare-prod
+
+          echo "Waiting for simulation service..."
+          kubectl wait --for=condition=available --timeout=600s \
+            deployment/simulation -n rideshare-prod || echo "Simulation not ready yet"
+
+          echo "Waiting for kafka statefulset..."
+          kubectl wait --for=condition=ready --timeout=600s \
+            pod/kafka-0 -n rideshare-prod || echo "Kafka not ready yet"
+
+      - name: Get Load Balancer URL
+        id: alb-url
+        run: |
+          echo "Waiting for ALB to be provisioned..."
+          sleep 60
+
+          ALB_HOSTNAME=$(kubectl get ingress rideshare-ingress -n rideshare-prod \
+            -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "pending")
+
+          echo "alb_hostname=$ALB_HOSTNAME" >> $GITHUB_OUTPUT
+
+          if [ "$ALB_HOSTNAME" != "pending" ]; then
+            echo "ALB provisioned at: $ALB_HOSTNAME"
+          else
+            echo "ALB provisioning in progress (check Route 53 for api.* record)"
+          fi
+
+      - name: Deployment Summary
+        run: |
+          echo "================================"
+          echo "Platform Deployment Complete"
+          echo "================================"
+          echo ""
+          echo "EKS Cluster: ${{ steps.tf-outputs.outputs.cluster_name }}"
+          echo "Cluster Endpoint: ${{ steps.tf-outputs.outputs.cluster_endpoint }}"
+          echo "ALB Hostname: ${{ steps.alb-url.outputs.alb_hostname }}"
+          echo ""
+          echo "Frontend URL: https://ridesharing.portfolio.andresbrocco.com"
+          echo "API URL: https://api.ridesharing.portfolio.andresbrocco.com"
+          echo "Grafana: https://api.ridesharing.portfolio.andresbrocco.com/grafana"
+          echo "Airflow: https://api.ridesharing.portfolio.andresbrocco.com/airflow"
+          echo "Trino: https://api.ridesharing.portfolio.andresbrocco.com/trino"
+          echo ""
+          echo "Estimated cost: ~$0.65/hour while running"
+          echo "Remember to run teardown workflow when demo is complete"
+          echo "================================"
