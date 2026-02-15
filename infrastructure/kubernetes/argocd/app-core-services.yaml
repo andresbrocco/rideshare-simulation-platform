@@ -14,27 +14,11 @@ spec:
   source:
     repoURL: https://github.com/andresbrocco/rideshare-simulation-platform.git
     targetRevision: main
-    path: infrastructure/kubernetes/manifests
-    directory:
-      include: |
-        simulation.yaml
-        frontend.yaml
-        stream-processor.yaml
-        kafka.yaml
-        schema-registry.yaml
-        redis.yaml
-        osrm.yaml
-        configmap-core.yaml
-        secret-api-keys.yaml
-        secret-credentials.yaml
-        gateway-class.yaml
-        gateway.yaml
-        httproute-api.yaml
-        httproute-web-services.yaml
+    path: infrastructure/kubernetes/overlays/production
 
   destination:
     server: https://kubernetes.default.svc
-    namespace: default
+    namespace: rideshare-prod
 
   syncPolicy:
     automated:
@@ -55,5 +39,9 @@ spec:
   ignoreDifferences:
     - group: apps
       kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+    - group: apps
+      kind: StatefulSet
       jsonPointers:
         - /spec/replicas

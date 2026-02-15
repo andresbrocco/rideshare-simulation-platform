@@ -14,38 +14,11 @@ spec:
   source:
     repoURL: https://github.com/andresbrocco/rideshare-simulation-platform.git
     targetRevision: main
-    path: infrastructure/kubernetes/manifests
-    directory:
-      include: |
-        minio.yaml
-        minio-init.yaml
-        localstack.yaml
-        postgres-metastore.yaml
-        hive-metastore.yaml
-        trino.yaml
-        spark-thrift-server.yaml
-        bronze-ingestion.yaml
-        bronze-init.yaml
-        airflow-postgres.yaml
-        airflow-scheduler.yaml
-        airflow-webserver.yaml
-        prometheus.yaml
-        loki.yaml
-        tempo.yaml
-        otel-collector.yaml
-        cadvisor.yaml
-        grafana.yaml
-        configmap-data-pipeline.yaml
-        storageclass.yaml
-        pv-static.yaml
-        pvc-kafka.yaml
-        pvc-minio.yaml
-        pvc-postgres-airflow.yaml
-        pvc-postgres-metastore.yaml
+    path: infrastructure/kubernetes/overlays/production
 
   destination:
     server: https://kubernetes.default.svc
-    namespace: default
+    namespace: rideshare-prod
 
   syncPolicy:
     automated:
