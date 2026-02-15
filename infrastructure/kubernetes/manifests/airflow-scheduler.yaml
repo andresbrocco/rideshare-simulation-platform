@@ -54,7 +54,7 @@ spec:
         - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
           value: "postgresql+psycopg2://airflow:$(AIRFLOW_POSTGRES_PASSWORD)@airflow-postgres/airflow"
         - name: AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION
-          value: "true"
+          value: "false"
         - name: AIRFLOW__CORE__LOAD_EXAMPLES
           value: "false"
         - name: AIRFLOW__CORE__AUTH_MANAGER

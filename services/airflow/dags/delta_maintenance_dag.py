@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from airflow import DAG
-from airflow.providers.standard.operators.python import PythonOperator
+from airflow.providers.standard.operators.python import PythonOperator, ShortCircuitOperator
 from airflow.providers.standard.operators.empty import EmptyOperator
 
 # Bronze tables to maintain
@@ -46,6 +46,36 @@ STORAGE_OPTIONS = {
     "AWS_ALLOW_HTTP": "true",
     "AWS_S3_ALLOW_UNSAFE_RENAME": "true",
 }
+
+
+def check_bronze_data_exists() -> bool:
+    """Check whether any Bronze Delta tables exist in MinIO.
+
+    Returns True to proceed with maintenance, False to skip all downstream tasks.
+    More lenient than the Silver DAG check — maintenance can run on partial data,
+    so returns True if ANY table exists.
+    Raises on MinIO connectivity failure so Airflow retries the task.
+    """
+    import urllib.request
+
+    from deltalake import DeltaTable
+
+    endpoint = STORAGE_OPTIONS["AWS_ENDPOINT_URL"]
+
+    # Verify MinIO is reachable (raise on failure so Airflow retries)
+    req = urllib.request.Request(f"{endpoint}/minio/health/live", method="GET")
+    with urllib.request.urlopen(req, timeout=5):
+        pass
+    print(f"Connected to MinIO at {endpoint}")
+
+    for table in BRONZE_TABLES:
+        path = f"s3://rideshare-bronze/{table}/"
+        if DeltaTable.is_deltatable(path, storage_options=STORAGE_OPTIONS):
+            print(f"Found Bronze table: {table} — proceeding with maintenance")
+            return True
+
+    print("No Bronze tables found — skipping maintenance run")
+    return False
 
 
 def optimize_table(table_name: str, **context: Any) -> dict[str, object]:
@@ -163,6 +193,13 @@ with DAG(
 
     start = EmptyOperator(task_id="start")
 
+    check_data_exists = ShortCircuitOperator(
+        task_id="check_data_exists",
+        python_callable=check_bronze_data_exists,
+    )
+
+    start >> check_data_exists
+
     # Create OPTIMIZE tasks for all tables
     optimize_tasks = []
     for table in ALL_TABLES:
@@ -171,7 +208,7 @@ with DAG(
             python_callable=optimize_table,
             op_kwargs={"table_name": table},
         )
-        start >> task
+        check_data_exists >> task
         optimize_tasks.append(task)
 
     # Barrier between OPTIMIZE and VACUUM

@@ -4,7 +4,10 @@ import os
 from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.providers.standard.operators.bash import BashOperator
-from airflow.providers.standard.operators.python import BranchPythonOperator
+from airflow.providers.standard.operators.python import (
+    BranchPythonOperator,
+    ShortCircuitOperator,
+)
 from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.sdk import Asset
@@ -12,6 +15,57 @@ from airflow.sdk import Asset
 # Asset definitions for data lineage
 SILVER_ASSET = Asset("lakehouse://silver/transformed")
 GOLD_ASSET = Asset("lakehouse://gold/transformed")
+
+# MinIO / S3 configuration for Bronze table checks
+MINIO_ENDPOINT = "http://minio:9000"
+
+STORAGE_OPTIONS = {
+    "AWS_ENDPOINT_URL": MINIO_ENDPOINT,
+    "AWS_ACCESS_KEY_ID": "minioadmin",
+    "AWS_SECRET_ACCESS_KEY": "minioadmin",
+    "AWS_ALLOW_HTTP": "true",
+    "AWS_S3_ALLOW_UNSAFE_RENAME": "true",
+}
+
+# Bronze tables required for Silver layer transformations
+REQUIRED_BRONZE_TABLES = [
+    "bronze_trips",
+    "bronze_gps_pings",
+    "bronze_driver_status",
+    "bronze_surge_updates",
+    "bronze_ratings",
+    "bronze_payments",
+    "bronze_driver_profiles",
+    "bronze_rider_profiles",
+]
+
+
+def check_bronze_data_exists() -> bool:
+    """Check whether all required Bronze Delta tables exist in MinIO.
+
+    Returns True to proceed with the DAG, False to skip all downstream tasks.
+    Raises on MinIO connectivity failure so Airflow retries the task.
+    """
+    import urllib.request
+
+    from deltalake import DeltaTable
+
+    # Verify MinIO is reachable (raise on failure so Airflow retries)
+    req = urllib.request.Request(f"{MINIO_ENDPOINT}/minio/health/live", method="GET")
+    with urllib.request.urlopen(req, timeout=5):
+        pass
+    print(f"Connected to MinIO at {MINIO_ENDPOINT}")
+
+    for table in REQUIRED_BRONZE_TABLES:
+        path = f"s3://rideshare-bronze/{table}/"
+        if not DeltaTable.is_deltatable(path, storage_options=STORAGE_OPTIONS):
+            print(f"Bronze table missing: {table}")
+            print("Skipping DAG run — Bronze data not ready yet")
+            return False
+
+    print("All Bronze tables present — proceeding with transformations")
+    return True
+
 
 default_args = {
     "owner": "rideshare",
@@ -34,9 +88,9 @@ with DAG(
     tags=["dbt", "silver", "transformation"],
 ) as silver_dag:
 
-    check_bronze_freshness = BashOperator(
+    check_bronze_freshness = ShortCircuitOperator(
         task_id="check_bronze_freshness",
-        bash_command="python3 /opt/init-scripts/check_bronze_tables.py",
+        python_callable=check_bronze_data_exists,
     )
 
     dbt_silver_run = BashOperator(
