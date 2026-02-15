@@ -20,8 +20,6 @@ env/
 node_modules/
 .npm
 *.log
-dist/
-build/
 
 # IDE
 .vscode/
@@ -39,7 +37,6 @@ build/
 .terraform/
 *.tfstate
 *.tfstate.backup
-.terraform.lock.hcl
 
 # Data
 # Ignore OSM files except the pre-processed Sao Paulo metro file tracked via Git LFS
