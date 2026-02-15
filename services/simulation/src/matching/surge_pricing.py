@@ -10,6 +10,7 @@ from matching.driver_registry import DriverRegistry
 if TYPE_CHECKING:
     import simpy
 
+    from engine import TimeManager
     from kafka.producer import KafkaProducer
     from redis_client.publisher import RedisPublisher
 
@@ -33,6 +34,7 @@ class SurgePricingCalculator:
 
         self.current_surge: dict[str, float] = {}
         self.pending_requests: dict[str, int] = {}
+        self._time_manager: TimeManager | None = None  # Set by main.py for simulated time
 
         self.env.process(self._surge_calculation_loop())
 
@@ -78,7 +80,11 @@ class SurgePricingCalculator:
         old_multiplier = self.current_surge.get(zone_id, 1.0)
 
         if new_multiplier != old_multiplier:
-            timestamp = datetime.now(UTC).isoformat()
+            timestamp = (
+                self._time_manager.format_timestamp()
+                if self._time_manager
+                else datetime.now(UTC).isoformat()
+            )
 
             if self.kafka_producer:
                 event = EventFactory.create(

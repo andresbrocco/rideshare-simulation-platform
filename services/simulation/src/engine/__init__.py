@@ -178,6 +178,10 @@ class SimulationEngine:
         return self._session_id
 
     @property
+    def time_manager(self) -> TimeManager:
+        return self._time_manager
+
+    @property
     def speed_multiplier(self) -> int:
         return self._speed_multiplier
 
@@ -673,7 +677,7 @@ class SimulationEngine:
                         cancelled_by="system",
                         cancellation_reason="system_pause",
                         cancellation_stage=trip.state.name.lower(),
-                        timestamp=datetime.now(UTC).isoformat(),
+                        timestamp=self._time_manager.format_timestamp(),
                     )
                     self._kafka_producer.produce(
                         topic="trips",

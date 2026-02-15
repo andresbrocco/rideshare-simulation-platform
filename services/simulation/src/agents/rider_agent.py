@@ -288,6 +288,14 @@ class RiderAgent(EventEmitter):
         )
         return rating_value
 
+    def _format_timestamp(self) -> str:
+        """Format current timestamp using simulated time if available."""
+        if self._simulation_engine:
+            result = self._simulation_engine.time_manager.format_timestamp()
+            if isinstance(result, str):
+                return result
+        return datetime.now(UTC).isoformat()
+
     def _emit_rating_event(
         self,
         trip_id: str,
@@ -304,7 +312,7 @@ class RiderAgent(EventEmitter):
             RatingEvent,
             correlation_id=trip_id,
             trip_id=trip_id,
-            timestamp=datetime.now(UTC).isoformat(),
+            timestamp=self._format_timestamp(),
             rater_type="rider",
             rater_id=self._rider_id,
             ratee_type="driver",
@@ -428,7 +436,7 @@ class RiderAgent(EventEmitter):
             correlation_id=self._rider_id,
             event_type="rider.created",
             rider_id=self._rider_id,
-            timestamp=datetime.now(UTC).isoformat(),
+            timestamp=self._format_timestamp(),
             first_name=self._dna.first_name,
             last_name=self._dna.last_name,
             email=self._dna.email,
@@ -467,7 +475,7 @@ class RiderAgent(EventEmitter):
             correlation_id=self._rider_id,
             event_type="rider.updated",
             rider_id=self._rider_id,
-            timestamp=datetime.now(UTC).isoformat(),
+            timestamp=self._format_timestamp(),
             first_name=self._dna.first_name,
             last_name=self._dna.last_name,
             email=changes.get("email", self._dna.email),
@@ -522,7 +530,7 @@ class RiderAgent(EventEmitter):
             correlation_id=correlation,
             entity_type="rider",
             entity_id=self._rider_id,
-            timestamp=datetime.now(UTC).isoformat(),
+            timestamp=self._format_timestamp(),
             location=self._location,
             heading=None,
             speed=None,
@@ -573,7 +581,7 @@ class RiderAgent(EventEmitter):
                         correlation_id=correlation,
                         entity_type="rider",
                         entity_id=self._rider_id,
-                        timestamp=datetime.now(UTC).isoformat(),
+                        timestamp=self._format_timestamp(),
                         location=self._location,
                         heading=None,
                         speed=None,
@@ -649,7 +657,7 @@ class RiderAgent(EventEmitter):
                 correlation_id=trip_id,
                 event_type="trip.requested",
                 trip_id=trip_id,
-                timestamp=datetime.now(UTC).isoformat(),
+                timestamp=self._format_timestamp(),
                 rider_id=self._rider_id,
                 driver_id=None,
                 pickup_location=self._location,
@@ -735,7 +743,7 @@ class RiderAgent(EventEmitter):
                     correlation_id=trip_id,
                     event_type="trip.cancelled",
                     trip_id=trip_id,
-                    timestamp=datetime.now(UTC).isoformat(),
+                    timestamp=self._format_timestamp(),
                     rider_id=self._rider_id,
                     driver_id=None,
                     pickup_location=self._location,
@@ -772,7 +780,7 @@ class RiderAgent(EventEmitter):
                         correlation_id=correlation,
                         entity_type="rider",
                         entity_id=self._rider_id,
-                        timestamp=datetime.now(UTC).isoformat(),
+                        timestamp=self._format_timestamp(),
                         location=self._location,
                         heading=None,
                         speed=None,

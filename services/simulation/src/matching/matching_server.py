@@ -247,7 +247,7 @@ class MatchingServer:
             dropoff_zone_id=dropoff_zone_id,
             surge_multiplier=surge_multiplier,
             fare=fare,
-            requested_at=datetime.now(UTC),
+            requested_at=self._current_time(),
         )
 
         # Compute route immediately for early visualization (pending route)
@@ -432,7 +432,7 @@ class MatchingServer:
             if accepted:
                 trip.driver_id = driver.driver_id
                 trip.transition_to(TripState.MATCHED)
-                trip.matched_at = datetime.now(UTC)
+                trip.matched_at = self._current_time()
                 self._emit_matched_event(trip)
 
                 # Track active trip
@@ -515,7 +515,7 @@ class MatchingServer:
             if accepted:
                 trip.driver_id = driver.driver_id
                 trip.transition_to(TripState.MATCHED)
-                trip.matched_at = datetime.now(UTC)
+                trip.matched_at = self._current_time()
                 self._emit_matched_event(trip)
 
                 logger.info(
@@ -686,6 +686,22 @@ class MatchingServer:
                 self._driver_index.update_driver_status(driver_id, "online")
             raise
 
+    def _format_timestamp(self) -> str:
+        """Format current timestamp using simulated time if available."""
+        if self._simulation_engine:
+            result = self._simulation_engine.time_manager.format_timestamp()
+            if isinstance(result, str):
+                return result
+        return datetime.now(UTC).isoformat()
+
+    def _current_time(self) -> datetime:
+        """Get current time using simulated time if available."""
+        if self._simulation_engine:
+            result = self._simulation_engine.time_manager.current_time()
+            if isinstance(result, datetime):
+                return result
+        return datetime.now(UTC)
+
     def _publish_trip_event(self, event: TripEvent, trip_id: str) -> None:
         """Publish a trip event to Kafka with optional schema validation.
 
@@ -732,7 +748,7 @@ class MatchingServer:
             surge_multiplier=trip.surge_multiplier,
             fare=trip.fare,
             offer_sequence=offer_sequence,
-            timestamp=datetime.now(UTC).isoformat(),
+            timestamp=self._format_timestamp(),
         )
 
         self._publish_trip_event(event, trip.trip_id)
@@ -756,7 +772,7 @@ class MatchingServer:
             surge_multiplier=trip.surge_multiplier,
             fare=trip.fare,
             offer_sequence=trip.offer_sequence,
-            timestamp=datetime.now(UTC).isoformat(),
+            timestamp=self._format_timestamp(),
         )
 
         self._publish_trip_event(event, trip.trip_id)
@@ -777,7 +793,7 @@ class MatchingServer:
             surge_multiplier=trip.surge_multiplier,
             fare=trip.fare,
             offer_sequence=trip.offer_sequence,
-            timestamp=datetime.now(UTC).isoformat(),
+            timestamp=self._format_timestamp(),
         )
 
         self._publish_trip_event(event, trip.trip_id)
@@ -850,7 +866,7 @@ class MatchingServer:
         driver.start_pickup()  # Transition to en_route_pickup
         trip.driver_id = driver_id
         trip.transition_to(TripState.MATCHED)
-        trip.matched_at = datetime.now(UTC)
+        trip.matched_at = self._current_time()
         self._emit_matched_event(trip)
 
         # Transition to DRIVER_EN_ROUTE for puppet flow
@@ -994,7 +1010,7 @@ class MatchingServer:
 
         # Transition trip to started
         trip.transition_to(TripState.STARTED)
-        trip.started_at = datetime.now(UTC)
+        trip.started_at = self._current_time()
         self._emit_trip_state_event(trip, "trip.started")
 
     def signal_trip_completed(self, driver_id: str, trip_id: str) -> None:
@@ -1019,7 +1035,7 @@ class MatchingServer:
 
         # Transition trip to completed
         trip.transition_to(TripState.COMPLETED)
-        trip.completed_at = datetime.now(UTC)
+        trip.completed_at = self._current_time()
 
         # Track trip completion statistics
         self._record_trip_completion_stats(driver, rider, trip)
@@ -1134,7 +1150,7 @@ class MatchingServer:
             dropoff_zone_id=trip.dropoff_zone_id,
             surge_multiplier=trip.surge_multiplier,
             fare=trip.fare,
-            timestamp=datetime.now(UTC).isoformat(),
+            timestamp=self._format_timestamp(),
         )
 
         self._publish_trip_event(event, trip.trip_id)
@@ -1187,6 +1203,7 @@ class MatchingServer:
             redis_publisher=self._redis_publisher,
             speed_multiplier=self._settings.simulation.speed_multiplier,
             is_pickup_drive=True,
+            simulation_engine=self._simulation_engine,
         )
 
         self._puppet_drives[driver_id] = controller
@@ -1242,6 +1259,7 @@ class MatchingServer:
             redis_publisher=self._redis_publisher,
             speed_multiplier=self._settings.simulation.speed_multiplier,
             is_pickup_drive=False,
+            simulation_engine=self._simulation_engine,
         )
 
         self._puppet_drives[driver_id] = controller

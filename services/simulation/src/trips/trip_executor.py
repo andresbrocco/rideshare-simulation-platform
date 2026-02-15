@@ -62,6 +62,22 @@ class TripExecutor:
         self._rider_cancels_mid_trip = rider_cancels_mid_trip
         self._simulation_engine = simulation_engine
 
+    def _format_timestamp(self) -> str:
+        """Format current timestamp using simulated time if available."""
+        if self._simulation_engine:
+            result = self._simulation_engine.time_manager.format_timestamp()
+            if isinstance(result, str):
+                return result
+        return datetime.now(UTC).isoformat()
+
+    def _current_time(self) -> datetime:
+        """Get current time using simulated time if available."""
+        if self._simulation_engine:
+            result = self._simulation_engine.time_manager.current_time()
+            if isinstance(result, datetime):
+                return result
+        return datetime.now(UTC)
+
     def execute(self) -> Generator[simpy.Event]:
         """Execute the full trip flow."""
         logger.debug("TripExecutor.execute() started", extra={"trip_id": self._trip.trip_id})
@@ -155,7 +171,7 @@ class TripExecutor:
     def _wait_for_rider(self) -> Generator[simpy.Event]:
         """Wait at pickup location for rider."""
         self._trip.transition_to(TripState.DRIVER_ARRIVED)
-        self._trip.driver_arrived_at = datetime.now(UTC)
+        self._trip.driver_arrived_at = self._current_time()
         self._driver.update_location(*self._trip.pickup_location)
 
         # Mark pickup route as complete for visualization
@@ -214,7 +230,7 @@ class TripExecutor:
         """Complete trip and emit events."""
         logger.info(f"Trip {self._trip.trip_id}: _complete_trip - transitioning to COMPLETED")
         self._trip.transition_to(TripState.COMPLETED)
-        self._trip.completed_at = datetime.now(UTC)
+        self._trip.completed_at = self._current_time()
         self._driver.update_location(*self._trip.dropoff_location)
         self._rider.update_location(*self._trip.dropoff_location)
 
@@ -481,7 +497,7 @@ class TripExecutor:
             update_causation=True,
             event_type=event_type,
             trip_id=self._trip.trip_id,
-            timestamp=datetime.now(UTC).isoformat(),
+            timestamp=self._format_timestamp(),
             rider_id=self._trip.rider_id,
             driver_id=self._trip.driver_id,
             pickup_location=self._trip.pickup_location,
@@ -529,7 +545,7 @@ class TripExecutor:
             update_causation=False,
             payment_id=str(uuid4()),
             trip_id=self._trip.trip_id,
-            timestamp=datetime.now(UTC).isoformat(),
+            timestamp=self._format_timestamp(),
             rider_id=self._trip.rider_id,
             driver_id=driver_id,
             payment_method_type=payment_method,
@@ -573,7 +589,7 @@ class TripExecutor:
             correlation_id=self._trip.trip_id,
             entity_type=entity_type,
             entity_id=entity_id,
-            timestamp=datetime.now(UTC).isoformat(),
+            timestamp=self._format_timestamp(),
             location=location,
             heading=self._driver.heading,
             speed=random.uniform(20, 60),

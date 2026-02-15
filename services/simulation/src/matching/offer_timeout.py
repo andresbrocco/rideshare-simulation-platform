@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 import simpy
 
 if TYPE_CHECKING:
+    from engine import TimeManager
     from kafka.producer import KafkaProducer
     from trip import Trip
 
@@ -30,6 +31,7 @@ class OfferTimeoutManager:
         self.kafka_producer = kafka_producer
         self.timeout_seconds = timeout_seconds
         self.pending_offers: dict[str, PendingOffer] = {}
+        self._time_manager: TimeManager | None = None  # Set externally for simulated time
 
     def start_offer_timeout(self, trip: "Trip", driver_id: str, offer_sequence: int) -> None:
         process = self.env.process(self._timeout_process(trip.trip_id))
@@ -70,7 +72,11 @@ class OfferTimeoutManager:
             surge_multiplier=trip.surge_multiplier,
             fare=trip.fare,
             offer_sequence=pending_offer.offer_sequence,
-            timestamp=datetime.now(UTC).isoformat(),
+            timestamp=(
+                self._time_manager.format_timestamp()
+                if self._time_manager
+                else datetime.now(UTC).isoformat()
+            ),
         )
         self.kafka_producer.produce(
             topic="trips",  # Correct topic (was "trip.offer_expired")

@@ -273,6 +273,10 @@ def main() -> None:
         simulation_start_time=simulation_start_time,
     )
 
+    # Wire simulation engine into components that need simulated time
+    matching_server._simulation_engine = engine
+    surge_calculator._time_manager = engine.time_manager
+
     # Initialize agent factory with all dependencies
     agent_factory = AgentFactory(
         simulation_engine=engine,

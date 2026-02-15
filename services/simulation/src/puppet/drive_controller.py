@@ -13,6 +13,7 @@ from geo.gps_simulation import GPSSimulator
 
 if TYPE_CHECKING:
     from agents.driver_agent import DriverAgent
+    from engine import SimulationEngine
     from geo.osrm_client import RouteResponse
     from kafka.producer import KafkaProducer
     from redis_client.publisher import RedisPublisher
@@ -39,6 +40,7 @@ class PuppetDriveController:
         speed_multiplier: int = 1,
         gps_interval_seconds: float = 1.0,
         is_pickup_drive: bool = True,
+        simulation_engine: "SimulationEngine | None" = None,
     ):
         self._driver = driver
         self._trip = trip
@@ -48,6 +50,7 @@ class PuppetDriveController:
         self._speed_multiplier = max(1, speed_multiplier)
         self._gps_interval = gps_interval_seconds
         self._is_pickup_drive = is_pickup_drive
+        self._simulation_engine = simulation_engine
 
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
@@ -154,10 +157,15 @@ class PuppetDriveController:
 
     def _emit_gps_ping(self, location: tuple[float, float], heading: float) -> None:
         """Emit GPS ping to Kafka and Redis."""
+        timestamp = (
+            self._simulation_engine.time_manager.format_timestamp()
+            if self._simulation_engine
+            else datetime.now(UTC).isoformat()
+        )
         event = GPSPingEvent(
             entity_type="driver",
             entity_id=self._driver.driver_id,
-            timestamp=datetime.now(UTC).isoformat(),
+            timestamp=timestamp,
             location=location,
             heading=heading,
             speed=random.uniform(20, 60),  # Approximate city speed

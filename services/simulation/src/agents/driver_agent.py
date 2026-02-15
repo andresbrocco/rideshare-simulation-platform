@@ -406,6 +406,14 @@ class DriverAgent(EventEmitter):
         )
         return rating_value
 
+    def _format_timestamp(self) -> str:
+        """Format current timestamp using simulated time if available."""
+        if self._simulation_engine:
+            result = self._simulation_engine.time_manager.format_timestamp()
+            if isinstance(result, str):
+                return result
+        return datetime.now(UTC).isoformat()
+
     def _emit_rating_event(
         self,
         trip_id: str,
@@ -422,7 +430,7 @@ class DriverAgent(EventEmitter):
             RatingEvent,
             correlation_id=trip_id,
             trip_id=trip_id,
-            timestamp=datetime.now(UTC).isoformat(),
+            timestamp=self._format_timestamp(),
             rater_type="driver",
             rater_id=self._driver_id,
             ratee_type="rider",
@@ -521,7 +529,7 @@ class DriverAgent(EventEmitter):
             correlation_id=self._driver_id,
             event_type="driver.created",
             driver_id=self._driver_id,
-            timestamp=datetime.now(UTC).isoformat(),
+            timestamp=self._format_timestamp(),
             first_name=self._dna.first_name,
             last_name=self._dna.last_name,
             email=self._dna.email,
@@ -560,7 +568,7 @@ class DriverAgent(EventEmitter):
             correlation_id=self._driver_id,
             event_type="driver.updated",
             driver_id=self._driver_id,
-            timestamp=datetime.now(UTC).isoformat(),
+            timestamp=self._format_timestamp(),
             first_name=self._dna.first_name,
             last_name=self._dna.last_name,
             email=changes.get("email", self._dna.email),
@@ -598,7 +606,7 @@ class DriverAgent(EventEmitter):
             correlation_id=self._driver_id,
             entity_type="driver",
             entity_id=self._driver_id,
-            timestamp=datetime.now(UTC).isoformat(),
+            timestamp=self._format_timestamp(),
             location=self._location,
             heading=self._heading,
             speed=0.0,
@@ -631,7 +639,7 @@ class DriverAgent(EventEmitter):
             DriverStatusEvent,
             correlation_id=self._driver_id,
             driver_id=self._driver_id,
-            timestamp=datetime.now(UTC).isoformat(),
+            timestamp=self._format_timestamp(),
             previous_status="offline",
             new_status="online",
             trigger="creation_preview",
@@ -664,7 +672,7 @@ class DriverAgent(EventEmitter):
             DriverStatusEvent,
             correlation_id=self._driver_id,
             driver_id=self._driver_id,
-            timestamp=datetime.now(UTC).isoformat(),
+            timestamp=self._format_timestamp(),
             previous_status=previous_status,
             new_status=new_status,
             trigger=trigger,
@@ -772,7 +780,7 @@ class DriverAgent(EventEmitter):
                         correlation_id=correlation,
                         entity_type="driver",
                         entity_id=self._driver_id,
-                        timestamp=datetime.now(UTC).isoformat(),
+                        timestamp=self._format_timestamp(),
                         location=self._location,
                         heading=self._heading,
                         speed=random.uniform(20, 60),
