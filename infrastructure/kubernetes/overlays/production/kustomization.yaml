@@ -2,19 +2,75 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 # Production overlay for AWS EKS
-# Production-grade resource limits, high availability, monitoring
+# Uses real AWS services (S3, RDS, Secrets Manager, ALB) instead of local alternatives
 
 resources:
-  - ../../base/core
-  - ../../base/data-pipeline
+  # Core Services
+  - ../../manifests/kafka.yaml
+  - ../../manifests/schema-registry.yaml
+  - ../../manifests/redis.yaml
+  - ../../manifests/osrm.yaml
+  - ../../manifests/simulation.yaml
+  - ../../manifests/stream-processor.yaml
+
+  # Data Pipeline
+  - ../../manifests/bronze-ingestion.yaml
+  - ../../manifests/bronze-init.yaml
+  - ../../manifests/hive-metastore.yaml
+  - ../../manifests/trino.yaml
+  - ../../manifests/airflow-webserver.yaml
+  - ../../manifests/airflow-scheduler.yaml
+
+  # Monitoring
+  - ../../manifests/prometheus.yaml
+  - ../../manifests/grafana.yaml
+  - ../../manifests/loki.yaml
+  - ../../manifests/tempo.yaml
+  - ../../manifests/otel-collector.yaml
+
+  # External Secrets (syncs from AWS Secrets Manager)
+  - ../../manifests/external-secrets-namespace.yaml
+  - ../../manifests/external-secrets-secretstore.yaml
+  - ../../manifests/external-secrets-api-keys.yaml
+  - ../../manifests/external-secrets-app-credentials.yaml
+
+  # Storage
+  - ../../manifests/storageclass.yaml
+
+  # ConfigMaps (patched below)
+  - ../../manifests/configmap-core.yaml
+  - ../../manifests/configmap-data-pipeline.yaml
 
 namespace: rideshare-prod
 
-# Overlays will be added in Phase 9 (AWS Infrastructure):
-# - Production resource limits
-# - EBS persistent volumes
-# - LoadBalancer services
-# - Production environment variables
-# - High availability (multiple replicas)
-# - Resource quotas
-# - Network policies
+images:
+  # Custom service images from ECR (replace <account-id> during deploy)
+  - name: rideshare-simulation
+    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/simulation
+    newTag: latest
+  - name: rideshare-stream-processor
+    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/stream-processor
+    newTag: latest
+  - name: rideshare-frontend
+    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/frontend
+    newTag: latest
+  - name: rideshare-bronze-ingestion
+    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/bronze-ingestion
+    newTag: latest
+  - name: rideshare-hive-metastore
+    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/hive-metastore
+    newTag: latest
+  - name: rideshare-osrm
+    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/osrm
+    newTag: latest
+  - name: otel/opentelemetry-collector-contrib
+    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/otel-collector
+    newTag: latest
+
+patches:
+  # ConfigMap patches - Ticket 020
+  # StorageClass patch - Ticket 020
+  # ALB Ingress - Ticket 020
+  # IRSA annotations - Ticket 021
+  # External Secrets Store - Ticket 021
+  # Core service manifests - Tickets 022-023
