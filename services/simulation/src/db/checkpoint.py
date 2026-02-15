@@ -383,12 +383,26 @@ class CheckpointManager:
         if hasattr(engine._matching_server, "_env"):
             engine._matching_server._env = engine._env
 
+        # Extract shared dependencies from agent factory for restored agents
+        registry_manager = None
+        zone_loader = None
+        osrm_client = None
+        surge_calculator = None
+        if hasattr(engine, "_agent_factory") and engine._agent_factory:
+            registry_manager = getattr(engine._agent_factory, "_registry_manager", None)
+            zone_loader = getattr(engine._agent_factory, "_zone_loader", None)
+            osrm_client = getattr(engine._agent_factory, "_osrm_client", None)
+            surge_calculator = getattr(engine._agent_factory, "_surge_calculator", None)
+
         # Restore drivers
         restored_drivers = 0
         failed_drivers = 0
         for driver_data in checkpoint["agents"]["drivers"]:
             try:
                 driver_dna = DriverDNA.model_validate(driver_data["dna"])
+                has_active_trip = driver_data["active_trip"] is not None
+                is_online_idle = driver_data["status"] == "online" and not has_active_trip
+
                 driver = DriverAgent(
                     driver_id=driver_data["id"],
                     dna=driver_dna,
@@ -396,9 +410,10 @@ class CheckpointManager:
                     kafka_producer=engine._kafka_producer,
                     redis_publisher=engine._redis_client,
                     driver_repository=None,  # Skip DB write on restore
-                    registry_manager=None,  # Will be set up after
+                    registry_manager=registry_manager,
+                    zone_loader=zone_loader,
                     simulation_engine=engine,
-                    immediate_online=False,
+                    immediate_online=is_online_idle,
                     puppet=False,
                 )
 
@@ -414,19 +429,28 @@ class CheckpointManager:
 
                 # Register in AgentRegistryManager to populate DriverRegistry
                 # for status counts used by the API
-                if (
-                    hasattr(engine, "_agent_factory")
-                    and engine._agent_factory
-                    and hasattr(engine._agent_factory, "_registry_manager")
-                    and engine._agent_factory._registry_manager
-                ):
-                    rm = engine._agent_factory._registry_manager
-                    rm.register_driver(driver)
+                if registry_manager:
+                    registry_manager.register_driver(driver)
                     # Update registry status from restored state (register_driver defaults to "offline")
                     if driver_data["status"] != "offline":
-                        rm._driver_registry.update_driver_status(
+                        registry_manager._driver_registry.update_driver_status(
                             driver.driver_id, driver_data["status"]
                         )
+
+                    # Populate geospatial index for non-offline drivers
+                    if driver_data["status"] != "offline" and driver_data["location"]:
+                        lat, lon = driver_data["location"]
+                        zone_id = driver._determine_zone(driver_data["location"])
+                        registry_manager._driver_index.add_driver(
+                            driver.driver_id, lat, lon, driver_data["status"]
+                        )
+                        registry_manager._driver_registry.update_driver_location(
+                            driver.driver_id, driver_data["location"]
+                        )
+                        if zone_id:
+                            registry_manager._driver_registry.update_driver_zone(
+                                driver.driver_id, zone_id
+                            )
 
                 restored_drivers += 1
             except Exception as e:
@@ -447,6 +471,9 @@ class CheckpointManager:
                     redis_publisher=engine._redis_client,
                     rider_repository=None,  # Skip DB write on restore
                     simulation_engine=engine,
+                    zone_loader=zone_loader,
+                    osrm_client=osrm_client,
+                    surge_calculator=surge_calculator,
                     immediate_first_trip=False,
                     puppet=False,
                 )
@@ -504,6 +531,13 @@ class CheckpointManager:
             logger.warning(
                 f"Checkpoint restore incomplete: {failed_drivers} drivers and "
                 f"{failed_riders} riders failed to restore"
+            )
+
+        if registry_manager:
+            index_count = len(registry_manager._driver_index._driver_locations)
+            logger.info(
+                f"Restored agent summary: {index_count} drivers in geospatial index, "
+                f"{restored_riders} riders"
             )
 
         logger.info(
