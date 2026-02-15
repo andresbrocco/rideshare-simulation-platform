@@ -38,5 +38,5 @@ Bootstrap and operational scripts for infrastructure initialization tasks that r
 
 - **[infrastructure/docker](../docker/CONTEXT.md)** — Docker Compose uses secrets-init service that runs these scripts to populate credentials before starting application services
 - **[infrastructure/kubernetes](../kubernetes/CONTEXT.md)** — Kubernetes External Secrets Operator syncs from the same LocalStack Secrets Manager that these scripts populate
-- **[services/airflow](../../services/airflow/CONTEXT.md)** — Airflow DAGs call check_bronze_tables.py before DBT transformations to ensure Bronze layer readiness
+- **[services/airflow](../../services/airflow/CONTEXT.md)** — Airflow Silver DAG has its own inline Bronze readiness check via ShortCircuitOperator; check_bronze_tables.py remains available as a standalone CLI diagnostic tool
 - **[tools/dbt](../../tools/dbt/CONTEXT.md)** — DBT Gold layer tables are exported to S3 via export-dbt-to-s3.py for Trino/Grafana querying

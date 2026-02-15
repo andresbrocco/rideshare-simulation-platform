@@ -24,7 +24,7 @@ Orchestrates the data pipeline transformations and quality checks for the ridesh
 ## Non-Obvious Details
 
 **Silver DAG Task Flow**
-1. Check Bronze freshness (placeholder - always passes)
+1. Check Bronze data exists (ShortCircuitOperator — skips all downstream tasks if any Bronze table is missing)
 2. Run DBT models tagged `silver`
 3. Run DBT tests on Silver models
 4. Run Great Expectations `silver_validation` checkpoint (continues on failure with warning)

@@ -22,7 +22,8 @@ Orchestrates the data lakehouse pipeline by scheduling DBT transformations, moni
 
 - DLQ monitoring uses DuckDB with delta and httpfs extensions to query Delta tables directly from MinIO, avoiding the need for Spark or Java in the Airflow container
 - DLQ queries tolerate missing tables gracefully (expected on first run before streaming jobs create them)
-- Silver DAG includes Bronze freshness check (stub implementation)
+- Silver DAG uses ShortCircuitOperator to skip all downstream tasks when Bronze tables are missing (graceful skip, not failure)
+- Delta maintenance DAG uses ShortCircuitOperator to skip when no Bronze tables exist at all
 - Gold DAG generates Great Expectations data docs at end of pipeline for manual review
 - LocalExecutor spawns task subprocesses within scheduler; parallelism limited to 8 concurrent tasks
 
@@ -32,4 +33,4 @@ Orchestrates the data lakehouse pipeline by scheduling DBT transformations, moni
 - **[tools/dbt](../../tools/dbt/CONTEXT.md)** — DBT project that Airflow executes for Silver and Gold layer transformations; Airflow schedules and monitors DBT runs
 - **[tools/great-expectations](../../tools/great-expectations/CONTEXT.md)** — Data quality validation checkpoints called by Airflow after DBT transformations complete
 - **[services/bronze-ingestion](../bronze-ingestion/CONTEXT.md)** — Creates the Bronze Delta tables that Airflow monitors via DLQ checks; provides source data for DBT transformations
-- **[infrastructure/scripts](../../infrastructure/scripts/CONTEXT.md)** — Provides check_bronze_tables.py script used in Silver DAG to validate Bronze layer readiness
+- **[infrastructure/scripts](../../infrastructure/scripts/CONTEXT.md)** — Provides check_bronze_tables.py as a standalone CLI diagnostic tool for Bronze layer readiness

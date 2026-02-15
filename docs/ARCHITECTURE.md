@@ -81,7 +81,7 @@ The system follows a **five-layer architecture** from simulation through present
 **Responsibility**: Pipeline scheduling, data quality enforcement, and query interface.
 
 - **Airflow DAGs**:
-  - `dbt_silver_transformation` (hourly with Bronze freshness checks)
+  - `dbt_silver_transformation` (hourly, skips gracefully if Bronze data missing)
   - `dbt_gold_transformation` (triggered by Silver, dependency ordering: dimensions → facts → aggregates)
   - `dlq_monitoring` (15-minute intervals, DuckDB queries over Delta tables)
   - `delta_maintenance` (compaction and cleanup)

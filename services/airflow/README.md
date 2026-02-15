@@ -162,7 +162,7 @@ docker exec rideshare-airflow-scheduler python /opt/airflow/dags/dbt_transformat
 | Symptom | Cause | Solution |
 |---------|-------|----------|
 | DAGs not appearing in Web UI | DAG parsing error or file not in `/opt/airflow/dags` | Check `airflow dags list-import-errors` and verify volume mount |
-| `check_bronze_freshness` fails | Bronze tables don't exist yet | Run bronze-ingestion service first, or skip check manually |
+| `check_bronze_freshness` skips all tasks | Bronze tables don't exist yet | Expected on first deploy — DAG will proceed once bronze-ingestion populates tables |
 | DLQ monitoring shows "Could not query table" | DLQ Delta tables not created yet | Expected on first run - tables created by stream-processor after errors occur |
 | `dbt_silver_run` fails with "relation does not exist" | Bronze tables empty or missing | Ensure simulation and bronze-ingestion services are running |
 | Webserver health check fails | Database migrations incomplete or port conflict | Check `airflow-webserver` logs and ensure PostgreSQL is healthy |
@@ -224,6 +224,8 @@ send_alert (if threshold exceeded) OR no_alert
 
 ```
 start
+  ↓
+check_data_exists (ShortCircuitOperator — skips if no Bronze tables)
   ↓
 OPTIMIZE all Bronze + DLQ tables (parallel, max 4 at a time)
   ↓
