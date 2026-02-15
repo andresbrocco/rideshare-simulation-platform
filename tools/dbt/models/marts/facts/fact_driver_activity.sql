@@ -11,8 +11,24 @@ with driver_status as (
         new_status,
         previous_status,
         latitude,
-        longitude
+        longitude,
+        row_number() over (
+            partition by driver_id, timestamp, new_status
+            order by _ingested_at desc
+        ) as _dedup_rn
     from {{ ref('stg_driver_status') }}
+),
+
+deduped_status as (
+    select
+        driver_id,
+        timestamp,
+        new_status,
+        previous_status,
+        latitude,
+        longitude
+    from driver_status
+    where _dedup_rn = 1
 ),
 
 status_periods as (
@@ -23,7 +39,7 @@ status_periods as (
         lead(timestamp) over (partition by driver_id order by timestamp) as status_end,
         latitude,
         longitude
-    from driver_status
+    from deduped_status
 ),
 
 with_dimensions as (
@@ -43,7 +59,7 @@ with_dimensions as (
 
 final as (
     select
-        {{ dbt_utils.generate_surrogate_key(['driver_id', 'status_start']) }} as activity_key,
+        {{ dbt_utils.generate_surrogate_key(['driver_id', 'status_start', 'status']) }} as activity_key,
         driver_key,
         time_key,
         status,

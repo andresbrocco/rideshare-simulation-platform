@@ -158,7 +158,7 @@ services:
   redis:
     image: redis:8.0-alpine
     container_name: rideshare-redis
-    mem_limit: 128m
+    mem_limit: 256m
     profiles:
       - core
     ports:
@@ -719,7 +719,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 768m
+          memory: 2048m
           cpus: "1.5"
         reservations:
           cpus: "0.25"
