@@ -21,8 +21,8 @@ MINIO_ENDPOINT = "http://minio:9000"
 
 STORAGE_OPTIONS = {
     "AWS_ENDPOINT_URL": MINIO_ENDPOINT,
-    "AWS_ACCESS_KEY_ID": "minioadmin",
-    "AWS_SECRET_ACCESS_KEY": "minioadmin",
+    "AWS_ACCESS_KEY_ID": os.environ.get("AWS_ACCESS_KEY_ID", "minioadmin"),
+    "AWS_SECRET_ACCESS_KEY": os.environ.get("AWS_SECRET_ACCESS_KEY", "minioadmin"),
     "AWS_ALLOW_HTTP": "true",
     "AWS_S3_ALLOW_UNSAFE_RENAME": "true",
 }

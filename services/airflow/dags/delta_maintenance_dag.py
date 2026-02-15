@@ -10,6 +10,7 @@ stored in MinIO (S3-compatible) without requiring Spark.
 Schedule: 3 AM daily (after Gold DAG completes at 2 AM)
 """
 
+import os
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -41,8 +42,8 @@ VACUUM_RETENTION_HOURS = 168
 # MinIO storage options for delta-rs
 STORAGE_OPTIONS = {
     "AWS_ENDPOINT_URL": "http://minio:9000",
-    "AWS_ACCESS_KEY_ID": "minioadmin",
-    "AWS_SECRET_ACCESS_KEY": "minioadmin",
+    "AWS_ACCESS_KEY_ID": os.environ.get("AWS_ACCESS_KEY_ID", "minioadmin"),
+    "AWS_SECRET_ACCESS_KEY": os.environ.get("AWS_SECRET_ACCESS_KEY", "minioadmin"),
     "AWS_ALLOW_HTTP": "true",
     "AWS_S3_ALLOW_UNSAFE_RENAME": "true",
 }

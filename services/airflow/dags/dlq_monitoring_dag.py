@@ -3,6 +3,7 @@
 Connects to MinIO via DuckDB to query DLQ Delta tables for recent errors.
 """
 
+import os
 from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.providers.standard.operators.python import (
@@ -55,8 +56,11 @@ def query_dlq_errors(**context):
         conn.load_extension("httpfs")
 
         conn.execute("SET s3_endpoint='minio:9000'")
-        conn.execute("SET s3_access_key_id='minioadmin'")
-        conn.execute("SET s3_secret_access_key='minioadmin'")
+        conn.execute(f"SET s3_access_key_id='{os.environ.get('AWS_ACCESS_KEY_ID', 'minioadmin')}'")
+        conn.execute(
+            f"SET s3_secret_access_key='{os.environ.get('AWS_SECRET_ACCESS_KEY', 'minioadmin')}'"
+        )
+
         conn.execute("SET s3_use_ssl=false")
         conn.execute("SET s3_url_style='path'")
 
