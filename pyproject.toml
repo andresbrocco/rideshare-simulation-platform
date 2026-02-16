@@ -16,6 +16,7 @@ dependencies = [
     "confluent-kafka>=2.6.0",
     "PyHive>=0.7.0",
     "thrift>=0.16.0",
+    "thrift_sasl>=0.4.3",
     "redis>=5.0.0",
     "PyYAML>=6.0",
 ]

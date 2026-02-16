@@ -183,31 +183,43 @@ def reset_all_state(docker_compose):
 
     # 2. Drop all lakehouse tables from Hive metastore
     # This prevents orphaned metastore entries after we clear MinIO
-    thrift_conn = hive.Connection(
-        host="localhost",
-        port=10000,
-        database="default",
-        auth="LDAP",
-        username=os.environ.get("HIVE_LDAP_USERNAME", "admin"),
-        password=os.environ.get("HIVE_LDAP_PASSWORD", "admin"),
-    )
+    # Spark Thrift Server is in the optional spark-testing profile and may not be running
     try:
-        drop_lakehouse_tables(thrift_conn)
-    finally:
-        thrift_conn.close()
+        thrift_conn = hive.Connection(
+            host="localhost",
+            port=10000,
+            database="default",
+            auth="LDAP",
+            username=os.environ.get("HIVE_LDAP_USERNAME", "admin"),
+            password=os.environ.get("HIVE_LDAP_PASSWORD", "admin"),
+        )
+        try:
+            drop_lakehouse_tables(thrift_conn)
+        finally:
+            thrift_conn.close()
+    except Exception as e:
+        print(f"[conftest] Spark Thrift Server not available, skipping table drop: {e}")
 
     # 3. Clear all MinIO buckets (create client directly to avoid circular dependency)
     s3_client = boto3.client(
         "s3",
         endpoint_url="http://localhost:9000",
-        aws_access_key_id="minioadmin",
-        aws_secret_access_key="minioadmin",
+        aws_access_key_id=os.environ.get("MINIO_ROOT_USER", "admin"),
+        aws_secret_access_key=os.environ.get("MINIO_ROOT_PASSWORD", "adminadmin"),
     )
     deleted = clear_minio_buckets(s3_client)
     print(f"[conftest] Cleared {deleted} objects from MinIO buckets")
 
     # 4. Reset Kafka topics
-    admin = AdminClient({"bootstrap.servers": "localhost:9092"})
+    admin = AdminClient(
+        {
+            "bootstrap.servers": "localhost:9092",
+            "security.protocol": "SASL_PLAINTEXT",
+            "sasl.mechanism": "PLAIN",
+            "sasl.username": os.environ.get("KAFKA_SASL_USERNAME", "admin"),
+            "sasl.password": os.environ.get("KAFKA_SASL_PASSWORD", "admin"),
+        }
+    )
     reset_kafka_topics(admin)
 
     # 5. Restart streaming containers to pick up clean state
@@ -235,7 +247,12 @@ def wait_for_services(reset_all_state):
     def check_kafka_healthy():
         try:
             # Check Schema Registry as proxy for Kafka readiness
-            response = httpx.get("http://localhost:8085/subjects", timeout=5.0)
+            # Schema Registry requires Basic Auth
+            response = httpx.get(
+                "http://localhost:8085/subjects",
+                auth=("admin", "admin"),
+                timeout=5.0,
+            )
             return response.status_code == 200
         except Exception:
             return False
@@ -283,12 +300,26 @@ def wait_for_services(reset_all_state):
         description="Kafka/Schema Registry health",
     )
 
-    wait_for_condition(
-        condition=check_thrift_server_healthy,
-        timeout_seconds=180,
-        poll_interval=5.0,
-        description="Spark Thrift Server health",
+    # Only wait for Spark Thrift Server if the container is running (optional spark-testing profile)
+    thrift_container_check = subprocess.run(
+        [
+            "docker",
+            "ps",
+            "--filter",
+            "name=rideshare-spark-thrift",
+            "--format",
+            "{{.Names}}",
+        ],
+        capture_output=True,
+        text=True,
     )
+    if "rideshare-spark-thrift" in thrift_container_check.stdout:
+        wait_for_condition(
+            condition=check_thrift_server_healthy,
+            timeout_seconds=180,
+            poll_interval=5.0,
+            description="Spark Thrift Server health",
+        )
 
     # Only wait for Airflow if the container is running
     airflow_container_check = subprocess.run(
@@ -326,8 +357,8 @@ def minio_client(wait_for_services):
     return boto3.client(
         "s3",
         endpoint_url="http://localhost:9000",
-        aws_access_key_id="minioadmin",
-        aws_secret_access_key="minioadmin",
+        aws_access_key_id=os.environ.get("MINIO_ROOT_USER", "admin"),
+        aws_secret_access_key=os.environ.get("MINIO_ROOT_PASSWORD", "adminadmin"),
     )
 
 
@@ -349,7 +380,15 @@ def kafka_admin(wait_for_services):
 
     Creates test topics on setup.
     """
-    admin = AdminClient({"bootstrap.servers": "localhost:9092"})
+    admin = AdminClient(
+        {
+            "bootstrap.servers": "localhost:9092",
+            "security.protocol": "SASL_PLAINTEXT",
+            "sasl.mechanism": "PLAIN",
+            "sasl.username": os.environ.get("KAFKA_SASL_USERNAME", "admin"),
+            "sasl.password": os.environ.get("KAFKA_SASL_PASSWORD", "admin"),
+        }
+    )
 
     # Create test topics (will ignore if already exist)
     topics = [
@@ -381,6 +420,10 @@ def kafka_producer(wait_for_services):
         {
             "bootstrap.servers": "localhost:9092",
             "client.id": "integration-test-producer",
+            "security.protocol": "SASL_PLAINTEXT",
+            "sasl.mechanism": "PLAIN",
+            "sasl.username": os.environ.get("KAFKA_SASL_USERNAME", "admin"),
+            "sasl.password": os.environ.get("KAFKA_SASL_PASSWORD", "admin"),
         }
     )
 
@@ -395,7 +438,25 @@ def thrift_connection(wait_for_services):
     """PyHive connection to Spark Thrift Server.
 
     Connection pool for SQL queries against Delta tables.
+    Skips tests when the Spark Thrift Server is not running
+    (optional spark-testing profile).
     """
+    # Check if Spark Thrift Server container is running
+    result = subprocess.run(
+        [
+            "docker",
+            "ps",
+            "--filter",
+            "name=rideshare-spark-thrift",
+            "--format",
+            "{{.Names}}",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if "rideshare-spark-thrift" not in result.stdout:
+        pytest.skip("Spark Thrift Server not running (spark-testing profile not started)")
+
     connection = hive.Connection(
         host="localhost",
         port=10000,
@@ -461,10 +522,10 @@ def simulation_api_client(docker_compose):
 
     Waits for /health endpoint before yielding.
     Base URL: http://localhost:8000
-    API key: dev-api-key-change-in-production
+    API key: matches the value seeded in LocalStack Secrets Manager
     """
     base_url = "http://localhost:8000"
-    api_key = "dev-api-key-change-in-production"
+    api_key = "admin"
 
     client = httpx.Client(
         base_url=base_url,
@@ -541,8 +602,19 @@ def stream_processor_healthy(wait_for_services):
     # Phase 2: Probe message to verify end-to-end pipeline
     # Retry because the consumer may need a few poll cycles after reporting healthy
     max_probe_attempts = 5
-    producer = Producer({"bootstrap.servers": "localhost:9092"})
-    r = sync_redis.Redis(host="localhost", port=6379, decode_responses=True)
+    producer = Producer(
+        {
+            "bootstrap.servers": "localhost:9092",
+            "security.protocol": "SASL_PLAINTEXT",
+            "sasl.mechanism": "PLAIN",
+            "sasl.username": os.environ.get("KAFKA_SASL_USERNAME", "admin"),
+            "sasl.password": os.environ.get("KAFKA_SASL_PASSWORD", "admin"),
+        }
+    )
+    redis_password = os.environ.get("REDIS_PASSWORD", "admin")
+    r = sync_redis.Redis(
+        host="localhost", port=6379, password=redis_password, decode_responses=True
+    )
 
     for attempt in range(max_probe_attempts):
         probe_id = f"probe-{int(time.time() * 1000)}-{attempt}"
@@ -620,7 +692,10 @@ def redis_publisher(docker_compose):
 
     Used to inject events into pub/sub channels for WebSocket testing.
     """
-    client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+    redis_password = os.environ.get("REDIS_PASSWORD", "admin")
+    client = redis.Redis(
+        host="localhost", port=6379, password=redis_password, decode_responses=True
+    )
 
     # Verify connection
     client.ping()
@@ -647,6 +722,10 @@ def kafka_consumer(wait_for_services):
             "group.id": group_id,
             "auto.offset.reset": "earliest",
             "enable.auto.commit": False,
+            "security.protocol": "SASL_PLAINTEXT",
+            "sasl.mechanism": "PLAIN",
+            "sasl.username": os.environ.get("KAFKA_SASL_USERNAME", "admin"),
+            "sasl.password": os.environ.get("KAFKA_SASL_PASSWORD", "admin"),
         }
     )
 
@@ -832,12 +911,12 @@ def wait_for_bronze_ingestion(thrift_connection, published_events):
 
 
 @pytest.fixture(scope="session")
-def streaming_jobs_running(docker_compose):
+def streaming_jobs_running(reset_all_state):
     """Verify bronze-ingestion service is running.
 
-    Checks that the Python consumer health endpoint is reachable.
-    Uses polling with timeout since the service takes time to initialize.
-    Session-scoped: runs once per test session.
+    Depends on reset_all_state (not just docker_compose) because
+    reset_all_state stops and restarts streaming containers as part of
+    clearing persistent state. The health check must run AFTER the restart.
 
     Note: As of the bronze-ingestion consolidation (2026-02-11), the lightweight
     Python service replaces the two Spark containers and uses confluent-kafka

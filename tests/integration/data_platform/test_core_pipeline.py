@@ -351,7 +351,7 @@ def test_websocket_realtime_updates(
     - Initial snapshot message received
     - Events from Redis are forwarded to WebSocket
     """
-    api_key = "dev-api-key-change-in-production"
+    api_key = "admin"
     ws_url = "ws://localhost:8000/ws"
 
     # Connect to WebSocket with API key in subprotocol
