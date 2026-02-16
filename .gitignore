@@ -49,5 +49,8 @@ services/osrm/data/*.osm.pbf
 tests/performance/results/
 !tests/performance/results/.gitkeep
 
+# Generated at runtime (contains resolved credentials from template)
+services/trino/etc/catalog/delta.properties
+
 HUMAN-CURATED-PREFERENCES.md
 CLAUDE-old.md
