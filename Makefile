@@ -31,7 +31,7 @@ ci: lint test build	## Run full CI pipeline (lint + test + build)
 lint: install-deps lint-python lint-frontend lint-terraform	## Run all linting and type checking
 	@echo "✅ All linting and type checking passed"
 
-test: test-unit	## Run test suite (unit tests)
+test: test-unit test-fast	## Run test suite (unit + fast tests)
 	@echo "✅ All tests passed"
 
 build: build-frontend	## Run build steps
