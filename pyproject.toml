@@ -64,18 +64,3 @@ disallow_untyped_defs = true
 check_untyped_defs = true
 warn_redundant_casts = true
 warn_unused_ignores = true
-
-[[tool.mypy.overrides]]
-module = [
-    "scipy",
-    "scipy.*",
-    "pandas",
-    "pandas.*",
-    "plotly",
-    "plotly.*",
-    "matplotlib",
-    "matplotlib.*",
-    "numpy",
-    "numpy.*",
-]
-ignore_missing_imports = true

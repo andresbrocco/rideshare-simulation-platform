@@ -1,6 +1,5 @@
 import math
 from collections import OrderedDict
-from typing import cast
 
 import h3
 from shapely.geometry import Point, Polygon
@@ -37,7 +36,7 @@ class ZoneAssignmentService:
 
     def _generate_cache_key(self, lat: float, lon: float) -> str:
         """Generate H3 cell ID as cache key (resolution 9, ~174m edge)"""
-        return cast(str, h3.latlng_to_cell(lat, lon, 9))
+        return h3.latlng_to_cell(lat, lon, 9)
 
     def get_zone_id(self, lat: float, lon: float) -> str:
         """Get zone ID for given coordinates"""

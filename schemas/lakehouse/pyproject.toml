@@ -10,8 +10,3 @@ warn_unused_configs = true
 check_untyped_defs = true
 warn_redundant_casts = true
 exclude = ["tests/"]
-
-# pyspark and delta have no type stubs available
-[[tool.mypy.overrides]]
-module = ["pyspark", "pyspark.*", "delta", "delta.*"]
-ignore_missing_imports = true

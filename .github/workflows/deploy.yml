@@ -57,8 +57,8 @@ jobs:
         run: |
           CLUSTER_NAME=$(terraform output -raw cluster_name)
           CLUSTER_ENDPOINT=$(terraform output -raw cluster_endpoint)
-          echo "cluster_name=$CLUSTER_NAME" >> $GITHUB_OUTPUT
-          echo "cluster_endpoint=$CLUSTER_ENDPOINT" >> $GITHUB_OUTPUT
+          echo "cluster_name=$CLUSTER_NAME" >> "$GITHUB_OUTPUT"
+          echo "cluster_endpoint=$CLUSTER_ENDPOINT" >> "$GITHUB_OUTPUT"
 
       - name: Update kubeconfig
         run: |
@@ -120,7 +120,7 @@ jobs:
           ALB_HOSTNAME=$(kubectl get ingress rideshare-ingress -n rideshare-prod \
             -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "pending")
 
-          echo "alb_hostname=$ALB_HOSTNAME" >> $GITHUB_OUTPUT
+          echo "alb_hostname=$ALB_HOSTNAME" >> "$GITHUB_OUTPUT"
 
           if [ "$ALB_HOSTNAME" != "pending" ]; then
             echo "ALB provisioned at: $ALB_HOSTNAME"

@@ -1,5 +1,4 @@
 import threading
-from typing import cast
 
 import h3
 
@@ -97,7 +96,7 @@ class DriverGeospatialIndex:
             return candidates
 
     def _get_h3_cell(self, lat: float, lon: float) -> str:
-        return cast(str, h3.latlng_to_cell(lat, lon, self._h3_resolution))
+        return h3.latlng_to_cell(lat, lon, self._h3_resolution)
 
     def clear(self) -> None:
         """Clear all index state for simulation reset."""

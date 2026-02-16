@@ -71,7 +71,8 @@ def seed_bronze_data():
     # Refresh table to ensure data is visible
     cursor.execute("REFRESH TABLE bronze_trips")
     cursor.execute("SELECT COUNT(*) FROM bronze_trips")
-    count = cursor.fetchone()[0]
+    row = cursor.fetchone()
+    count = row[0] if row is not None else 0
     print(f"✓ bronze_trips: {count} rows")
 
     # Insert bronze_driver_status (driver goes online, then offline)
@@ -89,7 +90,8 @@ def seed_bronze_data():
     )
     cursor.execute("REFRESH TABLE bronze_driver_status")
     cursor.execute("SELECT COUNT(*) FROM bronze_driver_status")
-    count = cursor.fetchone()[0]
+    row = cursor.fetchone()
+    count = row[0] if row is not None else 0
     print(f"✓ bronze_driver_status: {count} rows")
 
     # Insert bronze_surge_updates (3 surge events in PIN zone)
@@ -107,7 +109,8 @@ def seed_bronze_data():
     )
     cursor.execute("REFRESH TABLE bronze_surge_updates")
     cursor.execute("SELECT COUNT(*) FROM bronze_surge_updates")
-    count = cursor.fetchone()[0]
+    row = cursor.fetchone()
+    count = row[0] if row is not None else 0
     print(f"✓ bronze_surge_updates: {count} rows")
 
     # Insert bronze_payments
@@ -122,7 +125,8 @@ def seed_bronze_data():
     )
     cursor.execute("REFRESH TABLE bronze_payments")
     cursor.execute("SELECT COUNT(*) FROM bronze_payments")
-    count = cursor.fetchone()[0]
+    row = cursor.fetchone()
+    count = row[0] if row is not None else 0
     print(f"✓ bronze_payments: {count} rows")
 
     # Insert bronze_ratings
@@ -136,7 +140,8 @@ def seed_bronze_data():
     )
     cursor.execute("REFRESH TABLE bronze_ratings")
     cursor.execute("SELECT COUNT(*) FROM bronze_ratings")
-    count = cursor.fetchone()[0]
+    row = cursor.fetchone()
+    count = row[0] if row is not None else 0
     print(f"✓ bronze_ratings: {count} rows")
 
     # Insert bronze_drivers
@@ -151,7 +156,8 @@ def seed_bronze_data():
     )
     cursor.execute("REFRESH TABLE bronze_drivers")
     cursor.execute("SELECT COUNT(*) FROM bronze_drivers")
-    count = cursor.fetchone()[0]
+    row = cursor.fetchone()
+    count = row[0] if row is not None else 0
     print(f"✓ bronze_drivers: {count} rows")
 
     # Insert bronze_riders
@@ -165,7 +171,8 @@ def seed_bronze_data():
     )
     cursor.execute("REFRESH TABLE bronze_riders")
     cursor.execute("SELECT COUNT(*) FROM bronze_riders")
-    count = cursor.fetchone()[0]
+    row = cursor.fetchone()
+    count = row[0] if row is not None else 0
     print(f"✓ bronze_riders: {count} rows")
 
     cursor.close()

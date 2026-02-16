@@ -350,7 +350,8 @@ for table in [
     "bronze_rider_profiles",
 ]:
     cursor.execute(f"SELECT COUNT(*) FROM {table}")
-    count = cursor.fetchone()[0]
+    row = cursor.fetchone()
+    count = row[0] if row is not None else 0
     print(f"  {table}: {count} rows")
 
 # Verify data is on MinIO

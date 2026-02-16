@@ -46,27 +46,30 @@ jobs:
         run: |
           # simulation - install full dev dependencies for type stubs
           python -m venv services/simulation/venv
-          services/simulation/venv/bin/pip install --quiet -e services/simulation/[dev]
+          services/simulation/venv/bin/pip install --quiet -e "services/simulation/[dev]"
+          # Install boto3 type stubs and opentelemetry packages for type checking
+          services/simulation/venv/bin/pip install --quiet "boto3-stubs[essential]"
 
-          # stream-processor
+          # stream-processor - install with opentelemetry packages
           python -m venv services/stream-processor/venv
-          services/stream-processor/venv/bin/pip install --quiet -e services/stream-processor/[dev]
+          services/stream-processor/venv/bin/pip install --quiet -e "services/stream-processor/[dev]"
 
-          # dbt
+          # dbt - install with pyspark and pyhive for type checking
           python -m venv tools/dbt/venv
-          tools/dbt/venv/bin/pip install --quiet mypy
+          tools/dbt/venv/bin/pip install --quiet mypy pyspark pyhive
 
-          # airflow
+          # airflow - install with runtime dependencies for type checking
           python -m venv services/airflow/venv
-          services/airflow/venv/bin/pip install --quiet mypy types-requests
+          services/airflow/venv/bin/pip install --quiet mypy types-requests duckdb apache-airflow deltalake
 
-          # great-expectations
+          # great-expectations - install from requirements.txt
           python -m venv tools/great-expectations/venv
           tools/great-expectations/venv/bin/pip install --quiet mypy types-PyYAML
+          tools/great-expectations/venv/bin/pip install --quiet -r tools/great-expectations/requirements.txt
 
-          # lakehouse
+          # lakehouse - install with pyspark and delta-spark
           python -m venv schemas/lakehouse/venv
-          schemas/lakehouse/venv/bin/pip install --quiet mypy
+          schemas/lakehouse/venv/bin/pip install --quiet mypy pyspark delta-spark
 
       - name: Install frontend dependencies
         run: npm ci

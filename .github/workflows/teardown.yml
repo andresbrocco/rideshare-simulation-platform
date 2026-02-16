@@ -83,13 +83,13 @@ jobs:
 
           echo "Checking ECR repositories..."
           ECR_COUNT=$(aws ecr describe-repositories \
-            --query 'repositories[?contains(repositoryName, `rideshare`)].repositoryName' \
+            --query "repositories[?contains(repositoryName, \`rideshare\`)].repositoryName" \
             --output json | jq '. | length')
           echo "$ECR_COUNT ECR repositories preserved"
 
           echo "Checking Secrets Manager..."
           SECRET_COUNT=$(aws secretsmanager list-secrets \
-            --query 'SecretList[?contains(Name, `rideshare`)].Name' \
+            --query "SecretList[?contains(Name, \`rideshare\`)].Name" \
             --output json | jq '. | length')
           echo "$SECRET_COUNT secrets preserved"
 

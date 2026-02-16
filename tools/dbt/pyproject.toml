@@ -9,8 +9,4 @@ python_version = "3.12"
 warn_unused_configs = true
 check_untyped_defs = true
 warn_redundant_casts = true
-
-# pyspark and pyhive have no type stubs available
-[[tool.mypy.overrides]]
-module = ["pyspark", "pyspark.*", "pyhive", "pyhive.*"]
-ignore_missing_imports = true
+mypy_path = "stubs"

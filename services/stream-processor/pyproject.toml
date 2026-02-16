@@ -22,6 +22,7 @@ dev = [
     "pytest-cov>=4.0.0",
     "mypy>=1.14.0",
     "types-redis>=4.6.0",
+    "types-confluent-kafka>=1.0.0",
 ]
 
 [build-system]
@@ -41,17 +42,3 @@ warn_redundant_casts = true
 explicit_package_bases = true
 mypy_path = "."
 packages = ["src"]
-
-# These libraries have no type stubs or are not installed in CI
-[[tool.mypy.overrides]]
-module = [
-    "confluent_kafka",
-    "confluent_kafka.*",
-    "uvicorn",
-    "uvicorn.*",
-    "fastapi",
-    "fastapi.*",
-    "opentelemetry",
-    "opentelemetry.*",
-]
-ignore_missing_imports = true

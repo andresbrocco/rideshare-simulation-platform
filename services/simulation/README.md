@@ -353,7 +353,7 @@ open htmlcov/index.html  # View coverage report
 | No GPS updates in frontend | Stream processor not publishing to Redis | Verify `stream-processor` health and Redis pub/sub channels |
 | Agents spawn slowly | Spawn queue backlog | Check `/agents/spawn-status` - agents spawn at max 10/second to avoid SimPy contention |
 | OSRM route calculation fails | OSRM service unreachable or no route | Check `docker compose logs osrm` and verify coordinates are in Sao Paulo area |
-| Type errors from mypy | Missing type stubs | Add to `[[tool.mypy.overrides]]` with `ignore_missing_imports = true` |
+| Type errors from mypy | Missing type stubs | Install proper type stub packages (e.g., `boto3-stubs[essential]`) or create minimal `.pyi` stub files |
 | Import errors in tests | Incorrect Python path | Use `./venv/bin/pytest` (not global pytest) |
 
 ## Related

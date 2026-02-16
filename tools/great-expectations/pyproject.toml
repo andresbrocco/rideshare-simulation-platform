@@ -10,8 +10,3 @@ warn_unused_configs = true
 check_untyped_defs = true
 warn_redundant_casts = true
 exclude = ["tests/"]
-
-# great_expectations has no type stubs available
-[[tool.mypy.overrides]]
-module = ["great_expectations", "great_expectations.*"]
-ignore_missing_imports = true

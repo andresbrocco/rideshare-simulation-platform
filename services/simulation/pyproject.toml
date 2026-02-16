@@ -56,7 +56,12 @@ dev = [
     "types-psutil>=5.9.0",
     "types-jsonschema>=4.25.0",
     "types-PyYAML>=6.0",
+    "types-confluent-kafka>=1.0.0",
+    "types-shapely>=2.0.0",
     "respx==0.21.1",
+    "botocore>=1.35.0",
+    "boto3>=1.35.0",
+    "openapi-spec-validator>=0.7.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -112,31 +117,4 @@ check_untyped_defs = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 explicit_package_bases = true
-mypy_path = "src"
-
-# These libraries have no type stubs available
-[[tool.mypy.overrides]]
-module = [
-    "simpy",
-    "simpy.*",
-    "confluent_kafka",
-    "confluent_kafka.*",
-    "h3",
-    "h3.*",
-    "polyline",
-    "polyline.*",
-    "shapely",
-    "shapely.*",
-    "botocore",
-    "botocore.*",
-    "boto3",
-    "boto3.*",
-]
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = [
-    "opentelemetry",
-    "opentelemetry.*",
-]
-ignore_missing_imports = true
+mypy_path = "src:stubs"

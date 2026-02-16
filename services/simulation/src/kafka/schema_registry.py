@@ -2,7 +2,7 @@ import json
 from typing import Any
 
 import jsonschema
-from confluent_kafka.schema_registry import Schema, SchemaRegistryClient
+from confluent_kafka.schema_registry import RegisteredSchema, Schema, SchemaRegistryClient
 
 
 class SchemaRegistry:
@@ -36,6 +36,6 @@ class SchemaRegistry:
         is_compatible: bool = self.client.test_compatibility(subject, schema)
         return is_compatible
 
-    def get_latest_version(self, subject: str) -> Schema:
+    def get_latest_version(self, subject: str) -> RegisteredSchema:
         """Get the latest schema version for a subject."""
         return self.client.get_latest_version(subject)
