@@ -1,46 +1,39 @@
-name: Integration Tests
+name: Nightly Integration Tests
 
 on:
-  workflow_run:
-    workflows: ["Checks"]
-    types:
-      - completed
-    branches:
-      - main
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC
+  workflow_dispatch:
 
 jobs:
-  fast-tests:
+  check-changes:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-
+    outputs:
+      has_changes: ${{ github.event_name == 'workflow_dispatch' || steps.check.outputs.has_changes }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          fetch-depth: 0
 
-      - name: Install simulation dependencies
+      - name: Check for commits in the last 24 hours
+        id: check
         run: |
-          cd services/simulation
-          python -m venv venv
-          ./venv/bin/pip install -e ".[dev]"
-
-      - name: Run fast unit tests
-        run: |
-          cd services/simulation
-          ./venv/bin/pytest -m "unit and not slow" -v --tb=short
+          COMMITS=$(git log --oneline --since="24 hours ago" | wc -l)
+          echo "Commits in last 24h: $COMMITS"
+          if [ "$COMMITS" -gt 0 ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          fi
 
   integration-tests:
+    needs: check-changes
+    if: needs.check-changes.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    timeout-minutes: 45
     env:
       COMPOSE_FILE: infrastructure/docker/compose.yml
-      # Tests run on the host, not inside containers, so use localhost
       MINIO_ENDPOINT: http://localhost:9000
       MINIO_ROOT_USER: admin
       MINIO_ROOT_PASSWORD: admin
@@ -59,15 +52,12 @@ jobs:
     steps:
       - name: Free up disk space
         run: |
-          # Remove unnecessary tools and libraries
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /opt/ghc
           sudo rm -rf /opt/hostedtoolcache/CodeQL
           sudo apt-get clean
-          # Clean Docker
           docker system prune -af --volumes
-          # Show available space
           df -h
 
       - name: Checkout repository
@@ -98,7 +88,6 @@ jobs:
       - name: Create DBT profiles.yml and install packages
         working-directory: tools/dbt
         run: |
-          # Create profiles.yml for CI (gitignored file)
           mkdir -p profiles
           cat > profiles/profiles.yml << 'EOF'
           rideshare:
@@ -117,18 +106,13 @@ jobs:
                 connect_timeout: 60
                 connect_retries: 3
           EOF
-          # Remove leading whitespace from YAML (heredoc preserves indentation)
           sed -i 's/^          //' profiles/profiles.yml
-          # Install DBT packages (dbt_utils, dbt_expectations, etc.)
           ./venv/bin/dbt deps --profiles-dir profiles --project-dir .
 
       - name: Build and start core and data-pipeline services
         run: |
-          # Build images first
           docker compose -f "$COMPOSE_FILE" --profile core --profile data-pipeline build
-          # Clean build cache to free disk space
           docker builder prune -af
-          # Start services
           docker compose -f "$COMPOSE_FILE" --profile core --profile data-pipeline up -d
           echo "Waiting for services to be healthy..."
           sleep 60
@@ -185,7 +169,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: test-results
+          name: nightly-test-results
           path: |
             test-results.xml
             logs/
