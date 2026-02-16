@@ -68,8 +68,26 @@ When the platform is down, the frontend detects API unreachability and displays 
 
 - Repository at `andresbrocco/rideshare-simulation-platform`
 - GitHub Actions enabled
-- AWS OIDC provider configured (created by foundation Terraform)
-- Repository secret: `AWS_ACCOUNT_ID` (12-digit AWS account ID)
+- AWS OIDC provider configured (created automatically by foundation Terraform — no manual setup needed). After applying foundation, verify with:
+
+  ```bash
+  aws iam list-open-id-connect-providers --profile rideshare
+  # Should show a provider with "token.actions.githubusercontent.com" in the ARN
+  ```
+
+- Repository secret: `AWS_ACCOUNT_ID` (12-digit AWS account ID). Find your account ID and set the secret:
+
+  ```bash
+  # Get your AWS account ID
+  aws sts get-caller-identity --profile rideshare --query Account --output text
+
+  # Set the GitHub Actions secret
+  gh secret set AWS_ACCOUNT_ID --repo andresbrocco/rideshare-simulation-platform
+  # Paste your 12-digit account ID when prompted
+
+  # Verify it was set
+  gh secret list --repo andresbrocco/rideshare-simulation-platform
+  ```
 
 ### Local Tools
 
