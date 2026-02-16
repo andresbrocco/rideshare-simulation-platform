@@ -41,7 +41,10 @@ jobs:
 
       - name: Terraform Init (Platform)
         working-directory: infrastructure/terraform/platform
-        run: terraform init
+        run: |
+          terraform init \
+            -backend-config="bucket=rideshare-tf-state-${{ secrets.AWS_ACCOUNT_ID }}" \
+            -backend-config="dynamodb_table=rideshare-tf-state-lock-${{ secrets.AWS_ACCOUNT_ID }}"
 
       - name: Terraform Plan (Platform)
         working-directory: infrastructure/terraform/platform

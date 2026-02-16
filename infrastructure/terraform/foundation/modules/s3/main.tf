@@ -1,9 +1,13 @@
+locals {
+  bucket_prefix = "${var.project_name}-${var.account_suffix}"
+}
+
 # Bronze Bucket (raw events)
 resource "aws_s3_bucket" "bronze" {
-  bucket = "${var.project_name}-bronze"
+  bucket = "${local.bucket_prefix}-bronze"
 
   tags = {
-    Name  = "${var.project_name}-bronze"
+    Name  = "${local.bucket_prefix}-bronze"
     Layer = "bronze"
   }
 }
@@ -27,10 +31,10 @@ resource "aws_s3_bucket_public_access_block" "bronze" {
 
 # Silver Bucket (cleaned/validated events)
 resource "aws_s3_bucket" "silver" {
-  bucket = "${var.project_name}-silver"
+  bucket = "${local.bucket_prefix}-silver"
 
   tags = {
-    Name  = "${var.project_name}-silver"
+    Name  = "${local.bucket_prefix}-silver"
     Layer = "silver"
   }
 }
@@ -54,10 +58,10 @@ resource "aws_s3_bucket_public_access_block" "silver" {
 
 # Gold Bucket (star schema analytics)
 resource "aws_s3_bucket" "gold" {
-  bucket = "${var.project_name}-gold"
+  bucket = "${local.bucket_prefix}-gold"
 
   tags = {
-    Name  = "${var.project_name}-gold"
+    Name  = "${local.bucket_prefix}-gold"
     Layer = "gold"
   }
 }
@@ -81,10 +85,10 @@ resource "aws_s3_bucket_public_access_block" "gold" {
 
 # Checkpoints Bucket (simulation state)
 resource "aws_s3_bucket" "checkpoints" {
-  bucket = "${var.project_name}-checkpoints"
+  bucket = "${local.bucket_prefix}-checkpoints"
 
   tags = {
-    Name    = "${var.project_name}-checkpoints"
+    Name    = "${local.bucket_prefix}-checkpoints"
     Purpose = "simulation-state"
   }
 }
@@ -108,10 +112,10 @@ resource "aws_s3_bucket_public_access_block" "checkpoints" {
 
 # Frontend Bucket (static React SPA)
 resource "aws_s3_bucket" "frontend" {
-  bucket = "${var.project_name}-frontend"
+  bucket = "${local.bucket_prefix}-frontend"
 
   tags = {
-    Name    = "${var.project_name}-frontend"
+    Name    = "${local.bucket_prefix}-frontend"
     Purpose = "static-website"
   }
 }

@@ -43,13 +43,15 @@ jobs:
       - name: Sync build output to S3
         working-directory: services/frontend
         run: |
-          aws s3 sync dist/ s3://rideshare-frontend/ \
+          BUCKET="rideshare-${{ secrets.AWS_ACCOUNT_ID }}-frontend"
+
+          aws s3 sync dist/ "s3://${BUCKET}/" \
             --delete \
             --cache-control "public, max-age=31536000" \
             --exclude "index.html" \
             --exclude "*.html"
 
-          aws s3 sync dist/ s3://rideshare-frontend/ \
+          aws s3 sync dist/ "s3://${BUCKET}/" \
             --exclude "*" \
             --include "*.html" \
             --cache-control "public, max-age=0, must-revalidate"

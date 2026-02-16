@@ -29,6 +29,7 @@ from tests.integration.data_platform.utils.api_clients import (
     PrometheusClient,
     SupersetClient,
 )
+from tests.integration.data_platform.utils.credentials import fetch_all_credentials
 from tests.integration.data_platform.utils.sql_helpers import count_rows
 from tests.integration.data_platform.utils.wait_helpers import (
     poll_until_records_present,
@@ -153,8 +154,27 @@ def docker_compose(request):
     subprocess.run(down_cmd, check=False, cwd=project_root)
 
 
+@pytest.fixture(scope="session", autouse=True)
+def load_credentials(docker_compose):
+    """Load all credentials from LocalStack Secrets Manager into env vars.
+
+    Must run after docker_compose (ensures LocalStack is up) and before
+    any fixture that needs credentials (reset_all_state, service clients, etc.).
+
+    Sets env vars like MINIO_ROOT_USER, KAFKA_SASL_USERNAME, API_KEY, etc.
+    using the same key transforms as infrastructure/scripts/fetch-secrets.py.
+    """
+    creds = fetch_all_credentials()
+
+    for key, value in creds.items():
+        os.environ[key] = value
+
+    print(f"\n[conftest] Loaded {len(creds)} credentials from LocalStack")
+    yield
+
+
 @pytest.fixture(scope="session")
-def reset_all_state(docker_compose):
+def reset_all_state(docker_compose, load_credentials):
     """Reset all persistent state at session start.
 
     This fixture eliminates cross-test contamination by:
@@ -190,8 +210,8 @@ def reset_all_state(docker_compose):
             port=10000,
             database="default",
             auth="LDAP",
-            username=os.environ.get("HIVE_LDAP_USERNAME", "admin"),
-            password=os.environ.get("HIVE_LDAP_PASSWORD", "admin"),
+            username=os.environ["HIVE_LDAP_USERNAME"],
+            password=os.environ["HIVE_LDAP_PASSWORD"],
         )
         try:
             drop_lakehouse_tables(thrift_conn)
@@ -204,8 +224,8 @@ def reset_all_state(docker_compose):
     s3_client = boto3.client(
         "s3",
         endpoint_url="http://localhost:9000",
-        aws_access_key_id=os.environ.get("MINIO_ROOT_USER", "admin"),
-        aws_secret_access_key=os.environ.get("MINIO_ROOT_PASSWORD", "adminadmin"),
+        aws_access_key_id=os.environ["MINIO_ROOT_USER"],
+        aws_secret_access_key=os.environ["MINIO_ROOT_PASSWORD"],
     )
     deleted = clear_minio_buckets(s3_client)
     print(f"[conftest] Cleared {deleted} objects from MinIO buckets")
@@ -216,8 +236,8 @@ def reset_all_state(docker_compose):
             "bootstrap.servers": "localhost:9092",
             "security.protocol": "SASL_PLAINTEXT",
             "sasl.mechanism": "PLAIN",
-            "sasl.username": os.environ.get("KAFKA_SASL_USERNAME", "admin"),
-            "sasl.password": os.environ.get("KAFKA_SASL_PASSWORD", "admin"),
+            "sasl.username": os.environ["KAFKA_SASL_USERNAME"],
+            "sasl.password": os.environ["KAFKA_SASL_PASSWORD"],
         }
     )
     reset_kafka_topics(admin)
@@ -250,7 +270,10 @@ def wait_for_services(reset_all_state):
             # Schema Registry requires Basic Auth
             response = httpx.get(
                 "http://localhost:8085/subjects",
-                auth=("admin", "admin"),
+                auth=(
+                    os.environ["SCHEMA_REGISTRY_USER"],
+                    os.environ["SCHEMA_REGISTRY_PASSWORD"],
+                ),
                 timeout=5.0,
             )
             return response.status_code == 200
@@ -268,9 +291,13 @@ def wait_for_services(reset_all_state):
         try:
             # Airflow 3.x uses /api/v2, Airflow 2.x uses /api/v1
             # Try v2 first, fall back to v1
+            airflow_auth = (
+                os.environ["AIRFLOW_ADMIN_USERNAME"],
+                os.environ["AIRFLOW_ADMIN_PASSWORD"],
+            )
             response = httpx.get(
                 "http://localhost:8082/api/v2/monitor/health",
-                auth=("admin", "admin"),
+                auth=airflow_auth,
                 timeout=5.0,
             )
             if response.status_code == 200:
@@ -278,7 +305,7 @@ def wait_for_services(reset_all_state):
             # Fall back to v1 for older Airflow versions
             response = httpx.get(
                 "http://localhost:8082/api/v1/monitor/health",
-                auth=("admin", "admin"),
+                auth=airflow_auth,
                 timeout=5.0,
             )
             return response.status_code == 200
@@ -357,8 +384,8 @@ def minio_client(wait_for_services):
     return boto3.client(
         "s3",
         endpoint_url="http://localhost:9000",
-        aws_access_key_id=os.environ.get("MINIO_ROOT_USER", "admin"),
-        aws_secret_access_key=os.environ.get("MINIO_ROOT_PASSWORD", "adminadmin"),
+        aws_access_key_id=os.environ["MINIO_ROOT_USER"],
+        aws_secret_access_key=os.environ["MINIO_ROOT_PASSWORD"],
     )
 
 
@@ -385,8 +412,8 @@ def kafka_admin(wait_for_services):
             "bootstrap.servers": "localhost:9092",
             "security.protocol": "SASL_PLAINTEXT",
             "sasl.mechanism": "PLAIN",
-            "sasl.username": os.environ.get("KAFKA_SASL_USERNAME", "admin"),
-            "sasl.password": os.environ.get("KAFKA_SASL_PASSWORD", "admin"),
+            "sasl.username": os.environ["KAFKA_SASL_USERNAME"],
+            "sasl.password": os.environ["KAFKA_SASL_PASSWORD"],
         }
     )
 
@@ -422,8 +449,8 @@ def kafka_producer(wait_for_services):
             "client.id": "integration-test-producer",
             "security.protocol": "SASL_PLAINTEXT",
             "sasl.mechanism": "PLAIN",
-            "sasl.username": os.environ.get("KAFKA_SASL_USERNAME", "admin"),
-            "sasl.password": os.environ.get("KAFKA_SASL_PASSWORD", "admin"),
+            "sasl.username": os.environ["KAFKA_SASL_USERNAME"],
+            "sasl.password": os.environ["KAFKA_SASL_PASSWORD"],
         }
     )
 
@@ -462,8 +489,8 @@ def thrift_connection(wait_for_services):
         port=10000,
         database="default",
         auth="LDAP",
-        username=os.environ.get("HIVE_LDAP_USERNAME", "admin"),
-        password=os.environ.get("HIVE_LDAP_PASSWORD", "admin"),
+        username=os.environ["HIVE_LDAP_USERNAME"],
+        password=os.environ["HIVE_LDAP_PASSWORD"],
     )
 
     yield connection
@@ -474,7 +501,11 @@ def thrift_connection(wait_for_services):
 @pytest.fixture(scope="session")
 def airflow_client(wait_for_services):
     """HTTP client for Airflow REST API with basic auth."""
-    client = AirflowClient(base_url="http://localhost:8082", username="admin", password="admin")
+    client = AirflowClient(
+        base_url="http://localhost:8082",
+        username=os.environ["AIRFLOW_ADMIN_USERNAME"],
+        password=os.environ["AIRFLOW_ADMIN_PASSWORD"],
+    )
 
     yield client
 
@@ -484,7 +515,13 @@ def airflow_client(wait_for_services):
 @pytest.fixture(scope="session")
 def superset_client(wait_for_services):
     """HTTP client for Superset REST API with session-based auth."""
-    client = SupersetClient(base_url="http://localhost:8088", username="admin", password="admin")
+    # Superset is not in the secrets pipeline (no rideshare/superset secret),
+    # so keep env-var-with-fallback pattern until a secret source is added.
+    client = SupersetClient(
+        base_url="http://localhost:8088",
+        username=os.environ.get("SUPERSET_ADMIN_USER", "admin"),
+        password=os.environ.get("SUPERSET_ADMIN_PASSWORD", "admin"),
+    )
 
     yield client
 
@@ -504,7 +541,11 @@ def prometheus_client(wait_for_services):
 @pytest.fixture(scope="session")
 def grafana_client(wait_for_services):
     """HTTP client for Grafana API with basic auth."""
-    client = GrafanaClient(base_url="http://localhost:3001", username="admin", password="admin")
+    client = GrafanaClient(
+        base_url="http://localhost:3001",
+        username=os.environ["GF_SECURITY_ADMIN_USER"],
+        password=os.environ["GF_SECURITY_ADMIN_PASSWORD"],
+    )
 
     yield client
 
@@ -525,7 +566,7 @@ def simulation_api_client(docker_compose):
     API key: matches the value seeded in LocalStack Secrets Manager
     """
     base_url = "http://localhost:8000"
-    api_key = "admin"
+    api_key = os.environ["API_KEY"]
 
     client = httpx.Client(
         base_url=base_url,
@@ -607,11 +648,11 @@ def stream_processor_healthy(wait_for_services):
             "bootstrap.servers": "localhost:9092",
             "security.protocol": "SASL_PLAINTEXT",
             "sasl.mechanism": "PLAIN",
-            "sasl.username": os.environ.get("KAFKA_SASL_USERNAME", "admin"),
-            "sasl.password": os.environ.get("KAFKA_SASL_PASSWORD", "admin"),
+            "sasl.username": os.environ["KAFKA_SASL_USERNAME"],
+            "sasl.password": os.environ["KAFKA_SASL_PASSWORD"],
         }
     )
-    redis_password = os.environ.get("REDIS_PASSWORD", "admin")
+    redis_password = os.environ["REDIS_PASSWORD"]
     r = sync_redis.Redis(
         host="localhost", port=6379, password=redis_password, decode_responses=True
     )
@@ -692,7 +733,7 @@ def redis_publisher(docker_compose):
 
     Used to inject events into pub/sub channels for WebSocket testing.
     """
-    redis_password = os.environ.get("REDIS_PASSWORD", "admin")
+    redis_password = os.environ["REDIS_PASSWORD"]
     client = redis.Redis(
         host="localhost", port=6379, password=redis_password, decode_responses=True
     )
@@ -724,8 +765,8 @@ def kafka_consumer(wait_for_services):
             "enable.auto.commit": False,
             "security.protocol": "SASL_PLAINTEXT",
             "sasl.mechanism": "PLAIN",
-            "sasl.username": os.environ.get("KAFKA_SASL_USERNAME", "admin"),
-            "sasl.password": os.environ.get("KAFKA_SASL_PASSWORD", "admin"),
+            "sasl.username": os.environ["KAFKA_SASL_USERNAME"],
+            "sasl.password": os.environ["KAFKA_SASL_PASSWORD"],
         }
     )
 

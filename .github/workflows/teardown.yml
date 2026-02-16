@@ -41,7 +41,10 @@ jobs:
 
       - name: Terraform Init (Platform)
         working-directory: infrastructure/terraform/platform
-        run: terraform init
+        run: |
+          terraform init \
+            -backend-config="bucket=rideshare-tf-state-${{ secrets.AWS_ACCOUNT_ID }}" \
+            -backend-config="dynamodb_table=rideshare-tf-state-lock-${{ secrets.AWS_ACCOUNT_ID }}"
 
       - name: Terraform Destroy (Platform)
         working-directory: infrastructure/terraform/platform
@@ -74,12 +77,13 @@ jobs:
         run: |
           echo "Verifying foundation resources are intact..."
 
+          ACCT="${{ secrets.AWS_ACCOUNT_ID }}"
           echo "Checking S3 buckets..."
-          aws s3 ls | grep rideshare-bronze && echo "Bronze bucket preserved" || echo "Bronze bucket missing"
-          aws s3 ls | grep rideshare-silver && echo "Silver bucket preserved" || echo "Silver bucket missing"
-          aws s3 ls | grep rideshare-gold && echo "Gold bucket preserved" || echo "Gold bucket missing"
-          aws s3 ls | grep rideshare-checkpoints && echo "Checkpoints bucket preserved" || echo "Checkpoints bucket missing"
-          aws s3 ls | grep rideshare-frontend && echo "Frontend bucket preserved" || echo "Frontend bucket missing"
+          aws s3 ls | grep "rideshare-${ACCT}-bronze" && echo "Bronze bucket preserved" || echo "Bronze bucket missing"
+          aws s3 ls | grep "rideshare-${ACCT}-silver" && echo "Silver bucket preserved" || echo "Silver bucket missing"
+          aws s3 ls | grep "rideshare-${ACCT}-gold" && echo "Gold bucket preserved" || echo "Gold bucket missing"
+          aws s3 ls | grep "rideshare-${ACCT}-checkpoints" && echo "Checkpoints bucket preserved" || echo "Checkpoints bucket missing"
+          aws s3 ls | grep "rideshare-${ACCT}-frontend" && echo "Frontend bucket preserved" || echo "Frontend bucket missing"
 
           echo "Checking ECR repositories..."
           ECR_COUNT=$(aws ecr describe-repositories \

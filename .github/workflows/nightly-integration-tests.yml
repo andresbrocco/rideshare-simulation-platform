@@ -35,11 +35,7 @@ jobs:
     env:
       COMPOSE_FILE: infrastructure/docker/compose.yml
       MINIO_ENDPOINT: http://localhost:9000
-      MINIO_ROOT_USER: admin
-      MINIO_ROOT_PASSWORD: adminadmin
       KAFKA_BOOTSTRAP_SERVERS: localhost:9092
-      KAFKA_SASL_USERNAME: admin
-      KAFKA_SASL_PASSWORD: admin
       SCHEMA_REGISTRY_URL: http://localhost:8085
       SPARK_THRIFT_HOST: localhost
       SPARK_THRIFT_PORT: 10000
@@ -91,7 +87,9 @@ jobs:
         working-directory: tools/dbt
         run: |
           mkdir -p profiles
-          cat > profiles/profiles.yml << 'EOF'
+          # Template uses env vars loaded from LocalStack in a later step.
+          # For dbt deps (no connection needed), write a placeholder first.
+          cat > profiles/profiles.yml.tpl << 'EOF'
           rideshare:
             target: dev
             outputs:
@@ -100,15 +98,18 @@ jobs:
                 method: thrift
                 host: localhost
                 port: 10000
-                user: admin
-                password: admin
+                user: ${HIVE_LDAP_USERNAME}
+                password: ${HIVE_LDAP_PASSWORD}
                 schema: default
                 auth: LDAP
                 threads: 4
                 connect_timeout: 60
                 connect_retries: 3
           EOF
-          sed -i 's/^          //' profiles/profiles.yml
+          sed -i 's/^          //' profiles/profiles.yml.tpl
+          # Write a temporary profiles.yml for dbt deps (no connection needed)
+          sed 's/${HIVE_LDAP_USERNAME}/placeholder/;s/${HIVE_LDAP_PASSWORD}/placeholder/' \
+            profiles/profiles.yml.tpl > profiles/profiles.yml
           ./venv/bin/dbt deps --profiles-dir profiles --project-dir .
 
       - name: Build and start core and data-pipeline services
@@ -119,27 +120,16 @@ jobs:
           echo "Waiting for services to be healthy..."
           sleep 60
 
-      - name: Wait for services to be ready
-        env:
-          SR_AUTH: "admin:admin"
+      - name: Wait for infrastructure services
         run: |
           echo "Checking MinIO..."
           timeout 120 bash -c 'until curl -s http://localhost:9000/minio/health/live; do sleep 5; done' || true
           echo "Checking Kafka..."
           timeout 120 bash -c "until docker compose -f \"$COMPOSE_FILE\" exec -T kafka kafka-broker-api-versions --bootstrap-server localhost:9092 --command-config /tmp/kafka-client.properties 2>/dev/null; do sleep 5; done" || true
-          echo "Checking Schema Registry..."
-          timeout 120 bash -c "until curl -sf -u $SR_AUTH http://localhost:8085/subjects; do sleep 5; done" || true
           echo "Checking Redis..."
           timeout 60 bash -c "until docker compose -f \"$COMPOSE_FILE\" exec -T redis sh -c '. /secrets/core.env && redis-cli -a \"\$REDIS_PASSWORD\" ping' 2>/dev/null | grep -q PONG; do sleep 2; done" || true
           echo "Checking LocalStack..."
           timeout 60 bash -c 'until curl -s http://localhost:4566/_localstack/health | grep -q "\"secretsmanager\": \"available\""; do sleep 5; done' || true
-          echo "Checking Simulation API..."
-          timeout 120 bash -c 'until curl -s http://localhost:8000/health; do sleep 5; done' || true
-          echo "Checking Spark Thrift Server (this may take up to 3 minutes)..."
-          timeout 180 bash -c 'until curl -sf http://localhost:4041/json/ 2>/dev/null; do sleep 10; done' || true
-          echo "Verifying Spark Thrift LDAP authentication..."
-          timeout 60 bash -c "until docker compose -f \"$COMPOSE_FILE\" exec -T spark-thrift-server beeline -u \"jdbc:hive2://localhost:10000/default\" -n admin -p admin -e \"SELECT 1\" 2>/dev/null | grep -q \"1 row selected\"; do sleep 10; done" || true
-          echo "Services are ready"
 
       - name: Verify secrets initialization
         run: |
@@ -158,6 +148,72 @@ jobs:
               sys.exit(1)
           print('secrets-init completed successfully')
           "
+
+      - name: Load credentials from LocalStack
+        run: |
+          python3 -c "
+          import json, os, boto3
+          client = boto3.client(
+              'secretsmanager',
+              endpoint_url='http://localhost:4566',
+              aws_access_key_id='test',
+              aws_secret_access_key='test',
+              region_name='us-east-1',
+          )
+          # Same key transforms as infrastructure/scripts/fetch-secrets.py
+          KEY_TRANSFORMS = {
+              'rideshare/postgres-airflow': {'POSTGRES_USER': 'POSTGRES_AIRFLOW_USER', 'POSTGRES_PASSWORD': 'POSTGRES_AIRFLOW_PASSWORD'},
+              'rideshare/postgres-metastore': {'POSTGRES_USER': 'POSTGRES_METASTORE_USER', 'POSTGRES_PASSWORD': 'POSTGRES_METASTORE_PASSWORD'},
+              'rideshare/grafana': {'ADMIN_USER': 'GF_SECURITY_ADMIN_USER', 'ADMIN_PASSWORD': 'GF_SECURITY_ADMIN_PASSWORD'},
+              'rideshare/hive-thrift': {'LDAP_USERNAME': 'HIVE_LDAP_USERNAME', 'LDAP_PASSWORD': 'HIVE_LDAP_PASSWORD'},
+          }
+          AIRFLOW_MAPPING = {
+              'FERNET_KEY': 'AIRFLOW__CORE__FERNET_KEY',
+              'INTERNAL_API_SECRET_KEY': 'AIRFLOW__CORE__INTERNAL_API_SECRET_KEY',
+              'JWT_SECRET': 'AIRFLOW__API_AUTH__JWT_SECRET',
+              'API_SECRET_KEY': 'AIRFLOW__API__SECRET_KEY',
+              'ADMIN_USERNAME': 'AIRFLOW_ADMIN_USERNAME',
+              'ADMIN_PASSWORD': 'AIRFLOW_ADMIN_PASSWORD',
+          }
+          secrets = [
+              'rideshare/api-key', 'rideshare/minio', 'rideshare/redis',
+              'rideshare/kafka', 'rideshare/schema-registry',
+              'rideshare/postgres-airflow', 'rideshare/postgres-metastore',
+              'rideshare/airflow', 'rideshare/grafana', 'rideshare/hive-thrift',
+              'rideshare/ldap',
+          ]
+          env_file = os.environ['GITHUB_ENV']
+          with open(env_file, 'a') as f:
+              for name in secrets:
+                  resp = client.get_secret_value(SecretId=name)
+                  fields = json.loads(resp['SecretString'])
+                  if name == 'rideshare/airflow':
+                      fields = {AIRFLOW_MAPPING.get(k, k): v for k, v in fields.items()}
+                  elif name in KEY_TRANSFORMS:
+                      km = KEY_TRANSFORMS[name]
+                      fields = {km.get(k, k): v for k, v in fields.items()}
+                  for k, v in fields.items():
+                      f.write(f'{k}={v}\n')
+                      print(f'  Loaded {k}')
+          print('All credentials loaded into GITHUB_ENV')
+          "
+
+      - name: Render DBT profiles.yml with credentials
+        working-directory: tools/dbt
+        run: |
+          envsubst < profiles/profiles.yml.tpl > profiles/profiles.yml
+
+      - name: Wait for application services
+        run: |
+          echo "Checking Schema Registry..."
+          timeout 120 bash -c "until curl -sf -u \"\$SCHEMA_REGISTRY_USER:\$SCHEMA_REGISTRY_PASSWORD\" http://localhost:8085/subjects; do sleep 5; done" || true
+          echo "Checking Simulation API..."
+          timeout 120 bash -c 'until curl -s http://localhost:8000/health; do sleep 5; done' || true
+          echo "Checking Spark Thrift Server (this may take up to 3 minutes)..."
+          timeout 180 bash -c 'until curl -sf http://localhost:4041/json/ 2>/dev/null; do sleep 10; done' || true
+          echo "Verifying Spark Thrift LDAP authentication..."
+          timeout 60 bash -c "until docker compose -f \"$COMPOSE_FILE\" exec -T spark-thrift-server beeline -u \"jdbc:hive2://localhost:10000/default\" -n \"\$HIVE_LDAP_USERNAME\" -p \"\$HIVE_LDAP_PASSWORD\" -e \"SELECT 1\" 2>/dev/null | grep -q \"1 row selected\"; do sleep 10; done" || true
+          echo "Services are ready"
 
       - name: Run integration tests
         run: |

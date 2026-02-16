@@ -127,29 +127,37 @@ terraform init
 # Review plan
 terraform plan
 
-# Apply (creates rideshare-tf-state bucket and DynamoDB lock table)
+# Apply (creates account-suffixed S3 bucket and DynamoDB lock table)
 terraform apply
 ```
 
 **Verify:**
 
 ```bash
-aws s3 ls | grep rideshare-tf-state
-aws dynamodb list-tables | grep terraform-lock
+# Get your account ID
+ACCT=$(aws sts get-caller-identity --profile rideshare --query Account --output text)
+
+aws s3 ls | grep "rideshare-tf-state-${ACCT}"
+aws dynamodb list-tables | grep "rideshare-tf-state-lock-${ACCT}"
 ```
 
 **Outputs:**
 
-| Resource | Name |
-|----------|------|
-| S3 bucket | `rideshare-tf-state` |
-| DynamoDB table | `terraform-lock` |
+| Output | Description | Example Value |
+|--------|-------------|---------------|
+| `s3_bucket_name` | State bucket name | `rideshare-tf-state-123456789012` |
+| `dynamodb_table_name` | Lock table name | `rideshare-tf-state-lock-123456789012` |
+| `foundation_init_command` | Copy-paste init command for foundation | `terraform init -backend-config="bucket=..."` |
+| `platform_init_command` | Copy-paste init command for platform | `terraform init -backend-config="bucket=..."` |
+
+S3 bucket names include the AWS account ID suffix for global uniqueness (e.g., `rideshare-tf-state-123456789012`).
 
 **Important:**
 
 - Bootstrap uses local state (not remote backend)
 - Only run once per AWS account
 - Do NOT destroy this infrastructure (or you lose all Terraform state)
+- Copy the `foundation_init_command` and `platform_init_command` outputs for the next steps
 
 ## Foundation: Always-On Infrastructure
 
@@ -163,8 +171,11 @@ aws dynamodb list-tables | grep terraform-lock
 # Navigate to foundation directory
 cd infrastructure/terraform/foundation
 
-# Initialize Terraform (remote S3 backend)
-terraform init
+# Initialize Terraform (use the command from bootstrap output, or construct manually):
+ACCT=$(aws sts get-caller-identity --profile rideshare --query Account --output text)
+terraform init \
+  -backend-config="bucket=rideshare-tf-state-${ACCT}" \
+  -backend-config="dynamodb_table=rideshare-tf-state-lock-${ACCT}"
 
 # Review plan
 terraform plan
@@ -185,7 +196,7 @@ terraform apply
 | `cloudfront_distribution_id` | CDN distribution ID | `E1A2B3C4D5E6F7` |
 | `cloudfront_domain_name` | CloudFront domain | `d111111abcdef8.cloudfront.net` |
 | `ecr_repository_urls` | Container registry URLs | `{"simulation": "123456789012.dkr.ecr..."}` |
-| `s3_bucket_names` | Lakehouse bucket names | `{"bronze": "rideshare-bronze", ...}` |
+| `s3_bucket_names` | Lakehouse bucket names | `{"bronze": "rideshare-123456789012-bronze", ...}` |
 | `github_actions_role_arn` | CI/CD IAM role ARN | `arn:aws:iam::123456789012:role/rideshare-github-actions` |
 
 **Verify:**
@@ -300,8 +311,8 @@ VITE_API_URL=https://api.ridesharing.portfolio.andresbrocco.com \
 VITE_WS_URL=wss://api.ridesharing.portfolio.andresbrocco.com/ws \
 npm run build
 
-# Sync to S3 (replace bucket name from Terraform output)
-aws s3 sync dist/ s3://rideshare-frontend --delete
+# Sync to S3 (replace <ACCT> with your AWS account ID)
+aws s3 sync dist/ s3://rideshare-<ACCT>-frontend --delete
 
 # Invalidate CloudFront cache (replace distribution ID from Terraform output)
 aws cloudfront create-invalidation \
@@ -346,8 +357,13 @@ GitHub Actions -> Deploy Platform to AWS -> Run workflow
 ```bash
 cd infrastructure/terraform/platform
 
-# Initialize and apply
-terraform init
+# Initialize (use the command from bootstrap output, or construct manually):
+ACCT=$(aws sts get-caller-identity --profile rideshare --query Account --output text)
+terraform init \
+  -backend-config="bucket=rideshare-tf-state-${ACCT}" \
+  -backend-config="dynamodb_table=rideshare-tf-state-lock-${ACCT}"
+
+# Apply
 terraform apply
 
 # Update kubeconfig
@@ -467,7 +483,7 @@ open https://ridesharing.portfolio.andresbrocco.com
 curl https://api.ridesharing.portfolio.andresbrocco.com/api/health
 # Expected: Connection timeout or DNS resolution failure
 
-# S3 buckets should still exist
+# S3 buckets should still exist (account-suffixed names)
 aws s3 ls | grep rideshare
 
 # ECR images should still exist
@@ -615,7 +631,7 @@ Grafana and Airflow credentials are stored in Secrets Manager. Trino is accessib
 
 1. Check for other running Terraform processes
 2. Force unlock (use with caution): `terraform force-unlock <LOCK_ID>`
-3. Verify DynamoDB table exists: `aws dynamodb describe-table --table-name terraform-lock`
+3. Verify DynamoDB table exists: `aws dynamodb list-tables | grep rideshare-tf-state-lock`
 
 ### High AWS Costs
 

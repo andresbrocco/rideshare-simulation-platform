@@ -1,3 +1,6 @@
+# Look up the current AWS account ID for globally unique bucket naming
+data "aws_caller_identity" "current" {}
+
 # -----------------------------------------------------------------------------
 # VPC
 # -----------------------------------------------------------------------------
@@ -39,7 +42,8 @@ module "acm" {
 module "s3" {
   source = "./modules/s3"
 
-  project_name = var.project_name
+  project_name   = var.project_name
+  account_suffix = data.aws_caller_identity.current.account_id
 }
 
 # -----------------------------------------------------------------------------
@@ -107,6 +111,6 @@ module "iam" {
     silver      = module.s3.silver_bucket_arn
     gold        = module.s3.gold_bucket_arn
     checkpoints = module.s3.checkpoints_bucket_arn
-    tf_state    = "arn:aws:s3:::rideshare-tf-state"
+    tf_state    = "arn:aws:s3:::rideshare-tf-state-${data.aws_caller_identity.current.account_id}"
   }
 }

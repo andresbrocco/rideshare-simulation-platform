@@ -17,3 +17,13 @@ output "dynamodb_table_arn" {
   description = "ARN of the DynamoDB table for state locking"
   value       = aws_dynamodb_table.terraform_lock.arn
 }
+
+output "foundation_init_command" {
+  description = "Copy-paste this command to initialize the foundation backend"
+  value       = "terraform init -backend-config=\"bucket=${aws_s3_bucket.terraform_state.id}\" -backend-config=\"dynamodb_table=${aws_dynamodb_table.terraform_lock.id}\""
+}
+
+output "platform_init_command" {
+  description = "Copy-paste this command to initialize the platform backend"
+  value       = "terraform init -backend-config=\"bucket=${aws_s3_bucket.terraform_state.id}\" -backend-config=\"dynamodb_table=${aws_dynamodb_table.terraform_lock.id}\""
+}

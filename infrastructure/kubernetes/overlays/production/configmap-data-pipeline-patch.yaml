@@ -15,7 +15,8 @@ data:
   POSTGRES_METASTORE_HOST: "<rds-endpoint>"
 
   # S3 bucket for bronze layer (replaces MinIO)
-  BRONZE_BUCKET: "rideshare-bronze"
+  # Replace <account-id> with actual AWS account ID during deploy
+  BRONZE_BUCKET: "rideshare-<account-id>-bronze"
 
   # Remove MinIO/LocalStack references by setting empty values
   # Deploy workflow should use ConfigMap generator for final values

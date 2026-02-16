@@ -27,8 +27,9 @@ spec:
             # S3 checkpoint configuration (save-only; S3 restore not yet implemented)
             - name: CHECKPOINT_STORAGE_TYPE
               value: "s3"
+            # Replace <account-id> with AWS account ID during deploy
             - name: CHECKPOINT_S3_BUCKET
-              value: "rideshare-checkpoints"
+              value: "rideshare-<account-id>-checkpoints"
             - name: CHECKPOINT_S3_PREFIX
               value: "simulation"
             - name: RESUME_FROM_CHECKPOINT

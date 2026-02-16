@@ -32,6 +32,6 @@ spec:
             - name: AWS_REGION
               value: "us-east-1"
 
-            # Bronze bucket (explicit for production clarity)
+            # Bronze bucket (replace <account-id> with AWS account ID during deploy)
             - name: BRONZE_BUCKET
-              value: "rideshare-bronze"
+              value: "rideshare-<account-id>-bronze"

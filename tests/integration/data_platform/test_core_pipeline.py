@@ -8,6 +8,7 @@ Tests the core event flow through the platform:
 """
 
 import json
+import os
 import queue
 import threading
 import time
@@ -351,7 +352,7 @@ def test_websocket_realtime_updates(
     - Initial snapshot message received
     - Events from Redis are forwarded to WebSocket
     """
-    api_key = "admin"
+    api_key = os.environ["API_KEY"]
     ws_url = "ws://localhost:8000/ws"
 
     # Connect to WebSocket with API key in subprotocol

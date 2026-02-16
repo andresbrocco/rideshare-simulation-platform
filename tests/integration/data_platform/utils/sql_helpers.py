@@ -32,8 +32,8 @@ def _get_minio_client():
     return boto3.client(
         "s3",
         endpoint_url=os.environ.get("MINIO_ENDPOINT", "http://localhost:9000"),
-        aws_access_key_id=os.environ.get("MINIO_ROOT_USER", "admin"),
-        aws_secret_access_key=os.environ.get("MINIO_ROOT_PASSWORD", "adminadmin"),
+        aws_access_key_id=os.environ["MINIO_ROOT_USER"],
+        aws_secret_access_key=os.environ["MINIO_ROOT_PASSWORD"],
     )
 
 

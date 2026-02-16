@@ -20,7 +20,8 @@ data:
 
       <property>
         <name>metastore.warehouse.dir</name>
-        <value>s3a://rideshare-silver/warehouse/</value>
+        <!-- Replace <account-id> with AWS account ID during deploy -->
+        <value>s3a://rideshare-<account-id>-silver/warehouse/</value>
       </property>
 
       <!-- PostgreSQL Backend (RDS) -->
