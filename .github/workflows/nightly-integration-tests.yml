@@ -141,7 +141,7 @@ jobs:
         run: |
           echo "Checking secrets-init service completed..."
           docker compose -f "$COMPOSE_FILE" logs secrets-init
-          docker compose -f "$COMPOSE_FILE" ps secrets-init --format json | python3 -c "
+          docker compose -f "$COMPOSE_FILE" ps -a secrets-init --format json | python3 -c "
           import sys, json
           data = json.loads(sys.stdin.read())
           if isinstance(data, list):
