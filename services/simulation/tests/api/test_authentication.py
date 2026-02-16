@@ -31,7 +31,7 @@ def test_health_endpoint_no_auth(test_client):
     """Health endpoint does not require auth."""
     response = test_client.get("/health")
     assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+    assert response.json()["status"] == "healthy"
 
 
 @pytest.mark.unit
