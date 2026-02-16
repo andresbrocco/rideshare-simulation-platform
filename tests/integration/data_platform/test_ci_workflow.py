@@ -10,7 +10,7 @@ import yaml
 pytestmark = pytest.mark.requires_profiles()
 
 
-WORKFLOW_PATH = Path(".github/workflows/integration-tests.yml")
+WORKFLOW_PATH = Path(".github/workflows/nightly-integration-tests.yml")
 
 
 def load_workflow():
@@ -34,49 +34,41 @@ class TestWorkflowStructure:
         assert WORKFLOW_PATH.exists(), f"Workflow file not found at {WORKFLOW_PATH}"
 
     def test_workflow_has_required_triggers(self):
-        """Workflow should trigger after Checks workflow completes on main."""
+        """Workflow should trigger on schedule and manual dispatch."""
         workflow = load_workflow()
         assert workflow is not None, "Workflow file not found"
 
         on_config = get_on_config(workflow)
-        # Integration tests run after Checks workflow completes (not on every push)
-        assert "workflow_run" in on_config, "Workflow should trigger on workflow_run"
-
-        workflow_run_config = on_config.get("workflow_run", {})
-        assert "Checks" in workflow_run_config.get(
-            "workflows", []
-        ), "Workflow should trigger after Checks workflow"
-        assert "main" in workflow_run_config.get(
-            "branches", []
-        ), "Workflow should trigger on main branch"
+        assert "schedule" in on_config, "Workflow should trigger on schedule"
+        assert "workflow_dispatch" in on_config, "Workflow should support manual dispatch"
 
     def test_workflow_has_timeout(self):
-        """Workflow should have 30-minute timeout configured."""
+        """Workflow should have timeout configured."""
         workflow = load_workflow()
         assert workflow is not None, "Workflow file not found"
 
         jobs = workflow.get("jobs", {})
-        assert len(jobs) > 0, "Workflow should have at least one job"
+        integration_job = jobs.get("integration-tests")
+        assert integration_job is not None, "Workflow should have integration-tests job"
 
-        for job_name, job_config in jobs.items():
-            timeout = job_config.get("timeout-minutes")
-            assert timeout == 30, f"Job '{job_name}' should have 30-minute timeout"
+        timeout = integration_job.get("timeout-minutes")
+        assert timeout is not None, "Integration tests job should have a timeout"
+        assert timeout >= 30, "Timeout should be at least 30 minutes"
 
-    def test_workflow_uses_large_runner(self):
+    def test_workflow_uses_valid_runner(self):
         """Workflow should use runner with sufficient resources."""
         workflow = load_workflow()
         assert workflow is not None, "Workflow file not found"
 
         jobs = workflow.get("jobs", {})
+        valid_runners = [
+            "ubuntu-latest",
+            "ubuntu-latest-8-cores",
+            "ubuntu-latest-16-cores",
+            "ubuntu-22.04",
+        ]
         for job_name, job_config in jobs.items():
             runs_on = job_config.get("runs-on", "")
-            # Accept ubuntu-latest or larger runners (8-core, 16-core)
-            valid_runners = [
-                "ubuntu-latest",
-                "ubuntu-latest-8-cores",
-                "ubuntu-latest-16-cores",
-                "ubuntu-22.04",
-            ]
             assert any(
                 runner in runs_on for runner in valid_runners
             ), f"Job '{job_name}' should use a valid Ubuntu runner"
