@@ -35,7 +35,7 @@ spec:
         - airflow dags reserialize && exec airflow scheduler
         resources:
           limits:
-            memory: "768Mi"
+            memory: "2048Mi"
           requests:
             memory: "512Mi"
         env:
@@ -63,10 +63,18 @@ spec:
           value: "8"
         - name: AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL
           value: "30"
+        - name: AIRFLOW__CORE__EXECUTION_API_SERVER_URL
+          value: "http://airflow-webserver:8080/execution/"
         - name: DBT_SPARK_HOST
           value: spark-thrift-server
+        - name: AWS_ENDPOINT_URL
+          value: "http://minio:9000"
+        - name: AWS_ALLOW_HTTP
+          value: "true"
+        - name: AWS_REGION
+          value: "us-east-1"
         - name: _PIP_ADDITIONAL_REQUIREMENTS
-          value: apache-airflow-providers-fab apache-airflow-providers-apache-spark pyhive thrift dbt-core dbt-spark[PyHive] great-expectations requests prison
+          value: apache-airflow-providers-fab dbt-core dbt-duckdb==1.10.0 dbt-spark[PyHive] duckdb==1.4.4 deltalake==1.4.2 duckdb-engine==0.17.0 great-expectations requests prison
         livenessProbe:
           tcpSocket:
             port: 8793

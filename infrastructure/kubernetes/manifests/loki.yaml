@@ -67,7 +67,7 @@ spec:
         - -config.file=/etc/loki/local-config.yaml
         resources:
           limits:
-            memory: "256Mi"
+            memory: "384Mi"
           requests:
             memory: "128Mi"
         ports:

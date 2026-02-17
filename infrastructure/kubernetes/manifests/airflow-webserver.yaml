@@ -69,6 +69,8 @@ spec:
           value: "8"
         - name: AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL
           value: "30"
+        - name: AIRFLOW__CORE__EXECUTION_API_SERVER_URL
+          value: "http://airflow-webserver:8080/execution/"
         - name: _AIRFLOW_DB_MIGRATE
           value: "true"
         - name: _AIRFLOW_WWW_USER_CREATE
@@ -85,12 +87,12 @@ spec:
         - name: DBT_SPARK_HOST
           value: spark-thrift-server
         - name: _PIP_ADDITIONAL_REQUIREMENTS
-          value: apache-airflow-providers-fab apache-airflow-providers-apache-spark pyhive thrift dbt-core dbt-spark[PyHive] great-expectations requests prison
+          value: apache-airflow-providers-fab dbt-core dbt-duckdb==1.10.0 dbt-spark[PyHive] duckdb==1.4.4 deltalake==1.4.2 duckdb-engine==0.17.0 great-expectations requests prison
         livenessProbe:
           httpGet:
             path: /api/v2/monitor/health
             port: 8080
-          initialDelaySeconds: 300
+          initialDelaySeconds: 600
           periodSeconds: 30
           timeoutSeconds: 10
         readinessProbe:

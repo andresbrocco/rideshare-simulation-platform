@@ -34,7 +34,7 @@ spec:
           httpGet:
             path: /route/v1/driving/-46.6333,-23.5505;-46.6334,-23.5506
             port: 5000
-          initialDelaySeconds: 180
+          initialDelaySeconds: 300
           periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 10

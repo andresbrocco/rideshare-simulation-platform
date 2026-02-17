@@ -126,7 +126,7 @@ spec:
           exec /entrypoint.sh
         resources:
           limits:
-            memory: "512Mi"
+            memory: "1152Mi"
           requests:
             memory: "256Mi"
         ports:

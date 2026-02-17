@@ -30,8 +30,47 @@ data:
       # Memory limiter for stability
       memory_limiter:
         check_interval: 1s
-        limit_mib: 512
-        spike_limit_mib: 128
+        limit_mib: 180
+        spike_limit_mib: 50
+
+      # Extract log attributes for Loki labels
+      attributes/logs:
+        actions:
+          - key: level
+            from_attribute: body.level
+            action: upsert
+          - key: service
+            from_attribute: body.logger
+            action: upsert
+          - key: service_name
+            from_attribute: body.service_name
+            action: upsert
+          - key: correlation_id
+            from_attribute: body.correlation_id
+            action: upsert
+          - key: trip_id
+            from_attribute: body.trip_id
+            action: upsert
+
+      # Copy service_name attribute to service.name resource attribute
+      transform/logs:
+        log_statements:
+          - context: log
+            statements:
+              - set(resource.attributes["service.name"], attributes["service_name"]) where attributes["service_name"] != nil
+
+      # Loki label hints (tells loki exporter which attributes to promote to labels)
+      attributes/loki_hints:
+        actions:
+          - key: loki.attribute.labels
+            value: level,service,service_name,container_id
+            action: insert
+
+      resource/loki_hints:
+        attributes:
+          - key: loki.resource.labels
+            value: service.name,deployment.environment
+            action: insert
 
       # Add resource attributes
       resource:
@@ -69,6 +108,12 @@ data:
           receivers: [otlp]
           processors: [memory_limiter, batch, resource]
           exporters: [prometheusremotewrite]
+
+        # Logs pipeline: OTLP -> Loki
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, attributes/logs, transform/logs, resource, resource/loki_hints, attributes/loki_hints, batch]
+          exporters: [loki]
 
         # Traces pipeline: OTLP -> Tempo
         traces:
@@ -140,7 +185,7 @@ spec:
         - --config=/etc/otelcol-contrib/config.yaml
         resources:
           limits:
-            memory: "768Mi"
+            memory: "256Mi"
           requests:
             memory: "256Mi"
         ports:

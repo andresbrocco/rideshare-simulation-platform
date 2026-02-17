@@ -89,6 +89,10 @@ spec:
           value: "INFO"
         - name: SIM_CHECKPOINT_INTERVAL
           value: "300"
+        - name: SIM_CHECKPOINT_ENABLED
+          value: "true"
+        - name: SIM_RESUME_FROM_CHECKPOINT
+          value: "true"
         - name: SIM_DB_PATH
           value: "/app/db/simulation.db"
         - name: KAFKA_BOOTSTRAP_SERVERS
@@ -133,7 +137,7 @@ spec:
           httpGet:
             path: /health
             port: 8000
-          initialDelaySeconds: 10
+          initialDelaySeconds: 90
           periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 5

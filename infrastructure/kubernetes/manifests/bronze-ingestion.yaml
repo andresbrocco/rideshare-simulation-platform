@@ -62,12 +62,12 @@ spec:
           valueFrom:
             secretKeyRef:
               name: app-credentials
-              key: MINIO_ACCESS_KEY
+              key: MINIO_ROOT_USER
         - name: AWS_SECRET_ACCESS_KEY
           valueFrom:
             secretKeyRef:
               name: app-credentials
-              key: MINIO_SECRET_KEY
+              key: MINIO_ROOT_PASSWORD
         - name: BRONZE_BUCKET
           value: rideshare-bronze
         livenessProbe:
