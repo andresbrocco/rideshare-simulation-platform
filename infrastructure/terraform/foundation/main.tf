@@ -111,6 +111,7 @@ module "iam" {
     silver      = module.s3.silver_bucket_arn
     gold        = module.s3.gold_bucket_arn
     checkpoints = module.s3.checkpoints_bucket_arn
+    frontend    = module.s3.frontend_bucket_arn
     tf_state    = "arn:aws:s3:::rideshare-tf-state-${data.aws_caller_identity.current.account_id}"
   }
 }

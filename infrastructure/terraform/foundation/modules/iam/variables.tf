@@ -29,6 +29,7 @@ variable "s3_bucket_arns" {
     silver      = string
     gold        = string
     checkpoints = string
+    frontend    = string
     tf_state    = string
   })
 }

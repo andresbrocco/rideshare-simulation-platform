@@ -247,6 +247,73 @@ resource "aws_iam_role_policy" "github_actions_ec2" {
   })
 }
 
+# Route53 Read Policy (required by teardown verification step)
+resource "aws_iam_role_policy" "github_actions_route53" {
+  name = "route53-read"
+  role = aws_iam_role.github_actions.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "route53:ListHostedZones",
+          "route53:ListHostedZonesByName",
+          "route53:ListResourceRecordSets"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# CloudFront Invalidation Policy (required by deploy-frontend.yml)
+resource "aws_iam_role_policy" "github_actions_cloudfront" {
+  name = "cloudfront-invalidation"
+  role = aws_iam_role.github_actions.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "cloudfront:ListDistributions",
+          "cloudfront:CreateInvalidation",
+          "cloudfront:GetInvalidation"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# S3 Frontend Bucket Policy (required by deploy-frontend.yml S3 sync)
+resource "aws_iam_role_policy" "github_actions_s3_frontend" {
+  name = "s3-frontend-sync"
+  role = aws_iam_role.github_actions.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:ListBucket",
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject"
+        ]
+        Resource = [
+          var.s3_bucket_arns.frontend,
+          "${var.s3_bucket_arns.frontend}/*"
+        ]
+      }
+    ]
+  })
+}
+
 # Terraform State S3/DynamoDB Policy
 resource "aws_iam_role_policy" "github_actions_terraform" {
   name = "terraform-state"

@@ -189,14 +189,18 @@ terraform apply
 | Output | Description | Example Value |
 |--------|-------------|---------------|
 | `vpc_id` | VPC identifier | `vpc-0a1b2c3d4e5f6g7h8` |
-| `subnet_ids` | Public subnet IDs | `["subnet-abc123", "subnet-def456"]` |
+| `public_subnet_ids` | Public subnet IDs | `["subnet-abc123", "subnet-def456"]` |
 | `route53_zone_id` | Hosted zone ID | `Z1234567890ABC` |
-| `route53_nameservers` | NS records for delegation | `["ns-123.awsdns-12.com", ...]` |
-| `acm_certificate_arn` | Wildcard TLS cert ARN | `arn:aws:acm:us-east-1:...` |
+| `route53_name_servers` | NS records for delegation | `["ns-123.awsdns-12.com", ...]` |
+| `certificate_arn` | Wildcard TLS cert ARN | `arn:aws:acm:us-east-1:...` |
 | `cloudfront_distribution_id` | CDN distribution ID | `E1A2B3C4D5E6F7` |
-| `cloudfront_domain_name` | CloudFront domain | `d111111abcdef8.cloudfront.net` |
+| `cloudfront_distribution_domain` | CloudFront domain | `d111111abcdef8.cloudfront.net` |
 | `ecr_repository_urls` | Container registry URLs | `{"simulation": "123456789012.dkr.ecr..."}` |
-| `s3_bucket_names` | Lakehouse bucket names | `{"bronze": "rideshare-123456789012-bronze", ...}` |
+| `bronze_bucket_name` | Bronze lakehouse bucket | `rideshare-123456789012-bronze` |
+| `silver_bucket_name` | Silver lakehouse bucket | `rideshare-123456789012-silver` |
+| `gold_bucket_name` | Gold lakehouse bucket | `rideshare-123456789012-gold` |
+| `checkpoints_bucket_name` | Simulation checkpoints bucket | `rideshare-123456789012-checkpoints` |
+| `frontend_bucket_name` | Frontend static site bucket | `rideshare-123456789012-frontend` |
 | `github_actions_role_arn` | CI/CD IAM role ARN | `arn:aws:iam::123456789012:role/rideshare-github-actions` |
 
 **Verify:**
@@ -231,7 +235,7 @@ aws secretsmanager list-secrets \
 
 ```bash
 cd infrastructure/terraform/foundation
-terraform output route53_nameservers
+terraform output route53_name_servers
 ```
 
 Example output:
@@ -288,18 +292,10 @@ Expected results:
 
 ### Option 1: GitHub Actions (Recommended)
 
-Trigger the `deploy-frontend.yml` workflow:
+Trigger the `deploy-frontend.yml` workflow manually:
 
 ```
-GitHub Actions -> deploy-frontend.yml -> Run workflow
-```
-
-Or push changes to `services/frontend/**` to trigger automatically:
-
-```bash
-git add services/frontend
-git commit -m "Update frontend"
-git push origin main
+GitHub Actions -> Deploy Frontend to S3 -> Run workflow
 ```
 
 ### Option 2: Manual Deployment
@@ -378,9 +374,8 @@ kubectl apply -n argocd \
 kubectl wait --for=condition=available --timeout=300s \
   deployment/argocd-server -n argocd
 
-# Apply ArgoCD applications
-kubectl apply -f infrastructure/kubernetes/argocd/app-core-services.yaml
-kubectl apply -f infrastructure/kubernetes/argocd/app-data-pipeline.yaml
+# Apply ArgoCD application
+kubectl apply -f infrastructure/kubernetes/argocd/app-rideshare-platform.yaml
 ```
 
 ## Verification
@@ -608,8 +603,8 @@ Grafana and Airflow credentials are stored in Secrets Manager. Trino is accessib
 
 1. Check ArgoCD UI: `kubectl port-forward svc/argocd-server -n argocd 8080:443`
 2. Get admin password: `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d`
-3. Manually sync: `argocd app sync app-core-services`
-4. Check application events: `kubectl describe application app-core-services -n argocd`
+3. Manually sync: `argocd app sync rideshare-platform`
+4. Check application events: `kubectl describe application rideshare-platform -n argocd`
 
 ### Frontend Shows Offline Mode Despite Platform Running
 

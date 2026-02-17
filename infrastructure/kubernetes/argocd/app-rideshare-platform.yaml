@@ -1,10 +1,10 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: data-pipeline
+  name: rideshare-platform
   namespace: argocd
   labels:
-    app.kubernetes.io/name: data-pipeline
+    app.kubernetes.io/name: rideshare-platform
     app.kubernetes.io/part-of: rideshare-platform
   finalizers:
     - resources-finalizer.argocd.argoproj.io

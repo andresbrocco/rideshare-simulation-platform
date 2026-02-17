@@ -90,13 +90,16 @@ jobs:
           kubectl wait --for=condition=available --timeout=300s \
             deployment/argocd-server -n argocd
 
-      - name: Apply ArgoCD Applications
+      - name: Configure ArgoCD kustomize build options
         run: |
-          kubectl apply -f infrastructure/argocd/app-core-services.yaml
-          kubectl apply -f infrastructure/argocd/app-data-pipeline.yaml
-          kubectl apply -f infrastructure/argocd/app-monitoring.yaml
+          kubectl patch configmap argocd-cm -n argocd --type merge \
+            -p '{"data":{"kustomize.buildOptions":"--load-restrictor=LoadRestrictionsNone"}}'
 
-          echo "ArgoCD applications created. Syncing..."
+      - name: Apply ArgoCD Application
+        run: |
+          kubectl apply -f infrastructure/kubernetes/argocd/app-rideshare-platform.yaml
+
+          echo "ArgoCD application created. Syncing..."
           kubectl get applications -n argocd
 
       - name: Health Checks
