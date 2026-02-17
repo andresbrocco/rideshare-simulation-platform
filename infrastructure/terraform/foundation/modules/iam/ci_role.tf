@@ -55,7 +55,7 @@ resource "aws_iam_role_policy" "github_actions_ecr" {
   })
 }
 
-# EKS Deploy Policy
+# EKS Full Management Policy (create/update/delete clusters, node groups, addons)
 resource "aws_iam_role_policy" "github_actions_eks" {
   name = "eks-deploy"
   role = aws_iam_role.github_actions.id
@@ -66,10 +66,180 @@ resource "aws_iam_role_policy" "github_actions_eks" {
       {
         Effect = "Allow"
         Action = [
+          "eks:CreateCluster",
+          "eks:DeleteCluster",
           "eks:DescribeCluster",
           "eks:ListClusters",
+          "eks:UpdateClusterConfig",
+          "eks:UpdateClusterVersion",
+          "eks:TagResource",
+          "eks:UntagResource",
+          "eks:CreateNodegroup",
+          "eks:DeleteNodegroup",
           "eks:DescribeNodegroup",
-          "eks:ListNodegroups"
+          "eks:ListNodegroups",
+          "eks:UpdateNodegroupConfig",
+          "eks:UpdateNodegroupVersion",
+          "eks:CreateAddon",
+          "eks:DeleteAddon",
+          "eks:DescribeAddon",
+          "eks:DescribeAddonVersions",
+          "eks:ListAddons",
+          "eks:UpdateAddon",
+          "eks:AssociateAccessPolicy",
+          "eks:CreateAccessEntry",
+          "eks:DeleteAccessEntry",
+          "eks:DescribeAccessEntry",
+          "eks:ListAccessEntries",
+          "eks:ListAccessPolicies"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# RDS Management Policy (create/update/delete instances, subnet groups)
+resource "aws_iam_role_policy" "github_actions_rds" {
+  name = "rds-manage"
+  role = aws_iam_role.github_actions.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "rds:CreateDBInstance",
+          "rds:DeleteDBInstance",
+          "rds:DescribeDBInstances",
+          "rds:ModifyDBInstance",
+          "rds:CreateDBSubnetGroup",
+          "rds:DeleteDBSubnetGroup",
+          "rds:DescribeDBSubnetGroups",
+          "rds:AddTagsToResource",
+          "rds:ListTagsForResource",
+          "rds:RemoveTagsFromResource"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# IAM Policy for platform resources (OIDC providers, roles for ALB controller)
+resource "aws_iam_role_policy" "github_actions_iam" {
+  name = "iam-manage"
+  role = aws_iam_role.github_actions.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ManageEKSOIDCProviders"
+        Effect = "Allow"
+        Action = [
+          "iam:CreateOpenIDConnectProvider",
+          "iam:DeleteOpenIDConnectProvider",
+          "iam:GetOpenIDConnectProvider",
+          "iam:TagOpenIDConnectProvider"
+        ]
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/oidc.eks.*.amazonaws.com/*"
+      },
+      {
+        Sid    = "ManagePlatformRoles"
+        Effect = "Allow"
+        Action = [
+          "iam:CreateRole",
+          "iam:DeleteRole",
+          "iam:GetRole",
+          "iam:TagRole",
+          "iam:UntagRole",
+          "iam:AttachRolePolicy",
+          "iam:DetachRolePolicy",
+          "iam:PutRolePolicy",
+          "iam:DeleteRolePolicy",
+          "iam:GetRolePolicy",
+          "iam:ListRolePolicies",
+          "iam:ListAttachedRolePolicies",
+          "iam:ListInstanceProfilesForRole"
+        ]
+        Resource = [
+          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-load-balancer-controller",
+          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.project_name}-*"
+        ]
+      },
+      {
+        Sid    = "PassRolesToEKS"
+        Effect = "Allow"
+        Action = "iam:PassRole"
+        Resource = [
+          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.project_name}-*",
+          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-load-balancer-controller"
+        ]
+      },
+      {
+        Sid      = "CreateServiceLinkedRoles"
+        Effect   = "Allow"
+        Action   = "iam:CreateServiceLinkedRole"
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/*"
+        Condition = {
+          StringEquals = {
+            "iam:AWSServiceName" = [
+              "eks.amazonaws.com",
+              "eks-nodegroup.amazonaws.com",
+              "elasticloadbalancing.amazonaws.com",
+              "rds.amazonaws.com"
+            ]
+          }
+        }
+      }
+    ]
+  })
+}
+
+# Secrets Manager Policy (update secret versions with RDS endpoint)
+resource "aws_iam_role_policy" "github_actions_secrets" {
+  name = "secrets-manage"
+  role = aws_iam_role.github_actions.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:PutSecretValue",
+          "secretsmanager:UpdateSecret",
+          "secretsmanager:DescribeSecret"
+        ]
+        Resource = "arn:aws:secretsmanager:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:secret:${var.project_name}/*"
+      }
+    ]
+  })
+}
+
+# EC2 Read Policy (required by EKS node groups, RDS subnet groups, and ALB)
+resource "aws_iam_role_policy" "github_actions_ec2" {
+  name = "ec2-read"
+  role = aws_iam_role.github_actions.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeSubnets",
+          "ec2:DescribeVpcs",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeInstances",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:DescribeRouteTables",
+          "ec2:DescribeInternetGateways",
+          "ec2:DescribeAvailabilityZones",
+          "ec2:DescribeLaunchTemplateVersions"
         ]
         Resource = "*"
       }
@@ -105,7 +275,7 @@ resource "aws_iam_role_policy" "github_actions_terraform" {
           "dynamodb:PutItem",
           "dynamodb:DeleteItem"
         ]
-        Resource = "arn:aws:dynamodb:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:table/${var.project_name}-tf-state-lock"
+        Resource = "arn:aws:dynamodb:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:table/${var.project_name}-tf-state-lock-${data.aws_caller_identity.current.account_id}"
       }
     ]
   })
