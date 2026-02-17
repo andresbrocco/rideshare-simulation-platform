@@ -12,10 +12,6 @@ skip-check:
   # WAF, cross-region replication, etc.) that add significant cost and
   # complexity beyond the scope of a portfolio demo project.
 
-  # DynamoDB
-  - CKV_AWS_28    # DynamoDB PITR — bootstrap lock table only
-  - CKV_AWS_119   # DynamoDB KMS CMK encryption
-
   # CloudFront
   - CKV_AWS_86    # CloudFront access logging
   - CKV_AWS_68    # CloudFront WAF

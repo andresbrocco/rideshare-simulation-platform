@@ -111,7 +111,7 @@ git lfs version      # any
 
 ## Bootstrap: Terraform State Backend
 
-**Purpose:** One-time manual setup to create S3 bucket and DynamoDB table for Terraform state management.
+**Purpose:** One-time manual setup to create S3 bucket for Terraform state management.
 
 **Duration:** ~2 minutes
 
@@ -127,7 +127,7 @@ terraform init
 # Review plan
 terraform plan
 
-# Apply (creates account-suffixed S3 bucket and DynamoDB lock table)
+# Apply (creates account-suffixed S3 bucket)
 terraform apply
 ```
 
@@ -138,7 +138,6 @@ terraform apply
 ACCT=$(aws sts get-caller-identity --profile rideshare --query Account --output text)
 
 aws s3 ls | grep "rideshare-tf-state-${ACCT}"
-aws dynamodb list-tables | grep "rideshare-tf-state-lock-${ACCT}"
 ```
 
 **Outputs:**
@@ -146,7 +145,6 @@ aws dynamodb list-tables | grep "rideshare-tf-state-lock-${ACCT}"
 | Output | Description | Example Value |
 |--------|-------------|---------------|
 | `s3_bucket_name` | State bucket name | `rideshare-tf-state-123456789012` |
-| `dynamodb_table_name` | Lock table name | `rideshare-tf-state-lock-123456789012` |
 | `foundation_init_command` | Copy-paste init command for foundation | `terraform init -backend-config="bucket=..."` |
 | `platform_init_command` | Copy-paste init command for platform | `terraform init -backend-config="bucket=..."` |
 
@@ -174,8 +172,7 @@ cd infrastructure/terraform/foundation
 # Initialize Terraform (use the command from bootstrap output, or construct manually):
 ACCT=$(aws sts get-caller-identity --profile rideshare --query Account --output text)
 terraform init \
-  -backend-config="bucket=rideshare-tf-state-${ACCT}" \
-  -backend-config="dynamodb_table=rideshare-tf-state-lock-${ACCT}"
+  -backend-config="bucket=rideshare-tf-state-${ACCT}"
 
 # Review plan
 terraform plan
@@ -356,8 +353,7 @@ cd infrastructure/terraform/platform
 # Initialize (use the command from bootstrap output, or construct manually):
 ACCT=$(aws sts get-caller-identity --profile rideshare --query Account --output text)
 terraform init \
-  -backend-config="bucket=rideshare-tf-state-${ACCT}" \
-  -backend-config="dynamodb_table=rideshare-tf-state-lock-${ACCT}"
+  -backend-config="bucket=rideshare-tf-state-${ACCT}"
 
 # Apply
 terraform apply
@@ -497,10 +493,9 @@ aws ecr describe-repositories \
 | S3 (frontend + lakehouse, <10 GB) | ~$0.50 |
 | ECR (7 repos, ~5 GB total) | ~$0.50 |
 | Secrets Manager (12 secrets) | $4.80 |
-| DynamoDB (Terraform lock, on-demand) | ~$0.10 |
 | VPC, subnets, security groups | $0.00 |
 | ACM certificate | $0.00 |
-| **Foundation Total** | **~$7.50/mo** |
+| **Foundation Total** | **~$7.40/mo** |
 
 ### Platform (On-Demand)
 
@@ -626,7 +621,6 @@ Grafana and Airflow credentials are stored in Secrets Manager. Trino is accessib
 
 1. Check for other running Terraform processes
 2. Force unlock (use with caution): `terraform force-unlock <LOCK_ID>`
-3. Verify DynamoDB table exists: `aws dynamodb list-tables | grep rideshare-tf-state-lock`
 
 ### High AWS Costs
 

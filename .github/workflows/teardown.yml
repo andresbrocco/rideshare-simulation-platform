@@ -43,8 +43,7 @@ jobs:
         working-directory: infrastructure/terraform/platform
         run: |
           terraform init \
-            -backend-config="bucket=rideshare-tf-state-${{ secrets.AWS_ACCOUNT_ID }}" \
-            -backend-config="dynamodb_table=rideshare-tf-state-lock-${{ secrets.AWS_ACCOUNT_ID }}"
+            -backend-config="bucket=rideshare-tf-state-${{ secrets.AWS_ACCOUNT_ID }}"
 
       - name: Terraform Destroy (Platform)
         working-directory: infrastructure/terraform/platform

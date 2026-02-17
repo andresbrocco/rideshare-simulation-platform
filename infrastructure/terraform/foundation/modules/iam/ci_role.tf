@@ -314,7 +314,7 @@ resource "aws_iam_role_policy" "github_actions_s3_frontend" {
   })
 }
 
-# Terraform State S3/DynamoDB Policy
+# Terraform State S3 Policy (locking via S3-native .tflock file)
 resource "aws_iam_role_policy" "github_actions_terraform" {
   name = "terraform-state"
   role = aws_iam_role.github_actions.id
@@ -334,15 +334,6 @@ resource "aws_iam_role_policy" "github_actions_terraform" {
           var.s3_bucket_arns.tf_state,
           "${var.s3_bucket_arns.tf_state}/*"
         ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "dynamodb:GetItem",
-          "dynamodb:PutItem",
-          "dynamodb:DeleteItem"
-        ]
-        Resource = "arn:aws:dynamodb:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:table/${var.project_name}-tf-state-lock-${data.aws_caller_identity.current.account_id}"
       }
     ]
   })
