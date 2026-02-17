@@ -91,6 +91,16 @@ jobs:
           echo "Waiting for EKS nodes to reach Ready state..."
           kubectl wait --for=condition=Ready nodes --all --timeout=300s
 
+      - name: Wait for ALB Controller or remove stale webhooks
+        run: |
+          echo "Waiting for ALB controller to be ready..."
+          if ! kubectl wait --for=condition=available --timeout=120s \
+            deployment/aws-load-balancer-controller -n kube-system 2>/dev/null; then
+            echo "ALB controller not ready, removing stale webhooks to unblock deployments..."
+            kubectl delete mutatingwebhookconfiguration aws-load-balancer-webhook 2>/dev/null || true
+            kubectl delete validatingwebhookconfiguration aws-load-balancer-webhook 2>/dev/null || true
+          fi
+
       - name: Install ArgoCD
         run: |
           # Check if ArgoCD is already installed
