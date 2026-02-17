@@ -45,6 +45,24 @@ jobs:
           terraform init \
             -backend-config="bucket=rideshare-tf-state-${{ secrets.AWS_ACCOUNT_ID }}"
 
+      - name: Reconcile Terraform State
+        working-directory: infrastructure/terraform/platform
+        run: |
+          echo "Importing orphaned resources into Terraform state (safe to fail)..."
+
+          # EKS addons (may already exist from a previous partial apply)
+          terraform import 'module.eks.aws_eks_addon.ebs_csi' 'rideshare-eks:aws-ebs-csi-driver' 2>&1 || true
+          terraform import 'module.eks.aws_eks_addon.coredns' 'rideshare-eks:coredns' 2>&1 || true
+          terraform import 'module.eks.aws_eks_addon.kube_proxy' 'rideshare-eks:kube-proxy' 2>&1 || true
+          terraform import 'module.eks.aws_eks_addon.vpc_cni' 'rideshare-eks:vpc-cni' 2>&1 || true
+
+          # Helm releases (may already exist from a previous partial apply)
+          terraform import 'module.alb.helm_release.aws_load_balancer_controller' 'kube-system/aws-load-balancer-controller' 2>&1 || true
+          terraform import 'module.alb.helm_release.external_secrets' 'external-secrets/external-secrets' 2>&1 || true
+          terraform import 'module.alb.helm_release.kube_state_metrics' 'monitoring/kube-state-metrics' 2>&1 || true
+
+          echo "State reconciliation complete."
+
       - name: Terraform Plan (Platform)
         working-directory: infrastructure/terraform/platform
         run: terraform plan -out=tfplan

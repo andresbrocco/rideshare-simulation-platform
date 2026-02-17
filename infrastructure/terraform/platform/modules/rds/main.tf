@@ -1,7 +1,8 @@
 # Generate random password for RDS master user
 resource "random_password" "master_password" {
-  length  = 32
-  special = true
+  length           = 32
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
 }
 
 # DB Subnet Group
