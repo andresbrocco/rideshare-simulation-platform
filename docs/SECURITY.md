@@ -68,7 +68,7 @@ How users and services authenticate to the platform.
 - User: `cn=admin,ou=users,dc=rideshare,dc=local`
 - Credentials: `LDAP_USERNAME` / `LDAP_PASSWORD`
 - Purpose: Authenticate DBT connections to Spark Thrift Server
-- Module: `infrastructure/openldap/`
+- Module: `services/openldap/`
 - TLS: Disabled in local development (`LDAP_TLS=false`)
 
 ### Default Development Credentials

@@ -32,4 +32,4 @@ All macros use the `rideshare` namespace in `adapter.dispatch()` to avoid confli
 
 - **[tools/dbt/models/staging](../../models/staging/CONTEXT.md)** — Staging models that use these macros for cross-database date/time functions and JSON parsing
 - **[tools/dbt/models/marts](../../models/marts/CONTEXT.md)** — Marts models that use these macros for temporal joins and aggregations
-- **[infrastructure/openldap](../../../../infrastructure/openldap/CONTEXT.md)** — OpenLDAP provides authentication when DBT targets Spark Thrift Server in spark-testing profile
+- **[services/openldap](../../../../services/openldap/CONTEXT.md)** — OpenLDAP provides authentication when DBT targets Spark Thrift Server in spark-testing profile

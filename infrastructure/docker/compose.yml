@@ -873,7 +873,7 @@ services:
       - openldap-data:/var/lib/ldap
       - openldap-config:/etc/ldap/slapd.d
       - secrets-volume:/secrets:ro
-      - ../../infrastructure/openldap/bootstrap.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/bootstrap.ldif:ro
+      - ../../services/openldap/bootstrap.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/bootstrap.ldif:ro
     networks:
       - rideshare-network
     healthcheck:

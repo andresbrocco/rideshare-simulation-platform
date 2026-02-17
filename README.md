@@ -262,11 +262,12 @@ rideshare-simulation-platform/
 |   |-- otel-collector/     # OpenTelemetry telemetry routing
 |   |-- cadvisor/           # Container resource metrics
 |   |-- postgres/           # PostgreSQL instances
-|   `-- schema-registry/    # Confluent Schema Registry
+|   |-- schema-registry/    # Confluent Schema Registry
+|   `-- openldap/           # OpenLDAP authentication for Spark Thrift Server
 |-- infrastructure/
 |   |-- docker/             # Docker Compose multi-profile orchestration
-|   |-- kubernetes/         # Kind cluster, manifests, ArgoCD, Helm
-|   |-- openldap/           # OpenLDAP configuration
+|   |-- kubernetes/         # Kind cluster, manifests, ArgoCD, Kustomize
+|   |-- terraform/          # Three-layer IaC (bootstrap, foundation, platform)
 |   `-- scripts/            # Infrastructure automation scripts
 |-- schemas/
 |   |-- api/                # OpenAPI contract
