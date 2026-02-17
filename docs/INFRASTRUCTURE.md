@@ -129,12 +129,14 @@ Kind (Kubernetes in Docker) - local development cluster
 - Tool: Kustomize
 
 ### Ingress
-- Gateway API (GatewayClass, Gateway, HTTPRoute)
-- Routes:
-  - `/api/` -> simulation:8000
-  - `/ws/` -> simulation:8000 (WebSocket)
-  - `/airflow/` -> airflow-webserver:8080
-  - `/grafana/` -> grafana:3000
+- ALB Ingress Controller with IngressGroup (production)
+- Gateway API (GatewayClass, Gateway, HTTPRoute) (local)
+- Production routes (subdomain-per-service via shared ALB):
+  - `api.ridesharing.portfolio.andresbrocco.com` -> simulation:8000
+  - `grafana.ridesharing.portfolio.andresbrocco.com` -> grafana:3000
+  - `airflow.ridesharing.portfolio.andresbrocco.com` -> airflow-webserver:8080
+  - `trino.ridesharing.portfolio.andresbrocco.com` -> trino:8080
+  - `prometheus.ridesharing.portfolio.andresbrocco.com` -> prometheus:9090
 
 ## Configuration Management
 
@@ -280,8 +282,10 @@ Service URLs:
 
 - Frontend: https://ridesharing.portfolio.andresbrocco.com (always available)
 - API: https://api.ridesharing.portfolio.andresbrocco.com (when platform running)
-- Grafana: https://api.ridesharing.portfolio.andresbrocco.com/grafana/
-- Airflow: https://api.ridesharing.portfolio.andresbrocco.com/airflow/
+- Grafana: https://grafana.ridesharing.portfolio.andresbrocco.com
+- Airflow: https://airflow.ridesharing.portfolio.andresbrocco.com
+- Trino: https://trino.ridesharing.portfolio.andresbrocco.com
+- Prometheus: https://prometheus.ridesharing.portfolio.andresbrocco.com
 
 ### Resource Limits (Docker)
 | Service | Memory Limit | CPU Limit |

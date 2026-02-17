@@ -1,11 +1,11 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: rideshare-ingress
+  name: rideshare-api-ingress
   namespace: rideshare-prod
   annotations:
-    # AWS Load Balancer Controller annotations
     kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/group.name: rideshare
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/certificate-arn: <acm-cert-arn>
@@ -23,45 +23,10 @@ spec:
     - host: api.ridesharing.portfolio.andresbrocco.com
       http:
         paths:
-          # Simulation API and WebSocket
-          - path: /api
+          - path: /
             pathType: Prefix
             backend:
               service:
                 name: simulation
                 port:
                   number: 8000
-          - path: /ws
-            pathType: Prefix
-            backend:
-              service:
-                name: simulation
-                port:
-                  number: 8000
-
-          # Grafana dashboards
-          - path: /grafana
-            pathType: Prefix
-            backend:
-              service:
-                name: grafana
-                port:
-                  number: 3000
-
-          # Airflow UI
-          - path: /airflow
-            pathType: Prefix
-            backend:
-              service:
-                name: airflow-webserver
-                port:
-                  number: 8080
-
-          # Trino query interface
-          - path: /trino
-            pathType: Prefix
-            backend:
-              service:
-                name: trino
-                port:
-                  number: 8080

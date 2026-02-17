@@ -45,7 +45,7 @@ jobs:
           terraform init \
             -backend-config="bucket=rideshare-tf-state-${{ secrets.AWS_ACCOUNT_ID }}"
 
-      - name: Delete Route 53 API Record
+      - name: Delete Route 53 Wildcard Record
         run: |
           ZONE_ID=$(aws route53 list-hosted-zones-by-name \
             --dns-name ridesharing.portfolio.andresbrocco.com \
@@ -57,31 +57,31 @@ jobs:
             exit 0
           fi
 
-          # Get the current api.* record (need full details for DELETE)
-          API_RECORD=$(aws route53 list-resource-record-sets \
+          # Get the current wildcard record (need full details for DELETE)
+          WILDCARD_RECORD=$(aws route53 list-resource-record-sets \
             --hosted-zone-id "$ZONE_ID" \
-            --query "ResourceRecordSets[?Name=='api.ridesharing.portfolio.andresbrocco.com.'] | [0]" \
+            --query "ResourceRecordSets[?Name=='\\*.ridesharing.portfolio.andresbrocco.com.'] | [0]" \
             --output json)
 
-          if [ "$API_RECORD" = "null" ] || [ -z "$API_RECORD" ]; then
-            echo "No api.* Route 53 record found, nothing to delete"
+          if [ "$WILDCARD_RECORD" = "null" ] || [ -z "$WILDCARD_RECORD" ]; then
+            echo "No wildcard Route 53 record found, nothing to delete"
           else
-            echo "Deleting api.* Route 53 record..."
+            echo "Deleting wildcard Route 53 record..."
             aws route53 change-resource-record-sets --hosted-zone-id "$ZONE_ID" \
               --change-batch "{
                 \"Changes\": [{
                   \"Action\": \"DELETE\",
-                  \"ResourceRecordSet\": $API_RECORD
+                  \"ResourceRecordSet\": $WILDCARD_RECORD
                 }]
               }"
-            echo "Route 53 api.* record deleted"
+            echo "Route 53 wildcard record deleted"
           fi
 
       - name: Terraform Destroy (Platform)
         working-directory: infrastructure/terraform/platform
         run: terraform destroy -auto-approve
 
-      - name: Verify Route 53 api.* Record Removed
+      - name: Verify Route 53 Wildcard Record Removed
         run: |
           ZONE_ID=$(aws route53 list-hosted-zones-by-name \
             --dns-name ridesharing.portfolio.andresbrocco.com \
@@ -93,16 +93,16 @@ jobs:
             exit 0
           fi
 
-          API_RECORD=$(aws route53 list-resource-record-sets \
+          WILDCARD_RECORD=$(aws route53 list-resource-record-sets \
             --hosted-zone-id "$ZONE_ID" \
-            --query "ResourceRecordSets[?Name=='api.ridesharing.portfolio.andresbrocco.com.']" \
+            --query "ResourceRecordSets[?Name=='\\*.ridesharing.portfolio.andresbrocco.com.']" \
             --output json)
 
-          if [ "$API_RECORD" = "[]" ]; then
-            echo "Verified: api.* Route 53 record removed"
+          if [ "$WILDCARD_RECORD" = "[]" ]; then
+            echo "Verified: wildcard Route 53 record removed"
           else
-            echo "Error: api.* Route 53 record still exists after deletion attempt"
-            echo "$API_RECORD"
+            echo "Error: wildcard Route 53 record still exists after deletion attempt"
+            echo "$WILDCARD_RECORD"
             exit 1
           fi
 
@@ -152,7 +152,7 @@ jobs:
           echo "  - RDS PostgreSQL (t4g.micro)"
           echo "  - ALB (Application Load Balancer)"
           echo "  - EBS Volumes (Kafka, Prometheus data)"
-          echo "  - Route 53 api.* record"
+          echo "  - Route 53 wildcard record"
           echo ""
           echo "PRESERVED:"
           echo "  - S3 Buckets (lakehouse data, checkpoints, frontend)"

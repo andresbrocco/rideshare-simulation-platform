@@ -314,7 +314,15 @@ The platform can be deployed to AWS for public demos. The deployment is split in
 - **Foundation** (always-on, ~$7.50/mo): CloudFront CDN, S3 storage, Route 53 DNS, ECR container registry, Secrets Manager, IAM roles
 - **Platform** (on-demand, ~$0.65/hr): EKS cluster, RDS PostgreSQL, Application Load Balancer
 
-The React frontend is always accessible at `https://ridesharing.portfolio.andresbrocco.com`. When the platform is running, the full backend API is available at `https://api.ridesharing.portfolio.andresbrocco.com`.
+The React frontend is always accessible at `https://ridesharing.portfolio.andresbrocco.com`. When the platform is running, each service gets its own subdomain:
+
+| Service | URL |
+|---------|-----|
+| Simulation API | `https://api.ridesharing.portfolio.andresbrocco.com` |
+| Grafana | `https://grafana.ridesharing.portfolio.andresbrocco.com` |
+| Airflow | `https://airflow.ridesharing.portfolio.andresbrocco.com` |
+| Trino | `https://trino.ridesharing.portfolio.andresbrocco.com` |
+| Prometheus | `https://prometheus.ridesharing.portfolio.andresbrocco.com` |
 
 See the complete deployment runbook: [docs/CLOUD-DEPLOYMENT.md](docs/CLOUD-DEPLOYMENT.md)
 

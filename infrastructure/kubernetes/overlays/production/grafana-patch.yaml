@@ -1,6 +1,5 @@
-# Production patch: Configure Grafana for subpath serving behind ALB
-# - Sets GF_SERVER_ROOT_URL for /grafana subpath
-# - Enables GF_SERVER_SERVE_FROM_SUB_PATH
+# Production patch: Configure Grafana for subdomain routing
+# - Sets GF_SERVER_ROOT_URL for grafana.ridesharing.portfolio.andresbrocco.com
 # - Disables anonymous access (require login in production)
 apiVersion: apps/v1
 kind: Deployment
@@ -12,13 +11,9 @@ spec:
       containers:
         - name: grafana
           env:
-            # Configure root URL for subpath serving under ALB /grafana
+            # Configure root URL for subdomain routing
             - name: GF_SERVER_ROOT_URL
-              value: "https://api.ridesharing.portfolio.andresbrocco.com/grafana/"
-
-            # Enable serving from subpath
-            - name: GF_SERVER_SERVE_FROM_SUB_PATH
-              value: "true"
+              value: "https://grafana.ridesharing.portfolio.andresbrocco.com/"
 
             # Disable anonymous access in production
             - name: GF_AUTH_ANONYMOUS_ENABLED

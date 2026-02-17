@@ -441,7 +441,7 @@ GitHub Actions -> Teardown Platform from AWS -> Run workflow
 1. Configures AWS credentials via OIDC
 2. Runs `terraform destroy` in `infrastructure/terraform/platform`
 3. Destroys EKS cluster, RDS, ALB, EBS volumes
-4. Removes `api.*` Route 53 record
+4. Removes wildcard Route 53 record
 5. Verifies foundation resources preserved
 6. Outputs teardown summary
 
@@ -452,7 +452,7 @@ GitHub Actions -> Teardown Platform from AWS -> Run workflow
 - RDS PostgreSQL (t4g.micro)
 - ALB (Application Load Balancer)
 - EBS volumes (Kafka data, Prometheus TSDB)
-- Route 53 `api.*` record
+- Route 53 wildcard (`*`) record
 
 ### What is Preserved
 
@@ -549,9 +549,10 @@ All `/api/*` paths require `X-API-Key: admin` header.
 
 | URL | Credentials | Description |
 |-----|-------------|-------------|
-| https://api.ridesharing.portfolio.andresbrocco.com/grafana/ | admin / admin | Multi-datasource dashboards |
-| https://api.ridesharing.portfolio.andresbrocco.com/airflow/ | admin / admin | Pipeline orchestration |
-| https://api.ridesharing.portfolio.andresbrocco.com/trino/ | - | SQL query engine |
+| https://grafana.ridesharing.portfolio.andresbrocco.com | admin / admin | Multi-datasource dashboards |
+| https://airflow.ridesharing.portfolio.andresbrocco.com | admin / admin | Pipeline orchestration |
+| https://trino.ridesharing.portfolio.andresbrocco.com | - | SQL query engine |
+| https://prometheus.ridesharing.portfolio.andresbrocco.com | - | Metrics and alerting |
 
 Grafana and Airflow credentials are stored in Secrets Manager. Trino is accessible via JDBC/HTTP at port 8080.
 
@@ -608,8 +609,8 @@ Grafana and Airflow credentials are stored in Secrets Manager. Trino is accessib
 **Solutions:**
 
 1. Check API health: `curl https://api.ridesharing.portfolio.andresbrocco.com/api/health`
-2. Verify ALB provisioned: `kubectl get ingress rideshare-ingress -n rideshare-prod`
-3. Check Route 53 `api.*` record points to ALB
+2. Verify ALB provisioned: `kubectl get ingress rideshare-api-ingress -n rideshare-prod`
+3. Check Route 53 wildcard record points to ALB
 4. Wait 2-3 minutes for DNS propagation after deployment
 5. Clear browser cache and reload
 

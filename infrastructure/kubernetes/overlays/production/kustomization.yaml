@@ -44,8 +44,12 @@ resources:
   - ../../manifests/configmap-core.yaml
   - ../../manifests/configmap-data-pipeline.yaml
 
-  # ALB Ingress (replaces Gateway API)
-  - ingress-alb.yaml
+  # ALB Ingress (per-service subdomain routing via IngressGroup)
+  - ingress-api.yaml
+  - ingress-grafana.yaml
+  - ingress-airflow.yaml
+  - ingress-trino.yaml
+  - ingress-prometheus.yaml
 
 namespace: rideshare-prod
 
@@ -220,7 +224,7 @@ patches:
       kind: Deployment
       name: simulation
 
-  # Grafana: Subpath serving under /grafana, disable anonymous access
+  # Grafana: Production domain URL, disable anonymous access
   - path: grafana-patch.yaml
     target:
       kind: Deployment

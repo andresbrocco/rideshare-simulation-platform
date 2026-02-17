@@ -1,8 +1,8 @@
-# Production patch: Point Airflow Webserver to RDS and configure subpath serving
+# Production patch: Point Airflow Webserver to RDS and configure subdomain routing
 # - Overrides SQL_ALCHEMY_CONN to use RDS endpoint instead of local airflow-postgres
 # - Removes AWS_ENDPOINT_URL (was for MinIO; production uses real AWS S3)
 # - Sets AWS_REGION for S3 access via IRSA
-# - Configures AIRFLOW__WEBSERVER__BASE_URL for /airflow subpath behind ALB
+# - Configures AIRFLOW__WEBSERVER__BASE_URL for subdomain routing
 # - Adds envFrom for ESO-synced RDS credentials
 #
 # Replace <rds-endpoint> with Terraform output during deploy:
@@ -29,9 +29,9 @@ spec:
             - name: AWS_REGION
               value: "us-east-1"
 
-            # Configure base URL for subpath serving under ALB /airflow
+            # Configure base URL for subdomain routing
             - name: AIRFLOW__WEBSERVER__BASE_URL
-              value: "https://api.ridesharing.portfolio.andresbrocco.com/airflow"
+              value: "https://airflow.ridesharing.portfolio.andresbrocco.com"
 
           envFrom:
             # Reference ESO-synced secret for DB password

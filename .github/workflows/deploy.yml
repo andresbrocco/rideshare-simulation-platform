@@ -210,7 +210,7 @@ jobs:
           echo "Waiting for ALB to be provisioned (up to 5 minutes)..."
           ALB_HOSTNAME=""
           for i in $(seq 1 30); do
-            ALB_HOSTNAME=$(kubectl get ingress rideshare-ingress -n rideshare-prod \
+            ALB_HOSTNAME=$(kubectl get ingress rideshare-api-ingress -n rideshare-prod \
               -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
             if [ -n "$ALB_HOSTNAME" ]; then
               echo "ALB provisioned at: $ALB_HOSTNAME"
@@ -227,7 +227,7 @@ jobs:
 
           echo "alb_hostname=$ALB_HOSTNAME" >> "$GITHUB_OUTPUT"
 
-      - name: Create Route 53 API Record
+      - name: Create Route 53 Wildcard Record
         if: steps.alb-url.outputs.alb_hostname != 'pending'
         run: |
           ALB_HOSTNAME="${{ steps.alb-url.outputs.alb_hostname }}"
@@ -251,7 +251,7 @@ jobs:
             exit 1
           fi
 
-          echo "Creating Route 53 ALIAS record..."
+          echo "Creating Route 53 wildcard ALIAS record..."
           echo "  Zone ID: $ZONE_ID"
           echo "  ALB Hostname: $ALB_HOSTNAME"
           echo "  ALB Zone ID: $ALB_ZONE_ID"
@@ -261,7 +261,7 @@ jobs:
               \"Changes\": [{
                 \"Action\": \"UPSERT\",
                 \"ResourceRecordSet\": {
-                  \"Name\": \"api.ridesharing.portfolio.andresbrocco.com\",
+                  \"Name\": \"*.ridesharing.portfolio.andresbrocco.com\",
                   \"Type\": \"A\",
                   \"AliasTarget\": {
                     \"HostedZoneId\": \"$ALB_ZONE_ID\",
@@ -272,7 +272,7 @@ jobs:
               }]
             }"
 
-          echo "Route 53 record created: api.ridesharing.portfolio.andresbrocco.com -> $ALB_HOSTNAME"
+          echo "Route 53 wildcard record created: *.ridesharing.portfolio.andresbrocco.com -> $ALB_HOSTNAME"
 
       - name: Deployment Summary
         run: |
@@ -285,10 +285,11 @@ jobs:
           echo "ALB Hostname: ${{ steps.alb-url.outputs.alb_hostname }}"
           echo ""
           echo "Frontend URL: https://ridesharing.portfolio.andresbrocco.com"
-          echo "API URL: https://api.ridesharing.portfolio.andresbrocco.com"
-          echo "Grafana: https://api.ridesharing.portfolio.andresbrocco.com/grafana"
-          echo "Airflow: https://api.ridesharing.portfolio.andresbrocco.com/airflow"
-          echo "Trino: https://api.ridesharing.portfolio.andresbrocco.com/trino"
+          echo "API URL:      https://api.ridesharing.portfolio.andresbrocco.com"
+          echo "Grafana:      https://grafana.ridesharing.portfolio.andresbrocco.com"
+          echo "Airflow:      https://airflow.ridesharing.portfolio.andresbrocco.com"
+          echo "Trino:        https://trino.ridesharing.portfolio.andresbrocco.com"
+          echo "Prometheus:   https://prometheus.ridesharing.portfolio.andresbrocco.com"
           echo ""
           echo "Estimated cost: ~$0.65/hour while running"
           echo "Remember to run teardown workflow when demo is complete"
