@@ -280,6 +280,7 @@ resource "helm_release" "aws_load_balancer_controller" {
   version    = "3.0.0"
   namespace  = "kube-system"
   timeout    = 600
+  wait       = false
 
   set = [
     {
