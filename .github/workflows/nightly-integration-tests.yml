@@ -108,7 +108,7 @@ jobs:
           EOF
           sed -i 's/^          //' profiles/profiles.yml.tpl
           # Write a temporary profiles.yml for dbt deps (no connection needed)
-          sed 's/${HIVE_LDAP_USERNAME}/placeholder/;s/${HIVE_LDAP_PASSWORD}/placeholder/' \
+          sed "s/\${HIVE_LDAP_USERNAME}/placeholder/;s/\${HIVE_LDAP_PASSWORD}/placeholder/" \
             profiles/profiles.yml.tpl > profiles/profiles.yml
           ./venv/bin/dbt deps --profiles-dir profiles --project-dir .
 
