@@ -9,6 +9,7 @@ from uuid import uuid4
 
 import simpy
 
+from agents.event_emitter import GPS_PING_INTERVAL_MOVING
 from core.exceptions import PermanentError, TransientError
 from events.factory import EventFactory
 from events.schemas import GPSPingEvent, PaymentEvent, TripEvent
@@ -407,7 +408,7 @@ class TripExecutor:
             arrival_proximity_threshold_m of the destination, the drive ends early.
             This enables GPS-based arrival detection rather than purely time-based.
         """
-        gps_interval = 1
+        gps_interval = GPS_PING_INTERVAL_MOVING
         num_intervals = int(duration / gps_interval)
         time_per_interval = duration / max(num_intervals, 1)
         proximity_threshold = self._settings.arrival_proximity_threshold_m

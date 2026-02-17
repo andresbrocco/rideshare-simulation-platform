@@ -3,6 +3,7 @@
 These tests specify the expected behavior for:
 - FINDING-002: Events should go to Kafka only, not directly to Redis
   (Redis receives events via the filtered fanout from API layer)
+- GPS duplication fix: TripExecutor uses GPS_PING_INTERVAL_MOVING, not hardcoded 1
 """
 
 from unittest.mock import Mock, patch
@@ -11,6 +12,7 @@ import pytest
 import simpy
 
 from src.agents.driver_agent import DriverAgent
+from src.agents.event_emitter import GPS_PING_INTERVAL_MOVING
 from src.agents.rider_agent import RiderAgent
 from src.geo.osrm_client import RouteResponse
 from src.settings import SimulationSettings
@@ -264,3 +266,99 @@ class TestTripExecutorKafkaOnly:
         # Kafka should have received events
         kafka_calls = mock_kafka_producer.produce.call_args_list
         assert len(kafka_calls) > 0, "Kafka should receive events"
+
+
+@pytest.mark.unit
+class TestTripExecutorGPSInterval:
+    """Regression tests for GPS interval fix.
+
+    TripExecutor._simulate_drive() must use the configured GPS_PING_INTERVAL_MOVING
+    constant instead of a hardcoded interval of 1 second.
+    """
+
+    def test_trip_executor_uses_configured_gps_interval(
+        self,
+        simpy_env,
+        driver_agent,
+        rider_agent,
+        mock_kafka_producer,
+    ):
+        """Drive loop tick count matches GPS_PING_INTERVAL_MOVING, not hardcoded 1."""
+        # Route with exact duration = GPS_PING_INTERVAL_MOVING * 5 intervals
+        expected_intervals = 5
+        duration = GPS_PING_INTERVAL_MOVING * expected_intervals
+        # Points spaced ~220m apart (0.002 degrees) — well above proximity threshold
+        num_points = 11
+        geometry = [(-23.55 + i * 0.002, -46.63 + i * 0.002) for i in range(num_points)]
+
+        route = RouteResponse(
+            distance_meters=5000.0,
+            duration_seconds=float(duration),
+            geometry=geometry,
+            osrm_code="Ok",
+        )
+
+        mock_osrm = Mock()
+        mock_osrm.get_route_sync = Mock(return_value=route)
+
+        trip = Trip(
+            trip_id="trip_interval_001",
+            rider_id="rider_executor_001",
+            driver_id="driver_executor_001",
+            state=TripState.MATCHED,
+            pickup_location=geometry[0],
+            dropoff_location=geometry[-1],
+            pickup_zone_id="zone_1",
+            dropoff_zone_id="zone_2",
+            surge_multiplier=1.0,
+            fare=20.0,
+        )
+
+        executor = TripExecutor(
+            env=simpy_env,
+            driver=driver_agent,
+            rider=rider_agent,
+            trip=trip,
+            osrm_client=mock_osrm,
+            kafka_producer=mock_kafka_producer,
+            settings=SimulationSettings(arrival_proximity_threshold_m=50.0),
+        )
+
+        # Reset to isolate GPS pings from setup
+        mock_kafka_producer.produce.reset_mock()
+
+        process = simpy_env.process(executor.execute())
+        simpy_env.run(process)
+
+        gps_calls = [
+            call
+            for call in mock_kafka_producer.produce.call_args_list
+            if call[1].get("topic") == "gps_pings"
+        ]
+
+        # With GPS_PING_INTERVAL_MOVING, num_intervals = duration / interval = 5.
+        # Each drive phase (pickup + destination) produces ~5 ticks.
+        # Pickup: 5 driver pings. Destination: 5 driver + 5 rider pings.
+        # Total ≈ 15 GPS pings.
+        # With hardcoded interval=1, num_intervals = duration = 300 (for interval=60),
+        # producing ~900 pings. The assertion checks we're in the expected range.
+        if GPS_PING_INTERVAL_MOVING > 1:
+            pings_if_hardcoded_1 = duration * 3  # rough upper bound for both phases
+            assert len(gps_calls) < pings_if_hardcoded_1, (
+                f"Got {len(gps_calls)} GPS pings, expected fewer than {pings_if_hardcoded_1} "
+                "with configured interval. Hardcoded interval=1 may still be in use."
+            )
+
+    def test_trip_executor_gps_interval_matches_constant(self):
+        """Verify TripExecutor._simulate_drive uses GPS_PING_INTERVAL_MOVING directly."""
+        import inspect
+
+        from src.trips.trip_executor import TripExecutor
+
+        source = inspect.getsource(TripExecutor._simulate_drive)
+        assert (
+            "GPS_PING_INTERVAL_MOVING" in source
+        ), "_simulate_drive should reference GPS_PING_INTERVAL_MOVING constant"
+        assert (
+            "gps_interval = 1" not in source
+        ), "_simulate_drive should not hardcode gps_interval = 1"

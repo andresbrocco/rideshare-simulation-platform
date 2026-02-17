@@ -573,36 +573,8 @@ class RiderAgent(EventEmitter):
 
         while True:
             if self._status == "in_trip":
-                if self._location:
-                    # Use trip_id as correlation if in trip, otherwise rider_id
-                    correlation = self._active_trip or self._rider_id
-                    gps_event = EventFactory.create(
-                        GPSPingEvent,
-                        correlation_id=correlation,
-                        entity_type="rider",
-                        entity_id=self._rider_id,
-                        timestamp=self._format_timestamp(),
-                        location=self._location,
-                        heading=None,
-                        speed=None,
-                        accuracy=5.0,
-                        trip_id=self._active_trip,
-                    )
-
-                    main_loop = None
-                    if self._simulation_engine:
-                        main_loop = self._simulation_engine.get_event_loop()
-                    run_coroutine_safe(
-                        self._emit_event(
-                            event=gps_event,
-                            kafka_topic="gps_pings",
-                            partition_key=self._rider_id,
-                            redis_channel="rider-updates",
-                        ),
-                        main_loop,
-                        fallback_sync=True,
-                    )
-
+                # GPS pings during active trips are emitted by TripExecutor._simulate_drive()
+                # to avoid duplicate events. Rider loop just yields to keep SimPy scheduler alive.
                 yield self._env.timeout(GPS_PING_INTERVAL_MOVING)
                 continue
 
@@ -772,36 +744,8 @@ class RiderAgent(EventEmitter):
                 continue
 
             while self._status == "in_trip":
-                if self._location:
-                    # Use trip_id as correlation since rider is in trip
-                    correlation = self._active_trip or self._rider_id
-                    gps_event = EventFactory.create(
-                        GPSPingEvent,
-                        correlation_id=correlation,
-                        entity_type="rider",
-                        entity_id=self._rider_id,
-                        timestamp=self._format_timestamp(),
-                        location=self._location,
-                        heading=None,
-                        speed=None,
-                        accuracy=5.0,
-                        trip_id=self._active_trip,
-                    )
-
-                    main_loop = None
-                    if self._simulation_engine:
-                        main_loop = self._simulation_engine.get_event_loop()
-                    run_coroutine_safe(
-                        self._emit_event(
-                            event=gps_event,
-                            kafka_topic="gps_pings",
-                            partition_key=self._rider_id,
-                            redis_channel="rider-updates",
-                        ),
-                        main_loop,
-                        fallback_sync=True,
-                    )
-
+                # GPS pings during active trips are emitted by TripExecutor._simulate_drive()
+                # to avoid duplicate events. Rider loop just yields to keep SimPy scheduler alive.
                 yield self._env.timeout(GPS_PING_INTERVAL_MOVING)
 
     def _determine_zone(self, location: tuple[float, float]) -> str | None:

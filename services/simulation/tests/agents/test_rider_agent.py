@@ -156,6 +156,70 @@ class TestRiderDestinationSelection:
 
 
 @pytest.mark.unit
+class TestRiderGPSEmissionDuringTrip:
+    """Regression tests for GPS duplication fix.
+
+    RiderAgent.run() must NOT emit GPS pings when the rider is in_trip.
+    GPS emission during active trips is delegated to TripExecutor._simulate_drive().
+    """
+
+    def test_rider_does_not_emit_gps_when_in_trip(self, simpy_env, rider_dna, mock_kafka_producer):
+        """Rider run() loop emits zero GPS pings when status is in_trip."""
+        agent = RiderAgent(
+            rider_id="rider_gps_001",
+            dna=rider_dna,
+            env=simpy_env,
+            kafka_producer=mock_kafka_producer,
+        )
+        agent.update_location(-23.55, -46.63)
+
+        # Transition to in_trip to simulate an active trip
+        agent.request_trip("trip_gps_001")
+        agent.start_trip()
+        assert agent.status == "in_trip"
+
+        # Reset call tracking after setup events
+        mock_kafka_producer.produce.reset_mock()
+
+        # Run simulation for 10 seconds — rider loop should only yield, not emit GPS
+        simpy_env.process(agent.run())
+        simpy_env.run(until=10)
+
+        gps_calls = [
+            call
+            for call in mock_kafka_producer.produce.call_args_list
+            if call[1].get("topic") == "gps_pings"
+        ]
+        assert len(gps_calls) == 0, (
+            f"Rider emitted {len(gps_calls)} GPS pings from its own loop while in_trip. "
+            "GPS pings during trips should come only from TripExecutor."
+        )
+
+    def test_rider_gps_loop_still_yields_when_in_trip(
+        self, simpy_env, rider_dna, mock_kafka_producer
+    ):
+        """Rider run() loop yields correctly without blocking SimPy scheduler when in_trip."""
+        agent = RiderAgent(
+            rider_id="rider_gps_002",
+            dna=rider_dna,
+            env=simpy_env,
+            kafka_producer=mock_kafka_producer,
+        )
+        agent.update_location(-23.55, -46.63)
+
+        agent.request_trip("trip_gps_002")
+        agent.start_trip()
+
+        simpy_env.process(agent.run())
+        # Advance the simulation — should not raise or deadlock
+        simpy_env.run(until=20)
+
+        # The fact that we got here without blocking proves the loop yields correctly.
+        # SimPy time should have advanced to 20.
+        assert simpy_env.now == 20
+
+
+@pytest.mark.unit
 class TestRiderZoneBasedGeneration:
     """Tests for zone-based coordinate generation."""
 
