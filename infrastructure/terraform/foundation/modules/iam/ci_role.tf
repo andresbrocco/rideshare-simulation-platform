@@ -247,9 +247,9 @@ resource "aws_iam_role_policy" "github_actions_ec2" {
   })
 }
 
-# Route53 Read Policy (required by teardown verification step)
+# Route53 Manage Policy (required by deploy DNS creation and teardown cleanup)
 resource "aws_iam_role_policy" "github_actions_route53" {
-  name = "route53-read"
+  name = "route53-manage"
   role = aws_iam_role.github_actions.id
 
   policy = jsonencode({
@@ -260,7 +260,46 @@ resource "aws_iam_role_policy" "github_actions_route53" {
         Action = [
           "route53:ListHostedZones",
           "route53:ListHostedZonesByName",
-          "route53:ListResourceRecordSets"
+          "route53:ListResourceRecordSets",
+          "route53:ChangeResourceRecordSets"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# ELB Describe Policy (required by deploy workflow to get ALB hosted zone ID)
+resource "aws_iam_role_policy" "github_actions_elb" {
+  name = "elb-describe"
+  role = aws_iam_role.github_actions.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "elasticloadbalancing:DescribeLoadBalancers"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# ACM Read Policy (required by deploy workflow to look up certificate ARN)
+resource "aws_iam_role_policy" "github_actions_acm" {
+  name = "acm-read"
+  role = aws_iam_role.github_actions.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "acm:ListCertificates"
         ]
         Resource = "*"
       }

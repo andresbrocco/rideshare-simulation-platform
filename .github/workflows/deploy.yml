@@ -10,7 +10,7 @@ on:
 
 permissions:
   id-token: write
-  contents: read
+  contents: write
 
 jobs:
   deploy-platform:
@@ -77,8 +77,54 @@ jobs:
         run: |
           CLUSTER_NAME=$(terraform output -raw cluster_name)
           CLUSTER_ENDPOINT=$(terraform output -raw cluster_endpoint)
+          RDS_ENDPOINT=$(terraform output -raw rds_endpoint)
           echo "cluster_name=$CLUSTER_NAME" >> "$GITHUB_OUTPUT"
           echo "cluster_endpoint=$CLUSTER_ENDPOINT" >> "$GITHUB_OUTPUT"
+          echo "rds_endpoint=$RDS_ENDPOINT" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve Production Values
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          RDS_ENDPOINT="${{ steps.tf-outputs.outputs.rds_endpoint }}"
+          ACM_CERT_ARN=$(aws acm list-certificates --region us-east-1 \
+            --query "CertificateSummaryList[?DomainName=='ridesharing.portfolio.andresbrocco.com'].CertificateArn" \
+            --output text)
+
+          echo "Account ID: $ACCOUNT_ID"
+          echo "RDS Endpoint: $RDS_ENDPOINT"
+          echo "ACM Cert ARN: $ACM_CERT_ARN"
+
+          if [ -z "$ACCOUNT_ID" ] || [ -z "$RDS_ENDPOINT" ] || [ -z "$ACM_CERT_ARN" ]; then
+            echo "Error: One or more production values could not be resolved"
+            exit 1
+          fi
+
+          # Replace all placeholders in production overlay
+          find infrastructure/kubernetes/overlays/production -name "*.yaml" \
+            -exec sed -i "s|<account-id>|$ACCOUNT_ID|g" {} +
+          find infrastructure/kubernetes/overlays/production -name "*.yaml" \
+            -exec sed -i "s|<acm-cert-arn>|$ACM_CERT_ARN|g" {} +
+          find infrastructure/kubernetes/overlays/production -name "*.yaml" \
+            -exec sed -i "s|<rds-endpoint>|$RDS_ENDPOINT|g" {} +
+
+          # Verify no placeholders remain
+          REMAINING=$(grep -r '<account-id>\|<acm-cert-arn>\|<rds-endpoint>' \
+            infrastructure/kubernetes/overlays/production/ || true)
+          if [ -n "$REMAINING" ]; then
+            echo "Error: Unresolved placeholders remain:"
+            echo "$REMAINING"
+            exit 1
+          fi
+          echo "All placeholders resolved successfully"
+
+      - name: Push Deploy Branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B deploy
+          git add infrastructure/kubernetes/overlays/production/
+          git commit -m "deploy: resolve production values [skip ci]"
+          git push --force origin deploy
 
       - name: Update kubeconfig
         run: |
@@ -90,6 +136,20 @@ jobs:
         run: |
           echo "Waiting for EKS nodes to reach Ready state..."
           kubectl wait --for=condition=Ready nodes --all --timeout=300s
+
+      - name: Create Metastore Database
+        run: |
+          echo "Creating metastore database in RDS (if not exists)..."
+          POSTGRES_PASSWORD=$(aws secretsmanager get-secret-value \
+            --secret-id rideshare/postgres --query SecretString --output text | jq -r '.password')
+          RDS_ENDPOINT="${{ steps.tf-outputs.outputs.rds_endpoint }}"
+
+          kubectl run rds-init --rm -i --restart=Never --namespace=default \
+            --image=postgres:16 -- \
+            psql "postgresql://postgres:${POSTGRES_PASSWORD}@${RDS_ENDPOINT}:5432/postgres" \
+            -c "SELECT 'CREATE DATABASE metastore' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'metastore')\gexec"
+
+          echo "Metastore database ready"
 
       - name: Wait for ALB Controller or remove stale webhooks
         run: |
@@ -147,19 +207,72 @@ jobs:
       - name: Get Load Balancer URL
         id: alb-url
         run: |
-          echo "Waiting for ALB to be provisioned..."
-          sleep 60
+          echo "Waiting for ALB to be provisioned (up to 5 minutes)..."
+          ALB_HOSTNAME=""
+          for i in $(seq 1 30); do
+            ALB_HOSTNAME=$(kubectl get ingress rideshare-ingress -n rideshare-prod \
+              -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
+            if [ -n "$ALB_HOSTNAME" ]; then
+              echo "ALB provisioned at: $ALB_HOSTNAME"
+              break
+            fi
+            echo "Attempt $i/30: ALB not ready yet, waiting 10s..."
+            sleep 10
+          done
 
-          ALB_HOSTNAME=$(kubectl get ingress rideshare-ingress -n rideshare-prod \
-            -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "pending")
+          if [ -z "$ALB_HOSTNAME" ]; then
+            echo "Warning: ALB hostname not available after 5 minutes"
+            ALB_HOSTNAME="pending"
+          fi
 
           echo "alb_hostname=$ALB_HOSTNAME" >> "$GITHUB_OUTPUT"
 
-          if [ "$ALB_HOSTNAME" != "pending" ]; then
-            echo "ALB provisioned at: $ALB_HOSTNAME"
-          else
-            echo "ALB provisioning in progress (check Route 53 for api.* record)"
+      - name: Create Route 53 API Record
+        if: steps.alb-url.outputs.alb_hostname != 'pending'
+        run: |
+          ALB_HOSTNAME="${{ steps.alb-url.outputs.alb_hostname }}"
+
+          ZONE_ID=$(aws route53 list-hosted-zones-by-name \
+            --dns-name ridesharing.portfolio.andresbrocco.com \
+            --query 'HostedZones[0].Id' \
+            --output text | sed 's|/hostedzone/||')
+
+          if [ -z "$ZONE_ID" ]; then
+            echo "Error: Could not find hosted zone"
+            exit 1
           fi
+
+          ALB_ZONE_ID=$(aws elbv2 describe-load-balancers \
+            --query "LoadBalancers[?DNSName=='$ALB_HOSTNAME'].CanonicalHostedZoneId" \
+            --output text)
+
+          if [ -z "$ALB_ZONE_ID" ]; then
+            echo "Error: Could not determine ALB hosted zone ID"
+            exit 1
+          fi
+
+          echo "Creating Route 53 ALIAS record..."
+          echo "  Zone ID: $ZONE_ID"
+          echo "  ALB Hostname: $ALB_HOSTNAME"
+          echo "  ALB Zone ID: $ALB_ZONE_ID"
+
+          aws route53 change-resource-record-sets --hosted-zone-id "$ZONE_ID" \
+            --change-batch "{
+              \"Changes\": [{
+                \"Action\": \"UPSERT\",
+                \"ResourceRecordSet\": {
+                  \"Name\": \"api.ridesharing.portfolio.andresbrocco.com\",
+                  \"Type\": \"A\",
+                  \"AliasTarget\": {
+                    \"HostedZoneId\": \"$ALB_ZONE_ID\",
+                    \"DNSName\": \"$ALB_HOSTNAME\",
+                    \"EvaluateTargetHealth\": true
+                  }
+                }
+              }]
+            }"
+
+          echo "Route 53 record created: api.ridesharing.portfolio.andresbrocco.com -> $ALB_HOSTNAME"
 
       - name: Deployment Summary
         run: |

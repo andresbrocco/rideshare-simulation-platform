@@ -13,7 +13,7 @@ spec:
 
   source:
     repoURL: https://github.com/andresbrocco/rideshare-simulation-platform.git
-    targetRevision: main
+    targetRevision: deploy
     path: infrastructure/kubernetes/overlays/production
 
   destination:

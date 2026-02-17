@@ -45,6 +45,38 @@ jobs:
           terraform init \
             -backend-config="bucket=rideshare-tf-state-${{ secrets.AWS_ACCOUNT_ID }}"
 
+      - name: Delete Route 53 API Record
+        run: |
+          ZONE_ID=$(aws route53 list-hosted-zones-by-name \
+            --dns-name ridesharing.portfolio.andresbrocco.com \
+            --query 'HostedZones[0].Id' \
+            --output text | sed 's|/hostedzone/||')
+
+          if [ -z "$ZONE_ID" ]; then
+            echo "Warning: Hosted zone not found, skipping DNS cleanup"
+            exit 0
+          fi
+
+          # Get the current api.* record (need full details for DELETE)
+          API_RECORD=$(aws route53 list-resource-record-sets \
+            --hosted-zone-id "$ZONE_ID" \
+            --query "ResourceRecordSets[?Name=='api.ridesharing.portfolio.andresbrocco.com.'] | [0]" \
+            --output json)
+
+          if [ "$API_RECORD" = "null" ] || [ -z "$API_RECORD" ]; then
+            echo "No api.* Route 53 record found, nothing to delete"
+          else
+            echo "Deleting api.* Route 53 record..."
+            aws route53 change-resource-record-sets --hosted-zone-id "$ZONE_ID" \
+              --change-batch "{
+                \"Changes\": [{
+                  \"Action\": \"DELETE\",
+                  \"ResourceRecordSet\": $API_RECORD
+                }]
+              }"
+            echo "Route 53 api.* record deleted"
+          fi
+
       - name: Terraform Destroy (Platform)
         working-directory: infrastructure/terraform/platform
         run: terraform destroy -auto-approve
@@ -69,7 +101,9 @@ jobs:
           if [ "$API_RECORD" = "[]" ]; then
             echo "Verified: api.* Route 53 record removed"
           else
-            echo "Warning: api.* Route 53 record still exists (may take time to propagate)"
+            echo "Error: api.* Route 53 record still exists after deletion attempt"
+            echo "$API_RECORD"
+            exit 1
           fi
 
       - name: Verify Foundation Resources Preserved
