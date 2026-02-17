@@ -331,7 +331,7 @@ See the complete deployment runbook: [docs/CLOUD-DEPLOYMENT.md](docs/CLOUD-DEPLO
 
 1. Deploy foundation: `terraform apply` in `infrastructure/terraform/foundation`
 2. Delegate DNS: Add Route 53 NS records to domain registrar
-3. Deploy platform: GitHub Actions -> "Deploy Platform to AWS"
+3. Deploy platform: GitHub Actions -> "Deploy" -> action: deploy-all
 4. Teardown when done: GitHub Actions -> "Teardown Platform from AWS"
 
 ## Data Architecture

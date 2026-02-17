@@ -307,7 +307,7 @@ resource "aws_iam_role_policy" "github_actions_acm" {
   })
 }
 
-# CloudFront Invalidation Policy (required by deploy-frontend.yml)
+# CloudFront Invalidation Policy (required by deploy.yml deploy-frontend job)
 resource "aws_iam_role_policy" "github_actions_cloudfront" {
   name = "cloudfront-invalidation"
   role = aws_iam_role.github_actions.id
@@ -328,7 +328,7 @@ resource "aws_iam_role_policy" "github_actions_cloudfront" {
   })
 }
 
-# S3 Frontend Bucket Policy (required by deploy-frontend.yml S3 sync)
+# S3 Frontend Bucket Policy (required by deploy.yml deploy-frontend job)
 resource "aws_iam_role_policy" "github_actions_s3_frontend" {
   name = "s3-frontend-sync"
   role = aws_iam_role.github_actions.id

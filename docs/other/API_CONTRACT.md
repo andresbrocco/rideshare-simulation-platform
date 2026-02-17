@@ -39,7 +39,7 @@ FastAPI automatically generates OpenAPI specs from Python type hints. We export 
 | `schemas/api/openapi.json` | Committed OpenAPI spec (source of truth) |
 | `services/frontend/src/types/api.generated.ts` | Generated TypeScript types |
 | `services/simulation/tests/test_api_contract.py` | Contract validation tests |
-| `.github/workflows/api-contract-validation.yml` | CI workflow |
+| `.github/workflows/ci.yml` | CI workflow (api-contract-validation job) |
 
 ## Manual Usage
 

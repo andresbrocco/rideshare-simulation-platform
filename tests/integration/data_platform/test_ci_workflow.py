@@ -10,7 +10,7 @@ import yaml
 pytestmark = pytest.mark.requires_profiles()
 
 
-WORKFLOW_PATH = Path(".github/workflows/nightly-integration-tests.yml")
+WORKFLOW_PATH = Path(".github/workflows/integration-tests.yml")
 
 
 def load_workflow():

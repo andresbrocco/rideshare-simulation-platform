@@ -289,10 +289,10 @@ Expected results:
 
 ### Option 1: GitHub Actions (Recommended)
 
-Trigger the `deploy-frontend.yml` workflow manually:
+Trigger the `deploy.yml` workflow with the `deploy-frontend` action:
 
 ```
-GitHub Actions -> Deploy Frontend to S3 -> Run workflow
+GitHub Actions -> Deploy -> Run workflow -> action: deploy-frontend
 ```
 
 ### Option 2: Manual Deployment
@@ -329,8 +329,7 @@ open https://ridesharing.portfolio.andresbrocco.com
 ### GitHub Actions (Recommended)
 
 ```
-GitHub Actions -> Deploy Platform to AWS -> Run workflow
-# Input confirmation: "deploy"
+GitHub Actions -> Deploy -> Run workflow -> action: deploy-all
 ```
 
 **What the workflow does:**
@@ -433,7 +432,6 @@ open https://ridesharing.portfolio.andresbrocco.com
 
 ```
 GitHub Actions -> Teardown Platform from AWS -> Run workflow
-# Input confirmation: "teardown"
 ```
 
 **What the workflow does:**

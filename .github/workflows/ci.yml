@@ -1,4 +1,4 @@
-name: Checks
+name: CI
 
 on:
   push:
@@ -106,7 +106,6 @@ jobs:
           ./venv/bin/pip install --quiet -e ".[dev]"
           ./venv/bin/pytest -v --tb=short
 
-
   frontend-build:
     needs: lint-and-typecheck
     runs-on: ubuntu-latest
@@ -130,3 +129,73 @@ jobs:
       - name: Build
         run: npm run build
         working-directory: services/frontend
+
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      api-changed: ${{ steps.filter.outputs.api }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'services/simulation/src/api/**'
+              - 'services/frontend/src/**'
+              - 'schemas/api/**'
+
+  api-contract-validation:
+    needs: [lint-and-typecheck, detect-changes]
+    if: needs.detect-changes.outputs.api-changed == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip uv
+          cd services/simulation
+          uv pip install --system -r requirements.txt
+
+      - name: Export OpenAPI spec
+        run: |
+          python services/simulation/scripts/export-openapi.py
+
+      - name: Validate OpenAPI spec
+        run: |
+          cd services/simulation
+          python -m pytest tests/test_api_contract.py::test_openapi_spec_is_valid -v
+
+      - name: Install frontend dependencies
+        run: |
+          cd services/frontend
+          npm ci
+
+      - name: Generate TypeScript types
+        run: |
+          cd services/frontend
+          npm run generate-types
+
+      - name: Check TypeScript types match OpenAPI spec
+        run: |
+          cd services/simulation
+          python -m pytest tests/test_api_contract.py::test_typescript_types_match_openapi -v
+
+      - name: Upload OpenAPI spec artifact
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: openapi-spec
+          path: schemas/api/openapi.json

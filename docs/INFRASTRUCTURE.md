@@ -10,10 +10,8 @@ GitHub Actions
 ### Workflows
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| checks.yml | push to main, PRs | Run linters, type checks, unit tests, frontend build |
-| integration-tests.yml | after Checks completes on main | Run integration tests with full Docker stack |
-| api-contract-validation.yml | push/PR affecting API/schemas | Validate OpenAPI spec and TypeScript types |
-| nightly-tests.yml | Daily 2 AM UTC, manual dispatch | Full test suite with coverage reports |
+| ci.yml | push to main, PRs | Linters, type checks, unit tests, frontend build, API contract validation |
+| integration-tests.yml | Daily 2 AM UTC, manual dispatch | Integration tests with full Docker stack |
 
 ### Pipeline Steps (Checks Workflow)
 1. Checkout repository
@@ -273,9 +271,7 @@ GitHub Actions workflows:
 
 | Workflow | Purpose |
 |----------|---------|
-| `build-and-push.yml` | Build and push Docker images to ECR |
-| `deploy-frontend.yml` | Deploy static frontend to S3 + CloudFront |
-| `deploy.yml` | Deploy platform (EKS, RDS, ALB) |
+| `deploy.yml` | Build images, deploy platform, and/or deploy frontend (input-driven) |
 | `teardown.yml` | Destroy platform, preserve foundation |
 
 Service URLs:

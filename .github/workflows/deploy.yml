@@ -1,30 +1,96 @@
-name: Deploy Platform to AWS
+name: Deploy
 
 on:
   workflow_dispatch:
     inputs:
-      confirm:
-        description: 'Type "deploy" to confirm platform deployment (~$0.65/hr cost)'
+      action:
+        description: 'What to deploy'
         required: true
-        default: ''
+        type: choice
+        options:
+          - deploy-all
+          - deploy-platform
+          - deploy-frontend
+          - build-images
 
 permissions:
   id-token: write
   contents: write
 
 jobs:
+  build-images:
+    if: contains(fromJSON('["deploy-all", "build-images"]'), github.event.inputs.action)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      matrix:
+        include:
+          - service: simulation
+            target: production
+          - service: stream-processor
+          - service: frontend
+            target: production
+          - service: bronze-ingestion
+          - service: hive-metastore
+          - service: osrm
+          - service: otel-collector
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rideshare-github-actions
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push ${{ matrix.service }} image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: rideshare/${{ matrix.service }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          BUILD_ARGS=(
+            --file "services/${{ matrix.service }}/Dockerfile"
+            --tag "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+            --tag "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
+            --push
+          )
+
+          if [ -n "${{ matrix.target }}" ]; then
+            BUILD_ARGS+=(--target "${{ matrix.target }}")
+          fi
+
+          docker buildx build "${BUILD_ARGS[@]}" "services/${{ matrix.service }}"
+
+      - name: Output image URIs
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: rideshare/${{ matrix.service }}
+        run: |
+          echo "Pushed ${{ matrix.service }} images:"
+          echo "  SHA tag:    $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}"
+          echo "  Latest tag: $ECR_REGISTRY/$ECR_REPOSITORY:latest"
+
   deploy-platform:
+    if: always() && !failure() && !cancelled() && contains(fromJSON('["deploy-all", "deploy-platform"]'), github.event.inputs.action)
+    needs: [build-images]
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
     steps:
-      - name: Validate confirmation
-        run: |
-          if [ "${{ github.event.inputs.confirm }}" != "deploy" ]; then
-            echo "Error: Confirmation failed. You must type 'deploy' to proceed."
-            exit 1
-          fi
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -294,3 +360,72 @@ jobs:
           echo "Estimated cost: ~$0.65/hour while running"
           echo "Remember to run teardown workflow when demo is complete"
           echo "================================"
+
+  deploy-frontend:
+    if: contains(fromJSON('["deploy-all", "deploy-frontend"]'), github.event.inputs.action)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: services/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: services/frontend
+        run: npm ci
+
+      - name: Build React app with production environment variables
+        working-directory: services/frontend
+        env:
+          VITE_API_URL: https://api.ridesharing.portfolio.andresbrocco.com
+          VITE_WS_URL: wss://api.ridesharing.portfolio.andresbrocco.com/ws
+        run: npm run build
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rideshare-github-actions
+          aws-region: us-east-1
+
+      - name: Sync build output to S3
+        working-directory: services/frontend
+        run: |
+          BUCKET="rideshare-${{ secrets.AWS_ACCOUNT_ID }}-frontend"
+
+          aws s3 sync dist/ "s3://${BUCKET}/" \
+            --delete \
+            --cache-control "public, max-age=31536000" \
+            --exclude "index.html" \
+            --exclude "*.html"
+
+          aws s3 sync dist/ "s3://${BUCKET}/" \
+            --exclude "*" \
+            --include "*.html" \
+            --cache-control "public, max-age=0, must-revalidate"
+
+      - name: Invalidate CloudFront cache
+        run: |
+          DISTRIBUTION_ID=$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?Comment=='Frontend SPA distribution'].Id" \
+            --output text)
+
+          if [ -z "$DISTRIBUTION_ID" ]; then
+            echo "Error: CloudFront distribution not found"
+            exit 1
+          fi
+
+          aws cloudfront create-invalidation \
+            --distribution-id "$DISTRIBUTION_ID" \
+            --paths "/*"
+
+      - name: Output deployment summary
+        run: |
+          echo "Frontend deployed to S3 and CloudFront cache invalidated"
+          echo "Frontend URL: https://ridesharing.portfolio.andresbrocco.com"
