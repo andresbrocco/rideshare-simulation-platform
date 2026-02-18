@@ -51,6 +51,7 @@ SCENARIO_REGISTRY: dict[str, type[BaseScenario]] = {
 }
 VALID_SCENARIO_NAMES: tuple[str, ...] = tuple(SCENARIO_REGISTRY.keys())
 _FULL_PIPELINE_ORDER: tuple[str, ...] = ("baseline", "stress", "speed", "duration")
+_REUSES_PREVIOUS_STATE: frozenset[str] = frozenset({"stress"})
 
 
 def create_test_config() -> TestConfig:
@@ -676,127 +677,144 @@ def run(
     derived_speed: int | None = speed_multiplier
 
     try:
-        for step_idx, scenario_name in enumerate(ordered, 1):
-            step_label = f"Step {step_idx}/{total_steps}"
+        # Pre-flight: scenarios that skip clean_restart expect a predecessor
+        # to have left Docker running. When they're first, we must ensure it.
+        if ordered[0] in _REUSES_PREVIOUS_STATE and not api_client.is_available():
+            console.print(
+                "[cyan]Starting Docker environment "
+                f"({ordered[0]} reuses previous state but none exists)...[/cyan]"
+            )
+            if not lifecycle.clean_restart():
+                console.print("[red]Failed to start Docker environment[/red]")
+                aborted = True
+                abort_reason = "docker_setup_failed"
 
-            if scenario_name == "baseline":
-                console.rule(f"[bold cyan]{step_label}: Running Baseline Scenario[/bold cyan]")
-                baseline_result = run_scenario(
-                    BaselineScenario,
-                    config,
-                    lifecycle,
-                    stats_collector,
-                    api_client,
-                    oom_detector,
-                )
-                scenario_results.append(_result_to_dict(baseline_result))
+        if not aborted:
+            for step_idx, scenario_name in enumerate(ordered, 1):
+                step_label = f"Step {step_idx}/{total_steps}"
 
-            elif scenario_name == "stress":
-                console.rule(
-                    f"[bold cyan]{step_label}: Running Stress Test "
-                    f"(until {config.scenarios.stress_cpu_threshold_percent}% CPU "
-                    f"or {config.scenarios.stress_memory_threshold_percent}% memory)"
-                    f"[/bold cyan]"
-                )
-                stress_result = run_scenario(
-                    StressTestScenario,
-                    config,
-                    lifecycle,
-                    stats_collector,
-                    api_client,
-                    oom_detector,
-                )
-                scenario_results.append(_result_to_dict(stress_result))
+                if scenario_name == "baseline":
+                    console.rule(f"[bold cyan]{step_label}: Running Baseline Scenario[/bold cyan]")
+                    baseline_result = run_scenario(
+                        BaselineScenario,
+                        config,
+                        lifecycle,
+                        stats_collector,
+                        api_client,
+                        oom_detector,
+                    )
+                    scenario_results.append(_result_to_dict(baseline_result))
 
-                # Derive agent count from stress result (unless manually overridden)
-                if agent_count is None:
-                    stress_metadata = stress_result.metadata
-                    if stress_result.aborted:
+                elif scenario_name == "stress":
+                    console.rule(
+                        f"[bold cyan]{step_label}: Running Stress Test "
+                        f"(until {config.scenarios.stress_cpu_threshold_percent}% CPU "
+                        f"or {config.scenarios.stress_memory_threshold_percent}% memory)"
+                        f"[/bold cyan]"
+                    )
+                    stress_result = run_scenario(
+                        StressTestScenario,
+                        config,
+                        lifecycle,
+                        stats_collector,
+                        api_client,
+                        oom_detector,
+                    )
+                    scenario_results.append(_result_to_dict(stress_result))
+
+                    # Derive agent count from stress result (unless manually overridden)
+                    if agent_count is None:
+                        stress_metadata = stress_result.metadata
+                        if stress_result.aborted:
+                            console.print(
+                                "[red]Stress test aborted (likely OOM). "
+                                "Cannot derive agent count.[/red]"
+                            )
+                            aborted = True
+                            abort_reason = "stress_test_oom"
+                            break
+                        drivers_queued = stress_metadata.get("drivers_queued", 0)
+                        if drivers_queued < 2:
+                            console.print(
+                                "[red]Stress test did not queue enough agents. "
+                                "Cannot derive agent count.[/red]"
+                            )
+                            aborted = True
+                            abort_reason = "stress_test_insufficient_agents"
+                            break
+                        agent_count = drivers_queued // 2
                         console.print(
-                            "[red]Stress test aborted (likely OOM). "
-                            "Cannot derive agent count.[/red]"
+                            f"\n[cyan]Derived agent count: {agent_count} "
+                            f"(half of {drivers_queued} from stress test)[/cyan]\n"
                         )
-                        aborted = True
-                        abort_reason = "stress_test_oom"
-                        break
-                    drivers_queued = stress_metadata.get("drivers_queued", 0)
-                    if drivers_queued < 2:
+                        results.setdefault("derived_config", {}).update(
+                            {
+                                "duration_agent_count": agent_count,
+                                "stress_drivers_queued": drivers_queued,
+                            }
+                        )
+                    else:
+                        if selected & {"speed", "duration"}:
+                            console.print(
+                                f"\n[cyan]Using manual override: --agents {agent_count}[/cyan]\n"
+                            )
+
+                elif scenario_name == "speed":
+                    console.rule(
+                        f"[bold cyan]{step_label}: Running Speed Scaling Test "
+                        f"(2x-{config.scenarios.speed_scaling_max_multiplier}x, "
+                        f"{config.scenarios.speed_scaling_step_duration_minutes}m/step, "
+                        f"base agents={agent_count})[/bold cyan]"
+                    )
+                    speed_result = run_scenario(
+                        SpeedScalingScenario,
+                        config,
+                        lifecycle,
+                        stats_collector,
+                        api_client,
+                        oom_detector,
+                        agent_count=agent_count,
+                    )
+                    scenario_results.append(_result_to_dict(speed_result))
+
+                    # Derive speed from speed scaling result (unless manually overridden)
+                    if derived_speed is None:
+                        max_reliable_speed = _derive_max_reliable_speed(speed_result)
+                        derived_speed = max_reliable_speed
                         console.print(
-                            "[red]Stress test did not queue enough agents. "
-                            "Cannot derive agent count.[/red]"
+                            f"\n[cyan]With {agent_count} agents, the simulation "
+                            f"ran reliably up to {max_reliable_speed}x speed[/cyan]\n"
                         )
-                        aborted = True
-                        abort_reason = "stress_test_insufficient_agents"
-                        break
-                    agent_count = drivers_queued // 2
-                    console.print(
-                        f"\n[cyan]Derived agent count: {agent_count} "
-                        f"(half of {drivers_queued} from stress test)[/cyan]\n"
-                    )
-                    results.setdefault("derived_config", {}).update(
-                        {
-                            "duration_agent_count": agent_count,
-                            "stress_drivers_queued": drivers_queued,
-                        }
-                    )
-                else:
-                    console.print(f"\n[cyan]Using manual override: --agents {agent_count}[/cyan]\n")
+                        results.setdefault("derived_config", {})[
+                            "duration_speed_multiplier"
+                        ] = max_reliable_speed
+                    else:
+                        if "duration" in selected:
+                            console.print(
+                                f"\n[cyan]Using manual override: --speed {derived_speed}[/cyan]\n"
+                            )
 
-            elif scenario_name == "speed":
-                console.rule(
-                    f"[bold cyan]{step_label}: Running Speed Scaling Test "
-                    f"(2x-{config.scenarios.speed_scaling_max_multiplier}x, "
-                    f"{config.scenarios.speed_scaling_step_duration_minutes}m/step, "
-                    f"base agents={agent_count})[/bold cyan]"
-                )
-                speed_result = run_scenario(
-                    SpeedScalingScenario,
-                    config,
-                    lifecycle,
-                    stats_collector,
-                    api_client,
-                    oom_detector,
-                    agent_count=agent_count,
-                )
-                scenario_results.append(_result_to_dict(speed_result))
-
-                # Derive speed from speed scaling result (unless manually overridden)
-                if derived_speed is None:
-                    max_reliable_speed = _derive_max_reliable_speed(speed_result)
-                    derived_speed = max_reliable_speed
-                    console.print(
-                        f"\n[cyan]With {agent_count} agents, the simulation "
-                        f"ran reliably up to {max_reliable_speed}x speed[/cyan]\n"
+                elif scenario_name == "duration":
+                    effective_speed = derived_speed if derived_speed is not None else 1
+                    active_min = config.scenarios.duration_active_minutes
+                    cooldown_min = config.scenarios.duration_cooldown_minutes
+                    speed_label = f", {effective_speed}x speed" if effective_speed > 1 else ""
+                    console.rule(
+                        f"[bold cyan]{step_label}: Running Duration Test "
+                        f"({active_min}m+drain+{cooldown_min}m, "
+                        f"{agent_count} agents{speed_label})[/bold cyan]"
                     )
-                    results.setdefault("derived_config", {})[
-                        "duration_speed_multiplier"
-                    ] = max_reliable_speed
-                else:
-                    console.print(
-                        f"\n[cyan]Using manual override: --speed {derived_speed}[/cyan]\n"
+                    duration_result = run_scenario(
+                        DurationLeakScenario,
+                        config,
+                        lifecycle,
+                        stats_collector,
+                        api_client,
+                        oom_detector,
+                        agent_count=agent_count,
+                        speed_multiplier=effective_speed,
                     )
-
-            elif scenario_name == "duration":
-                effective_speed = derived_speed if derived_speed is not None else 1
-                active_min = config.scenarios.duration_active_minutes
-                cooldown_min = config.scenarios.duration_cooldown_minutes
-                speed_label = f", {effective_speed}x speed" if effective_speed > 1 else ""
-                console.rule(
-                    f"[bold cyan]{step_label}: Running Duration Test "
-                    f"({active_min}m+drain+{cooldown_min}m, "
-                    f"{agent_count} agents{speed_label})[/bold cyan]"
-                )
-                duration_result = run_scenario(
-                    DurationLeakScenario,
-                    config,
-                    lifecycle,
-                    stats_collector,
-                    api_client,
-                    oom_detector,
-                    agent_count=agent_count,
-                    speed_multiplier=effective_speed,
-                )
-                scenario_results.append(_result_to_dict(duration_result))
+                    scenario_results.append(_result_to_dict(duration_result))
 
     except KeyboardInterrupt:
         console.print("\n[yellow]Test interrupted by user[/yellow]")
