@@ -1,7 +1,6 @@
 """Agent DNA models defining behavioral and profile attributes."""
 
 from enum import Enum
-from math import asin, cos, radians, sin, sqrt
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -19,17 +18,9 @@ class ShiftPreference(str, Enum):
 
 def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Calculate distance in km between two coordinates using Haversine formula."""
-    earth_radius_km = 6371.0
+    from geo.distance import haversine_distance_km as _haversine_km
 
-    lat1_rad = radians(lat1)
-    lat2_rad = radians(lat2)
-    delta_lat = radians(lat2 - lat1)
-    delta_lon = radians(lon2 - lon1)
-
-    a = sin(delta_lat / 2) ** 2 + cos(lat1_rad) * cos(lat2_rad) * sin(delta_lon / 2) ** 2
-    c = 2 * asin(sqrt(a))
-
-    return earth_radius_km * c
+    return _haversine_km(lat1, lon1, lat2, lon2)
 
 
 def validate_sao_paulo_coordinates(coords: tuple[float, float]) -> tuple[float, float]:

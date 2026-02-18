@@ -28,6 +28,7 @@ class ZoneLoader:
         self._polygons: dict[str, Polygon] = {}
         self._strtree: STRtree | None = None
         self._strtree_zone_ids: list[str] = []
+        self._all_zones_cache: list[Zone] | None = None
         self._load_zones()
         self._build_spatial_index()
 
@@ -57,6 +58,7 @@ class ZoneLoader:
                 self._zones[zone.zone_id] = zone
 
         logger.info(f"Loaded {len(self._zones)} zones from {self.geojson_path}")
+        self._all_zones_cache = list(self._zones.values())
 
     def _build_spatial_index(self) -> None:
         self._strtree_zone_ids = list(self._zones.keys())
@@ -122,7 +124,9 @@ class ZoneLoader:
         return self._zones.get(zone_id)
 
     def get_all_zones(self) -> list[Zone]:
-        return list(self._zones.values())
+        if self._all_zones_cache is not None:
+            return self._all_zones_cache
+        return list(self._zones.values())  # fallback if called before _load_zones
 
     def find_zone_for_location(self, lat: float, lon: float) -> str | None:
         """Find the zone containing the given location using point-in-polygon test.

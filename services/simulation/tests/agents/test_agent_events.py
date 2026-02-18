@@ -127,16 +127,17 @@ def test_driver_gps_ping_emission(driver_dna, mock_kafka_producer, mock_redis_pu
         for call in mock_kafka_producer.produce.call_args_list
         if call.kwargs.get("topic") == "gps_pings"
     ]
-    assert len(produce_calls) >= 2
+    # Idle drivers deduplicate GPS pings — only emit when location changes.
+    # An online driver at a fixed location emits exactly one ping per online period.
+    assert len(produce_calls) >= 1
 
-    for call in produce_calls[:2]:
-        event_json = call.kwargs["value"]
-        event = json.loads(event_json)
-        assert event["entity_type"] == "driver"
-        assert event["entity_id"] == "driver1"
-        assert event["location"] == [-23.55, -46.63]
-        assert event["heading"] is not None
-        assert event["speed"] is not None
+    event_json = produce_calls[0].kwargs["value"]
+    event = json.loads(event_json)
+    assert event["entity_type"] == "driver"
+    assert event["entity_id"] == "driver1"
+    assert event["location"] == [-23.55, -46.63]
+    assert event["heading"] is not None
+    assert event["speed"] is not None
 
 
 @pytest.mark.unit

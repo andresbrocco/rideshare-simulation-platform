@@ -2,7 +2,11 @@ from math import sqrt
 
 import pytest
 
-from src.geo.gps_simulation import GPSSimulator, precompute_headings
+from src.geo.gps_simulation import (
+    GPSSimulator,
+    precompute_cumulative_distances,
+    precompute_headings,
+)
 
 
 @pytest.fixture
@@ -231,6 +235,58 @@ def test_precompute_headings_two_points_northward():
     headings = precompute_headings([(-23.55, -46.63), (-23.54, -46.63)])
     assert len(headings) == 1
     assert headings[0] > 350 or headings[0] < 10
+
+
+@pytest.mark.unit
+def test_precompute_cumulative_distances_empty():
+    """Empty or single-point polyline returns empty list."""
+    assert precompute_cumulative_distances([]) == []
+    assert precompute_cumulative_distances([(-23.55, -46.63)]) == []
+
+
+@pytest.mark.unit
+def test_precompute_cumulative_distances_length():
+    """Result length is len(polyline) - 1."""
+    polyline = [(-23.55, -46.63), (-23.56, -46.64), (-23.57, -46.65)]
+    result = precompute_cumulative_distances(polyline)
+    assert len(result) == 2
+
+
+@pytest.mark.unit
+def test_precompute_cumulative_distances_monotone():
+    """Cumulative distances are strictly increasing."""
+    polyline = [(-23.55, -46.63), (-23.56, -46.64), (-23.57, -46.65), (-23.58, -46.66)]
+    result = precompute_cumulative_distances(polyline)
+    assert all(result[i] < result[i + 1] for i in range(len(result) - 1))
+
+
+@pytest.mark.unit
+def test_precompute_cumulative_distances_total_matches_haversine():
+    """Final entry equals total Haversine distance along polyline."""
+    from src.geo.distance import haversine_distance_m
+
+    polyline = [(-23.55, -46.63), (-23.56, -46.64), (-23.57, -46.65)]
+    result = precompute_cumulative_distances(polyline)
+
+    manual_total = haversine_distance_m(-23.55, -46.63, -23.56, -46.64) + haversine_distance_m(
+        -23.56, -46.64, -23.57, -46.65
+    )
+    assert result[-1] == pytest.approx(manual_total, rel=1e-9)
+
+
+@pytest.mark.unit
+def test_interpolate_position_with_precomputed(no_noise_simulator):
+    """interpolate_position gives same result with and without precomputed distances."""
+    polyline = [(-23.55, -46.63), (-23.56, -46.64), (-23.57, -46.65)]
+    precomputed = precompute_cumulative_distances(polyline)
+
+    for progress in [0.0, 0.25, 0.5, 0.75, 1.0]:
+        result_auto = no_noise_simulator.interpolate_position(polyline, progress)
+        result_precomputed = no_noise_simulator.interpolate_position(
+            polyline, progress, cumulative_distances=precomputed
+        )
+        assert result_auto[0] == pytest.approx(result_precomputed[0], abs=1e-9)
+        assert result_auto[1] == pytest.approx(result_precomputed[1], abs=1e-9)
 
 
 @pytest.mark.unit

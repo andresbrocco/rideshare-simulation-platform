@@ -1,3 +1,4 @@
+import bisect
 import math
 import random
 
@@ -32,32 +33,37 @@ class GPSSimulator:
         return random.random() < self.dropout_probability
 
     def interpolate_position(
-        self, polyline: list[tuple[float, float]], progress: float
+        self,
+        polyline: list[tuple[float, float]],
+        progress: float,
+        cumulative_distances: list[float] | None = None,
     ) -> tuple[float, float]:
         if progress <= 0.0:
             return polyline[0]
         if progress >= 1.0:
             return polyline[-1]
 
-        distances = []
-        total_distance = 0.0
-        for i in range(len(polyline) - 1):
-            d = haversine_distance_m(
-                polyline[i][0], polyline[i][1], polyline[i + 1][0], polyline[i + 1][1]
-            )
-            distances.append(d)
-            total_distance += d
+        if cumulative_distances is None:
+            cumulative_distances = precompute_cumulative_distances(polyline)
 
+        if not cumulative_distances:
+            return polyline[0]
+
+        total_distance = cumulative_distances[-1]
         target_distance = total_distance * progress
-        accumulated = 0.0
 
-        for i, segment_distance in enumerate(distances):
-            if accumulated + segment_distance >= target_distance:
-                segment_progress = (target_distance - accumulated) / segment_distance
-                return self._interpolate_segment(polyline[i], polyline[i + 1], segment_progress)
-            accumulated += segment_distance
+        # bisect_left gives O(log N) segment lookup vs O(N) linear scan
+        idx = bisect.bisect_left(cumulative_distances, target_distance)
+        idx = min(idx, len(polyline) - 2)
 
-        return polyline[-1]
+        prev_cumulative = cumulative_distances[idx - 1] if idx > 0 else 0.0
+        segment_distance = cumulative_distances[idx] - prev_cumulative
+
+        if segment_distance == 0.0:
+            return polyline[idx]
+
+        segment_progress = (target_distance - prev_cumulative) / segment_distance
+        return self._interpolate_segment(polyline[idx], polyline[idx + 1], segment_progress)
 
     @staticmethod
     def calculate_heading(
@@ -95,6 +101,30 @@ class GPSSimulator:
         lat = start[0] + (end[0] - start[0]) * progress
         lon = start[1] + (end[1] - start[1]) * progress
         return lat, lon
+
+
+def precompute_cumulative_distances(polyline: list[tuple[float, float]]) -> list[float]:
+    """Precompute cumulative Haversine distances along a polyline.
+
+    Returns a list of length len(polyline) - 1 where entry i is the
+    cumulative distance from polyline[0] to polyline[i+1] in meters.
+    Returns empty list for polylines shorter than 2 points.
+    """
+    if len(polyline) < 2:
+        return []
+
+    cumulative: list[float] = []
+    total = 0.0
+    for i in range(len(polyline) - 1):
+        d = haversine_distance_m(
+            polyline[i][0],
+            polyline[i][1],
+            polyline[i + 1][0],
+            polyline[i + 1][1],
+        )
+        total += d
+        cumulative.append(total)
+    return cumulative
 
 
 def precompute_headings(geometry: list[tuple[float, float]]) -> list[float]:

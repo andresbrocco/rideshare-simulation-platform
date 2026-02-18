@@ -3,6 +3,7 @@
 import pytest
 
 from src.geo.distance import (
+    _LAT_DEGREES_PER_METER,
     EARTH_RADIUS_M,
     haversine_distance_km,
     haversine_distance_m,
@@ -173,6 +174,69 @@ class TestIsWithinProximity:
         assert not is_within_proximity(
             driver_far_lat, driver_far_lon, pickup_lat, pickup_lon, threshold_m=50.0
         )
+
+
+@pytest.mark.unit
+class TestBoundingBoxPreCheck:
+    """Tests for the bounding box fast-reject in is_within_proximity."""
+
+    def test_lat_degrees_per_meter_constant(self) -> None:
+        """Constant should be approximately 9e-6 degrees per meter."""
+        assert pytest.approx(1.0 / 111_320, rel=1e-6) == _LAT_DEGREES_PER_METER
+
+    def test_far_away_point_rejected_by_lat_check(self) -> None:
+        """A point 10km north should be rejected before Haversine runs."""
+        # 10km north, same longitude — well outside the bounding box for 50m threshold
+        lat1, lon1 = -23.5505, -46.6333
+        lat2 = lat1 + 0.09  # ~10km north
+        assert not is_within_proximity(lat1, lon1, lat2, lon1, threshold_m=50.0)
+
+    def test_far_away_point_rejected_by_lon_check(self) -> None:
+        """A point 10km east should be rejected before Haversine runs."""
+        lat1, lon1 = -23.5505, -46.6333
+        lon2 = lon1 + 0.09  # well outside lon threshold for 50m
+        assert not is_within_proximity(lat1, lon1, lat1, lon2, threshold_m=50.0)
+
+    def test_nearby_point_reaches_haversine(self) -> None:
+        """A point within 30m should pass bounding box and Haversine."""
+        lat1, lon1 = -23.5505, -46.6333
+        lat2 = lat1 + 0.00027  # ~30m north
+        assert is_within_proximity(lat1, lon1, lat2, lon1, threshold_m=50.0)
+
+    def test_no_false_negatives_at_diagonal(self) -> None:
+        """Bounding box must not reject points that Haversine would accept.
+
+        A point at (threshold * 0.7, threshold * 0.7) in lat/lon space is
+        within the bounding box and within the circular threshold.
+        """
+        lat1, lon1 = -23.5505, -46.6333
+        offset_deg = 30.0 * _LAT_DEGREES_PER_METER  # 30m in each direction
+        lat2 = lat1 + offset_deg
+        lon2 = lon1 + offset_deg
+        # The diagonal Haversine distance is ~42m, inside the 50m threshold
+        actual_dist = haversine_distance_m(lat1, lon1, lat2, lon2)
+        assert actual_dist < 50.0
+        assert is_within_proximity(lat1, lon1, lat2, lon2, threshold_m=50.0)
+
+    def test_conservative_lon_check_no_false_negatives(self) -> None:
+        """The conservative lon threshold never produces false negatives.
+
+        At São Paulo's lat (cos≈0.917), the actual lon threshold is ~8.3% narrower
+        than lat threshold. Using the same value for both is conservative: some
+        candidates that are actually outside the circle pass the lon check but
+        are correctly rejected by Haversine.
+        """
+        lat1, lon1 = -23.5505, -46.6333
+        # Point exactly at the bounding-box corner: lon offset == lat_threshold
+        lat_threshold = 50.0 * _LAT_DEGREES_PER_METER
+        lat2 = lat1
+        lon2 = lon1 + lat_threshold * 0.99  # just inside the conservative lon bound
+
+        # This may or may not be within 50m (Haversine decides), but it must not
+        # be incorrectly rejected by the bounding box alone.
+        result = is_within_proximity(lat1, lon1, lat2, lon2, threshold_m=50.0)
+        haversine_result = haversine_distance_m(lat1, lon1, lat2, lon2) <= 50.0
+        assert result == haversine_result
 
 
 @pytest.mark.unit
