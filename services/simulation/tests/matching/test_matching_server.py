@@ -286,6 +286,9 @@ class TestRankDrivers:
             acceptance_rate=0.8,
             min_eta=300,
             max_eta=600,
+            eta_weight=0.5,
+            rating_weight=0.3,
+            acceptance_weight=0.2,
         )
 
         # ETA normalized: (600-300)/(600-300) = 1.0, weight 0.5 -> 0.5
@@ -1312,3 +1315,324 @@ class TestBoundedTripHistory:
 
         # Should still be bounded by maxlen=5
         assert len(server.get_completed_trips()) == 5
+
+
+@pytest.mark.unit
+@pytest.mark.critical
+class TestOSRMCandidateLimit:
+    """Tests for Fix 1: OSRM fetches limited to top-N candidates."""
+
+    @pytest.mark.asyncio
+    async def test_osrm_calls_limited_to_candidate_limit(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+        sample_driver_dna,
+    ):
+        """Verify OSRM is called for at most _osrm_candidate_limit drivers."""
+        # Create 20 drivers
+        drivers = {}
+        nearby_results = []
+        for i in range(20):
+            d = create_mock_driver(f"driver-{i}", sample_driver_dna)
+            drivers[f"driver-{i}"] = d
+            nearby_results.append((f"driver-{i}", 1.0 + i * 0.5))
+
+        mock_driver_index.find_nearest_drivers.return_value = nearby_results
+
+        route_response = Mock()
+        route_response.duration_seconds = 300
+        mock_osrm_client.get_route.return_value = route_response
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+        server._drivers = drivers
+        server._osrm_candidate_limit = 5
+
+        result = await server.find_nearby_drivers((-23.55, -46.63))
+
+        # OSRM should have been called exactly 5 times (the limit), not 20
+        assert mock_osrm_client.get_route.call_count == 5
+        assert len(result) == 5
+
+    @pytest.mark.asyncio
+    async def test_osrm_limit_with_fewer_drivers_than_limit(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+        sample_driver_dna,
+    ):
+        """When fewer drivers exist than the limit, all get OSRM calls."""
+        drivers = {}
+        nearby_results = []
+        for i in range(3):
+            d = create_mock_driver(f"driver-{i}", sample_driver_dna)
+            drivers[f"driver-{i}"] = d
+            nearby_results.append((f"driver-{i}", 1.0 + i * 0.5))
+
+        mock_driver_index.find_nearest_drivers.return_value = nearby_results
+
+        route_response = Mock()
+        route_response.duration_seconds = 300
+        mock_osrm_client.get_route.return_value = route_response
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+        server._drivers = drivers
+        server._osrm_candidate_limit = 15
+
+        result = await server.find_nearby_drivers((-23.55, -46.63))
+
+        # All 3 should get OSRM calls (fewer than limit)
+        assert mock_osrm_client.get_route.call_count == 3
+        assert len(result) == 3
+
+
+@pytest.mark.unit
+@pytest.mark.critical
+class TestRunningAccumulators:
+    """Tests for Fix 2: O(1) trip stats via running accumulators."""
+
+    def test_get_trip_stats_from_accumulators(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+    ):
+        """Verify get_trip_stats returns correct averages from accumulators."""
+        from datetime import UTC, datetime, timedelta
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+
+        base_time = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
+
+        # Complete 3 trips with known values
+        for i in range(3):
+            trip = Trip(
+                trip_id=f"trip-{i}",
+                rider_id=f"rider-{i}",
+                pickup_location=(-23.55, -46.63),
+                dropoff_location=(-23.56, -46.64),
+                pickup_zone_id="centro",
+                dropoff_zone_id="pinheiros",
+                surge_multiplier=1.0,
+                fare=10.0 * (i + 1),  # 10, 20, 30
+            )
+            trip.requested_at = base_time
+            trip.matched_at = base_time + timedelta(minutes=1)
+            trip.driver_arrived_at = base_time + timedelta(minutes=3)
+            trip.completed_at = base_time + timedelta(minutes=10 + i * 5)  # 10, 15, 20 min
+
+            trip.transition_to(TripState.OFFER_SENT)
+            trip.transition_to(TripState.MATCHED)
+            trip.transition_to(TripState.DRIVER_EN_ROUTE)
+            trip.transition_to(TripState.DRIVER_ARRIVED)
+            trip.transition_to(TripState.STARTED)
+            trip.transition_to(TripState.COMPLETED)
+
+            server._active_trips[trip.trip_id] = trip
+            server.complete_trip(trip.trip_id, trip)
+
+        stats = server.get_trip_stats()
+
+        assert stats["completed_count"] == 3
+        assert stats["avg_fare"] == 20.0  # (10+20+30)/3
+        # Duration = matched_at to completed_at in minutes: 9, 14, 19 -> avg 14.0
+        assert abs(stats["avg_duration_minutes"] - 14.0) < 0.01
+        # Wait = requested_at to driver_arrived_at in seconds: 180 each -> avg 180.0
+        assert abs(stats["avg_wait_seconds"] - 180.0) < 0.01
+        # Pickup = matched_at to driver_arrived_at in seconds: 120 each -> avg 120.0
+        assert abs(stats["avg_pickup_seconds"] - 120.0) < 0.01
+
+    def test_accumulators_reset_on_clear(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+    ):
+        """Verify accumulators are reset when clear() is called."""
+        from datetime import UTC, datetime, timedelta
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+
+        # Complete a trip
+        base_time = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
+        trip = Trip(
+            trip_id="trip-0",
+            rider_id="rider-0",
+            pickup_location=(-23.55, -46.63),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="centro",
+            dropoff_zone_id="pinheiros",
+            surge_multiplier=1.0,
+            fare=50.0,
+        )
+        trip.requested_at = base_time
+        trip.matched_at = base_time + timedelta(minutes=1)
+        trip.driver_arrived_at = base_time + timedelta(minutes=3)
+        trip.completed_at = base_time + timedelta(minutes=10)
+
+        trip.transition_to(TripState.OFFER_SENT)
+        trip.transition_to(TripState.MATCHED)
+        trip.transition_to(TripState.DRIVER_EN_ROUTE)
+        trip.transition_to(TripState.DRIVER_ARRIVED)
+        trip.transition_to(TripState.STARTED)
+        trip.transition_to(TripState.COMPLETED)
+
+        server._active_trips[trip.trip_id] = trip
+        server.complete_trip(trip.trip_id, trip)
+
+        assert server.get_trip_stats()["completed_count"] == 1
+
+        server.clear()
+
+        stats = server.get_trip_stats()
+        assert stats["completed_count"] == 0
+        assert stats["avg_fare"] == 0.0
+        assert stats["avg_duration_minutes"] == 0.0
+
+    def test_cancelled_trips_dont_accumulate_stats(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+    ):
+        """Cancelled trips should not affect fare/duration accumulators."""
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+
+        trip = Trip(
+            trip_id="cancelled-trip",
+            rider_id="rider-0",
+            pickup_location=(-23.55, -46.63),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="centro",
+            dropoff_zone_id="pinheiros",
+            surge_multiplier=1.0,
+            fare=100.0,
+        )
+        trip.cancel(by="rider", reason="test", stage="requested")
+
+        server._active_trips[trip.trip_id] = trip
+        server.complete_trip(trip.trip_id, trip)
+
+        stats = server.get_trip_stats()
+        assert stats["cancelled_count"] == 1
+        assert stats["completed_count"] == 0
+        assert stats["avg_fare"] == 0.0
+
+
+@pytest.mark.unit
+@pytest.mark.critical
+class TestWeightParameterPassing:
+    """Tests for Fix 4: Weights passed as parameters to _calculate_composite_score."""
+
+    def test_score_identical_with_explicit_weights(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+    ):
+        """Verify _calculate_composite_score gives same result with explicit weights."""
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+
+        # Get the default weights from settings
+        eta_w = server._settings.matching.ranking_eta_weight
+        rating_w = server._settings.matching.ranking_rating_weight
+        acceptance_w = server._settings.matching.ranking_acceptance_weight
+
+        score = server._calculate_composite_score(
+            eta_seconds=400,
+            rating=4.0,
+            acceptance_rate=0.75,
+            min_eta=200,
+            max_eta=600,
+            eta_weight=eta_w,
+            rating_weight=rating_w,
+            acceptance_weight=acceptance_w,
+        )
+
+        # Manually compute expected score
+        eta_norm = (600 - 400) / (600 - 200)  # 0.5
+        rating_norm = (4.0 - 1.0) / 4.0  # 0.75
+        acceptance_norm = 0.75
+        expected = eta_norm * eta_w + rating_norm * rating_w + acceptance_norm * acceptance_w
+
+        assert abs(score - expected) < 1e-10
+
+    def test_rank_drivers_extracts_weights_from_settings(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+    ):
+        """Verify rank_drivers correctly passes weights from settings."""
+        dna1 = create_dna_with_acceptance_rate(0.7)
+        dna2 = create_dna_with_acceptance_rate(0.9)
+        driver1 = create_mock_driver("driver-1", dna1, rating=4.0)
+        driver2 = create_mock_driver("driver-2", dna2, rating=4.8)
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+
+        driver_eta_list = [(driver1, 300), (driver2, 600)]
+
+        ranked = server.rank_drivers(driver_eta_list)
+
+        # Both drivers should be ranked and have valid scores
+        assert len(ranked) == 2
+        assert all(score > 0 for _, _, score in ranked)

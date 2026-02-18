@@ -123,6 +123,16 @@ class MatchingServer:
         self._offers_accepted: int = 0
         self._offers_rejected: int = 0
         self._offers_expired: int = 0
+        # Running accumulators for O(1) trip stats (updated in complete_trip)
+        self._stats_total_fare: float = 0.0
+        self._stats_duration_sum: float = 0.0
+        self._stats_duration_count: int = 0
+        self._stats_wait_sum: float = 0.0
+        self._stats_wait_count: int = 0
+        self._stats_pickup_sum: float = 0.0
+        self._stats_pickup_count: int = 0
+        # Limit how many drivers get OSRM route fetches (top-N by haversine distance)
+        self._osrm_candidate_limit: int = 15
         # Puppet drive controllers (for background thread movement)
         self._puppet_drives: dict[str, PuppetDriveController] = {}
 
@@ -154,6 +164,7 @@ class MatchingServer:
                     self._cancelled_trips.append(tracking_trip)
                 elif tracking_trip.state.value == "completed":
                     self._completed_trips.append(tracking_trip)
+                    self._accumulate_trip_stats(tracking_trip)
 
     def get_completed_trips(self) -> list["Trip"]:
         """Get all completed trips."""
@@ -165,49 +176,50 @@ class MatchingServer:
         with self._state_lock:
             return list(self._cancelled_trips)
 
+    def _accumulate_trip_stats(self, trip: "Trip") -> None:
+        """Update running accumulators when a trip completes.
+
+        Must be called under _state_lock.
+        """
+        if trip.fare:
+            self._stats_total_fare += trip.fare
+
+        if trip.matched_at and trip.completed_at:
+            duration = (trip.completed_at - trip.matched_at).total_seconds() / 60
+            self._stats_duration_sum += duration
+            self._stats_duration_count += 1
+
+        if trip.requested_at and trip.driver_arrived_at:
+            wait_seconds = (trip.driver_arrived_at - trip.requested_at).total_seconds()
+            self._stats_wait_sum += wait_seconds
+            self._stats_wait_count += 1
+
+        if trip.matched_at and trip.driver_arrived_at:
+            pickup_seconds = (trip.driver_arrived_at - trip.matched_at).total_seconds()
+            self._stats_pickup_sum += pickup_seconds
+            self._stats_pickup_count += 1
+
     def get_trip_stats(self) -> dict[str, Any]:
-        """Get trip statistics for metrics."""
+        """Get trip statistics for metrics using running accumulators (O(1))."""
         with self._state_lock:
-            completed = list(self._completed_trips)
-            cancelled = list(self._cancelled_trips)
+            completed_count = len(self._completed_trips)
+            cancelled_count = len(self._cancelled_trips)
+            total_fare = self._stats_total_fare
+            duration_sum = self._stats_duration_sum
+            duration_count = self._stats_duration_count
+            wait_sum = self._stats_wait_sum
+            wait_count = self._stats_wait_count
+            pickup_sum = self._stats_pickup_sum
+            pickup_count = self._stats_pickup_count
 
-        total_fare = sum(t.fare for t in completed if t.fare)
-        avg_fare = total_fare / len(completed) if completed else 0.0
-
-        # Calculate average duration in minutes
-        total_duration = 0.0
-        duration_count = 0
-        for t in completed:
-            if t.matched_at and t.completed_at:
-                duration = (t.completed_at - t.matched_at).total_seconds() / 60
-                total_duration += duration
-                duration_count += 1
-        avg_duration = total_duration / duration_count if duration_count > 0 else 0.0
-
-        # Calculate average wait time (request to pickup) in seconds
-        # This represents actual rider wait time from request to being picked up
-        total_wait = 0.0
-        wait_count = 0
-        for t in completed:
-            if t.requested_at and t.driver_arrived_at:
-                wait_seconds = (t.driver_arrived_at - t.requested_at).total_seconds()
-                total_wait += wait_seconds
-                wait_count += 1
-        avg_wait_seconds = total_wait / wait_count if wait_count > 0 else 0.0
-
-        # Calculate average pickup time (match to driver arrived) in seconds
-        total_pickup = 0.0
-        pickup_count = 0
-        for t in completed:
-            if t.matched_at and t.driver_arrived_at:
-                pickup_seconds = (t.driver_arrived_at - t.matched_at).total_seconds()
-                total_pickup += pickup_seconds
-                pickup_count += 1
-        avg_pickup_seconds = total_pickup / pickup_count if pickup_count > 0 else 0.0
+        avg_fare = total_fare / completed_count if completed_count > 0 else 0.0
+        avg_duration = duration_sum / duration_count if duration_count > 0 else 0.0
+        avg_wait_seconds = wait_sum / wait_count if wait_count > 0 else 0.0
+        avg_pickup_seconds = pickup_sum / pickup_count if pickup_count > 0 else 0.0
 
         return {
-            "completed_count": len(completed),
-            "cancelled_count": len(cancelled),
+            "completed_count": completed_count,
+            "cancelled_count": cancelled_count,
             "avg_fare": avg_fare,
             "avg_duration_minutes": avg_duration,
             "avg_wait_seconds": avg_wait_seconds,
@@ -310,6 +322,10 @@ class MatchingServer:
             logger.info("No valid drivers with locations found")
             return []
 
+        # Sort by haversine distance (already sorted from spatial index) and
+        # limit to top-N candidates to avoid unnecessary OSRM calls
+        valid_drivers = valid_drivers[: self._osrm_candidate_limit]
+
         # Fetch all routes in parallel
         async def fetch_route(
             driver: "DriverAgent",
@@ -351,6 +367,11 @@ class MatchingServer:
         min_eta = min(etas)
         max_eta = max(etas)
 
+        # Extract weights once before loop to avoid repeated attribute chain traversal
+        eta_weight = self._settings.matching.ranking_eta_weight
+        rating_weight = self._settings.matching.ranking_rating_weight
+        acceptance_weight = self._settings.matching.ranking_acceptance_weight
+
         scored = []
         for driver, eta in driver_eta_list:
             score = self._calculate_composite_score(
@@ -359,6 +380,9 @@ class MatchingServer:
                 acceptance_rate=driver.dna.acceptance_rate,
                 min_eta=min_eta,
                 max_eta=max_eta,
+                eta_weight=eta_weight,
+                rating_weight=rating_weight,
+                acceptance_weight=acceptance_weight,
             )
             scored.append((driver, eta, score))
 
@@ -372,6 +396,9 @@ class MatchingServer:
         acceptance_rate: float,
         min_eta: int,
         max_eta: int,
+        eta_weight: float,
+        rating_weight: float,
+        acceptance_weight: float,
     ) -> float:
         # Normalize ETA (lower is better, so invert)
         if max_eta == min_eta:
@@ -385,12 +412,11 @@ class MatchingServer:
         # Acceptance rate is already 0.0-1.0
         acceptance_normalized = acceptance_rate
 
-        # Composite score using configurable weights
-        weights = self._settings.matching
+        # Composite score using pre-extracted weights
         score: float = (
-            eta_normalized * weights.ranking_eta_weight
-            + rating_normalized * weights.ranking_rating_weight
-            + acceptance_normalized * weights.ranking_acceptance_weight
+            eta_normalized * eta_weight
+            + rating_normalized * rating_weight
+            + acceptance_normalized * acceptance_weight
         )
         return score
 
@@ -630,61 +656,58 @@ class MatchingServer:
             # Reserve this driver (prevents double-matching without changing status)
             self._reserved_drivers.add(driver_id)
 
+        trip.transition_to(TripState.OFFER_SENT)
+        self._offers_sent += 1
+        # Track offer in driver's statistics
+        driver.statistics.record_offer_received()
+        self._emit_offer_sent_event(trip, driver_id, offer_sequence, eta_seconds)
+
+        # For puppet drivers, store offer and wait for manual action via API
+        # Reservation stays active — puppet accept/reject handles release
+        if getattr(driver, "_is_puppet", False):
+            rider = (
+                self._registry_manager.get_rider(trip.rider_id) if self._registry_manager else None
+            )
+            rider_rating = rider.current_rating if rider else 5.0
+            self._pending_offers[driver_id] = {
+                "trip_id": trip.trip_id,
+                "surge_multiplier": trip.surge_multiplier,
+                "rider_rating": rider_rating,
+                "eta_seconds": eta_seconds,
+            }
+            # Return False to pause matching cycle - puppet will accept/reject via API
+            return False
+
+        # Regular drivers auto-decide based on DNA
         try:
-            trip.transition_to(TripState.OFFER_SENT)
-            self._offers_sent += 1
-            # Track offer in driver's statistics
-            driver.statistics.record_offer_received()
-            self._emit_offer_sent_event(trip, driver_id, offer_sequence, eta_seconds)
-
-            # For puppet drivers, store offer and wait for manual action via API
-            if getattr(driver, "_is_puppet", False):
-                rider = (
-                    self._registry_manager.get_rider(trip.rider_id)
-                    if self._registry_manager
-                    else None
-                )
-                rider_rating = rider.current_rating if rider else 5.0
-                self._pending_offers[driver_id] = {
-                    "trip_id": trip.trip_id,
-                    "surge_multiplier": trip.surge_multiplier,
-                    "rider_rating": rider_rating,
-                    "eta_seconds": eta_seconds,
-                }
-                # Return False to pause matching cycle - puppet will accept/reject via API
-                return False
-
-            # Regular drivers auto-decide based on DNA
             accepted: bool = self._notification_dispatch.send_driver_offer(
                 driver=driver,
                 trip=trip,
                 eta_seconds=eta_seconds,
             )
-
-            # Track acceptance/rejection (global and per-driver)
-            if accepted:
-                self._offers_accepted += 1
-                driver.statistics.record_offer_accepted()
-            else:
-                self._offers_rejected += 1
-                driver.statistics.record_offer_rejected()
-
-            # Release reservation regardless of accept/reject outcome
-            # For accepted: driver will be tracked via active_trip, not reservation
-            # For rejected: driver goes back to available pool
-            with self._state_lock:
-                self._reserved_drivers.discard(driver_id)
-                if not accepted:
-                    self._driver_index.update_driver_status(driver_id, "online")
-
-            return accepted
-
         except Exception:
             # Release reservation on error
             with self._state_lock:
                 self._reserved_drivers.discard(driver_id)
                 self._driver_index.update_driver_status(driver_id, "online")
             raise
+
+        # Track acceptance/rejection (global and per-driver)
+        if accepted:
+            self._offers_accepted += 1
+            driver.statistics.record_offer_accepted()
+        else:
+            self._offers_rejected += 1
+            driver.statistics.record_offer_rejected()
+
+        # Release reservation: accepted drivers are tracked via active_trip,
+        # rejected drivers go back to the available pool
+        with self._state_lock:
+            self._reserved_drivers.discard(driver_id)
+            if not accepted:
+                self._driver_index.update_driver_status(driver_id, "online")
+
+        return accepted
 
     def _format_timestamp(self) -> str:
         """Format current timestamp using simulated time if available."""
@@ -820,6 +843,14 @@ class MatchingServer:
             self._offers_accepted = 0
             self._offers_rejected = 0
             self._offers_expired = 0
+            # Reset trip stats accumulators
+            self._stats_total_fare = 0.0
+            self._stats_duration_sum = 0.0
+            self._stats_duration_count = 0
+            self._stats_wait_sum = 0.0
+            self._stats_wait_count = 0
+            self._stats_pickup_sum = 0.0
+            self._stats_pickup_count = 0
 
             # Clear the geospatial index
             if hasattr(self._driver_index, "clear"):
