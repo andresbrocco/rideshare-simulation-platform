@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import h3
 import pytest
 
@@ -30,11 +32,14 @@ class TestAddDriver:
         index.add_driver("driver_1", -23.55, -46.63, "online")
 
         assert "driver_1" in index._driver_locations
-        assert index._driver_locations["driver_1"] == (-23.55, -46.63)
+        lat, lon, cell = index._driver_locations["driver_1"]
+        assert lat == -23.55
+        assert lon == -46.63
         assert index._driver_status["driver_1"] == "online"
 
-        cell = h3.latlng_to_cell(-23.55, -46.63, 9)
-        assert "driver_1" in index._h3_cells[cell]
+        expected_cell = h3.latlng_to_cell(-23.55, -46.63, 9)
+        assert cell == expected_cell
+        assert "driver_1" in index._h3_cells[expected_cell]
 
     def test_add_multiple_drivers_same_cell(self, index):
         # Two drivers very close should be in same H3 cell
@@ -44,6 +49,13 @@ class TestAddDriver:
         cell = h3.latlng_to_cell(-23.5500, -46.6300, 9)
         assert "driver_1" in index._h3_cells[cell]
         assert "driver_2" in index._h3_cells[cell]
+
+    def test_add_driver_stores_h3_cell(self, index):
+        # Verify add_driver stores the h3 cell in the tuple
+        index.add_driver("driver_1", -23.55, -46.63, "online")
+
+        lat, lon, cell = index._driver_locations["driver_1"]
+        assert cell == h3.latlng_to_cell(-23.55, -46.63, 9)
 
 
 @pytest.mark.unit
@@ -56,7 +68,10 @@ class TestUpdateDriverLocation:
         index.update_driver_location("driver_1", -23.60, -46.70)
         new_cell = h3.latlng_to_cell(-23.60, -46.70, 9)
 
-        assert index._driver_locations["driver_1"] == (-23.60, -46.70)
+        lat, lon, stored_cell = index._driver_locations["driver_1"]
+        assert lat == -23.60
+        assert lon == -46.70
+        assert stored_cell == new_cell
 
         if old_cell != new_cell:
             assert "driver_1" not in index._h3_cells.get(old_cell, set())
@@ -70,7 +85,27 @@ class TestUpdateDriverLocation:
         index.update_driver_location("driver_1", -23.5501, -46.6301)
 
         assert "driver_1" in index._h3_cells[cell]
-        assert index._driver_locations["driver_1"] == (-23.5501, -46.6301)
+        lat, lon, stored_cell = index._driver_locations["driver_1"]
+        assert lat == -23.5501
+        assert lon == -46.6301
+
+    def test_update_driver_location_calls_latlng_to_cell_once_on_cell_change(self, index):
+        """update_driver_location() should call latlng_to_cell exactly once when the cell changes."""
+        index.add_driver("driver_1", -23.55, -46.63, "online")
+
+        with patch("h3.latlng_to_cell", wraps=h3.latlng_to_cell) as mock_h3:
+            # Move to a location that is in a different H3 cell
+            index.update_driver_location("driver_1", -23.60, -46.70)
+            # Should only call for the new location — old cell is read from the stored tuple
+            assert mock_h3.call_count == 1
+
+    def test_update_driver_location_calls_latlng_to_cell_once_same_cell(self, index):
+        """update_driver_location() should call latlng_to_cell exactly once even within same cell."""
+        index.add_driver("driver_1", -23.5500, -46.6300, "online")
+
+        with patch("h3.latlng_to_cell", wraps=h3.latlng_to_cell) as mock_h3:
+            index.update_driver_location("driver_1", -23.5501, -46.6301)
+            assert mock_h3.call_count == 1
 
 
 @pytest.mark.unit
@@ -118,23 +153,69 @@ class TestFindNearestDrivers:
         assert results == []
 
     def test_distance_sorting(self, index):
-        # Add drivers at different distances from query point
+        # Add drivers at different distances from query point — all within ~1.5km so the
+        # progressive ring expansion finds them all on the first pass (k=5 covers ~1.9km)
         query_lat, query_lon = -23.55, -46.63
 
-        index.add_driver("driver_5km", query_lat + 0.045, query_lon, "online")  # ~5km north
-        index.add_driver("driver_2km", query_lat + 0.018, query_lon, "online")  # ~2km north
+        index.add_driver("driver_500m", query_lat + 0.0045, query_lon, "online")  # ~500m north
         index.add_driver("driver_1km", query_lat + 0.009, query_lon, "online")  # ~1km north
+        index.add_driver("driver_1500m", query_lat + 0.0135, query_lon, "online")  # ~1.5km north
 
-        results = index.find_nearest_drivers(query_lat, query_lon, radius_km=10.0)
+        results = index.find_nearest_drivers(query_lat, query_lon, radius_km=3.0)
 
         assert len(results) == 3
-        assert results[0][0] == "driver_1km"
-        assert results[1][0] == "driver_2km"
-        assert results[2][0] == "driver_5km"
+        assert results[0][0] == "driver_500m"
+        assert results[1][0] == "driver_1km"
+        assert results[2][0] == "driver_1500m"
 
         # Verify distances are ascending
         distances = [r[1] for r in results]
         assert distances == sorted(distances)
+
+    def test_nearby_driver_found_on_first_ring(self, index):
+        """A driver very close to the query point should be found on k=5 without expansion."""
+        query_lat, query_lon = -23.55, -46.63
+        # Place a driver ~200m away — well within the first ring
+        index.add_driver("driver_nearby", query_lat + 0.002, query_lon, "online")
+
+        ring_counts: list[int] = []
+
+        original_grid_disk = h3.grid_disk
+
+        def tracking_grid_disk(cell: str, k: int) -> set[str]:
+            ring_counts.append(k)
+            return original_grid_disk(cell, k)
+
+        with patch("h3.grid_disk", side_effect=tracking_grid_disk):
+            results = index.find_nearest_drivers(query_lat, query_lon, radius_km=5.0)
+
+        assert len(results) == 1
+        assert results[0][0] == "driver_nearby"
+        # Should stop after the first ring expansion (k=5) since a candidate was found
+        assert len(ring_counts) == 1
+        assert ring_counts[0] == 5
+
+    def test_distant_driver_triggers_ring_expansion(self, index):
+        """A driver near the search boundary should cause the index to expand rings."""
+        query_lat, query_lon = -23.55, -46.63
+        # Place a driver ~8km away — requires expanding beyond k=5
+        index.add_driver("driver_distant", query_lat + 0.072, query_lon, "online")
+
+        ring_counts: list[int] = []
+
+        original_grid_disk = h3.grid_disk
+
+        def tracking_grid_disk(cell: str, k: int) -> set[str]:
+            ring_counts.append(k)
+            return original_grid_disk(cell, k)
+
+        with patch("h3.grid_disk", side_effect=tracking_grid_disk):
+            results = index.find_nearest_drivers(query_lat, query_lon, radius_km=10.0)
+
+        assert len(results) == 1
+        assert results[0][0] == "driver_distant"
+        # Must have expanded beyond the initial k=5
+        assert len(ring_counts) > 1
 
 
 @pytest.mark.unit
@@ -194,8 +275,7 @@ class TestH3CellBucketing:
 
         cells = set()
         for driver_id in ["driver_1", "driver_2", "driver_3"]:
-            lat, lon = index._driver_locations[driver_id]
-            cell = h3.latlng_to_cell(lat, lon, 9)
+            lat, lon, cell = index._driver_locations[driver_id]
             cells.add(cell)
 
         # At resolution 9, very nearby points should be in same or adjacent cells

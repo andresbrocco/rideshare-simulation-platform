@@ -11,7 +11,7 @@ class DriverGeospatialIndex:
     def __init__(self, h3_resolution: int = 9):
         self._h3_resolution = h3_resolution
         self._h3_cells: dict[str, set[str]] = {}
-        self._driver_locations: dict[str, tuple[float, float]] = {}
+        self._driver_locations: dict[str, tuple[float, float, str]] = {}
         self._driver_status: dict[str, str] = {}
         self._lock = threading.Lock()  # Thread safety for concurrent access
 
@@ -21,7 +21,7 @@ class DriverGeospatialIndex:
             if cell not in self._h3_cells:
                 self._h3_cells[cell] = set()
             self._h3_cells[cell].add(driver_id)
-            self._driver_locations[driver_id] = (lat, lon)
+            self._driver_locations[driver_id] = (lat, lon, cell)
             self._driver_status[driver_id] = status
 
     def update_driver_location(self, driver_id: str, lat: float, lon: float) -> None:
@@ -29,8 +29,7 @@ class DriverGeospatialIndex:
             if driver_id not in self._driver_locations:
                 return
 
-            old_lat, old_lon = self._driver_locations[driver_id]
-            old_cell = self._get_h3_cell(old_lat, old_lon)
+            _, _, old_cell = self._driver_locations[driver_id]
             new_cell = self._get_h3_cell(lat, lon)
 
             if old_cell != new_cell:
@@ -43,7 +42,7 @@ class DriverGeospatialIndex:
                     self._h3_cells[new_cell] = set()
                 self._h3_cells[new_cell].add(driver_id)
 
-            self._driver_locations[driver_id] = (lat, lon)
+            self._driver_locations[driver_id] = (lat, lon, new_cell)
 
     def update_driver_status(self, driver_id: str, status: str) -> None:
         with self._lock:
@@ -55,8 +54,7 @@ class DriverGeospatialIndex:
             if driver_id not in self._driver_locations:
                 return
 
-            lat, lon = self._driver_locations[driver_id]
-            cell = self._get_h3_cell(lat, lon)
+            _, _, cell = self._driver_locations[driver_id]
 
             if cell in self._h3_cells:
                 self._h3_cells[cell].discard(driver_id)
@@ -78,19 +76,34 @@ class DriverGeospatialIndex:
                 return []
 
             center_cell = self._get_h3_cell(lat, lon)
-            # k rings for coverage - resolution 9 has ~174m edge length
-            k = max(1, int(radius_km * 1000 / 174) + 1)
-            cells_to_check = h3.grid_disk(center_cell, k)
+            # Maximum k rings for full radius coverage at resolution 9 (~174m edge)
+            _max_k = max(1, int(radius_km * 1000 / 174) + 1)
 
-            candidates = []
-            for cell in cells_to_check:
-                if cell in self._h3_cells:
-                    for driver_id in self._h3_cells[cell]:
-                        if self._driver_status.get(driver_id) == status_filter:
-                            driver_lat, driver_lon = self._driver_locations[driver_id]
-                            distance = haversine_distance_km(lat, lon, driver_lat, driver_lon)
-                            if distance <= radius_km:
-                                candidates.append((driver_id, distance))
+            candidates: list[tuple[str, float]] = []
+            checked_cells: set[str] = set()
+
+            # Progressive ring expansion: start small, double outward only if needed
+            k = 5
+            while True:
+                current_k = min(k, _max_k)
+                ring_cells = set(h3.grid_disk(center_cell, current_k))
+                new_cells = ring_cells - checked_cells
+                checked_cells |= ring_cells
+
+                for cell in new_cells:
+                    if cell in self._h3_cells:
+                        for driver_id in self._h3_cells[cell]:
+                            if self._driver_status.get(driver_id) == status_filter:
+                                driver_lat, driver_lon, _ = self._driver_locations[driver_id]
+                                distance = haversine_distance_km(lat, lon, driver_lat, driver_lon)
+                                if distance <= radius_km:
+                                    candidates.append((driver_id, distance))
+
+                # Stop if we've reached the max search radius or found candidates
+                if current_k >= _max_k or candidates:
+                    break
+
+                k = k * 2
 
             candidates.sort(key=lambda x: x[1])
             return candidates
