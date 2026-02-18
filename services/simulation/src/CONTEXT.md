@@ -8,7 +8,7 @@ Root package for the rideshare simulation engine. Orchestrates a discrete-event 
 
 - **Owns**: Simulation lifecycle (start/stop/pause), agent spawning and behavior, trip state machine execution, matching logic, surge pricing calculation, event publishing (Kafka), state snapshots (Redis/SQLite)
 - **Delegates to**: OSRM for route calculations, Kafka for event streaming, Redis for real-time pub/sub, SQLite for persistence, frontend for visualization
-- **Does not handle**: Data transformation (delegated to Spark/DBT), long-term storage (delegated to lakehouse), business intelligence (delegated to Looker/Superset)
+- **Does not handle**: Data transformation (delegated to Spark/DBT), long-term storage (delegated to lakehouse), business intelligence (delegated to Superset)
 
 ## Key Concepts
 
