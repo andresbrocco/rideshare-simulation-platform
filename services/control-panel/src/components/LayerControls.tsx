@@ -15,21 +15,21 @@ interface LayerConfig {
 
 const LAYER_CONFIGS: LayerConfig[] = [
   // Driver layers
-  { key: 'onlineDrivers', label: 'Online', color: '#00FF00' },
-  { key: 'offlineDrivers', label: 'Offline', color: '#808080' },
-  { key: 'enRoutePickupDrivers', label: 'To Pickup', color: '#FFD700' },
-  { key: 'withPassengerDrivers', label: 'With Rider', color: '#0000FF' },
+  { key: 'onlineDrivers', label: 'Online', color: '#34D399' },
+  { key: 'offlineDrivers', label: 'Offline', color: '#6B7280' },
+  { key: 'enRoutePickupDrivers', label: 'To Pickup', color: '#F59E0B' },
+  { key: 'withPassengerDrivers', label: 'With Rider', color: '#3B82F6' },
   // Rider layers
-  { key: 'offlineRiders', label: 'Offline', color: '#C0C0C0' },
-  { key: 'waitingRiders', label: 'Waiting', color: '#FFA500' },
-  { key: 'matchedRiders', label: 'Matched', color: '#FFD700' },
-  { key: 'enRouteRiders', label: 'Driver En Route', color: '#87CEEB' },
-  { key: 'arrivedRiders', label: 'Driver Arrived', color: '#00FFFF' },
-  { key: 'inTransitRiders', label: 'In Transit', color: '#800080' },
+  { key: 'offlineRiders', label: 'Offline', color: '#9CA3AF' },
+  { key: 'waitingRiders', label: 'Waiting', color: '#F97316' },
+  { key: 'matchedRiders', label: 'Matched', color: '#F59E0B' },
+  { key: 'enRouteRiders', label: 'Driver En Route', color: '#FBBF24' },
+  { key: 'arrivedRiders', label: 'Driver Arrived', color: '#FDE047' },
+  { key: 'inTransitRiders', label: 'In Transit', color: '#3B82F6' },
   // Trip/Route layers
-  { key: 'pendingRoutes', label: 'Pending Routes', color: '#FFA500' },
-  { key: 'pickupRoutes', label: 'Pickup Routes', color: '#FF6496' },
-  { key: 'tripRoutes', label: 'Trip Routes', color: '#0064FF' },
+  { key: 'pendingRoutes', label: 'Pending Routes', color: '#FDBA74' },
+  { key: 'pickupRoutes', label: 'Pickup Routes', color: '#FCD34D' },
+  { key: 'tripRoutes', label: 'Trip Routes', color: '#60A5FA' },
   // Zone layers
   { key: 'zoneBoundaries', label: 'Zones', color: '#FFFFFF' },
   { key: 'surgeHeatmap', label: 'Surge', color: '#FFFF00' },

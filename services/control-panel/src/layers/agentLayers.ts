@@ -1,23 +1,9 @@
 import { IconLayer, PathLayer } from '@deck.gl/layers';
 import type { Driver, Rider, Trip, TripStateValue } from '../types/api';
 
-// Pre-colored icon URLs for deck.gl IconLayer (colored versions for reliable rendering)
-const CAR_ICONS = {
-  green: '/icons/car-green.png',
-  gray: '/icons/car-gray.png',
-  orange: '/icons/car-orange.png',
-  yellow: '/icons/car-yellow.png',
-  blue: '/icons/car-blue.png',
-};
-
-const PERSON_ICONS = {
-  gray: '/icons/person-gray.png',
-  orange: '/icons/person-orange.png',
-  yellow: '/icons/person-yellow.png',
-  lightblue: '/icons/person-lightblue.png',
-  cyan: '/icons/person-cyan.png',
-  purple: '/icons/person-purple.png',
-};
+// Monochrome white icons — deck.gl getColor tinting provides phase-based colors
+const CAR_ICON = '/icons/car.png';
+const PERSON_ICON = '/icons/person.png';
 
 // Checkered flag icon for trip destinations
 const FLAG_ICON = '/icons/flag-checkered.png';
@@ -31,29 +17,29 @@ const PERSON_ICON_MAPPING = {
   person: { x: 0, y: 0, width: 100, height: 100, anchorY: 50, anchorX: 50 },
 };
 
-// Driver status colors (for legend display)
+// Driver status colors by trip lifecycle phase
 export const DRIVER_COLORS: Record<string, [number, number, number]> = {
-  online: [0, 255, 0], // Green - available
-  offline: [128, 128, 128], // Gray - not active
-  en_route_pickup: [255, 215, 0], // Yellow/Gold - driving to pickup
-  en_route_destination: [0, 100, 255], // Blue - with passenger
+  online: [52, 211, 153], // Emerald - available
+  offline: [107, 114, 128], // Gray - idle
+  en_route_pickup: [245, 158, 11], // Amber - pickup phase
+  en_route_destination: [59, 130, 246], // Blue - in transit
 };
 
-// Rider colors based on trip state
+// Rider colors by trip lifecycle phase
 export const RIDER_TRIP_STATE_COLORS: Record<TripStateValue | 'default', [number, number, number]> =
   {
-    offline: [192, 192, 192], // Light gray - no active request
-    requested: [255, 165, 0], // Orange - trip requested
-    offer_sent: [255, 165, 0], // Orange - offer sent to driver
-    offer_expired: [255, 100, 100], // Light red - offer timed out
-    offer_rejected: [255, 100, 100], // Light red - driver rejected
-    matched: [255, 215, 0], // Yellow - driver assigned
-    driver_en_route: [135, 206, 235], // Light blue - driver on the way
-    driver_arrived: [0, 255, 255], // Cyan - driver at pickup
-    started: [128, 0, 128], // Purple - in vehicle
-    completed: [100, 200, 100], // Light green - trip completed
-    cancelled: [200, 100, 100], // Dark red - trip cancelled
-    default: [255, 165, 0], // Orange fallback
+    offline: [156, 163, 175], // Light gray - idle
+    requested: [249, 115, 22], // Orange - requesting
+    offer_sent: [249, 115, 22], // Orange - requesting
+    offer_expired: [248, 113, 113], // Red - terminal failure
+    offer_rejected: [248, 113, 113], // Red - terminal failure
+    matched: [245, 158, 11], // Amber - pickup phase
+    driver_en_route: [251, 191, 36], // Gold - pickup progression
+    driver_arrived: [253, 224, 71], // Yellow - pickup ready
+    started: [59, 130, 246], // Blue - in transit
+    completed: [74, 222, 128], // Green - terminal success
+    cancelled: [248, 113, 113], // Red - terminal failure
+    default: [249, 115, 22], // Orange fallback
   };
 
 // Helper to get rider color from trip state
@@ -176,7 +162,7 @@ export function createOnlineDriversLayer(drivers: Driver[], scaleFactor: number 
     autoHighlight: true,
     highlightColor: [255, 255, 255, 128],
 
-    iconAtlas: CAR_ICONS.green,
+    iconAtlas: CAR_ICON,
     iconMapping: CAR_ICON_MAPPING,
     getIcon: () => 'car',
 
@@ -186,6 +172,7 @@ export function createOnlineDriversLayer(drivers: Driver[], scaleFactor: number 
 
     getPosition: (d: Driver) => [d.longitude, d.latitude],
     getAngle: (d: Driver) => 90 - (d.heading ?? 0), // Rotate icon to face direction of travel
+    getColor: [52, 211, 153], // Emerald - available phase
   });
 }
 
@@ -196,7 +183,7 @@ export function createOfflineDriversLayer(drivers: Driver[], scaleFactor: number
     data: offlineDrivers,
     pickable: true,
 
-    iconAtlas: CAR_ICONS.gray,
+    iconAtlas: CAR_ICON,
     iconMapping: CAR_ICON_MAPPING,
     getIcon: () => 'car',
 
@@ -206,7 +193,7 @@ export function createOfflineDriversLayer(drivers: Driver[], scaleFactor: number
 
     getPosition: (d: Driver) => [d.longitude, d.latitude],
     getAngle: (d: Driver) => 90 - (d.heading ?? 0),
-    getColor: [255, 255, 255, 200], // Slightly transparent for offline
+    getColor: [107, 114, 128, 200], // Gray - idle phase, slightly transparent
   });
 }
 
@@ -219,7 +206,7 @@ export function createEnRoutePickupDriversLayer(drivers: Driver[], scaleFactor: 
     autoHighlight: true,
     highlightColor: [255, 255, 255, 128],
 
-    iconAtlas: CAR_ICONS.yellow,
+    iconAtlas: CAR_ICON,
     iconMapping: CAR_ICON_MAPPING,
     getIcon: () => 'car',
 
@@ -229,6 +216,7 @@ export function createEnRoutePickupDriversLayer(drivers: Driver[], scaleFactor: 
 
     getPosition: (d: Driver) => [d.longitude, d.latitude],
     getAngle: (d: Driver) => 90 - (d.heading ?? 0),
+    getColor: [245, 158, 11], // Amber - pickup phase
   });
 }
 
@@ -241,7 +229,7 @@ export function createWithPassengerDriversLayer(drivers: Driver[], scaleFactor: 
     autoHighlight: true,
     highlightColor: [255, 255, 255, 128],
 
-    iconAtlas: CAR_ICONS.blue,
+    iconAtlas: CAR_ICON,
     iconMapping: CAR_ICON_MAPPING,
     getIcon: () => 'car',
 
@@ -251,6 +239,7 @@ export function createWithPassengerDriversLayer(drivers: Driver[], scaleFactor: 
 
     getPosition: (d: Driver) => [d.longitude, d.latitude],
     getAngle: (d: Driver) => 90 - (d.heading ?? 0),
+    getColor: [59, 130, 246], // Blue - in transit phase
   });
 }
 
@@ -274,16 +263,16 @@ export function createOfflineRidersLayer(riders: Rider[], scaleFactor: number = 
     data: offlineRiders,
     pickable: true,
 
-    iconAtlas: PERSON_ICONS.gray,
+    iconAtlas: PERSON_ICON,
     iconMapping: PERSON_ICON_MAPPING,
     getIcon: () => 'person',
 
-    sizeMinPixels: 20, // DEBUG: Increased from 14
-    sizeMaxPixels: 40, // DEBUG: Increased from 28
-    getSize: 30 * scaleFactor, // DEBUG: Increased from 20
+    sizeMinPixels: 20,
+    sizeMaxPixels: 40,
+    getSize: 30 * scaleFactor,
 
     getPosition: (d: Rider) => [d.longitude, d.latitude],
-    getColor: [255, 255, 255, 255], // DEBUG: Full opacity to test visibility
+    getColor: [156, 163, 175], // Light gray - idle phase
   });
 }
 
@@ -299,7 +288,7 @@ export function createWaitingRidersLayer(riders: Rider[], scaleFactor: number = 
     autoHighlight: true,
     highlightColor: [255, 255, 255, 128],
 
-    iconAtlas: PERSON_ICONS.orange,
+    iconAtlas: PERSON_ICON,
     iconMapping: PERSON_ICON_MAPPING,
     getIcon: () => 'person',
 
@@ -308,6 +297,7 @@ export function createWaitingRidersLayer(riders: Rider[], scaleFactor: number = 
     getSize: 28 * scaleFactor,
 
     getPosition: (d: Rider) => [d.longitude, d.latitude],
+    getColor: [249, 115, 22], // Orange - requesting phase
   });
 }
 
@@ -321,7 +311,7 @@ export function createMatchedRidersLayer(riders: Rider[], scaleFactor: number = 
     autoHighlight: true,
     highlightColor: [255, 255, 255, 128],
 
-    iconAtlas: PERSON_ICONS.yellow,
+    iconAtlas: PERSON_ICON,
     iconMapping: PERSON_ICON_MAPPING,
     getIcon: () => 'person',
 
@@ -330,6 +320,7 @@ export function createMatchedRidersLayer(riders: Rider[], scaleFactor: number = 
     getSize: 28 * scaleFactor,
 
     getPosition: (d: Rider) => [d.longitude, d.latitude],
+    getColor: [245, 158, 11], // Amber - pickup phase
   });
 }
 
@@ -343,7 +334,7 @@ export function createEnRouteRidersLayer(riders: Rider[], scaleFactor: number = 
     autoHighlight: true,
     highlightColor: [255, 255, 255, 128],
 
-    iconAtlas: PERSON_ICONS.lightblue,
+    iconAtlas: PERSON_ICON,
     iconMapping: PERSON_ICON_MAPPING,
     getIcon: () => 'person',
 
@@ -352,6 +343,7 @@ export function createEnRouteRidersLayer(riders: Rider[], scaleFactor: number = 
     getSize: 28 * scaleFactor,
 
     getPosition: (d: Rider) => [d.longitude, d.latitude],
+    getColor: [251, 191, 36], // Gold - pickup progression
   });
 }
 
@@ -365,7 +357,7 @@ export function createArrivedRidersLayer(riders: Rider[], scaleFactor: number = 
     autoHighlight: true,
     highlightColor: [255, 255, 255, 128],
 
-    iconAtlas: PERSON_ICONS.cyan,
+    iconAtlas: PERSON_ICON,
     iconMapping: PERSON_ICON_MAPPING,
     getIcon: () => 'person',
 
@@ -374,6 +366,7 @@ export function createArrivedRidersLayer(riders: Rider[], scaleFactor: number = 
     getSize: 28 * scaleFactor,
 
     getPosition: (d: Rider) => [d.longitude, d.latitude],
+    getColor: [253, 224, 71], // Yellow - pickup ready
   });
 }
 
@@ -387,7 +380,7 @@ export function createInTransitRidersLayer(riders: Rider[], scaleFactor: number 
     autoHighlight: true,
     highlightColor: [255, 255, 255, 128],
 
-    iconAtlas: PERSON_ICONS.purple,
+    iconAtlas: PERSON_ICON,
     iconMapping: PERSON_ICON_MAPPING,
     getIcon: () => 'person',
 
@@ -396,6 +389,7 @@ export function createInTransitRidersLayer(riders: Rider[], scaleFactor: number 
     getSize: 28 * scaleFactor,
 
     getPosition: (d: Rider) => [d.longitude, d.latitude],
+    getColor: [59, 130, 246], // Blue - in transit phase
   });
 }
 
@@ -404,7 +398,7 @@ function swapCoordinates(route: [number, number][]): [number, number][] {
   return route.map(([lat, lon]) => [lon, lat]);
 }
 
-// Pending routes: Orange solid - trips waiting for driver match
+// Pending routes: Light orange solid - requesting phase
 export function createPendingRouteLayer(
   trips: Trip[],
   visible: boolean = true,
@@ -423,13 +417,13 @@ export function createPendingRouteLayer(
     visible,
     pickable: true,
     getPath: (d: Trip) => swapCoordinates(d.route),
-    getColor: [255, 165, 0], // Orange - matches "waiting" rider color
+    getColor: [253, 186, 116], // Light orange - requesting phase
     widthUnits: 'pixels',
     getWidth: 4 * scaleFactor,
   });
 }
 
-// Pickup routes: Pink/coral dashed - driver en route to pickup
+// Pickup routes: Gold dashed - pickup phase
 export function createPickupRouteLayer(trips: Trip[], visible: boolean = true) {
   const tripsWithPickupRoutes = trips.filter(
     (t) =>
@@ -444,14 +438,14 @@ export function createPickupRouteLayer(trips: Trip[], visible: boolean = true) {
     visible,
     pickable: true,
     getPath: (d: Trip) => swapCoordinates(d.pickup_route),
-    getColor: [255, 100, 150], // Pink/coral - distinct pickup route color
+    getColor: [252, 211, 77], // Gold - pickup phase
     widthUnits: 'pixels',
     getWidth: 4,
     getDashArray: [8, 4], // Dashed pattern
   });
 }
 
-// Trip routes: Blue solid - rider in vehicle (STARTED state only)
+// Trip routes: Light blue solid - in transit phase
 export function createPathLayer(trips: Trip[], visible: boolean = true) {
   const activeTrips = trips.filter((t) => t.route && t.route.length > 0 && t.status === 'started');
 
@@ -461,13 +455,13 @@ export function createPathLayer(trips: Trip[], visible: boolean = true) {
     visible,
     pickable: true,
     getPath: (d: Trip) => swapCoordinates(d.route),
-    getColor: [0, 100, 255], // Blue - matches driver with passenger color
+    getColor: [96, 165, 250], // Light blue - in transit phase
     widthUnits: 'pixels',
     getWidth: 5,
   });
 }
 
-// Completed pickup route trail: Faded pink/coral - portion already traveled
+// Completed pickup route trail: Faded gold - portion already traveled
 export function createCompletedPickupRouteLayer(
   trips: Trip[],
   visible: boolean = true,
@@ -504,13 +498,13 @@ export function createCompletedPickupRouteLayer(
     visible,
     pickable: false,
     getPath: (d: { path: [number, number][] }) => d.path,
-    getColor: [255, 100, 150, 80], // Faded pink/coral (~30% opacity)
+    getColor: [252, 211, 77, 80], // Faded gold (~30% opacity)
     widthUnits: 'pixels',
     getWidth: 4 * scaleFactor,
   });
 }
 
-// Remaining pickup route: Solid pink/coral dashed - portion still to travel
+// Remaining pickup route: Solid gold dashed - portion still to travel
 export function createRemainingPickupRouteLayer(
   trips: Trip[],
   visible: boolean = true,
@@ -543,14 +537,14 @@ export function createRemainingPickupRouteLayer(
     visible,
     pickable: true,
     getPath: (d: { path: [number, number][] }) => d.path,
-    getColor: [255, 100, 150], // Solid pink/coral
+    getColor: [252, 211, 77], // Solid gold - pickup phase
     widthUnits: 'pixels',
     getWidth: 4 * scaleFactor,
     getDashArray: [8, 4], // Dashed pattern
   });
 }
 
-// Completed trip route trail: Faded blue - portion already traveled
+// Completed trip route trail: Faded light blue - portion already traveled
 export function createCompletedTripRouteLayer(
   trips: Trip[],
   visible: boolean = true,
@@ -582,13 +576,13 @@ export function createCompletedTripRouteLayer(
     visible,
     pickable: false,
     getPath: (d: { path: [number, number][] }) => d.path,
-    getColor: [0, 100, 255, 80], // Faded blue (~30% opacity)
+    getColor: [96, 165, 250, 80], // Faded light blue (~30% opacity)
     widthUnits: 'pixels',
     getWidth: 5 * scaleFactor,
   });
 }
 
-// Remaining trip route: Solid blue - portion still to travel
+// Remaining trip route: Solid light blue - portion still to travel
 export function createRemainingTripRouteLayer(
   trips: Trip[],
   visible: boolean = true,
@@ -613,7 +607,7 @@ export function createRemainingTripRouteLayer(
     visible,
     pickable: true,
     getPath: (d: { path: [number, number][] }) => d.path,
-    getColor: [0, 100, 255], // Solid blue
+    getColor: [96, 165, 250], // Solid light blue - in transit phase
     widthUnits: 'pixels',
     getWidth: 5 * scaleFactor,
   });
@@ -647,20 +641,9 @@ export function createDestinationFlagLayer(
   });
 }
 
-// Helper to get driver icon based on status
-function getDriverIconUrl(status: string): string {
-  switch (status) {
-    case 'online':
-      return CAR_ICONS.green;
-    case 'offline':
-      return CAR_ICONS.gray;
-    case 'en_route_pickup':
-      return CAR_ICONS.yellow;
-    case 'en_route_destination':
-      return CAR_ICONS.blue;
-    default:
-      return CAR_ICONS.green;
-  }
+// All driver statuses use the same monochrome icon, tinted via getColor
+function getDriverIconUrl(): string {
+  return CAR_ICON;
 }
 
 export function createDriverLayer(drivers: Driver[], scaleFactor: number = 1) {
@@ -681,7 +664,7 @@ export function createDriverLayer(drivers: Driver[], scaleFactor: number = 1) {
           data: group,
           pickable: true,
 
-          iconAtlas: getDriverIconUrl(status),
+          iconAtlas: getDriverIconUrl(),
           iconMapping: CAR_ICON_MAPPING,
           getIcon: () => 'car',
 
@@ -691,6 +674,7 @@ export function createDriverLayer(drivers: Driver[], scaleFactor: number = 1) {
 
           getPosition: (d: Driver) => [d.longitude, d.latitude],
           getAngle: (d: Driver) => 90 - (d.heading ?? 0),
+          getColor: DRIVER_COLORS[status] || DRIVER_COLORS.online,
         })
       );
     }
@@ -699,25 +683,9 @@ export function createDriverLayer(drivers: Driver[], scaleFactor: number = 1) {
   return layers;
 }
 
-// Helper to get rider icon based on trip state
-function getRiderIconUrl(tripState: string | undefined): string {
-  switch (tripState) {
-    case 'offline':
-      return PERSON_ICONS.gray;
-    case 'requested':
-    case 'offer_sent':
-      return PERSON_ICONS.orange;
-    case 'matched':
-      return PERSON_ICONS.yellow;
-    case 'driver_en_route':
-      return PERSON_ICONS.lightblue;
-    case 'driver_arrived':
-      return PERSON_ICONS.cyan;
-    case 'started':
-      return PERSON_ICONS.purple;
-    default:
-      return PERSON_ICONS.gray;
-  }
+// All rider states use the same monochrome icon, tinted via getColor
+function getRiderIconUrl(): string {
+  return PERSON_ICON;
 }
 
 export function createRiderLayer(riders: Rider[], scaleFactor: number = 1) {
@@ -739,7 +707,7 @@ export function createRiderLayer(riders: Rider[], scaleFactor: number = 1) {
           data: group,
           pickable: true,
 
-          iconAtlas: getRiderIconUrl(state),
+          iconAtlas: getRiderIconUrl(),
           iconMapping: PERSON_ICON_MAPPING,
           getIcon: () => 'person',
 
@@ -748,6 +716,8 @@ export function createRiderLayer(riders: Rider[], scaleFactor: number = 1) {
           getSize: 18 * scaleFactor,
 
           getPosition: (d: Rider) => [d.longitude, d.latitude],
+          getColor:
+            RIDER_TRIP_STATE_COLORS[state as TripStateValue] || RIDER_TRIP_STATE_COLORS.default,
         })
       );
     }
