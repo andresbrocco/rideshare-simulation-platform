@@ -167,22 +167,23 @@ def _generate_findings(results: dict[str, Any], config: TestConfig) -> list[Find
         if not samples:
             continue
 
-        # Check for OOM events
-        oom_events = scenario.get("oom_events", [])
-        for oom in oom_events:
-            container = oom.get("container", "unknown")
-            findings.append(
-                Finding(
-                    severity=Severity.CRITICAL,
-                    category=FindingCategory.OOM_EVENT,
-                    container=container,
-                    message=f"OOM event detected in {container}",
-                    metric_value=0,
-                    threshold=0,
-                    scenario_name=scenario_name,
-                    recommendation="Increase memory limit or optimize memory usage",
+        # Check for OOM events (stress test OOM is an expected stop condition)
+        if scenario_name != "stress_test":
+            oom_events = scenario.get("oom_events", [])
+            for oom in oom_events:
+                container = oom.get("container", "unknown")
+                findings.append(
+                    Finding(
+                        severity=Severity.CRITICAL,
+                        category=FindingCategory.OOM_EVENT,
+                        container=container,
+                        message=f"OOM event detected in {container}",
+                        metric_value=0,
+                        threshold=0,
+                        scenario_name=scenario_name,
+                        recommendation="Increase memory limit or optimize memory usage",
+                    )
                 )
-            )
 
         # Calculate stats for all containers
         all_stats = calculate_all_container_stats(samples)
@@ -426,12 +427,16 @@ def _calculate_verdict(
     """
     scenarios = results.get("scenarios", [])
 
-    # Count scenarios
-    scenarios_passed = sum(1 for s in scenarios if not s.get("aborted", False))
-    scenarios_failed = len(scenarios) - scenarios_passed
+    # Stress test OOM/abort is an expected stop condition, not a failure.
+    # Exclude it from pass/fail and OOM tallies.
+    non_stress = [s for s in scenarios if s.get("scenario_name") != "stress_test"]
 
-    # Count OOM events
-    total_oom = sum(len(s.get("oom_events", [])) for s in scenarios)
+    # Count scenarios (stress excluded — its abort is by design)
+    scenarios_passed = sum(1 for s in non_stress if not s.get("aborted", False))
+    scenarios_failed = len(non_stress) - scenarios_passed
+
+    # Count OOM events (stress excluded — OOM is a valid stop condition)
+    total_oom = sum(len(s.get("oom_events", [])) for s in non_stress)
 
     # Determine overall status
     critical_count = sum(1 for f in findings if f.severity == Severity.CRITICAL)
@@ -600,6 +605,12 @@ def run(
     else:
         selected = set(_FULL_PIPELINE_ORDER)
 
+    # Validate: agent count must be even (split equally between drivers and riders)
+    if agents is not None and agents % 2 != 0:
+        raise click.UsageError(
+            f"--agents must be even (split equally between drivers and riders), got {agents}"
+        )
+
     # Validate: speed/duration without stress require --agents
     needs_agents = selected & {"speed", "duration"}
     has_stress = "stress" in selected
@@ -733,8 +744,8 @@ def run(
                             aborted = True
                             abort_reason = "stress_test_oom"
                             break
-                        drivers_queued = stress_metadata.get("drivers_queued", 0)
-                        if drivers_queued < 2:
+                        total_agents_queued = stress_metadata.get("total_agents_queued", 0)
+                        if total_agents_queued < 4:
                             console.print(
                                 "[red]Stress test did not queue enough agents. "
                                 "Cannot derive agent count.[/red]"
@@ -742,15 +753,17 @@ def run(
                             aborted = True
                             abort_reason = "stress_test_insufficient_agents"
                             break
-                        agent_count = drivers_queued // 2
+                        agent_count = total_agents_queued // 2
+                        # Round down to nearest even number
+                        agent_count -= agent_count % 2
                         console.print(
                             f"\n[cyan]Derived agent count: {agent_count} "
-                            f"(half of {drivers_queued} from stress test)[/cyan]\n"
+                            f"(half of {total_agents_queued} total from stress test)[/cyan]\n"
                         )
                         results.setdefault("derived_config", {}).update(
                             {
                                 "duration_agent_count": agent_count,
-                                "stress_drivers_queued": drivers_queued,
+                                "total_agents_queued": total_agents_queued,
                             }
                         )
                     else:
@@ -1031,15 +1044,16 @@ def _print_summary(results: dict[str, Any], verdict: TestVerdict | None = None) 
             console.print(f"  [red]OOM Events: {verdict.total_oom_events}[/red]")
     else:
         scenarios = results.get("scenarios", [])
-        passed = sum(1 for s in scenarios if not s.get("aborted", False))
-        failed = len(scenarios) - passed
+        non_stress = [s for s in scenarios if s.get("scenario_name") != "stress_test"]
+        passed = sum(1 for s in non_stress if not s.get("aborted", False))
+        failed = len(non_stress) - passed
 
         console.print(f"\nTotal scenarios: {len(scenarios)}")
         console.print(f"  [green]Passed: {passed}[/green]")
         if failed > 0:
             console.print(f"  [red]Failed/Aborted: {failed}[/red]")
 
-        total_oom = sum(len(s.get("oom_events", [])) for s in scenarios)
+        total_oom = sum(len(s.get("oom_events", [])) for s in non_stress)
         if total_oom > 0:
             console.print(f"  [red]OOM Events: {total_oom}[/red]")
 
@@ -1100,11 +1114,11 @@ def _print_summary(results: dict[str, Any], verdict: TestVerdict | None = None) 
     if derived_config:
         console.print("\n[bold]Derived Configuration:[/bold]")
         duration_agents = derived_config.get("duration_agent_count")
-        stress_drivers = derived_config.get("stress_drivers_queued")
-        if duration_agents and stress_drivers:
+        total_queued = derived_config.get("total_agents_queued")
+        if duration_agents and total_queued:
             console.print(
                 f"  Duration test agents: {duration_agents} "
-                f"(half of {stress_drivers} from stress test)"
+                f"(half of {total_queued} total from stress test)"
             )
         duration_speed = derived_config.get("duration_speed_multiplier")
         if duration_speed and duration_agents:

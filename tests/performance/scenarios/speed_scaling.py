@@ -37,7 +37,7 @@ class SpeedScalingScenario(BaseScenario):
         """Initialize speed scaling scenario.
 
         Args:
-            agent_count: Fixed agent count used for every step (from stress test).
+            agent_count: Total agent count (split equally between drivers and riders).
             *args: Positional arguments passed to BaseScenario.
             **kwargs: Keyword arguments passed to BaseScenario.
         """
@@ -154,9 +154,13 @@ class SpeedScalingScenario(BaseScenario):
         except Exception as e:
             console.print(f"[yellow]Start response: {e}[/yellow]")
 
-        # Queue agents
-        console.print(f"[cyan]Queuing {agent_count} drivers + {agent_count} riders...[/cyan]")
-        remaining = agent_count
+        # Queue agents (agent_count is total; split equally between drivers and riders)
+        per_type = agent_count // 2
+        console.print(
+            f"[cyan]Queuing {per_type} drivers + {per_type} riders "
+            f"({agent_count} total)...[/cyan]"
+        )
+        remaining = per_type
         while remaining > 0:
             batch = min(remaining, 100)
             try:
@@ -165,7 +169,7 @@ class SpeedScalingScenario(BaseScenario):
                 console.print(f"[yellow]Driver queue failed: {e}[/yellow]")
             remaining -= batch
 
-        remaining = agent_count
+        remaining = per_type
         while remaining > 0:
             batch = min(remaining, 2000)
             try:

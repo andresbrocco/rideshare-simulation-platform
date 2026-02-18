@@ -39,20 +39,23 @@ class DurationLeakScenario(BaseScenario):
         """Initialize duration/leak scenario.
 
         Args:
-            agent_count: Number of drivers/riders to spawn (derived from stress test).
+            agent_count: Total agents to spawn (split equally between drivers and riders).
             speed_multiplier: Simulation speed multiplier (derived from speed scaling test).
             *args: Positional arguments passed to BaseScenario.
             **kwargs: Keyword arguments passed to BaseScenario.
 
         Raises:
             ValueError: If agent_count is less than 2.
+            ValueError: If agent_count is odd.
             ValueError: If speed_multiplier is less than 1.
         """
         super().__init__(*args, **kwargs)
         if agent_count < 2:
+            raise ValueError(f"agent_count must be at least 2, got {agent_count}")
+        if agent_count % 2 != 0:
             raise ValueError(
-                f"agent_count must be at least 2, got {agent_count} "
-                "(derived from stress test drivers_queued // 2)"
+                f"agent_count must be even (split equally between drivers and riders), "
+                f"got {agent_count}"
             )
         if speed_multiplier < 1:
             raise ValueError(f"speed_multiplier must be at least 1, got {speed_multiplier}")
@@ -84,9 +87,9 @@ class DurationLeakScenario(BaseScenario):
             "active_minutes": self.active_minutes,
             "cooldown_minutes": self.cooldown_minutes,
             "drain_timeout_seconds": self.drain_timeout,
-            "drivers": self.agent_count,
-            "riders": self.agent_count,
-            "agent_count_source": "stress_test_drivers_queued_half",
+            "drivers": self.agent_count // 2,
+            "riders": self.agent_count // 2,
+            "agent_count_source": "stress_test_total_agents_half",
             "speed_multiplier": self.speed_multiplier,
             "speed_source": "speed_scaling_max_reliable",
         }
@@ -111,8 +114,9 @@ class DurationLeakScenario(BaseScenario):
             yield {"phase": "speed_set", "speed_multiplier": self.speed_multiplier}
 
         # Queue drivers (API limits to 100 per request, so batch if needed)
-        console.print(f"[cyan]Queuing {self.agent_count} drivers (mode=immediate)...[/cyan]")
-        remaining_drivers = self.agent_count
+        per_type = self.agent_count // 2
+        console.print(f"[cyan]Queuing {per_type} drivers (mode=immediate)...[/cyan]")
+        remaining_drivers = per_type
         while remaining_drivers > 0:
             batch = min(remaining_drivers, 100)
             self.api_client.queue_drivers(batch)
@@ -120,8 +124,8 @@ class DurationLeakScenario(BaseScenario):
         yield {"phase": "drivers_queued"}
 
         # Queue riders (API limits to 2000 per request, so batch if needed)
-        console.print(f"[cyan]Queuing {self.agent_count} riders (mode=immediate)...[/cyan]")
-        remaining_riders = self.agent_count
+        console.print(f"[cyan]Queuing {per_type} riders (mode=immediate)...[/cyan]")
+        remaining_riders = per_type
         while remaining_riders > 0:
             batch = min(remaining_riders, 2000)
             self.api_client.queue_riders(batch)
