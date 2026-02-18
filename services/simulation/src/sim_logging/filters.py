@@ -12,8 +12,12 @@ class PIIFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         if isinstance(record.msg, str):
-            record.msg = self.EMAIL_PATTERN.sub("[EMAIL]", record.msg)
-            record.msg = self.PHONE_PATTERN.sub("[PHONE]", record.msg)
+            msg = record.msg
+            if "@" in msg:
+                msg = self.EMAIL_PATTERN.sub("[EMAIL]", msg)
+            if any(c.isdigit() for c in msg):
+                msg = self.PHONE_PATTERN.sub("[PHONE]", msg)
+            record.msg = msg
         return True
 
 

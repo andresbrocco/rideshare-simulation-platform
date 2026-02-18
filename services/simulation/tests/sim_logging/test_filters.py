@@ -1,6 +1,7 @@
 """Tests for logging filters."""
 
 import logging
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -58,6 +59,41 @@ class TestPIIFilter:
         assert "[PHONE]" in record.msg
         assert "john@example.com" not in record.msg
         assert "555-123-4567" not in record.msg
+
+    def test_pii_precheck_skips_email_regex_for_non_pii(self, pii_filter, make_record):
+        """Verify email regex is skipped when no '@' in message."""
+        record = make_record("Driver online: driver-abc")
+        mock_pattern = MagicMock()
+        with patch.object(PIIFilter, "EMAIL_PATTERN", mock_pattern):
+            pii_filter.filter(record)
+            mock_pattern.sub.assert_not_called()
+
+    def test_pii_precheck_skips_phone_regex_for_no_digits(self, pii_filter, make_record):
+        """Verify phone regex is skipped when no digits in message."""
+        record = make_record("Engine started successfully")
+        mock_pattern = MagicMock()
+        with patch.object(PIIFilter, "PHONE_PATTERN", mock_pattern):
+            pii_filter.filter(record)
+            mock_pattern.sub.assert_not_called()
+
+    def test_pii_precheck_runs_email_regex_when_at_present(self, pii_filter, make_record):
+        """Verify email regex runs when '@' is in message."""
+        record = make_record("contact: user@example.com")
+        pii_filter.filter(record)
+        assert "[EMAIL]" in record.msg
+
+    def test_pii_precheck_runs_phone_regex_when_digits_present(self, pii_filter, make_record):
+        """Verify phone regex runs when digits are in message."""
+        record = make_record("call 555-123-4567")
+        pii_filter.filter(record)
+        assert "[PHONE]" in record.msg
+
+    def test_pii_filter_preserves_non_pii_message(self, pii_filter, make_record):
+        """Verify non-PII messages pass through unchanged."""
+        original = "Driver online: driver-abc"
+        record = make_record(original)
+        pii_filter.filter(record)
+        assert record.msg == original
 
 
 @pytest.mark.unit

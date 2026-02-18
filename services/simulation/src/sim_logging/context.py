@@ -22,7 +22,8 @@ class LogContext:
     def get(cls) -> dict[str, Any]:
         if not hasattr(cls._local, "context"):
             cls._local.context = {}
-        return dict(cls._local.context)
+        ctx: dict[str, Any] = cls._local.context
+        return ctx
 
     @classmethod
     def clear(cls) -> None:
@@ -41,21 +42,15 @@ class ContextFilter(logging.Filter):
 
 @contextmanager
 def log_context(**kwargs: Any) -> Iterator[None]:
-    """Context manager that sets logging context fields."""
+    """Context manager that sets logging context fields.
+
+    Fields are injected into log records via ContextFilter, which must
+    be attached to the handler (see setup_logging).
+    """
     LogContext.set(**kwargs)
-    old_factory = logging.getLogRecordFactory()
-
-    def record_factory(*args: Any, **factory_kwargs: Any) -> logging.LogRecord:
-        record = old_factory(*args, **factory_kwargs)
-        for key, value in LogContext.get().items():
-            setattr(record, key, value)
-        return record
-
-    logging.setLogRecordFactory(record_factory)
     try:
         yield
     finally:
-        logging.setLogRecordFactory(old_factory)
         LogContext.clear()
 
 

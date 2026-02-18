@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections import Counter
 from typing import TYPE_CHECKING, Any
 
 from trip import TripState
@@ -161,18 +162,9 @@ class StateSnapshotManager:
 
         current_time = engine.current_time() if callable(engine.current_time) else None
 
-        # Compute detailed driver counts from snapshot data
-        drivers_offline = sum(1 for d in drivers if d.get("status") == "offline")
-        drivers_online = sum(1 for d in drivers if d.get("status") == "online")
-        drivers_en_route_pickup = sum(1 for d in drivers if d.get("status") == "en_route_pickup")
-        drivers_en_route_destination = sum(
-            1 for d in drivers if d.get("status") == "en_route_destination"
-        )
-
-        # Compute detailed rider counts from snapshot data
-        riders_offline = sum(1 for r in riders if r.get("status") == "offline")
-        riders_waiting = sum(1 for r in riders if r.get("status") == "waiting")
-        riders_in_trip = sum(1 for r in riders if r.get("status") == "in_trip")
+        # Compute detailed driver/rider counts with single Counter pass each
+        driver_counts = Counter(d.get("status") for d in drivers)
+        rider_counts = Counter(r.get("status") for r in riders)
 
         return {
             "drivers": drivers,
@@ -184,14 +176,14 @@ class StateSnapshotManager:
                 "speed_multiplier": engine.speed_multiplier,
                 "current_time": current_time.isoformat() if current_time else None,
                 "drivers_total": len(drivers),
-                "drivers_offline": drivers_offline,
-                "drivers_online": drivers_online,
-                "drivers_en_route_pickup": drivers_en_route_pickup,
-                "drivers_en_route_destination": drivers_en_route_destination,
+                "drivers_offline": driver_counts["offline"],
+                "drivers_online": driver_counts["online"],
+                "drivers_en_route_pickup": driver_counts["en_route_pickup"],
+                "drivers_en_route_destination": driver_counts["en_route_destination"],
                 "riders_total": len(riders),
-                "riders_offline": riders_offline,
-                "riders_waiting": riders_waiting,
-                "riders_in_trip": riders_in_trip,
+                "riders_offline": rider_counts["offline"],
+                "riders_waiting": rider_counts["waiting"],
+                "riders_in_trip": rider_counts["in_trip"],
                 "active_trips_count": len(trips),
                 "uptime_seconds": engine._env.now if hasattr(engine, "_env") else 0,
             },
