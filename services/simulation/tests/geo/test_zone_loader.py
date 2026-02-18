@@ -219,3 +219,43 @@ class TestZoneLoader:
 
             assert min_lon <= zone.centroid[0] <= max_lon
             assert min_lat <= zone.centroid[1] <= max_lat
+
+
+@pytest.mark.unit
+class TestZoneLoaderSpatialIndex:
+    def test_polygons_pre_built_for_all_zones(self, sample_zones_path):
+        loader = ZoneLoader(sample_zones_path)
+        zones = loader.get_all_zones()
+
+        assert len(loader._polygons) == len(zones)
+        for zone in zones:
+            assert zone.zone_id in loader._polygons
+
+    def test_strtree_is_populated(self, sample_zones_path):
+        loader = ZoneLoader(sample_zones_path)
+
+        assert loader._strtree is not None
+        assert len(loader._strtree_zone_ids) == len(loader.get_all_zones())
+
+    def test_find_zone_returns_correct_zone(self, sample_zones_path):
+        loader = ZoneLoader(sample_zones_path)
+
+        # PIN zone spans lon [-46.72, -46.68], lat [-23.59, -23.55]
+        # Center of PIN zone
+        result = loader.find_zone_for_location(-23.57, -46.70)
+        assert result == "PIN"
+
+    def test_find_zone_for_bela_vista(self, sample_zones_path):
+        loader = ZoneLoader(sample_zones_path)
+
+        # BVI zone spans lon [-46.68, -46.64], lat [-23.58, -23.53]
+        result = loader.find_zone_for_location(-23.555, -46.66)
+        assert result == "BVI"
+
+    def test_centroid_fallback_for_point_outside_all_zones(self, sample_zones_path):
+        loader = ZoneLoader(sample_zones_path)
+
+        # A point far from all zones — should fall back to nearest centroid, not None
+        result = loader.find_zone_for_location(-24.0, -47.5)
+        assert result is not None
+        assert result in {z.zone_id for z in loader.get_all_zones()}

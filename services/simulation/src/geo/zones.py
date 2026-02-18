@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 from shapely.geometry import Point, Polygon
+from shapely.strtree import STRtree
 
 from geo.distance import haversine_distance_km
 
@@ -24,7 +25,11 @@ class ZoneLoader:
     def __init__(self, geojson_path: Path | str):
         self.geojson_path = Path(geojson_path)
         self._zones: dict[str, Zone] = {}
+        self._polygons: dict[str, Polygon] = {}
+        self._strtree: STRtree | None = None
+        self._strtree_zone_ids: list[str] = []
         self._load_zones()
+        self._build_spatial_index()
 
     def _load_zones(self) -> None:
         if not self.geojson_path.exists():
@@ -52,6 +57,13 @@ class ZoneLoader:
                 self._zones[zone.zone_id] = zone
 
         logger.info(f"Loaded {len(self._zones)} zones from {self.geojson_path}")
+
+    def _build_spatial_index(self) -> None:
+        self._strtree_zone_ids = list(self._zones.keys())
+        for zone_id in self._strtree_zone_ids:
+            self._polygons[zone_id] = Polygon(self._zones[zone_id].geometry)
+        if self._strtree_zone_ids:
+            self._strtree = STRtree([self._polygons[zid] for zid in self._strtree_zone_ids])
 
     @staticmethod
     def _parse_feature(feature: dict[str, Any]) -> Zone | None:
@@ -123,18 +135,15 @@ class ZoneLoader:
             Zone ID if found, otherwise falls back to nearest centroid.
             Returns None if no zones are loaded.
         """
-        if not self._zones:
+        if not self._zones or self._strtree is None:
             return None
 
         point = Point(lon, lat)  # Shapely uses (x, y) = (lon, lat)
 
-        # First try exact point-in-polygon match
-        for zone in self._zones.values():
-            polygon = Polygon(zone.geometry)
-            if polygon.contains(point):
-                return zone.zone_id
+        indices = self._strtree.query(point, predicate="contains")
+        if len(indices) > 0:
+            return self._strtree_zone_ids[int(indices[0])]
 
-        # Fallback: find nearest centroid
         return self._find_nearest_zone_by_centroid(lat, lon)
 
     def _find_nearest_zone_by_centroid(self, lat: float, lon: float) -> str | None:
