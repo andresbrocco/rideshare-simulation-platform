@@ -2,9 +2,12 @@
 """Performance testing CLI runner.
 
 Usage:
-    ./venv/bin/python tests/performance/runner.py run      # Run all 3 scenarios
-    ./venv/bin/python tests/performance/runner.py check    # Service status
-    ./venv/bin/python tests/performance/runner.py analyze <file>  # Re-analyze
+    ./venv/bin/python -m tests.performance run              # Full 4-scenario pipeline
+    ./venv/bin/python -m tests.performance run -s baseline   # Only baseline
+    ./venv/bin/python -m tests.performance run -s stress -s speed  # Stress + speed
+    ./venv/bin/python -m tests.performance run -s duration --agents 50 --speed 4
+    ./venv/bin/python -m tests.performance check            # Service status
+    ./venv/bin/python -m tests.performance analyze <file>   # Re-analyze
 """
 
 import json
@@ -39,6 +42,15 @@ from .scenarios.speed_scaling import SpeedScalingScenario
 from .scenarios.stress_test import StressTestScenario
 
 console = Console()
+
+SCENARIO_REGISTRY: dict[str, type[BaseScenario]] = {
+    "baseline": BaselineScenario,
+    "stress": StressTestScenario,
+    "speed": SpeedScalingScenario,
+    "duration": DurationLeakScenario,
+}
+VALID_SCENARIO_NAMES: tuple[str, ...] = tuple(SCENARIO_REGISTRY.keys())
+_FULL_PIPELINE_ORDER: tuple[str, ...] = ("baseline", "stress", "speed", "duration")
 
 
 def create_test_config() -> TestConfig:
@@ -469,16 +481,154 @@ def cli() -> None:
 
 
 @cli.command()
-def run() -> None:
-    """Run all performance test scenarios in sequence.
+@click.option(
+    "--scenario",
+    "-s",
+    "scenarios",
+    type=click.Choice(VALID_SCENARIO_NAMES, case_sensitive=False),
+    multiple=True,
+    help="Scenario(s) to run. Omit for full pipeline. Repeatable.",
+)
+@click.option(
+    "--agents",
+    "-a",
+    type=click.IntRange(min=2),
+    default=None,
+    help="Manual agent count for speed/duration (skips stress derivation).",
+)
+@click.option(
+    "--speed",
+    "-x",
+    "speed_multiplier",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Manual speed multiplier for duration (default: 1 when not derived).",
+)
+@click.option(
+    "--baseline-seconds",
+    type=click.IntRange(min=5),
+    default=None,
+    help="Override baseline_duration_seconds.",
+)
+@click.option(
+    "--duration-minutes",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Override duration_active_minutes.",
+)
+@click.option(
+    "--cooldown-minutes",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Override duration_cooldown_minutes.",
+)
+@click.option(
+    "--stress-max-minutes",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Override stress_max_duration_minutes.",
+)
+@click.option(
+    "--speed-step-minutes",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Override speed_scaling_step_duration_minutes.",
+)
+@click.option(
+    "--speed-max-multiplier",
+    type=click.IntRange(min=2),
+    default=None,
+    help="Override speed_scaling_max_multiplier.",
+)
+def run(
+    scenarios: tuple[str, ...],
+    agents: int | None,
+    speed_multiplier: int | None,
+    baseline_seconds: int | None,
+    duration_minutes: int | None,
+    cooldown_minutes: int | None,
+    stress_max_minutes: int | None,
+    speed_step_minutes: int | None,
+    speed_max_multiplier: int | None,
+) -> None:
+    """Run performance test scenarios.
 
-    Executes four scenarios in order:
-    1. Baseline - Measure idle resource usage
-    2. Stress Test - Find maximum sustainable agent count
-    3. Speed Scaling - Double speed multiplier each step until threshold
-    4. Duration/Leak - 3-phase lifecycle at best proven speed
+    \b
+    With no flags the full pipeline runs in order:
+      1. Baseline  - idle resource usage
+      2. Stress    - find max sustainable agent count
+      3. Speed     - double speed multiplier each step
+      4. Duration  - 3-phase lifecycle at proven speed
+    The stress result derives agent_count for speed/duration, and the
+    speed result derives speed_multiplier for duration.
+
+    \b
+    Select individual scenarios with -s (repeatable). Order is always
+    canonical (baseline -> stress -> speed -> duration) regardless of
+    flag order. When speed or duration are selected without stress,
+    --agents is required.
+
+    \b
+    Examples:
+      # Full pipeline (default)
+      run
+
+    \b
+      # Only baseline, 10-second measurement
+      run -s baseline --baseline-seconds 10
+
+    \b
+      # Stress test with 15-minute cap
+      run -s stress --stress-max-minutes 15
+
+    \b
+      # Speed scaling with manual agent count
+      run -s speed --agents 50
+
+    \b
+      # Duration test with explicit parameters
+      run -s duration --agents 50 --speed 4 --duration-minutes 10
+
+    \b
+      # Stress + speed (agents derived from stress)
+      run -s stress -s speed
     """
+    # Determine which scenarios to run in canonical order
+    if scenarios:
+        selected = set(scenarios)
+    else:
+        selected = set(_FULL_PIPELINE_ORDER)
+
+    # Validate: speed/duration without stress require --agents
+    needs_agents = selected & {"speed", "duration"}
+    has_stress = "stress" in selected
+    if needs_agents and not has_stress and agents is None:
+        names = " and ".join(sorted(needs_agents))
+        raise click.UsageError(
+            f"--agents is required when running {names} without stress.\n"
+            f"  Example: run -s {sorted(needs_agents)[0]} --agents 50"
+        )
+
+    # Build ordered list of scenarios to run
+    ordered = [s for s in _FULL_PIPELINE_ORDER if s in selected]
+    total_steps = len(ordered)
+
     config = create_test_config()
+
+    # Apply config overrides
+    if baseline_seconds is not None:
+        config.scenarios.baseline_duration_seconds = baseline_seconds
+    if duration_minutes is not None:
+        config.scenarios.duration_active_minutes = duration_minutes
+    if cooldown_minutes is not None:
+        config.scenarios.duration_cooldown_minutes = cooldown_minutes
+    if stress_max_minutes is not None:
+        config.scenarios.stress_max_duration_minutes = stress_max_minutes
+    if speed_step_minutes is not None:
+        config.scenarios.speed_scaling_step_duration_minutes = speed_step_minutes
+    if speed_max_multiplier is not None:
+        config.scenarios.speed_scaling_max_multiplier = speed_max_multiplier
+
     lifecycle, stats_collector, api_client, oom_detector = create_collectors(config)
 
     # Create output directory
@@ -487,7 +637,8 @@ def run() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     console.print(f"[bold]Test ID: {test_id}[/bold]")
-    console.print(f"Output directory: {output_dir}\n")
+    console.print(f"Output directory: {output_dir}")
+    console.print(f"Scenarios: {', '.join(ordered)}\n")
 
     # Initialize results
     results: dict[str, Any] = {
@@ -520,72 +671,83 @@ def run() -> None:
     aborted = False
     abort_reason = None
 
+    # Mutable state derived across scenarios
+    agent_count: int | None = agents
+    derived_speed: int | None = speed_multiplier
+
     try:
-        # 1. Run baseline
-        console.rule("[bold cyan]Step 1/4: Running Baseline Scenario[/bold cyan]")
-        baseline_result = run_scenario(
-            BaselineScenario,
-            config,
-            lifecycle,
-            stats_collector,
-            api_client,
-            oom_detector,
-        )
-        scenario_results.append(_result_to_dict(baseline_result))
+        for step_idx, scenario_name in enumerate(ordered, 1):
+            step_label = f"Step {step_idx}/{total_steps}"
 
-        # 2. Run stress test
-        console.rule(
-            f"[bold cyan]Step 2/4: Running Stress Test "
-            f"(until {config.scenarios.stress_cpu_threshold_percent}% CPU "
-            f"or {config.scenarios.stress_memory_threshold_percent}% memory)[/bold cyan]"
-        )
-        stress_result = run_scenario(
-            StressTestScenario,
-            config,
-            lifecycle,
-            stats_collector,
-            api_client,
-            oom_detector,
-        )
-        scenario_results.append(_result_to_dict(stress_result))
-
-        # 3. Validate stress test produced usable results
-        stress_metadata = stress_result.metadata
-        if stress_result.aborted:
-            console.print(
-                "[red]Stress test aborted (likely OOM). "
-                "Cannot determine agent count for duration test.[/red]"
-            )
-            aborted = True
-            abort_reason = "stress_test_oom"
-        else:
-            drivers_queued = stress_metadata.get("drivers_queued", 0)
-            if drivers_queued < 2:
-                console.print(
-                    "[red]Stress test did not queue enough agents. Test run failed.[/red]"
+            if scenario_name == "baseline":
+                console.rule(f"[bold cyan]{step_label}: Running Baseline Scenario[/bold cyan]")
+                baseline_result = run_scenario(
+                    BaselineScenario,
+                    config,
+                    lifecycle,
+                    stats_collector,
+                    api_client,
+                    oom_detector,
                 )
-                aborted = True
-                abort_reason = "stress_test_insufficient_agents"
-            else:
-                # 4. Calculate duration agent count (half of stress test)
-                duration_agent_count = drivers_queued // 2
-                console.print(
-                    f"\n[cyan]Duration test will use {duration_agent_count} agents "
-                    f"(half of {drivers_queued} from stress test)[/cyan]\n"
-                )
+                scenario_results.append(_result_to_dict(baseline_result))
 
-                # Store derived value in results metadata
-                results["derived_config"] = {
-                    "duration_agent_count": duration_agent_count,
-                    "stress_drivers_queued": drivers_queued,
-                }
-
-                # 5. Run speed scaling test
+            elif scenario_name == "stress":
                 console.rule(
-                    f"[bold cyan]Step 3/4: Running Speed Scaling Test "
+                    f"[bold cyan]{step_label}: Running Stress Test "
+                    f"(until {config.scenarios.stress_cpu_threshold_percent}% CPU "
+                    f"or {config.scenarios.stress_memory_threshold_percent}% memory)"
+                    f"[/bold cyan]"
+                )
+                stress_result = run_scenario(
+                    StressTestScenario,
+                    config,
+                    lifecycle,
+                    stats_collector,
+                    api_client,
+                    oom_detector,
+                )
+                scenario_results.append(_result_to_dict(stress_result))
+
+                # Derive agent count from stress result (unless manually overridden)
+                if agent_count is None:
+                    stress_metadata = stress_result.metadata
+                    if stress_result.aborted:
+                        console.print(
+                            "[red]Stress test aborted (likely OOM). "
+                            "Cannot derive agent count.[/red]"
+                        )
+                        aborted = True
+                        abort_reason = "stress_test_oom"
+                        break
+                    drivers_queued = stress_metadata.get("drivers_queued", 0)
+                    if drivers_queued < 2:
+                        console.print(
+                            "[red]Stress test did not queue enough agents. "
+                            "Cannot derive agent count.[/red]"
+                        )
+                        aborted = True
+                        abort_reason = "stress_test_insufficient_agents"
+                        break
+                    agent_count = drivers_queued // 2
+                    console.print(
+                        f"\n[cyan]Derived agent count: {agent_count} "
+                        f"(half of {drivers_queued} from stress test)[/cyan]\n"
+                    )
+                    results.setdefault("derived_config", {}).update(
+                        {
+                            "duration_agent_count": agent_count,
+                            "stress_drivers_queued": drivers_queued,
+                        }
+                    )
+                else:
+                    console.print(f"\n[cyan]Using manual override: --agents {agent_count}[/cyan]\n")
+
+            elif scenario_name == "speed":
+                console.rule(
+                    f"[bold cyan]{step_label}: Running Speed Scaling Test "
                     f"(2x-{config.scenarios.speed_scaling_max_multiplier}x, "
                     f"{config.scenarios.speed_scaling_step_duration_minutes}m/step, "
-                    f"base agents={duration_agent_count})[/bold cyan]"
+                    f"base agents={agent_count})[/bold cyan]"
                 )
                 speed_result = run_scenario(
                     SpeedScalingScenario,
@@ -594,26 +756,35 @@ def run() -> None:
                     stats_collector,
                     api_client,
                     oom_detector,
-                    agent_count=duration_agent_count,
+                    agent_count=agent_count,
                 )
                 scenario_results.append(_result_to_dict(speed_result))
 
-                # 6. Derive max reliable speed from speed scaling results
-                max_reliable_speed = _derive_max_reliable_speed(speed_result)
-                console.print(
-                    f"\n[cyan]With {duration_agent_count} agents, the simulation "
-                    f"ran reliably up to {max_reliable_speed}x speed[/cyan]\n"
-                )
-                results["derived_config"]["duration_speed_multiplier"] = max_reliable_speed
+                # Derive speed from speed scaling result (unless manually overridden)
+                if derived_speed is None:
+                    max_reliable_speed = _derive_max_reliable_speed(speed_result)
+                    derived_speed = max_reliable_speed
+                    console.print(
+                        f"\n[cyan]With {agent_count} agents, the simulation "
+                        f"ran reliably up to {max_reliable_speed}x speed[/cyan]\n"
+                    )
+                    results.setdefault("derived_config", {})[
+                        "duration_speed_multiplier"
+                    ] = max_reliable_speed
+                else:
+                    console.print(
+                        f"\n[cyan]Using manual override: --speed {derived_speed}[/cyan]\n"
+                    )
 
-                # 7. Run duration/leak test at best proven speed
+            elif scenario_name == "duration":
+                effective_speed = derived_speed if derived_speed is not None else 1
                 active_min = config.scenarios.duration_active_minutes
                 cooldown_min = config.scenarios.duration_cooldown_minutes
-                speed_label = f", {max_reliable_speed}x speed" if max_reliable_speed > 1 else ""
+                speed_label = f", {effective_speed}x speed" if effective_speed > 1 else ""
                 console.rule(
-                    f"[bold cyan]Step 4/4: Running Duration Test "
+                    f"[bold cyan]{step_label}: Running Duration Test "
                     f"({active_min}m+drain+{cooldown_min}m, "
-                    f"{duration_agent_count} agents{speed_label})[/bold cyan]"
+                    f"{agent_count} agents{speed_label})[/bold cyan]"
                 )
                 duration_result = run_scenario(
                     DurationLeakScenario,
@@ -622,8 +793,8 @@ def run() -> None:
                     stats_collector,
                     api_client,
                     oom_detector,
-                    agent_count=duration_agent_count,
-                    speed_multiplier=max_reliable_speed,
+                    agent_count=agent_count,
+                    speed_multiplier=effective_speed,
                 )
                 scenario_results.append(_result_to_dict(duration_result))
 
