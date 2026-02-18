@@ -54,3 +54,4 @@ services/trino/etc/catalog/delta.properties
 
 HUMAN-CURATED-PREFERENCES.md
 CLAUDE-old.md
+todo.md
