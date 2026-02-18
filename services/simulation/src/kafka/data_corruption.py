@@ -80,6 +80,8 @@ class DataCorruptor:
             CorruptionType.TRUNCATED_MESSAGE: 5,
             CorruptionType.EMPTY_PAYLOAD: 5,
         }
+        self._corruption_types: list[CorruptionType] = list(self._weights.keys())
+        self._corruption_weights: list[int] = list(self._weights.values())
 
     @classmethod
     def from_environment(cls) -> DataCorruptor:
@@ -98,9 +100,7 @@ class DataCorruptor:
         return corrupted, corruption_type
 
     def _select_type(self) -> CorruptionType:
-        types = list(self._weights.keys())
-        weights = list(self._weights.values())
-        return random.choices(types, weights=weights, k=1)[0]
+        return random.choices(self._corruption_types, weights=self._corruption_weights, k=1)[0]
 
     def _apply_corruption(
         self, event: dict[str, Any], topic: str, corruption_type: CorruptionType

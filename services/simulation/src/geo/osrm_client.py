@@ -53,6 +53,7 @@ class OSRMClient:
     def __init__(self, base_url: str, timeout: float = 5.0):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self._session = requests.Session()
 
     async def get_route(
         self, origin: tuple[float, float], destination: tuple[float, float]
@@ -119,7 +120,7 @@ class OSRMClient:
             start_time = time.perf_counter()
             collector = get_metrics_collector()
             try:
-                response = requests.get(url, params=params, timeout=self.timeout)
+                response = self._session.get(url, params=params, timeout=self.timeout)
 
                 if response.status_code >= 500:
                     collector.record_error("osrm", f"server_error_{response.status_code}")
@@ -157,6 +158,10 @@ class OSRMClient:
                 collector.record_error("osrm", "network_error")
                 span.record_exception(e)
                 raise OSRMServiceError(f"Network error: {e}") from e
+
+    def close(self) -> None:
+        """Close the persistent HTTP session."""
+        self._session.close()
 
     def _generate_cache_key(
         self, origin: tuple[float, float], destination: tuple[float, float]

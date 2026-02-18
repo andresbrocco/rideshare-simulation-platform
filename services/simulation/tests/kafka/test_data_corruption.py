@@ -89,28 +89,32 @@ class TestCorruptionTypes:
 
     def test_empty_payload_returns_empty_string(self, sample_event):
         corruptor = DataCorruptor(corruption_rate=1.0)
-        corruptor._weights = {CorruptionType.EMPTY_PAYLOAD: 100}
+        corruptor._corruption_types = [CorruptionType.EMPTY_PAYLOAD]
+        corruptor._corruption_weights = [100]
         corrupted, ctype = corruptor.corrupt(sample_event, "trips")
         assert corrupted == ""
         assert ctype == CorruptionType.EMPTY_PAYLOAD
 
     def test_malformed_json_is_unparseable(self, sample_event):
         corruptor = DataCorruptor(corruption_rate=1.0)
-        corruptor._weights = {CorruptionType.MALFORMED_JSON: 100}
+        corruptor._corruption_types = [CorruptionType.MALFORMED_JSON]
+        corruptor._corruption_weights = [100]
         corrupted, _ = corruptor.corrupt(sample_event, "trips")
         with pytest.raises(json.JSONDecodeError):
             json.loads(corrupted)
 
     def test_truncated_message_is_unparseable(self, sample_event):
         corruptor = DataCorruptor(corruption_rate=1.0)
-        corruptor._weights = {CorruptionType.TRUNCATED_MESSAGE: 100}
+        corruptor._corruption_types = [CorruptionType.TRUNCATED_MESSAGE]
+        corruptor._corruption_weights = [100]
         corrupted, _ = corruptor.corrupt(sample_event, "trips")
         with pytest.raises(json.JSONDecodeError):
             json.loads(corrupted)
 
     def test_missing_field_removes_required(self, sample_event):
         corruptor = DataCorruptor(corruption_rate=1.0)
-        corruptor._weights = {CorruptionType.MISSING_REQUIRED_FIELD: 100}
+        corruptor._corruption_types = [CorruptionType.MISSING_REQUIRED_FIELD]
+        corruptor._corruption_weights = [100]
         corrupted, _ = corruptor.corrupt(sample_event, "trips")
         parsed = json.loads(corrupted)
         required = {"event_id", "event_type", "trip_id", "rider_id", "timestamp"}
@@ -119,7 +123,8 @@ class TestCorruptionTypes:
 
     def test_wrong_type_changes_field_type(self, sample_event):
         corruptor = DataCorruptor(corruption_rate=1.0)
-        corruptor._weights = {CorruptionType.WRONG_DATA_TYPE: 100}
+        corruptor._corruption_types = [CorruptionType.WRONG_DATA_TYPE]
+        corruptor._corruption_weights = [100]
         corrupted, _ = corruptor.corrupt(sample_event, "trips")
         parsed = json.loads(corrupted)
         # One of these should have wrong type
@@ -132,14 +137,16 @@ class TestCorruptionTypes:
 
     def test_invalid_enum_sets_bad_value(self, sample_event):
         corruptor = DataCorruptor(corruption_rate=1.0)
-        corruptor._weights = {CorruptionType.INVALID_ENUM_VALUE: 100}
+        corruptor._corruption_types = [CorruptionType.INVALID_ENUM_VALUE]
+        corruptor._corruption_weights = [100]
         corrupted, _ = corruptor.corrupt(sample_event, "trips")
         parsed = json.loads(corrupted)
         assert parsed["event_type"] == "trip.invalid_state"
 
     def test_invalid_uuid_sets_bad_format(self, sample_event):
         corruptor = DataCorruptor(corruption_rate=1.0)
-        corruptor._weights = {CorruptionType.INVALID_UUID: 100}
+        corruptor._corruption_types = [CorruptionType.INVALID_UUID]
+        corruptor._corruption_weights = [100]
         corrupted, _ = corruptor.corrupt(sample_event, "trips")
         parsed = json.loads(corrupted)
         uuid_fields = ["event_id", "trip_id", "rider_id"]
@@ -148,7 +155,8 @@ class TestCorruptionTypes:
 
     def test_invalid_timestamp_sets_bad_format(self, sample_event):
         corruptor = DataCorruptor(corruption_rate=1.0)
-        corruptor._weights = {CorruptionType.INVALID_TIMESTAMP: 100}
+        corruptor._corruption_types = [CorruptionType.INVALID_TIMESTAMP]
+        corruptor._corruption_weights = [100]
         corrupted, _ = corruptor.corrupt(sample_event, "trips")
         parsed = json.loads(corrupted)
         valid_timestamp = "2025-07-30T10:00:00Z"
@@ -156,7 +164,8 @@ class TestCorruptionTypes:
 
     def test_out_of_range_sets_negative_fare(self, sample_event):
         corruptor = DataCorruptor(corruption_rate=1.0)
-        corruptor._weights = {CorruptionType.OUT_OF_RANGE_VALUE: 100}
+        corruptor._corruption_types = [CorruptionType.OUT_OF_RANGE_VALUE]
+        corruptor._corruption_weights = [100]
         corrupted, _ = corruptor.corrupt(sample_event, "trips")
         parsed = json.loads(corrupted)
         assert parsed["fare"] < 0
@@ -175,7 +184,8 @@ class TestTopicAwareCorruption:
             "accuracy": 10.0,
         }
         corruptor = DataCorruptor(corruption_rate=1.0)
-        corruptor._weights = {CorruptionType.INVALID_ENUM_VALUE: 100}
+        corruptor._corruption_types = [CorruptionType.INVALID_ENUM_VALUE]
+        corruptor._corruption_weights = [100]
         corrupted, _ = corruptor.corrupt(event, "gps_pings")
         parsed = json.loads(corrupted)
         assert parsed["entity_type"] == "vehicle"
@@ -189,7 +199,8 @@ class TestTopicAwareCorruption:
             "rater_type": "rider",
         }
         corruptor = DataCorruptor(corruption_rate=1.0)
-        corruptor._weights = {CorruptionType.OUT_OF_RANGE_VALUE: 100}
+        corruptor._corruption_types = [CorruptionType.OUT_OF_RANGE_VALUE]
+        corruptor._corruption_weights = [100]
         corrupted, _ = corruptor.corrupt(event, "ratings")
         parsed = json.loads(corrupted)
         assert parsed["rating"] == 10

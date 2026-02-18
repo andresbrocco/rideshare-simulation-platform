@@ -104,13 +104,15 @@ class DriverAgent(EventEmitter):
                     f"Driver {driver_id} creation failed", {"driver_id": driver_id}
                 ) from e
 
-        self._emit_creation_event()
+        # Pre-compute timestamp once for the creation + initial events batch
+        ts = self._format_timestamp()
+        self._emit_creation_event(ts)
 
         # For immediate_online drivers, emit initial events for fast UI updates
         # This allows frontend to show driver on map before run() process starts
         if self._immediate_online and self._location:
-            self._emit_initial_gps_ping()
-            self._emit_initial_status_preview()
+            self._emit_initial_gps_ping(ts)
+            self._emit_initial_status_preview(ts)
 
     @property
     def driver_id(self) -> str:
@@ -519,14 +521,15 @@ class DriverAgent(EventEmitter):
         """Handle trip completion notification."""
         pass
 
-    def _emit_creation_event(self) -> None:
+    def _emit_creation_event(self, timestamp: str | None = None) -> None:
         """Emit driver.created event on initialization."""
+        ts = timestamp or self._format_timestamp()
         event = EventFactory.create(
             DriverProfileEvent,
             correlation_id=self._driver_id,
             event_type="driver.created",
             driver_id=self._driver_id,
-            timestamp=self._format_timestamp(),
+            timestamp=ts,
             first_name=self._dna.first_name,
             last_name=self._dna.last_name,
             email=self._dna.email,
@@ -579,17 +582,18 @@ class DriverAgent(EventEmitter):
             redis_channel="driver-updates",
         )
 
-    def _emit_initial_gps_ping(self) -> None:
+    def _emit_initial_gps_ping(self, timestamp: str | None = None) -> None:
         """Emit a single GPS ping immediately on creation for map visibility."""
         if self._location is None:
             return
 
+        ts = timestamp or self._format_timestamp()
         event = EventFactory.create(
             GPSPingEvent,
             correlation_id=self._driver_id,
             entity_type="driver",
             entity_id=self._driver_id,
-            timestamp=self._format_timestamp(),
+            timestamp=ts,
             location=self._location,
             heading=self._heading,
             speed=0.0,
@@ -604,18 +608,18 @@ class DriverAgent(EventEmitter):
             redis_channel="driver-updates",
         )
 
-    def _emit_initial_status_preview(self) -> None:
+    def _emit_initial_status_preview(self, timestamp: str | None = None) -> None:
         """Emit status event immediately on creation for frontend visibility.
 
         This is a 'preview' showing the driver as online before run() starts.
         The actual go_online() in run() will update registries and emit another event.
         """
-
+        ts = timestamp or self._format_timestamp()
         event = EventFactory.create(
             DriverStatusEvent,
             correlation_id=self._driver_id,
             driver_id=self._driver_id,
-            timestamp=self._format_timestamp(),
+            timestamp=ts,
             previous_status="offline",
             new_status="online",
             trigger="creation_preview",

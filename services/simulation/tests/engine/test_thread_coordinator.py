@@ -71,14 +71,12 @@ class TestCommandDataclass:
         """Command has all required fields."""
         event = threading.Event()
         cmd = Command(
-            id="cmd_1",
             type=CommandType.PAUSE,
             payload={},
             response_event=event,
             result=None,
             error=None,
         )
-        assert cmd.id == "cmd_1"
         assert cmd.type == CommandType.PAUSE
         assert cmd.payload == {}
         assert cmd.response_event is event
@@ -89,7 +87,6 @@ class TestCommandDataclass:
         """Command can store result after processing."""
         event = threading.Event()
         cmd = Command(
-            id="cmd_1",
             type=CommandType.GET_SNAPSHOT,
             payload={},
             response_event=event,
@@ -103,7 +100,6 @@ class TestCommandDataclass:
         """Command can store error after processing failure."""
         event = threading.Event()
         cmd = Command(
-            id="cmd_1",
             type=CommandType.PAUSE,
             payload={},
             response_event=event,
@@ -505,7 +501,6 @@ class TestConcurrentCommands:
         for i in range(10):
             event = threading.Event()
             cmd = Command(
-                id=f"cmd_{i}",
                 type=CommandType.PUPPET_ACTION,
                 payload={"seq": i},
                 response_event=event,

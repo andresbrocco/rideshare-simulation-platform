@@ -18,6 +18,7 @@ class EventFactory:
     def create(
         event_class: type[T],
         *,
+        session_id: str | None = None,
         correlation_id: str | None = None,
         causation_id: str | None = None,
         **kwargs: Any,
@@ -26,6 +27,8 @@ class EventFactory:
 
         Args:
             event_class: The event class to instantiate
+            session_id: Pre-fetched session ID to avoid per-event context-var read.
+                        Falls back to get_current_session_id() when None.
             correlation_id: Primary correlation ID (e.g., trip_id, driver_id)
             causation_id: ID of event that caused this one
             **kwargs: Additional fields to pass to the event constructor
@@ -34,7 +37,7 @@ class EventFactory:
             Event instance with tracing fields populated
         """
         return event_class(
-            session_id=get_current_session_id(),
+            session_id=session_id if session_id is not None else get_current_session_id(),
             correlation_id=correlation_id,
             causation_id=causation_id,
             **kwargs,
@@ -44,6 +47,8 @@ class EventFactory:
     def create_for_trip(
         event_class: type[T],
         trip: "Trip",
+        *,
+        session_id: str | None = None,
         update_causation: bool = True,
         **kwargs: Any,
     ) -> T:
@@ -55,6 +60,8 @@ class EventFactory:
         Args:
             event_class: The event class to instantiate
             trip: The trip to use for correlation/causation IDs
+            session_id: Pre-fetched session ID to avoid per-event context-var read.
+                        Falls back to get_current_session_id() when None.
             update_causation: If True, update trip.last_event_id with this event's ID
             **kwargs: Additional fields to pass to the event constructor
 
@@ -62,7 +69,7 @@ class EventFactory:
             Event instance with tracing fields populated
         """
         event = event_class(
-            session_id=get_current_session_id(),
+            session_id=session_id if session_id is not None else get_current_session_id(),
             correlation_id=trip.trip_id,
             causation_id=trip.last_event_id,
             **kwargs,

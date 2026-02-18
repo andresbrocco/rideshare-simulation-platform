@@ -5,7 +5,6 @@ main thread and the SimPy background simulation thread.
 """
 
 import threading
-import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
@@ -32,7 +31,6 @@ class CommandType(str, Enum):
 class Command:
     """A command to be processed by the simulation engine."""
 
-    id: str
     type: CommandType
     payload: dict[str, Any]
     response_event: threading.Event
@@ -86,7 +84,6 @@ class ThreadCoordinator:
 
         response_event = threading.Event()
         cmd = Command(
-            id=str(uuid.uuid4()),
             type=command_type,
             payload=payload or {},
             response_event=response_event,

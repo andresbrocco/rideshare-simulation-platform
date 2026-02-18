@@ -1,8 +1,11 @@
 from collections.abc import Generator
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import simpy
+
+from events.schemas import TripEvent
 
 if TYPE_CHECKING:
     from engine import TimeManager
@@ -55,10 +58,6 @@ class OfferTimeoutManager:
             pass
 
     def _emit_expiration_event(self, pending_offer: PendingOffer) -> None:
-        from datetime import UTC, datetime
-
-        from events.schemas import TripEvent
-
         trip = pending_offer.trip
         event = TripEvent(
             event_type="trip.offer_expired",

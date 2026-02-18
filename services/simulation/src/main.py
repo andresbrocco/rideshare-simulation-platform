@@ -28,7 +28,7 @@ from redis.asyncio import Redis
 
 from api.app import create_app
 from db.database import init_database
-from engine import SimulationEngine
+from engine import SimulationEngine, SimulationState
 from engine.agent_factory import AgentFactory
 from geo.osrm_client import OSRMClient
 from geo.zones import ZoneLoader
@@ -106,7 +106,7 @@ class SimulationRunner:
         """Main simulation loop - advances simulation time."""
         while self._running:
             # Step simulation when running or draining (drain process needs env to advance)
-            if self._engine.state.value in ("running", "draining"):
+            if self._engine.state in (SimulationState.RUNNING, SimulationState.DRAINING):
                 self._engine.step(10)
             time.sleep(0.1)
 
@@ -334,7 +334,7 @@ def main() -> None:
             except Exception:
                 logger.exception("Shutdown checkpoint failed")
 
-        if engine.state.value == "running":
+        if engine.state == SimulationState.RUNNING:
             engine.stop()
         if kafka_producer:
             kafka_producer.flush()
