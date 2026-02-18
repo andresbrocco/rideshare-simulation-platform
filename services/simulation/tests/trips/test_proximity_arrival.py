@@ -358,6 +358,9 @@ class TestProximityGPSUpdates:
             settings=proximity_settings,
         )
 
+        # Start the driver's GPS ping loop alongside the trip executor
+        # GPS emission is now the agent's responsibility, not TripExecutor's
+        simpy_env.process(driver_agent._emit_gps_ping())
         process = simpy_env.process(executor.execute())
         simpy_env.run(process)
 
@@ -367,7 +370,7 @@ class TestProximityGPSUpdates:
             if call[1].get("topic") == "gps_pings"
         ]
 
-        # Should have GPS pings from both phases
+        # Should have GPS pings from driver's own GPS loop
         assert len(gps_calls) > 0
 
     def test_driver_location_updates_toward_destination(

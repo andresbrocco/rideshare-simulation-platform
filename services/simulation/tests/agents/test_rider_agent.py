@@ -158,14 +158,16 @@ class TestRiderDestinationSelection:
 
 @pytest.mark.unit
 class TestRiderGPSEmissionDuringTrip:
-    """Regression tests for GPS duplication fix.
+    """Tests for rider GPS emission during trips.
 
-    RiderAgent.run() must NOT emit GPS pings when the rider is in_trip.
-    GPS emission during active trips is delegated to TripExecutor._simulate_drive().
+    RiderAgent.run() emits GPS pings when the rider is in_trip and location changes.
+    Each agent is responsible for its own GPS emission.
     """
 
-    def test_rider_does_not_emit_gps_when_in_trip(self, simpy_env, rider_dna, mock_kafka_producer):
-        """Rider run() loop emits zero GPS pings when status is in_trip."""
+    def test_rider_emits_gps_when_in_trip_and_moving(
+        self, simpy_env, rider_dna, mock_kafka_producer
+    ):
+        """Rider run() loop emits GPS pings when status is in_trip and location changes."""
         agent = RiderAgent(
             rider_id="rider_gps_001",
             dna=rider_dna,
@@ -182,19 +184,24 @@ class TestRiderGPSEmissionDuringTrip:
         # Reset call tracking after setup events
         mock_kafka_producer.produce.reset_mock()
 
-        # Run simulation for 10 seconds — rider loop should only yield, not emit GPS
+        # Simulate location updates as TripExecutor would do
+        def update_location():  # type: ignore[no-untyped-def]
+            for i in range(5):
+                agent.update_location(-23.55 + i * 0.001, -46.63 + i * 0.001)
+                yield simpy_env.timeout(2)
+
         simpy_env.process(agent.run())
-        simpy_env.run(until=10)
+        simpy_env.process(update_location())
+        simpy_env.run(until=12)
 
         gps_calls = [
             call
             for call in mock_kafka_producer.produce.call_args_list
             if call[1].get("topic") == "gps_pings"
         ]
-        assert len(gps_calls) == 0, (
-            f"Rider emitted {len(gps_calls)} GPS pings from its own loop while in_trip. "
-            "GPS pings during trips should come only from TripExecutor."
-        )
+        assert (
+            len(gps_calls) > 0
+        ), "Rider should emit GPS pings from its own loop while in_trip when location changes."
 
     def test_rider_gps_loop_still_yields_when_in_trip(
         self, simpy_env, rider_dna, mock_kafka_producer

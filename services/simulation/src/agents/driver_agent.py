@@ -89,6 +89,8 @@ class DriverAgent(EventEmitter):
         self._next_action: NextAction | None = None  # Scheduled next action
         self._persistence_dirty: bool = False  # Tracks failed persistence operations
         self._last_emitted_location: tuple[float, float] | None = None
+        self._route_progress_index: int | None = None
+        self._pickup_route_progress_index: int | None = None
 
         if self._driver_repository:
             try:
@@ -300,6 +302,8 @@ class DriverAgent(EventEmitter):
         previous_status = self._status
         self._status = "online"
         self._active_trip = None
+        self._route_progress_index = None
+        self._pickup_route_progress_index = None
 
         if self._driver_repository:
             try:
@@ -323,6 +327,14 @@ class DriverAgent(EventEmitter):
             self._registry_manager.driver_status_changed(self._driver_id, self._status)
 
         self._emit_status_event(previous_status, self._status, "complete_trip")
+
+    def update_route_progress(
+        self,
+        route_progress_index: int | None = None,
+        pickup_route_progress_index: int | None = None,
+    ) -> None:
+        self._route_progress_index = route_progress_index
+        self._pickup_route_progress_index = pickup_route_progress_index
 
     def update_location(self, lat: float, lon: float, heading: float | None = None) -> None:
         """Update current location and optionally heading.
@@ -766,6 +778,8 @@ class DriverAgent(EventEmitter):
                         speed=random.uniform(20, 60),
                         accuracy=5.0,
                         trip_id=self._active_trip,
+                        route_progress_index=self._route_progress_index,
+                        pickup_route_progress_index=self._pickup_route_progress_index,
                     )
 
                     self._emit_event(

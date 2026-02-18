@@ -22,24 +22,55 @@ import { DEFAULT_VISIBILITY, type LayerVisibility } from './types/layers';
 import type { PlacementMode } from './constants/dnaPresets';
 import './App.css';
 
+function DisconnectedBanner() {
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        padding: '8px 16px',
+        background: '#f44336',
+        color: 'white',
+        textAlign: 'center',
+        zIndex: 2000,
+        fontSize: '14px',
+      }}
+    >
+      API connection lost. Reconnecting...
+    </div>
+  );
+}
+
 function AppContent() {
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
   const { available, checking } = useApiHealth(apiUrl);
+  const [wasEverAvailable, setWasEverAvailable] = useState(false);
 
-  if (checking) {
-    return (
-      <div className="loading-container">
-        <div className="loading-spinner" />
-        <p>Checking API availability...</p>
-      </div>
-    );
+  // Latch: once available, stay available (synchronous state update during render)
+  if (available && !wasEverAvailable) {
+    setWasEverAvailable(true);
   }
 
-  if (!available) {
+  if (!wasEverAvailable) {
+    if (checking) {
+      return (
+        <div className="loading-container">
+          <div className="loading-spinner" />
+          <p>Checking API availability...</p>
+        </div>
+      );
+    }
     return <OfflineMode />;
   }
 
-  return <OnlineApp />;
+  return (
+    <>
+      {!available && <DisconnectedBanner />}
+      <OnlineApp />
+    </>
+  );
 }
 
 function OnlineApp() {

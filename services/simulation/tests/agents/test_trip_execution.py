@@ -312,7 +312,12 @@ class TestTripCancellation:
 @pytest.mark.unit
 @pytest.mark.slow
 class TestGPSUpdates:
-    def test_trip_gps_updates_during_transit(self, simpy_env, trip_executor, mock_kafka_producer):
+    def test_trip_gps_updates_during_transit(
+        self, simpy_env, trip_executor, driver_agent, mock_kafka_producer
+    ):
+        # Start the driver's GPS ping loop alongside the trip executor
+        # GPS emission is now the agent's responsibility, not TripExecutor's
+        simpy_env.process(driver_agent._emit_gps_ping())
         process = simpy_env.process(trip_executor.execute())
         simpy_env.run(process)
 

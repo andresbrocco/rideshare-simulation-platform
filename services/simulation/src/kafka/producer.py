@@ -23,8 +23,8 @@ _tracer = trace.get_tracer(__name__)
 
 # Process delivery callbacks every N non-critical produces instead of every one.
 # linger.ms=80 already batches at the librdkafka level; this reduces Python→C
-# round-trips for poll(0) by ~100x.
-_POLL_BATCH_SIZE: int = 100
+# round-trips for poll(0) by ~10x.
+_POLL_BATCH_SIZE: int = 10
 
 # Fraction of GPS events that get a full OTel span. GPS pings fire ~1,200 per
 # trip — tracing all of them adds overhead with little diagnostic value.

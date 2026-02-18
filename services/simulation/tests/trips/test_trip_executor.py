@@ -178,7 +178,7 @@ class TestTripExecutorKafkaOnly:
             "They should flow through Kafka -> API layer -> Redis fanout."
         )
 
-    def test_gps_ping_emits_to_kafka_only(
+    def test_trip_executor_does_not_emit_gps_pings(
         self,
         simpy_env,
         driver_agent,
@@ -187,13 +187,11 @@ class TestTripExecutorKafkaOnly:
         mock_osrm_client_for_executor,
         mock_kafka_producer,
     ):
-        """Verify _emit_gps_ping calls Kafka but NOT Redis.
+        """Verify TripExecutor does NOT emit GPS pings directly.
 
-        GPS pings should only go to Kafka. The Redis fanout for real-time
-        visualization should be handled by the API layer, not TripExecutor.
+        GPS emission is delegated to each agent's own GPS loop.
+        TripExecutor only updates agent positions and route progress.
         """
-        mock_redis_publisher = Mock()
-
         executor = TripExecutor(
             env=simpy_env,
             driver=driver_agent,
@@ -201,35 +199,21 @@ class TestTripExecutorKafkaOnly:
             trip=sample_trip,
             osrm_client=mock_osrm_client_for_executor,
             kafka_producer=mock_kafka_producer,
-            redis_publisher=mock_redis_publisher,  # Should NOT be used
             settings=SimulationSettings(arrival_proximity_threshold_m=50.0),
         )
 
         process = simpy_env.process(executor.execute())
         simpy_env.run(process)
 
-        # Verify Kafka was used for GPS pings
+        # TripExecutor should NOT emit GPS pings — agents handle their own
         kafka_gps_calls = [
             call
             for call in mock_kafka_producer.produce.call_args_list
             if call[1].get("topic") == "gps_pings"
         ]
-        assert len(kafka_gps_calls) > 0, "GPS pings should be sent to Kafka"
-
-        # Verify Redis was NOT used for GPS pings
-        # After the fix, redis_publisher.publish_sync should not be called
-        # for driver-updates or rider-updates channels
-        redis_sync_calls = mock_redis_publisher.publish_sync.call_args_list
-
-        gps_redis_calls = [
-            call
-            for call in redis_sync_calls
-            if "driver-updates" in str(call) or "rider-updates" in str(call)
-        ]
-
-        assert len(gps_redis_calls) == 0, (
-            "GPS pings should NOT be published directly to Redis. "
-            "They should flow through Kafka -> API layer -> Redis fanout."
+        assert len(kafka_gps_calls) == 0, (
+            "TripExecutor should not emit GPS pings directly. "
+            "GPS emission is delegated to each agent's own GPS loop."
         )
 
     def test_trip_executor_works_without_redis_publisher(

@@ -252,6 +252,7 @@ services:
       - CORS_ORIGINS=http://localhost:3000,http://localhost:5173
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - DEPLOYMENT_ENV=local
+      - GPS_PING_INTERVAL_MOVING=1
       - LOG_FORMAT=json
     entrypoint:
       - /bin/sh

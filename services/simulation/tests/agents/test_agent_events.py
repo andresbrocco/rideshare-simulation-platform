@@ -141,14 +141,13 @@ def test_driver_gps_ping_emission(driver_dna, mock_kafka_producer, mock_redis_pu
 
 
 @pytest.mark.unit
-def test_rider_no_gps_from_run_loop_while_in_trip(
+def test_rider_emits_gps_from_run_loop_while_in_trip(
     rider_dna, mock_kafka_producer, mock_redis_publisher
 ):
-    """Rider run() loop defers GPS pings to TripExecutor while in_trip.
+    """Rider run() loop emits GPS pings while in_trip.
 
-    After commit 89a3793, the rider's main loop no longer emits GPS pings
-    during active trips to avoid duplicating events that TripExecutor already
-    emits via _simulate_drive().
+    Each agent is responsible for its own GPS emission. The rider's main loop
+    emits GPS pings during active trips when its location changes.
     """
     env = simpy.Environment()
     rider = RiderAgent("rider1", rider_dna, env, mock_kafka_producer, mock_redis_publisher)
@@ -159,16 +158,23 @@ def test_rider_no_gps_from_run_loop_while_in_trip(
     mock_kafka_producer.reset_mock()
     mock_redis_publisher.reset_mock()
 
+    # Simulate location updates (as TripExecutor would do)
+    def update_rider_location():  # type: ignore[no-untyped-def]
+        for i in range(10):
+            rider.update_location(-23.55 + i * 0.001, -46.63 + i * 0.001)
+            yield env.timeout(2)
+
     env.process(rider.run())
-    env.run(until=120)
+    env.process(update_rider_location())
+    env.run(until=25)
 
     produce_calls = [
         call
         for call in mock_kafka_producer.produce.call_args_list
         if call.kwargs.get("topic") == "gps_pings"
     ]
-    # Rider run() loop should NOT emit GPS pings while in_trip
-    assert len(produce_calls) == 0
+    # Rider run() loop should emit GPS pings while in_trip
+    assert len(produce_calls) > 0
 
 
 @pytest.mark.unit
@@ -218,10 +224,10 @@ def test_driver_gps_includes_heading_speed(driver_dna, mock_kafka_producer, mock
 
 @pytest.mark.unit
 def test_rider_no_gps_stationary_in_trip(rider_dna, mock_kafka_producer, mock_redis_publisher):
-    """Rider run() loop emits zero GPS pings while in_trip (TripExecutor owns that).
+    """Rider run() loop emits zero GPS pings when stationary (location unchanged).
 
-    Previously the rider loop emitted stationary pings during trips; after
-    commit 89a3793 this responsibility moved to TripExecutor._simulate_drive().
+    The rider's GPS loop only emits pings when the location changes,
+    avoiding duplicate pings for the same position.
     """
     env = simpy.Environment()
     rider = RiderAgent("rider1", rider_dna, env, mock_kafka_producer, mock_redis_publisher)
@@ -240,8 +246,8 @@ def test_rider_no_gps_stationary_in_trip(rider_dna, mock_kafka_producer, mock_re
         for call in mock_kafka_producer.produce.call_args_list
         if call.kwargs.get("topic") == "gps_pings"
     ]
-    # No GPS pings from rider run() loop while in_trip
-    assert len(produce_calls) == 0
+    # First ping emitted for the initial location, then no more since location unchanged
+    assert len(produce_calls) == 1
 
 
 @pytest.mark.unit

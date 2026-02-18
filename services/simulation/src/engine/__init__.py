@@ -260,7 +260,7 @@ class SimulationEngine:
 
         start_wall = time.perf_counter()
         start_sim = self._env.now
-        step_size = seconds
+        step_size = 1
 
         while self._env.now < target_time:
             next_step = min(self._env.now + step_size, target_time)

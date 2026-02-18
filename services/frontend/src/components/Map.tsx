@@ -1,8 +1,8 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Map as MapGL } from 'react-map-gl/maplibre';
 import type { MapRef } from 'react-map-gl/maplibre';
 import DeckGL from '@deck.gl/react';
-import type { Deck, Layer } from '@deck.gl/core';
+import type { Layer } from '@deck.gl/core';
 import type { PickingInfo } from '@deck.gl/core';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import styles from './Map.module.css';
@@ -45,7 +45,6 @@ export default function Map({
   onZoomChange,
 }: MapProps) {
   const mapRef = useRef<MapRef>(null);
-  const deckRef = useRef<Deck | null>(null);
   const [viewState, setViewState] = useState<ViewState>({
     latitude: -23.55,
     longitude: -46.63,
@@ -54,20 +53,6 @@ export default function Map({
     bearing: 0,
   });
   const [isHoveringAgent, setIsHoveringAgent] = useState(false);
-
-  // Cleanup DeckGL resources on unmount
-  useEffect(() => {
-    return () => {
-      if (deckRef.current) {
-        deckRef.current.finalize();
-        deckRef.current = null;
-      }
-    };
-  }, []);
-
-  const handleDeckLoad = useCallback((deck: Deck) => {
-    deckRef.current = deck;
-  }, []);
 
   const handleWebGLError = useCallback((error: Error) => {
     console.error('DeckGL WebGL error:', error);
@@ -151,12 +136,12 @@ export default function Map({
         onClick={handleClick}
         onHover={handleHover}
         getCursor={getCursor}
-        onLoad={handleDeckLoad as () => void}
       >
         <MapGL
           ref={mapRef}
           mapStyle="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
           attributionControl={{ compact: false }}
+          reuseMaps
         />
       </DeckGL>
     </div>

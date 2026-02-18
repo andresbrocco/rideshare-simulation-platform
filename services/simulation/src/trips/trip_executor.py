@@ -1,7 +1,6 @@
 """Trip execution coordinator managing the full trip lifecycle."""
 
 import logging
-import random
 from collections.abc import Generator
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Literal
@@ -12,7 +11,7 @@ import simpy
 from agents.event_emitter import GPS_PING_INTERVAL_MOVING
 from core.exceptions import PermanentError, TransientError
 from events.factory import EventFactory
-from events.schemas import GPSPingEvent, PaymentEvent, TripEvent
+from events.schemas import PaymentEvent, TripEvent
 from geo.distance import is_within_proximity
 from geo.gps_simulation import precompute_headings
 from geo.osrm_client import OSRMServiceError, RouteResponse
@@ -440,19 +439,18 @@ class TripExecutor:
                 # At end of route, preserve last heading
                 route_heading = self._driver.heading
 
-            # Track route progress for frontend visualization
+            # Track route progress and propagate to agents for their own GPS loops
             if self._trip.state == TripState.STARTED:
                 self._trip.route_progress_index = idx
+                self._driver.update_route_progress(route_progress_index=idx)
+                self._rider.update_trip_state(self._trip.state.value)
             elif self._trip.state == TripState.DRIVER_EN_ROUTE:
                 self._trip.pickup_route_progress_index = idx
+                self._driver.update_route_progress(pickup_route_progress_index=idx)
 
             self._driver.update_location(*current_pos, heading=route_heading)
             if self._trip.state == TripState.STARTED:
                 self._rider.update_location(*current_pos)
-
-            self._emit_gps_ping(self._driver.driver_id, "driver", current_pos)
-            if self._trip.state == TripState.STARTED:
-                self._emit_gps_ping(self._rider.rider_id, "rider", current_pos)
 
             # GPS-based proximity detection for arrival
             if (
@@ -560,49 +558,3 @@ class TripExecutor:
             key=self._trip.trip_id,
             value=event,
         )
-
-    def _emit_gps_ping(
-        self,
-        entity_id: str,
-        entity_type: Literal["driver", "rider"],
-        location: tuple[float, float],
-    ) -> None:
-        """Emit GPS ping event to Kafka and Redis."""
-        # Include trip_state for riders to enable redundant state sync
-        trip_state = None
-        if entity_type == "rider":
-            trip_state = self._trip.state.value
-
-        # Include route progress indices for driver GPS pings (for frontend visualization)
-        route_progress_idx = None
-        pickup_route_progress_idx = None
-        if entity_type == "driver":
-            if self._trip.state == TripState.STARTED:
-                route_progress_idx = self._trip.route_progress_index
-            elif self._trip.state == TripState.DRIVER_EN_ROUTE:
-                pickup_route_progress_idx = self._trip.pickup_route_progress_index
-
-        # GPS pings during trip use trip_id as correlation (not causation chain)
-        event = EventFactory.create(
-            GPSPingEvent,
-            correlation_id=self._trip.trip_id,
-            entity_type=entity_type,
-            entity_id=entity_id,
-            timestamp=self._format_timestamp(),
-            location=location,
-            heading=self._driver.heading,
-            speed=random.uniform(20, 60),
-            accuracy=5.0,
-            trip_id=self._trip.trip_id,
-            trip_state=trip_state,
-            route_progress_index=route_progress_idx,
-            pickup_route_progress_index=pickup_route_progress_idx,
-        )
-
-        # Emit to Kafka (source of truth for data pipelines)
-        if self._kafka_producer:
-            self._kafka_producer.produce(
-                topic="gps_pings",
-                key=entity_id,
-                value=event,
-            )
