@@ -45,3 +45,15 @@ variable "github_branch" {
   type        = string
   default     = "main"
 }
+
+variable "parent_domain_name" {
+  description = "Parent domain for NS delegation (must already exist as a Route 53 hosted zone)"
+  type        = string
+  default     = "andresbrocco.com"
+}
+
+variable "enable_dns_delegation" {
+  description = "Create NS delegation record in parent hosted zone"
+  type        = bool
+  default     = true
+}

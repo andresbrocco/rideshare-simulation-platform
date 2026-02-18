@@ -23,6 +23,27 @@ module "route53" {
 }
 
 # -----------------------------------------------------------------------------
+# DNS delegation — create NS record in parent zone for subdomain resolution
+# -----------------------------------------------------------------------------
+data "aws_route53_zone" "parent" {
+  count = var.enable_dns_delegation ? 1 : 0
+
+  name         = var.parent_domain_name
+  private_zone = false
+}
+
+resource "aws_route53_record" "ns_delegation" {
+  count = var.enable_dns_delegation ? 1 : 0
+
+  zone_id = data.aws_route53_zone.parent[0].zone_id
+  name    = var.domain_name
+  type    = "NS"
+  ttl     = 172800
+
+  records = module.route53.name_servers
+}
+
+# -----------------------------------------------------------------------------
 # ACM — must be us-east-1 for CloudFront
 # -----------------------------------------------------------------------------
 module "acm" {

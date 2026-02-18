@@ -61,8 +61,7 @@ When the platform is down, the frontend detects API unreachability and displays 
 
 ### Domain
 
-- Domain ownership for `andresbrocco.com` (or subdomain already delegated to Route 53)
-- Access to domain registrar to add NS records
+- Domain ownership for `andresbrocco.com` with its hosted zone in Route 53 (DNS delegation is automated by foundation Terraform)
 
 ### GitHub Repository
 
@@ -224,42 +223,32 @@ aws secretsmanager list-secrets \
 
 ## DNS Delegation
 
-**Purpose:** Delegate `ridesharing.portfolio.andresbrocco.com` from your domain registrar to Route 53.
+**Purpose:** Delegate `ridesharing.portfolio.andresbrocco.com` from the parent `andresbrocco.com` hosted zone in Route 53.
 
-**Duration:** ~5-10 minutes (DNS propagation)
+**How it works:** The foundation Terraform config automatically creates an NS record in the `andresbrocco.com` parent zone pointing to the child zone's name servers. No manual steps required — `terraform apply` handles it.
 
-### Step 1: Get Route 53 Name Servers
+This is controlled by two variables (both have sensible defaults):
 
-```bash
-cd infrastructure/terraform/foundation
-terraform output route53_name_servers
-```
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `parent_domain_name` | `andresbrocco.com` | Parent hosted zone name |
+| `enable_dns_delegation` | `true` | Set to `false` to skip delegation |
 
-Example output:
+> **Importing an existing manual record:** If you previously created the NS record manually, import it before applying to avoid a conflict:
+>
+> ```bash
+> # Find parent zone ID
+> aws route53 list-hosted-zones --profile rideshare \
+>   --query "HostedZones[?Name=='andresbrocco.com.'].Id" --output text
+>
+> # Import (replace ZONE_ID)
+> cd infrastructure/terraform/foundation
+> terraform import \
+>   'aws_route53_record.ns_delegation[0]' \
+>   '{ZONE_ID}_ridesharing.portfolio.andresbrocco.com_NS'
+> ```
 
-```
-[
-  "ns-123.awsdns-12.com",
-  "ns-456.awsdns-45.org",
-  "ns-789.awsdns-78.net",
-  "ns-012.awsdns-01.co.uk"
-]
-```
-
-### Step 2: Add NS Records in Domain Registrar
-
-Log in to your domain registrar (e.g., Namecheap, GoDaddy, Route 53 for parent domain) and add NS records:
-
-| Record Type | Name | Value |
-|-------------|------|-------|
-| NS | `ridesharing.portfolio.andresbrocco.com` | `ns-123.awsdns-12.com` |
-| NS | `ridesharing.portfolio.andresbrocco.com` | `ns-456.awsdns-45.org` |
-| NS | `ridesharing.portfolio.andresbrocco.com` | `ns-789.awsdns-78.net` |
-| NS | `ridesharing.portfolio.andresbrocco.com` | `ns-012.awsdns-01.co.uk` |
-
-If `andresbrocco.com` is already managed in Route 53, add NS records in the parent hosted zone instead of at the registrar level.
-
-### Step 3: Verify DNS Delegation
+### Verify DNS Delegation
 
 ```bash
 # Check NS records (should show Route 53 name servers)
@@ -562,7 +551,7 @@ Grafana and Airflow credentials are stored in Secrets Manager. Trino is accessib
 
 **Solutions:**
 
-1. Verify NS records added correctly in domain registrar
+1. Verify `enable_dns_delegation` is `true` (default) and `terraform apply` succeeded
 2. Wait 5-10 minutes for DNS propagation
 3. Check parent domain NS records: `dig NS andresbrocco.com`
 4. Use Google DNS for testing: `dig @8.8.8.8 NS ridesharing.portfolio.andresbrocco.com`
