@@ -64,12 +64,14 @@ class EventEmitter:
         self._kafka_producer = kafka_producer
         # redis_publisher is no longer used - stream processor handles Redis
         self._redis_publisher = redis_publisher
+        # Cache metrics collector to avoid per-event function call overhead
+        self._metrics_collector = get_metrics_collector()
 
     def _emit_to_kafka(self, topic: str, key: str, event: BaseModel) -> None:
         if self._kafka_producer is None:
             return
 
-        collector = get_metrics_collector()
+        collector = self._metrics_collector
         try:
             start_time = time.perf_counter()
 
@@ -114,7 +116,7 @@ class EventEmitter:
                           Stream processor now handles Redis publishing.
         """
         event_type = _TOPIC_TO_EVENT_TYPE.get(kafka_topic, kafka_topic)
-        get_metrics_collector().record_event(event_type)
+        self._metrics_collector.record_event(event_type)
 
         # Emit to Kafka only - stream processor handles Redis publishing
         self._emit_to_kafka(kafka_topic, partition_key, event)

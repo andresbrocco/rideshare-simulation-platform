@@ -2,8 +2,8 @@
 
 import threading
 import time
-from collections import defaultdict
-from collections.abc import Callable
+from collections import defaultdict, deque
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -92,14 +92,14 @@ class MetricsCollector:
         self._window_seconds = window_seconds
         self._lock = threading.Lock()
 
-        # Event tracking: list of (timestamp, event_type)
-        self._events: list[tuple[float, str]] = []
+        # Event tracking: deque of (timestamp, event_type) for O(1) popleft cleanup
+        self._events: deque[tuple[float, str]] = deque()
 
-        # Latency samples: component -> list of (timestamp, latency_ms)
-        self._latency_samples: dict[str, list[tuple[float, float]]] = defaultdict(list)
+        # Latency samples: component -> deque of (timestamp, latency_ms)
+        self._latency_samples: dict[str, deque[tuple[float, float]]] = defaultdict(deque)
 
-        # Error tracking: component -> list of (timestamp, error_type)
-        self._errors: dict[str, list[tuple[float, str]]] = defaultdict(list)
+        # Error tracking: component -> deque of (timestamp, error_type)
+        self._errors: dict[str, deque[tuple[float, str]]] = defaultdict(deque)
 
         # Queue depth callbacks
         self._queue_depth_callbacks: dict[str, Callable[[], int]] = {}
@@ -142,45 +142,26 @@ class MetricsCollector:
             self._agent_count_callbacks[name] = callback
 
     def _cleanup_old_events(self, now: float) -> None:
-        """Remove events outside the rolling window."""
+        """Remove events outside the rolling window via O(1) popleft."""
         cutoff = now - self._window_seconds
-        # Find first index that's within window
-        first_valid = 0
-        for i, (ts, _) in enumerate(self._events):
-            if ts >= cutoff:
-                first_valid = i
-                break
-        else:
-            first_valid = len(self._events)
-        self._events = self._events[first_valid:]
+        while self._events and self._events[0][0] < cutoff:
+            self._events.popleft()
 
     def _cleanup_old_latency(self, now: float, component: str) -> None:
-        """Remove latency samples outside the rolling window."""
+        """Remove latency samples outside the rolling window via O(1) popleft."""
         cutoff = now - self._window_seconds
         samples = self._latency_samples[component]
-        first_valid = 0
-        for i, (ts, _) in enumerate(samples):
-            if ts >= cutoff:
-                first_valid = i
-                break
-        else:
-            first_valid = len(samples)
-        self._latency_samples[component] = samples[first_valid:]
+        while samples and samples[0][0] < cutoff:
+            samples.popleft()
 
     def _cleanup_old_errors(self, now: float, component: str) -> None:
-        """Remove error samples outside the rolling window."""
+        """Remove error samples outside the rolling window via O(1) popleft."""
         cutoff = now - self._window_seconds
         samples = self._errors[component]
-        first_valid = 0
-        for i, (ts, _) in enumerate(samples):
-            if ts >= cutoff:
-                first_valid = i
-                break
-        else:
-            first_valid = len(samples)
-        self._errors[component] = samples[first_valid:]
+        while samples and samples[0][0] < cutoff:
+            samples.popleft()
 
-    def _compute_latency_stats(self, samples: list[tuple[float, float]]) -> LatencyStats:
+    def _compute_latency_stats(self, samples: Sequence[tuple[float, float]]) -> LatencyStats:
         """Compute latency statistics from samples."""
         if not samples:
             return LatencyStats(avg_ms=0.0, p95_ms=0.0, p99_ms=0.0, count=0)
@@ -198,7 +179,7 @@ class MetricsCollector:
         return LatencyStats(avg_ms=avg, p95_ms=p95, p99_ms=p99, count=count)
 
     def _compute_error_stats(
-        self, samples: list[tuple[float, str]], window_divisor: float
+        self, samples: Sequence[tuple[float, str]], window_divisor: float
     ) -> ErrorStats:
         """Compute error statistics from samples."""
         if not samples:
@@ -310,8 +291,15 @@ _collector_lock = threading.Lock()
 
 
 def get_metrics_collector() -> MetricsCollector:
-    """Get the global metrics collector instance."""
+    """Get the global metrics collector instance.
+
+    Uses double-checked locking: fast-path returns the already-initialized
+    instance without acquiring the lock.  The first check is safe under CPython's
+    GIL because reading a module-global reference is atomic.
+    """
     global _metrics_collector
+    if _metrics_collector is not None:
+        return _metrics_collector
     with _collector_lock:
         if _metrics_collector is None:
             _metrics_collector = MetricsCollector()

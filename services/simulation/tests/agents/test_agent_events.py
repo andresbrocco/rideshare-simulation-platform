@@ -140,8 +140,15 @@ def test_driver_gps_ping_emission(driver_dna, mock_kafka_producer, mock_redis_pu
 
 
 @pytest.mark.unit
-def test_rider_gps_ping_emission(rider_dna, mock_kafka_producer, mock_redis_publisher):
-    """Test that rider emits GPS pings while in trip."""
+def test_rider_no_gps_from_run_loop_while_in_trip(
+    rider_dna, mock_kafka_producer, mock_redis_publisher
+):
+    """Rider run() loop defers GPS pings to TripExecutor while in_trip.
+
+    After commit 89a3793, the rider's main loop no longer emits GPS pings
+    during active trips to avoid duplicating events that TripExecutor already
+    emits via _simulate_drive().
+    """
     env = simpy.Environment()
     rider = RiderAgent("rider1", rider_dna, env, mock_kafka_producer, mock_redis_publisher)
     rider.update_location(-23.55, -46.63)
@@ -152,7 +159,6 @@ def test_rider_gps_ping_emission(rider_dna, mock_kafka_producer, mock_redis_publ
     mock_redis_publisher.reset_mock()
 
     env.process(rider.run())
-    # Run for enough time to get at least one ping (GPS interval is configurable)
     env.run(until=120)
 
     produce_calls = [
@@ -160,16 +166,8 @@ def test_rider_gps_ping_emission(rider_dna, mock_kafka_producer, mock_redis_publ
         for call in mock_kafka_producer.produce.call_args_list
         if call.kwargs.get("topic") == "gps_pings"
     ]
-    # Expect at least one GPS ping
-    assert len(produce_calls) >= 1
-
-    event_json = produce_calls[0].kwargs["value"]
-    event = json.loads(event_json)
-    assert event["entity_type"] == "rider"
-    assert event["entity_id"] == "rider1"
-    assert event["location"] == [-23.55, -46.63]
-    assert event["heading"] is None
-    assert event["speed"] is None
+    # Rider run() loop should NOT emit GPS pings while in_trip
+    assert len(produce_calls) == 0
 
 
 @pytest.mark.unit
@@ -218,8 +216,12 @@ def test_driver_gps_includes_heading_speed(driver_dna, mock_kafka_producer, mock
 
 
 @pytest.mark.unit
-def test_rider_gps_stationary_in_trip(rider_dna, mock_kafka_producer, mock_redis_publisher):
-    """Test that rider GPS pings during trip have no heading/speed (stationary)."""
+def test_rider_no_gps_stationary_in_trip(rider_dna, mock_kafka_producer, mock_redis_publisher):
+    """Rider run() loop emits zero GPS pings while in_trip (TripExecutor owns that).
+
+    Previously the rider loop emitted stationary pings during trips; after
+    commit 89a3793 this responsibility moved to TripExecutor._simulate_drive().
+    """
     env = simpy.Environment()
     rider = RiderAgent("rider1", rider_dna, env, mock_kafka_producer, mock_redis_publisher)
     rider.update_location(-23.55, -46.63)
@@ -237,13 +239,8 @@ def test_rider_gps_stationary_in_trip(rider_dna, mock_kafka_producer, mock_redis
         for call in mock_kafka_producer.produce.call_args_list
         if call.kwargs.get("topic") == "gps_pings"
     ]
-    assert len(produce_calls) >= 1
-
-    # Check first ping has no heading/speed (rider is stationary)
-    event_json = produce_calls[0].kwargs["value"]
-    event = json.loads(event_json)
-    assert event["heading"] is None
-    assert event["speed"] is None
+    # No GPS pings from rider run() loop while in_trip
+    assert len(produce_calls) == 0
 
 
 @pytest.mark.unit
