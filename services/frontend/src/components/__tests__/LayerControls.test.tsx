@@ -41,8 +41,8 @@ describe('LayerControls', () => {
     // Route layers
     expect(screen.getByLabelText(/trip routes/i)).toBeInTheDocument();
     // Zone layers
-    expect(screen.getByLabelText(/zones/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/surge/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^zones$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^surge$/i)).toBeInTheDocument();
   });
 
   it('default_visibility_state', () => {
@@ -56,8 +56,8 @@ describe('LayerControls', () => {
     expect(screen.getByLabelText(/waiting/i)).toBeChecked();
     expect(screen.getByLabelText(/in transit/i)).toBeChecked();
     expect(screen.getByLabelText(/trip routes/i)).toBeChecked();
-    expect(screen.getByLabelText(/zones/i)).toBeChecked();
-    expect(screen.getByLabelText(/surge/i)).not.toBeChecked();
+    expect(screen.getByLabelText(/^zones$/i)).toBeChecked();
+    expect(screen.getByLabelText(/^surge$/i)).not.toBeChecked();
   });
 
   it('toggles_layer_visibility', async () => {
@@ -113,5 +113,109 @@ describe('LayerControls', () => {
     await user.click(collapseButton);
 
     expect(screen.queryByLabelText(/^online$/i)).not.toBeInTheDocument();
+  });
+
+  describe('category toggles', () => {
+    it('checks_all_in_category_when_some_unchecked', async () => {
+      const user = userEvent.setup();
+      const mockOnChange = vi.fn();
+
+      // offlineDrivers is false in fullVisibility, so not all Drivers are checked
+      render(<LayerControls visibility={fullVisibility} onChange={mockOnChange} />);
+
+      const driversToggle = screen.getByLabelText(/toggle all drivers/i);
+      await user.click(driversToggle);
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...fullVisibility,
+        onlineDrivers: true,
+        offlineDrivers: true,
+        enRoutePickupDrivers: true,
+        withPassengerDrivers: true,
+      });
+    });
+
+    it('unchecks_all_in_category_when_all_checked', async () => {
+      const user = userEvent.setup();
+      const mockOnChange = vi.fn();
+
+      const allDriversChecked: LayerVisibility = {
+        ...fullVisibility,
+        offlineDrivers: true,
+      };
+
+      render(<LayerControls visibility={allDriversChecked} onChange={mockOnChange} />);
+
+      const driversToggle = screen.getByLabelText(/toggle all drivers/i);
+      await user.click(driversToggle);
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...allDriversChecked,
+        onlineDrivers: false,
+        offlineDrivers: false,
+        enRoutePickupDrivers: false,
+        withPassengerDrivers: false,
+      });
+    });
+
+    it('shows_indeterminate_state_when_some_checked', () => {
+      const mockOnChange = vi.fn();
+
+      // offlineDrivers is false, rest are true -> indeterminate
+      render(<LayerControls visibility={fullVisibility} onChange={mockOnChange} />);
+
+      const driversToggle = screen.getByLabelText(/toggle all drivers/i) as HTMLInputElement;
+      expect(driversToggle.indeterminate).toBe(true);
+      expect(driversToggle.checked).toBe(false);
+    });
+
+    it('shows_checked_state_when_all_in_category_checked', () => {
+      const mockOnChange = vi.fn();
+
+      // All rider layers are true in fullVisibility
+      render(<LayerControls visibility={fullVisibility} onChange={mockOnChange} />);
+
+      const ridersToggle = screen.getByLabelText(/toggle all riders/i) as HTMLInputElement;
+      expect(ridersToggle.indeterminate).toBe(false);
+      expect(ridersToggle.checked).toBe(true);
+    });
+
+    it('shows_unchecked_state_when_none_in_category_checked', () => {
+      const mockOnChange = vi.fn();
+
+      const noZones: LayerVisibility = {
+        ...fullVisibility,
+        zoneBoundaries: false,
+        surgeHeatmap: false,
+      };
+
+      render(<LayerControls visibility={noZones} onChange={mockOnChange} />);
+
+      const zonesToggle = screen.getByLabelText(/toggle all zones/i) as HTMLInputElement;
+      expect(zonesToggle.indeterminate).toBe(false);
+      expect(zonesToggle.checked).toBe(false);
+    });
+
+    it('checks_all_zones_when_none_checked', async () => {
+      const user = userEvent.setup();
+      const mockOnChange = vi.fn();
+
+      const noZones: LayerVisibility = {
+        ...fullVisibility,
+        zoneBoundaries: false,
+        surgeHeatmap: false,
+      };
+
+      render(<LayerControls visibility={noZones} onChange={mockOnChange} />);
+
+      const zonesToggle = screen.getByLabelText(/toggle all zones/i);
+      await user.click(zonesToggle);
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...noZones,
+        zoneBoundaries: true,
+        surgeHeatmap: true,
+      });
+    });
   });
 });

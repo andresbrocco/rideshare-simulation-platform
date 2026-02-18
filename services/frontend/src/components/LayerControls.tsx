@@ -7,26 +7,32 @@ interface LayerControlsProps {
   onChange: (visibility: LayerVisibility) => void;
 }
 
-const LAYER_CONFIGS = [
+interface LayerConfig {
+  key: keyof LayerVisibility;
+  label: string;
+  color: string;
+}
+
+const LAYER_CONFIGS: LayerConfig[] = [
   // Driver layers
-  { key: 'onlineDrivers' as const, label: 'Online', color: '#00FF00' },
-  { key: 'offlineDrivers' as const, label: 'Offline', color: '#808080' },
-  { key: 'enRoutePickupDrivers' as const, label: 'To Pickup', color: '#FFD700' },
-  { key: 'withPassengerDrivers' as const, label: 'With Rider', color: '#0000FF' },
+  { key: 'onlineDrivers', label: 'Online', color: '#00FF00' },
+  { key: 'offlineDrivers', label: 'Offline', color: '#808080' },
+  { key: 'enRoutePickupDrivers', label: 'To Pickup', color: '#FFD700' },
+  { key: 'withPassengerDrivers', label: 'With Rider', color: '#0000FF' },
   // Rider layers
-  { key: 'offlineRiders' as const, label: 'Offline', color: '#C0C0C0' },
-  { key: 'waitingRiders' as const, label: 'Waiting', color: '#FFA500' },
-  { key: 'matchedRiders' as const, label: 'Matched', color: '#FFD700' },
-  { key: 'enRouteRiders' as const, label: 'Driver En Route', color: '#87CEEB' },
-  { key: 'arrivedRiders' as const, label: 'Driver Arrived', color: '#00FFFF' },
-  { key: 'inTransitRiders' as const, label: 'In Transit', color: '#800080' },
+  { key: 'offlineRiders', label: 'Offline', color: '#C0C0C0' },
+  { key: 'waitingRiders', label: 'Waiting', color: '#FFA500' },
+  { key: 'matchedRiders', label: 'Matched', color: '#FFD700' },
+  { key: 'enRouteRiders', label: 'Driver En Route', color: '#87CEEB' },
+  { key: 'arrivedRiders', label: 'Driver Arrived', color: '#00FFFF' },
+  { key: 'inTransitRiders', label: 'In Transit', color: '#800080' },
   // Trip/Route layers
-  { key: 'pendingRoutes' as const, label: 'Pending Routes', color: '#FFA500' },
-  { key: 'pickupRoutes' as const, label: 'Pickup Routes', color: '#FF6496' },
-  { key: 'tripRoutes' as const, label: 'Trip Routes', color: '#0064FF' },
+  { key: 'pendingRoutes', label: 'Pending Routes', color: '#FFA500' },
+  { key: 'pickupRoutes', label: 'Pickup Routes', color: '#FF6496' },
+  { key: 'tripRoutes', label: 'Trip Routes', color: '#0064FF' },
   // Zone layers
-  { key: 'zoneBoundaries' as const, label: 'Zones', color: '#FFFFFF' },
-  { key: 'surgeHeatmap' as const, label: 'Surge', color: '#FFFF00' },
+  { key: 'zoneBoundaries', label: 'Zones', color: '#FFFFFF' },
+  { key: 'surgeHeatmap', label: 'Surge', color: '#FFFF00' },
 ];
 
 // Group layers by category for better organization
@@ -45,6 +51,13 @@ export default function LayerControls({ visibility, onChange }: LayerControlsPro
     });
   };
 
+  const handleCategoryToggle = (layers: LayerConfig[]) => {
+    const keys = layers.map((l) => l.key);
+    const allChecked = keys.every((k) => visibility[k]);
+    const updates = Object.fromEntries(keys.map((k) => [k, !allChecked]));
+    onChange({ ...visibility, ...updates });
+  };
+
   const handleToggleAll = () => {
     const anyChecked = Object.values(visibility).some((v) => v);
     const newVisibility = Object.keys(visibility).reduce(
@@ -57,6 +70,47 @@ export default function LayerControls({ visibility, onChange }: LayerControlsPro
     onChange(newVisibility);
   };
 
+  const renderSection = (title: string, layers: LayerConfig[]) => {
+    const keys = layers.map((l) => l.key);
+    const checkedCount = keys.filter((k) => visibility[k]).length;
+    const allChecked = checkedCount === keys.length;
+    const someChecked = checkedCount > 0 && !allChecked;
+
+    return (
+      <div className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <input
+            type="checkbox"
+            ref={(el) => {
+              if (el) el.indeterminate = someChecked;
+            }}
+            checked={allChecked}
+            onChange={() => handleCategoryToggle(layers)}
+            className={styles.checkbox}
+            aria-label={`Toggle all ${title}`}
+          />
+          <span className={styles.sectionTitle} onClick={() => handleCategoryToggle(layers)}>
+            {title}
+          </span>
+        </div>
+        <div className={styles.layerGrid}>
+          {layers.map((config) => (
+            <label key={config.key} className={styles.checkboxLabel}>
+              <input
+                type="checkbox"
+                checked={visibility[config.key]}
+                onChange={() => handleToggle(config.key)}
+                className={styles.checkbox}
+              />
+              <span className={styles.colorSwatch} style={{ backgroundColor: config.color }} />
+              <span className={styles.labelText}>{config.label}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className={styles.container}>
       <div className={styles.header}>
@@ -66,87 +120,16 @@ export default function LayerControls({ visibility, onChange }: LayerControlsPro
           onClick={() => setCollapsed(!collapsed)}
           aria-label="Collapse"
         >
-          {collapsed ? '▲' : '▼'}
+          {collapsed ? '\u25B2' : '\u25BC'}
         </button>
       </div>
 
       {!collapsed && (
         <div className={styles.content}>
-          {/* Drivers Section */}
-          <div className={styles.section}>
-            <div className={styles.sectionTitle}>Drivers</div>
-            <div className={styles.layerGrid}>
-              {DRIVER_LAYERS.map((config) => (
-                <label key={config.key} className={styles.checkboxLabel}>
-                  <input
-                    type="checkbox"
-                    checked={visibility[config.key]}
-                    onChange={() => handleToggle(config.key)}
-                    className={styles.checkbox}
-                  />
-                  <span className={styles.colorSwatch} style={{ backgroundColor: config.color }} />
-                  <span className={styles.labelText}>{config.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Riders Section */}
-          <div className={styles.section}>
-            <div className={styles.sectionTitle}>Riders</div>
-            <div className={styles.layerGrid}>
-              {RIDER_LAYERS.map((config) => (
-                <label key={config.key} className={styles.checkboxLabel}>
-                  <input
-                    type="checkbox"
-                    checked={visibility[config.key]}
-                    onChange={() => handleToggle(config.key)}
-                    className={styles.checkbox}
-                  />
-                  <span className={styles.colorSwatch} style={{ backgroundColor: config.color }} />
-                  <span className={styles.labelText}>{config.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Routes Section */}
-          <div className={styles.section}>
-            <div className={styles.sectionTitle}>Routes</div>
-            <div className={styles.layerGrid}>
-              {ROUTE_LAYERS.map((config) => (
-                <label key={config.key} className={styles.checkboxLabel}>
-                  <input
-                    type="checkbox"
-                    checked={visibility[config.key]}
-                    onChange={() => handleToggle(config.key)}
-                    className={styles.checkbox}
-                  />
-                  <span className={styles.colorSwatch} style={{ backgroundColor: config.color }} />
-                  <span className={styles.labelText}>{config.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Zones Section */}
-          <div className={styles.section}>
-            <div className={styles.sectionTitle}>Zones</div>
-            <div className={styles.layerGrid}>
-              {ZONE_LAYERS.map((config) => (
-                <label key={config.key} className={styles.checkboxLabel}>
-                  <input
-                    type="checkbox"
-                    checked={visibility[config.key]}
-                    onChange={() => handleToggle(config.key)}
-                    className={styles.checkbox}
-                  />
-                  <span className={styles.colorSwatch} style={{ backgroundColor: config.color }} />
-                  <span className={styles.labelText}>{config.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
+          {renderSection('Drivers', DRIVER_LAYERS)}
+          {renderSection('Riders', RIDER_LAYERS)}
+          {renderSection('Routes', ROUTE_LAYERS)}
+          {renderSection('Zones', ZONE_LAYERS)}
 
           <button className={styles.toggleAllButton} onClick={handleToggleAll}>
             Toggle All
