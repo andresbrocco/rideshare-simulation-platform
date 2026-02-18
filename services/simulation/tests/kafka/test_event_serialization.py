@@ -1,7 +1,8 @@
+import json
 import uuid
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -72,7 +73,8 @@ def test_serialize_trip_event(mock_schema_registry, schema_path):
 
 
 @pytest.mark.unit
-def test_auto_generate_event_id(mock_schema_registry, schema_path):
+def test_event_id_always_present(mock_schema_registry, schema_path):
+    """Pydantic default_factory=uuid4 guarantees event_id is always set."""
     serializer = EventSerializer(mock_schema_registry, schema_path / "trip_event.json")
     event = TripEvent(
         event_type="trip.requested",
@@ -87,15 +89,11 @@ def test_auto_generate_event_id(mock_schema_registry, schema_path):
         surge_multiplier=1.5,
         fare=25.50,
     )
-    event.event_id = None
 
     result = serializer.serialize(event)
 
     assert "event_id" in result
-    try:
-        uuid.UUID(result["event_id"])
-    except ValueError:
-        pytest.fail("event_id is not a valid UUID")
+    uuid.UUID(result["event_id"])  # Raises ValueError if not a valid UUID
 
 
 @pytest.mark.unit
@@ -123,13 +121,14 @@ def test_preserve_existing_event_id(mock_schema_registry, schema_path):
 
 
 @pytest.mark.unit
-def test_format_timestamp_iso8601(mock_schema_registry, schema_path):
+def test_timestamp_z_suffix(mock_schema_registry, schema_path):
+    """Z suffix originates from the event model, not from post-hoc replacement."""
     serializer = EventSerializer(mock_schema_registry, schema_path / "trip_event.json")
     dt = datetime(2025, 7, 29, 14, 30, 0, tzinfo=UTC)
     event = TripEvent(
         event_type="trip.requested",
         trip_id="trip_001",
-        timestamp=dt.isoformat(),
+        timestamp=dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
         rider_id="rider_001",
         driver_id=None,
         pickup_location=(40.7128, -74.0060),
@@ -142,11 +141,15 @@ def test_format_timestamp_iso8601(mock_schema_registry, schema_path):
 
     result = serializer.serialize(event)
 
+    assert result["timestamp"].endswith("Z")
+    assert "+00:00" not in result["timestamp"]
     assert result["timestamp"] == "2025-07-29T14:30:00Z"
 
 
 @pytest.mark.unit
 def test_serialize_with_schema_validation(mock_schema_registry, schema_path):
+    import jsonschema
+
     serializer = TripEventSerializer(mock_schema_registry, schema_path)
     event = TripEvent(
         event_type="trip.requested",
@@ -165,6 +168,9 @@ def test_serialize_with_schema_validation(mock_schema_registry, schema_path):
     result = serializer.serialize(event)
 
     assert mock_schema_registry.validate_message.called
+    # Verify the second argument is a Draft7Validator, not a raw schema string
+    call_args = mock_schema_registry.validate_message.call_args
+    assert isinstance(call_args[0][1], jsonschema.Draft7Validator)
     assert result is not None
 
 
@@ -281,3 +287,57 @@ def test_typed_serializer_registers_schema(mock_schema_registry, schema_path):
     serializer.serialize(event)
 
     assert mock_schema_registry.register_schema.called
+
+
+@pytest.mark.unit
+def test_schema_parsed_once_across_multiple_events(mock_schema_registry, schema_path):
+    """json.loads is called exactly once per serializer, not once per event."""
+    serializer = TripEventSerializer(mock_schema_registry, schema_path)
+
+    with patch("src.kafka.serialization.json.loads", wraps=json.loads) as mock_json_loads:
+        for i in range(10):
+            event = TripEvent(
+                event_type="trip.requested",
+                trip_id=f"trip_{i:03d}",
+                timestamp="2025-07-29T14:30:00Z",
+                rider_id="rider_001",
+                driver_id=None,
+                pickup_location=(40.7128, -74.0060),
+                dropoff_location=(40.7589, -73.9851),
+                pickup_zone_id="zone_001",
+                dropoff_zone_id="zone_002",
+                surge_multiplier=1.5,
+                fare=25.50,
+            )
+            serializer.serialize(event)
+
+        assert mock_json_loads.call_count == 1
+
+
+@pytest.mark.unit
+def test_serialize_for_kafka_uses_model_dump_json(mock_schema_registry, schema_path):
+    """Wire format comes from model_dump_json(), not json.dumps()."""
+    serializer = TripEventSerializer(mock_schema_registry, schema_path)
+    event = TripEvent(
+        event_type="trip.requested",
+        trip_id="trip_001",
+        timestamp="2025-07-29T14:30:00Z",
+        rider_id="rider_001",
+        driver_id=None,
+        pickup_location=(40.7128, -74.0060),
+        dropoff_location=(40.7589, -73.9851),
+        pickup_zone_id="zone_001",
+        dropoff_zone_id="zone_002",
+        surge_multiplier=1.5,
+        fare=25.50,
+    )
+
+    result, is_corrupted = serializer.serialize_for_kafka(event, "trips")
+
+    assert not is_corrupted
+    # Result must match model_dump_json() output exactly
+    assert result == event.model_dump_json()
+    # Verify it's valid JSON with expected fields
+    parsed = json.loads(result)
+    assert parsed["event_type"] == "trip.requested"
+    assert parsed["trip_id"] == "trip_001"

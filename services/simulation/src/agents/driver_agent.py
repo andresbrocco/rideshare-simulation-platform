@@ -35,7 +35,6 @@ from kafka.producer import KafkaProducer
 from metrics import get_metrics_collector
 from metrics.prometheus_exporter import observe_latency
 from redis_client.publisher import RedisPublisher
-from utils.async_helpers import run_coroutine_safe
 
 if TYPE_CHECKING:
     from agents.rider_agent import RiderAgent
@@ -543,18 +542,11 @@ class DriverAgent(EventEmitter):
             license_plate=self._dna.license_plate,
         )
 
-        main_loop = None
-        if self._simulation_engine:
-            main_loop = self._simulation_engine.get_event_loop()
-        run_coroutine_safe(
-            self._emit_event(
-                event=event,
-                kafka_topic="driver_profiles",
-                partition_key=self._driver_id,
-                redis_channel="driver-updates",
-            ),
-            main_loop,
-            fallback_sync=True,
+        self._emit_event(
+            event=event,
+            kafka_topic="driver_profiles",
+            partition_key=self._driver_id,
+            redis_channel="driver-updates",
         )
 
     def _emit_update_event(self) -> None:
@@ -582,18 +574,11 @@ class DriverAgent(EventEmitter):
             license_plate=changes.get("license_plate", self._dna.license_plate),
         )
 
-        main_loop = None
-        if self._simulation_engine:
-            main_loop = self._simulation_engine.get_event_loop()
-        run_coroutine_safe(
-            self._emit_event(
-                event=event,
-                kafka_topic="driver_profiles",
-                partition_key=self._driver_id,
-                redis_channel="driver-updates",
-            ),
-            main_loop,
-            fallback_sync=True,
+        self._emit_event(
+            event=event,
+            kafka_topic="driver_profiles",
+            partition_key=self._driver_id,
+            redis_channel="driver-updates",
         )
 
     def _emit_initial_gps_ping(self) -> None:
@@ -614,18 +599,11 @@ class DriverAgent(EventEmitter):
             trip_id=None,
         )
 
-        main_loop = None
-        if self._simulation_engine:
-            main_loop = self._simulation_engine.get_event_loop()
-        run_coroutine_safe(
-            self._emit_event(
-                event=event,
-                kafka_topic="gps_pings",
-                partition_key=self._driver_id,
-                redis_channel="driver-updates",
-            ),
-            main_loop,
-            fallback_sync=True,
+        self._emit_event(
+            event=event,
+            kafka_topic="gps_pings",
+            partition_key=self._driver_id,
+            redis_channel="driver-updates",
         )
 
     def _emit_initial_status_preview(self) -> None:
@@ -788,18 +766,11 @@ class DriverAgent(EventEmitter):
                         trip_id=self._active_trip,
                     )
 
-                    main_loop = None
-                    if self._simulation_engine:
-                        main_loop = self._simulation_engine.get_event_loop()
-                    run_coroutine_safe(
-                        self._emit_event(
-                            event=event,
-                            kafka_topic="gps_pings",
-                            partition_key=self._driver_id,
-                            redis_channel="driver-updates",
-                        ),
-                        main_loop,
-                        fallback_sync=True,
+                    self._emit_event(
+                        event=event,
+                        kafka_topic="gps_pings",
+                        partition_key=self._driver_id,
+                        redis_channel="driver-updates",
                     )
 
                 yield self._env.timeout(self._get_gps_interval())

@@ -36,6 +36,19 @@ PROFILE_UPDATE_INTERVAL_SECONDS = int(
     os.environ.get("PROFILE_UPDATE_INTERVAL_SECONDS", str(7 * 24 * 3600))
 )
 
+# Mapping from Kafka topic names to metric event types.
+# Kept at module level to avoid re-creating the dict on every _emit_event() call.
+_TOPIC_TO_EVENT_TYPE: dict[str, str] = {
+    "trips": "trip_event",
+    "gps_pings": "gps_ping",
+    "driver_status": "driver_status",
+    "surge_updates": "surge_update",
+    "ratings": "rating",
+    "payments": "payment",
+    "driver_profiles": "driver_profile",
+    "rider_profiles": "rider_profile",
+}
+
 
 class EventEmitter:
     """Mixin class for emitting events to Kafka.
@@ -84,7 +97,7 @@ class EventEmitter:
                 extra={"topic": topic, "key": key, "event_type": type(event).__name__},
             )
 
-    async def _emit_event(
+    def _emit_event(
         self,
         event: BaseModel,
         kafka_topic: str,
@@ -100,18 +113,7 @@ class EventEmitter:
             redis_channel: Ignored. Kept for backward compatibility.
                           Stream processor now handles Redis publishing.
         """
-        # Map Kafka topics to event types for metrics
-        topic_to_event_type = {
-            "trips": "trip_event",
-            "gps_pings": "gps_ping",
-            "driver_status": "driver_status",
-            "surge_updates": "surge_update",
-            "ratings": "rating",
-            "payments": "payment",
-            "driver_profiles": "driver_profile",
-            "rider_profiles": "rider_profile",
-        }
-        event_type = topic_to_event_type.get(kafka_topic, kafka_topic)
+        event_type = _TOPIC_TO_EVENT_TYPE.get(kafka_topic, kafka_topic)
         get_metrics_collector().record_event(event_type)
 
         # Emit to Kafka only - stream processor handles Redis publishing

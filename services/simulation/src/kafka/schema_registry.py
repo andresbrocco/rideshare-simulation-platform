@@ -1,4 +1,3 @@
-import json
 from typing import Any
 
 import jsonschema
@@ -24,10 +23,11 @@ class SchemaRegistry:
             self._cache[schema_id] = self.client.get_schema(schema_id)
         return self._cache[schema_id]
 
-    def validate_message(self, message: dict[str, Any], schema_str: str) -> bool:
-        """Validate message against JSON schema."""
-        schema_dict = json.loads(schema_str)
-        jsonschema.validate(instance=message, schema=schema_dict)
+    def validate_message(
+        self, message: dict[str, Any], validator: jsonschema.Draft7Validator
+    ) -> bool:
+        """Validate message against a pre-built JSON schema validator."""
+        validator.validate(instance=message)
         return True
 
     def check_compatibility(self, subject: str, schema_str: str) -> bool:

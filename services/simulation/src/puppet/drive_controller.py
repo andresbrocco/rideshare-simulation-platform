@@ -160,7 +160,7 @@ class PuppetDriveController:
         timestamp = (
             self._simulation_engine.time_manager.format_timestamp()
             if self._simulation_engine
-            else datetime.now(UTC).isoformat()
+            else datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         )
         event = GPSPingEvent(
             entity_type="driver",

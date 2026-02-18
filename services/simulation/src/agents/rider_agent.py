@@ -25,7 +25,6 @@ from events.factory import EventFactory
 from events.schemas import GPSPingEvent, RatingEvent, RiderProfileEvent, TripEvent
 from kafka.producer import KafkaProducer
 from redis_client.publisher import RedisPublisher
-from utils.async_helpers import run_coroutine_safe
 
 if TYPE_CHECKING:
     from agents.driver_agent import DriverAgent
@@ -294,7 +293,7 @@ class RiderAgent(EventEmitter):
             result = self._simulation_engine.time_manager.format_timestamp()
             if isinstance(result, str):
                 return result
-        return datetime.now(UTC).isoformat()
+        return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     def _emit_rating_event(
         self,
@@ -447,18 +446,11 @@ class RiderAgent(EventEmitter):
             behavior_factor=self._dna.behavior_factor,
         )
 
-        main_loop = None
-        if self._simulation_engine:
-            main_loop = self._simulation_engine.get_event_loop()
-        run_coroutine_safe(
-            self._emit_event(
-                event=event,
-                kafka_topic="rider_profiles",
-                partition_key=self._rider_id,
-                redis_channel="rider-updates",
-            ),
-            main_loop,
-            fallback_sync=True,
+        self._emit_event(
+            event=event,
+            kafka_topic="rider_profiles",
+            partition_key=self._rider_id,
+            redis_channel="rider-updates",
         )
 
         # NOTE: Direct Redis publishing disabled - using Kafka → Stream Processor → Redis path
@@ -488,18 +480,11 @@ class RiderAgent(EventEmitter):
             behavior_factor=self._dna.behavior_factor,
         )
 
-        main_loop = None
-        if self._simulation_engine:
-            main_loop = self._simulation_engine.get_event_loop()
-        run_coroutine_safe(
-            self._emit_event(
-                event=event,
-                kafka_topic="rider_profiles",
-                partition_key=self._rider_id,
-                redis_channel="rider-updates",
-            ),
-            main_loop,
-            fallback_sync=True,
+        self._emit_event(
+            event=event,
+            kafka_topic="rider_profiles",
+            partition_key=self._rider_id,
+            redis_channel="rider-updates",
         )
 
     def _profile_update_loop(self) -> Generator[simpy.Event]:
@@ -538,18 +523,11 @@ class RiderAgent(EventEmitter):
             trip_id=self._active_trip,
         )
 
-        main_loop = None
-        if self._simulation_engine:
-            main_loop = self._simulation_engine.get_event_loop()
-        run_coroutine_safe(
-            self._emit_event(
-                event=gps_event,
-                kafka_topic="gps_pings",
-                partition_key=self._rider_id,
-                redis_channel="rider-updates",
-            ),
-            main_loop,
-            fallback_sync=True,
+        self._emit_event(
+            event=gps_event,
+            kafka_topic="gps_pings",
+            partition_key=self._rider_id,
+            redis_channel="rider-updates",
         )
 
     def run(self) -> Generator[simpy.Event]:
@@ -640,18 +618,11 @@ class RiderAgent(EventEmitter):
                 fare=fare,
             )
 
-            main_loop = None
-            if self._simulation_engine:
-                main_loop = self._simulation_engine.get_event_loop()
-            run_coroutine_safe(
-                self._emit_event(
-                    event=trip_event,
-                    kafka_topic="trips",
-                    partition_key=trip_id,
-                    redis_channel="trip-updates",
-                ),
-                main_loop,
-                fallback_sync=True,
+            self._emit_event(
+                event=trip_event,
+                kafka_topic="trips",
+                partition_key=trip_id,
+                redis_channel="trip-updates",
             )
 
             # Trigger matching through the simulation engine (thread-safe)
@@ -728,18 +699,11 @@ class RiderAgent(EventEmitter):
                     cancellation_reason="patience_timeout",
                 )
 
-                main_loop = None
-                if self._simulation_engine:
-                    main_loop = self._simulation_engine.get_event_loop()
-                run_coroutine_safe(
-                    self._emit_event(
-                        event=event,
-                        kafka_topic="trips",
-                        partition_key=trip_id,
-                        redis_channel="trip-updates",
-                    ),
-                    main_loop,
-                    fallback_sync=True,
+                self._emit_event(
+                    event=event,
+                    kafka_topic="trips",
+                    partition_key=trip_id,
+                    redis_channel="trip-updates",
                 )
                 continue
 

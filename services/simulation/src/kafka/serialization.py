@@ -1,9 +1,9 @@
 import json
 import logging
-import uuid
 from pathlib import Path
 from typing import Any
 
+import jsonschema
 from pydantic import BaseModel
 
 from kafka.data_corruption import DataCorruptor, get_corruptor
@@ -19,25 +19,17 @@ class EventSerializer:
         self.schema_registry = schema_registry
         self.schema_path = Path(schema_path)
         self._schema_registered = False
-        self._schema_str: str | None = None
+        self._validator: jsonschema.Draft7Validator | None = None
         self._corruptor: DataCorruptor | None = None
 
     def serialize(self, event: BaseModel) -> dict[str, Any]:
         if not self._schema_registered:
             self._register_schema()
 
-        if getattr(event, "event_id", None) is None:
-            object.__setattr__(event, "event_id", uuid.uuid4())
-
         event_dict = event.model_dump(mode="json")
 
-        if isinstance(event_dict.get("timestamp"), str):
-            timestamp = event_dict["timestamp"]
-            if "+00:00" in timestamp:
-                event_dict["timestamp"] = timestamp.replace("+00:00", "Z")
-
-        if self._schema_str is not None:
-            self.schema_registry.validate_message(event_dict, self._schema_str)
+        if self._validator is not None:
+            self.schema_registry.validate_message(event_dict, self._validator)
 
         return event_dict
 
@@ -71,12 +63,14 @@ class EventSerializer:
             corrupted_payload, _ = self._corruptor.corrupt(valid_dict, topic)
             return corrupted_payload, True
 
-        return json.dumps(valid_dict), False
+        return event.model_dump_json(), False
 
     def _register_schema(self) -> None:
-        self._schema_str = self.schema_path.read_text()
+        schema_str = self.schema_path.read_text()
         subject = self.schema_path.stem
-        self.schema_registry.register_schema(subject, self._schema_str)
+        self.schema_registry.register_schema(subject, schema_str)
+        schema_dict = json.loads(schema_str)
+        self._validator = jsonschema.Draft7Validator(schema_dict)
         self._schema_registered = True
 
 

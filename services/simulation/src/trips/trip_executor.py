@@ -69,7 +69,7 @@ class TripExecutor:
             result = self._simulation_engine.time_manager.format_timestamp()
             if isinstance(result, str):
                 return result
-        return datetime.now(UTC).isoformat()
+        return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     def _current_time(self) -> datetime:
         """Get current time using simulated time if available."""

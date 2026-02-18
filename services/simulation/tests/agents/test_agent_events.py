@@ -303,3 +303,38 @@ def test_event_timestamp_utc(driver_dna, mock_kafka_producer, mock_redis_publish
 
     timestamp = datetime.fromisoformat(event["timestamp"])
     assert timestamp.tzinfo == UTC
+
+
+@pytest.mark.unit
+def test_emit_event_is_synchronous(driver_dna, mock_kafka_producer):
+    """Verify _emit_event is a plain function, not a coroutine."""
+    import inspect
+
+    from agents.event_emitter import EventEmitter
+
+    env = simpy.Environment()
+    driver = DriverAgent("driver1", driver_dna, env, mock_kafka_producer)
+
+    assert not inspect.iscoroutinefunction(driver._emit_event)
+    assert not inspect.iscoroutinefunction(EventEmitter._emit_event)
+
+
+@pytest.mark.unit
+def test_topic_to_event_type_module_constant():
+    """Verify _TOPIC_TO_EVENT_TYPE is a module-level dict with all 8 topic mappings."""
+    from agents.event_emitter import _TOPIC_TO_EVENT_TYPE
+
+    assert isinstance(_TOPIC_TO_EVENT_TYPE, dict)
+    assert len(_TOPIC_TO_EVENT_TYPE) == 8
+
+    expected_topics = {
+        "trips",
+        "gps_pings",
+        "driver_status",
+        "surge_updates",
+        "ratings",
+        "payments",
+        "driver_profiles",
+        "rider_profiles",
+    }
+    assert set(_TOPIC_TO_EVENT_TYPE.keys()) == expected_topics

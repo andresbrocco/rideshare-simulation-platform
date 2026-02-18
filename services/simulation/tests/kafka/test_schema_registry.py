@@ -118,20 +118,26 @@ def test_schema_caching(sr_config, trip_schema):
 
 
 @pytest.mark.unit
-def test_validate_message_valid(sr_config, trip_schema, valid_trip_event):
+def test_validate_message_accepts_draft7_validator(sr_config, trip_schema, valid_trip_event):
+    """validate_message accepts a pre-built Draft7Validator instance."""
+    import jsonschema
+
     with patch("kafka.schema_registry.SchemaRegistryClient"):
         registry = SchemaRegistry(sr_config)
-        schema_str = json.dumps(trip_schema)
+        validator = jsonschema.Draft7Validator(trip_schema)
 
-        result = registry.validate_message(valid_trip_event, schema_str)
+        result = registry.validate_message(valid_trip_event, validator)
         assert result is True
 
 
 @pytest.mark.unit
-def test_validate_message_invalid(sr_config, trip_schema):
+def test_validate_message_raises_on_invalid(sr_config, trip_schema):
+    """Bad dict still raises ValidationError with Draft7Validator."""
+    import jsonschema
+
     with patch("kafka.schema_registry.SchemaRegistryClient"):
         registry = SchemaRegistry(sr_config)
-        schema_str = json.dumps(trip_schema)
+        validator = jsonschema.Draft7Validator(trip_schema)
 
         invalid_event = {
             "trip_id": "trip-123",
@@ -139,14 +145,16 @@ def test_validate_message_invalid(sr_config, trip_schema):
         }
 
         with pytest.raises(ValidationError):
-            registry.validate_message(invalid_event, schema_str)
+            registry.validate_message(invalid_event, validator)
 
 
 @pytest.mark.unit
 def test_validate_message_type_mismatch(sr_config, trip_schema):
+    import jsonschema
+
     with patch("kafka.schema_registry.SchemaRegistryClient"):
         registry = SchemaRegistry(sr_config)
-        schema_str = json.dumps(trip_schema)
+        validator = jsonschema.Draft7Validator(trip_schema)
 
         invalid_event = {
             "trip_id": "trip-123",
@@ -157,7 +165,7 @@ def test_validate_message_type_mismatch(sr_config, trip_schema):
         }
 
         with pytest.raises(ValidationError):
-            registry.validate_message(invalid_event, schema_str)
+            registry.validate_message(invalid_event, validator)
 
 
 @pytest.mark.unit

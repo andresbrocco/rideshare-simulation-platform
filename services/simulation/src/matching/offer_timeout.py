@@ -75,7 +75,7 @@ class OfferTimeoutManager:
             timestamp=(
                 self._time_manager.format_timestamp()
                 if self._time_manager
-                else datetime.now(UTC).isoformat()
+                else datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
             ),
         )
         self.kafka_producer.produce(
