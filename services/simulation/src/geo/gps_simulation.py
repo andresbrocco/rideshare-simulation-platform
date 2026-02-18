@@ -59,8 +59,9 @@ class GPSSimulator:
 
         return polyline[-1]
 
+    @staticmethod
     def calculate_heading(
-        self, from_coords: tuple[float, float], to_coords: tuple[float, float]
+        from_coords: tuple[float, float], to_coords: tuple[float, float]
     ) -> float:
         lat1, lon1 = math.radians(from_coords[0]), math.radians(from_coords[1])
         lat2, lon2 = math.radians(to_coords[0]), math.radians(to_coords[1])
@@ -94,3 +95,18 @@ class GPSSimulator:
         lat = start[0] + (end[0] - start[0]) * progress
         lon = start[1] + (end[1] - start[1]) * progress
         return lat, lon
+
+
+def precompute_headings(geometry: list[tuple[float, float]]) -> list[float]:
+    """Precompute headings between consecutive polyline points.
+
+    Returns a list of length len(geometry) - 1. Index i gives the heading
+    when traveling from geometry[i] to geometry[i+1].
+    Returns an empty list if geometry has fewer than 2 points.
+    """
+    if len(geometry) < 2:
+        return []
+    return [
+        GPSSimulator.calculate_heading(geometry[i], geometry[i + 1])
+        for i in range(len(geometry) - 1)
+    ]

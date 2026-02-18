@@ -331,12 +331,8 @@ class DriverAgent(EventEmitter):
         """
         if heading is not None:
             self._heading = heading
-        elif self._location is not None:
-            gps = GPSSimulator(noise_meters=0)
-            calculated = gps.calculate_heading(self._location, (lat, lon))
-            # Only update heading if position actually changed (avoid 0 from same-point calculation)
-            if self._location != (lat, lon):
-                self._heading = calculated
+        elif self._location is not None and self._location != (lat, lon):
+            self._heading = GPSSimulator.calculate_heading(self._location, (lat, lon))
 
         self._location = (lat, lon)
 

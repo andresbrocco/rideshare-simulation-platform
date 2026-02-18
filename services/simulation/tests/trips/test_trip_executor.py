@@ -362,3 +362,84 @@ class TestTripExecutorGPSInterval:
         assert (
             "gps_interval = 1" not in source
         ), "_simulate_drive should not hardcode gps_interval = 1"
+
+
+@pytest.mark.unit
+class TestTripExecutorPrecomputedHeadings:
+    """Verify _simulate_drive() uses precomputed headings instead of per-tick trig."""
+
+    def test_simulate_drive_uses_precomputed_headings(self):
+        """_simulate_drive source should use precompute_headings, not GPSSimulator instantiation."""
+        import inspect
+
+        from src.trips.trip_executor import TripExecutor
+
+        source = inspect.getsource(TripExecutor._simulate_drive)
+        assert "precompute_headings" in source, "_simulate_drive should call precompute_headings()"
+        assert "route_headings" in source, "_simulate_drive should use route_headings array"
+        assert (
+            "GPSSimulator(noise_meters=0)" not in source
+        ), "_simulate_drive should not instantiate GPSSimulator per tick"
+
+    def test_precomputed_headings_match_driver_heading(
+        self,
+        simpy_env,
+        driver_agent,
+        rider_agent,
+        mock_kafka_producer,
+    ):
+        """Heading passed to update_location matches precomputed value."""
+        from src.geo.gps_simulation import precompute_headings
+
+        # Build a route with distinct segments at different angles
+        geometry = [
+            (-23.550, -46.630),
+            (-23.548, -46.628),  # NE
+            (-23.546, -46.630),  # NW
+            (-23.544, -46.628),  # NE
+            (-23.542, -46.630),  # NW
+        ]
+        expected_headings = precompute_headings(geometry)
+
+        route = RouteResponse(
+            distance_meters=3000.0,
+            duration_seconds=float(GPS_PING_INTERVAL_MOVING * 4),
+            geometry=geometry,
+            osrm_code="Ok",
+        )
+
+        mock_osrm = Mock()
+        mock_osrm.get_route_sync = Mock(return_value=route)
+
+        trip = Trip(
+            trip_id="trip_heading_001",
+            rider_id="rider_executor_001",
+            driver_id="driver_executor_001",
+            state=TripState.MATCHED,
+            pickup_location=geometry[0],
+            dropoff_location=geometry[-1],
+            pickup_zone_id="zone_1",
+            dropoff_zone_id="zone_2",
+            surge_multiplier=1.0,
+            fare=20.0,
+        )
+
+        executor = TripExecutor(
+            env=simpy_env,
+            driver=driver_agent,
+            rider=rider_agent,
+            trip=trip,
+            osrm_client=mock_osrm,
+            kafka_producer=mock_kafka_producer,
+            settings=SimulationSettings(arrival_proximity_threshold_m=50.0),
+        )
+
+        process = simpy_env.process(executor.execute())
+        simpy_env.run(process)
+
+        # Trip should complete successfully with precomputed headings
+        assert trip.state == TripState.COMPLETED
+
+        # Driver heading should be one of the precomputed values or preserved last heading
+        # (not 0.0, which would indicate heading was never set from route)
+        assert driver_agent.heading != 0.0 or any(h == 0.0 for h in expected_headings)

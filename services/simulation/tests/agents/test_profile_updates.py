@@ -202,10 +202,10 @@ class TestDriverEmitsUpdateEvent:
             kafka_producer=None,
         )
 
-        # Patch _emit_event to capture the event
+        # Patch _emit_event to capture the event (_emit_event is synchronous)
         captured_events = []
 
-        async def capture_event(event, **kwargs):
+        def capture_event(event, **kwargs):
             captured_events.append(event)
 
         driver._emit_event = capture_event
@@ -255,10 +255,10 @@ class TestRiderEmitsUpdateEvent:
             kafka_producer=None,
         )
 
-        # Patch _emit_event to capture the event
+        # Patch _emit_event to capture the event (_emit_event is synchronous)
         captured_events = []
 
-        async def capture_event(event, **kwargs):
+        def capture_event(event, **kwargs):
             captured_events.append(event)
 
         rider._emit_event = capture_event

@@ -14,6 +14,7 @@ from core.exceptions import PermanentError, TransientError
 from events.factory import EventFactory
 from events.schemas import GPSPingEvent, PaymentEvent, TripEvent
 from geo.distance import is_within_proximity
+from geo.gps_simulation import precompute_headings
 from geo.osrm_client import OSRMServiceError, RouteResponse
 from settings import SimulationSettings
 from trip import Trip, TripState
@@ -412,6 +413,7 @@ class TripExecutor:
         num_intervals = int(duration / gps_interval)
         time_per_interval = duration / max(num_intervals, 1)
         proximity_threshold = self._settings.arrival_proximity_threshold_m
+        route_headings = precompute_headings(geometry)
 
         for i in range(num_intervals):
             if check_rider_cancel and self._rider_cancels_mid_trip and i == num_intervals // 2:
@@ -431,13 +433,9 @@ class TripExecutor:
             idx = int(progress * (len(geometry) - 1))
             current_pos = geometry[min(idx, len(geometry) - 1)]
 
-            # Calculate heading from route direction (current → next point)
-            next_idx = min(idx + 1, len(geometry) - 1)
-            if idx != next_idx:
-                from geo.gps_simulation import GPSSimulator
-
-                gps = GPSSimulator(noise_meters=0)
-                route_heading = gps.calculate_heading(current_pos, geometry[next_idx])
+            # Look up precomputed heading for this segment
+            if idx < len(route_headings):
+                route_heading = route_headings[idx]
             else:
                 # At end of route, preserve last heading
                 route_heading = self._driver.heading

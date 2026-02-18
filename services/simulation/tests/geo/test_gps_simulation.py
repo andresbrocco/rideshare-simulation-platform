@@ -2,7 +2,7 @@ from math import sqrt
 
 import pytest
 
-from src.geo.gps_simulation import GPSSimulator
+from src.geo.gps_simulation import GPSSimulator, precompute_headings
 
 
 @pytest.fixture
@@ -176,3 +176,75 @@ def test_gps_accuracy_field(gps_simulator):
     accuracy = gps_simulator.get_gps_accuracy()
 
     assert 8 < accuracy < 12
+
+
+@pytest.mark.unit
+def test_calculate_heading_as_staticmethod():
+    """calculate_heading() can be called as a static method without instantiation."""
+    heading = GPSSimulator.calculate_heading((-23.55, -46.63), (-23.54, -46.63))
+    assert 0 <= heading < 360
+    # Northward heading
+    assert heading > 350 or heading < 10
+
+
+@pytest.mark.unit
+def test_calculate_heading_staticmethod_matches_instance(gps_simulator):
+    """Static call and instance call produce identical results."""
+    from_coords = (-23.55, -46.63)
+    to_coords = (-23.56, -46.64)
+    static_result = GPSSimulator.calculate_heading(from_coords, to_coords)
+    instance_result = gps_simulator.calculate_heading(from_coords, to_coords)
+    assert static_result == instance_result
+
+
+@pytest.mark.unit
+def test_precompute_headings_length():
+    """precompute_headings() returns len(geometry) - 1 headings."""
+    geometry = [(-23.55, -46.63), (-23.56, -46.64), (-23.57, -46.65)]
+    headings = precompute_headings(geometry)
+    assert len(headings) == 2
+
+
+@pytest.mark.unit
+def test_precompute_headings_values_in_range():
+    """All precomputed headings are in [0, 360)."""
+    geometry = [(-23.55, -46.63), (-23.56, -46.64), (-23.57, -46.65), (-23.58, -46.66)]
+    headings = precompute_headings(geometry)
+    assert all(0 <= h < 360 for h in headings)
+
+
+@pytest.mark.unit
+def test_precompute_headings_single_point():
+    """Single-point geometry returns empty list."""
+    assert precompute_headings([(-23.55, -46.63)]) == []
+
+
+@pytest.mark.unit
+def test_precompute_headings_empty_geometry():
+    """Empty geometry returns empty list."""
+    assert precompute_headings([]) == []
+
+
+@pytest.mark.unit
+def test_precompute_headings_two_points_northward():
+    """Two-point northward geometry returns one heading near 0/360."""
+    headings = precompute_headings([(-23.55, -46.63), (-23.54, -46.63)])
+    assert len(headings) == 1
+    assert headings[0] > 350 or headings[0] < 10
+
+
+@pytest.mark.unit
+def test_precompute_headings_cardinal_directions():
+    """Verify headings for cardinal directions."""
+    center = (-23.55, -46.63)
+    # East
+    east_headings = precompute_headings([center, (-23.55, -46.62)])
+    assert 80 < east_headings[0] < 100
+
+    # South
+    south_headings = precompute_headings([center, (-23.56, -46.63)])
+    assert 170 < south_headings[0] < 190
+
+    # West
+    west_headings = precompute_headings([center, (-23.55, -46.64)])
+    assert 260 < west_headings[0] < 280
