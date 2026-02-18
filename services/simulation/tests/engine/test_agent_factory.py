@@ -1,5 +1,6 @@
 """Tests for AgentFactory."""
 
+from collections import deque
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
@@ -358,3 +359,96 @@ def test_unique_agent_ids(mock_gen_dna, agent_factory, sample_driver_dna):
 
     assert len(created_ids) == 100
     assert len(set(created_ids)) == 100
+
+
+# --- Spawn queue deque tests ---
+
+
+@pytest.mark.unit
+class TestSpawnQueueDeque:
+    """Verify spawn queues use deque and popleft for O(1) dequeue."""
+
+    def test_spawn_queues_are_deques(self, agent_factory):
+        """All four spawn queues are collections.deque instances."""
+        assert isinstance(agent_factory._driver_immediate_requests, deque)
+        assert isinstance(agent_factory._driver_scheduled_requests, deque)
+        assert isinstance(agent_factory._rider_immediate_requests, deque)
+        assert isinstance(agent_factory._rider_scheduled_requests, deque)
+
+    def test_dequeue_driver_immediate_returns_true_then_false(self, agent_factory):
+        """Dequeue driver immediate returns True for each agent, False when empty."""
+        agent_factory._driver_immediate_requests.append(3)
+
+        assert agent_factory.dequeue_driver_immediate() is True
+        assert agent_factory.dequeue_driver_immediate() is True
+        assert agent_factory.dequeue_driver_immediate() is True
+        assert agent_factory.dequeue_driver_immediate() is False
+
+    def test_dequeue_driver_scheduled_returns_true_then_false(self, agent_factory):
+        """Dequeue driver scheduled returns True for each agent, False when empty."""
+        agent_factory._driver_scheduled_requests.append(2)
+
+        assert agent_factory.dequeue_driver_scheduled() is True
+        assert agent_factory.dequeue_driver_scheduled() is True
+        assert agent_factory.dequeue_driver_scheduled() is False
+
+    def test_dequeue_rider_immediate_returns_true_then_false(self, agent_factory):
+        """Dequeue rider immediate returns True for each agent, False when empty."""
+        agent_factory._rider_immediate_requests.append(4)
+
+        assert agent_factory.dequeue_rider_immediate() is True
+        assert agent_factory.dequeue_rider_immediate() is True
+        assert agent_factory.dequeue_rider_immediate() is True
+        assert agent_factory.dequeue_rider_immediate() is True
+        assert agent_factory.dequeue_rider_immediate() is False
+
+    def test_dequeue_rider_scheduled_returns_true_then_false(self, agent_factory):
+        """Dequeue rider scheduled returns True for each agent, False when empty."""
+        agent_factory._rider_scheduled_requests.append(1)
+
+        assert agent_factory.dequeue_rider_scheduled() is True
+        assert agent_factory.dequeue_rider_scheduled() is False
+
+    def test_dequeue_exhausts_zero_count_entries(self, agent_factory):
+        """Zero-count batch entries are discarded without returning True."""
+        agent_factory._driver_immediate_requests.append(0)
+        agent_factory._driver_immediate_requests.append(2)
+
+        # The zero entry is consumed and the next real entry is processed
+        assert agent_factory.dequeue_driver_immediate() is True
+        assert agent_factory.dequeue_driver_immediate() is True
+        assert agent_factory.dequeue_driver_immediate() is False
+
+    def test_multiple_batches_dequeued_in_order(self, agent_factory):
+        """Multiple queued batches are consumed left-to-right."""
+        agent_factory._rider_immediate_requests.append(2)
+        agent_factory._rider_immediate_requests.append(3)
+
+        # 2 + 3 = 5 total agents queued
+        results = [agent_factory.dequeue_rider_immediate() for _ in range(5)]
+        assert all(results)
+        assert agent_factory.dequeue_rider_immediate() is False
+
+    def test_get_spawn_queue_status_reflects_deque_contents(self, agent_factory):
+        """get_spawn_queue_status sums all deque entries correctly."""
+        agent_factory._driver_immediate_requests.append(5)
+        agent_factory._rider_scheduled_requests.append(10)
+
+        status = agent_factory.get_spawn_queue_status()
+
+        assert status["drivers_immediate_queued"] == 5
+        assert status["riders_scheduled_queued"] == 10
+        assert status["drivers_queued"] == 5
+        assert status["riders_queued"] == 10
+
+    def test_clear_spawn_queues_empties_all_deques(self, agent_factory):
+        """clear_spawn_queues leaves all deques empty."""
+        agent_factory._driver_immediate_requests.append(10)
+        agent_factory._rider_immediate_requests.append(5)
+
+        agent_factory.clear_spawn_queues()
+
+        assert len(agent_factory._driver_immediate_requests) == 0
+        assert len(agent_factory._driver_scheduled_requests) == 0
+        assert len(agent_factory._rider_immediate_requests) == 0
+        assert len(agent_factory._rider_scheduled_requests) == 0

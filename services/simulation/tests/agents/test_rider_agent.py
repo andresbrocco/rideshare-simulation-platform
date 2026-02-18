@@ -6,6 +6,7 @@ import simpy
 
 from agents.dna import RiderDNA
 from agents.rider_agent import RiderAgent
+from fare import FareCalculator
 from tests.factories import DNAFactory
 
 
@@ -298,3 +299,75 @@ class TestRiderZoneBasedGeneration:
             assert is_location_in_any_zone(
                 lat, lon
             ), f"Destination ({lat}, {lon}) is not inside any zone"
+
+
+@pytest.mark.unit
+class TestRiderCalculateFare:
+    """Verify _calculate_fare delegates to FareCalculator constants."""
+
+    def test_calculate_fare_uses_fare_calculator_constants(self, rider_dna, simpy_env):
+        """_calculate_fare result matches FareCalculator for the same inputs."""
+        agent = RiderAgent(
+            rider_id="rider_fare_001",
+            dna=rider_dna,
+            env=simpy_env,
+            kafka_producer=None,
+        )
+        pickup = (-23.56, -46.65)
+        dropoff = (-23.55, -46.63)
+
+        fare = agent._calculate_fare(pickup, dropoff, surge_multiplier=1.0)
+
+        # Compute the expected value independently using FareCalculator
+        calculator = FareCalculator()
+        distance_km = agent._haversine_distance(pickup[0], pickup[1], dropoff[0], dropoff[1])
+        duration_min = (distance_km / 25) * 60
+        expected = calculator.calculate(distance_km, duration_min, surge_multiplier=1.0).total_fare
+
+        assert fare == pytest.approx(expected)
+
+    def test_calculate_fare_not_using_old_inline_constants(self, rider_dna, simpy_env):
+        """Result differs from what the old inline constants (BASE=5, PER_KM=2.5) would give."""
+        agent = RiderAgent(
+            rider_id="rider_fare_002",
+            dna=rider_dna,
+            env=simpy_env,
+            kafka_producer=None,
+        )
+        # A short trip where the old and new constants produce different totals
+        pickup = (-23.56, -46.65)
+        dropoff = (-23.555, -46.645)
+
+        fare = agent._calculate_fare(pickup, dropoff, surge_multiplier=1.0)
+
+        distance_km = agent._haversine_distance(pickup[0], pickup[1], dropoff[0], dropoff[1])
+        duration_min = (distance_km / 25) * 60
+
+        # Old inline formula: 5.0 + distance*2.5 + duration*0.5 (no minimum)
+        old_fare = round(5.0 + distance_km * 2.5 + duration_min * 0.5, 2)
+
+        # New formula uses FareCalculator (BASE=4, PER_KM=1.5, MIN=8)
+        calculator = FareCalculator()
+        new_fare = calculator.calculate(distance_km, duration_min, 1.0).total_fare
+
+        # Sanity check: the two formulas do produce different results
+        assert old_fare != pytest.approx(new_fare)
+        # The agent result must match the new formula, not the old one
+        assert fare == pytest.approx(new_fare)
+        assert fare != pytest.approx(old_fare)
+
+    def test_calculate_fare_with_surge_multiplier(self, rider_dna, simpy_env):
+        """Surge multiplier is forwarded correctly to FareCalculator."""
+        agent = RiderAgent(
+            rider_id="rider_fare_003",
+            dna=rider_dna,
+            env=simpy_env,
+            kafka_producer=None,
+        )
+        pickup = (-23.56, -46.65)
+        dropoff = (-23.55, -46.63)
+
+        fare_base = agent._calculate_fare(pickup, dropoff, surge_multiplier=1.0)
+        fare_surged = agent._calculate_fare(pickup, dropoff, surge_multiplier=2.0)
+
+        assert fare_surged == pytest.approx(fare_base * 2.0)

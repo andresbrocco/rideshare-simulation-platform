@@ -23,6 +23,7 @@ from core.exceptions import PersistenceError
 from core.retry import RetryConfig, with_retry_sync
 from events.factory import EventFactory
 from events.schemas import GPSPingEvent, RatingEvent, RiderProfileEvent, TripEvent
+from fare import FareCalculator
 from kafka.producer import KafkaProducer
 from redis_client.publisher import RedisPublisher
 
@@ -36,6 +37,8 @@ if TYPE_CHECKING:
     from trip import Trip
 
 logger = logging.getLogger(__name__)
+
+_fare_calculator = FareCalculator()
 
 
 class RiderAgent(EventEmitter):
@@ -744,7 +747,7 @@ class RiderAgent(EventEmitter):
         dropoff: tuple[float, float],
         surge_multiplier: float,
     ) -> float:
-        """Calculate fare for a trip.
+        """Calculate fare for a trip using FareCalculator.
 
         Args:
             pickup: (lat, lon) of pickup location
@@ -754,32 +757,19 @@ class RiderAgent(EventEmitter):
         Returns:
             Calculated fare amount
         """
-        # Base fare calculation
-        BASE_FARE = 5.0  # BRL
-        PER_KM_RATE = 2.5  # BRL per km
-        PER_MINUTE_RATE = 0.5  # BRL per minute
-
-        # Calculate distance using OSRM if available, otherwise Haversine
         if self._osrm_client:
             try:
                 route = asyncio.run(self._osrm_client.get_route(pickup, dropoff))
                 distance_km = route.distance_meters / 1000
-                duration_minutes = route.duration_seconds / 60
+                duration_min = route.duration_seconds / 60
             except Exception:
-                # Fallback to Haversine estimate
                 distance_km = self._haversine_distance(pickup[0], pickup[1], dropoff[0], dropoff[1])
-                # Estimate duration based on average city speed (25 km/h)
-                duration_minutes = (distance_km / 25) * 60
+                duration_min = (distance_km / 25) * 60
         else:
             distance_km = self._haversine_distance(pickup[0], pickup[1], dropoff[0], dropoff[1])
-            duration_minutes = (distance_km / 25) * 60
+            duration_min = (distance_km / 25) * 60
 
-        # Calculate total fare
-        fare = BASE_FARE + (distance_km * PER_KM_RATE) + (duration_minutes * PER_MINUTE_RATE)
-        fare = fare * surge_multiplier
-
-        # Round to 2 decimal places
-        return round(fare, 2)
+        return _fare_calculator.calculate(distance_km, duration_min, surge_multiplier).total_fare
 
     @staticmethod
     def _haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

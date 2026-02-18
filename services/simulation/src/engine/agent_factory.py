@@ -2,6 +2,7 @@
 
 import random
 import threading
+from collections import deque
 from typing import TYPE_CHECKING, Any, cast
 from uuid import uuid4
 
@@ -45,10 +46,10 @@ class AgentFactory:
         self._max_riders = 10000
 
         # Spawn queues for continuous agent spawning (per-mode queues)
-        self._driver_immediate_requests: list[int] = []
-        self._driver_scheduled_requests: list[int] = []
-        self._rider_immediate_requests: list[int] = []
-        self._rider_scheduled_requests: list[int] = []
+        self._driver_immediate_requests: deque[int] = deque()
+        self._driver_scheduled_requests: deque[int] = deque()
+        self._rider_immediate_requests: deque[int] = deque()
+        self._rider_scheduled_requests: deque[int] = deque()
         self._spawn_lock = threading.Lock()
 
     def create_drivers(self, count: int) -> list[str]:
@@ -193,7 +194,7 @@ class AgentFactory:
                 if self._driver_immediate_requests[0] > 0:
                     self._driver_immediate_requests[0] -= 1
                     return True
-                self._driver_immediate_requests.pop(0)
+                self._driver_immediate_requests.popleft()
             return False
 
     def dequeue_driver_scheduled(self) -> bool:
@@ -207,7 +208,7 @@ class AgentFactory:
                 if self._driver_scheduled_requests[0] > 0:
                     self._driver_scheduled_requests[0] -= 1
                     return True
-                self._driver_scheduled_requests.pop(0)
+                self._driver_scheduled_requests.popleft()
             return False
 
     def dequeue_rider_immediate(self) -> bool:
@@ -221,7 +222,7 @@ class AgentFactory:
                 if self._rider_immediate_requests[0] > 0:
                     self._rider_immediate_requests[0] -= 1
                     return True
-                self._rider_immediate_requests.pop(0)
+                self._rider_immediate_requests.popleft()
             return False
 
     def dequeue_rider_scheduled(self) -> bool:
@@ -235,7 +236,7 @@ class AgentFactory:
                 if self._rider_scheduled_requests[0] > 0:
                     self._rider_scheduled_requests[0] -= 1
                     return True
-                self._rider_scheduled_requests.pop(0)
+                self._rider_scheduled_requests.popleft()
             return False
 
     def get_spawn_queue_status(self) -> dict[str, int]:
