@@ -50,6 +50,12 @@ simulation_errors_total = meter.create_counter(
     unit="1",
 )
 
+simulation_corrupted_events_total = meter.create_counter(
+    name="simulation_corrupted_events_total",
+    description="Total corrupted events injected by corruption type",
+    unit="1",
+)
+
 # ---------------------------------------------------------------------------
 # UpDownCounters (mutable counts that can go up or down)
 # ---------------------------------------------------------------------------
@@ -313,3 +319,12 @@ def observe_latency(component: str, latency_ms: float) -> None:
         simulation_kafka_latency_seconds.record(latency_seconds)
     elif component == "redis":
         simulation_redis_latency_seconds.record(latency_seconds)
+
+
+def record_corrupted_event(corruption_type: str) -> None:
+    """Record a corrupted event injection for Prometheus tracking.
+
+    Args:
+        corruption_type: The corruption type value (e.g. "missing_required_field")
+    """
+    simulation_corrupted_events_total.add(1, {"corruption_type": corruption_type})

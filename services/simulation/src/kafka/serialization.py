@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from kafka.data_corruption import DataCorruptor, get_corruptor
 from kafka.schema_registry import SchemaRegistry
+from metrics.prometheus_exporter import record_corrupted_event
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +61,8 @@ class EventSerializer:
             return event.model_dump_json(), False
 
         if self._corruptor.should_corrupt():
-            corrupted_payload, _ = self._corruptor.corrupt(valid_dict, topic)
+            corrupted_payload, corruption_type = self._corruptor.corrupt(valid_dict, topic)
+            record_corrupted_event(corruption_type.value)
             return corrupted_payload, True
 
         return event.model_dump_json(), False

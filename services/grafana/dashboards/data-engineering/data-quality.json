@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "Silver layer data quality monitoring. Tracks record completeness, null rates, duplicate detection, schema violations, and data type casting failures across staging tables (stg_trips, stg_gps_pings, stg_driver_status). 24-hour lookback via Trino.",
+  "description": "Silver layer data quality monitoring. Tracks record completeness, null rates, duplicate detection, schema violations, data type casting failures, stream processing errors, and data anomalies across all staging tables. 24-hour lookback via Trino and Prometheus.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -356,7 +356,7 @@
         "y": 6
       },
       "id": 7,
-      "description": "Horizontal bar chart comparing key field completeness (%) across three staging tables. Color scale: red (<90%), yellow (90-98%), green (98%+). Each table checks its primary identifier field.",
+      "description": "Horizontal bar chart comparing key field completeness (%) across six staging tables. Color scale: red (<90%), yellow (90-98%), green (98%+). Each table checks its primary identifier field.",
       "options": {
         "barRadius": 0.1,
         "barWidth": 0.6,
@@ -386,7 +386,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  'stg_trips' as table_name,\n  CAST(SUM(CASE WHEN trip_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*) as completeness\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT\n  'stg_gps_pings',\n  CAST(SUM(CASE WHEN event_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*)\nFROM delta.silver.stg_gps_pings\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT\n  'stg_driver_status',\n  CAST(SUM(CASE WHEN driver_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*)\nFROM delta.silver.stg_driver_status\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nORDER BY completeness",
+          "rawSql": "SELECT\n  'stg_trips' as table_name,\n  CAST(SUM(CASE WHEN trip_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*) as completeness\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT\n  'stg_gps_pings',\n  CAST(SUM(CASE WHEN event_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*)\nFROM delta.silver.stg_gps_pings\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT\n  'stg_driver_status',\n  CAST(SUM(CASE WHEN driver_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*)\nFROM delta.silver.stg_driver_status\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT\n  'stg_surge_updates',\n  CAST(SUM(CASE WHEN zone_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*)\nFROM delta.silver.stg_surge_updates\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT\n  'stg_ratings',\n  CAST(SUM(CASE WHEN rating_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*)\nFROM delta.silver.stg_ratings\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT\n  'stg_payments',\n  CAST(SUM(CASE WHEN payment_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*)\nFROM delta.silver.stg_payments\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nORDER BY completeness",
           "refId": "A"
         }
       ],
@@ -872,6 +872,475 @@
       ],
       "title": "Duplicate Records by Event Type",
       "type": "barchart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 37
+      },
+      "id": 16,
+      "panels": [],
+      "title": "Stream Processing Errors",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 10
+              },
+              {
+                "color": "red",
+                "value": 100
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 38
+      },
+      "id": 17,
+      "description": "Total validation errors detected by the stream processor in the last 24 hours. Yellow at 10, red at 100.",
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum(increase(stream_processor_validation_errors_total[24h]))",
+          "legendFormat": "Validation Errors",
+          "refId": "A"
+        }
+      ],
+      "title": "Validation Errors (24h)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 38
+      },
+      "id": 18,
+      "description": "Total corrupted events injected by the simulation DataCorruptor in the last 24 hours. Orange indicates intentional fault injection is active.",
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum(increase(simulation_corrupted_events_total[24h]))",
+          "legendFormat": "Corrupted Events",
+          "refId": "A"
+        }
+      ],
+      "title": "Corrupted Events Injected (24h)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Errors/min",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 38
+      },
+      "id": 19,
+      "description": "Rate of stream processor validation errors per minute, broken down by handler type. Shows which event handlers are generating the most errors.",
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "rate(stream_processor_validation_errors_total[5m]) * 60",
+          "legendFormat": "{{handler_type}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Validation Error Rate by Handler",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      },
+      "id": 20,
+      "panels": [],
+      "title": "Data Anomalies",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "trino-datasource",
+        "uid": "${DS_TRINO}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 10
+              },
+              {
+                "color": "red",
+                "value": 100
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 45
+      },
+      "id": 21,
+      "description": "Total anomalies detected in the Silver anomalies table in the last 24 hours. Includes zombie drivers, GPS outliers, and impossible speeds.",
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "trino-datasource",
+            "uid": "${DS_TRINO}"
+          },
+          "format": 0,
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) as total_anomalies\nFROM delta.silver.anomalies_all\nWHERE detected_at >= current_timestamp - INTERVAL '24' HOUR",
+          "refId": "A"
+        }
+      ],
+      "title": "Total Anomalies (24h)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "trino-datasource",
+        "uid": "${DS_TRINO}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 6,
+        "y": 45
+      },
+      "id": 22,
+      "description": "Distribution of anomalies by type (zombie_driver, gps_outlier, impossible_speed). Identifies which anomaly detection rules are firing most.",
+      "options": {
+        "barRadius": 0.1,
+        "barWidth": 0.6,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "orientation": "vertical",
+        "showValue": "always",
+        "stacking": "none",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "trino-datasource",
+            "uid": "${DS_TRINO}"
+          },
+          "format": 0,
+          "rawQuery": true,
+          "rawSql": "SELECT\n  anomaly_type,\n  COUNT(*) as anomaly_count\nFROM delta.silver.anomalies_all\nWHERE detected_at >= current_timestamp - INTERVAL '24' HOUR\nGROUP BY anomaly_type\nORDER BY anomaly_count DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Anomalies by Type",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "trino-datasource",
+        "uid": "${DS_TRINO}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto",
+            "inspect": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "detected_at"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "details"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 400
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 10,
+        "x": 14,
+        "y": 45
+      },
+      "id": 23,
+      "description": "Most recent 50 anomaly records with type, entity, and details. Primary debugging tool for anomaly investigation.",
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": ["sum"],
+          "fields": ""
+        },
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "detected_at"
+          }
+        ]
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "trino-datasource",
+            "uid": "${DS_TRINO}"
+          },
+          "format": 0,
+          "rawQuery": true,
+          "rawSql": "SELECT\n  detected_at,\n  anomaly_type,\n  entity_id,\n  details\nFROM delta.silver.anomalies_all\nORDER BY detected_at DESC\nLIMIT 50",
+          "refId": "A"
+        }
+      ],
+      "title": "Recent Anomaly Records",
+      "type": "table"
     }
   ],
   "refresh": "5m",
@@ -893,6 +1362,24 @@
         "name": "DS_TRINO",
         "options": [],
         "query": "trino-datasource",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "Prometheus",
+          "value": "prometheus"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Prometheus",
+        "multi": false,
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
