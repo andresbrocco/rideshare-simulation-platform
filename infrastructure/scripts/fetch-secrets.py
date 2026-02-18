@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Fetch secrets from Secrets Manager and write grouped env files.
 
-Reads all rideshare/* secrets from AWS Secrets Manager (LocalStack or real AWS)
-and writes grouped environment files for Docker Compose profiles:
+Reads 4 consolidated rideshare/* secrets from AWS Secrets Manager (LocalStack
+or real AWS) and writes grouped environment files for Docker Compose profiles:
   /secrets/core.env          - Simulation runtime services
   /secrets/data-pipeline.env - ETL, ingestion, orchestration
   /secrets/monitoring.env    - Observability stack
@@ -44,20 +44,13 @@ logger = logging.getLogger(__name__)
 PROFILE_SECRETS: dict[str, list[str]] = {
     "core.env": [
         "rideshare/api-key",
-        "rideshare/redis",
-        "rideshare/kafka",
-        "rideshare/schema-registry",
+        "rideshare/core",
     ],
     "data-pipeline.env": [
-        "rideshare/minio",
-        "rideshare/postgres-airflow",
-        "rideshare/postgres-metastore",
-        "rideshare/airflow",
-        "rideshare/hive-thrift",
-        "rideshare/ldap",
+        "rideshare/data-pipeline",
     ],
     "monitoring.env": [
-        "rideshare/grafana",
+        "rideshare/monitoring",
     ],
 }
 
@@ -72,25 +65,10 @@ AIRFLOW_KEY_MAPPING: dict[str, str] = {
     "ADMIN_PASSWORD": "AIRFLOW_ADMIN_PASSWORD",
 }
 
-# Explicit key mappings for secrets with generic key names that would collide
-# when multiple secrets share the same env file. Keys not listed here pass through.
-SECRET_KEY_TRANSFORMS: dict[str, dict[str, str]] = {
-    "rideshare/postgres-airflow": {
-        "POSTGRES_USER": "POSTGRES_AIRFLOW_USER",
-        "POSTGRES_PASSWORD": "POSTGRES_AIRFLOW_PASSWORD",
-    },
-    "rideshare/postgres-metastore": {
-        "POSTGRES_USER": "POSTGRES_METASTORE_USER",
-        "POSTGRES_PASSWORD": "POSTGRES_METASTORE_PASSWORD",
-    },
-    "rideshare/grafana": {
-        "ADMIN_USER": "GF_SECURITY_ADMIN_USER",
-        "ADMIN_PASSWORD": "GF_SECURITY_ADMIN_PASSWORD",
-    },
-    "rideshare/hive-thrift": {
-        "LDAP_USERNAME": "HIVE_LDAP_USERNAME",
-        "LDAP_PASSWORD": "HIVE_LDAP_PASSWORD",
-    },
+# Grafana keys get the GF_SECURITY_ prefix for Grafana environment variables.
+GRAFANA_KEY_MAPPING: dict[str, str] = {
+    "ADMIN_USER": "GF_SECURITY_ADMIN_USER",
+    "ADMIN_PASSWORD": "GF_SECURITY_ADMIN_PASSWORD",
 }
 
 
@@ -131,16 +109,15 @@ def fetch_secret(client: SecretsManagerClient, secret_name: str) -> dict[str, st
 def transform_keys(secret_name: str, fields: dict[str, str]) -> dict[str, str]:
     """Transform secret field keys to env var names.
 
-    Airflow secrets get flattened to double-underscore format.
-    Postgres, Grafana, and Hive secrets get disambiguated to avoid collisions.
-    All other secrets keep their original key names.
+    Airflow keys in rideshare/data-pipeline get flattened to double-underscore format.
+    Grafana keys in rideshare/monitoring get the GF_SECURITY_ prefix.
+    All other secrets keep their original key names (pre-disambiguated at source).
     """
-    if secret_name == "rideshare/airflow":
+    if secret_name == "rideshare/data-pipeline":
         return {AIRFLOW_KEY_MAPPING.get(key, key): value for key, value in fields.items()}
 
-    key_map = SECRET_KEY_TRANSFORMS.get(secret_name)
-    if key_map:
-        return {key_map.get(key, key): value for key, value in fields.items()}
+    if secret_name == "rideshare/monitoring":
+        return {GRAFANA_KEY_MAPPING.get(key, key): value for key, value in fields.items()}
 
     return fields
 

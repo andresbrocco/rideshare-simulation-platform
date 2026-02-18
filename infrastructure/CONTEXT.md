@@ -30,7 +30,7 @@ Provides the deployment, orchestration, and cloud provisioning layer for the rid
 
 **Environments/ tfvars as Canonical Variable Source** — Production variable values live in `terraform/environments/prod/foundation.tfvars` and `platform.tfvars`. The `variables.tf` defaults match prod values, so `terraform plan` works without `-var-file`, but the environments/ files are the documented source of truth.
 
-**Key Transformation Logic** — The `fetch-secrets.py` script applies transformations to avoid environment variable name collisions when multiple secrets share a profile. For example, `rideshare/postgres-airflow` and `rideshare/postgres-metastore` both have `POSTGRES_USER` keys, which get transformed to `POSTGRES_AIRFLOW_USER` and `POSTGRES_METASTORE_USER`.
+**Key Transformation Logic** — The `fetch-secrets.py` script applies service-specific key transforms at fetch time. Airflow keys in `rideshare/data-pipeline` get flattened to double-underscore format (e.g., `FERNET_KEY` → `AIRFLOW__CORE__FERNET_KEY`), and Grafana keys in `rideshare/monitoring` get the `GF_SECURITY_` prefix. Collision-prone keys (e.g., `POSTGRES_USER`) are pre-disambiguated at the source (e.g., `POSTGRES_AIRFLOW_USER`, `POSTGRES_METASTORE_USER`).
 
 **Docker vs Kubernetes Networking/Storage Parity** — Both orchestration systems use identical container images and environment variables, but differ in networking (Docker uses single bridge network with internal DNS, Kubernetes uses Gateway API for ingress) and storage (Docker uses named volumes, Kubernetes uses PersistentVolumes).
 

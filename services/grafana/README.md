@@ -15,7 +15,7 @@
 | `GF_SECURITY_ADMIN_USER` | Admin username | `admin` (from secrets) | Yes |
 | `GF_SECURITY_ADMIN_PASSWORD` | Admin password | `admin` (from secrets) | Yes |
 
-**Note:** Admin credentials are injected from LocalStack Secrets Manager (`rideshare/grafana`) via the `secrets-init` service.
+**Note:** Admin credentials are injected from LocalStack Secrets Manager (`rideshare/monitoring`) via the `secrets-init` service.
 
 ### API Endpoints
 
@@ -117,7 +117,7 @@ docker compose -f infrastructure/docker/compose.yml --profile monitoring down
 - **Trino**: `http://trino:8080` (data-pipeline profile)
 - **Loki**: `http://loki:3100` (monitoring profile)
 - **Tempo**: `http://tempo:3200` (monitoring profile)
-- **LocalStack Secrets Manager**: For admin credentials (`rideshare/grafana`)
+- **LocalStack Secrets Manager**: For admin credentials (`rideshare/monitoring`)
 
 ## Common Tasks
 

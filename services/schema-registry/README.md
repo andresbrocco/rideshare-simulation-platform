@@ -59,7 +59,7 @@ The platform registers 8 Avro schemas (lazy registration on first produce):
 ### Prerequisites
 
 - Kafka broker running and healthy (`kafka:29092`)
-- LocalStack Secrets Manager seeded with credentials (`rideshare/schema-registry`)
+- LocalStack Secrets Manager seeded with credentials (`rideshare/core`)
 - JVM 11+ (included in `confluentinc/cp-schema-registry:7.5.0`)
 
 ## Common Tasks

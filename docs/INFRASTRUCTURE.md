@@ -145,16 +145,9 @@ Kind (Kubernetes in Docker) - local development cluster
   | Secret | Keys | Purpose |
   |--------|------|---------|
   | rideshare/api-key | API_KEY | REST API authentication |
-  | rideshare/minio | MINIO_ROOT_USER, MINIO_ROOT_PASSWORD | S3 storage |
-  | rideshare/redis | REDIS_PASSWORD | Cache authentication |
-  | rideshare/kafka | KAFKA_SASL_USERNAME, KAFKA_SASL_PASSWORD | Event streaming |
-  | rideshare/schema-registry | SCHEMA_REGISTRY_USER, SCHEMA_REGISTRY_PASSWORD | Schema registry |
-  | rideshare/postgres-airflow | POSTGRES_USER, POSTGRES_PASSWORD | Airflow metadata DB |
-  | rideshare/postgres-metastore | POSTGRES_USER, POSTGRES_PASSWORD | Hive metastore DB |
-  | rideshare/airflow | FERNET_KEY, JWT_SECRET, API_SECRET_KEY, ADMIN_USERNAME, ADMIN_PASSWORD | Airflow encryption |
-  | rideshare/grafana | ADMIN_USER, ADMIN_PASSWORD | Grafana dashboards |
-  | rideshare/hive-thrift | LDAP_USERNAME, LDAP_PASSWORD | Spark Thrift auth |
-  | rideshare/ldap | LDAP_ADMIN_PASSWORD, LDAP_CONFIG_PASSWORD | LDAP server |
+  | rideshare/core | KAFKA_SASL_USERNAME, KAFKA_SASL_PASSWORD, REDIS_PASSWORD, SCHEMA_REGISTRY_USER, SCHEMA_REGISTRY_PASSWORD | Core services (Kafka, Redis, Schema Registry) |
+  | rideshare/data-pipeline | MINIO_ROOT_USER, MINIO_ROOT_PASSWORD, POSTGRES_AIRFLOW_USER, POSTGRES_AIRFLOW_PASSWORD, POSTGRES_METASTORE_USER, POSTGRES_METASTORE_PASSWORD, FERNET_KEY, INTERNAL_API_SECRET_KEY, JWT_SECRET, API_SECRET_KEY, ADMIN_USERNAME, ADMIN_PASSWORD, HIVE_LDAP_USERNAME, HIVE_LDAP_PASSWORD, LDAP_ADMIN_PASSWORD, LDAP_CONFIG_PASSWORD | Data pipeline (MinIO, PostgreSQL, Airflow, Hive, LDAP) |
+  | rideshare/monitoring | ADMIN_USER, ADMIN_PASSWORD | Monitoring (Grafana) |
 
 ### Secrets Initialization
 ```bash

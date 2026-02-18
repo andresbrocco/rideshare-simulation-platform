@@ -139,17 +139,10 @@ docker compose -f infrastructure/docker/compose.yml restart delta-table-init
 **Purpose**: Populate LocalStack Secrets Manager with all project credentials
 **Idempotent**: Yes - creates new secrets or updates existing ones
 **Secrets Created**:
-- `rideshare/api-key` - REST API and WebSocket authentication
-- `rideshare/minio` - MinIO S3 credentials
-- `rideshare/redis` - Redis AUTH password
-- `rideshare/kafka` - Kafka SASL credentials
-- `rideshare/schema-registry` - Schema Registry authentication
-- `rideshare/postgres-airflow` - Airflow metadata DB
-- `rideshare/postgres-metastore` - Hive Metastore DB
-- `rideshare/airflow` - Airflow Fernet keys and admin credentials
-- `rideshare/grafana` - Grafana admin credentials
-- `rideshare/hive-thrift` - Hive LDAP credentials
-- `rideshare/ldap` - OpenLDAP admin credentials
+- `rideshare/api-key` - REST API and WebSocket authentication (1 key)
+- `rideshare/core` - Kafka, Redis, Schema Registry credentials (5 keys)
+- `rideshare/data-pipeline` - MinIO, PostgreSQL, Airflow, Hive, LDAP credentials (16 keys)
+- `rideshare/monitoring` - Grafana admin credentials (2 keys)
 
 **Exit Codes**: 0 (success), 1 (failed to seed one or more secrets)
 

@@ -161,12 +161,6 @@ jobs:
               region_name='us-east-1',
           )
           # Same key transforms as infrastructure/scripts/fetch-secrets.py
-          KEY_TRANSFORMS = {
-              'rideshare/postgres-airflow': {'POSTGRES_USER': 'POSTGRES_AIRFLOW_USER', 'POSTGRES_PASSWORD': 'POSTGRES_AIRFLOW_PASSWORD'},
-              'rideshare/postgres-metastore': {'POSTGRES_USER': 'POSTGRES_METASTORE_USER', 'POSTGRES_PASSWORD': 'POSTGRES_METASTORE_PASSWORD'},
-              'rideshare/grafana': {'ADMIN_USER': 'GF_SECURITY_ADMIN_USER', 'ADMIN_PASSWORD': 'GF_SECURITY_ADMIN_PASSWORD'},
-              'rideshare/hive-thrift': {'LDAP_USERNAME': 'HIVE_LDAP_USERNAME', 'LDAP_PASSWORD': 'HIVE_LDAP_PASSWORD'},
-          }
           AIRFLOW_MAPPING = {
               'FERNET_KEY': 'AIRFLOW__CORE__FERNET_KEY',
               'INTERNAL_API_SECRET_KEY': 'AIRFLOW__CORE__INTERNAL_API_SECRET_KEY',
@@ -175,23 +169,23 @@ jobs:
               'ADMIN_USERNAME': 'AIRFLOW_ADMIN_USERNAME',
               'ADMIN_PASSWORD': 'AIRFLOW_ADMIN_PASSWORD',
           }
+          GRAFANA_MAPPING = {
+              'ADMIN_USER': 'GF_SECURITY_ADMIN_USER',
+              'ADMIN_PASSWORD': 'GF_SECURITY_ADMIN_PASSWORD',
+          }
           secrets = [
-              'rideshare/api-key', 'rideshare/minio', 'rideshare/redis',
-              'rideshare/kafka', 'rideshare/schema-registry',
-              'rideshare/postgres-airflow', 'rideshare/postgres-metastore',
-              'rideshare/airflow', 'rideshare/grafana', 'rideshare/hive-thrift',
-              'rideshare/ldap',
+              'rideshare/api-key', 'rideshare/core',
+              'rideshare/data-pipeline', 'rideshare/monitoring',
           ]
           env_file = os.environ['GITHUB_ENV']
           with open(env_file, 'a') as f:
               for name in secrets:
                   resp = client.get_secret_value(SecretId=name)
                   fields = json.loads(resp['SecretString'])
-                  if name == 'rideshare/airflow':
+                  if name == 'rideshare/data-pipeline':
                       fields = {AIRFLOW_MAPPING.get(k, k): v for k, v in fields.items()}
-                  elif name in KEY_TRANSFORMS:
-                      km = KEY_TRANSFORMS[name]
-                      fields = {km.get(k, k): v for k, v in fields.items()}
+                  elif name == 'rideshare/monitoring':
+                      fields = {GRAFANA_MAPPING.get(k, k): v for k, v in fields.items()}
                   for k, v in fields.items():
                       f.write(f'{k}={v}\n')
                       print(f'  Loaded {k}')

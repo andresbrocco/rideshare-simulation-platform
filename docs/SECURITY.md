@@ -179,7 +179,7 @@ How secrets are handled across environments.
 - Endpoint: `http://localstack:4566` (Docker) or `http://localhost:4566` (local)
 - Region: `us-east-1`
 - Namespace: `rideshare/*`
-- 10 secret groups (api-key, minio, redis, kafka, schema-registry, postgres-airflow, postgres-metastore, airflow, grafana, hive-thrift, ldap)
+- 4 secret groups (api-key, core, data-pipeline, monitoring)
 
 **AWS Secrets Manager** (Production):
 - Same secret structure as LocalStack
@@ -191,16 +191,9 @@ How secrets are handled across environments.
 | Secret Name | Keys | Used By |
 |-------------|------|---------|
 | `rideshare/api-key` | API_KEY | simulation, frontend |
-| `rideshare/minio` | MINIO_ROOT_USER, MINIO_ROOT_PASSWORD | minio, bronze-ingestion, dbt, airflow |
-| `rideshare/redis` | REDIS_PASSWORD | simulation, stream-processor, frontend |
-| `rideshare/kafka` | KAFKA_SASL_USERNAME, KAFKA_SASL_PASSWORD | simulation, bronze-ingestion, stream-processor |
-| `rideshare/schema-registry` | SCHEMA_REGISTRY_USER, SCHEMA_REGISTRY_PASSWORD | simulation |
-| `rideshare/postgres-airflow` | POSTGRES_USER, POSTGRES_PASSWORD | airflow, postgres-airflow |
-| `rideshare/postgres-metastore` | POSTGRES_USER, POSTGRES_PASSWORD | hive-metastore, postgres-metastore |
-| `rideshare/airflow` | FERNET_KEY, INTERNAL_API_SECRET_KEY, JWT_SECRET, API_SECRET_KEY, ADMIN_USERNAME, ADMIN_PASSWORD | airflow |
-| `rideshare/grafana` | ADMIN_USER, ADMIN_PASSWORD | grafana |
-| `rideshare/hive-thrift` | LDAP_USERNAME, LDAP_PASSWORD | spark-thrift-server |
-| `rideshare/ldap` | LDAP_ADMIN_PASSWORD, LDAP_CONFIG_PASSWORD | openldap |
+| `rideshare/core` | KAFKA_SASL_USERNAME, KAFKA_SASL_PASSWORD, REDIS_PASSWORD, SCHEMA_REGISTRY_USER, SCHEMA_REGISTRY_PASSWORD | kafka, redis, simulation, stream-processor, bronze-ingestion |
+| `rideshare/data-pipeline` | MINIO_ROOT_USER, MINIO_ROOT_PASSWORD, POSTGRES_AIRFLOW_USER, POSTGRES_AIRFLOW_PASSWORD, POSTGRES_METASTORE_USER, POSTGRES_METASTORE_PASSWORD, FERNET_KEY, INTERNAL_API_SECRET_KEY, JWT_SECRET, API_SECRET_KEY, ADMIN_USERNAME, ADMIN_PASSWORD, HIVE_LDAP_USERNAME, HIVE_LDAP_PASSWORD, LDAP_ADMIN_PASSWORD, LDAP_CONFIG_PASSWORD | minio, airflow, postgres-*, hive-metastore, openldap |
+| `rideshare/monitoring` | ADMIN_USER, ADMIN_PASSWORD | grafana |
 
 ### Access Pattern
 

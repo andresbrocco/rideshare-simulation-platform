@@ -17,10 +17,10 @@ Credentials are managed via **LocalStack Secrets Manager** and injected at runti
 
 | Variable | Secret Path | Purpose |
 |----------|-------------|---------|
-| `POSTGRES_AIRFLOW_USER` | `rideshare/postgres-airflow` | Airflow database username |
-| `POSTGRES_AIRFLOW_PASSWORD` | `rideshare/postgres-airflow` | Airflow database password |
-| `POSTGRES_METASTORE_USER` | `rideshare/postgres-metastore` | Metastore database username |
-| `POSTGRES_METASTORE_PASSWORD` | `rideshare/postgres-metastore` | Metastore database password |
+| `POSTGRES_AIRFLOW_USER` | `rideshare/data-pipeline` | Airflow database username |
+| `POSTGRES_AIRFLOW_PASSWORD` | `rideshare/data-pipeline` | Airflow database password |
+| `POSTGRES_METASTORE_USER` | `rideshare/data-pipeline` | Metastore database username |
+| `POSTGRES_METASTORE_PASSWORD` | `rideshare/data-pipeline` | Metastore database password |
 
 **Default Development Values**: All credentials default to `admin` for username/password.
 

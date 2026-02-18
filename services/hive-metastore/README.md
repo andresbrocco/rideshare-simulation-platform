@@ -25,7 +25,7 @@ Configuration is injected at runtime from **LocalStack Secrets Manager** via the
 
 **Local Development Defaults:**
 - All credentials use `admin` for username/password
-- Configured in `rideshare/hive-thrift` and `rideshare/minio` secrets in LocalStack
+- Configured in `rideshare/data-pipeline` secret in LocalStack
 
 ### Configuration Files
 

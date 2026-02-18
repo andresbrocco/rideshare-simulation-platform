@@ -207,7 +207,7 @@ jobs:
         run: |
           echo "Creating metastore database in RDS (if not exists)..."
           POSTGRES_PASSWORD=$(aws secretsmanager get-secret-value \
-            --secret-id rideshare/postgres --query SecretString --output text | jq -r '.password')
+            --secret-id rideshare/rds --query SecretString --output text | jq -r '.MASTER_PASSWORD')
           RDS_ENDPOINT="${{ steps.tf-outputs.outputs.rds_endpoint }}"
 
           kubectl run rds-init --rm -i --restart=Never --namespace=default \

@@ -1,7 +1,7 @@
 """Credential loading utility for integration tests.
 
-Fetches all rideshare/* secrets from LocalStack Secrets Manager and maps
-them to environment variable names using the same key transforms as
+Fetches 4 consolidated rideshare/* secrets from LocalStack Secrets Manager
+and maps them to environment variable names using the same key transforms as
 infrastructure/scripts/fetch-secrets.py (the source of truth).
 
 Usage:
@@ -29,39 +29,13 @@ _LOCALSTACK_REGION = "us-east-1"
 # All rideshare/* secret names that the project seeds via seed-secrets.py.
 _ALL_SECRET_NAMES = [
     "rideshare/api-key",
-    "rideshare/minio",
-    "rideshare/redis",
-    "rideshare/kafka",
-    "rideshare/schema-registry",
-    "rideshare/postgres-airflow",
-    "rideshare/postgres-metastore",
-    "rideshare/airflow",
-    "rideshare/grafana",
-    "rideshare/hive-thrift",
-    "rideshare/ldap",
+    "rideshare/core",
+    "rideshare/data-pipeline",
+    "rideshare/monitoring",
 ]
 
 # Key transforms copied from infrastructure/scripts/fetch-secrets.py.
 # That file is the source of truth; keep these in sync.
-_SECRET_KEY_TRANSFORMS: dict[str, dict[str, str]] = {
-    "rideshare/postgres-airflow": {
-        "POSTGRES_USER": "POSTGRES_AIRFLOW_USER",
-        "POSTGRES_PASSWORD": "POSTGRES_AIRFLOW_PASSWORD",
-    },
-    "rideshare/postgres-metastore": {
-        "POSTGRES_USER": "POSTGRES_METASTORE_USER",
-        "POSTGRES_PASSWORD": "POSTGRES_METASTORE_PASSWORD",
-    },
-    "rideshare/grafana": {
-        "ADMIN_USER": "GF_SECURITY_ADMIN_USER",
-        "ADMIN_PASSWORD": "GF_SECURITY_ADMIN_PASSWORD",
-    },
-    "rideshare/hive-thrift": {
-        "LDAP_USERNAME": "HIVE_LDAP_USERNAME",
-        "LDAP_PASSWORD": "HIVE_LDAP_PASSWORD",
-    },
-}
-
 _AIRFLOW_KEY_MAPPING: dict[str, str] = {
     "FERNET_KEY": "AIRFLOW__CORE__FERNET_KEY",
     "INTERNAL_API_SECRET_KEY": "AIRFLOW__CORE__INTERNAL_API_SECRET_KEY",
@@ -71,15 +45,19 @@ _AIRFLOW_KEY_MAPPING: dict[str, str] = {
     "ADMIN_PASSWORD": "AIRFLOW_ADMIN_PASSWORD",
 }
 
+_GRAFANA_KEY_MAPPING: dict[str, str] = {
+    "ADMIN_USER": "GF_SECURITY_ADMIN_USER",
+    "ADMIN_PASSWORD": "GF_SECURITY_ADMIN_PASSWORD",
+}
+
 
 def _transform_keys(secret_name: str, fields: dict[str, str]) -> dict[str, str]:
     """Apply the same key transforms as fetch-secrets.py."""
-    if secret_name == "rideshare/airflow":
+    if secret_name == "rideshare/data-pipeline":
         return {_AIRFLOW_KEY_MAPPING.get(key, key): value for key, value in fields.items()}
 
-    key_map = _SECRET_KEY_TRANSFORMS.get(secret_name)
-    if key_map:
-        return {key_map.get(key, key): value for key, value in fields.items()}
+    if secret_name == "rideshare/monitoring":
+        return {_GRAFANA_KEY_MAPPING.get(key, key): value for key, value in fields.items()}
 
     return fields
 

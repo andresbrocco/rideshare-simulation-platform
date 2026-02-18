@@ -8,8 +8,8 @@
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `MINIO_ROOT_USER` | MinIO root username | Injected from `rideshare/minio` secret | Yes |
-| `MINIO_ROOT_PASSWORD` | MinIO root password | Injected from `rideshare/minio` secret | Yes |
+| `MINIO_ROOT_USER` | MinIO root username | Injected from `rideshare/data-pipeline` secret | Yes |
+| `MINIO_ROOT_PASSWORD` | MinIO root password | Injected from `rideshare/data-pipeline` secret | Yes |
 
 **Note:** Credentials are managed via LocalStack Secrets Manager and injected by the `secrets-init` service. See `CLAUDE.md` for details.
 

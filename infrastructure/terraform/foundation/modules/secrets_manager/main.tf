@@ -54,6 +54,31 @@ resource "random_password" "grafana_admin_password" {
   special = true
 }
 
+resource "random_password" "minio_root_password" {
+  length  = var.password_length
+  special = true
+}
+
+resource "random_password" "airflow_internal_api_secret_key" {
+  length  = var.password_length
+  special = true
+}
+
+resource "random_password" "hive_ldap_password" {
+  length  = var.password_length
+  special = true
+}
+
+resource "random_password" "ldap_admin_password" {
+  length  = var.password_length
+  special = true
+}
+
+resource "random_password" "ldap_config_password" {
+  length  = var.password_length
+  special = true
+}
+
 resource "random_password" "rds_master_password" {
   length  = var.password_length
   special = true
@@ -77,134 +102,73 @@ resource "aws_secretsmanager_secret_version" "api_key" {
   })
 }
 
-# Secret: rideshare/kafka
-resource "aws_secretsmanager_secret" "kafka" {
-  name        = "${var.project_name}/kafka"
-  description = "Kafka SASL credentials"
+# Secret: rideshare/core (merges kafka + redis + schema-registry)
+resource "aws_secretsmanager_secret" "core" {
+  name        = "${var.project_name}/core"
+  description = "Core services credentials (Kafka, Redis, Schema Registry)"
 
   tags = {
-    Name = "${var.project_name}/kafka"
+    Name = "${var.project_name}/core"
   }
 }
 
-resource "aws_secretsmanager_secret_version" "kafka" {
-  secret_id = aws_secretsmanager_secret.kafka.id
+resource "aws_secretsmanager_secret_version" "core" {
+  secret_id = aws_secretsmanager_secret.core.id
 
   secret_string = jsonencode({
-    KAFKA_SASL_USERNAME = "kafka"
-    KAFKA_SASL_PASSWORD = random_password.kafka_password.result
-  })
-}
-
-# Secret: rideshare/redis
-resource "aws_secretsmanager_secret" "redis" {
-  name        = "${var.project_name}/redis"
-  description = "Redis authentication"
-
-  tags = {
-    Name = "${var.project_name}/redis"
-  }
-}
-
-resource "aws_secretsmanager_secret_version" "redis" {
-  secret_id = aws_secretsmanager_secret.redis.id
-
-  secret_string = jsonencode({
-    REDIS_PASSWORD = random_password.redis_password.result
-  })
-}
-
-# Secret: rideshare/schema-registry
-resource "aws_secretsmanager_secret" "schema_registry" {
-  name        = "${var.project_name}/schema-registry"
-  description = "Schema Registry credentials"
-
-  tags = {
-    Name = "${var.project_name}/schema-registry"
-  }
-}
-
-resource "aws_secretsmanager_secret_version" "schema_registry" {
-  secret_id = aws_secretsmanager_secret.schema_registry.id
-
-  secret_string = jsonencode({
+    KAFKA_SASL_USERNAME      = "kafka"
+    KAFKA_SASL_PASSWORD      = random_password.kafka_password.result
+    REDIS_PASSWORD           = random_password.redis_password.result
     SCHEMA_REGISTRY_USER     = "schema-registry"
     SCHEMA_REGISTRY_PASSWORD = random_password.schema_registry_password.result
   })
 }
 
-# Secret: rideshare/postgres-airflow
-resource "aws_secretsmanager_secret" "postgres_airflow" {
-  name        = "${var.project_name}/postgres-airflow"
-  description = "Airflow database credentials"
+# Secret: rideshare/data-pipeline (merges minio + postgres-airflow + postgres-metastore + airflow + hive-thrift + ldap)
+resource "aws_secretsmanager_secret" "data_pipeline" {
+  name        = "${var.project_name}/data-pipeline"
+  description = "Data pipeline credentials (MinIO, PostgreSQL, Airflow, Hive, LDAP)"
 
   tags = {
-    Name = "${var.project_name}/postgres-airflow"
+    Name = "${var.project_name}/data-pipeline"
   }
 }
 
-resource "aws_secretsmanager_secret_version" "postgres_airflow" {
-  secret_id = aws_secretsmanager_secret.postgres_airflow.id
+resource "aws_secretsmanager_secret_version" "data_pipeline" {
+  secret_id = aws_secretsmanager_secret.data_pipeline.id
 
   secret_string = jsonencode({
-    POSTGRES_USER     = "airflow"
-    POSTGRES_PASSWORD = random_password.postgres_airflow_password.result
+    MINIO_ROOT_USER             = "minio"
+    MINIO_ROOT_PASSWORD         = random_password.minio_root_password.result
+    POSTGRES_AIRFLOW_USER       = "airflow"
+    POSTGRES_AIRFLOW_PASSWORD   = random_password.postgres_airflow_password.result
+    POSTGRES_METASTORE_USER     = "metastore"
+    POSTGRES_METASTORE_PASSWORD = random_password.postgres_metastore_password.result
+    FERNET_KEY                  = random_password.airflow_fernet_key.result
+    INTERNAL_API_SECRET_KEY     = random_password.airflow_internal_api_secret_key.result
+    JWT_SECRET                  = random_password.airflow_jwt_secret.result
+    API_SECRET_KEY              = random_password.airflow_api_secret.result
+    ADMIN_USERNAME              = "admin"
+    ADMIN_PASSWORD              = random_password.airflow_admin_password.result
+    HIVE_LDAP_USERNAME          = "admin"
+    HIVE_LDAP_PASSWORD          = random_password.hive_ldap_password.result
+    LDAP_ADMIN_PASSWORD         = random_password.ldap_admin_password.result
+    LDAP_CONFIG_PASSWORD        = random_password.ldap_config_password.result
   })
 }
 
-# Secret: rideshare/postgres-metastore
-resource "aws_secretsmanager_secret" "postgres_metastore" {
-  name        = "${var.project_name}/postgres-metastore"
-  description = "Hive Metastore database credentials"
+# Secret: rideshare/monitoring (renamed from grafana)
+resource "aws_secretsmanager_secret" "monitoring" {
+  name        = "${var.project_name}/monitoring"
+  description = "Monitoring credentials (Grafana)"
 
   tags = {
-    Name = "${var.project_name}/postgres-metastore"
+    Name = "${var.project_name}/monitoring"
   }
 }
 
-resource "aws_secretsmanager_secret_version" "postgres_metastore" {
-  secret_id = aws_secretsmanager_secret.postgres_metastore.id
-
-  secret_string = jsonencode({
-    POSTGRES_USER     = "metastore"
-    POSTGRES_PASSWORD = random_password.postgres_metastore_password.result
-  })
-}
-
-# Secret: rideshare/airflow
-resource "aws_secretsmanager_secret" "airflow" {
-  name        = "${var.project_name}/airflow"
-  description = "Airflow application secrets"
-
-  tags = {
-    Name = "${var.project_name}/airflow"
-  }
-}
-
-resource "aws_secretsmanager_secret_version" "airflow" {
-  secret_id = aws_secretsmanager_secret.airflow.id
-
-  secret_string = jsonencode({
-    FERNET_KEY     = random_password.airflow_fernet_key.result
-    JWT_SECRET     = random_password.airflow_jwt_secret.result
-    API_SECRET_KEY = random_password.airflow_api_secret.result
-    ADMIN_USERNAME = "admin"
-    ADMIN_PASSWORD = random_password.airflow_admin_password.result
-  })
-}
-
-# Secret: rideshare/grafana
-resource "aws_secretsmanager_secret" "grafana" {
-  name        = "${var.project_name}/grafana"
-  description = "Grafana admin credentials"
-
-  tags = {
-    Name = "${var.project_name}/grafana"
-  }
-}
-
-resource "aws_secretsmanager_secret_version" "grafana" {
-  secret_id = aws_secretsmanager_secret.grafana.id
+resource "aws_secretsmanager_secret_version" "monitoring" {
+  secret_id = aws_secretsmanager_secret.monitoring.id
 
   secret_string = jsonencode({
     ADMIN_USER     = "admin"

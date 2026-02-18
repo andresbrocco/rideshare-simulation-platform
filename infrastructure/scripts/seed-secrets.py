@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Seed LocalStack Secrets Manager with all project credential groups.
+"""Seed LocalStack Secrets Manager with 4 consolidated credential groups.
 
 Populates rideshare/* secrets in AWS Secrets Manager (LocalStack or real AWS).
 Each secret group is a JSON object with credential key-value pairs. The script
@@ -49,53 +49,40 @@ AIRFLOW_JWT_SECRET = base64.b64encode(b"admin-dev-jwt-secret-key-00000").decode(
 AIRFLOW_API_SECRET_KEY = base64.b64encode(b"admin-dev-api-secret-key-00000").decode()
 
 # All project credential groups in rideshare/* namespace.
-# Non-Airflow passwords default to "admin".
+# Non-Airflow passwords default to "admin". Keys are pre-disambiguated at
+# source to avoid collisions when multiple services share the same env file.
 SECRETS: dict[str, dict[str, str]] = {
     "rideshare/api-key": {
         "API_KEY": "admin",
     },
-    "rideshare/minio": {
-        "MINIO_ROOT_USER": "admin",
-        "MINIO_ROOT_PASSWORD": "adminadmin",
-    },
-    "rideshare/redis": {
-        "REDIS_PASSWORD": "admin",
-    },
-    "rideshare/kafka": {
+    "rideshare/core": {
         "KAFKA_SASL_USERNAME": "admin",
         "KAFKA_SASL_PASSWORD": "admin",
-    },
-    "rideshare/schema-registry": {
+        "REDIS_PASSWORD": "admin",
         "SCHEMA_REGISTRY_USER": "admin",
         "SCHEMA_REGISTRY_PASSWORD": "admin",
     },
-    "rideshare/postgres-airflow": {
-        "POSTGRES_USER": "admin",
-        "POSTGRES_PASSWORD": "admin",
-    },
-    "rideshare/postgres-metastore": {
-        "POSTGRES_USER": "admin",
-        "POSTGRES_PASSWORD": "admin",
-    },
-    "rideshare/airflow": {
+    "rideshare/data-pipeline": {
+        "MINIO_ROOT_USER": "admin",
+        "MINIO_ROOT_PASSWORD": "adminadmin",
+        "POSTGRES_AIRFLOW_USER": "admin",
+        "POSTGRES_AIRFLOW_PASSWORD": "admin",
+        "POSTGRES_METASTORE_USER": "admin",
+        "POSTGRES_METASTORE_PASSWORD": "admin",
         "FERNET_KEY": AIRFLOW_FERNET_KEY,
         "INTERNAL_API_SECRET_KEY": AIRFLOW_INTERNAL_API_SECRET_KEY,
         "JWT_SECRET": AIRFLOW_JWT_SECRET,
         "API_SECRET_KEY": AIRFLOW_API_SECRET_KEY,
         "ADMIN_USERNAME": "admin",
         "ADMIN_PASSWORD": "admin",
-    },
-    "rideshare/grafana": {
-        "ADMIN_USER": "admin",
-        "ADMIN_PASSWORD": "admin",
-    },
-    "rideshare/hive-thrift": {
-        "LDAP_USERNAME": "admin",
-        "LDAP_PASSWORD": "admin",
-    },
-    "rideshare/ldap": {
+        "HIVE_LDAP_USERNAME": "admin",
+        "HIVE_LDAP_PASSWORD": "admin",
         "LDAP_ADMIN_PASSWORD": "admin",
         "LDAP_CONFIG_PASSWORD": "admin",
+    },
+    "rideshare/monitoring": {
+        "ADMIN_USER": "admin",
+        "ADMIN_PASSWORD": "admin",
     },
 }
 
@@ -107,7 +94,7 @@ def apply_overrides(secrets: dict[str, dict[str, str]]) -> dict[str, dict[str, s
     variable. If found, replaces the default value.
 
     Example: OVERRIDE_MINIO_ROOT_USER=myminio overrides the MINIO_ROOT_USER
-    field in rideshare/minio.
+    field in rideshare/data-pipeline.
     """
     for secret_name, fields in secrets.items():
         for key in fields:

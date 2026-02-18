@@ -36,19 +36,12 @@
 
 All application credentials are stored in LocalStack Secrets Manager:
 
-| Secret Path | Contains | Used By |
-|-------------|----------|---------|
-| `rideshare/api-key` | API authentication key | `simulation`, `frontend` |
-| `rideshare/minio` | S3-compatible storage credentials | `bronze-ingestion`, `airflow`, `trino` |
-| `rideshare/redis` | Redis AUTH password | `simulation`, `stream-processor` |
-| `rideshare/kafka` | SASL authentication | `kafka`, `simulation`, `stream-processor`, `bronze-ingestion` |
-| `rideshare/schema-registry` | Schema registry credentials | `simulation`, `stream-processor`, `bronze-ingestion` |
-| `rideshare/hive-thrift` | Hive Metastore authentication | `trino`, `hive-metastore` |
-| `rideshare/ldap` | LDAP admin credentials | `openldap` (Kubernetes only) |
-| `rideshare/airflow` | Airflow webserver/database | `airflow` |
-| `rideshare/grafana` | Grafana admin credentials | `grafana` |
-| `rideshare/postgres-airflow` | Airflow database | `postgres-airflow`, `airflow` |
-| `rideshare/postgres-metastore` | Hive Metastore database | `postgres-metastore`, `hive-metastore` |
+| Secret Path | Contains | Key Count | Used By |
+|-------------|----------|-----------|---------|
+| `rideshare/api-key` | API authentication key | 1 | `simulation`, `frontend` |
+| `rideshare/core` | Kafka, Redis, Schema Registry credentials | 5 | `kafka`, `redis`, `simulation`, `stream-processor`, `bronze-ingestion` |
+| `rideshare/data-pipeline` | MinIO, PostgreSQL, Airflow, Hive, LDAP credentials | 16 | `minio`, `airflow`, `postgres-*`, `hive-metastore`, `openldap` |
+| `rideshare/monitoring` | Grafana admin credentials | 2 | `grafana` |
 
 All secrets default to `admin` for username/password or format-compliant dev values for cryptographic keys.
 
