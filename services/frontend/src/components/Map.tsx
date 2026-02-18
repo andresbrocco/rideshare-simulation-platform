@@ -75,6 +75,15 @@ export default function Map({
     [placementMode, destinationMode, isHoveringAgent]
   );
 
+  const handleViewStateChange = useCallback(
+    ({ viewState: newViewState }: { viewState: unknown }) => {
+      const vs = newViewState as ViewState;
+      setViewState(vs);
+      onZoomChange?.(vs.zoom);
+    },
+    [onZoomChange]
+  );
+
   const handleHover = useCallback((info: PickingInfo) => {
     if (info.object && info.layer) {
       const type = getLayerType(info.layer.id);
@@ -125,11 +134,7 @@ export default function Map({
     <div className={styles['map-container']}>
       <DeckGL
         viewState={viewState}
-        onViewStateChange={({ viewState: newViewState }) => {
-          const vs = newViewState as ViewState;
-          setViewState(vs);
-          onZoomChange?.(vs.zoom);
-        }}
+        onViewStateChange={handleViewStateChange}
         layers={layers}
         controller={true}
         onError={handleWebGLError}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 export interface ApiHealthState {
   available: boolean;
@@ -15,44 +15,59 @@ export function useApiHealth(apiUrl: string, checkInterval: number = 30000): Api
     lastChecked: null,
   });
 
-  useEffect(() => {
-    async function checkHealth() {
-      setState((prev) => ({ ...prev, checking: true }));
+  const lastCheckedRef = useRef<Date | null>(null);
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+  const checkHealth = useCallback(async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-      try {
-        const response = await fetch(`${apiUrl}/health`, {
-          method: 'GET',
-          signal: controller.signal,
-        });
+    try {
+      const response = await fetch(`${apiUrl}/health`, {
+        method: 'GET',
+        signal: controller.signal,
+      });
 
-        clearTimeout(timeoutId);
+      clearTimeout(timeoutId);
+      lastCheckedRef.current = new Date();
 
-        setState({
-          available: response.ok,
-          checking: false,
-          error: response.ok ? null : `HTTP ${response.status}`,
-          lastChecked: new Date(),
-        });
-      } catch (err) {
-        clearTimeout(timeoutId);
+      const nowAvailable = response.ok;
+      const nowError = response.ok ? null : `HTTP ${response.status}`;
 
-        let message = 'Unknown error';
-        if (err instanceof Error || err instanceof DOMException) {
-          message = err.message;
+      setState((prev) => {
+        if (prev.available === nowAvailable && !prev.checking && prev.error === nowError) {
+          return prev;
         }
+        return {
+          available: nowAvailable,
+          checking: false,
+          error: nowError,
+          lastChecked: lastCheckedRef.current,
+        };
+      });
+    } catch (err) {
+      clearTimeout(timeoutId);
+      lastCheckedRef.current = new Date();
 
-        setState({
+      let message = 'Unknown error';
+      if (err instanceof Error || err instanceof DOMException) {
+        message = err.message;
+      }
+
+      setState((prev) => {
+        if (!prev.available && !prev.checking && prev.error === message) {
+          return prev;
+        }
+        return {
           available: false,
           checking: false,
           error: message,
-          lastChecked: new Date(),
-        });
-      }
+          lastChecked: lastCheckedRef.current,
+        };
+      });
     }
+  }, [apiUrl]);
 
+  useEffect(() => {
     checkHealth();
 
     const intervalId = setInterval(checkHealth, checkInterval);
@@ -60,7 +75,7 @@ export function useApiHealth(apiUrl: string, checkInterval: number = 30000): Api
     return () => {
       clearInterval(intervalId);
     };
-  }, [apiUrl, checkInterval]);
+  }, [checkHealth, checkInterval]);
 
   return state;
 }
