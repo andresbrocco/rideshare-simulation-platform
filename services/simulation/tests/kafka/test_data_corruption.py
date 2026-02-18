@@ -1,6 +1,7 @@
 """Tests for malformed data injection."""
 
 import json
+from unittest.mock import patch
 
 import pytest
 
@@ -47,6 +48,22 @@ class TestShouldCorrupt:
         corruptor = DataCorruptor(corruption_rate=1.0)
         results = [corruptor.should_corrupt() for _ in range(100)]
         assert all(results)
+
+    def test_zero_rate_skips_rng(self):
+        """When corruption_rate is 0.0, random.random() should never be called."""
+        corruptor = DataCorruptor(corruption_rate=0.0)
+        with patch("kafka.data_corruption.random.random") as mock_random:
+            for _ in range(50):
+                result = corruptor.should_corrupt()
+                assert result is False
+            mock_random.assert_not_called()
+
+    def test_nonzero_rate_calls_rng(self):
+        """When corruption_rate > 0, random.random() should be invoked."""
+        corruptor = DataCorruptor(corruption_rate=0.05)
+        with patch("kafka.data_corruption.random.random", return_value=0.99) as mock_random:
+            corruptor.should_corrupt()
+            mock_random.assert_called_once()
 
 
 @pytest.mark.unit

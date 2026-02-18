@@ -1,5 +1,7 @@
 import json
 import logging
+import random
+from contextlib import nullcontext
 from typing import Any
 
 from confluent_kafka import Producer
@@ -18,6 +20,15 @@ class KafkaProducerError(NetworkError):
 
 
 _tracer = trace.get_tracer(__name__)
+
+# Process delivery callbacks every N non-critical produces instead of every one.
+# linger.ms=80 already batches at the librdkafka level; this reduces Python→C
+# round-trips for poll(0) by ~100x.
+_POLL_BATCH_SIZE: int = 100
+
+# Fraction of GPS events that get a full OTel span. GPS pings fire ~1,200 per
+# trip — tracing all of them adds overhead with little diagnostic value.
+_GPS_SPAN_SAMPLE_RATE: float = 0.01
 
 
 class KafkaProducer:
@@ -41,6 +52,7 @@ class KafkaProducer:
         }
         self._producer = Producer(producer_config)
         self._failed_deliveries: list[dict[str, Any]] = []
+        self._produce_count: int = 0
 
     def produce(
         self,
@@ -59,15 +71,19 @@ class KafkaProducer:
             callback: Optional delivery callback
             critical: If True, flush with timeout to ensure delivery
         """
-        with _tracer.start_as_current_span("kafka.produce") as span:
-            span.set_attribute("messaging.system", "kafka")
-            span.set_attribute("messaging.destination.name", topic)
-            span.set_attribute("messaging.kafka.message.key", key)
+        # GPS pings are high-frequency / low-value for tracing — sample 1%.
+        should_trace = topic != "gps_pings" or random.random() < _GPS_SPAN_SAMPLE_RATE
+        span_ctx = _tracer.start_as_current_span("kafka.produce") if should_trace else nullcontext()
 
-            # Bridge correlation_id to trace span
-            correlation_id = get_current_correlation_id()
-            if correlation_id:
-                span.set_attribute("correlation_id", correlation_id)
+        with span_ctx as span:
+            if span is not None:
+                span.set_attribute("messaging.system", "kafka")
+                span.set_attribute("messaging.destination.name", topic)
+                span.set_attribute("messaging.kafka.message.key", key)
+
+                correlation_id = get_current_correlation_id()
+                if correlation_id:
+                    span.set_attribute("correlation_id", correlation_id)
 
             # Serialize value to JSON string if it's not already a string
             if isinstance(value, str):
@@ -109,7 +125,10 @@ class KafkaProducer:
             if critical:
                 self._producer.flush(timeout=5.0)
             else:
-                self._producer.poll(0)
+                self._produce_count += 1
+                if self._produce_count >= _POLL_BATCH_SIZE:
+                    self._producer.poll(0)
+                    self._produce_count = 0
 
     def flush(self) -> None:
         """Flush all pending messages."""
