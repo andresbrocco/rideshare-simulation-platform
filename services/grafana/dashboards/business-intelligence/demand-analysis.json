@@ -1034,6 +1034,285 @@
       ],
       "title": "Peak vs Off-Peak Demand",
       "type": "barchart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 41
+      },
+      "id": 17,
+      "panels": [],
+      "title": "Geographic Demand Maps",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "trino-datasource",
+        "uid": "trino"
+      },
+      "description": "Geographic distribution of trip demand across São Paulo zones. Marker size represents total requested trips; color indicates average wait time (green=low, red=high). 7-day lookback from Gold layer aggregates.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 5
+              },
+              {
+                "color": "orange",
+                "value": 10
+              },
+              {
+                "color": "red",
+                "value": 15
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 12,
+        "x": 0,
+        "y": 42
+      },
+      "id": 18,
+      "options": {
+        "basemap": {
+          "config": {},
+          "name": "Layer 0",
+          "type": "default"
+        },
+        "controls": {
+          "mouseWheelZoom": true,
+          "showAttribution": true,
+          "showDebug": false,
+          "showMeasure": false,
+          "showScale": false,
+          "showZoom": true
+        },
+        "layers": [
+          {
+            "config": {
+              "showLegend": true,
+              "style": {
+                "color": {
+                  "field": "avg_wait_minutes",
+                  "fixed": "dark-green"
+                },
+                "opacity": 0.8,
+                "rotation": {
+                  "fixed": 0,
+                  "max": 360,
+                  "min": -360,
+                  "mode": "mod"
+                },
+                "size": {
+                  "field": "requested_trips",
+                  "fixed": 5,
+                  "max": 30,
+                  "min": 4
+                },
+                "symbol": {
+                  "fixed": "img/icons/marker/circle.svg",
+                  "mode": "fixed"
+                },
+                "text": {
+                  "field": "zone_name",
+                  "fixed": "",
+                  "mode": "field"
+                },
+                "textConfig": {
+                  "fontSize": 10,
+                  "offsetX": 0,
+                  "offsetY": -10,
+                  "textBaseline": "bottom"
+                }
+              }
+            },
+            "location": {
+              "latitude": "centroid_latitude",
+              "longitude": "centroid_longitude",
+              "mode": "coords"
+            },
+            "name": "Demand Markers",
+            "tooltip": true,
+            "type": "markers"
+          }
+        ],
+        "tooltip": {
+          "mode": "details"
+        },
+        "view": {
+          "allLayers": true,
+          "id": "coords",
+          "lat": -23.55,
+          "lon": -46.63,
+          "zoom": 11
+        }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "trino-datasource",
+            "uid": "trino"
+          },
+          "format": 0,
+          "rawQuery": true,
+          "rawSql": "SELECT\n  z.name AS zone_name,\n  z.centroid_latitude,\n  z.centroid_longitude,\n  SUM(d.requested_trips) AS requested_trips,\n  SUM(d.completed_trips) AS completed_trips,\n  AVG(d.avg_wait_time_minutes) AS avg_wait_minutes,\n  CAST(SUM(d.completed_trips) AS DOUBLE) * 100.0\n    / NULLIF(SUM(d.requested_trips), 0) AS completion_rate_pct\nFROM delta.gold.agg_hourly_zone_demand d\nJOIN delta.gold.dim_zones z ON d.zone_key = z.zone_key\nWHERE d.hour_timestamp >= current_timestamp - INTERVAL '7' DAY\nGROUP BY z.name, z.centroid_latitude, z.centroid_longitude\nORDER BY requested_trips DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Demand Heatmap by Zone",
+      "type": "geomap"
+    },
+    {
+      "datasource": {
+        "type": "trino-datasource",
+        "uid": "trino"
+      },
+      "description": "Geographic distribution of surge pricing across São Paulo zones. Marker size represents average pending requests; color indicates average surge multiplier (green=low, red=high). 7-day lookback from Gold layer aggregates.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1.5
+              },
+              {
+                "color": "orange",
+                "value": 2.0
+              },
+              {
+                "color": "red",
+                "value": 3.0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 12,
+        "x": 12,
+        "y": 42
+      },
+      "id": 19,
+      "options": {
+        "basemap": {
+          "config": {},
+          "name": "Layer 0",
+          "type": "default"
+        },
+        "controls": {
+          "mouseWheelZoom": true,
+          "showAttribution": true,
+          "showDebug": false,
+          "showMeasure": false,
+          "showScale": false,
+          "showZoom": true
+        },
+        "layers": [
+          {
+            "config": {
+              "showLegend": true,
+              "style": {
+                "color": {
+                  "field": "avg_surge_multiplier",
+                  "fixed": "dark-green"
+                },
+                "opacity": 0.8,
+                "rotation": {
+                  "fixed": 0,
+                  "max": 360,
+                  "min": -360,
+                  "mode": "mod"
+                },
+                "size": {
+                  "field": "avg_pending_requests",
+                  "fixed": 5,
+                  "max": 30,
+                  "min": 4
+                },
+                "symbol": {
+                  "fixed": "img/icons/marker/circle.svg",
+                  "mode": "fixed"
+                },
+                "text": {
+                  "field": "zone_name",
+                  "fixed": "",
+                  "mode": "field"
+                },
+                "textConfig": {
+                  "fontSize": 10,
+                  "offsetX": 0,
+                  "offsetY": -10,
+                  "textBaseline": "bottom"
+                }
+              }
+            },
+            "location": {
+              "latitude": "centroid_latitude",
+              "longitude": "centroid_longitude",
+              "mode": "coords"
+            },
+            "name": "Surge Markers",
+            "tooltip": true,
+            "type": "markers"
+          }
+        ],
+        "tooltip": {
+          "mode": "details"
+        },
+        "view": {
+          "allLayers": true,
+          "id": "coords",
+          "lat": -23.55,
+          "lon": -46.63,
+          "zoom": 11
+        }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "trino-datasource",
+            "uid": "trino"
+          },
+          "format": 0,
+          "rawQuery": true,
+          "rawSql": "SELECT\n  z.name AS zone_name,\n  z.centroid_latitude,\n  z.centroid_longitude,\n  AVG(s.avg_surge_multiplier) AS avg_surge_multiplier,\n  MAX(s.max_surge_multiplier) AS max_surge_multiplier,\n  AVG(s.avg_available_drivers) AS avg_available_drivers,\n  AVG(s.avg_pending_requests) AS avg_pending_requests\nFROM delta.gold.agg_surge_history s\nJOIN delta.gold.dim_zones z ON s.zone_key = z.zone_key\nWHERE s.hour_timestamp >= current_timestamp - INTERVAL '7' DAY\nGROUP BY z.name, z.centroid_latitude, z.centroid_longitude\nORDER BY avg_surge_multiplier DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Surge Pricing Map by Zone",
+      "type": "geomap"
     }
   ],
   "refresh": "5m",

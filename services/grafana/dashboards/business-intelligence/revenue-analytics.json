@@ -1095,6 +1095,152 @@
       ],
       "title": "Top Revenue Drivers (7d)",
       "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 49
+      },
+      "id": 19,
+      "panels": [],
+      "title": "Geographic Revenue Maps",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "trino-datasource",
+        "uid": "trino"
+      },
+      "description": "Geographic distribution of revenue across São Paulo pickup zones. Marker size represents total revenue; color indicates average fare (blue=low, dark-red=high). Completed trips only, 7-day lookback from Gold layer.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "purple",
+                "value": 20
+              },
+              {
+                "color": "dark-purple",
+                "value": 35
+              },
+              {
+                "color": "dark-red",
+                "value": 50
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 50
+      },
+      "id": 20,
+      "options": {
+        "basemap": {
+          "config": {},
+          "name": "Layer 0",
+          "type": "default"
+        },
+        "controls": {
+          "mouseWheelZoom": true,
+          "showAttribution": true,
+          "showDebug": false,
+          "showMeasure": false,
+          "showScale": false,
+          "showZoom": true
+        },
+        "layers": [
+          {
+            "config": {
+              "showLegend": true,
+              "style": {
+                "color": {
+                  "field": "avg_fare",
+                  "fixed": "dark-green"
+                },
+                "opacity": 0.8,
+                "rotation": {
+                  "fixed": 0,
+                  "max": 360,
+                  "min": -360,
+                  "mode": "mod"
+                },
+                "size": {
+                  "field": "total_revenue",
+                  "fixed": 5,
+                  "max": 40,
+                  "min": 4
+                },
+                "symbol": {
+                  "fixed": "img/icons/marker/circle.svg",
+                  "mode": "fixed"
+                },
+                "text": {
+                  "field": "zone_name",
+                  "fixed": "",
+                  "mode": "field"
+                },
+                "textConfig": {
+                  "fontSize": 10,
+                  "offsetX": 0,
+                  "offsetY": -10,
+                  "textBaseline": "bottom"
+                }
+              }
+            },
+            "location": {
+              "latitude": "centroid_latitude",
+              "longitude": "centroid_longitude",
+              "mode": "coords"
+            },
+            "name": "Revenue Markers",
+            "tooltip": true,
+            "type": "markers"
+          }
+        ],
+        "tooltip": {
+          "mode": "details"
+        },
+        "view": {
+          "allLayers": true,
+          "id": "coords",
+          "lat": -23.55,
+          "lon": -46.63,
+          "zoom": 11
+        }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "trino-datasource",
+            "uid": "trino"
+          },
+          "format": 0,
+          "rawQuery": true,
+          "rawSql": "SELECT\n  z.name AS zone_name,\n  z.centroid_latitude,\n  z.centroid_longitude,\n  SUM(t.fare) AS total_revenue,\n  COUNT(*) AS trip_count,\n  AVG(t.fare) AS avg_fare\nFROM delta.gold.fact_trips t\nJOIN delta.gold.dim_zones z ON t.pickup_zone_key = z.zone_key\nWHERE t.completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND t.trip_state = 'completed'\n  AND t.fare > 0\nGROUP BY z.name, z.centroid_latitude, z.centroid_longitude\nORDER BY total_revenue DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Revenue Hotspot Map by Zone",
+      "type": "geomap"
     }
   ],
   "refresh": "5m",
