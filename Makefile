@@ -17,7 +17,7 @@ PRE_COMMIT := pre-commit
 # Service paths
 SIM_DIR := services/simulation
 STREAM_DIR := services/stream-processor
-FRONTEND_DIR := services/frontend
+FRONTEND_DIR := services/control-panel
 DBT_DIR := tools/dbt
 AIRFLOW_DIR := services/airflow
 GX_DIR := tools/great-expectations

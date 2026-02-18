@@ -25,7 +25,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: services/frontend/package-lock.json
+          cache-dependency-path: services/control-panel/package-lock.json
 
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v3
@@ -73,7 +73,7 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
-        working-directory: services/frontend
+        working-directory: services/control-panel
 
       - name: Run pre-commit on all files
         run: pre-commit run --all-files
@@ -120,15 +120,15 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: services/frontend/package-lock.json
+          cache-dependency-path: services/control-panel/package-lock.json
 
       - name: Install dependencies
         run: npm ci
-        working-directory: services/frontend
+        working-directory: services/control-panel
 
       - name: Build
         run: npm run build
-        working-directory: services/frontend
+        working-directory: services/control-panel
 
   detect-changes:
     runs-on: ubuntu-latest
@@ -142,7 +142,7 @@ jobs:
           filters: |
             api:
               - 'services/simulation/src/api/**'
-              - 'services/frontend/src/**'
+              - 'services/control-panel/src/**'
               - 'schemas/api/**'
 
   api-contract-validation:
@@ -180,12 +180,12 @@ jobs:
 
       - name: Install frontend dependencies
         run: |
-          cd services/frontend
+          cd services/control-panel
           npm ci
 
       - name: Generate TypeScript types
         run: |
-          cd services/frontend
+          cd services/control-panel
           npm run generate-types
 
       - name: Check TypeScript types match OpenAPI spec

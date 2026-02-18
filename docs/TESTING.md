@@ -12,7 +12,7 @@ Tests are distributed throughout the codebase following a **co-location pattern*
 |-----------|----------|---------|
 | **Simulation Unit Tests** | `services/simulation/tests/` | Test agents, engine, API, database, Kafka, matching |
 | **Stream Processor Unit Tests** | `services/stream-processor/tests/` | Test Kafka handlers, deduplication, Redis sink |
-| **Frontend Unit Tests** | `services/frontend/src/**/__tests__/` | Test React components, hooks, layers, utilities |
+| **Frontend Unit Tests** | `services/control-panel/src/**/__tests__/` | Test React components, hooks, layers, utilities |
 | **Integration Tests** | `tests/integration/data_platform/` | Multi-service data pipeline validation |
 | **Performance Tests** | `tests/performance/` | Container resource measurement |
 | **Schema Tests** | `schemas/lakehouse/tests/` | Delta Lake schema validation |
@@ -68,7 +68,7 @@ tests/performance/
 ├── scenarios/            # baseline, stress_test, duration_leak, speed_scaling
 └── analysis/             # Report generation, statistics, visualizations
 
-services/frontend/src/
+services/control-panel/src/
 ├── components/__tests__/
 ├── hooks/__tests__/
 ├── layers/__tests__/
@@ -82,7 +82,7 @@ services/frontend/src/
 | **pytest** | Unit & integration test runner | `services/simulation/tests/**/*.py` | 9.0.2 |
 | **pytest-asyncio** | Async test support | All async tests | 1.3.0 |
 | **pytest-cov** | Coverage reporting | All Python tests | 7.0.0 |
-| **vitest** | Frontend test runner (Vite-native) | `services/frontend/src/**/*.test.ts` | 3.2.4 |
+| **vitest** | Frontend test runner (Vite-native) | `services/control-panel/src/**/*.test.ts` | 3.2.4 |
 | **@testing-library/react** | React component testing | Frontend component tests | 16.3.1 |
 | **@testing-library/jest-dom** | DOM matchers | Frontend tests | 6.9.1 |
 | **httpx** | HTTP client for API tests | Integration tests | 0.28.1 |
@@ -95,7 +95,7 @@ services/frontend/src/
 
 ### Unit Tests
 
-**Location:** `services/simulation/tests/`, `services/stream-processor/tests/`, `services/frontend/src/**/__tests__/`
+**Location:** `services/simulation/tests/`, `services/stream-processor/tests/`, `services/control-panel/src/**/__tests__/`
 
 **Count:** ~95 Python test files, ~18 TypeScript test files
 
@@ -191,7 +191,7 @@ services/frontend/src/
 ### Frontend Tests
 
 ```bash
-cd services/frontend
+cd services/control-panel
 
 # Run all tests
 npm run test
@@ -285,7 +285,7 @@ cd tools/dbt
 - `simulation_api_client` - HTTP client for Simulation API
 - `test_context` - Unique test ID generation
 
-**Frontend Fixtures (`services/frontend/src/test/setup.ts`):**
+**Frontend Fixtures (`services/control-panel/src/test/setup.ts`):**
 - Vitest globals enabled
 - jsdom environment configured
 - CSS module strategy: non-scoped
@@ -378,7 +378,7 @@ Coverage tracking is configured but specific percentages are not enforced in CI.
 
 **Frontend Coverage:**
 ```bash
-cd services/frontend
+cd services/control-panel
 npm run test -- --coverage
 ```
 
@@ -388,8 +388,8 @@ npm run test -- --coverage
 |------|---------|
 | `services/simulation/pyproject.toml` | pytest config, markers, coverage settings |
 | `pyproject.toml` (root) | Integration test config |
-| `services/frontend/vitest.config.ts` | Vitest configuration |
-| `services/frontend/package.json` | Test scripts, dependencies |
+| `services/control-panel/vitest.config.ts` | Vitest configuration |
+| `services/control-panel/package.json` | Test scripts, dependencies |
 | `tools/dbt/dbt_project.yml` | DBT test configuration |
 | `tools/great-expectations/great_expectations.yml` | Data quality validation config |
 

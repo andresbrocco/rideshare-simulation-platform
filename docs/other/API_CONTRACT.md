@@ -26,7 +26,7 @@ FastAPI automatically generates OpenAPI specs from Python type hints. We export 
                              ▼
 ┌─────────────────────────────────┐
 │ Frontend TypeScript Types       │
-│ services/frontend/src/types/    │
+│ services/control-panel/src/types/    │
 │   api.generated.ts              │
 └─────────────────────────────────┘
 ```
@@ -37,7 +37,7 @@ FastAPI automatically generates OpenAPI specs from Python type hints. We export 
 |------|---------|
 | `services/simulation/scripts/export-openapi.py` | Exports OpenAPI spec from FastAPI app |
 | `schemas/api/openapi.json` | Committed OpenAPI spec (source of truth) |
-| `services/frontend/src/types/api.generated.ts` | Generated TypeScript types |
+| `services/control-panel/src/types/api.generated.ts` | Generated TypeScript types |
 | `services/simulation/tests/test_api_contract.py` | Contract validation tests |
 | `.github/workflows/ci.yml` | CI workflow (api-contract-validation job) |
 
@@ -52,7 +52,7 @@ FastAPI automatically generates OpenAPI specs from Python type hints. We export 
 ### Generate TypeScript Types
 
 ```bash
-cd services/frontend
+cd services/control-panel
 npm run generate-types
 ```
 
@@ -90,7 +90,7 @@ When adding a new API endpoint:
 1. Add Pydantic models with type hints
 2. Define endpoint with `response_model=YourModel`
 3. Export OpenAPI spec: `./venv/bin/python3 services/simulation/scripts/export-openapi.py`
-4. Generate TypeScript types: `cd services/frontend && npm run generate-types`
+4. Generate TypeScript types: `cd services/control-panel && npm run generate-types`
 5. Commit both `openapi.json` and `api.generated.ts`
 6. Run tests: `cd services/simulation && ../../venv/bin/python3 -m pytest tests/test_api_contract.py -v`
 

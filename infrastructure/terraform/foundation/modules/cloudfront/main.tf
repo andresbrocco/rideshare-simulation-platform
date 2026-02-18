@@ -58,7 +58,7 @@ resource "aws_cloudfront_distribution" "frontend" {
   }
 
   tags = {
-    Name = "rideshare-frontend-cdn"
+    Name = "rideshare-control-panel-cdn"
   }
 }
 

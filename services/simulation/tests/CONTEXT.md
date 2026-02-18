@@ -8,7 +8,7 @@ Provides test infrastructure and shared fixtures for validating the simulation s
 
 - **Owns**: Test fixtures (conftest.py), factory patterns for DNA/agent creation (factories.py), environment setup for isolated test runs
 - **Delegates to**: Subdirectories (`agents/`, `engine/`, `api/`, `db/`, etc.) for domain-specific test implementations
-- **Does not handle**: Integration tests (located in `tests/integration/`), performance tests (separate directory), frontend tests (services/frontend/)
+- **Does not handle**: Integration tests (located in `tests/integration/`), performance tests (separate directory), frontend tests (services/control-panel/)
 
 ## Key Concepts
 
@@ -18,7 +18,7 @@ Provides test infrastructure and shared fixtures for validating the simulation s
 
 **DNAFactory Pattern**: `factories.py` provides seeded Faker-based DNA generation with deterministic results (seed=42). Factory methods accept `**overrides` to customize specific fields while maintaining realistic defaults.
 
-**Contract Testing**: `test_api_contract.py` validates that FastAPI application matches OpenAPI spec (`schemas/api/openapi.json`) and that TypeScript types (`services/frontend/src/types/api.generated.ts`) stay synchronized.
+**Contract Testing**: `test_api_contract.py` validates that FastAPI application matches OpenAPI spec (`schemas/api/openapi.json`) and that TypeScript types (`services/control-panel/src/types/api.generated.ts`) stay synchronized.
 
 **Fixture Scoping**: Fixtures use default function scope for isolation. Zone validator uses `autouse=True` to automatically configure for all tests without explicit fixture injection.
 

@@ -288,7 +288,7 @@ GitHub Actions -> Deploy -> Run workflow -> action: deploy-frontend
 
 ```bash
 # Build frontend with production env vars
-cd services/frontend
+cd services/control-panel
 VITE_API_URL=https://api.ridesharing.portfolio.andresbrocco.com \
 VITE_WS_URL=wss://api.ridesharing.portfolio.andresbrocco.com/ws \
 npm run build

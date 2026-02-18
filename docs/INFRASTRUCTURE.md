@@ -281,7 +281,7 @@ Service URLs:
 |---------|--------------|-----------|
 | kafka | 1g | 1.5 |
 | schema-registry | 512m | 0.5 |
-| redis | 128m | - |
+| redis | 512m | - |
 | osrm | 1g | - |
 | simulation | 1g | 2.0 |
 | stream-processor | 256m | 1.0 |
@@ -353,8 +353,8 @@ open http://localhost:5173
 | `docker compose -f infrastructure/docker/compose.yml --profile core down` | Stop services |
 | `cd services/simulation && ./venv/bin/pytest` | Run simulation tests |
 | `cd services/stream-processor && ./venv/bin/pytest` | Run stream processor tests |
-| `cd services/frontend && npm run dev` | Start frontend dev server |
-| `cd services/frontend && npm run test` | Run frontend tests |
+| `cd services/control-panel && npm run dev` | Start frontend dev server |
+| `cd services/control-panel && npm run test` | Run frontend tests |
 | `cd tools/dbt && ./venv/bin/dbt run` | Run DBT transformations |
 | `./infrastructure/kubernetes/scripts/create-cluster.sh` | Create Kind cluster |
 | `./infrastructure/kubernetes/scripts/deploy-services.sh` | Deploy to Kind |

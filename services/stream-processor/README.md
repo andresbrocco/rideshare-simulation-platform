@@ -376,6 +376,6 @@ Key packages (see `requirements.txt`):
 
 - [CONTEXT.md](CONTEXT.md) - Architecture context and design patterns
 - [services/simulation](../simulation/README.md) - Event producer (upstream)
-- [services/frontend](../frontend/README.md) - WebSocket subscriber (downstream)
+- [services/control-panel](../control-panel/README.md) - WebSocket subscriber (downstream)
 - [services/kafka](../kafka/README.md) - Kafka broker configuration
 - [services/redis](../redis/README.md) - Redis server configuration

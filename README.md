@@ -60,7 +60,7 @@ curl -H "X-API-Key: admin" http://localhost:8000/health/detailed
 cd services/simulation && ./venv/bin/pytest
 
 # Run frontend tests
-cd services/frontend && npm run test
+cd services/control-panel && npm run test
 ```
 
 ## Port Reference
@@ -68,7 +68,7 @@ cd services/frontend && npm run test
 | Port | Service | Description |
 |------|---------|-------------|
 | 8000 | simulation | Simulation REST API + WebSocket |
-| 5173 | control-panel-frontend | Control panel UI (Vite dev server) |
+| 5173 | control-panel | Control panel UI (Vite dev server) |
 | 9092 | kafka | Kafka broker (SASL_PLAINTEXT) |
 | 8085 | schema-registry | Confluent Schema Registry |
 | 6379 | redis | Redis cache and pub/sub |
@@ -162,7 +162,7 @@ docker compose -f infrastructure/docker/compose.yml --profile core down
 
 ```bash
 # Frontend development server
-cd services/frontend && npm run dev
+cd services/control-panel && npm run dev
 ```
 
 ### Testing
@@ -178,7 +178,7 @@ cd services/simulation && ./venv/bin/pytest -m unit
 cd services/simulation && ./venv/bin/pytest -m integration
 
 # Run frontend tests
-cd services/frontend && npm run test
+cd services/control-panel && npm run test
 ```
 
 ### Linting and Formatting
@@ -190,8 +190,8 @@ cd services/frontend && npm run test
 ./venv/bin/mypy src/                 # Type check
 
 # Frontend
-cd services/frontend && npm run lint
-cd services/frontend && npm run typecheck
+cd services/control-panel && npm run lint
+cd services/control-panel && npm run typecheck
 ```
 
 ### Database / Transformations
@@ -290,7 +290,7 @@ rideshare-simulation-platform/
 | **services/simulation** | SimPy discrete-event engine with DNA-based agent behavior, trip matching, FastAPI REST/WebSocket API | [README](services/simulation/README.md) |
 | **services/stream-processor** | Kafka consumer routing events to Redis with 100ms GPS aggregation windows | [README](services/stream-processor/README.md) |
 | **services/bronze-ingestion** | Kafka-to-Delta Lake ingestion with dead-letter queue handling | [README](services/bronze-ingestion/README.md) |
-| **services/frontend** | React 19 + deck.gl real-time map visualization with puppet mode for manual agent control | [README](services/frontend/README.md) |
+| **services/control-panel** | React 19 + deck.gl real-time map visualization with puppet mode for manual agent control | [README](services/control-panel/README.md) |
 | **services/airflow** | Airflow 3.1.5 DAGs for DBT Silver/Gold transforms, DLQ monitoring, Delta maintenance | [README](services/airflow/README.md) |
 | **tools/dbt** | Medallion transformations with dual-engine support (DuckDB primary, Spark validation) | [README](tools/dbt/README.md) |
 | **tools/great-expectations** | Data quality validation for Silver and Gold layers | [README](tools/great-expectations/README.md) |
@@ -409,7 +409,7 @@ See the complete deployment runbook: [docs/CLOUD-DEPLOYMENT.md](docs/CLOUD-DEPLO
 ./venv/bin/mypy src/
 
 # TypeScript
-cd services/frontend && npm run lint && npm run typecheck
+cd services/control-panel && npm run lint && npm run typecheck
 ```
 
 ### Testing

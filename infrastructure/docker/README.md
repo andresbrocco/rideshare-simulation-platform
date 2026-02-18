@@ -8,7 +8,7 @@
 
 | Profile | Services | Purpose |
 |---------|----------|---------|
-| `core` | kafka, schema-registry, redis, osrm, simulation, stream-processor, control-panel-frontend, localstack, secrets-init, kafka-init | Simulation runtime services |
+| `core` | kafka, schema-registry, redis, osrm, simulation, stream-processor, control-panel, localstack, secrets-init, kafka-init | Simulation runtime services |
 | `data-pipeline` | minio, bronze-ingestion, localstack, postgres-airflow, airflow-webserver, airflow-scheduler, postgres-metastore, hive-metastore, openldap, trino, secrets-init, minio-init | ETL, ingestion, and orchestration |
 | `spark-testing` | spark-thrift-server | Spark Thrift Server for dual-engine DBT validation (optional, use with data-pipeline) |
 | `monitoring` | prometheus, cadvisor, grafana, otel-collector, loki, tempo | Observability stack |
@@ -23,7 +23,7 @@
 | osrm | 5050 | 5000 | OSRM routing engine |
 | simulation | 8000 | 8000 | Simulation API |
 | stream-processor | 8080 | 8080 | Stream processor health/metrics |
-| control-panel-frontend | 5173 | 5173 | Frontend UI |
+| control-panel | 5173 | 5173 | Frontend UI |
 | minio | 9000 | 9000 | MinIO S3-compatible storage |
 | bronze-ingestion | 8086 | 8080 | Bronze layer ingestion service |
 | spark-thrift-server | 10000 | 10000 | Spark Thrift Server (optional) |

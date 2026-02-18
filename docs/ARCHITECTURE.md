@@ -19,7 +19,7 @@ High-level components and their responsibilities derived from CONTEXT.md files.
 | **Simulation Engine** | Discrete-event simulation with SimPy, agent lifecycle, two-phase pause | services/simulation/src/engine, src/agents, src/trips |
 | **Event Streaming** | Kafka-based event backbone with schema validation | services/kafka, schemas/kafka |
 | **Stream Processing** | Kafka-to-Redis routing with GPS aggregation | services/stream-processor |
-| **Frontend** | Real-time visualization with deck.gl and WebSocket | services/frontend |
+| **Frontend** | Real-time visualization with deck.gl and WebSocket | services/control-panel |
 | **Bronze Ingestion** | Kafka-to-Delta Lake raw data persistence | services/bronze-ingestion |
 | **Transformation (DBT)** | Medallion architecture transformations (Silver/Gold) | tools/dbt |
 | **Orchestration** | Airflow DAGs for pipeline scheduling and DLQ monitoring | services/airflow |
@@ -215,7 +215,7 @@ Airflow Scheduler → DAG Trigger → DBT Run → Delta Table Write → Great Ex
 | **PostgreSQL** | Airflow metadata, Hive Metastore catalog | services/airflow, services/hive-metastore | Port 5432 |
 | **Kafka** | Event streaming backbone | services/simulation, services/bronze-ingestion, services/stream-processor | Port 9092 (SASL_PLAINTEXT) |
 | **Schema Registry** | JSON schema validation | services/simulation | Port 8081 |
-| **Redis** | State snapshots, pub/sub | services/simulation, services/stream-processor, services/frontend | Port 6379 (AUTH) |
+| **Redis** | State snapshots, pub/sub | services/simulation, services/stream-processor, services/control-panel | Port 6379 (AUTH) |
 | **OSRM** | Route calculations for Sao Paulo | services/simulation/src/geo | Port 5000 |
 | **MinIO** | S3-compatible lakehouse storage | services/bronze-ingestion, tools/dbt, services/trino | Port 9000 (S3 API) |
 | **Trino** | SQL query engine | services/grafana, tools/dbt | Port 8080 (HTTP) |

@@ -34,5 +34,5 @@ Profile events (driver_profiles, rider_profiles) are always enabled regardless o
 
 - **[services/kafka](../../kafka/CONTEXT.md)** — Provides Kafka topics that stream processor consumes from; topic configuration affects consumption behavior
 - **[services/simulation/src/agents](../../simulation/src/agents/CONTEXT.md)** — Publishes events to Kafka that stream processor routes to Redis; agents emit GPS pings and status updates
-- **[services/frontend/src/components](../../frontend/src/components/CONTEXT.md)** — Subscribes to Redis channels populated by stream processor via WebSocket; receives real-time agent updates
-- **[services/frontend/src/layers](../../frontend/src/layers/CONTEXT.md)** — Renders visualization updates driven by stream processor's Redis publications
+- **[services/control-panel/src/components](../../control-panel/src/components/CONTEXT.md)** — Subscribes to Redis channels populated by stream processor via WebSocket; receives real-time agent updates
+- **[services/control-panel/src/layers](../../control-panel/src/layers/CONTEXT.md)** — Renders visualization updates driven by stream processor's Redis publications

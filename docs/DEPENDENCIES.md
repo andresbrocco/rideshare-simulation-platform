@@ -15,10 +15,10 @@ How modules within this codebase depend on each other.
 | services/simulation/src/matching | Driver-rider matchmaking with spatial indexing and surge pricing | services/simulation/src/engine, services/simulation/src/api |
 | services/simulation/src/trips | Trip lifecycle orchestration from match through completion | services/simulation/src/matching |
 | services/simulation/src/db | SQLite persistence for checkpoints and state recovery | services/simulation/src/engine, services/simulation/src/agents, services/simulation/src/matching |
-| services/stream-processor | Kafka-to-Redis event routing with deduplication | services/frontend |
+| services/stream-processor | Kafka-to-Redis event routing with deduplication | services/control-panel |
 | services/bronze-ingestion | Kafka-to-Delta Bronze layer ingestion | tools/dbt, services/airflow |
 | schemas/lakehouse | PySpark StructType definitions for Bronze tables | services/bronze-ingestion |
-| schemas/api | OpenAPI 3.1 REST API contract | services/frontend, services/simulation |
+| schemas/api | OpenAPI 3.1 REST API contract | services/control-panel, services/simulation |
 
 ### Module Dependency Graph
 
@@ -65,11 +65,11 @@ How modules within this codebase depend on each other.
 [services/airflow/dags] ──┬──> tools/dbt
                            └──> tools/great-expectations
 
-[services/frontend/src/components] ──┬──> services/frontend/src/hooks
-                                      ├──> services/frontend/src/api
-                                      └──> services/frontend/src/types/api
+[services/control-panel/src/components] ──┬──> services/control-panel/src/hooks
+                                      ├──> services/control-panel/src/api
+                                      └──> services/control-panel/src/types/api
 
-[services/frontend/src/layers] ──> services/frontend/src/types/api
+[services/control-panel/src/layers] ──> services/control-panel/src/types/api
 
 [infrastructure/kubernetes/argocd] ──> infrastructure/kubernetes/manifests
 
@@ -130,12 +130,12 @@ How modules within this codebase depend on each other.
 - Orchestrates `dbt_silver_transformation` and `dbt_gold_transformation` DAGs
 - Triggers DBT runs via BashOperator
 
-#### services/frontend/src/components → services/frontend/src/hooks
+#### services/control-panel/src/components → services/control-panel/src/hooks
 - Uses `useSimulationState` for WebSocket state management
 - Uses `useSimulationControl` for API control commands
 - Uses `useAgentState` for driver/rider state inspection
 
-#### services/frontend/src/layers → services/frontend/src/types/api
+#### services/control-panel/src/layers → services/control-panel/src/types/api
 - Uses types from `api.generated.ts` (generated from OpenAPI schema)
 - Creates deck.gl layers from typed API responses
 
@@ -191,7 +191,7 @@ How modules within this codebase depend on each other.
 | pyarrow | >=15.0.0 | src/writer | Arrow columnar format |
 | python-dateutil | (latest) | src/writer | Date parsing utilities |
 
-#### services/frontend (TypeScript/React)
+#### services/control-panel (TypeScript/React)
 
 | Package | Version | Used By | Purpose |
 |---------|---------|---------|---------|
@@ -262,7 +262,7 @@ How modules within this codebase depend on each other.
 | types-PyYAML | >=6.0 | Type stubs for PyYAML |
 | respx | 0.21.1 | HTTP mocking for tests |
 
-#### services/frontend (TypeScript)
+#### services/control-panel (TypeScript)
 
 | Package | Version | Purpose |
 |---------|---------|---------|

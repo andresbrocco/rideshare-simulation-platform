@@ -48,4 +48,4 @@ FastAPI route handlers that translate REST/WebSocket requests into simulation en
 - **[src/matching](../../matching/CONTEXT.md)** — Matching server accessed by routes for trip coordination and driver registry queries
 - **[src/agents](../../agents/CONTEXT.md)** — Agent factory and DNA generators used by agent creation endpoints
 - **[schemas/api](../../../../../schemas/api/CONTEXT.md)** — OpenAPI spec generated from these routes; defines request/response contracts
-- **[services/frontend/src/components/inspector](../../../../frontend/src/components/inspector/CONTEXT.md)** — Frontend inspector components that invoke puppet control endpoints
+- **[services/control-panel/src/components/inspector](../../../../control-panel/src/components/inspector/CONTEXT.md)** — Frontend inspector components that invoke puppet control endpoints

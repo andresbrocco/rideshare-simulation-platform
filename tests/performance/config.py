@@ -149,7 +149,7 @@ CONTAINER_CONFIG: dict[str, dict[str, str]] = {
     "rideshare-osrm": {"display_name": "OSRM", "profile": "core"},
     "rideshare-simulation": {"display_name": "Simulation", "profile": "core"},
     "rideshare-stream-processor": {"display_name": "Stream Processor", "profile": "core"},
-    "rideshare-frontend": {"display_name": "Frontend", "profile": "core"},
+    "rideshare-control-panel": {"display_name": "Control Panel", "profile": "core"},
     # Data Pipeline profile
     "rideshare-minio": {"display_name": "MinIO", "profile": "data-pipeline"},
     "rideshare-bronze-ingestion": {"display_name": "Bronze Ingestion", "profile": "data-pipeline"},

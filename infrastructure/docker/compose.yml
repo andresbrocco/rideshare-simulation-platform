@@ -1,7 +1,7 @@
 name: rideshare-platform
 
 # Docker Compose Profiles:
-# - core: Simulation runtime services (kafka, redis, osrm, simulation, stream-processor, frontend)
+# - core: Simulation runtime services (kafka, redis, osrm, simulation, stream-processor, control-panel)
 # - data-pipeline: ETL, ingestion, and orchestration (minio, bronze-ingestion, localstack, airflow, hive-metastore, trino)
 # - spark-testing: Spark Thrift Server for dual-engine DBT validation (optional, use with data-pipeline)
 # - monitoring: Observability (prometheus, cadvisor, grafana, otel-collector, loki, tempo)
@@ -158,7 +158,7 @@ services:
   redis:
     image: redis:8.0-alpine
     container_name: rideshare-redis
-    mem_limit: 256m
+    mem_limit: 512m
     profiles:
       - core
     ports:
@@ -346,20 +346,20 @@ services:
       retries: 5
     restart: unless-stopped
 
-  control-panel-frontend:
+  control-panel:
     build:
-      context: ../../services/frontend
+      context: ../../services/control-panel
       dockerfile: Dockerfile
       target: development
-    container_name: rideshare-frontend
+    container_name: rideshare-control-panel
     mem_limit: 256m
     profiles:
       - core
     ports:
       - "5173:5173"
     volumes:
-      - ../../services/frontend:/app
-      - frontend-node-modules:/app/node_modules
+      - ../../services/control-panel:/app
+      - control-panel-node-modules:/app/node_modules
       - ../../services/simulation/data/zones.geojson:/app/public/zones.geojson:ro  # canonical source
     environment:
       - VITE_API_URL=http://localhost:8000
@@ -1136,7 +1136,7 @@ volumes:
   redis-data:
   osrm-data:
   simulation-db:
-  frontend-node-modules:
+  control-panel-node-modules:
   minio-data:
   localstack-data:
   postgres-airflow-data:

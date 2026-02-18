@@ -12,7 +12,7 @@ In-memory state store for the rideshare simulation platform's real-time dashboar
 
 ## Key Concepts
 
-**State Snapshots Only**: Redis stores only the latest state for each entity (e.g., current driver position, current trip status). It is not a time-series store — historical data flows through Kafka into the lakehouse. This is why the 128MB memory limit is sufficient.
+**State Snapshots Only**: Redis stores only the latest state for each entity (e.g., current driver position, current trip status). It is not a time-series store — historical data flows through Kafka into the lakehouse. This is why the 512MB memory limit is sufficient.
 
 **Pub/Sub for Live Updates**: The stream processor publishes state changes to Redis pub/sub channels. The frontend service subscribes to these channels and forwards updates to connected browser clients via WebSocket.
 
@@ -22,6 +22,6 @@ In-memory state store for the rideshare simulation platform's real-time dashboar
 
 ## Non-Obvious Details
 
-The 128MB memory limit is intentional — Redis only holds the latest state snapshots, not historical data. If Redis loses data on restart, the stream processor will repopulate current state from Kafka's latest offsets. There is no need for Redis persistence configuration (RDB/AOF) in this architecture.
+The 512MB memory limit is intentional — Redis only holds the latest state snapshots, not historical data. If Redis loses data on restart, the stream processor will repopulate current state from Kafka's latest offsets. There is no need for Redis persistence configuration (RDB/AOF) in this architecture.
 
 Data is persisted to a `redis-data` named volume for convenience during development restarts, but this data is fully reconstructable from Kafka.

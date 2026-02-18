@@ -61,8 +61,8 @@ images:
   - name: rideshare-stream-processor
     newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/stream-processor
     newTag: latest
-  - name: rideshare-frontend
-    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/frontend
+  - name: rideshare-control-panel
+    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/control-panel
     newTag: latest
   - name: rideshare-bronze-ingestion
     newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/bronze-ingestion

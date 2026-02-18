@@ -23,7 +23,7 @@ Image: redis:8.0-alpine
 Container: rideshare-redis
 Port: 6379:6379
 Profile: core
-Memory Limit: 128MB
+Memory Limit: 512MB
 Volume: redis-data:/data
 ```
 
@@ -40,7 +40,7 @@ redis-cli -a "$REDIS_PASSWORD" ping
 
 **AUTH Mode**: Password authentication is enabled via `--requirepass` flag at startup. The password is read from `/secrets/core.env` written by the `secrets-init` service.
 
-**Memory Limit**: 128MB limit enforced by Docker Compose (sufficient for snapshot-only storage).
+**Memory Limit**: 512MB limit enforced by Docker Compose (sufficient for snapshot-only storage).
 
 **Persistence**: Data persists to `redis-data` named volume, but this is for development convenience only. State is fully reconstructable from Kafka if Redis restarts.
 
@@ -138,7 +138,7 @@ docker exec <service-name> cat /secrets/core.env | grep REDIS_PASSWORD
 
 **Symptom**: Redis refuses writes with `OOM command not allowed`
 
-**Cause**: 128MB limit reached (unusual, indicates data not being cleaned up)
+**Cause**: 512MB limit reached (unusual, indicates data not being cleaned up)
 
 ```bash
 # Check memory usage
@@ -161,5 +161,5 @@ docker exec rideshare-redis redis-cli -a admin DBSIZE
 
 - [CONTEXT.md](CONTEXT.md) — Architecture details and state snapshot model
 - [services/stream-processor](../stream-processor/README.md) — Writes state to Redis
-- [services/frontend](../frontend/README.md) — Reads state from Redis via WebSocket
+- [services/control-panel](../control-panel/README.md) — Reads state from Redis via WebSocket
 - [infrastructure/docker/compose.yml](../../infrastructure/docker/compose.yml) — Service configuration

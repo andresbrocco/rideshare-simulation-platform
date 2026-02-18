@@ -26,4 +26,4 @@ StateSnapshotManager uses async Redis client while RedisPublisher uses sync Redi
 
 - **[services/stream-processor/src](../../../stream-processor/src/CONTEXT.md)** — Also publishes to Redis pub/sub channels after consuming from Kafka; provides alternative event delivery path
 - **[src/agents](../agents/CONTEXT.md)** — Agents emit events that flow through Redis for frontend delivery; state snapshots cache agent positions
-- **[services/frontend/src/components](../../../frontend/src/components/CONTEXT.md)** — Frontend consumes Redis pub/sub messages via WebSocket for real-time visualization updates
+- **[services/control-panel/src/components](../../../control-panel/src/components/CONTEXT.md)** — Frontend consumes Redis pub/sub messages via WebSocket for real-time visualization updates

@@ -37,7 +37,7 @@ The simulation uses SimPy for discrete-event modeling with DNA-based agent behav
 | **Main Simulation Service** | services/simulation/src/main.py | SimPy engine + FastAPI REST API + WebSocket server |
 | **Stream Processor** | services/stream-processor/src/main.py | Kafka → Redis event routing with GPS aggregation |
 | **Bronze Ingestion** | services/bronze-ingestion/src/main.py | Kafka → Delta Lake raw data persistence |
-| **Control Panel** | services/frontend | React visualization and control UI |
+| **Control Panel** | services/control-panel | React visualization and control UI |
 | **Airflow DAGs** | services/airflow/dags | Pipeline orchestration (Silver, Gold, DLQ, Delta maintenance) |
 | **DBT Project** | tools/dbt | Medallion transformations (Bronze → Silver → Gold) |
 | **Docker Compose** | infrastructure/docker/compose.yml | Multi-profile service orchestration |
@@ -90,7 +90,7 @@ cd services/simulation
 ./venv/bin/pytest
 
 # Frontend tests
-cd services/frontend
+cd services/control-panel
 npm run test
 
 # Integration tests (starts Docker)
@@ -122,7 +122,7 @@ Key modules in this codebase:
 | **services/simulation** | Discrete-event simulation engine with SimPy, agents, matching, trip execution | [→](services/simulation/CONTEXT.md) |
 | **services/stream-processor** | Kafka-to-Redis event routing with GPS aggregation and deduplication | [→](services/stream-processor/src/CONTEXT.md) |
 | **services/bronze-ingestion** | Kafka-to-Delta Lake ingestion with DLQ handling | [→](services/bronze-ingestion/CONTEXT.md) |
-| **services/frontend** | Real-time visualization with deck.gl, WebSocket, puppet mode | [→](services/frontend/src/components/CONTEXT.md) |
+| **services/control-panel** | Real-time visualization with deck.gl, WebSocket, puppet mode | [→](services/control-panel/src/components/CONTEXT.md) |
 | **services/airflow** | Pipeline orchestration for DBT transformations and DLQ monitoring | [→](services/airflow/CONTEXT.md) |
 | **tools/dbt** | Bronze → Silver → Gold transformations with dual-engine support | [→](tools/dbt/models/marts/CONTEXT.md) |
 | **tools/great-expectations** | Data quality validation for Silver and Gold layers | [→](tools/great-expectations/CONTEXT.md) |

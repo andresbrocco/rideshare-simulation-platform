@@ -28,7 +28,7 @@ How users and services authenticate to the platform.
 
 **Login Validation**:
 - Endpoint: `GET /auth/validate`
-- Frontend: `services/frontend/src/components/LoginScreen.tsx`
+- Frontend: `services/control-panel/src/components/LoginScreen.tsx`
 - Key storage: `sessionStorage` (browser)
 - Response: 200 if valid, 401 if invalid
 

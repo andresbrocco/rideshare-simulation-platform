@@ -489,7 +489,7 @@ _FALLBACK_CONTAINER_CONFIG: dict[str, dict[str, str]] = {
     "rideshare-osrm": {"display_name": "OSRM"},
     "rideshare-simulation": {"display_name": "Simulation"},
     "rideshare-stream-processor": {"display_name": "Stream Processor"},
-    "rideshare-frontend": {"display_name": "Frontend"},
+    "rideshare-control-panel": {"display_name": "Control Panel"},
     "rideshare-prometheus": {"display_name": "Prometheus"},
     "rideshare-grafana": {"display_name": "Grafana"},
 }
@@ -1128,7 +1128,7 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         "rideshare-osrm": osrm_result,
         "rideshare-simulation": simulation_result,
         "rideshare-stream-processor": stream_processor_result,
-        "rideshare-frontend": no_health_endpoint,
+        "rideshare-control-panel": no_health_endpoint,
         # Data Pipeline profile
         "rideshare-minio": minio_result,
         "rideshare-bronze-ingestion": no_health_endpoint,

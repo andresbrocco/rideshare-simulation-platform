@@ -30,7 +30,7 @@ Defines the containerized orchestration for the entire ride-sharing simulation p
 
 ## Non-Obvious Details
 
-**Memory Limits**: All services have explicit `mem_limit` constraints to prevent resource exhaustion during local development (ranges from 128m for Redis to 3072m for spark-thrift-server in the spark-testing profile).
+**Memory Limits**: All services have explicit `mem_limit` constraints to prevent resource exhaustion during local development (ranges from 512m for Redis to 3072m for spark-thrift-server in the spark-testing profile).
 
 **Dual Listener Pattern**: Kafka exposes `SASL_PLAINTEXT` for both internal (kafka:29092) and external (localhost:9092) listeners with SASL PLAIN authentication to support both container-to-container and host-to-container communication.
 

@@ -111,16 +111,16 @@ repos:
 
       - id: frontend-lint-staged
         name: lint-staged (frontend)
-        entry: bash -c 'cd services/frontend && npx lint-staged'
+        entry: bash -c 'cd services/control-panel && npx lint-staged'
         language: system
-        files: ^services/frontend/.*\.(ts|tsx|css|json|md)$
+        files: ^services/control-panel/.*\.(ts|tsx|css|json|md)$
         pass_filenames: false
 
       - id: frontend-typecheck
         name: TypeScript (frontend)
-        entry: bash -c 'cd services/frontend && npm run typecheck'
+        entry: bash -c 'cd services/control-panel && npm run typecheck'
         language: system
-        files: ^services/frontend/.*\.(ts|tsx)$
+        files: ^services/control-panel/.*\.(ts|tsx)$
         pass_filenames: false
 
       # Kubernetes manifest validation (Docker-based)

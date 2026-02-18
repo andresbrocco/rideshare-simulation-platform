@@ -20,14 +20,14 @@
 
 ### Docker Service
 
-**Service name:** `control-panel-frontend`
+**Service name:** `control-panel`
 
 ```bash
 # Start frontend (requires simulation service)
-docker compose -f infrastructure/docker/compose.yml --profile core up -d control-panel-frontend
+docker compose -f infrastructure/docker/compose.yml --profile core up -d control-panel
 
 # View logs
-docker compose -f infrastructure/docker/compose.yml logs -f control-panel-frontend
+docker compose -f infrastructure/docker/compose.yml logs -f control-panel
 
 # Stop frontend
 docker compose -f infrastructure/docker/compose.yml --profile core down
@@ -195,7 +195,7 @@ npm run generate-types
 docker compose -f infrastructure/docker/compose.yml --profile core up -d simulation
 
 # 2. Start frontend
-docker compose -f infrastructure/docker/compose.yml --profile core up -d control-panel-frontend
+docker compose -f infrastructure/docker/compose.yml --profile core up -d control-panel
 
 # 3. Access UI
 open http://localhost:5173
@@ -208,14 +208,14 @@ open http://localhost:5173
 
 ```bash
 # 1. Create .env file
-cat > services/frontend/.env << EOF
+cat > services/control-panel/.env << EOF
 VITE_API_URL=http://localhost:8000
 VITE_WS_URL=ws://localhost:8000/ws
 VITE_LOG_LEVEL=debug
 EOF
 
 # 2. Rebuild container (if using Docker)
-docker compose -f infrastructure/docker/compose.yml --profile core up -d --build control-panel-frontend
+docker compose -f infrastructure/docker/compose.yml --profile core up -d --build control-panel
 ```
 
 **Note:** `.env` files are not checked into git. Use `.env.example` as a template.
@@ -227,7 +227,7 @@ When the OpenAPI spec changes:
 ```bash
 # 1. Update schemas/api/openapi.json
 # 2. Regenerate TypeScript types
-cd services/frontend
+cd services/control-panel
 npm run generate-types
 
 # 3. Review changes
@@ -238,7 +238,7 @@ git diff src/types/api.generated.ts
 
 ```bash
 # Check frontend logs for WebSocket errors
-docker compose -f infrastructure/docker/compose.yml logs -f control-panel-frontend
+docker compose -f infrastructure/docker/compose.yml logs -f control-panel
 
 # Test WebSocket manually
 npm install -g wscat
@@ -268,7 +268,7 @@ const { recordWsMessage, metrics } = usePerformanceContext();
 ### Run Tests Locally
 
 ```bash
-cd services/frontend
+cd services/control-panel
 
 # Install dependencies (if not done)
 npm install
@@ -287,10 +287,10 @@ npm run test -- --coverage
 
 ```bash
 # Build production image
-docker build -t rideshare-frontend:prod --target production services/frontend/
+docker build -t rideshare-control-panel:prod --target production services/control-panel/
 
 # Run with Nginx
-docker run -p 80:80 rideshare-frontend:prod
+docker run -p 80:80 rideshare-control-panel:prod
 
 # Access UI
 open http://localhost
@@ -300,7 +300,7 @@ open http://localhost
 
 ### Frontend Won't Start
 
-**Symptom:** `control-panel-frontend` exits immediately
+**Symptom:** `control-panel` exits immediately
 
 **Solutions:**
 
@@ -309,10 +309,10 @@ open http://localhost
 docker compose -f infrastructure/docker/compose.yml ps simulation
 
 # 2. Check logs for errors
-docker compose -f infrastructure/docker/compose.yml logs control-panel-frontend
+docker compose -f infrastructure/docker/compose.yml logs control-panel
 
 # 3. Rebuild with fresh dependencies
-docker compose -f infrastructure/docker/compose.yml build --no-cache control-panel-frontend
+docker compose -f infrastructure/docker/compose.yml build --no-cache control-panel
 ```
 
 ### WebSocket Connection Fails
@@ -344,7 +344,7 @@ wscat -c ws://localhost:8000/ws --subprotocol "apikey.admin"
 ```bash
 # 1. Check zones.geojson is mounted
 docker compose -f infrastructure/docker/compose.yml \
-  exec control-panel-frontend ls -lh /app/public/zones.geojson
+  exec control-panel ls -lh /app/public/zones.geojson
 
 # 2. Verify file permissions
 # zones.geojson should be readable (644)
@@ -402,10 +402,10 @@ npm run build
 # 2. Ensure files are bind-mounted, not copied
 # compose.yml should have:
 #   volumes:
-#     - ../../services/frontend:/app
+#     - ../../services/control-panel:/app
 
 # 3. Restart dev server
-docker compose -f infrastructure/docker/compose.yml restart control-panel-frontend
+docker compose -f infrastructure/docker/compose.yml restart control-panel
 ```
 
 ## Related
