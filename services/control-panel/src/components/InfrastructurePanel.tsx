@@ -44,12 +44,17 @@ function getProgressColor(percent: number): string {
   return styles.progressGreen;
 }
 
+function formatCpuCores(cpuPercent: number, totalCores: number): string {
+  return ((cpuPercent * totalCores) / 100).toFixed(2);
+}
+
 interface ServiceCardProps {
   service: ServiceMetrics;
   showResources: boolean;
+  totalCores: number;
 }
 
-function ServiceCard({ service, showResources }: ServiceCardProps) {
+function ServiceCard({ service, showResources, totalCores }: ServiceCardProps) {
   return (
     <div className={styles.serviceCard}>
       <div className={styles.cardHeader}>
@@ -84,13 +89,18 @@ function ServiceCard({ service, showResources }: ServiceCardProps) {
           <div className={styles.progressRow}>
             <div className={styles.progressHeader}>
               <span className={styles.progressLabel}>CPU</span>
-              <span className={styles.progressValue}>{service.cpu_percent.toFixed(1)}%</span>
+              <span className={styles.progressValue}>
+                {formatCpuCores(service.cpu_percent, totalCores)} / {totalCores} cores
+              </span>
             </div>
-            <div className={styles.progressTrack}>
-              <div
-                className={`${styles.progressFill} ${getProgressColor(service.cpu_percent)}`}
-                style={{ width: `${Math.min(service.cpu_percent, 100)}%` }}
-              />
+            <div className={styles.progressBarRow}>
+              <div className={styles.progressTrack}>
+                <div
+                  className={`${styles.progressFill} ${getProgressColor(service.cpu_percent)}`}
+                  style={{ width: `${Math.min(service.cpu_percent, 100)}%` }}
+                />
+              </div>
+              <span className={styles.progressPercent}>{service.cpu_percent.toFixed(1)}%</span>
             </div>
           </div>
         </>
@@ -183,14 +193,19 @@ export default function InfrastructurePanel({
                     <span className={styles.totalLabel}>Total CPU</span>
                   </Tooltip>
                   <span className={styles.totalValue}>
-                    {data.total_cpu_percent.toFixed(1)}%
-                    <span className={styles.totalSubtext}>of {data.total_cores} cores</span>
+                    {formatCpuCores(data.total_cpu_percent, data.total_cores)} / {data.total_cores}{' '}
+                    cores
                   </span>
-                  <div className={styles.progressTrack}>
-                    <div
-                      className={`${styles.progressFill} ${getProgressColor(data.total_cpu_percent)}`}
-                      style={{ width: `${Math.min(data.total_cpu_percent, 100)}%` }}
-                    />
+                  <div className={styles.progressBarRow}>
+                    <div className={styles.progressTrack}>
+                      <div
+                        className={`${styles.progressFill} ${getProgressColor(data.total_cpu_percent)}`}
+                        style={{ width: `${Math.min(data.total_cpu_percent, 100)}%` }}
+                      />
+                    </div>
+                    <span className={styles.progressPercent}>
+                      {data.total_cpu_percent.toFixed(1)}%
+                    </span>
                   </div>
                 </div>
                 <div className={styles.totalItem}>
@@ -214,7 +229,12 @@ export default function InfrastructurePanel({
 
           <div className={styles.serviceGrid}>
             {data?.services.map((service) => (
-              <ServiceCard key={service.name} service={service} showResources={showResources} />
+              <ServiceCard
+                key={service.name}
+                service={service}
+                showResources={showResources}
+                totalCores={data?.total_cores ?? 0}
+              />
             ))}
           </div>
 
