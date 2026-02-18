@@ -659,12 +659,11 @@ class RiderAgent(EventEmitter):
                 description="Cancel if no driver matched",
             )
 
-            while self._env.now < match_timeout:
-                if self._status == "in_trip":
-                    self._next_action = None  # Clear - trip started
-                    break
-
-                yield self._env.timeout(1)
+            remaining = match_timeout - self._env.now
+            if remaining > 0 and self._status != "in_trip":
+                yield self._env.timeout(remaining)
+            if self._status == "in_trip":
+                self._next_action = None  # Clear - trip started
 
             if self._status == "waiting":
                 self._next_action = None  # Clear - cancelling trip

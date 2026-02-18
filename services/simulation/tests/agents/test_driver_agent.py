@@ -174,3 +174,88 @@ class TestDriverSimpyProcess:
         assert process is not None
         # Run the simulation briefly to ensure no errors
         simpy_env.run(until=1)
+
+
+@pytest.mark.unit
+class TestDriverIdleGPSSkip:
+    """Tests for idle GPS deduplication (skip emit when location unchanged)."""
+
+    def test_stationary_idle_driver_emits_no_repeat_gps_events(
+        self, simpy_env, driver_dna, mock_kafka_producer
+    ):
+        """After the first ping, a stationary idle driver does not emit further GPS pings."""
+        agent = DriverAgent(
+            driver_id="driver_gps_idle_001",
+            dna=driver_dna,
+            env=simpy_env,
+            kafka_producer=mock_kafka_producer,
+        )
+        agent.update_location(-23.55, -46.63)
+        agent.go_online()
+
+        # Prime _last_emitted_location so the first interval is already "seen"
+        agent._last_emitted_location = agent.location
+        mock_kafka_producer.reset_mock()
+
+        # Run the GPS ping loop for several idle intervals with location unchanged
+        from src.agents.event_emitter import GPS_PING_INTERVAL_IDLE
+
+        gps_process = simpy_env.process(agent._emit_gps_ping())
+        simpy_env.run(until=GPS_PING_INTERVAL_IDLE * 3 + 1)
+        gps_process.interrupt()
+
+        gps_calls = [
+            call
+            for call in mock_kafka_producer.produce.call_args_list
+            if call[1].get("topic") == "gps_pings"
+        ]
+        assert len(gps_calls) == 0, (
+            f"Stationary idle driver emitted {len(gps_calls)} GPS pings after "
+            "location was already known; expected 0."
+        )
+
+    def test_moving_driver_emits_gps_on_location_change(
+        self, simpy_env, driver_dna, mock_kafka_producer
+    ):
+        """Driver emits GPS ping after each location update."""
+        agent = DriverAgent(
+            driver_id="driver_gps_moving_001",
+            dna=driver_dna,
+            env=simpy_env,
+            kafka_producer=mock_kafka_producer,
+        )
+        agent.update_location(-23.55, -46.63)
+        agent.go_online()
+        mock_kafka_producer.reset_mock()
+
+        from src.agents.event_emitter import GPS_PING_INTERVAL_IDLE
+
+        gps_process = simpy_env.process(agent._emit_gps_ping())
+
+        # Change location between intervals to trigger emission
+        simpy_env.run(until=GPS_PING_INTERVAL_IDLE)
+        agent.update_location(-23.56, -46.64)
+        simpy_env.run(until=GPS_PING_INTERVAL_IDLE * 2)
+        agent.update_location(-23.57, -46.65)
+        simpy_env.run(until=GPS_PING_INTERVAL_IDLE * 3 + 1)
+        gps_process.interrupt()
+
+        gps_calls = [
+            call
+            for call in mock_kafka_producer.produce.call_args_list
+            if call[1].get("topic") == "gps_pings"
+        ]
+        assert len(gps_calls) >= 2, (
+            f"Moving driver emitted only {len(gps_calls)} GPS pings; "
+            "expected at least 2 after two location changes."
+        )
+
+    def test_last_emitted_location_resets_on_go_offline(self, driver_agent, mock_kafka_producer):
+        """_last_emitted_location is cleared when driver goes offline."""
+        driver_agent.update_location(-23.55, -46.63)
+        driver_agent.go_online()
+        driver_agent._last_emitted_location = (-23.55, -46.63)
+
+        driver_agent.go_offline()
+
+        assert driver_agent._last_emitted_location is None

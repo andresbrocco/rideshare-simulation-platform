@@ -220,6 +220,57 @@ class TestRiderGPSEmissionDuringTrip:
 
 
 @pytest.mark.unit
+class TestRiderPatienceLoop:
+    """Tests for the optimized patience timeout (single SimPy event per wait)."""
+
+    def test_patience_timeout_cancels_waiting_trip(
+        self, simpy_env, rider_dna, mock_kafka_producer, dna_factory
+    ):
+        """After patience_threshold seconds with no match, rider cancels and goes offline."""
+        dna = dna_factory.rider_dna(patience_threshold=120)
+        agent = RiderAgent(
+            rider_id="rider_patience_001",
+            dna=dna,
+            env=simpy_env,
+            kafka_producer=mock_kafka_producer,
+            immediate_first_trip=True,
+        )
+        agent.update_location(-23.56, -46.65)
+
+        # Run the agent — it will request a trip immediately (immediate_first_trip=True),
+        # then wait patience_threshold seconds before cancelling due to no match.
+        simpy_env.process(agent.run())
+
+        # Advance through the initial 1-second stabilisation delay and patience window
+        simpy_env.run(until=dna.patience_threshold + 5)
+
+        # Agent must have timed out and gone back to offline
+        assert agent.status == "offline"
+
+    def test_patience_single_timeout_event(
+        self, simpy_env, rider_dna, mock_kafka_producer, dna_factory
+    ):
+        """Single yield env.timeout(remaining) rather than N individual 1-second yields."""
+        # A large patience_threshold makes the O(N) cost visible if the loop is naive.
+        # With the optimised implementation, SimPy advances directly to match_timeout.
+        dna = dna_factory.rider_dna(patience_threshold=300)
+        agent = RiderAgent(
+            rider_id="rider_patience_002",
+            dna=dna,
+            env=simpy_env,
+            kafka_producer=mock_kafka_producer,
+            immediate_first_trip=True,
+        )
+        agent.update_location(-23.56, -46.65)
+
+        simpy_env.process(agent.run())
+
+        # After patience_threshold + buffer, agent must be offline (timed out)
+        simpy_env.run(until=dna.patience_threshold + 10)
+        assert agent.status == "offline"
+
+
+@pytest.mark.unit
 class TestRiderZoneBasedGeneration:
     """Tests for zone-based coordinate generation."""
 

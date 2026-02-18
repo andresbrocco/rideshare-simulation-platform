@@ -88,6 +88,7 @@ class DriverAgent(EventEmitter):
         self._statistics = DriverStatistics()  # Session-only stats
         self._next_action: NextAction | None = None  # Scheduled next action
         self._persistence_dirty: bool = False  # Tracks failed persistence operations
+        self._last_emitted_location: tuple[float, float] | None = None
 
         if self._driver_repository:
             try:
@@ -210,6 +211,7 @@ class DriverAgent(EventEmitter):
         if self._registry_manager:
             self._registry_manager.driver_went_offline(self._driver_id)
 
+        self._last_emitted_location = None
         self._emit_status_event(previous_status, self._status, "go_offline")
 
     def accept_trip(self, trip_id: str) -> None:
@@ -746,7 +748,7 @@ class DriverAgent(EventEmitter):
                 "en_route_pickup",
                 "en_route_destination",
             ):
-                if self._location:
+                if self._location and self._location != self._last_emitted_location:
                     # Use trip_id as correlation if in trip, otherwise driver_id
                     correlation = self._active_trip or self._driver_id
                     event = EventFactory.create(
@@ -768,6 +770,7 @@ class DriverAgent(EventEmitter):
                         partition_key=self._driver_id,
                         redis_channel="driver-updates",
                     )
+                    self._last_emitted_location = self._location
 
                 yield self._env.timeout(self._get_gps_interval())
         except simpy.Interrupt:
