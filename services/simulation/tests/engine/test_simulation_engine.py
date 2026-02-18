@@ -1,5 +1,7 @@
 """Tests for SimulationEngine orchestrator."""
 
+import weakref
+from collections import deque
 from datetime import UTC, datetime, timezone
 from enum import Enum
 from unittest.mock import Mock, patch
@@ -316,7 +318,7 @@ class TestSimulationEngineMatchingIntegration:
 @pytest.mark.slow
 class TestSimulationEngineActiveCounts:
     def test_engine_active_counts(self):
-        """Tracks counts of active agents."""
+        """Counter-based active counts track all registered agents."""
         matching_server = Mock()
         kafka_producer = Mock()
         redis_client = Mock()
@@ -333,19 +335,218 @@ class TestSimulationEngineActiveCounts:
             simulation_start_time=datetime(2025, 1, 15, 10, 0, 0, tzinfo=UTC),
         )
 
-        # Add 5 drivers (3 online, 2 offline)
+        # Add 5 drivers (counters track all registered, regardless of status)
         for i in range(5):
             driver = Mock()
             driver.driver_id = f"driver_{i}"
             driver.status = "online" if i < 3 else "offline"
             engine.register_driver(driver)
 
-        # Add 10 riders (2 waiting, 8 offline)
+        # Add 10 riders (counters track all registered, regardless of status)
         for i in range(10):
             rider = Mock()
             rider.rider_id = f"rider_{i}"
             rider.status = "waiting" if i < 2 else "offline"
             engine.register_rider(rider)
 
+        assert engine.active_driver_count == 5
+        assert engine.active_rider_count == 10
+
+    def test_active_counts_increment_on_register(self):
+        """Counters increment on each register call."""
+        matching_server = Mock()
+        kafka_producer = Mock()
+        redis_client = Mock()
+        osrm_client = Mock()
+        sqlite_db = create_mock_sqlite_db()
+
+        engine = SimulationEngine(
+            env=simpy.Environment(),
+            matching_server=matching_server,
+            kafka_producer=kafka_producer,
+            redis_client=redis_client,
+            osrm_client=osrm_client,
+            sqlite_db=sqlite_db,
+            simulation_start_time=datetime(2025, 1, 15, 10, 0, 0, tzinfo=UTC),
+        )
+
+        assert engine.active_driver_count == 0
+        assert engine.active_rider_count == 0
+
+        driver = Mock()
+        driver.driver_id = "d1"
+        engine.register_driver(driver)
+        assert engine.active_driver_count == 1
+
+        rider = Mock()
+        rider.rider_id = "r1"
+        engine.register_rider(rider)
+        assert engine.active_rider_count == 1
+
+    def test_active_counts_reset_to_zero(self):
+        """Reset clears counters back to zero."""
+        matching_server = Mock()
+        kafka_producer = Mock()
+        redis_client = Mock()
+        osrm_client = Mock()
+        sqlite_db = create_mock_sqlite_db()
+
+        engine = SimulationEngine(
+            env=simpy.Environment(),
+            matching_server=matching_server,
+            kafka_producer=kafka_producer,
+            redis_client=redis_client,
+            osrm_client=osrm_client,
+            sqlite_db=sqlite_db,
+            simulation_start_time=datetime(2025, 1, 15, 10, 0, 0, tzinfo=UTC),
+        )
+
+        for i in range(3):
+            driver = Mock()
+            driver.driver_id = f"driver_{i}"
+            engine.register_driver(driver)
+
         assert engine.active_driver_count == 3
-        assert engine.active_rider_count == 2
+        engine.reset()
+        assert engine.active_driver_count == 0
+        assert engine.active_rider_count == 0
+
+
+@pytest.mark.unit
+@pytest.mark.slow
+class TestSimulationEnginePendingAgentsDeque:
+    def test_pending_agents_deque_type(self):
+        """_pending_agents is a deque."""
+        matching_server = Mock()
+        kafka_producer = Mock()
+        redis_client = Mock()
+        osrm_client = Mock()
+        sqlite_db = create_mock_sqlite_db()
+
+        engine = SimulationEngine(
+            env=simpy.Environment(),
+            matching_server=matching_server,
+            kafka_producer=kafka_producer,
+            redis_client=redis_client,
+            osrm_client=osrm_client,
+            sqlite_db=sqlite_db,
+            simulation_start_time=datetime(2025, 1, 15, 10, 0, 0, tzinfo=UTC),
+        )
+
+        assert isinstance(engine._pending_agents, deque)
+
+    def test_register_adds_to_pending_deque(self):
+        """Registering an agent adds it to the pending deque."""
+        matching_server = Mock()
+        kafka_producer = Mock()
+        redis_client = Mock()
+        osrm_client = Mock()
+        sqlite_db = create_mock_sqlite_db()
+
+        engine = SimulationEngine(
+            env=simpy.Environment(),
+            matching_server=matching_server,
+            kafka_producer=kafka_producer,
+            redis_client=redis_client,
+            osrm_client=osrm_client,
+            sqlite_db=sqlite_db,
+            simulation_start_time=datetime(2025, 1, 15, 10, 0, 0, tzinfo=UTC),
+        )
+
+        driver = Mock()
+        driver.driver_id = "d1"
+        engine.register_driver(driver)
+
+        rider = Mock()
+        rider.rider_id = "r1"
+        engine.register_rider(rider)
+
+        assert len(engine._pending_agents) == 2
+        assert engine._pending_agents[0] is driver
+        assert engine._pending_agents[1] is rider
+
+    def test_start_pending_agents_drains_deque(self):
+        """_start_pending_agents drains the deque and starts processes."""
+        matching_server = Mock()
+        kafka_producer = Mock()
+        redis_client = Mock()
+        osrm_client = Mock()
+        sqlite_db = create_mock_sqlite_db()
+
+        env = simpy.Environment()
+        engine = SimulationEngine(
+            env=env,
+            matching_server=matching_server,
+            kafka_producer=kafka_producer,
+            redis_client=redis_client,
+            osrm_client=osrm_client,
+            sqlite_db=sqlite_db,
+            simulation_start_time=datetime(2025, 1, 15, 10, 0, 0, tzinfo=UTC),
+        )
+
+        def dummy_generator(e: simpy.Environment):
+            while True:
+                yield e.timeout(1000)
+
+        driver = Mock()
+        driver.driver_id = "d1"
+        driver.run = Mock(return_value=dummy_generator(env))
+        engine.register_driver(driver)
+
+        assert len(engine._pending_agents) == 1
+
+        engine._start_pending_agents()
+
+        assert len(engine._pending_agents) == 0
+        assert getattr(driver, "_process_started", False) is True
+
+    def test_start_pending_agents_zero_iterations_steady_state(self):
+        """_start_pending_agents iterates zero times when deque is empty."""
+        matching_server = Mock()
+        kafka_producer = Mock()
+        redis_client = Mock()
+        osrm_client = Mock()
+        sqlite_db = create_mock_sqlite_db()
+
+        env = simpy.Environment()
+        engine = SimulationEngine(
+            env=env,
+            matching_server=matching_server,
+            kafka_producer=kafka_producer,
+            redis_client=redis_client,
+            osrm_client=osrm_client,
+            sqlite_db=sqlite_db,
+            simulation_start_time=datetime(2025, 1, 15, 10, 0, 0, tzinfo=UTC),
+        )
+
+        # No agents registered — deque is empty
+        assert len(engine._pending_agents) == 0
+
+        # Should complete instantly with no work
+        engine._start_pending_agents()
+
+        assert len(engine._pending_agents) == 0
+
+
+@pytest.mark.unit
+@pytest.mark.slow
+class TestSimulationEngineWeakSet:
+    def test_agent_processes_is_weakset(self):
+        """_agent_processes uses weakref.WeakSet for automatic dead process cleanup."""
+        matching_server = Mock()
+        kafka_producer = Mock()
+        redis_client = Mock()
+        osrm_client = Mock()
+        sqlite_db = create_mock_sqlite_db()
+
+        engine = SimulationEngine(
+            env=simpy.Environment(),
+            matching_server=matching_server,
+            kafka_producer=kafka_producer,
+            redis_client=redis_client,
+            osrm_client=osrm_client,
+            sqlite_db=sqlite_db,
+            simulation_start_time=datetime(2025, 1, 15, 10, 0, 0, tzinfo=UTC),
+        )
+
+        assert isinstance(engine._agent_processes, weakref.WeakSet)

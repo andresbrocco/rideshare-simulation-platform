@@ -3,6 +3,8 @@
 import asyncio
 import logging
 import time
+import weakref
+from collections import deque
 from datetime import UTC, datetime, timedelta, timezone
 from enum import Enum
 from typing import TYPE_CHECKING, Any
@@ -153,8 +155,11 @@ class SimulationEngine:
 
         self._active_drivers: dict[str, DriverAgent] = {}
         self._active_riders: dict[str, RiderAgent] = {}
-        self._agent_processes: list[simpy.Process] = []
+        self._pending_agents: deque[DriverAgent | RiderAgent] = deque()
+        self._agent_processes: weakref.WeakSet[simpy.Process] = weakref.WeakSet()
         self._periodic_processes: list[simpy.Process] = []
+        self._active_driver_counter: int = 0
+        self._active_rider_counter: int = 0
 
         self._time_manager = TimeManager(simulation_start_time, self._env)
         self._speed_multiplier = 1
@@ -187,15 +192,13 @@ class SimulationEngine:
 
     @property
     def active_driver_count(self) -> int:
-        """Count drivers with status=online."""
-        return sum(1 for driver in self._active_drivers.values() if driver.status == "online")
+        """Count of registered drivers (O(1) via incremental counter)."""
+        return self._active_driver_counter
 
     @property
     def active_rider_count(self) -> int:
-        """Count riders with status=waiting or in_trip."""
-        return sum(
-            1 for rider in self._active_riders.values() if rider.status in ("waiting", "in_trip")
-        )
+        """Count of registered riders (O(1) via incremental counter)."""
+        return self._active_rider_counter
 
     def set_event_loop(self, loop: asyncio.AbstractEventLoop) -> None:
         """Store reference to the main asyncio event loop for thread-safe async calls."""
@@ -217,12 +220,16 @@ class SimulationEngine:
         self._emit_control_event(f"simulation.{new_state.value}", old_state, trigger)
 
     def register_driver(self, driver: "DriverAgent") -> None:
-        """Add driver to active registry."""
+        """Add driver to active registry and pending queue."""
         self._active_drivers[driver.driver_id] = driver
+        self._active_driver_counter += 1
+        self._pending_agents.append(driver)
 
     def register_rider(self, rider: "RiderAgent") -> None:
-        """Add rider to active registry."""
+        """Add rider to active registry and pending queue."""
         self._active_riders[rider.rider_id] = rider
+        self._active_rider_counter += 1
+        self._pending_agents.append(rider)
 
     def start(self) -> None:
         """Transition to RUNNING and launch all processes."""
@@ -253,7 +260,7 @@ class SimulationEngine:
 
         start_wall = time.perf_counter()
         start_sim = self._env.now
-        step_size = 1
+        step_size = seconds
 
         while self._env.now < target_time:
             next_step = min(self._env.now + step_size, target_time)
@@ -418,31 +425,28 @@ class SimulationEngine:
         """Launch all registered agent run() processes."""
         for driver in self._active_drivers.values():
             process = self._env.process(driver.run())
-            self._agent_processes.append(process)
+            self._agent_processes.add(process)
             driver._process_started = True  # type: ignore[attr-defined]
 
         for rider in self._active_riders.values():
             process = self._env.process(rider.run())
-            self._agent_processes.append(process)
+            self._agent_processes.add(process)
             rider._process_started = True  # type: ignore[attr-defined]
 
+        # All agents now have processes — clear the pending queue
+        self._pending_agents.clear()
+
     def _start_pending_agents(self) -> None:
-        """Start run() processes for agents that don't have one yet.
+        """Start run() processes for agents in the pending queue.
 
-        This is called at the start of each step() to safely start agents
-        that were created from the API thread while simulation is running.
+        Drains _pending_agents via popleft() — O(1) in steady state when
+        no new agents have been registered since the last call.
         """
-        for driver in self._active_drivers.values():
-            if not getattr(driver, "_process_started", False):
-                process = self._env.process(driver.run())
-                self._agent_processes.append(process)
-                driver._process_started = True  # type: ignore[attr-defined]
-
-        for rider in self._active_riders.values():
-            if not getattr(rider, "_process_started", False):
-                process = self._env.process(rider.run())
-                self._agent_processes.append(process)
-                rider._process_started = True  # type: ignore[attr-defined]
+        while self._pending_agents:
+            agent = self._pending_agents.popleft()
+            process = self._env.process(agent.run())
+            self._agent_processes.add(process)
+            object.__setattr__(agent, "_process_started", True)
 
     def _start_periodic_processes(self) -> None:
         """Start surge updates and agent spawner processes.
@@ -582,10 +586,8 @@ class SimulationEngine:
         if self._agent_factory._registry_manager:
             self._agent_factory._registry_manager.register_driver(agent)
 
-        # Start process IMMEDIATELY (key difference from bulk creation)
-        process = self._env.process(agent.run())
-        self._agent_processes.append(process)
-        agent._process_started = True  # type: ignore[attr-defined]
+        # Drain pending queue to start the agent's process immediately
+        self._start_pending_agents()
 
         return driver_id
 
@@ -627,10 +629,8 @@ class SimulationEngine:
         if self._agent_factory._registry_manager:
             self._agent_factory._registry_manager.register_rider(agent)
 
-        # Start process IMMEDIATELY (key difference from bulk creation)
-        process = self._env.process(agent.run())
-        self._agent_processes.append(process)
-        agent._process_started = True  # type: ignore[attr-defined]
+        # Drain pending queue to start the agent's process immediately
+        self._start_pending_agents()
 
         return rider_id
 
@@ -760,8 +760,11 @@ class SimulationEngine:
         # Clear agent registries
         self._active_drivers.clear()
         self._active_riders.clear()
+        self._pending_agents.clear()
         self._agent_processes.clear()
         self._periodic_processes.clear()
+        self._active_driver_counter = 0
+        self._active_rider_counter = 0
         self._drain_process = None
 
         # Create fresh SimPy environment
