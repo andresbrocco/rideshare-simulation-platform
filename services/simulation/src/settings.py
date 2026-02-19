@@ -160,25 +160,25 @@ class SpawnSettings(BaseSettings):
     """Agent spawn rate configuration for continuous spawning."""
 
     driver_immediate_spawn_rate: float = Field(
-        default=2.0,
+        default=10.0,
         ge=0.1,
         le=100.0,
         description="Immediate-mode drivers spawned per simulated second",
     )
     driver_scheduled_spawn_rate: float = Field(
-        default=10.0,
+        default=50.0,
         ge=0.1,
         le=100.0,
         description="Scheduled-mode drivers spawned per simulated second",
     )
     rider_immediate_spawn_rate: float = Field(
-        default=2.0,
+        default=10.0,
         ge=0.1,
         le=100.0,
         description="Immediate-mode riders spawned per simulated second",
     )
     rider_scheduled_spawn_rate: float = Field(
-        default=10.0,
+        default=50.0,
         ge=0.1,
         le=100.0,
         description="Scheduled-mode riders spawned per simulated second",

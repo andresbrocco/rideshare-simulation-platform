@@ -53,7 +53,7 @@ class ScenarioConfig:
     stress_memory_threshold_percent: float = 90.0
     stress_rolling_window_seconds: int = 10
     stress_spawn_batch_size: int = 10
-    stress_spawn_interval_seconds: float = 3.0
+    stress_spawn_interval_seconds: float = 1.0
     stress_max_duration_minutes: int = 30
 
     # Speed scaling test settings
