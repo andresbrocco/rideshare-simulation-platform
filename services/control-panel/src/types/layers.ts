@@ -6,8 +6,7 @@ export interface LayerVisibility {
   withPassengerDrivers: boolean;
   // Rider layers
   offlineRiders: boolean;
-  waitingRiders: boolean;
-  matchedRiders: boolean;
+  requestingRiders: boolean;
   enRouteRiders: boolean;
   arrivedRiders: boolean;
   inTransitRiders: boolean;
@@ -28,8 +27,7 @@ export const DEFAULT_VISIBILITY: LayerVisibility = {
   withPassengerDrivers: true,
   // Rider layers
   offlineRiders: true,
-  waitingRiders: true,
-  matchedRiders: true,
+  requestingRiders: true,
   enRouteRiders: true,
   arrivedRiders: true,
   inTransitRiders: true,

@@ -21,8 +21,7 @@ const LAYER_CONFIGS: LayerConfig[] = [
   { key: 'withPassengerDrivers', label: 'With Rider', color: '#3B82F6' },
   // Rider layers
   { key: 'offlineRiders', label: 'Offline', color: '#9CA3AF' },
-  { key: 'waitingRiders', label: 'Waiting', color: '#F97316' },
-  { key: 'matchedRiders', label: 'Matched', color: '#F59E0B' },
+  { key: 'requestingRiders', label: 'Requesting', color: '#F97316' },
   { key: 'enRouteRiders', label: 'Driver En Route', color: '#FBBF24' },
   { key: 'arrivedRiders', label: 'Driver Arrived', color: '#FDE047' },
   { key: 'inTransitRiders', label: 'In Transit', color: '#3B82F6' },
@@ -37,9 +36,9 @@ const LAYER_CONFIGS: LayerConfig[] = [
 
 // Group layers by category for better organization
 const DRIVER_LAYERS = LAYER_CONFIGS.slice(0, 4);
-const RIDER_LAYERS = LAYER_CONFIGS.slice(4, 10);
-const ROUTE_LAYERS = LAYER_CONFIGS.slice(10, 13);
-const ZONE_LAYERS = LAYER_CONFIGS.slice(13);
+const RIDER_LAYERS = LAYER_CONFIGS.slice(4, 9);
+const ROUTE_LAYERS = LAYER_CONFIGS.slice(9, 12);
+const ZONE_LAYERS = LAYER_CONFIGS.slice(12);
 
 export default function LayerControls({ visibility, onChange }: LayerControlsProps) {
   const [collapsed, setCollapsed] = useState(false);

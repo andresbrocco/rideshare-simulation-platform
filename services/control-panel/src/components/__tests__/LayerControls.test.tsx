@@ -11,8 +11,7 @@ describe('LayerControls', () => {
     enRoutePickupDrivers: true,
     withPassengerDrivers: true,
     offlineRiders: true,
-    waitingRiders: true,
-    matchedRiders: true,
+    requestingRiders: true,
     enRouteRiders: true,
     arrivedRiders: true,
     inTransitRiders: true,
@@ -36,7 +35,7 @@ describe('LayerControls', () => {
     expect(screen.getAllByLabelText(/^offline$/i)).toHaveLength(2); // Driver + Rider
 
     // Rider layers
-    expect(screen.getByLabelText(/waiting/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/requesting/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/in transit/i)).toBeInTheDocument();
     // Route layers
     expect(screen.getByLabelText(/trip routes/i)).toBeInTheDocument();
@@ -53,7 +52,7 @@ describe('LayerControls', () => {
     // Check checked state based on fullVisibility
     expect(screen.getByLabelText(/^online$/i)).toBeChecked();
     expect(screen.getByLabelText(/to pickup/i)).toBeChecked();
-    expect(screen.getByLabelText(/waiting/i)).toBeChecked();
+    expect(screen.getByLabelText(/requesting/i)).toBeChecked();
     expect(screen.getByLabelText(/in transit/i)).toBeChecked();
     expect(screen.getByLabelText(/trip routes/i)).toBeChecked();
     expect(screen.getByLabelText(/^zones$/i)).toBeChecked();
@@ -90,8 +89,7 @@ describe('LayerControls', () => {
       enRoutePickupDrivers: false,
       withPassengerDrivers: false,
       offlineRiders: false,
-      waitingRiders: false,
-      matchedRiders: false,
+      requestingRiders: false,
       enRouteRiders: false,
       arrivedRiders: false,
       inTransitRiders: false,

@@ -8,8 +8,7 @@ const LEGEND_ITEMS = [
   { id: 'with-passenger', label: 'With Passenger', color: 'rgb(59, 130, 246)' },
   // Rider states (based on trip state)
   { id: 'offline-riders', label: 'Offline', color: 'rgb(156, 163, 175)' },
-  { id: 'waiting-riders', label: 'Waiting', color: 'rgb(249, 115, 22)' },
-  { id: 'matched-riders', label: 'Matched', color: 'rgb(245, 158, 11)' },
+  { id: 'requesting-riders', label: 'Requesting', color: 'rgb(249, 115, 22)' },
   { id: 'en-route-riders', label: 'Driver En Route', color: 'rgb(251, 191, 36)' },
   { id: 'arrived-riders', label: 'Driver Arrived', color: 'rgb(253, 224, 71)' },
   { id: 'in-transit-riders', label: 'In Transit', color: 'rgb(59, 130, 246)' },

@@ -278,14 +278,15 @@ export function createOfflineRidersLayer(riders: Rider[], scaleFactor: number = 
   });
 }
 
-export function createWaitingRidersLayer(riders: Rider[], scaleFactor: number = 1) {
-  // Riders in REQUESTED or OFFER_SENT states
-  const waitingRiders = riders.filter(
-    (r) => r.trip_state === 'requested' || r.trip_state === 'offer_sent'
+export function createRequestingRidersLayer(riders: Rider[], scaleFactor: number = 1) {
+  // Riders in REQUESTED, OFFER_SENT, or MATCHED states (pre-pickup phase)
+  const requestingRiders = riders.filter(
+    (r) =>
+      r.trip_state === 'requested' || r.trip_state === 'offer_sent' || r.trip_state === 'matched'
   );
   return new IconLayer({
-    id: 'waiting-riders',
-    data: waitingRiders,
+    id: 'requesting-riders',
+    data: requestingRiders,
     pickable: true,
     autoHighlight: true,
     highlightColor: [255, 255, 255, 128],
@@ -300,29 +301,6 @@ export function createWaitingRidersLayer(riders: Rider[], scaleFactor: number = 
 
     getPosition: (d: Rider) => [d.longitude, d.latitude],
     getColor: [249, 115, 22], // Orange - requesting phase
-  });
-}
-
-export function createMatchedRidersLayer(riders: Rider[], scaleFactor: number = 1) {
-  // Riders in MATCHED state (driver just assigned)
-  const matchedRiders = riders.filter((r) => r.trip_state === 'matched');
-  return new IconLayer({
-    id: 'matched-riders',
-    data: matchedRiders,
-    pickable: true,
-    autoHighlight: true,
-    highlightColor: [255, 255, 255, 128],
-
-    iconAtlas: PERSON_ICON,
-    iconMapping: PERSON_ICON_MAPPING,
-    getIcon: () => 'person',
-
-    sizeMinPixels: 20,
-    sizeMaxPixels: 40,
-    getSize: 28 * scaleFactor,
-
-    getPosition: (d: Rider) => [d.longitude, d.latitude],
-    getColor: [245, 158, 11], // Amber - pickup phase
   });
 }
 

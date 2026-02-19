@@ -9,8 +9,7 @@ import {
   createEnRoutePickupDriversLayer,
   createWithPassengerDriversLayer,
   createOfflineRidersLayer,
-  createWaitingRidersLayer,
-  createMatchedRidersLayer,
+  createRequestingRidersLayer,
   createEnRouteRidersLayer,
   createArrivedRidersLayer,
   createInTransitRidersLayer,
@@ -103,12 +102,8 @@ export function useSimulationLayers({
         layers.push(createOfflineRidersLayer(riders, scaleFactor));
       }
 
-      if (layerVisibility.waitingRiders) {
-        layers.push(createWaitingRidersLayer(riders, scaleFactor));
-      }
-
-      if (layerVisibility.matchedRiders) {
-        layers.push(createMatchedRidersLayer(riders, scaleFactor));
+      if (layerVisibility.requestingRiders) {
+        layers.push(createRequestingRidersLayer(riders, scaleFactor));
       }
 
       if (layerVisibility.enRouteRiders) {

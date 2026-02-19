@@ -10,8 +10,7 @@ import {
   createEnRoutePickupDriversLayer,
   createWithPassengerDriversLayer,
   createOfflineRidersLayer,
-  createWaitingRidersLayer,
-  createMatchedRidersLayer,
+  createRequestingRidersLayer,
   createInTransitRidersLayer,
   createDestinationFlagLayer,
   createCompletedPickupRouteLayer,
@@ -275,8 +274,7 @@ describe('agentLayers', () => {
       expect(() => createEnRoutePickupDriversLayer([])).not.toThrow();
       expect(() => createWithPassengerDriversLayer([])).not.toThrow();
       expect(() => createOfflineRidersLayer([])).not.toThrow();
-      expect(() => createWaitingRidersLayer([])).not.toThrow();
-      expect(() => createMatchedRidersLayer([])).not.toThrow();
+      expect(() => createRequestingRidersLayer([])).not.toThrow();
       expect(() => createInTransitRidersLayer([])).not.toThrow();
       expect(() => createDestinationFlagLayer([])).not.toThrow();
       expect(() => createCompletedPickupRouteLayer([])).not.toThrow();

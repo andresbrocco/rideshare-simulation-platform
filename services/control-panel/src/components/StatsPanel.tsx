@@ -88,8 +88,8 @@ export default function StatsPanel({
               <span className={styles.statValue}>{riderMetrics?.offline ?? '-'}</span>
             </div>
             <div className={styles.statItem}>
-              <Tooltip text="Riders waiting for driver to arrive">
-                <span className={styles.statLabel}>To Pickup:</span>
+              <Tooltip text="Riders awaiting driver pickup (driver en route or arrived)">
+                <span className={styles.statLabel}>Awaiting Pickup:</span>
               </Tooltip>
               <span className={styles.statValue}>{riderMetrics?.to_pickup ?? '-'}</span>
             </div>
@@ -145,7 +145,7 @@ export default function StatsPanel({
             </div>
             <div className={styles.statItem}>
               <Tooltip text="Average time from match to driver arrival at pickup">
-                <span className={styles.statLabel}>Avg Pickup:</span>
+                <span className={styles.statLabel}>Avg ETA:</span>
               </Tooltip>
               <span className={styles.statValue}>
                 {formatTime(tripMetrics?.avg_pickup_seconds)}
