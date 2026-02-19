@@ -21,11 +21,14 @@ from rich.table import Table
 
 from .analysis.findings import (
     ContainerHealth,
+    ContainerHealthAggregated,
     Finding,
     FindingCategory,
+    KeyMetrics,
     OverallStatus,
     Severity,
     TestVerdict,
+    aggregate_findings,
 )
 from .analysis.report_generator import ReportGenerator
 from .analysis.statistics import calculate_all_container_stats, summarize_scenario_stats
@@ -131,10 +134,27 @@ def analyze_results(
 
     analysis["scenario_summaries"] = scenario_summaries
 
-    # Generate findings and verdict
+    # 1. Generate raw findings
     findings = _generate_findings(results, config)
+
+    # 2. Generate legacy container health (backward compat)
     container_health = _generate_container_health(results, config)
+
+    # 3. Aggregate findings
+    display_names = {c: cfg.get("display_name", c) for c, cfg in CONTAINER_CONFIG.items()}
+    aggregated = aggregate_findings(findings, display_names)
+
+    # 4. Generate aggregated container health (across all scenarios)
+    aggregated_health = _generate_aggregated_container_health(results, config)
+
+    # 5. Extract key metrics
+    key_metrics = _extract_key_metrics(results, findings, aggregated_health)
+
+    # 6. Calculate verdict
     verdict = _calculate_verdict(results, findings, container_health)
+    verdict.aggregated_findings = aggregated
+    verdict.aggregated_container_health = aggregated_health
+    verdict.key_metrics = key_metrics
 
     return analysis, verdict
 
@@ -196,8 +216,6 @@ def _generate_findings(results: dict[str, Any], config: TestConfig) -> list[Find
             mem_warning = thresholds.get_memory_warning_percent(container)
 
             if stats.memory_max > 0:
-                # Calculate memory percent if we have limit info
-                # Use the last sample's limit
                 last_sample = samples[-1] if samples else {}
                 container_data = last_sample.get("containers", {}).get(container, {})
                 mem_limit = container_data.get("memory_limit_mb", 0)
@@ -343,7 +361,6 @@ def _generate_findings(results: dict[str, Any], config: TestConfig) -> list[Find
 
         # Check for memory leaks in duration tests
         if scenario_name == "duration_leak" or scenario_name.startswith("duration_leak_"):
-            # Calculate leak rate from first to last sample
             if len(samples) >= 2:
                 first_ts = samples[0].get("timestamp", 0)
                 last_ts = samples[-1].get("timestamp", 0)
@@ -410,10 +427,9 @@ def _generate_container_health(
     last_sample = samples[-1]
     containers = last_sample.get("containers", {})
 
-    # Calculate stats for leak rate estimation
     all_stats = calculate_all_container_stats(samples)
 
-    # Calculate leak rates if we have duration
+    # Calculate leak rates
     leak_rates: dict[str, float | None] = {}
     if len(samples) >= 2:
         first_ts = samples[0].get("timestamp", 0)
@@ -424,34 +440,26 @@ def _generate_container_health(
             for container in containers:
                 first_container = samples[0].get("containers", {}).get(container, {})
                 last_container = containers.get(container, {})
-
                 first_mem = first_container.get("memory_used_mb", 0)
                 last_mem = last_container.get("memory_used_mb", 0)
-
                 if first_mem > 0 and last_mem > 0:
                     leak_rates[container] = (last_mem - first_mem) / duration_min
                 else:
                     leak_rates[container] = None
         else:
-            for container in containers:
-                leak_rates[container] = None
+            leak_rates = {c: None for c in containers}
     else:
-        for container in containers:
-            leak_rates[container] = None
+        leak_rates = {c: None for c in containers}
 
     for container, data in containers.items():
         display_name = CONTAINER_CONFIG.get(container, {}).get("display_name", container)
-
         mem_current = data.get("memory_used_mb", 0)
         mem_limit = data.get("memory_limit_mb", 0)
         mem_percent = data.get("memory_percent", 0)
         cpu_current = data.get("cpu_percent", 0)
-
-        # Get peak CPU from stats
         stats = all_stats.get(container)
         cpu_peak = stats.cpu_max if stats else cpu_current
 
-        # Determine status
         mem_critical = thresholds.get_memory_critical_percent(container)
         mem_warning = thresholds.get_memory_warning_percent(container)
         cpu_critical = thresholds.get_cpu_critical_percent(container)
@@ -478,7 +486,6 @@ def _generate_container_health(
             )
         )
 
-    # Sort by priority containers first, then alphabetically
     priority = config.analysis.priority_containers
     health_list.sort(
         key=lambda h: (
@@ -490,35 +497,219 @@ def _generate_container_health(
     return health_list
 
 
+def _generate_aggregated_container_health(
+    results: dict[str, Any], config: TestConfig
+) -> list[ContainerHealthAggregated]:
+    """Generate container health aggregated across ALL scenarios.
+
+    Uses baseline for idle values, peak across all scenarios, and
+    leak rate from duration_leak scenario.
+    """
+    scenarios = results.get("scenarios", [])
+    if not scenarios:
+        return []
+
+    thresholds = config.analysis.thresholds
+
+    # Collect all containers
+    all_containers: set[str] = set()
+    for scenario in scenarios:
+        for sample in scenario.get("samples", []):
+            all_containers.update(sample.get("containers", {}).keys())
+
+    # Baseline stats
+    baseline_stats: dict[str, Any] = {}
+    baseline_scenarios = [s for s in scenarios if s["scenario_name"] == "baseline"]
+    if baseline_scenarios:
+        baseline_stats = calculate_all_container_stats(baseline_scenarios[0].get("samples", []))
+
+    # Peak stats across all scenarios
+    peak_memory: dict[str, tuple[float, str]] = {}  # container -> (peak_mb, scenario)
+    peak_cpu: dict[str, tuple[float, str]] = {}  # container -> (peak_%, scenario)
+    memory_limits: dict[str, float] = {}
+
+    for scenario in scenarios:
+        scenario_name = scenario["scenario_name"]
+        stats = calculate_all_container_stats(scenario.get("samples", []))
+        for container, s in stats.items():
+            if container not in peak_memory or s.memory_max > peak_memory[container][0]:
+                peak_memory[container] = (s.memory_max, scenario_name)
+            if container not in peak_cpu or s.cpu_max > peak_cpu[container][0]:
+                peak_cpu[container] = (s.cpu_max, scenario_name)
+            if s.memory_limit_mb > 0:
+                memory_limits[container] = s.memory_limit_mb
+
+    # Leak rates from duration scenario
+    leak_rates: dict[str, float | None] = {}
+    duration_scenarios = [
+        s
+        for s in scenarios
+        if s["scenario_name"] == "duration_leak" or s["scenario_name"].startswith("duration_leak_")
+    ]
+    if duration_scenarios:
+        leak_analysis = duration_scenarios[0].get("metadata", {}).get("leak_analysis", {})
+        for container, la in leak_analysis.items():
+            if la.get("memory_leak_detected", False):
+                leak_rates[container] = la.get("memory_slope_mb_per_min")
+
+    # Final memory from last scenario's last sample
+    last_scenario = scenarios[-1]
+    last_samples = last_scenario.get("samples", [])
+    last_sample = last_samples[-1] if last_samples else {}
+    final_containers = last_sample.get("containers", {})
+
+    health_list: list[ContainerHealthAggregated] = []
+
+    for container in sorted(all_containers):
+        display_name = CONTAINER_CONFIG.get(container, {}).get("display_name", container)
+        mem_limit = memory_limits.get(container, 0)
+
+        # Baseline
+        bs = baseline_stats.get(container)
+        baseline_mem = bs.memory_mean if bs else None
+        baseline_cpu = bs.cpu_mean if bs else None
+
+        # Peak
+        p_mem, p_mem_scenario = peak_memory.get(container, (0, "unknown"))
+        p_cpu, p_cpu_scenario = peak_cpu.get(container, (0, "unknown"))
+        p_mem_pct = (p_mem / mem_limit * 100) if mem_limit > 0 else 0
+
+        # Final
+        final_data = final_containers.get(container, {})
+        final_mem = final_data.get("memory_used_mb", 0)
+        final_mem_pct = final_data.get("memory_percent", 0)
+
+        # Leak
+        leak = leak_rates.get(container)
+
+        # Status
+        mem_critical = thresholds.get_memory_critical_percent(container)
+        mem_warning = thresholds.get_memory_warning_percent(container)
+        cpu_critical = thresholds.get_cpu_critical_percent(container)
+        cpu_warning = thresholds.get_cpu_warning_percent(container)
+
+        if p_mem_pct >= mem_critical or p_cpu >= cpu_critical:
+            status = "critical"
+        elif p_mem_pct >= mem_warning or p_cpu >= cpu_warning:
+            status = "warning"
+        else:
+            status = "healthy"
+
+        health_list.append(
+            ContainerHealthAggregated(
+                container_name=container,
+                display_name=display_name,
+                memory_limit_mb=mem_limit,
+                baseline_memory_mb=baseline_mem,
+                baseline_cpu_percent=baseline_cpu,
+                peak_memory_mb=p_mem,
+                peak_memory_percent=p_mem_pct,
+                peak_memory_scenario=p_mem_scenario,
+                peak_cpu_percent=p_cpu,
+                peak_cpu_scenario=p_cpu_scenario,
+                leak_rate_mb_per_min=leak,
+                final_memory_mb=final_mem,
+                final_memory_percent=final_mem_pct,
+                status=status,
+            )
+        )
+
+    # Sort by priority
+    priority = config.analysis.priority_containers
+    health_list.sort(
+        key=lambda h: (
+            priority.index(h.container_name) if h.container_name in priority else 999,
+            h.container_name,
+        )
+    )
+
+    return health_list
+
+
+def _extract_key_metrics(
+    results: dict[str, Any],
+    findings: list[Finding],
+    aggregated_health: list[ContainerHealthAggregated],
+) -> KeyMetrics:
+    """Extract hero numbers for reports."""
+    scenarios = results.get("scenarios", [])
+
+    # Max agents from stress
+    max_agents: int | None = None
+    stress_trigger: str | None = None
+    available_cores: int | None = None
+    stress_scenarios = [s for s in scenarios if s["scenario_name"] == "stress_test"]
+    if stress_scenarios:
+        meta = stress_scenarios[0].get("metadata", {})
+        max_agents = meta.get("total_agents_queued")
+        available_cores = meta.get("available_cores")
+        trigger = meta.get("trigger")
+        if trigger:
+            metric = trigger.get("metric", "unknown")
+            value = trigger.get("value", 0)
+            threshold = trigger.get("threshold", 0)
+            stress_trigger = f"{metric} at {value:.1f} (threshold: {threshold})"
+
+    # Max speed from speed_scaling
+    max_speed: int | None = None
+    speed_scenarios = [s for s in scenarios if s["scenario_name"] == "speed_scaling"]
+    if speed_scenarios:
+        meta = speed_scenarios[0].get("metadata", {})
+        max_speed = meta.get("max_speed_achieved")
+
+    # RTR peak across all scenarios
+    rtr_peak: float | None = None
+    for scenario in scenarios:
+        for sample in scenario.get("samples", []):
+            rtr = sample.get("rtr")
+            if rtr is not None and "rtr" in rtr:
+                v = rtr["rtr"]
+                if rtr_peak is None or v > rtr_peak:
+                    rtr_peak = v
+
+    # Leak containers
+    leak_containers = [
+        h.display_name
+        for h in aggregated_health
+        if h.leak_rate_mb_per_min is not None and h.leak_rate_mb_per_min > 0
+    ]
+
+    # Total duration
+    started = results.get("started_at", "")
+    completed = results.get("completed_at", "")
+    duration_str = "N/A"
+    if started and completed:
+        try:
+            s = datetime.fromisoformat(started)
+            e = datetime.fromisoformat(completed)
+            duration_str = str(e - s).split(".")[0]
+        except ValueError:
+            pass
+
+    return KeyMetrics(
+        max_agents_queued=max_agents,
+        max_speed_achieved=max_speed,
+        leak_containers=leak_containers,
+        rtr_peak=rtr_peak,
+        stress_trigger=stress_trigger,
+        total_duration_str=duration_str,
+        available_cores=available_cores,
+    )
+
+
 def _calculate_verdict(
     results: dict[str, Any],
     findings: list[Finding],
     container_health: list[ContainerHealth],
 ) -> TestVerdict:
-    """Calculate overall test verdict from findings.
-
-    Args:
-        results: Full test results dictionary.
-        findings: List of findings.
-        container_health: List of container health summaries.
-
-    Returns:
-        TestVerdict with overall status and recommendations.
-    """
+    """Calculate overall test verdict from findings."""
     scenarios = results.get("scenarios", [])
 
-    # Stress test OOM/abort is an expected stop condition, not a failure.
-    # Exclude it from pass/fail and OOM tallies.
     non_stress = [s for s in scenarios if s.get("scenario_name") != "stress_test"]
-
-    # Count scenarios (stress excluded — its abort is by design)
     scenarios_passed = sum(1 for s in non_stress if not s.get("aborted", False))
     scenarios_failed = len(non_stress) - scenarios_passed
-
-    # Count OOM events (stress excluded — OOM is a valid stop condition)
     total_oom = sum(len(s.get("oom_events", [])) for s in non_stress)
 
-    # Determine overall status
     critical_count = sum(1 for f in findings if f.severity == Severity.CRITICAL)
     warning_count = sum(1 for f in findings if f.severity == Severity.WARNING)
 
@@ -529,7 +720,6 @@ def _calculate_verdict(
     else:
         overall_status = OverallStatus.PASS
 
-    # Generate recommendations from findings
     recommendations: list[str] = []
     seen_recommendations: set[str] = set()
 
@@ -538,7 +728,6 @@ def _calculate_verdict(
             recommendations.append(finding.recommendation)
             seen_recommendations.add(finding.recommendation)
 
-    # Add general recommendations based on patterns
     if total_oom > 0:
         rec = "Review memory limits - OOM events detected during testing"
         if rec not in seen_recommendations:
@@ -685,7 +874,7 @@ def run(
     else:
         selected = set(_FULL_PIPELINE_ORDER)
 
-    # Validate: agent count must be even (split equally between drivers and riders)
+    # Validate: agent count must be even
     if agents is not None and agents % 2 != 0:
         raise click.UsageError(
             f"--agents must be even (split equally between drivers and riders), got {agents}"
@@ -701,7 +890,6 @@ def run(
             f"  Example: run -s {sorted(needs_agents)[0]} --agents 50"
         )
 
-    # Build ordered list of scenarios to run
     ordered = [s for s in _FULL_PIPELINE_ORDER if s in selected]
     total_steps = len(ordered)
 
@@ -723,7 +911,6 @@ def run(
 
     lifecycle, stats_collector, api_client, oom_detector = create_collectors(config)
 
-    # Create output directory
     test_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir = config.output_dir / test_id
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -732,7 +919,6 @@ def run(
     console.print(f"Output directory: {output_dir}")
     console.print(f"Scenarios: {', '.join(ordered)}\n")
 
-    # Initialize results
     results: dict[str, Any] = {
         "test_id": test_id,
         "started_at": datetime.now().isoformat(),
@@ -765,13 +951,10 @@ def run(
     aborted = False
     abort_reason = None
 
-    # Mutable state derived across scenarios
     agent_count: int | None = agents
     derived_speed: int | None = speed_multiplier
 
     try:
-        # Pre-flight: scenarios that skip clean_restart expect a predecessor
-        # to have left Docker running. When they're first, we must ensure it.
         if ordered[0] in _REUSES_PREVIOUS_STATE and not api_client.is_available():
             console.print(
                 "[cyan]Starting Docker environment "
@@ -796,7 +979,9 @@ def run(
                         api_client,
                         oom_detector,
                     )
-                    scenario_results.append(_result_to_dict(baseline_result))
+                    result_dict = _result_to_dict(baseline_result)
+                    scenario_results.append(result_dict)
+                    _print_scenario_result("baseline", result_dict)
 
                 elif scenario_name == "stress":
                     console.rule(
@@ -814,9 +999,10 @@ def run(
                         api_client,
                         oom_detector,
                     )
-                    scenario_results.append(_result_to_dict(stress_result))
+                    result_dict = _result_to_dict(stress_result)
+                    scenario_results.append(result_dict)
+                    _print_scenario_result("stress_test", result_dict)
 
-                    # Derive agent count from stress result (unless manually overridden)
                     if agent_count is None:
                         stress_metadata = stress_result.metadata
                         if stress_result.aborted:
@@ -837,7 +1023,6 @@ def run(
                             abort_reason = "stress_test_insufficient_agents"
                             break
                         agent_count = total_agents_queued // 2
-                        # Round down to nearest even number
                         agent_count -= agent_count % 2
                         console.print(
                             f"\n[cyan]Derived agent count: {agent_count} "
@@ -871,9 +1056,10 @@ def run(
                         oom_detector,
                         agent_count=agent_count,
                     )
-                    scenario_results.append(_result_to_dict(speed_result))
+                    result_dict = _result_to_dict(speed_result)
+                    scenario_results.append(result_dict)
+                    _print_scenario_result("speed_scaling", result_dict)
 
-                    # Derive speed from speed scaling result (unless manually overridden)
                     if derived_speed is None:
                         max_reliable_speed = _derive_max_reliable_speed(speed_result)
                         derived_speed = max_reliable_speed
@@ -910,7 +1096,9 @@ def run(
                         agent_count=agent_count,
                         speed_multiplier=effective_speed,
                     )
-                    scenario_results.append(_result_to_dict(duration_result))
+                    result_dict = _result_to_dict(duration_result)
+                    scenario_results.append(result_dict)
+                    _print_scenario_result("duration_leak", result_dict)
 
     except KeyboardInterrupt:
         console.print("\n[yellow]Test interrupted by user[/yellow]")
@@ -969,28 +1157,24 @@ def check() -> None:
     table.add_column("Status", style="green")
     table.add_column("Details")
 
-    # Check cAdvisor
     if stats_collector.is_available():
-        table.add_row("cAdvisor", "✓ Available", config.docker.cadvisor_url)
+        table.add_row("cAdvisor", "Available", config.docker.cadvisor_url)
     else:
-        table.add_row("cAdvisor", "[red]✗ Unavailable[/red]", config.docker.cadvisor_url)
+        table.add_row("cAdvisor", "[red]Unavailable[/red]", config.docker.cadvisor_url)
 
-    # Check Simulation API
     if api_client.is_available():
         status = api_client.get_simulation_status()
         table.add_row(
             "Simulation API",
-            "✓ Available",
+            "Available",
             f"State: {status.state}, Drivers: {status.drivers_total}, Riders: {status.riders_total}",
         )
     else:
-        table.add_row("Simulation API", "[red]✗ Unavailable[/red]", config.api.base_url)
+        table.add_row("Simulation API", "[red]Unavailable[/red]", config.api.base_url)
 
-    # Check container status
     console.print(table)
     console.print()
 
-    # Container details
     stats = stats_collector.get_all_container_stats()
     if stats:
         container_table = Table(title="Container Metrics")
@@ -1052,27 +1236,11 @@ def analyze(results_file: str) -> None:
 
 
 def _derive_max_reliable_speed(speed_result: ScenarioResult) -> int:
-    """Derive the maximum reliable speed multiplier from a speed scaling result.
-
-    Rules:
-    - If no step results exist, returns 1.
-    - If aborted (e.g., OOM) or stopped by threshold, returns the multiplier
-      from the last step where threshold was NOT hit (the last known-good
-      speed), or 1 if the first step hit.
-    - If all steps passed, returns max_speed_achieved from metadata.
-
-    Args:
-        speed_result: Result from SpeedScalingScenario.
-
-    Returns:
-        The highest speed multiplier that was stable, minimum 1.
-    """
+    """Derive the maximum reliable speed multiplier from a speed scaling result."""
     step_results = speed_result.metadata.get("step_results", [])
     if not step_results:
         return 1
 
-    # Find last step where threshold was NOT hit (works for both
-    # aborted and threshold-stopped scenarios)
     if speed_result.aborted or speed_result.metadata.get("stopped_by_threshold", False):
         last_good_multiplier = 1
         for step in step_results:
@@ -1080,7 +1248,6 @@ def _derive_max_reliable_speed(speed_result: ScenarioResult) -> int:
                 last_good_multiplier = step.get("multiplier", 1)
         return last_good_multiplier
 
-    # All steps passed — use max_speed_achieved
     max_speed: int = speed_result.metadata.get("max_speed_achieved", 1)
     return max(max_speed, 1)
 
@@ -1101,98 +1268,308 @@ def _result_to_dict(result: ScenarioResult) -> dict[str, Any]:
     }
 
 
-def _print_summary(results: dict[str, Any], verdict: TestVerdict | None = None) -> None:
-    """Print test summary with verdict, findings, and recommendations.
+def _format_duration(seconds: float) -> str:
+    """Format seconds into h:mm:ss or m:ss."""
+    total = int(seconds)
+    hours = total // 3600
+    minutes = (total % 3600) // 60
+    secs = total % 60
+    if hours > 0:
+        return f"{hours}:{minutes:02d}:{secs:02d}"
+    return f"{minutes}:{secs:02d}"
 
-    Args:
-        results: Full test results dictionary.
-        verdict: Optional TestVerdict (generated if not provided).
-    """
+
+def _print_scenario_result(scenario_name: str, result: dict[str, Any]) -> None:
+    """Print a concise one-line result right after a scenario completes."""
+    duration = result.get("duration_seconds", 0)
+    n_samples = len(result.get("samples", []))
+    meta = result.get("metadata", {})
+    duration_str = _format_duration(duration)
+
+    if scenario_name == "baseline":
+        # Find top container by CPU and memory
+        samples = result.get("samples", [])
+        if samples:
+            stats = calculate_all_container_stats(samples)
+            top_cpu = max(stats.values(), key=lambda s: s.cpu_mean) if stats else None
+            top_mem = max(stats.values(), key=lambda s: s.memory_mean) if stats else None
+            cpu_info = (
+                f"idle CPU {top_cpu.cpu_mean:.1f}% ({_get_display_name(top_cpu.container_name)})"
+                if top_cpu
+                else ""
+            )
+            mem_info = (
+                f"idle mem {top_mem.memory_mean:.0f} MB ({_get_display_name(top_mem.container_name)})"
+                if top_mem
+                else ""
+            )
+            console.print(
+                f"  [green]Baseline:[/green] {n_samples} samples, {duration_str}"
+                f" -- {cpu_info}, {mem_info}"
+            )
+        else:
+            console.print(f"  [green]Baseline:[/green] {n_samples} samples, {duration_str}")
+
+    elif scenario_name == "stress_test":
+        total_agents = meta.get("total_agents_queued", 0)
+        trigger = meta.get("trigger", {})
+        batch_count = meta.get("batch_count", 0)
+        trigger_desc = ""
+        if trigger:
+            metric = trigger.get("metric", "")
+            value = trigger.get("value", 0)
+            trigger_desc = (
+                f"stopped by {metric} ({value:.2f}x)" if metric == "rtr" else f"stopped by {metric}"
+            )
+        console.print(
+            f"  [green]Stress:[/green] {total_agents} agents, {trigger_desc}, "
+            f"{batch_count} batches, {duration_str}"
+        )
+
+    elif scenario_name == "speed_scaling":
+        step_results = meta.get("step_results", [])
+        total_steps = len(step_results)
+        max_speed = meta.get("max_speed_achieved", 0)
+        stopped = meta.get("stopped_by_threshold", False)
+        # Find min/max multiplier
+        multipliers = [s.get("multiplier", 0) for s in step_results]
+        range_str = f"{min(multipliers)}x-{max(multipliers)}x" if multipliers else "N/A"
+        stop_info = (
+            f"stopped by threshold at {max(multipliers)}x"
+            if stopped and multipliers
+            else f"max reliable {max_speed}x"
+        )
+        console.print(
+            f"  [green]Speed:[/green] {total_steps} steps ({range_str}), "
+            f"{stop_info}, {duration_str}"
+        )
+
+    elif scenario_name == "duration_leak":
+        leak_analysis = meta.get("leak_analysis", {})
+        leaks = [
+            _get_display_name(c)
+            for c, la in leak_analysis.items()
+            if la.get("memory_leak_detected", False)
+        ]
+        phase_ts = meta.get("phase_timestamps", {})
+        active_dur = phase_ts.get("active_end", 0) - phase_ts.get("active_start", 0)
+        drain_dur = meta.get("drain_duration_seconds", 0)
+        cooldown_dur = phase_ts.get("cooldown_end", 0) - phase_ts.get("cooldown_start", 0)
+        leak_str = f"{len(leaks)} leak(s): {', '.join(leaks)}" if leaks else "no leaks detected"
+        console.print(
+            f"  [green]Duration:[/green] {_format_duration(active_dur)} active + "
+            f"{_format_duration(drain_dur)} drain + {_format_duration(cooldown_dur)} cooldown"
+            f" -- {leak_str}"
+        )
+
+
+def _get_display_name(container: str) -> str:
+    """Get display name for a container."""
+    return CONTAINER_CONFIG.get(container, {}).get("display_name", container)
+
+
+def _print_summary(results: dict[str, Any], verdict: TestVerdict | None = None) -> None:
+    """Print test summary with key metrics, scenario table, aggregated findings, and health."""
     console.print("\n")
     console.rule("[bold]Test Summary[/bold]")
 
-    # Overall verdict
-    if verdict:
-        status_styles = {
-            OverallStatus.PASS: "[bold green]PASS[/bold green]",
-            OverallStatus.WARNING: "[bold yellow]WARNING[/bold yellow]",
-            OverallStatus.FAIL: "[bold red]FAIL[/bold red]",
-        }
-        status_display = status_styles.get(verdict.overall_status, str(verdict.overall_status))
-        console.print(f"\nOverall Status: {status_display}")
-        console.print(
-            f"  Scenarios: {verdict.scenarios_passed} passed, {verdict.scenarios_failed} failed"
+    if not verdict:
+        _print_summary_legacy(results)
+        return
+
+    # --- Key Metrics ---
+    km = verdict.key_metrics
+    if km:
+        console.print("\n[bold]Key Metrics:[/bold]")
+        metrics_table = Table(show_header=False, box=None, padding=(0, 2))
+        metrics_table.add_column(style="dim")
+        metrics_table.add_column(style="bold")
+        metrics_table.add_column(style="dim")
+        metrics_table.add_column(style="bold")
+
+        metrics_table.add_row(
+            "Max Agents:",
+            str(km.max_agents_queued) if km.max_agents_queued else "N/A",
+            "Max Speed:",
+            f"{km.max_speed_achieved}x" if km.max_speed_achieved else "N/A",
         )
-        if verdict.total_oom_events > 0:
-            console.print(f"  [red]OOM Events: {verdict.total_oom_events}[/red]")
-    else:
-        scenarios = results.get("scenarios", [])
-        non_stress = [s for s in scenarios if s.get("scenario_name") != "stress_test"]
-        passed = sum(1 for s in non_stress if not s.get("aborted", False))
-        failed = len(non_stress) - passed
+        metrics_table.add_row(
+            "Leaks:",
+            str(len(km.leak_containers)),
+            "RTR Peak:",
+            f"{km.rtr_peak:.1f}x" if km.rtr_peak else "N/A",
+        )
+        metrics_table.add_row(
+            "CPU Cores:",
+            str(km.available_cores) if km.available_cores else "N/A",
+            "Duration:",
+            km.total_duration_str,
+        )
+        console.print(metrics_table)
 
-        console.print(f"\nTotal scenarios: {len(scenarios)}")
-        console.print(f"  [green]Passed: {passed}[/green]")
-        if failed > 0:
-            console.print(f"  [red]Failed/Aborted: {failed}[/red]")
+    # --- Overall Status ---
+    status_styles = {
+        OverallStatus.PASS: "[bold green]PASS[/bold green]",
+        OverallStatus.WARNING: "[bold yellow]WARNING[/bold yellow]",
+        OverallStatus.FAIL: "[bold red]FAIL[/bold red]",
+    }
+    status_display = status_styles.get(verdict.overall_status, str(verdict.overall_status))
+    console.print(f"\nOverall Status: {status_display}")
 
-        total_oom = sum(len(s.get("oom_events", [])) for s in non_stress)
-        if total_oom > 0:
-            console.print(f"  [red]OOM Events: {total_oom}[/red]")
+    # --- Scenario Results Table ---
+    scenarios = results.get("scenarios", [])
+    if scenarios:
+        console.print("\n[bold]Scenario Results:[/bold]")
+        scenario_table = Table(show_header=True, header_style="bold")
+        scenario_table.add_column("Scenario")
+        scenario_table.add_column("Status")
+        scenario_table.add_column("Key Result")
+        scenario_table.add_column("Duration", justify="right")
 
-    # Findings section
-    if verdict and verdict.findings:
+        for s in scenarios:
+            name = s["scenario_name"]
+            aborted_flag = s.get("aborted", False)
+            duration_secs = s.get("duration_seconds", 0)
+
+            # Status: stress abort is OK (by design)
+            if name == "stress_test":
+                status_str = "[green]OK[/green]"
+            elif aborted_flag:
+                status_str = "[red]ABORT[/red]"
+            else:
+                status_str = "[green]OK[/green]"
+
+            # Key result per scenario type
+            key_result = _scenario_key_result(name, s)
+
+            scenario_table.add_row(
+                _format_scenario_name(name),
+                status_str,
+                key_result,
+                _format_duration(duration_secs),
+            )
+
+        console.print(scenario_table)
+
+    # --- Aggregated Findings ---
+    if verdict.aggregated_findings:
+        n_crit = verdict.aggregated_critical_count
+        n_warn = verdict.aggregated_warning_count
+        console.print(f"\n[bold]Findings ({n_crit} critical, {n_warn} warnings):[/bold]")
+
+        for af in verdict.aggregated_findings:
+            n_scenarios = len(af.scenarios_exceeded)
+            if af.severity == Severity.CRITICAL:
+                prefix = "[red]X[/red]"
+            elif af.severity == Severity.WARNING:
+                prefix = "[yellow]![/yellow]"
+            else:
+                prefix = "[dim]i[/dim]"
+
+            # Compact message
+            if af.category == FindingCategory.HIGH_CPU_USAGE:
+                msg = (
+                    f"{af.display_name} CPU: peak {af.worst_value:.1f}% ({af.worst_scenario})"
+                    f" -- exceeded in {n_scenarios}/4 scenarios"
+                )
+            elif af.category == FindingCategory.HIGH_MEMORY_USAGE:
+                msg = f"{af.display_name} memory: {af.worst_value:.1f}% of limit ({af.worst_scenario})"
+            elif af.category == FindingCategory.MEMORY_LEAK:
+                msg = f"{af.display_name}: {af.worst_value:.2f} MB/min leak ({af.worst_scenario})"
+            elif af.category == FindingCategory.SIMULATION_LAG:
+                msg = (
+                    f"RTR peak {af.worst_value:.2f}x ({af.worst_scenario})"
+                    f" -- exceeded in {n_scenarios} scenarios"
+                )
+            elif af.category == FindingCategory.GLOBAL_CPU_SATURATION:
+                msg = f"Global CPU at {af.worst_value:.1f}% of capacity ({af.worst_scenario})"
+            else:
+                msg = af.recommendation or f"{af.display_name}: {af.worst_value:.1f}"
+
+            console.print(f"  {prefix} {msg}")
+
+    elif verdict.findings:
+        # Fallback to raw findings if no aggregation
         console.print("\n[bold]Findings:[/bold]")
+        for finding in verdict.findings:
+            if finding.severity == Severity.CRITICAL:
+                console.print(f"  [red]X[/red] {finding.message}")
+            elif finding.severity == Severity.WARNING:
+                console.print(f"  [yellow]![/yellow] {finding.message}")
 
-        # Group and display by severity
-        critical_findings = [f for f in verdict.findings if f.severity == Severity.CRITICAL]
-        warning_findings = [f for f in verdict.findings if f.severity == Severity.WARNING]
-
-        for finding in critical_findings:
-            console.print(f"  [red]X[/red] {finding.message}")
-        for finding in warning_findings:
-            console.print(f"  [yellow]![/yellow] {finding.message}")
-
-    # Container Health Table
-    if verdict and verdict.container_health:
+    # --- Container Health Table (aggregated) ---
+    if verdict.aggregated_container_health:
         console.print("\n[bold]Container Health:[/bold]")
 
         health_table = Table(show_header=True, header_style="bold")
         health_table.add_column("Container")
-        health_table.add_column("Memory", justify="right")
-        health_table.add_column("Limit", justify="right")
-        health_table.add_column("Usage %", justify="right")
+        health_table.add_column("Baseline", justify="right")
+        health_table.add_column("Peak Mem", justify="right")
+        health_table.add_column("Peak CPU", justify="right")
         health_table.add_column("Leak Rate", justify="right")
         health_table.add_column("Status")
 
-        for health in verdict.container_health:
+        for h in verdict.aggregated_container_health:
+            baseline_str = f"{h.baseline_memory_mb:.0f} MB" if h.baseline_memory_mb else "N/A"
+            peak_mem_str = f"{h.peak_memory_mb:.0f} MB ({h.peak_memory_percent:.0f}%)"
+            peak_cpu_str = f"{h.peak_cpu_percent:.0f}%"
             leak_str = (
-                f"{health.memory_leak_rate_mb_per_min:.2f} MB/min"
-                if health.memory_leak_rate_mb_per_min is not None
-                else "N/A"
+                f"{h.leak_rate_mb_per_min:.2f} MB/min"
+                if h.leak_rate_mb_per_min is not None
+                else "-"
             )
-            limit_str = f"{health.memory_limit_mb:.0f} MB" if health.memory_limit_mb > 0 else "N/A"
-            percent_str = f"{health.memory_percent:.1f}%" if health.memory_percent > 0 else "N/A"
 
-            health_status_styles: dict[str, str] = {
+            status_styles_health: dict[str, str] = {
                 "healthy": "[green]OK[/green]",
                 "warning": "[yellow]WARN[/yellow]",
                 "critical": "[red]CRIT[/red]",
             }
-            status_display = health_status_styles.get(health.status, health.status)
+            status_disp = status_styles_health.get(h.status, h.status)
 
             health_table.add_row(
-                health.display_name,
-                f"{health.memory_current_mb:.1f} MB",
-                limit_str,
-                percent_str,
+                h.display_name,
+                baseline_str,
+                peak_mem_str,
+                peak_cpu_str,
                 leak_str,
-                status_display,
+                status_disp,
             )
 
         console.print(health_table)
 
-    # Derived configuration (stress → duration agent count, speed scaling → speed)
+    elif verdict.container_health:
+        # Fallback to legacy health
+        _print_legacy_health_table(verdict.container_health)
+
+    # --- Speed Scaling Steps ---
+    speed_scenarios = [s for s in scenarios if s.get("scenario_name") == "speed_scaling"]
+    if speed_scenarios:
+        step_results = speed_scenarios[0].get("metadata", {}).get("step_results", [])
+        if step_results:
+            console.print("\n[bold]Speed Scaling Steps:[/bold]")
+            step_table = Table(show_header=True, header_style="bold")
+            step_table.add_column("Step", justify="right")
+            step_table.add_column("Speed")
+            step_table.add_column("Result")
+
+            for step in step_results:
+                step_num = step.get("step", "?")
+                multiplier = f"{step.get('multiplier', '?')}x"
+                hit = step.get("threshold_hit", False)
+                trigger = step.get("trigger")
+                if hit and trigger:
+                    metric = trigger.get("metric", "")
+                    value = trigger.get("value", 0)
+                    result_str = f"[red]{metric} {value:.2f}x[/red]"
+                elif hit:
+                    result_str = "[red]THRESHOLD[/red]"
+                else:
+                    result_str = "[green]PASS[/green]"
+                step_table.add_row(str(step_num), multiplier, result_str)
+
+            console.print(step_table)
+
+    # --- Derived Configuration ---
     derived_config = results.get("derived_config", {})
     if derived_config:
         console.print("\n[bold]Derived Configuration:[/bold]")
@@ -1210,28 +1587,113 @@ def _print_summary(results: dict[str, Any], verdict: TestVerdict | None = None) 
                 f"up to {duration_speed}x speed"
             )
 
-    # Speed scaling results
-    scenarios = results.get("scenarios", [])
-    speed_scenarios = [s for s in scenarios if s.get("scenario_name") == "speed_scaling"]
-    if speed_scenarios:
-        speed_meta = speed_scenarios[0].get("metadata", {})
-        total_steps = speed_meta.get("total_steps", 0)
-        max_speed = speed_meta.get("max_speed_achieved", 0)
-        stopped = speed_meta.get("stopped_by_threshold", False)
-
-        console.print("\n[bold]Speed Scaling Results:[/bold]")
-        console.print(f"  Steps completed: {total_steps}")
-        console.print(f"  Max speed achieved: {max_speed}x")
-        if stopped:
-            console.print("  [yellow]Stopped by threshold[/yellow]")
-        else:
-            console.print("  [green]Completed all steps[/green]")
-
-    # Recommendations
-    if verdict and verdict.recommendations:
+    # --- Recommendations ---
+    if verdict.recommendations:
         console.print("\n[bold]Recommendations:[/bold]")
         for rec in verdict.recommendations:
             console.print(f"  - {rec}")
+
+
+def _print_summary_legacy(results: dict[str, Any]) -> None:
+    """Fallback summary when no verdict is available."""
+    scenarios = results.get("scenarios", [])
+    non_stress = [s for s in scenarios if s.get("scenario_name") != "stress_test"]
+    passed = sum(1 for s in non_stress if not s.get("aborted", False))
+    failed = len(non_stress) - passed
+
+    console.print(f"\nTotal scenarios: {len(scenarios)}")
+    console.print(f"  [green]Passed: {passed}[/green]")
+    if failed > 0:
+        console.print(f"  [red]Failed/Aborted: {failed}[/red]")
+
+    total_oom = sum(len(s.get("oom_events", [])) for s in non_stress)
+    if total_oom > 0:
+        console.print(f"  [red]OOM Events: {total_oom}[/red]")
+
+
+def _print_legacy_health_table(container_health: list[ContainerHealth]) -> None:
+    """Print legacy container health table."""
+    console.print("\n[bold]Container Health:[/bold]")
+
+    health_table = Table(show_header=True, header_style="bold")
+    health_table.add_column("Container")
+    health_table.add_column("Memory", justify="right")
+    health_table.add_column("Limit", justify="right")
+    health_table.add_column("Usage %", justify="right")
+    health_table.add_column("Leak Rate", justify="right")
+    health_table.add_column("Status")
+
+    for health in container_health:
+        leak_str = (
+            f"{health.memory_leak_rate_mb_per_min:.2f} MB/min"
+            if health.memory_leak_rate_mb_per_min is not None
+            else "N/A"
+        )
+        limit_str = f"{health.memory_limit_mb:.0f} MB" if health.memory_limit_mb > 0 else "N/A"
+        percent_str = f"{health.memory_percent:.1f}%" if health.memory_percent > 0 else "N/A"
+
+        health_status_styles: dict[str, str] = {
+            "healthy": "[green]OK[/green]",
+            "warning": "[yellow]WARN[/yellow]",
+            "critical": "[red]CRIT[/red]",
+        }
+        status_display = health_status_styles.get(health.status, health.status)
+
+        health_table.add_row(
+            health.display_name,
+            f"{health.memory_current_mb:.1f} MB",
+            limit_str,
+            percent_str,
+            leak_str,
+            status_display,
+        )
+
+    console.print(health_table)
+
+
+def _format_scenario_name(name: str) -> str:
+    """Format scenario name for display."""
+    name_map = {
+        "baseline": "Baseline",
+        "stress_test": "Stress Test",
+        "speed_scaling": "Speed Scaling",
+        "duration_leak": "Duration Leak",
+    }
+    return name_map.get(name, name.replace("_", " ").title())
+
+
+def _scenario_key_result(name: str, scenario: dict[str, Any]) -> str:
+    """Extract a concise key result string for a scenario."""
+    meta = scenario.get("metadata", {})
+    n_samples = len(scenario.get("samples", []))
+
+    if name == "baseline":
+        return f"{n_samples} samples"
+
+    elif name == "stress_test":
+        total_agents = meta.get("total_agents_queued", 0)
+        trigger = meta.get("trigger", {})
+        metric = trigger.get("metric", "") if trigger else ""
+        if metric == "rtr":
+            return f"{total_agents} agents -> RTR trigger"
+        elif metric:
+            return f"{total_agents} agents -> {metric} trigger"
+        return f"{total_agents} agents"
+
+    elif name == "speed_scaling":
+        max_speed = meta.get("max_speed_achieved", 0)
+        total_steps = meta.get("total_steps", 0)
+        stopped = meta.get("stopped_by_threshold", False)
+        if stopped:
+            return f"{max_speed}x max ({total_steps} steps, threshold)"
+        return f"{max_speed}x max ({total_steps} steps)"
+
+    elif name == "duration_leak" or name.startswith("duration_leak_"):
+        leak_analysis = meta.get("leak_analysis", {})
+        leaks = [c for c, la in leak_analysis.items() if la.get("memory_leak_detected", False)]
+        return f"{len(leaks)} leaks detected"
+
+    return f"{n_samples} samples"
 
 
 if __name__ == "__main__":

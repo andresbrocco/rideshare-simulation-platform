@@ -1,10 +1,11 @@
-"""Visualization generation for performance test results."""
+"""Visualization generation for performance test results.
+
+Uses Plotly for interactive HTML charts and kaleido for static PNG export.
+"""
 
 from pathlib import Path
 from typing import Any
 
-import matplotlib.pyplot as plt
-import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
@@ -12,10 +13,56 @@ from ..config import CONTAINER_CONFIG
 from .statistics import calculate_all_container_stats
 
 
+# Priority containers shown first in charts
+_PRIORITY_CONTAINERS = [
+    "rideshare-simulation",
+    "rideshare-kafka",
+    "rideshare-redis",
+    "rideshare-osrm",
+    "rideshare-stream-processor",
+]
+
+
+def _get_display_name(container: str) -> str:
+    """Get display name for a container."""
+    return CONTAINER_CONFIG.get(container, {}).get("display_name", container)
+
+
+def _sort_containers(containers: set[str] | list[str]) -> list[str]:
+    """Sort containers with priority containers first."""
+    container_set = set(containers)
+    sorted_list = [c for c in _PRIORITY_CONTAINERS if c in container_set]
+    sorted_list.extend(sorted(c for c in container_set if c not in _PRIORITY_CONTAINERS))
+    return sorted_list
+
+
+def _write_chart(
+    fig: go.Figure, base_path: Path, width: int = 1200, height: int = 600
+) -> list[str]:
+    """Write chart as both HTML and PNG.
+
+    Args:
+        fig: Plotly figure.
+        base_path: Path without extension (e.g., charts/cpu_heatmap).
+        width: PNG width in pixels.
+        height: PNG height in pixels.
+
+    Returns:
+        List of generated file paths.
+    """
+    html_path = base_path.with_suffix(".html")
+    png_path = base_path.with_suffix(".png")
+
+    fig.write_html(str(html_path))
+    fig.write_image(str(png_path), width=width, height=height, scale=2)
+
+    return [str(html_path), str(png_path)]
+
+
 class ChartGenerator:
     """Generates charts for performance test analysis.
 
-    Outputs both interactive HTML (Plotly) and static PNG (Matplotlib).
+    Outputs interactive HTML (Plotly) and static PNG (kaleido).
     """
 
     def __init__(self, output_dir: Path) -> None:
@@ -33,7 +80,6 @@ class ChartGenerator:
             List of generated chart file paths.
         """
         generated: list[str] = []
-
         scenarios = results.get("scenarios", [])
 
         # Duration/leak timeline
@@ -61,11 +107,11 @@ class ChartGenerator:
         return generated
 
     def generate_duration_timeline(
-        self, duration_scenarios: list[dict[str, Any]], max_containers: int = 8
+        self, duration_scenarios: list[dict[str, Any]], max_containers: int = 5
     ) -> list[str]:
         """Generate timeline charts for memory and CPU over duration tests.
 
-        Generates charts for priority containers, with batching if needed.
+        Limited to priority containers to avoid absurdly tall images.
 
         Args:
             duration_scenarios: List of duration test results.
@@ -80,24 +126,21 @@ class ChartGenerator:
         # Discover all containers
         all_containers: set[str] = set()
         for scenario in duration_scenarios:
-            samples = scenario.get("samples", [])
-            for sample in samples:
+            for sample in scenario.get("samples", []):
                 all_containers.update(sample.get("containers", {}).keys())
 
-        # Sort with priority first
-        priority = [
-            "rideshare-simulation",
-            "rideshare-kafka",
-            "rideshare-redis",
-            "rideshare-osrm",
-            "rideshare-stream-processor",
-        ]
-        sorted_containers = [c for c in priority if c in all_containers]
-        sorted_containers.extend([c for c in sorted(all_containers) if c not in priority])
+        sorted_containers = _sort_containers(all_containers)
+
+        # Extract phase timestamps for annotations
+        phase_timestamps: dict[str, float] | None = None
+        for scenario in duration_scenarios:
+            pt = scenario.get("metadata", {}).get("phase_timestamps")
+            if pt:
+                phase_timestamps = pt
+                break
 
         generated: list[str] = []
 
-        # Generate charts for both metrics
         for metric in ["memory", "cpu"]:
             y_label = "Memory (MB)" if metric == "memory" else "CPU %"
             metric_key = "memory_used_mb" if metric == "memory" else "cpu_percent"
@@ -111,13 +154,10 @@ class ChartGenerator:
                     else ""
                 )
 
-                # Create subplots: one row per container
                 fig = make_subplots(
                     rows=len(batch_containers),
                     cols=1,
-                    subplot_titles=[
-                        CONTAINER_CONFIG.get(c, {}).get("display_name", c) for c in batch_containers
-                    ],
+                    subplot_titles=[_get_display_name(c) for c in batch_containers],
                 )
 
                 for row_idx, container in enumerate(batch_containers, 1):
@@ -128,7 +168,7 @@ class ChartGenerator:
 
                         timestamps = []
                         values = []
-                        start_time = samples[0]["timestamp"] if samples else 0
+                        start_time = samples[0]["timestamp"]
 
                         for sample in samples:
                             containers = sample.get("containers", {})
@@ -150,6 +190,11 @@ class ChartGenerator:
                                 col=1,
                             )
 
+                # Add phase annotations if available
+                if phase_timestamps and duration_scenarios:
+                    ref_start = duration_scenarios[0].get("samples", [{}])[0].get("timestamp", 0)
+                    _add_phase_annotations(fig, phase_timestamps, ref_start, len(batch_containers))
+
                 fig.update_layout(
                     title=f"{metric.title()} Over Time (Leak Detection){batch_suffix}",
                     height=200 * len(batch_containers),
@@ -157,109 +202,35 @@ class ChartGenerator:
                 fig.update_xaxes(title_text="Time (minutes)")
                 fig.update_yaxes(title_text=y_label)
 
-                html_path = self.charts_dir / f"duration_timeline_{metric}{batch_suffix}.html"
-                fig.write_html(str(html_path))
-
-                # Matplotlib version
-                fig_mpl, axes = plt.subplots(
-                    len(batch_containers),
-                    1,
-                    figsize=(12, 3 * len(batch_containers)),
-                    squeeze=False,
-                )
-
-                for row_idx, container in enumerate(batch_containers):
-                    ax = axes[row_idx, 0]
-                    display_name = CONTAINER_CONFIG.get(container, {}).get(
-                        "display_name", container
-                    )
-
-                    for scenario in duration_scenarios:
-                        samples = scenario.get("samples", [])
-                        if not samples:
-                            continue
-
-                        start_time = samples[0]["timestamp"]
-                        timestamps = []
-                        values = []
-
-                        for sample in samples:
-                            containers = sample.get("containers", {})
-                            if container in containers:
-                                elapsed = (sample["timestamp"] - start_time) / 60
-                                timestamps.append(elapsed)
-                                values.append(containers[container][metric_key])
-
-                        if timestamps:
-                            ax.plot(timestamps, values, label=scenario["scenario_name"])
-
-                    ax.set_title(display_name)
-                    ax.set_xlabel("Time (minutes)")
-                    ax.set_ylabel(y_label)
-                    ax.grid(alpha=0.3)
-                    if row_idx == 0:
-                        ax.legend(fontsize="small")
-
-                plt.tight_layout()
-                png_path = self.charts_dir / f"duration_timeline_{metric}{batch_suffix}.png"
-                fig_mpl.savefig(png_path, dpi=150, bbox_inches="tight")
-                plt.close(fig_mpl)
-
-                generated.extend([str(html_path), str(png_path)])
+                base_path = self.charts_dir / f"duration_timeline_{metric}{batch_suffix}"
+                generated.extend(_write_chart(fig, base_path, height=200 * len(batch_containers)))
 
         return generated
 
     def generate_cpu_heatmap(self, scenarios: list[dict[str, Any]]) -> list[str]:
-        """Generate CPU usage heatmap across scenarios and all containers.
-
-        Args:
-            scenarios: List of all scenario results.
-
-        Returns:
-            List of generated file paths.
-        """
-        # Discover all containers
+        """Generate CPU usage heatmap across scenarios and all containers."""
         all_containers: set[str] = set()
         for scenario in scenarios:
-            samples = scenario.get("samples", [])
-            for sample in samples:
+            for sample in scenario.get("samples", []):
                 all_containers.update(sample.get("containers", {}).keys())
 
-        # Sort with priority first
-        priority = [
-            "rideshare-simulation",
-            "rideshare-kafka",
-            "rideshare-redis",
-            "rideshare-osrm",
-            "rideshare-stream-processor",
-        ]
-        containers = [c for c in priority if c in all_containers]
-        containers.extend([c for c in sorted(all_containers) if c not in priority])
-
+        containers = _sort_containers(all_containers)
         scenario_names = [s["scenario_name"] for s in scenarios]
 
         matrix: list[list[float]] = []
-
         for scenario in scenarios:
-            samples = scenario.get("samples", [])
-            all_stats = calculate_all_container_stats(samples)
-            row = []
-            for container in containers:
-                if container in all_stats:
-                    row.append(all_stats[container].cpu_mean)
-                else:
-                    row.append(0)
+            all_stats = calculate_all_container_stats(scenario.get("samples", []))
+            row = [all_stats[c].cpu_mean if c in all_stats else 0 for c in containers]
             matrix.append(row)
 
         if not matrix:
             return []
 
-        # Get display names (truncate for readability)
-        display_names = [
-            CONTAINER_CONFIG.get(c, {}).get("display_name", c)[:15] for c in containers
-        ]
+        display_names = [_get_display_name(c) for c in containers]
 
-        # Plotly heatmap
+        # Add cell text annotations
+        text_matrix = [[f"{v:.1f}" for v in row] for row in matrix]
+
         fig = go.Figure(
             data=go.Heatmap(
                 z=matrix,
@@ -267,90 +238,49 @@ class ChartGenerator:
                 y=scenario_names,
                 colorscale="RdYlGn_r",
                 colorbar_title="CPU %",
+                text=text_matrix,
+                texttemplate="%{text}",
+                textfont={"size": 10},
             )
         )
 
         fig.update_layout(
-            title="CPU Usage Heatmap (All Containers)",
+            title="Mean CPU % Heatmap",
             xaxis_title="Container",
             yaxis_title="Scenario",
-            height=max(400, 50 * len(scenario_names)),
+            xaxis_tickangle=-45,
+            height=max(400, 100 * len(scenario_names)),
         )
 
-        html_path = self.charts_dir / "cpu_heatmap.html"
-        fig.write_html(str(html_path))
-
-        # Matplotlib heatmap
-        fig_mpl, ax = plt.subplots(
-            figsize=(max(12, len(containers) * 0.8), max(8, len(scenario_names) * 0.5))
+        return _write_chart(
+            fig,
+            self.charts_dir / "cpu_heatmap",
+            width=max(1200, 80 * len(containers)),
+            height=max(400, 100 * len(scenario_names)),
         )
-        im = ax.imshow(matrix, cmap="RdYlGn_r", aspect="auto")
-
-        ax.set_xticks(np.arange(len(display_names)))
-        ax.set_yticks(np.arange(len(scenario_names)))
-        ax.set_xticklabels(display_names, rotation=45, ha="right", fontsize=8)
-        ax.set_yticklabels(scenario_names, fontsize=8)
-
-        plt.colorbar(im, ax=ax, label="CPU %")
-        ax.set_title("CPU Usage Heatmap (All Containers)")
-
-        png_path = self.charts_dir / "cpu_heatmap.png"
-        fig_mpl.savefig(png_path, dpi=150, bbox_inches="tight")
-        plt.close(fig_mpl)
-
-        return [str(html_path), str(png_path)]
 
     def generate_memory_heatmap(self, scenarios: list[dict[str, Any]]) -> list[str]:
-        """Generate memory usage heatmap across scenarios and all containers.
-
-        Args:
-            scenarios: List of all scenario results.
-
-        Returns:
-            List of generated file paths.
-        """
-        # Discover all containers
+        """Generate memory usage heatmap across scenarios and all containers."""
         all_containers: set[str] = set()
         for scenario in scenarios:
-            samples = scenario.get("samples", [])
-            for sample in samples:
+            for sample in scenario.get("samples", []):
                 all_containers.update(sample.get("containers", {}).keys())
 
-        # Sort with priority first
-        priority = [
-            "rideshare-simulation",
-            "rideshare-kafka",
-            "rideshare-redis",
-            "rideshare-osrm",
-            "rideshare-stream-processor",
-        ]
-        containers = [c for c in priority if c in all_containers]
-        containers.extend([c for c in sorted(all_containers) if c not in priority])
-
+        containers = _sort_containers(all_containers)
         scenario_names = [s["scenario_name"] for s in scenarios]
 
         matrix: list[list[float]] = []
-
         for scenario in scenarios:
-            samples = scenario.get("samples", [])
-            all_stats = calculate_all_container_stats(samples)
-            row = []
-            for container in containers:
-                if container in all_stats:
-                    row.append(all_stats[container].memory_mean)
-                else:
-                    row.append(0)
+            all_stats = calculate_all_container_stats(scenario.get("samples", []))
+            row = [all_stats[c].memory_mean if c in all_stats else 0 for c in containers]
             matrix.append(row)
 
         if not matrix:
             return []
 
-        # Get display names
-        display_names = [
-            CONTAINER_CONFIG.get(c, {}).get("display_name", c)[:15] for c in containers
-        ]
+        display_names = [_get_display_name(c) for c in containers]
+        text_matrix = [[f"{v:.0f}" for v in row] for row in matrix]
 
-        # Plotly heatmap
         fig = go.Figure(
             data=go.Heatmap(
                 z=matrix,
@@ -358,48 +288,145 @@ class ChartGenerator:
                 y=scenario_names,
                 colorscale="Blues",
                 colorbar_title="Memory (MB)",
+                text=text_matrix,
+                texttemplate="%{text}",
+                textfont={"size": 10},
             )
         )
 
         fig.update_layout(
-            title="Memory Usage Heatmap (All Containers)",
+            title="Mean Memory (MB) Heatmap",
             xaxis_title="Container",
             yaxis_title="Scenario",
-            height=max(400, 50 * len(scenario_names)),
+            xaxis_tickangle=-45,
+            height=max(400, 100 * len(scenario_names)),
         )
 
-        html_path = self.charts_dir / "memory_heatmap.html"
-        fig.write_html(str(html_path))
-
-        # Matplotlib heatmap
-        fig_mpl, ax = plt.subplots(
-            figsize=(max(12, len(containers) * 0.8), max(8, len(scenario_names) * 0.5))
+        return _write_chart(
+            fig,
+            self.charts_dir / "memory_heatmap",
+            width=max(1200, 80 * len(containers)),
+            height=max(400, 100 * len(scenario_names)),
         )
-        im = ax.imshow(matrix, cmap="Blues", aspect="auto")
 
-        ax.set_xticks(np.arange(len(display_names)))
-        ax.set_yticks(np.arange(len(scenario_names)))
-        ax.set_xticklabels(display_names, rotation=45, ha="right", fontsize=8)
-        ax.set_yticklabels(scenario_names, fontsize=8)
+    def generate_memory_percent_heatmap(self, scenarios: list[dict[str, Any]]) -> list[str]:
+        """Generate memory % of limit heatmap across scenarios.
 
-        plt.colorbar(im, ax=ax, label="Memory (MB)")
-        ax.set_title("Memory Usage Heatmap (All Containers)")
+        Shows which containers are close to their limits (normalized view).
+        """
+        all_containers: set[str] = set()
+        for scenario in scenarios:
+            for sample in scenario.get("samples", []):
+                all_containers.update(sample.get("containers", {}).keys())
 
-        png_path = self.charts_dir / "memory_heatmap.png"
-        fig_mpl.savefig(png_path, dpi=150, bbox_inches="tight")
-        plt.close(fig_mpl)
+        containers = _sort_containers(all_containers)
+        scenario_names = [s["scenario_name"] for s in scenarios]
 
-        return [str(html_path), str(png_path)]
+        matrix: list[list[float]] = []
+        for scenario in scenarios:
+            samples = scenario.get("samples", [])
+            all_stats = calculate_all_container_stats(samples)
+            row: list[float] = []
+            for c in containers:
+                if c in all_stats and all_stats[c].memory_limit_mb > 0:
+                    pct = (all_stats[c].memory_max / all_stats[c].memory_limit_mb) * 100
+                    row.append(min(pct, 100.0))
+                else:
+                    row.append(0)
+            matrix.append(row)
+
+        if not matrix:
+            return []
+
+        display_names = [_get_display_name(c) for c in containers]
+        text_matrix = [[f"{v:.0f}%" for v in row] for row in matrix]
+
+        fig = go.Figure(
+            data=go.Heatmap(
+                z=matrix,
+                x=display_names,
+                y=scenario_names,
+                colorscale=[[0, "green"], [0.5, "yellow"], [1.0, "red"]],
+                zmin=0,
+                zmax=100,
+                colorbar_title="% of Limit",
+                text=text_matrix,
+                texttemplate="%{text}",
+                textfont={"size": 10},
+            )
+        )
+
+        fig.update_layout(
+            title="Peak Memory % of Limit Heatmap",
+            xaxis_title="Container",
+            yaxis_title="Scenario",
+            xaxis_tickangle=-45,
+            height=max(400, 100 * len(scenario_names)),
+        )
+
+        return _write_chart(
+            fig,
+            self.charts_dir / "memory_percent_heatmap",
+            width=max(1200, 80 * len(containers)),
+            height=max(400, 100 * len(scenario_names)),
+        )
+
+    def generate_baseline_resources(self, baseline_scenario: dict[str, Any]) -> list[str]:
+        """Generate grouped bar chart of idle resource usage from baseline.
+
+        Shows memory MB (left axis) and CPU % (right axis) per container.
+        """
+        samples = baseline_scenario.get("samples", [])
+        if not samples:
+            return []
+
+        all_stats = calculate_all_container_stats(samples)
+        if not all_stats:
+            return []
+
+        containers = _sort_containers(set(all_stats.keys()))
+        display_names = [_get_display_name(c) for c in containers]
+        memory_values = [all_stats[c].memory_mean for c in containers]
+        cpu_values = [all_stats[c].cpu_mean for c in containers]
+
+        fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+        fig.add_trace(
+            go.Bar(
+                x=display_names,
+                y=memory_values,
+                name="Memory (MB)",
+                marker_color="steelblue",
+                text=[f"{v:.0f}" for v in memory_values],
+                textposition="auto",
+            ),
+            secondary_y=False,
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=display_names,
+                y=cpu_values,
+                name="CPU %",
+                mode="lines+markers",
+                marker={"color": "orangered", "size": 8},
+                line={"color": "orangered", "width": 2},
+            ),
+            secondary_y=True,
+        )
+
+        fig.update_layout(
+            title="Baseline Idle Resource Usage",
+            xaxis_title="Container",
+            xaxis_tickangle=-45,
+        )
+        fig.update_yaxes(title_text="Memory (MB)", secondary_y=False)
+        fig.update_yaxes(title_text="CPU %", secondary_y=True)
+
+        return _write_chart(fig, self.charts_dir / "baseline_resources")
 
     def generate_stress_timeline(self, stress_scenario: dict[str, Any]) -> list[str]:
-        """Generate timeline charts for stress test showing resource usage over time.
-
-        Args:
-            stress_scenario: Stress test scenario result.
-
-        Returns:
-            List of generated file paths.
-        """
+        """Generate timeline charts for stress test showing resource usage over time."""
         samples = stress_scenario.get("samples", [])
         if not samples:
             return []
@@ -407,15 +434,6 @@ class ChartGenerator:
         metadata = stress_scenario.get("metadata", {})
         trigger = metadata.get("trigger")
         total_agents = metadata.get("total_agents_queued", 0)
-
-        # Priority containers to display
-        priority = [
-            "rideshare-simulation",
-            "rideshare-kafka",
-            "rideshare-redis",
-            "rideshare-osrm",
-            "rideshare-stream-processor",
-        ]
 
         generated: list[str] = []
 
@@ -426,21 +444,16 @@ class ChartGenerator:
                 f"{metric}_threshold_percent", 90.0
             )
 
-            # Determine the stop time (either trigger time or last sample)
-            first_ts = samples[0]["timestamp"] if samples else 0
-            last_ts = samples[-1]["timestamp"] if samples else 0
-            stop_time_seconds = last_ts - first_ts
+            first_ts = samples[0]["timestamp"]
+            stop_time_seconds = samples[-1]["timestamp"] - first_ts
 
-            # Find trigger time if the trigger matches this metric
             trigger_time = None
             if trigger and trigger.get("metric") == metric:
                 trigger_time = stop_time_seconds
 
-            # Plotly figure
             fig = go.Figure()
 
-            # Add traces for each priority container
-            for container in priority:
+            for container in _PRIORITY_CONTAINERS:
                 timestamps: list[float] = []
                 values: list[float] = []
 
@@ -452,19 +465,15 @@ class ChartGenerator:
                         values.append(rolling_avgs[container].get(metric_key, 0))
 
                 if timestamps:
-                    display_name = CONTAINER_CONFIG.get(container, {}).get(
-                        "display_name", container
-                    )
                     fig.add_trace(
                         go.Scatter(
                             x=timestamps,
                             y=values,
                             mode="lines",
-                            name=display_name,
+                            name=_get_display_name(container),
                         )
                     )
 
-            # Add threshold line
             fig.add_hline(
                 y=threshold,
                 line_dash="dash",
@@ -472,8 +481,7 @@ class ChartGenerator:
                 annotation_text=f"{threshold}% threshold",
             )
 
-            # Add vertical marker where test stopped if trigger occurred
-            if trigger_time is not None and trigger.get("metric") == metric:
+            if trigger_time is not None:
                 fig.add_vline(
                     x=trigger_time,
                     line_dash="dot",
@@ -481,7 +489,7 @@ class ChartGenerator:
                     annotation_text=f"Stopped: {trigger.get('container', 'unknown')}",
                 )
 
-            # Dynamic y-axis for CPU (can exceed 100% on multi-core), fixed for memory
+            # Dynamic y-axis for CPU
             all_trace_values: list[float] = []
             for trace in fig.data:
                 if hasattr(trace, "y") and trace.y is not None:
@@ -498,65 +506,100 @@ class ChartGenerator:
                 yaxis_range=[0, timeline_y_max],
             )
 
-            html_path = self.charts_dir / f"stress_timeline_{metric}.html"
-            fig.write_html(str(html_path))
-
-            # Matplotlib version
-            fig_mpl, ax = plt.subplots(figsize=(12, 6))
-
-            for container in priority:
-                timestamps = []
-                values = []
-
-                for sample in samples:
-                    rolling_avgs = sample.get("rolling_averages", {})
-                    if container in rolling_avgs:
-                        elapsed = sample["timestamp"] - first_ts
-                        timestamps.append(elapsed)
-                        values.append(rolling_avgs[container].get(metric_key, 0))
-
-                if timestamps:
-                    display_name = CONTAINER_CONFIG.get(container, {}).get(
-                        "display_name", container
-                    )
-                    ax.plot(timestamps, values, label=display_name)
-
-            # Add threshold line
-            ax.axhline(y=threshold, color="red", linestyle="--", label=f"{threshold}% threshold")
-
-            # Add vertical marker where test stopped
-            if trigger_time is not None and trigger.get("metric") == metric:
-                ax.axvline(
-                    x=trigger_time,
-                    color="darkred",
-                    linestyle=":",
-                    label=f"Stopped: {trigger.get('container', 'unknown')}",
-                )
-
-            ax.set_xlabel("Time (seconds)")
-            ax.set_ylabel(y_label)
-            ax.set_title(f"Stress Test {metric.title()} Timeline (Total Agents: {total_agents})")
-            ax.set_ylim(0, timeline_y_max)
-            ax.legend(loc="upper left", fontsize="small")
-            ax.grid(alpha=0.3)
-
-            png_path = self.charts_dir / f"stress_timeline_{metric}.png"
-            fig_mpl.savefig(png_path, dpi=150, bbox_inches="tight")
-            plt.close(fig_mpl)
-
-            generated.extend([str(html_path), str(png_path)])
+            generated.extend(_write_chart(fig, self.charts_dir / f"stress_timeline_{metric}"))
 
         return generated
 
-    def generate_stress_comparison(self, stress_scenario: dict[str, Any]) -> list[str]:
-        """Generate bar charts comparing peak resource usage across containers.
+    def generate_stress_agent_resource(self, stress_scenario: dict[str, Any]) -> list[str]:
+        """Generate dual-axis timeline: agents queued vs resource usage.
 
-        Args:
-            stress_scenario: Stress test scenario result.
-
-        Returns:
-            List of generated file paths.
+        X-axis: time. Left Y-axis: total agents queued. Right Y-axis: global CPU %.
         """
+        samples = stress_scenario.get("samples", [])
+        if not samples:
+            return []
+
+        metadata = stress_scenario.get("metadata", {})
+        trigger = metadata.get("trigger")
+        total_agents = metadata.get("total_agents_queued", 0)
+        available_cores = metadata.get("available_cores", 0)
+        global_cpu_threshold = metadata.get("global_cpu_threshold", 0)
+
+        first_ts = samples[0]["timestamp"]
+        timestamps = [s["timestamp"] - first_ts for s in samples]
+        agent_values = [s.get("agents_queued", {}).get("total", 0) for s in samples]
+        cpu_values = [s.get("global_cpu_percent", 0.0) for s in samples]
+
+        fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+        # Agents queued (left axis, line)
+        fig.add_trace(
+            go.Scatter(
+                x=timestamps,
+                y=agent_values,
+                mode="lines",
+                name="Total Agents",
+                line={"color": "royalblue", "width": 2},
+            ),
+            secondary_y=False,
+        )
+
+        # Global CPU % (right axis, area fill)
+        fig.add_trace(
+            go.Scatter(
+                x=timestamps,
+                y=cpu_values,
+                mode="lines",
+                name="Global CPU %",
+                line={"color": "orangered", "width": 1},
+                fill="tozeroy",
+                fillcolor="rgba(255, 69, 0, 0.15)",
+            ),
+            secondary_y=True,
+        )
+
+        # Threshold line
+        if global_cpu_threshold > 0:
+            fig.add_hline(
+                y=global_cpu_threshold,
+                line_dash="dash",
+                line_color="red",
+                annotation_text=f"CPU Threshold: {global_cpu_threshold:.0f}%",
+                secondary_y=True,
+            )
+
+        # Capacity ceiling
+        if available_cores > 0:
+            capacity = available_cores * 100
+            fig.add_hline(
+                y=capacity,
+                line_dash="dot",
+                line_color="gray",
+                annotation_text=f"Capacity: {capacity}%",
+                secondary_y=True,
+            )
+
+        # Trigger point
+        if trigger:
+            trigger_time = timestamps[-1] if timestamps else 0
+            fig.add_vline(
+                x=trigger_time,
+                line_dash="dot",
+                line_color="darkred",
+                annotation_text=f"Trigger: {trigger.get('metric', '')}",
+            )
+
+        fig.update_layout(
+            title=f"Stress: Agents vs Resources (Total: {total_agents})",
+            xaxis_title="Time (seconds)",
+        )
+        fig.update_yaxes(title_text="Total Agents Queued", secondary_y=False)
+        fig.update_yaxes(title_text="Global CPU %", secondary_y=True)
+
+        return _write_chart(fig, self.charts_dir / "stress_agent_resource")
+
+    def generate_stress_comparison(self, stress_scenario: dict[str, Any]) -> list[str]:
+        """Generate bar charts comparing peak resource usage across containers."""
         metadata = stress_scenario.get("metadata", {})
         peak_values = metadata.get("peak_values", {})
         total_agents = metadata.get("total_agents_queued", 0)
@@ -564,21 +607,8 @@ class ChartGenerator:
         if not peak_values:
             return []
 
-        # Get all containers with peak values, prioritize key containers
-        priority = [
-            "rideshare-simulation",
-            "rideshare-kafka",
-            "rideshare-redis",
-            "rideshare-osrm",
-            "rideshare-stream-processor",
-        ]
-
-        sorted_containers = [c for c in priority if c in peak_values]
-        sorted_containers.extend([c for c in sorted(peak_values.keys()) if c not in priority])
-
-        # Limit to top containers for readability
-        max_containers = 10
-        containers_to_show = sorted_containers[:max_containers]
+        sorted_containers = _sort_containers(set(peak_values.keys()))
+        containers_to_show = sorted_containers[:10]
 
         generated: list[str] = []
 
@@ -586,7 +616,6 @@ class ChartGenerator:
             metric_key = f"{metric}_percent"
             y_label = "Memory %" if metric == "memory" else "CPU %"
 
-            # Extract values and assign colors based on thresholds
             display_names: list[str] = []
             values: list[float] = []
             colors: list[str] = []
@@ -594,12 +623,8 @@ class ChartGenerator:
             for container in containers_to_show:
                 peak = peak_values.get(container, {})
                 value = peak.get(metric_key, 0)
-                display_name = CONTAINER_CONFIG.get(container, {}).get("display_name", container)
-
-                display_names.append(display_name)
+                display_names.append(_get_display_name(container))
                 values.append(value)
-
-                # Color based on threshold
                 if value >= 85:
                     colors.append("red")
                 elif value >= 70:
@@ -610,7 +635,6 @@ class ChartGenerator:
             if not values:
                 continue
 
-            # Plotly bar chart
             fig = go.Figure(
                 data=[
                     go.Bar(
@@ -623,7 +647,6 @@ class ChartGenerator:
                 ]
             )
 
-            # Dynamic y-axis for CPU (can exceed 100% on multi-core), fixed for memory
             if metric == "cpu" and values:
                 y_max = max(100.0, max(values) * 1.15)
             else:
@@ -634,65 +657,15 @@ class ChartGenerator:
                 xaxis_title="Container",
                 yaxis_title=y_label,
                 yaxis_range=[0, y_max],
+                xaxis_tickangle=-45,
             )
 
-            html_path = self.charts_dir / f"stress_comparison_{metric}.html"
-            fig.write_html(str(html_path))
-
-            # Matplotlib bar chart
-            fig_mpl, ax = plt.subplots(figsize=(12, 6))
-
-            x_pos = np.arange(len(display_names))
-            bars = ax.bar(x_pos, values, color=colors)
-
-            # Add value labels on bars
-            for i, (bar, val) in enumerate(zip(bars, values)):
-                ax.text(
-                    bar.get_x() + bar.get_width() / 2,
-                    bar.get_height() + 1,
-                    f"{val:.1f}%",
-                    ha="center",
-                    va="bottom",
-                    fontsize=8,
-                )
-
-            ax.set_xlabel("Container")
-            ax.set_ylabel(y_label)
-            ax.set_title(f"Stress Test Peak {metric.title()} Usage (Total Agents: {total_agents})")
-            ax.set_xticks(x_pos)
-            ax.set_xticklabels(display_names, rotation=45, ha="right", fontsize=9)
-            ax.set_ylim(0, y_max)
-            ax.grid(axis="y", alpha=0.3)
-
-            # Add legend for color meaning
-            from matplotlib.patches import Patch
-
-            legend_elements = [
-                Patch(facecolor="green", label="<70% (normal)"),
-                Patch(facecolor="orange", label="70-85% (elevated)"),
-                Patch(facecolor="red", label=">=85% (critical)"),
-            ]
-            ax.legend(handles=legend_elements, loc="upper right", fontsize="small")
-
-            png_path = self.charts_dir / f"stress_comparison_{metric}.png"
-            fig_mpl.savefig(png_path, dpi=150, bbox_inches="tight")
-            plt.close(fig_mpl)
-
-            generated.extend([str(html_path), str(png_path)])
+            generated.extend(_write_chart(fig, self.charts_dir / f"stress_comparison_{metric}"))
 
         return generated
 
     def generate_global_cpu_timeline(self, stress_scenario: dict[str, Any]) -> list[str]:
-        """Generate timeline chart showing system-level CPU saturation over time.
-
-        Shows raw global CPU sum, rolling average, capacity ceiling, and threshold.
-
-        Args:
-            stress_scenario: Stress test scenario result.
-
-        Returns:
-            List of generated file paths.
-        """
+        """Generate timeline chart showing system-level CPU saturation over time."""
         samples = stress_scenario.get("samples", [])
         if not samples:
             return []
@@ -702,38 +675,29 @@ class ChartGenerator:
         total_agents = metadata.get("total_agents_queued", 0)
         available_cores = metadata.get("available_cores", 0)
         global_cpu_threshold = metadata.get("global_cpu_threshold", 0)
-        capacity_ceiling = available_cores * 100  # Max possible CPU %
+        capacity_ceiling = available_cores * 100
 
         first_ts = samples[0]["timestamp"]
 
-        # Extract raw global CPU and rolling average
         timestamps: list[float] = []
         raw_values: list[float] = []
         rolling_values: list[float] = []
 
         for sample in samples:
-            elapsed = sample["timestamp"] - first_ts
-            timestamps.append(elapsed)
+            timestamps.append(sample["timestamp"] - first_ts)
             raw_values.append(sample.get("global_cpu_percent", 0.0))
             rolling_values.append(sample.get("global_cpu_rolling_avg", 0.0))
 
         if not timestamps:
             return []
 
-        # Determine y-axis max
         all_values = raw_values + rolling_values + [capacity_ceiling, global_cpu_threshold]
         y_max = max(v for v in all_values if v > 0) * 1.1 if all_values else 100.0
 
-        # Trigger time
-        stop_time = timestamps[-1] if timestamps else 0
-        trigger_time = stop_time if trigger and trigger.get("metric") == "global_cpu" else None
+        trigger_time = timestamps[-1] if trigger and trigger.get("metric") == "global_cpu" else None
 
-        generated: list[str] = []
-
-        # --- Plotly version ---
         fig = go.Figure()
 
-        # Raw global CPU (light, thin)
         fig.add_trace(
             go.Scatter(
                 x=timestamps,
@@ -744,8 +708,6 @@ class ChartGenerator:
                 opacity=0.6,
             )
         )
-
-        # Rolling average (bold blue)
         fig.add_trace(
             go.Scatter(
                 x=timestamps,
@@ -756,7 +718,6 @@ class ChartGenerator:
             )
         )
 
-        # Capacity ceiling (gray dotted)
         if capacity_ceiling > 0:
             fig.add_hline(
                 y=capacity_ceiling,
@@ -764,8 +725,6 @@ class ChartGenerator:
                 line_color="gray",
                 annotation_text=f"Capacity: {available_cores} cores ({capacity_ceiling}%)",
             )
-
-        # Threshold (red dashed)
         if global_cpu_threshold > 0:
             fig.add_hline(
                 y=global_cpu_threshold,
@@ -773,8 +732,6 @@ class ChartGenerator:
                 line_color="red",
                 annotation_text=f"Threshold: {global_cpu_threshold:.0f}%",
             )
-
-        # Trigger marker
         if trigger_time is not None:
             fig.add_vline(
                 x=trigger_time,
@@ -790,71 +747,10 @@ class ChartGenerator:
             yaxis_range=[0, y_max],
         )
 
-        html_path = self.charts_dir / "global_cpu_timeline.html"
-        fig.write_html(str(html_path))
-
-        # --- Matplotlib version ---
-        fig_mpl, ax = plt.subplots(figsize=(12, 6))
-
-        ax.plot(
-            timestamps,
-            raw_values,
-            color="lightblue",
-            linewidth=1,
-            alpha=0.6,
-            label="Global CPU (raw)",
-        )
-        ax.plot(
-            timestamps, rolling_values, color="blue", linewidth=3, label="Global CPU (rolling avg)"
-        )
-
-        if capacity_ceiling > 0:
-            ax.axhline(
-                y=capacity_ceiling,
-                color="gray",
-                linestyle=":",
-                label=f"Capacity: {available_cores} cores ({capacity_ceiling}%)",
-            )
-
-        if global_cpu_threshold > 0:
-            ax.axhline(
-                y=global_cpu_threshold,
-                color="red",
-                linestyle="--",
-                label=f"Threshold: {global_cpu_threshold:.0f}%",
-            )
-
-        if trigger_time is not None:
-            ax.axvline(
-                x=trigger_time, color="darkred", linestyle=":", label="Global CPU threshold hit"
-            )
-
-        ax.set_xlabel("Time (seconds)")
-        ax.set_ylabel("Aggregate CPU %")
-        ax.set_title(f"Global CPU Saturation Timeline (Total Agents: {total_agents})")
-        ax.set_ylim(0, y_max)
-        ax.legend(loc="upper left", fontsize="small")
-        ax.grid(alpha=0.3)
-
-        png_path = self.charts_dir / "global_cpu_timeline.png"
-        fig_mpl.savefig(png_path, dpi=150, bbox_inches="tight")
-        plt.close(fig_mpl)
-
-        generated.extend([str(html_path), str(png_path)])
-        return generated
+        return _write_chart(fig, self.charts_dir / "global_cpu_timeline")
 
     def generate_stress_rtr_timeline(self, stress_scenario: dict[str, Any]) -> list[str]:
-        """Generate timeline chart showing RTR (Real-Time Ratio) over time.
-
-        Shows instantaneous RTR as scatter points, rolling average as a line,
-        the configured threshold, and a 1.0x reference line.
-
-        Args:
-            stress_scenario: Stress test scenario result.
-
-        Returns:
-            List of generated file paths.
-        """
+        """Generate timeline chart showing RTR (Real-Time Ratio) over time."""
         samples = stress_scenario.get("samples", [])
         if not samples:
             return []
@@ -865,7 +761,6 @@ class ChartGenerator:
 
         first_ts = samples[0]["timestamp"]
 
-        # Extract RTR data
         rtr_timestamps: list[float] = []
         rtr_values: list[float] = []
         rolling_timestamps: list[float] = []
@@ -885,16 +780,11 @@ class ChartGenerator:
         if not rtr_timestamps and not rolling_timestamps:
             return []
 
-        # Determine y-axis max
         all_vals = rtr_values + rolling_values + [rtr_threshold, 1.0]
         y_max = max(all_vals) * 1.2 if all_vals else 3.0
 
-        generated: list[str] = []
-
-        # --- Plotly version ---
         fig = go.Figure()
 
-        # Instantaneous RTR (scatter)
         if rtr_timestamps:
             fig.add_trace(
                 go.Scatter(
@@ -905,8 +795,6 @@ class ChartGenerator:
                     marker={"color": "lightcoral", "size": 5, "opacity": 0.6},
                 )
             )
-
-        # Rolling average (bold line)
         if rolling_timestamps:
             fig.add_trace(
                 go.Scatter(
@@ -918,15 +806,9 @@ class ChartGenerator:
                 )
             )
 
-        # 1.0x reference line (keeping pace)
         fig.add_hline(
-            y=1.0,
-            line_dash="dot",
-            line_color="green",
-            annotation_text="1.0x (keeping pace)",
+            y=1.0, line_dash="dot", line_color="green", annotation_text="1.0x (keeping pace)"
         )
-
-        # Threshold line
         fig.add_hline(
             y=rtr_threshold,
             line_dash="dash",
@@ -941,92 +823,231 @@ class ChartGenerator:
             yaxis_range=[0, y_max],
         )
 
-        html_path = self.charts_dir / "stress_rtr_timeline.html"
-        fig.write_html(str(html_path))
+        return _write_chart(fig, self.charts_dir / "stress_rtr_timeline")
 
-        # --- Matplotlib version ---
-        fig_mpl, ax = plt.subplots(figsize=(12, 6))
+    def generate_speed_scaling_chart(self, speed_scenario: dict[str, Any]) -> list[str]:
+        """Generate grouped bar chart of mean CPU and memory per step per priority container."""
+        metadata = speed_scenario.get("metadata", {})
+        step_results = metadata.get("step_results", [])
+        samples = speed_scenario.get("samples", [])
 
-        if rtr_timestamps:
-            ax.scatter(
-                rtr_timestamps,
-                rtr_values,
-                color="lightcoral",
-                s=15,
-                alpha=0.6,
-                label="RTR (instantaneous)",
-                zorder=2,
+        if not step_results or not samples:
+            return []
+
+        # Build per-step, per-container averages
+        step_data: list[dict[str, dict[str, float]]] = []
+        sample_offset = 0
+
+        for step in step_results:
+            step_sample_count = step.get("sample_count", 0)
+            step_samples = samples[sample_offset : sample_offset + step_sample_count]
+            sample_offset += step_sample_count
+
+            container_avgs: dict[str, dict[str, float]] = {}
+            for container in _PRIORITY_CONTAINERS:
+                cpu_vals: list[float] = []
+                mem_vals: list[float] = []
+
+                for s in step_samples:
+                    c_data = s.get("containers", {}).get(container, {})
+                    if c_data:
+                        cpu_vals.append(c_data.get("cpu_percent", 0.0))
+                        mem_vals.append(c_data.get("memory_percent", 0.0))
+
+                if cpu_vals:
+                    container_avgs[container] = {
+                        "cpu_mean": sum(cpu_vals) / len(cpu_vals),
+                        "memory_mean": sum(mem_vals) / len(mem_vals),
+                    }
+
+            step_data.append(container_avgs)
+
+        if not step_data:
+            return []
+
+        generated: list[str] = []
+        step_labels = [f"{s['multiplier']}x" for s in step_results]
+
+        for metric in ["cpu", "memory"]:
+            metric_key = f"{metric}_mean"
+            y_label = "CPU %" if metric == "cpu" else "Memory %"
+
+            fig = go.Figure()
+
+            for container in _PRIORITY_CONTAINERS:
+                display_name = _get_display_name(container)
+                values = [sd.get(container, {}).get(metric_key, 0.0) for sd in step_data]
+                fig.add_trace(go.Bar(name=display_name, x=step_labels, y=values))
+
+            all_vals = [
+                sd.get(c, {}).get(metric_key, 0.0) for sd in step_data for c in _PRIORITY_CONTAINERS
+            ]
+            if metric == "cpu" and all_vals:
+                chart_y_max = max(100.0, max(all_vals) * 1.15)
+            else:
+                chart_y_max = 100.0
+
+            fig.update_layout(
+                title=f"Speed Scaling: Mean {metric.title()} Per Step",
+                xaxis_title="Speed Multiplier",
+                yaxis_title=y_label,
+                yaxis_range=[0, chart_y_max],
+                barmode="group",
             )
 
-        if rolling_timestamps:
-            ax.plot(
-                rolling_timestamps,
-                rolling_values,
-                color="red",
-                linewidth=3,
-                label="RTR (rolling avg)",
-                zorder=3,
-            )
+            generated.extend(_write_chart(fig, self.charts_dir / f"speed_scaling_{metric}"))
 
-        # 1.0x reference
-        ax.axhline(
-            y=1.0,
-            color="green",
-            linestyle=":",
-            label="1.0x (keeping pace)",
-            zorder=1,
-        )
-
-        # Threshold
-        ax.axhline(
-            y=rtr_threshold,
-            color="darkred",
-            linestyle="--",
-            label=f"{rtr_threshold}x threshold",
-            zorder=1,
-        )
-
-        ax.set_xlabel("Time (seconds)")
-        ax.set_ylabel("Real-Time Ratio (higher = more behind)")
-        ax.set_title(f"Simulation RTR Timeline (Total Agents: {total_agents})")
-        ax.set_ylim(0, y_max)
-        ax.legend(loc="upper left", fontsize="small")
-        ax.grid(alpha=0.3)
-
-        png_path = self.charts_dir / "stress_rtr_timeline.png"
-        fig_mpl.savefig(png_path, dpi=150, bbox_inches="tight")
-        plt.close(fig_mpl)
-
-        generated.extend([str(html_path), str(png_path)])
         return generated
 
-    def _create_scenario_subdirs(self) -> dict[str, Path]:
-        """Create subdirectories for organizing charts by scenario type.
+    def generate_speed_rtr_chart(self, speed_scenario: dict[str, Any]) -> list[str]:
+        """Generate bar chart showing mean RTR at each speed multiplier step.
 
-        Returns:
-            Dictionary mapping scenario type to its directory path.
+        Color-coded: green (<1.0), yellow (1.0-threshold), red (>threshold).
         """
+        metadata = speed_scenario.get("metadata", {})
+        step_results = metadata.get("step_results", [])
+        samples = speed_scenario.get("samples", [])
+
+        if not step_results or not samples:
+            return []
+
+        rtr_threshold = speed_scenario.get("scenario_params", {}).get("rtr_threshold", 1.5)
+        if rtr_threshold == 0:
+            rtr_threshold = 1.5
+
+        # Partition samples by step and compute mean RTR
+        step_labels: list[str] = []
+        rtr_means: list[float] = []
+        colors: list[str] = []
+        sample_offset = 0
+
+        for step in step_results:
+            step_sample_count = step.get("sample_count", 0)
+            step_samples = samples[sample_offset : sample_offset + step_sample_count]
+            sample_offset += step_sample_count
+
+            rtr_vals = [
+                s["rtr"]["rtr"]
+                for s in step_samples
+                if s.get("rtr") is not None and "rtr" in s.get("rtr", {})
+            ]
+
+            mean_rtr = sum(rtr_vals) / len(rtr_vals) if rtr_vals else 0.0
+            step_labels.append(f"{step['multiplier']}x")
+            rtr_means.append(mean_rtr)
+
+            if mean_rtr > rtr_threshold:
+                colors.append("red")
+            elif mean_rtr > 1.0:
+                colors.append("#FFA500")  # orange/yellow
+            else:
+                colors.append("green")
+
+        if not rtr_means:
+            return []
+
+        fig = go.Figure(
+            data=[
+                go.Bar(
+                    x=step_labels,
+                    y=rtr_means,
+                    marker_color=colors,
+                    text=[f"{v:.2f}x" for v in rtr_means],
+                    textposition="auto",
+                )
+            ]
+        )
+
+        fig.add_hline(
+            y=1.0, line_dash="dot", line_color="green", annotation_text="1.0x (keeping pace)"
+        )
+        fig.add_hline(
+            y=rtr_threshold,
+            line_dash="dash",
+            line_color="darkred",
+            annotation_text=f"{rtr_threshold}x threshold",
+        )
+
+        y_max = max(rtr_means) * 1.3 if rtr_means else 3.0
+        y_max = max(y_max, rtr_threshold * 1.2)
+
+        fig.update_layout(
+            title="Speed Scaling: Mean RTR Per Step",
+            xaxis_title="Speed Multiplier",
+            yaxis_title="Mean Real-Time Ratio",
+            yaxis_range=[0, y_max],
+        )
+
+        return _write_chart(fig, self.charts_dir / "speed_rtr")
+
+    def generate_duration_phase_comparison(self, duration_scenario: dict[str, Any]) -> list[str]:
+        """Generate grouped bar chart comparing memory at end-of-active vs end-of-cooldown.
+
+        Color: green if cooldown < active (memory released), red if retained.
+        """
+        cooldown_analysis = duration_scenario.get("metadata", {}).get("cooldown_analysis", {})
+        if not cooldown_analysis:
+            return []
+
+        containers = _sort_containers(set(cooldown_analysis.keys()))
+        display_names = [_get_display_name(c) for c in containers]
+
+        active_end_values = [cooldown_analysis[c].get("active_end_mb", 0) for c in containers]
+        cooldown_end_values = [cooldown_analysis[c].get("cooldown_end_mb", 0) for c in containers]
+
+        # Color per container: green if released, red if retained
+        cooldown_colors = [
+            "green" if cooldown_analysis[c].get("memory_released", False) else "red"
+            for c in containers
+        ]
+
+        fig = go.Figure()
+
+        fig.add_trace(
+            go.Bar(
+                x=display_names,
+                y=active_end_values,
+                name="End of Active",
+                marker_color="steelblue",
+                text=[f"{v:.0f}" for v in active_end_values],
+                textposition="auto",
+            )
+        )
+        fig.add_trace(
+            go.Bar(
+                x=display_names,
+                y=cooldown_end_values,
+                name="End of Cooldown",
+                marker_color=cooldown_colors,
+                text=[f"{v:.0f}" for v in cooldown_end_values],
+                textposition="auto",
+            )
+        )
+
+        fig.update_layout(
+            title="Duration: Memory at End of Active vs End of Cooldown",
+            xaxis_title="Container",
+            yaxis_title="Memory (MB)",
+            barmode="group",
+            xaxis_tickangle=-45,
+        )
+
+        return _write_chart(fig, self.charts_dir / "duration_phase_comparison")
+
+    def _create_scenario_subdirs(self) -> dict[str, Path]:
+        """Create subdirectories for organizing charts by scenario type."""
         subdirs = {
             "overview": self.charts_dir / "overview",
             "duration": self.charts_dir / "duration",
             "stress": self.charts_dir / "stress",
             "speed_scaling": self.charts_dir / "speed_scaling",
         }
-
         for subdir in subdirs.values():
             subdir.mkdir(parents=True, exist_ok=True)
-
         return subdirs
 
     def generate_charts_by_scenario(self, results: dict[str, Any]) -> dict[str, list[str]]:
-        """Generate charts organized into scenario subdirectories.
-
-        Args:
-            results: Full test results dict.
-
-        Returns:
-            Dictionary mapping scenario type to list of generated chart paths.
-        """
+        """Generate charts organized into scenario subdirectories."""
         subdirs = self._create_scenario_subdirs()
         chart_paths: dict[str, list[str]] = {key: [] for key in subdirs}
 
@@ -1034,11 +1055,19 @@ class ChartGenerator:
 
         # Overview charts (heatmaps)
         if scenarios:
-            # Temporarily change charts_dir for overview charts
             original_dir = self.charts_dir
             self.charts_dir = subdirs["overview"]
             chart_paths["overview"].extend(self.generate_cpu_heatmap(scenarios))
             chart_paths["overview"].extend(self.generate_memory_heatmap(scenarios))
+            chart_paths["overview"].extend(self.generate_memory_percent_heatmap(scenarios))
+            self.charts_dir = original_dir
+
+        # Baseline charts
+        baseline_scenarios = [s for s in scenarios if s["scenario_name"] == "baseline"]
+        if baseline_scenarios:
+            original_dir = self.charts_dir
+            self.charts_dir = subdirs["overview"]
+            chart_paths["overview"].extend(self.generate_baseline_resources(baseline_scenarios[0]))
             self.charts_dir = original_dir
 
         # Duration/leak charts
@@ -1052,6 +1081,9 @@ class ChartGenerator:
             original_dir = self.charts_dir
             self.charts_dir = subdirs["duration"]
             chart_paths["duration"].extend(self.generate_duration_timeline(duration_scenarios))
+            chart_paths["duration"].extend(
+                self.generate_duration_phase_comparison(duration_scenarios[0])
+            )
             self.charts_dir = original_dir
 
         # Stress test charts
@@ -1063,6 +1095,7 @@ class ChartGenerator:
             chart_paths["stress"].extend(self.generate_stress_comparison(stress_scenarios[0]))
             chart_paths["stress"].extend(self.generate_global_cpu_timeline(stress_scenarios[0]))
             chart_paths["stress"].extend(self.generate_stress_rtr_timeline(stress_scenarios[0]))
+            chart_paths["stress"].extend(self.generate_stress_agent_resource(stress_scenarios[0]))
             self.charts_dir = original_dir
 
         # Speed scaling charts
@@ -1073,6 +1106,7 @@ class ChartGenerator:
             chart_paths["speed_scaling"].extend(
                 self.generate_speed_scaling_chart(speed_scenarios[0])
             )
+            chart_paths["speed_scaling"].extend(self.generate_speed_rtr_chart(speed_scenarios[0]))
             self.charts_dir = original_dir
 
         # Generate index page
@@ -1083,14 +1117,7 @@ class ChartGenerator:
         return chart_paths
 
     def generate_index_html(self, chart_paths: dict[str, list[str]]) -> Path | None:
-        """Generate HTML navigation page linking all charts.
-
-        Args:
-            chart_paths: Dictionary mapping scenario type to list of chart paths.
-
-        Returns:
-            Path to generated index.html, or None if no charts.
-        """
+        """Generate HTML navigation page linking all charts."""
         total_charts = sum(len(paths) for paths in chart_paths.values())
         if total_charts == 0:
             return None
@@ -1163,7 +1190,6 @@ class ChartGenerator:
 
             html_content += '    <div class="chart-grid">\n'
 
-            # Group by base name (html and png pairs)
             seen_bases: set[str] = set()
             for path in paths:
                 p = Path(path)
@@ -1172,7 +1198,6 @@ class ChartGenerator:
                     continue
                 seen_bases.add(base_name)
 
-                # Find all variants
                 html_path = p.with_suffix(".html")
                 png_path = p.with_suffix(".png")
 
@@ -1201,125 +1226,54 @@ class ChartGenerator:
 
         return index_path
 
-    def generate_speed_scaling_chart(self, speed_scenario: dict[str, Any]) -> list[str]:
-        """Generate grouped bar chart of mean CPU and memory per step per priority container.
 
-        Args:
-            speed_scenario: Speed scaling scenario result.
+def _add_phase_annotations(
+    fig: go.Figure,
+    phase_timestamps: dict[str, float],
+    reference_start: float,
+    num_rows: int,
+) -> None:
+    """Add phase shaded regions (active/drain/cooldown) to duration timeline.
 
-        Returns:
-            List of generated file paths.
-        """
-        metadata = speed_scenario.get("metadata", {})
-        step_results = metadata.get("step_results", [])
-        samples = speed_scenario.get("samples", [])
+    Args:
+        fig: Plotly figure with subplots.
+        phase_timestamps: Dict with active_start, active_end, drain_start, etc.
+        reference_start: The first sample timestamp (used as t=0 reference).
+        num_rows: Number of subplot rows.
+    """
+    phases = [
+        ("active_start", "active_end", "rgba(0, 200, 0, 0.08)", "Active"),
+        ("drain_start", "drain_end", "rgba(255, 200, 0, 0.08)", "Drain"),
+        ("cooldown_start", "cooldown_end", "rgba(0, 100, 255, 0.08)", "Cooldown"),
+    ]
 
-        if not step_results or not samples:
-            return []
+    for start_key, end_key, color, label in phases:
+        start_ts = phase_timestamps.get(start_key)
+        end_ts = phase_timestamps.get(end_key)
+        if start_ts is None or end_ts is None:
+            continue
 
-        priority = [
-            "rideshare-simulation",
-            "rideshare-kafka",
-            "rideshare-redis",
-            "rideshare-osrm",
-            "rideshare-stream-processor",
-        ]
+        x0 = (start_ts - reference_start) / 60
+        x1 = (end_ts - reference_start) / 60
 
-        # Build per-step, per-container averages from samples
-        # We need to partition samples by step using step_results sample counts
-        step_data: list[dict[str, dict[str, float]]] = []
-        sample_offset = 0
-
-        for step in step_results:
-            step_sample_count = step.get("sample_count", 0)
-            step_samples = samples[sample_offset : sample_offset + step_sample_count]
-            sample_offset += step_sample_count
-
-            container_avgs: dict[str, dict[str, float]] = {}
-            for container in priority:
-                cpu_vals: list[float] = []
-                mem_vals: list[float] = []
-
-                for s in step_samples:
-                    c_data = s.get("containers", {}).get(container, {})
-                    if c_data:
-                        cpu_vals.append(c_data.get("cpu_percent", 0.0))
-                        mem_vals.append(c_data.get("memory_percent", 0.0))
-
-                if cpu_vals:
-                    container_avgs[container] = {
-                        "cpu_mean": sum(cpu_vals) / len(cpu_vals),
-                        "memory_mean": sum(mem_vals) / len(mem_vals),
-                    }
-
-            step_data.append(container_avgs)
-
-        if not step_data:
-            return []
-
-        generated: list[str] = []
-        step_labels = [f"{s['multiplier']}x" for s in step_results]
-
-        for metric in ["cpu", "memory"]:
-            metric_key = f"{metric}_mean"
-            y_label = "CPU %" if metric == "cpu" else "Memory %"
-
-            # Plotly grouped bar chart
-            fig = go.Figure()
-
-            for container in priority:
-                display_name = CONTAINER_CONFIG.get(container, {}).get("display_name", container)
-                values = [sd.get(container, {}).get(metric_key, 0.0) for sd in step_data]
-                fig.add_trace(go.Bar(name=display_name, x=step_labels, y=values))
-
-            # Dynamic y-axis for CPU
-            all_vals = [sd.get(c, {}).get(metric_key, 0.0) for sd in step_data for c in priority]
-            if metric == "cpu" and all_vals:
-                chart_y_max = max(100.0, max(all_vals) * 1.15)
-            else:
-                chart_y_max = 100.0
-
-            fig.update_layout(
-                title=f"Speed Scaling: Mean {metric.title()} Per Step",
-                xaxis_title="Speed Multiplier",
-                yaxis_title=y_label,
-                yaxis_range=[0, chart_y_max],
-                barmode="group",
+        for row in range(1, num_rows + 1):
+            fig.add_vrect(
+                x0=x0,
+                x1=x1,
+                fillcolor=color,
+                layer="below",
+                line_width=0,
+                row=row,
+                col=1,
             )
 
-            html_path = self.charts_dir / f"speed_scaling_{metric}.html"
-            fig.write_html(str(html_path))
-
-            # Matplotlib version
-            fig_mpl, ax = plt.subplots(figsize=(12, 6))
-
-            x = np.arange(len(step_labels))
-            width = 0.15
-            offset = -(len(priority) - 1) * width / 2
-
-            for i, container in enumerate(priority):
-                display_name = CONTAINER_CONFIG.get(container, {}).get("display_name", container)
-                values = [sd.get(container, {}).get(metric_key, 0.0) for sd in step_data]
-                ax.bar(
-                    x + offset + i * width,
-                    values,
-                    width,
-                    label=display_name,
-                )
-
-            ax.set_xlabel("Speed Multiplier")
-            ax.set_ylabel(y_label)
-            ax.set_title(f"Speed Scaling: Mean {metric.title()} Per Step")
-            ax.set_xticks(x)
-            ax.set_xticklabels(step_labels)
-            ax.set_ylim(0, chart_y_max)
-            ax.legend(fontsize="small")
-            ax.grid(axis="y", alpha=0.3)
-
-            png_path = self.charts_dir / f"speed_scaling_{metric}.png"
-            fig_mpl.savefig(png_path, dpi=150, bbox_inches="tight")
-            plt.close(fig_mpl)
-
-            generated.extend([str(html_path), str(png_path)])
-
-        return generated
+        # Add label on first row only
+        fig.add_annotation(
+            x=(x0 + x1) / 2,
+            y=1.02,
+            text=label,
+            showarrow=False,
+            xref="x",
+            yref="paper",
+            font={"size": 10, "color": "gray"},
+        )
