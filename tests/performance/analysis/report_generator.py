@@ -8,9 +8,7 @@ from typing import Any
 
 from .findings import (
     ContainerHealthAggregated,
-    OverallStatus,
-    Severity,
-    TestVerdict,
+    TestSummary,
 )
 
 
@@ -30,27 +28,26 @@ class ReportGenerator:
         self.output_dir = output_dir
         self.charts_dir = charts_dir
 
-    def generate_all(self, results: dict[str, Any], verdict: TestVerdict) -> ReportPaths:
+    def generate_all(self, results: dict[str, Any], summary: TestSummary) -> ReportPaths:
         """Generate all report formats."""
         return ReportPaths(
-            markdown=self.generate_markdown(results, verdict),
-            html=self.generate_html(results, verdict),
-            summary_json=self.generate_summary_json(results, verdict),
+            markdown=self.generate_markdown(results, summary),
+            html=self.generate_html(results, summary),
+            summary_json=self.generate_summary_json(results, summary),
         )
 
     # ─────────────────────────────────────────────────────────
     #  Markdown Report
     # ─────────────────────────────────────────────────────────
 
-    def generate_markdown(self, results: dict[str, Any], verdict: TestVerdict) -> Path:
-        """Generate Markdown report with key metrics, per-scenario details, and aggregated findings."""
+    def generate_markdown(self, results: dict[str, Any], summary: TestSummary) -> Path:
+        """Generate Markdown report with key metrics and per-scenario details."""
         test_id = results.get("test_id", "unknown")
         started_at = results.get("started_at", "")
         completed_at = results.get("completed_at", "")
         scenarios = results.get("scenarios", [])
 
         duration_str = _calc_duration_str(started_at, completed_at)
-        status_text = verdict.overall_status.value.upper()
 
         lines: list[str] = [
             "# Performance Test Report",
@@ -58,8 +55,15 @@ class ReportGenerator:
         ]
 
         # ── Key Metrics ──
-        km = verdict.key_metrics
+        km = summary.key_metrics
         if km:
+            leak_count = len(km.leak_rates)
+            if km.leak_rates:
+                rates_str = ", ".join(f"{name}: {rate:.2f}" for name, rate in km.leak_rates.items())
+                leak_display = f"{leak_count} ({rates_str})"
+            else:
+                leak_display = "0 (none)"
+
             lines.extend(
                 [
                     "## Key Metrics",
@@ -68,11 +72,10 @@ class ReportGenerator:
                     "|--------|-------|",
                     f"| Max Agents | {km.max_agents_queued or 'N/A'} |",
                     f"| Max Speed | {f'{km.max_speed_achieved}x' if km.max_speed_achieved else 'N/A'} |",
-                    f"| Leaks | {len(km.leak_containers)} ({', '.join(km.leak_containers) if km.leak_containers else 'none'}) |",
+                    f"| Leak Slopes | {leak_display} |",
                     f"| RTR Peak | {f'{km.rtr_peak:.2f}x' if km.rtr_peak else 'N/A'} |",
                     f"| CPU Cores | {km.available_cores or 'N/A'} |",
                     f"| Duration | {km.total_duration_str} |",
-                    f"| Status | **{status_text}** |",
                     "",
                 ]
             )
@@ -87,7 +90,6 @@ class ReportGenerator:
                     f"| Started | {started_at} |",
                     f"| Completed | {completed_at} |",
                     f"| Duration | {duration_str} |",
-                    f"| Status | **{status_text}** |",
                     "",
                 ]
             )
@@ -99,35 +101,8 @@ class ReportGenerator:
             name = scenario["scenario_name"]
             lines.extend(self._md_scenario_section(name, scenario))
 
-        # ── Aggregated Findings ──
-        if verdict.aggregated_findings:
-            n_crit = verdict.aggregated_critical_count
-            n_warn = verdict.aggregated_warning_count
-            lines.extend(
-                [
-                    f"## Findings ({n_crit} critical, {n_warn} warnings)",
-                    "",
-                ]
-            )
-            for af in verdict.aggregated_findings:
-                icon = "X" if af.severity == Severity.CRITICAL else "!"
-                n_sc = len(af.scenarios_exceeded)
-                lines.append(
-                    f"- **{icon}** {af.display_name} "
-                    f"({af.category.value}): {af.worst_value:.1f} "
-                    f"({af.worst_scenario}) -- exceeded in {n_sc} scenario(s)"
-                )
-                if af.recommendation:
-                    lines.append(f"  - {af.recommendation}")
-            lines.append("")
-        elif verdict.findings:
-            lines.extend(["## Findings", ""])
-            for f in verdict.findings:
-                lines.append(f"- **{f.severity.value.upper()}**: {f.message}")
-            lines.append("")
-
         # ── Container Health ──
-        lines.extend(self._md_container_health(verdict))
+        lines.extend(self._md_container_health(summary))
 
         # ── Derived Configuration ──
         derived_config = results.get("derived_config", {})
@@ -140,13 +115,6 @@ class ReportGenerator:
             ds = derived_config.get("duration_speed_multiplier")
             if ds and da:
                 lines.append(f"With **{da} agents**, reliable up to **{ds}x speed**.")
-            lines.append("")
-
-        # ── Recommendations ──
-        if verdict.recommendations:
-            lines.extend(["## Recommendations", ""])
-            for rec in verdict.recommendations:
-                lines.append(f"- {rec}")
             lines.append("")
 
         # ── Charts ──
@@ -276,7 +244,8 @@ class ReportGenerator:
                     elif hit:
                         result = "THRESHOLD"
                     else:
-                        result = "PASS"
+                        rtr_peak = step.get("rtr_peak")
+                        result = f"RTR {rtr_peak:.2f}x" if rtr_peak is not None else "-"
                     lines.append(
                         f"| {step.get('step', '?')} | {step.get('multiplier', '?')}x | {result} |"
                     )
@@ -297,20 +266,19 @@ class ReportGenerator:
                 ]
             )
 
-            # Leak verdicts
+            # Leak slopes (raw data, no binary judgment)
             leak_analysis = meta.get("leak_analysis", {})
             if leak_analysis:
                 lines.extend(
                     [
-                        "| Container | Leak Rate (MB/min) | Leak? |",
-                        "|-----------|-------------------|-------|",
+                        "| Container | Slope (MB/min) |",
+                        "|-----------|---------------|",
                     ]
                 )
                 for c, la in sorted(leak_analysis.items()):
                     dn = CONTAINER_CONFIG.get(c, {}).get("display_name", c)
                     rate = la.get("memory_slope_mb_per_min", 0)
-                    detected = "YES" if la.get("memory_leak_detected", False) else "no"
-                    lines.append(f"| {dn} | {rate:.3f} | {detected} |")
+                    lines.append(f"| {dn} | {rate:.3f} |")
                 lines.append("")
 
             # Cooldown analysis
@@ -332,18 +300,18 @@ class ReportGenerator:
 
         return lines
 
-    def _md_container_health(self, verdict: TestVerdict) -> list[str]:
+    def _md_container_health(self, summary: TestSummary) -> list[str]:
         """Generate markdown container health table."""
         lines = ["## Container Health", ""]
 
-        if verdict.aggregated_container_health:
+        if summary.aggregated_container_health:
             lines.extend(
                 [
-                    "| Container | Baseline | Peak Mem | Peak CPU | Leak Rate | Status |",
-                    "|-----------|----------|----------|----------|-----------|--------|",
+                    "| Container | Baseline | Peak Mem | Peak CPU | Leak Rate |",
+                    "|-----------|----------|----------|----------|-----------|",
                 ]
             )
-            for h in verdict.aggregated_container_health:
+            for h in summary.aggregated_container_health:
                 baseline = f"{h.baseline_memory_mb:.0f} MB" if h.baseline_memory_mb else "N/A"
                 peak_mem = f"{h.peak_memory_mb:.0f} MB ({h.peak_memory_percent:.0f}%)"
                 peak_cpu = f"{h.peak_cpu_percent:.0f}%"
@@ -352,23 +320,19 @@ class ReportGenerator:
                     if h.leak_rate_mb_per_min is not None
                     else "-"
                 )
-                status = {"healthy": "OK", "warning": "WARN", "critical": "CRIT"}.get(
-                    h.status, h.status
-                )
                 lines.append(
-                    f"| {h.display_name} | {baseline} | {peak_mem} | "
-                    f"{peak_cpu} | {leak} | {status} |"
+                    f"| {h.display_name} | {baseline} | {peak_mem} | " f"{peak_cpu} | {leak} |"
                 )
             lines.append("")
 
-        elif verdict.container_health:
+        elif summary.container_health:
             lines.extend(
                 [
-                    "| Container | Memory (MB) | Limit (MB) | Usage % | Leak Rate | CPU Peak | Status |",
-                    "|-----------|-------------|------------|---------|-----------|----------|--------|",
+                    "| Container | Memory (MB) | Limit (MB) | Usage % | Leak Rate | CPU Peak |",
+                    "|-----------|-------------|------------|---------|-----------|----------|",
                 ]
             )
-            for h in verdict.container_health:
+            for h in summary.container_health:
                 leak = (
                     f"{h.memory_leak_rate_mb_per_min:.2f} MB/min"
                     if h.memory_leak_rate_mb_per_min is not None
@@ -376,12 +340,9 @@ class ReportGenerator:
                 )
                 limit = f"{h.memory_limit_mb:.0f}" if h.memory_limit_mb > 0 else "N/A"
                 pct = f"{h.memory_percent:.1f}%" if h.memory_percent > 0 else "N/A"
-                status = {"healthy": "OK", "warning": "WARN", "critical": "CRIT"}.get(
-                    h.status, h.status
-                )
                 lines.append(
                     f"| {h.display_name} | {h.memory_current_mb:.1f} | {limit} | "
-                    f"{pct} | {leak} | {h.cpu_peak_percent:.1f}% | {status} |"
+                    f"{pct} | {leak} | {h.cpu_peak_percent:.1f}% |"
                 )
             lines.append("")
         else:
@@ -393,7 +354,7 @@ class ReportGenerator:
     #  HTML Report
     # ─────────────────────────────────────────────────────────
 
-    def generate_html(self, results: dict[str, Any], verdict: TestVerdict) -> Path:
+    def generate_html(self, results: dict[str, Any], summary: TestSummary) -> Path:
         """Generate HTML dashboard report with inline interactive charts."""
         test_id = results.get("test_id", "unknown")
         started_at = results.get("started_at", "")
@@ -401,16 +362,7 @@ class ReportGenerator:
         scenarios = results.get("scenarios", [])
 
         duration_str = _calc_duration_str(started_at, completed_at)
-        km = verdict.key_metrics
-
-        status_colors = {
-            OverallStatus.PASS: ("#28a745", "PASS"),
-            OverallStatus.WARNING: ("#ffc107", "WARNING"),
-            OverallStatus.FAIL: ("#dc3545", "FAIL"),
-        }
-        status_color, status_text = status_colors.get(
-            verdict.overall_status, ("#6c757d", "UNKNOWN")
-        )
+        km = summary.key_metrics
 
         # Collect inline chart fragments
         chart_fragments = self._collect_chart_fragments()
@@ -445,9 +397,6 @@ class ReportGenerator:
         }}
         .card h3 {{ color: #666; font-size: 0.8rem; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }}
         .card .value {{ font-size: 1.6rem; font-weight: bold; }}
-        .status-pass {{ color: #28a745; }}
-        .status-warning {{ color: #ffc107; }}
-        .status-fail {{ color: #dc3545; }}
         section {{ margin-bottom: 40px; }}
         section h2 {{
             font-size: 1.5rem; margin-bottom: 20px;
@@ -466,21 +415,6 @@ class ReportGenerator:
             border-radius: 0 0 8px 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }}
-        .finding {{
-            background: white; border-left: 4px solid;
-            padding: 12px 15px; margin-bottom: 8px;
-            border-radius: 0 8px 8px 0;
-        }}
-        .finding-critical {{ border-color: #dc3545; background: #fff5f5; }}
-        .finding-warning {{ border-color: #ffc107; background: #fffbf0; }}
-        .finding h4 {{ margin-bottom: 3px; }}
-        .finding .details {{ font-size: 0.85rem; color: #666; }}
-        .severity-badge {{
-            display: inline-block; padding: 2px 10px;
-            border-radius: 12px; font-size: 0.75rem; font-weight: 600;
-        }}
-        .badge-critical {{ background: #f8d7da; color: #721c24; }}
-        .badge-warning {{ background: #fff3cd; color: #856404; }}
         table {{
             width: 100%; border-collapse: collapse;
             background: white; border-radius: 8px;
@@ -490,13 +424,6 @@ class ReportGenerator:
         th, td {{ padding: 10px 14px; text-align: left; border-bottom: 1px solid #eee; }}
         th {{ background: #f8f9fa; font-weight: 600; color: #666; font-size: 0.85rem; }}
         tr:last-child td {{ border-bottom: none; }}
-        .status-badge {{
-            display: inline-block; padding: 3px 10px;
-            border-radius: 20px; font-size: 0.75rem; font-weight: 600;
-        }}
-        .badge-healthy {{ background: #d4edda; color: #155724; }}
-        .badge-warning {{ background: #fff3cd; color: #856404; }}
-        .badge-critical {{ background: #f8d7da; color: #721c24; }}
         .chart-embed {{ margin: 15px 0; }}
         nav {{
             background: white; padding: 10px 20px; margin-bottom: 20px;
@@ -518,9 +445,7 @@ class ReportGenerator:
         <nav>
             <a href="#metrics">Metrics</a>
             <a href="#scenarios">Scenarios</a>
-            <a href="#findings">Findings</a>
             <a href="#health">Health</a>
-            <a href="#recommendations">Recommendations</a>
             <a href="charts/index.html">All Charts</a>
         </nav>
 """
@@ -528,19 +453,16 @@ class ReportGenerator:
         # ── Key Metrics Hero Cards ──
         html += '        <section id="metrics">\n'
         html += '            <div class="hero-cards">\n'
-        html += f'                <div class="card"><h3>Status</h3><div class="value" style="color: {status_color};">{status_text}</div></div>\n'
 
         if km:
             html += f'                <div class="card"><h3>Max Agents</h3><div class="value">{km.max_agents_queued or "N/A"}</div></div>\n'
             html += f'                <div class="card"><h3>Max Speed</h3><div class="value">{f"{km.max_speed_achieved}x" if km.max_speed_achieved else "N/A"}</div></div>\n'
-            html += f'                <div class="card"><h3>Leaks</h3><div class="value">{len(km.leak_containers)}</div></div>\n'
+            html += f'                <div class="card"><h3>Positive Slopes</h3><div class="value">{len(km.leak_rates)}</div></div>\n'
             html += f'                <div class="card"><h3>RTR Peak</h3><div class="value">{f"{km.rtr_peak:.1f}x" if km.rtr_peak else "N/A"}</div></div>\n'
             html += f'                <div class="card"><h3>CPU Cores</h3><div class="value">{km.available_cores or "N/A"}</div></div>\n'
             html += f'                <div class="card"><h3>Duration</h3><div class="value">{km.total_duration_str}</div></div>\n'
         else:
             html += f'                <div class="card"><h3>Duration</h3><div class="value">{duration_str}</div></div>\n'
-            html += f'                <div class="card"><h3>Critical</h3><div class="value status-fail">{verdict.critical_count}</div></div>\n'
-            html += f'                <div class="card"><h3>Warnings</h3><div class="value status-warning">{verdict.warning_count}</div></div>\n'
 
         html += "            </div>\n"
         html += "        </section>\n\n"
@@ -567,59 +489,17 @@ class ReportGenerator:
 
         html += "        </section>\n\n"
 
-        # ── Aggregated Findings ──
-        html += '        <section id="findings">\n'
-        html += "            <h2>Findings</h2>\n"
-
-        if verdict.aggregated_findings:
-            for af in verdict.aggregated_findings:
-                sev_class = (
-                    "finding-critical" if af.severity == Severity.CRITICAL else "finding-warning"
-                )
-                badge_class = (
-                    "badge-critical" if af.severity == Severity.CRITICAL else "badge-warning"
-                )
-                badge_text = af.severity.value.upper()
-                n_sc = len(af.scenarios_exceeded)
-
-                html += f'            <div class="finding {sev_class}">\n'
-                html += f'                <h4><span class="severity-badge {badge_class}">{badge_text}</span> {af.display_name} ({af.category.value})</h4>\n'
-                html += f'                <div class="details">Peak: {af.worst_value:.1f} ({af.worst_scenario}) | Exceeded in {n_sc} scenario(s)</div>\n'
-                if af.recommendation:
-                    html += f'                <div class="details">{af.recommendation}</div>\n'
-                html += "            </div>\n"
-        elif not verdict.findings:
-            html += "            <p>No issues detected.</p>\n"
-        else:
-            for finding in verdict.findings:
-                sev_class = f"finding-{finding.severity.value}"
-                html += f'            <div class="finding {sev_class}"><h4>{finding.message}</h4></div>\n'
-
-        html += "        </section>\n\n"
-
         # ── Container Health Table ──
         html += '        <section id="health">\n'
         html += "            <h2>Container Health</h2>\n"
 
-        if verdict.aggregated_container_health:
-            html += self._html_aggregated_health_table(verdict.aggregated_container_health)
-        elif verdict.container_health:
-            html += self._html_legacy_health_table(verdict)
+        if summary.aggregated_container_health:
+            html += self._html_aggregated_health_table(summary.aggregated_container_health)
+        elif summary.container_health:
+            html += self._html_legacy_health_table(summary)
         else:
             html += "            <p>No container health data available.</p>\n"
 
-        html += "        </section>\n\n"
-
-        # ── Recommendations ──
-        html += '        <section id="recommendations">\n'
-        html += "            <h2>Recommendations</h2>\n"
-        if verdict.recommendations:
-            html += "            <ul>\n"
-            for rec in verdict.recommendations:
-                html += f"                <li>{rec}</li>\n"
-            html += "            </ul>\n"
-        else:
-            html += "            <p>No specific recommendations.</p>\n"
         html += "        </section>\n"
 
         html += "    </div>\n</body>\n</html>\n"
@@ -707,7 +587,8 @@ class ReportGenerator:
                     elif hit:
                         result = "THRESHOLD"
                     else:
-                        result = "PASS"
+                        rtr_peak = step.get("rtr_peak")
+                        result = f"RTR {rtr_peak:.2f}x" if rtr_peak is not None else "-"
                     html += f'<tr><td>{step.get("step", "?")}</td><td>{step.get("multiplier", "?")}x</td><td>{result}</td></tr>\n'
                 html += "</tbody></table>\n"
 
@@ -732,7 +613,7 @@ class ReportGenerator:
         """Generate HTML for aggregated container health table."""
         html = "<table><thead><tr>"
         html += "<th>Container</th><th>Baseline</th><th>Peak Memory</th>"
-        html += "<th>Peak CPU</th><th>Leak Rate</th><th>Status</th>"
+        html += "<th>Peak CPU</th><th>Leak Rate</th>"
         html += "</tr></thead><tbody>\n"
 
         for h in health:
@@ -744,24 +625,21 @@ class ReportGenerator:
                 if h.leak_rate_mb_per_min is not None
                 else "-"
             )
-            badge_class = f"badge-{h.status}"
-            status_text = h.status.upper()
 
             html += f"<tr><td>{h.display_name}</td><td>{baseline}</td>"
-            html += f"<td>{peak_mem}</td><td>{peak_cpu}</td><td>{leak}</td>"
-            html += f'<td><span class="status-badge {badge_class}">{status_text}</span></td></tr>\n'
+            html += f"<td>{peak_mem}</td><td>{peak_cpu}</td><td>{leak}</td></tr>\n"
 
         html += "</tbody></table>\n"
         return html
 
-    def _html_legacy_health_table(self, verdict: TestVerdict) -> str:
+    def _html_legacy_health_table(self, summary: TestSummary) -> str:
         """Generate HTML for legacy container health table."""
         html = "<table><thead><tr>"
         html += "<th>Container</th><th>Memory (MB)</th><th>Limit (MB)</th>"
-        html += "<th>Usage %</th><th>Leak Rate</th><th>CPU Peak</th><th>Status</th>"
+        html += "<th>Usage %</th><th>Leak Rate</th><th>CPU Peak</th>"
         html += "</tr></thead><tbody>\n"
 
-        for h in verdict.container_health:
+        for h in summary.container_health:
             leak = (
                 f"{h.memory_leak_rate_mb_per_min:.2f} MB/min"
                 if h.memory_leak_rate_mb_per_min is not None
@@ -769,13 +647,10 @@ class ReportGenerator:
             )
             limit = f"{h.memory_limit_mb:.0f}" if h.memory_limit_mb > 0 else "N/A"
             pct = f"{h.memory_percent:.1f}%" if h.memory_percent > 0 else "N/A"
-            badge_class = f"badge-{h.status}"
-            status_text = h.status.upper()
 
             html += f"<tr><td>{h.display_name}</td><td>{h.memory_current_mb:.1f}</td>"
             html += f"<td>{limit}</td><td>{pct}</td><td>{leak}</td>"
-            html += f"<td>{h.cpu_peak_percent:.1f}%</td>"
-            html += f'<td><span class="status-badge {badge_class}">{status_text}</span></td></tr>\n'
+            html += f"<td>{h.cpu_peak_percent:.1f}%</td></tr>\n"
 
         html += "</tbody></table>\n"
         return html
@@ -784,9 +659,9 @@ class ReportGenerator:
     #  JSON Summary
     # ─────────────────────────────────────────────────────────
 
-    def generate_summary_json(self, results: dict[str, Any], verdict: TestVerdict) -> Path:
+    def generate_summary_json(self, results: dict[str, Any], summary: TestSummary) -> Path:
         """Generate structured summary.json."""
-        km = verdict.key_metrics
+        km = summary.key_metrics
         scenarios = results.get("scenarios", [])
 
         # Build scenario results summary
@@ -804,7 +679,7 @@ class ReportGenerator:
                 }
             )
 
-        summary: dict[str, Any] = {
+        summary_dict: dict[str, Any] = {
             "test_id": results.get("test_id", "unknown"),
             "started_at": results.get("started_at"),
             "completed_at": results.get("completed_at"),
@@ -812,34 +687,29 @@ class ReportGenerator:
 
         # Key metrics
         if km:
-            summary["key_metrics"] = {
+            summary_dict["key_metrics"] = {
                 "max_agents_queued": km.max_agents_queued,
                 "max_speed_achieved": km.max_speed_achieved,
-                "leak_containers": km.leak_containers,
+                "leak_rates": {k: round(v, 3) for k, v in km.leak_rates.items()},
                 "rtr_peak": round(km.rtr_peak, 2) if km.rtr_peak else None,
                 "stress_trigger": km.stress_trigger,
-                "overall_status": verdict.overall_status.value,
-                "critical_count": verdict.aggregated_critical_count,
-                "warning_count": verdict.aggregated_warning_count,
                 "available_cores": km.available_cores,
             }
 
-        summary["scenario_results"] = scenario_results
-
-        # Aggregated findings
-        if verdict.aggregated_findings:
-            summary["aggregated_findings"] = [af.to_dict() for af in verdict.aggregated_findings]
+        summary_dict["scenario_results"] = scenario_results
 
         # Aggregated container health
-        if verdict.aggregated_container_health:
-            summary["container_health"] = [h.to_dict() for h in verdict.aggregated_container_health]
+        if summary.aggregated_container_health:
+            summary_dict["container_health"] = [
+                h.to_dict() for h in summary.aggregated_container_health
+            ]
 
-        # Backward compat: keep full verdict
-        summary["verdict"] = verdict.to_dict()
+        # Full summary data
+        summary_dict["summary"] = summary.to_dict()
 
         summary_path = self.output_dir / "summary.json"
         with open(summary_path, "w") as f:
-            json.dump(summary, f, indent=2)
+            json.dump(summary_dict, f, indent=2)
         return summary_path
 
 
@@ -892,9 +762,14 @@ def _extract_scenario_meta_summary(name: str, meta: dict[str, Any]) -> dict[str,
         }
     elif name == "duration_leak" or name.startswith("duration_leak_"):
         leak_analysis = meta.get("leak_analysis", {})
-        leaks = [c for c, la in leak_analysis.items() if la.get("memory_leak_detected")]
+        leak_rates = {
+            c: la.get("memory_slope_mb_per_min", 0)
+            for c, la in leak_analysis.items()
+            if la.get("memory_slope_mb_per_min") is not None
+            and la.get("memory_slope_mb_per_min", 0) > 0
+        }
         return {
-            "leak_containers": leaks,
+            "leak_rates": leak_rates,
             "drain_duration_seconds": meta.get("drain_duration_seconds"),
         }
     return {}

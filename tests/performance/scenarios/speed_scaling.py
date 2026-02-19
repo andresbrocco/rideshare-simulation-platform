@@ -208,6 +208,13 @@ class SpeedScalingScenario(BaseScenario):
 
         step_duration = time.time() - step_start
 
+        # Compute RTR stats from step samples
+        rtr_values = [
+            s["rtr"]["rtr"] for s in step_samples if s.get("rtr") is not None and "rtr" in s["rtr"]
+        ]
+        rtr_peak = max(rtr_values) if rtr_values else None
+        rtr_mean = (sum(rtr_values) / len(rtr_values)) if rtr_values else None
+
         return {
             "step": step_number,
             "multiplier": multiplier,
@@ -225,6 +232,8 @@ class SpeedScalingScenario(BaseScenario):
                 if trigger
                 else None
             ),
+            "rtr_peak": round(rtr_peak, 4) if rtr_peak is not None else None,
+            "rtr_mean": round(rtr_mean, 4) if rtr_mean is not None else None,
         }
 
     def _check_step_thresholds(self, step_samples: list[dict[str, Any]]) -> ThresholdTrigger | None:
