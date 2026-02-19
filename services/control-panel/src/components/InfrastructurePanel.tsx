@@ -26,16 +26,21 @@ function formatLatency(latency_ms: number | null): string {
 function getStatusClass(status: ContainerStatus): string {
   switch (status) {
     case 'healthy':
-      return styles.statusHealthy;
     case 'degraded':
-      return styles.statusDegraded;
+      return styles.statusHealthy; // green — service is responding
     case 'unhealthy':
-      return styles.statusUnhealthy;
     case 'stopped':
-      return styles.statusStopped;
+      return styles.statusUnhealthy; // red — service is unreachable
     default:
       return styles.statusUnknown;
   }
+}
+
+function getLatencyClass(latency_ms: number | null): string {
+  if (latency_ms === null) return '';
+  if (latency_ms < 100) return styles.latencyGreen;
+  if (latency_ms < 500) return styles.latencyOrange;
+  return styles.latencyRed;
 }
 
 function getProgressColor(percent: number): string {
@@ -64,10 +69,24 @@ function ServiceCard({ service, showResources, totalCores }: ServiceCardProps) {
         </Tooltip>
       </div>
 
-      <div className={styles.metricRow}>
-        <span className={styles.metricLabel}>Latency</span>
-        <span className={styles.metricValue}>{formatLatency(service.latency_ms)}</span>
-      </div>
+      {service.latency_ms !== null ? (
+        <div className={styles.metricRow}>
+          <span className={styles.metricLabel}>Latency</span>
+          <span className={`${styles.metricValue} ${getLatencyClass(service.latency_ms)}`}>
+            {formatLatency(service.latency_ms)}
+          </span>
+        </div>
+      ) : service.message && service.status !== 'unhealthy' && service.status !== 'stopped' ? (
+        <div className={styles.metricRow}>
+          <span className={styles.metricLabel}>State</span>
+          <span className={styles.metricValue}>{service.message}</span>
+        </div>
+      ) : (
+        <div className={styles.metricRow}>
+          <span className={styles.metricLabel}>Latency</span>
+          <span className={styles.metricValue}>—</span>
+        </div>
+      )}
 
       {showResources && (
         <>
@@ -118,18 +137,8 @@ export default function InfrastructurePanel({
   const [collapsed, setCollapsed] = useState(false);
 
   const getOverallStatusClass = (status: ContainerStatus | undefined) => {
-    switch (status) {
-      case 'healthy':
-        return styles.overallHealthy;
-      case 'degraded':
-        return styles.overallDegraded;
-      case 'unhealthy':
-        return styles.overallUnhealthy;
-      case 'stopped':
-        return styles.overallStopped;
-      default:
-        return styles.overallUnknown;
-    }
+    if (status === 'healthy') return styles.overallHealthy;
+    return styles.overallUnhealthy;
   };
 
   const showResources = data?.cadvisor_available ?? false;
@@ -140,7 +149,7 @@ export default function InfrastructurePanel({
         <div className={styles.titleRow}>
           <h3 className={styles.title}>Infrastructure</h3>
           {data && (
-            <Tooltip text={`Overall: ${data.overall_status}`}>
+            <Tooltip text={`All services: ${data.overall_status}`}>
               <span
                 className={`${styles.overallIndicator} ${getOverallStatusClass(data.overall_status)}`}
               />

@@ -1146,6 +1146,7 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         "rideshare-redis-superset": no_health_endpoint,
         "rideshare-superset": superset_result,
         "rideshare-superset-celery-worker": no_health_endpoint,
+        "rideshare-spark-thrift-server": spark_thrift_result,
     }
 
     # Fetch container resource metrics from cAdvisor
@@ -1168,6 +1169,7 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
     # Build service metrics list
     container_config, discovery_error = _discover_containers()
     services = []
+    final_statuses: dict[str, ContainerStatus] = {}
     for container_name, config in container_config.items():
         status, latency_ms, message = health_results.get(
             container_name, (ContainerStatus.HEALTHY, None, "No health endpoint")
@@ -1196,6 +1198,8 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
                     status = ContainerStatus.STOPPED
                     message = "Container not running"
 
+        final_statuses[container_name] = status
+
         services.append(
             ServiceMetrics(
                 name=str(config["display_name"]),
@@ -1209,20 +1213,19 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
             )
         )
 
-    # Determine overall status (exclude stream processor and frontend from overall calculation)
-    core_statuses = [
-        health_results["rideshare-kafka"][0],
-        health_results["rideshare-redis"][0],
-        health_results["rideshare-osrm"][0],
-        health_results["rideshare-simulation"][0],
+    # Determine overall status — binary HEALTHY/UNHEALTHY across all services.
+    # Spark thrift is optional (not deployed by default); exclude it when STOPPED.
+    SPARK_CONTAINER_NAME = "rideshare-spark-thrift-server"
+    overall_statuses = [
+        status
+        for container_name, status in final_statuses.items()
+        if not (container_name == SPARK_CONTAINER_NAME and status == ContainerStatus.STOPPED)
     ]
-
-    if all(s == ContainerStatus.HEALTHY for s in core_statuses):
-        overall_status = ContainerStatus.HEALTHY
-    elif any(s == ContainerStatus.UNHEALTHY for s in core_statuses):
-        overall_status = ContainerStatus.UNHEALTHY
-    else:
-        overall_status = ContainerStatus.DEGRADED
+    overall_status = (
+        ContainerStatus.HEALTHY
+        if all(s in (ContainerStatus.HEALTHY, ContainerStatus.DEGRADED) for s in overall_statuses)
+        else ContainerStatus.UNHEALTHY
+    )
 
     # Calculate normalized totals
     # CPU: normalize by total cores (raw is percentage of 1 core)
