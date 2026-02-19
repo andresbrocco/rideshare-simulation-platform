@@ -83,7 +83,7 @@ def compute_next_action_response(agent: Any, engine: Any) -> NextActionResponse 
 
 
 @router.post("/drivers", response_model=DriversCreateResponse)
-@limiter.limit("30/minute")
+@limiter.limit("120/minute")
 def create_drivers(
     request: Request,
     body: DriverCreateRequest,
@@ -123,7 +123,7 @@ def create_drivers(
 
 
 @router.post("/riders", response_model=RidersCreateResponse)
-@limiter.limit("30/minute")
+@limiter.limit("120/minute")
 def create_riders(
     request: Request,
     body: RiderCreateRequest,
