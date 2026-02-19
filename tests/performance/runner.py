@@ -261,6 +261,58 @@ def _generate_findings(results: dict[str, Any], config: TestConfig) -> list[Find
                     )
                 )
 
+        # Check for global CPU saturation
+        stress_samples = [s for s in samples if s.get("global_cpu_percent") is not None]
+        if stress_samples:
+            peak_global_cpu = max(s.get("global_cpu_percent", 0.0) for s in stress_samples)
+            available_cores = stress_samples[0].get("available_cores", 0)
+            if available_cores > 0:
+                capacity = available_cores * 100
+                usage_pct = (peak_global_cpu / capacity) * 100
+                if usage_pct >= 85:
+                    findings.append(
+                        Finding(
+                            severity=Severity.CRITICAL,
+                            category=FindingCategory.GLOBAL_CPU_SATURATION,
+                            container="__global__",
+                            message=f"Global CPU at {usage_pct:.1f}% of capacity "
+                            f"({peak_global_cpu:.0f}% / {capacity}%)",
+                            metric_value=usage_pct,
+                            threshold=85.0,
+                            scenario_name=scenario_name,
+                            recommendation="System is CPU-saturated; reduce agent count or add CPU resources",
+                        )
+                    )
+                elif usage_pct >= 70:
+                    findings.append(
+                        Finding(
+                            severity=Severity.WARNING,
+                            category=FindingCategory.GLOBAL_CPU_SATURATION,
+                            container="__global__",
+                            message=f"Global CPU at {usage_pct:.1f}% of capacity "
+                            f"({peak_global_cpu:.0f}% / {capacity}%)",
+                            metric_value=usage_pct,
+                            threshold=70.0,
+                            scenario_name=scenario_name,
+                        )
+                    )
+
+        # Check for container failures
+        abort_reason = scenario.get("abort_reason", "") or ""
+        if "not running" in abort_reason:
+            findings.append(
+                Finding(
+                    severity=Severity.CRITICAL,
+                    category=FindingCategory.CONTAINER_FAILURE,
+                    container="__global__",
+                    message=f"Container failure: {abort_reason}",
+                    metric_value=0,
+                    threshold=0,
+                    scenario_name=scenario_name,
+                    recommendation="Container died mid-test; check Docker logs for crash cause",
+                )
+            )
+
         # Check for memory leaks in duration tests
         if scenario_name == "duration_leak" or scenario_name.startswith("duration_leak_"):
             # Calculate leak rate from first to last sample
@@ -671,6 +723,7 @@ def run(
                 "duration_cooldown_minutes": config.scenarios.duration_cooldown_minutes,
                 "duration_drain_timeout_seconds": config.scenarios.duration_drain_timeout_seconds,
                 "stress_cpu_threshold_percent": config.scenarios.stress_cpu_threshold_percent,
+                "stress_global_cpu_threshold_percent": config.scenarios.stress_global_cpu_threshold_percent,
                 "stress_memory_threshold_percent": config.scenarios.stress_memory_threshold_percent,
                 "speed_scaling_step_duration_minutes": config.scenarios.speed_scaling_step_duration_minutes,
                 "speed_scaling_max_multiplier": config.scenarios.speed_scaling_max_multiplier,
@@ -719,7 +772,7 @@ def run(
                 elif scenario_name == "stress":
                     console.rule(
                         f"[bold cyan]{step_label}: Running Stress Test "
-                        f"(until {config.scenarios.stress_cpu_threshold_percent}% CPU "
+                        f"(until {config.scenarios.stress_global_cpu_threshold_percent}% global CPU "
                         f"or {config.scenarios.stress_memory_threshold_percent}% memory)"
                         f"[/bold cyan]"
                     )

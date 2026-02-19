@@ -96,8 +96,23 @@ class ReportGenerator:
             f"| Scenarios Passed | {verdict.scenarios_passed} |",
             f"| Scenarios Failed | {verdict.scenarios_failed} |",
             f"| OOM Events | {verdict.total_oom_events} |",
-            "",
         ]
+
+        # Add system resources if available from stress test
+        scenarios = results.get("scenarios", [])
+        stress_scenarios = [s for s in scenarios if s.get("scenario_name") == "stress_test"]
+        if stress_scenarios:
+            stress_meta = stress_scenarios[0].get("metadata", {})
+            avail_cores = stress_meta.get("available_cores")
+            if avail_cores:
+                lines.append(f"| Available CPU Cores | {avail_cores} |")
+                # Find peak global CPU from samples
+                stress_samples = stress_scenarios[0].get("samples", [])
+                if stress_samples:
+                    peak_global_cpu = max(s.get("global_cpu_percent", 0.0) for s in stress_samples)
+                    lines.append(f"| Peak Global CPU | {peak_global_cpu:.1f}% |")
+
+        lines.append("")
 
         # Findings section
         lines.append("## Findings")
@@ -503,11 +518,12 @@ class ReportGenerator:
             <div class="chart-grid">
 """
 
-        # Try to embed heatmaps
-        for chart_name in ["cpu_heatmap.png", "memory_heatmap.png"]:
-            # Check in overview subdirectory first, then charts root
+        # Try to embed key charts
+        for chart_name in ["cpu_heatmap.png", "memory_heatmap.png", "global_cpu_timeline.png"]:
+            # Check in subdirectories first, then charts root
             chart_paths = [
                 self.charts_dir / "overview" / chart_name,
+                self.charts_dir / "stress" / chart_name,
                 self.charts_dir / chart_name,
             ]
 

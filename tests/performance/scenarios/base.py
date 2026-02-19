@@ -1,5 +1,6 @@
 """Base scenario class for performance tests."""
 
+import subprocess
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -60,6 +61,7 @@ class BaseScenario(ABC):
         self._aborted = False
         self._abort_reason: str | None = None
         self._metadata: dict[str, Any] = {}
+        self._available_cores: int = 0  # Detected during setup
 
     @property
     @abstractmethod
@@ -124,6 +126,10 @@ class BaseScenario(ABC):
             console.print("[red]Setup failed: Simulation API not available[/red]")
             return False
 
+        # Detect available CPU cores
+        self._available_cores = self._detect_available_cores()
+        console.print(f"[cyan]Available CPU cores: {self._available_cores}[/cyan]")
+
         # Capture OOM baseline
         self.oom_detector.capture_baseline()
         self._samples = []
@@ -147,6 +153,43 @@ class BaseScenario(ABC):
         # Default: do nothing, let next scenario's setup handle cleanup
         pass
 
+    def _detect_available_cores(self) -> int:
+        """Detect available CPU cores from Docker or config override.
+
+        Returns:
+            Number of available CPU cores.
+        """
+        # Use config override if set
+        if self.config.docker.available_cpu_cores is not None:
+            return self.config.docker.available_cpu_cores
+
+        try:
+            result = subprocess.run(
+                ["docker", "info", "--format", "{{.NCPU}}"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if result.returncode == 0:
+                return int(result.stdout.strip())
+        except (subprocess.TimeoutExpired, ValueError, OSError) as e:
+            console.print(f"[yellow]Could not detect CPU cores: {e}, defaulting to 1[/yellow]")
+
+        return 1
+
+    def _check_container_liveness(self) -> list[str]:
+        """Check which expected containers are not running.
+
+        Returns:
+            List of container names that are not running.
+        """
+        dead_containers: list[str] = []
+        for container_name in self.config.get_all_containers():
+            health = self.lifecycle.get_container_health(container_name)
+            if not health.running:
+                dead_containers.append(container_name)
+        return dead_containers
+
     def _collect_sample(self) -> dict[str, Any]:
         """Collect a single metric sample from all containers.
 
@@ -165,6 +208,14 @@ class BaseScenario(ABC):
                 f"OOM detected in: {', '.join(e.container_name for e in oom_events)}"
             )
 
+        # Check container liveness (skip if already aborted by OOM)
+        if not self._aborted:
+            dead = self._check_container_liveness()
+            if dead:
+                self._aborted = True
+                self._abort_reason = f"Container(s) not running: {', '.join(dead)}"
+                console.print(f"[red]Container failure detected: {', '.join(dead)}[/red]")
+
         # Build sample
         sample: dict[str, Any] = {
             "timestamp": time.time(),
@@ -179,6 +230,13 @@ class BaseScenario(ABC):
                 "memory_percent": stats.memory_percent,
                 "cpu_percent": stats.cpu_percent,
             }
+
+        # Compute global CPU sum across all containers
+        global_cpu = sum(
+            container_data["cpu_percent"] for container_data in sample["containers"].values()
+        )
+        sample["global_cpu_percent"] = round(global_cpu, 2)
+        sample["available_cores"] = self._available_cores
 
         self._samples.append(sample)
         return sample
@@ -215,7 +273,7 @@ class BaseScenario(ABC):
 
         while time.time() - start_time < duration_seconds:
             if self._aborted:
-                console.print("[red]Collection aborted due to OOM[/red]")
+                console.print(f"[red]Collection aborted: {self._abort_reason}[/red]")
                 break
 
             sample = self._collect_sample()

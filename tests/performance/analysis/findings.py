@@ -22,6 +22,8 @@ class FindingCategory(Enum):
     HIGH_CPU_USAGE = "high_cpu_usage"
     OOM_EVENT = "oom_event"
     STRESS_THRESHOLD = "stress_threshold"
+    GLOBAL_CPU_SATURATION = "global_cpu_saturation"
+    CONTAINER_FAILURE = "container_failure"
 
 
 class OverallStatus(Enum):

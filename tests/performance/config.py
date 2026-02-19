@@ -20,6 +20,7 @@ class DockerConfig:
     cadvisor_url: str = "http://localhost:8083"
     compose_file: str = "infrastructure/docker/compose.yml"
     profiles: list[str] = field(default_factory=lambda: ["core", "data-pipeline", "monitoring"])
+    available_cpu_cores: int | None = None  # Auto-detected from Docker if None
 
 
 @dataclass
@@ -47,7 +48,8 @@ class ScenarioConfig:
     baseline_duration_seconds: int = 30
 
     # Stress test settings
-    stress_cpu_threshold_percent: float = 90.0
+    stress_cpu_threshold_percent: float = 90.0  # Per-container (used by analysis findings)
+    stress_global_cpu_threshold_percent: float = 90.0  # % of total available cores
     stress_memory_threshold_percent: float = 90.0
     stress_rolling_window_seconds: int = 10
     stress_spawn_batch_size: int = 10

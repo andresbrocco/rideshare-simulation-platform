@@ -103,8 +103,9 @@ class StressTestScenario(BaseScenario):
             self.config.scenarios.stress_rolling_window_seconds
             / self.config.sampling.interval_seconds
         )
-        # Initialize rolling stats per container
+        # Initialize rolling stats per container and global CPU
         self._rolling_stats: dict[str, ContainerRollingStats] = {}
+        self._global_cpu_rolling = RollingStats.with_window(self._rolling_window_samples)
         self._total_drivers_queued = 0
         self._total_riders_queued = 0
         self._trigger: ThresholdTrigger | None = None
@@ -122,14 +123,14 @@ class StressTestScenario(BaseScenario):
     @property
     def description(self) -> str:
         return (
-            f"Stress test: spawn agents until {self.params['cpu_threshold_percent']}% CPU "
-            f"or {self.params['memory_threshold_percent']}% memory reached"
+            f"Stress test: spawn agents until {self.params['global_cpu_threshold_percent']}% "
+            f"global CPU or {self.params['memory_threshold_percent']}% memory reached"
         )
 
     @property
     def params(self) -> dict[str, Any]:
         return {
-            "cpu_threshold_percent": self.config.scenarios.stress_cpu_threshold_percent,
+            "global_cpu_threshold_percent": self.config.scenarios.stress_global_cpu_threshold_percent,
             "memory_threshold_percent": self.config.scenarios.stress_memory_threshold_percent,
             "rolling_window_seconds": self.config.scenarios.stress_rolling_window_seconds,
             "rolling_window_samples": self._rolling_window_samples,
@@ -171,7 +172,7 @@ class StressTestScenario(BaseScenario):
 
         while time.time() - start_time < max_duration:
             if self._aborted:
-                console.print("[red]Test aborted due to OOM[/red]")
+                console.print(f"[red]Test aborted: {self._abort_reason}[/red]")
                 break
 
             # Queue batch of drivers
@@ -254,6 +255,12 @@ class StressTestScenario(BaseScenario):
         self._metadata["peak_values"] = self._peak_values
         self._metadata["duration_seconds"] = elapsed
         self._metadata["batch_count"] = batch_count
+        self._metadata["available_cores"] = self._available_cores
+        self._metadata["global_cpu_threshold"] = (
+            (self.config.scenarios.stress_global_cpu_threshold_percent / 100)
+            * self._available_cores
+            * 100
+        )
 
         console.print(
             f"[green]Stress test complete: {batch_count} batches, "
@@ -305,6 +312,13 @@ class StressTestScenario(BaseScenario):
                 self._peak_values[container_name]["cpu_percent"], cpu_pct
             )
 
+        # Track global CPU rolling average
+        global_cpu = sum(
+            container["cpu_percent"] for container in sample.get("containers", {}).values()
+        )
+        self._global_cpu_rolling.add(global_cpu)
+        sample["global_cpu_rolling_avg"] = round(self._global_cpu_rolling.average, 2)
+
         # Augment sample with rolling averages and agent count
         sample["rolling_averages"] = rolling_averages
         sample["agents_queued"] = {
@@ -316,20 +330,21 @@ class StressTestScenario(BaseScenario):
         return sample
 
     def _check_thresholds(self) -> ThresholdTrigger | None:
-        """Check if any container's rolling average exceeds thresholds.
+        """Check if global CPU or any container's memory exceeds thresholds.
 
-        CPU thresholds are scaled per-container based on effective CPU cores
-        (e.g., a 1.5-core container has a threshold of 90% * 1.5 = 135%).
+        Global CPU threshold: stops when the sum of all container CPU usage
+        reaches threshold_pct% of total available cores (e.g., 90% of 7 cores
+        = 630% aggregate CPU).
+
+        Per-container memory threshold: unchanged (90% of container limit).
 
         Returns:
             ThresholdTrigger if threshold exceeded, None otherwise.
         """
-        base_cpu_threshold = self.config.scenarios.stress_cpu_threshold_percent
         memory_threshold = self.config.scenarios.stress_memory_threshold_percent
-        thresholds = self.config.analysis.thresholds
 
+        # Check per-container memory thresholds
         for container_name, stats in self._rolling_stats.items():
-            # Check memory threshold (not scaled by cores)
             memory_avg = stats.memory_percent.average
             if memory_avg >= memory_threshold:
                 return ThresholdTrigger(
@@ -339,15 +354,16 @@ class StressTestScenario(BaseScenario):
                     threshold=memory_threshold,
                 )
 
-            # Check CPU threshold (scaled by effective cores)
-            cpu_threshold = thresholds.get_stress_cpu_threshold(container_name, base_cpu_threshold)
-            cpu_avg = stats.cpu_percent.average
-            if cpu_avg >= cpu_threshold:
-                return ThresholdTrigger(
-                    container=container_name,
-                    metric="cpu",
-                    value=cpu_avg,
-                    threshold=cpu_threshold,
-                )
+        # Check global CPU threshold
+        global_threshold_pct = self.config.scenarios.stress_global_cpu_threshold_percent
+        global_cpu_limit = (global_threshold_pct / 100) * self._available_cores * 100
+        global_cpu_avg = self._global_cpu_rolling.average
+        if global_cpu_avg >= global_cpu_limit:
+            return ThresholdTrigger(
+                container="__global__",
+                metric="global_cpu",
+                value=global_cpu_avg,
+                threshold=global_cpu_limit,
+            )
 
         return None

@@ -56,6 +56,7 @@ class ChartGenerator:
         if stress_scenarios:
             generated.extend(self.generate_stress_timeline(stress_scenarios[0]))
             generated.extend(self.generate_stress_comparison(stress_scenarios[0]))
+            generated.extend(self.generate_global_cpu_timeline(stress_scenarios[0]))
 
         return generated
 
@@ -681,6 +682,167 @@ class ChartGenerator:
 
         return generated
 
+    def generate_global_cpu_timeline(self, stress_scenario: dict[str, Any]) -> list[str]:
+        """Generate timeline chart showing system-level CPU saturation over time.
+
+        Shows raw global CPU sum, rolling average, capacity ceiling, and threshold.
+
+        Args:
+            stress_scenario: Stress test scenario result.
+
+        Returns:
+            List of generated file paths.
+        """
+        samples = stress_scenario.get("samples", [])
+        if not samples:
+            return []
+
+        metadata = stress_scenario.get("metadata", {})
+        trigger = metadata.get("trigger")
+        total_agents = metadata.get("total_agents_queued", 0)
+        available_cores = metadata.get("available_cores", 0)
+        global_cpu_threshold = metadata.get("global_cpu_threshold", 0)
+        capacity_ceiling = available_cores * 100  # Max possible CPU %
+
+        first_ts = samples[0]["timestamp"]
+
+        # Extract raw global CPU and rolling average
+        timestamps: list[float] = []
+        raw_values: list[float] = []
+        rolling_values: list[float] = []
+
+        for sample in samples:
+            elapsed = sample["timestamp"] - first_ts
+            timestamps.append(elapsed)
+            raw_values.append(sample.get("global_cpu_percent", 0.0))
+            rolling_values.append(sample.get("global_cpu_rolling_avg", 0.0))
+
+        if not timestamps:
+            return []
+
+        # Determine y-axis max
+        all_values = raw_values + rolling_values + [capacity_ceiling, global_cpu_threshold]
+        y_max = max(v for v in all_values if v > 0) * 1.1 if all_values else 100.0
+
+        # Trigger time
+        stop_time = timestamps[-1] if timestamps else 0
+        trigger_time = stop_time if trigger and trigger.get("metric") == "global_cpu" else None
+
+        generated: list[str] = []
+
+        # --- Plotly version ---
+        fig = go.Figure()
+
+        # Raw global CPU (light, thin)
+        fig.add_trace(
+            go.Scatter(
+                x=timestamps,
+                y=raw_values,
+                mode="lines",
+                name="Global CPU (raw)",
+                line={"color": "lightblue", "width": 1},
+                opacity=0.6,
+            )
+        )
+
+        # Rolling average (bold blue)
+        fig.add_trace(
+            go.Scatter(
+                x=timestamps,
+                y=rolling_values,
+                mode="lines",
+                name="Global CPU (rolling avg)",
+                line={"color": "blue", "width": 3},
+            )
+        )
+
+        # Capacity ceiling (gray dotted)
+        if capacity_ceiling > 0:
+            fig.add_hline(
+                y=capacity_ceiling,
+                line_dash="dot",
+                line_color="gray",
+                annotation_text=f"Capacity: {available_cores} cores ({capacity_ceiling}%)",
+            )
+
+        # Threshold (red dashed)
+        if global_cpu_threshold > 0:
+            fig.add_hline(
+                y=global_cpu_threshold,
+                line_dash="dash",
+                line_color="red",
+                annotation_text=f"Threshold: {global_cpu_threshold:.0f}%",
+            )
+
+        # Trigger marker
+        if trigger_time is not None:
+            fig.add_vline(
+                x=trigger_time,
+                line_dash="dot",
+                line_color="darkred",
+                annotation_text="Global CPU threshold hit",
+            )
+
+        fig.update_layout(
+            title=f"Global CPU Saturation Timeline (Total Agents: {total_agents})",
+            xaxis_title="Time (seconds)",
+            yaxis_title="Aggregate CPU %",
+            yaxis_range=[0, y_max],
+        )
+
+        html_path = self.charts_dir / "global_cpu_timeline.html"
+        fig.write_html(str(html_path))
+
+        # --- Matplotlib version ---
+        fig_mpl, ax = plt.subplots(figsize=(12, 6))
+
+        ax.plot(
+            timestamps,
+            raw_values,
+            color="lightblue",
+            linewidth=1,
+            alpha=0.6,
+            label="Global CPU (raw)",
+        )
+        ax.plot(
+            timestamps, rolling_values, color="blue", linewidth=3, label="Global CPU (rolling avg)"
+        )
+
+        if capacity_ceiling > 0:
+            ax.axhline(
+                y=capacity_ceiling,
+                color="gray",
+                linestyle=":",
+                label=f"Capacity: {available_cores} cores ({capacity_ceiling}%)",
+            )
+
+        if global_cpu_threshold > 0:
+            ax.axhline(
+                y=global_cpu_threshold,
+                color="red",
+                linestyle="--",
+                label=f"Threshold: {global_cpu_threshold:.0f}%",
+            )
+
+        if trigger_time is not None:
+            ax.axvline(
+                x=trigger_time, color="darkred", linestyle=":", label="Global CPU threshold hit"
+            )
+
+        ax.set_xlabel("Time (seconds)")
+        ax.set_ylabel("Aggregate CPU %")
+        ax.set_title(f"Global CPU Saturation Timeline (Total Agents: {total_agents})")
+        ax.set_ylim(0, y_max)
+        ax.legend(loc="upper left", fontsize="small")
+        ax.grid(alpha=0.3)
+
+        png_path = self.charts_dir / "global_cpu_timeline.png"
+        fig_mpl.savefig(png_path, dpi=150, bbox_inches="tight")
+        plt.close(fig_mpl)
+
+        generated.extend([str(html_path), str(png_path)])
+        return generated
+
     def _create_scenario_subdirs(self) -> dict[str, Path]:
         """Create subdirectories for organizing charts by scenario type.
 
@@ -742,6 +904,7 @@ class ChartGenerator:
             self.charts_dir = subdirs["stress"]
             chart_paths["stress"].extend(self.generate_stress_timeline(stress_scenarios[0]))
             chart_paths["stress"].extend(self.generate_stress_comparison(stress_scenarios[0]))
+            chart_paths["stress"].extend(self.generate_global_cpu_timeline(stress_scenarios[0]))
             self.charts_dir = original_dir
 
         # Speed scaling charts

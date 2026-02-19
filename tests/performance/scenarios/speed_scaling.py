@@ -79,7 +79,7 @@ class SpeedScalingScenario(BaseScenario):
 
         while multiplier <= self.max_multiplier:
             if self._aborted:
-                console.print("[red]Test aborted due to OOM[/red]")
+                console.print(f"[red]Test aborted: {self._abort_reason}[/red]")
                 break
 
             step_number += 1
@@ -228,10 +228,11 @@ class SpeedScalingScenario(BaseScenario):
         }
 
     def _check_step_thresholds(self, step_samples: list[dict[str, Any]]) -> ThresholdTrigger | None:
-        """Check if any container exceeded thresholds during this step.
+        """Check if global CPU or any container's memory exceeded thresholds.
 
-        Builds rolling stats from step samples and checks against per-container
-        CPU thresholds (scaled by effective cores) and memory thresholds.
+        Uses rolling stats from step samples. Global CPU threshold stops when
+        the sum of all container CPU reaches threshold_pct% of available cores.
+        Per-container memory threshold remains unchanged.
 
         Args:
             step_samples: Samples collected during this step.
@@ -242,19 +243,19 @@ class SpeedScalingScenario(BaseScenario):
         if not step_samples:
             return None
 
-        base_cpu_threshold = self.config.scenarios.stress_cpu_threshold_percent
         memory_threshold = self.config.scenarios.stress_memory_threshold_percent
-        thresholds = self.config.analysis.thresholds
 
         rolling_window_samples = int(
             self.config.scenarios.stress_rolling_window_seconds
             / self.config.sampling.interval_seconds
         )
 
-        # Build rolling stats from step samples
+        # Build rolling stats from step samples (memory per-container + global CPU)
         container_stats: dict[str, ContainerRollingStats] = {}
+        global_cpu_rolling = RollingStats.with_window(rolling_window_samples)
 
         for sample in step_samples:
+            # Per-container memory rolling stats
             for container_name, container_data in sample.get("containers", {}).items():
                 if container_name not in container_stats:
                     container_stats[container_name] = ContainerRollingStats(
@@ -266,9 +267,12 @@ class SpeedScalingScenario(BaseScenario):
                 stats.memory_percent.add(container_data.get("memory_percent", 0.0))
                 stats.cpu_percent.add(container_data.get("cpu_percent", 0.0))
 
-        # Check thresholds on final rolling averages
+            # Global CPU rolling stats
+            global_cpu = sample.get("global_cpu_percent", 0.0)
+            global_cpu_rolling.add(global_cpu)
+
+        # Check per-container memory thresholds
         for container_name, stats in container_stats.items():
-            # Memory threshold
             memory_avg = stats.memory_percent.average
             if memory_avg >= memory_threshold:
                 return ThresholdTrigger(
@@ -278,15 +282,16 @@ class SpeedScalingScenario(BaseScenario):
                     threshold=memory_threshold,
                 )
 
-            # CPU threshold (scaled by effective cores)
-            cpu_threshold = thresholds.get_stress_cpu_threshold(container_name, base_cpu_threshold)
-            cpu_avg = stats.cpu_percent.average
-            if cpu_avg >= cpu_threshold:
-                return ThresholdTrigger(
-                    container=container_name,
-                    metric="cpu",
-                    value=cpu_avg,
-                    threshold=cpu_threshold,
-                )
+        # Check global CPU threshold
+        global_threshold_pct = self.config.scenarios.stress_global_cpu_threshold_percent
+        global_cpu_limit = (global_threshold_pct / 100) * self._available_cores * 100
+        global_cpu_avg = global_cpu_rolling.average
+        if global_cpu_avg >= global_cpu_limit:
+            return ThresholdTrigger(
+                container="__global__",
+                metric="global_cpu",
+                value=global_cpu_avg,
+                threshold=global_cpu_limit,
+            )
 
         return None
