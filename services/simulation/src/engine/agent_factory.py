@@ -42,8 +42,10 @@ class AgentFactory:
         self._osrm_client = osrm_client
         self._surge_calculator = surge_calculator
 
-        self._max_drivers = 2000
-        self._max_riders = 10000
+        # TODO: replace with real limits discovered from performance test results
+        # Currently set high so the stress test can find actual resource boundaries
+        self._max_drivers = 100_000
+        self._max_riders = 100_000
 
         # Spawn queues for continuous agent spawning (per-mode queues)
         self._driver_immediate_requests: deque[int] = deque()

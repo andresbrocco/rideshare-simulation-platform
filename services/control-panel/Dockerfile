@@ -6,12 +6,19 @@ WORKDIR /app
 # Copy package files for dependency installation
 COPY package*.json ./
 
-# Create entrypoint script that installs deps if node_modules is empty
-# Uses npm install --force to bypass platform-specific package checks (darwin/linux lockfile differences)
+# Pre-install dependencies at build time to a staging directory.
+# At runtime, if the named volume is empty the entrypoint copies these
+# (fast file copy) instead of running npm install over the network.
+RUN npm install --force && \
+    cp -a node_modules /tmp/node_modules && \
+    rm -rf node_modules
+
+# Create entrypoint script that seeds the volume from the build-time cache
+# Uses cp instead of npm install for fast cold starts
 RUN echo '#!/bin/sh' > /entrypoint.sh && \
     echo 'if [ ! -d "/app/node_modules/.bin" ]; then' >> /entrypoint.sh && \
-    echo '  echo "Installing dependencies..."' >> /entrypoint.sh && \
-    echo '  npm install --force' >> /entrypoint.sh && \
+    echo '  echo "Seeding node_modules from build cache..."' >> /entrypoint.sh && \
+    echo '  cp -a /tmp/node_modules/. /app/node_modules/' >> /entrypoint.sh && \
     echo 'fi' >> /entrypoint.sh && \
     echo 'exec "$@"' >> /entrypoint.sh && \
     chmod +x /entrypoint.sh
