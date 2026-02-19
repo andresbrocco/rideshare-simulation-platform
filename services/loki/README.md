@@ -35,7 +35,7 @@ docker compose -f infrastructure/docker/compose.yml stop loki
 
 **Image**: `grafana/loki:3.6.5`
 **Container Name**: `rideshare-loki`
-**Memory Limit**: 384m
+**Memory Limit**: 512m
 **Health Check**: `/usr/bin/loki -health`
 
 ## Key Settings

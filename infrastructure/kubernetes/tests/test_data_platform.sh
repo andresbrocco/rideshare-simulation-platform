@@ -99,11 +99,11 @@ echo "Test 3: Verifying resource allocations..."
 echo "------------------------------------------"
 
 # Expected memory allocations (adjusted to fit 5.6GB limit)
-# Total: 4.82GB (within 5.6GB spec)
+# Total: 5.07GB (within 5.6GB spec)
 # Format: app:memory
 declare -a EXPECTED_MEMORY=(
     "minio:256Mi"
-    "bronze-ingestion:256Mi"
+    "bronze-ingestion:512Mi"
     "spark-thrift-server:1024Mi"
     "localstack:512Mi"
     "airflow-postgres:256Mi"
