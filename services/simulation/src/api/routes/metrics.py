@@ -1167,6 +1167,7 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
     total_memory_used = 0.0
 
     # Build service metrics list
+    SPARK_CONTAINER_NAME = "rideshare-spark-thrift-server"
     container_config, discovery_error = _discover_containers()
     services = []
     final_statuses: dict[str, ContainerStatus] = {}
@@ -1193,12 +1194,21 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
                 # Normalize CPU for display (percentage of all cores)
                 cpu_percent = round(cpu_percent_raw / total_cores, 1) if total_cores > 0 else 0.0
             else:
-                # Container not found in cAdvisor - might be stopped
-                if status == ContainerStatus.HEALTHY:
+                # Container not found in cAdvisor — it's not running.
+                # Override both HEALTHY (no health endpoint) and UNHEALTHY
+                # (connection refused) to the more accurate STOPPED status.
+                if status in (ContainerStatus.HEALTHY, ContainerStatus.UNHEALTHY):
                     status = ContainerStatus.STOPPED
                     message = "Container not running"
 
         final_statuses[container_name] = status
+
+        # Spark thrift is optional; hide it entirely when not running.
+        if container_name == SPARK_CONTAINER_NAME and status in (
+            ContainerStatus.STOPPED,
+            ContainerStatus.UNHEALTHY,
+        ):
+            continue
 
         services.append(
             ServiceMetrics(
@@ -1214,12 +1224,16 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         )
 
     # Determine overall status — binary HEALTHY/UNHEALTHY across all services.
-    # Spark thrift is optional (not deployed by default); exclude it when STOPPED.
-    SPARK_CONTAINER_NAME = "rideshare-spark-thrift-server"
+    # Spark thrift is optional (not deployed by default); exclude it when not running.
+    # Its health check returns UNHEALTHY (connection refused) and cAdvisor marks it
+    # STOPPED — either way it should not drag the overall status down.
     overall_statuses = [
         status
         for container_name, status in final_statuses.items()
-        if not (container_name == SPARK_CONTAINER_NAME and status == ContainerStatus.STOPPED)
+        if not (
+            container_name == SPARK_CONTAINER_NAME
+            and status in (ContainerStatus.STOPPED, ContainerStatus.UNHEALTHY)
+        )
     ]
     overall_status = (
         ContainerStatus.HEALTHY
