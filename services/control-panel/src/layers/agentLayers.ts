@@ -12,9 +12,11 @@ const FLAG_ICON_MAPPING = {
 };
 
 // Icon mapping for deck.gl (defines icon bounds within the image)
-const CAR_ICON_MAPPING = { car: { x: 0, y: 0, width: 100, height: 100, anchorY: 50, anchorX: 50 } };
+const CAR_ICON_MAPPING = {
+  car: { x: 0, y: 0, width: 100, height: 100, anchorY: 50, anchorX: 50, mask: true },
+};
 const PERSON_ICON_MAPPING = {
-  person: { x: 0, y: 0, width: 100, height: 100, anchorY: 50, anchorX: 50 },
+  person: { x: 0, y: 0, width: 100, height: 100, anchorY: 50, anchorX: 50, mask: true },
 };
 
 // Driver status colors by trip lifecycle phase
