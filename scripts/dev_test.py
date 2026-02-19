@@ -74,7 +74,7 @@ class Config:
 COMPOSE_FILE = "infrastructure/docker/compose.yml"
 SIMULATION_URL = "http://localhost:8000"
 AIRFLOW_URL = "http://localhost:8082"
-SIMULATION_API_KEY = "dev-api-key-change-in-production"
+SIMULATION_API_KEY = "admin"
 AIRFLOW_USERNAME = "admin"
 AIRFLOW_PASSWORD = "admin"
 
@@ -123,7 +123,7 @@ def docker_compose_down() -> None:
             "--profile",
             "data-pipeline",
             "--profile",
-            "analytics",
+            "monitoring",
             "down",
             "-v",
         ]
@@ -145,7 +145,7 @@ def docker_compose_up() -> None:
             "--profile",
             "data-pipeline",
             "--profile",
-            "analytics",
+            "monitoring",
             "up",
             "-d",
         ],
@@ -535,6 +535,8 @@ def main() -> int:
     print("  - Frontend:   http://localhost:5173")
     print("  - Simulation: http://localhost:8000/docs")
     print("  - Airflow:    http://localhost:8082 (admin/admin)")
+    print("  - Grafana:    http://localhost:3001 (admin/admin)")
+    print("  - Prometheus: http://localhost:9091")
     print()
 
     return 0

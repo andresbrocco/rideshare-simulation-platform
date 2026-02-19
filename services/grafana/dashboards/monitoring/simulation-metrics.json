@@ -1244,7 +1244,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "histogram_quantile(0.50, rate(simulation_redis_latency_seconds_bucket[$__rate_interval])) or vector(0)",
+          "expr": "histogram_quantile(0.50, rate(stream_processor_redis_publish_latency_seconds_bucket[$__rate_interval])) or vector(0)",
           "legendFormat": "p50",
           "refId": "A"
         },
@@ -1253,7 +1253,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "histogram_quantile(0.95, rate(simulation_redis_latency_seconds_bucket[$__rate_interval])) or vector(0)",
+          "expr": "histogram_quantile(0.95, rate(stream_processor_redis_publish_latency_seconds_bucket[$__rate_interval])) or vector(0)",
           "legendFormat": "p95",
           "refId": "B"
         },
@@ -1262,7 +1262,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "histogram_quantile(0.99, rate(simulation_redis_latency_seconds_bucket[$__rate_interval])) or vector(0)",
+          "expr": "histogram_quantile(0.99, rate(stream_processor_redis_publish_latency_seconds_bucket[$__rate_interval])) or vector(0)",
           "legendFormat": "p99",
           "refId": "C"
         }

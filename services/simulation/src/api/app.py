@@ -88,7 +88,9 @@ class MetricsUpdater:
                     trip_stats = ms.get_trip_stats()
                     trips_completed = trip_stats.get("completed_count", 0)
                     trips_cancelled = trip_stats.get("cancelled_count", 0)
-                    pending_offers = 0
+                    pending_offers = (
+                        len(ms._pending_offers) if hasattr(ms, "_pending_offers") else 0
+                    )
 
                 simpy_events = (
                     len(self._engine._env._queue) if hasattr(self._engine._env, "_queue") else 0

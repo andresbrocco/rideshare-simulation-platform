@@ -74,8 +74,13 @@ simulation_trips_active = meter.create_up_down_counter(
     description="Number of active trips",
 )
 
-simulation_offers_pending = meter.create_up_down_counter(
+# NOTE: offers_pending uses an Observable Gauge (not UpDownCounter) because
+# offers are created and resolved within the same SimPy tick - the delta is
+# always 0 between 1-second polling intervals. The gauge always emits the
+# current instantaneous count at each OTel export interval.
+simulation_offers_pending = meter.create_observable_gauge(
     name="simulation_offers_pending",
+    callbacks=[lambda options: _observe("pending_offers")],
     description="Number of pending trip offers",
 )
 
@@ -97,6 +102,7 @@ _snapshot_values: dict[str, float] = {
     "avg_wait_seconds": 0.0,
     "avg_pickup_seconds": 0.0,
     "matching_success_rate": 0.0,
+    "pending_offers": 0.0,
     "memory_rss_mb": 0.0,
     "memory_percent": 0.0,
     "cpu_percent": 0.0,
@@ -201,7 +207,6 @@ _previous_trips_cancelled: int = 0
 _previous_drivers_online: int = 0
 _previous_riders_in_transit: int = 0
 _previous_active_trips: int = 0
-_previous_pending_offers: int = 0
 _previous_simpy_events: int = 0
 
 
@@ -230,7 +235,7 @@ def update_metrics_from_snapshot(
     global _previous_event_counts, _previous_error_counts
     global _previous_trips_completed, _previous_trips_cancelled
     global _previous_drivers_online, _previous_riders_in_transit
-    global _previous_active_trips, _previous_pending_offers, _previous_simpy_events
+    global _previous_active_trips, _previous_simpy_events
 
     # --- Observable gauge values (stored for callback reads) ---
     with _snapshot_lock:
@@ -239,6 +244,7 @@ def update_metrics_from_snapshot(
         _snapshot_values["avg_wait_seconds"] = avg_wait_seconds
         _snapshot_values["avg_pickup_seconds"] = avg_pickup_seconds
         _snapshot_values["matching_success_rate"] = matching_success_rate
+        _snapshot_values["pending_offers"] = float(pending_offers)
         _snapshot_values["memory_rss_mb"] = snapshot.memory_rss_mb
         _snapshot_values["memory_percent"] = snapshot.memory_percent
         _snapshot_values["cpu_percent"] = snapshot.cpu_percent
@@ -259,11 +265,6 @@ def update_metrics_from_snapshot(
     if delta != 0:
         simulation_trips_active.add(delta)
     _previous_active_trips = active_trips
-
-    delta = pending_offers - _previous_pending_offers
-    if delta != 0:
-        simulation_offers_pending.add(delta)
-    _previous_pending_offers = pending_offers
 
     delta = simpy_events - _previous_simpy_events
     if delta != 0:

@@ -103,7 +103,18 @@ final as (
         dropoff_lon,
         fare,
         surge_multiplier,
-        cast(null as double) as distance_km,
+        case
+            when pickup_lat is not null and pickup_lon is not null
+             and dropoff_lat is not null and dropoff_lon is not null
+            then 2 * 6371.0 * asin(
+                sqrt(
+                    pow(sin((radians(dropoff_lat) - radians(pickup_lat)) / 2), 2)
+                    + cos(radians(pickup_lat)) * cos(radians(dropoff_lat))
+                      * pow(sin((radians(dropoff_lon) - radians(pickup_lon)) / 2), 2)
+                )
+            )
+            else null
+        end as distance_km,
         case
             when started_at is not null and completed_at is not null
             then ({{ epoch_seconds('completed_at') }} - {{ epoch_seconds('started_at') }}) / 60.0

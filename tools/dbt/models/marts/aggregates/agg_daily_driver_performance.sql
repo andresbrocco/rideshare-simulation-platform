@@ -29,9 +29,11 @@ driver_activity as (
     select
         driver_key,
         time_key,
-        sum(case when status = 'online' then duration_minutes else 0 end) as online_minutes,
-        sum(case when status = 'en_route' then duration_minutes else 0 end) as en_route_minutes,
-        sum(case when status = 'on_trip' then duration_minutes else 0 end) as on_trip_minutes
+        -- Total logged-in time across all active statuses (satisfies test:
+        -- en_route_minutes + on_trip_minutes <= online_minutes)
+        sum(duration_minutes) as online_minutes,
+        sum(case when status = 'en_route_pickup' then duration_minutes else 0 end) as en_route_minutes,
+        sum(case when status = 'en_route_destination' then duration_minutes else 0 end) as on_trip_minutes
     from {{ ref('fact_driver_activity') }}
     group by driver_key, time_key
 ),
@@ -47,8 +49,10 @@ final as (
         coalesce(da.en_route_minutes, 0.0) as en_route_minutes,
         coalesce(da.on_trip_minutes, 0.0) as on_trip_minutes,
         case
-            when coalesce(da.online_minutes, 0) = 0 then 0.0
-            else (coalesce(da.en_route_minutes, 0.0) + coalesce(da.on_trip_minutes, 0.0)) / da.online_minutes * 100.0
+            when coalesce(da.online_minutes, 0.0) = 0 then 0.0
+            else (coalesce(da.en_route_minutes, 0.0) + coalesce(da.on_trip_minutes, 0.0))
+                 / coalesce(da.online_minutes, 1.0)
+                 * 100.0
         end as utilization_pct
     from driver_activity da
     left join driver_trips dt

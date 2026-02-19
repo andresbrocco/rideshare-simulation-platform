@@ -27,6 +27,9 @@ TRINO_PORT = os.getenv("TRINO_PORT", "8080")
 TRINO_URL = f"http://{TRINO_HOST}:{TRINO_PORT}"
 
 # Silver tables created by DBT and exported via export-dbt-to-s3.py
+# NOTE: anomalies_gps_outliers and anomalies_zombie_drivers are DBT views
+# (materialized='view'), not physical tables, so they have no Delta logs
+# and cannot be registered as Trino Delta tables.
 SILVER_TABLES = [
     "stg_trips",
     "stg_gps_pings",
@@ -37,9 +40,7 @@ SILVER_TABLES = [
     "stg_drivers",
     "stg_riders",
     "anomalies_all",
-    "anomalies_gps_outliers",
     "anomalies_impossible_speeds",
-    "anomalies_zombie_drivers",
 ]
 
 # Gold tables created by DBT and exported via export-dbt-to-s3.py
@@ -174,20 +175,29 @@ def main() -> int:
             else:
                 skipped += 1
         except RuntimeError as exc:
-            print(f"  [WARN] {table_name} - {exc}")
-            failed += 1
+            exc_str = str(exc)
+            # "No transaction log found" means the table has no data yet
+            # (e.g. stg_ratings/stg_payments before trips complete). Treat
+            # as a skippable warning rather than a hard failure so the task
+            # doesn't block downstream work.
+            if "No transaction log found" in exc_str:
+                print(f"  [SKIP] {table_name} - no data in S3 yet (will register on next run)")
+                skipped += 1
+            else:
+                print(f"  [WARN] {table_name} - {exc}")
+                failed += 1
 
     print()
     print("=" * 60)
     print("Registration Summary")
     print("=" * 60)
     print(f"  Registered: {registered}")
-    print(f"  Skipped (already registered): {skipped}")
+    print(f"  Skipped (already registered or no data yet): {skipped}")
     print(f"  Failed: {failed}")
     print()
 
     if failed > 0:
-        print(f"WARNING: {failed} table(s) failed to register")
+        print(f"ERROR: {failed} table(s) failed to register (unexpected errors)")
         return 1
 
     print("Done")
