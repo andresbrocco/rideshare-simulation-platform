@@ -294,4 +294,22 @@ class SpeedScalingScenario(BaseScenario):
                 threshold=global_cpu_limit,
             )
 
+        # Check RTR (simulation lag) threshold
+        rtr_threshold = self.config.scenarios.stress_rtr_threshold
+        rtr_rolling = RollingStats.with_window(rolling_window_samples)
+        for sample in step_samples:
+            rtr_data = sample.get("rtr")
+            if rtr_data is not None and "rtr" in rtr_data:
+                rtr_rolling.add(rtr_data["rtr"])
+
+        if rtr_rolling.values:
+            rtr_avg = rtr_rolling.average
+            if rtr_avg >= rtr_threshold:
+                return ThresholdTrigger(
+                    container="__simulation__",
+                    metric="rtr",
+                    value=rtr_avg,
+                    threshold=rtr_threshold,
+                )
+
         return None

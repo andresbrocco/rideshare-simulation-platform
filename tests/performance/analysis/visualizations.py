@@ -843,6 +843,163 @@ class ChartGenerator:
         generated.extend([str(html_path), str(png_path)])
         return generated
 
+    def generate_stress_rtr_timeline(self, stress_scenario: dict[str, Any]) -> list[str]:
+        """Generate timeline chart showing RTR (Real-Time Ratio) over time.
+
+        Shows instantaneous RTR as scatter points, rolling average as a line,
+        the configured threshold, and a 1.0x reference line.
+
+        Args:
+            stress_scenario: Stress test scenario result.
+
+        Returns:
+            List of generated file paths.
+        """
+        samples = stress_scenario.get("samples", [])
+        if not samples:
+            return []
+
+        metadata = stress_scenario.get("metadata", {})
+        total_agents = metadata.get("total_agents_queued", 0)
+        rtr_threshold = stress_scenario.get("scenario_params", {}).get("rtr_threshold", 1.5)
+
+        first_ts = samples[0]["timestamp"]
+
+        # Extract RTR data
+        rtr_timestamps: list[float] = []
+        rtr_values: list[float] = []
+        rolling_timestamps: list[float] = []
+        rolling_values: list[float] = []
+
+        for sample in samples:
+            elapsed = sample["timestamp"] - first_ts
+            rtr_data = sample.get("rtr")
+            if rtr_data is not None and "rtr" in rtr_data:
+                rtr_timestamps.append(elapsed)
+                rtr_values.append(rtr_data["rtr"])
+            rolling_avg = sample.get("rtr_rolling_avg")
+            if rolling_avg is not None:
+                rolling_timestamps.append(elapsed)
+                rolling_values.append(rolling_avg)
+
+        if not rtr_timestamps and not rolling_timestamps:
+            return []
+
+        # Determine y-axis max
+        all_vals = rtr_values + rolling_values + [rtr_threshold, 1.0]
+        y_max = max(all_vals) * 1.2 if all_vals else 3.0
+
+        generated: list[str] = []
+
+        # --- Plotly version ---
+        fig = go.Figure()
+
+        # Instantaneous RTR (scatter)
+        if rtr_timestamps:
+            fig.add_trace(
+                go.Scatter(
+                    x=rtr_timestamps,
+                    y=rtr_values,
+                    mode="markers",
+                    name="RTR (instantaneous)",
+                    marker={"color": "lightcoral", "size": 5, "opacity": 0.6},
+                )
+            )
+
+        # Rolling average (bold line)
+        if rolling_timestamps:
+            fig.add_trace(
+                go.Scatter(
+                    x=rolling_timestamps,
+                    y=rolling_values,
+                    mode="lines",
+                    name="RTR (rolling avg)",
+                    line={"color": "red", "width": 3},
+                )
+            )
+
+        # 1.0x reference line (keeping pace)
+        fig.add_hline(
+            y=1.0,
+            line_dash="dot",
+            line_color="green",
+            annotation_text="1.0x (keeping pace)",
+        )
+
+        # Threshold line
+        fig.add_hline(
+            y=rtr_threshold,
+            line_dash="dash",
+            line_color="darkred",
+            annotation_text=f"{rtr_threshold}x threshold",
+        )
+
+        fig.update_layout(
+            title=f"Simulation RTR Timeline (Total Agents: {total_agents})",
+            xaxis_title="Time (seconds)",
+            yaxis_title="Real-Time Ratio (higher = more behind)",
+            yaxis_range=[0, y_max],
+        )
+
+        html_path = self.charts_dir / "stress_rtr_timeline.html"
+        fig.write_html(str(html_path))
+
+        # --- Matplotlib version ---
+        fig_mpl, ax = plt.subplots(figsize=(12, 6))
+
+        if rtr_timestamps:
+            ax.scatter(
+                rtr_timestamps,
+                rtr_values,
+                color="lightcoral",
+                s=15,
+                alpha=0.6,
+                label="RTR (instantaneous)",
+                zorder=2,
+            )
+
+        if rolling_timestamps:
+            ax.plot(
+                rolling_timestamps,
+                rolling_values,
+                color="red",
+                linewidth=3,
+                label="RTR (rolling avg)",
+                zorder=3,
+            )
+
+        # 1.0x reference
+        ax.axhline(
+            y=1.0,
+            color="green",
+            linestyle=":",
+            label="1.0x (keeping pace)",
+            zorder=1,
+        )
+
+        # Threshold
+        ax.axhline(
+            y=rtr_threshold,
+            color="darkred",
+            linestyle="--",
+            label=f"{rtr_threshold}x threshold",
+            zorder=1,
+        )
+
+        ax.set_xlabel("Time (seconds)")
+        ax.set_ylabel("Real-Time Ratio (higher = more behind)")
+        ax.set_title(f"Simulation RTR Timeline (Total Agents: {total_agents})")
+        ax.set_ylim(0, y_max)
+        ax.legend(loc="upper left", fontsize="small")
+        ax.grid(alpha=0.3)
+
+        png_path = self.charts_dir / "stress_rtr_timeline.png"
+        fig_mpl.savefig(png_path, dpi=150, bbox_inches="tight")
+        plt.close(fig_mpl)
+
+        generated.extend([str(html_path), str(png_path)])
+        return generated
+
     def _create_scenario_subdirs(self) -> dict[str, Path]:
         """Create subdirectories for organizing charts by scenario type.
 
@@ -905,6 +1062,7 @@ class ChartGenerator:
             chart_paths["stress"].extend(self.generate_stress_timeline(stress_scenarios[0]))
             chart_paths["stress"].extend(self.generate_stress_comparison(stress_scenarios[0]))
             chart_paths["stress"].extend(self.generate_global_cpu_timeline(stress_scenarios[0]))
+            chart_paths["stress"].extend(self.generate_stress_rtr_timeline(stress_scenarios[0]))
             self.charts_dir = original_dir
 
         # Speed scaling charts

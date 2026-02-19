@@ -106,6 +106,15 @@ class StressTestScenario(BaseScenario):
         # Initialize rolling stats per container and global CPU
         self._rolling_stats: dict[str, ContainerRollingStats] = {}
         self._global_cpu_rolling = RollingStats.with_window(self._rolling_window_samples)
+        # RTR rolling window (separate from CPU/memory window since RTR samples are noisier)
+        rtr_window_samples = max(
+            1,
+            int(
+                self.config.scenarios.stress_rtr_rolling_window_seconds
+                / self.config.sampling.interval_seconds
+            ),
+        )
+        self._rtr_rolling = RollingStats.with_window(rtr_window_samples)
         self._total_drivers_queued = 0
         self._total_riders_queued = 0
         self._trigger: ThresholdTrigger | None = None
@@ -124,7 +133,8 @@ class StressTestScenario(BaseScenario):
     def description(self) -> str:
         return (
             f"Stress test: spawn agents until {self.params['global_cpu_threshold_percent']}% "
-            f"global CPU or {self.params['memory_threshold_percent']}% memory reached"
+            f"global CPU, {self.params['memory_threshold_percent']}% memory, "
+            f"or {self.params['rtr_threshold']}x RTR reached"
         )
 
     @property
@@ -132,6 +142,7 @@ class StressTestScenario(BaseScenario):
         return {
             "global_cpu_threshold_percent": self.config.scenarios.stress_global_cpu_threshold_percent,
             "memory_threshold_percent": self.config.scenarios.stress_memory_threshold_percent,
+            "rtr_threshold": self.config.scenarios.stress_rtr_threshold,
             "rolling_window_seconds": self.config.scenarios.stress_rolling_window_seconds,
             "rolling_window_samples": self._rolling_window_samples,
             "spawn_batch_size": self.config.scenarios.stress_spawn_batch_size,
@@ -253,6 +264,9 @@ class StressTestScenario(BaseScenario):
         self._metadata["drivers_queued"] = self._total_drivers_queued
         self._metadata["riders_queued"] = self._total_riders_queued
         self._metadata["peak_values"] = self._peak_values
+        self._metadata["rtr_peak"] = (
+            round(max(self._rtr_rolling.values), 4) if self._rtr_rolling.values else None
+        )
         self._metadata["duration_seconds"] = elapsed
         self._metadata["batch_count"] = batch_count
         self._metadata["available_cores"] = self._available_cores
@@ -319,6 +333,13 @@ class StressTestScenario(BaseScenario):
         self._global_cpu_rolling.add(global_cpu)
         sample["global_cpu_rolling_avg"] = round(self._global_cpu_rolling.average, 2)
 
+        # Track RTR rolling average
+        rtr_data = sample.get("rtr")
+        if rtr_data is not None and "rtr" in rtr_data:
+            self._rtr_rolling.add(rtr_data["rtr"])
+        if self._rtr_rolling.values:
+            sample["rtr_rolling_avg"] = round(self._rtr_rolling.average, 4)
+
         # Augment sample with rolling averages and agent count
         sample["rolling_averages"] = rolling_averages
         sample["agents_queued"] = {
@@ -365,5 +386,17 @@ class StressTestScenario(BaseScenario):
                 value=global_cpu_avg,
                 threshold=global_cpu_limit,
             )
+
+        # Check RTR (simulation lag) threshold
+        rtr_threshold = self.config.scenarios.stress_rtr_threshold
+        if self._rtr_rolling.values:
+            rtr_avg = self._rtr_rolling.average
+            if rtr_avg >= rtr_threshold:
+                return ThresholdTrigger(
+                    container="__simulation__",
+                    metric="rtr",
+                    value=rtr_avg,
+                    threshold=rtr_threshold,
+                )
 
         return None

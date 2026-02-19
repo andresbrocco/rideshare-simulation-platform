@@ -4,7 +4,7 @@ import subprocess
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Iterator
 
 from rich.console import Console
@@ -62,6 +62,10 @@ class BaseScenario(ABC):
         self._abort_reason: str | None = None
         self._metadata: dict[str, Any] = {}
         self._available_cores: int = 0  # Detected during setup
+        # RTR tracking state (previous sample)
+        self._prev_sim_time_iso: str | None = None
+        self._prev_sample_wall_time: float | None = None
+        self._prev_speed_multiplier: int | None = None
 
     @property
     @abstractmethod
@@ -238,8 +242,80 @@ class BaseScenario(ABC):
         sample["global_cpu_percent"] = round(global_cpu, 2)
         sample["available_cores"] = self._available_cores
 
+        # Collect RTR (Real-Time Ratio) sample from simulation status
+        rtr_data = self._collect_rtr_sample()
+        if rtr_data is not None:
+            sample["rtr"] = rtr_data
+
         self._samples.append(sample)
         return sample
+
+    def _collect_rtr_sample(self) -> dict[str, Any] | None:
+        """Collect RTR (Real-Time Ratio) sample from the simulation API.
+
+        Computes delta-based RTR between consecutive samples:
+            RTR = expected_sim_delta / actual_sim_delta
+        where expected = wall_delta * speed_multiplier.
+
+        RTR = 1.0 means keeping pace, >1.0 means falling behind.
+
+        Returns:
+            Dict with sim_time_iso, speed_multiplier, state, and optionally rtr.
+            None if the API call fails.
+        """
+        try:
+            status = self.api_client.get_simulation_status()
+        except Exception:
+            return None
+
+        # Only compute RTR when simulation is running
+        if status.state != "running":
+            # Reset prev state so next running sample starts fresh
+            self._prev_sim_time_iso = None
+            self._prev_sample_wall_time = None
+            self._prev_speed_multiplier = None
+            return {
+                "sim_time_iso": status.current_time,
+                "speed_multiplier": status.speed_multiplier,
+                "state": status.state,
+            }
+
+        wall_now = time.time()
+        result: dict[str, Any] = {
+            "sim_time_iso": status.current_time,
+            "speed_multiplier": status.speed_multiplier,
+            "state": status.state,
+        }
+
+        # Compute RTR if we have a previous sample
+        if (
+            self._prev_sim_time_iso is not None
+            and self._prev_sample_wall_time is not None
+            and self._prev_speed_multiplier is not None
+        ):
+            try:
+                prev_sim = datetime.fromisoformat(self._prev_sim_time_iso)
+                curr_sim = datetime.fromisoformat(status.current_time)
+                # Ensure both are timezone-aware or both naive for subtraction
+                if prev_sim.tzinfo is None and curr_sim.tzinfo is not None:
+                    prev_sim = prev_sim.replace(tzinfo=timezone.utc)
+                elif prev_sim.tzinfo is not None and curr_sim.tzinfo is None:
+                    curr_sim = curr_sim.replace(tzinfo=timezone.utc)
+                sim_delta = (curr_sim - prev_sim).total_seconds()
+                wall_delta = wall_now - self._prev_sample_wall_time
+
+                if sim_delta > 0 and wall_delta > 0:
+                    expected = wall_delta * self._prev_speed_multiplier
+                    result["rtr"] = round(expected / sim_delta, 4)
+            except (ValueError, OverflowError):
+                pass  # Malformed ISO timestamp — skip RTR for this sample
+
+        # Update prev state for next call
+        self._prev_sim_time_iso = status.current_time
+        self._prev_sample_wall_time = wall_now
+        self._prev_speed_multiplier = status.speed_multiplier
+
+        return result
 
     def _wait_for_steady_state(self, duration_seconds: float) -> None:
         """Wait for a specified duration, used for warmup/settle periods.

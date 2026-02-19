@@ -23,6 +23,7 @@ class FindingCategory(Enum):
     OOM_EVENT = "oom_event"
     STRESS_THRESHOLD = "stress_threshold"
     GLOBAL_CPU_SATURATION = "global_cpu_saturation"
+    SIMULATION_LAG = "simulation_lag"
     CONTAINER_FAILURE = "container_failure"
 
 

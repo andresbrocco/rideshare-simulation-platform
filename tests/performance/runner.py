@@ -297,6 +297,34 @@ def _generate_findings(results: dict[str, Any], config: TestConfig) -> list[Find
                         )
                     )
 
+        # Check for simulation lag (RTR)
+        rtr_threshold = config.scenarios.stress_rtr_threshold
+        rtr_values = [
+            s["rtr"]["rtr"] for s in samples if s.get("rtr") is not None and "rtr" in s["rtr"]
+        ]
+        if rtr_values:
+            rtr_peak = max(rtr_values)
+            rtr_avg = sum(rtr_values) / len(rtr_values)
+            if rtr_peak >= rtr_threshold:
+                findings.append(
+                    Finding(
+                        severity=Severity.WARNING,
+                        category=FindingCategory.SIMULATION_LAG,
+                        container="__simulation__",
+                        message=(
+                            f"Simulation falling behind: peak RTR {rtr_peak:.2f}x, "
+                            f"avg {rtr_avg:.2f}x (threshold: {rtr_threshold}x)"
+                        ),
+                        metric_value=rtr_peak,
+                        threshold=rtr_threshold,
+                        scenario_name=scenario_name,
+                        recommendation=(
+                            "Simulation cannot keep pace with wall-clock time; "
+                            "reduce agent count, lower speed multiplier, or optimize sim logic"
+                        ),
+                    )
+                )
+
         # Check for container failures
         abort_reason = scenario.get("abort_reason", "") or ""
         if "not running" in abort_reason:
@@ -725,6 +753,7 @@ def run(
                 "stress_cpu_threshold_percent": config.scenarios.stress_cpu_threshold_percent,
                 "stress_global_cpu_threshold_percent": config.scenarios.stress_global_cpu_threshold_percent,
                 "stress_memory_threshold_percent": config.scenarios.stress_memory_threshold_percent,
+                "stress_rtr_threshold": config.scenarios.stress_rtr_threshold,
                 "speed_scaling_step_duration_minutes": config.scenarios.speed_scaling_step_duration_minutes,
                 "speed_scaling_max_multiplier": config.scenarios.speed_scaling_max_multiplier,
             },
@@ -772,8 +801,9 @@ def run(
                 elif scenario_name == "stress":
                     console.rule(
                         f"[bold cyan]{step_label}: Running Stress Test "
-                        f"(until {config.scenarios.stress_global_cpu_threshold_percent}% global CPU "
-                        f"or {config.scenarios.stress_memory_threshold_percent}% memory)"
+                        f"(until {config.scenarios.stress_global_cpu_threshold_percent}% global CPU, "
+                        f"{config.scenarios.stress_memory_threshold_percent}% memory, "
+                        f"or {config.scenarios.stress_rtr_threshold}x RTR)"
                         f"[/bold cyan]"
                     )
                     stress_result = run_scenario(

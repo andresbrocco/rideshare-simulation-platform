@@ -42,7 +42,7 @@ class ScenarioConfig:
     # Duration/leak test settings (3-phase: active → drain → cooldown)
     duration_active_minutes: int = 5
     duration_cooldown_minutes: int = 10
-    duration_drain_timeout_seconds: int = 600
+    duration_drain_timeout_seconds: int = 7200
 
     # Baseline test settings
     baseline_duration_seconds: int = 30
@@ -55,6 +55,8 @@ class ScenarioConfig:
     stress_spawn_batch_size: int = 18
     stress_spawn_interval_seconds: float = 1.0
     stress_max_duration_minutes: int = 30
+    stress_rtr_threshold: float = 1.5  # RTR rolling avg above this triggers stop
+    stress_rtr_rolling_window_seconds: int = 10  # Separate window for RTR smoothing
 
     # Speed scaling test settings
     speed_scaling_step_duration_minutes: int = 8
