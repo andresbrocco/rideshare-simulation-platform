@@ -220,7 +220,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1g
+          memory: 2g
           cpus: "2.0"
         reservations:
           cpus: "0.25"

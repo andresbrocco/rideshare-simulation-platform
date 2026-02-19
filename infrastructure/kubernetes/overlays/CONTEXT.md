@@ -18,4 +18,4 @@ Environment-specific Kustomize overlays that customize base Kubernetes manifests
 
 ## Non-Obvious Details
 
-The local overlay uses significantly smaller resource limits (500m CPU / 1Gi memory for simulation) compared to production (2 CPU / 4Gi memory). This allows Kind clusters to run on laptops while production maintains performance at scale. Both overlays reference the same base manifests, ensuring configuration consistency across environments.
+The local overlay uses significantly smaller resource limits (500m CPU / 2Gi memory for simulation) compared to production (2 CPU / 8Gi memory). This allows Kind clusters to run on laptops while production maintains performance at scale. Both overlays reference the same base manifests, ensuring configuration consistency across environments.

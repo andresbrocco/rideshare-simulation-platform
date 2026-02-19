@@ -283,7 +283,7 @@ Service URLs:
 | schema-registry | 512m | 0.5 |
 | redis | 512m | - |
 | osrm | 1g | - |
-| simulation | 1g | 2.0 |
+| simulation | 2g | 2.0 |
 | stream-processor | 256m | 1.0 |
 | frontend | 256m | - |
 | minio | 512m | - |
