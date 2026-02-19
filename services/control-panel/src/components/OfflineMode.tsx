@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { TripLifecycleAnimation } from './TripLifecycleAnimation';
 
 export function OfflineMode() {
   useEffect(() => {
@@ -26,6 +27,8 @@ export function OfflineMode() {
             Real-time Event-Driven Data Engineering &mdash; Portfolio Project
           </p>
         </div>
+
+        <TripLifecycleAnimation />
 
         <div className="offline-body">
           <div className="offline-overview">

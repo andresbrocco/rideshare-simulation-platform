@@ -106,9 +106,8 @@
 
 .offline-hero {
   position: relative;
-  padding: 56px 32px 48px;
+  padding: 56px 32px 36px;
   text-align: center;
-  border-bottom: 1px solid rgba(0, 255, 136, 0.1);
   overflow: hidden;
 }
 
@@ -176,7 +175,7 @@
 }
 
 .offline-body {
-  padding: 40px 0 0;
+  padding: 24px 0 0;
 }
 
 .offline-overview {
