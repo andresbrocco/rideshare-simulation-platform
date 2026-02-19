@@ -1,4 +1,17 @@
+import { useEffect } from 'react';
+
 export function OfflineMode() {
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    const prevHeight = document.body.style.height;
+    document.body.style.overflow = 'auto';
+    document.body.style.height = 'auto';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.body.style.height = prevHeight;
+    };
+  }, []);
+
   return (
     <div className="offline-container">
       <div className="offline-inner">
