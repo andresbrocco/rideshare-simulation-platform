@@ -4,9 +4,9 @@
   max-height: 80vh;
   display: flex;
   flex-direction: column;
-  background-color: #1e1e1e;
-  color: #e0e0e0;
-  border: 1px solid #444;
+  background-color: var(--bg-popup);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   z-index: 1000;
@@ -94,7 +94,7 @@
 }
 
 .minimizedTitle {
-  color: #e0e0e0;
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 500;
   white-space: nowrap;
@@ -142,12 +142,12 @@
 }
 
 .label {
-  color: #999;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
 .value {
-  color: #e0e0e0;
+  color: var(--text-primary);
   font-weight: 400;
   text-align: right;
   max-width: 60%;
@@ -174,7 +174,7 @@
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: #888;
+  color: var(--text-muted);
   font-weight: 600;
 }
 
@@ -182,7 +182,7 @@
 .badge {
   display: inline-block;
   padding: 2px 8px;
-  background: #ff9800;
+  background: var(--accent-orange);
   color: #000;
   border-radius: 4px;
   font-size: 10px;
@@ -195,16 +195,16 @@
 .loading {
   padding: 20px;
   text-align: center;
-  color: #888;
+  color: var(--text-muted);
   font-size: 14px;
 }
 
 .error {
-  color: #f44336;
+  color: var(--accent-red);
   font-size: 12px;
   margin-top: 8px;
   padding: 8px;
-  background: rgba(244, 67, 54, 0.1);
+  background: rgba(var(--accent-red-rgb), 0.1);
   border-radius: 4px;
 }
 
@@ -224,7 +224,7 @@
 .actionButton {
   width: 100%;
   padding: 10px 16px;
-  background: #3b82f6;
+  background: var(--accent-blue);
   color: white;
   border: none;
   border-radius: 6px;
@@ -235,7 +235,7 @@
 }
 
 .actionButton:hover:not(:disabled) {
-  background: #2563eb;
+  background: var(--accent-blue-dark);
 }
 
 .actionButton:disabled {
@@ -256,7 +256,7 @@
 
 /* Info message for disabled states */
 .infoMessage {
-  color: #888;
+  color: var(--text-muted);
   font-size: 12px;
   font-style: italic;
   text-align: center;
@@ -272,20 +272,20 @@
 
 /* Success button variant (green) */
 .successButton {
-  background: #22c55e;
+  background: var(--success-green);
 }
 
 .successButton:hover:not(:disabled) {
-  background: #16a34a;
+  background: var(--success-green-dark);
 }
 
 /* Danger button variant (red) */
 .dangerButton {
-  background: #ef4444;
+  background: var(--accent-red);
 }
 
 .dangerButton:hover:not(:disabled) {
-  background: #dc2626;
+  background: var(--accent-red-dark);
 }
 
 /* Statistics grid */
@@ -316,7 +316,7 @@
   font-size: 9px;
   text-transform: uppercase;
   letter-spacing: 0.3px;
-  color: #888;
+  color: var(--text-muted);
   margin-top: 2px;
   text-align: center;
 }

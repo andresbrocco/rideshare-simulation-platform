@@ -1,5 +1,7 @@
 import { IconLayer, PathLayer } from '@deck.gl/layers';
 import type { Driver, Rider, Trip, TripStateValue } from '../types/api';
+import { STAGE_RGB, STAGE_TRAIL } from '../theme';
+import type { RgbTuple } from '../utils/colorUtils';
 
 // Monochrome white icons — deck.gl getColor tinting provides phase-based colors
 const CAR_ICON = '/icons/car.png';
@@ -20,32 +22,31 @@ const PERSON_ICON_MAPPING = {
 };
 
 // Driver status colors by trip lifecycle phase
-export const DRIVER_COLORS: Record<string, [number, number, number]> = {
-  online: [52, 211, 153], // Emerald - available
-  offline: [107, 114, 128], // Gray - idle
-  en_route_pickup: [245, 158, 11], // Amber - pickup phase
-  en_route_destination: [59, 130, 246], // Blue - in transit
+export const DRIVER_COLORS: Record<string, RgbTuple> = {
+  online: STAGE_RGB.available.base,
+  offline: STAGE_RGB.idle.base,
+  en_route_pickup: STAGE_RGB.pickup.base,
+  en_route_destination: STAGE_RGB.transit.base,
 };
 
 // Rider colors by trip lifecycle phase
-export const RIDER_TRIP_STATE_COLORS: Record<TripStateValue | 'default', [number, number, number]> =
-  {
-    offline: [156, 163, 175], // Light gray - idle
-    requested: [249, 115, 22], // Orange - requesting
-    offer_sent: [249, 115, 22], // Orange - requesting
-    offer_expired: [248, 113, 113], // Red - terminal failure
-    offer_rejected: [248, 113, 113], // Red - terminal failure
-    matched: [245, 158, 11], // Amber - pickup phase
-    driver_en_route: [251, 191, 36], // Gold - pickup progression
-    driver_arrived: [253, 224, 71], // Yellow - pickup ready
-    started: [59, 130, 246], // Blue - in transit
-    completed: [74, 222, 128], // Green - terminal success
-    cancelled: [248, 113, 113], // Red - terminal failure
-    default: [249, 115, 22], // Orange fallback
-  };
+export const RIDER_TRIP_STATE_COLORS: Record<TripStateValue | 'default', RgbTuple> = {
+  offline: STAGE_RGB.idle.light,
+  requested: STAGE_RGB.requesting.base,
+  offer_sent: STAGE_RGB.requesting.base,
+  offer_expired: STAGE_RGB.cancelled.base,
+  offer_rejected: STAGE_RGB.cancelled.base,
+  matched: STAGE_RGB.pickup.base,
+  driver_en_route: STAGE_RGB.pickup.light,
+  driver_arrived: STAGE_RGB.pickup.lighter,
+  started: STAGE_RGB.transit.base,
+  completed: STAGE_RGB.completed.base,
+  cancelled: STAGE_RGB.cancelled.base,
+  default: STAGE_RGB.requesting.base,
+};
 
 // Helper to get rider color from trip state
-export function getRiderColor(rider: Rider): [number, number, number] {
+export function getRiderColor(rider: Rider): RgbTuple {
   const tripState = rider.trip_state || 'offline';
   return RIDER_TRIP_STATE_COLORS[tripState] || RIDER_TRIP_STATE_COLORS.default;
 }
@@ -174,7 +175,7 @@ export function createOnlineDriversLayer(drivers: Driver[], scaleFactor: number 
 
     getPosition: (d: Driver) => [d.longitude, d.latitude],
     getAngle: (d: Driver) => 90 - (d.heading ?? 0), // Rotate icon to face direction of travel
-    getColor: [52, 211, 153], // Emerald - available phase
+    getColor: STAGE_RGB.available.base,
   });
 }
 
@@ -195,7 +196,7 @@ export function createOfflineDriversLayer(drivers: Driver[], scaleFactor: number
 
     getPosition: (d: Driver) => [d.longitude, d.latitude],
     getAngle: (d: Driver) => 90 - (d.heading ?? 0),
-    getColor: [107, 114, 128, 200], // Gray - idle phase, slightly transparent
+    getColor: [...STAGE_RGB.idle.base, 200],
   });
 }
 
@@ -218,7 +219,7 @@ export function createEnRoutePickupDriversLayer(drivers: Driver[], scaleFactor: 
 
     getPosition: (d: Driver) => [d.longitude, d.latitude],
     getAngle: (d: Driver) => 90 - (d.heading ?? 0),
-    getColor: [245, 158, 11], // Amber - pickup phase
+    getColor: STAGE_RGB.pickup.base,
   });
 }
 
@@ -241,7 +242,7 @@ export function createWithPassengerDriversLayer(drivers: Driver[], scaleFactor: 
 
     getPosition: (d: Driver) => [d.longitude, d.latitude],
     getAngle: (d: Driver) => 90 - (d.heading ?? 0),
-    getColor: [59, 130, 246], // Blue - in transit phase
+    getColor: STAGE_RGB.transit.base,
   });
 }
 
@@ -274,7 +275,7 @@ export function createOfflineRidersLayer(riders: Rider[], scaleFactor: number = 
     getSize: 30 * scaleFactor,
 
     getPosition: (d: Rider) => [d.longitude, d.latitude],
-    getColor: [156, 163, 175], // Light gray - idle phase
+    getColor: STAGE_RGB.idle.light,
   });
 }
 
@@ -300,7 +301,7 @@ export function createRequestingRidersLayer(riders: Rider[], scaleFactor: number
     getSize: 28 * scaleFactor,
 
     getPosition: (d: Rider) => [d.longitude, d.latitude],
-    getColor: [249, 115, 22], // Orange - requesting phase
+    getColor: STAGE_RGB.requesting.base,
   });
 }
 
@@ -323,7 +324,7 @@ export function createEnRouteRidersLayer(riders: Rider[], scaleFactor: number = 
     getSize: 28 * scaleFactor,
 
     getPosition: (d: Rider) => [d.longitude, d.latitude],
-    getColor: [251, 191, 36], // Gold - pickup progression
+    getColor: STAGE_RGB.pickup.light,
   });
 }
 
@@ -346,7 +347,7 @@ export function createArrivedRidersLayer(riders: Rider[], scaleFactor: number = 
     getSize: 28 * scaleFactor,
 
     getPosition: (d: Rider) => [d.longitude, d.latitude],
-    getColor: [253, 224, 71], // Yellow - pickup ready
+    getColor: STAGE_RGB.pickup.lighter,
   });
 }
 
@@ -369,7 +370,7 @@ export function createInTransitRidersLayer(riders: Rider[], scaleFactor: number 
     getSize: 28 * scaleFactor,
 
     getPosition: (d: Rider) => [d.longitude, d.latitude],
-    getColor: [59, 130, 246], // Blue - in transit phase
+    getColor: STAGE_RGB.transit.base,
   });
 }
 
@@ -397,7 +398,7 @@ export function createPendingRouteLayer(
     visible,
     pickable: true,
     getPath: (d: Trip) => swapCoordinates(d.route),
-    getColor: [253, 186, 116], // Light orange - requesting phase
+    getColor: STAGE_RGB.requesting.route,
     widthUnits: 'pixels',
     getWidth: 4 * scaleFactor,
   });
@@ -418,7 +419,7 @@ export function createPickupRouteLayer(trips: Trip[], visible: boolean = true) {
     visible,
     pickable: true,
     getPath: (d: Trip) => swapCoordinates(d.pickup_route),
-    getColor: [252, 211, 77], // Gold - pickup phase
+    getColor: STAGE_RGB.pickup.route,
     widthUnits: 'pixels',
     getWidth: 4,
     getDashArray: [8, 4], // Dashed pattern
@@ -435,7 +436,7 @@ export function createPathLayer(trips: Trip[], visible: boolean = true) {
     visible,
     pickable: true,
     getPath: (d: Trip) => swapCoordinates(d.route),
-    getColor: [96, 165, 250], // Light blue - in transit phase
+    getColor: STAGE_RGB.transit.route,
     widthUnits: 'pixels',
     getWidth: 5,
   });
@@ -478,7 +479,7 @@ export function createCompletedPickupRouteLayer(
     visible,
     pickable: false,
     getPath: (d: { path: [number, number][] }) => d.path,
-    getColor: [252, 211, 77, 80], // Faded gold (~30% opacity)
+    getColor: [...STAGE_TRAIL.pickup],
     widthUnits: 'pixels',
     getWidth: 4 * scaleFactor,
   });
@@ -517,7 +518,7 @@ export function createRemainingPickupRouteLayer(
     visible,
     pickable: true,
     getPath: (d: { path: [number, number][] }) => d.path,
-    getColor: [252, 211, 77], // Solid gold - pickup phase
+    getColor: STAGE_RGB.pickup.route,
     widthUnits: 'pixels',
     getWidth: 4 * scaleFactor,
     getDashArray: [8, 4], // Dashed pattern
@@ -556,7 +557,7 @@ export function createCompletedTripRouteLayer(
     visible,
     pickable: false,
     getPath: (d: { path: [number, number][] }) => d.path,
-    getColor: [96, 165, 250, 80], // Faded light blue (~30% opacity)
+    getColor: [...STAGE_TRAIL.transit],
     widthUnits: 'pixels',
     getWidth: 5 * scaleFactor,
   });
@@ -587,7 +588,7 @@ export function createRemainingTripRouteLayer(
     visible,
     pickable: true,
     getPath: (d: { path: [number, number][] }) => d.path,
-    getColor: [96, 165, 250], // Solid light blue - in transit phase
+    getColor: STAGE_RGB.transit.route,
     widthUnits: 'pixels',
     getWidth: 5 * scaleFactor,
   });

@@ -16,6 +16,7 @@ import { useZones } from './hooks/useZones';
 import { Toaster } from './lib/toast.ts';
 import { PerformanceProvider } from './contexts/PerformanceContext';
 import { usePerformanceContext } from './hooks/usePerformanceContext';
+import { UI } from './theme';
 import type { WebSocketMessage } from './types/websocket';
 import type { ZoneData } from './types/api';
 import { DEFAULT_VISIBILITY, type LayerVisibility } from './types/layers';
@@ -31,7 +32,7 @@ function DisconnectedBanner() {
         left: 0,
         right: 0,
         padding: '8px 16px',
-        background: '#f44336',
+        background: UI.accentRed,
         color: 'white',
         textAlign: 'center',
         zIndex: 2000,
@@ -227,7 +228,7 @@ function OnlineApp() {
                 left: '50%',
                 transform: 'translateX(-50%)',
                 padding: '12px 24px',
-                background: '#3b82f6',
+                background: UI.accentBlue,
                 color: 'white',
                 borderRadius: '8px',
                 zIndex: 1001,
@@ -290,7 +291,7 @@ function OnlineApp() {
                 top: '20px',
                 right: '20px',
                 padding: '10px 20px',
-                background: '#f44336',
+                background: UI.accentRed,
                 color: 'white',
                 borderRadius: '4px',
                 zIndex: 1000,

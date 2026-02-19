@@ -14,8 +14,8 @@
 }
 
 .actionCard {
-  background: rgba(59, 130, 246, 0.1);
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  background: rgba(var(--accent-blue-rgb), 0.1);
+  border: 1px solid rgba(var(--accent-blue-rgb), 0.3);
   border-radius: 8px;
   padding: 12px;
 }
@@ -51,7 +51,7 @@
 .timestampValue {
   font-size: 20px;
   font-weight: 700;
-  color: #60a5fa;
+  color: var(--accent-blue-light);
   font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
 }
 
@@ -68,6 +68,6 @@
 }
 
 .puppetMessage {
-  color: #ff9800;
+  color: var(--accent-orange);
   font-size: 13px;
 }

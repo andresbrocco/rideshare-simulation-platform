@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { LayerVisibility } from '../types/layers';
+import { STAGE_HEX } from '../theme';
 import styles from './LayerControls.module.css';
 
 interface LayerControlsProps {
@@ -15,20 +16,20 @@ interface LayerConfig {
 
 const LAYER_CONFIGS: LayerConfig[] = [
   // Driver layers
-  { key: 'onlineDrivers', label: 'Online', color: '#34D399' },
-  { key: 'offlineDrivers', label: 'Offline', color: '#6B7280' },
-  { key: 'enRoutePickupDrivers', label: 'To Pickup', color: '#F59E0B' },
-  { key: 'withPassengerDrivers', label: 'With Rider', color: '#3B82F6' },
+  { key: 'onlineDrivers', label: 'Online', color: STAGE_HEX.available.base },
+  { key: 'offlineDrivers', label: 'Offline', color: STAGE_HEX.idle.base },
+  { key: 'enRoutePickupDrivers', label: 'To Pickup', color: STAGE_HEX.pickup.base },
+  { key: 'withPassengerDrivers', label: 'With Rider', color: STAGE_HEX.transit.base },
   // Rider layers
-  { key: 'offlineRiders', label: 'Offline', color: '#9CA3AF' },
-  { key: 'requestingRiders', label: 'Requesting', color: '#F97316' },
-  { key: 'enRouteRiders', label: 'Driver En Route', color: '#FBBF24' },
-  { key: 'arrivedRiders', label: 'Driver Arrived', color: '#FDE047' },
-  { key: 'inTransitRiders', label: 'In Transit', color: '#3B82F6' },
+  { key: 'offlineRiders', label: 'Offline', color: STAGE_HEX.idle.light },
+  { key: 'requestingRiders', label: 'Requesting', color: STAGE_HEX.requesting.base },
+  { key: 'enRouteRiders', label: 'Driver En Route', color: STAGE_HEX.pickup.light },
+  { key: 'arrivedRiders', label: 'Driver Arrived', color: STAGE_HEX.pickup.lighter },
+  { key: 'inTransitRiders', label: 'In Transit', color: STAGE_HEX.transit.base },
   // Trip/Route layers
-  { key: 'pendingRoutes', label: 'Pending Routes', color: '#FDBA74' },
-  { key: 'pickupRoutes', label: 'Pickup Routes', color: '#FCD34D' },
-  { key: 'tripRoutes', label: 'Trip Routes', color: '#60A5FA' },
+  { key: 'pendingRoutes', label: 'Pending Routes', color: STAGE_HEX.requesting.route },
+  { key: 'pickupRoutes', label: 'Pickup Routes', color: STAGE_HEX.pickup.route },
+  { key: 'tripRoutes', label: 'Trip Routes', color: STAGE_HEX.transit.route },
   // Zone layers
   { key: 'zoneBoundaries', label: 'Zones', color: '#FFFFFF' },
   { key: 'surgeHeatmap', label: 'Surge', color: '#FFFF00' },

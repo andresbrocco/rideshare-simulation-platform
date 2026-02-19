@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { UI } from '../theme';
 
 interface LoginScreenProps {
   onLogin: (apiKey: string) => void;
@@ -88,7 +89,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
               marginBottom: '16px',
               fontSize: '14px',
               padding: '8px',
-              background: 'rgba(239, 68, 68, 0.1)',
+              background: `${UI.accentRed}1a`,
               borderRadius: '4px',
             }}
           >
@@ -103,7 +104,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             padding: '12px',
             fontSize: '16px',
             cursor: !apiKey.trim() || isLoading ? 'not-allowed' : 'pointer',
-            background: !apiKey.trim() || isLoading ? '#4b5563' : 'var(--accent-blue)',
+            background: !apiKey.trim() || isLoading ? UI.disabledBg : UI.accentBlue,
             color: 'white',
             border: 'none',
             borderRadius: '4px',

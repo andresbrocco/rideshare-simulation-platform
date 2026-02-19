@@ -8,7 +8,7 @@ describe('MapLegend', () => {
 
     const onlineDriverSwatch = screen.getByTestId('swatch-online-drivers');
     const offlineDriverSwatch = screen.getByTestId('swatch-offline-drivers');
-    const waitingRiderSwatch = screen.getByTestId('swatch-waiting-riders');
+    const requestingRiderSwatch = screen.getByTestId('swatch-requesting-riders');
     const inTransitRiderSwatch = screen.getByTestId('swatch-in-transit-riders');
     const tripRouteSwatch = screen.getByTestId('swatch-trip-routes');
     const zoneBoundarySwatch = screen.getByTestId('swatch-zone-boundaries');
@@ -16,7 +16,7 @@ describe('MapLegend', () => {
 
     expect(onlineDriverSwatch).toBeInTheDocument();
     expect(offlineDriverSwatch).toBeInTheDocument();
-    expect(waitingRiderSwatch).toBeInTheDocument();
+    expect(requestingRiderSwatch).toBeInTheDocument();
     expect(inTransitRiderSwatch).toBeInTheDocument();
     expect(tripRouteSwatch).toBeInTheDocument();
     expect(zoneBoundarySwatch).toBeInTheDocument();
@@ -27,7 +27,7 @@ describe('MapLegend', () => {
     render(<MapLegend />);
 
     const legendItems = screen.getAllByRole('listitem');
-    expect(legendItems).toHaveLength(15);
+    expect(legendItems).toHaveLength(14);
 
     expect(legendItems[0]).toHaveTextContent(/online drivers/i);
     expect(legendItems[1]).toHaveTextContent(/offline drivers/i);
@@ -39,7 +39,7 @@ describe('MapLegend', () => {
     expect(screen.getByText(/online drivers/i)).toBeInTheDocument();
     expect(screen.getByText(/offline drivers/i)).toBeInTheDocument();
     expect(screen.getByText(/en route to pickup/i)).toBeInTheDocument();
-    expect(screen.getByText(/waiting/i)).toBeInTheDocument();
+    expect(screen.getByText(/requesting/i)).toBeInTheDocument();
     expect(screen.getByText(/in transit/i)).toBeInTheDocument();
   });
 });

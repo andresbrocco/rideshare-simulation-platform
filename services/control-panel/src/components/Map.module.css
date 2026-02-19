@@ -21,14 +21,14 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  background: #1a1a2e;
-  color: #e0e0e0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   text-align: center;
   padding: 2rem;
 }
 
 .map-error h3 {
-  color: #ff6b6b;
+  color: var(--accent-red);
   margin-bottom: 1rem;
   font-size: 1.5rem;
 }
@@ -41,7 +41,7 @@
 }
 
 .retry-button {
-  background: #4a9eff;
+  background: var(--accent-blue);
   color: white;
   border: none;
   padding: 0.75rem 1.5rem;
@@ -52,5 +52,5 @@
 }
 
 .retry-button:hover {
-  background: #3a8eef;
+  background: var(--accent-blue-dark);
 }

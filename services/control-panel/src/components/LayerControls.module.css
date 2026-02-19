@@ -2,7 +2,7 @@
   position: fixed;
   bottom: 20px;
   left: 20px;
-  background: rgba(30, 30, 30, 0.9);
+  background: rgba(var(--bg-popup-rgb), 0.9);
   backdrop-filter: blur(10px);
   border-radius: 8px;
   padding: 12px;

@@ -3,7 +3,11 @@
   top: 0;
   left: 0;
   right: 0;
-  background: linear-gradient(180deg, rgba(59, 130, 246, 0.95) 0%, rgba(37, 99, 235, 0.95) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(var(--accent-blue-rgb), 0.95) 0%,
+    rgba(var(--accent-blue-dark-rgb), 0.95) 100%
+  );
   color: white;
   padding: 12px 20px;
   z-index: 1500;

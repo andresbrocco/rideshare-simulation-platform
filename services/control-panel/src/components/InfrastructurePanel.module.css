@@ -189,8 +189,8 @@
 .overallStopped,
 .statusUnknown,
 .overallUnknown {
-  background-color: #6b7280;
-  box-shadow: 0 0 6px #6b7280;
+  background-color: var(--disabled-bg);
+  box-shadow: 0 0 6px var(--disabled-bg);
 }
 
 /* Metric Row */
@@ -280,7 +280,7 @@
   font-size: 12px;
   color: var(--accent-orange);
   padding: 8px;
-  background: rgba(245, 158, 11, 0.1);
+  background: rgba(var(--accent-orange-rgb), 0.1);
   border-radius: 4px;
   margin-bottom: 8px;
 }

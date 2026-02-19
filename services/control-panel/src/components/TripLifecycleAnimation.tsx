@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import confetti from 'canvas-confetti';
 import { DRIVER_COLORS, RIDER_TRIP_STATE_COLORS } from '../layers/agentLayers';
+import { STAGE_RGB, STAGE_HEX } from '../theme';
 import { resolvePhase, TOTAL_CYCLE_DURATION, type Phase } from './tripLifecyclePhases';
 import styles from './TripLifecycleAnimation.module.css';
 
@@ -28,10 +29,10 @@ const COLOR_RIDER_EN_ROUTE = RIDER_TRIP_STATE_COLORS.driver_en_route;
 const COLOR_RIDER_STARTED = RIDER_TRIP_STATE_COLORS.started;
 const COLOR_RIDER_COMPLETED = RIDER_TRIP_STATE_COLORS.completed;
 
-// Route colors (from agentLayers layer definitions)
-const COLOR_PENDING_ROUTE: [number, number, number] = [253, 186, 116];
-const COLOR_PICKUP_ROUTE: [number, number, number] = [252, 211, 77];
-const COLOR_TRIP_ROUTE: [number, number, number] = [96, 165, 250];
+// Route colors derived from theme
+const COLOR_PENDING_ROUTE = STAGE_RGB.requesting.route;
+const COLOR_PICKUP_ROUTE = STAGE_RGB.pickup.route;
+const COLOR_TRIP_ROUTE = STAGE_RGB.transit.route;
 
 // ============================================================================
 // SVG Road Path (sinuous curve)
@@ -496,7 +497,7 @@ export function TripLifecycleAnimation() {
       particleCount: 40,
       spread: 60,
       origin: { x: 0.9, y: 0.5 },
-      colors: ['#00ff88', '#4ade80', '#34d399'],
+      colors: [STAGE_HEX.completed.base, STAGE_HEX.available.base, STAGE_HEX.completed.base],
       gravity: 0.8,
       ticks: 80,
       scalar: 0.8,

@@ -44,7 +44,7 @@
 }
 
 .statusStopped {
-  background: #6b7280;
+  background: var(--disabled-bg);
   color: white;
 }
 
@@ -103,11 +103,11 @@
 }
 
 .button:hover:not(:disabled) {
-  background: #2563eb;
+  background: var(--accent-blue-dark);
 }
 
 .button:disabled {
-  background: #4b5563;
+  background: var(--disabled-bg);
   cursor: not-allowed;
 }
 

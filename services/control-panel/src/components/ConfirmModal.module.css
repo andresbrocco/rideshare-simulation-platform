@@ -22,8 +22,8 @@
 }
 
 .modal {
-  background-color: #1e1e1e;
-  border: 1px solid #444;
+  background-color: var(--bg-popup);
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
   padding: 24px;
   max-width: 400px;
@@ -74,7 +74,7 @@
 }
 
 .button:focus {
-  outline: 2px solid #4fc3f7;
+  outline: 2px solid var(--accent-blue-light);
   outline-offset: 2px;
 }
 
@@ -90,16 +90,16 @@
 }
 
 .primaryButton {
-  background-color: #4fc3f7;
-  color: #000;
+  background-color: var(--accent-blue);
+  color: #fff;
 }
 
 .primaryButton:hover {
-  background-color: #81d4fa;
+  background-color: var(--accent-blue-dark);
 }
 
 .warningButton {
-  background-color: #ff9800;
+  background-color: var(--accent-orange);
   color: #000;
 }
 
@@ -108,10 +108,10 @@
 }
 
 .dangerButton {
-  background-color: #f44336;
+  background-color: var(--accent-red);
   color: #fff;
 }
 
 .dangerButton:hover {
-  background-color: #e57373;
+  background-color: var(--accent-red-dark);
 }
