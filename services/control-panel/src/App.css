@@ -91,11 +91,22 @@
   background: #080c09;
   color: #c8e6c9;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 24px;
+  box-sizing: border-box;
+}
+
+.offline-inner {
+  width: 100%;
+  max-width: 960px;
 }
 
 .offline-hero {
   position: relative;
-  padding: 72px 40px 60px;
+  padding: 56px 32px 48px;
   text-align: center;
   border-bottom: 1px solid rgba(0, 255, 136, 0.1);
   overflow: hidden;
@@ -165,9 +176,7 @@
 }
 
 .offline-body {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 48px 32px 80px;
+  padding: 40px 0 0;
 }
 
 .offline-overview {
@@ -194,11 +203,11 @@
   .offline-two-col {
     grid-template-columns: 1fr;
   }
-  .offline-body {
-    padding: 32px 20px 60px;
-  }
   .offline-hero {
-    padding: 48px 20px 40px;
+    padding: 40px 16px 36px;
+  }
+  .offline-container {
+    padding: 24px 16px;
   }
 }
 
