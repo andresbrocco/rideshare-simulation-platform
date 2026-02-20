@@ -8,6 +8,7 @@ interface InfrastructurePanelProps {
   loading: boolean;
   error: string | null;
   onRefresh: () => void;
+  simulationSpeedMultiplier?: number;
 }
 
 function formatMemory(mb: number): string {
@@ -57,19 +58,30 @@ interface ServiceCardProps {
   service: ServiceMetrics;
   showResources: boolean;
   totalCores: number;
+  simulationSpeedMultiplier?: number;
 }
 
-function ServiceCard({ service, showResources, totalCores }: ServiceCardProps) {
+function ServiceCard({
+  service,
+  showResources,
+  totalCores,
+  simulationSpeedMultiplier,
+}: ServiceCardProps) {
   return (
     <div className={styles.serviceCard}>
       <div className={styles.cardHeader}>
         <span className={styles.serviceName}>{service.name}</span>
-        <Tooltip text={service.message || service.status}>
-          <span className={`${styles.statusIndicator} ${getStatusClass(service.status)}`} />
-        </Tooltip>
+        <span className={`${styles.statusIndicator} ${getStatusClass(service.status)}`} />
       </div>
 
-      {service.latency_ms !== null ? (
+      {simulationSpeedMultiplier !== undefined ? (
+        <div className={styles.metricRow}>
+          <span className={styles.metricLabel}>Real-Time Ratio</span>
+          <span className={`${styles.metricValue} ${styles.latencyGreen}`}>
+            {simulationSpeedMultiplier}x
+          </span>
+        </div>
+      ) : service.latency_ms !== null ? (
         <div className={styles.metricRow}>
           <span className={styles.metricLabel}>Latency</span>
           <span className={`${styles.metricValue} ${getLatencyClass(service.latency_ms)}`}>
@@ -133,6 +145,7 @@ export default function InfrastructurePanel({
   loading,
   error,
   onRefresh,
+  simulationSpeedMultiplier,
 }: InfrastructurePanelProps) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -149,11 +162,9 @@ export default function InfrastructurePanel({
         <div className={styles.titleRow}>
           <h3 className={styles.title}>Infrastructure</h3>
           {data && (
-            <Tooltip text={`All services: ${data.overall_status}`}>
-              <span
-                className={`${styles.overallIndicator} ${getOverallStatusClass(data.overall_status)}`}
-              />
-            </Tooltip>
+            <span
+              className={`${styles.overallIndicator} ${getOverallStatusClass(data.overall_status)}`}
+            />
           )}
         </div>
         <div className={styles.headerActions}>
@@ -243,6 +254,9 @@ export default function InfrastructurePanel({
                 service={service}
                 showResources={showResources}
                 totalCores={data?.total_cores ?? 0}
+                simulationSpeedMultiplier={
+                  service.name === 'Simulation' ? simulationSpeedMultiplier : undefined
+                }
               />
             ))}
           </div>

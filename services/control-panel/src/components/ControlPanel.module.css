@@ -69,8 +69,23 @@
 
 .timeDisplay {
   display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.timeGroup {
+  display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.timeGroupRight {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+  text-align: right;
 }
 
 .label {
@@ -86,6 +101,7 @@
 
 .buttonGroup {
   display: flex;
+  justify-content: center;
   gap: 8px;
 }
 
@@ -246,6 +262,7 @@
 /* Puppet agent buttons */
 .puppetButtons {
   display: flex;
+  justify-content: center;
   gap: 8px;
 }
 

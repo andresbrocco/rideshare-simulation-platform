@@ -88,6 +88,12 @@ export default function StatsPanel({
               <span className={styles.statValue}>{riderMetrics?.idle ?? '-'}</span>
             </div>
             <div className={styles.statItem}>
+              <Tooltip text="Riders actively requesting a trip match">
+                <span className={styles.statLabel}>Requesting:</span>
+              </Tooltip>
+              <span className={styles.statValue}>{riderMetrics?.requesting ?? '-'}</span>
+            </div>
+            <div className={styles.statItem}>
               <Tooltip text="Riders with a driver assigned, waiting at pickup location">
                 <span className={styles.statLabel}>Awaiting Pickup:</span>
               </Tooltip>

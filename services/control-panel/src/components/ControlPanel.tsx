@@ -116,10 +116,14 @@ export default function ControlPanel({
 
       <div className={styles.section}>
         <div className={styles.timeDisplay}>
-          <span className={styles.label}>Current Time:</span>
-          <span className={styles.value}>{new Date(status.current_time).toLocaleString()}</span>
-          <span className={styles.label}>Elapsed:</span>
-          <span className={styles.value}>{formatDuration(status.uptime_seconds)}</span>
+          <div className={styles.timeGroup}>
+            <span className={styles.label}>Current Time:</span>
+            <span className={styles.value}>{new Date(status.current_time).toLocaleString()}</span>
+          </div>
+          <div className={styles.timeGroupRight}>
+            <span className={styles.label}>Elapsed:</span>
+            <span className={styles.value}>{formatDuration(status.uptime_seconds)}</span>
+          </div>
         </div>
       </div>
 
@@ -277,6 +281,7 @@ export default function ControlPanel({
         loading={infraLoading}
         error={infraError}
         onRefresh={refreshInfra}
+        simulationSpeedMultiplier={status.speed_multiplier}
       />
 
       <PerformancePanel

@@ -173,7 +173,7 @@ def puppet_driver_go_offline(
     if driver.status != "available":
         raise HTTPException(
             status_code=400,
-            detail=f"Cannot go offline from status '{driver.status}'. Must be 'online'.",
+            detail=f"Cannot go offline from status '{driver.status}'. Must be 'available'.",
         )
 
     if driver.active_trip:
@@ -212,7 +212,7 @@ def puppet_driver_accept_offer(
     if driver.status != "available":
         raise HTTPException(
             status_code=400,
-            detail=f"Cannot accept offer from status '{driver.status}'. Must be 'online'.",
+            detail=f"Cannot accept offer from status '{driver.status}'. Must be 'available'.",
         )
 
     # Get pending offer from matching server
@@ -254,7 +254,7 @@ def puppet_driver_reject_offer(
     if driver.status != "available":
         raise HTTPException(
             status_code=400,
-            detail=f"Cannot reject offer from status '{driver.status}'. Must be 'online'.",
+            detail=f"Cannot reject offer from status '{driver.status}'. Must be 'available'.",
         )
 
     # Get pending offer from matching server

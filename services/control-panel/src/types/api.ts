@@ -148,6 +148,7 @@ export interface TripMetrics {
 
 export interface RiderMetrics {
   idle: number;
+  requesting: number;
   awaiting_pickup: number;
   in_transit: number;
   total: number;

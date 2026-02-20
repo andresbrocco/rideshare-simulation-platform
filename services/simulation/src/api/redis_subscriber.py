@@ -151,7 +151,7 @@ class RedisSubscriber:
                 # Use trip_state from event if available, fallback to inference
                 trip_state = data.get("trip_state")
                 if not trip_state:
-                    trip_state = "started" if data.get("trip_id") else "offline"
+                    trip_state = "in_transit" if data.get("trip_id") else "idle"
 
                 # Return as gps_ping type for rider position updates during trips
                 return {

@@ -175,7 +175,7 @@ export default function InspectorPopup({
       : undefined;
   const handleToggleDriverStatus =
     entity?.type === 'driver' && onToggleDriverStatus && driverState
-      ? wrapAction(() => onToggleDriverStatus(entity.data.id, driverState.status !== 'online'))
+      ? wrapAction(() => onToggleDriverStatus(entity.data.id, driverState.status !== 'available'))
       : undefined;
 
   // Rider action handlers

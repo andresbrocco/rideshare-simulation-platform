@@ -290,32 +290,34 @@ def get_rider_metrics(
     """Returns rider status counts derived from rider agent status.
 
     Rider states:
-    - offline: idle riders (no active trip)
+    - idle: riders not currently requesting a trip
+    - requesting: riders actively requesting a trip match
     - awaiting_pickup: rider has a driver assigned and is waiting at pickup
     - in_transit: rider is in vehicle (on_trip)
-
-    Note: requesting riders are counted as offline since that phase is ephemeral.
     """
 
     def compute() -> RiderMetrics:
         if not hasattr(engine, "_active_riders"):
-            return RiderMetrics(offline=0, awaiting_pickup=0, in_transit=0, total=0)
+            return RiderMetrics(idle=0, requesting=0, awaiting_pickup=0, in_transit=0, total=0)
 
-        offline = awaiting_pickup = in_transit = 0
+        idle = requesting = awaiting_pickup = in_transit = 0
 
         for rider in engine._active_riders.values():
             status = getattr(rider, "status", "idle")
-            if status == "awaiting_pickup":
+            if status == "requesting":
+                requesting += 1
+            elif status == "awaiting_pickup":
                 awaiting_pickup += 1
             elif status == "on_trip":
                 in_transit += 1
             else:
-                # idle, requesting, or any unknown state counts as offline
-                offline += 1
+                # idle or any unknown state
+                idle += 1
 
-        total = offline + awaiting_pickup + in_transit
+        total = idle + requesting + awaiting_pickup + in_transit
         return RiderMetrics(
-            offline=offline,
+            idle=idle,
+            requesting=requesting,
             awaiting_pickup=awaiting_pickup,
             in_transit=in_transit,
             total=total,
