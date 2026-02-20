@@ -1,0 +1,245 @@
+.container {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 320px;
+  background: rgba(22, 33, 62, 0.95);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  padding: 20px;
+  z-index: 1000;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* Status badges */
+.statusBadge {
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.statusOffline {
+  background: var(--disabled-bg);
+  color: white;
+}
+
+.statusDeploying {
+  background: var(--accent-orange);
+  color: white;
+}
+
+.statusError {
+  background: var(--accent-red);
+  color: white;
+}
+
+/* Body section */
+.body {
+  border-top: 1px solid var(--border-color);
+  padding-top: 16px;
+}
+
+.message {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0 0 20px;
+}
+
+/* Launch button */
+.launchButton {
+  width: 100%;
+  padding: 16px 24px;
+  background: #00ff88;
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.launchButton:hover {
+  background: #00cc6e;
+  transform: translateY(-2px);
+}
+
+.launchButton:disabled {
+  background: var(--disabled-bg);
+  color: white;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Warnings */
+.warnings {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.warning {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Deploying state */
+.deployingStatus {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--accent-orange);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.deployingText {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Progress list */
+.progressList {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px;
+}
+
+.progressItem {
+  padding: 6px 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.progressItem::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border-color);
+  flex-shrink: 0;
+}
+
+.progressItemActive {
+  color: var(--text-primary);
+}
+
+.progressItemActive::before {
+  background: var(--accent-orange);
+}
+
+.progressItemDone::before {
+  background: var(--accent-green);
+}
+
+.timeEstimate {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.timeWarning {
+  font-size: 12px;
+  color: var(--accent-orange);
+  margin: 8px 0 0;
+}
+
+/* Error state */
+.errorIcon {
+  font-size: 20px;
+  margin-bottom: 8px;
+}
+
+.errorTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--accent-red);
+  margin: 0 0 12px;
+}
+
+.errorMessage {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0 0 16px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 6px;
+  padding: 10px 12px;
+  word-break: break-word;
+}
+
+.retryButton {
+  width: 100%;
+  padding: 12px 24px;
+  background: var(--accent-blue);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.retryButton:hover {
+  background: var(--accent-blue-dark);
+}
+
+.githubLink {
+  display: block;
+  text-align: center;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--accent-blue-light);
+  text-decoration: none;
+}
+
+.githubLink:hover {
+  text-decoration: underline;
+}
+
+/* Network error banner */
+.networkBanner {
+  font-size: 12px;
+  color: var(--accent-orange);
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 6px;
+}

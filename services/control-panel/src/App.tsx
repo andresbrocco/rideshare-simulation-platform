@@ -5,6 +5,7 @@ import Map from './components/Map';
 import MapErrorBoundary from './components/MapErrorBoundary';
 import ControlPanel from './components/ControlPanel';
 import LayerControls from './components/LayerControls';
+import LaunchDemoPanel from './components/LaunchDemoPanel';
 import InspectorPopup, { type InspectedEntity } from './components/InspectorPopup';
 import AgentPlacement from './components/AgentPlacement';
 import { useApiHealth } from './hooks/useApiHealth';
@@ -23,42 +24,14 @@ import { DEFAULT_VISIBILITY, type LayerVisibility } from './types/layers';
 import type { PlacementMode } from './constants/dnaPresets';
 import './App.css';
 
-function DisconnectedBanner() {
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        padding: '8px 16px',
-        background: UI.accentRed,
-        color: 'white',
-        textAlign: 'center',
-        zIndex: 2000,
-        fontSize: '14px',
-      }}
-    >
-      API connection lost. Reconnecting...
-    </div>
-  );
-}
-
 function AppContent() {
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
   const { available } = useApiHealth(apiUrl);
 
-  // NOTE: available is kept for ticket 04 (reconnection UX)
-
-  return (
-    <>
-      {!available && <DisconnectedBanner />}
-      <OnlineApp />
-    </>
-  );
+  return <OnlineApp apiAvailable={available} />;
 }
 
-function OnlineApp() {
+function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
   const [apiKey, setApiKey] = useState<string | null>(() => {
     return sessionStorage.getItem('apiKey');
   });
@@ -183,6 +156,9 @@ function OnlineApp() {
     setInspectedEntity(null);
   };
 
+  // Authenticated but API unavailable → Launch Demo mode
+  const showLaunchDemo = !!apiKey && !apiAvailable;
+
   return (
     <div className="App">
       <Toaster position="top-right" />
@@ -193,6 +169,19 @@ function OnlineApp() {
             open={showPasswordDialog}
             onClose={() => setShowPasswordDialog(false)}
             onLogin={handleLogin}
+          />
+        </>
+      ) : showLaunchDemo ? (
+        <>
+          <MapErrorBoundary>
+            <Map onZoomChange={setZoom} />
+          </MapErrorBoundary>
+          <LayerControls visibility={layerVisibility} onChange={setLayerVisibility} />
+          <LaunchDemoPanel
+            apiKey={apiKey}
+            onApiReady={() => {
+              /* useApiHealth will detect it */
+            }}
           />
         </>
       ) : (
