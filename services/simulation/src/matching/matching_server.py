@@ -2,8 +2,10 @@
 
 import asyncio
 import logging
+import random
 import threading
 from collections import deque
+from collections.abc import Generator
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 from uuid import uuid4
@@ -112,6 +114,8 @@ class MatchingServer:
         self._active_trips: dict[str, Trip] = {}
         # Queue for trips that need their TripExecutor started from SimPy thread
         self._pending_trip_executions: list[tuple[DriverAgent, Trip]] = []
+        # Queue for deferred offer responses to be started from SimPy thread
+        self._pending_deferred_offers: list[tuple[DriverAgent, Trip, bool, int]] = []
         # Trip completion tracking (bounded deques to prevent memory growth)
         self._completed_trips: deque[Trip] = deque(maxlen=self._settings.matching.max_trip_history)
         self._cancelled_trips: deque[Trip] = deque(maxlen=self._settings.matching.max_trip_history)
@@ -427,142 +431,140 @@ class MatchingServer:
         max_attempts: int = 5,
     ) -> Trip | None:
         logger.info(f"send_offer_cycle: {len(ranked_drivers)} drivers, max_attempts={max_attempts}")
-        for attempts, (driver, eta_seconds, _score) in enumerate(ranked_drivers):
-            if attempts >= max_attempts:
-                logger.info(f"Reached max attempts ({max_attempts})")
-                break
+        if not ranked_drivers:
+            self._emit_no_drivers_event(trip)
+            # Remove from active trips since no match will happen
+            self._active_trips.pop(trip.trip_id, None)
+            return None
 
-            logger.info(f"Sending offer to driver {driver.driver_id} (attempt {attempts + 1})")
-            accepted = self.send_offer(driver, trip, trip.offer_sequence + 1, eta_seconds)
+        # Store all candidates for deferred continuation
+        self._pending_offer_candidates[trip.trip_id] = {
+            "remaining_drivers": list(ranked_drivers[1:]),
+            "current_attempt": 1,
+            "max_attempts": max_attempts,
+        }
+        self._active_trips[trip.trip_id] = trip
 
-            # For puppet drivers, pause the cycle and wait for manual accept/reject via API
-            if getattr(driver, "_is_puppet", False):
-                logger.info(
-                    f"Puppet driver {driver.driver_id} has pending offer for trip {trip.trip_id}, "
-                    "pausing cycle and waiting for API action"
-                )
-                # Store remaining candidates for continuation after puppet decision
-                remaining = ranked_drivers[attempts + 1 :]
-                self._pending_offer_candidates[trip.trip_id] = {
-                    "remaining_drivers": remaining,
-                    "current_attempt": attempts + 1,
-                    "max_attempts": max_attempts,
-                }
-                # Track trip as active but waiting for puppet decision
-                self._active_trips[trip.trip_id] = trip
-                # Return trip to indicate it's pending (not None which would mean failure)
-                return trip
+        # Send offer to first candidate — result comes via SimPy process (regular)
+        # or API action (puppet)
+        first_driver, eta_seconds, _score = ranked_drivers[0]
+        logger.info(f"Sending offer to driver {first_driver.driver_id} (attempt 1)")
+        self.send_offer(first_driver, trip, trip.offer_sequence + 1, eta_seconds)
+        return trip  # Trip is pending
 
-            logger.info(f"Driver {driver.driver_id} {'accepted' if accepted else 'rejected'} offer")
+    def _compute_offer_decision(self, driver: "DriverAgent", trip: Trip) -> bool:
+        """Compute whether a driver accepts or rejects an offer.
 
-            if accepted:
-                trip.driver_id = driver.driver_id
-                trip.transition_to(TripState.MATCHED)
-                trip.matched_at = self._current_time()
-                self._emit_matched_event(trip)
-
-                # Track active trip
-                self._active_trips[trip.trip_id] = trip
-                logger.info(
-                    f"Trip {trip.trip_id} matched with driver {driver.driver_id}, tracking as active"
-                )
-
-                # Decrement pending request count for surge calculation
-                if self._surge_calculator:
-                    self._surge_calculator.decrement_pending_request(trip.pickup_zone_id)
-
-                # Start trip execution
-                logger.info(f"Starting trip execution for trip {trip.trip_id}")
-                self._start_trip_execution(driver, trip)
-
-                return trip
-
-            # Transition to rejected for next offer
-            trip.transition_to(TripState.OFFER_REJECTED)
-
-        logger.warning(f"All offers rejected for trip {trip.trip_id}")
-        self._emit_no_drivers_event(trip)
-        # Remove from active trips since no match happened
-        self._active_trips.pop(trip.trip_id, None)
-        return None
-
-    def _continue_offer_cycle(
-        self,
-        trip: Trip,
-        remaining_drivers: list[tuple["DriverAgent", int, float]],
-        start_attempt: int,
-        max_attempts: int,
-    ) -> Trip | None:
-        """Continue the offer cycle with remaining drivers after puppet rejection.
-
-        This is called when a puppet driver rejects or times out to resume
-        the offer cycle with the remaining ranked candidates.
-
-        Args:
-            trip: The trip to match
-            remaining_drivers: List of (driver, eta_seconds, score) tuples
-            start_attempt: The attempt number to start from
-            max_attempts: Maximum total attempts allowed
-
-        Returns:
-            The matched trip if successful, None if all attempts exhausted
+        Pure decision function with no side effects — the accept/reject probability
+        calculation previously in driver.receive_offer().
         """
-        logger.info(
-            f"Continuing offer cycle for trip {trip.trip_id} with "
-            f"{len(remaining_drivers)} remaining drivers from attempt {start_attempt}"
-        )
+        base_rate = driver.dna.acceptance_rate
+        surge = trip.surge_multiplier
+        if surge > 1.0:
+            adjusted_rate = base_rate * (1 + (surge - 1) * driver.dna.surge_acceptance_modifier)
+        else:
+            adjusted_rate = base_rate
 
-        for idx, (driver, eta_seconds, _score) in enumerate(remaining_drivers):
-            attempt_num = start_attempt + idx
-            if attempt_num >= max_attempts:
-                logger.info(f"Reached max attempts ({max_attempts})")
-                break
+        rider = self._registry_manager.get_rider(trip.rider_id) if self._registry_manager else None
+        rider_rating = rider.current_rating if rider else 5.0
+        if rider_rating < driver.dna.min_rider_rating:
+            adjusted_rate *= rider_rating / driver.dna.min_rider_rating
 
-            logger.info(f"Sending offer to driver {driver.driver_id} (attempt {attempt_num + 1})")
-            accepted = self.send_offer(driver, trip, trip.offer_sequence + 1, eta_seconds)
+        adjusted_rate = min(1.0, adjusted_rate)
+        return random.random() < adjusted_rate
 
-            # For puppet drivers, pause the cycle again and wait for manual action
-            if getattr(driver, "_is_puppet", False):
-                logger.info(
-                    f"Puppet driver {driver.driver_id} has pending offer for trip {trip.trip_id}, "
-                    "pausing cycle and waiting for API action"
-                )
-                # Store remaining candidates after this puppet driver
-                further_remaining = remaining_drivers[idx + 1 :]
-                self._pending_offer_candidates[trip.trip_id] = {
-                    "remaining_drivers": further_remaining,
-                    "current_attempt": attempt_num + 1,
-                    "max_attempts": max_attempts,
-                }
-                return trip
+    def _deferred_offer_response(
+        self,
+        driver: "DriverAgent",
+        trip: Trip,
+        accepted: bool,
+        eta_seconds: int,
+    ) -> Generator[simpy.Event]:
+        """SimPy process that waits for driver's response_time then applies the decision.
 
-            logger.info(f"Driver {driver.driver_id} {'accepted' if accepted else 'rejected'} offer")
+        The accept/reject decision is pre-computed at offer time. This process
+        defers *applying* it by the driver's response_time DNA parameter,
+        simulating realistic driver "think time".
+        """
+        # Compute delay from driver DNA
+        base_delay = driver.dna.response_time
+        variance = random.uniform(-2.0, 2.0)
+        delay = max(0.0, min(14.9, base_delay + variance))
 
-            if accepted:
-                trip.driver_id = driver.driver_id
-                trip.transition_to(TripState.MATCHED)
-                trip.matched_at = self._current_time()
-                self._emit_matched_event(trip)
+        yield self._env.timeout(delay)
 
-                logger.info(
-                    f"Trip {trip.trip_id} matched with driver {driver.driver_id}, tracking as active"
-                )
+        # Check trip is still alive (rider may have cancelled during think time)
+        with self._state_lock:
+            if trip.trip_id not in self._active_trips:
+                self._reserved_drivers.discard(driver.driver_id)
+                return
 
-                # Decrement pending request count for surge calculation
-                if self._surge_calculator:
-                    self._surge_calculator.decrement_pending_request(trip.pickup_zone_id)
+        if accepted:
+            # Apply acceptance
+            driver.accept_trip(trip.trip_id)
+            driver.statistics.record_offer_accepted()
+            self._offers_accepted += 1
+            trip.driver_id = driver.driver_id
+            trip.transition_to(TripState.MATCHED)
+            trip.matched_at = self._current_time()
+            self._emit_matched_event(trip)
 
-                # Start trip execution
-                logger.info(f"Starting trip execution for trip {trip.trip_id}")
-                self._start_trip_execution(driver, trip)
+            if self._surge_calculator:
+                self._surge_calculator.decrement_pending_request(trip.pickup_zone_id)
 
-                return trip
+            # Clean up pending candidates since trip is matched
+            self._pending_offer_candidates.pop(trip.trip_id, None)
 
-            # Transition to rejected for next offer
+            # Start trip execution (already in SimPy thread)
+            self._start_trip_execution_internal(driver, trip)
+        else:
+            # Apply rejection
+            driver.statistics.record_offer_rejected()
+            self._offers_rejected += 1
+            with self._state_lock:
+                self._reserved_drivers.discard(driver.driver_id)
+                self._driver_index.update_driver_status(driver.driver_id, "online")
             trip.transition_to(TripState.OFFER_REJECTED)
+            # Continue with next candidate (queued for SimPy thread processing)
+            self._continue_deferred_offer_cycle(trip)
 
-        logger.warning(f"All remaining offers rejected for trip {trip.trip_id}")
-        return None
+    def _pop_next_candidate(self, trip: Trip) -> tuple["DriverAgent", int, float] | None:
+        """Pop the next candidate from the pending offer cycle.
+
+        Returns the next (driver, eta_seconds, score) tuple, or None if exhausted.
+        """
+        candidates = self._pending_offer_candidates.get(trip.trip_id)
+        if not candidates or not candidates["remaining_drivers"]:
+            self._pending_offer_candidates.pop(trip.trip_id, None)
+            return None
+        if candidates["current_attempt"] >= candidates["max_attempts"]:
+            self._pending_offer_candidates.pop(trip.trip_id, None)
+            return None
+
+        next_driver, eta, score = candidates["remaining_drivers"].pop(0)
+        candidates["current_attempt"] += 1
+        return (next_driver, eta, score)
+
+    def _continue_deferred_offer_cycle(self, trip: Trip) -> None:
+        """Continue the offer cycle with the next candidate after a rejection.
+
+        Unified continuation method for both deferred regular driver rejections
+        and puppet driver rejections/timeouts. Calls send_offer() which queues
+        the deferred response for thread-safe SimPy process creation.
+        """
+        next_candidate = self._pop_next_candidate(trip)
+        if next_candidate is None:
+            logger.warning(f"All offers exhausted for trip {trip.trip_id}")
+            self._emit_no_drivers_event(trip)
+            self._active_trips.pop(trip.trip_id, None)
+            return
+
+        driver, eta_seconds, _score = next_candidate
+        logger.info(
+            f"Continuing offer cycle for trip {trip.trip_id}: "
+            f"sending to driver {driver.driver_id}"
+        )
+        self.send_offer(driver, trip, trip.offer_sequence + 1, eta_seconds)
 
     def _start_trip_execution(self, driver: "DriverAgent", trip: Trip) -> None:
         """Queue trip execution to be started from SimPy thread.
@@ -580,11 +582,21 @@ class MatchingServer:
             self._pending_trip_executions.append((driver, trip))
 
     def start_pending_trip_executions(self) -> None:
-        """Start any pending trip executions. Must be called from SimPy thread.
+        """Start any pending trip executions and deferred offers.
 
-        This is called from SimulationEngine.step() to safely start
-        TripExecutor processes within the SimPy thread context.
+        Must be called from SimPy thread. This is called from
+        SimulationEngine.step() to safely start SimPy processes
+        within the SimPy thread context.
         """
+        # Process pending deferred offers (response_time delays)
+        with self._state_lock:
+            deferred = list(self._pending_deferred_offers)
+            self._pending_deferred_offers.clear()
+
+        for driver, trip, decision, eta in deferred:
+            self._env.process(self._deferred_offer_response(driver, trip, decision, eta))
+
+        # Process pending trip executions
         with self._state_lock:
             pending = list(self._pending_trip_executions)
             self._pending_trip_executions.clear()
@@ -678,36 +690,13 @@ class MatchingServer:
             # Return False to pause matching cycle - puppet will accept/reject via API
             return False
 
-        # Regular drivers auto-decide based on DNA
-        try:
-            accepted: bool = self._notification_dispatch.send_driver_offer(
-                driver=driver,
-                trip=trip,
-                eta_seconds=eta_seconds,
-            )
-        except Exception:
-            # Release reservation on error
-            with self._state_lock:
-                self._reserved_drivers.discard(driver_id)
-                self._driver_index.update_driver_status(driver_id, "online")
-            raise
-
-        # Track acceptance/rejection (global and per-driver)
-        if accepted:
-            self._offers_accepted += 1
-            driver.statistics.record_offer_accepted()
-        else:
-            self._offers_rejected += 1
-            driver.statistics.record_offer_rejected()
-
-        # Release reservation: accepted drivers are tracked via active_trip,
-        # rejected drivers go back to the available pool
+        # Regular drivers: compute decision now, defer application via SimPy process.
+        # The accept/reject is predetermined but not applied until after the
+        # driver's response_time delay (simulating "think time").
+        decision = self._compute_offer_decision(driver, trip)
         with self._state_lock:
-            self._reserved_drivers.discard(driver_id)
-            if not accepted:
-                self._driver_index.update_driver_status(driver_id, "online")
-
-        return accepted
+            self._pending_deferred_offers.append((driver, trip, decision, eta_seconds))
+        return False  # Result comes asynchronously via _deferred_offer_response
 
     def _format_timestamp(self) -> str:
         """Format current timestamp using simulated time if available."""
@@ -836,6 +825,7 @@ class MatchingServer:
             self._pending_offers.clear()
             self._pending_offer_candidates.clear()
             self._pending_trip_executions.clear()
+            self._pending_deferred_offers.clear()
             self._drivers.clear()
             self._reserved_drivers.clear()
             # Reset matching counters
@@ -937,25 +927,8 @@ class MatchingServer:
         # Transition to rejected
         trip.transition_to(TripState.OFFER_REJECTED)
 
-        # Continue to next candidate if available
-        candidates_info = self._pending_offer_candidates.pop(trip_id, None)
-        if candidates_info and candidates_info["remaining_drivers"]:
-            result = self._continue_offer_cycle(
-                trip,
-                candidates_info["remaining_drivers"],
-                candidates_info["current_attempt"],
-                candidates_info["max_attempts"],
-            )
-
-            if result is None:
-                # All candidates exhausted, emit no_drivers event
-                self._emit_no_drivers_event(trip)
-                self._active_trips.pop(trip.trip_id, None)
-        else:
-            # No more candidates available
-            logger.info(f"No remaining candidates for trip {trip_id} after puppet rejection")
-            self._emit_no_drivers_event(trip)
-            self._active_trips.pop(trip.trip_id, None)
+        # Continue to next candidate using unified continuation
+        self._continue_deferred_offer_cycle(trip)
 
     def process_puppet_timeout(self, driver_id: str, trip_id: str) -> None:
         """Process offer timeout for a puppet driver and continue to next candidate.
@@ -986,25 +959,8 @@ class MatchingServer:
         # Transition to expired
         trip.transition_to(TripState.OFFER_EXPIRED)
 
-        # Continue to next candidate if available
-        candidates_info = self._pending_offer_candidates.pop(trip_id, None)
-        if candidates_info and candidates_info["remaining_drivers"]:
-            result = self._continue_offer_cycle(
-                trip,
-                candidates_info["remaining_drivers"],
-                candidates_info["current_attempt"],
-                candidates_info["max_attempts"],
-            )
-
-            if result is None:
-                # All candidates exhausted, emit no_drivers event
-                self._emit_no_drivers_event(trip)
-                self._active_trips.pop(trip.trip_id, None)
-        else:
-            # No more candidates available
-            logger.info(f"No remaining candidates for trip {trip_id} after puppet timeout")
-            self._emit_no_drivers_event(trip)
-            self._active_trips.pop(trip.trip_id, None)
+        # Continue to next candidate using unified continuation
+        self._continue_deferred_offer_cycle(trip)
 
     def signal_driver_arrived(self, driver_id: str, trip_id: str) -> None:
         """Signal that a puppet driver has arrived at pickup location."""

@@ -248,7 +248,7 @@ class SimulationEngine:
         # Start processes for any pending agents (thread-safe approach)
         self._start_pending_agents()
 
-        # Start any pending trip executions (thread-safe approach for matches made from async context)
+        # Start any pending trip executions and deferred offers
         if hasattr(self._matching_server, "start_pending_trip_executions"):
             self._matching_server.start_pending_trip_executions()
 
@@ -263,6 +263,9 @@ class SimulationEngine:
         step_size = 1
 
         while self._env.now < target_time:
+            # Process deferred offers and trip executions queued during previous step
+            if hasattr(self._matching_server, "start_pending_trip_executions"):
+                self._matching_server.start_pending_trip_executions()
             next_step = min(self._env.now + step_size, target_time)
             self._env.run(until=next_step)
 

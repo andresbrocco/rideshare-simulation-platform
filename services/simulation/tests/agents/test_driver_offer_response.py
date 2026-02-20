@@ -1,400 +1,439 @@
+"""Tests for deferred driver offer response timing behavior.
+
+The acceptance decision logic is tested in tests/matching/test_matching_server.py
+(TestComputeOfferDecision). This module tests the SimPy timing behavior of
+_deferred_offer_response() — that the response_time DNA parameter produces
+the correct delay before applying the decision.
+"""
+
 import random
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 import simpy
 
-from src.agents.driver_agent import DriverAgent
-from tests.factories import DNAFactory
+from agents.dna import DriverDNA, ShiftPreference
+from matching.driver_geospatial_index import DriverGeospatialIndex
+from matching.matching_server import MatchingServer
+from trip import Trip, TripState
 
 
 @pytest.fixture
-def simpy_env():
+def env():
     return simpy.Environment()
 
 
 @pytest.fixture
-def driver_agent(simpy_env, dna_factory, mock_kafka_producer):
-    dna = dna_factory.driver_dna(
-        response_time=5.0,
-        acceptance_rate=0.8,
-        min_rider_rating=4.0,
-        surge_acceptance_modifier=1.5,
-    )
-    agent = DriverAgent(
-        driver_id="driver_001",
-        dna=dna,
-        env=simpy_env,
-        kafka_producer=mock_kafka_producer,
-    )
-    agent.update_location(-23.55, -46.63)
-    agent.go_online()
-    mock_kafka_producer.reset_mock()
-    return agent
+def mock_driver_index():
+    index = Mock(spec=DriverGeospatialIndex)
+    index.find_nearest_drivers.return_value = []
+    index._driver_locations = {}
+    return index
 
 
 @pytest.fixture
-def offer():
-    return {
-        "trip_id": "trip_001",
-        "rider_id": "rider_001",
-        "rider_rating": 4.5,
-        "pickup_location": (-23.56, -46.64),
-        "destination_location": (-23.57, -46.65),
-        "surge_multiplier": 1.0,
-        "estimated_fare": 25.50,
+def mock_osrm_client():
+    client = Mock()
+    client.get_route = AsyncMock()
+    return client
+
+
+@pytest.fixture
+def mock_notification_dispatch():
+    dispatch = Mock()
+    dispatch.send_driver_offer = Mock(return_value=True)
+    return dispatch
+
+
+@pytest.fixture
+def mock_kafka_producer():
+    producer = Mock()
+    producer.produce = Mock()
+    return producer
+
+
+def make_driver_dna(**overrides: float | str | tuple[float, float] | list[str]) -> DriverDNA:
+    defaults = {
+        "acceptance_rate": 0.8,
+        "cancellation_tendency": 0.1,
+        "service_quality": 0.9,
+        "response_time": 5.0,
+        "min_rider_rating": 3.5,
+        "surge_acceptance_modifier": 1.3,
+        "home_location": (-23.55, -46.63),
+        "preferred_zones": ["centro", "pinheiros"],
+        "shift_preference": ShiftPreference.MORNING,
+        "avg_hours_per_day": 8,
+        "avg_days_per_week": 5,
+        "vehicle_make": "Toyota",
+        "vehicle_model": "Corolla",
+        "vehicle_year": 2020,
+        "license_plate": "ABC-1234",
+        "first_name": "Carlos",
+        "last_name": "Silva",
+        "email": "carlos@test.com",
+        "phone": "+5511999999999",
     }
+    defaults.update(overrides)
+    return DriverDNA(**defaults)
+
+
+def create_mock_driver(driver_id: str, dna: DriverDNA) -> Mock:
+    driver = Mock()
+    driver.driver_id = driver_id
+    driver.dna = dna
+    driver.current_rating = 4.5
+    driver.status = "online"
+    driver.active_trip = None
+    driver._is_puppet = False
+    driver.statistics = Mock()
+    return driver
+
+
+def create_trip(**overrides: str | float | tuple[float, float]) -> Trip:
+    defaults = {
+        "trip_id": "trip-001",
+        "rider_id": "rider-001",
+        "pickup_location": (-23.55, -46.63),
+        "dropoff_location": (-23.56, -46.64),
+        "pickup_zone_id": "centro",
+        "dropoff_zone_id": "pinheiros",
+        "surge_multiplier": 1.0,
+        "fare": 25.50,
+    }
+    defaults.update(overrides)
+    return Trip(**defaults)
+
+
+def create_server(
+    env: simpy.Environment,
+    mock_driver_index: Mock,
+    mock_notification_dispatch: Mock,
+    mock_osrm_client: Mock,
+    mock_kafka_producer: Mock,
+) -> MatchingServer:
+    return MatchingServer(
+        env=env,
+        driver_index=mock_driver_index,
+        notification_dispatch=mock_notification_dispatch,
+        osrm_client=mock_osrm_client,
+        kafka_producer=mock_kafka_producer,
+    )
 
 
 @pytest.mark.unit
-class TestDriverResponseTime:
-    def test_driver_response_time(self, simpy_env, driver_agent, offer):
-        def test_process():
-            result = yield simpy_env.process(driver_agent.process_ride_offer(offer))
-            assert simpy_env.now >= 3.0
-            assert simpy_env.now <= 7.0
-            assert result in (True, False)
+class TestDeferredResponseTiming:
+    """Verify that deferred response delay reflects the driver's response_time DNA."""
 
-        simpy_env.process(test_process())
-        simpy_env.run()
-
-    def test_driver_response_time_variance(
-        self, simpy_env, dna_factory, mock_kafka_producer, offer
+    def test_response_delay_matches_dna(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
     ):
-        random.seed(42)
-        dna = dna_factory.driver_dna(response_time=8.0, acceptance_rate=1.0)
-        agent = DriverAgent(
-            driver_id="driver_001",
-            dna=dna,
-            env=simpy_env,
-            kafka_producer=mock_kafka_producer,
+        """Delay should be response_time ± 2s variance."""
+        dna = make_driver_dna(response_time=5.0)
+        driver = create_mock_driver("driver-1", dna)
+        server = create_server(
+            env,
+            mock_driver_index,
+            mock_notification_dispatch,
+            mock_osrm_client,
+            mock_kafka_producer,
         )
-        agent.update_location(-23.55, -46.63)
-        agent.go_online()
+        trip = create_trip()
+        server._active_trips[trip.trip_id] = trip
 
-        response_times = []
+        # Fix variance to 0.0 so delay = exactly response_time
+        # Patch must cover env.run() since _deferred_offer_response calls random.uniform
+        with (
+            patch.object(server, "_compute_offer_decision", return_value=True),
+            patch("matching.matching_server.random.uniform", return_value=0.0),
+        ):
+            server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
+            server.start_pending_trip_executions()
+            env.run()
 
-        def collect_times():
-            for i in range(10):
-                start_time = simpy_env.now
-                yield simpy_env.process(agent.process_ride_offer({**offer, "trip_id": f"trip_{i}"}))
-                response_times.append(simpy_env.now - start_time)
+        assert env.now == pytest.approx(5.0)
+        assert trip.state == TripState.MATCHED
 
-        simpy_env.process(collect_times())
-        simpy_env.run()
+    def test_response_delay_includes_variance(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+    ):
+        """Delay should include the random variance [-2, +2]."""
+        dna = make_driver_dna(response_time=6.0)
+        driver = create_mock_driver("driver-1", dna)
+        server = create_server(
+            env,
+            mock_driver_index,
+            mock_notification_dispatch,
+            mock_osrm_client,
+            mock_kafka_producer,
+        )
+        trip = create_trip()
+        server._active_trips[trip.trip_id] = trip
 
-        assert min(response_times) >= 6.0
-        assert max(response_times) <= 10.0
+        # Fix variance to +1.5 → delay = 6.0 + 1.5 = 7.5
+        # Patch must cover env.run() since _deferred_offer_response calls random.uniform
+        with (
+            patch.object(server, "_compute_offer_decision", return_value=True),
+            patch("matching.matching_server.random.uniform", return_value=1.5),
+        ):
+            server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
+            server.start_pending_trip_executions()
+            env.run()
+
+        assert env.now == pytest.approx(7.5)
+
+    def test_response_delay_variance_distribution(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+    ):
+        """Multiple runs should show response times in [response_time-2, response_time+2]."""
+        random.seed(42)
+        response_times: list[float] = []
+
+        for i in range(20):
+            local_env = simpy.Environment()
+            dna = make_driver_dna(response_time=8.0)
+            driver = create_mock_driver(f"driver-{i}", dna)
+            server = create_server(
+                local_env,
+                mock_driver_index,
+                mock_notification_dispatch,
+                mock_osrm_client,
+                mock_kafka_producer,
+            )
+            trip = create_trip(trip_id=f"trip-{i}")
+            server._active_trips[trip.trip_id] = trip
+
+            with patch.object(server, "_compute_offer_decision", return_value=True):
+                server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
+
+            server.start_pending_trip_executions()
+            local_env.run()
+            response_times.append(local_env.now)
+
+        # All should be in [6.0, 10.0] (response_time=8.0 ± 2.0)
+        assert all(6.0 <= t <= 10.0 for t in response_times)
+        # With 20 samples, should see some variance (not all identical)
+        assert max(response_times) - min(response_times) > 0.5
 
 
 @pytest.mark.unit
-class TestDriverAcceptanceProbability:
-    def test_driver_acceptance_probability(
-        self, simpy_env, dna_factory, mock_kafka_producer, offer
+class TestDeferredResponseTimeBounds:
+    """Verify response delay is bounded within [0.0, 14.9]."""
+
+    def test_low_response_time_bounded_at_zero(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
     ):
-        random.seed(42)
-        dna = dna_factory.driver_dna(acceptance_rate=0.8, response_time=3.0, min_rider_rating=3.0)
-        agent = DriverAgent(
-            driver_id="driver_001",
-            dna=dna,
-            env=simpy_env,
-            kafka_producer=mock_kafka_producer,
+        """response_time=3.0 (min valid) with variance=-2.0 → delay=1.0 (not negative)."""
+        dna = make_driver_dna(response_time=3.0)
+        driver = create_mock_driver("driver-1", dna)
+        server = create_server(
+            env,
+            mock_driver_index,
+            mock_notification_dispatch,
+            mock_osrm_client,
+            mock_kafka_producer,
         )
-        agent.update_location(-23.55, -46.63)
-        agent.go_online()
+        trip = create_trip()
+        server._active_trips[trip.trip_id] = trip
 
-        acceptances = 0
+        with (
+            patch.object(server, "_compute_offer_decision", return_value=True),
+            patch("matching.matching_server.random.uniform", return_value=-2.0),
+        ):
+            server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
+            server.start_pending_trip_executions()
+            env.run()
 
-        def process_offers():
-            nonlocal acceptances
-            for i in range(100):
-                result = yield simpy_env.process(
-                    agent.process_ride_offer({**offer, "trip_id": f"trip_{i}"})
-                )
-                if result:
-                    acceptances += 1
-                    agent.complete_trip()
+        # max(0.0, 3.0 + (-2.0)) = max(0.0, 1.0) = 1.0
+        assert env.now == pytest.approx(1.0)
+        assert trip.state == TripState.MATCHED
 
-        simpy_env.process(process_offers())
-        simpy_env.run()
-
-        assert 70 <= acceptances <= 90
-
-    def test_driver_acceptance_surge_modifier(
-        self, simpy_env, dna_factory, mock_kafka_producer, offer
+    def test_high_response_time_bounded_at_14_9(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
     ):
-        random.seed(42)
-        dna = dna_factory.driver_dna(
-            acceptance_rate=0.5,
-            response_time=3.0,
-            min_rider_rating=3.0,
-            surge_acceptance_modifier=1.5,
+        """response_time=12.0 (max valid) with variance=+2.0 → clamped to 14.0."""
+        dna = make_driver_dna(response_time=12.0)
+        driver = create_mock_driver("driver-1", dna)
+        server = create_server(
+            env,
+            mock_driver_index,
+            mock_notification_dispatch,
+            mock_osrm_client,
+            mock_kafka_producer,
         )
-        agent = DriverAgent(
-            driver_id="driver_001",
-            dna=dna,
-            env=simpy_env,
-            kafka_producer=mock_kafka_producer,
+        trip = create_trip()
+        server._active_trips[trip.trip_id] = trip
+
+        with (
+            patch.object(server, "_compute_offer_decision", return_value=True),
+            patch("matching.matching_server.random.uniform", return_value=2.0),
+        ):
+            server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
+            server.start_pending_trip_executions()
+            env.run()
+
+        # min(14.9, 12.0 + 2.0) = min(14.9, 14.0) = 14.0
+        assert env.now == pytest.approx(14.0)
+        assert trip.state == TripState.MATCHED
+
+    def test_response_time_always_under_15(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+    ):
+        """Even with max response_time=12.0 and max variance, delay < 15.0."""
+        dna = make_driver_dna(response_time=12.0)
+        driver = create_mock_driver("driver-1", dna)
+        server = create_server(
+            env,
+            mock_driver_index,
+            mock_notification_dispatch,
+            mock_osrm_client,
+            mock_kafka_producer,
         )
-        agent.update_location(-23.55, -46.63)
-        agent.go_online()
+        trip = create_trip()
+        server._active_trips[trip.trip_id] = trip
 
-        surge_offer = {**offer, "surge_multiplier": 2.0}
-        acceptances = 0
+        with (
+            patch.object(server, "_compute_offer_decision", return_value=True),
+            patch("matching.matching_server.random.uniform", return_value=2.0),
+        ):
+            server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
 
-        def process_offers():
-            nonlocal acceptances
-            for i in range(100):
-                result = yield simpy_env.process(
-                    agent.process_ride_offer({**surge_offer, "trip_id": f"trip_{i}"})
-                )
-                if result:
-                    acceptances += 1
-                    agent.complete_trip()
+        server.start_pending_trip_executions()
+        env.run()
 
-        simpy_env.process(process_offers())
-        simpy_env.run()
-
-        assert acceptances > 50
-
-    def test_driver_acceptance_no_surge(self, simpy_env, dna_factory, mock_kafka_producer, offer):
-        random.seed(42)
-        dna = dna_factory.driver_dna(acceptance_rate=0.7, response_time=3.0, min_rider_rating=3.0)
-        agent = DriverAgent(
-            driver_id="driver_001",
-            dna=dna,
-            env=simpy_env,
-            kafka_producer=mock_kafka_producer,
-        )
-        agent.update_location(-23.55, -46.63)
-        agent.go_online()
-
-        acceptances = 0
-
-        def process_offers():
-            nonlocal acceptances
-            for i in range(100):
-                result = yield simpy_env.process(
-                    agent.process_ride_offer({**offer, "trip_id": f"trip_{i}"})
-                )
-                if result:
-                    acceptances += 1
-                    agent.complete_trip()
-
-        simpy_env.process(process_offers())
-        simpy_env.run()
-
-        assert 60 <= acceptances <= 80
+        assert env.now < 15.0
 
 
 @pytest.mark.unit
-class TestDriverRiderRatingThreshold:
-    def test_driver_reject_low_rated_rider(
-        self, simpy_env, dna_factory, mock_kafka_producer, offer
+class TestDeferredResponseStateTransitions:
+    """Verify state transitions for accepted and rejected deferred offers."""
+
+    def test_accepted_offer_transitions_to_matched(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
     ):
-        random.seed(42)
-        dna = dna_factory.driver_dna(
-            acceptance_rate=0.8,
-            response_time=3.0,
-            min_rider_rating=4.0,
+        """Accepted deferred offer transitions trip to MATCHED and calls accept_trip."""
+        dna = make_driver_dna(response_time=3.0)
+        driver = create_mock_driver("driver-1", dna)
+        server = create_server(
+            env,
+            mock_driver_index,
+            mock_notification_dispatch,
+            mock_osrm_client,
+            mock_kafka_producer,
         )
-        agent = DriverAgent(
-            driver_id="driver_001",
-            dna=dna,
-            env=simpy_env,
-            kafka_producer=mock_kafka_producer,
-        )
-        agent.update_location(-23.55, -46.63)
-        agent.go_online()
+        trip = create_trip()
+        server._active_trips[trip.trip_id] = trip
 
-        low_rating_offer = {**offer, "rider_rating": 3.0}
-        acceptances = 0
+        with patch.object(server, "_compute_offer_decision", return_value=True):
+            server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
 
-        def process_offers():
-            nonlocal acceptances
-            for i in range(100):
-                result = yield simpy_env.process(
-                    agent.process_ride_offer({**low_rating_offer, "trip_id": f"trip_{i}"})
-                )
-                if result:
-                    acceptances += 1
-                    agent.complete_trip()
+        server.start_pending_trip_executions()
+        env.run()
 
-        simpy_env.process(process_offers())
-        simpy_env.run()
+        assert trip.state == TripState.MATCHED
+        assert trip.driver_id == "driver-1"
+        driver.accept_trip.assert_called_once_with("trip-001")
+        driver.statistics.record_offer_accepted.assert_called_once()
 
-        assert acceptances < 70
-
-    def test_driver_accept_high_rated_rider(
-        self, simpy_env, dna_factory, mock_kafka_producer, offer
+    def test_rejected_offer_releases_driver(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
     ):
-        random.seed(42)
-        dna = dna_factory.driver_dna(acceptance_rate=1.0, response_time=3.0, min_rider_rating=4.0)
-        agent = DriverAgent(
-            driver_id="driver_001",
-            dna=dna,
-            env=simpy_env,
-            kafka_producer=mock_kafka_producer,
+        """Rejected deferred offer releases driver reservation and updates index."""
+        dna = make_driver_dna(response_time=3.0)
+        driver = create_mock_driver("driver-1", dna)
+        server = create_server(
+            env,
+            mock_driver_index,
+            mock_notification_dispatch,
+            mock_osrm_client,
+            mock_kafka_producer,
         )
-        agent.update_location(-23.55, -46.63)
-        agent.go_online()
+        trip = create_trip()
+        server._active_trips[trip.trip_id] = trip
 
-        high_rating_offer = {**offer, "rider_rating": 4.8}
+        with patch.object(server, "_compute_offer_decision", return_value=False):
+            server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
 
-        def test_process():
-            result = yield simpy_env.process(agent.process_ride_offer(high_rating_offer))
-            assert result is True
+        server.start_pending_trip_executions()
+        env.run()
 
-        simpy_env.process(test_process())
-        simpy_env.run()
+        assert "driver-1" not in server._reserved_drivers
+        driver.statistics.record_offer_rejected.assert_called_once()
+        mock_driver_index.update_driver_status.assert_called_with("driver-1", "online")
 
-    def test_driver_reduced_acceptance_below_threshold(
-        self, simpy_env, dna_factory, mock_kafka_producer, offer
+    def test_trip_not_matched_before_delay_elapses(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
     ):
-        random.seed(42)
-        dna = dna_factory.driver_dna(
-            acceptance_rate=1.0,
-            response_time=3.0,
-            min_rider_rating=4.0,
+        """Trip should be OFFER_SENT (not MATCHED) before response_time delay elapses."""
+        dna = make_driver_dna(response_time=10.0)
+        driver = create_mock_driver("driver-1", dna)
+        server = create_server(
+            env,
+            mock_driver_index,
+            mock_notification_dispatch,
+            mock_osrm_client,
+            mock_kafka_producer,
         )
-        agent = DriverAgent(
-            driver_id="driver_001",
-            dna=dna,
-            env=simpy_env,
-            kafka_producer=mock_kafka_producer,
-        )
-        agent.update_location(-23.55, -46.63)
-        agent.go_online()
+        trip = create_trip()
+        server._active_trips[trip.trip_id] = trip
 
-        below_threshold_offer = {**offer, "rider_rating": 3.8}
-        acceptances = 0
+        with (
+            patch.object(server, "_compute_offer_decision", return_value=True),
+            patch("matching.matching_server.random.uniform", return_value=0.0),
+        ):
+            server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
 
-        def process_offers():
-            nonlocal acceptances
-            for i in range(100):
-                result = yield simpy_env.process(
-                    agent.process_ride_offer({**below_threshold_offer, "trip_id": f"trip_{i}"})
-                )
-                if result:
-                    acceptances += 1
-                    agent.complete_trip()
+        server.start_pending_trip_executions()
 
-        simpy_env.process(process_offers())
-        simpy_env.run()
+        # Run only 5 seconds — before the 10s response_time
+        env.run(until=5.0)
+        assert trip.state == TripState.OFFER_SENT
 
-        assert acceptances < 100
-
-
-@pytest.mark.unit
-class TestDriverResponseTransitions:
-    def test_driver_response_accept_transition(
-        self, simpy_env, dna_factory, mock_kafka_producer, offer
-    ):
-        random.seed(42)
-        dna = dna_factory.driver_dna(acceptance_rate=1.0, response_time=3.0, min_rider_rating=3.0)
-        agent = DriverAgent(
-            driver_id="driver_001",
-            dna=dna,
-            env=simpy_env,
-            kafka_producer=mock_kafka_producer,
-        )
-        agent.update_location(-23.55, -46.63)
-        agent.go_online()
-        mock_kafka_producer.reset_mock()
-
-        def test_process():
-            result = yield simpy_env.process(agent.process_ride_offer(offer))
-            assert result is True
-            assert agent.status == "en_route_pickup"
-            assert agent.active_trip == "trip_001"
-
-        simpy_env.process(test_process())
-        simpy_env.run()
-
-    def test_driver_response_reject_return(
-        self, simpy_env, dna_factory, mock_kafka_producer, offer
-    ):
-        random.seed(42)
-        dna = dna_factory.driver_dna(acceptance_rate=0.0, response_time=3.0, min_rider_rating=3.0)
-        agent = DriverAgent(
-            driver_id="driver_001",
-            dna=dna,
-            env=simpy_env,
-            kafka_producer=mock_kafka_producer,
-        )
-        agent.update_location(-23.55, -46.63)
-        agent.go_online()
-
-        def test_process():
-            result = yield simpy_env.process(agent.process_ride_offer(offer))
-            assert result is False
-            assert agent.status == "online"
-            assert agent.active_trip is None
-
-        simpy_env.process(test_process())
-        simpy_env.run()
-
-
-@pytest.mark.unit
-class TestDriverResponseTimeout:
-    def test_driver_response_timeout_compliance(
-        self, simpy_env, dna_factory, mock_kafka_producer, offer
-    ):
-        dna = dna_factory.driver_dna(response_time=12.0)
-        agent = DriverAgent(
-            driver_id="driver_001",
-            dna=dna,
-            env=simpy_env,
-            kafka_producer=mock_kafka_producer,
-        )
-        agent.update_location(-23.55, -46.63)
-        agent.go_online()
-
-        def test_process():
-            start_time = simpy_env.now
-            yield simpy_env.process(agent.process_ride_offer(offer))
-            response_time = simpy_env.now - start_time
-            assert response_time < 15.0
-
-        simpy_env.process(test_process())
-        simpy_env.run()
-
-
-@pytest.mark.unit
-class TestDriverSurgeAcceptanceCalculation:
-    def test_driver_surge_acceptance_modifier_calculation(
-        self, simpy_env, dna_factory, mock_kafka_producer, offer
-    ):
-        random.seed(42)
-        dna = dna_factory.driver_dna(
-            acceptance_rate=0.6,
-            response_time=3.0,
-            min_rider_rating=3.0,
-            surge_acceptance_modifier=1.3,
-        )
-        agent = DriverAgent(
-            driver_id="driver_001",
-            dna=dna,
-            env=simpy_env,
-            kafka_producer=mock_kafka_producer,
-        )
-        agent.update_location(-23.55, -46.63)
-        agent.go_online()
-
-        surge_offer = {**offer, "surge_multiplier": 3.0}
-        acceptances = 0
-
-        def process_offers():
-            nonlocal acceptances
-            for i in range(100):
-                result = yield simpy_env.process(
-                    agent.process_ride_offer({**surge_offer, "trip_id": f"trip_{i}"})
-                )
-                if result:
-                    acceptances += 1
-                    agent.complete_trip()
-
-        simpy_env.process(process_offers())
-        simpy_env.run()
-
-        assert acceptances > 60
+        # Now run to completion — trip should be matched
+        env.run()
+        assert trip.state == TripState.MATCHED

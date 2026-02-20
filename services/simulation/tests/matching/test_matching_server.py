@@ -301,7 +301,7 @@ class TestRankDrivers:
 @pytest.mark.unit
 @pytest.mark.critical
 class TestSendOffer:
-    def test_send_offer_to_top_candidate(
+    def test_send_offer_queues_deferred_response(
         self,
         env,
         mock_driver_index,
@@ -310,6 +310,7 @@ class TestSendOffer:
         mock_kafka_producer,
         sample_driver_dna,
     ):
+        """Verify send_offer() transitions to OFFER_SENT and queues a deferred response."""
         driver = create_mock_driver("driver-1", sample_driver_dna)
 
         server = MatchingServer(
@@ -331,17 +332,20 @@ class TestSendOffer:
             fare=25.50,
         )
 
-        server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
+        result = server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
 
-        mock_notification_dispatch.send_driver_offer.assert_called_once()
+        # send_offer() always returns False for regular drivers (result is async)
+        assert result is False
         assert trip.state == TripState.OFFER_SENT
         assert trip.offer_sequence == 1
+        # Deferred response should be queued
+        assert len(server._pending_deferred_offers) == 1
 
 
 @pytest.mark.unit
 @pytest.mark.critical
 class TestHandleOfferResponses:
-    def test_handle_offer_accepted(
+    def test_deferred_offer_accepted(
         self,
         env,
         mock_driver_index,
@@ -350,8 +354,8 @@ class TestHandleOfferResponses:
         mock_kafka_producer,
         sample_driver_dna,
     ):
+        """Verify deferred offer acceptance applies after response_time delay."""
         driver = create_mock_driver("driver-1", sample_driver_dna)
-        mock_notification_dispatch.send_driver_offer.return_value = True
 
         server = MatchingServer(
             env=env,
@@ -371,12 +375,22 @@ class TestHandleOfferResponses:
             surge_multiplier=1.0,
             fare=25.50,
         )
+        server._active_trips[trip.trip_id] = trip
 
-        accepted = server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
+        # Force acceptance decision
+        with patch.object(server, "_compute_offer_decision", return_value=True):
+            server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
 
-        assert accepted is True
+        # Process the queued deferred offer and run SimPy
+        server.start_pending_trip_executions()
+        env.run()
 
-    def test_handle_offer_rejected(
+        # After response_time delay, trip should be matched
+        assert trip.state == TripState.MATCHED
+        assert trip.driver_id == "driver-1"
+        driver.accept_trip.assert_called_once_with("trip-123")
+
+    def test_deferred_offer_rejected(
         self,
         env,
         mock_driver_index,
@@ -385,8 +399,8 @@ class TestHandleOfferResponses:
         mock_kafka_producer,
         sample_driver_dna,
     ):
+        """Verify deferred offer rejection releases driver after response_time delay."""
         driver = create_mock_driver("driver-1", sample_driver_dna)
-        mock_notification_dispatch.send_driver_offer.return_value = False
 
         server = MatchingServer(
             env=env,
@@ -406,10 +420,67 @@ class TestHandleOfferResponses:
             surge_multiplier=1.0,
             fare=25.50,
         )
+        server._active_trips[trip.trip_id] = trip
 
-        accepted = server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
+        # Force rejection decision
+        with patch.object(server, "_compute_offer_decision", return_value=False):
+            server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
 
-        assert accepted is False
+        # Process the queued deferred offer and run SimPy
+        server.start_pending_trip_executions()
+        env.run()
+
+        # After response_time delay, driver should be released
+        assert "driver-1" not in server._reserved_drivers
+        driver.statistics.record_offer_rejected.assert_called_once()
+
+    def test_deferred_response_respects_response_time(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+        sample_driver_dna,
+    ):
+        """Verify the SimPy delay matches the driver's response_time DNA."""
+        driver = create_mock_driver("driver-1", sample_driver_dna)
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+
+        trip = Trip(
+            trip_id="trip-123",
+            rider_id="rider-456",
+            pickup_location=(-23.55, -46.63),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="centro",
+            dropoff_zone_id="pinheiros",
+            surge_multiplier=1.0,
+            fare=25.50,
+        )
+        server._active_trips[trip.trip_id] = trip
+
+        with patch.object(server, "_compute_offer_decision", return_value=True):
+            server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
+
+        server.start_pending_trip_executions()
+        start_time = env.now
+
+        # Trip should NOT be matched yet (deferred)
+        assert trip.state == TripState.OFFER_SENT
+
+        env.run()
+        elapsed = env.now - start_time
+
+        # response_time=5.0 with variance [-2,+2] → delay in [3.0, 7.0]
+        assert 3.0 <= elapsed <= 7.0
+        assert trip.state == TripState.MATCHED
 
 
 @pytest.mark.unit
@@ -424,10 +495,9 @@ class TestOfferCycle:
         mock_kafka_producer,
         sample_driver_dna,
     ):
+        """Verify rejection cycles through remaining candidates."""
         driver1 = create_mock_driver("driver-1", sample_driver_dna)
         driver2 = create_mock_driver("driver-2", sample_driver_dna)
-
-        mock_notification_dispatch.send_driver_offer.side_effect = [False, True]
 
         server = MatchingServer(
             env=env,
@@ -453,9 +523,21 @@ class TestOfferCycle:
             (driver2, 400, 0.85),
         ]
 
-        result = server.send_offer_cycle(trip, ranked_drivers, max_attempts=5)
+        # First driver rejects, second accepts
+        decisions = iter([False, True])
+        with patch.object(server, "_compute_offer_decision", side_effect=decisions):
+            result = server.send_offer_cycle(trip, ranked_drivers, max_attempts=5)
 
         assert result is not None
+
+        # Process first deferred offer (driver1 rejects → queues driver2)
+        server.start_pending_trip_executions()
+        env.run()
+
+        # Process second deferred offer (driver2 accepts)
+        server.start_pending_trip_executions()
+        env.run()
+
         assert trip.driver_id == "driver-2"
         assert trip.state == TripState.MATCHED
         assert trip.offer_sequence == 2
@@ -469,9 +551,8 @@ class TestOfferCycle:
         mock_kafka_producer,
         sample_driver_dna,
     ):
+        """Verify max_attempts limits how many drivers get offers."""
         drivers = [create_mock_driver(f"driver-{i}", sample_driver_dna) for i in range(5)]
-
-        mock_notification_dispatch.send_driver_offer.return_value = False
 
         server = MatchingServer(
             env=env,
@@ -494,10 +575,20 @@ class TestOfferCycle:
 
         ranked_drivers = [(d, 300 + i * 60, 0.9 - i * 0.01) for i, d in enumerate(drivers)]
 
-        result = server.send_offer_cycle(trip, ranked_drivers, max_attempts=5)
+        # All drivers reject — patch must cover the entire cycle including env.run()
+        # because continuations call _compute_offer_decision from inside SimPy processes
+        with patch.object(server, "_compute_offer_decision", return_value=False):
+            server.send_offer_cycle(trip, ranked_drivers, max_attempts=5)
 
-        assert result is None
-        assert mock_notification_dispatch.send_driver_offer.call_count == 5
+            # Process all 5 offers through the deferred cycle
+            for _ in range(5):
+                server.start_pending_trip_executions()
+                env.run()
+
+        # Trip should have no driver (all rejected)
+        assert trip.trip_id not in server._active_trips
+        # Count offers sent: 1 initial + 4 continuations = 5
+        assert server._offers_sent == 5
 
 
 @pytest.mark.unit
@@ -547,9 +638,8 @@ class TestMatchFlow:
 
         route_response = Mock()
         route_response.duration_seconds = 600
+        route_response.geometry = [[-23.55, -46.63], [-23.56, -46.64]]
         mock_osrm_client.get_route.return_value = route_response
-
-        mock_notification_dispatch.send_driver_offer.return_value = True
 
         server = MatchingServer(
             env=env,
@@ -560,17 +650,26 @@ class TestMatchFlow:
         )
         server._drivers = {"driver-1": driver}
 
-        result = await server.request_match(
-            rider_id="rider-456",
-            pickup_location=(-23.55, -46.63),
-            dropoff_location=(-23.56, -46.64),
-            pickup_zone_id="centro",
-            dropoff_zone_id="pinheiros",
-            surge_multiplier=1.0,
-            fare=25.50,
-        )
+        # Force acceptance
+        with patch.object(server, "_compute_offer_decision", return_value=True):
+            result = await server.request_match(
+                rider_id="rider-456",
+                pickup_location=(-23.55, -46.63),
+                dropoff_location=(-23.56, -46.64),
+                pickup_zone_id="centro",
+                dropoff_zone_id="pinheiros",
+                surge_multiplier=1.0,
+                fare=25.50,
+            )
 
         assert result is not None
+        # Trip is pending (deferred), not yet matched
+        assert result.state == TripState.OFFER_SENT
+
+        # Process deferred offer and run SimPy
+        server.start_pending_trip_executions()
+        env.run()
+
         assert result.driver_id == "driver-1"
         assert result.state == TripState.MATCHED
         assert result.offer_sequence == 1
@@ -593,14 +692,8 @@ class TestMatchFlow:
 
         route_response = Mock()
         route_response.duration_seconds = 600
+        route_response.geometry = [[-23.55, -46.63], [-23.56, -46.64]]
         mock_osrm_client.get_route.return_value = route_response
-
-        mock_notification_dispatch.send_driver_offer.side_effect = [
-            False,
-            False,
-            False,
-            True,
-        ]
 
         server = MatchingServer(
             env=env,
@@ -611,17 +704,26 @@ class TestMatchFlow:
         )
         server._drivers = {f"driver-{i}": d for i, d in enumerate(drivers)}
 
-        result = await server.request_match(
-            rider_id="rider-456",
-            pickup_location=(-23.55, -46.63),
-            dropoff_location=(-23.56, -46.64),
-            pickup_zone_id="centro",
-            dropoff_zone_id="pinheiros",
-            surge_multiplier=1.0,
-            fare=25.50,
-        )
+        # First 3 reject, last accepts — patch must cover the entire cycle
+        decisions = iter([False, False, False, True])
+        with patch.object(server, "_compute_offer_decision", side_effect=decisions):
+            result = await server.request_match(
+                rider_id="rider-456",
+                pickup_location=(-23.55, -46.63),
+                dropoff_location=(-23.56, -46.64),
+                pickup_zone_id="centro",
+                dropoff_zone_id="pinheiros",
+                surge_multiplier=1.0,
+                fare=25.50,
+            )
 
-        assert result is not None
+            assert result is not None
+
+            # Process all deferred offers through the cycle
+            for _ in range(4):
+                server.start_pending_trip_executions()
+                env.run()
+
         assert result.driver_id == "driver-3"
         assert result.state == TripState.MATCHED
         assert result.offer_sequence == 4
@@ -644,9 +746,8 @@ class TestMatchFlow:
 
         route_response = Mock()
         route_response.duration_seconds = 600
+        route_response.geometry = [[-23.55, -46.63], [-23.56, -46.64]]
         mock_osrm_client.get_route.return_value = route_response
-
-        mock_notification_dispatch.send_driver_offer.return_value = False
 
         server = MatchingServer(
             env=env,
@@ -657,7 +758,57 @@ class TestMatchFlow:
         )
         server._drivers = {f"driver-{i}": d for i, d in enumerate(drivers)}
 
-        result = await server.request_match(
+        # All drivers reject — patch must cover the entire cycle
+        with patch.object(server, "_compute_offer_decision", return_value=False):
+            result = await server.request_match(
+                rider_id="rider-456",
+                pickup_location=(-23.55, -46.63),
+                dropoff_location=(-23.56, -46.64),
+                pickup_zone_id="centro",
+                dropoff_zone_id="pinheiros",
+                surge_multiplier=1.0,
+                fare=25.50,
+            )
+
+            # Trip returned as pending, but will fail after all rejections
+            assert result is not None
+
+            # Process all deferred offers
+            for _ in range(3):
+                server.start_pending_trip_executions()
+                env.run()
+
+        # Trip should be removed from active trips after all rejections
+        assert result.trip_id not in server._active_trips
+
+
+@pytest.mark.unit
+@pytest.mark.critical
+class TestDeferredOfferCancellation:
+    """Tests for rider cancellation during driver think time."""
+
+    def test_rider_cancels_during_think_time(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+        sample_driver_dna,
+    ):
+        """Verify deferred response exits cleanly if trip cancelled during think time."""
+        driver = create_mock_driver("driver-1", sample_driver_dna)
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+
+        trip = Trip(
+            trip_id="trip-123",
             rider_id="rider-456",
             pickup_location=(-23.55, -46.63),
             dropoff_location=(-23.56, -46.64),
@@ -667,7 +818,23 @@ class TestMatchFlow:
             fare=25.50,
         )
 
-        assert result is None
+        ranked_drivers = [(driver, 300, 0.9)]
+
+        with patch.object(server, "_compute_offer_decision", return_value=True):
+            server.send_offer_cycle(trip, ranked_drivers)
+
+        # Start the deferred offer
+        server.start_pending_trip_executions()
+
+        # Simulate rider patience timeout: cancel trip before driver responds
+        server.cancel_trip("trip-123", cancelled_by="rider", reason="patience_timeout")
+
+        # Run SimPy — deferred response fires but trip is gone
+        env.run()
+
+        # Driver should be released, trip should NOT be matched
+        assert "driver-1" not in server._reserved_drivers
+        assert trip.state != TripState.MATCHED
 
 
 @pytest.mark.unit
@@ -691,9 +858,6 @@ class TestPuppetReOfferFlow:
 
         regular_driver = create_mock_driver("regular-driver", sample_driver_dna)
         regular_driver._is_puppet = False
-
-        # Regular driver accepts offers
-        mock_notification_dispatch.send_driver_offer.return_value = True
 
         server = MatchingServer(
             env=env,
@@ -734,8 +898,13 @@ class TestPuppetReOfferFlow:
         assert trip.trip_id in server._pending_offer_candidates
         assert len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"]) == 1
 
-        # Puppet rejects - should continue to next driver
-        server.process_puppet_reject("puppet-driver", "trip-123")
+        # Puppet rejects - should queue next offer for regular driver
+        with patch.object(server, "_compute_offer_decision", return_value=True):
+            server.process_puppet_reject("puppet-driver", "trip-123")
+
+        # Process the deferred offer for regular driver
+        server.start_pending_trip_executions()
+        env.run()
 
         # Trip should now be matched with regular driver
         assert trip.driver_id == "regular-driver"
@@ -865,8 +1034,6 @@ class TestPuppetReOfferFlow:
         regular_driver._is_puppet = False
         regular_driver.statistics = Mock()
 
-        mock_notification_dispatch.send_driver_offer.return_value = True
-
         server = MatchingServer(
             env=env,
             driver_index=mock_driver_index,
@@ -898,8 +1065,13 @@ class TestPuppetReOfferFlow:
         # Start the offer cycle - will pause at puppet driver
         server.send_offer_cycle(trip, ranked_drivers, max_attempts=5)
 
-        # Puppet times out - should continue to next driver
-        server.process_puppet_timeout("puppet-driver", "trip-123")
+        # Puppet times out - should queue next offer for regular driver
+        with patch.object(server, "_compute_offer_decision", return_value=True):
+            server.process_puppet_timeout("puppet-driver", "trip-123")
+
+        # Process the deferred offer for regular driver
+        server.start_pending_trip_executions()
+        env.run()
 
         # Trip should now be matched with regular driver
         assert trip.driver_id == "regular-driver"
@@ -908,13 +1080,130 @@ class TestPuppetReOfferFlow:
 
 @pytest.mark.unit
 @pytest.mark.critical
-class TestMatchingServerKafkaOnly:
-    """Tests to verify MatchingServer emits trip state events to Kafka only, not Redis.
+class TestComputeOfferDecision:
+    """Tests for the _compute_offer_decision pure function."""
 
-    FINDING-002 states that 5 locations still publish directly to Redis,
-    causing duplicate messages. MatchingServer._emit_trip_state_event is one of these.
-    The fix is to have it emit to Kafka only.
-    """
+    def test_base_acceptance_rate(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+        sample_driver_dna,
+    ):
+        """Verify base acceptance rate is used for non-surge trips."""
+        driver = create_mock_driver("driver-1", sample_driver_dna)
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+
+        trip = Trip(
+            trip_id="trip-123",
+            rider_id="rider-456",
+            pickup_location=(-23.55, -46.63),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="centro",
+            dropoff_zone_id="pinheiros",
+            surge_multiplier=1.0,
+            fare=25.50,
+        )
+
+        # With acceptance_rate=0.8, random < 0.8 → accept
+        with patch("matching.matching_server.random.random", return_value=0.5):
+            assert server._compute_offer_decision(driver, trip) is True
+
+        # random >= 0.8 → reject
+        with patch("matching.matching_server.random.random", return_value=0.9):
+            assert server._compute_offer_decision(driver, trip) is False
+
+    def test_surge_increases_acceptance(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+        sample_driver_dna,
+    ):
+        """Verify surge multiplier increases acceptance probability."""
+        driver = create_mock_driver("driver-1", sample_driver_dna)
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+
+        trip = Trip(
+            trip_id="trip-123",
+            rider_id="rider-456",
+            pickup_location=(-23.55, -46.63),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="centro",
+            dropoff_zone_id="pinheiros",
+            surge_multiplier=2.0,  # 2x surge
+            fare=50.00,
+        )
+
+        # acceptance_rate=0.8, surge_acceptance_modifier=1.3
+        # adjusted = 0.8 * (1 + (2.0-1.0) * 1.3) = 0.8 * 2.3 = 1.84 → capped at 1.0
+        with patch("matching.matching_server.random.random", return_value=0.95):
+            assert server._compute_offer_decision(driver, trip) is True
+
+    def test_low_rider_rating_reduces_acceptance(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+        sample_driver_dna,
+    ):
+        """Verify low rider rating reduces acceptance probability."""
+        driver = create_mock_driver("driver-1", sample_driver_dna)
+
+        mock_rider = Mock()
+        mock_rider.current_rating = 2.5  # Below min_rider_rating=3.5
+        mock_registry = Mock()
+        mock_registry.get_rider.return_value = mock_rider
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+            registry_manager=mock_registry,
+        )
+
+        trip = Trip(
+            trip_id="trip-123",
+            rider_id="rider-456",
+            pickup_location=(-23.55, -46.63),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="centro",
+            dropoff_zone_id="pinheiros",
+            surge_multiplier=1.0,
+            fare=25.50,
+        )
+
+        # acceptance_rate=0.8, rating penalty: 0.8 * (2.5/3.5) = 0.571
+        with patch("matching.matching_server.random.random", return_value=0.7):
+            assert server._compute_offer_decision(driver, trip) is False
+
+
+@pytest.mark.unit
+@pytest.mark.critical
+class TestMatchingServerKafkaOnly:
+    """Tests to verify MatchingServer emits trip state events to Kafka only, not Redis."""
 
     def test_matching_server_trip_state_emits_kafka_only(
         self,
@@ -924,12 +1213,6 @@ class TestMatchingServerKafkaOnly:
         mock_osrm_client,
         mock_kafka_producer,
     ):
-        """Verify _emit_trip_state_event uses Kafka only, not Redis.
-
-        After the fix, MatchingServer should only emit trip state events
-        to Kafka. The Redis publisher parameter should not be used for
-        trip state events - the API layer handles Redis distribution.
-        """
         mock_redis_publisher = AsyncMock()
 
         server = MatchingServer(
@@ -938,7 +1221,7 @@ class TestMatchingServerKafkaOnly:
             notification_dispatch=mock_notification_dispatch,
             osrm_client=mock_osrm_client,
             kafka_producer=mock_kafka_producer,
-            redis_publisher=mock_redis_publisher,  # Should NOT be used for trip events
+            redis_publisher=mock_redis_publisher,
         )
 
         trip = Trip(
@@ -952,24 +1235,15 @@ class TestMatchingServerKafkaOnly:
             fare=25.50,
         )
 
-        # Emit a trip state event
         server._emit_trip_state_event(trip, "trip.matched")
 
-        # Verify Kafka was called
-        assert mock_kafka_producer.produce.called, "Trip state events should be sent to Kafka"
-
+        assert mock_kafka_producer.produce.called
         kafka_calls = mock_kafka_producer.produce.call_args_list
         trip_kafka_calls = [call for call in kafka_calls if call[1].get("topic") == "trips"]
-        assert len(trip_kafka_calls) > 0, "Trip state events should go to trips topic"
+        assert len(trip_kafka_calls) > 0
 
-        # Verify Redis was NOT called for trip state events
-        # After the fix, redis_publisher.publish should not be called
         redis_calls = mock_redis_publisher.publish.call_args_list
-
-        assert len(redis_calls) == 0, (
-            "Trip state events should NOT be published directly to Redis. "
-            "They should flow through Kafka -> API layer -> Redis fanout."
-        )
+        assert len(redis_calls) == 0
 
     def test_matching_server_works_without_redis_publisher(
         self,
@@ -979,18 +1253,13 @@ class TestMatchingServerKafkaOnly:
         mock_osrm_client,
         mock_kafka_producer,
     ):
-        """Verify MatchingServer works correctly with redis_publisher=None.
-
-        After the consolidation, redis_publisher should be optional and
-        the server should work correctly without it for trip state events.
-        """
         server = MatchingServer(
             env=env,
             driver_index=mock_driver_index,
             notification_dispatch=mock_notification_dispatch,
             osrm_client=mock_osrm_client,
             kafka_producer=mock_kafka_producer,
-            redis_publisher=None,  # No Redis publisher
+            redis_publisher=None,
         )
 
         trip = Trip(
@@ -1004,23 +1273,13 @@ class TestMatchingServerKafkaOnly:
             fare=25.50,
         )
 
-        # Should not raise any errors
         server._emit_trip_state_event(trip, "trip.completed")
-
-        # Kafka should have received the event
         assert mock_kafka_producer.produce.called
 
 
 @pytest.mark.unit
 @pytest.mark.critical
 class TestRouteClearOnCancellation:
-    """Tests for route clearing when trips are cancelled.
-
-    Note: After consolidation (FINDING-002 fix), trip state events are emitted
-    to Kafka only - not directly to Redis. Route clearing logic now happens
-    in the API layer's filtered fanout mechanism.
-    """
-
     def test_cancelled_trip_emits_to_kafka(
         self,
         env,
@@ -1029,7 +1288,6 @@ class TestRouteClearOnCancellation:
         mock_osrm_client,
         mock_kafka_producer,
     ):
-        """Verify cancelled trips emit events to Kafka."""
         mock_redis_publisher = AsyncMock()
 
         server = MatchingServer(
@@ -1051,17 +1309,12 @@ class TestRouteClearOnCancellation:
             surge_multiplier=1.0,
             fare=25.50,
         )
-        # Set routes on the trip
         trip.route = [[-23.55, -46.63], [-23.56, -46.64]]
         trip.pickup_route = [[-23.54, -46.62], [-23.55, -46.63]]
 
-        # Track the trip
         server._active_trips[trip.trip_id] = trip
-
-        # Emit a cancellation event
         server._emit_trip_state_event(trip, "trip.cancelled")
 
-        # Verify Kafka was called
         assert mock_kafka_producer.produce.called
         kafka_calls = [
             call
@@ -1069,8 +1322,6 @@ class TestRouteClearOnCancellation:
             if call[1].get("topic") == "trips"
         ]
         assert len(kafka_calls) > 0
-
-        # Verify Redis was NOT called (consolidation fix)
         assert not mock_redis_publisher.publish.called
 
     def test_non_cancelled_trip_emits_to_kafka(
@@ -1081,7 +1332,6 @@ class TestRouteClearOnCancellation:
         mock_osrm_client,
         mock_kafka_producer,
     ):
-        """Verify non-cancelled events emit to Kafka."""
         mock_redis_publisher = AsyncMock()
 
         server = MatchingServer(
@@ -1103,18 +1353,14 @@ class TestRouteClearOnCancellation:
             surge_multiplier=1.0,
             fare=25.50,
         )
-        # Set routes on the trip
         trip.route = [[-23.55, -46.63], [-23.56, -46.64]]
         trip.pickup_route = [[-23.54, -46.62], [-23.55, -46.63]]
 
-        # Transition to matched state
         trip.transition_to(TripState.OFFER_SENT)
         trip.transition_to(TripState.MATCHED)
 
-        # Emit a non-cancellation event
         server._emit_trip_state_event(trip, "trip.matched")
 
-        # Verify Kafka was called
         assert mock_kafka_producer.produce.called
         kafka_calls = [
             call
@@ -1122,16 +1368,12 @@ class TestRouteClearOnCancellation:
             if call[1].get("topic") == "trips"
         ]
         assert len(kafka_calls) > 0
-
-        # Verify Redis was NOT called (consolidation fix)
         assert not mock_redis_publisher.publish.called
 
 
 @pytest.mark.unit
 @pytest.mark.critical
 class TestBoundedTripHistory:
-    """Tests for bounded trip history to prevent memory growth."""
-
     def test_completed_trips_bounded_by_max_trip_history(
         self,
         env,
@@ -1140,10 +1382,8 @@ class TestBoundedTripHistory:
         mock_osrm_client,
         mock_kafka_producer,
     ):
-        """Verify old completed trips are evicted when max_trip_history is exceeded."""
         from settings import Settings
 
-        # Create settings with small max_trip_history for testing
         settings = Settings()
         settings.matching.max_trip_history = 5
 
@@ -1156,7 +1396,6 @@ class TestBoundedTripHistory:
             settings=settings,
         )
 
-        # Complete 10 trips
         for i in range(10):
             trip = Trip(
                 trip_id=f"trip-{i}",
@@ -1178,11 +1417,9 @@ class TestBoundedTripHistory:
             server._active_trips[trip.trip_id] = trip
             server.complete_trip(trip.trip_id, trip)
 
-        # Should only have last 5 trips (max_trip_history=5)
         completed = server.get_completed_trips()
         assert len(completed) == 5
 
-        # First 5 trips should have been evicted, only trip-5 through trip-9 remain
         trip_ids = [t.trip_id for t in completed]
         assert "trip-0" not in trip_ids
         assert "trip-4" not in trip_ids
@@ -1197,7 +1434,6 @@ class TestBoundedTripHistory:
         mock_osrm_client,
         mock_kafka_producer,
     ):
-        """Verify old cancelled trips are evicted when max_trip_history is exceeded."""
         from settings import Settings
 
         settings = Settings()
@@ -1212,7 +1448,6 @@ class TestBoundedTripHistory:
             settings=settings,
         )
 
-        # Cancel 7 trips
         for i in range(7):
             trip = Trip(
                 trip_id=f"cancelled-trip-{i}",
@@ -1229,7 +1464,6 @@ class TestBoundedTripHistory:
             server._active_trips[trip.trip_id] = trip
             server.complete_trip(trip.trip_id, trip)
 
-        # Should only have last 3 trips (max_trip_history=3)
         cancelled = server.get_cancelled_trips()
         assert len(cancelled) == 3
 
@@ -1247,7 +1481,6 @@ class TestBoundedTripHistory:
         mock_osrm_client,
         mock_kafka_producer,
     ):
-        """Verify clear() reinitializes deques with correct maxlen."""
         from settings import Settings
 
         settings = Settings()
@@ -1262,7 +1495,6 @@ class TestBoundedTripHistory:
             settings=settings,
         )
 
-        # Add some trips
         for i in range(3):
             trip = Trip(
                 trip_id=f"trip-{i}",
@@ -1285,14 +1517,11 @@ class TestBoundedTripHistory:
 
         assert len(server.get_completed_trips()) == 3
 
-        # Clear the server
         server.clear()
 
-        # Should be empty after clear
         assert len(server.get_completed_trips()) == 0
         assert len(server.get_cancelled_trips()) == 0
 
-        # Add more trips after clear - should still respect maxlen
         for i in range(10):
             trip = Trip(
                 trip_id=f"post-clear-trip-{i}",
@@ -1313,15 +1542,12 @@ class TestBoundedTripHistory:
             server._active_trips[trip.trip_id] = trip
             server.complete_trip(trip.trip_id, trip)
 
-        # Should still be bounded by maxlen=5
         assert len(server.get_completed_trips()) == 5
 
 
 @pytest.mark.unit
 @pytest.mark.critical
 class TestOSRMCandidateLimit:
-    """Tests for Fix 1: OSRM fetches limited to top-N candidates."""
-
     @pytest.mark.asyncio
     async def test_osrm_calls_limited_to_candidate_limit(
         self,
@@ -1332,8 +1558,6 @@ class TestOSRMCandidateLimit:
         mock_kafka_producer,
         sample_driver_dna,
     ):
-        """Verify OSRM is called for at most _osrm_candidate_limit drivers."""
-        # Create 20 drivers
         drivers = {}
         nearby_results = []
         for i in range(20):
@@ -1359,7 +1583,6 @@ class TestOSRMCandidateLimit:
 
         result = await server.find_nearby_drivers((-23.55, -46.63))
 
-        # OSRM should have been called exactly 5 times (the limit), not 20
         assert mock_osrm_client.get_route.call_count == 5
         assert len(result) == 5
 
@@ -1373,7 +1596,6 @@ class TestOSRMCandidateLimit:
         mock_kafka_producer,
         sample_driver_dna,
     ):
-        """When fewer drivers exist than the limit, all get OSRM calls."""
         drivers = {}
         nearby_results = []
         for i in range(3):
@@ -1399,7 +1621,6 @@ class TestOSRMCandidateLimit:
 
         result = await server.find_nearby_drivers((-23.55, -46.63))
 
-        # All 3 should get OSRM calls (fewer than limit)
         assert mock_osrm_client.get_route.call_count == 3
         assert len(result) == 3
 
@@ -1407,8 +1628,6 @@ class TestOSRMCandidateLimit:
 @pytest.mark.unit
 @pytest.mark.critical
 class TestRunningAccumulators:
-    """Tests for Fix 2: O(1) trip stats via running accumulators."""
-
     def test_get_trip_stats_from_accumulators(
         self,
         env,
@@ -1417,7 +1636,6 @@ class TestRunningAccumulators:
         mock_osrm_client,
         mock_kafka_producer,
     ):
-        """Verify get_trip_stats returns correct averages from accumulators."""
         from datetime import UTC, datetime, timedelta
 
         server = MatchingServer(
@@ -1430,7 +1648,6 @@ class TestRunningAccumulators:
 
         base_time = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
 
-        # Complete 3 trips with known values
         for i in range(3):
             trip = Trip(
                 trip_id=f"trip-{i}",
@@ -1440,12 +1657,12 @@ class TestRunningAccumulators:
                 pickup_zone_id="centro",
                 dropoff_zone_id="pinheiros",
                 surge_multiplier=1.0,
-                fare=10.0 * (i + 1),  # 10, 20, 30
+                fare=10.0 * (i + 1),
             )
             trip.requested_at = base_time
             trip.matched_at = base_time + timedelta(minutes=1)
             trip.driver_arrived_at = base_time + timedelta(minutes=3)
-            trip.completed_at = base_time + timedelta(minutes=10 + i * 5)  # 10, 15, 20 min
+            trip.completed_at = base_time + timedelta(minutes=10 + i * 5)
 
             trip.transition_to(TripState.OFFER_SENT)
             trip.transition_to(TripState.MATCHED)
@@ -1460,12 +1677,9 @@ class TestRunningAccumulators:
         stats = server.get_trip_stats()
 
         assert stats["completed_count"] == 3
-        assert stats["avg_fare"] == 20.0  # (10+20+30)/3
-        # Duration = matched_at to completed_at in minutes: 9, 14, 19 -> avg 14.0
+        assert stats["avg_fare"] == 20.0
         assert abs(stats["avg_duration_minutes"] - 14.0) < 0.01
-        # Match = requested_at to matched_at in seconds: 60 each -> avg 60.0
         assert abs(stats["avg_match_seconds"] - 60.0) < 0.01
-        # Pickup = matched_at to driver_arrived_at in seconds: 120 each -> avg 120.0
         assert abs(stats["avg_pickup_seconds"] - 120.0) < 0.01
 
     def test_accumulators_reset_on_clear(
@@ -1476,7 +1690,6 @@ class TestRunningAccumulators:
         mock_osrm_client,
         mock_kafka_producer,
     ):
-        """Verify accumulators are reset when clear() is called."""
         from datetime import UTC, datetime, timedelta
 
         server = MatchingServer(
@@ -1487,7 +1700,6 @@ class TestRunningAccumulators:
             kafka_producer=mock_kafka_producer,
         )
 
-        # Complete a trip
         base_time = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         trip = Trip(
             trip_id="trip-0",
@@ -1531,7 +1743,6 @@ class TestRunningAccumulators:
         mock_osrm_client,
         mock_kafka_producer,
     ):
-        """Cancelled trips should not affect fare/duration accumulators."""
         server = MatchingServer(
             env=env,
             driver_index=mock_driver_index,
@@ -1564,8 +1775,6 @@ class TestRunningAccumulators:
 @pytest.mark.unit
 @pytest.mark.critical
 class TestWeightParameterPassing:
-    """Tests for Fix 4: Weights passed as parameters to _calculate_composite_score."""
-
     def test_score_identical_with_explicit_weights(
         self,
         env,
@@ -1574,7 +1783,6 @@ class TestWeightParameterPassing:
         mock_osrm_client,
         mock_kafka_producer,
     ):
-        """Verify _calculate_composite_score gives same result with explicit weights."""
         server = MatchingServer(
             env=env,
             driver_index=mock_driver_index,
@@ -1583,7 +1791,6 @@ class TestWeightParameterPassing:
             kafka_producer=mock_kafka_producer,
         )
 
-        # Get the default weights from settings
         eta_w = server._settings.matching.ranking_eta_weight
         rating_w = server._settings.matching.ranking_rating_weight
         acceptance_w = server._settings.matching.ranking_acceptance_weight
@@ -1599,9 +1806,8 @@ class TestWeightParameterPassing:
             acceptance_weight=acceptance_w,
         )
 
-        # Manually compute expected score
-        eta_norm = (600 - 400) / (600 - 200)  # 0.5
-        rating_norm = (4.0 - 1.0) / 4.0  # 0.75
+        eta_norm = (600 - 400) / (600 - 200)
+        rating_norm = (4.0 - 1.0) / 4.0
         acceptance_norm = 0.75
         expected = eta_norm * eta_w + rating_norm * rating_w + acceptance_norm * acceptance_w
 
@@ -1615,7 +1821,6 @@ class TestWeightParameterPassing:
         mock_osrm_client,
         mock_kafka_producer,
     ):
-        """Verify rank_drivers correctly passes weights from settings."""
         dna1 = create_dna_with_acceptance_rate(0.7)
         dna2 = create_dna_with_acceptance_rate(0.9)
         driver1 = create_mock_driver("driver-1", dna1, rating=4.0)
@@ -1633,6 +1838,5 @@ class TestWeightParameterPassing:
 
         ranked = server.rank_drivers(driver_eta_list)
 
-        # Both drivers should be ranked and have valid scores
         assert len(ranked) == 2
         assert all(score > 0 for _, _, score in ranked)
