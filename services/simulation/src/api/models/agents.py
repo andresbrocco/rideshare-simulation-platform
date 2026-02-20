@@ -111,7 +111,6 @@ class DriverDNAResponse(BaseModel):
 
     # Location/Schedule
     home_location: tuple[float, float]
-    preferred_zones: list[str]
     shift_preference: str
     avg_hours_per_day: int
     avg_days_per_week: int

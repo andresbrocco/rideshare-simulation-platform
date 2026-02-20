@@ -52,7 +52,7 @@ def mock_kafka_producer():
     return producer
 
 
-def make_driver_dna(**overrides: float | str | tuple[float, float] | list[str]) -> DriverDNA:
+def make_driver_dna(**overrides: float | str | tuple[float, float]) -> DriverDNA:
     defaults = {
         "acceptance_rate": 0.8,
         "cancellation_tendency": 0.1,
@@ -61,7 +61,6 @@ def make_driver_dna(**overrides: float | str | tuple[float, float] | list[str]) 
         "min_rider_rating": 3.5,
         "surge_acceptance_modifier": 1.3,
         "home_location": (-23.55, -46.63),
-        "preferred_zones": ["centro", "pinheiros"],
         "shift_preference": ShiftPreference.MORNING,
         "avg_hours_per_day": 8,
         "avg_days_per_week": 5,

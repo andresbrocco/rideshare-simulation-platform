@@ -2545,13 +2545,6 @@
             "minItems": 2,
             "title": "Home Location"
           },
-          "preferred_zones": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Preferred Zones"
-          },
           "shift_preference": {
             "type": "string",
             "title": "Shift Preference"
@@ -2606,7 +2599,6 @@
           "min_rider_rating",
           "surge_acceptance_modifier",
           "home_location",
-          "preferred_zones",
           "shift_preference",
           "avg_hours_per_day",
           "avg_days_per_week",

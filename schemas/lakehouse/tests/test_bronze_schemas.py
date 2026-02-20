@@ -497,7 +497,6 @@ class TestBronzeDriverProfilesSchema:
             "email",
             "phone",
             "home_location",
-            "preferred_zones",
             "shift_preference",
             "vehicle_make",
             "vehicle_model",
@@ -523,12 +522,6 @@ class TestBronzeDriverProfilesSchema:
     def test_event_type_is_string(self):
         """event_type should be StringType for driver.created/driver.updated."""
         assert isinstance(get_field_type(bronze_driver_profiles_schema, "event_type"), StringType)
-
-    def test_preferred_zones_is_array_of_strings(self):
-        """preferred_zones should be ArrayType(StringType)."""
-        field_type = get_field_type(bronze_driver_profiles_schema, "preferred_zones")
-        assert isinstance(field_type, ArrayType)
-        assert isinstance(field_type.elementType, StringType)
 
     def test_home_location_is_array_of_doubles(self):
         """home_location should be ArrayType(DoubleType)."""

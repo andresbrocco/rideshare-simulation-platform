@@ -146,7 +146,6 @@ bronze_driver_profiles_schema = StructType(
         StructField("email", StringType(), False),
         StructField("phone", StringType(), False),
         StructField("home_location", ArrayType(DoubleType()), False),
-        StructField("preferred_zones", ArrayType(StringType()), False),
         StructField("shift_preference", StringType(), False),
         StructField("vehicle_make", StringType(), False),
         StructField("vehicle_model", StringType(), False),

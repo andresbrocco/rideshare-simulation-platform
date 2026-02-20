@@ -172,7 +172,6 @@ export interface DriverDNA {
   min_rider_rating: number;
   surge_acceptance_modifier: number;
   home_location: [number, number];
-  preferred_zones: string[];
   shift_preference: string;
   avg_hours_per_day: number;
   avg_days_per_week: number;

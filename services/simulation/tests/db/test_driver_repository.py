@@ -225,9 +225,7 @@ class TestDriverRepository:
         session_maker = init_database(str(temp_sqlite_db))
 
         for i in range(3):
-            driver_dna = dna_factory.driver_dna(
-                preferred_zones=[f"zone_{i % 2}"],
-            )
+            driver_dna = dna_factory.driver_dna()
 
             with session_maker() as session:
                 repo = DriverRepository(session)

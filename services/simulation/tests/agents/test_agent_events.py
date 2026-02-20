@@ -22,7 +22,6 @@ def driver_dna():
         min_rider_rating=4.0,
         surge_acceptance_modifier=1.5,
         home_location=(-23.55, -46.63),
-        preferred_zones=["zone1", "zone2"],
         shift_preference="morning",
         avg_hours_per_day=8,
         avg_days_per_week=7,

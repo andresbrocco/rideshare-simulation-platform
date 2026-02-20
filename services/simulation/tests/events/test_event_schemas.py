@@ -283,7 +283,6 @@ class TestDriverProfileEvent:
             email="john@example.com",
             phone="+55-11-98765-4321",
             home_location=(-23.5505, -46.6333),
-            preferred_zones=["zone_A", "zone_B"],
             shift_preference="morning",
             vehicle_make="Toyota",
             vehicle_model="Corolla",

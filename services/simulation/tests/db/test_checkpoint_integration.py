@@ -54,7 +54,6 @@ def create_driver_dna(seed: int = 0) -> DriverDNA:
         min_rider_rating=3.5,
         surge_acceptance_modifier=1.5,
         home_location=(-23.55 + seed * 0.001, -46.63 + seed * 0.001),
-        preferred_zones=["BVI", "PIN"],
         shift_preference=ShiftPreference.MORNING,
         avg_hours_per_day=8,
         avg_days_per_week=5,

@@ -300,7 +300,7 @@ SILVER_TABLE_DDL = {
             phone STRING,
             home_lat DOUBLE,
             home_lon DOUBLE,
-            preferred_zones STRING,
+
             shift_preference STRING,
             vehicle_make STRING,
             vehicle_model STRING,
@@ -343,7 +343,7 @@ SILVER_TABLE_DDL = {
             phone STRING,
             home_lat DOUBLE,
             home_lon DOUBLE,
-            preferred_zones STRING,
+
             shift_preference STRING,
             vehicle_make STRING,
             vehicle_model STRING,
@@ -433,7 +433,7 @@ GOLD_TABLE_DDL = {
             phone STRING,
             home_lat DOUBLE,
             home_lon DOUBLE,
-            preferred_zones ARRAY<STRING>,
+
             shift_preference STRING,
             vehicle_make STRING,
             vehicle_model STRING,

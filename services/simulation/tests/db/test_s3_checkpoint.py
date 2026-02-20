@@ -57,7 +57,6 @@ def sample_driver_dna():
         min_rider_rating=3.5,
         surge_acceptance_modifier=1.5,
         home_location=(-23.55, -46.63),
-        preferred_zones=["BVI", "PIN"],
         shift_preference=ShiftPreference.MORNING,
         avg_hours_per_day=8,
         avg_days_per_week=5,

@@ -51,7 +51,6 @@ class DriverDNA(BaseModel):
 
     # Profile attributes (mutable via profile events)
     home_location: tuple[float, float]
-    preferred_zones: list[str]
     shift_preference: ShiftPreference
     avg_hours_per_day: int
     avg_days_per_week: int

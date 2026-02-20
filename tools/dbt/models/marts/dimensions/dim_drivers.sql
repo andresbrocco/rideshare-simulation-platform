@@ -13,7 +13,7 @@ with driver_changes as (
         phone,
         home_lat,
         home_lon,
-        preferred_zones,
+
         shift_preference,
         vehicle_make,
         vehicle_model,
@@ -34,7 +34,7 @@ with_validity as (
         phone,
         home_lat,
         home_lon,
-        preferred_zones,
+
         shift_preference,
         vehicle_make,
         vehicle_model,
@@ -56,7 +56,7 @@ final as (
         phone,
         home_lat,
         home_lon,
-        preferred_zones,
+
         shift_preference,
         vehicle_make,
         vehicle_model,

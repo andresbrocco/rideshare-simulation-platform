@@ -97,7 +97,6 @@ class DriverProfileEvent(BaseModel):
     email: str
     phone: str
     home_location: tuple[float, float]
-    preferred_zones: list[str]
     shift_preference: Literal["morning", "afternoon", "evening", "night", "flexible"]
     vehicle_make: str
     vehicle_model: str

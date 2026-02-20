@@ -35,7 +35,6 @@ parsed as (
         {{ json_field('_raw_value', '$.phone') }} as phone,
         cast({{ json_field('_raw_value', '$.home_location[0]') }} as double) as home_lat,
         cast({{ json_field('_raw_value', '$.home_location[1]') }} as double) as home_lon,
-        {{ json_field('_raw_value', '$.preferred_zones') }} as preferred_zones,
         {{ json_field('_raw_value', '$.shift_preference') }} as shift_preference,
         {{ json_field('_raw_value', '$.vehicle_make') }} as vehicle_make,
         {{ json_field('_raw_value', '$.vehicle_model') }} as vehicle_model,

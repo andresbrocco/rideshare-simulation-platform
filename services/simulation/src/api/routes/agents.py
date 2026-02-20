@@ -257,7 +257,6 @@ def get_driver_state(
             min_rider_rating=dna.min_rider_rating,
             surge_acceptance_modifier=dna.surge_acceptance_modifier,
             home_location=dna.home_location,
-            preferred_zones=dna.preferred_zones,
             shift_preference=dna.shift_preference.value,
             avg_hours_per_day=dna.avg_hours_per_day,
             avg_days_per_week=dna.avg_days_per_week,

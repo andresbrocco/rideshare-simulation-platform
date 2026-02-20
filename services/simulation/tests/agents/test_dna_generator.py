@@ -123,15 +123,6 @@ def test_driver_unique_ids():
     assert len(identifiers) == len(set(identifiers))
 
 
-@pytest.mark.unit
-def test_driver_preferred_zones_valid():
-    """Test preferred_zones contains 1-3 zone IDs."""
-    for _ in range(20):
-        dna = generate_driver_dna()
-        assert 1 <= len(dna.preferred_zones) <= 3
-        assert all(isinstance(zone, str) for zone in dna.preferred_zones)
-
-
 # ============================================================================
 # Rider DNA Generator Tests
 # ============================================================================

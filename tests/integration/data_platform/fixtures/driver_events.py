@@ -113,7 +113,6 @@ def generate_driver_profile_event(
     email: Optional[str] = None,
     phone: str = "+55 11 91234-5678",
     home_location: Optional[List[float]] = None,
-    preferred_zones: Optional[List[str]] = None,
     shift_preference: str = "flexible",
     vehicle_make: str = "Toyota",
     vehicle_model: str = "Corolla",
@@ -133,7 +132,6 @@ def generate_driver_profile_event(
         email: Driver's email (auto-generated if None)
         phone: Driver's phone number
         home_location: Home location [lat, lon] (defaults to São Paulo centro)
-        preferred_zones: List of preferred zone IDs
         shift_preference: Shift preference ('morning', 'afternoon', 'evening', 'night', 'flexible')
         vehicle_make: Vehicle manufacturer
         vehicle_model: Vehicle model
@@ -154,9 +152,6 @@ def generate_driver_profile_event(
     if home_location is None:
         home_location = DEFAULT_LOCATION.copy()
 
-    if preferred_zones is None:
-        preferred_zones = ["SP-001", "SP-002"]
-
     event = {
         "event_id": str(uuid.uuid4()),
         "event_type": event_type,
@@ -167,7 +162,6 @@ def generate_driver_profile_event(
         "email": email,
         "phone": phone,
         "home_location": home_location,
-        "preferred_zones": preferred_zones,
         "shift_preference": shift_preference,
         "vehicle_make": vehicle_make,
         "vehicle_model": vehicle_model,

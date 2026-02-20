@@ -83,7 +83,6 @@ def make_valid_driver_profile_event() -> dict:
         "email": "carlos.silva@example.com",
         "phone": "+55-11-99999-8888",
         "home_location": [-46.6400, -23.5550],
-        "preferred_zones": ["zone-1", "zone-2"],
         "shift_preference": "morning",
         "vehicle_make": "Toyota",
         "vehicle_model": "Corolla",

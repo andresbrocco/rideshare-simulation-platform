@@ -23,7 +23,6 @@ def create_driver_dna(service_quality: float = 0.7) -> DriverDNA:
         min_rider_rating=3.5,
         surge_acceptance_modifier=1.3,
         home_location=(-23.55, -46.63),
-        preferred_zones=["centro", "pinheiros"],
         shift_preference=ShiftPreference.MORNING,
         avg_hours_per_day=8,
         avg_days_per_week=5,

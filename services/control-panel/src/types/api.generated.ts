@@ -1106,8 +1106,6 @@ export interface components {
       surge_acceptance_modifier: number;
       /** Home Location */
       home_location: [number, number];
-      /** Preferred Zones */
-      preferred_zones: string[];
       /** Shift Preference */
       shift_preference: string;
       /** Avg Hours Per Day */

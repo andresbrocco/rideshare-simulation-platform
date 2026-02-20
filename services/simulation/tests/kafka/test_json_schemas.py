@@ -225,7 +225,6 @@ def test_profile_event_type_enum(driver_profile_schema, rider_profile_schema):
         "email": "john@example.com",
         "phone": "+55 11 98765-4321",
         "home_location": [-23.5505, -46.6333],
-        "preferred_zones": ["zone_01", "zone_02"],
         "shift_preference": "morning",
         "vehicle_make": "Toyota",
         "vehicle_model": "Corolla",

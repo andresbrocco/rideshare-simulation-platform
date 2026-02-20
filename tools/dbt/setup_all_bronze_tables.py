@@ -279,7 +279,6 @@ CREATE TABLE bronze_driver_profiles (
     email STRING,
     phone STRING,
     home_location ARRAY<DOUBLE>,
-    preferred_zones ARRAY<STRING>,
     shift_preference STRING,
     vehicle_make STRING,
     vehicle_model STRING,
@@ -296,7 +295,7 @@ cursor.execute(
 INSERT INTO bronze_driver_profiles VALUES
     ('driver-profile-001', 'driver_profile_created', 'D001', CAST('2026-01-15 09:00:00' AS TIMESTAMP),
      'John', 'Driver', 'john.driver@example.com', '+5511987654321',
-     ARRAY(-23.545, -46.645), ARRAY('PIN', 'PIE'), 'morning',
+     ARRAY(-23.545, -46.645), 'morning',
      'Toyota', 'Corolla', 2020, 'ABC1234',
      CAST('2026-01-15 09:00:01' AS TIMESTAMP))
 """

@@ -66,10 +66,6 @@ def generate_driver_dna(faker: Faker | None = None) -> DriverDNA:
     # Home location (must be inside a zone)
     home_location = get_random_location_in_zones()
 
-    # Preferred zones (placeholder for now)
-    num_zones = random.randint(1, 3)
-    preferred_zones = [f"zone_{i}" for i in range(num_zones)]
-
     # Shift preference with weighted distribution
     shift_weights = {
         ShiftPreference.MORNING: 0.15,
@@ -106,7 +102,6 @@ def generate_driver_dna(faker: Faker | None = None) -> DriverDNA:
         min_rider_rating=min_rider_rating,
         surge_acceptance_modifier=surge_acceptance_modifier,
         home_location=home_location,
-        preferred_zones=preferred_zones,
         shift_preference=shift_preference,
         avg_hours_per_day=avg_hours_per_day,
         avg_days_per_week=avg_days_per_week,
