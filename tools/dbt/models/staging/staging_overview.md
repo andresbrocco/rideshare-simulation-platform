@@ -34,7 +34,7 @@ GPS coordinates are validated against Sao Paulo bounds:
 Categorical fields use accepted_values tests:
 
 - Trip states: requested, offer_sent, matched, started, completed, etc.
-- Driver status: idle, dispatched, en_route_to_pickup, arrived_at_pickup, on_trip, offline
+- Driver status: available, offline, en_route_pickup, on_trip
 - Entity types: driver, rider
 - Payment methods: credit_card, debit_card, etc.
 
@@ -143,7 +143,7 @@ Identifies GPS pings showing unrealistic movement:
 Detects drivers with status changes but no GPS activity:
 
 - Compares status change timestamps to GPS ping history
-- Flags drivers "on_trip" without GPS updates
+- Flags drivers in active states (available, en_route_pickup, on_trip) without GPS updates
 - Indicates potential data pipeline issues
 
 ### All Anomalies (`anomalies_all`)

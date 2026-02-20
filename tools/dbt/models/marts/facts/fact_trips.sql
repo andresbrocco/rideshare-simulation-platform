@@ -27,8 +27,8 @@ trip_states as (
     select
         trip_id,
         max(case when trip_state = 'requested' then timestamp end) as requested_at,
-        max(case when trip_state = 'matched' then timestamp end) as matched_at,
-        max(case when trip_state = 'started' then timestamp end) as started_at,
+        max(case when trip_state = 'driver_assigned' then timestamp end) as matched_at,
+        max(case when trip_state = 'in_transit' then timestamp end) as started_at,
         max(case when trip_state = 'completed' then timestamp end) as completed_at
     from trip_events
     where rn = 1

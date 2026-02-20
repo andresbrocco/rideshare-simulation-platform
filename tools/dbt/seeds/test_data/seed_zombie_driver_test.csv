@@ -1,5 +1,5 @@
 event_id,driver_id,timestamp,new_status,previous_status,trigger,latitude,longitude,_ingested_at
-evt_status_001,driver_001,2026-01-16 10:00:00,idle,offline,went_online,-23.5,-46.6,2026-01-16 10:00:01
+evt_status_001,driver_001,2026-01-16 10:00:00,available,offline,went_online,-23.5,-46.6,2026-01-16 10:00:01
 evt_gps_001,driver_001,2026-01-16 10:05:00,,,,-23.5,-46.6,2026-01-16 10:05:01
-evt_status_002,driver_002,2026-01-16 10:00:00,idle,offline,went_online,-23.6,-46.7,2026-01-16 10:00:01
+evt_status_002,driver_002,2026-01-16 10:00:00,available,offline,went_online,-23.6,-46.7,2026-01-16 10:00:01
 evt_gps_002,driver_002,2026-01-16 10:15:00,,,,-23.6,-46.7,2026-01-16 10:15:01

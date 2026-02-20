@@ -144,7 +144,7 @@ One row per driver status duration:
 - **Grain**: Status change pair (start + end)
 - **Foreign Keys**: driver_key, time_key, zone_key (nullable)
 - **Measures**: duration_minutes
-- **Attributes**: status (online, offline, en_route, arrived, on_trip)
+- **Attributes**: status (available, offline, en_route_pickup, on_trip)
 
 **Use Case**: Calculate driver utilization, idle time, earnings per hour online.
 

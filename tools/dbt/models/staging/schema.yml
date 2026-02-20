@@ -14,7 +14,7 @@ models:
       - name: trip_state
         tests:
           - accepted_values:
-              values: ['requested', 'offer_sent', 'offer_expired', 'offer_rejected', 'matched', 'driver_en_route', 'driver_arrived', 'started', 'completed', 'cancelled', 'no_drivers_available']
+              values: ['requested', 'offer_sent', 'offer_expired', 'offer_rejected', 'driver_assigned', 'en_route_pickup', 'at_pickup', 'in_transit', 'completed', 'cancelled', 'no_drivers_available']
 
   - name: stg_gps_pings
     description: Staging model for GPS ping events from Bronze layer.
@@ -50,7 +50,7 @@ models:
       - name: new_status
         tests:
           - accepted_values:
-              values: ['online', 'offline', 'en_route_pickup', 'en_route_destination']
+              values: ['available', 'offline', 'en_route_pickup', 'on_trip']
 
   - name: stg_surge_updates
     description: Staging model for surge pricing update events from Bronze layer.

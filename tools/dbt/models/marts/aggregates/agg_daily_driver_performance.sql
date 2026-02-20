@@ -33,7 +33,7 @@ driver_activity as (
         -- en_route_minutes + on_trip_minutes <= online_minutes)
         sum(duration_minutes) as online_minutes,
         sum(case when status = 'en_route_pickup' then duration_minutes else 0 end) as en_route_minutes,
-        sum(case when status = 'en_route_destination' then duration_minutes else 0 end) as on_trip_minutes
+        sum(case when status = 'on_trip' then duration_minutes else 0 end) as on_trip_minutes
     from {{ ref('fact_driver_activity') }}
     group by driver_key, time_key
 ),
