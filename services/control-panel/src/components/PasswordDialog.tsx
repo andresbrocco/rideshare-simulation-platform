@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { validateApiKey, LambdaServiceError } from '../services/lambda';
 
 interface PasswordDialogProps {
   open: boolean;
@@ -72,19 +73,49 @@ export default function PasswordDialog({ open, onClose, onLogin }: PasswordDialo
     setError(null);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/validate`, {
-        headers: { 'X-API-Key': password },
-      });
+      const lambdaUrl = import.meta.env.VITE_LAMBDA_URL;
 
-      if (response.ok) {
-        sessionStorage.setItem('apiKey', password);
-        onLogin(password);
-        onClose();
+      if (lambdaUrl) {
+        // Lambda validation (always available, even when simulation is offline)
+        const result = await validateApiKey(password);
+
+        if (result.valid) {
+          sessionStorage.setItem('apiKey', password);
+          onLogin(password);
+          onClose();
+        } else {
+          setError(result.error || 'Invalid password. Please check and try again.');
+        }
       } else {
-        setError('Invalid password. Please check and try again.');
+        // Fallback: simulation API validation (local dev without Lambda)
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/validate`, {
+          headers: { 'X-API-Key': password },
+        });
+
+        if (response.ok) {
+          sessionStorage.setItem('apiKey', password);
+          onLogin(password);
+          onClose();
+        } else {
+          setError('Invalid password. Please check and try again.');
+        }
       }
-    } catch {
-      setError('Failed to connect to the server. Please try again.');
+    } catch (err) {
+      if (err instanceof LambdaServiceError) {
+        switch (err.code) {
+          case 'NETWORK_ERROR':
+            setError('Authentication service unavailable. Please try again.');
+            break;
+          case 'INVALID_RESPONSE':
+            setError('Authentication error. Please contact support.');
+            break;
+          case 'LAMBDA_ERROR':
+            setError('Authentication failed. Please try again.');
+            break;
+        }
+      } else {
+        setError('Failed to connect to the server. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
