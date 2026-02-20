@@ -30,16 +30,19 @@ from events.schemas import (
     GPSPingEvent,
     RatingEvent,
 )
+from geo.distance import haversine_distance_km
 from geo.gps_simulation import GPSSimulator
 from kafka.producer import KafkaProducer
 from metrics import get_metrics_collector
 from metrics.prometheus_exporter import observe_latency
 from redis_client.publisher import RedisPublisher
+from trips.drive_simulation import simulate_drive_along_route
 
 if TYPE_CHECKING:
     from agents.rider_agent import RiderAgent
     from db.repositories.driver_repository import DriverRepository
     from engine import SimulationEngine
+    from geo.osrm_client import OSRMClient
     from geo.zones import ZoneLoader
     from matching.agent_registry_manager import AgentRegistryManager
     from trip import Trip
@@ -63,6 +66,7 @@ class DriverAgent(EventEmitter):
         simulation_engine: "SimulationEngine | None" = None,
         immediate_online: bool = False,
         puppet: bool = False,
+        osrm_client: "OSRMClient | None" = None,
     ):
         EventEmitter.__init__(self, kafka_producer, redis_publisher)
 
@@ -76,6 +80,7 @@ class DriverAgent(EventEmitter):
         self._immediate_online = immediate_online
         self._is_puppet = puppet
         self._is_ephemeral = False  # Can be set True for non-persisted puppet agents
+        self._osrm_client = osrm_client
 
         # Runtime state
         self._status = "offline"
@@ -91,6 +96,7 @@ class DriverAgent(EventEmitter):
         self._last_emitted_location: tuple[float, float] | None = None
         self._route_progress_index: int | None = None
         self._pickup_route_progress_index: int | None = None
+        self._reposition_process: simpy.Process | None = None
 
         if self._driver_repository:
             try:
@@ -194,6 +200,14 @@ class DriverAgent(EventEmitter):
 
     def go_offline(self) -> None:
         """Transition to offline."""
+        # Interrupt any active repositioning
+        if self._reposition_process is not None and self._reposition_process.is_alive:
+            self._reposition_process.interrupt()
+            self._reposition_process = None
+
+        # Teleport to home location (simulating "closed app, drove home")
+        self.update_location(*self._dna.home_location)
+
         previous_status = self._status
         self._status = "offline"
 
@@ -481,9 +495,67 @@ class DriverAgent(EventEmitter):
         adjusted_rate = min(1.0, adjusted_rate)
 
         if random.random() < adjusted_rate:
+            if self._reposition_process is not None and self._reposition_process.is_alive:
+                self._reposition_process.interrupt()
+                self._reposition_process = None
             self.accept_trip(offer["trip_id"])
             return True
         return False
+
+    @staticmethod
+    def _calculate_reposition_target(
+        current: tuple[float, float],
+        home: tuple[float, float],
+        distance_km: float,
+    ) -> tuple[float, float]:
+        """Calculate a GPS point 20 km from home along the current->home line.
+
+        If the driver is 50 km from home, the target is 30 km from the driver
+        (20 km from home) along the straight line toward home.
+        """
+        ratio = (distance_km - 20.0) / distance_km
+        target_lat = current[0] + ratio * (home[0] - current[0])
+        target_lon = current[1] + ratio * (home[1] - current[1])
+        return (target_lat, target_lon)
+
+    def _drive_toward_home(self) -> Generator[simpy.Event]:
+        """SimPy process: drive toward home if far away after trip completion."""
+        try:
+            if self._location is None:
+                return
+
+            home = self._dna.home_location
+            distance = haversine_distance_km(
+                self._location[0],
+                self._location[1],
+                home[0],
+                home[1],
+            )
+
+            if distance <= 20.0:
+                return  # Close enough, no repositioning needed
+
+            if self._osrm_client is None:
+                return
+
+            target = self._calculate_reposition_target(self._location, home, distance)
+
+            route = self._osrm_client.get_route_sync(self._location, target)
+
+            yield from simulate_drive_along_route(
+                env=self._env,
+                driver=self,
+                geometry=route.geometry,
+                duration=route.duration_seconds,
+                destination=target,
+                check_proximity=True,
+                proximity_threshold_m=100.0,
+            )
+
+        except simpy.Interrupt:
+            logger.debug(f"Driver {self._driver_id}: Repositioning interrupted by trip offer")
+        except Exception as e:
+            logger.warning(f"Driver {self._driver_id}: Repositioning failed: {e}")
 
     def on_trip_cancelled(self, trip: "Trip") -> None:
         """Handle trip cancellation notification."""
@@ -495,8 +567,11 @@ class DriverAgent(EventEmitter):
         pass
 
     def on_trip_completed(self, trip: "Trip") -> None:
-        """Handle trip completion notification."""
-        pass
+        """Handle trip completion — start repositioning toward home if far away."""
+        if self._status == "online" and self._osrm_client:
+            if self._reposition_process is not None and self._reposition_process.is_alive:
+                self._reposition_process.interrupt()
+            self._reposition_process = self._env.process(self._drive_toward_home())
 
     def _emit_creation_event(self, timestamp: str | None = None) -> None:
         """Emit driver.created event on initialization."""

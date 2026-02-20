@@ -598,6 +598,7 @@ class SimulationEngine:
             zone_loader=self._agent_factory._zone_loader,
             immediate_online=immediate_online,
             simulation_engine=self,
+            osrm_client=self._agent_factory._osrm_client,
         )
 
         self.register_driver(agent)
