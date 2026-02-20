@@ -241,12 +241,29 @@ class TripExecutor:
         self._trip.route = route.geometry
 
         duration = route.duration_seconds
+
+        # Probabilistic mid-trip cancellation (only if test flag is not set)
+        probabilistic_cancel_interval: int | None = None
+        if (
+            not self._rider_cancels_mid_trip
+            and self._settings.mid_trip_cancellation_rate > 0
+            and random.random() < self._settings.mid_trip_cancellation_rate
+        ):
+            gps_interval = GPS_PING_INTERVAL_MOVING
+            num_intervals = int(duration / gps_interval)
+            if num_intervals > 1:
+                # Pick a random interval in the second half of the drive
+                probabilistic_cancel_interval = random.randint(
+                    num_intervals // 2, num_intervals - 1
+                )
+
         yield from self._simulate_drive(
             geometry=route.geometry,
             duration=duration,
             destination=self._trip.dropoff_location,
             check_proximity=True,
             check_rider_cancel=True,
+            probabilistic_cancel_interval=probabilistic_cancel_interval,
         )
 
     def _complete_trip(self) -> Generator[simpy.Event]:
@@ -412,6 +429,7 @@ class TripExecutor:
         destination: tuple[float, float] | None = None,
         check_proximity: bool = False,
         check_rider_cancel: bool = False,
+        probabilistic_cancel_interval: int | None = None,
     ) -> Generator[simpy.Event]:
         """Simulate driving along route with GPS updates and optional proximity detection.
 
@@ -446,6 +464,21 @@ class TripExecutor:
                 self._driver.statistics.record_trip_cancelled()
                 self._rider.statistics.record_trip_cancelled()
                 # Remove from active trips tracking and record cancellation
+                if self._matching_server:
+                    self._matching_server.complete_trip(self._trip.trip_id, self._trip)
+                return
+
+            if probabilistic_cancel_interval is not None and i == probabilistic_cancel_interval:
+                logger.info(
+                    f"Trip {self._trip.trip_id}: Rider cancelled mid-trip "
+                    f"(probabilistic at interval {i}/{num_intervals})"
+                )
+                self._trip.cancel(by="rider", reason="changed_mind", stage="in_transit")
+                self._emit_trip_event("trip.cancelled")
+                self._driver.complete_trip()
+                self._rider.cancel_trip()
+                self._driver.statistics.record_trip_cancelled()
+                self._rider.statistics.record_trip_cancelled()
                 if self._matching_server:
                     self._matching_server.complete_trip(self._trip.trip_id, self._trip)
                 return

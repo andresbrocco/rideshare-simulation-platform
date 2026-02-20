@@ -40,6 +40,22 @@ class TestSimulationSettings:
         with pytest.raises(ValidationError):
             SimulationSettings(checkpoint_interval=30)
 
+    def test_mid_trip_cancellation_rate_default(self):
+        settings = SimulationSettings()
+        assert settings.mid_trip_cancellation_rate == 0.002
+
+    def test_mid_trip_cancellation_rate_validation(self):
+        with pytest.raises(ValidationError):
+            SimulationSettings(mid_trip_cancellation_rate=-0.1)
+
+        with pytest.raises(ValidationError):
+            SimulationSettings(mid_trip_cancellation_rate=1.5)
+
+    def test_mid_trip_cancellation_rate_env_override(self, monkeypatch):
+        monkeypatch.setenv("SIM_MID_TRIP_CANCELLATION_RATE", "0.05")
+        settings = SimulationSettings()
+        assert settings.mid_trip_cancellation_rate == 0.05
+
 
 @pytest.mark.unit
 class TestKafkaSettings:

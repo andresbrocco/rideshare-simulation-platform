@@ -12,6 +12,7 @@ with trip_events as (
         pickup_zone_id,
         surge_multiplier,
         trip_state,
+        cancellation_reason,
         timestamp,
         row_number() over (partition by trip_id, trip_state order by timestamp) as rn
     from {{ ref('stg_trips') }}
@@ -35,6 +36,7 @@ cancelled_trips as (
         te.pickup_zone_id,
         te.surge_multiplier,
         te.trip_state,
+        te.cancellation_reason,
         ts.requested_at,
         ts.cancelled_at
     from trip_events te
@@ -62,6 +64,7 @@ with_dimensions as (
         ct.requested_at,
         ct.cancelled_at,
         lsbc.cancellation_stage,
+        ct.cancellation_reason,
         ct.surge_multiplier
     from cancelled_trips ct
     inner join {{ ref('dim_riders') }} r on ct.rider_id = r.rider_id
@@ -82,7 +85,7 @@ final as (
         requested_at,
         cancelled_at,
         cancellation_stage,
-        cast(null as string) as cancellation_reason,
+        cancellation_reason,
         surge_multiplier
     from with_dimensions
 )

@@ -258,6 +258,7 @@ services:
       - DEPLOYMENT_ENV=local
       - GPS_PING_INTERVAL_MOVING=1
       - MALFORMED_EVENT_RATE=${MALFORMED_EVENT_RATE:-0.05}
+      - SIM_MID_TRIP_CANCELLATION_RATE=${SIM_MID_TRIP_CANCELLATION_RATE:-0.002}
       - LOG_FORMAT=json
     entrypoint:
       - /bin/sh

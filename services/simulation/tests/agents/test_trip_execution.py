@@ -571,3 +571,97 @@ class TestNotificationHandlers:
         )
 
         rider.on_driver_arrived(trip)
+
+
+@pytest.mark.unit
+@pytest.mark.slow
+class TestProbabilisticMidTripCancellation:
+    def test_probabilistic_cancellation_triggers_with_rate_1(
+        self,
+        simpy_env,
+        driver_agent,
+        rider_agent,
+        trip,
+        mock_osrm_client,
+        mock_kafka_producer,
+    ):
+        """With mid_trip_cancellation_rate=1.0, every trip should be cancelled mid-trip."""
+        from src.settings import SimulationSettings
+
+        settings = SimulationSettings(mid_trip_cancellation_rate=1.0)
+        executor = TripExecutor(
+            env=simpy_env,
+            driver=driver_agent,
+            rider=rider_agent,
+            trip=trip,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+            settings=settings,
+        )
+
+        process = simpy_env.process(executor.execute())
+        simpy_env.run(process)
+
+        assert trip.state == TripState.CANCELLED
+        assert trip.cancelled_by == "rider"
+        assert trip.cancellation_reason == "changed_mind"
+        assert trip.cancellation_stage == "in_transit"
+
+    def test_test_flag_takes_precedence_over_probabilistic(
+        self,
+        simpy_env,
+        driver_agent,
+        rider_agent,
+        trip,
+        mock_osrm_client,
+        mock_kafka_producer,
+    ):
+        """When rider_cancels_mid_trip=True is set, it fires (at midpoint) even with rate=1.0."""
+        from src.settings import SimulationSettings
+
+        settings = SimulationSettings(mid_trip_cancellation_rate=1.0)
+        executor = TripExecutor(
+            env=simpy_env,
+            driver=driver_agent,
+            rider=rider_agent,
+            trip=trip,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+            settings=settings,
+            rider_cancels_mid_trip=True,
+        )
+
+        process = simpy_env.process(executor.execute())
+        simpy_env.run(process)
+
+        assert trip.state == TripState.CANCELLED
+        assert trip.cancelled_by == "rider"
+        assert trip.cancellation_reason == "changed_mind"
+
+    def test_no_cancellation_with_rate_0(
+        self,
+        simpy_env,
+        driver_agent,
+        rider_agent,
+        trip,
+        mock_osrm_client,
+        mock_kafka_producer,
+    ):
+        """With mid_trip_cancellation_rate=0.0, no probabilistic cancellation occurs."""
+        from src.settings import SimulationSettings
+
+        settings = SimulationSettings(mid_trip_cancellation_rate=0.0)
+        executor = TripExecutor(
+            env=simpy_env,
+            driver=driver_agent,
+            rider=rider_agent,
+            trip=trip,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+            settings=settings,
+        )
+
+        process = simpy_env.process(executor.execute())
+        simpy_env.run(process)
+
+        assert trip.state == TripState.COMPLETED

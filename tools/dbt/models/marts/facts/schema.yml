@@ -124,6 +124,12 @@ models:
           - relationships:
               to: ref('dim_time')
               field: time_key
+      - name: cancellation_reason
+        tests:
+          - accepted_values:
+              values: ['changed_mind', 'driver_cancelled', 'no_show', 'permanent_error', 'transient_error', 'unexpected_error', 'no_drivers_available']
+              config:
+                where: "cancellation_reason is not null"
 
   - name: fact_driver_activity
     description: Driver status durations for utilization analysis.

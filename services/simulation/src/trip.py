@@ -39,7 +39,7 @@ VALID_TRANSITIONS: dict[TripState, set[TripState]] = {
     TripState.DRIVER_ASSIGNED: {TripState.EN_ROUTE_PICKUP, TripState.CANCELLED},
     TripState.EN_ROUTE_PICKUP: {TripState.AT_PICKUP, TripState.CANCELLED},
     TripState.AT_PICKUP: {TripState.IN_TRANSIT, TripState.CANCELLED},
-    TripState.IN_TRANSIT: {TripState.COMPLETED},
+    TripState.IN_TRANSIT: {TripState.COMPLETED, TripState.CANCELLED},
     TripState.COMPLETED: set(),
     TripState.CANCELLED: set(),
 }

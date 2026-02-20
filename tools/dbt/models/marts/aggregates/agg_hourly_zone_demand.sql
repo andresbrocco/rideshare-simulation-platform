@@ -10,6 +10,12 @@ with trip_requests as (
         date_trunc('hour', requested_at) as hour_timestamp
     from {{ ref('fact_trips') }}
     where requested_at is not null
+    union all
+    select
+        pickup_zone_key as zone_key,
+        date_trunc('hour', requested_at) as hour_timestamp
+    from {{ ref('fact_cancellations') }}
+    where requested_at is not null
 ),
 
 trip_completions as (

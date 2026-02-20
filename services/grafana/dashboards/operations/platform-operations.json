@@ -835,7 +835,7 @@
             "uid": "${DS_TRINO}"
           },
           "format": 0,
-          "rawSql": "SELECT\n  trip_state,\n  COUNT(*) as trip_count\nFROM delta.gold.fact_trips\nWHERE completed_at >= current_timestamp - INTERVAL '24' HOUR\nGROUP BY trip_state\nORDER BY trip_count DESC",
+          "rawSql": "SELECT 'completed' as trip_state, COUNT(*) as trip_count\nFROM delta.gold.fact_trips\nWHERE completed_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT 'cancelled' as trip_state, COUNT(*) as trip_count\nFROM delta.gold.fact_cancellations\nWHERE cancelled_at >= current_timestamp - INTERVAL '24' HOUR",
           "refId": "A"
         }
       ],

@@ -15,6 +15,12 @@ models:
         tests:
           - accepted_values:
               values: ['requested', 'offer_sent', 'offer_expired', 'offer_rejected', 'driver_assigned', 'en_route_pickup', 'at_pickup', 'in_transit', 'completed', 'cancelled', 'no_drivers_available']
+      - name: cancellation_reason
+        tests:
+          - accepted_values:
+              values: ['changed_mind', 'driver_cancelled', 'no_show', 'permanent_error', 'transient_error', 'unexpected_error', 'no_drivers_available']
+              config:
+                where: "cancellation_reason is not null"
 
   - name: stg_gps_pings
     description: Staging model for GPS ping events from Bronze layer.

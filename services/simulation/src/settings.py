@@ -45,6 +45,14 @@ class SimulationSettings(BaseSettings):
     osrm_retry_base_delay: float = Field(default=0.5, ge=0.1, le=5.0)
     osrm_retry_multiplier: float = Field(default=2.0, ge=1.0, le=5.0)
 
+    # Mid-trip cancellation
+    mid_trip_cancellation_rate: float = Field(
+        default=0.002,
+        ge=0.0,
+        le=1.0,
+        description="Probability that a rider cancels during IN_TRANSIT. 0.002 = ~0.2% of trips.",
+    )
+
     model_config = SettingsConfigDict(env_prefix="SIM_")
 
 

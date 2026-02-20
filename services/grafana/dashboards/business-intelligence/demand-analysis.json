@@ -227,7 +227,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  CAST(SUM(CASE WHEN trip_state = 'completed' THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*) as completion_rate\nFROM delta.gold.fact_trips\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY",
+          "rawSql": "WITH all_trips AS (\n  SELECT trip_id, requested_at\n  FROM delta.gold.fact_trips\n  WHERE requested_at >= current_timestamp - INTERVAL '7' DAY\n  UNION ALL\n  SELECT trip_id, requested_at\n  FROM delta.gold.fact_cancellations\n  WHERE requested_at >= current_timestamp - INTERVAL '7' DAY\n),\ncompleted AS (\n  SELECT COUNT(*) as cnt\n  FROM delta.gold.fact_trips\n  WHERE requested_at >= current_timestamp - INTERVAL '7' DAY\n)\nSELECT\n  CASE WHEN COUNT(*) = 0 THEN 0.0\n    ELSE CAST((SELECT cnt FROM completed) AS DOUBLE) * 100.0 / CAST(COUNT(*) AS DOUBLE)\n  END as completion_rate\nFROM all_trips",
           "refId": "A"
         }
       ],

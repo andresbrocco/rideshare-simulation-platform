@@ -45,6 +45,8 @@ parsed as (
         cast({{ json_field('_raw_value', '$.surge_multiplier') }} as double) as surge_multiplier,
         cast({{ json_field('_raw_value', '$.fare') }} as double) as fare,
         {{ json_field('_raw_value', '$.driver_id') }} as driver_id,
+        {{ json_field('_raw_value', '$.cancelled_by') }} as cancelled_by,
+        {{ json_field('_raw_value', '$.cancellation_reason') }} as cancellation_reason,
         {{ json_field('_raw_value', '$.correlation_id') }} as correlation_id,
         _ingested_at
     from source
@@ -75,6 +77,8 @@ select
     surge_multiplier,
     fare,
     driver_id,
+    cancelled_by,
+    cancellation_reason,
     correlation_id,
     _ingested_at
 from deduplicated
