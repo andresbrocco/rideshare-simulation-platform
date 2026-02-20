@@ -69,6 +69,7 @@ export function TripLifecycleAnimation() {
 
   // Route overlay refs
   const pendingRouteRef = useRef<SVGPathElement>(null);
+  const pendingMaskRef = useRef<SVGPathElement>(null);
   const pickupRouteRef = useRef<SVGPathElement>(null);
   const tripRouteRef = useRef<SVGPathElement>(null);
 
@@ -189,8 +190,11 @@ export function TripLifecycleAnimation() {
     // Set sub-path d attributes
     if (pendingRouteRef.current) {
       pendingRouteRef.current.setAttribute('d', pendingPathD);
-      pendingRouteRef.current.style.strokeDasharray = `${pendingPathLen}`;
-      pendingRouteRef.current.style.strokeDashoffset = `${pendingPathLen}`;
+    }
+    if (pendingMaskRef.current) {
+      pendingMaskRef.current.setAttribute('d', pendingPathD);
+      pendingMaskRef.current.style.strokeDasharray = `${pendingPathLen}`;
+      pendingMaskRef.current.style.strokeDashoffset = `${pendingPathLen}`;
     }
     if (pickupRouteRef.current) {
       pickupRouteRef.current.setAttribute('d', pickupPathD);
@@ -472,7 +476,9 @@ export function TripLifecycleAnimation() {
 
     if (pendingRouteRef.current) {
       pendingRouteRef.current.style.opacity = `${pendingOpacity}`;
-      pendingRouteRef.current.style.strokeDashoffset = `${pendingOffset}`;
+    }
+    if (pendingMaskRef.current) {
+      pendingMaskRef.current.style.strokeDashoffset = `${pendingOffset}`;
     }
     if (pickupRouteRef.current) {
       pickupRouteRef.current.style.opacity = `${pickupOpacity}`;
@@ -525,6 +531,17 @@ export function TripLifecycleAnimation() {
             <feFlood ref={personFloodRef} floodColor="rgb(156,163,175)" result="color" />
             <feComposite in="color" in2="SourceAlpha" operator="in" />
           </filter>
+          {/* Mask for pending route draw animation */}
+          <mask id="pending-route-mask">
+            <path
+              ref={pendingMaskRef}
+              d={ROAD_PATH}
+              fill="none"
+              stroke="white"
+              strokeWidth="5"
+              strokeLinecap="round"
+            />
+          </mask>
         </defs>
 
         {/* Background road — always visible at very low opacity */}
@@ -539,7 +556,7 @@ export function TripLifecycleAnimation() {
 
         {/* Route overlays — hidden initially, drawn by animation */}
         <g ref={animatedGroupRef}>
-          {/* Pending route (person→flag): light orange */}
+          {/* Pending route (person→flag): light orange, dashed */}
           <path
             ref={pendingRouteRef}
             d={ROAD_PATH}
@@ -547,6 +564,8 @@ export function TripLifecycleAnimation() {
             stroke={rgbString(COLOR_PENDING_ROUTE)}
             strokeWidth="3"
             strokeLinecap="round"
+            strokeDasharray="8 6"
+            mask="url(#pending-route-mask)"
             opacity="0"
           />
           {/* Pickup route (car→person): gold */}
