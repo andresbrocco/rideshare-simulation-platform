@@ -99,7 +99,7 @@ class MetricsUpdater:
                 # Compute avg metrics from matching server stats
                 avg_fare = 0.0
                 avg_duration_minutes = 0.0
-                avg_wait_seconds = 0.0
+                avg_match_seconds = 0.0
                 avg_pickup_seconds = 0.0
                 matching_success_rate = 0.0
                 if hasattr(self._engine, "_matching_server") and self._engine._matching_server:
@@ -107,7 +107,7 @@ class MetricsUpdater:
                     trip_stats = ms.get_trip_stats()
                     avg_fare = trip_stats.get("avg_fare", 0.0)
                     avg_duration_minutes = trip_stats.get("avg_duration_minutes", 0.0)
-                    avg_wait_seconds = trip_stats.get("avg_wait_seconds", 0.0)
+                    avg_match_seconds = trip_stats.get("avg_match_seconds", 0.0)
                     avg_pickup_seconds = trip_stats.get("avg_pickup_seconds", 0.0)
 
                     matching_stats = ms.get_matching_stats()
@@ -125,7 +125,7 @@ class MetricsUpdater:
                     active_trips=active_trips,
                     avg_fare=avg_fare,
                     avg_duration_minutes=avg_duration_minutes,
-                    avg_wait_seconds=avg_wait_seconds,
+                    avg_match_seconds=avg_match_seconds,
                     avg_pickup_seconds=avg_pickup_seconds,
                     matching_success_rate=matching_success_rate,
                     pending_offers=pending_offers,

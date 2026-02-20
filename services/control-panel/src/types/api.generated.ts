@@ -1924,10 +1924,10 @@ export interface components {
       /** Avg Duration Minutes */
       avg_duration_minutes: number;
       /**
-       * Avg Wait Seconds
+       * Avg Match Seconds
        * @default 0
        */
-      avg_wait_seconds: number;
+      avg_match_seconds: number;
       /**
        * Avg Pickup Seconds
        * @default 0

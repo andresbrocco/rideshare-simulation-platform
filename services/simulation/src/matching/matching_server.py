@@ -127,8 +127,8 @@ class MatchingServer:
         self._stats_total_fare: float = 0.0
         self._stats_duration_sum: float = 0.0
         self._stats_duration_count: int = 0
-        self._stats_wait_sum: float = 0.0
-        self._stats_wait_count: int = 0
+        self._stats_match_time_sum: float = 0.0
+        self._stats_match_time_count: int = 0
         self._stats_pickup_sum: float = 0.0
         self._stats_pickup_count: int = 0
         # Limit how many drivers get OSRM route fetches (top-N by haversine distance)
@@ -189,10 +189,10 @@ class MatchingServer:
             self._stats_duration_sum += duration
             self._stats_duration_count += 1
 
-        if trip.requested_at and trip.driver_arrived_at:
-            wait_seconds = (trip.driver_arrived_at - trip.requested_at).total_seconds()
-            self._stats_wait_sum += wait_seconds
-            self._stats_wait_count += 1
+        if trip.requested_at and trip.matched_at:
+            match_seconds = (trip.matched_at - trip.requested_at).total_seconds()
+            self._stats_match_time_sum += match_seconds
+            self._stats_match_time_count += 1
 
         if trip.matched_at and trip.driver_arrived_at:
             pickup_seconds = (trip.driver_arrived_at - trip.matched_at).total_seconds()
@@ -207,14 +207,14 @@ class MatchingServer:
             total_fare = self._stats_total_fare
             duration_sum = self._stats_duration_sum
             duration_count = self._stats_duration_count
-            wait_sum = self._stats_wait_sum
-            wait_count = self._stats_wait_count
+            match_time_sum = self._stats_match_time_sum
+            match_time_count = self._stats_match_time_count
             pickup_sum = self._stats_pickup_sum
             pickup_count = self._stats_pickup_count
 
         avg_fare = total_fare / completed_count if completed_count > 0 else 0.0
         avg_duration = duration_sum / duration_count if duration_count > 0 else 0.0
-        avg_wait_seconds = wait_sum / wait_count if wait_count > 0 else 0.0
+        avg_match_seconds = match_time_sum / match_time_count if match_time_count > 0 else 0.0
         avg_pickup_seconds = pickup_sum / pickup_count if pickup_count > 0 else 0.0
 
         return {
@@ -222,7 +222,7 @@ class MatchingServer:
             "cancelled_count": cancelled_count,
             "avg_fare": avg_fare,
             "avg_duration_minutes": avg_duration,
-            "avg_wait_seconds": avg_wait_seconds,
+            "avg_match_seconds": avg_match_seconds,
             "avg_pickup_seconds": avg_pickup_seconds,
         }
 
@@ -847,8 +847,8 @@ class MatchingServer:
             self._stats_total_fare = 0.0
             self._stats_duration_sum = 0.0
             self._stats_duration_count = 0
-            self._stats_wait_sum = 0.0
-            self._stats_wait_count = 0
+            self._stats_match_time_sum = 0.0
+            self._stats_match_time_count = 0
             self._stats_pickup_sum = 0.0
             self._stats_pickup_count = 0
 

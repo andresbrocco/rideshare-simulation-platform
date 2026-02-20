@@ -4613,9 +4613,9 @@
             "type": "number",
             "title": "Avg Duration Minutes"
           },
-          "avg_wait_seconds": {
+          "avg_match_seconds": {
             "type": "number",
-            "title": "Avg Wait Seconds",
+            "title": "Avg Match Seconds",
             "default": 0.0
           },
           "avg_pickup_seconds": {

@@ -73,7 +73,7 @@ def mock_matching_server():
             "cancelled_count": 0,
             "avg_fare": 0.0,
             "avg_duration_minutes": 0.0,
-            "avg_wait_seconds": 0.0,
+            "avg_match_seconds": 0.0,
             "avg_pickup_seconds": 0.0,
             "active_count": 0,
         }

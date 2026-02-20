@@ -1463,8 +1463,8 @@ class TestRunningAccumulators:
         assert stats["avg_fare"] == 20.0  # (10+20+30)/3
         # Duration = matched_at to completed_at in minutes: 9, 14, 19 -> avg 14.0
         assert abs(stats["avg_duration_minutes"] - 14.0) < 0.01
-        # Wait = requested_at to driver_arrived_at in seconds: 180 each -> avg 180.0
-        assert abs(stats["avg_wait_seconds"] - 180.0) < 0.01
+        # Match = requested_at to matched_at in seconds: 60 each -> avg 60.0
+        assert abs(stats["avg_match_seconds"] - 60.0) < 0.01
         # Pickup = matched_at to driver_arrived_at in seconds: 120 each -> avg 120.0
         assert abs(stats["avg_pickup_seconds"] - 120.0) < 0.01
 

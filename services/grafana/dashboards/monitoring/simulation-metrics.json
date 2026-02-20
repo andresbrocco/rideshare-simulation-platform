@@ -530,7 +530,7 @@
         "y": 6
       },
       "id": 9,
-      "description": "Average time riders wait from match to driver arrival (MATCHED to DRIVER_ARRIVED). Core rider experience SLA metric.",
+      "description": "Average time from trip request to driver match (REQUESTED to MATCHED). Core platform matching performance metric.",
       "options": {
         "legend": {
           "calcs": [],
@@ -549,12 +549,12 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "simulation_avg_wait_seconds",
-          "legendFormat": "Avg Wait",
+          "expr": "simulation_avg_match_seconds",
+          "legendFormat": "Avg Match",
           "refId": "A"
         }
       ],
-      "title": "Average Wait Time",
+      "title": "Average Match Time",
       "type": "timeseries"
     },
     {

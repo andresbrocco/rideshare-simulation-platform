@@ -99,7 +99,7 @@ _snapshot_lock = threading.Lock()
 _snapshot_values: dict[str, float] = {
     "avg_fare": 0.0,
     "avg_duration_minutes": 0.0,
-    "avg_wait_seconds": 0.0,
+    "avg_match_seconds": 0.0,
     "avg_pickup_seconds": 0.0,
     "matching_success_rate": 0.0,
     "pending_offers": 0.0,
@@ -129,10 +129,10 @@ simulation_avg_duration = meter.create_observable_gauge(
     unit="min",
 )
 
-simulation_avg_wait = meter.create_observable_gauge(
-    name="simulation_avg_wait_seconds",
-    callbacks=[lambda options: _observe("avg_wait_seconds")],
-    description="Average rider wait time in seconds",
+simulation_avg_match = meter.create_observable_gauge(
+    name="simulation_avg_match_seconds",
+    callbacks=[lambda options: _observe("avg_match_seconds")],
+    description="Average time from request to driver match in seconds",
     unit="s",
 )
 
@@ -220,7 +220,7 @@ def update_metrics_from_snapshot(
     active_trips: int = 0,
     avg_fare: float = 0.0,
     avg_duration_minutes: float = 0.0,
-    avg_wait_seconds: float = 0.0,
+    avg_match_seconds: float = 0.0,
     avg_pickup_seconds: float = 0.0,
     matching_success_rate: float = 0.0,
     pending_offers: int = 0,
@@ -241,7 +241,7 @@ def update_metrics_from_snapshot(
     with _snapshot_lock:
         _snapshot_values["avg_fare"] = avg_fare
         _snapshot_values["avg_duration_minutes"] = avg_duration_minutes
-        _snapshot_values["avg_wait_seconds"] = avg_wait_seconds
+        _snapshot_values["avg_match_seconds"] = avg_match_seconds
         _snapshot_values["avg_pickup_seconds"] = avg_pickup_seconds
         _snapshot_values["matching_success_rate"] = matching_success_rate
         _snapshot_values["pending_offers"] = float(pending_offers)

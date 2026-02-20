@@ -138,10 +138,10 @@ export default function StatsPanel({
               </span>
             </div>
             <div className={styles.statItem}>
-              <Tooltip text="Average time from trip request to driver arrival at pickup">
-                <span className={styles.statLabel}>Avg Wait:</span>
+              <Tooltip text="Average time from trip request to driver match">
+                <span className={styles.statLabel}>Avg Match:</span>
               </Tooltip>
-              <span className={styles.statValue}>{formatTime(tripMetrics?.avg_wait_seconds)}</span>
+              <span className={styles.statValue}>{formatTime(tripMetrics?.avg_match_seconds)}</span>
             </div>
             <div className={styles.statItem}>
               <Tooltip text="Average time from match to driver arrival at pickup">

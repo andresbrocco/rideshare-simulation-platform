@@ -201,7 +201,7 @@ def get_trip_metrics(request: Request, engine: EngineDep) -> TripMetrics:
         cancelled_today = 0
         avg_fare = 0.0
         avg_duration_minutes = 0.0
-        avg_wait_seconds = 0.0
+        avg_match_seconds = 0.0
         avg_pickup_seconds = 0.0
 
         # Matching stats
@@ -219,7 +219,7 @@ def get_trip_metrics(request: Request, engine: EngineDep) -> TripMetrics:
                 cancelled_today = stats.get("cancelled_count", 0)
                 avg_fare = stats.get("avg_fare", 0.0)
                 avg_duration_minutes = stats.get("avg_duration_minutes", 0.0)
-                avg_wait_seconds = stats.get("avg_wait_seconds", 0.0)
+                avg_match_seconds = stats.get("avg_match_seconds", 0.0)
                 avg_pickup_seconds = stats.get("avg_pickup_seconds", 0.0)
 
             # Get matching stats
@@ -238,7 +238,7 @@ def get_trip_metrics(request: Request, engine: EngineDep) -> TripMetrics:
             cancelled_today=cancelled_today,
             avg_fare=avg_fare,
             avg_duration_minutes=avg_duration_minutes,
-            avg_wait_seconds=avg_wait_seconds,
+            avg_match_seconds=avg_match_seconds,
             avg_pickup_seconds=avg_pickup_seconds,
             offers_sent=offers_sent,
             offers_accepted=offers_accepted,

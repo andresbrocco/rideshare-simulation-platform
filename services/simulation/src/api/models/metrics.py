@@ -28,7 +28,7 @@ class TripMetrics(BaseModel):
     cancelled_today: int
     avg_fare: float
     avg_duration_minutes: float
-    avg_wait_seconds: float = 0.0  # Time from request to match
+    avg_match_seconds: float = 0.0  # Time from request to match
     avg_pickup_seconds: float = 0.0  # Time from match to driver arrival
     # Matching metrics
     offers_sent: int = 0

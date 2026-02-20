@@ -135,7 +135,7 @@ export interface TripMetrics {
   cancelled_today: number;
   avg_fare: number;
   avg_duration_minutes: number;
-  avg_wait_seconds: number;
+  avg_match_seconds: number;
   avg_pickup_seconds: number;
   // Matching metrics
   offers_sent: number;
