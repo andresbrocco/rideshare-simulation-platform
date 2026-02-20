@@ -1,7 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
-import confetti from 'canvas-confetti';
 import { DRIVER_COLORS, RIDER_TRIP_STATE_COLORS } from '../layers/agentLayers';
-import { STAGE_RGB, STAGE_HEX } from '../theme';
+import { STAGE_RGB } from '../theme';
 import { resolvePhase, TOTAL_CYCLE_DURATION, type Phase } from './tripLifecyclePhases';
 import styles from './TripLifecycleAnimation.module.css';
 
@@ -73,12 +72,8 @@ export function TripLifecycleAnimation() {
   const pickupRouteRef = useRef<SVGPathElement>(null);
   const tripRouteRef = useRef<SVGPathElement>(null);
 
-  // Confetti canvas
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
   // Animation state (not React state — direct DOM for 60fps)
   const rafIdRef = useRef(0);
-  const confettiFiredRef = useRef(false);
   const reducedMotionRef = useRef(false);
 
   // Cached path data computed on mount
@@ -207,38 +202,6 @@ export function TripLifecycleAnimation() {
       tripRouteRef.current.style.strokeDashoffset = `${tripPathLen}`;
     }
   }, [sampleSubPath, computeSubPathLength]);
-
-  // Animation loop
-  useEffect(() => {
-    const mql = window.matchMedia('(prefers-reduced-motion: reduce)');
-    reducedMotionRef.current = mql.matches;
-
-    if (reducedMotionRef.current) {
-      // Static completed state
-      renderStaticCompleted();
-      return;
-    }
-
-    let startTime: number | null = null;
-
-    function animate(timestamp: number) {
-      if (startTime === null) startTime = timestamp;
-      const elapsed = (timestamp - startTime) / 1000;
-      const cycleTime = elapsed % TOTAL_CYCLE_DURATION;
-
-      const { phase, progress } = resolvePhase(cycleTime);
-      applyVisualState(phase, progress);
-
-      rafIdRef.current = requestAnimationFrame(animate);
-    }
-
-    rafIdRef.current = requestAnimationFrame(animate);
-
-    return () => {
-      cancelAnimationFrame(rafIdRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   function renderStaticCompleted() {
     const pd = pathDataRef.current;
@@ -415,11 +378,6 @@ export function TripLifecycleAnimation() {
         tripOpacity = 1;
         tripOffset = 0;
 
-        // Fire confetti once per cycle
-        if (!confettiFiredRef.current) {
-          confettiFiredRef.current = true;
-          fireConfetti();
-        }
         break;
 
       case 'hold':
@@ -447,7 +405,6 @@ export function TripLifecycleAnimation() {
         tripOpacity = 1;
         tripOffset = 0;
         groupOpacity = 1 - easeInOutCubic(progress);
-        confettiFiredRef.current = false;
         break;
     }
 
@@ -494,21 +451,36 @@ export function TripLifecycleAnimation() {
     }
   }
 
-  function fireConfetti() {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  // Animation loop
+  useEffect(() => {
+    const mql = window.matchMedia('(prefers-reduced-motion: reduce)');
+    reducedMotionRef.current = mql.matches;
 
-    const myConfetti = confetti.create(canvas, { resize: true });
-    myConfetti({
-      particleCount: 40,
-      spread: 60,
-      origin: { x: 0.9, y: 0.5 },
-      colors: [STAGE_HEX.completed.base, STAGE_HEX.available.base, STAGE_HEX.completed.base],
-      gravity: 0.8,
-      ticks: 80,
-      scalar: 0.8,
-    });
-  }
+    if (reducedMotionRef.current) {
+      // Static completed state
+      renderStaticCompleted();
+      return;
+    }
+
+    let startTime: number | null = null;
+
+    function animate(timestamp: number) {
+      if (startTime === null) startTime = timestamp;
+      const elapsed = (timestamp - startTime) / 1000;
+      const cycleTime = elapsed % TOTAL_CYCLE_DURATION;
+
+      const { phase, progress } = resolvePhase(cycleTime);
+      applyVisualState(phase, progress);
+
+      rafIdRef.current = requestAnimationFrame(animate);
+    }
+
+    rafIdRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      cancelAnimationFrame(rafIdRef.current);
+    };
+  }, []);
 
   return (
     <div className={styles.container}>
@@ -605,7 +577,6 @@ export function TripLifecycleAnimation() {
           </g>
         </g>
       </svg>
-      <canvas ref={canvasRef} className={styles.confettiCanvas} />
     </div>
   );
 }

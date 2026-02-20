@@ -3,13 +3,6 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LandingPage } from '../LandingPage';
 
-// Mock canvas-confetti
-vi.mock('canvas-confetti', () => ({
-  default: {
-    create: () => vi.fn(),
-  },
-}));
-
 // jsdom doesn't implement SVG geometry methods.
 // jsdom renders <path> as SVGElement (not SVGPathElement), so patch SVGElement.prototype.
 // @ts-expect-error -- SVGElement doesn't declare getTotalLength, but jsdom <path> elements are SVGElement

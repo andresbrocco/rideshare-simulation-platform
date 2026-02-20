@@ -3,13 +3,6 @@ import { render, screen } from '@testing-library/react';
 import { TripLifecycleAnimation } from '../TripLifecycleAnimation';
 import { resolvePhase } from '../tripLifecyclePhases';
 
-// Mock canvas-confetti
-vi.mock('canvas-confetti', () => ({
-  default: {
-    create: () => vi.fn(),
-  },
-}));
-
 function mockMatchMedia(reduceMotion: boolean) {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
