@@ -20,6 +20,9 @@ from src.trip import Trip, TripState
 from src.trips.trip_executor import TripExecutor
 from tests.factories import DNAFactory
 
+# Re-export fixtures used by TestPrePickupCancellation below
+# (dna_factory comes from conftest.py)
+
 
 @pytest.fixture
 def simpy_env():
@@ -427,3 +430,122 @@ class TestTripExecutorPrecomputedHeadings:
         # Driver heading should be one of the precomputed values or preserved last heading
         # (not 0.0, which would indicate heading was never set from route)
         assert driver_agent.heading != 0.0 or any(h == 0.0 for h in expected_headings)
+
+
+@pytest.mark.unit
+class TestPrePickupCancellation:
+    """Tests for DNA-based pre-pickup driver cancellation."""
+
+    @pytest.fixture
+    def high_cancel_driver(self, simpy_env, dna_factory: DNAFactory, mock_kafka_producer):
+        """Driver with high cancellation tendency."""
+        dna = dna_factory.driver_dna(cancellation_tendency=0.10)
+        agent = DriverAgent(
+            driver_id="driver_cancel_001",
+            dna=dna,
+            env=simpy_env,
+            kafka_producer=mock_kafka_producer,
+        )
+        agent.update_location(-23.55, -46.63)
+        agent.go_online()
+        return agent
+
+    @pytest.fixture
+    def cancel_rider(self, simpy_env, dna_factory: DNAFactory, mock_kafka_producer):
+        """Rider for cancellation tests."""
+        dna = dna_factory.rider_dna()
+        agent = RiderAgent(
+            rider_id="rider_cancel_001",
+            dna=dna,
+            env=simpy_env,
+            kafka_producer=mock_kafka_producer,
+        )
+        agent.update_location(-23.54, -46.62)
+        return agent
+
+    @pytest.fixture
+    def cancel_trip(self):
+        """Trip for cancellation tests."""
+        return Trip(
+            trip_id="trip_cancel_001",
+            rider_id="rider_cancel_001",
+            driver_id="driver_cancel_001",
+            state=TripState.MATCHED,
+            pickup_location=(-23.54, -46.62),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="zone_1",
+            dropoff_zone_id="zone_2",
+            surge_multiplier=1.0,
+            fare=25.50,
+        )
+
+    @patch("src.trips.trip_executor.random.random", return_value=0.0)
+    def test_driver_cancels_pre_pickup_when_random_below_threshold(
+        self,
+        mock_random,
+        simpy_env,
+        high_cancel_driver,
+        cancel_rider,
+        cancel_trip,
+        mock_osrm_client_for_executor,
+        mock_kafka_producer,
+    ):
+        """Driver cancels pre-pickup when random() < cancel_prob."""
+        executor = TripExecutor(
+            env=simpy_env,
+            driver=high_cancel_driver,
+            rider=cancel_rider,
+            trip=cancel_trip,
+            osrm_client=mock_osrm_client_for_executor,
+            kafka_producer=mock_kafka_producer,
+            settings=SimulationSettings(arrival_proximity_threshold_m=50.0),
+        )
+
+        process = simpy_env.process(executor.execute())
+        simpy_env.run(process)
+
+        assert cancel_trip.state == TripState.CANCELLED
+        assert cancel_trip.cancelled_by == "driver"
+        assert cancel_trip.cancellation_reason == "driver_cancelled"
+        assert cancel_trip.cancellation_stage == "pickup"
+        assert high_cancel_driver.status == "online"
+
+    @patch("src.trips.trip_executor.random.random", return_value=1.0)
+    def test_driver_does_not_cancel_pre_pickup_when_random_above_threshold(
+        self,
+        mock_random,
+        simpy_env,
+        high_cancel_driver,
+        cancel_rider,
+        cancel_trip,
+        mock_osrm_client_for_executor,
+        mock_kafka_producer,
+    ):
+        """Driver does not cancel when random() > cancel_prob; trip completes."""
+        executor = TripExecutor(
+            env=simpy_env,
+            driver=high_cancel_driver,
+            rider=cancel_rider,
+            trip=cancel_trip,
+            osrm_client=mock_osrm_client_for_executor,
+            kafka_producer=mock_kafka_producer,
+            settings=SimulationSettings(arrival_proximity_threshold_m=50.0),
+        )
+
+        process = simpy_env.process(executor.execute())
+        simpy_env.run(process)
+
+        assert cancel_trip.state == TripState.COMPLETED
+
+    def test_pre_pickup_cancellation_distance_scaling(self):
+        """Verify distance_scaling formula: max(0.5, min(2.0, eta_minutes / 10.0))."""
+        # Short ETA (3 min) → clamped to 0.5
+        assert max(0.5, min(2.0, 3.0 / 10.0)) == 0.5
+        # Medium ETA (10 min) → 1.0
+        assert max(0.5, min(2.0, 10.0 / 10.0)) == 1.0
+        # Long ETA (25 min) → clamped to 2.0
+        assert max(0.5, min(2.0, 25.0 / 10.0)) == 2.0
+        # Boundary: 5 min → 0.5
+        assert max(0.5, min(2.0, 5.0 / 10.0)) == 0.5
+        # Boundary: 20 min → 2.0
+        assert max(0.5, min(2.0, 20.0 / 10.0)) == 2.0

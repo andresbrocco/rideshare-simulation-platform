@@ -1,6 +1,7 @@
 """Trip execution coordinator managing the full trip lifecycle."""
 
 import logging
+import random
 from collections.abc import Generator
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Literal
@@ -155,6 +156,27 @@ class TripExecutor:
         logger.info(
             f"Trip {self._trip.trip_id}: Pickup route fetched - duration={route.duration_seconds}s, distance={route.distance_meters}m, points={len(route.geometry)}"
         )
+
+        # DNA-based pre-pickup cancellation check
+        eta_minutes = route.duration_seconds / 60.0
+        distance_scaling = max(0.5, min(2.0, eta_minutes / 10.0))
+        cancel_prob = self._driver.dna.cancellation_tendency * distance_scaling
+
+        if random.random() < cancel_prob:
+            logger.info(
+                f"Trip {self._trip.trip_id}: Driver {self._driver.driver_id} cancelled pre-pickup "
+                f"(tendency={self._driver.dna.cancellation_tendency:.3f}, "
+                f"eta={route.duration_seconds:.0f}s, prob={cancel_prob:.3f})"
+            )
+            self._trip.cancel(by="driver", reason="driver_cancelled", stage="pickup")
+            self._emit_trip_event("trip.cancelled")
+            self._driver.complete_trip()
+            self._rider.cancel_trip()
+            self._driver.statistics.record_trip_cancelled()
+            self._rider.statistics.record_trip_cancelled()
+            if self._matching_server:
+                self._matching_server.complete_trip(self._trip.trip_id, self._trip)
+            return
 
         # Now emit event with pickup_route populated
         self._emit_trip_event("trip.driver_en_route")
