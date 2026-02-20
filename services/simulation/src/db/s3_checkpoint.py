@@ -5,8 +5,13 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any
 
+import simpy
 from botocore.exceptions import ClientError
 
+from agents.dna import DriverDNA, RiderDNA
+from agents.driver_agent import DriverAgent
+from agents.rider_agent import RiderAgent
+from db.checkpoint import CheckpointError
 from db.utils import utc_now
 
 if TYPE_CHECKING:
@@ -165,3 +170,192 @@ class S3CheckpointManager:
             if e.response["Error"]["Code"] in ("NoSuchKey", "404"):
                 return False
             raise
+
+    def restore_to_engine(self, engine: "SimulationEngine") -> None:
+        """Restore simulation state from S3 checkpoint into an engine.
+
+        Rebuilds all agents and matching server state from the persisted
+        checkpoint data. S3 format stores drivers/riders at top level
+        (not nested under 'agents' like SQLite).
+
+        Raises:
+            CheckpointError: If no checkpoint exists or restoration fails
+        """
+        checkpoint = self.load_checkpoint()
+        if checkpoint is None:
+            raise CheckpointError("No checkpoint found in S3")
+
+        metadata = checkpoint["metadata"]
+        version = checkpoint.get("version", "1.0.0")
+
+        if version != CHECKPOINT_VERSION:
+            logger.warning("Checkpoint version mismatch: %s vs %s", version, CHECKPOINT_VERSION)
+
+        # Restore simulation time by creating a new environment with initial time
+        initial_time = metadata["current_time"]
+        engine._env = simpy.Environment(initial_time=initial_time)
+        engine._speed_multiplier = metadata["speed_multiplier"]
+
+        # Update matching server's environment reference
+        if hasattr(engine._matching_server, "_env"):
+            engine._matching_server._env = engine._env
+
+        # Extract shared dependencies from agent factory for restored agents
+        registry_manager = None
+        zone_loader = None
+        osrm_client = None
+        surge_calculator = None
+        if hasattr(engine, "_agent_factory") and engine._agent_factory:
+            registry_manager = getattr(engine._agent_factory, "_registry_manager", None)
+            zone_loader = getattr(engine._agent_factory, "_zone_loader", None)
+            osrm_client = getattr(engine._agent_factory, "_osrm_client", None)
+            surge_calculator = getattr(engine._agent_factory, "_surge_calculator", None)
+
+        # S3 format: drivers/riders at top level (not nested under 'agents')
+        driver_list = checkpoint.get("drivers", [])
+        rider_list = checkpoint.get("riders", [])
+
+        # Restore drivers
+        restored_drivers = 0
+        failed_drivers = 0
+        for driver_data in driver_list:
+            try:
+                driver_dna = DriverDNA.model_validate(driver_data["dna"])
+                has_active_trip = driver_data["active_trip"] is not None
+                is_online_idle = driver_data["status"] == "online" and not has_active_trip
+
+                driver = DriverAgent(
+                    driver_id=driver_data["id"],
+                    dna=driver_dna,
+                    env=engine._env,
+                    kafka_producer=engine._kafka_producer,
+                    redis_publisher=engine._redis_client,
+                    driver_repository=None,
+                    registry_manager=registry_manager,
+                    zone_loader=zone_loader,
+                    simulation_engine=engine,
+                    immediate_online=is_online_idle,
+                    puppet=False,
+                )
+
+                # Restore runtime state
+                driver._status = driver_data["status"]
+                driver._location = tuple(driver_data["location"])
+                driver._active_trip = driver_data["active_trip"]
+                driver._current_rating = driver_data["rating"]
+                driver._rating_count = driver_data["rating_count"]
+
+                engine._active_drivers[driver.driver_id] = driver
+                engine._matching_server.register_driver(driver)
+
+                # Register in AgentRegistryManager for status counts
+                if registry_manager:
+                    registry_manager.register_driver(driver)
+                    if driver_data["status"] != "offline":
+                        registry_manager._driver_registry.update_driver_status(
+                            driver.driver_id, driver_data["status"]
+                        )
+
+                    # Populate geospatial index for non-offline drivers
+                    if driver_data["status"] != "offline" and driver_data["location"]:
+                        lat, lon = driver_data["location"]
+                        zone_id = driver._determine_zone(driver_data["location"])
+                        registry_manager._driver_index.add_driver(
+                            driver.driver_id, lat, lon, driver_data["status"]
+                        )
+                        registry_manager._driver_registry.update_driver_location(
+                            driver.driver_id, tuple(driver_data["location"])
+                        )
+                        if zone_id:
+                            registry_manager._driver_registry.update_driver_zone(
+                                driver.driver_id, zone_id
+                            )
+
+                restored_drivers += 1
+            except Exception as e:
+                logger.error("Failed to restore driver %s: %s", driver_data.get("id"), e)
+                failed_drivers += 1
+
+        # Restore riders
+        restored_riders = 0
+        failed_riders = 0
+        for rider_data in rider_list:
+            try:
+                rider_dna = RiderDNA.model_validate(rider_data["dna"])
+                rider = RiderAgent(
+                    rider_id=rider_data["id"],
+                    dna=rider_dna,
+                    env=engine._env,
+                    kafka_producer=engine._kafka_producer,
+                    redis_publisher=engine._redis_client,
+                    rider_repository=None,
+                    simulation_engine=engine,
+                    zone_loader=zone_loader,
+                    osrm_client=osrm_client,
+                    surge_calculator=surge_calculator,
+                    immediate_first_trip=False,
+                    puppet=False,
+                )
+
+                # Restore runtime state
+                rider._status = rider_data["status"]
+                rider._location = tuple(rider_data["location"])
+                rider._active_trip = rider_data["active_trip"]
+                rider._current_rating = rider_data["rating"]
+                rider._rating_count = rider_data["rating_count"]
+
+                engine._active_riders[rider.rider_id] = rider
+                restored_riders += 1
+            except Exception as e:
+                logger.error("Failed to restore rider %s: %s", rider_data.get("id"), e)
+                failed_riders += 1
+
+        # Restore surge multipliers from top-level key
+        surge_data = checkpoint.get("surge_multipliers", {})
+        if (
+            surge_data
+            and hasattr(engine._matching_server, "_surge_calculator")
+            and engine._matching_server._surge_calculator
+        ):
+            calculator = engine._matching_server._surge_calculator
+            if hasattr(calculator, "_zone_multipliers"):
+                calculator._zone_multipliers.update(surge_data)
+
+        # Restore reserved drivers from top-level key
+        reserved_drivers = checkpoint.get("reserved_drivers", [])
+        if reserved_drivers:
+            engine._matching_server._reserved_drivers = set(reserved_drivers)
+
+        # Handle crash checkpoint: cancel in-flight trips
+        if metadata.get("checkpoint_type") == "crash":
+            logger.warning(
+                "Restored from crash checkpoint with %d in-flight trips. "
+                "These trips will be cancelled to ensure clean state.",
+                metadata.get("in_flight_trips", 0),
+            )
+            if hasattr(engine._matching_server, "_active_trips"):
+                for trip in list(engine._matching_server._active_trips.values()):
+                    engine._matching_server.cancel_trip(trip.trip_id, "system", "recovery_cleanup")
+
+        # Warn about incomplete restoration
+        if failed_drivers or failed_riders:
+            logger.warning(
+                "Checkpoint restore incomplete: %d drivers and %d riders failed to restore",
+                failed_drivers,
+                failed_riders,
+            )
+
+        if registry_manager:
+            index_count = len(registry_manager._driver_index._driver_locations)
+            logger.info(
+                "Restored agent summary: %d drivers in geospatial index, %d riders",
+                index_count,
+                restored_riders,
+            )
+
+        logger.info(
+            "S3 checkpoint restored: time=%.1fs, drivers=%d, riders=%d",
+            initial_time,
+            restored_drivers,
+            restored_riders,
+        )

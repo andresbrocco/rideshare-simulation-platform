@@ -11,6 +11,10 @@
 | `SIM_SPEED_MULTIPLIER` | Simulation speed multiplier (1x to 1024x) | `1.0` | No |
 | `SIM_LOG_LEVEL` | Logging level (DEBUG, INFO, WARNING, ERROR) | `INFO` | No |
 | `SIM_CHECKPOINT_INTERVAL` | Checkpoint interval in simulated seconds | `300` | No |
+| `SIM_CHECKPOINT_STORAGE_TYPE` | Checkpoint backend: `s3` or `sqlite` | `sqlite` | No |
+| `SIM_CHECKPOINT_S3_BUCKET` | S3 bucket for checkpoints (when using S3 backend) | `rideshare-checkpoints` | No |
+| `SIM_CHECKPOINT_S3_PREFIX` | S3 key prefix for checkpoints | `simulation` | No |
+| `AWS_ENDPOINT_URL` | S3 endpoint URL (set to MinIO URL for local dev) | None (AWS) | No |
 | `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker addresses | `kafka:9092` | Yes |
 | `KAFKA_SASL_USERNAME` | Kafka SASL username | - | Yes |
 | `KAFKA_SASL_PASSWORD` | Kafka SASL password | - | Yes |

@@ -1,6 +1,7 @@
 """Database persistence module."""
 
 import logging
+import os
 from typing import TYPE_CHECKING, Union
 
 from .database import init_database
@@ -66,7 +67,8 @@ def get_checkpoint_manager(
 
         from db.s3_checkpoint import S3CheckpointManager
 
-        s3_client = boto3.client("s3")
+        endpoint_url = os.environ.get("AWS_ENDPOINT_URL")
+        s3_client = boto3.client("s3", endpoint_url=endpoint_url)
 
         logger.info(
             "Using S3 checkpoint backend: s3://%s/%s",

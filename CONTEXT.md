@@ -167,7 +167,7 @@ Key modules in this codebase:
 
 **Agent DNA**: Immutable behavioral parameters (acceptance rate, patience threshold, service quality) assigned at agent creation, influence decision-making throughout agent lifetime.
 
-**Two-Phase Pause**: RUNNING → DRAINING (monitor active trips) → PAUSED (quiescent or timeout). Ensures no trips mid-execution during checkpointing.
+**Two-Phase Pause**: RUNNING → DRAINING (monitor active trips) → PAUSED (quiescent or timeout). Ensures no trips mid-execution during checkpointing. Checkpoint backend defaults to S3 (MinIO locally, AWS S3 in production) with SQLite fallback, enabling local-to-cloud data migration.
 
 **Medallion Architecture**: Bronze (raw Kafka events with metadata), Silver (parsed, deduplicated, validated), Gold (star schema with SCD Type 2 for driver/rider profiles).
 

@@ -345,12 +345,28 @@ class SimulationEngine:
         storage_type = settings.simulation.checkpoint_storage_type
 
         if storage_type == "s3":
-            logger.warning(
-                "S3 checkpoint restore not yet implemented. "
-                "S3 backend supports saving checkpoints; "
-                "restoration will be added in a future update."
-            )
-            return False
+            try:
+                from db import get_checkpoint_manager
+                from db.s3_checkpoint import S3CheckpointManager
+
+                manager = get_checkpoint_manager(settings)
+                if not isinstance(manager, S3CheckpointManager):
+                    logger.error("Expected S3CheckpointManager but got %s", type(manager))
+                    return False
+                if not manager.has_checkpoint():
+                    return False
+                manager.restore_to_engine(self)
+                self._time_manager = TimeManager(
+                    self._time_manager._simulation_start_time,
+                    self._env,
+                )
+                return True
+            except CheckpointError as e:
+                logger.warning("S3 checkpoint restore failed: %s", e)
+                return False
+            except Exception as e:
+                logger.error("Unexpected error during S3 checkpoint restore: %s", e)
+                return False
 
         if self._sqlite_db is None:
             return False

@@ -240,6 +240,10 @@ services:
       - SIM_CHECKPOINT_INTERVAL=${SIM_CHECKPOINT_INTERVAL:-300}
       - SIM_CHECKPOINT_ENABLED=${SIM_CHECKPOINT_ENABLED:-true}
       - SIM_RESUME_FROM_CHECKPOINT=${SIM_RESUME_FROM_CHECKPOINT:-true}
+      - SIM_CHECKPOINT_STORAGE_TYPE=s3
+      - SIM_CHECKPOINT_S3_BUCKET=rideshare-checkpoints
+      - SIM_CHECKPOINT_S3_PREFIX=simulation
+      - AWS_ENDPOINT_URL=http://minio:9000
       - SIM_DB_PATH=/app/db/simulation.db
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - KAFKA_SECURITY_PROTOCOL=SASL_PLAINTEXT
@@ -264,6 +268,12 @@ services:
         set -a && eval "$$(grep '^REDIS_PASSWORD' /secrets/core.env)" && set +a
         set -a && eval "$$(grep '^API_KEY' /secrets/core.env)" && set +a
         export KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO="$$SCHEMA_REGISTRY_USER:$$SCHEMA_REGISTRY_PASSWORD"
+        if [ -f /secrets/data-pipeline.env ]; then
+          set -a && eval "$$(grep '^MINIO_ROOT_USER' /secrets/data-pipeline.env)" && set +a
+          set -a && eval "$$(grep '^MINIO_ROOT_PASSWORD' /secrets/data-pipeline.env)" && set +a
+          export AWS_ACCESS_KEY_ID="$$MINIO_ROOT_USER"
+          export AWS_SECRET_ACCESS_KEY="$$MINIO_ROOT_PASSWORD"
+        fi
         exec python main.py
     depends_on:
       secrets-init:

@@ -40,6 +40,6 @@ GPS ping intervals are naturally desynchronized across drivers because each driv
 
 Surge pricing updates every 60 simulated seconds via a dedicated SimPy process that calls matching_server.update_surge_pricing(). The calculation happens in the matching module but is triggered by the engine's periodic process.
 
-Checkpoint/restore functionality uses SQLite to persist simulation state (environment time, agent states, trip states). Restoration requires validating state consistency and rebuilding in-memory references for all agents and trips.
+Checkpoint/restore functionality supports two backends: S3 (default in Docker, using MinIO locally or AWS S3 in production) and SQLite (fallback). Both backends persist environment time, agent states, and matching server state. The S3 backend stores gzip-compressed JSON and enables local-to-cloud data migration by syncing MinIO checkpoints to AWS S3.
 
 The session_id (UUID) uniquely identifies each simulation run for distributed tracing across Kafka events. It is regenerated on reset() to distinguish separate simulation sessions in downstream analytics.

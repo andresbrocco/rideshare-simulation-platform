@@ -179,6 +179,26 @@ docker compose -f infrastructure/docker/compose.yml restart delta-table-init
 **Execution**: Runs automatically as Docker init container `delta-table-init`
 **Exit Codes**: Always 0 (warnings for missing data are expected)
 
+### sync-to-cloud.py
+
+**Purpose**: Sync local MinIO data to AWS S3 for cloud deployment
+**Location**: `scripts/sync-to-cloud.py` (project root, not infrastructure/scripts)
+**Idempotent**: Yes - overwrites existing objects
+**Buckets Synced**: 4 (rideshare-bronze, rideshare-silver, rideshare-gold, rideshare-checkpoints)
+
+```bash
+# Dry run — see what would be transferred
+./venv/bin/python3 scripts/sync-to-cloud.py --account-id 123456789012 --dry-run
+
+# Sync all buckets
+./venv/bin/python3 scripts/sync-to-cloud.py --account-id 123456789012
+
+# Sync specific buckets
+./venv/bin/python3 scripts/sync-to-cloud.py --account-id 123456789012 --buckets bronze gold
+```
+
+See [docs/DATA-MIGRATION.md](../../docs/DATA-MIGRATION.md) for the complete migration guide.
+
 ## Related
 
 - [CONTEXT.md](CONTEXT.md) — Architecture context and idempotency patterns

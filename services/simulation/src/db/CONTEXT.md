@@ -2,11 +2,16 @@
 
 ## Purpose
 
-SQLite persistence layer for simulation state checkpoint and recovery. Enables graceful pause/resume across container restarts while maintaining exactly-once event semantics.
+Persistence layer for simulation state checkpoint and recovery with dual storage backends. Enables graceful pause/resume across container restarts while maintaining exactly-once event semantics.
+
+## Storage Backends
+
+- **S3** (default in Docker): Stores gzip-compressed JSON in S3-compatible storage (MinIO locally, AWS S3 in production). Configured via `SIM_CHECKPOINT_STORAGE_TYPE=s3`. Supports full save/restore and enables local-to-cloud data migration.
+- **SQLite** (fallback): Uses SQLAlchemy ORM models for local file-based persistence. Configured via `SIM_CHECKPOINT_STORAGE_TYPE=sqlite`. Used when S3 is not available (e.g., `core` profile without MinIO).
 
 ## Responsibility Boundaries
 
-- **Owns**: SQLAlchemy ORM models, checkpoint creation/restoration, agent and trip persistence, route caching, transaction management
+- **Owns**: Checkpoint creation/restoration (S3 and SQLite), SQLAlchemy ORM models, agent and trip persistence, route caching, transaction management
 - **Delegates to**: Repositories for CRUD operations, domain models for business logic validation
 - **Does not handle**: Event publishing (Kafka), real-time state propagation (Redis), business logic (agents, trips, matching)
 

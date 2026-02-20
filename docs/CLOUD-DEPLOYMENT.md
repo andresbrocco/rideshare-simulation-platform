@@ -443,7 +443,7 @@ GitHub Actions -> Teardown Platform from AWS -> Run workflow
 
 ### What is Preserved
 
-- S3 buckets (lakehouse data: bronze, silver, gold; simulation checkpoints [save-only; restore not yet implemented]; frontend build)
+- S3 buckets (lakehouse data: bronze, silver, gold; simulation checkpoints; frontend build)
 - ECR images (all 7 service images)
 - Secrets Manager (all 12 secret groups)
 - Route 53 hosted zone (ridesharing.portfolio.andresbrocco.com)
@@ -622,8 +622,19 @@ Grafana and Airflow credentials are stored in Secrets Manager. Trino is accessib
 4. Review CloudWatch logs retention (may incur costs)
 5. Set up billing alerts for early detection
 
+## Data Migration from Local
+
+You can run the simulation locally (free, using Docker/MinIO) to accumulate data, then sync everything to AWS S3 for cloud deployment. Both the Delta Lake files and simulation checkpoints are fully portable between MinIO and AWS S3.
+
+See [DATA-MIGRATION.md](DATA-MIGRATION.md) for the complete migration guide including:
+- Step-by-step sync from MinIO to AWS S3
+- What gets migrated (bronze, silver, gold, checkpoints)
+- Checkpoint resume behavior in production
+- Reverse sync (cloud to local)
+
 ## Related Documentation
 
+- [DATA-MIGRATION.md](DATA-MIGRATION.md) - Local-to-cloud data migration guide
 - [README.md](../README.md) - Local development setup
 - [docs/INFRASTRUCTURE.md](INFRASTRUCTURE.md) - Docker and Kubernetes infrastructure
 - [docs/ARCHITECTURE.md](ARCHITECTURE.md) - System design and event flow
