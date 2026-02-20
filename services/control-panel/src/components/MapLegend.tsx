@@ -1,4 +1,4 @@
-import { STAGE_CSS } from '../theme';
+import { STAGE_CSS, PALETTE } from '../theme';
 import styles from './MapLegend.module.css';
 
 const LEGEND_ITEMS = [
@@ -17,8 +17,8 @@ const LEGEND_ITEMS = [
   { id: 'pending-routes', label: 'Pending Routes', color: STAGE_CSS.requesting.route },
   { id: 'pickup-routes', label: 'Pickup Routes', color: STAGE_CSS.pickup.route },
   { id: 'trip-routes', label: 'Trip Routes', color: STAGE_CSS.transit.route },
-  { id: 'zone-boundaries', label: 'Zone Boundaries', color: 'rgb(255, 255, 255)' },
-  { id: 'surge-heatmap', label: 'Surge Heatmap', color: 'rgb(255, 255, 0)' },
+  { id: 'zone-boundaries', label: 'Zone Boundaries', color: PALETTE.map.zoneStroke },
+  { id: 'surge-heatmap', label: 'Surge Heatmap', color: PALETTE.map.surgeLabel },
 ];
 
 export default function MapLegend() {

@@ -6,7 +6,7 @@
   font-size: 14px;
   font-weight: 600;
   margin: 0 0 8px 0;
-  color: #fff;
+  color: var(--text-emphasis);
 }
 
 .list {
@@ -26,11 +26,11 @@
   width: 16px;
   height: 16px;
   border-radius: 2px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(var(--text-emphasis-rgb), 0.3);
   flex-shrink: 0;
 }
 
 .label {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(var(--text-emphasis-rgb), 0.9);
 }

@@ -43,7 +43,7 @@
 
 .refreshButton:hover:not(:disabled) {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(var(--text-emphasis-rgb), 0.1);
 }
 
 .refreshButton:disabled {
@@ -89,7 +89,7 @@
 .totalsSection {
   margin-bottom: 12px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(var(--text-emphasis-rgb), 0.03);
   border-radius: 6px;
   border: 1px solid var(--border-color);
 }
@@ -145,8 +145,8 @@
 
 /* Service Card */
 .serviceCard {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(var(--text-emphasis-rgb), 0.03);
+  border: 1px solid rgba(var(--text-emphasis-rgb), 0.08);
   border-radius: 6px;
   padding: 10px;
 }
@@ -240,7 +240,7 @@
 
 .progressTrack {
   height: 4px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(var(--text-emphasis-rgb), 0.1);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -290,7 +290,7 @@
   color: var(--text-secondary);
   font-style: italic;
   padding: 6px 8px;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(var(--text-emphasis-rgb), 0.03);
   border-radius: 4px;
   margin-bottom: 8px;
   text-align: center;

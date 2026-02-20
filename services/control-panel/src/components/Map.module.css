@@ -36,7 +36,7 @@
 .map-error p {
   max-width: 500px;
   line-height: 1.6;
-  color: #a0a0a0;
+  color: var(--text-secondary);
   margin-bottom: 1.5rem;
 }
 

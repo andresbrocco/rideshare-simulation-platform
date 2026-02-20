@@ -3,7 +3,7 @@
   top: 20px;
   right: 20px;
   width: 320px;
-  background: rgba(22, 33, 62, 0.95);
+  background: rgba(var(--bg-popup-rgb), 0.95);
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   padding: 20px;
@@ -64,8 +64,8 @@
 .launchButton {
   width: 100%;
   padding: 16px 24px;
-  background: #00ff88;
-  color: #000;
+  background: var(--brand-green);
+  color: var(--neutral-950);
   border: none;
   border-radius: 8px;
   font-size: 18px;
@@ -75,7 +75,7 @@
 }
 
 .launchButton:hover {
-  background: #00cc6e;
+  background: var(--brand-green-hover);
   transform: translateY(-2px);
 }
 
@@ -196,8 +196,8 @@
   color: var(--text-secondary);
   line-height: 1.5;
   margin: 0 0 16px;
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  background: rgba(var(--accent-red-rgb), 0.08);
+  border: 1px solid rgba(var(--accent-red-rgb), 0.2);
   border-radius: 6px;
   padding: 10px 12px;
   word-break: break-word;
@@ -239,7 +239,7 @@
   color: var(--accent-orange);
   margin-bottom: 12px;
   padding: 8px 10px;
-  background: rgba(245, 158, 11, 0.08);
-  border: 1px solid rgba(245, 158, 11, 0.2);
+  background: rgba(var(--accent-orange-rgb), 0.08);
+  border: 1px solid rgba(var(--accent-orange-rgb), 0.2);
   border-radius: 6px;
 }

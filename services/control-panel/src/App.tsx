@@ -17,7 +17,7 @@ import { useZones } from './hooks/useZones';
 import { Toaster } from './lib/toast.ts';
 import { PerformanceProvider } from './contexts/PerformanceContext';
 import { usePerformanceContext } from './hooks/usePerformanceContext';
-import { UI } from './theme';
+import { UI, PALETTE } from './theme';
 import type { WebSocketMessage } from './types/websocket';
 import type { ZoneData } from './types/api';
 import { DEFAULT_VISIBILITY, type LayerVisibility } from './types/layers';
@@ -207,7 +207,7 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
                 transform: 'translateX(-50%)',
                 padding: '12px 24px',
                 background: UI.accentBlue,
-                color: 'white',
+                color: PALETTE.neutral[50],
                 borderRadius: '8px',
                 zIndex: 1001,
                 display: 'flex',
@@ -222,7 +222,7 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
                 style={{
                   background: 'rgba(255, 255, 255, 0.2)',
                   border: 'none',
-                  color: 'white',
+                  color: PALETTE.neutral[50],
                   padding: '6px 12px',
                   borderRadius: '4px',
                   cursor: 'pointer',
@@ -270,7 +270,7 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
                 right: '20px',
                 padding: '10px 20px',
                 background: UI.accentRed,
-                color: 'white',
+                color: PALETTE.neutral[50],
                 borderRadius: '4px',
                 zIndex: 1000,
               }}

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { LayerVisibility } from '../types/layers';
-import { STAGE_HEX } from '../theme';
+import { STAGE_HEX, PALETTE } from '../theme';
 import styles from './LayerControls.module.css';
 
 interface LayerControlsProps {
@@ -31,8 +31,8 @@ const LAYER_CONFIGS: LayerConfig[] = [
   { key: 'pickupRoutes', label: 'Pickup Routes', color: STAGE_HEX.pickup.route },
   { key: 'tripRoutes', label: 'Trip Routes', color: STAGE_HEX.transit.route },
   // Zone layers
-  { key: 'zoneBoundaries', label: 'Zones', color: '#FFFFFF' },
-  { key: 'surgeHeatmap', label: 'Surge', color: '#FFFF00' },
+  { key: 'zoneBoundaries', label: 'Zones', color: PALETTE.map.zoneStroke },
+  { key: 'surgeHeatmap', label: 'Surge', color: PALETTE.map.surgeLabel },
 ];
 
 // Group layers by category for better organization

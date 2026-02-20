@@ -28,7 +28,7 @@
   width: 40px;
   height: 40px;
   border: 3px solid var(--bg-surface);
-  border-top-color: var(--accent-blue);
+  border-top-color: var(--brand-green);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }

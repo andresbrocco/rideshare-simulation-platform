@@ -1,7 +1,7 @@
 .section {
   margin-top: 12px;
   padding-top: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid rgba(var(--text-emphasis-rgb), 0.1);
 }
 
 .section h4 {
@@ -9,7 +9,7 @@
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: #888;
+  color: var(--text-muted);
   font-weight: 600;
 }
 
@@ -34,7 +34,7 @@
 .actionLabel {
   font-size: 14px;
   font-weight: 500;
-  color: #e0e0e0;
+  color: var(--text-primary);
 }
 
 .timestamp {
@@ -45,7 +45,7 @@
 
 .timestampLabel {
   font-size: 12px;
-  color: #888;
+  color: var(--text-muted);
 }
 
 .timestampValue {
@@ -57,12 +57,12 @@
 
 .description {
   font-size: 12px;
-  color: #999;
+  color: var(--text-secondary);
   margin-top: 8px;
 }
 
 .noAction {
-  color: #666;
+  color: var(--text-muted);
   font-size: 13px;
   font-style: italic;
 }

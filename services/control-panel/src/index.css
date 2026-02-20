@@ -19,15 +19,15 @@ body,
   font-weight: 400;
 
   /* Dark theme variables (static fallbacks — runtime values injected by theme.ts) */
-  --bg-primary: #1a1a2e;
-  --bg-secondary: #16213e;
-  --bg-surface: #1f2937;
-  --bg-popup: #1e1e1e;
-  --text-primary: #e4e4e7;
-  --text-secondary: #a1a1aa;
-  --text-muted: #888888;
-  --border-color: #374151;
-  --border-subtle: #444444;
+  --bg-primary: #1c2120;
+  --bg-secondary: #1c2120;
+  --bg-surface: #2a2f2e;
+  --bg-popup: #1c2120;
+  --text-primary: #c5cac8;
+  --text-secondary: #949b99;
+  --text-muted: #6b7371;
+  --border-color: #3b413f;
+  --border-subtle: #4e5553;
   --accent-blue: #3b82f6;
   --accent-blue-dark: #2563eb;
   --accent-blue-light: #60a5fa;
@@ -37,36 +37,47 @@ body,
   --accent-red-dark: #dc2626;
   --success-green: #22c55e;
   --success-green-dark: #16a34a;
-  --disabled-bg: #6b7280;
+  --disabled-bg: #6b7371;
+
+  /* Palette-derived variables */
+  --text-emphasis: #f5f7f6;
+  --text-emphasis-rgb: 245, 247, 246;
+  --neutral-950: #0a0c0b;
+  --neutral-950-rgb: 10, 12, 11;
+  --brand-green: #00ff88;
+  --brand-green-hover: #33ffa0;
+  --brand-green-subtle: #99ffd0;
+  --accent-amber: #f59e0b;
+  --accent-amber-light: #fbbf24;
 
   /* RGB component fallbacks for rgba(var(--x-rgb), alpha) usage */
-  --bg-popup-rgb: 30, 30, 30;
+  --bg-popup-rgb: 28, 33, 32;
   --accent-blue-rgb: 59, 130, 246;
   --accent-blue-dark-rgb: 37, 99, 235;
   --accent-green-rgb: 16, 185, 129;
   --accent-orange-rgb: 245, 158, 11;
   --accent-red-rgb: 239, 68, 68;
-  --disabled-bg-rgb: 107, 114, 128;
+  --disabled-bg-rgb: 107, 115, 113;
 
   /* Offline palette fallbacks */
   --offline-neon: #00ff88;
   --offline-neon-rgb: 0, 255, 136;
-  --offline-bg: #080c09;
-  --offline-section-bg: #0d1a10;
-  --offline-text: #c8e6c9;
-  --offline-text-subtle: #6b9a7a;
-  --offline-text-muted: #7aab8a;
-  --offline-text-dimmer: #6b8f7a;
-  --offline-text-dimmest: #5c8a6e;
-  --offline-subtitle: #6b9a7a;
+  --offline-bg: #0a0c0b;
+  --offline-section-bg: #131716;
+  --offline-text: #c5cac8;
+  --offline-text-subtle: #949b99;
+  --offline-text-muted: #949b99;
+  --offline-text-dimmer: #949b99;
+  --offline-text-dimmest: #6b7371;
+  --offline-subtitle: #949b99;
   --offline-tech-badge-text: #4daa6e;
   --offline-status-red: #ef4444;
   --offline-status-red-light: #f87171;
   --offline-bronze: #cd7f32;
   --offline-silver: #9eacb4;
   --offline-gold: #d4af37;
-  --offline-neon-hover: #00e678;
-  --offline-cta-bg: #040c07;
+  --offline-neon-hover: #33ffa0;
+  --offline-cta-bg: #0a0c0b;
 
   color: var(--text-primary);
   background-color: var(--bg-primary);
@@ -111,7 +122,7 @@ button {
   transition: border-color 0.25s;
 }
 button:hover {
-  border-color: var(--accent-blue);
+  border-color: var(--brand-green);
 }
 button:focus,
 button:focus-visible {

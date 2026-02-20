@@ -8,7 +8,7 @@
   color: var(--text-primary);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 12px rgba(var(--neutral-950-rgb), 0.3);
   z-index: 1000;
 }
 
@@ -18,7 +18,7 @@
   align-items: center;
   height: 40px;
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(var(--text-emphasis-rgb), 0.1);
 }
 
 /* Scrollable content area */
@@ -41,11 +41,11 @@
 }
 
 .dragHandle:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(var(--text-emphasis-rgb), 0.05);
 }
 
 .dragIcon {
-  color: #666;
+  color: var(--text-muted);
   font-size: 12px;
   letter-spacing: 2px;
 }
@@ -69,7 +69,7 @@
   height: 100%;
   background: none;
   border: none;
-  color: #e0e0e0;
+  color: var(--text-primary);
   font-size: 20px;
   cursor: pointer;
   line-height: 1;
@@ -77,7 +77,7 @@
 }
 
 .minimizeButton:hover {
-  color: #ffffff;
+  color: var(--text-emphasis);
 }
 
 /* Minimized state */
@@ -107,7 +107,7 @@
   margin: 0 0 12px 0;
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-emphasis);
 }
 
 .closeButton {
@@ -118,7 +118,7 @@
   height: 100%;
   background: none;
   border: none;
-  color: #e0e0e0;
+  color: var(--text-primary);
   font-size: 24px;
   cursor: pointer;
   line-height: 1;
@@ -127,7 +127,7 @@
 }
 
 .closeButton:hover {
-  color: #ffffff;
+  color: var(--text-emphasis);
 }
 
 .row {
@@ -166,7 +166,7 @@
 .section {
   margin-top: 12px;
   padding-top: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid rgba(var(--text-emphasis-rgb), 0.1);
 }
 
 .section h4 {
@@ -183,7 +183,7 @@
   display: inline-block;
   padding: 2px 8px;
   background: var(--accent-orange);
-  color: #000;
+  color: var(--neutral-950);
   border-radius: 4px;
   font-size: 10px;
   font-weight: bold;
@@ -225,7 +225,7 @@
   width: 100%;
   padding: 10px 16px;
   background: var(--accent-blue);
-  color: white;
+  color: var(--text-emphasis);
   border: none;
   border-radius: 6px;
   font-size: 14px;
@@ -239,7 +239,7 @@
 }
 
 .actionButton:disabled {
-  background: #666;
+  background: var(--disabled-bg);
   cursor: not-allowed;
   opacity: 0.7;
 }
@@ -247,8 +247,8 @@
 /* Status badge for waiting/in-trip states */
 .statusBadge {
   padding: 8px 12px;
-  background: rgba(59, 130, 246, 0.2);
-  color: #60a5fa;
+  background: rgba(var(--accent-blue-rgb), 0.2);
+  color: var(--accent-blue-light);
   border-radius: 4px;
   font-size: 13px;
   text-align: center;
@@ -301,14 +301,14 @@
   flex-direction: column;
   align-items: center;
   padding: 8px 4px;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(var(--text-emphasis-rgb), 0.05);
   border-radius: 6px;
 }
 
 .statValue {
   font-size: 18px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-emphasis);
   line-height: 1.2;
 }
 

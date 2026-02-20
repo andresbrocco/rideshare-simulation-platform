@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { DRIVER_COLORS, RIDER_TRIP_STATE_COLORS } from '../layers/agentLayers';
-import { STAGE_RGB } from '../theme';
+import { STAGE_RGB, STAGE_CSS, GREEN } from '../theme';
+import { hexToRgb } from '../utils/colorUtils';
 import { resolvePhase, TOTAL_CYCLE_DURATION, type Phase } from './tripLifecyclePhases';
 import styles from './TripLifecycleAnimation.module.css';
 
@@ -32,6 +33,16 @@ const COLOR_RIDER_COMPLETED = RIDER_TRIP_STATE_COLORS.completed;
 const COLOR_PENDING_ROUTE = STAGE_RGB.requesting.route;
 const COLOR_PICKUP_ROUTE = STAGE_RGB.pickup.route;
 const COLOR_TRIP_ROUTE = STAGE_RGB.transit.route;
+
+// Initial tint colors (derived from stage palette, not hardcoded)
+const INITIAL_CAR_TINT = STAGE_CSS.idle.base;
+const INITIAL_PERSON_TINT = STAGE_CSS.idle.light;
+
+// Background road stroke derived from brand green at low opacity
+const ROAD_BG_COLOR = (() => {
+  const [r, g, b] = hexToRgb(GREEN[500]);
+  return `rgba(${r},${g},${b},0.06)`;
+})();
 
 // ============================================================================
 // SVG Road Path (sinuous curve)
@@ -495,12 +506,12 @@ export function TripLifecycleAnimation() {
         <defs>
           {/* Car tint filter */}
           <filter id="car-tint" colorInterpolationFilters="sRGB">
-            <feFlood ref={carFloodRef} floodColor="rgb(107,114,128)" result="color" />
+            <feFlood ref={carFloodRef} floodColor={INITIAL_CAR_TINT} result="color" />
             <feComposite in="color" in2="SourceAlpha" operator="in" />
           </filter>
           {/* Person tint filter */}
           <filter id="person-tint" colorInterpolationFilters="sRGB">
-            <feFlood ref={personFloodRef} floodColor="rgb(156,163,175)" result="color" />
+            <feFlood ref={personFloodRef} floodColor={INITIAL_PERSON_TINT} result="color" />
             <feComposite in="color" in2="SourceAlpha" operator="in" />
           </filter>
           {/* Mask for pending route draw animation */}
@@ -521,7 +532,7 @@ export function TripLifecycleAnimation() {
           ref={roadPathRef}
           d={ROAD_PATH}
           fill="none"
-          stroke="rgba(0,255,136,0.06)"
+          stroke={ROAD_BG_COLOR}
           strokeWidth="6"
           strokeLinecap="round"
         />

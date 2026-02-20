@@ -1,10 +1,11 @@
 /**
  * Centralized theme — single source of truth for every color in the frontend.
  *
- * Three regions:
+ * Four regions:
  *   1. Stage colors (trip lifecycle)  — deck.gl layers, legends, controls
- *   2. UI palette                     — CSS variables for all UI components
- *   3. Offline palette                — CSS variables for offline demo page
+ *   2. Unified palette (4 hues + neutral) — PALETTE, NEUTRAL, GREEN, BLUE, AMBER, RED
+ *   3. UI palette                     — CSS variables for control panel components
+ *   4. Offline palette                — CSS variables for landing/demo page
  */
 
 import { hexToRgb, rgbToCss, rgbToComponents, withAlpha } from './utils/colorUtils';
@@ -70,63 +71,144 @@ export const STAGE_TRAIL: Record<string, RgbaQuad> = {
 };
 
 // ============================================================================
-// Region 2 — UI Palette
+// Region 2 — Unified Palette (4 hues + neutral)
 // ============================================================================
 
-export const UI = {
-  // Backgrounds
-  bgPrimary: '#1a1a2e',
-  bgSecondary: '#16213e',
-  bgSurface: '#1f2937',
-  bgPopup: '#1e1e1e',
+/** 13-step neutral scale from near-black (950) to near-white (50) */
+export const NEUTRAL: Record<number, string> = {
+  950: '#0A0C0B',
+  900: '#131716',
+  800: '#1C2120',
+  700: '#2A2F2E',
+  600: '#3B413F',
+  500: '#4E5553',
+  400: '#6B7371',
+  300: '#949B99',
+  200: '#C5CAC8',
+  150: '#D8DCDB',
+  100: '#E8ECEA',
+  75: '#EFF2F1',
+  50: '#F5F7F6',
+};
 
-  // Text
-  textPrimary: '#e4e4e7',
-  textSecondary: '#a1a1aa',
-  textMuted: '#888888',
+/** Brand green scale — headings, CTAs, brand accent */
+export const GREEN: Record<number, string> = {
+  500: '#00FF88',
+  400: '#33FFA0',
+  300: '#66FFB8',
+  200: '#99FFD0',
+  100: '#CCFFE8',
+};
 
-  // Borders
-  borderColor: '#374151',
-  borderSubtle: '#444444',
+/** Interactive blue scale — buttons, links, in-transit stage */
+export const BLUE: Record<number, string> = {
+  600: '#2563EB',
+  500: '#3B82F6',
+  400: '#60A5FA',
+};
 
-  // Accents
-  accentBlue: '#3B82F6',
-  accentBlueDark: '#2563EB',
-  accentBlueLight: '#60A5FA',
-  accentGreen: '#10B981',
-  accentOrange: '#F59E0B',
-  accentRed: '#EF4444',
-  accentRedDark: '#DC2626',
+/** Warning amber scale — warnings, pickup stage, pending */
+export const AMBER: Record<number, string> = {
+  500: '#F59E0B',
+  400: '#FBBF24',
+};
 
-  // Status / functional
-  successGreen: '#22C55E',
-  successGreenDark: '#16A34A',
-  disabledBg: '#6B7280',
-} as const;
+/** Danger red scale — errors, cancelled states, destructive actions */
+export const RED: Record<number, string> = {
+  600: '#DC2626',
+  500: '#EF4444',
+  400: '#F87171',
+};
 
-// ============================================================================
-// Region 3 — Offline Palette
-// ============================================================================
+/** Success green (distinct from brand green) */
+export const SUCCESS: Record<number, string> = {
+  600: '#16A34A',
+  500: '#22C55E',
+};
 
-export const OFFLINE = {
-  neon: '#00FF88',
-  neonHover: '#00E678',
-  bg: '#080C09',
-  sectionBg: '#0D1A10',
-  text: '#C8E6C9',
-  textSubtle: '#6B9A7A',
-  textMuted: '#7AAB8A',
-  textDimmer: '#6B8F7A',
-  textDimmest: '#5C8A6E',
-  subtitle: '#6B9A7A',
-  techBadgeText: '#4DAA6E',
-  statusRed: '#EF4444',
-  statusRedLight: '#F87171',
-  // Medallion pipeline colors
+/** Medallion pipeline colors (semantic, unchanged) */
+export const MEDALLION = {
   bronze: '#CD7F32',
   silver: '#9EACB4',
   gold: '#D4AF37',
-  ctaBg: '#040C07',
+} as const;
+
+/** Map layer colors */
+export const MAP = {
+  zoneStroke: '#FFFFFF',
+  surgeLabel: '#FFFF00',
+} as const;
+
+/** Composite palette export */
+export const PALETTE = {
+  neutral: NEUTRAL,
+  green: GREEN,
+  blue: BLUE,
+  amber: AMBER,
+  red: RED,
+  success: SUCCESS,
+  medallion: MEDALLION,
+  map: MAP,
+} as const;
+
+// ============================================================================
+// Region 3 — UI Palette
+// ============================================================================
+
+export const UI = {
+  // Backgrounds (derived from neutral scale)
+  bgPrimary: NEUTRAL[800],
+  bgSecondary: NEUTRAL[800],
+  bgSurface: NEUTRAL[700],
+  bgPopup: NEUTRAL[800],
+
+  // Text (derived from neutral scale)
+  textPrimary: NEUTRAL[200],
+  textSecondary: NEUTRAL[300],
+  textMuted: NEUTRAL[400],
+
+  // Borders (derived from neutral scale)
+  borderColor: NEUTRAL[600],
+  borderSubtle: NEUTRAL[500],
+
+  // Accents (derived from hue scales)
+  accentBlue: BLUE[500],
+  accentBlueDark: BLUE[600],
+  accentBlueLight: BLUE[400],
+  accentGreen: '#10B981',
+  accentOrange: AMBER[500],
+  accentRed: RED[500],
+  accentRedDark: RED[600],
+
+  // Status / functional
+  successGreen: SUCCESS[500],
+  successGreenDark: SUCCESS[600],
+  disabledBg: NEUTRAL[400],
+} as const;
+
+// ============================================================================
+// Region 4 — Offline Palette
+// ============================================================================
+
+export const OFFLINE = {
+  neon: GREEN[500],
+  neonHover: GREEN[400],
+  bg: NEUTRAL[950],
+  sectionBg: NEUTRAL[900],
+  text: NEUTRAL[200],
+  textSubtle: NEUTRAL[300],
+  textMuted: NEUTRAL[300],
+  textDimmer: NEUTRAL[300],
+  textDimmest: NEUTRAL[400],
+  subtitle: NEUTRAL[300],
+  techBadgeText: '#4DAA6E',
+  statusRed: RED[500],
+  statusRedLight: RED[400],
+  // Medallion pipeline colors
+  bronze: MEDALLION.bronze,
+  silver: MEDALLION.silver,
+  gold: MEDALLION.gold,
+  ctaBg: NEUTRAL[950],
 } as const;
 
 // ============================================================================
@@ -169,6 +251,23 @@ export function injectCssVars(): void {
   for (const [name, hex] of Object.entries(uiVars)) {
     s.setProperty(`--${name}`, hex);
     s.setProperty(`--${name}-rgb`, rgbToComponents(hexToRgb(hex)));
+  }
+
+  // Palette-derived variables
+  const paletteVars: Record<string, string> = {
+    'text-emphasis': NEUTRAL[50],
+    'text-emphasis-rgb': rgbToComponents(hexToRgb(NEUTRAL[50])),
+    'neutral-950': NEUTRAL[950],
+    'neutral-950-rgb': rgbToComponents(hexToRgb(NEUTRAL[950])),
+    'brand-green': GREEN[500],
+    'brand-green-hover': GREEN[400],
+    'brand-green-subtle': GREEN[200],
+    'accent-amber': AMBER[500],
+    'accent-amber-light': AMBER[400],
+  };
+
+  for (const [name, value] of Object.entries(paletteVars)) {
+    s.setProperty(`--${name}`, value);
   }
 
   // Offline palette
