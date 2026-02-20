@@ -59,9 +59,9 @@ simulation_corrupted_events_total = meter.create_counter(
 # ---------------------------------------------------------------------------
 # UpDownCounters (mutable counts that can go up or down)
 # ---------------------------------------------------------------------------
-simulation_drivers_online = meter.create_up_down_counter(
-    name="simulation_drivers_online",
-    description="Number of drivers currently online",
+simulation_drivers_available = meter.create_up_down_counter(
+    name="simulation_drivers_available",
+    description="Number of drivers currently available for trips",
 )
 
 simulation_riders_in_transit = meter.create_up_down_counter(
@@ -204,7 +204,7 @@ _previous_event_counts: dict[str, float] = {}
 _previous_error_counts: dict[tuple[str, str], int] = {}
 _previous_trips_completed: int = 0
 _previous_trips_cancelled: int = 0
-_previous_drivers_online: int = 0
+_previous_drivers_available: int = 0
 _previous_riders_in_transit: int = 0
 _previous_active_trips: int = 0
 _previous_simpy_events: int = 0
@@ -215,7 +215,7 @@ def update_metrics_from_snapshot(
     *,
     trips_completed: int = 0,
     trips_cancelled: int = 0,
-    drivers_online: int = 0,
+    drivers_available: int = 0,
     riders_in_transit: int = 0,
     active_trips: int = 0,
     avg_fare: float = 0.0,
@@ -234,7 +234,7 @@ def update_metrics_from_snapshot(
     """
     global _previous_event_counts, _previous_error_counts
     global _previous_trips_completed, _previous_trips_cancelled
-    global _previous_drivers_online, _previous_riders_in_transit
+    global _previous_drivers_available, _previous_riders_in_transit
     global _previous_active_trips, _previous_simpy_events
 
     # --- Observable gauge values (stored for callback reads) ---
@@ -251,10 +251,10 @@ def update_metrics_from_snapshot(
         _snapshot_values["thread_count"] = float(snapshot.thread_count)
 
     # --- UpDownCounters (delta from previous to track real-time state) ---
-    delta = drivers_online - _previous_drivers_online
+    delta = drivers_available - _previous_drivers_available
     if delta != 0:
-        simulation_drivers_online.add(delta)
-    _previous_drivers_online = drivers_online
+        simulation_drivers_available.add(delta)
+    _previous_drivers_available = drivers_available
 
     delta = riders_in_transit - _previous_riders_in_transit
     if delta != 0:

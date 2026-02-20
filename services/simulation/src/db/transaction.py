@@ -19,7 +19,7 @@ def transaction(session: Session) -> Generator[Session]:
 
     Example:
         with transaction(session):
-            trip_repo.update_state("trip_1", TripState.MATCHED, driver_id="d1")
+            trip_repo.update_state("trip_1", TripState.DRIVER_ASSIGNED, driver_id="d1")
             driver_repo.update_status("d1", "busy")
         # Automatic commit if no exception, rollback otherwise
 

@@ -71,7 +71,7 @@ def sample_trip():
         trip_id="trip_executor_001",
         rider_id="rider_executor_001",
         driver_id="driver_executor_001",
-        state=TripState.MATCHED,
+        state=TripState.DRIVER_ASSIGNED,
         pickup_location=(-23.54, -46.62),
         dropoff_location=(-23.56, -46.64),
         pickup_zone_id="zone_1",
@@ -292,7 +292,7 @@ class TestTripExecutorGPSInterval:
             trip_id="trip_interval_001",
             rider_id="rider_executor_001",
             driver_id="driver_executor_001",
-            state=TripState.MATCHED,
+            state=TripState.DRIVER_ASSIGNED,
             pickup_location=geometry[0],
             dropoff_location=geometry[-1],
             pickup_zone_id="zone_1",
@@ -402,7 +402,7 @@ class TestTripExecutorPrecomputedHeadings:
             trip_id="trip_heading_001",
             rider_id="rider_executor_001",
             driver_id="driver_executor_001",
-            state=TripState.MATCHED,
+            state=TripState.DRIVER_ASSIGNED,
             pickup_location=geometry[0],
             dropoff_location=geometry[-1],
             pickup_zone_id="zone_1",
@@ -470,7 +470,7 @@ class TestPrePickupCancellation:
             trip_id="trip_cancel_001",
             rider_id="rider_cancel_001",
             driver_id="driver_cancel_001",
-            state=TripState.MATCHED,
+            state=TripState.DRIVER_ASSIGNED,
             pickup_location=(-23.54, -46.62),
             dropoff_location=(-23.56, -46.64),
             pickup_zone_id="zone_1",
@@ -508,7 +508,7 @@ class TestPrePickupCancellation:
         assert cancel_trip.cancelled_by == "driver"
         assert cancel_trip.cancellation_reason == "driver_cancelled"
         assert cancel_trip.cancellation_stage == "pickup"
-        assert high_cancel_driver.status == "online"
+        assert high_cancel_driver.status == "available"
 
     @patch("src.trips.trip_executor.random.random", return_value=1.0)
     def test_driver_does_not_cancel_pre_pickup_when_random_above_threshold(

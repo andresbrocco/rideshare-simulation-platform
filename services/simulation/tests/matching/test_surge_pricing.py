@@ -74,7 +74,7 @@ def test_surge_no_demand(env, mock_zone_loader, driver_registry, mock_kafka_prod
     )
 
     for i in range(10):
-        driver_registry.register_driver(f"driver{i}", "online", zone_id="pinheiros")
+        driver_registry.register_driver(f"driver{i}", "available", zone_id="pinheiros")
 
     calculator.set_pending_requests("pinheiros", 5)
 
@@ -94,7 +94,7 @@ def test_surge_balanced(env, mock_zone_loader, driver_registry, mock_kafka_produ
     )
 
     for i in range(10):
-        driver_registry.register_driver(f"driver{i}", "online", zone_id="pinheiros")
+        driver_registry.register_driver(f"driver{i}", "available", zone_id="pinheiros")
 
     calculator.set_pending_requests("pinheiros", 10)
 
@@ -114,7 +114,7 @@ def test_surge_ratio_2_0(env, mock_zone_loader, driver_registry, mock_kafka_prod
     )
 
     for i in range(10):
-        driver_registry.register_driver(f"driver{i}", "online", zone_id="pinheiros")
+        driver_registry.register_driver(f"driver{i}", "available", zone_id="pinheiros")
 
     calculator.set_pending_requests("pinheiros", 20)
 
@@ -134,7 +134,7 @@ def test_surge_ratio_3_0(env, mock_zone_loader, driver_registry, mock_kafka_prod
     )
 
     for i in range(10):
-        driver_registry.register_driver(f"driver{i}", "online", zone_id="pinheiros")
+        driver_registry.register_driver(f"driver{i}", "available", zone_id="pinheiros")
 
     calculator.set_pending_requests("pinheiros", 30)
 
@@ -154,7 +154,7 @@ def test_surge_ratio_above_3_0(env, mock_zone_loader, driver_registry, mock_kafk
     )
 
     for i in range(10):
-        driver_registry.register_driver(f"driver{i}", "online", zone_id="pinheiros")
+        driver_registry.register_driver(f"driver{i}", "available", zone_id="pinheiros")
 
     calculator.set_pending_requests("pinheiros", 50)
 
@@ -174,7 +174,7 @@ def test_surge_linear_interpolation(env, mock_zone_loader, driver_registry, mock
     )
 
     for i in range(10):
-        driver_registry.register_driver(f"driver{i}", "online", zone_id="pinheiros")
+        driver_registry.register_driver(f"driver{i}", "available", zone_id="pinheiros")
 
     calculator.set_pending_requests("pinheiros", 15)
 
@@ -194,7 +194,7 @@ def test_surge_update_every_60_seconds(env, mock_zone_loader, driver_registry, m
     )
 
     for i in range(10):
-        driver_registry.register_driver(f"driver{i}", "online", zone_id="pinheiros")
+        driver_registry.register_driver(f"driver{i}", "available", zone_id="pinheiros")
 
     calculator.set_pending_requests("pinheiros", 20)
 
@@ -214,8 +214,8 @@ def test_surge_per_zone(env, mock_zone_loader, driver_registry, mock_kafka_produ
     )
 
     for i in range(10):
-        driver_registry.register_driver(f"driver{i}", "online", zone_id="pinheiros")
-        driver_registry.register_driver(f"driver_vm{i}", "online", zone_id="vila_madalena")
+        driver_registry.register_driver(f"driver{i}", "available", zone_id="pinheiros")
+        driver_registry.register_driver(f"driver_vm{i}", "available", zone_id="vila_madalena")
 
     calculator.set_pending_requests("pinheiros", 20)
     calculator.set_pending_requests("vila_madalena", 10)
@@ -237,7 +237,7 @@ def test_surge_event_emission(env, mock_zone_loader, driver_registry, mock_kafka
     )
 
     for i in range(10):
-        driver_registry.register_driver(f"driver{i}", "online", zone_id="pinheiros")
+        driver_registry.register_driver(f"driver{i}", "available", zone_id="pinheiros")
 
     calculator.set_pending_requests("pinheiros", 20)
 
@@ -266,7 +266,7 @@ def test_no_event_if_unchanged(env, mock_zone_loader, driver_registry, mock_kafk
     )
 
     for i in range(10):
-        driver_registry.register_driver(f"driver{i}", "online", zone_id="pinheiros")
+        driver_registry.register_driver(f"driver{i}", "available", zone_id="pinheiros")
 
     calculator.set_pending_requests("pinheiros", 5)
 
@@ -303,7 +303,7 @@ def test_zero_requests(env, mock_zone_loader, driver_registry, mock_kafka_produc
     )
 
     for i in range(10):
-        driver_registry.register_driver(f"driver{i}", "online", zone_id="pinheiros")
+        driver_registry.register_driver(f"driver{i}", "available", zone_id="pinheiros")
 
     calculator.set_pending_requests("pinheiros", 0)
 
@@ -322,7 +322,7 @@ def test_get_current_surge(env, mock_zone_loader, driver_registry):
     )
 
     for i in range(10):
-        driver_registry.register_driver(f"driver{i}", "online", zone_id="pinheiros")
+        driver_registry.register_driver(f"driver{i}", "available", zone_id="pinheiros")
 
     calculator.set_pending_requests("pinheiros", 20)
 
@@ -362,7 +362,7 @@ class TestSurgePricingKafkaOnly:
 
         # Set up conditions that will trigger a surge update
         for i in range(10):
-            driver_registry.register_driver(f"driver{i}", "online", zone_id="pinheiros")
+            driver_registry.register_driver(f"driver{i}", "available", zone_id="pinheiros")
 
         calculator.set_pending_requests("pinheiros", 20)  # Creates 2:1 ratio = 1.5x surge
 
@@ -404,7 +404,7 @@ class TestSurgePricingKafkaOnly:
         )
 
         for i in range(10):
-            driver_registry.register_driver(f"driver{i}", "online", zone_id="pinheiros")
+            driver_registry.register_driver(f"driver{i}", "available", zone_id="pinheiros")
 
         calculator.set_pending_requests("pinheiros", 20)
 

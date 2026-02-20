@@ -77,7 +77,7 @@ def create_mock_driver(
     driver.dna = dna
     driver.current_rating = rating
     driver.location = (-23.55, -46.63)
-    driver.status = "online"
+    driver.status = "available"
     driver.active_trip = None  # No active trip by default
     driver.receive_offer = Mock(return_value=True)
     driver._is_puppet = False  # Ensure mock drivers are not treated as puppets
@@ -384,7 +384,7 @@ class TestHandleOfferResponses:
         env.run()
 
         # After response_time delay, trip should be matched
-        assert trip.state == TripState.MATCHED
+        assert trip.state == TripState.DRIVER_ASSIGNED
         assert trip.driver_id == "driver-1"
         driver.accept_trip.assert_called_once_with("trip-123")
 
@@ -478,7 +478,7 @@ class TestHandleOfferResponses:
 
         # response_time=5.0 with variance [-2,+2] → delay in [3.0, 7.0]
         assert 3.0 <= elapsed <= 7.0
-        assert trip.state == TripState.MATCHED
+        assert trip.state == TripState.DRIVER_ASSIGNED
 
 
 @pytest.mark.unit
@@ -537,7 +537,7 @@ class TestOfferCycle:
         env.run()
 
         assert trip.driver_id == "driver-2"
-        assert trip.state == TripState.MATCHED
+        assert trip.state == TripState.DRIVER_ASSIGNED
         assert trip.offer_sequence == 2
 
     def test_max_offer_attempts(
@@ -669,7 +669,7 @@ class TestMatchFlow:
         env.run()
 
         assert result.driver_id == "driver-1"
-        assert result.state == TripState.MATCHED
+        assert result.state == TripState.DRIVER_ASSIGNED
         assert result.offer_sequence == 1
 
     @pytest.mark.asyncio
@@ -723,7 +723,7 @@ class TestMatchFlow:
                 env.run()
 
         assert result.driver_id == "driver-3"
-        assert result.state == TripState.MATCHED
+        assert result.state == TripState.DRIVER_ASSIGNED
         assert result.offer_sequence == 4
 
     @pytest.mark.asyncio
@@ -832,7 +832,7 @@ class TestDeferredOfferCancellation:
 
         # Driver should be released, trip should NOT be matched
         assert "driver-1" not in server._reserved_drivers
-        assert trip.state != TripState.MATCHED
+        assert trip.state != TripState.DRIVER_ASSIGNED
 
 
 @pytest.mark.unit
@@ -906,7 +906,7 @@ class TestPuppetReOfferFlow:
 
         # Trip should now be matched with regular driver
         assert trip.driver_id == "regular-driver"
-        assert trip.state == TripState.MATCHED
+        assert trip.state == TripState.DRIVER_ASSIGNED
 
     def test_puppet_reject_chain(
         self,
@@ -1073,7 +1073,7 @@ class TestPuppetReOfferFlow:
 
         # Trip should now be matched with regular driver
         assert trip.driver_id == "regular-driver"
-        assert trip.state == TripState.MATCHED
+        assert trip.state == TripState.DRIVER_ASSIGNED
 
 
 @pytest.mark.unit
@@ -1233,7 +1233,7 @@ class TestMatchingServerKafkaOnly:
             fare=25.50,
         )
 
-        server._emit_trip_state_event(trip, "trip.matched")
+        server._emit_trip_state_event(trip, "trip.driver_assigned")
 
         assert mock_kafka_producer.produce.called
         kafka_calls = mock_kafka_producer.produce.call_args_list
@@ -1355,9 +1355,9 @@ class TestRouteClearOnCancellation:
         trip.pickup_route = [[-23.54, -46.62], [-23.55, -46.63]]
 
         trip.transition_to(TripState.OFFER_SENT)
-        trip.transition_to(TripState.MATCHED)
+        trip.transition_to(TripState.DRIVER_ASSIGNED)
 
-        server._emit_trip_state_event(trip, "trip.matched")
+        server._emit_trip_state_event(trip, "trip.driver_assigned")
 
         assert mock_kafka_producer.produce.called
         kafka_calls = [
@@ -1406,10 +1406,10 @@ class TestBoundedTripHistory:
                 fare=25.50,
             )
             trip.transition_to(TripState.OFFER_SENT)
-            trip.transition_to(TripState.MATCHED)
-            trip.transition_to(TripState.DRIVER_EN_ROUTE)
-            trip.transition_to(TripState.DRIVER_ARRIVED)
-            trip.transition_to(TripState.STARTED)
+            trip.transition_to(TripState.DRIVER_ASSIGNED)
+            trip.transition_to(TripState.EN_ROUTE_PICKUP)
+            trip.transition_to(TripState.AT_PICKUP)
+            trip.transition_to(TripState.IN_TRANSIT)
             trip.transition_to(TripState.COMPLETED)
 
             server._active_trips[trip.trip_id] = trip
@@ -1505,10 +1505,10 @@ class TestBoundedTripHistory:
                 fare=25.50,
             )
             trip.transition_to(TripState.OFFER_SENT)
-            trip.transition_to(TripState.MATCHED)
-            trip.transition_to(TripState.DRIVER_EN_ROUTE)
-            trip.transition_to(TripState.DRIVER_ARRIVED)
-            trip.transition_to(TripState.STARTED)
+            trip.transition_to(TripState.DRIVER_ASSIGNED)
+            trip.transition_to(TripState.EN_ROUTE_PICKUP)
+            trip.transition_to(TripState.AT_PICKUP)
+            trip.transition_to(TripState.IN_TRANSIT)
             trip.transition_to(TripState.COMPLETED)
             server._active_trips[trip.trip_id] = trip
             server.complete_trip(trip.trip_id, trip)
@@ -1532,10 +1532,10 @@ class TestBoundedTripHistory:
                 fare=25.50,
             )
             trip.transition_to(TripState.OFFER_SENT)
-            trip.transition_to(TripState.MATCHED)
-            trip.transition_to(TripState.DRIVER_EN_ROUTE)
-            trip.transition_to(TripState.DRIVER_ARRIVED)
-            trip.transition_to(TripState.STARTED)
+            trip.transition_to(TripState.DRIVER_ASSIGNED)
+            trip.transition_to(TripState.EN_ROUTE_PICKUP)
+            trip.transition_to(TripState.AT_PICKUP)
+            trip.transition_to(TripState.IN_TRANSIT)
             trip.transition_to(TripState.COMPLETED)
             server._active_trips[trip.trip_id] = trip
             server.complete_trip(trip.trip_id, trip)
@@ -1663,10 +1663,10 @@ class TestRunningAccumulators:
             trip.completed_at = base_time + timedelta(minutes=10 + i * 5)
 
             trip.transition_to(TripState.OFFER_SENT)
-            trip.transition_to(TripState.MATCHED)
-            trip.transition_to(TripState.DRIVER_EN_ROUTE)
-            trip.transition_to(TripState.DRIVER_ARRIVED)
-            trip.transition_to(TripState.STARTED)
+            trip.transition_to(TripState.DRIVER_ASSIGNED)
+            trip.transition_to(TripState.EN_ROUTE_PICKUP)
+            trip.transition_to(TripState.AT_PICKUP)
+            trip.transition_to(TripState.IN_TRANSIT)
             trip.transition_to(TripState.COMPLETED)
 
             server._active_trips[trip.trip_id] = trip
@@ -1715,10 +1715,10 @@ class TestRunningAccumulators:
         trip.completed_at = base_time + timedelta(minutes=10)
 
         trip.transition_to(TripState.OFFER_SENT)
-        trip.transition_to(TripState.MATCHED)
-        trip.transition_to(TripState.DRIVER_EN_ROUTE)
-        trip.transition_to(TripState.DRIVER_ARRIVED)
-        trip.transition_to(TripState.STARTED)
+        trip.transition_to(TripState.DRIVER_ASSIGNED)
+        trip.transition_to(TripState.EN_ROUTE_PICKUP)
+        trip.transition_to(TripState.AT_PICKUP)
+        trip.transition_to(TripState.IN_TRANSIT)
         trip.transition_to(TripState.COMPLETED)
 
         server._active_trips[trip.trip_id] = trip

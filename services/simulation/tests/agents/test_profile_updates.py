@@ -294,7 +294,7 @@ class TestPuppetNoProfileUpdates:
         # Run simulation for a short time with very short update interval
         with patch("src.agents.driver_agent.PROFILE_UPDATE_INTERVAL_SECONDS", 10):
             # Start the driver process
-            driver._status = "online"
+            driver._status = "available"
             env.process(driver.run())
             env.run(until=100)
 

@@ -18,17 +18,17 @@ class TestTripStateEnum:
         assert TripState.OFFER_SENT.value == "offer_sent"
         assert TripState.OFFER_EXPIRED.value == "offer_expired"
         assert TripState.OFFER_REJECTED.value == "offer_rejected"
-        assert TripState.MATCHED.value == "matched"
-        assert TripState.DRIVER_EN_ROUTE.value == "driver_en_route"
-        assert TripState.DRIVER_ARRIVED.value == "driver_arrived"
-        assert TripState.STARTED.value == "started"
+        assert TripState.DRIVER_ASSIGNED.value == "driver_assigned"
+        assert TripState.EN_ROUTE_PICKUP.value == "en_route_pickup"
+        assert TripState.AT_PICKUP.value == "at_pickup"
+        assert TripState.IN_TRANSIT.value == "in_transit"
         assert TripState.COMPLETED.value == "completed"
         assert TripState.CANCELLED.value == "cancelled"
 
     def test_trip_state_to_event_type(self):
         """Converts TripState to Kafka event_type."""
         assert TripState.REQUESTED.to_event_type() == "trip.requested"
-        assert TripState.DRIVER_EN_ROUTE.to_event_type() == "trip.driver_en_route"
+        assert TripState.EN_ROUTE_PICKUP.to_event_type() == "trip.en_route_pickup"
         assert TripState.COMPLETED.to_event_type() == "trip.completed"
 
 
@@ -103,9 +103,9 @@ class TestValidTransitions:
             surge_multiplier=1.0,
             fare=20.0,
         )
-        trip.state = TripState.MATCHED
-        trip.transition_to(TripState.DRIVER_EN_ROUTE)
-        assert trip.state == TripState.DRIVER_EN_ROUTE
+        trip.state = TripState.DRIVER_ASSIGNED
+        trip.transition_to(TripState.EN_ROUTE_PICKUP)
+        assert trip.state == TripState.EN_ROUTE_PICKUP
 
     def test_offer_sequence_tracking(self):
         """Tracks multiple offer attempts."""
@@ -145,17 +145,17 @@ class TestValidTransitions:
         trip.transition_to(TripState.OFFER_SENT)
         assert trip.state == TripState.OFFER_SENT
 
-        trip.transition_to(TripState.MATCHED)
-        assert trip.state == TripState.MATCHED
+        trip.transition_to(TripState.DRIVER_ASSIGNED)
+        assert trip.state == TripState.DRIVER_ASSIGNED
 
-        trip.transition_to(TripState.DRIVER_EN_ROUTE)
-        assert trip.state == TripState.DRIVER_EN_ROUTE
+        trip.transition_to(TripState.EN_ROUTE_PICKUP)
+        assert trip.state == TripState.EN_ROUTE_PICKUP
 
-        trip.transition_to(TripState.DRIVER_ARRIVED)
-        assert trip.state == TripState.DRIVER_ARRIVED
+        trip.transition_to(TripState.AT_PICKUP)
+        assert trip.state == TripState.AT_PICKUP
 
-        trip.transition_to(TripState.STARTED)
-        assert trip.state == TripState.STARTED
+        trip.transition_to(TripState.IN_TRANSIT)
+        assert trip.state == TripState.IN_TRANSIT
 
         trip.transition_to(TripState.COMPLETED)
         assert trip.state == TripState.COMPLETED
@@ -216,7 +216,7 @@ class TestInvalidTransitions:
         trip.state = TripState.CANCELLED
 
         with pytest.raises(ValueError, match="Cannot transition from terminal state"):
-            trip.transition_to(TripState.STARTED)
+            trip.transition_to(TripState.IN_TRANSIT)
 
 
 @pytest.mark.unit
@@ -258,7 +258,7 @@ class TestCancellations:
             surge_multiplier=1.0,
             fare=20.0,
         )
-        trip.state = TripState.DRIVER_ARRIVED
+        trip.state = TripState.AT_PICKUP
         trip.cancel(by="driver", reason="rider_no_show", stage="driver_arrived")
 
         assert trip.state == TripState.CANCELLED
@@ -279,7 +279,7 @@ class TestCancellations:
             surge_multiplier=1.0,
             fare=20.0,
         )
-        trip.state = TripState.MATCHED
+        trip.state = TripState.DRIVER_ASSIGNED
         trip.cancel(by="system", reason="system_pause", stage="matched")
 
         assert trip.state == TripState.CANCELLED

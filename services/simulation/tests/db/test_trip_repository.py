@@ -96,13 +96,13 @@ class TestTripRepository:
 
         with session_maker() as session:
             repo = TripRepository(session)
-            repo.update_state("trip3", TripState.MATCHED, driver_id="d123")
+            repo.update_state("trip3", TripState.DRIVER_ASSIGNED, driver_id="d123")
             session.commit()
 
         with session_maker() as session:
             repo = TripRepository(session)
             trip = repo.get("trip3")
-            assert trip.state == TripState.MATCHED
+            assert trip.state == TripState.DRIVER_ASSIGNED
             assert trip.driver_id == "d123"
             assert trip.matched_at is not None
 
@@ -126,13 +126,13 @@ class TestTripRepository:
 
         with session_maker() as session:
             repo = TripRepository(session)
-            repo.update_state("trip4", TripState.STARTED)
+            repo.update_state("trip4", TripState.IN_TRANSIT)
             session.commit()
 
         with session_maker() as session:
             repo = TripRepository(session)
             trip = repo.get("trip4")
-            assert trip.state == TripState.STARTED
+            assert trip.state == TripState.IN_TRANSIT
             assert trip.started_at is not None
 
     def test_update_trip_state_to_completed(self, temp_sqlite_db):
@@ -306,8 +306,8 @@ class TestTripRepository:
 
         with session_maker() as session:
             repo = TripRepository(session)
-            repo.update_state("trip_matched", TripState.MATCHED, driver_id="d1")
-            repo.update_state("trip_started", TripState.STARTED)
+            repo.update_state("trip_matched", TripState.DRIVER_ASSIGNED, driver_id="d1")
+            repo.update_state("trip_started", TripState.IN_TRANSIT)
             repo.update_state("trip_completed", TripState.COMPLETED)
             repo.update_state(
                 "trip_cancelled",
@@ -369,9 +369,9 @@ class TestTripRepository:
 
         with session_maker() as session:
             repo = TripRepository(session)
-            repo.update_state("trip_d1_1", TripState.MATCHED, driver_id="d123")
-            repo.update_state("trip_d1_2", TripState.MATCHED, driver_id="d123")
-            repo.update_state("trip_d2", TripState.MATCHED, driver_id="d456")
+            repo.update_state("trip_d1_1", TripState.DRIVER_ASSIGNED, driver_id="d123")
+            repo.update_state("trip_d1_2", TripState.DRIVER_ASSIGNED, driver_id="d123")
+            repo.update_state("trip_d2", TripState.DRIVER_ASSIGNED, driver_id="d456")
             session.commit()
 
         with session_maker() as session:
@@ -537,7 +537,7 @@ class TestTripRepository:
 
         with session_maker() as session:
             repo = TripRepository(session)
-            repo.update_state("trip_lifecycle", TripState.MATCHED, driver_id="d1")
+            repo.update_state("trip_lifecycle", TripState.DRIVER_ASSIGNED, driver_id="d1")
             session.commit()
 
         with session_maker() as session:
@@ -548,7 +548,7 @@ class TestTripRepository:
 
         with session_maker() as session:
             repo = TripRepository(session)
-            repo.update_state("trip_lifecycle", TripState.STARTED)
+            repo.update_state("trip_lifecycle", TripState.IN_TRANSIT)
             session.commit()
 
         with session_maker() as session:

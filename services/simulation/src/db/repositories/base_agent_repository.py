@@ -24,6 +24,7 @@ class BaseAgentRepository(Generic[ModelT, DNAT]):
     """Generic base repository for Driver and Rider CRUD operations."""
 
     model_class: ClassVar[type[Any]]
+    default_status: ClassVar[str] = "offline"
 
     def __init__(self, session: Session) -> None:
         self.session = session
@@ -34,7 +35,7 @@ class BaseAgentRepository(Generic[ModelT, DNAT]):
             id=agent_id,
             dna_json=dna.model_dump_json(),
             current_location=f"{lat},{lon}",
-            status="offline",
+            status=self.default_status,
         )
         self.session.add(agent)
 
@@ -71,7 +72,7 @@ class BaseAgentRepository(Generic[ModelT, DNAT]):
                 id=agent_id,
                 dna_json=dna.model_dump_json(),
                 current_location=f"{lat},{lon}",
-                status="offline",
+                status=self.default_status,
             )
             agent_objects.append(agent)
         self.session.add_all(agent_objects)

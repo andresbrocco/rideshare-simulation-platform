@@ -70,7 +70,7 @@ def trip_with_close_pickup():
         trip_id="trip_proximity_001",
         rider_id="rider_proximity_001",
         driver_id="driver_proximity_001",
-        state=TripState.MATCHED,
+        state=TripState.DRIVER_ASSIGNED,
         # Pickup very close to driver starting position (-23.55, -46.63)
         # About 30m away
         pickup_location=(-23.55027, -46.63),
@@ -89,7 +89,7 @@ def trip_with_far_pickup():
         trip_id="trip_proximity_002",
         rider_id="rider_proximity_001",
         driver_id="driver_proximity_001",
-        state=TripState.MATCHED,
+        state=TripState.DRIVER_ASSIGNED,
         # Pickup far from driver starting position (-23.55, -46.63)
         # About 2km away
         pickup_location=(-23.54, -46.62),
@@ -158,8 +158,8 @@ class TestProximityArrivalDetection:
         simpy_env.run(process)
 
         assert trip_with_far_pickup.state == TripState.COMPLETED
-        assert driver_agent.status == "online"
-        assert rider_agent.status == "offline"
+        assert driver_agent.status == "available"
+        assert rider_agent.status == "idle"
 
     def test_proximity_detection_emits_correct_events(
         self,
@@ -196,9 +196,9 @@ class TestProximityArrivalDetection:
         ]
 
         # All expected events should be present
-        assert "trip.driver_en_route" in event_types
-        assert "trip.driver_arrived" in event_types
-        assert "trip.started" in event_types
+        assert "trip.en_route_pickup" in event_types
+        assert "trip.at_pickup" in event_types
+        assert "trip.in_transit" in event_types
         assert "trip.completed" in event_types
 
     def test_settings_threshold_is_used(

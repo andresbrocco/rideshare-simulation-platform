@@ -64,15 +64,15 @@ class NotificationDispatch:
         rider = self._registry.get_rider(trip.rider_id)
         driver = self._registry.get_driver(trip.driver_id) if trip.driver_id else None
 
-        if new_state == TripState.DRIVER_EN_ROUTE:
+        if new_state == TripState.EN_ROUTE_PICKUP:
             if rider:
                 rider.on_driver_en_route(trip)
 
-        elif new_state == TripState.DRIVER_ARRIVED:
+        elif new_state == TripState.AT_PICKUP:
             if rider:
                 rider.on_driver_arrived(trip)
 
-        elif new_state == TripState.STARTED:
+        elif new_state == TripState.IN_TRANSIT:
             if rider:
                 rider.on_trip_started(trip)
             if driver:

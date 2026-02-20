@@ -37,10 +37,10 @@ logger = logging.getLogger(__name__)
 TripEventType = Literal[
     "trip.requested",
     "trip.offer_sent",
-    "trip.matched",
-    "trip.driver_en_route",
-    "trip.driver_arrived",
-    "trip.started",
+    "trip.driver_assigned",
+    "trip.en_route_pickup",
+    "trip.at_pickup",
+    "trip.in_transit",
     "trip.completed",
     "trip.cancelled",
     "trip.offer_expired",
@@ -307,7 +307,7 @@ class MatchingServer:
             pickup_location[0],
             pickup_location[1],
             radius_km=10.0,
-            status_filter="online",
+            status_filter="available",
         )
         logger.debug(f"Spatial index returned {len(nearby)} nearby online drivers")
 
@@ -505,7 +505,7 @@ class MatchingServer:
             driver.statistics.record_offer_accepted()
             self._offers_accepted += 1
             trip.driver_id = driver.driver_id
-            trip.transition_to(TripState.MATCHED)
+            trip.transition_to(TripState.DRIVER_ASSIGNED)
             trip.matched_at = self._current_time()
             self._emit_matched_event(trip)
 
@@ -523,7 +523,7 @@ class MatchingServer:
             self._offers_rejected += 1
             with self._state_lock:
                 self._reserved_drivers.discard(driver.driver_id)
-                self._driver_index.update_driver_status(driver.driver_id, "online")
+                self._driver_index.update_driver_status(driver.driver_id, "available")
             trip.transition_to(TripState.OFFER_REJECTED)
             # Continue with next candidate (queued for SimPy thread processing)
             self._continue_deferred_offer_cycle(trip)
@@ -773,7 +773,7 @@ class MatchingServer:
             TripEvent,
             trip,
             update_causation=True,
-            event_type="trip.matched",
+            event_type="trip.driver_assigned",
             trip_id=trip.trip_id,
             rider_id=trip.rider_id,
             driver_id=trip.driver_id,
@@ -867,7 +867,7 @@ class MatchingServer:
             # Trip gone, release driver reservation and restore status
             with self._state_lock:
                 self._reserved_drivers.discard(driver_id)
-                self._driver_index.update_driver_status(driver_id, "online")
+                self._driver_index.update_driver_status(driver_id, "available")
             return
 
         driver = self._drivers.get(driver_id)
@@ -886,12 +886,12 @@ class MatchingServer:
         driver.accept_trip(trip_id)
         driver.start_pickup()  # Transition to en_route_pickup
         trip.driver_id = driver_id
-        trip.transition_to(TripState.MATCHED)
+        trip.transition_to(TripState.DRIVER_ASSIGNED)
         trip.matched_at = self._current_time()
         self._emit_matched_event(trip)
 
-        # Transition to DRIVER_EN_ROUTE for puppet flow
-        trip.transition_to(TripState.DRIVER_EN_ROUTE)
+        # Transition to EN_ROUTE_PICKUP for puppet flow
+        trip.transition_to(TripState.EN_ROUTE_PICKUP)
 
         # Note: Do NOT start TripExecutor for puppet drivers.
         # Puppets are controlled entirely via API endpoints (drive-to-pickup,
@@ -916,7 +916,7 @@ class MatchingServer:
         # Release reservation and restore driver to matchable status
         with self._state_lock:
             self._reserved_drivers.discard(driver_id)
-            self._driver_index.update_driver_status(driver_id, "online")
+            self._driver_index.update_driver_status(driver_id, "available")
 
         trip = self._active_trips.get(trip_id)
         if not trip:
@@ -948,7 +948,7 @@ class MatchingServer:
         # Release reservation and restore driver to matchable status
         with self._state_lock:
             self._reserved_drivers.discard(driver_id)
-            self._driver_index.update_driver_status(driver_id, "online")
+            self._driver_index.update_driver_status(driver_id, "available")
 
         trip = self._active_trips.get(trip_id)
         if not trip:
@@ -973,8 +973,8 @@ class MatchingServer:
             return
 
         # Transition trip to driver_arrived
-        trip.transition_to(TripState.DRIVER_ARRIVED)
-        self._emit_trip_state_event(trip, "trip.driver_arrived")
+        trip.transition_to(TripState.AT_PICKUP)
+        self._emit_trip_state_event(trip, "trip.at_pickup")
 
     def signal_trip_started(self, driver_id: str, trip_id: str) -> None:
         """Signal that a puppet trip has started (rider picked up)."""
@@ -996,9 +996,9 @@ class MatchingServer:
                 rider.start_trip()
 
         # Transition trip to started
-        trip.transition_to(TripState.STARTED)
+        trip.transition_to(TripState.IN_TRANSIT)
         trip.started_at = self._current_time()
-        self._emit_trip_state_event(trip, "trip.started")
+        self._emit_trip_state_event(trip, "trip.in_transit")
 
     def signal_trip_completed(self, driver_id: str, trip_id: str) -> None:
         """Signal that a puppet trip has been completed."""
@@ -1219,10 +1219,8 @@ class MatchingServer:
         if not trip:
             raise ValueError(f"Trip {trip_id} not found")
 
-        if driver.status != "en_route_destination":
-            raise ValueError(
-                f"Driver must be in 'en_route_destination' status, got '{driver.status}'"
-            )
+        if driver.status != "on_trip":
+            raise ValueError(f"Driver must be in 'on_trip' status, got '{driver.status}'")
 
         if not driver.location:
             raise ValueError(f"Driver {driver_id} has no location")

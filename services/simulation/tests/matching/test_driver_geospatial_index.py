@@ -29,13 +29,13 @@ class TestDriverGeospatialIndexInit:
 @pytest.mark.unit
 class TestAddDriver:
     def test_add_driver(self, index):
-        index.add_driver("driver_1", -23.55, -46.63, "online")
+        index.add_driver("driver_1", -23.55, -46.63, "available")
 
         assert "driver_1" in index._driver_locations
         lat, lon, cell = index._driver_locations["driver_1"]
         assert lat == -23.55
         assert lon == -46.63
-        assert index._driver_status["driver_1"] == "online"
+        assert index._driver_status["driver_1"] == "available"
 
         expected_cell = h3.latlng_to_cell(-23.55, -46.63, 9)
         assert cell == expected_cell
@@ -43,8 +43,8 @@ class TestAddDriver:
 
     def test_add_multiple_drivers_same_cell(self, index):
         # Two drivers very close should be in same H3 cell
-        index.add_driver("driver_1", -23.5500, -46.6300, "online")
-        index.add_driver("driver_2", -23.5501, -46.6301, "online")
+        index.add_driver("driver_1", -23.5500, -46.6300, "available")
+        index.add_driver("driver_2", -23.5501, -46.6301, "available")
 
         cell = h3.latlng_to_cell(-23.5500, -46.6300, 9)
         assert "driver_1" in index._h3_cells[cell]
@@ -52,7 +52,7 @@ class TestAddDriver:
 
     def test_add_driver_stores_h3_cell(self, index):
         # Verify add_driver stores the h3 cell in the tuple
-        index.add_driver("driver_1", -23.55, -46.63, "online")
+        index.add_driver("driver_1", -23.55, -46.63, "available")
 
         lat, lon, cell = index._driver_locations["driver_1"]
         assert cell == h3.latlng_to_cell(-23.55, -46.63, 9)
@@ -61,7 +61,7 @@ class TestAddDriver:
 @pytest.mark.unit
 class TestUpdateDriverLocation:
     def test_update_driver_location(self, index):
-        index.add_driver("driver_1", -23.55, -46.63, "online")
+        index.add_driver("driver_1", -23.55, -46.63, "available")
         old_cell = h3.latlng_to_cell(-23.55, -46.63, 9)
 
         # Move to significantly different location
@@ -78,7 +78,7 @@ class TestUpdateDriverLocation:
             assert "driver_1" in index._h3_cells[new_cell]
 
     def test_update_driver_location_same_cell(self, index):
-        index.add_driver("driver_1", -23.5500, -46.6300, "online")
+        index.add_driver("driver_1", -23.5500, -46.6300, "available")
         cell = h3.latlng_to_cell(-23.5500, -46.6300, 9)
 
         # Small move within same cell
@@ -91,7 +91,7 @@ class TestUpdateDriverLocation:
 
     def test_update_driver_location_calls_latlng_to_cell_once_on_cell_change(self, index):
         """update_driver_location() should call latlng_to_cell exactly once when the cell changes."""
-        index.add_driver("driver_1", -23.55, -46.63, "online")
+        index.add_driver("driver_1", -23.55, -46.63, "available")
 
         with patch("h3.latlng_to_cell", wraps=h3.latlng_to_cell) as mock_h3:
             # Move to a location that is in a different H3 cell
@@ -101,7 +101,7 @@ class TestUpdateDriverLocation:
 
     def test_update_driver_location_calls_latlng_to_cell_once_same_cell(self, index):
         """update_driver_location() should call latlng_to_cell exactly once even within same cell."""
-        index.add_driver("driver_1", -23.5500, -46.6300, "online")
+        index.add_driver("driver_1", -23.5500, -46.6300, "available")
 
         with patch("h3.latlng_to_cell", wraps=h3.latlng_to_cell) as mock_h3:
             index.update_driver_location("driver_1", -23.5501, -46.6301)
@@ -111,7 +111,7 @@ class TestUpdateDriverLocation:
 @pytest.mark.unit
 class TestRemoveDriver:
     def test_remove_driver(self, index):
-        index.add_driver("driver_1", -23.55, -46.63, "online")
+        index.add_driver("driver_1", -23.55, -46.63, "available")
         cell = h3.latlng_to_cell(-23.55, -46.63, 9)
 
         index.remove_driver("driver_1")
@@ -129,9 +129,13 @@ class TestRemoveDriver:
 class TestFindNearestDrivers:
     def test_find_nearest_drivers(self, index):
         # Add drivers at known distances from Paulista
-        index.add_driver("driver_close", PAULISTA_AVE[0], PAULISTA_AVE[1] + 0.01, "online")  # ~1km
-        index.add_driver("driver_medium", PAULISTA_AVE[0], PAULISTA_AVE[1] + 0.03, "online")  # ~3km
-        index.add_driver("driver_far", PAULISTA_AVE[0], PAULISTA_AVE[1] + 0.05, "online")  # ~5km
+        index.add_driver(
+            "driver_close", PAULISTA_AVE[0], PAULISTA_AVE[1] + 0.01, "available"
+        )  # ~1km
+        index.add_driver(
+            "driver_medium", PAULISTA_AVE[0], PAULISTA_AVE[1] + 0.03, "available"
+        )  # ~3km
+        index.add_driver("driver_far", PAULISTA_AVE[0], PAULISTA_AVE[1] + 0.05, "available")  # ~5km
 
         results = index.find_nearest_drivers(PAULISTA_AVE[0], PAULISTA_AVE[1], radius_km=6.0)
 
@@ -147,7 +151,7 @@ class TestFindNearestDrivers:
 
     def test_no_drivers_in_range(self, index):
         # Add driver far away
-        index.add_driver("driver_far", -23.00, -46.00, "online")
+        index.add_driver("driver_far", -23.00, -46.00, "available")
 
         results = index.find_nearest_drivers(-23.55, -46.63, radius_km=1.0)
         assert results == []
@@ -157,9 +161,9 @@ class TestFindNearestDrivers:
         # progressive ring expansion finds them all on the first pass (k=5 covers ~1.9km)
         query_lat, query_lon = -23.55, -46.63
 
-        index.add_driver("driver_500m", query_lat + 0.0045, query_lon, "online")  # ~500m north
-        index.add_driver("driver_1km", query_lat + 0.009, query_lon, "online")  # ~1km north
-        index.add_driver("driver_1500m", query_lat + 0.0135, query_lon, "online")  # ~1.5km north
+        index.add_driver("driver_500m", query_lat + 0.0045, query_lon, "available")  # ~500m north
+        index.add_driver("driver_1km", query_lat + 0.009, query_lon, "available")  # ~1km north
+        index.add_driver("driver_1500m", query_lat + 0.0135, query_lon, "available")  # ~1.5km north
 
         results = index.find_nearest_drivers(query_lat, query_lon, radius_km=3.0)
 
@@ -176,7 +180,7 @@ class TestFindNearestDrivers:
         """A driver very close to the query point should be found on k=5 without expansion."""
         query_lat, query_lon = -23.55, -46.63
         # Place a driver ~200m away — well within the first ring
-        index.add_driver("driver_nearby", query_lat + 0.002, query_lon, "online")
+        index.add_driver("driver_nearby", query_lat + 0.002, query_lon, "available")
 
         ring_counts: list[int] = []
 
@@ -199,7 +203,7 @@ class TestFindNearestDrivers:
         """A driver near the search boundary should cause the index to expand rings."""
         query_lat, query_lon = -23.55, -46.63
         # Place a driver ~8km away — requires expanding beyond k=5
-        index.add_driver("driver_distant", query_lat + 0.072, query_lon, "online")
+        index.add_driver("driver_distant", query_lat + 0.072, query_lon, "available")
 
         ring_counts: list[int] = []
 
@@ -221,21 +225,25 @@ class TestFindNearestDrivers:
 @pytest.mark.unit
 class TestStatusFiltering:
     def test_filter_by_status_online(self, index):
-        index.add_driver("driver_online", -23.55, -46.63, "online")
+        index.add_driver("driver_online", -23.55, -46.63, "available")
         index.add_driver("driver_offline", -23.5501, -46.6301, "offline")
 
-        results = index.find_nearest_drivers(-23.55, -46.63, radius_km=5.0, status_filter="online")
+        results = index.find_nearest_drivers(
+            -23.55, -46.63, radius_km=5.0, status_filter="available"
+        )
 
         driver_ids = [r[0] for r in results]
         assert "driver_online" in driver_ids
         assert "driver_offline" not in driver_ids
 
     def test_filter_by_status_available(self, index):
-        index.add_driver("driver_online", -23.55, -46.63, "online")
+        index.add_driver("driver_online", -23.55, -46.63, "available")
         index.add_driver("driver_en_route", -23.5501, -46.6301, "en_route_pickup")
         index.add_driver("driver_offline", -23.5502, -46.6302, "offline")
 
-        results = index.find_nearest_drivers(-23.55, -46.63, radius_km=5.0, status_filter="online")
+        results = index.find_nearest_drivers(
+            -23.55, -46.63, radius_km=5.0, status_filter="available"
+        )
 
         driver_ids = [r[0] for r in results]
         assert "driver_online" in driver_ids
@@ -243,8 +251,8 @@ class TestStatusFiltering:
         assert "driver_offline" not in driver_ids
 
     def test_exclude_en_route_drivers(self, index):
-        index.add_driver("driver_1", -23.55, -46.63, "online")
-        index.add_driver("driver_2", -23.5501, -46.6301, "online")
+        index.add_driver("driver_1", -23.55, -46.63, "available")
+        index.add_driver("driver_2", -23.5501, -46.6301, "available")
         index.add_driver("driver_en_route", -23.5502, -46.6302, "en_route_pickup")
 
         results = index.find_nearest_drivers(-23.55, -46.63, radius_km=5.0)
@@ -254,8 +262,8 @@ class TestStatusFiltering:
         assert "driver_en_route" not in driver_ids
 
     def test_exclude_offline_drivers(self, index):
-        index.add_driver("driver_1", -23.55, -46.63, "online")
-        index.add_driver("driver_2", -23.5501, -46.6301, "online")
+        index.add_driver("driver_1", -23.55, -46.63, "available")
+        index.add_driver("driver_2", -23.5501, -46.6301, "available")
         index.add_driver("driver_offline", -23.5502, -46.6302, "offline")
 
         results = index.find_nearest_drivers(-23.55, -46.63, radius_km=5.0)
@@ -269,9 +277,9 @@ class TestStatusFiltering:
 class TestH3CellBucketing:
     def test_h3_cell_bucketing(self, index):
         # Drivers in same neighborhood should be in same or adjacent cells
-        index.add_driver("driver_1", -23.5500, -46.6300, "online")
-        index.add_driver("driver_2", -23.5501, -46.6301, "online")
-        index.add_driver("driver_3", -23.5502, -46.6302, "online")
+        index.add_driver("driver_1", -23.5500, -46.6300, "available")
+        index.add_driver("driver_2", -23.5501, -46.6301, "available")
+        index.add_driver("driver_3", -23.5502, -46.6302, "available")
 
         cells = set()
         for driver_id in ["driver_1", "driver_2", "driver_3"]:
@@ -282,7 +290,7 @@ class TestH3CellBucketing:
         assert len(cells) <= 3  # Could be same cell or adjacent
 
     def test_driver_at_exact_query_point(self, index):
-        index.add_driver("driver_exact", -23.55, -46.63, "online")
+        index.add_driver("driver_exact", -23.55, -46.63, "available")
 
         results = index.find_nearest_drivers(-23.55, -46.63, radius_km=1.0)
 
@@ -294,14 +302,14 @@ class TestH3CellBucketing:
 @pytest.mark.unit
 class TestUpdateDriverStatus:
     def test_update_driver_status(self, index):
-        index.add_driver("driver_1", -23.55, -46.63, "online")
-        assert index._driver_status["driver_1"] == "online"
+        index.add_driver("driver_1", -23.55, -46.63, "available")
+        assert index._driver_status["driver_1"] == "available"
 
         index.update_driver_status("driver_1", "en_route_pickup")
         assert index._driver_status["driver_1"] == "en_route_pickup"
 
     def test_status_change_affects_queries(self, index):
-        index.add_driver("driver_1", -23.55, -46.63, "online")
+        index.add_driver("driver_1", -23.55, -46.63, "available")
 
         # Should be found when online
         results = index.find_nearest_drivers(-23.55, -46.63, radius_km=5.0)

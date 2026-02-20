@@ -166,13 +166,13 @@ class RedisSubscriber:
                     },
                 }
             else:
-                status = data.get("status", "waiting")
-                # Map offline -> waiting for frontend compatibility
-                if status == "offline":
-                    status = "waiting"
+                status = data.get("status", "requesting")
+                # Map idle -> requesting for frontend compatibility
+                if status == "idle":
+                    status = "requesting"
 
-                # For profile events (rider.created), default trip_state to offline
-                trip_state = data.get("trip_state", "offline")
+                # For profile events (rider.created), default trip_state to idle
+                trip_state = data.get("trip_state", "idle")
 
                 return {
                     "type": message_type,
@@ -189,7 +189,7 @@ class RedisSubscriber:
             pickup_loc = data.get("pickup_location") or [0, 0]
             dropoff_loc = data.get("dropoff_location") or [0, 0]
 
-            # Extract status from event_type (e.g., "trip.driver_en_route" -> "driver_en_route")
+            # Extract status from event_type (e.g., "trip.en_route_pickup" -> "en_route_pickup")
             event_type = data.get("event_type", "")
             if event_type.startswith("trip."):
                 status = event_type[5:]  # Remove "trip." prefix

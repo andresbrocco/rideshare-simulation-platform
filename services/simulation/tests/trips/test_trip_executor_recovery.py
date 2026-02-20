@@ -71,7 +71,7 @@ def sample_trip():
         trip_id="trip_recovery_001",
         rider_id="rider_recovery_001",
         driver_id="driver_recovery_001",
-        state=TripState.MATCHED,
+        state=TripState.DRIVER_ASSIGNED,
         pickup_location=(-23.54, -46.62),
         dropoff_location=(-23.56, -46.64),
         pickup_zone_id="zone_1",
@@ -422,7 +422,7 @@ class TestCleanupHandler:
         simpy_env.run(process)
 
         # Driver should be back online and available
-        assert driver_agent.status == "online"
+        assert driver_agent.status == "available"
 
     def test_cleanup_releases_rider(
         self,
@@ -454,8 +454,8 @@ class TestCleanupHandler:
         process = simpy_env.process(executor.execute())
         simpy_env.run(process)
 
-        # Rider should be back to offline (can request another ride)
-        assert rider_agent.status == "offline"
+        # Rider should be back to idle (can request another ride)
+        assert rider_agent.status == "idle"
 
     def test_cleanup_emits_cancellation_event(
         self,

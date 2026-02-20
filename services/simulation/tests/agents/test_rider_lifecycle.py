@@ -79,7 +79,7 @@ class TestRiderRequestCreatesTrip:
 
         def verify_request():
             yield simpy_env.timeout(10)
-            assert agent.status == "waiting"
+            assert agent.status == "requesting"
             assert agent.active_trip is not None
 
         simpy_env.process(agent.run())
@@ -174,7 +174,7 @@ class TestRiderMatchAccepted:
 
         def verify_match():
             yield simpy_env.timeout(15)
-            assert agent.status == "in_trip"
+            assert agent.status == "on_trip"
 
         simpy_env.process(agent.run())
         simpy_env.process(provide_match())
@@ -193,10 +193,10 @@ class TestRiderMatchAccepted:
 
         def simulate_match():
             yield simpy_env.timeout(10)
-            assert agent.status == "waiting"
+            assert agent.status == "requesting"
             agent.start_trip()
             yield simpy_env.timeout(30)
-            assert agent.status == "in_trip"
+            assert agent.status == "on_trip"
 
         simpy_env.process(agent.run())
         simpy_env.process(simulate_match())
@@ -216,7 +216,7 @@ class TestRiderMatchAccepted:
             yield simpy_env.timeout(10)
             agent.start_trip()
             yield simpy_env.timeout(1)
-            assert agent.status == "in_trip"
+            assert agent.status == "on_trip"
 
         simpy_env.process(agent.run())
         simpy_env.process(driver_arrives())
@@ -245,7 +245,7 @@ class TestRiderTripCompletion:
             agent.update_location(destination[0], destination[1])
             agent.complete_trip()
             yield simpy_env.timeout(1)
-            assert agent.status == "offline"
+            assert agent.status == "idle"
             assert agent.active_trip is None
             assert agent.location != original_location
 

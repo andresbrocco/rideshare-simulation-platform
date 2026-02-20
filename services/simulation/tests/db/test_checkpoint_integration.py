@@ -211,7 +211,7 @@ class TestCleanCheckpointIntegration:
         for i in range(3):
             dna = create_driver_dna(seed=i)
             driver = create_driver_agent(f"driver_{i}", dna, engine1._env, engine1)
-            driver._status = "online"
+            driver._status = "available"
             driver._location = (-23.55 + i * 0.01, -46.63 + i * 0.01)
             driver._current_rating = 4.5 + i * 0.1
             driver._rating_count = 10 + i
@@ -232,7 +232,7 @@ class TestCleanCheckpointIntegration:
         for i in range(5):
             dna = create_rider_dna(seed=i)
             rider = create_rider_agent(f"rider_{i}", dna, engine1._env, engine1)
-            rider._status = "waiting" if i < 2 else "offline"
+            rider._status = "requesting" if i < 2 else "idle"
             rider._location = (-23.56 + i * 0.01, -46.65 + i * 0.01)
             rider._current_rating = 4.8 - i * 0.05
             rider._rating_count = 5 + i
@@ -341,7 +341,7 @@ class TestDirtyCheckpointIntegration:
         for i in range(3):
             dna = create_driver_dna(seed=i)
             driver = create_driver_agent(f"driver_{i}", dna, engine1._env, engine1)
-            driver._status = "online" if i < 2 else "en_route_pickup"
+            driver._status = "available" if i < 2 else "en_route_pickup"
             driver._location = (-23.55 + i * 0.01, -46.63 + i * 0.01)
             driver._active_trip = f"trip_{i}" if i == 2 else None
             engine1.register_driver(driver)
@@ -351,7 +351,7 @@ class TestDirtyCheckpointIntegration:
         for i in range(3):
             dna = create_rider_dna(seed=i)
             rider = create_rider_agent(f"rider_{i}", dna, engine1._env, engine1)
-            rider._status = "in_trip" if i == 0 else "waiting"
+            rider._status = "on_trip" if i == 0 else "requesting"
             rider._location = (-23.56 + i * 0.01, -46.65 + i * 0.01)
             rider._active_trip = "trip_0" if i == 0 else None
             engine1.register_rider(rider)
@@ -362,7 +362,7 @@ class TestDirtyCheckpointIntegration:
             trip_id="trip_0",
             rider_id="rider_0",
             driver_id="driver_2",
-            state=TripState.MATCHED,
+            state=TripState.DRIVER_ASSIGNED,
             pickup_location=(-23.55, -46.63),
             dropoff_location=(-23.56, -46.65),
             pickup_zone_id="zone_1",
@@ -376,7 +376,7 @@ class TestDirtyCheckpointIntegration:
             trip_id="trip_1",
             rider_id="rider_1",
             driver_id="driver_1",
-            state=TripState.STARTED,
+            state=TripState.IN_TRANSIT,
             pickup_location=(-23.55, -46.63),
             dropoff_location=(-23.56, -46.65),
             pickup_zone_id="zone_1",
@@ -400,7 +400,7 @@ class TestDirtyCheckpointIntegration:
                 surge_multiplier=1.0,
                 fare=20.0,
             )
-            trip_repo.update_state("trip_0", TripState.MATCHED, driver_id="driver_2")
+            trip_repo.update_state("trip_0", TripState.DRIVER_ASSIGNED, driver_id="driver_2")
 
             trip_repo.create(
                 trip_id="trip_1",
@@ -412,10 +412,10 @@ class TestDirtyCheckpointIntegration:
                 surge_multiplier=1.5,
                 fare=25.0,
             )
-            trip_repo.update_state("trip_1", TripState.MATCHED, driver_id="driver_1")
-            trip_repo.update_state("trip_1", TripState.DRIVER_EN_ROUTE)
-            trip_repo.update_state("trip_1", TripState.DRIVER_ARRIVED)
-            trip_repo.update_state("trip_1", TripState.STARTED)
+            trip_repo.update_state("trip_1", TripState.DRIVER_ASSIGNED, driver_id="driver_1")
+            trip_repo.update_state("trip_1", TripState.EN_ROUTE_PICKUP)
+            trip_repo.update_state("trip_1", TripState.AT_PICKUP)
+            trip_repo.update_state("trip_1", TripState.IN_TRANSIT)
 
             # Completed trip (not in-flight, should be ignored)
             trip_repo.create(
@@ -428,10 +428,12 @@ class TestDirtyCheckpointIntegration:
                 surge_multiplier=1.0,
                 fare=15.0,
             )
-            trip_repo.update_state("trip_completed", TripState.MATCHED, driver_id="driver_0")
-            trip_repo.update_state("trip_completed", TripState.DRIVER_EN_ROUTE)
-            trip_repo.update_state("trip_completed", TripState.DRIVER_ARRIVED)
-            trip_repo.update_state("trip_completed", TripState.STARTED)
+            trip_repo.update_state(
+                "trip_completed", TripState.DRIVER_ASSIGNED, driver_id="driver_0"
+            )
+            trip_repo.update_state("trip_completed", TripState.EN_ROUTE_PICKUP)
+            trip_repo.update_state("trip_completed", TripState.AT_PICKUP)
+            trip_repo.update_state("trip_completed", TripState.IN_TRANSIT)
             trip_repo.update_state("trip_completed", TripState.COMPLETED)
 
             session.commit()

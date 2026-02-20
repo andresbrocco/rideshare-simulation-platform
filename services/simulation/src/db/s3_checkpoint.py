@@ -222,7 +222,7 @@ class S3CheckpointManager:
             try:
                 driver_dna = DriverDNA.model_validate(driver_data["dna"])
                 has_active_trip = driver_data["active_trip"] is not None
-                is_online_idle = driver_data["status"] == "online" and not has_active_trip
+                is_online_idle = driver_data["status"] == "available" and not has_active_trip
 
                 driver = DriverAgent(
                     driver_id=driver_data["id"],

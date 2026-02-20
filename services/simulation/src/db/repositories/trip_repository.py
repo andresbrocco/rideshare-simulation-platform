@@ -77,10 +77,10 @@ class TripRepository:
 
         if new_state == TripState.OFFER_SENT:
             trip.offer_sequence += 1
-        elif new_state == TripState.MATCHED:
+        elif new_state == TripState.DRIVER_ASSIGNED:
             trip.matched_at = now
             trip.driver_id = driver_id
-        elif new_state == TripState.STARTED:
+        elif new_state == TripState.IN_TRANSIT:
             trip.started_at = now
         elif new_state == TripState.COMPLETED:
             trip.completed_at = now

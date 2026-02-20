@@ -68,7 +68,7 @@ class TestBaseAgentRepositoryPolymorphism:
         with session_maker() as session:
             rider = session.get(Rider, "r_base_1")
             assert rider is not None
-            assert rider.status == "offline"
+            assert rider.status == "idle"
 
     def test_get_returns_correct_model_type(self, temp_sqlite_db, dna_factory: DNAFactory):
         """get() returns the correct ORM model type for each repository."""
@@ -104,13 +104,13 @@ class TestBaseAgentRepositoryPolymorphism:
             driver_repo.update_status("d_ls_1", "available")
 
             rider_repo.create("r_ls_1", rider_dna)
-            rider_repo.update_status("r_ls_1", "waiting")
+            rider_repo.update_status("r_ls_1", "requesting")
 
             session.commit()
 
         with session_maker() as session:
             drivers = DriverRepository(session).list_by_status("available")
-            riders = RiderRepository(session).list_by_status("waiting")
+            riders = RiderRepository(session).list_by_status("requesting")
 
             assert len(drivers) == 1
             assert len(riders) == 1

@@ -100,14 +100,14 @@ def get_overview_metrics(
 
         online_drivers = 0
         if driver_registry:
-            online_drivers = driver_registry.get_all_status_counts().get("online", 0)
+            online_drivers = driver_registry.get_all_status_counts().get("available", 0)
 
         waiting_riders = sum(
             1
             for rider in (
                 engine._active_riders.values() if hasattr(engine, "_active_riders") else []
             )
-            if hasattr(rider, "status") and rider.status == "waiting"
+            if hasattr(rider, "status") and rider.status == "requesting"
         )
 
         in_transit_riders = sum(
@@ -115,7 +115,7 @@ def get_overview_metrics(
             for rider in (
                 engine._active_riders.values() if hasattr(engine, "_active_riders") else []
             )
-            if hasattr(rider, "status") and rider.status == "in_trip"
+            if hasattr(rider, "status") and rider.status == "on_trip"
         )
 
         active_trips = 0
@@ -157,7 +157,7 @@ def get_zone_metrics(
         for zone_id in zone_ids:
             online_drivers = 0
             if driver_registry:
-                online_drivers = driver_registry.get_zone_driver_count(zone_id, "online")
+                online_drivers = driver_registry.get_zone_driver_count(zone_id, "available")
 
             waiting_riders = 0
             if hasattr(engine, "_active_riders"):
@@ -165,7 +165,7 @@ def get_zone_metrics(
                     1
                     for rider in engine._active_riders.values()
                     if hasattr(rider, "status")
-                    and rider.status == "waiting"
+                    and rider.status == "requesting"
                     and hasattr(rider, "current_zone_id")
                     and rider.current_zone_id == zone_id
                 )
@@ -258,25 +258,25 @@ def get_driver_metrics(request: Request, driver_registry: DriverRegistryDep) -> 
     def compute() -> DriverMetrics:
         if not driver_registry:
             return DriverMetrics(
-                online=0,
+                available=0,
                 offline=0,
                 en_route_pickup=0,
-                en_route_destination=0,
+                on_trip=0,
                 total=0,
             )
 
         status_counts = driver_registry.get_all_status_counts()
-        online = status_counts.get("online", 0)
+        available = status_counts.get("available", 0)
         offline = status_counts.get("offline", 0)
         en_route_pickup = status_counts.get("en_route_pickup", 0)
-        en_route_destination = status_counts.get("en_route_destination", 0)
-        total = online + offline + en_route_pickup + en_route_destination
+        on_trip = status_counts.get("on_trip", 0)
+        total = available + offline + en_route_pickup + on_trip
 
         return DriverMetrics(
-            online=online,
+            available=available,
             offline=offline,
             en_route_pickup=en_route_pickup,
-            en_route_destination=en_route_destination,
+            on_trip=on_trip,
             total=total,
         )
 
@@ -292,10 +292,10 @@ def get_rider_metrics(
 
     Rider states:
     - offline: No active trip (includes matching phase - ephemeral states)
-    - to_pickup: Trip state in (DRIVER_EN_ROUTE, DRIVER_ARRIVED)
-    - in_transit: Trip state is STARTED
+    - to_pickup: Trip state in (EN_ROUTE_PICKUP, AT_PICKUP)
+    - in_transit: Trip state is IN_TRANSIT
 
-    Note: Matching phase states (REQUESTED, OFFER_SENT, MATCHED, etc.) are
+    Note: Matching phase states (REQUESTED, OFFER_SENT, DRIVER_ASSIGNED, etc.) are
     ephemeral and counted as offline since they transition too quickly to observe.
     """
 
@@ -326,14 +326,14 @@ def get_rider_metrics(
                 TripState.OFFER_SENT,
                 TripState.OFFER_EXPIRED,
                 TripState.OFFER_REJECTED,
-                TripState.MATCHED,
+                TripState.DRIVER_ASSIGNED,
             ):
                 # Trip is in matching phase - ephemeral, count as offline
                 offline += 1
-            elif trip_state in (TripState.DRIVER_EN_ROUTE, TripState.DRIVER_ARRIVED):
+            elif trip_state in (TripState.EN_ROUTE_PICKUP, TripState.AT_PICKUP):
                 # Driver is heading to pickup or waiting
                 to_pickup += 1
-            elif trip_state == TripState.STARTED:
+            elif trip_state == TripState.IN_TRANSIT:
                 # Rider is in vehicle
                 in_transit += 1
             else:

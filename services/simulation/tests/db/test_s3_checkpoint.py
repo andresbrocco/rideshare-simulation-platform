@@ -303,10 +303,10 @@ class TestS3CheckpointType:
         mock_utc_now.return_value = datetime(2026, 2, 14, 12, 0, 0)
 
         trip1 = Mock()
-        trip1.state = TripState.MATCHED
+        trip1.state = TripState.DRIVER_ASSIGNED
 
         trip2 = Mock()
-        trip2.state = TripState.STARTED
+        trip2.state = TripState.IN_TRANSIT
 
         trip3 = Mock()
         trip3.state = TripState.COMPLETED
@@ -430,7 +430,7 @@ class TestS3CheckpointRestore:
             "id": "driver-001",
             "dna": sample_driver_dna.model_dump(),
             "location": [-23.55, -46.63],
-            "status": "online",
+            "status": "available",
             "active_trip": None,
             "rating": 4.8,
             "rating_count": 100,
@@ -476,7 +476,7 @@ class TestS3CheckpointRestore:
         assert "rider-001" in restore_engine._active_riders
 
         # Verify runtime state was set on driver
-        assert mock_driver_instance._status == "online"
+        assert mock_driver_instance._status == "available"
         assert mock_driver_instance._location == (-23.55, -46.63)
         assert mock_driver_instance._active_trip is None
         assert mock_driver_instance._current_rating == 4.8
@@ -586,7 +586,7 @@ class TestS3CheckpointRestore:
             "id": "driver-good",
             "dna": sample_driver_dna.model_dump(),
             "location": [-23.55, -46.63],
-            "status": "online",
+            "status": "available",
             "active_trip": None,
             "rating": 4.8,
             "rating_count": 100,
@@ -595,7 +595,7 @@ class TestS3CheckpointRestore:
             "id": "driver-bad",
             "dna": {"invalid": "dna"},
             "location": [-23.55, -46.63],
-            "status": "online",
+            "status": "available",
             "active_trip": None,
             "rating": 4.0,
             "rating_count": 10,

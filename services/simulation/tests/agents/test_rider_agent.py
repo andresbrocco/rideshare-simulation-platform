@@ -62,7 +62,7 @@ class TestRiderAgentInit:
         assert agent.dna == rider_dna
 
     def test_rider_initial_state(self, rider_agent, rider_dna):
-        assert rider_agent.status == "offline"
+        assert rider_agent.status == "idle"
         # Location is now set from DNA home_location on creation
         assert rider_agent.location == rider_dna.home_location
         assert rider_agent.active_trip is None
@@ -86,26 +86,26 @@ class TestRiderDNAImmutability:
 class TestRiderStatusTransitions:
     def test_rider_status_transition_offline_to_waiting(self, rider_agent):
         rider_agent.request_trip("trip_001")
-        assert rider_agent.status == "waiting"
+        assert rider_agent.status == "requesting"
         assert rider_agent.active_trip == "trip_001"
 
     def test_rider_status_transition_waiting_to_in_trip(self, rider_agent):
         rider_agent.request_trip("trip_001")
         rider_agent.start_trip()
-        assert rider_agent.status == "in_trip"
+        assert rider_agent.status == "on_trip"
 
     def test_rider_status_transition_in_trip_to_offline(self, rider_agent):
         rider_agent.request_trip("trip_001")
         rider_agent.start_trip()
         rider_agent.complete_trip()
-        assert rider_agent.status == "offline"
+        assert rider_agent.status == "idle"
         assert rider_agent.active_trip is None
 
     def test_rider_cancel_while_waiting(self, rider_agent):
         rider_agent.request_trip("trip_001")
-        assert rider_agent.status == "waiting"
+        assert rider_agent.status == "requesting"
         rider_agent.cancel_trip()
-        assert rider_agent.status == "offline"
+        assert rider_agent.status == "idle"
         assert rider_agent.active_trip is None
 
 
@@ -179,7 +179,7 @@ class TestRiderGPSEmissionDuringTrip:
         # Transition to in_trip to simulate an active trip
         agent.request_trip("trip_gps_001")
         agent.start_trip()
-        assert agent.status == "in_trip"
+        assert agent.status == "on_trip"
 
         # Reset call tracking after setup events
         mock_kafka_producer.produce.reset_mock()
@@ -253,7 +253,7 @@ class TestRiderPatienceLoop:
         simpy_env.run(until=dna.patience_threshold + 5)
 
         # Agent must have timed out and gone back to offline
-        assert agent.status == "offline"
+        assert agent.status == "idle"
 
     def test_patience_single_timeout_event(
         self, simpy_env, rider_dna, mock_kafka_producer, dna_factory
@@ -275,7 +275,7 @@ class TestRiderPatienceLoop:
 
         # After patience_threshold + buffer, agent must be offline (timed out)
         simpy_env.run(until=dna.patience_threshold + 10)
-        assert agent.status == "offline"
+        assert agent.status == "idle"
 
 
 @pytest.mark.unit
@@ -410,7 +410,7 @@ class TestRiderSurgeThreshold:
         simpy_env.run(until=200)
 
         # Rider must still be offline (never called request_trip)
-        assert agent.status == "offline"
+        assert agent.status == "idle"
         assert agent.active_trip is None
         assert agent.statistics.trips_requested == 0
 
@@ -439,7 +439,7 @@ class TestRiderSurgeThreshold:
         simpy_env.run(until=10)
 
         # Rider should have requested a trip (status transitions to waiting)
-        assert agent.status == "waiting"
+        assert agent.status == "requesting"
         assert agent.active_trip is not None
         assert agent.statistics.trips_requested == 1
 
@@ -469,6 +469,6 @@ class TestRiderSurgeThreshold:
         simpy_env.run(until=150)
 
         # Rider should have eventually requested a trip
-        assert agent.status in ("waiting", "offline")  # waiting or timed out after requesting
+        assert agent.status in ("requesting", "idle")  # waiting or timed out after requesting
         assert agent.statistics.trips_requested == 1
         assert agent._get_surge.call_count == 2

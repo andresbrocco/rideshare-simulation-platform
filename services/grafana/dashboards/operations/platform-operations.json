@@ -95,12 +95,12 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "simulation_drivers_online",
-          "legendFormat": "Drivers Online",
+          "expr": "simulation_drivers_available",
+          "legendFormat": "Drivers Available",
           "refId": "A"
         }
       ],
-      "title": "Drivers Online",
+      "title": "Drivers Available",
       "type": "stat"
     },
     {

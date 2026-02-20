@@ -32,7 +32,7 @@ class TestRiderRepository:
             rider = session.get(Rider, "r1")
             assert rider is not None
             assert rider.id == "r1"
-            assert rider.status == "offline"
+            assert rider.status == "idle"
             assert rider.current_location == "-23.5505,-46.6333"
 
             retrieved_dna = RiderDNA.model_validate_json(rider.dna_json)
@@ -101,12 +101,12 @@ class TestRiderRepository:
 
         with session_maker() as session:
             repo = RiderRepository(session)
-            repo.update_status("r4", "waiting")
+            repo.update_status("r4", "requesting")
             session.commit()
 
         with session_maker() as session:
             rider = session.get(Rider, "r4")
-            assert rider.status == "waiting"
+            assert rider.status == "requesting"
 
             retrieved_dna = RiderDNA.model_validate_json(rider.dna_json)
             assert retrieved_dna.behavior_factor == 0.85
@@ -209,13 +209,13 @@ class TestRiderRepository:
                 repo = RiderRepository(session)
                 repo.create(f"r_status_{i}", rider_dna)
                 if i < 2:
-                    repo.update_status(f"r_status_{i}", "waiting")
+                    repo.update_status(f"r_status_{i}", "requesting")
                 session.commit()
 
         with session_maker() as session:
             repo = RiderRepository(session)
-            waiting_riders = repo.list_by_status("waiting")
+            waiting_riders = repo.list_by_status("requesting")
             assert len(waiting_riders) == 2
 
-            offline_riders = repo.list_by_status("offline")
+            offline_riders = repo.list_by_status("idle")
             assert len(offline_riders) == 3

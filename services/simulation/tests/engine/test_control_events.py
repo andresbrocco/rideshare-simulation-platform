@@ -232,14 +232,14 @@ def test_event_includes_active_counts(mock_kafka_producer, mock_sqlite_db):
     for i in range(5):
         driver = Mock(spec=DriverAgent)
         driver.driver_id = f"driver{i}"
-        driver.status = "online"
+        driver.status = "available"
         engine.register_driver(driver)
 
     # Create mock riders with waiting status
     for i in range(3):
         rider = Mock(spec=RiderAgent)
         rider.rider_id = f"rider{i}"
-        rider.status = "waiting"
+        rider.status = "requesting"
         engine.register_rider(rider)
 
     engine.start()
@@ -260,7 +260,7 @@ def test_event_includes_in_flight_trips(fast_running_engine):
         Trip(
             trip_id=f"trip{i}",
             rider_id="rider1",
-            state=TripState.STARTED,
+            state=TripState.IN_TRANSIT,
             pickup_location=(40.7128, -74.0060),
             dropoff_location=(40.7589, -73.9851),
             pickup_zone_id="zone1",

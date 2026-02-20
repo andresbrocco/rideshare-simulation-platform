@@ -106,7 +106,7 @@ def test_trip_requested_should_publish(event_filter, timestamp):
 @pytest.mark.unit
 def test_trip_matched_should_publish(event_filter, timestamp):
     event = TripEvent(
-        event_type="trip.matched",
+        event_type="trip.driver_assigned",
         trip_id="trip-1",
         timestamp=timestamp,
         rider_id="rider-1",
@@ -183,7 +183,7 @@ def test_driver_status_should_publish(event_filter, timestamp):
     event = DriverStatusEvent(
         driver_id="driver-1",
         timestamp=timestamp,
-        previous_status="online",
+        previous_status="available",
         new_status="en_route_pickup",
         trigger="trip_matched",
         location=(-23.5505, -46.6333),
@@ -311,14 +311,14 @@ def test_transform_gps_to_driver_update(event_filter, timestamp):
     )
     channel, message = event_filter.transform(event_without_trip)
     assert channel == CHANNEL_DRIVER_UPDATES
-    assert message.status == "online"
+    assert message.status == "available"
     assert message.trip_id is None
 
 
 @pytest.mark.unit
 def test_transform_trip_to_trip_update(event_filter, timestamp):
     event = TripEvent(
-        event_type="trip.matched",
+        event_type="trip.driver_assigned",
         trip_id="trip-1",
         timestamp=timestamp,
         rider_id="rider-1",
@@ -334,7 +334,7 @@ def test_transform_trip_to_trip_update(event_filter, timestamp):
     assert channel == CHANNEL_TRIP_UPDATES
     assert isinstance(message, TripUpdateMessage)
     assert message.trip_id == "trip-1"
-    assert message.state == "matched"
+    assert message.state == "driver_assigned"
     assert message.pickup == (-23.5505, -46.6333)
     assert message.dropoff == (-23.5600, -46.6400)
     assert message.driver_id == "driver-1"

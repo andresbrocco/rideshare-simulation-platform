@@ -239,7 +239,7 @@ class TestTripStateEnumStorage:
             trip_id="t1",
             rider_id="r1",
             driver_id="d1",
-            state=TripState.MATCHED.value,
+            state=TripState.DRIVER_ASSIGNED.value,
             pickup_location="-23.5505,-46.6333",
             dropoff_location="-23.5629,-46.6544",
             pickup_zone_id="zone_1",
@@ -255,8 +255,8 @@ class TestTripStateEnumStorage:
 
             retrieved = session.query(Trip).filter_by(trip_id="t1").first()
             assert retrieved is not None
-            assert retrieved.state == TripState.MATCHED.value
-            assert TripState(retrieved.state) == TripState.MATCHED
+            assert retrieved.state == TripState.DRIVER_ASSIGNED.value
+            assert TripState(retrieved.state) == TripState.DRIVER_ASSIGNED
 
 
 @pytest.mark.unit

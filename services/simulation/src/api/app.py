@@ -70,11 +70,11 @@ class MetricsUpdater:
                 snapshot = collector.get_snapshot()
 
                 # Gather live counts from engine
-                drivers_online = len(
-                    [d for d in self._engine._active_drivers.values() if d.status != "offline"]
+                drivers_available = len(
+                    [d for d in self._engine._active_drivers.values() if d.status == "available"]
                 )
                 riders_in_transit = len(
-                    [r for r in self._engine._active_riders.values() if r.status == "in_trip"]
+                    [r for r in self._engine._active_riders.values() if r.status == "on_trip"]
                 )
                 active_trips = 0
                 pending_offers = 0
@@ -120,7 +120,7 @@ class MetricsUpdater:
                     snapshot,
                     trips_completed=trips_completed,
                     trips_cancelled=trips_cancelled,
-                    drivers_online=drivers_online,
+                    drivers_available=drivers_available,
                     riders_in_transit=riders_in_transit,
                     active_trips=active_trips,
                     avg_fare=avg_fare,

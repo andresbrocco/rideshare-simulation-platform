@@ -17,10 +17,10 @@ logger = logging.getLogger(__name__)
 ACTIVE_TRIP_STATES = {
     TripState.REQUESTED,  # Show pending route (orange)
     TripState.OFFER_SENT,  # Show pending route (orange)
-    TripState.MATCHED,  # Show pending route (orange) - brief transition state
-    TripState.DRIVER_EN_ROUTE,  # Show pickup route (cyan dashed)
-    TripState.DRIVER_ARRIVED,  # Show pickup route (cyan dashed)
-    TripState.STARTED,  # Show trip route (cyan solid)
+    TripState.DRIVER_ASSIGNED,  # Show pending route (orange) - brief transition state
+    TripState.EN_ROUTE_PICKUP,  # Show pickup route (cyan dashed)
+    TripState.AT_PICKUP,  # Show pickup route (cyan dashed)
+    TripState.IN_TRANSIT,  # Show trip route (cyan solid)
 }
 
 
@@ -80,7 +80,7 @@ class StateSnapshotManager:
                         trip.state.value if hasattr(trip.state, "value") else str(trip.state)
                     )
                 else:
-                    rider_data["trip_state"] = "offline"
+                    rider_data["trip_state"] = "idle"
                 # Add destination if available
                 if hasattr(rider, "_destination") and rider._destination:
                     rider_data["destination_latitude"] = rider._destination[0]
@@ -91,7 +91,7 @@ class StateSnapshotManager:
     def _get_trips_from_engine(self, engine: SimulationEngine) -> list[dict[str, Any]]:
         """Extract active trip state from engine's in-memory store.
 
-        Only includes trips in active states (DRIVER_EN_ROUTE, DRIVER_ARRIVED, STARTED)
+        Only includes trips in active states (EN_ROUTE_PICKUP, AT_PICKUP, IN_TRANSIT)
         to show routes on the map.
         """
         trips = []
@@ -177,13 +177,13 @@ class StateSnapshotManager:
                 "current_time": current_time.isoformat() if current_time else None,
                 "drivers_total": len(drivers),
                 "drivers_offline": driver_counts["offline"],
-                "drivers_online": driver_counts["online"],
+                "drivers_available": driver_counts["available"],
                 "drivers_en_route_pickup": driver_counts["en_route_pickup"],
-                "drivers_en_route_destination": driver_counts["en_route_destination"],
+                "drivers_on_trip": driver_counts["on_trip"],
                 "riders_total": len(riders),
-                "riders_offline": rider_counts["offline"],
-                "riders_waiting": rider_counts["waiting"],
-                "riders_in_trip": rider_counts["in_trip"],
+                "riders_idle": rider_counts["idle"],
+                "riders_requesting": rider_counts["requesting"],
+                "riders_on_trip": rider_counts["on_trip"],
                 "active_trips_count": len(trips),
                 "uptime_seconds": engine._env.now if hasattr(engine, "_env") else 0,
             },

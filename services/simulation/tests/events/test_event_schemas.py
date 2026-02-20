@@ -150,7 +150,7 @@ class TestDriverStatusEvent:
         event = DriverStatusEvent(
             driver_id="driver_001",
             timestamp="2025-07-17T10:30:00Z",
-            previous_status="online",
+            previous_status="available",
             new_status="en_route_pickup",
             trigger="trip_accepted",
             location=(-23.5505, -46.6333),
@@ -163,11 +163,11 @@ class TestDriverStatusEvent:
             driver_id="driver_001",
             timestamp="2025-07-17T10:30:00Z",
             previous_status=None,
-            new_status="online",
+            new_status="available",
             trigger="shift_start",
             location=(-23.5505, -46.6333),
         )
-        assert event.new_status == "online"
+        assert event.new_status == "available"
         assert event.previous_status is None
 
 

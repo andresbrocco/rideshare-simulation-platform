@@ -123,11 +123,11 @@ class AgentRegistryManager:
         with self._lock:
             lat, lon = location
             logger.info(f"Driver {driver_id} going online at ({lat}, {lon}), zone={zone_id}")
-            self._driver_index.add_driver(driver_id, lat, lon, "online")
+            self._driver_index.add_driver(driver_id, lat, lon, "available")
             logger.info(f"Driver index now has {len(self._driver_index._driver_locations)} drivers")
 
-            # Update status from offline to online (driver was registered as offline in register_driver())
-            self._driver_registry.update_driver_status(driver_id, "online")
+            # Update status from offline to available (driver was registered as offline in register_driver())
+            self._driver_registry.update_driver_status(driver_id, "available")
             self._driver_registry.update_driver_location(driver_id, location)
             if zone_id:
                 self._driver_registry.update_driver_zone(driver_id, zone_id)

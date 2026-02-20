@@ -405,8 +405,8 @@ def toggle_driver_status(
     previous_status = driver.status
 
     if body.go_online:
-        if driver.status == "online":
-            raise HTTPException(status_code=400, detail="Driver is already online")
+        if driver.status == "available":
+            raise HTTPException(status_code=400, detail="Driver is already available")
         driver.go_online()
     else:
         if driver.status == "offline":

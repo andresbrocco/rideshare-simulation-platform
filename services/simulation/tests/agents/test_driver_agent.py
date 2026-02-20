@@ -71,7 +71,7 @@ class TestDriverStatusTransitions:
     def test_driver_status_transition_offline_to_online(self, driver_agent, mock_kafka_producer):
         driver_agent.update_location(-23.55, -46.63)
         driver_agent.go_online()
-        assert driver_agent.status == "online"
+        assert driver_agent.status == "available"
         mock_kafka_producer.produce.assert_called()
 
     def test_driver_status_transition_online_to_en_route_pickup(
@@ -97,7 +97,7 @@ class TestDriverStatusTransitions:
         mock_kafka_producer.reset_mock()
 
         driver_agent.start_trip()
-        assert driver_agent.status == "en_route_destination"
+        assert driver_agent.status == "on_trip"
         mock_kafka_producer.produce.assert_called()
 
     def test_driver_status_transition_to_online(self, driver_agent, mock_kafka_producer):
@@ -109,7 +109,7 @@ class TestDriverStatusTransitions:
         mock_kafka_producer.reset_mock()
 
         driver_agent.complete_trip()
-        assert driver_agent.status == "online"
+        assert driver_agent.status == "available"
         assert driver_agent.active_trip is None
         mock_kafka_producer.produce.assert_called()
 
@@ -162,7 +162,7 @@ class TestDriverEventEmission:
         event = call_args.kwargs["value"]
         assert event.driver_id == "driver_001"
         assert event.previous_status == "offline"
-        assert event.new_status == "online"
+        assert event.new_status == "available"
         assert event.trigger == "go_online"
         assert event.location == (-23.55, -46.63)
 

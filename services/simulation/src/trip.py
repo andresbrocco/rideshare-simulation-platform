@@ -14,10 +14,10 @@ class TripState(str, Enum):
     OFFER_SENT = "offer_sent"
     OFFER_EXPIRED = "offer_expired"
     OFFER_REJECTED = "offer_rejected"
-    MATCHED = "matched"
-    DRIVER_EN_ROUTE = "driver_en_route"
-    DRIVER_ARRIVED = "driver_arrived"
-    STARTED = "started"
+    DRIVER_ASSIGNED = "driver_assigned"
+    EN_ROUTE_PICKUP = "en_route_pickup"
+    AT_PICKUP = "at_pickup"
+    IN_TRANSIT = "in_transit"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
 
@@ -31,15 +31,15 @@ VALID_TRANSITIONS: dict[TripState, set[TripState]] = {
     TripState.OFFER_SENT: {
         TripState.OFFER_EXPIRED,
         TripState.OFFER_REJECTED,
-        TripState.MATCHED,
+        TripState.DRIVER_ASSIGNED,
         TripState.CANCELLED,
     },
     TripState.OFFER_EXPIRED: {TripState.OFFER_SENT, TripState.CANCELLED},
     TripState.OFFER_REJECTED: {TripState.OFFER_SENT, TripState.CANCELLED},
-    TripState.MATCHED: {TripState.DRIVER_EN_ROUTE, TripState.CANCELLED},
-    TripState.DRIVER_EN_ROUTE: {TripState.DRIVER_ARRIVED, TripState.CANCELLED},
-    TripState.DRIVER_ARRIVED: {TripState.STARTED, TripState.CANCELLED},
-    TripState.STARTED: {TripState.COMPLETED},
+    TripState.DRIVER_ASSIGNED: {TripState.EN_ROUTE_PICKUP, TripState.CANCELLED},
+    TripState.EN_ROUTE_PICKUP: {TripState.AT_PICKUP, TripState.CANCELLED},
+    TripState.AT_PICKUP: {TripState.IN_TRANSIT, TripState.CANCELLED},
+    TripState.IN_TRANSIT: {TripState.COMPLETED},
     TripState.COMPLETED: set(),
     TripState.CANCELLED: set(),
 }

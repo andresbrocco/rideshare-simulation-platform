@@ -199,7 +199,7 @@ data:
             "y": 1
           },
           "id": 2,
-          "description": "Current number of drivers in online status, ready to accept ride offers. Color thresholds: red (<10), yellow (<50), green (50+). Sourced from simulation_drivers_online up-down counter.",
+          "description": "Current number of drivers in available status, ready to accept ride offers. Color thresholds: red (<10), yellow (<50), green (50+). Sourced from simulation_drivers_available up-down counter.",
           "options": {
             "colorMode": "value",
             "graphMode": "area",
@@ -219,12 +219,12 @@ data:
                 "type": "prometheus",
                 "uid": "${DS_PROMETHEUS}"
               },
-              "expr": "simulation_drivers_online",
-              "legendFormat": "Drivers Online",
+              "expr": "simulation_drivers_available",
+              "legendFormat": "Drivers Available",
               "refId": "A"
             }
           ],
-          "title": "Drivers Online",
+          "title": "Drivers Available",
           "type": "stat"
         },
         {
@@ -6888,12 +6888,12 @@ data:
                 "type": "prometheus",
                 "uid": "${DS_PROMETHEUS}"
               },
-              "expr": "simulation_drivers_online",
-              "legendFormat": "Drivers Online",
+              "expr": "simulation_drivers_available",
+              "legendFormat": "Drivers Available",
               "refId": "A"
             }
           ],
-          "title": "Drivers Online",
+          "title": "Drivers Available",
           "type": "stat"
         },
         {

@@ -16,14 +16,14 @@ class TestAgentSnapshotImmutability:
         snapshot = AgentSnapshot(
             id="driver_123",
             type="driver",
-            status="online",
+            status="available",
             location=(-23.5505, -46.6333),
             active_trip_id=None,
             zone_id="pinheiros",
         )
         assert snapshot.id == "driver_123"
         assert snapshot.type == "driver"
-        assert snapshot.status == "online"
+        assert snapshot.status == "available"
         assert snapshot.location == (-23.5505, -46.6333)
         assert snapshot.active_trip_id is None
         assert snapshot.zone_id == "pinheiros"
@@ -33,7 +33,7 @@ class TestAgentSnapshotImmutability:
         snapshot = AgentSnapshot(
             id="driver_123",
             type="driver",
-            status="online",
+            status="available",
             location=(-23.5505, -46.6333),
             active_trip_id=None,
             zone_id="pinheiros",
@@ -46,7 +46,7 @@ class TestAgentSnapshotImmutability:
         snapshot = AgentSnapshot(
             id="driver_123",
             type="driver",
-            status="online",
+            status="available",
             location=(-23.5505, -46.6333),
             active_trip_id=None,
             zone_id="pinheiros",
@@ -59,7 +59,7 @@ class TestAgentSnapshotImmutability:
         snapshot = AgentSnapshot(
             id="driver_123",
             type="driver",
-            status="online",
+            status="available",
             location=(-23.5505, -46.6333),
             active_trip_id=None,
             zone_id="pinheiros",
@@ -85,7 +85,7 @@ class TestAgentSnapshotImmutability:
         snapshot = AgentSnapshot(
             id="rider_001",
             type="rider",
-            status="waiting",
+            status="requesting",
             location=(-23.5505, -46.6333),
             active_trip_id=None,
             zone_id="consolacao",
@@ -102,7 +102,7 @@ class TestAgentSnapshotSerialization:
         snapshot = AgentSnapshot(
             id="driver_123",
             type="driver",
-            status="online",
+            status="available",
             location=(-23.5505, -46.6333),
             active_trip_id=None,
             zone_id="pinheiros",
@@ -110,7 +110,7 @@ class TestAgentSnapshotSerialization:
         data = snapshot.to_dict()
         assert data["id"] == "driver_123"
         assert data["type"] == "driver"
-        assert data["status"] == "online"
+        assert data["status"] == "available"
         assert data["location"] == (-23.5505, -46.6333)
         assert data["active_trip_id"] is None
         assert data["zone_id"] == "pinheiros"
@@ -120,7 +120,7 @@ class TestAgentSnapshotSerialization:
         snapshot = AgentSnapshot(
             id="rider_456",
             type="rider",
-            status="in_trip",
+            status="on_trip",
             location=(-23.5600, -46.6400),
             active_trip_id="trip_789",
             zone_id="moema",
@@ -257,7 +257,7 @@ class TestSimulationSnapshotImmutability:
         driver = AgentSnapshot(
             id="d1",
             type="driver",
-            status="online",
+            status="available",
             location=(-23.55, -46.63),
             active_trip_id=None,
             zone_id="zone_a",
@@ -265,7 +265,7 @@ class TestSimulationSnapshotImmutability:
         rider = AgentSnapshot(
             id="r1",
             type="rider",
-            status="waiting",
+            status="requesting",
             location=(-23.56, -46.64),
             active_trip_id=None,
             zone_id="zone_b",
@@ -292,7 +292,7 @@ class TestSimulationSnapshotImmutability:
             drivers=(driver,),
             riders=(rider,),
             active_trips=(trip,),
-            status_counts={"online": 1, "waiting": 1},
+            status_counts={"available": 1, "requesting": 1},
             zone_counts={"zone_a": {"driver": 1}, "zone_b": {"rider": 1}},
         )
 
@@ -327,7 +327,7 @@ class TestSimulationSnapshotImmutability:
         driver = AgentSnapshot(
             id="d1",
             type="driver",
-            status="online",
+            status="available",
             location=(-23.55, -46.63),
             active_trip_id=None,
             zone_id="zone_a",
@@ -344,7 +344,7 @@ class TestSimulationSnapshotImmutability:
             drivers=(driver,),
             riders=(),
             active_trips=(),
-            status_counts={"online": 1},
+            status_counts={"available": 1},
             zone_counts={},
         )
         assert isinstance(snapshot.drivers, tuple)
@@ -409,8 +409,8 @@ class TestSimulationSnapshotSerialization:
             drivers=(),
             riders=(),
             active_trips=(),
-            status_counts={"online": 8, "en_route_pickup": 2},
-            zone_counts={"zone_a": {"online": 5}},
+            status_counts={"available": 8, "en_route_pickup": 2},
+            zone_counts={"zone_a": {"available": 5}},
         )
         data = snapshot.to_dict()
 
@@ -427,7 +427,7 @@ class TestSimulationSnapshotSerialization:
         driver = AgentSnapshot(
             id="d1",
             type="driver",
-            status="online",
+            status="available",
             location=(-23.55, -46.63),
             active_trip_id=None,
             zone_id="zone_a",
@@ -444,7 +444,7 @@ class TestSimulationSnapshotSerialization:
             drivers=(driver,),
             riders=(),
             active_trips=(),
-            status_counts={"online": 1},
+            status_counts={"available": 1},
             zone_counts={},
         )
         data = snapshot.to_dict()

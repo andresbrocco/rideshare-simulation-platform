@@ -144,7 +144,7 @@ class TestEventFactoryCreateForTrip:
             event = EventFactory.create_for_trip(
                 TripEvent,
                 trip,
-                event_type="trip.driver_en_route",
+                event_type="trip.en_route_pickup",
                 trip_id=trip.trip_id,
                 timestamp="2024-01-15T10:00:00Z",
                 rider_id=trip.rider_id,
@@ -178,7 +178,7 @@ class TestEventFactoryCreateForTrip:
             event = EventFactory.create_for_trip(
                 TripEvent,
                 trip,
-                event_type="trip.matched",
+                event_type="trip.driver_assigned",
                 trip_id=trip.trip_id,
                 timestamp="2024-01-15T10:00:00Z",
                 rider_id=trip.rider_id,
@@ -301,7 +301,7 @@ class TestEventFactoryCreateForTrip:
             event2 = EventFactory.create_for_trip(
                 TripEvent,
                 trip,
-                event_type="trip.matched",
+                event_type="trip.driver_assigned",
                 trip_id=trip.trip_id,
                 timestamp="2024-01-15T10:01:00Z",
                 rider_id=trip.rider_id,
@@ -320,7 +320,7 @@ class TestEventFactoryCreateForTrip:
             event3 = EventFactory.create_for_trip(
                 TripEvent,
                 trip,
-                event_type="trip.driver_en_route",
+                event_type="trip.en_route_pickup",
                 trip_id=trip.trip_id,
                 timestamp="2024-01-15T10:02:00Z",
                 rider_id=trip.rider_id,

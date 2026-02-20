@@ -45,7 +45,7 @@ class TestDriverShiftLifecycle:
         env.process(agent.run())
         env.run(until=env.now + 6 * 3600)  # Run for 6 hours (until 11:00)
 
-        assert agent.status == "online"
+        assert agent.status == "available"
 
         calls = [
             call
@@ -56,7 +56,7 @@ class TestDriverShiftLifecycle:
 
         # The value is now a DriverStatusEvent Pydantic model
         event = calls[0].kwargs["value"]
-        assert event.new_status == "online"
+        assert event.new_status == "available"
 
     def test_driver_shift_ends(self, mock_kafka_producer, dna_factory: DNAFactory):
         """Test that driver goes offline after shift ends.
@@ -113,7 +113,7 @@ class TestDriverShiftLifecycle:
                 nonlocal start_hour
                 while True:
                     yield env_ref.timeout(60)
-                    if agent_ref.status == "online" and start_hour is None:
+                    if agent_ref.status == "available" and start_hour is None:
                         start_hour = env_ref.now
 
             env.process(agent.run())
@@ -162,7 +162,7 @@ class TestDriverShiftLifecycle:
 
         # The value is now a DriverStatusEvent Pydantic model
         online_events = [
-            call for call in status_calls if "online" in call.kwargs["value"].new_status
+            call for call in status_calls if "available" in call.kwargs["value"].new_status
         ]
 
         # With avg_days_per_week=7, driver should go online on day 1
@@ -189,7 +189,7 @@ class TestDriverShiftLifecycle:
 
         def assign_trip_near_shift_end():
             yield env.timeout(1.5 * 3600)  # At 7:30
-            if agent.status == "online":
+            if agent.status == "available":
                 agent.accept_trip("trip_001")
                 yield env.timeout(0.5 * 3600)  # 30 min trip
                 agent.complete_trip()
@@ -230,7 +230,7 @@ class TestDriverShiftLifecycle:
 
         # The value is now a DriverStatusEvent Pydantic model
         event = status_calls[0].kwargs["value"]
-        assert event.new_status == "online"
+        assert event.new_status == "available"
         assert event.driver_id == "driver_001"
 
     def test_driver_shift_status_event_offline(self, mock_kafka_producer, dna_factory: DNAFactory):
@@ -287,17 +287,17 @@ class TestDriverShiftLifecycle:
         def track_time():
             while True:
                 yield env.timeout(60)
-                if agent.status == "online" and "online" not in times:
-                    times["online"] = env.now
-                elif agent.status == "offline" and "online" in times and "offline" not in times:
+                if agent.status == "available" and "available" not in times:
+                    times["available"] = env.now
+                elif agent.status == "offline" and "available" in times and "offline" not in times:
                     times["offline"] = env.now
 
         env.process(agent.run())
         env.process(track_time())
         env.run(until=env.now + 8 * 3600)  # Run until 13:00
 
-        if "online" in times and "offline" in times:
-            duration = (times["offline"] - times["online"]) / 3600
+        if "available" in times and "offline" in times:
+            duration = (times["offline"] - times["available"]) / 3600
             assert 3.5 <= duration <= 4.5
 
     def test_driver_shift_preference_morning(self, mock_kafka_producer, dna_factory: DNAFactory):
@@ -323,7 +323,7 @@ class TestDriverShiftLifecycle:
             nonlocal start_hour
             while True:
                 yield env.timeout(60)
-                if agent.status == "online" and start_hour is None:
+                if agent.status == "available" and start_hour is None:
                     start_hour = (env.now % (24 * 3600)) / 3600
 
         env.process(agent.run())
@@ -360,7 +360,7 @@ class TestDriverShiftLifecycle:
             nonlocal start_hour
             while True:
                 yield env.timeout(60)  # Check every 60s, not 1s
-                if agent.status == "online" and start_hour is None:
+                if agent.status == "available" and start_hour is None:
                     start_hour = (env.now % (24 * 3600)) / 3600
 
         env.process(agent.run())
@@ -403,6 +403,6 @@ class TestDriverShiftLifecycle:
         # Flexible driver should go online at some point
         # The value is now a DriverStatusEvent Pydantic model
         online_events = [
-            call for call in status_calls if call.kwargs["value"].new_status == "online"
+            call for call in status_calls if call.kwargs["value"].new_status == "available"
         ]
         assert len(online_events) >= 1

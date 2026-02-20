@@ -116,8 +116,8 @@ def test_draining_stops_new_requests(running_engine):
 def test_draining_tracks_in_flight_trips(running_engine):
     """Counts non-terminal trips."""
     trips = [
-        create_trip("trip1", TripState.MATCHED),
-        create_trip("trip2", TripState.STARTED),
+        create_trip("trip1", TripState.DRIVER_ASSIGNED),
+        create_trip("trip2", TripState.IN_TRANSIT),
         create_trip("trip3", TripState.COMPLETED),
     ]
 
@@ -132,8 +132,8 @@ def test_draining_tracks_in_flight_trips(running_engine):
 def test_draining_waits_for_quiescence(fast_running_engine):
     """Waits for all trips to complete."""
     in_flight_trips = [
-        create_trip("trip1", TripState.MATCHED),
-        create_trip("trip2", TripState.STARTED),
+        create_trip("trip1", TripState.DRIVER_ASSIGNED),
+        create_trip("trip2", TripState.IN_TRANSIT),
     ]
 
     completed_trips = []
@@ -157,7 +157,7 @@ def test_draining_waits_for_quiescence(fast_running_engine):
 @pytest.mark.slow
 def test_force_cancel_reason(running_engine):
     """Force-cancelled trips have correct metadata."""
-    trip = create_trip("trip1", TripState.MATCHED)
+    trip = create_trip("trip1", TripState.DRIVER_ASSIGNED)
 
     running_engine._force_cancel_trip(trip)
 
@@ -266,9 +266,9 @@ def test_terminal_states_excluded(running_engine):
     trips = [
         create_trip("trip1", TripState.COMPLETED),
         create_trip("trip2", TripState.CANCELLED),
-        create_trip("trip3", TripState.MATCHED),
-        create_trip("trip4", TripState.STARTED),
-        create_trip("trip5", TripState.DRIVER_EN_ROUTE),
+        create_trip("trip3", TripState.DRIVER_ASSIGNED),
+        create_trip("trip4", TripState.IN_TRANSIT),
+        create_trip("trip5", TripState.EN_ROUTE_PICKUP),
     ]
 
     non_terminal = [t for t in trips if t.state not in {TripState.COMPLETED, TripState.CANCELLED}]

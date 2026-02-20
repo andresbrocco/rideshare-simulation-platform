@@ -69,7 +69,7 @@ class DriverGeospatialIndex:
         lat: float,
         lon: float,
         radius_km: float = 5.0,
-        status_filter: str = "online",
+        status_filter: str = "available",
     ) -> list[tuple[str, float]]:
         with self._lock:
             if not self._driver_locations:

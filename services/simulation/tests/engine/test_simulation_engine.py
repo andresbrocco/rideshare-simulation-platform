@@ -190,7 +190,7 @@ class TestSimulationEngineAgentRegistration:
 
         rider = Mock()
         rider.rider_id = "rider_456"
-        rider.status = "offline"
+        rider.status = "idle"
 
         engine.register_rider(rider)
         assert "rider_456" in engine._active_riders
@@ -236,17 +236,17 @@ class TestSimulationEngineAgentProcesses:
         # Create mock riders with run() generators
         rider1 = Mock()
         rider1.rider_id = "rider_1"
-        rider1.status = "offline"
+        rider1.status = "idle"
         rider1.run = Mock(return_value=dummy_generator(engine._env))
 
         rider2 = Mock()
         rider2.rider_id = "rider_2"
-        rider2.status = "offline"
+        rider2.status = "idle"
         rider2.run = Mock(return_value=dummy_generator(engine._env))
 
         rider3 = Mock()
         rider3.rider_id = "rider_3"
-        rider3.status = "offline"
+        rider3.status = "idle"
         rider3.run = Mock(return_value=dummy_generator(engine._env))
 
         engine.register_driver(driver1)
@@ -339,14 +339,14 @@ class TestSimulationEngineActiveCounts:
         for i in range(5):
             driver = Mock()
             driver.driver_id = f"driver_{i}"
-            driver.status = "online" if i < 3 else "offline"
+            driver.status = "available" if i < 3 else "offline"
             engine.register_driver(driver)
 
         # Add 10 riders (counters track all registered, regardless of status)
         for i in range(10):
             rider = Mock()
             rider.rider_id = f"rider_{i}"
-            rider.status = "waiting" if i < 2 else "offline"
+            rider.status = "requesting" if i < 2 else "idle"
             engine.register_rider(rider)
 
         assert engine.active_driver_count == 5

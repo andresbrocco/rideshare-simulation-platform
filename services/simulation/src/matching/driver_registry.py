@@ -21,10 +21,10 @@ class DriverRegistry:
         self._lock = threading.Lock()
         self._drivers: dict[str, DriverRecord] = {}
         self._status_counts: dict[str, int] = {
-            "online": 0,
+            "available": 0,
             "offline": 0,
             "en_route_pickup": 0,
-            "en_route_destination": 0,
+            "on_trip": 0,
         }
         self._zone_status_counts: dict[str, dict[str, int]] = {}
 
@@ -45,10 +45,10 @@ class DriverRegistry:
             if zone_id:
                 if zone_id not in self._zone_status_counts:
                     self._zone_status_counts[zone_id] = {
-                        "online": 0,
+                        "available": 0,
                         "offline": 0,
                         "en_route_pickup": 0,
-                        "en_route_destination": 0,
+                        "on_trip": 0,
                     }
                 self._zone_status_counts[zone_id][status] += 1
 
@@ -82,10 +82,10 @@ class DriverRegistry:
 
             if new_zone_id not in self._zone_status_counts:
                 self._zone_status_counts[new_zone_id] = {
-                    "online": 0,
+                    "available": 0,
                     "offline": 0,
                     "en_route_pickup": 0,
-                    "en_route_destination": 0,
+                    "on_trip": 0,
                 }
             self._zone_status_counts[new_zone_id][record.status] += 1
 
@@ -126,7 +126,7 @@ class DriverRegistry:
             return [
                 driver_id
                 for driver_id, record in self._drivers.items()
-                if record.zone_id == zone_id and record.status == "online"
+                if record.zone_id == zone_id and record.status == "available"
             ]
 
     def get_all_status_counts(self) -> dict[str, int]:
@@ -138,9 +138,9 @@ class DriverRegistry:
         with self._lock:
             self._drivers.clear()
             self._status_counts = {
-                "online": 0,
+                "available": 0,
                 "offline": 0,
                 "en_route_pickup": 0,
-                "en_route_destination": 0,
+                "on_trip": 0,
             }
             self._zone_status_counts.clear()

@@ -55,10 +55,10 @@ def test_app(monkeypatch: MonkeyPatch) -> FastAPI:
     mock_driver_registry = Mock()
     mock_driver_registry.get_all_status_counts = Mock(
         return_value={
-            "online": 0,
+            "available": 0,
             "offline": 0,
             "en_route_pickup": 0,
-            "en_route_destination": 0,
+            "on_trip": 0,
         }
     )
 
@@ -123,13 +123,13 @@ def test_simulation_status_matches_schema(test_client: TestClient) -> None:
         "current_time",
         "drivers_total",
         "drivers_offline",
-        "drivers_online",
+        "drivers_available",
         "drivers_en_route_pickup",
-        "drivers_en_route_destination",
+        "drivers_on_trip",
         "riders_total",
-        "riders_offline",
-        "riders_waiting",
-        "riders_in_trip",
+        "riders_idle",
+        "riders_requesting",
+        "riders_on_trip",
         "active_trips_count",
         "uptime_seconds",
     ]

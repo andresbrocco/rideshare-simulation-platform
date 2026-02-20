@@ -577,8 +577,8 @@ class TestCommandQueueIntegration:
 
         def snapshot_handler(payload):
             return {
-                "drivers": [{"id": "d1", "status": "online"}],
-                "riders": [{"id": "r1", "status": "waiting"}],
+                "drivers": [{"id": "d1", "status": "available"}],
+                "riders": [{"id": "r1", "status": "requesting"}],
                 "trips": [],
                 "metadata": {"count": 2, "timestamp": "2025-01-01T00:00:00Z"},
             }

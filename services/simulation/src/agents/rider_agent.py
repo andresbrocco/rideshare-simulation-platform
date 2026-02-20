@@ -75,7 +75,7 @@ class RiderAgent(EventEmitter):
         self._is_ephemeral = False  # Can be set True for non-persisted puppet agents
 
         # Runtime state
-        self._status = "offline"
+        self._status = "idle"
         # Set initial location from DNA home_location for immediate visibility
         self._location: tuple[float, float] | None = dna.home_location
         self._active_trip: str | None = None
@@ -145,7 +145,7 @@ class RiderAgent(EventEmitter):
 
     def request_trip(self, trip_id: str) -> None:
         """Transition from offline to waiting, set active trip."""
-        self._status = "waiting"
+        self._status = "requesting"
         self._active_trip = trip_id
         self._statistics.record_trip_requested()
 
@@ -167,8 +167,8 @@ class RiderAgent(EventEmitter):
                 self._persistence_dirty = True
 
     def start_trip(self) -> None:
-        """Transition from waiting to in_trip."""
-        self._status = "in_trip"
+        """Transition from requesting to on_trip."""
+        self._status = "on_trip"
 
         if self._rider_repository:
             try:
@@ -185,8 +185,8 @@ class RiderAgent(EventEmitter):
                 self._persistence_dirty = True
 
     def complete_trip(self) -> None:
-        """Transition from in_trip to offline, clear active trip."""
-        self._status = "offline"
+        """Transition from on_trip to idle, clear active trip."""
+        self._status = "idle"
         self._active_trip = None
         self._trip_state_value = None
         self._last_emitted_location = None
@@ -209,8 +209,8 @@ class RiderAgent(EventEmitter):
                 self._persistence_dirty = True
 
     def cancel_trip(self) -> None:
-        """Transition from waiting to offline, clear active trip."""
-        self._status = "offline"
+        """Transition from requesting to idle, clear active trip."""
+        self._status = "idle"
         self._active_trip = None
         self._trip_state_value = None
         self._last_emitted_location = None
@@ -402,7 +402,7 @@ class RiderAgent(EventEmitter):
 
     def on_trip_cancelled(self, trip: "Trip") -> None:
         """Handle trip cancellation notification."""
-        if self._status != "offline":
+        if self._status != "idle":
             self.cancel_trip()
 
     def on_driver_en_route(self, trip: "Trip") -> None:
@@ -411,8 +411,8 @@ class RiderAgent(EventEmitter):
         Transition from waiting to in_trip so the patience timeout
         doesn't cancel the trip while the driver is on the way.
         """
-        if self._status == "waiting":
-            self._status = "in_trip"
+        if self._status == "requesting":
+            self._status = "on_trip"
 
             if self._rider_repository:
                 try:
@@ -562,7 +562,7 @@ class RiderAgent(EventEmitter):
             self._location = self._generate_random_location()
 
         while True:
-            if self._status == "in_trip":
+            if self._status == "on_trip":
                 if self._location and self._location != self._last_emitted_location:
                     correlation = self._active_trip or self._rider_id
                     gps_event = EventFactory.create(
@@ -588,7 +588,7 @@ class RiderAgent(EventEmitter):
                 yield self._env.timeout(GPS_PING_INTERVAL_MOVING)
                 continue
 
-            if self._status != "offline":
+            if self._status != "idle":
                 yield self._env.timeout(GPS_PING_INTERVAL_MOVING)
                 continue
 
@@ -710,12 +710,12 @@ class RiderAgent(EventEmitter):
             )
 
             while self._env.now < match_timeout:
-                if self._status == "in_trip":
+                if self._status == "on_trip":
                     self._next_action = None  # Clear - trip started
                     break
                 yield self._env.timeout(1)
 
-            if self._status == "waiting":
+            if self._status == "requesting":
                 self._next_action = None  # Clear - cancelling trip
                 self.cancel_trip()
                 self.statistics.record_request_timed_out()
@@ -756,7 +756,7 @@ class RiderAgent(EventEmitter):
                 )
                 continue
 
-            while self._status == "in_trip":
+            while self._status == "on_trip":
                 if self._location and self._location != self._last_emitted_location:
                     correlation = self._active_trip or self._rider_id
                     gps_event = EventFactory.create(

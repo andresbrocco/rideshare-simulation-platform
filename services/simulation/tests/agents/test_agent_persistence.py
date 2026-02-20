@@ -114,7 +114,7 @@ class TestDriverPersistence:
         db_session.commit()
 
         driver = db_session.get(Driver, "driver_003")
-        assert driver.status == "online"
+        assert driver.status == "available"
 
     def test_driver_persist_active_trip(
         self,
@@ -225,7 +225,7 @@ class TestDriverPersistence:
         agent.update_location(-23.55, -46.63)
         agent.go_online()
 
-        assert agent.status == "online"
+        assert agent.status == "available"
         assert agent.location == (-23.55, -46.63)
 
     def test_dna_immutability_on_load(
@@ -284,7 +284,7 @@ class TestRiderPersistence:
         rider = db_session.get(Rider, "rider_001")
         assert rider is not None
         assert rider.id == "rider_001"
-        assert rider.status == "offline"
+        assert rider.status == "idle"
         assert rider.current_location == "-23.55,-46.63"
 
         retrieved_dna = RiderDNA.model_validate_json(rider.dna_json)
@@ -338,7 +338,7 @@ class TestRiderPersistence:
         db_session.commit()
 
         rider = db_session.get(Rider, "rider_003")
-        assert rider.status == "waiting"
+        assert rider.status == "requesting"
         assert rider.active_trip == "trip_001"
 
     def test_rider_persist_rating_update(
@@ -398,7 +398,7 @@ class TestRiderPersistence:
             )
 
             assert loaded_agent.rider_id == "rider_005"
-            assert loaded_agent.status == "waiting"
+            assert loaded_agent.status == "requesting"
             assert loaded_agent.location == (-23.56, -46.65)
             assert loaded_agent.active_trip == "trip_003"
             assert loaded_agent.current_rating == 4.0
@@ -421,7 +421,7 @@ class TestRiderPersistence:
         agent.update_location(-23.55, -46.63)
         agent.request_trip("trip_004")
 
-        assert agent.status == "waiting"
+        assert agent.status == "requesting"
         assert agent.location == (-23.55, -46.63)
         assert agent.active_trip == "trip_004"
 

@@ -50,7 +50,7 @@ class SurgePricingCalculator:
 
     def _calculate_zone_surge(self, zone_id: str) -> None:
         pending = self.pending_requests.get(zone_id, 0)
-        available = self.driver_registry.get_zone_driver_count(zone_id, "online")
+        available = self.driver_registry.get_zone_driver_count(zone_id, "available")
 
         if available == 0:
             new_multiplier = 2.5 if pending > 0 else 1.0

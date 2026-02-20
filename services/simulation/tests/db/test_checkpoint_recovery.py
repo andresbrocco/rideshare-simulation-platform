@@ -174,8 +174,8 @@ class TestCheckpointTrips:
 
         with session_maker() as session:
             trip_repo = TripRepository(session)
-            trip_repo.update_state("trip_0", TripState.MATCHED, driver_id="d1")
-            trip_repo.update_state("trip_1", TripState.STARTED)
+            trip_repo.update_state("trip_0", TripState.DRIVER_ASSIGNED, driver_id="d1")
+            trip_repo.update_state("trip_1", TripState.IN_TRANSIT)
             session.commit()
 
         with session_maker() as session:
@@ -196,8 +196,8 @@ class TestCheckpointTrips:
             trip_1 = trip_repo.get("trip_1")
             trip_2 = trip_repo.get("trip_2")
 
-            assert trip_0.state == TripState.MATCHED
-            assert trip_1.state == TripState.STARTED
+            assert trip_0.state == TripState.DRIVER_ASSIGNED
+            assert trip_1.state == TripState.IN_TRANSIT
             assert trip_2.state == TripState.REQUESTED
 
     def test_load_checkpoint_trips(self, temp_sqlite_db):
@@ -216,7 +216,7 @@ class TestCheckpointTrips:
                 surge_multiplier=1.5,
                 fare=30.0,
             )
-            trip_repo.update_state("trip_test", TripState.MATCHED, driver_id="d1")
+            trip_repo.update_state("trip_test", TripState.DRIVER_ASSIGNED, driver_id="d1")
             session.commit()
 
         with session_maker() as session:
@@ -239,7 +239,7 @@ class TestCheckpointTrips:
             assert len(checkpoint["trips"]) == 1
             trip = checkpoint["trips"][0]
             assert trip.trip_id == "trip_test"
-            assert trip.state == TripState.MATCHED
+            assert trip.state == TripState.DRIVER_ASSIGNED
             assert trip.driver_id == "d1"
 
 
@@ -435,8 +435,8 @@ class TestCleanVsDirtyCheckpoint:
                     surge_multiplier=1.0,
                     fare=20.0,
                 )
-            trip_repo.update_state("inflight_0", TripState.MATCHED, driver_id="d1")
-            trip_repo.update_state("inflight_1", TripState.STARTED)
+            trip_repo.update_state("inflight_0", TripState.DRIVER_ASSIGNED, driver_id="d1")
+            trip_repo.update_state("inflight_1", TripState.IN_TRANSIT)
             trip_repo.update_state("inflight_2", TripState.COMPLETED)
             trip_repo.update_state(
                 "inflight_3",
@@ -537,9 +537,9 @@ class TestCleanVsDirtyCheckpoint:
                     surge_multiplier=1.0,
                     fare=20.0,
                 )
-            trip_repo.update_state("crash_trip_0", TripState.MATCHED, driver_id="d1")
-            trip_repo.update_state("crash_trip_1", TripState.MATCHED, driver_id="d2")
-            trip_repo.update_state("crash_trip_2", TripState.MATCHED, driver_id="d3")
+            trip_repo.update_state("crash_trip_0", TripState.DRIVER_ASSIGNED, driver_id="d1")
+            trip_repo.update_state("crash_trip_1", TripState.DRIVER_ASSIGNED, driver_id="d2")
+            trip_repo.update_state("crash_trip_2", TripState.DRIVER_ASSIGNED, driver_id="d3")
             session.commit()
 
         with session_maker() as session:
@@ -616,7 +616,7 @@ class TestCheckpointRecovery:
                 surge_multiplier=1.0,
                 fare=20.0,
             )
-            trip_repo.update_state("dirty_trip", TripState.STARTED)
+            trip_repo.update_state("dirty_trip", TripState.IN_TRANSIT)
             session.commit()
 
         with session_maker() as session:

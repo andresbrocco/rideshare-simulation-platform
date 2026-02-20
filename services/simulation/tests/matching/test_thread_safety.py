@@ -53,7 +53,7 @@ class TestDriverRegistryConcurrentStatusUpdates:
         num_drivers = 100
         num_threads = 20
         updates_per_thread = 100
-        statuses = ["online", "en_route_pickup", "en_route_destination"]
+        statuses = ["available", "en_route_pickup", "on_trip"]
 
         for iteration in range(STRESS_ITERATIONS):
             driver_registry = DriverRegistry()
@@ -61,7 +61,7 @@ class TestDriverRegistryConcurrentStatusUpdates:
             for i in range(num_drivers):
                 driver_registry.register_driver(
                     f"driver_{i}",
-                    "online",
+                    "available",
                     zone_id="zone_a",
                     location=(-23.56, -46.65),
                 )
@@ -109,7 +109,7 @@ class TestDriverRegistryConcurrentStatusUpdates:
                     try:
                         registry.register_driver(
                             f"driver_{i}",
-                            "online",
+                            "available",
                             zone_id="zone_a",
                             location=(-23.56, -46.65),
                         )
@@ -163,7 +163,7 @@ class TestDriverRegistryConcurrentZoneQueries:
             for i in range(num_drivers):
                 driver_registry.register_driver(
                     f"driver_{i}",
-                    "online",
+                    "available",
                     zone_id=zone_id,
                     location=(-23.56, -46.65),
                 )
@@ -191,7 +191,7 @@ class TestDriverRegistryConcurrentZoneQueries:
             ):
                 for i in range(500):
                     driver_id = f"driver_{i % num_d}"
-                    status = "en_route_pickup" if i % 2 == 0 else "online"
+                    status = "en_route_pickup" if i % 2 == 0 else "available"
                     registry.update_driver_status(driver_id, status)
 
             query_threads = [threading.Thread(target=query_zone) for _ in range(10)]
@@ -222,7 +222,7 @@ class TestDriverRegistryConcurrentZoneQueries:
             for i in range(num_drivers):
                 driver_registry.register_driver(
                     f"driver_{i}",
-                    "online",
+                    "available",
                     zone_id=zones[i % len(zones)],
                     location=(-23.56, -46.65),
                 )
@@ -237,7 +237,7 @@ class TestDriverRegistryConcurrentZoneQueries:
                 for _ in range(200):
                     try:
                         for zone in zs:
-                            registry.get_zone_driver_count(zone, "online")
+                            registry.get_zone_driver_count(zone, "available")
                     except (RuntimeError, KeyError) as e:
                         errs.append(e)
 
@@ -489,7 +489,7 @@ class TestAgentRegistryManagerAtomicUpdates:
             ), f"Iteration {iteration}: Errors during concurrent driver_went_online: {errors}"
 
             # Verify consistency: all drivers should be online in both registries
-            online_in_registry = driver_registry.get_status_count("online")
+            online_in_registry = driver_registry.get_status_count("available")
             assert online_in_registry == num_drivers, (
                 f"Iteration {iteration}: Registry has {online_in_registry} online drivers, "
                 f"expected {num_drivers}"
@@ -498,7 +498,7 @@ class TestAgentRegistryManagerAtomicUpdates:
     def test_driver_status_changed_consistency(self):
         """driver_status_changed should update all registries consistently."""
         num_drivers = 50
-        statuses = ["online", "en_route_pickup", "en_route_destination"]
+        statuses = ["available", "en_route_pickup", "on_trip"]
 
         for iteration in range(STRESS_ITERATIONS):
             driver_index = DriverGeospatialIndex()
@@ -514,11 +514,11 @@ class TestAgentRegistryManagerAtomicUpdates:
             for i in range(num_drivers):
                 driver_registry.register_driver(
                     f"driver_{i}",
-                    "online",
+                    "available",
                     zone_id="zone_a",
                     location=(-23.56, -46.65),
                 )
-                driver_index.add_driver(f"driver_{i}", -23.56, -46.65, "online")
+                driver_index.add_driver(f"driver_{i}", -23.56, -46.65, "available")
 
             errors: list = []
 
@@ -549,7 +549,7 @@ class TestAgentRegistryManagerAtomicUpdates:
             ), f"Iteration {iteration}: Errors during concurrent status changes: {errors}"
 
             # Verify no negative counts
-            for status in statuses + ["offline", "en_route_destination"]:
+            for status in statuses + ["offline", "on_trip"]:
                 count = driver_registry.get_status_count(status)
                 assert (
                     count >= 0
@@ -609,7 +609,7 @@ class TestAgentRegistryManagerAtomicUpdates:
             ), f"Iteration {iteration}: Errors during concurrent online/offline: {errors}"
 
             # All drivers should end up offline
-            total_online = driver_registry.get_status_count("online")
+            total_online = driver_registry.get_status_count("available")
             total_offline = driver_registry.get_status_count("offline")
 
             assert total_online + total_offline == num_drivers, (

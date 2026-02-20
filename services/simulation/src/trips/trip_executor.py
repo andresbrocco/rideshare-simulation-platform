@@ -138,9 +138,9 @@ class TripExecutor:
     def _drive_to_pickup(self) -> Generator[simpy.Event]:
         """Drive from current location to pickup."""
         logger.info(
-            f"Trip {self._trip.trip_id}: _drive_to_pickup - transitioning to DRIVER_EN_ROUTE"
+            f"Trip {self._trip.trip_id}: _drive_to_pickup - transitioning to EN_ROUTE_PICKUP"
         )
-        self._trip.transition_to(TripState.DRIVER_EN_ROUTE)
+        self._trip.transition_to(TripState.EN_ROUTE_PICKUP)
         self._driver.start_pickup()
 
         # Fetch route with retry logic
@@ -179,7 +179,7 @@ class TripExecutor:
             return
 
         # Now emit event with pickup_route populated
-        self._emit_trip_event("trip.driver_en_route")
+        self._emit_trip_event("trip.en_route_pickup")
         self._rider.on_driver_en_route(self._trip)
 
         duration = route.duration_seconds
@@ -193,7 +193,7 @@ class TripExecutor:
 
     def _wait_for_rider(self) -> Generator[simpy.Event]:
         """Wait at pickup location for rider."""
-        self._trip.transition_to(TripState.DRIVER_ARRIVED)
+        self._trip.transition_to(TripState.AT_PICKUP)
         self._trip.driver_arrived_at = self._current_time()
         self._driver.update_location(*self._trip.pickup_location)
 
@@ -202,7 +202,7 @@ class TripExecutor:
         if self._trip.pickup_route:
             self._trip.pickup_route_progress_index = len(self._trip.pickup_route) - 1
 
-        self._emit_trip_event("trip.driver_arrived")
+        self._emit_trip_event("trip.at_pickup")
         self._rider.on_driver_arrived(self._trip)
 
         if not self._rider_boards:
@@ -223,10 +223,10 @@ class TripExecutor:
 
     def _start_trip(self) -> Generator[simpy.Event]:
         """Start trip when rider boards."""
-        self._trip.transition_to(TripState.STARTED)
+        self._trip.transition_to(TripState.IN_TRANSIT)
         self._driver.start_trip()
         self._rider.start_trip()
-        self._emit_trip_event("trip.started")
+        self._emit_trip_event("trip.in_transit")
         self._driver.on_trip_started(self._trip)
         self._rider.on_trip_started(self._trip)
         yield self._env.timeout(0)
@@ -366,10 +366,10 @@ class TripExecutor:
         state_to_stage = {
             TripState.REQUESTED: "requested",
             TripState.OFFER_SENT: "matching",
-            TripState.MATCHED: "matched",
-            TripState.DRIVER_EN_ROUTE: "pickup",
-            TripState.DRIVER_ARRIVED: "pickup",
-            TripState.STARTED: "in_transit",
+            TripState.DRIVER_ASSIGNED: "matched",
+            TripState.EN_ROUTE_PICKUP: "pickup",
+            TripState.AT_PICKUP: "pickup",
+            TripState.IN_TRANSIT: "in_transit",
         }
         return state_to_stage.get(self._trip.state, "unknown")
 
@@ -393,8 +393,8 @@ class TripExecutor:
         if self._driver.status != "offline":
             self._driver.complete_trip()
 
-        # Release rider back to offline
-        if self._rider.status != "offline":
+        # Release rider back to idle
+        if self._rider.status != "idle":
             self._rider.cancel_trip()
 
         # Record failure statistics
@@ -462,16 +462,16 @@ class TripExecutor:
                 route_heading = self._driver.heading
 
             # Track route progress and propagate to agents for their own GPS loops
-            if self._trip.state == TripState.STARTED:
+            if self._trip.state == TripState.IN_TRANSIT:
                 self._trip.route_progress_index = idx
                 self._driver.update_route_progress(route_progress_index=idx)
                 self._rider.update_trip_state(self._trip.state.value)
-            elif self._trip.state == TripState.DRIVER_EN_ROUTE:
+            elif self._trip.state == TripState.EN_ROUTE_PICKUP:
                 self._trip.pickup_route_progress_index = idx
                 self._driver.update_route_progress(pickup_route_progress_index=idx)
 
             self._driver.update_location(*current_pos, heading=route_heading)
-            if self._trip.state == TripState.STARTED:
+            if self._trip.state == TripState.IN_TRANSIT:
                 self._rider.update_location(*current_pos)
 
             # GPS-based proximity detection for arrival
@@ -499,10 +499,10 @@ class TripExecutor:
         event_type: Literal[
             "trip.requested",
             "trip.offer_sent",
-            "trip.matched",
-            "trip.driver_en_route",
-            "trip.driver_arrived",
-            "trip.started",
+            "trip.driver_assigned",
+            "trip.en_route_pickup",
+            "trip.at_pickup",
+            "trip.in_transit",
             "trip.completed",
             "trip.cancelled",
             "trip.offer_expired",

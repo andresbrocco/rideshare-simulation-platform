@@ -53,7 +53,7 @@ class EventFilter:
             if event.entity_type == "driver":
                 # Infer status: if trip_id present, driver is in an active trip
                 # Use en_route_pickup as reasonable default for active trip status
-                status = "en_route_pickup" if event.trip_id else "online"
+                status = "en_route_pickup" if event.trip_id else "available"
                 driver_msg = DriverUpdateMessage(
                     driver_id=event.entity_id,
                     location=event.location,

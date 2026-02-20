@@ -149,10 +149,10 @@ def get_status(
 
     # Driver counts from registry (O(1) if get_all_status_counts exists)
     driver_counts = {
-        "online": 0,
+        "available": 0,
         "offline": 0,
         "en_route_pickup": 0,
-        "en_route_destination": 0,
+        "on_trip": 0,
     }
     if driver_registry and hasattr(driver_registry, "get_all_status_counts"):
         driver_counts = driver_registry.get_all_status_counts()
@@ -164,7 +164,7 @@ def get_status(
                 driver_counts[status] += 1
 
     # Rider counts (O(n), n = active riders)
-    rider_counts = {"offline": 0, "waiting": 0, "in_trip": 0}
+    rider_counts = {"idle": 0, "requesting": 0, "on_trip": 0}
     if hasattr(engine, "_active_riders"):
         for rider in engine._active_riders.values():
             status = getattr(rider, "status", "offline")
@@ -177,13 +177,13 @@ def get_status(
         current_time=current_time_str,
         drivers_total=sum(driver_counts.values()),
         drivers_offline=driver_counts["offline"],
-        drivers_online=driver_counts["online"],
+        drivers_available=driver_counts["available"],
         drivers_en_route_pickup=driver_counts["en_route_pickup"],
-        drivers_en_route_destination=driver_counts["en_route_destination"],
+        drivers_on_trip=driver_counts["on_trip"],
         riders_total=sum(rider_counts.values()),
-        riders_offline=rider_counts["offline"],
-        riders_waiting=rider_counts["waiting"],
-        riders_in_trip=rider_counts["in_trip"],
+        riders_idle=rider_counts["idle"],
+        riders_requesting=rider_counts["requesting"],
+        riders_on_trip=rider_counts["on_trip"],
         active_trips_count=len(in_flight),
         uptime_seconds=uptime,
     )

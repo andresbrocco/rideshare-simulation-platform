@@ -169,7 +169,7 @@ class DriverAgent(EventEmitter):
     def go_online(self) -> None:
         """Transition from offline to online."""
         previous_status = self._status
-        self._status = "online"
+        self._status = "available"
 
         # Set initial random location in São Paulo if not already set
         if self._location is None:
@@ -289,7 +289,7 @@ class DriverAgent(EventEmitter):
     def start_trip(self) -> None:
         """Start the trip after rider pickup."""
         previous_status = self._status
-        self._status = "en_route_destination"
+        self._status = "on_trip"
 
         if self._driver_repository:
             try:
@@ -314,7 +314,7 @@ class DriverAgent(EventEmitter):
     def complete_trip(self) -> None:
         """Complete the trip and return to online."""
         previous_status = self._status
-        self._status = "online"
+        self._status = "available"
         self._active_trip = None
         self._route_progress_index = None
         self._pickup_route_progress_index = None
@@ -568,7 +568,7 @@ class DriverAgent(EventEmitter):
 
     def on_trip_completed(self, trip: "Trip") -> None:
         """Handle trip completion — start repositioning toward home if far away."""
-        if self._status == "online" and self._osrm_client:
+        if self._status == "available" and self._osrm_client:
             if self._reposition_process is not None and self._reposition_process.is_alive:
                 self._reposition_process.interrupt()
             self._reposition_process = self._env.process(self._drive_toward_home())
@@ -671,7 +671,7 @@ class DriverAgent(EventEmitter):
             driver_id=self._driver_id,
             timestamp=ts,
             previous_status="offline",
-            new_status="online",
+            new_status="available",
             trigger="creation_preview",
             location=self._location if self._location else (0.0, 0.0),
         )
@@ -785,22 +785,22 @@ class DriverAgent(EventEmitter):
     def _get_gps_interval(self) -> int:
         """Return GPS ping interval based on current status.
 
-        Moving drivers (en_route_pickup, en_route_destination) ping more frequently
+        Moving drivers (en_route_pickup, on_trip) ping more frequently
         to support accurate arrival detection and smooth visualization.
-        Idle drivers (online) ping less frequently to reduce load.
+        Idle drivers (available) ping less frequently to reduce load.
         """
-        if self._status in ("en_route_pickup", "en_route_destination"):
+        if self._status in ("en_route_pickup", "on_trip"):
             return GPS_PING_INTERVAL_MOVING
-        else:  # online
+        else:  # available
             return GPS_PING_INTERVAL_IDLE
 
     def _emit_gps_ping(self) -> Generator[simpy.Event]:
         """GPS ping loop that runs while driver is online."""
         try:
             while self._status in (
-                "online",
+                "available",
                 "en_route_pickup",
-                "en_route_destination",
+                "on_trip",
             ):
                 if self._location and self._location != self._last_emitted_location:
                     # Use trip_id as correlation if in trip, otherwise driver_id

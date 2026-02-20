@@ -65,7 +65,7 @@ async def test_fanout_driver_update(mock_redis_client_for_pubsub, mock_connectio
         {
             "type": "message",
             "channel": "driver-updates",
-            "data": '{"driver_id": "d123", "status": "online", "location": [0, 0]}',
+            "data": '{"driver_id": "d123", "status": "available", "location": [0, 0]}',
         }
     ]
     pubsub = create_pubsub_mock(messages)
@@ -85,7 +85,7 @@ async def test_fanout_driver_update(mock_redis_client_for_pubsub, mock_connectio
                 "id": "d123",
                 "latitude": 0,
                 "longitude": 0,
-                "status": "online",
+                "status": "available",
                 "rating": 5.0,
                 "zone": "unknown",
                 "heading": 0,
@@ -176,7 +176,7 @@ async def test_fanout_multiple_clients(mock_redis_client_for_pubsub, mock_connec
         {
             "type": "message",
             "channel": "driver-updates",
-            "data": '{"driver_id": "test", "status": "online", "location": [0, 0]}',
+            "data": '{"driver_id": "test", "status": "available", "location": [0, 0]}',
         }
     ]
     pubsub = create_pubsub_mock(messages)
@@ -241,7 +241,7 @@ async def test_parse_redis_message(mock_redis_client_for_pubsub, mock_connection
         {
             "type": "message",
             "channel": "driver-updates",
-            "data": '{"driver_id": "d1", "location": [1.0, 2.0], "status": "online"}',
+            "data": '{"driver_id": "d1", "location": [1.0, 2.0], "status": "available"}',
         }
     ]
     pubsub = create_pubsub_mock(messages)
@@ -260,7 +260,7 @@ async def test_parse_redis_message(mock_redis_client_for_pubsub, mock_connection
             "id": "d1",
             "latitude": 1.0,
             "longitude": 2.0,
-            "status": "online",
+            "status": "available",
             "rating": 5.0,
             "zone": "unknown",
             "heading": 0,
@@ -307,7 +307,7 @@ async def test_ignore_malformed_messages(mock_redis_client_for_pubsub, mock_conn
         {
             "type": "message",
             "channel": "driver-updates",
-            "data": '{"driver_id": "valid", "status": "online", "location": [0, 0]}',
+            "data": '{"driver_id": "valid", "status": "available", "location": [0, 0]}',
         },
     ]
     pubsub = create_pubsub_mock(messages)
@@ -347,12 +347,12 @@ async def test_client_disconnect_during_fanout(
         {
             "type": "message",
             "channel": "driver-updates",
-            "data": '{"driver_id": "test1", "status": "online", "location": [0, 0]}',
+            "data": '{"driver_id": "test1", "status": "available", "location": [0, 0]}',
         },
         {
             "type": "message",
             "channel": "driver-updates",
-            "data": '{"driver_id": "test2", "status": "online", "location": [0, 0]}',
+            "data": '{"driver_id": "test2", "status": "available", "location": [0, 0]}',
         },
     ]
     pubsub = create_pubsub_mock(messages)

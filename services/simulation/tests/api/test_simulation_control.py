@@ -137,13 +137,13 @@ def test_get_status_includes_counts(test_client, mock_simulation_engine, auth_he
     mock_simulation_engine.state.value = "running"
     # Create mock drivers with different statuses
     mock_driver_online = Mock()
-    mock_driver_online.status = "online"
+    mock_driver_online.status = "available"
     mock_driver_offline = Mock()
     mock_driver_offline.status = "offline"
     mock_driver_pickup = Mock()
     mock_driver_pickup.status = "en_route_pickup"
     mock_driver_dest = Mock()
-    mock_driver_dest.status = "en_route_destination"
+    mock_driver_dest.status = "on_trip"
     mock_simulation_engine._active_drivers = {
         "d1": mock_driver_online,
         "d2": mock_driver_online,
@@ -153,11 +153,11 @@ def test_get_status_includes_counts(test_client, mock_simulation_engine, auth_he
     }
     # Create mock riders with different statuses
     mock_rider_waiting = Mock()
-    mock_rider_waiting.status = "waiting"
+    mock_rider_waiting.status = "requesting"
     mock_rider_offline = Mock()
-    mock_rider_offline.status = "offline"
+    mock_rider_offline.status = "idle"
     mock_rider_in_trip = Mock()
-    mock_rider_in_trip.status = "in_trip"
+    mock_rider_in_trip.status = "on_trip"
     mock_simulation_engine._active_riders = {
         "r1": mock_rider_waiting,
         "r2": mock_rider_waiting,
@@ -172,15 +172,15 @@ def test_get_status_includes_counts(test_client, mock_simulation_engine, auth_he
     data = response.json()
     # Verify detailed driver counts
     assert data["drivers_total"] == 5
-    assert data["drivers_online"] == 3
+    assert data["drivers_available"] == 3
     assert data["drivers_offline"] == 1
     assert data["drivers_en_route_pickup"] == 1
-    assert data["drivers_en_route_destination"] == 0
+    assert data["drivers_on_trip"] == 0
     # Verify detailed rider counts
     assert data["riders_total"] == 4
-    assert data["riders_waiting"] == 2
-    assert data["riders_offline"] == 1
-    assert data["riders_in_trip"] == 1
+    assert data["riders_requesting"] == 2
+    assert data["riders_idle"] == 1
+    assert data["riders_on_trip"] == 1
     assert data["active_trips_count"] == 3
 
 

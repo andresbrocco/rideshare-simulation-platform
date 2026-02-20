@@ -10,3 +10,4 @@ class RiderRepository(BaseAgentRepository[Rider, RiderDNA]):
     """Repository for rider CRUD operations."""
 
     model_class = Rider
+    default_status = "idle"

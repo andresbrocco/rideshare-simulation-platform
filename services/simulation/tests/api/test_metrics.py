@@ -21,13 +21,13 @@ def mock_driver_registry():
     """Mock driver registry with zone counts."""
     registry = Mock()
     registry.get_all_status_counts.return_value = {
-        "online": 5,
+        "available": 5,
         "offline": 2,
         "en_route_pickup": 1,
-        "en_route_destination": 0,
+        "on_trip": 0,
     }
     registry.get_zone_driver_count = Mock(
-        side_effect=lambda zone, status: 3 if status == "online" else 1
+        side_effect=lambda zone, status: 3 if status == "available" else 1
     )
     return registry
 
@@ -160,10 +160,10 @@ def test_get_driver_metrics(test_client_with_registry, mock_driver_registry, aut
 
     assert response.status_code == 200
     data = response.json()
-    assert "online" in data
+    assert "available" in data
     assert "offline" in data
     assert "en_route_pickup" in data
-    assert "en_route_destination" in data
+    assert "on_trip" in data
     assert "total" in data
 
 
@@ -175,9 +175,7 @@ def test_driver_metrics_sum_to_total(test_client_with_registry, mock_driver_regi
     assert response.status_code == 200
     data = response.json()
     total = data["total"]
-    status_sum = (
-        data["online"] + data["offline"] + data["en_route_pickup"] + data["en_route_destination"]
-    )
+    status_sum = data["available"] + data["offline"] + data["en_route_pickup"] + data["on_trip"]
     assert status_sum == total
 
 

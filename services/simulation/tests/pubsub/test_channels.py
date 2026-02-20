@@ -31,7 +31,7 @@ class TestDriverUpdateMessage:
             driver_id="driver-123",
             location=(-23.5505, -46.6333),
             heading=90.0,
-            status="online",
+            status="available",
             trip_id=None,
             timestamp="2025-07-31T14:30:00Z",
         )
@@ -39,7 +39,7 @@ class TestDriverUpdateMessage:
         assert msg.driver_id == "driver-123"
         assert msg.location == (-23.5505, -46.6333)
         assert msg.heading == 90.0
-        assert msg.status == "online"
+        assert msg.status == "available"
         assert msg.trip_id is None
 
     def test_driver_update_serialization(self):
@@ -169,7 +169,7 @@ class TestMessageTimestamp:
             driver_id="driver-123",
             location=(-23.5505, -46.6333),
             heading=None,
-            status="online",
+            status="available",
             trip_id=None,
             timestamp=iso_timestamp,
         )
@@ -189,7 +189,7 @@ class TestValidation:
                 driver_id="driver-123",
                 # missing location
                 heading=90.0,
-                status="online",
+                status="available",
                 trip_id=None,
                 timestamp="2025-07-31T14:30:00Z",
             )

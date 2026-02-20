@@ -82,7 +82,7 @@ def create_mock_driver(driver_id: str, dna: DriverDNA) -> Mock:
     driver.driver_id = driver_id
     driver.dna = dna
     driver.current_rating = 4.5
-    driver.status = "online"
+    driver.status = "available"
     driver.active_trip = None
     driver._is_puppet = False
     driver.statistics = Mock()
@@ -156,7 +156,7 @@ class TestDeferredResponseTiming:
             env.run()
 
         assert env.now == pytest.approx(5.0)
-        assert trip.state == TripState.MATCHED
+        assert trip.state == TripState.DRIVER_ASSIGNED
 
     def test_response_delay_includes_variance(
         self,
@@ -265,7 +265,7 @@ class TestDeferredResponseTimeBounds:
 
         # max(0.0, 3.0 + (-2.0)) = max(0.0, 1.0) = 1.0
         assert env.now == pytest.approx(1.0)
-        assert trip.state == TripState.MATCHED
+        assert trip.state == TripState.DRIVER_ASSIGNED
 
     def test_high_response_time_bounded_at_14_9(
         self,
@@ -298,7 +298,7 @@ class TestDeferredResponseTimeBounds:
 
         # min(14.9, 12.0 + 2.0) = min(14.9, 14.0) = 14.0
         assert env.now == pytest.approx(14.0)
-        assert trip.state == TripState.MATCHED
+        assert trip.state == TripState.DRIVER_ASSIGNED
 
     def test_response_time_always_under_15(
         self,
@@ -364,7 +364,7 @@ class TestDeferredResponseStateTransitions:
         server.start_pending_trip_executions()
         env.run()
 
-        assert trip.state == TripState.MATCHED
+        assert trip.state == TripState.DRIVER_ASSIGNED
         assert trip.driver_id == "driver-1"
         driver.accept_trip.assert_called_once_with("trip-001")
         driver.statistics.record_offer_accepted.assert_called_once()
@@ -398,7 +398,7 @@ class TestDeferredResponseStateTransitions:
 
         assert "driver-1" not in server._reserved_drivers
         driver.statistics.record_offer_rejected.assert_called_once()
-        mock_driver_index.update_driver_status.assert_called_with("driver-1", "online")
+        mock_driver_index.update_driver_status.assert_called_with("driver-1", "available")
 
     def test_trip_not_matched_before_delay_elapses(
         self,
@@ -435,4 +435,4 @@ class TestDeferredResponseStateTransitions:
 
         # Now run to completion — trip should be matched
         env.run()
-        assert trip.state == TripState.MATCHED
+        assert trip.state == TripState.DRIVER_ASSIGNED

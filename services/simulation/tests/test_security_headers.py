@@ -59,10 +59,10 @@ def test_app(monkeypatch: MonkeyPatch) -> FastAPI:
     mock_driver_registry = Mock()
     mock_driver_registry.get_all_status_counts = Mock(
         return_value={
-            "online": 0,
+            "available": 0,
             "offline": 0,
             "en_route_pickup": 0,
-            "en_route_destination": 0,
+            "on_trip": 0,
         }
     )
 

@@ -126,7 +126,7 @@ class TestNotificationDispatch:
         """Notifies both parties of trip state change."""
         dispatcher = NotificationDispatch(mock_registry_manager)
 
-        await dispatcher.notify_trip_state_change(sample_trip, TripState.DRIVER_EN_ROUTE)
+        await dispatcher.notify_trip_state_change(sample_trip, TripState.EN_ROUTE_PICKUP)
 
         mock_rider_agent.on_driver_en_route.assert_called_once_with(sample_trip)
 
@@ -136,7 +136,7 @@ class TestNotificationDispatch:
         """Notifies rider when driver arrives."""
         dispatcher = NotificationDispatch(mock_registry_manager)
 
-        await dispatcher.notify_trip_state_change(sample_trip, TripState.DRIVER_ARRIVED)
+        await dispatcher.notify_trip_state_change(sample_trip, TripState.AT_PICKUP)
 
         mock_rider_agent.on_driver_arrived.assert_called_once_with(sample_trip)
 
@@ -146,7 +146,7 @@ class TestNotificationDispatch:
         """Notifies both parties when trip starts."""
         dispatcher = NotificationDispatch(mock_registry_manager)
 
-        await dispatcher.notify_trip_state_change(sample_trip, TripState.STARTED)
+        await dispatcher.notify_trip_state_change(sample_trip, TripState.IN_TRANSIT)
 
         mock_rider_agent.on_trip_started.assert_called_once_with(sample_trip)
         mock_driver_agent.on_trip_started.assert_called_once_with(sample_trip)

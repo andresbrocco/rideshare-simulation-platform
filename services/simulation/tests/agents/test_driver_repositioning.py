@@ -188,7 +188,7 @@ class TestDriveTowardHome:
 
         # Let the process run — should catch exception and exit cleanly
         simpy_env.run(until=simpy_env.now + 10)
-        assert agent.status == "online"
+        assert agent.status == "available"
 
 
 @pytest.mark.unit

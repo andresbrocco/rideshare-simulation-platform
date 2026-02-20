@@ -61,7 +61,7 @@ def trip():
         trip_id="trip_001",
         rider_id="rider_001",
         driver_id="driver_001",
-        state=TripState.MATCHED,
+        state=TripState.DRIVER_ASSIGNED,
         pickup_location=(-23.54, -46.62),
         dropoff_location=(-23.56, -46.64),
         pickup_zone_id="zone_1",
@@ -129,8 +129,8 @@ class TestTripFullFlow:
         simpy_env.run(process)
 
         assert trip.state == TripState.COMPLETED
-        assert driver_agent.status == "online"
-        assert rider_agent.status == "offline"
+        assert driver_agent.status == "available"
+        assert rider_agent.status == "idle"
         assert driver_agent.active_trip is None
         assert rider_agent.active_trip is None
 
@@ -152,7 +152,7 @@ class TestTripEvents:
             for evt in events
         ]
 
-        assert "trip.driver_en_route" in event_types
+        assert "trip.en_route_pickup" in event_types
 
     def test_trip_driver_arrived_event(self, simpy_env, trip_executor, mock_kafka_producer):
         process = simpy_env.process(trip_executor.execute())
@@ -168,7 +168,7 @@ class TestTripEvents:
             for evt in events
         ]
 
-        assert "trip.driver_arrived" in event_types
+        assert "trip.at_pickup" in event_types
 
     def test_trip_started_event(self, simpy_env, trip_executor, mock_kafka_producer):
         process = simpy_env.process(trip_executor.execute())
@@ -184,7 +184,7 @@ class TestTripEvents:
             for evt in events
         ]
 
-        assert "trip.started" in event_types
+        assert "trip.in_transit" in event_types
 
     def test_trip_completed_event(self, simpy_env, trip_executor, mock_kafka_producer):
         process = simpy_env.process(trip_executor.execute())
@@ -374,22 +374,22 @@ class TestTripTiming:
 @pytest.mark.slow
 class TestAgentStatusTransitions:
     def test_trip_driver_status_transitions(self, simpy_env, trip_executor, driver_agent):
-        assert driver_agent.status == "online"
+        assert driver_agent.status == "available"
 
         simpy_env.process(trip_executor.execute())
         simpy_env.run(until=simpy_env.now + 1)
 
         assert driver_agent.status in [
             "en_route_pickup",
-            "en_route_destination",
-            "online",
+            "on_trip",
+            "available",
         ]
 
     def test_trip_rider_status_transitions(self, simpy_env, trip_executor, rider_agent):
         process = simpy_env.process(trip_executor.execute())
         simpy_env.run(process)
 
-        assert rider_agent.status == "offline"
+        assert rider_agent.status == "idle"
 
 
 @pytest.mark.unit
@@ -451,7 +451,7 @@ class TestNotificationHandlers:
             trip_id="trip_004",
             rider_id="rider_002",
             driver_id="driver_004",
-            state=TripState.MATCHED,
+            state=TripState.DRIVER_ASSIGNED,
             pickup_location=(-23.54, -46.62),
             dropoff_location=(-23.56, -46.64),
             pickup_zone_id="zone_1",
@@ -461,7 +461,7 @@ class TestNotificationHandlers:
         )
 
         rider.on_match_found(trip, "driver_004")
-        assert rider.status == "waiting"
+        assert rider.status == "requesting"
 
     def test_rider_on_no_drivers_available(self, simpy_env, rider_dna, mock_kafka_producer):
         rider = RiderAgent(
@@ -498,7 +498,7 @@ class TestNotificationHandlers:
         )
 
         driver.on_trip_cancelled(trip)
-        assert driver.status == "online"
+        assert driver.status == "available"
 
     def test_rider_on_trip_cancelled_by_driver(self, simpy_env, rider_dna, mock_kafka_producer):
         rider = RiderAgent(
@@ -524,7 +524,7 @@ class TestNotificationHandlers:
         )
 
         rider.on_trip_cancelled(trip)
-        assert rider.status == "offline"
+        assert rider.status == "idle"
 
     def test_rider_on_driver_en_route(self, simpy_env, rider_dna, mock_kafka_producer):
         rider = RiderAgent(
@@ -538,7 +538,7 @@ class TestNotificationHandlers:
             trip_id="trip_008",
             rider_id="rider_006",
             driver_id="driver_007",
-            state=TripState.DRIVER_EN_ROUTE,
+            state=TripState.EN_ROUTE_PICKUP,
             pickup_location=(-23.54, -46.62),
             dropoff_location=(-23.56, -46.64),
             pickup_zone_id="zone_1",
@@ -561,7 +561,7 @@ class TestNotificationHandlers:
             trip_id="trip_009",
             rider_id="rider_007",
             driver_id="driver_008",
-            state=TripState.DRIVER_ARRIVED,
+            state=TripState.AT_PICKUP,
             pickup_location=(-23.54, -46.62),
             dropoff_location=(-23.56, -46.64),
             pickup_zone_id="zone_1",

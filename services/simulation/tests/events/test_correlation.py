@@ -57,7 +57,7 @@ class TestCorrelationFields:
     def test_trip_event_has_causation_id(self):
         """Test TripEvent can include causation_id for event chaining."""
         event = TripEvent(
-            event_type="trip.matched",
+            event_type="trip.driver_assigned",
             trip_id="trip-123",
             timestamp="2025-07-17T10:30:00Z",
             rider_id="rider_001",
@@ -110,7 +110,7 @@ class TestCorrelationFields:
         event = DriverStatusEvent(
             driver_id="driver_001",
             timestamp="2025-07-17T10:30:00Z",
-            previous_status="online",
+            previous_status="available",
             new_status="en_route_pickup",
             trigger="trip_accepted",
             location=(-23.5505, -46.6333),
@@ -177,7 +177,7 @@ class TestSessionIdConsistency:
         status_event = DriverStatusEvent(
             driver_id="driver_001",
             timestamp="2025-07-17T10:32:00Z",
-            previous_status="online",
+            previous_status="available",
             new_status="en_route_pickup",
             trigger="trip_accepted",
             location=(-23.5505, -46.6333),
@@ -216,7 +216,7 @@ class TestCorrelationChain:
 
         # Match event is caused by request
         match_event = TripEvent(
-            event_type="trip.matched",
+            event_type="trip.driver_assigned",
             trip_id=trip_id,
             timestamp="2025-07-17T10:31:00Z",
             rider_id="rider_001",

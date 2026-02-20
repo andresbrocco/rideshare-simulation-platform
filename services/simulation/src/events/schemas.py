@@ -21,10 +21,10 @@ class TripEvent(CorrelationMixin):
     event_type: Literal[
         "trip.requested",
         "trip.offer_sent",
-        "trip.matched",
-        "trip.driver_en_route",
-        "trip.driver_arrived",
-        "trip.started",
+        "trip.driver_assigned",
+        "trip.en_route_pickup",
+        "trip.at_pickup",
+        "trip.in_transit",
         "trip.completed",
         "trip.cancelled",
         "trip.offer_expired",
@@ -78,7 +78,7 @@ class DriverStatusEvent(CorrelationMixin):
     driver_id: str
     timestamp: str
     previous_status: str | None
-    new_status: Literal["online", "offline", "en_route_pickup", "en_route_destination"]
+    new_status: Literal["available", "offline", "en_route_pickup", "on_trip"]
     trigger: str
     location: tuple[float, float]
 

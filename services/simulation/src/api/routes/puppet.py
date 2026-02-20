@@ -170,7 +170,7 @@ def puppet_driver_go_offline(
     if not getattr(driver, "_is_puppet", False):
         raise HTTPException(status_code=400, detail="Agent is not a puppet driver")
 
-    if driver.status != "online":
+    if driver.status != "available":
         raise HTTPException(
             status_code=400,
             detail=f"Cannot go offline from status '{driver.status}'. Must be 'online'.",
@@ -209,7 +209,7 @@ def puppet_driver_accept_offer(
     if not getattr(driver, "_is_puppet", False):
         raise HTTPException(status_code=400, detail="Agent is not a puppet driver")
 
-    if driver.status != "online":
+    if driver.status != "available":
         raise HTTPException(
             status_code=400,
             detail=f"Cannot accept offer from status '{driver.status}'. Must be 'online'.",
@@ -251,7 +251,7 @@ def puppet_driver_reject_offer(
     if not getattr(driver, "_is_puppet", False):
         raise HTTPException(status_code=400, detail="Agent is not a puppet driver")
 
-    if driver.status != "online":
+    if driver.status != "available":
         raise HTTPException(
             status_code=400,
             detail=f"Cannot reject offer from status '{driver.status}'. Must be 'online'.",
@@ -351,7 +351,7 @@ def puppet_driver_drive_to_destination(
     if not getattr(driver, "_is_puppet", False):
         raise HTTPException(status_code=400, detail="Agent is not a puppet driver")
 
-    if driver.status != "en_route_destination":
+    if driver.status != "on_trip":
         raise HTTPException(
             status_code=400,
             detail=f"Cannot drive to destination from status '{driver.status}'. "
@@ -470,7 +470,7 @@ def puppet_driver_complete_trip(
     if not getattr(driver, "_is_puppet", False):
         raise HTTPException(status_code=400, detail="Agent is not a puppet driver")
 
-    if driver.status != "en_route_destination":
+    if driver.status != "on_trip":
         raise HTTPException(
             status_code=400,
             detail=f"Cannot complete trip from status '{driver.status}'. "
@@ -632,7 +632,7 @@ def puppet_rider_cancel_trip(
     if not getattr(rider, "_is_puppet", False):
         raise HTTPException(status_code=400, detail="Agent is not a puppet rider")
 
-    if rider.status != "waiting":
+    if rider.status != "requesting":
         raise HTTPException(
             status_code=400,
             detail=f"Cannot cancel trip from status '{rider.status}'. Must be 'waiting'.",
@@ -743,7 +743,7 @@ def teleport_driver(
     driver._location = body.location
 
     # Update geospatial index if driver is online
-    if driver.status == "online" and matching_server:
+    if driver.status == "available" and matching_server:
         matching_server._driver_index.update_driver_location(driver.driver_id, body.location)
 
     return PuppetActionResponse(
@@ -844,7 +844,7 @@ def force_rider_patience_timeout(
     if not getattr(rider, "_is_puppet", False):
         raise HTTPException(status_code=400, detail="Agent is not a puppet rider")
 
-    if rider.status != "waiting":
+    if rider.status != "requesting":
         raise HTTPException(
             status_code=400,
             detail=f"Cannot force timeout from status '{rider.status}'. Must be 'waiting'.",
