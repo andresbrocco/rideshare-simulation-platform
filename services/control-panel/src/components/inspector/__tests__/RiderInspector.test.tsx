@@ -7,14 +7,14 @@ const mockRider: Rider = {
   id: 'rider-456',
   latitude: -23.56,
   longitude: -46.64,
-  status: 'waiting',
+  status: 'requesting',
   destination_latitude: -23.58,
   destination_longitude: -46.66,
 };
 
 const mockRiderState: RiderState = {
   rider_id: 'rider-456',
-  status: 'waiting',
+  status: 'requesting',
   location: [-23.56, -46.64],
   current_rating: 4.9,
   rating_count: 50,
@@ -112,7 +112,7 @@ describe('RiderInspector', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'Status' })).toBeInTheDocument();
-    expect(screen.getByText('waiting')).toBeInTheDocument();
+    expect(screen.getByText(/requesting/i)).toBeInTheDocument();
     expect(screen.getByText('4.90 (50)')).toBeInTheDocument();
   });
 
@@ -198,7 +198,7 @@ describe('RiderInspector', () => {
       ...mockRiderState,
       active_trip: {
         trip_id: 'trip-789',
-        state: 'started',
+        state: 'in_transit',
         rider_id: 'rider-456',
         driver_id: 'driver-123',
         counterpart_name: 'Carlos Silva',

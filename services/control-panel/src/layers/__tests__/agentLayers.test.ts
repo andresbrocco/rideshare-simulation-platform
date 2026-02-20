@@ -27,7 +27,14 @@ describe('agentLayers', () => {
   describe('createDriverLayer', () => {
     it('creates an array of IconLayers grouped by status', () => {
       const drivers: Driver[] = [
-        { id: 'd1', latitude: -23.5, longitude: -46.6, status: 'online', rating: 4.5, zone: 'z1' },
+        {
+          id: 'd1',
+          latitude: -23.5,
+          longitude: -46.6,
+          status: 'available',
+          rating: 4.5,
+          zone: 'z1',
+        },
         {
           id: 'd2',
           latitude: -23.6,
@@ -55,13 +62,19 @@ describe('agentLayers', () => {
   describe('createRiderLayer', () => {
     it('creates an array of IconLayers grouped by trip_state', () => {
       const riders: Rider[] = [
-        { id: 'r1', latitude: -23.5, longitude: -46.6, status: 'waiting', trip_state: 'requested' },
+        {
+          id: 'r1',
+          latitude: -23.5,
+          longitude: -46.6,
+          status: 'requesting',
+          trip_state: 'requested',
+        },
         {
           id: 'r2',
           latitude: -23.6,
           longitude: -46.7,
           status: 'in_transit',
-          trip_state: 'started',
+          trip_state: 'in_transit',
         },
       ];
 
@@ -80,7 +93,7 @@ describe('agentLayers', () => {
   });
 
   describe('createPathLayer', () => {
-    it('creates a PathLayer for trips with started status', () => {
+    it('creates a PathLayer for trips with in_transit status', () => {
       const trips: Trip[] = [
         {
           id: 't1',
@@ -95,7 +108,7 @@ describe('agentLayers', () => {
             [-23.55, -46.65],
             [-23.6, -46.7],
           ],
-          status: 'started',
+          status: 'in_transit',
         },
       ];
 
@@ -105,7 +118,7 @@ describe('agentLayers', () => {
       expect(layer.id).toBe('trip-routes');
     });
 
-    it('filters out trips without started status', () => {
+    it('filters out trips without in_transit status', () => {
       const trips: Trip[] = [
         {
           id: 't1',
@@ -154,7 +167,7 @@ describe('agentLayers', () => {
             [-23.45, -46.55],
             [-23.5, -46.6],
           ],
-          status: 'started',
+          status: 'in_transit',
           route_progress_index: 1,
         },
       ];
@@ -189,7 +202,7 @@ describe('agentLayers', () => {
             [-23.45, -46.55],
             [-23.5, -46.6],
           ],
-          status: 'driver_en_route',
+          status: 'en_route_pickup',
           pickup_route_progress_index: 1,
         },
       ];
@@ -216,7 +229,7 @@ describe('agentLayers', () => {
             [-23.55, -46.65],
             [-23.6, -46.7],
           ],
-          status: 'started',
+          status: 'in_transit',
           route_progress_index: 1,
         },
         {
@@ -232,7 +245,7 @@ describe('agentLayers', () => {
             [-23.55, -46.65],
             [-23.6, -46.7],
           ],
-          status: 'started',
+          status: 'in_transit',
           route_progress_index: 1,
         },
       ];
@@ -254,16 +267,16 @@ describe('agentLayers', () => {
   describe('color exports', () => {
     it('exports DRIVER_COLORS with expected statuses', () => {
       expect(DRIVER_COLORS).toBeDefined();
-      expect(DRIVER_COLORS.online).toBeDefined();
+      expect(DRIVER_COLORS.available).toBeDefined();
       expect(DRIVER_COLORS.offline).toBeDefined();
       expect(DRIVER_COLORS.en_route_pickup).toBeDefined();
     });
 
     it('exports RIDER_TRIP_STATE_COLORS with expected states', () => {
       expect(RIDER_TRIP_STATE_COLORS).toBeDefined();
-      expect(RIDER_TRIP_STATE_COLORS.offline).toBeDefined();
+      expect(RIDER_TRIP_STATE_COLORS.idle).toBeDefined();
       expect(RIDER_TRIP_STATE_COLORS.requested).toBeDefined();
-      expect(RIDER_TRIP_STATE_COLORS.started).toBeDefined();
+      expect(RIDER_TRIP_STATE_COLORS.in_transit).toBeDefined();
     });
   });
 
@@ -285,10 +298,17 @@ describe('agentLayers', () => {
 
     it('layer picking enabled on agent layers', () => {
       const drivers: Driver[] = [
-        { id: 'd1', latitude: -23.5, longitude: -46.6, status: 'online', rating: 4.5, zone: 'z1' },
+        {
+          id: 'd1',
+          latitude: -23.5,
+          longitude: -46.6,
+          status: 'available',
+          rating: 4.5,
+          zone: 'z1',
+        },
       ];
       const riders: Rider[] = [
-        { id: 'r1', latitude: -23.5, longitude: -46.6, status: 'waiting', trip_state: 'offline' },
+        { id: 'r1', latitude: -23.5, longitude: -46.6, status: 'requesting', trip_state: 'idle' },
       ];
 
       expect(createOnlineDriversLayer(drivers).props.pickable).toBe(true);

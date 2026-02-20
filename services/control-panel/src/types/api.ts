@@ -5,14 +5,15 @@ export interface SimulationStatus {
   // Detailed driver metrics
   drivers_total: number;
   drivers_offline: number;
-  drivers_online: number;
+  drivers_available: number;
   drivers_en_route_pickup: number;
-  drivers_en_route_destination: number;
+  drivers_on_trip: number;
   // Detailed rider metrics
   riders_total: number;
-  riders_offline: number;
-  riders_waiting: number;
-  riders_in_trip: number;
+  riders_idle: number;
+  riders_requesting: number;
+  riders_awaiting_pickup: number;
+  riders_on_trip: number;
   // Trips
   active_trips_count: number;
   uptime_seconds: number;
@@ -24,7 +25,7 @@ export interface Driver {
   id: string;
   latitude: number;
   longitude: number;
-  status: 'online' | 'offline' | 'en_route_pickup' | 'en_route_destination' | 'offer_pending';
+  status: 'available' | 'offline' | 'en_route_pickup' | 'on_trip' | 'offer_pending';
   rating: number;
   rating_count?: number;
   zone: string;
@@ -33,15 +34,15 @@ export interface Driver {
 
 // Trip state values for rider visualization
 export type TripStateValue =
-  | 'offline'
+  | 'idle'
   | 'requested'
   | 'offer_sent'
   | 'offer_expired'
   | 'offer_rejected'
-  | 'matched'
-  | 'driver_en_route'
-  | 'driver_arrived'
-  | 'started'
+  | 'driver_assigned'
+  | 'en_route_pickup'
+  | 'at_pickup'
+  | 'in_transit'
   | 'completed'
   | 'cancelled';
 
@@ -49,7 +50,7 @@ export interface Rider {
   id: string;
   latitude: number;
   longitude: number;
-  status: 'offline' | 'waiting' | 'in_trip';
+  status: 'idle' | 'requesting' | 'awaiting_pickup' | 'on_trip';
   trip_state?: TripStateValue;
   rating?: number;
   rating_count?: number;
@@ -122,10 +123,10 @@ export interface DemandPoint {
 }
 
 export interface DriverMetrics {
-  online: number;
+  available: number;
   offline: number;
   en_route_pickup: number;
-  en_route_destination: number;
+  on_trip: number;
   total: number;
 }
 
@@ -146,8 +147,8 @@ export interface TripMetrics {
 }
 
 export interface RiderMetrics {
-  offline: number;
-  to_pickup: number;
+  idle: number;
+  awaiting_pickup: number;
   in_transit: number;
   total: number;
 }
@@ -246,7 +247,7 @@ export interface RiderStatistics {
 
 export interface ActiveTripInfo {
   trip_id: string;
-  state: string;
+  state: TripStateValue;
   rider_id: string | null;
   driver_id: string | null;
   counterpart_name: string | null; // Rider name (for driver) or driver name (for rider)
@@ -279,7 +280,7 @@ export interface NextAction {
 
 export interface DriverState {
   driver_id: string;
-  status: string;
+  status: Driver['status'];
   location: [number, number] | null;
   current_rating: number;
   rating_count: number;
@@ -295,7 +296,7 @@ export interface DriverState {
 
 export interface RiderState {
   rider_id: string;
-  status: string;
+  status: Rider['status'];
   location: [number, number] | null;
   current_rating: number;
   rating_count: number;

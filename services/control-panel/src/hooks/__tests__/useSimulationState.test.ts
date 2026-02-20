@@ -43,12 +43,12 @@ describe('useSimulationState', () => {
             id: 'd1',
             latitude: -23.5,
             longitude: -46.6,
-            status: 'online',
+            status: 'available',
             rating: 4.5,
             zone: 'z1',
           },
         ],
-        riders: [{ id: 'r1', latitude: -23.5, longitude: -46.6, status: 'waiting' }],
+        riders: [{ id: 'r1', latitude: -23.5, longitude: -46.6, status: 'requesting' }],
         trips: [],
         surge: { z1: 1.5 },
         simulation: {
@@ -57,13 +57,14 @@ describe('useSimulationState', () => {
           current_time: '2024-01-01T00:00:00',
           drivers_total: 1,
           drivers_offline: 0,
-          drivers_online: 1,
+          drivers_available: 1,
           drivers_en_route_pickup: 0,
-          drivers_en_route_destination: 0,
+          drivers_on_trip: 0,
           riders_total: 1,
-          riders_offline: 0,
-          riders_waiting: 1,
-          riders_in_trip: 0,
+          riders_idle: 0,
+          riders_requesting: 1,
+          riders_awaiting_pickup: 0,
+          riders_on_trip: 0,
           active_trips_count: 0,
           uptime_seconds: 0,
         },
@@ -90,7 +91,7 @@ describe('useSimulationState', () => {
         id: 'd1',
         latitude: -23.5,
         longitude: -46.6,
-        status: 'online',
+        status: 'available',
         rating: 4.5,
         zone: 'z1',
       },
@@ -115,7 +116,7 @@ describe('useSimulationState', () => {
             id: 'd1',
             latitude: -23.5,
             longitude: -46.6,
-            status: 'online',
+            status: 'available',
             rating: 4.5,
             zone: 'z1',
           },
@@ -129,13 +130,14 @@ describe('useSimulationState', () => {
           current_time: '2024-01-01T00:00:00',
           drivers_total: 1,
           drivers_offline: 0,
-          drivers_online: 1,
+          drivers_available: 1,
           drivers_en_route_pickup: 0,
-          drivers_en_route_destination: 0,
+          drivers_on_trip: 0,
           riders_total: 0,
-          riders_offline: 0,
-          riders_waiting: 0,
-          riders_in_trip: 0,
+          riders_idle: 0,
+          riders_requesting: 0,
+          riders_awaiting_pickup: 0,
+          riders_on_trip: 0,
           active_trips_count: 0,
           uptime_seconds: 0,
         },
@@ -170,7 +172,7 @@ describe('useSimulationState', () => {
   it('preserves driver status when update has no status (profile event)', () => {
     const { result } = renderHook(() => useSimulationState());
 
-    // First, set up driver via snapshot with 'online' status
+    // First, set up driver via snapshot with 'available' status
     const snapshot: StateSnapshot = {
       type: 'snapshot',
       data: {
@@ -179,7 +181,7 @@ describe('useSimulationState', () => {
             id: 'd1',
             latitude: -23.5,
             longitude: -46.6,
-            status: 'online',
+            status: 'available',
             rating: 4.5,
             zone: 'z1',
           },
@@ -193,13 +195,14 @@ describe('useSimulationState', () => {
           current_time: '2024-01-01T00:00:00',
           drivers_total: 1,
           drivers_offline: 0,
-          drivers_online: 1,
+          drivers_available: 1,
           drivers_en_route_pickup: 0,
-          drivers_en_route_destination: 0,
+          drivers_on_trip: 0,
           riders_total: 0,
-          riders_offline: 0,
-          riders_waiting: 0,
-          riders_in_trip: 0,
+          riders_idle: 0,
+          riders_requesting: 0,
+          riders_awaiting_pickup: 0,
+          riders_on_trip: 0,
           active_trips_count: 0,
           uptime_seconds: 0,
         },
@@ -210,7 +213,7 @@ describe('useSimulationState', () => {
       result.current.handleMessage(snapshot);
     });
 
-    expect(result.current.drivers[0].status).toBe('online');
+    expect(result.current.drivers[0].status).toBe('available');
 
     // Send driver update WITHOUT status (simulates profile event like driver.created)
     // This should NOT overwrite the existing status
@@ -231,8 +234,8 @@ describe('useSimulationState', () => {
       result.current.handleMessage(profileUpdate);
     });
 
-    // Status should be preserved as 'online', not defaulted to 'offline'
-    expect(result.current.drivers[0].status).toBe('online');
+    // Status should be preserved as 'available', not defaulted to 'offline'
+    expect(result.current.drivers[0].status).toBe('available');
     // Other fields should update
     expect(result.current.drivers[0].latitude).toBe(-23.6);
     expect(result.current.drivers[0].rating).toBe(4.8);
@@ -244,7 +247,7 @@ describe('useSimulationState', () => {
 
     const riderUpdate: RiderUpdate = {
       type: 'rider_update',
-      data: { id: 'r1', latitude: -23.5, longitude: -46.6, status: 'waiting' },
+      data: { id: 'r1', latitude: -23.5, longitude: -46.6, status: 'requesting' },
     };
 
     act(() => {
@@ -272,7 +275,7 @@ describe('useSimulationState', () => {
           [-46.6, -23.5],
           [-46.7, -23.6],
         ],
-        status: 'started',
+        status: 'in_transit',
       },
     };
 
@@ -305,7 +308,7 @@ describe('useSimulationState', () => {
               [-46.6, -23.5],
               [-46.7, -23.6],
             ],
-            status: 'started',
+            status: 'in_transit',
           },
         ],
         surge: {},
@@ -315,13 +318,14 @@ describe('useSimulationState', () => {
           current_time: '2024-01-01T00:00:00',
           drivers_total: 0,
           drivers_offline: 0,
-          drivers_online: 0,
+          drivers_available: 0,
           drivers_en_route_pickup: 0,
-          drivers_en_route_destination: 0,
+          drivers_on_trip: 0,
           riders_total: 0,
-          riders_offline: 0,
-          riders_waiting: 0,
-          riders_in_trip: 0,
+          riders_idle: 0,
+          riders_requesting: 0,
+          riders_awaiting_pickup: 0,
+          riders_on_trip: 0,
           active_trips_count: 1,
           uptime_seconds: 0,
         },
@@ -380,7 +384,7 @@ describe('useSimulationState', () => {
               [-46.6, -23.5],
               [-46.7, -23.6],
             ],
-            status: 'started',
+            status: 'in_transit',
           },
         ],
         surge: {},
@@ -390,13 +394,14 @@ describe('useSimulationState', () => {
           current_time: '2024-01-01T00:00:00',
           drivers_total: 0,
           drivers_offline: 0,
-          drivers_online: 0,
+          drivers_available: 0,
           drivers_en_route_pickup: 0,
-          drivers_en_route_destination: 0,
+          drivers_on_trip: 0,
           riders_total: 0,
-          riders_offline: 0,
-          riders_waiting: 0,
-          riders_in_trip: 0,
+          riders_idle: 0,
+          riders_requesting: 0,
+          riders_awaiting_pickup: 0,
+          riders_on_trip: 0,
           active_trips_count: 1,
           uptime_seconds: 0,
         },
@@ -459,7 +464,7 @@ describe('useSimulationState', () => {
             id: 'd1',
             latitude: -23.5,
             longitude: -46.6,
-            status: 'online',
+            status: 'available',
             rating: 4.5,
             zone: 'z1',
             heading: 0,
@@ -474,13 +479,14 @@ describe('useSimulationState', () => {
           current_time: '2024-01-01T00:00:00',
           drivers_total: 1,
           drivers_offline: 0,
-          drivers_online: 1,
+          drivers_available: 1,
           drivers_en_route_pickup: 0,
-          drivers_en_route_destination: 0,
+          drivers_on_trip: 0,
           riders_total: 0,
-          riders_offline: 0,
-          riders_waiting: 0,
-          riders_in_trip: 0,
+          riders_idle: 0,
+          riders_requesting: 0,
+          riders_awaiting_pickup: 0,
+          riders_on_trip: 0,
           active_trips_count: 0,
           uptime_seconds: 0,
         },
@@ -525,7 +531,7 @@ describe('useSimulationState', () => {
       type: 'snapshot',
       data: {
         drivers: [],
-        riders: [{ id: 'r1', latitude: -23.5, longitude: -46.6, status: 'waiting' }],
+        riders: [{ id: 'r1', latitude: -23.5, longitude: -46.6, status: 'requesting' }],
         trips: [],
         surge: {},
         simulation: {
@@ -534,13 +540,14 @@ describe('useSimulationState', () => {
           current_time: '2024-01-01T00:00:00',
           drivers_total: 0,
           drivers_offline: 0,
-          drivers_online: 0,
+          drivers_available: 0,
           drivers_en_route_pickup: 0,
-          drivers_en_route_destination: 0,
+          drivers_on_trip: 0,
           riders_total: 1,
-          riders_offline: 0,
-          riders_waiting: 1,
-          riders_in_trip: 0,
+          riders_idle: 0,
+          riders_requesting: 1,
+          riders_awaiting_pickup: 0,
+          riders_on_trip: 0,
           active_trips_count: 0,
           uptime_seconds: 0,
         },
@@ -603,15 +610,21 @@ describe('useSimulationState', () => {
   it('updates rider trip_state from gps_ping', () => {
     const { result } = renderHook(() => useSimulationState());
 
-    // Set up initial rider via snapshot with 'matched' state
-    // Note: The hook guards against offline->started transitions to prevent race conditions,
-    // so we start with 'matched' to test valid trip_state updates
+    // Set up initial rider via snapshot with 'driver_assigned' state
+    // Note: The hook guards against idle->in_transit transitions to prevent race conditions,
+    // so we start with 'driver_assigned' to test valid trip_state updates
     const snapshot: StateSnapshot = {
       type: 'snapshot',
       data: {
         drivers: [],
         riders: [
-          { id: 'r1', latitude: -23.5, longitude: -46.6, status: 'waiting', trip_state: 'matched' },
+          {
+            id: 'r1',
+            latitude: -23.5,
+            longitude: -46.6,
+            status: 'requesting',
+            trip_state: 'driver_assigned',
+          },
         ],
         trips: [],
         surge: {},
@@ -621,13 +634,14 @@ describe('useSimulationState', () => {
           current_time: '2024-01-01T00:00:00',
           drivers_total: 0,
           drivers_offline: 0,
-          drivers_online: 0,
+          drivers_available: 0,
           drivers_en_route_pickup: 0,
-          drivers_en_route_destination: 0,
+          drivers_on_trip: 0,
           riders_total: 1,
-          riders_offline: 0,
-          riders_waiting: 1,
-          riders_in_trip: 0,
+          riders_idle: 0,
+          riders_requesting: 1,
+          riders_awaiting_pickup: 0,
+          riders_on_trip: 0,
           active_trips_count: 0,
           uptime_seconds: 0,
         },
@@ -638,7 +652,7 @@ describe('useSimulationState', () => {
       result.current.handleMessage(snapshot);
     });
 
-    expect(result.current.riders[0].trip_state).toBe('matched');
+    expect(result.current.riders[0].trip_state).toBe('driver_assigned');
 
     // GPS ping with trip_state should update rider's trip_state
     const gpsPing: GPSPing = {
@@ -648,7 +662,7 @@ describe('useSimulationState', () => {
         entity_type: 'rider',
         latitude: -23.55,
         longitude: -46.65,
-        trip_state: 'started',
+        trip_state: 'in_transit',
       },
     };
 
@@ -660,7 +674,7 @@ describe('useSimulationState', () => {
 
     expect(result.current.riders[0].latitude).toBe(-23.55);
     expect(result.current.riders[0].longitude).toBe(-46.65);
-    expect(result.current.riders[0].trip_state).toBe('started');
+    expect(result.current.riders[0].trip_state).toBe('in_transit');
   });
 
   it('preserves rider trip_state when gps_ping has no trip_state', () => {
@@ -672,7 +686,13 @@ describe('useSimulationState', () => {
       data: {
         drivers: [],
         riders: [
-          { id: 'r1', latitude: -23.5, longitude: -46.6, status: 'in_trip', trip_state: 'started' },
+          {
+            id: 'r1',
+            latitude: -23.5,
+            longitude: -46.6,
+            status: 'on_trip',
+            trip_state: 'in_transit',
+          },
         ],
         trips: [],
         surge: {},
@@ -682,13 +702,14 @@ describe('useSimulationState', () => {
           current_time: '2024-01-01T00:00:00',
           drivers_total: 0,
           drivers_offline: 0,
-          drivers_online: 0,
+          drivers_available: 0,
           drivers_en_route_pickup: 0,
-          drivers_en_route_destination: 0,
+          drivers_on_trip: 0,
           riders_total: 1,
-          riders_offline: 0,
-          riders_waiting: 1,
-          riders_in_trip: 0,
+          riders_idle: 0,
+          riders_requesting: 0,
+          riders_awaiting_pickup: 0,
+          riders_on_trip: 1,
           active_trips_count: 0,
           uptime_seconds: 0,
         },
@@ -699,7 +720,7 @@ describe('useSimulationState', () => {
       result.current.handleMessage(snapshot);
     });
 
-    expect(result.current.riders[0].trip_state).toBe('started');
+    expect(result.current.riders[0].trip_state).toBe('in_transit');
 
     // GPS ping without trip_state should preserve existing trip_state
     const gpsPing: GPSPing = {
@@ -722,7 +743,7 @@ describe('useSimulationState', () => {
     // Position should update but trip_state should be preserved
     expect(result.current.riders[0].latitude).toBe(-23.55);
     expect(result.current.riders[0].longitude).toBe(-46.65);
-    expect(result.current.riders[0].trip_state).toBe('started');
+    expect(result.current.riders[0].trip_state).toBe('in_transit');
   });
 
   it('handles connect event', () => {
@@ -761,7 +782,13 @@ describe('useSimulationState', () => {
       data: {
         drivers: [],
         riders: [
-          { id: 'r1', latitude: -23.5, longitude: -46.6, status: 'in_trip', trip_state: 'started' },
+          {
+            id: 'r1',
+            latitude: -23.5,
+            longitude: -46.6,
+            status: 'on_trip',
+            trip_state: 'in_transit',
+          },
         ],
         trips: [
           {
@@ -776,7 +803,7 @@ describe('useSimulationState', () => {
               [-46.6, -23.5],
               [-46.7, -23.6],
             ],
-            status: 'started',
+            status: 'in_transit',
           },
         ],
         surge: {},
@@ -786,13 +813,14 @@ describe('useSimulationState', () => {
           current_time: '2024-01-01T00:00:00',
           drivers_total: 0,
           drivers_offline: 0,
-          drivers_online: 0,
+          drivers_available: 0,
           drivers_en_route_pickup: 0,
-          drivers_en_route_destination: 0,
+          drivers_on_trip: 0,
           riders_total: 1,
-          riders_offline: 0,
-          riders_waiting: 0,
-          riders_in_trip: 1,
+          riders_idle: 0,
+          riders_requesting: 0,
+          riders_awaiting_pickup: 0,
+          riders_on_trip: 1,
           active_trips_count: 1,
           uptime_seconds: 0,
         },
@@ -844,7 +872,7 @@ describe('useSimulationState', () => {
             id: 'r1',
             latitude: -23.5,
             longitude: -46.6,
-            status: 'waiting',
+            status: 'requesting',
             trip_state: 'requested',
           },
         ],
@@ -871,13 +899,14 @@ describe('useSimulationState', () => {
           current_time: '2024-01-01T00:00:00',
           drivers_total: 0,
           drivers_offline: 0,
-          drivers_online: 0,
+          drivers_available: 0,
           drivers_en_route_pickup: 0,
-          drivers_en_route_destination: 0,
+          drivers_on_trip: 0,
           riders_total: 1,
-          riders_offline: 0,
-          riders_waiting: 1,
-          riders_in_trip: 0,
+          riders_idle: 0,
+          riders_requesting: 1,
+          riders_awaiting_pickup: 0,
+          riders_on_trip: 0,
           active_trips_count: 1,
           uptime_seconds: 0,
         },
@@ -929,7 +958,7 @@ describe('useSimulationState', () => {
               id: 'd1',
               latitude: -23.5,
               longitude: -46.6,
-              status: 'online',
+              status: 'available',
               rating: 4.5,
               zone: 'z1',
             },
@@ -943,13 +972,14 @@ describe('useSimulationState', () => {
             current_time: '2024-01-01T00:00:00',
             drivers_total: 1,
             drivers_offline: 0,
-            drivers_online: 1,
+            drivers_available: 1,
             drivers_en_route_pickup: 0,
-            drivers_en_route_destination: 0,
+            drivers_on_trip: 0,
             riders_total: 0,
-            riders_offline: 0,
-            riders_waiting: 0,
-            riders_in_trip: 0,
+            riders_idle: 0,
+            riders_requesting: 0,
+            riders_awaiting_pickup: 0,
+            riders_on_trip: 0,
             active_trips_count: 0,
             uptime_seconds: 0,
           },
@@ -1000,12 +1030,12 @@ describe('useSimulationState', () => {
               id: 'd1',
               latitude: -23.5,
               longitude: -46.6,
-              status: 'online',
+              status: 'available',
               rating: 4.5,
               zone: 'z1',
             },
           ],
-          riders: [{ id: 'r1', latitude: -23.5, longitude: -46.6, status: 'waiting' }],
+          riders: [{ id: 'r1', latitude: -23.5, longitude: -46.6, status: 'requesting' }],
           trips: [],
           surge: {},
           simulation: {
@@ -1014,13 +1044,14 @@ describe('useSimulationState', () => {
             current_time: '2024-01-01T00:00:00',
             drivers_total: 1,
             drivers_offline: 0,
-            drivers_online: 1,
+            drivers_available: 1,
             drivers_en_route_pickup: 0,
-            drivers_en_route_destination: 0,
+            drivers_on_trip: 0,
             riders_total: 1,
-            riders_offline: 0,
-            riders_waiting: 1,
-            riders_in_trip: 0,
+            riders_idle: 0,
+            riders_requesting: 1,
+            riders_awaiting_pickup: 0,
+            riders_on_trip: 0,
             active_trips_count: 0,
             uptime_seconds: 0,
           },
@@ -1067,7 +1098,7 @@ describe('useSimulationState', () => {
               id: 'd1',
               latitude: -23.5,
               longitude: -46.6,
-              status: 'en_route_destination',
+              status: 'on_trip',
               rating: 4.5,
               zone: 'z1',
             },
@@ -1086,7 +1117,7 @@ describe('useSimulationState', () => {
                 [-46.6, -23.5],
                 [-46.7, -23.6],
               ],
-              status: 'started',
+              status: 'in_transit',
               route_progress_index: 0,
             },
           ],
@@ -1097,13 +1128,14 @@ describe('useSimulationState', () => {
             current_time: '2024-01-01T00:00:00',
             drivers_total: 1,
             drivers_offline: 0,
-            drivers_online: 0,
+            drivers_available: 0,
             drivers_en_route_pickup: 0,
-            drivers_en_route_destination: 1,
+            drivers_on_trip: 1,
             riders_total: 0,
-            riders_offline: 0,
-            riders_waiting: 0,
-            riders_in_trip: 0,
+            riders_idle: 0,
+            riders_requesting: 0,
+            riders_awaiting_pickup: 0,
+            riders_on_trip: 0,
             active_trips_count: 1,
             uptime_seconds: 0,
           },

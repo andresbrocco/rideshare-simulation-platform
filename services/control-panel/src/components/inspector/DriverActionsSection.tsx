@@ -55,7 +55,7 @@ export function DriverActionsSection({
 
       {active_trip && (
         <div className={styles.buttonGroup}>
-          {status === 'en_route_pickup' && active_trip.state !== 'driver_arrived' && (
+          {status === 'en_route_pickup' && active_trip.state !== 'at_pickup' && (
             <button
               className={styles.actionButton}
               onClick={onArriveAtPickup}
@@ -65,7 +65,7 @@ export function DriverActionsSection({
             </button>
           )}
 
-          {active_trip.state === 'driver_arrived' && (
+          {active_trip.state === 'at_pickup' && (
             <button
               className={`${styles.actionButton} ${styles.successButton}`}
               onClick={onStartTrip}
@@ -75,7 +75,7 @@ export function DriverActionsSection({
             </button>
           )}
 
-          {status === 'en_route_destination' && (
+          {status === 'on_trip' && (
             <button
               className={`${styles.actionButton} ${styles.successButton}`}
               onClick={onCompleteTrip}
@@ -85,7 +85,7 @@ export function DriverActionsSection({
             </button>
           )}
 
-          {status === 'en_route_pickup' && active_trip.state !== 'started' && (
+          {status === 'en_route_pickup' && active_trip.state !== 'in_transit' && (
             <button
               className={`${styles.actionButton} ${styles.dangerButton}`}
               onClick={onCancelTrip}
@@ -99,7 +99,7 @@ export function DriverActionsSection({
 
       {!active_trip && !pending_offer && (
         <button className={styles.actionButton} onClick={onToggleStatus} disabled={actionLoading}>
-          {actionLoading ? 'Loading...' : status === 'online' ? 'Go Offline' : 'Go Online'}
+          {actionLoading ? 'Loading...' : status === 'available' ? 'Go Offline' : 'Go Online'}
         </button>
       )}
     </>

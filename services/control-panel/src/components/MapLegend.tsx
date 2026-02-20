@@ -3,15 +3,15 @@ import styles from './MapLegend.module.css';
 
 const LEGEND_ITEMS = [
   // Driver states
-  { id: 'online-drivers', label: 'Online Drivers', color: STAGE_CSS.available.base },
-  { id: 'offline-drivers', label: 'Offline Drivers', color: STAGE_CSS.idle.base },
-  { id: 'en-route-pickup', label: 'En Route to Pickup', color: STAGE_CSS.pickup.base },
-  { id: 'with-passenger', label: 'With Passenger', color: STAGE_CSS.transit.base },
+  { id: 'online-drivers', label: 'Available', color: STAGE_CSS.available.base },
+  { id: 'offline-drivers', label: 'Offline', color: STAGE_CSS.idle.base },
+  { id: 'en-route-pickup', label: 'To Pickup', color: STAGE_CSS.pickup.base },
+  { id: 'with-passenger', label: 'On Trip', color: STAGE_CSS.transit.base },
   // Rider states (based on trip state)
-  { id: 'offline-riders', label: 'Offline', color: STAGE_CSS.idle.light },
+  { id: 'offline-riders', label: 'Idle', color: STAGE_CSS.idle.light },
   { id: 'requesting-riders', label: 'Requesting', color: STAGE_CSS.requesting.base },
-  { id: 'en-route-riders', label: 'Driver En Route', color: STAGE_CSS.pickup.light },
-  { id: 'arrived-riders', label: 'Driver Arrived', color: STAGE_CSS.pickup.lighter },
+  { id: 'en-route-riders', label: 'Awaiting Pickup', color: STAGE_CSS.pickup.light },
+  { id: 'arrived-riders', label: 'Awaiting Pickup (arrived)', color: STAGE_CSS.pickup.lighter },
   { id: 'in-transit-riders', label: 'In Transit', color: STAGE_CSS.transit.base },
   // Route layers
   { id: 'pending-routes', label: 'Pending Routes', color: STAGE_CSS.requesting.route },

@@ -101,10 +101,10 @@ export function useSimulationState() {
             ridersChanged = true;
           }
 
-          // Guard: Don't let stale GPS pings revert trip_state from 'offline' to 'started'
+          // Guard: Don't let stale GPS pings revert trip_state from 'idle' to 'in_transit'
           // This prevents race condition where late-arriving pings overwrite completion state
           const shouldUpdateTripState =
-            ping.trip_state && !(rider.trip_state === 'offline' && ping.trip_state === 'started');
+            ping.trip_state && !(rider.trip_state === 'idle' && ping.trip_state === 'in_transit');
 
           newRiders.set(ping.id, {
             ...rider,
@@ -209,7 +209,7 @@ export function useSimulationState() {
                 ...existingRider,
                 ...(data as Rider),
                 // Preserve trip_state from existing if update doesn't include it
-                trip_state: (data as Rider).trip_state ?? existingRider?.trip_state ?? 'offline',
+                trip_state: (data as Rider).trip_state ?? existingRider?.trip_state ?? 'idle',
               });
             }
             break;
@@ -225,13 +225,13 @@ export function useSimulationState() {
               if (tripUpdate.status === 'completed' || tripUpdate.status === 'cancelled') {
                 evictTripFromRouteCache(tripUpdate.id);
                 newState.trips.delete(tripUpdate.id);
-                // Reset rider's trip_state to offline when trip completes/cancels
+                // Reset rider's trip_state to idle when trip completes/cancels
                 const rider = prev.riders.get(tripUpdate.rider_id);
                 if (rider) {
                   newState.riders = new Map(prev.riders);
                   newState.riders.set(tripUpdate.rider_id, {
                     ...rider,
-                    trip_state: 'offline',
+                    trip_state: 'idle',
                   });
                 }
               } else {

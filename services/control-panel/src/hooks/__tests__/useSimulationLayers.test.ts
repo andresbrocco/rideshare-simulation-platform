@@ -13,6 +13,8 @@ describe('useSimulationLayers', () => {
     withPassengerDrivers: true,
     offlineRiders: true,
     requestingRiders: true,
+    enRouteRiders: true,
+    arrivedRiders: true,
     inTransitRiders: true,
     pendingRoutes: true,
     pickupRoutes: true,
@@ -23,10 +25,10 @@ describe('useSimulationLayers', () => {
 
   it('returns layers including route and agent layers without zones', () => {
     const drivers: Driver[] = [
-      { id: 'd1', latitude: -23.5, longitude: -46.6, status: 'online', rating: 4.5, zone: 'z1' },
+      { id: 'd1', latitude: -23.5, longitude: -46.6, status: 'available', rating: 4.5, zone: 'z1' },
     ];
     const riders: Rider[] = [
-      { id: 'r1', latitude: -23.5, longitude: -46.6, status: 'waiting', trip_state: 'offline' },
+      { id: 'r1', latitude: -23.5, longitude: -46.6, status: 'requesting', trip_state: 'idle' },
     ];
     const trips: Trip[] = [];
 
@@ -47,10 +49,10 @@ describe('useSimulationLayers', () => {
 
   it('returns layers with zones when zone data is provided', () => {
     const drivers: Driver[] = [
-      { id: 'd1', latitude: -23.5, longitude: -46.6, status: 'online', rating: 4.5, zone: 'z1' },
+      { id: 'd1', latitude: -23.5, longitude: -46.6, status: 'available', rating: 4.5, zone: 'z1' },
     ];
     const riders: Rider[] = [
-      { id: 'r1', latitude: -23.5, longitude: -46.6, status: 'waiting', trip_state: 'offline' },
+      { id: 'r1', latitude: -23.5, longitude: -46.6, status: 'requesting', trip_state: 'idle' },
     ];
     const trips: Trip[] = [];
     const zoneData: ZoneData[] = [
@@ -147,7 +149,7 @@ describe('useSimulationLayers', () => {
 
   it('creates driver layers grouped by status', () => {
     const drivers: Driver[] = [
-      { id: 'd1', latitude: -23.5, longitude: -46.6, status: 'online', rating: 4.5, zone: 'z1' },
+      { id: 'd1', latitude: -23.5, longitude: -46.6, status: 'available', rating: 4.5, zone: 'z1' },
       {
         id: 'd2',
         latitude: -23.6,
@@ -167,14 +169,14 @@ describe('useSimulationLayers', () => {
     );
 
     const layerIds = result.current.map((l) => l.id);
-    expect(layerIds).toContain('drivers-online');
+    expect(layerIds).toContain('drivers-available');
     expect(layerIds).toContain('drivers-en_route_pickup');
   });
 
   it('creates rider layers grouped by trip_state', () => {
     const riders: Rider[] = [
-      { id: 'r1', latitude: -23.5, longitude: -46.6, status: 'waiting', trip_state: 'offline' },
-      { id: 'r2', latitude: -23.6, longitude: -46.7, status: 'in_transit', trip_state: 'started' },
+      { id: 'r1', latitude: -23.5, longitude: -46.6, status: 'requesting', trip_state: 'idle' },
+      { id: 'r2', latitude: -23.6, longitude: -46.7, status: 'on_trip', trip_state: 'in_transit' },
     ];
 
     const { result } = renderHook(() =>
@@ -186,8 +188,8 @@ describe('useSimulationLayers', () => {
     );
 
     const layerIds = result.current.map((l) => l.id);
-    expect(layerIds).toContain('riders-offline');
-    expect(layerIds).toContain('riders-started');
+    expect(layerIds).toContain('riders-idle');
+    expect(layerIds).toContain('riders-in_transit');
   });
 
   it('creates route layers for trips', () => {
@@ -223,7 +225,7 @@ describe('useSimulationLayers', () => {
 
   it('respects layerVisibility settings', () => {
     const drivers: Driver[] = [
-      { id: 'd1', latitude: -23.5, longitude: -46.6, status: 'online', rating: 4.5, zone: 'z1' },
+      { id: 'd1', latitude: -23.5, longitude: -46.6, status: 'available', rating: 4.5, zone: 'z1' },
     ];
 
     const hiddenVisibility: LayerVisibility = {

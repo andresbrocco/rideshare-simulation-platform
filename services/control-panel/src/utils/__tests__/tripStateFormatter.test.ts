@@ -2,36 +2,40 @@ import { describe, it, expect } from 'vitest';
 import { formatTripState } from '../tripStateFormatter';
 
 describe('formatTripState', () => {
+  it('formats idle state', () => {
+    expect(formatTripState('idle')).toBe('Idle');
+  });
+
   it('formats requested state', () => {
-    expect(formatTripState('requested')).toBe('Waiting for match');
+    expect(formatTripState('requested')).toBe('Requesting ride');
   });
 
   it('formats offer_sent state', () => {
-    expect(formatTripState('offer_sent')).toBe('Offer sent to driver');
+    expect(formatTripState('offer_sent')).toBe('Finding driver');
   });
 
   it('formats offer_expired state', () => {
-    expect(formatTripState('offer_expired')).toBe('Offer expired');
+    expect(formatTripState('offer_expired')).toBe('Finding another driver');
   });
 
   it('formats offer_rejected state', () => {
-    expect(formatTripState('offer_rejected')).toBe('Offer rejected');
+    expect(formatTripState('offer_rejected')).toBe('Finding another driver');
   });
 
-  it('formats matched state', () => {
-    expect(formatTripState('matched')).toBe('Driver assigned');
+  it('formats driver_assigned state', () => {
+    expect(formatTripState('driver_assigned')).toBe('Driver assigned');
   });
 
-  it('formats driver_en_route state', () => {
-    expect(formatTripState('driver_en_route')).toBe('Driver en route');
+  it('formats en_route_pickup state', () => {
+    expect(formatTripState('en_route_pickup')).toBe('Waiting for pickup');
   });
 
-  it('formats driver_arrived state', () => {
-    expect(formatTripState('driver_arrived')).toBe('Driver arrived');
+  it('formats at_pickup state', () => {
+    expect(formatTripState('at_pickup')).toBe('Driver at pickup');
   });
 
-  it('formats started state', () => {
-    expect(formatTripState('started')).toBe('In progress');
+  it('formats in_transit state', () => {
+    expect(formatTripState('in_transit')).toBe('In transit');
   });
 
   it('formats completed state', () => {
@@ -40,9 +44,5 @@ describe('formatTripState', () => {
 
   it('formats cancelled state', () => {
     expect(formatTripState('cancelled')).toBe('Cancelled');
-  });
-
-  it('returns original state for unknown states', () => {
-    expect(formatTripState('unknown_state')).toBe('unknown_state');
   });
 });

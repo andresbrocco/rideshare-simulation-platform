@@ -1,5 +1,6 @@
 import type { Driver, DriverState } from '../../types/api';
 import { formatTripState } from '../../utils/tripStateFormatter';
+import { formatDriverStatus } from '../../utils/driverStatusFormatter';
 import { NextActionsSection } from '../NextActionsSection';
 import { InspectorSection } from './InspectorSection';
 import { InspectorRow } from './InspectorRow';
@@ -66,7 +67,7 @@ export function DriverInspector({
 
       <InspectorSection title="Status">
         <InspectorRow label="ID" value={driver.id} isId />
-        <InspectorRow label="Status" value={state.status} />
+        <InspectorRow label="Status" value={formatDriverStatus(state.status)} />
         <InspectorRow
           label="Rating"
           value={
@@ -92,11 +93,11 @@ export function DriverInspector({
           {active_trip.counterpart_name && (
             <InspectorRow
               label={
-                active_trip.state === 'driver_en_route'
+                active_trip.state === 'en_route_pickup'
                   ? 'En route to'
-                  : active_trip.state === 'driver_arrived'
+                  : active_trip.state === 'at_pickup'
                     ? 'Waiting for'
-                    : active_trip.state === 'started'
+                    : active_trip.state === 'in_transit'
                       ? 'Driving'
                       : 'Rider'
               }

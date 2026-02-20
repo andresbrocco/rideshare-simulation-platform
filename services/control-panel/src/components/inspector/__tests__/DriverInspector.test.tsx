@@ -7,14 +7,14 @@ const mockDriver: Driver = {
   id: 'driver-123',
   latitude: -23.55,
   longitude: -46.63,
-  status: 'online',
+  status: 'available',
   rating: 4.7,
   zone: 'Vila Mariana',
 };
 
 const mockDriverState: DriverState = {
   driver_id: 'driver-123',
-  status: 'online',
+  status: 'available',
   location: [-23.55, -46.63],
   current_rating: 4.85,
   rating_count: 150,
@@ -121,7 +121,7 @@ describe('DriverInspector', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'Status' })).toBeInTheDocument();
-    expect(screen.getByText('online')).toBeInTheDocument();
+    expect(screen.getByText(/available/i)).toBeInTheDocument();
     expect(screen.getByText('4.85 (150)')).toBeInTheDocument();
   });
 
@@ -233,7 +233,7 @@ describe('DriverInspector', () => {
       ...mockDriverState,
       active_trip: {
         trip_id: 'trip-456',
-        state: 'started',
+        state: 'in_transit',
         rider_id: 'rider-789',
         driver_id: 'driver-123',
         counterpart_name: 'Ana Santos',

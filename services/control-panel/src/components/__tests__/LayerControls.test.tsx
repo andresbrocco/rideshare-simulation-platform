@@ -29,10 +29,10 @@ describe('LayerControls', () => {
 
     // Driver layers - unique labels
     expect(screen.getByLabelText(/to pickup/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/with rider/i)).toBeInTheDocument();
-    // "Online" and "Offline" appear in both driver and rider sections
-    expect(screen.getAllByLabelText(/^online$/i)).toHaveLength(1);
-    expect(screen.getAllByLabelText(/^offline$/i)).toHaveLength(2); // Driver + Rider
+    expect(screen.getByLabelText(/on trip/i)).toBeInTheDocument();
+    // "Available" for drivers, "Idle" for riders (no shared labels)
+    expect(screen.getAllByLabelText(/^available$/i)).toHaveLength(1);
+    expect(screen.getAllByLabelText(/^offline$/i)).toHaveLength(1); // Driver only
 
     // Rider layers
     expect(screen.getByLabelText(/requesting/i)).toBeInTheDocument();
@@ -50,7 +50,7 @@ describe('LayerControls', () => {
     render(<LayerControls visibility={fullVisibility} onChange={mockOnChange} />);
 
     // Check checked state based on fullVisibility
-    expect(screen.getByLabelText(/^online$/i)).toBeChecked();
+    expect(screen.getByLabelText(/^available$/i)).toBeChecked();
     expect(screen.getByLabelText(/to pickup/i)).toBeChecked();
     expect(screen.getByLabelText(/requesting/i)).toBeChecked();
     expect(screen.getByLabelText(/in transit/i)).toBeChecked();
@@ -110,7 +110,7 @@ describe('LayerControls', () => {
     const collapseButton = screen.getByRole('button', { name: /collapse/i });
     await user.click(collapseButton);
 
-    expect(screen.queryByLabelText(/^online$/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^available$/i)).not.toBeInTheDocument();
   });
 
   describe('category toggles', () => {

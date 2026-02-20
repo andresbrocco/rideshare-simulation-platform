@@ -5,7 +5,7 @@ import type { DriverState, RiderState } from '../../types/api';
 
 const mockDriverState: DriverState = {
   driver_id: 'driver-123',
-  status: 'online',
+  status: 'available',
   location: [-23.55, -46.63],
   current_rating: 4.8,
   rating_count: 150,
@@ -54,7 +54,7 @@ const mockDriverState: DriverState = {
 
 const mockRiderState: RiderState = {
   rider_id: 'rider-456',
-  status: 'waiting',
+  status: 'requesting',
   location: [-23.56, -46.64],
   current_rating: 4.9,
   rating_count: 50,

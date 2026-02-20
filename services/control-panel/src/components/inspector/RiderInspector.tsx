@@ -1,5 +1,6 @@
 import type { Rider, RiderState } from '../../types/api';
 import { formatTripState } from '../../utils/tripStateFormatter';
+import { formatRiderStatus } from '../../utils/riderStatusFormatter';
 import { NextActionsSection } from '../NextActionsSection';
 import { InspectorSection } from './InspectorSection';
 import { InspectorRow } from './InspectorRow';
@@ -61,7 +62,7 @@ export function RiderInspector({
 
       <InspectorSection title="Status">
         <InspectorRow label="ID" value={rider.id} isId />
-        <InspectorRow label="Status" value={state.status} />
+        <InspectorRow label="Status" value={formatRiderStatus(state.status)} />
         <InspectorRow
           label="Rating"
           value={
@@ -81,10 +82,10 @@ export function RiderInspector({
               value={
                 <>
                   <span>{active_trip.counterpart_name}</span>
-                  {active_trip.state === 'matched' && ' assigned'}
-                  {active_trip.state === 'driver_en_route' && ' is en route'}
-                  {active_trip.state === 'driver_arrived' && ' has arrived'}
-                  {active_trip.state === 'started' && ' (in trip)'}
+                  {active_trip.state === 'driver_assigned' && ' assigned'}
+                  {active_trip.state === 'en_route_pickup' && ' en route to you'}
+                  {active_trip.state === 'at_pickup' && ' waiting at pickup'}
+                  {active_trip.state === 'in_transit' && ' driving'}
                 </>
               }
             />

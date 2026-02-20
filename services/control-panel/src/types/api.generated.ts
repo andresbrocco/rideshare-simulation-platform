@@ -1812,20 +1812,22 @@ export interface components {
       drivers_total: number;
       /** Drivers Offline */
       drivers_offline: number;
-      /** Drivers Online */
-      drivers_online: number;
+      /** Drivers Available */
+      drivers_available: number;
       /** Drivers En Route Pickup */
       drivers_en_route_pickup: number;
-      /** Drivers En Route Destination */
-      drivers_en_route_destination: number;
+      /** Drivers On Trip */
+      drivers_on_trip: number;
       /** Riders Total */
       riders_total: number;
-      /** Riders Offline */
-      riders_offline: number;
-      /** Riders Waiting */
-      riders_waiting: number;
-      /** Riders In Trip */
-      riders_in_trip: number;
+      /** Riders Idle */
+      riders_idle: number;
+      /** Riders Requesting */
+      riders_requesting: number;
+      /** Riders Awaiting Pickup */
+      riders_awaiting_pickup: number;
+      /** Riders On Trip */
+      riders_on_trip: number;
       /** Active Trips Count */
       active_trips_count: number;
       /** Uptime Seconds */

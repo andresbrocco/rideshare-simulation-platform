@@ -6,7 +6,7 @@ import type { RiderState } from '../../../types/api';
 
 const baseRiderState: RiderState = {
   rider_id: 'rider-456',
-  status: 'offline',
+  status: 'idle',
   location: [-23.56, -46.64],
   current_rating: 4.9,
   rating_count: 50,
@@ -50,7 +50,7 @@ describe('RiderActionsSection', () => {
     onCancelTrip: vi.fn(),
   };
 
-  it('shows request trip button when rider is offline', () => {
+  it('shows request trip button when rider is idle', () => {
     render(
       <RiderActionsSection state={baseRiderState} actionLoading={false} {...defaultHandlers} />
     );
@@ -75,13 +75,15 @@ describe('RiderActionsSection', () => {
     expect(onRequestTrip).toHaveBeenCalled();
   });
 
-  it('shows cancel trip button when rider is waiting', () => {
-    const waitingState: RiderState = {
+  it('shows cancel trip button when rider is requesting', () => {
+    const requestingState: RiderState = {
       ...baseRiderState,
-      status: 'waiting',
+      status: 'requesting',
     };
 
-    render(<RiderActionsSection state={waitingState} actionLoading={false} {...defaultHandlers} />);
+    render(
+      <RiderActionsSection state={requestingState} actionLoading={false} {...defaultHandlers} />
+    );
 
     expect(screen.getByRole('button', { name: /cancel trip/i })).toBeInTheDocument();
   });
@@ -89,10 +91,10 @@ describe('RiderActionsSection', () => {
   it('shows cancel trip button when rider has active trip (not started)', () => {
     const stateWithTrip: RiderState = {
       ...baseRiderState,
-      status: 'in_trip',
+      status: 'on_trip',
       active_trip: {
         trip_id: 'trip-789',
-        state: 'driver_en_route',
+        state: 'en_route_pickup',
         rider_id: 'rider-456',
         driver_id: 'driver-123',
         counterpart_name: 'Carlos Silva',
@@ -113,10 +115,10 @@ describe('RiderActionsSection', () => {
   it('does not show cancel button when trip has started', () => {
     const tripStartedState: RiderState = {
       ...baseRiderState,
-      status: 'in_trip',
+      status: 'on_trip',
       active_trip: {
         trip_id: 'trip-789',
-        state: 'started',
+        state: 'in_transit',
         rider_id: 'rider-456',
         driver_id: 'driver-123',
         counterpart_name: 'Carlos Silva',
@@ -138,14 +140,14 @@ describe('RiderActionsSection', () => {
     const user = userEvent.setup();
     const onCancelTrip = vi.fn();
 
-    const waitingState: RiderState = {
+    const requestingState: RiderState = {
       ...baseRiderState,
-      status: 'waiting',
+      status: 'requesting',
     };
 
     render(
       <RiderActionsSection
-        state={waitingState}
+        state={requestingState}
         actionLoading={false}
         {...defaultHandlers}
         onCancelTrip={onCancelTrip}
@@ -164,24 +166,26 @@ describe('RiderActionsSection', () => {
     expect(screen.getByRole('button', { name: /loading/i })).toBeDisabled();
   });
 
-  it('shows waiting status badge when rider is waiting', () => {
-    const waitingState: RiderState = {
+  it('shows requesting status badge when rider is requesting', () => {
+    const requestingState: RiderState = {
       ...baseRiderState,
-      status: 'waiting',
+      status: 'requesting',
     };
 
-    render(<RiderActionsSection state={waitingState} actionLoading={false} {...defaultHandlers} />);
+    render(
+      <RiderActionsSection state={requestingState} actionLoading={false} {...defaultHandlers} />
+    );
 
-    expect(screen.getByText(/waiting for driver/i)).toBeInTheDocument();
+    expect(screen.getByText(/finding a driver/i)).toBeInTheDocument();
   });
 
   it('shows trip in progress status when rider has active trip', () => {
     const stateWithTrip: RiderState = {
       ...baseRiderState,
-      status: 'in_trip',
+      status: 'on_trip',
       active_trip: {
         trip_id: 'trip-789',
-        state: 'driver_arrived',
+        state: 'at_pickup',
         rider_id: 'rider-456',
         driver_id: 'driver-123',
         counterpart_name: 'Carlos Silva',
@@ -196,16 +200,18 @@ describe('RiderActionsSection', () => {
       <RiderActionsSection state={stateWithTrip} actionLoading={false} {...defaultHandlers} />
     );
 
-    expect(screen.getByText(/trip in progress/i)).toBeInTheDocument();
+    expect(screen.getByText(/in transit/i)).toBeInTheDocument();
   });
 
-  it('does not show request button when rider is not offline', () => {
-    const waitingState: RiderState = {
+  it('does not show request button when rider is not idle', () => {
+    const requestingState: RiderState = {
       ...baseRiderState,
-      status: 'waiting',
+      status: 'requesting',
     };
 
-    render(<RiderActionsSection state={waitingState} actionLoading={false} {...defaultHandlers} />);
+    render(
+      <RiderActionsSection state={requestingState} actionLoading={false} {...defaultHandlers} />
+    );
 
     expect(screen.queryByRole('button', { name: /request trip/i })).not.toBeInTheDocument();
   });
@@ -213,10 +219,10 @@ describe('RiderActionsSection', () => {
   it('shows info message for other statuses', () => {
     const inTripState: RiderState = {
       ...baseRiderState,
-      status: 'in_trip',
+      status: 'on_trip',
       active_trip: {
         trip_id: 'trip-789',
-        state: 'started',
+        state: 'in_transit',
         rider_id: 'rider-456',
         driver_id: 'driver-123',
         counterpart_name: 'Carlos Silva',
@@ -230,6 +236,32 @@ describe('RiderActionsSection', () => {
     render(<RiderActionsSection state={inTripState} actionLoading={false} {...defaultHandlers} />);
 
     // Trip started, no cancel button, should show status
-    expect(screen.getByText(/in_trip/i)).toBeInTheDocument();
+    expect(screen.getByText(/on_trip/i)).toBeInTheDocument();
+  });
+
+  it('shows cancel trip button when rider is awaiting pickup', () => {
+    const awaitingPickupState: RiderState = {
+      ...baseRiderState,
+      status: 'awaiting_pickup',
+    };
+
+    render(
+      <RiderActionsSection state={awaitingPickupState} actionLoading={false} {...defaultHandlers} />
+    );
+
+    expect(screen.getByRole('button', { name: /cancel trip/i })).toBeInTheDocument();
+  });
+
+  it('shows driver-assigned badge when rider is awaiting pickup', () => {
+    const awaitingPickupState: RiderState = {
+      ...baseRiderState,
+      status: 'awaiting_pickup',
+    };
+
+    render(
+      <RiderActionsSection state={awaitingPickupState} actionLoading={false} {...defaultHandlers} />
+    );
+
+    expect(screen.getByText(/driver assigned, heading to you/i)).toBeInTheDocument();
   });
 });

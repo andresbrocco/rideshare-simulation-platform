@@ -43,7 +43,7 @@ const mockDriver: Driver = {
   id: 'driver_123',
   latitude: -23.5505,
   longitude: -46.6333,
-  status: 'online',
+  status: 'available',
   rating: 4.7,
   zone: 'Vila Mariana',
 };
@@ -52,7 +52,7 @@ const mockRider: Rider = {
   id: 'rider_456',
   latitude: -23.5489,
   longitude: -46.6388,
-  status: 'in_transit',
+  status: 'on_trip',
   destination_latitude: -23.56,
   destination_longitude: -46.65,
 };
@@ -61,7 +61,7 @@ const mockRiderWaiting: Rider = {
   id: 'rider_789',
   latitude: -23.5489,
   longitude: -46.6388,
-  status: 'waiting',
+  status: 'requesting',
 };
 
 describe('InspectorPopup', () => {
@@ -97,7 +97,7 @@ describe('InspectorPopup', () => {
     await waitFor(() => {
       expect(screen.getByText(/driver_123/i)).toBeInTheDocument();
     });
-    expect(screen.getByText(/online/i)).toBeInTheDocument();
+    expect(screen.getByText(/available/i)).toBeInTheDocument();
     expect(screen.getByText('4.7')).toBeInTheDocument();
   });
 
@@ -109,7 +109,7 @@ describe('InspectorPopup', () => {
     await waitFor(() => {
       expect(screen.getByText(/rider_456/i)).toBeInTheDocument();
     });
-    expect(screen.getByText(/in_transit/i)).toBeInTheDocument();
+    expect(screen.getByText(/on_trip/i)).toBeInTheDocument();
     expect(screen.getByText(/-23.5600/)).toBeInTheDocument();
     expect(screen.getByText(/-46.6500/)).toBeInTheDocument();
   });
@@ -122,7 +122,7 @@ describe('InspectorPopup', () => {
     await waitFor(() => {
       expect(screen.getByText(/rider_789/i)).toBeInTheDocument();
     });
-    expect(screen.getByText(/waiting/i)).toBeInTheDocument();
+    expect(screen.getByText(/requesting/i)).toBeInTheDocument();
     expect(screen.getByText(/not set/i)).toBeInTheDocument();
   });
 

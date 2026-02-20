@@ -22,32 +22,33 @@ const PERSON_ICON_MAPPING = {
 };
 
 // Driver status colors by trip lifecycle phase
-export const DRIVER_COLORS: Record<string, RgbTuple> = {
-  online: STAGE_RGB.available.base,
+export const DRIVER_COLORS: Record<Driver['status'], RgbTuple> = {
+  available: STAGE_RGB.available.base,
   offline: STAGE_RGB.idle.base,
   en_route_pickup: STAGE_RGB.pickup.base,
-  en_route_destination: STAGE_RGB.transit.base,
+  on_trip: STAGE_RGB.transit.base,
+  offer_pending: STAGE_RGB.available.base,
 };
 
 // Rider colors by trip lifecycle phase
 export const RIDER_TRIP_STATE_COLORS: Record<TripStateValue | 'default', RgbTuple> = {
-  offline: STAGE_RGB.idle.light,
+  idle: STAGE_RGB.idle.light,
   requested: STAGE_RGB.requesting.base,
   offer_sent: STAGE_RGB.requesting.base,
   offer_expired: STAGE_RGB.cancelled.base,
   offer_rejected: STAGE_RGB.cancelled.base,
-  matched: STAGE_RGB.pickup.base,
-  driver_en_route: STAGE_RGB.pickup.light,
-  driver_arrived: STAGE_RGB.pickup.lighter,
-  started: STAGE_RGB.transit.base,
+  driver_assigned: STAGE_RGB.pickup.base,
+  en_route_pickup: STAGE_RGB.pickup.light,
+  at_pickup: STAGE_RGB.pickup.lighter,
+  in_transit: STAGE_RGB.transit.base,
   completed: STAGE_RGB.completed.base,
   cancelled: STAGE_RGB.cancelled.base,
-  default: STAGE_RGB.requesting.base,
+  default: STAGE_RGB.idle.light,
 };
 
 // Helper to get rider color from trip state
 export function getRiderColor(rider: Rider): RgbTuple {
-  const tripState = rider.trip_state || 'offline';
+  const tripState = rider.trip_state || 'idle';
   return RIDER_TRIP_STATE_COLORS[tripState] || RIDER_TRIP_STATE_COLORS.default;
 }
 
@@ -157,7 +158,7 @@ export function evictTripFromRouteCache(tripId: string): void {
 // ============================================================================
 
 export function createOnlineDriversLayer(drivers: Driver[], scaleFactor: number = 1) {
-  const onlineDrivers = drivers.filter((d) => d.status === 'online');
+  const onlineDrivers = drivers.filter((d) => d.status === 'available');
   return new IconLayer({
     id: 'online-drivers',
     data: onlineDrivers,
@@ -224,7 +225,7 @@ export function createEnRoutePickupDriversLayer(drivers: Driver[], scaleFactor: 
 }
 
 export function createWithPassengerDriversLayer(drivers: Driver[], scaleFactor: number = 1) {
-  const withPassengerDrivers = drivers.filter((d) => d.status === 'en_route_destination');
+  const withPassengerDrivers = drivers.filter((d) => d.status === 'on_trip');
   return new IconLayer({
     id: 'with-passenger-drivers',
     data: withPassengerDrivers,
@@ -250,10 +251,10 @@ export function createWithPassengerDriversLayer(drivers: Driver[], scaleFactor: 
 const ACTIVE_TRIP_STATES = new Set<string>([
   'requested',
   'offer_sent',
-  'matched',
-  'driver_en_route',
-  'driver_arrived',
-  'started',
+  'driver_assigned',
+  'en_route_pickup',
+  'at_pickup',
+  'in_transit',
 ]);
 
 export function createOfflineRidersLayer(riders: Rider[], scaleFactor: number = 1) {
@@ -283,7 +284,9 @@ export function createRequestingRidersLayer(riders: Rider[], scaleFactor: number
   // Riders in REQUESTED, OFFER_SENT, or MATCHED states (pre-pickup phase)
   const requestingRiders = riders.filter(
     (r) =>
-      r.trip_state === 'requested' || r.trip_state === 'offer_sent' || r.trip_state === 'matched'
+      r.trip_state === 'requested' ||
+      r.trip_state === 'offer_sent' ||
+      r.trip_state === 'driver_assigned'
   );
   return new IconLayer({
     id: 'requesting-riders',
@@ -307,7 +310,7 @@ export function createRequestingRidersLayer(riders: Rider[], scaleFactor: number
 
 export function createEnRouteRidersLayer(riders: Rider[], scaleFactor: number = 1) {
   // Riders in DRIVER_EN_ROUTE state (driver on the way)
-  const enRouteRiders = riders.filter((r) => r.trip_state === 'driver_en_route');
+  const enRouteRiders = riders.filter((r) => r.trip_state === 'en_route_pickup');
   return new IconLayer({
     id: 'en-route-riders',
     data: enRouteRiders,
@@ -330,7 +333,7 @@ export function createEnRouteRidersLayer(riders: Rider[], scaleFactor: number = 
 
 export function createArrivedRidersLayer(riders: Rider[], scaleFactor: number = 1) {
   // Riders in DRIVER_ARRIVED state (driver at pickup location)
-  const arrivedRiders = riders.filter((r) => r.trip_state === 'driver_arrived');
+  const arrivedRiders = riders.filter((r) => r.trip_state === 'at_pickup');
   return new IconLayer({
     id: 'arrived-riders',
     data: arrivedRiders,
@@ -353,7 +356,7 @@ export function createArrivedRidersLayer(riders: Rider[], scaleFactor: number = 
 
 export function createInTransitRidersLayer(riders: Rider[], scaleFactor: number = 1) {
   // Riders in STARTED state (in vehicle)
-  const inTransitRiders = riders.filter((r) => r.trip_state === 'started');
+  const inTransitRiders = riders.filter((r) => r.trip_state === 'in_transit');
   return new IconLayer({
     id: 'in-transit-riders',
     data: inTransitRiders,
@@ -389,7 +392,7 @@ export function createPendingRouteLayer(
     (t) =>
       t.route &&
       t.route.length > 0 &&
-      (t.status === 'requested' || t.status === 'offer_sent' || t.status === 'matched')
+      (t.status === 'requested' || t.status === 'offer_sent' || t.status === 'driver_assigned')
   );
 
   return new PathLayer({
@@ -410,7 +413,7 @@ export function createPickupRouteLayer(trips: Trip[], visible: boolean = true) {
     (t) =>
       t.pickup_route &&
       t.pickup_route.length > 0 &&
-      (t.status === 'driver_en_route' || t.status === 'driver_arrived')
+      (t.status === 'en_route_pickup' || t.status === 'at_pickup')
   );
 
   return new PathLayer({
@@ -428,7 +431,9 @@ export function createPickupRouteLayer(trips: Trip[], visible: boolean = true) {
 
 // Trip routes: Light blue solid - in transit phase
 export function createPathLayer(trips: Trip[], visible: boolean = true) {
-  const activeTrips = trips.filter((t) => t.route && t.route.length > 0 && t.status === 'started');
+  const activeTrips = trips.filter(
+    (t) => t.route && t.route.length > 0 && t.status === 'in_transit'
+  );
 
   return new PathLayer({
     id: 'trip-routes',
@@ -452,7 +457,7 @@ export function createCompletedPickupRouteLayer(
     (t) =>
       t.pickup_route &&
       t.pickup_route.length > 0 &&
-      t.status === 'driver_en_route' &&
+      t.status === 'en_route_pickup' &&
       t.pickup_route_progress_index !== undefined &&
       t.pickup_route_progress_index > 0
   );
@@ -491,9 +496,9 @@ export function createRemainingPickupRouteLayer(
   visible: boolean = true,
   scaleFactor: number = 1
 ) {
-  // Only show during driver_en_route - once arrived, pickup route is complete
+  // Only show during en_route_pickup - once arrived, pickup route is complete
   const tripsWithPickupRoutes = trips.filter(
-    (t) => t.pickup_route && t.pickup_route.length > 0 && t.status === 'driver_en_route'
+    (t) => t.pickup_route && t.pickup_route.length > 0 && t.status === 'en_route_pickup'
   );
 
   // Pre-compute remaining routes for each trip using cache
@@ -535,7 +540,7 @@ export function createCompletedTripRouteLayer(
     (t) =>
       t.route &&
       t.route.length > 0 &&
-      t.status === 'started' &&
+      t.status === 'in_transit' &&
       t.route_progress_index !== undefined &&
       t.route_progress_index > 0
   );
@@ -569,7 +574,9 @@ export function createRemainingTripRouteLayer(
   visible: boolean = true,
   scaleFactor: number = 1
 ) {
-  const activeTrips = trips.filter((t) => t.route && t.route.length > 0 && t.status === 'started');
+  const activeTrips = trips.filter(
+    (t) => t.route && t.route.length > 0 && t.status === 'in_transit'
+  );
 
   // Pre-compute remaining routes for each trip using cache
   const remainingData = activeTrips
@@ -600,7 +607,9 @@ export function createDestinationFlagLayer(
   visible: boolean = true,
   scaleFactor: number = 1
 ) {
-  const activeTrips = trips.filter((t) => t.route && t.route.length > 0 && t.status === 'started');
+  const activeTrips = trips.filter(
+    (t) => t.route && t.route.length > 0 && t.status === 'in_transit'
+  );
 
   return new IconLayer({
     id: 'destination-flags',
@@ -631,10 +640,11 @@ export function createDriverLayer(drivers: Driver[], scaleFactor: number = 1) {
   // Group drivers by status for separate layers (since iconAtlas can't change per-item)
   const layers = [];
   const statusGroups = {
-    online: drivers.filter((d) => d.status === 'online'),
+    available: drivers.filter((d) => d.status === 'available'),
     offline: drivers.filter((d) => d.status === 'offline'),
     en_route_pickup: drivers.filter((d) => d.status === 'en_route_pickup'),
-    en_route_destination: drivers.filter((d) => d.status === 'en_route_destination'),
+    on_trip: drivers.filter((d) => d.status === 'on_trip'),
+    offer_pending: drivers.filter((d) => d.status === 'offer_pending'),
   };
 
   for (const [status, group] of Object.entries(statusGroups)) {
@@ -655,7 +665,7 @@ export function createDriverLayer(drivers: Driver[], scaleFactor: number = 1) {
 
           getPosition: (d: Driver) => [d.longitude, d.latitude],
           getAngle: (d: Driver) => 90 - (d.heading ?? 0),
-          getColor: DRIVER_COLORS[status] || DRIVER_COLORS.online,
+          getColor: DRIVER_COLORS[status as Driver['status']] || DRIVER_COLORS.available,
         })
       );
     }
@@ -675,7 +685,7 @@ export function createRiderLayer(riders: Rider[], scaleFactor: number = 1) {
   const stateGroups: Record<string, Rider[]> = {};
 
   for (const rider of riders) {
-    const state = rider.trip_state || 'offline';
+    const state = rider.trip_state || 'idle';
     if (!stateGroups[state]) stateGroups[state] = [];
     stateGroups[state].push(rider);
   }

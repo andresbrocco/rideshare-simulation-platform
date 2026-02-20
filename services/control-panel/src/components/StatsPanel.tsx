@@ -53,9 +53,9 @@ export default function StatsPanel({
           <div className={styles.statsGrid}>
             <div className={styles.statItem}>
               <Tooltip text="Drivers available for new trip requests">
-                <span className={styles.statLabel}>Online:</span>
+                <span className={styles.statLabel}>Available:</span>
               </Tooltip>
-              <span className={styles.statValue}>{driverMetrics?.online ?? '-'}</span>
+              <span className={styles.statValue}>{driverMetrics?.available ?? '-'}</span>
             </div>
             <div className={styles.statItem}>
               <Tooltip text="Drivers not currently active">
@@ -70,10 +70,10 @@ export default function StatsPanel({
               <span className={styles.statValue}>{driverMetrics?.en_route_pickup ?? '-'}</span>
             </div>
             <div className={styles.statItem}>
-              <Tooltip text="Drivers heading to dropoff with rider">
-                <span className={styles.statLabel}>With Rider:</span>
+              <Tooltip text="Drivers driving to dropoff with rider">
+                <span className={styles.statLabel}>On Trip:</span>
               </Tooltip>
-              <span className={styles.statValue}>{driverMetrics?.en_route_destination ?? '-'}</span>
+              <span className={styles.statValue}>{driverMetrics?.on_trip ?? '-'}</span>
             </div>
           </div>
         </div>
@@ -83,15 +83,15 @@ export default function StatsPanel({
           <div className={styles.statsGrid}>
             <div className={styles.statItem}>
               <Tooltip text="Riders not currently requesting a trip">
-                <span className={styles.statLabel}>Offline:</span>
+                <span className={styles.statLabel}>Idle:</span>
               </Tooltip>
-              <span className={styles.statValue}>{riderMetrics?.offline ?? '-'}</span>
+              <span className={styles.statValue}>{riderMetrics?.idle ?? '-'}</span>
             </div>
             <div className={styles.statItem}>
-              <Tooltip text="Riders awaiting driver pickup (driver en route or arrived)">
+              <Tooltip text="Riders with a driver assigned, waiting at pickup location">
                 <span className={styles.statLabel}>Awaiting Pickup:</span>
               </Tooltip>
-              <span className={styles.statValue}>{riderMetrics?.to_pickup ?? '-'}</span>
+              <span className={styles.statValue}>{riderMetrics?.awaiting_pickup ?? '-'}</span>
             </div>
             <div className={styles.statItem}>
               <Tooltip text="Riders currently in a vehicle">

@@ -16,15 +16,15 @@ interface LayerConfig {
 
 const LAYER_CONFIGS: LayerConfig[] = [
   // Driver layers
-  { key: 'onlineDrivers', label: 'Online', color: STAGE_HEX.available.base },
+  { key: 'onlineDrivers', label: 'Available', color: STAGE_HEX.available.base },
   { key: 'offlineDrivers', label: 'Offline', color: STAGE_HEX.idle.base },
   { key: 'enRoutePickupDrivers', label: 'To Pickup', color: STAGE_HEX.pickup.base },
-  { key: 'withPassengerDrivers', label: 'With Rider', color: STAGE_HEX.transit.base },
+  { key: 'withPassengerDrivers', label: 'On Trip', color: STAGE_HEX.transit.base },
   // Rider layers
-  { key: 'offlineRiders', label: 'Offline', color: STAGE_HEX.idle.light },
+  { key: 'offlineRiders', label: 'Idle', color: STAGE_HEX.idle.light },
   { key: 'requestingRiders', label: 'Requesting', color: STAGE_HEX.requesting.base },
-  { key: 'enRouteRiders', label: 'Driver En Route', color: STAGE_HEX.pickup.light },
-  { key: 'arrivedRiders', label: 'Driver Arrived', color: STAGE_HEX.pickup.lighter },
+  { key: 'enRouteRiders', label: 'Awaiting Pickup', color: STAGE_HEX.pickup.light },
+  { key: 'arrivedRiders', label: 'Awaiting Pickup (arrived)', color: STAGE_HEX.pickup.lighter },
   { key: 'inTransitRiders', label: 'In Transit', color: STAGE_HEX.transit.base },
   // Trip/Route layers
   { key: 'pendingRoutes', label: 'Pending Routes', color: STAGE_HEX.requesting.route },

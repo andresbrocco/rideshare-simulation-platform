@@ -6,7 +6,7 @@ import type { DriverState } from '../../../types/api';
 
 const baseDriverState: DriverState = {
   driver_id: 'driver-123',
-  status: 'online',
+  status: 'available',
   location: [-23.55, -46.63],
   current_rating: 4.85,
   rating_count: 150,
@@ -143,7 +143,7 @@ describe('DriverActionsSection', () => {
       status: 'en_route_pickup',
       active_trip: {
         trip_id: 'trip-456',
-        state: 'driver_en_route',
+        state: 'en_route_pickup',
         rider_id: 'rider-789',
         driver_id: 'driver-123',
         counterpart_name: 'Ana Santos',
@@ -167,7 +167,7 @@ describe('DriverActionsSection', () => {
       status: 'en_route_pickup',
       active_trip: {
         trip_id: 'trip-456',
-        state: 'driver_arrived',
+        state: 'at_pickup',
         rider_id: 'rider-789',
         driver_id: 'driver-123',
         counterpart_name: 'Ana Santos',
@@ -188,10 +188,10 @@ describe('DriverActionsSection', () => {
   it('shows complete trip button when in transit', () => {
     const stateInTransit: DriverState = {
       ...baseDriverState,
-      status: 'en_route_destination',
+      status: 'on_trip',
       active_trip: {
         trip_id: 'trip-456',
-        state: 'started',
+        state: 'in_transit',
         rider_id: 'rider-789',
         driver_id: 'driver-123',
         counterpart_name: 'Ana Santos',
@@ -215,7 +215,7 @@ describe('DriverActionsSection', () => {
       status: 'en_route_pickup',
       active_trip: {
         trip_id: 'trip-456',
-        state: 'driver_en_route',
+        state: 'en_route_pickup',
         rider_id: 'rider-789',
         driver_id: 'driver-123',
         counterpart_name: 'Ana Santos',
@@ -233,7 +233,7 @@ describe('DriverActionsSection', () => {
     expect(screen.getByRole('button', { name: /cancel trip/i })).toBeInTheDocument();
   });
 
-  it('shows go offline button when driver is online with no trip', () => {
+  it('shows go offline button when driver is available with no trip', () => {
     render(
       <DriverActionsSection state={baseDriverState} actionLoading={false} {...defaultHandlers} />
     );

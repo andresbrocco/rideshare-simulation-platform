@@ -29,16 +29,16 @@ describe('MapLegend', () => {
     const legendItems = screen.getAllByRole('listitem');
     expect(legendItems).toHaveLength(14);
 
-    expect(legendItems[0]).toHaveTextContent(/online drivers/i);
-    expect(legendItems[1]).toHaveTextContent(/offline drivers/i);
+    expect(legendItems[0]).toHaveTextContent(/available/i);
+    expect(legendItems[1]).toHaveTextContent(/offline/i);
   });
 
   it('shows_status_labels', () => {
     render(<MapLegend />);
 
-    expect(screen.getByText(/online drivers/i)).toBeInTheDocument();
-    expect(screen.getByText(/offline drivers/i)).toBeInTheDocument();
-    expect(screen.getByText(/en route to pickup/i)).toBeInTheDocument();
+    expect(screen.getByText(/available/i)).toBeInTheDocument();
+    expect(screen.getByText(/offline/i)).toBeInTheDocument();
+    expect(screen.getByText(/to pickup/i)).toBeInTheDocument();
     expect(screen.getByText(/requesting/i)).toBeInTheDocument();
     expect(screen.getByText(/in transit/i)).toBeInTheDocument();
   });

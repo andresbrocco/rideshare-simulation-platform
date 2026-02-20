@@ -15,10 +15,13 @@ export function RiderActionsSection({
   onCancelTrip,
 }: RiderActionsSectionProps) {
   const { active_trip, status } = state;
-  const canCancel = status === 'waiting' || (active_trip && active_trip.state !== 'started');
-  const tripStarted = active_trip?.state === 'started';
+  const canCancel =
+    status === 'requesting' ||
+    status === 'awaiting_pickup' ||
+    (active_trip !== null && active_trip.state !== 'in_transit');
+  const tripStarted = active_trip?.state === 'in_transit';
 
-  if (status === 'offline' && !active_trip) {
+  if (status === 'idle' && !active_trip) {
     return (
       <button className={styles.actionButton} onClick={onRequestTrip} disabled={actionLoading}>
         {actionLoading ? 'Loading...' : 'Request Trip (Select Destination)'}
@@ -30,7 +33,11 @@ export function RiderActionsSection({
     return (
       <div className={styles.buttonGroup}>
         <div className={styles.statusBadge}>
-          {status === 'waiting' ? 'Waiting for driver...' : 'Trip in progress'}
+          {status === 'requesting'
+            ? 'Finding a driver...'
+            : status === 'awaiting_pickup'
+              ? 'Driver assigned, heading to you...'
+              : 'In transit'}
         </div>
         <button
           className={`${styles.actionButton} ${styles.dangerButton}`}
@@ -47,7 +54,12 @@ export function RiderActionsSection({
     return <div className={styles.infoMessage}>Status: {status}</div>;
   }
 
-  if (status !== 'offline' && status !== 'waiting' && !active_trip) {
+  if (
+    status !== 'idle' &&
+    status !== 'requesting' &&
+    status !== 'awaiting_pickup' &&
+    !active_trip
+  ) {
     return <div className={styles.infoMessage}>Status: {status}</div>;
   }
 

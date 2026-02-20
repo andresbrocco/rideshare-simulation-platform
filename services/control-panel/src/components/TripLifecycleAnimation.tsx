@@ -17,15 +17,15 @@ function rgbString(color: readonly [number, number, number]): string {
 // ============================================================================
 
 const COLOR_DRIVER_OFFLINE = DRIVER_COLORS.offline;
-const COLOR_DRIVER_ONLINE = DRIVER_COLORS.online;
+const COLOR_DRIVER_ONLINE = DRIVER_COLORS.available;
 const COLOR_DRIVER_PICKUP = DRIVER_COLORS.en_route_pickup;
-const COLOR_DRIVER_TRIP = DRIVER_COLORS.en_route_destination;
+const COLOR_DRIVER_TRIP = DRIVER_COLORS.on_trip;
 
-const COLOR_RIDER_OFFLINE = RIDER_TRIP_STATE_COLORS.offline;
+const COLOR_RIDER_OFFLINE = RIDER_TRIP_STATE_COLORS.idle;
 const COLOR_RIDER_REQUESTED = RIDER_TRIP_STATE_COLORS.requested;
-const COLOR_RIDER_MATCHED = RIDER_TRIP_STATE_COLORS.matched;
-const COLOR_RIDER_EN_ROUTE = RIDER_TRIP_STATE_COLORS.driver_en_route;
-const COLOR_RIDER_STARTED = RIDER_TRIP_STATE_COLORS.started;
+const COLOR_RIDER_MATCHED = RIDER_TRIP_STATE_COLORS.driver_assigned;
+const COLOR_RIDER_EN_ROUTE = RIDER_TRIP_STATE_COLORS.en_route_pickup;
+const COLOR_RIDER_STARTED = RIDER_TRIP_STATE_COLORS.in_transit;
 const COLOR_RIDER_COMPLETED = RIDER_TRIP_STATE_COLORS.completed;
 
 // Route colors derived from theme
