@@ -621,16 +621,34 @@ class RiderAgent(EventEmitter):
             destination = self.select_destination()
             trip_id = str(uuid.uuid4())
 
-            self.request_trip(trip_id)
+            # Determine zone and check surge BEFORE committing to request
+            # Surge threshold retry loop — rider waits for surge to drop
+            while True:
+                pickup_zone_id = self._determine_zone(self._location) or "unknown"
+                surge_multiplier = self._get_surge(pickup_zone_id)
 
-            # Determine zones and calculate fare
-            pickup_zone_id = self._determine_zone(self._location) or "unknown"
+                if surge_multiplier <= self._dna.max_surge_multiplier:
+                    break  # Surge acceptable, proceed with trip
+
+                logger.debug(
+                    f"Rider {self._rider_id}: Surge {surge_multiplier:.2f}x exceeds "
+                    f"threshold {self._dna.max_surge_multiplier:.2f}x, retrying later"
+                )
+                retry_wait = random.uniform(30, 120)
+                self._next_action = NextAction(
+                    action_type=NextActionType.REQUEST_RIDE,
+                    scheduled_at=self._env.now + retry_wait,
+                    description="Waiting for surge to drop",
+                )
+                yield self._env.timeout(retry_wait)
+
+            # Passed surge check: now officially request the trip
+            self.request_trip(trip_id)
 
             # Track pending request for surge calculation
             if self._surge_calculator and pickup_zone_id != "unknown":
                 self._surge_calculator.increment_pending_request(pickup_zone_id)
             dropoff_zone_id = self._determine_zone(destination) or "unknown"
-            surge_multiplier = self._get_surge(pickup_zone_id)
             fare = self._calculate_fare(self._location, destination, surge_multiplier)
 
             # Emit trip.requested event (root event for this trip)

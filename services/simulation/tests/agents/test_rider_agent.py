@@ -1,5 +1,5 @@
 import random
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 import simpy
@@ -378,3 +378,97 @@ class TestRiderCalculateFare:
         fare_surged = agent._calculate_fare(pickup, dropoff, surge_multiplier=2.0)
 
         assert fare_surged == pytest.approx(fare_base * 2.0)
+
+
+@pytest.mark.unit
+class TestRiderSurgeThreshold:
+    """Tests for max_surge_multiplier DNA — riders refuse trips when surge exceeds threshold."""
+
+    def test_surge_above_threshold_skips_request_trip(
+        self, simpy_env, mock_kafka_producer, dna_factory: DNAFactory
+    ):
+        """When surge exceeds max_surge_multiplier, request_trip() is never called."""
+        dna = dna_factory.rider_dna(
+            avg_rides_per_week=100000,
+            max_surge_multiplier=1.5,
+            patience_threshold=120,
+        )
+        agent = RiderAgent(
+            rider_id="rider_surge_001",
+            dna=dna,
+            env=simpy_env,
+            kafka_producer=mock_kafka_producer,
+            immediate_first_trip=True,
+        )
+        agent.update_location(-23.56, -46.65)
+
+        # Mock surge to always return 2.0x (above threshold of 1.5x)
+        agent._get_surge = Mock(return_value=2.0)
+
+        simpy_env.process(agent.run())
+        # Run for 200s — rider retries every 30-120s but never gets below threshold
+        simpy_env.run(until=200)
+
+        # Rider must still be offline (never called request_trip)
+        assert agent.status == "offline"
+        assert agent.active_trip is None
+        assert agent.statistics.trips_requested == 0
+
+    def test_surge_at_or_below_threshold_proceeds_normally(
+        self, simpy_env, mock_kafka_producer, dna_factory: DNAFactory
+    ):
+        """When surge is at or below max_surge_multiplier, trip request proceeds."""
+        dna = dna_factory.rider_dna(
+            avg_rides_per_week=100000,
+            max_surge_multiplier=2.0,
+            patience_threshold=120,
+        )
+        agent = RiderAgent(
+            rider_id="rider_surge_002",
+            dna=dna,
+            env=simpy_env,
+            kafka_producer=mock_kafka_producer,
+            immediate_first_trip=True,
+        )
+        agent.update_location(-23.56, -46.65)
+
+        # Mock surge to return exactly threshold (should pass)
+        agent._get_surge = Mock(return_value=2.0)
+
+        simpy_env.process(agent.run())
+        simpy_env.run(until=10)
+
+        # Rider should have requested a trip (status transitions to waiting)
+        assert agent.status == "waiting"
+        assert agent.active_trip is not None
+        assert agent.statistics.trips_requested == 1
+
+    def test_surge_retry_proceeds_when_surge_drops(
+        self, simpy_env, mock_kafka_producer, dna_factory: DNAFactory
+    ):
+        """Rider retries and proceeds once surge drops below threshold."""
+        dna = dna_factory.rider_dna(
+            avg_rides_per_week=100000,
+            max_surge_multiplier=1.5,
+            patience_threshold=120,
+        )
+        agent = RiderAgent(
+            rider_id="rider_surge_003",
+            dna=dna,
+            env=simpy_env,
+            kafka_producer=mock_kafka_producer,
+            immediate_first_trip=True,
+        )
+        agent.update_location(-23.56, -46.65)
+
+        # First call: surge too high (2.5x); second call: surge dropped (1.2x)
+        agent._get_surge = Mock(side_effect=[2.5, 1.2])
+
+        simpy_env.process(agent.run())
+        # Run long enough for: 1s stabilisation + up to 120s retry + proceed
+        simpy_env.run(until=150)
+
+        # Rider should have eventually requested a trip
+        assert agent.status in ("waiting", "offline")  # waiting or timed out after requesting
+        assert agent.statistics.trips_requested == 1
+        assert agent._get_surge.call_count == 2
