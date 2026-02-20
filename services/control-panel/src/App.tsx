@@ -1,12 +1,12 @@
 import { useState, useMemo, useCallback } from 'react';
-import LoginScreen from './components/LoginScreen';
+import { LandingPage } from './components/LandingPage';
+import PasswordDialog from './components/PasswordDialog';
 import Map from './components/Map';
 import MapErrorBoundary from './components/MapErrorBoundary';
 import ControlPanel from './components/ControlPanel';
 import LayerControls from './components/LayerControls';
 import InspectorPopup, { type InspectedEntity } from './components/InspectorPopup';
 import AgentPlacement from './components/AgentPlacement';
-import { OfflineMode } from './components/OfflineMode';
 import { useApiHealth } from './hooks/useApiHealth';
 import { useSimulationState } from './hooks/useSimulationState';
 import { useSimulationLayers } from './hooks/useSimulationLayers';
@@ -46,25 +46,9 @@ function DisconnectedBanner() {
 
 function AppContent() {
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-  const { available, checking } = useApiHealth(apiUrl);
-  const [wasEverAvailable, setWasEverAvailable] = useState(false);
+  const { available } = useApiHealth(apiUrl);
 
-  // Latch: once available, stay available (synchronous state update during render)
-  if (available && !wasEverAvailable) {
-    setWasEverAvailable(true);
-  }
-
-  if (!wasEverAvailable) {
-    if (checking) {
-      return (
-        <div className="loading-container">
-          <div className="loading-spinner" />
-          <p>Checking API availability...</p>
-        </div>
-      );
-    }
-    return <OfflineMode />;
-  }
+  // NOTE: available is kept for ticket 04 (reconnection UX)
 
   return (
     <>
@@ -79,6 +63,7 @@ function OnlineApp() {
     return sessionStorage.getItem('apiKey');
   });
 
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [layerVisibility, setLayerVisibility] = useState<LayerVisibility>(DEFAULT_VISIBILITY);
   const [inspectedEntity, setInspectedEntity] = useState<InspectedEntity>(null);
   const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
@@ -203,8 +188,12 @@ function OnlineApp() {
       <Toaster position="top-right" />
       {!apiKey ? (
         <>
-          <h1>Rideshare Simulation Control Panel</h1>
-          <LoginScreen onLogin={handleLogin} />
+          <LandingPage onLoginClick={() => setShowPasswordDialog(true)} />
+          <PasswordDialog
+            open={showPasswordDialog}
+            onClose={() => setShowPasswordDialog(false)}
+            onLogin={handleLogin}
+          />
         </>
       ) : (
         <>

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import { OfflineMode } from '../OfflineMode';
+import userEvent from '@testing-library/user-event';
+import { LandingPage } from '../LandingPage';
 
 // Mock canvas-confetti
 vi.mock('canvas-confetti', () => ({
@@ -16,7 +17,10 @@ SVGElement.prototype.getTotalLength = vi.fn().mockReturnValue(900);
 // @ts-expect-error -- same as above
 SVGElement.prototype.getPointAtLength = vi.fn().mockReturnValue({ x: 100, y: 40 });
 
+const mockOnLoginClick = vi.fn();
+
 beforeEach(() => {
+  vi.clearAllMocks();
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: vi.fn().mockImplementation((query: string) => ({
@@ -32,9 +36,9 @@ beforeEach(() => {
   });
 });
 
-describe('OfflineMode', () => {
+describe('LandingPage', () => {
   it('renders project title and subtitle', () => {
-    render(<OfflineMode />);
+    render(<LandingPage onLoginClick={mockOnLoginClick} />);
 
     expect(
       screen.getByRole('heading', { level: 1, name: 'Rideshare Simulation Platform' })
@@ -45,13 +49,13 @@ describe('OfflineMode', () => {
   });
 
   it('renders project overview description', () => {
-    render(<OfflineMode />);
+    render(<LandingPage onLoginClick={mockOnLoginClick} />);
 
     expect(screen.getByText(/event-driven data engineering platform/i)).toBeInTheDocument();
   });
 
   it('shows architecture highlights', () => {
-    render(<OfflineMode />);
+    render(<LandingPage onLoginClick={mockOnLoginClick} />);
 
     const archHeading = screen.getByRole('heading', {
       level: 2,
@@ -68,7 +72,7 @@ describe('OfflineMode', () => {
   });
 
   it('shows technology stack section', () => {
-    render(<OfflineMode />);
+    render(<LandingPage onLoginClick={mockOnLoginClick} />);
 
     const techHeading = screen.getByRole('heading', {
       level: 2,
@@ -84,7 +88,7 @@ describe('OfflineMode', () => {
   });
 
   it('displays GitHub link with correct attributes', () => {
-    render(<OfflineMode />);
+    render(<LandingPage onLoginClick={mockOnLoginClick} />);
 
     const link = screen.getByRole('link', { name: /View on GitHub/i });
     expect(link).toHaveAttribute(
@@ -96,7 +100,7 @@ describe('OfflineMode', () => {
   });
 
   it('shows data pipeline section', () => {
-    render(<OfflineMode />);
+    render(<LandingPage onLoginClick={mockOnLoginClick} />);
 
     expect(screen.getByRole('heading', { level: 2, name: 'Data Pipeline' })).toBeInTheDocument();
     expect(screen.getByText('Bronze')).toBeInTheDocument();
@@ -105,12 +109,35 @@ describe('OfflineMode', () => {
   });
 
   it('renders the trip lifecycle animation', () => {
-    render(<OfflineMode />);
+    render(<LandingPage onLoginClick={mockOnLoginClick} />);
 
     expect(
       screen.getByRole('img', {
         name: 'Animated trip lifecycle: a driver picks up a rider and drives to the destination',
       })
     ).toBeInTheDocument();
+  });
+
+  it('renders login button', () => {
+    render(<LandingPage onLoginClick={mockOnLoginClick} />);
+
+    const loginButton = screen.getByRole('button', { name: /login/i });
+    expect(loginButton).toBeInTheDocument();
+  });
+
+  it('calls onLoginClick when login button clicked', async () => {
+    const user = userEvent.setup();
+    render(<LandingPage onLoginClick={mockOnLoginClick} />);
+
+    const loginButton = screen.getByRole('button', { name: /login/i });
+    await user.click(loginButton);
+
+    expect(mockOnLoginClick).toHaveBeenCalledOnce();
+  });
+
+  it('does not show Demo Offline badge', () => {
+    render(<LandingPage onLoginClick={mockOnLoginClick} />);
+
+    expect(screen.queryByText(/demo offline/i)).not.toBeInTheDocument();
   });
 });

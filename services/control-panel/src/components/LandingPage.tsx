@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { TripLifecycleAnimation } from './TripLifecycleAnimation';
 
-export function OfflineMode() {
+export function LandingPage({ onLoginClick }: { onLoginClick: () => void }) {
   useEffect(() => {
     const prevOverflow = document.body.style.overflow;
     const prevHeight = document.body.style.height;
@@ -14,24 +14,27 @@ export function OfflineMode() {
   }, []);
 
   return (
-    <div className="offline-container">
-      <div className="offline-inner">
-        <div className="offline-hero">
-          <div className="offline-hero-glow" />
-          <div className="offline-status-badge">
-            <span className="offline-status-dot" />
-            Demo Offline
-          </div>
+    <div className="landing-container">
+      <div className="landing-inner">
+        <div className="landing-hero">
+          <div className="landing-hero-glow" />
           <h1>Rideshare Simulation Platform</h1>
-          <p className="offline-subtitle">
+          <p className="landing-subtitle">
             Real-time Event-Driven Data Engineering &mdash; Portfolio Project
           </p>
+          <button
+            onClick={onLoginClick}
+            className="landing-login-button"
+            aria-label="Login to access control panel"
+          >
+            Login
+          </button>
         </div>
 
         <TripLifecycleAnimation />
 
-        <div className="offline-body">
-          <div className="offline-overview">
+        <div className="landing-body">
+          <div className="landing-overview">
             <p>
               An event-driven data engineering platform combining a discrete-event simulation engine
               with a medallion lakehouse pipeline. The system simulates a rideshare platform in
@@ -40,8 +43,8 @@ export function OfflineMode() {
             </p>
           </div>
 
-          <div className="offline-two-col">
-            <section className="offline-section">
+          <div className="landing-two-col">
+            <section className="landing-section">
               <h2>Architecture Highlights</h2>
               <ul>
                 <li>SimPy discrete-event simulation with DNA-based agent behavior</li>
@@ -53,26 +56,26 @@ export function OfflineMode() {
               </ul>
             </section>
 
-            <section className="offline-section">
+            <section className="landing-section">
               <h2>Technology Stack</h2>
-              <div className="offline-tech-grid">
-                <span className="offline-tech-badge">Python 3.13</span>
-                <span className="offline-tech-badge">TypeScript</span>
-                <span className="offline-tech-badge">Apache Kafka</span>
-                <span className="offline-tech-badge">Delta Lake</span>
-                <span className="offline-tech-badge">Apache Trino</span>
-                <span className="offline-tech-badge">dbt</span>
-                <span className="offline-tech-badge">Great Expectations</span>
-                <span className="offline-tech-badge">SimPy</span>
-                <span className="offline-tech-badge">Kubernetes</span>
-                <span className="offline-tech-badge">ArgoCD</span>
-                <span className="offline-tech-badge">Grafana</span>
-                <span className="offline-tech-badge">Prometheus</span>
+              <div className="landing-tech-grid">
+                <span className="landing-tech-badge">Python 3.13</span>
+                <span className="landing-tech-badge">TypeScript</span>
+                <span className="landing-tech-badge">Apache Kafka</span>
+                <span className="landing-tech-badge">Delta Lake</span>
+                <span className="landing-tech-badge">Apache Trino</span>
+                <span className="landing-tech-badge">dbt</span>
+                <span className="landing-tech-badge">Great Expectations</span>
+                <span className="landing-tech-badge">SimPy</span>
+                <span className="landing-tech-badge">Kubernetes</span>
+                <span className="landing-tech-badge">ArgoCD</span>
+                <span className="landing-tech-badge">Grafana</span>
+                <span className="landing-tech-badge">Prometheus</span>
               </div>
             </section>
           </div>
 
-          <section className="offline-section offline-pipeline">
+          <section className="landing-section landing-pipeline">
             <h2>Data Pipeline</h2>
             <div className="pipeline-flow">
               <div className="pipeline-stage">
@@ -102,7 +105,7 @@ export function OfflineMode() {
             </div>
           </section>
 
-          <section className="offline-section offline-cta">
+          <section className="landing-section landing-cta">
             <p>
               The platform is deployed on-demand for demonstrations and interviews to minimize cloud
               costs.
@@ -111,7 +114,7 @@ export function OfflineMode() {
               href="https://github.com/andresbrocco/rideshare-simulation-platform"
               target="_blank"
               rel="noopener noreferrer"
-              className="offline-github-link"
+              className="landing-github-link"
             >
               View on GitHub &rarr;
             </a>
