@@ -176,6 +176,24 @@ resource "aws_secretsmanager_secret_version" "monitoring" {
   })
 }
 
+# Secret: rideshare/github-pat
+resource "aws_secretsmanager_secret" "github_pat" {
+  name        = "${var.project_name}/github-pat"
+  description = "GitHub Personal Access Token for workflow dispatch"
+
+  tags = {
+    Name = "${var.project_name}/github-pat"
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "github_pat" {
+  secret_id = aws_secretsmanager_secret.github_pat.id
+
+  secret_string = jsonencode({
+    GITHUB_PAT = "ghp_placeholder_set_real_token_in_production"
+  })
+}
+
 # Secret: rideshare/rds
 resource "aws_secretsmanager_secret" "rds" {
   name        = "${var.project_name}/rds"

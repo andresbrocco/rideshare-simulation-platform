@@ -56,6 +56,17 @@ skip-check:
   - CKV2_AWS_60   # RDS monitoring role
   - CKV2_AWS_71   # RDS enhanced monitoring interval
 
+  # Lambda
+  - CKV_AWS_50    # X-Ray tracing — not needed for simple auth Lambda
+  - CKV_AWS_115   # Lambda concurrent execution limit — low-traffic endpoint
+  - CKV_AWS_116   # Lambda DLQ — sync Function URL, no async invocations
+  - CKV_AWS_117   # Lambda inside VPC — needs public internet for GitHub API
+  - CKV_AWS_158   # CloudWatch Log Group KMS — default encryption sufficient
+  - CKV_AWS_173   # Lambda env var KMS encryption — no secrets in env vars
+  - CKV_AWS_258   # Lambda URL AuthType None — auth handled in function code
+  - CKV_AWS_272   # Lambda code-signing — portfolio project
+  - CKV_AWS_338   # CloudWatch log retention >= 1 year — 14 days sufficient
+
   # IAM
   - CKV_AWS_290   # IAM policy resource wildcard — CI role needs it
   - CKV_AWS_293   # IAM policy wildcard actions — CI role needs it

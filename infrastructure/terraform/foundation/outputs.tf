@@ -97,6 +97,19 @@ output "ecr_repository_urls" {
 }
 
 # -----------------------------------------------------------------------------
+# Lambda
+# -----------------------------------------------------------------------------
+output "lambda_auth_deploy_url" {
+  description = "URL of the Lambda auth/deploy function"
+  value       = module.lambda_auth_deploy.function_url
+}
+
+output "lambda_auth_deploy_function_name" {
+  description = "Name of the Lambda auth/deploy function"
+  value       = module.lambda_auth_deploy.function_name
+}
+
+# -----------------------------------------------------------------------------
 # Secrets Manager
 # -----------------------------------------------------------------------------
 output "secret_arns" {

@@ -117,6 +117,46 @@ module "secrets_manager" {
 }
 
 # -----------------------------------------------------------------------------
+# Lambda — auth validation and deploy triggering
+# -----------------------------------------------------------------------------
+module "lambda_auth_deploy" {
+  source = "./modules/lambda"
+
+  function_name = "rideshare-auth-deploy"
+  source_dir    = "${path.root}/../../lambda/auth-deploy"
+  handler       = "handler.lambda_handler"
+  runtime       = "python3.13"
+  timeout       = 30
+  memory_size   = 256
+
+  environment_variables = {
+    AWS_REGION = var.aws_region
+  }
+
+  # Grant read access to API key and GitHub PAT secrets
+  secrets_arns = [
+    module.secrets_manager.secret_arns["api_key"],
+    module.secrets_manager.secret_arns["github_pat"],
+  ]
+
+  # CORS configuration for frontend
+  cors_allowed_origins = [
+    "https://ridesharing.portfolio.andresbrocco.com",
+    "http://localhost:5173",
+  ]
+  cors_allowed_methods = ["POST", "OPTIONS"]
+  cors_allowed_headers = ["Content-Type", "X-Requested-With"]
+  cors_max_age         = 86400
+
+  log_retention_days = 14
+
+  tags = {
+    Project   = var.project_name
+    Component = "auth-deploy"
+  }
+}
+
+# -----------------------------------------------------------------------------
 # IAM
 # -----------------------------------------------------------------------------
 module "iam" {
