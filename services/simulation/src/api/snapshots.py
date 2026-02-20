@@ -183,6 +183,7 @@ class StateSnapshotManager:
                 "riders_total": len(riders),
                 "riders_idle": rider_counts["idle"],
                 "riders_requesting": rider_counts["requesting"],
+                "riders_awaiting_pickup": rider_counts["awaiting_pickup"],
                 "riders_on_trip": rider_counts["on_trip"],
                 "active_trips_count": len(trips),
                 "uptime_seconds": engine._env.now if hasattr(engine, "_env") else 0,

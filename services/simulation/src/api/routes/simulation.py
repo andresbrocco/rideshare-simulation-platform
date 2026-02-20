@@ -164,7 +164,7 @@ def get_status(
                 driver_counts[status] += 1
 
     # Rider counts (O(n), n = active riders)
-    rider_counts = {"idle": 0, "requesting": 0, "on_trip": 0}
+    rider_counts = {"idle": 0, "requesting": 0, "awaiting_pickup": 0, "on_trip": 0}
     if hasattr(engine, "_active_riders"):
         for rider in engine._active_riders.values():
             status = getattr(rider, "status", "offline")
@@ -183,6 +183,7 @@ def get_status(
         riders_total=sum(rider_counts.values()),
         riders_idle=rider_counts["idle"],
         riders_requesting=rider_counts["requesting"],
+        riders_awaiting_pickup=rider_counts["awaiting_pickup"],
         riders_on_trip=rider_counts["on_trip"],
         active_trips_count=len(in_flight),
         uptime_seconds=uptime,

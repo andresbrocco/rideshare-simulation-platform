@@ -167,7 +167,7 @@ class RiderAgent(EventEmitter):
                 self._persistence_dirty = True
 
     def start_trip(self) -> None:
-        """Transition from requesting to on_trip."""
+        """Transition from awaiting_pickup to on_trip."""
         self._status = "on_trip"
 
         if self._rider_repository:
@@ -209,7 +209,7 @@ class RiderAgent(EventEmitter):
                 self._persistence_dirty = True
 
     def cancel_trip(self) -> None:
-        """Transition from requesting to idle, clear active trip."""
+        """Transition from requesting or awaiting_pickup to idle, clear active trip."""
         self._status = "idle"
         self._active_trip = None
         self._trip_state_value = None
@@ -408,11 +408,12 @@ class RiderAgent(EventEmitter):
     def on_driver_en_route(self, trip: "Trip") -> None:
         """Handle driver en route notification.
 
-        Transition from waiting to in_trip so the patience timeout
-        doesn't cancel the trip while the driver is on the way.
+        Transitions from requesting to awaiting_pickup. The rider now has a driver
+        assigned and is waiting at the pickup location. The patience timeout loop
+        recognises awaiting_pickup and will not cancel the trip.
         """
         if self._status == "requesting":
-            self._status = "on_trip"
+            self._status = "awaiting_pickup"
 
             if self._rider_repository:
                 try:
@@ -710,8 +711,8 @@ class RiderAgent(EventEmitter):
             )
 
             while self._env.now < match_timeout:
-                if self._status == "on_trip":
-                    self._next_action = None  # Clear - trip started
+                if self._status in ("awaiting_pickup", "on_trip"):
+                    self._next_action = None  # Clear - driver assigned
                     break
                 yield self._env.timeout(1)
 

@@ -30,6 +30,7 @@ class SimulationStatusResponse(BaseModel):
     riders_total: int
     riders_idle: int
     riders_requesting: int
+    riders_awaiting_pickup: int
     riders_on_trip: int
     # Trips
     active_trips_count: int

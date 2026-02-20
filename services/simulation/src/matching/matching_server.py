@@ -893,6 +893,12 @@ class MatchingServer:
         # Transition to EN_ROUTE_PICKUP for puppet flow
         trip.transition_to(TripState.EN_ROUTE_PICKUP)
 
+        # Notify rider that driver is en route — transitions rider to awaiting_pickup
+        if self._registry_manager:
+            rider = self._registry_manager.get_rider(trip.rider_id)
+            if rider:
+                rider.on_driver_en_route(trip)
+
         # Note: Do NOT start TripExecutor for puppet drivers.
         # Puppets are controlled entirely via API endpoints (drive-to-pickup,
         # arrive-pickup, start-trip, drive-to-destination, complete-trip, etc.)

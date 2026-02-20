@@ -73,6 +73,13 @@ class MetricsUpdater:
                 drivers_available = len(
                     [d for d in self._engine._active_drivers.values() if d.status == "available"]
                 )
+                riders_awaiting_pickup = len(
+                    [
+                        r
+                        for r in self._engine._active_riders.values()
+                        if r.status == "awaiting_pickup"
+                    ]
+                )
                 riders_in_transit = len(
                     [r for r in self._engine._active_riders.values() if r.status == "on_trip"]
                 )
@@ -121,6 +128,7 @@ class MetricsUpdater:
                     trips_completed=trips_completed,
                     trips_cancelled=trips_cancelled,
                     drivers_available=drivers_available,
+                    riders_awaiting_pickup=riders_awaiting_pickup,
                     riders_in_transit=riders_in_transit,
                     active_trips=active_trips,
                     avg_fare=avg_fare,

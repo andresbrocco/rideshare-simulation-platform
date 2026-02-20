@@ -64,6 +64,11 @@ simulation_drivers_available = meter.create_up_down_counter(
     description="Number of drivers currently available for trips",
 )
 
+simulation_riders_awaiting_pickup = meter.create_up_down_counter(
+    name="simulation_riders_awaiting_pickup",
+    description="Number of riders waiting at pickup location for their driver",
+)
+
 simulation_riders_in_transit = meter.create_up_down_counter(
     name="simulation_riders_in_transit",
     description="Number of riders currently in transit",
@@ -205,6 +210,7 @@ _previous_error_counts: dict[tuple[str, str], int] = {}
 _previous_trips_completed: int = 0
 _previous_trips_cancelled: int = 0
 _previous_drivers_available: int = 0
+_previous_riders_awaiting_pickup: int = 0
 _previous_riders_in_transit: int = 0
 _previous_active_trips: int = 0
 _previous_simpy_events: int = 0
@@ -216,6 +222,7 @@ def update_metrics_from_snapshot(
     trips_completed: int = 0,
     trips_cancelled: int = 0,
     drivers_available: int = 0,
+    riders_awaiting_pickup: int = 0,
     riders_in_transit: int = 0,
     active_trips: int = 0,
     avg_fare: float = 0.0,
@@ -234,7 +241,7 @@ def update_metrics_from_snapshot(
     """
     global _previous_event_counts, _previous_error_counts
     global _previous_trips_completed, _previous_trips_cancelled
-    global _previous_drivers_available, _previous_riders_in_transit
+    global _previous_drivers_available, _previous_riders_awaiting_pickup, _previous_riders_in_transit
     global _previous_active_trips, _previous_simpy_events
 
     # --- Observable gauge values (stored for callback reads) ---
@@ -255,6 +262,11 @@ def update_metrics_from_snapshot(
     if delta != 0:
         simulation_drivers_available.add(delta)
     _previous_drivers_available = drivers_available
+
+    delta = riders_awaiting_pickup - _previous_riders_awaiting_pickup
+    if delta != 0:
+        simulation_riders_awaiting_pickup.add(delta)
+    _previous_riders_awaiting_pickup = riders_awaiting_pickup
 
     delta = riders_in_transit - _previous_riders_in_transit
     if delta != 0:

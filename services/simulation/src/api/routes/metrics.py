@@ -32,7 +32,6 @@ from api.models.metrics import (
 )
 from api.rate_limit import limiter
 from metrics import get_metrics_collector
-from trip import TripState
 
 logger = logging.getLogger(__name__)
 
@@ -288,62 +287,36 @@ def get_driver_metrics(request: Request, driver_registry: DriverRegistryDep) -> 
 def get_rider_metrics(
     request: Request, engine: EngineDep, matching_server: MatchingServerDep
 ) -> RiderMetrics:
-    """Returns rider status counts derived from trip states.
+    """Returns rider status counts derived from rider agent status.
 
     Rider states:
-    - offline: No active trip (includes matching phase - ephemeral states)
-    - to_pickup: Trip state in (EN_ROUTE_PICKUP, AT_PICKUP)
-    - in_transit: Trip state is IN_TRANSIT
+    - offline: idle riders (no active trip)
+    - awaiting_pickup: rider has a driver assigned and is waiting at pickup
+    - in_transit: rider is in vehicle (on_trip)
 
-    Note: Matching phase states (REQUESTED, OFFER_SENT, DRIVER_ASSIGNED, etc.) are
-    ephemeral and counted as offline since they transition too quickly to observe.
+    Note: requesting riders are counted as offline since that phase is ephemeral.
     """
 
     def compute() -> RiderMetrics:
         if not hasattr(engine, "_active_riders"):
-            return RiderMetrics(offline=0, to_pickup=0, in_transit=0, total=0)
+            return RiderMetrics(offline=0, awaiting_pickup=0, in_transit=0, total=0)
 
-        # Build rider -> trip state map from active trips
-        rider_trip_states: dict[str, TripState] = {}
-        if matching_server and hasattr(matching_server, "get_active_trips"):
-            for trip in matching_server.get_active_trips():
-                rider_trip_states[trip.rider_id] = trip.state
-
-        offline = to_pickup = in_transit = 0
+        offline = awaiting_pickup = in_transit = 0
 
         for rider in engine._active_riders.values():
-            rider_id = getattr(rider, "rider_id", None)
-            if not rider_id:
-                continue
-
-            trip_state = rider_trip_states.get(rider_id)
-
-            if trip_state is None:
-                # No active trip - rider is offline
-                offline += 1
-            elif trip_state in (
-                TripState.REQUESTED,
-                TripState.OFFER_SENT,
-                TripState.OFFER_EXPIRED,
-                TripState.OFFER_REJECTED,
-                TripState.DRIVER_ASSIGNED,
-            ):
-                # Trip is in matching phase - ephemeral, count as offline
-                offline += 1
-            elif trip_state in (TripState.EN_ROUTE_PICKUP, TripState.AT_PICKUP):
-                # Driver is heading to pickup or waiting
-                to_pickup += 1
-            elif trip_state == TripState.IN_TRANSIT:
-                # Rider is in vehicle
+            status = getattr(rider, "status", "idle")
+            if status == "awaiting_pickup":
+                awaiting_pickup += 1
+            elif status == "on_trip":
                 in_transit += 1
             else:
-                # COMPLETED or CANCELLED shouldn't be in active trips
+                # idle, requesting, or any unknown state counts as offline
                 offline += 1
 
-        total = offline + to_pickup + in_transit
+        total = offline + awaiting_pickup + in_transit
         return RiderMetrics(
             offline=offline,
-            to_pickup=to_pickup,
+            awaiting_pickup=awaiting_pickup,
             in_transit=in_transit,
             total=total,
         )

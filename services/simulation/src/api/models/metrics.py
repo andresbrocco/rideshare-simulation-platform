@@ -48,7 +48,7 @@ class DriverMetrics(BaseModel):
 
 class RiderMetrics(BaseModel):
     offline: int
-    to_pickup: int
+    awaiting_pickup: int
     in_transit: int
     total: int
 
