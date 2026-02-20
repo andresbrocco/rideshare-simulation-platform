@@ -51,7 +51,7 @@ def make_valid_driver_status_event() -> dict:
         "driver_id": "driver-456",
         "timestamp": "2024-01-15T10:00:00Z",
         "previous_status": "offline",
-        "new_status": "online",
+        "new_status": "available",
         "trigger": "app_open",
         "location": [-46.6333, -23.5505],
     }

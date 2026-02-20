@@ -8,7 +8,7 @@ from src.handlers.surge_handler import SurgeHandler
 from src.handlers.trip_handler import TripHandler
 
 
-def make_trip_event(trip_id: str = "trip-123", event_type: str = "trip.started") -> dict:
+def make_trip_event(trip_id: str = "trip-123", event_type: str = "trip.in_transit") -> dict:
     """Create a valid trip event for testing."""
     return {
         "event_id": "550e8400-e29b-41d4-a716-446655440001",
@@ -26,7 +26,7 @@ def make_trip_event(trip_id: str = "trip-123", event_type: str = "trip.started")
     }
 
 
-def make_driver_status_event(driver_id: str = "driver-1", new_status: str = "online") -> dict:
+def make_driver_status_event(driver_id: str = "driver-1", new_status: str = "available") -> dict:
     """Create a valid driver status event for testing."""
     return {
         "event_id": "550e8400-e29b-41d4-a716-446655440002",
@@ -60,7 +60,7 @@ class TestTripHandler:
         """Test that trip events are emitted immediately."""
         handler = TripHandler()
 
-        event = make_trip_event(trip_id="trip-123", event_type="trip.started")
+        event = make_trip_event(trip_id="trip-123", event_type="trip.in_transit")
         results = handler.handle(json.dumps(event).encode())
 
         assert len(results) == 1
@@ -108,7 +108,7 @@ class TestDriverStatusHandler:
         """Test that driver status events are emitted immediately."""
         handler = DriverStatusHandler()
 
-        event = make_driver_status_event(driver_id="driver-1", new_status="online")
+        event = make_driver_status_event(driver_id="driver-1", new_status="available")
         results = handler.handle(json.dumps(event).encode())
 
         assert len(results) == 1
