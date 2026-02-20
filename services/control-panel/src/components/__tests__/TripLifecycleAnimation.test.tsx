@@ -67,8 +67,9 @@ describe('TripLifecycleAnimation', () => {
     const { container } = render(<TripLifecycleAnimation />);
 
     const paths = container.querySelectorAll('path');
-    expect(paths.length).toBeGreaterThanOrEqual(1);
-    const roadPath = paths[0];
+    expect(paths.length).toBeGreaterThanOrEqual(2);
+    // paths[0] is the mask path inside <defs>; paths[1] is the visible background road
+    const roadPath = paths[1];
     expect(roadPath).toHaveAttribute('d');
     expect(roadPath.getAttribute('stroke')).toBe('rgba(0,255,136,0.06)');
   });

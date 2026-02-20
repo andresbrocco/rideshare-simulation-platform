@@ -193,7 +193,7 @@ def test_health_response_matches_schema(test_client: TestClient) -> None:
 
 def test_typescript_types_generated(openapi_spec_path: Path) -> None:
     """Verify that npm run generate-types successfully creates TypeScript types."""
-    frontend_dir = Path(__file__).parent.parent.parent.parent / "services" / "frontend"
+    frontend_dir = Path(__file__).parent.parent.parent.parent / "services" / "control-panel"
     generated_types_path = frontend_dir / "src" / "types" / "api.generated.ts"
 
     result = subprocess.run(
@@ -213,7 +213,7 @@ def test_typescript_types_generated(openapi_spec_path: Path) -> None:
 
 def test_typescript_types_match_openapi(openapi_spec_path: Path) -> None:
     """Verify that generated TypeScript types match the committed version."""
-    frontend_dir = Path(__file__).parent.parent.parent.parent / "services" / "frontend"
+    frontend_dir = Path(__file__).parent.parent.parent.parent / "services" / "control-panel"
     generated_types_path = frontend_dir / "src" / "types" / "api.generated.ts"
 
     if not generated_types_path.exists():

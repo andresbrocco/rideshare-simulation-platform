@@ -294,11 +294,11 @@ def test_agents_not_started_if_stopped(
 def test_driver_capacity_limit(
     mock_gen_dna, agent_factory, mock_simulation_engine, sample_driver_dna
 ):
-    """Enforces max 2000 drivers."""
+    """Enforces max 100_000 drivers."""
     mock_gen_dna.return_value = sample_driver_dna
 
-    # Simulate 2000 existing drivers
-    mock_simulation_engine._active_drivers = {f"driver_{i}": MagicMock() for i in range(2000)}
+    # Simulate 100_000 existing drivers
+    mock_simulation_engine._active_drivers = {f"driver_{i}": MagicMock() for i in range(100_000)}
 
     with pytest.raises(ValueError, match="Driver capacity limit"):
         agent_factory.create_drivers(1)
@@ -309,11 +309,11 @@ def test_driver_capacity_limit(
 def test_rider_capacity_limit(
     mock_gen_dna, agent_factory, mock_simulation_engine, sample_rider_dna
 ):
-    """Enforces max 10000 riders."""
+    """Enforces max 100_000 riders."""
     mock_gen_dna.return_value = sample_rider_dna
 
-    # Simulate 10000 existing riders
-    mock_simulation_engine._active_riders = {f"rider_{i}": MagicMock() for i in range(10000)}
+    # Simulate 100_000 existing riders
+    mock_simulation_engine._active_riders = {f"rider_{i}": MagicMock() for i in range(100_000)}
 
     with pytest.raises(ValueError, match="Rider capacity limit"):
         agent_factory.create_riders(1)
@@ -327,11 +327,11 @@ def test_capacity_check_incremental(
     """Checks total count including existing."""
     mock_gen_dna.return_value = sample_driver_dna
 
-    # Simulate 1990 existing drivers
-    mock_simulation_engine._active_drivers = {f"driver_{i}": MagicMock() for i in range(1990)}
+    # Simulate 99_995 existing drivers
+    mock_simulation_engine._active_drivers = {f"driver_{i}": MagicMock() for i in range(99_995)}
 
     with pytest.raises(ValueError, match="Driver capacity limit"):
-        agent_factory.create_drivers(11)
+        agent_factory.create_drivers(6)
 
 
 @patch("engine.agent_factory.generate_driver_dna")
