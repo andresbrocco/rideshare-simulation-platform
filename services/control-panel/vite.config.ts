@@ -24,6 +24,17 @@ export default defineConfig({
         target: 'ws://simulation:8000',
         ws: true,
       },
+      '/localstack': {
+        target: 'http://localstack:4566',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/localstack/, ''),
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            proxyReq.removeHeader('Origin');
+            proxyReq.removeHeader('Referer');
+          });
+        },
+      },
     },
   },
   build: {

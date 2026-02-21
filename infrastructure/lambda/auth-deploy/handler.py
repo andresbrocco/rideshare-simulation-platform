@@ -247,15 +247,50 @@ def get_cors_headers(origin: str) -> dict[str, str]:
 def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
     """Lambda function handler for auth and deploy actions.
 
+    Supports two invocation formats:
+    - Function URL: event contains HTTP metadata and body as a JSON string.
+      Returns a full HTTP response dict (statusCode, headers, body).
+    - Direct invocation: event contains action/api_key directly (used by
+      LocalStack /invocations endpoint in local dev).
+      Returns the business response dict directly.
+
     Args:
-        event: Lambda event from Function URL
+        event: Lambda event from Function URL or direct invocation
         context: Lambda context
 
     Returns:
-        Response dict with statusCode, headers, and body
+        Response dict (format depends on invocation type)
     """
     print(f"Received event: {json.dumps(event)}")
 
+    # Direct invocation: action/api_key are top-level fields in the event.
+    # The raw /invocations endpoint passes the request payload directly as the
+    # event, so there is no HTTP wrapper. Return the business response directly.
+    if "action" in event or "api_key" in event:
+        action = event.get("action")
+        api_key = event.get("api_key")
+
+        if not action:
+            return {"error": "Missing required field: action"}
+        if not api_key:
+            return {"error": "Missing required field: api_key"}
+
+        handlers: dict[str, Any] = {
+            "validate": handle_validate,
+            "deploy": handle_deploy,
+            "status": handle_status,
+        }
+        handler = handlers.get(action)
+        if handler is None:
+            return {
+                "error": f"Unknown action: {action}",
+                "valid_actions": ["validate", "deploy", "status"],
+            }
+
+        _, response_body = handler(api_key)
+        return response_body
+
+    # Function URL invocation: event is a full HTTP request envelope.
     # Extract origin for CORS
     headers_lower = {k.lower(): v for k, v in event.get("headers", {}).items()}
     origin = headers_lower.get("origin", ALLOWED_ORIGINS[0])
@@ -299,21 +334,21 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         }
 
     # Route to appropriate handler
-    handlers: dict[str, Any] = {
+    url_handlers: dict[str, Any] = {
         "validate": handle_validate,
         "deploy": handle_deploy,
         "status": handle_status,
     }
 
-    handler = handlers.get(action)
-    if handler is None:
+    url_handler = url_handlers.get(action)
+    if url_handler is None:
         status_code = 400
-        response_body: dict[str, Any] = {
+        response_body = {
             "error": f"Unknown action: {action}",
             "valid_actions": ["validate", "deploy", "status"],
         }
     else:
-        status_code, response_body = handler(api_key)
+        status_code, response_body = url_handler(api_key)
 
     return {
         "statusCode": status_code,

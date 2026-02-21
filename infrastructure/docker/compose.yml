@@ -316,6 +316,7 @@ services:
     ports:
       - "8080:8080"
     volumes:
+      - ../../services/stream-processor/src:/app/src:ro
       - secrets-volume:/secrets:ro
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
@@ -464,6 +465,7 @@ services:
     ports:
       - "8086:8080"
     volumes:
+      - ../../services/bronze-ingestion/src:/app/src:ro
       - secrets-volume:/secrets:ro
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
@@ -631,6 +633,31 @@ services:
       sh -c "pip install boto3 mypy-boto3-secretsmanager &&
              python /app/seed-secrets.py &&
              python /app/fetch-secrets.py"
+    networks:
+      - rideshare-network
+    restart: "no"
+
+  lambda-init:
+    image: python:3.12-slim
+    container_name: rideshare-lambda-init
+    profiles:
+      - core
+      - data-pipeline
+      - monitoring
+    volumes:
+      - ../../infrastructure/scripts/deploy-lambda.py:/app/deploy-lambda.py:ro
+      - ../../infrastructure/lambda/auth-deploy/handler.py:/app/lambda/handler.py:ro
+    environment:
+      - AWS_ENDPOINT_URL=http://localstack:4566
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+    depends_on:
+      secrets-init:
+        condition: service_completed_successfully
+    command: >
+      sh -c "pip install boto3 &&
+             python /app/deploy-lambda.py"
     networks:
       - rideshare-network
     restart: "no"
