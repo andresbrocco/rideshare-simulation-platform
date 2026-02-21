@@ -12,6 +12,12 @@
   overflow: hidden;
 }
 
+.App.landing-mode {
+  height: auto;
+  min-height: 100vh;
+  overflow: auto;
+}
+
 /* Loading state */
 .loading-container {
   min-height: 100vh;

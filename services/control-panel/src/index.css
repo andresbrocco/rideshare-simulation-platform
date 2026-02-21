@@ -105,6 +105,19 @@ body {
   overflow: hidden;
 }
 
+body:has(.landing-mode) {
+  height: auto;
+  min-height: 100vh;
+  overflow: auto;
+}
+
+html:has(.landing-mode),
+body:has(.landing-mode),
+body:has(.landing-mode) #root {
+  height: auto;
+  min-height: 100vh;
+}
+
 h1 {
   font-size: 3.2em;
   line-height: 1.1;

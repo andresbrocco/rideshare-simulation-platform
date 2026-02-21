@@ -160,7 +160,7 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
   const showLaunchDemo = !!apiKey && !apiAvailable;
 
   return (
-    <div className="App">
+    <div className={`App${!apiKey ? ' landing-mode' : ''}`}>
       <Toaster position="top-right" />
       {!apiKey ? (
         <>

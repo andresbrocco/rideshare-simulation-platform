@@ -1,18 +1,6 @@
-import { useEffect } from 'react';
 import { TripLifecycleAnimation } from './TripLifecycleAnimation';
 
 export function LandingPage({ onLoginClick }: { onLoginClick: () => void }) {
-  useEffect(() => {
-    const prevOverflow = document.body.style.overflow;
-    const prevHeight = document.body.style.height;
-    document.body.style.overflow = 'auto';
-    document.body.style.height = 'auto';
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      document.body.style.height = prevHeight;
-    };
-  }, []);
-
   return (
     <div className="landing-container">
       <div className="landing-inner">
