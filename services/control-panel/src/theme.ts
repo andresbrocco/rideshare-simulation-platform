@@ -18,7 +18,7 @@ import type { RgbTuple, RgbaQuad } from './utils/colorUtils';
 /** Base + variant hex values per trip stage */
 export const STAGE_HEX = {
   idle: { base: '#6B7280', light: '#9CA3AF' },
-  available: { base: '#34D399' },
+  available: { base: '#00FF88' },
   requesting: { base: '#F97316', route: '#FDBA74' },
   pickup: { base: '#F59E0B', light: '#FBBF24', lighter: '#FDE047', route: '#FCD34D' },
   transit: { base: '#3B82F6', route: '#60A5FA' },
