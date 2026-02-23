@@ -127,7 +127,7 @@ models:
       - name: cancellation_reason
         tests:
           - accepted_values:
-              values: ['changed_mind', 'driver_cancelled', 'no_show', 'permanent_error', 'transient_error', 'unexpected_error', 'no_drivers_available']
+              values: ['changed_mind', 'driver_cancelled', 'no_show', 'permanent_error', 'transient_error', 'unexpected_error', 'no_drivers_available', 'patience_timeout', 'system_pause']
               config:
                 where: "cancellation_reason is not null"
 
