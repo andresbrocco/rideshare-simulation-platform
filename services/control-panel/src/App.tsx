@@ -43,6 +43,7 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
   const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
   const [placementMode, setPlacementMode] = useState<PlacementMode | null>(null);
   const [zoom, setZoom] = useState(11);
+  const [inspectedHomeLocation, setInspectedHomeLocation] = useState<[number, number] | null>(null);
   const [destinationSelection, setDestinationSelection] = useState<{
     riderId: string;
     riderName: string;
@@ -141,6 +142,7 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
     layerVisibility,
     zoneData,
     zoom,
+    inspectedHomeLocation,
   });
 
   const handleLogin = (key: string) => {
@@ -155,6 +157,7 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
 
   const handleClosePopup = () => {
     setInspectedEntity(null);
+    setInspectedHomeLocation(null);
   };
 
   // Authenticated but API unavailable → Launch Demo mode
@@ -262,6 +265,7 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
                 onCancelDriverTrip={cancelDriverTrip}
                 // Puppet rider actions
                 onCancelRiderTrip={cancelRiderTrip}
+                onHomeLocationChange={setInspectedHomeLocation}
               />
             </InspectorErrorBoundary>
           )}

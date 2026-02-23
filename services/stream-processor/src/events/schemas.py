@@ -67,7 +67,9 @@ class DriverStatusEvent(BaseModel):
     driver_id: str
     timestamp: str
     previous_status: str | None
-    new_status: Literal["available", "offline", "en_route_pickup", "on_trip"]
+    new_status: Literal[
+        "available", "offline", "en_route_pickup", "on_trip", "driving_closer_to_home"
+    ]
     trigger: str
     location: tuple[float, float]
 

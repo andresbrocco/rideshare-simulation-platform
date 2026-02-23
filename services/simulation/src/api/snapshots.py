@@ -180,6 +180,7 @@ class StateSnapshotManager:
                 "drivers_available": driver_counts["available"],
                 "drivers_en_route_pickup": driver_counts["en_route_pickup"],
                 "drivers_on_trip": driver_counts["on_trip"],
+                "drivers_driving_closer_to_home": driver_counts["driving_closer_to_home"],
                 "riders_total": len(riders),
                 "riders_idle": rider_counts["idle"],
                 "riders_requesting": rider_counts["requesting"],

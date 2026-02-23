@@ -65,42 +65,42 @@ def _make_driver(
 
 @pytest.mark.unit
 class TestCalculateRepositionTarget:
-    def test_target_is_20km_from_home(self):
-        """Target should be at (distance - 20km)/distance ratio along the line."""
+    def test_target_is_10km_from_home(self):
+        """Target should be at (distance - 10km)/distance ratio along the line."""
         current = (-23.30, -46.40)
         home = (-23.56, -46.65)
         distance_km = 40.0
 
         target = DriverAgent._calculate_reposition_target(current, home, distance_km)
 
-        # ratio = (40 - 20) / 40 = 0.5 -> target is midpoint
-        expected_lat = current[0] + 0.5 * (home[0] - current[0])
-        expected_lon = current[1] + 0.5 * (home[1] - current[1])
+        # ratio = (40 - 10) / 40 = 0.75
+        expected_lat = current[0] + 0.75 * (home[0] - current[0])
+        expected_lon = current[1] + 0.75 * (home[1] - current[1])
         assert target[0] == pytest.approx(expected_lat)
         assert target[1] == pytest.approx(expected_lon)
 
     def test_target_with_60km_distance(self):
-        """At 60 km, ratio = (60-20)/60 = 2/3, target is 2/3 along the way."""
+        """At 60 km, ratio = (60-10)/60 = 5/6, target is 5/6 along the way."""
         current = (0.0, 0.0)
         home = (0.6, 0.6)
         distance_km = 60.0
 
         target = DriverAgent._calculate_reposition_target(current, home, distance_km)
 
-        expected_lat = 0.0 + (2 / 3) * 0.6
-        expected_lon = 0.0 + (2 / 3) * 0.6
+        expected_lat = 0.0 + (5 / 6) * 0.6
+        expected_lon = 0.0 + (5 / 6) * 0.6
         assert target[0] == pytest.approx(expected_lat)
         assert target[1] == pytest.approx(expected_lon)
 
     def test_target_barely_over_threshold(self):
-        """At 21 km, ratio = 1/21, target is very close to current."""
+        """At 11 km, ratio = 1/11, target is very close to current."""
         current = (0.0, 0.0)
         home = (1.0, 1.0)
-        distance_km = 21.0
+        distance_km = 11.0
 
         target = DriverAgent._calculate_reposition_target(current, home, distance_km)
 
-        ratio = 1.0 / 21.0
+        ratio = 1.0 / 11.0
         assert target[0] == pytest.approx(ratio * 1.0)
         assert target[1] == pytest.approx(ratio * 1.0)
 
@@ -110,8 +110,8 @@ class TestDriveTowardHome:
     def test_repositioning_spawned_when_far_from_home(
         self, simpy_env, dna_factory, mock_kafka_producer, mock_osrm_client
     ):
-        """Repositioning should be spawned when driver is >20 km from home."""
-        # Home is at (-23.56, -46.65). Place driver far away (~30+ km)
+        """Repositioning should be spawned when driver is >10 km from home."""
+        # Home is at (-23.56, -46.65). Place driver far away (~35 km)
         agent = _make_driver(simpy_env, dna_factory, mock_kafka_producer, mock_osrm_client)
         agent.go_online()
         agent.update_location(-23.30, -46.40)  # ~35 km from home
@@ -125,7 +125,7 @@ class TestDriveTowardHome:
     def test_no_repositioning_when_close_to_home(
         self, simpy_env, dna_factory, mock_kafka_producer, mock_osrm_client
     ):
-        """No repositioning should start when driver is <= 20 km from home."""
+        """No repositioning should start when driver is <= 10 km from home."""
         agent = _make_driver(simpy_env, dna_factory, mock_kafka_producer, mock_osrm_client)
         agent.go_online()
         # Home is (-23.56, -46.65), stay close (~1 km away)
@@ -134,7 +134,7 @@ class TestDriveTowardHome:
         trip = Mock()
         agent.on_trip_completed(trip)
 
-        # Process is spawned but should complete immediately (distance <= 20km)
+        # Process is spawned but should complete immediately (distance <= 10km)
         assert agent._reposition_process is not None
         # Run the env to let the generator return immediately
         simpy_env.run(until=simpy_env.now + 1)
@@ -172,6 +172,39 @@ class TestDriveTowardHome:
 
         # Driver should have moved from initial location
         assert agent.location != initial_location
+
+    def test_repositioning_sets_driving_closer_to_home_status(
+        self, simpy_env, dna_factory, mock_kafka_producer, mock_osrm_client
+    ):
+        """Driver should transition to driving_closer_to_home during repositioning."""
+        agent = _make_driver(simpy_env, dna_factory, mock_kafka_producer, mock_osrm_client)
+        agent.go_online()
+        agent.update_location(-23.30, -46.40)  # ~35 km from home
+
+        trip = Mock()
+        agent.on_trip_completed(trip)
+
+        # Let repositioning start (OSRM call + first yield in drive)
+        simpy_env.run(until=simpy_env.now + 10)
+
+        assert agent.status == "driving_closer_to_home"
+
+    def test_repositioning_failure_returns_to_available(
+        self, simpy_env, dna_factory, mock_kafka_producer, mock_osrm_client
+    ):
+        """Failed repositioning should set status back to available."""
+        mock_osrm_client.get_route_sync.side_effect = Exception("OSRM unavailable")
+
+        agent = _make_driver(simpy_env, dna_factory, mock_kafka_producer, mock_osrm_client)
+        agent.go_online()
+        agent.update_location(-23.30, -46.40)
+
+        trip = Mock()
+        agent.on_trip_completed(trip)
+
+        # Let the process run — should catch exception and fall back to available
+        simpy_env.run(until=simpy_env.now + 10)
+        assert agent.status == "available"
 
     def test_repositioning_handles_osrm_failure_gracefully(
         self, simpy_env, dna_factory, mock_kafka_producer, mock_osrm_client

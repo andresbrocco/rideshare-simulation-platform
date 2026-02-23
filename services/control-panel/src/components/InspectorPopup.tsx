@@ -25,6 +25,7 @@ interface InspectorPopupProps {
   onCompleteTrip?: (driverId: string) => Promise<boolean>;
   onCancelDriverTrip?: (driverId: string) => Promise<boolean>;
   onCancelRiderTrip?: (riderId: string) => Promise<boolean>;
+  onHomeLocationChange?: (location: [number, number] | null) => void;
 }
 
 export default function InspectorPopup({
@@ -41,6 +42,7 @@ export default function InspectorPopup({
   onCompleteTrip,
   onCancelDriverTrip,
   onCancelRiderTrip,
+  onHomeLocationChange,
 }: InspectorPopupProps) {
   const [isMinimized, setIsMinimized] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -91,6 +93,22 @@ export default function InspectorPopup({
   useEffect(() => {
     setIsMinimized(false);
   }, [entityKey]);
+
+  // Notify parent of home location changes for map marker
+  useEffect(() => {
+    if (!onHomeLocationChange) return;
+
+    let homeLocation: [number, number] | null = null;
+    if (driverState?.dna?.home_location) {
+      const [lat, lon] = driverState.dna.home_location;
+      homeLocation = [lon, lat]; // Swap to [lon, lat] for deck.gl
+    } else if (riderState?.dna?.home_location) {
+      const [lat, lon] = riderState.dna.home_location;
+      homeLocation = [lon, lat];
+    }
+
+    onHomeLocationChange(homeLocation);
+  }, [driverState?.dna?.home_location, riderState?.dna?.home_location, onHomeLocationChange]);
 
   // Determine entity type for API polling
   const entityType = entity?.type === 'driver' || entity?.type === 'rider' ? entity.type : null;

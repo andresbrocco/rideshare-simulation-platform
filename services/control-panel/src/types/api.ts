@@ -26,7 +26,13 @@ export interface Driver {
   id: string;
   latitude: number;
   longitude: number;
-  status: 'available' | 'offline' | 'en_route_pickup' | 'on_trip' | 'offer_pending';
+  status:
+    | 'available'
+    | 'offline'
+    | 'en_route_pickup'
+    | 'on_trip'
+    | 'offer_pending'
+    | 'driving_closer_to_home';
   rating: number;
   rating_count?: number;
   zone: string;

@@ -69,11 +69,16 @@ class DriverGeospatialIndex:
         lat: float,
         lon: float,
         radius_km: float = 5.0,
-        status_filter: str = "available",
+        status_filter: str | set[str] = "available",
     ) -> list[tuple[str, float]]:
         with self._lock:
             if not self._driver_locations:
                 return []
+
+            # Normalize status_filter to a set for uniform comparison
+            filter_set: set[str] = (
+                {status_filter} if isinstance(status_filter, str) else status_filter
+            )
 
             center_cell = self._get_h3_cell(lat, lon)
             # Maximum k rings for full radius coverage at resolution 9 (~174m edge)
@@ -93,7 +98,7 @@ class DriverGeospatialIndex:
                 for cell in new_cells:
                     if cell in self._h3_cells:
                         for driver_id in self._h3_cells[cell]:
-                            if self._driver_status.get(driver_id) == status_filter:
+                            if self._driver_status.get(driver_id) in filter_set:
                                 driver_lat, driver_lon, _ = self._driver_locations[driver_id]
                                 distance = haversine_distance_km(lat, lon, driver_lat, driver_lon)
                                 if distance <= radius_km:

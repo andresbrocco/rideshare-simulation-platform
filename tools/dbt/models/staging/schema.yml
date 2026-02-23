@@ -58,7 +58,7 @@ models:
       - name: new_status
         tests:
           - accepted_values:
-              values: ['available', 'offline', 'en_route_pickup', 'on_trip']
+              values: ['available', 'offline', 'en_route_pickup', 'on_trip', 'driving_closer_to_home']
 
   - name: stg_surge_updates
     description: Staging model for surge pricing update events from Bronze layer.

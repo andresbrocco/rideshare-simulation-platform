@@ -5,6 +5,7 @@ import type { LayerVisibility } from '../types/layers';
 import { calculateZoomScale } from '../utils/zoomScale';
 import {
   createOnlineDriversLayer,
+  createRepositioningDriversLayer,
   createOfflineDriversLayer,
   createEnRoutePickupDriversLayer,
   createWithPassengerDriversLayer,
@@ -22,6 +23,7 @@ import {
   createMatchingLineLayer,
   createDriverLayer,
   createRiderLayer,
+  createHomeMarkerLayer,
 } from '../layers/agentLayers';
 import { createZoneLayer, createHeatmapLayer } from '../layers/zoneLayers';
 
@@ -33,6 +35,7 @@ interface UseSimulationLayersProps {
   demandPoints?: DemandPoint[];
   layerVisibility?: LayerVisibility;
   zoom?: number;
+  inspectedHomeLocation?: [number, number] | null;
 }
 
 export function useSimulationLayers({
@@ -43,6 +46,7 @@ export function useSimulationLayers({
   demandPoints = [],
   layerVisibility,
   zoom = 11,
+  inspectedHomeLocation = null,
 }: UseSimulationLayersProps): Layer[] {
   const [blinkOn, setBlinkOn] = useState(true);
 
@@ -109,6 +113,10 @@ export function useSimulationLayers({
         layers.push(createOnlineDriversLayer(drivers, scaleFactor));
       }
 
+      if (layerVisibility.repositioningDrivers) {
+        layers.push(createRepositioningDriversLayer(drivers, scaleFactor));
+      }
+
       // Rider layers (ordered by visual priority - active on top)
       if (layerVisibility.offlineRiders) {
         layers.push(createOfflineRidersLayer(riders, scaleFactor));
@@ -128,6 +136,11 @@ export function useSimulationLayers({
 
       if (layerVisibility.inTransitRiders) {
         layers.push(createInTransitRidersLayer(riders, scaleFactor));
+      }
+
+      // Home marker (rendered on top when inspector is open)
+      if (inspectedHomeLocation) {
+        layers.push(createHomeMarkerLayer(inspectedHomeLocation, scaleFactor));
       }
     } else {
       if (zoneData.length > 0) {
@@ -149,8 +162,22 @@ export function useSimulationLayers({
         ...createDriverLayer(drivers, scaleFactor),
         ...createRiderLayer(riders, scaleFactor)
       );
+
+      if (inspectedHomeLocation) {
+        layers.push(createHomeMarkerLayer(inspectedHomeLocation, scaleFactor));
+      }
     }
 
     return layers;
-  }, [drivers, riders, trips, zoneData, demandPoints, layerVisibility, zoom, blinkOn]);
+  }, [
+    drivers,
+    riders,
+    trips,
+    zoneData,
+    demandPoints,
+    layerVisibility,
+    zoom,
+    blinkOn,
+    inspectedHomeLocation,
+  ]);
 }

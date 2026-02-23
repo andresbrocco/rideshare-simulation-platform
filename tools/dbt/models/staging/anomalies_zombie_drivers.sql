@@ -54,7 +54,7 @@ zombie_candidates as (
         ({{ epoch_seconds('s.last_status_timestamp') }} - {{ epoch_seconds('coalesce(g.last_gps_timestamp, s.last_status_timestamp)') }}) / 60.0 as minutes_since_last_ping
     from latest_status_per_driver s
     left join latest_gps_per_driver g on s.driver_id = g.driver_id
-    where s.current_status in ('available', 'en_route_pickup', 'on_trip')
+    where s.current_status in ('available', 'en_route_pickup', 'on_trip', 'driving_closer_to_home')
 )
 
 select *

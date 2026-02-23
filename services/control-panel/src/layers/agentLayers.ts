@@ -13,6 +13,12 @@ const FLAG_ICON_MAPPING = {
   flag: { x: 0, y: 0, width: 100, height: 100, anchorY: 100, anchorX: 0 },
 };
 
+// Home marker icon for inspector home location
+const HOME_ICON = '/icons/home.png';
+const HOME_ICON_MAPPING = {
+  home: { x: 0, y: 0, width: 100, height: 100, anchorY: 100, anchorX: 50, mask: true },
+};
+
 // Icon mapping for deck.gl (defines icon bounds within the image)
 const CAR_ICON_MAPPING = {
   car: { x: 0, y: 0, width: 100, height: 100, anchorY: 50, anchorX: 50, mask: true },
@@ -28,6 +34,7 @@ export const DRIVER_COLORS: Record<Driver['status'], RgbTuple> = {
   en_route_pickup: STAGE_RGB.pickup.base,
   on_trip: STAGE_RGB.transit.base,
   offer_pending: STAGE_RGB.available.base,
+  driving_closer_to_home: STAGE_RGB.repositioning.base,
 };
 
 // Rider colors by trip lifecycle phase
@@ -177,6 +184,29 @@ export function createOnlineDriversLayer(drivers: Driver[], scaleFactor: number 
     getPosition: (d: Driver) => [d.longitude, d.latitude],
     getAngle: (d: Driver) => 90 - (d.heading ?? 0), // Rotate icon to face direction of travel
     getColor: STAGE_RGB.available.base,
+  });
+}
+
+export function createRepositioningDriversLayer(drivers: Driver[], scaleFactor: number = 1) {
+  const repositioningDrivers = drivers.filter((d) => d.status === 'driving_closer_to_home');
+  return new IconLayer({
+    id: 'repositioning-drivers',
+    data: repositioningDrivers,
+    pickable: true,
+    autoHighlight: true,
+    highlightColor: [255, 255, 255, 128],
+
+    iconAtlas: CAR_ICON,
+    iconMapping: CAR_ICON_MAPPING,
+    getIcon: () => 'car',
+
+    sizeMinPixels: 20,
+    sizeMaxPixels: 40,
+    getSize: 30 * scaleFactor,
+
+    getPosition: (d: Driver) => [d.longitude, d.latitude],
+    getAngle: (d: Driver) => 90 - (d.heading ?? 0),
+    getColor: STAGE_RGB.repositioning.base,
   });
 }
 
@@ -645,6 +675,7 @@ export function createDriverLayer(drivers: Driver[], scaleFactor: number = 1) {
     en_route_pickup: drivers.filter((d) => d.status === 'en_route_pickup'),
     on_trip: drivers.filter((d) => d.status === 'on_trip'),
     offer_pending: drivers.filter((d) => d.status === 'offer_pending'),
+    driving_closer_to_home: drivers.filter((d) => d.status === 'driving_closer_to_home'),
   };
 
   for (const [status, group] of Object.entries(statusGroups)) {
@@ -753,4 +784,27 @@ export function createRiderLayer(riders: Rider[], scaleFactor: number = 1) {
   }
 
   return layers;
+}
+
+export function createHomeMarkerLayer(
+  homeLocation: [number, number] | null,
+  scaleFactor: number = 1
+) {
+  const data = homeLocation ? [{ position: homeLocation }] : [];
+  return new IconLayer({
+    id: 'home-marker',
+    data,
+    pickable: false,
+
+    iconAtlas: HOME_ICON,
+    iconMapping: HOME_ICON_MAPPING,
+    getIcon: () => 'home',
+
+    sizeMinPixels: 28,
+    sizeMaxPixels: 56,
+    getSize: 42 * scaleFactor,
+
+    getPosition: (d: { position: [number, number] }) => d.position,
+    getColor: [236, 72, 153] as [number, number, number], // Vibrant pink (#EC4899)
+  });
 }

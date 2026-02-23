@@ -24,6 +24,7 @@ export const STAGE_HEX = {
   transit: { base: '#3B82F6', route: '#60A5FA' },
   completed: { base: '#4ADE80' },
   cancelled: { base: '#F87171' },
+  repositioning: { base: '#06B6D4' },
 } as const;
 
 /** Derived RGB tuples (for deck.gl getColor) */
@@ -43,6 +44,7 @@ export const STAGE_RGB = {
   transit: { base: hexToRgb(STAGE_HEX.transit.base), route: hexToRgb(STAGE_HEX.transit.route) },
   completed: { base: hexToRgb(STAGE_HEX.completed.base) },
   cancelled: { base: hexToRgb(STAGE_HEX.cancelled.base) },
+  repositioning: { base: hexToRgb(STAGE_HEX.repositioning.base) },
 } as const satisfies Record<string, Record<string, RgbTuple>>;
 
 /** Derived CSS rgb() strings (for SVG/HTML style attributes) */
@@ -62,6 +64,7 @@ export const STAGE_CSS = {
   transit: { base: rgbToCss(STAGE_RGB.transit.base), route: rgbToCss(STAGE_RGB.transit.route) },
   completed: { base: rgbToCss(STAGE_RGB.completed.base) },
   cancelled: { base: rgbToCss(STAGE_RGB.cancelled.base) },
+  repositioning: { base: rgbToCss(STAGE_RGB.repositioning.base) },
 } as const;
 
 /** Route trail colors at ~30% opacity (for completed route trails) */

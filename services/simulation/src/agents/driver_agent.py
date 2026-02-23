@@ -508,12 +508,12 @@ class DriverAgent(EventEmitter):
         home: tuple[float, float],
         distance_km: float,
     ) -> tuple[float, float]:
-        """Calculate a GPS point 20 km from home along the current->home line.
+        """Calculate a GPS point 10 km from home along the current->home line.
 
-        If the driver is 50 km from home, the target is 30 km from the driver
-        (20 km from home) along the straight line toward home.
+        If the driver is 50 km from home, the target is 40 km from the driver
+        (10 km from home) along the straight line toward home.
         """
-        ratio = (distance_km - 20.0) / distance_km
+        ratio = (distance_km - 10.0) / distance_km
         target_lat = current[0] + ratio * (home[0] - current[0])
         target_lon = current[1] + ratio * (home[1] - current[1])
         return (target_lat, target_lon)
@@ -532,13 +532,20 @@ class DriverAgent(EventEmitter):
                 home[1],
             )
 
-            if distance <= 20.0:
+            if distance <= 10.0:
                 return  # Close enough, no repositioning needed
 
             if self._osrm_client is None:
                 return
 
             target = self._calculate_reposition_target(self._location, home, distance)
+
+            # Enter repositioning status (still matchable for trips)
+            previous_status = self._status
+            self._status = "driving_closer_to_home"
+            if self._registry_manager:
+                self._registry_manager.driver_status_changed(self._driver_id, self._status)
+            self._emit_status_event(previous_status, self._status, "start_repositioning")
 
             route = self._osrm_client.get_route_sync(self._location, target)
 
@@ -552,10 +559,24 @@ class DriverAgent(EventEmitter):
                 proximity_threshold_m=100.0,
             )
 
+            # Return to available after repositioning
+            previous_status = self._status
+            self._status = "available"
+            if self._registry_manager:
+                self._registry_manager.driver_status_changed(self._driver_id, self._status)
+            self._emit_status_event(previous_status, self._status, "end_repositioning")
+
         except simpy.Interrupt:
             logger.debug(f"Driver {self._driver_id}: Repositioning interrupted by trip offer")
         except Exception as e:
             logger.warning(f"Driver {self._driver_id}: Repositioning failed: {e}")
+            # Fall back to available on failure
+            if self._status == "driving_closer_to_home":
+                previous_status = self._status
+                self._status = "available"
+                if self._registry_manager:
+                    self._registry_manager.driver_status_changed(self._driver_id, self._status)
+                self._emit_status_event(previous_status, self._status, "repositioning_failed")
 
     def on_trip_cancelled(self, trip: "Trip") -> None:
         """Handle trip cancellation notification."""
@@ -789,7 +810,7 @@ class DriverAgent(EventEmitter):
         to support accurate arrival detection and smooth visualization.
         Idle drivers (available) ping less frequently to reduce load.
         """
-        if self._status in ("en_route_pickup", "on_trip"):
+        if self._status in ("en_route_pickup", "on_trip", "driving_closer_to_home"):
             return GPS_PING_INTERVAL_MOVING
         else:  # available
             return GPS_PING_INTERVAL_IDLE
@@ -801,6 +822,7 @@ class DriverAgent(EventEmitter):
                 "available",
                 "en_route_pickup",
                 "on_trip",
+                "driving_closer_to_home",
             ):
                 if self._location and self._location != self._last_emitted_location:
                     # Use trip_id as correlation if in trip, otherwise driver_id

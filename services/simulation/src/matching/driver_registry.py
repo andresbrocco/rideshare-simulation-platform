@@ -25,6 +25,7 @@ class DriverRegistry:
             "offline": 0,
             "en_route_pickup": 0,
             "on_trip": 0,
+            "driving_closer_to_home": 0,
         }
         self._zone_status_counts: dict[str, dict[str, int]] = {}
 
@@ -49,6 +50,7 @@ class DriverRegistry:
                         "offline": 0,
                         "en_route_pickup": 0,
                         "on_trip": 0,
+                        "driving_closer_to_home": 0,
                     }
                 self._zone_status_counts[zone_id][status] += 1
 
@@ -86,6 +88,7 @@ class DriverRegistry:
                     "offline": 0,
                     "en_route_pickup": 0,
                     "on_trip": 0,
+                    "driving_closer_to_home": 0,
                 }
             self._zone_status_counts[new_zone_id][record.status] += 1
 
@@ -142,5 +145,6 @@ class DriverRegistry:
                 "offline": 0,
                 "en_route_pickup": 0,
                 "on_trip": 0,
+                "driving_closer_to_home": 0,
             }
             self._zone_status_counts.clear()

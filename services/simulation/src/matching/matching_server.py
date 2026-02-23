@@ -321,7 +321,7 @@ class MatchingServer:
             pickup_location[0],
             pickup_location[1],
             radius_km=10.0,
-            status_filter="available",
+            status_filter={"available", "driving_closer_to_home"},
         )
         logger.debug(f"Spatial index returned {len(nearby)} nearby online drivers")
 
