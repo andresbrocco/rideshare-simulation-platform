@@ -122,6 +122,8 @@ class MatchingServer:
         # Thread-safe state protection (RLock allows nested acquisition)
         self._state_lock = threading.RLock()
         self._reserved_drivers: set[str] = set()  # Drivers currently receiving offers
+        # Retry queue for trips where no drivers were found (trip_id -> next_retry_sim_time)
+        self._retry_queue: dict[str, float] = {}
         # Matching outcome tracking
         self._offers_sent: int = 0
         self._offers_accepted: int = 0
@@ -238,6 +240,7 @@ class MatchingServer:
                 "offers_accepted": self._offers_accepted,
                 "offers_rejected": self._offers_rejected,
                 "offers_expired": self._offers_expired,
+                "trips_awaiting_retry": len(self._retry_queue),
             }
 
     async def request_match(
@@ -283,9 +286,11 @@ class MatchingServer:
         if not nearby_drivers:
             logger.warning(f"No nearby drivers found for trip {trip.trip_id}")
             self._emit_no_drivers_event(trip)
-            # Remove from active trips since no match will happen
-            self._active_trips.pop(trip.trip_id, None)
-            return None
+            # Keep trip alive for retry — schedule next retry attempt
+            self._retry_queue[trip.trip_id] = (
+                self._env.now + self._settings.matching.retry_interval_seconds
+            )
+            return trip
 
         ranked_drivers = self.rank_drivers(nearby_drivers)
         logger.info(f"Ranked {len(ranked_drivers)} drivers, sending offers")
@@ -433,9 +438,11 @@ class MatchingServer:
         logger.info(f"send_offer_cycle: {len(ranked_drivers)} drivers, max_attempts={max_attempts}")
         if not ranked_drivers:
             self._emit_no_drivers_event(trip)
-            # Remove from active trips since no match will happen
-            self._active_trips.pop(trip.trip_id, None)
-            return None
+            # Keep trip alive for retry — schedule next retry attempt
+            self._retry_queue[trip.trip_id] = (
+                self._env.now + self._settings.matching.retry_interval_seconds
+            )
+            return trip
 
         # Store all candidates for deferred continuation
         self._pending_offer_candidates[trip.trip_id] = {
@@ -556,7 +563,10 @@ class MatchingServer:
         if next_candidate is None:
             logger.warning(f"All offers exhausted for trip {trip.trip_id}")
             self._emit_no_drivers_event(trip)
-            self._active_trips.pop(trip.trip_id, None)
+            # Keep trip alive for retry — schedule next retry attempt
+            self._retry_queue[trip.trip_id] = (
+                self._env.now + self._settings.matching.retry_interval_seconds
+            )
             return
 
         driver, eta_seconds, _score = next_candidate
@@ -606,6 +616,54 @@ class MatchingServer:
         for driver, trip in pending:
             logger.info(f"Starting TripExecutor for trip {trip.trip_id}")
             self._start_trip_execution_internal(driver, trip)
+
+        # Schedule retry for unmatched trips whose interval has elapsed
+        self._schedule_pending_retries()
+
+    def _schedule_pending_retries(self) -> None:
+        """Schedule retry_pending_matches() on the event loop if any retries are due.
+
+        Called from start_pending_trip_executions() in the SimPy thread.
+        The async retry coroutine runs on the engine's asyncio event loop.
+        """
+        if not self._retry_queue:
+            return
+
+        now = self._env.now
+        if not any(now >= t for t in self._retry_queue.values()):
+            return
+
+        loop = self._simulation_engine.get_event_loop() if self._simulation_engine else None
+        if loop:
+            asyncio.run_coroutine_threadsafe(self.retry_pending_matches(), loop)
+
+    async def retry_pending_matches(self) -> None:
+        """Re-search for drivers for trips in the retry queue.
+
+        Called from the asyncio event loop (scheduled by _schedule_pending_retries).
+        Trips remain in the queue until matched or cancelled by the rider.
+        """
+        now = self._env.now
+        due_trip_ids = [tid for tid, t in self._retry_queue.items() if now >= t]
+
+        for trip_id in due_trip_ids:
+            trip = self._active_trips.get(trip_id)
+            if not trip:
+                # Trip was cancelled by rider patience timeout
+                self._retry_queue.pop(trip_id, None)
+                continue
+
+            nearby_drivers = await self.find_nearby_drivers(trip.pickup_location)
+            if nearby_drivers:
+                self._retry_queue.pop(trip_id, None)
+                ranked = self.rank_drivers(nearby_drivers)
+                self.send_offer_cycle(trip, ranked)
+            else:
+                # Reschedule next retry
+                self._emit_no_drivers_event(trip)
+                self._retry_queue[trip_id] = (
+                    self._env.now + self._settings.matching.retry_interval_seconds
+                )
 
     def _start_trip_execution_internal(self, driver: "DriverAgent", trip: Trip) -> None:
         """Actually start the TripExecutor. Must be called from SimPy thread.
@@ -825,6 +883,7 @@ class MatchingServer:
             self._pending_offers.clear()
             self._pending_offer_candidates.clear()
             self._pending_trip_executions.clear()
+            self._retry_queue.clear()
             self._pending_deferred_offers.clear()
             self._drivers.clear()
             self._reserved_drivers.clear()
@@ -1118,8 +1177,9 @@ class MatchingServer:
         trip.cancel(by=cancelled_by, reason=reason, stage=trip.state.value)
         self._emit_trip_state_event(trip, "trip.cancelled")
 
-        # Clean up pending offer candidates
+        # Clean up pending offer candidates and retry queue
         self._pending_offer_candidates.pop(trip_id, None)
+        self._retry_queue.pop(trip_id, None)
 
         # Remove from active trips
         self.complete_trip(trip_id, trip)

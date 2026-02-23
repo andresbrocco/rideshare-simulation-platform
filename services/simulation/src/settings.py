@@ -156,6 +156,12 @@ class MatchingSettings(BaseSettings):
         ge=100,
         description="Maximum number of completed/cancelled trips to retain in memory for metrics",
     )
+    retry_interval_seconds: int = Field(
+        default=10,
+        ge=1,
+        le=60,
+        description="Sim-seconds between retry attempts for unmatched trips",
+    )
 
     model_config = SettingsConfigDict(env_prefix="MATCHING_")
 

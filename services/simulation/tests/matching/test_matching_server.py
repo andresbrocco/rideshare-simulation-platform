@@ -583,8 +583,9 @@ class TestOfferCycle:
                 server.start_pending_trip_executions()
                 env.run()
 
-        # Trip should have no driver (all rejected)
-        assert trip.trip_id not in server._active_trips
+        # Trip should have no driver but stays alive for retry
+        assert trip.trip_id in server._active_trips
+        assert trip.trip_id in server._retry_queue
         # Count offers sent: 1 initial + 4 continuations = 5
         assert server._offers_sent == 5
 
@@ -776,8 +777,9 @@ class TestMatchFlow:
                 server.start_pending_trip_executions()
                 env.run()
 
-        # Trip should be removed from active trips after all rejections
-        assert result.trip_id not in server._active_trips
+        # Trip stays alive for retry after all rejections
+        assert result.trip_id in server._active_trips
+        assert result.trip_id in server._retry_queue
 
 
 @pytest.mark.unit
@@ -1007,11 +1009,12 @@ class TestPuppetReOfferFlow:
         # Track the trip as active
         assert trip.trip_id in server._active_trips
 
-        # Reject - should emit no_drivers and remove from active
+        # Reject - should emit no_drivers and add to retry queue
         server.process_puppet_reject("puppet-1", "trip-123")
 
-        # Trip should be removed from active trips
-        assert trip.trip_id not in server._active_trips
+        # Trip stays alive for retry
+        assert trip.trip_id in server._active_trips
+        assert trip.trip_id in server._retry_queue
         assert trip.trip_id not in server._pending_offer_candidates
 
     def test_puppet_timeout_continues_to_next_driver(
@@ -1838,3 +1841,346 @@ class TestWeightParameterPassing:
 
         assert len(ranked) == 2
         assert all(score > 0 for _, _, score in ranked)
+
+
+@pytest.mark.unit
+@pytest.mark.critical
+class TestRetryQueue:
+    """Tests for the matching retry queue."""
+
+    @pytest.mark.asyncio
+    async def test_no_drivers_queues_retry(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+    ):
+        """No nearby drivers → trip stays active and enters retry queue."""
+        mock_driver_index.find_nearest_drivers.return_value = []
+        mock_osrm_client.get_route.return_value = Mock(geometry=[])
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+
+        result = await server.request_match(
+            rider_id="rider-1",
+            pickup_location=(-23.55, -46.63),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="centro",
+            dropoff_zone_id="pinheiros",
+            surge_multiplier=1.0,
+            fare=25.50,
+        )
+
+        assert result is not None
+        assert result.trip_id in server._active_trips
+        assert result.trip_id in server._retry_queue
+
+    @pytest.mark.asyncio
+    async def test_retry_finds_driver(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+        sample_driver_dna,
+    ):
+        """Trip in retry queue gets matched when a driver becomes available."""
+        mock_osrm_client.get_route.return_value = Mock(geometry=[], duration_seconds=300)
+        # First call: no drivers. Subsequent calls: driver available.
+        mock_driver_index.find_nearest_drivers.return_value = []
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+
+        result = await server.request_match(
+            rider_id="rider-1",
+            pickup_location=(-23.55, -46.63),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="centro",
+            dropoff_zone_id="pinheiros",
+            surge_multiplier=1.0,
+            fare=25.50,
+        )
+
+        assert result is not None
+        trip_id = result.trip_id
+        assert trip_id in server._retry_queue
+
+        # Advance past retry interval
+        env.run(until=env.now + server._settings.matching.retry_interval_seconds)
+
+        # Now a driver is available
+        driver = create_mock_driver("driver-1", sample_driver_dna)
+        server._drivers["driver-1"] = driver
+        mock_driver_index.find_nearest_drivers.return_value = [("driver-1", 2.5)]
+
+        with patch.object(server, "_compute_offer_decision", return_value=True):
+            await server.retry_pending_matches()
+
+        # Trip should be removed from retry queue
+        assert trip_id not in server._retry_queue
+
+        # Process deferred offer and run SimPy
+        server.start_pending_trip_executions()
+        env.run()
+
+        assert result.state == TripState.DRIVER_ASSIGNED
+        assert result.driver_id == "driver-1"
+
+    @pytest.mark.asyncio
+    async def test_retry_interval_respected(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+        sample_driver_dna,
+    ):
+        """Retry does not trigger before the interval elapses."""
+        mock_osrm_client.get_route.return_value = Mock(geometry=[], duration_seconds=300)
+        mock_driver_index.find_nearest_drivers.return_value = []
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+
+        result = await server.request_match(
+            rider_id="rider-1",
+            pickup_location=(-23.55, -46.63),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="centro",
+            dropoff_zone_id="pinheiros",
+            surge_multiplier=1.0,
+            fare=25.50,
+        )
+
+        trip_id = result.trip_id
+        initial_retry_time = server._retry_queue[trip_id]
+
+        # Add a driver but don't advance time past the interval
+        driver = create_mock_driver("driver-1", sample_driver_dna)
+        server._drivers["driver-1"] = driver
+        mock_driver_index.find_nearest_drivers.return_value = [("driver-1", 2.5)]
+
+        # Call retry before interval — should not search
+        await server.retry_pending_matches()
+
+        # Trip should still be in retry queue (not enough sim-time elapsed)
+        assert trip_id in server._retry_queue
+        assert server._retry_queue[trip_id] == initial_retry_time
+
+    @pytest.mark.asyncio
+    async def test_rider_cancels_during_retry(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+    ):
+        """Rider cancellation removes trip from both active trips and retry queue."""
+        mock_osrm_client.get_route.return_value = Mock(geometry=[])
+        mock_driver_index.find_nearest_drivers.return_value = []
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+
+        result = await server.request_match(
+            rider_id="rider-1",
+            pickup_location=(-23.55, -46.63),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="centro",
+            dropoff_zone_id="pinheiros",
+            surge_multiplier=1.0,
+            fare=25.50,
+        )
+
+        trip_id = result.trip_id
+        assert trip_id in server._retry_queue
+        assert trip_id in server._active_trips
+
+        server.cancel_trip(trip_id, cancelled_by="rider", reason="patience_timeout")
+
+        assert trip_id not in server._retry_queue
+        assert trip_id not in server._active_trips
+
+    @pytest.mark.asyncio
+    async def test_multiple_retries_until_success(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+        sample_driver_dna,
+    ):
+        """Trip retries multiple times before finally matching."""
+        mock_osrm_client.get_route.return_value = Mock(geometry=[], duration_seconds=300)
+        mock_driver_index.find_nearest_drivers.return_value = []
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+
+        result = await server.request_match(
+            rider_id="rider-1",
+            pickup_location=(-23.55, -46.63),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="centro",
+            dropoff_zone_id="pinheiros",
+            surge_multiplier=1.0,
+            fare=25.50,
+        )
+
+        trip_id = result.trip_id
+        interval = server._settings.matching.retry_interval_seconds
+
+        # First retry — still no drivers
+        env.run(until=env.now + interval)
+        await server.retry_pending_matches()
+        assert trip_id in server._retry_queue
+
+        # Second retry — still no drivers
+        env.run(until=env.now + interval)
+        await server.retry_pending_matches()
+        assert trip_id in server._retry_queue
+
+        # Third retry — driver available
+        env.run(until=env.now + interval)
+        driver = create_mock_driver("driver-1", sample_driver_dna)
+        server._drivers["driver-1"] = driver
+        mock_driver_index.find_nearest_drivers.return_value = [("driver-1", 2.5)]
+
+        with patch.object(server, "_compute_offer_decision", return_value=True):
+            await server.retry_pending_matches()
+
+        assert trip_id not in server._retry_queue
+
+        server.start_pending_trip_executions()
+        env.run()
+
+        assert result.state == TripState.DRIVER_ASSIGNED
+        assert result.driver_id == "driver-1"
+
+    def test_all_candidates_reject_queues_retry(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+        sample_driver_dna,
+    ):
+        """All ranked drivers reject → trip enters retry queue."""
+        driver1 = create_mock_driver("driver-1", sample_driver_dna)
+        driver2 = create_mock_driver("driver-2", sample_driver_dna)
+
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+
+        trip = Trip(
+            trip_id="trip-retry",
+            rider_id="rider-1",
+            pickup_location=(-23.55, -46.63),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="centro",
+            dropoff_zone_id="pinheiros",
+            surge_multiplier=1.0,
+            fare=25.50,
+        )
+
+        ranked_drivers = [
+            (driver1, 300, 0.9),
+            (driver2, 400, 0.85),
+        ]
+
+        with patch.object(server, "_compute_offer_decision", return_value=False):
+            server.send_offer_cycle(trip, ranked_drivers, max_attempts=5)
+
+            for _ in range(2):
+                server.start_pending_trip_executions()
+                env.run()
+
+        # Trip should be in retry queue, not removed
+        assert trip.trip_id in server._active_trips
+        assert trip.trip_id in server._retry_queue
+
+    def test_clear_resets_retry_queue(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+    ):
+        """clear() empties the retry queue."""
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+
+        server._retry_queue["trip-1"] = 100.0
+        server._retry_queue["trip-2"] = 200.0
+
+        server.clear()
+
+        assert len(server._retry_queue) == 0
+
+    def test_matching_stats_includes_retry_count(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+    ):
+        """get_matching_stats() reports trips_awaiting_retry."""
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+
+        server._retry_queue["trip-1"] = 100.0
+        server._retry_queue["trip-2"] = 200.0
+
+        stats = server.get_matching_stats()
+        assert stats["trips_awaiting_retry"] == 2
