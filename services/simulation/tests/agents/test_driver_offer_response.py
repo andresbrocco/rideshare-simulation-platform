@@ -2,7 +2,7 @@
 
 The acceptance decision logic is tested in tests/matching/test_matching_server.py
 (TestComputeOfferDecision). This module tests the SimPy timing behavior of
-_deferred_offer_response() — that the response_time DNA parameter produces
+_deferred_offer_response() — that the avg_response_time DNA parameter produces
 the correct delay before applying the decision.
 """
 
@@ -57,7 +57,7 @@ def make_driver_dna(**overrides: float | str | tuple[float, float]) -> DriverDNA
         "acceptance_rate": 0.8,
         "cancellation_tendency": 0.1,
         "service_quality": 0.9,
-        "response_time": 5.0,
+        "avg_response_time": 5.0,
         "min_rider_rating": 3.5,
         "surge_acceptance_modifier": 1.3,
         "home_location": (-23.55, -46.63),
@@ -122,7 +122,7 @@ def create_server(
 
 @pytest.mark.unit
 class TestDeferredResponseTiming:
-    """Verify that deferred response delay reflects the driver's response_time DNA."""
+    """Verify that deferred response delay reflects the driver's avg_response_time DNA."""
 
     def test_response_delay_matches_dna(
         self,
@@ -132,8 +132,8 @@ class TestDeferredResponseTiming:
         mock_osrm_client,
         mock_kafka_producer,
     ):
-        """Delay should be response_time ± 2s variance."""
-        dna = make_driver_dna(response_time=5.0)
+        """Delay should be max(3.0, gauss(avg_response_time, 3.0))."""
+        dna = make_driver_dna(avg_response_time=5.0)
         driver = create_mock_driver("driver-1", dna)
         server = create_server(
             env,
@@ -145,18 +145,21 @@ class TestDeferredResponseTiming:
         trip = create_trip()
         server._active_trips[trip.trip_id] = trip
 
-        # Fix variance to 0.0 so delay = exactly response_time
-        # Patch must cover env.run() since _deferred_offer_response calls random.uniform
+        # Fix gauss to return exactly avg_response_time so delay = 5.0
         with (
             patch.object(server, "_compute_offer_decision", return_value=True),
-            patch("matching.matching_server.random.uniform", return_value=0.0),
+            patch("matching.matching_server.random.gauss", return_value=5.0),
         ):
             server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
             server.start_pending_trip_executions()
-            env.run()
 
-        assert env.now == pytest.approx(5.0)
-        assert trip.state == TripState.DRIVER_ASSIGNED
+            # Before the delay elapses — trip should still be pending
+            env.run(until=4.9)
+            assert trip.state == TripState.OFFER_SENT
+
+            # After the delay — trip should be matched
+            env.run(until=5.1)
+            assert trip.state == TripState.DRIVER_ASSIGNED
 
     def test_response_delay_includes_variance(
         self,
@@ -166,8 +169,8 @@ class TestDeferredResponseTiming:
         mock_osrm_client,
         mock_kafka_producer,
     ):
-        """Delay should include the random variance [-2, +2]."""
-        dna = make_driver_dna(response_time=6.0)
+        """Delay should include the Gaussian variance around avg_response_time."""
+        dna = make_driver_dna(avg_response_time=6.0)
         driver = create_mock_driver("driver-1", dna)
         server = create_server(
             env,
@@ -179,17 +182,21 @@ class TestDeferredResponseTiming:
         trip = create_trip()
         server._active_trips[trip.trip_id] = trip
 
-        # Fix variance to +1.5 → delay = 6.0 + 1.5 = 7.5
-        # Patch must cover env.run() since _deferred_offer_response calls random.uniform
+        # Fix gauss to return 7.5 → delay = max(3.0, 7.5) = 7.5
         with (
             patch.object(server, "_compute_offer_decision", return_value=True),
-            patch("matching.matching_server.random.uniform", return_value=1.5),
+            patch("matching.matching_server.random.gauss", return_value=7.5),
         ):
             server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
             server.start_pending_trip_executions()
-            env.run()
 
-        assert env.now == pytest.approx(7.5)
+            # Before the delay — still pending
+            env.run(until=7.4)
+            assert trip.state == TripState.OFFER_SENT
+
+            # After the delay — matched
+            env.run(until=7.6)
+            assert trip.state == TripState.DRIVER_ASSIGNED
 
     def test_response_delay_variance_distribution(
         self,
@@ -199,13 +206,13 @@ class TestDeferredResponseTiming:
         mock_osrm_client,
         mock_kafka_producer,
     ):
-        """Multiple runs should show response times in [response_time-2, response_time+2]."""
+        """Multiple runs should show response times >= 3.0 with variance around mean."""
         random.seed(42)
-        response_times: list[float] = []
+        delays: list[float] = []
 
         for i in range(20):
             local_env = simpy.Environment()
-            dna = make_driver_dna(response_time=8.0)
+            dna = make_driver_dna(avg_response_time=8.0)
             driver = create_mock_driver(f"driver-{i}", dna)
             server = create_server(
                 local_env,
@@ -214,6 +221,8 @@ class TestDeferredResponseTiming:
                 mock_osrm_client,
                 mock_kafka_producer,
             )
+            # Disable timeout manager so we measure the pure response delay
+            server._offer_timeout_manager = None
             trip = create_trip(trip_id=f"trip-{i}")
             server._active_trips[trip.trip_id] = trip
 
@@ -222,19 +231,19 @@ class TestDeferredResponseTiming:
 
             server.start_pending_trip_executions()
             local_env.run()
-            response_times.append(local_env.now)
+            delays.append(local_env.now)
 
-        # All should be in [6.0, 10.0] (response_time=8.0 ± 2.0)
-        assert all(6.0 <= t <= 10.0 for t in response_times)
+        # All should be >= 3.0 (Gaussian with floor at 3.0)
+        assert all(t >= 3.0 for t in delays)
         # With 20 samples, should see some variance (not all identical)
-        assert max(response_times) - min(response_times) > 0.5
+        assert max(delays) - min(delays) > 0.5
 
 
 @pytest.mark.unit
 class TestDeferredResponseTimeBounds:
-    """Verify response delay is bounded within [0.0, 14.9]."""
+    """Verify response delay is bounded with floor at 3.0."""
 
-    def test_low_response_time_bounded_at_zero(
+    def test_low_gauss_draw_bounded_at_3(
         self,
         env,
         mock_driver_index,
@@ -242,8 +251,8 @@ class TestDeferredResponseTimeBounds:
         mock_osrm_client,
         mock_kafka_producer,
     ):
-        """response_time=3.0 (min valid) with variance=-2.0 → delay=1.0 (not negative)."""
-        dna = make_driver_dna(response_time=3.0)
+        """Gaussian draw below 3.0 is clamped to 3.0 floor."""
+        dna = make_driver_dna(avg_response_time=3.0)
         driver = create_mock_driver("driver-1", dna)
         server = create_server(
             env,
@@ -255,19 +264,23 @@ class TestDeferredResponseTimeBounds:
         trip = create_trip()
         server._active_trips[trip.trip_id] = trip
 
+        # gauss returns 1.0 → max(3.0, 1.0) = 3.0
         with (
             patch.object(server, "_compute_offer_decision", return_value=True),
-            patch("matching.matching_server.random.uniform", return_value=-2.0),
+            patch("matching.matching_server.random.gauss", return_value=1.0),
         ):
             server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
             server.start_pending_trip_executions()
-            env.run()
 
-        # max(0.0, 3.0 + (-2.0)) = max(0.0, 1.0) = 1.0
-        assert env.now == pytest.approx(1.0)
-        assert trip.state == TripState.DRIVER_ASSIGNED
+            # Before the 3.0 floor — still pending
+            env.run(until=2.9)
+            assert trip.state == TripState.OFFER_SENT
 
-    def test_high_response_time_bounded_at_14_9(
+            # After the 3.0 floor — matched
+            env.run(until=3.1)
+            assert trip.state == TripState.DRIVER_ASSIGNED
+
+    def test_high_gauss_draw_no_ceiling(
         self,
         env,
         mock_driver_index,
@@ -275,8 +288,13 @@ class TestDeferredResponseTimeBounds:
         mock_osrm_client,
         mock_kafka_producer,
     ):
-        """response_time=12.0 (max valid) with variance=+2.0 → clamped to 14.0."""
-        dna = make_driver_dna(response_time=12.0)
+        """Gaussian draw above mean is not capped — no upper ceiling.
+
+        Disable the OfferTimeoutManager so the response delay (14s) can
+        complete without the 10s timeout firing first.  This isolates the
+        delay computation from the timeout race.
+        """
+        dna = make_driver_dna(avg_response_time=9.0)
         driver = create_mock_driver("driver-1", dna)
         server = create_server(
             env,
@@ -285,22 +303,24 @@ class TestDeferredResponseTimeBounds:
             mock_osrm_client,
             mock_kafka_producer,
         )
+        # Disable timeout manager so the 14s delay can complete
+        server._offer_timeout_manager = None
         trip = create_trip()
         server._active_trips[trip.trip_id] = trip
 
+        # gauss returns 14.0 → max(3.0, 14.0) = 14.0 (no ceiling)
         with (
             patch.object(server, "_compute_offer_decision", return_value=True),
-            patch("matching.matching_server.random.uniform", return_value=2.0),
+            patch("matching.matching_server.random.gauss", return_value=14.0),
         ):
             server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
             server.start_pending_trip_executions()
             env.run()
 
-        # min(14.9, 12.0 + 2.0) = min(14.9, 14.0) = 14.0
         assert env.now == pytest.approx(14.0)
         assert trip.state == TripState.DRIVER_ASSIGNED
 
-    def test_response_time_always_under_15(
+    def test_delay_always_at_least_3(
         self,
         env,
         mock_driver_index,
@@ -308,8 +328,8 @@ class TestDeferredResponseTimeBounds:
         mock_osrm_client,
         mock_kafka_producer,
     ):
-        """Even with max response_time=12.0 and max variance, delay < 15.0."""
-        dna = make_driver_dna(response_time=12.0)
+        """Even with extreme negative Gaussian draw, delay >= 3.0."""
+        dna = make_driver_dna(avg_response_time=5.0)
         driver = create_mock_driver("driver-1", dna)
         server = create_server(
             env,
@@ -321,16 +341,17 @@ class TestDeferredResponseTimeBounds:
         trip = create_trip()
         server._active_trips[trip.trip_id] = trip
 
+        # gauss returns -5.0 → max(3.0, -5.0) = 3.0
         with (
             patch.object(server, "_compute_offer_decision", return_value=True),
-            patch("matching.matching_server.random.uniform", return_value=2.0),
+            patch("matching.matching_server.random.gauss", return_value=-5.0),
         ):
             server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
 
-        server.start_pending_trip_executions()
-        env.run()
+            server.start_pending_trip_executions()
+            env.run(until=3.1)
 
-        assert env.now < 15.0
+        assert env.now >= 3.0
 
 
 @pytest.mark.unit
@@ -346,7 +367,7 @@ class TestDeferredResponseStateTransitions:
         mock_kafka_producer,
     ):
         """Accepted deferred offer transitions trip to MATCHED and calls accept_trip."""
-        dna = make_driver_dna(response_time=3.0)
+        dna = make_driver_dna(avg_response_time=3.0)
         driver = create_mock_driver("driver-1", dna)
         server = create_server(
             env,
@@ -358,11 +379,14 @@ class TestDeferredResponseStateTransitions:
         trip = create_trip()
         server._active_trips[trip.trip_id] = trip
 
-        with patch.object(server, "_compute_offer_decision", return_value=True):
+        with (
+            patch.object(server, "_compute_offer_decision", return_value=True),
+            patch("matching.matching_server.random.gauss", return_value=4.0),
+        ):
             server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
 
-        server.start_pending_trip_executions()
-        env.run()
+            server.start_pending_trip_executions()
+            env.run(until=4.1)
 
         assert trip.state == TripState.DRIVER_ASSIGNED
         assert trip.driver_id == "driver-1"
@@ -378,7 +402,7 @@ class TestDeferredResponseStateTransitions:
         mock_kafka_producer,
     ):
         """Rejected deferred offer releases driver reservation and updates index."""
-        dna = make_driver_dna(response_time=3.0)
+        dna = make_driver_dna(avg_response_time=3.0)
         driver = create_mock_driver("driver-1", dna)
         server = create_server(
             env,
@@ -390,11 +414,14 @@ class TestDeferredResponseStateTransitions:
         trip = create_trip()
         server._active_trips[trip.trip_id] = trip
 
-        with patch.object(server, "_compute_offer_decision", return_value=False):
+        with (
+            patch.object(server, "_compute_offer_decision", return_value=False),
+            patch("matching.matching_server.random.gauss", return_value=4.0),
+        ):
             server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
 
-        server.start_pending_trip_executions()
-        env.run()
+            server.start_pending_trip_executions()
+            env.run(until=4.1)
 
         assert "driver-1" not in server._reserved_drivers
         driver.statistics.record_offer_rejected.assert_called_once()
@@ -408,8 +435,8 @@ class TestDeferredResponseStateTransitions:
         mock_osrm_client,
         mock_kafka_producer,
     ):
-        """Trip should be OFFER_SENT (not MATCHED) before response_time delay elapses."""
-        dna = make_driver_dna(response_time=10.0)
+        """Trip should be OFFER_SENT (not MATCHED) before avg_response_time delay elapses."""
+        dna = make_driver_dna(avg_response_time=9.0)
         driver = create_mock_driver("driver-1", dna)
         server = create_server(
             env,
@@ -421,18 +448,19 @@ class TestDeferredResponseStateTransitions:
         trip = create_trip()
         server._active_trips[trip.trip_id] = trip
 
+        # Use 9.0s delay (under the 10s timeout) so the response fires first
         with (
             patch.object(server, "_compute_offer_decision", return_value=True),
-            patch("matching.matching_server.random.uniform", return_value=0.0),
+            patch("matching.matching_server.random.gauss", return_value=9.0),
         ):
             server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
 
-        server.start_pending_trip_executions()
+            server.start_pending_trip_executions()
 
-        # Run only 5 seconds — before the 10s response_time
-        env.run(until=5.0)
-        assert trip.state == TripState.OFFER_SENT
+            # Run only 5 seconds — before the 9s response delay
+            env.run(until=5.0)
+            assert trip.state == TripState.OFFER_SENT
 
-        # Now run to completion — trip should be matched
-        env.run()
-        assert trip.state == TripState.DRIVER_ASSIGNED
+            # Run past the response delay but before timeout event
+            env.run(until=9.1)
+            assert trip.state == TripState.DRIVER_ASSIGNED

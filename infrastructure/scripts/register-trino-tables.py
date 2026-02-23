@@ -49,6 +49,7 @@ GOLD_TABLES = [
     "fact_payments",
     "fact_ratings",
     "fact_cancellations",
+    "fact_offers",
     "fact_driver_activity",
     "dim_drivers",
     "dim_riders",

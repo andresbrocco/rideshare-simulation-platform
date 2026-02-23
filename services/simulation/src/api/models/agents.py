@@ -52,7 +52,7 @@ class DriverDNAOverride(BaseModel):
     acceptance_rate: float | None = Field(None, ge=0.0, le=1.0)
     cancellation_tendency: float | None = Field(None, ge=0.0, le=1.0)
     service_quality: float | None = Field(None, ge=0.0, le=1.0)
-    response_time: float | None = Field(None, ge=3.0, le=12.0)
+    avg_response_time: float | None = Field(None, ge=3.0, le=9.0)
     min_rider_rating: float | None = Field(None, ge=1.0, le=5.0)
     surge_acceptance_modifier: float | None = Field(None, ge=1.0, le=2.0)
 
@@ -105,7 +105,7 @@ class DriverDNAResponse(BaseModel):
     acceptance_rate: float
     cancellation_tendency: float
     service_quality: float
-    response_time: float
+    avg_response_time: float
     min_rider_rating: float
     surge_acceptance_modifier: float
 

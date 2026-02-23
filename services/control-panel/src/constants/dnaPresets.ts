@@ -2,7 +2,7 @@ export interface DriverDNAOverride {
   acceptance_rate: number;
   cancellation_tendency: number;
   service_quality: number;
-  response_time: number;
+  avg_response_time: number;
   min_rider_rating: number;
   surge_acceptance_modifier: number;
 }
@@ -37,7 +37,7 @@ export const DRIVER_PRESETS: DriverPreset[] = [
       acceptance_rate: 0.95,
       cancellation_tendency: 0.05,
       service_quality: 0.9,
-      response_time: 4.0,
+      avg_response_time: 4.0,
       min_rider_rating: 3.0,
       surge_acceptance_modifier: 1.2,
     },
@@ -50,7 +50,7 @@ export const DRIVER_PRESETS: DriverPreset[] = [
       acceptance_rate: 0.6,
       cancellation_tendency: 0.2,
       service_quality: 0.85,
-      response_time: 8.0,
+      avg_response_time: 8.0,
       min_rider_rating: 4.5,
       surge_acceptance_modifier: 1.8,
     },
@@ -63,7 +63,7 @@ export const DRIVER_PRESETS: DriverPreset[] = [
       acceptance_rate: 0.8,
       cancellation_tendency: 0.1,
       service_quality: 0.75,
-      response_time: 6.0,
+      avg_response_time: 6.0,
       min_rider_rating: 3.5,
       surge_acceptance_modifier: 1.4,
     },

@@ -116,7 +116,7 @@ export function DriverInspector({
           label="Service Quality"
           value={`${(dna.service_quality * 100).toFixed(0)}%`}
         />
-        <InspectorRow label="Response Time" value={`${dna.response_time.toFixed(1)}s`} />
+        <InspectorRow label="Avg Response Time" value={`${dna.avg_response_time.toFixed(1)}s`} />
         <InspectorRow label="Min Rider Rating" value={dna.min_rider_rating.toFixed(1)} />
       </InspectorSection>
 

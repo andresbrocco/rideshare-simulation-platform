@@ -2429,11 +2429,11 @@
             ],
             "title": "Service Quality"
           },
-          "response_time": {
+          "avg_response_time": {
             "anyOf": [
               {
                 "type": "number",
-                "maximum": 12.0,
+                "maximum": 9.0,
                 "minimum": 3.0
               },
               {
@@ -2519,9 +2519,9 @@
             "type": "number",
             "title": "Service Quality"
           },
-          "response_time": {
+          "avg_response_time": {
             "type": "number",
-            "title": "Response Time"
+            "title": "Avg Response Time"
           },
           "min_rider_rating": {
             "type": "number",
@@ -2595,7 +2595,7 @@
           "acceptance_rate",
           "cancellation_tendency",
           "service_quality",
-          "response_time",
+          "avg_response_time",
           "min_rider_rating",
           "surge_acceptance_modifier",
           "home_location",

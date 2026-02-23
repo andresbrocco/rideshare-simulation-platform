@@ -35,11 +35,11 @@ def test_driver_acceptance_rate_range():
 
 
 @pytest.mark.unit
-def test_driver_response_time_range():
-    """Test all response_time values are in [3.0, 12.0] seconds."""
+def test_driver_avg_response_time_range():
+    """Test all avg_response_time values are in [3.0, 9.0] seconds."""
     for _ in range(100):
         dna = generate_driver_dna()
-        assert 3.0 <= dna.response_time <= 12.0
+        assert 3.0 <= dna.avg_response_time <= 9.0
 
 
 @pytest.mark.unit

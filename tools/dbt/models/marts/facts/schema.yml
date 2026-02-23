@@ -131,6 +131,32 @@ models:
               config:
                 where: "cancellation_reason is not null"
 
+  - name: fact_offers
+    description: Individual offer attempts with outcome and response latency.
+    columns:
+      - name: offer_key
+        tests:
+          - unique
+      - name: outcome
+        tests:
+          - accepted_values:
+              values: ['accepted', 'rejected', 'expired', 'pending']
+      - name: rider_key
+        tests:
+          - relationships:
+              to: ref('dim_riders')
+              field: rider_key
+      - name: pickup_zone_key
+        tests:
+          - relationships:
+              to: ref('dim_zones')
+              field: zone_key
+      - name: time_key
+        tests:
+          - relationships:
+              to: ref('dim_time')
+              field: time_key
+
   - name: fact_driver_activity
     description: Driver status durations for utilization analysis.
     columns:

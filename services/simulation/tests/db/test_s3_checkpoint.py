@@ -53,7 +53,7 @@ def sample_driver_dna():
         acceptance_rate=0.85,
         cancellation_tendency=0.05,
         service_quality=0.9,
-        response_time=5.0,
+        avg_response_time=5.0,
         min_rider_rating=3.5,
         surge_acceptance_modifier=1.5,
         home_location=(-23.55, -46.63),

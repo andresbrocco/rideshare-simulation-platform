@@ -57,8 +57,8 @@ def generate_driver_dna(faker: Faker | None = None) -> DriverDNA:
     # Service quality skewed toward higher values
     service_quality = max(0.6, min(1.0, random.gauss(0.85, 0.1)))
 
-    # Response time with normal distribution
-    response_time = max(3.0, min(12.0, random.gauss(6.0, 2.0)))
+    # Average response time with normal distribution
+    avg_response_time = max(3.0, min(9.0, random.gauss(6.0, 1.0)))
 
     min_rider_rating = random.uniform(3.0, 4.5)
     surge_acceptance_modifier = random.uniform(1.2, 1.8)
@@ -98,7 +98,7 @@ def generate_driver_dna(faker: Faker | None = None) -> DriverDNA:
         acceptance_rate=acceptance_rate,
         cancellation_tendency=cancellation_tendency,
         service_quality=service_quality,
-        response_time=response_time,
+        avg_response_time=avg_response_time,
         min_rider_rating=min_rider_rating,
         surge_acceptance_modifier=surge_acceptance_modifier,
         home_location=home_location,

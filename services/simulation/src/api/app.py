@@ -120,8 +120,13 @@ class MetricsUpdater:
                     matching_stats = ms.get_matching_stats()
                     offers_sent = matching_stats.get("offers_sent", 0)
                     offers_accepted = matching_stats.get("offers_accepted", 0)
+                    offers_rejected = matching_stats.get("offers_rejected", 0)
+                    offers_expired = matching_stats.get("offers_expired", 0)
                     if offers_sent > 0:
                         matching_success_rate = (offers_accepted / offers_sent) * 100.0
+                else:
+                    offers_rejected = 0
+                    offers_expired = 0
 
                 update_metrics_from_snapshot(
                     snapshot,
@@ -138,6 +143,8 @@ class MetricsUpdater:
                     matching_success_rate=matching_success_rate,
                     pending_offers=pending_offers,
                     simpy_events=simpy_events,
+                    offers_rejected=offers_rejected,
+                    offers_expired=offers_expired,
                 )
             except asyncio.CancelledError:
                 break

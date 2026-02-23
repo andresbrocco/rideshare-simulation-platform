@@ -253,7 +253,7 @@ def get_driver_state(
             acceptance_rate=dna.acceptance_rate,
             cancellation_tendency=dna.cancellation_tendency,
             service_quality=dna.service_quality,
-            response_time=dna.response_time,
+            avg_response_time=dna.avg_response_time,
             min_rider_rating=dna.min_rider_rating,
             surge_acceptance_modifier=dna.surge_acceptance_modifier,
             home_location=dna.home_location,

@@ -12,7 +12,7 @@ This module defines the autonomous actors in the rideshare simulation: drivers a
 
 ## Key Concepts
 
-**DNA (Immutable Behavioral Parameters)**: Frozen Pydantic models defining agent personality that never changes during simulation. Driver DNA includes acceptance_rate, service_quality, response_time, shift_preference. Rider DNA includes behavior_factor, patience_threshold, max_surge_multiplier. Profile attributes (contact info, vehicle details) can change via SCD Type 2 updates but DNA behavioral parameters remain constant.
+**DNA (Immutable Behavioral Parameters)**: Frozen Pydantic models defining agent personality that never changes during simulation. Driver DNA includes acceptance_rate, service_quality, avg_response_time, shift_preference. Rider DNA includes behavior_factor, patience_threshold, max_surge_multiplier. Profile attributes (contact info, vehicle details) can change via SCD Type 2 updates but DNA behavioral parameters remain constant.
 
 **Agent Lifecycle Modes**: Three operational modes - Normal (shift-based autonomy following DNA patterns), Immediate (goes online immediately for testing), Puppet (manually controlled via API with no autonomous behavior). Puppet mode only emits GPS pings and responds to external commands.
 

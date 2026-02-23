@@ -171,7 +171,7 @@ export interface DriverDNA {
   acceptance_rate: number;
   cancellation_tendency: number;
   service_quality: number;
-  response_time: number;
+  avg_response_time: number;
   min_rider_rating: number;
   surge_acceptance_modifier: number;
   home_location: [number, number];

@@ -48,6 +48,7 @@ parsed as (
         {{ json_field('_raw_value', '$.cancelled_by') }} as cancelled_by,
         {{ json_field('_raw_value', '$.cancellation_reason') }} as cancellation_reason,
         {{ json_field('_raw_value', '$.correlation_id') }} as correlation_id,
+        cast({{ json_field('_raw_value', '$.offer_sequence') }} as integer) as offer_sequence,
         _ingested_at
     from source
     where {{ json_field('_raw_value', '$.event_id') }} is not null
@@ -80,6 +81,7 @@ select
     cancelled_by,
     cancellation_reason,
     correlation_id,
+    offer_sequence,
     _ingested_at
 from deduplicated
 where _row_num = 1

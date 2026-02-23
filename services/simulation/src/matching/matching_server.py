@@ -16,6 +16,7 @@ from events.factory import EventFactory
 from events.schemas import TripEvent
 from kafka.serializer_registry import SerializerRegistry
 from matching.driver_geospatial_index import DriverGeospatialIndex
+from matching.offer_timeout import OfferTimeoutManager
 from puppet.drive_controller import PuppetDriveController
 from settings import Settings
 from trip import Trip, TripState
@@ -141,6 +142,14 @@ class MatchingServer:
         self._osrm_candidate_limit: int = 15
         # Puppet drive controllers (for background thread movement)
         self._puppet_drives: dict[str, PuppetDriveController] = {}
+        # Offer timeout manager for regular (non-puppet) drivers
+        self._offer_timeout_manager: OfferTimeoutManager | None = None
+        if kafka_producer:
+            self._offer_timeout_manager = OfferTimeoutManager(
+                env=env,
+                timeout_seconds=self._settings.matching.offer_timeout_seconds,
+                on_expire=self._handle_offer_expired,
+            )
 
     def register_driver(self, driver: "DriverAgent") -> None:
         self._drivers[driver.driver_id] = driver
@@ -487,18 +496,32 @@ class MatchingServer:
         accepted: bool,
         eta_seconds: int,
     ) -> Generator[simpy.Event]:
-        """SimPy process that waits for driver's response_time then applies the decision.
+        """SimPy process that waits for driver's avg_response_time then applies the decision.
 
         The accept/reject decision is pre-computed at offer time. This process
-        defers *applying* it by the driver's response_time DNA parameter,
-        simulating realistic driver "think time".
+        defers *applying* it by the driver's avg_response_time DNA parameter,
+        simulating realistic driver "think time". If the OfferTimeoutManager
+        fires first, the trip transitions to OFFER_EXPIRED and this process
+        exits cleanly.
         """
-        # Compute delay from driver DNA
-        base_delay = driver.dna.response_time
-        variance = random.uniform(-2.0, 2.0)
-        delay = max(0.0, min(14.9, base_delay + variance))
+        # Compute delay from driver DNA — Gaussian with no ceiling allows
+        # delays exceeding the timeout, creating genuine timeout risk.
+        base_delay = driver.dna.avg_response_time
+        delay = max(3.0, random.gauss(base_delay, 3.0))
 
         yield self._env.timeout(delay)
+
+        # Check if offer was already expired by timeout manager or trip cancelled
+        if trip.state != TripState.OFFER_SENT:
+            # Offer was expired by timeout or trip cancelled — decision is moot.
+            # Release driver reservation if not already done by the timeout handler.
+            with self._state_lock:
+                self._reserved_drivers.discard(driver.driver_id)
+            return
+
+        # Clear the timeout since the driver responded in time
+        if self._offer_timeout_manager:
+            self._offer_timeout_manager.clear_offer(trip.trip_id, "responded")
 
         # Check trip is still alive (rider may have cancelled during think time)
         with self._state_lock:
@@ -532,6 +555,7 @@ class MatchingServer:
                 self._reserved_drivers.discard(driver.driver_id)
                 self._driver_index.update_driver_status(driver.driver_id, "available")
             trip.transition_to(TripState.OFFER_REJECTED)
+            self._emit_offer_rejected_event(trip, driver.driver_id, trip.offer_sequence)
             # Continue with next candidate (queued for SimPy thread processing)
             self._continue_deferred_offer_cycle(trip)
 
@@ -750,10 +774,14 @@ class MatchingServer:
 
         # Regular drivers: compute decision now, defer application via SimPy process.
         # The accept/reject is predetermined but not applied until after the
-        # driver's response_time delay (simulating "think time").
+        # driver's avg_response_time delay (simulating "think time").
         decision = self._compute_offer_decision(driver, trip)
         with self._state_lock:
             self._pending_deferred_offers.append((driver, trip, decision, eta_seconds))
+        # Start timeout race — if driver's response delay exceeds timeout,
+        # the OfferTimeoutManager fires _handle_offer_expired first.
+        if self._offer_timeout_manager:
+            self._offer_timeout_manager.start_offer_timeout(trip, driver_id, offer_sequence)
         return False  # Result comes asynchronously via _deferred_offer_response
 
     def _format_timestamp(self) -> str:
@@ -868,6 +896,67 @@ class MatchingServer:
 
         self._publish_trip_event(event, trip.trip_id)
 
+    def _handle_offer_expired(self, trip_id: str, driver_id: str) -> None:
+        """Called by OfferTimeoutManager when a regular driver's offer expires."""
+        driver = self._drivers.get(driver_id)
+        self._offers_expired += 1
+        if driver:
+            driver.statistics.record_offer_expired()
+        with self._state_lock:
+            self._reserved_drivers.discard(driver_id)
+            self._driver_index.update_driver_status(driver_id, "available")
+        trip = self._active_trips.get(trip_id)
+        if not trip:
+            self._pending_offer_candidates.pop(trip_id, None)
+            return
+        trip.transition_to(TripState.OFFER_EXPIRED)
+        self._emit_offer_expired_event(trip, driver_id, trip.offer_sequence)
+        self._continue_deferred_offer_cycle(trip)
+
+    def _emit_offer_expired_event(self, trip: Trip, driver_id: str, offer_sequence: int) -> None:
+        if not self._kafka_producer:
+            return
+        event = EventFactory.create_for_trip(
+            TripEvent,
+            trip,
+            update_causation=True,
+            event_type="trip.offer_expired",
+            trip_id=trip.trip_id,
+            rider_id=trip.rider_id,
+            driver_id=driver_id,
+            pickup_location=trip.pickup_location,
+            dropoff_location=trip.dropoff_location,
+            pickup_zone_id=trip.pickup_zone_id,
+            dropoff_zone_id=trip.dropoff_zone_id,
+            surge_multiplier=trip.surge_multiplier,
+            fare=trip.fare,
+            offer_sequence=offer_sequence,
+            timestamp=self._format_timestamp(),
+        )
+        self._publish_trip_event(event, trip.trip_id)
+
+    def _emit_offer_rejected_event(self, trip: Trip, driver_id: str, offer_sequence: int) -> None:
+        if not self._kafka_producer:
+            return
+        event = EventFactory.create_for_trip(
+            TripEvent,
+            trip,
+            update_causation=True,
+            event_type="trip.offer_rejected",
+            trip_id=trip.trip_id,
+            rider_id=trip.rider_id,
+            driver_id=driver_id,
+            pickup_location=trip.pickup_location,
+            dropoff_location=trip.dropoff_location,
+            pickup_zone_id=trip.pickup_zone_id,
+            dropoff_zone_id=trip.dropoff_zone_id,
+            surge_multiplier=trip.surge_multiplier,
+            fare=trip.fare,
+            offer_sequence=offer_sequence,
+            timestamp=self._format_timestamp(),
+        )
+        self._publish_trip_event(event, trip.trip_id)
+
     def clear(self) -> None:
         """Clear all matching server state for simulation reset."""
         with self._state_lock:
@@ -900,6 +989,10 @@ class MatchingServer:
             self._stats_match_time_count = 0
             self._stats_pickup_sum = 0.0
             self._stats_pickup_count = 0
+
+            # Clear pending offer timeouts
+            if self._offer_timeout_manager:
+                self._offer_timeout_manager.pending_offers.clear()
 
             # Clear the geospatial index
             if hasattr(self._driver_index, "clear"):
@@ -991,6 +1084,7 @@ class MatchingServer:
 
         # Transition to rejected
         trip.transition_to(TripState.OFFER_REJECTED)
+        self._emit_offer_rejected_event(trip, driver_id, trip.offer_sequence)
 
         # Continue to next candidate using unified continuation
         self._continue_deferred_offer_cycle(trip)
@@ -1023,6 +1117,7 @@ class MatchingServer:
 
         # Transition to expired
         trip.transition_to(TripState.OFFER_EXPIRED)
+        self._emit_offer_expired_event(trip, driver_id, trip.offer_sequence)
 
         # Continue to next candidate using unified continuation
         self._continue_deferred_offer_cycle(trip)

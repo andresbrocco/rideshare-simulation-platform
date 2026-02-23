@@ -1,5 +1,4 @@
-import json
-from unittest.mock import Mock, call
+from unittest.mock import Mock
 
 import pytest
 import simpy
@@ -14,13 +13,13 @@ def env():
 
 
 @pytest.fixture
-def mock_kafka_producer():
+def mock_on_expire():
     return Mock()
 
 
 @pytest.fixture
-def timeout_manager(env, mock_kafka_producer):
-    return OfferTimeoutManager(env, mock_kafka_producer, timeout_seconds=15)
+def timeout_manager(env, mock_on_expire):
+    return OfferTimeoutManager(env, timeout_seconds=10, on_expire=mock_on_expire)
 
 
 @pytest.fixture
@@ -41,9 +40,9 @@ def sample_trip():
 
 @pytest.mark.unit
 @pytest.mark.slow
-def test_offer_timeout_manager_init(env, mock_kafka_producer):
-    manager = OfferTimeoutManager(env, mock_kafka_producer, timeout_seconds=15)
-    assert manager.timeout_seconds == 15
+def test_offer_timeout_manager_init(env, mock_on_expire):
+    manager = OfferTimeoutManager(env, timeout_seconds=10, on_expire=mock_on_expire)
+    assert manager.timeout_seconds == 10
     assert manager.pending_offers == {}
 
 
@@ -61,54 +60,47 @@ def test_track_pending_offer(timeout_manager, sample_trip):
 
 @pytest.mark.unit
 @pytest.mark.slow
-def test_offer_expires_after_timeout(env, mock_kafka_producer, sample_trip):
-    manager = OfferTimeoutManager(env, mock_kafka_producer, timeout_seconds=15)
+def test_offer_expires_after_timeout(env, mock_on_expire, sample_trip):
+    manager = OfferTimeoutManager(env, timeout_seconds=10, on_expire=mock_on_expire)
     manager.start_offer_timeout(sample_trip, "driver1", 1)
 
-    env.run(until=16)
+    env.run(until=11)
 
-    mock_kafka_producer.produce.assert_called_once()
-    call_args = mock_kafka_producer.produce.call_args
-    assert call_args[1]["topic"] == "trips"
-    event_data = json.loads(call_args[1]["value"])
-    assert event_data["trip_id"] == "trip123"
-    assert event_data["driver_id"] == "driver1"
-    assert event_data["offer_sequence"] == 1
-    assert event_data["event_type"] == "trip.offer_expired"
+    mock_on_expire.assert_called_once_with("trip123", "driver1")
     assert "trip123" not in manager.pending_offers
 
 
 @pytest.mark.unit
 @pytest.mark.slow
-def test_offer_accepted_before_timeout(env, mock_kafka_producer, sample_trip):
-    manager = OfferTimeoutManager(env, mock_kafka_producer, timeout_seconds=15)
+def test_offer_accepted_before_timeout(env, mock_on_expire, sample_trip):
+    manager = OfferTimeoutManager(env, timeout_seconds=10, on_expire=mock_on_expire)
     manager.start_offer_timeout(sample_trip, "driver1", 1)
 
-    env.run(until=10)
+    env.run(until=5)
     manager.clear_offer("trip123", "accepted")
-    env.run(until=20)
+    env.run(until=15)
 
-    mock_kafka_producer.produce.assert_not_called()
+    mock_on_expire.assert_not_called()
     assert "trip123" not in manager.pending_offers
 
 
 @pytest.mark.unit
 @pytest.mark.slow
-def test_offer_rejected_before_timeout(env, mock_kafka_producer, sample_trip):
-    manager = OfferTimeoutManager(env, mock_kafka_producer, timeout_seconds=15)
+def test_offer_rejected_before_timeout(env, mock_on_expire, sample_trip):
+    manager = OfferTimeoutManager(env, timeout_seconds=10, on_expire=mock_on_expire)
     manager.start_offer_timeout(sample_trip, "driver1", 1)
 
     env.run(until=5)
     manager.clear_offer("trip123", "rejected")
-    env.run(until=20)
+    env.run(until=15)
 
-    mock_kafka_producer.produce.assert_not_called()
+    mock_on_expire.assert_not_called()
     assert "trip123" not in manager.pending_offers
 
 
 @pytest.mark.unit
 @pytest.mark.slow
-def test_increment_offer_sequence_on_expire(env, mock_kafka_producer):
+def test_increment_offer_sequence_on_expire(env, mock_on_expire):
     trip = Trip(
         trip_id="trip123",
         rider_id="rider1",
@@ -122,33 +114,32 @@ def test_increment_offer_sequence_on_expire(env, mock_kafka_producer):
         offer_sequence=1,
     )
 
-    manager = OfferTimeoutManager(env, mock_kafka_producer, timeout_seconds=15)
+    manager = OfferTimeoutManager(env, timeout_seconds=10, on_expire=mock_on_expire)
     manager.start_offer_timeout(trip, "driver1", 1)
 
-    env.run(until=16)
+    env.run(until=11)
 
-    call_args = json.loads(mock_kafka_producer.produce.call_args[1]["value"])
-    assert call_args["offer_sequence"] == 1
+    mock_on_expire.assert_called_once_with("trip123", "driver1")
 
 
 @pytest.mark.unit
 @pytest.mark.slow
-def test_concurrent_offer_invalidation(env, mock_kafka_producer, sample_trip):
-    manager = OfferTimeoutManager(env, mock_kafka_producer, timeout_seconds=15)
+def test_concurrent_offer_invalidation(env, mock_on_expire, sample_trip):
+    manager = OfferTimeoutManager(env, timeout_seconds=10, on_expire=mock_on_expire)
     manager.start_offer_timeout(sample_trip, "driver1", 1)
 
     env.run(until=8)
     manager.invalidate_offer("trip123")
-    env.run(until=20)
+    env.run(until=15)
 
-    mock_kafka_producer.produce.assert_not_called()
+    mock_on_expire.assert_not_called()
     assert "trip123" not in manager.pending_offers
 
 
 @pytest.mark.unit
 @pytest.mark.slow
-def test_multiple_pending_offers(env, mock_kafka_producer):
-    manager = OfferTimeoutManager(env, mock_kafka_producer, timeout_seconds=15)
+def test_multiple_pending_offers(env, mock_on_expire):
+    manager = OfferTimeoutManager(env, timeout_seconds=10, on_expire=mock_on_expire)
 
     trip1 = Trip(
         trip_id="trip1",
@@ -193,61 +184,48 @@ def test_multiple_pending_offers(env, mock_kafka_producer):
 
     assert len(manager.pending_offers) == 3
 
-    env.run(until=16)
+    env.run(until=11)
 
     assert len(manager.pending_offers) == 0
-    assert mock_kafka_producer.produce.call_count == 3
+    assert mock_on_expire.call_count == 3
 
-    trip_ids = {
-        json.loads(call[1]["value"])["trip_id"]
-        for call in mock_kafka_producer.produce.call_args_list
-    }
-    assert trip_ids == {"trip1", "trip2", "trip3"}
+    expired_trip_ids = {c.args[0] for c in mock_on_expire.call_args_list}
+    assert expired_trip_ids == {"trip1", "trip2", "trip3"}
 
 
 @pytest.mark.unit
 @pytest.mark.slow
-def test_clear_offer_on_match(env, mock_kafka_producer, sample_trip):
-    manager = OfferTimeoutManager(env, mock_kafka_producer, timeout_seconds=15)
+def test_clear_offer_on_match(env, mock_on_expire, sample_trip):
+    manager = OfferTimeoutManager(env, timeout_seconds=10, on_expire=mock_on_expire)
     manager.start_offer_timeout(sample_trip, "driver1", 1)
 
     env.run(until=7)
     manager.clear_offer("trip123", "accepted")
-    env.run(until=20)
+    env.run(until=15)
 
-    mock_kafka_producer.produce.assert_not_called()
+    mock_on_expire.assert_not_called()
     assert "trip123" not in manager.pending_offers
 
 
 @pytest.mark.unit
 @pytest.mark.slow
-def test_simpy_timeout_integration(env, mock_kafka_producer, sample_trip):
-    manager = OfferTimeoutManager(env, mock_kafka_producer, timeout_seconds=15)
+def test_simpy_timeout_integration(env, mock_on_expire, sample_trip):
+    manager = OfferTimeoutManager(env, timeout_seconds=10, on_expire=mock_on_expire)
     manager.start_offer_timeout(sample_trip, "driver1", 1)
 
-    env.run(until=14)
-    mock_kafka_producer.produce.assert_not_called()
+    env.run(until=9)
+    mock_on_expire.assert_not_called()
 
-    env.run(until=16)
-    mock_kafka_producer.produce.assert_called_once()
+    env.run(until=11)
+    mock_on_expire.assert_called_once()
 
 
 @pytest.mark.unit
 @pytest.mark.slow
-def test_expired_offer_emits_event(env, mock_kafka_producer, sample_trip):
-    manager = OfferTimeoutManager(env, mock_kafka_producer, timeout_seconds=15)
+def test_expired_offer_calls_on_expire(env, mock_on_expire, sample_trip):
+    manager = OfferTimeoutManager(env, timeout_seconds=10, on_expire=mock_on_expire)
     manager.start_offer_timeout(sample_trip, "driver1", 1)
 
-    env.run(until=16)
+    env.run(until=11)
 
-    mock_kafka_producer.produce.assert_called_once()
-    call_args = mock_kafka_producer.produce.call_args
-    assert call_args[1]["topic"] == "trips"
-
-    event_data = json.loads(call_args[1]["value"])
-    assert event_data["trip_id"] == "trip123"
-    assert event_data["driver_id"] == "driver1"
-    assert event_data["offer_sequence"] == 1
-    assert event_data["event_type"] == "trip.offer_expired"
-    # Timestamp is now ISO 8601 format
-    assert "timestamp" in event_data
+    mock_on_expire.assert_called_once_with("trip123", "driver1")

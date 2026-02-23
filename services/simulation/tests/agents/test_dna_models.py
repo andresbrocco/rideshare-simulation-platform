@@ -40,10 +40,10 @@ class TestDriverDNA:
         with pytest.raises(ValidationError):
             dna_factory.driver_dna(acceptance_rate=1.5)
 
-    def test_driver_dna_response_time_bounds(self, dna_factory: DNAFactory):
-        """Validates response_time between 3-12 seconds."""
+    def test_driver_dna_avg_response_time_bounds(self, dna_factory: DNAFactory):
+        """Validates avg_response_time between 3-9 seconds."""
         with pytest.raises(ValidationError):
-            dna_factory.driver_dna(response_time=1.0)
+            dna_factory.driver_dna(avg_response_time=1.0)
 
     def test_driver_dna_shift_preference_enum(self, dna_factory: DNAFactory):
         """Validates shift_preference enum."""

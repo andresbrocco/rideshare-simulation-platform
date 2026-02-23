@@ -162,6 +162,12 @@ class MatchingSettings(BaseSettings):
         le=60,
         description="Sim-seconds between retry attempts for unmatched trips",
     )
+    offer_timeout_seconds: int = Field(
+        default=10,
+        ge=5,
+        le=60,
+        description="Sim-seconds before a pending offer expires",
+    )
 
     model_config = SettingsConfigDict(env_prefix="MATCHING_")
 

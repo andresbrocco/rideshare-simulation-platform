@@ -21,6 +21,8 @@ models:
               values: ['changed_mind', 'driver_cancelled', 'no_show', 'permanent_error', 'transient_error', 'unexpected_error', 'no_drivers_available', 'patience_timeout', 'system_pause']
               config:
                 where: "cancellation_reason is not null"
+      - name: offer_sequence
+        description: Sequence number of the offer within a trip matching cycle (null for non-offer events).
 
   - name: stg_gps_pings
     description: Staging model for GPS ping events from Bronze layer.

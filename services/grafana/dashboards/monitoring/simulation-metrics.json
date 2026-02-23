@@ -940,12 +940,109 @@
       "type": "timeseries"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 20
+      },
+      "id": 26,
+      "description": "Rate of rejected and expired ride offers. Rejected = driver actively declined. Expired = offer timed out without driver response.",
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "rate(simulation_offers_rejected_total[5m])",
+          "legendFormat": "Rejected/s",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "rate(simulation_offers_expired_total[5m])",
+          "legendFormat": "Expired/s",
+          "refId": "B"
+        }
+      ],
+      "title": "Offer Outcomes",
+      "type": "timeseries"
+    },
+    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 20
+        "y": 27
       },
       "id": 15,
       "panels": [],
@@ -1010,7 +1107,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 21
+        "y": 28
       },
       "id": 16,
       "description": "Response time percentiles (p50/p95/p99) for OSRM routing service calls. OSRM calculates driving distances and ETAs for trip matching and fare estimation.",
@@ -1116,7 +1213,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 21
+        "y": 28
       },
       "id": 17,
       "description": "Publish latency percentiles (p50/p95/p99) for Kafka event broker. Measures time from event creation to broker acknowledgment.",
@@ -1222,7 +1319,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 21
+        "y": 28
       },
       "id": 18,
       "description": "Operation latency percentiles (p50/p95/p99) for Redis. Redis stores real-time state and serves as the pub/sub bridge to the frontend WebSocket layer.",
@@ -1276,7 +1373,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 28
+        "y": 35
       },
       "id": 19,
       "panels": [],
@@ -1349,7 +1446,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 29
+        "y": 36
       },
       "id": 20,
       "description": "Error rate broken down by component (matching, payment, kafka, osrm, redis). Stacked to show which subsystems contribute most to failures.",
@@ -1427,7 +1524,7 @@
         "h": 7,
         "w": 6,
         "x": 12,
-        "y": 29
+        "y": 36
       },
       "id": 21,
       "description": "Binary health indicators for the stream processor's Kafka consumer and Redis publisher connections. Green = connected, Red = disconnected.",
@@ -1525,7 +1622,7 @@
         "h": 7,
         "w": 6,
         "x": 18,
-        "y": 29
+        "y": 36
       },
       "id": 22,
       "description": "Continuous uptime of the stream processor service. Drops to zero indicate crashes or restarts.",
@@ -1561,7 +1658,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 36
+        "y": 43
       },
       "id": 23,
       "panels": [],
@@ -1626,7 +1723,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 37
+        "y": 44
       },
       "id": 24,
       "description": "Working set memory (MB) for core containers: Simulation, Stream Processor, Kafka, Redis. Sourced from cAdvisor via container_memory_working_set_bytes.",
@@ -1741,7 +1838,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 37
+        "y": 44
       },
       "id": 25,
       "description": "CPU utilization (%) for core containers. Calculated from container_cpu_usage_seconds_total rate. Values above 80% may indicate compute bottlenecks.",

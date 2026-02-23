@@ -56,6 +56,18 @@ simulation_corrupted_events_total = meter.create_counter(
     unit="1",
 )
 
+simulation_offers_rejected_total = meter.create_counter(
+    name="simulation_offers_rejected_total",
+    description="Total trip offers rejected by drivers",
+    unit="1",
+)
+
+simulation_offers_expired_total = meter.create_counter(
+    name="simulation_offers_expired_total",
+    description="Total trip offers expired without driver response",
+    unit="1",
+)
+
 # ---------------------------------------------------------------------------
 # UpDownCounters (mutable counts that can go up or down)
 # ---------------------------------------------------------------------------
@@ -214,6 +226,8 @@ _previous_riders_awaiting_pickup: int = 0
 _previous_riders_in_transit: int = 0
 _previous_active_trips: int = 0
 _previous_simpy_events: int = 0
+_previous_offers_rejected: int = 0
+_previous_offers_expired: int = 0
 
 
 def update_metrics_from_snapshot(
@@ -232,6 +246,8 @@ def update_metrics_from_snapshot(
     matching_success_rate: float = 0.0,
     pending_offers: int = 0,
     simpy_events: int = 0,
+    offers_rejected: int = 0,
+    offers_expired: int = 0,
 ) -> None:
     """Update OTel metrics from a MetricsCollector snapshot.
 
@@ -243,6 +259,7 @@ def update_metrics_from_snapshot(
     global _previous_trips_completed, _previous_trips_cancelled
     global _previous_drivers_available, _previous_riders_awaiting_pickup, _previous_riders_in_transit
     global _previous_active_trips, _previous_simpy_events
+    global _previous_offers_rejected, _previous_offers_expired
 
     # --- Observable gauge values (stored for callback reads) ---
     with _snapshot_lock:
@@ -303,6 +320,17 @@ def update_metrics_from_snapshot(
         delta = trips_cancelled - _previous_trips_cancelled
         simulation_trips_cancelled_total.add(delta)
         _previous_trips_cancelled = trips_cancelled
+
+    # --- Offer outcome counters ---
+    if offers_rejected > _previous_offers_rejected:
+        delta = offers_rejected - _previous_offers_rejected
+        simulation_offers_rejected_total.add(delta)
+        _previous_offers_rejected = offers_rejected
+
+    if offers_expired > _previous_offers_expired:
+        delta = offers_expired - _previous_offers_expired
+        simulation_offers_expired_total.add(delta)
+        _previous_offers_expired = offers_expired
 
     # --- Error counters ---
     for component, error_stats in snapshot.errors.items():

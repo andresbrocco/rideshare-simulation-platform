@@ -17,7 +17,7 @@ const mockDriverState: DriverState = {
     acceptance_rate: 0.95,
     cancellation_tendency: 0.02,
     service_quality: 0.9,
-    response_time: 5.0,
+    avg_response_time: 5.0,
     min_rider_rating: 4.0,
     surge_acceptance_modifier: 1.2,
     home_location: [-23.55, -46.63],

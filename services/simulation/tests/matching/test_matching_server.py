@@ -51,7 +51,7 @@ def sample_driver_dna():
         acceptance_rate=0.8,
         cancellation_tendency=0.1,
         service_quality=0.9,
-        response_time=5.0,
+        avg_response_time=5.0,
         min_rider_rating=3.5,
         surge_acceptance_modifier=1.3,
         home_location=(-23.55, -46.63),
@@ -208,7 +208,7 @@ def create_dna_with_acceptance_rate(acceptance_rate: float) -> DriverDNA:
         acceptance_rate=acceptance_rate,
         cancellation_tendency=0.1,
         service_quality=0.9,
-        response_time=5.0,
+        avg_response_time=5.0,
         min_rider_rating=3.5,
         surge_acceptance_modifier=1.3,
         home_location=(-23.55, -46.63),
@@ -352,7 +352,7 @@ class TestHandleOfferResponses:
         mock_kafka_producer,
         sample_driver_dna,
     ):
-        """Verify deferred offer acceptance applies after response_time delay."""
+        """Verify deferred offer acceptance applies after avg_response_time delay."""
         driver = create_mock_driver("driver-1", sample_driver_dna)
 
         server = MatchingServer(
@@ -375,15 +375,18 @@ class TestHandleOfferResponses:
         )
         server._active_trips[trip.trip_id] = trip
 
-        # Force acceptance decision
-        with patch.object(server, "_compute_offer_decision", return_value=True):
+        # Force acceptance decision with controlled delay under timeout
+        with (
+            patch.object(server, "_compute_offer_decision", return_value=True),
+            patch("matching.matching_server.random.gauss", return_value=4.0),
+        ):
             server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
 
-        # Process the queued deferred offer and run SimPy
-        server.start_pending_trip_executions()
-        env.run()
+            # Process the queued deferred offer and run SimPy
+            server.start_pending_trip_executions()
+            env.run(until=5)
 
-        # After response_time delay, trip should be matched
+        # After avg_response_time delay, trip should be matched
         assert trip.state == TripState.DRIVER_ASSIGNED
         assert trip.driver_id == "driver-1"
         driver.accept_trip.assert_called_once_with("trip-123")
@@ -397,7 +400,7 @@ class TestHandleOfferResponses:
         mock_kafka_producer,
         sample_driver_dna,
     ):
-        """Verify deferred offer rejection releases driver after response_time delay."""
+        """Verify deferred offer rejection releases driver after avg_response_time delay."""
         driver = create_mock_driver("driver-1", sample_driver_dna)
 
         server = MatchingServer(
@@ -420,19 +423,22 @@ class TestHandleOfferResponses:
         )
         server._active_trips[trip.trip_id] = trip
 
-        # Force rejection decision
-        with patch.object(server, "_compute_offer_decision", return_value=False):
+        # Force rejection decision with controlled delay under timeout
+        with (
+            patch.object(server, "_compute_offer_decision", return_value=False),
+            patch("matching.matching_server.random.gauss", return_value=4.0),
+        ):
             server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
 
-        # Process the queued deferred offer and run SimPy
-        server.start_pending_trip_executions()
-        env.run()
+            # Process the queued deferred offer and run SimPy
+            server.start_pending_trip_executions()
+            env.run(until=5)
 
-        # After response_time delay, driver should be released
+        # After avg_response_time delay, driver should be released
         assert "driver-1" not in server._reserved_drivers
         driver.statistics.record_offer_rejected.assert_called_once()
 
-    def test_deferred_response_respects_response_time(
+    def test_deferred_response_respects_avg_response_time(
         self,
         env,
         mock_driver_index,
@@ -441,7 +447,7 @@ class TestHandleOfferResponses:
         mock_kafka_producer,
         sample_driver_dna,
     ):
-        """Verify the SimPy delay matches the driver's response_time DNA."""
+        """Verify the SimPy delay matches the driver's avg_response_time DNA."""
         driver = create_mock_driver("driver-1", sample_driver_dna)
 
         server = MatchingServer(
@@ -464,21 +470,25 @@ class TestHandleOfferResponses:
         )
         server._active_trips[trip.trip_id] = trip
 
-        with patch.object(server, "_compute_offer_decision", return_value=True):
+        # Use controlled delay (6.0s) under timeout to verify delay is applied
+        with (
+            patch.object(server, "_compute_offer_decision", return_value=True),
+            patch("matching.matching_server.random.gauss", return_value=6.0),
+        ):
             server.send_offer(driver, trip, offer_sequence=1, eta_seconds=300)
 
-        server.start_pending_trip_executions()
-        start_time = env.now
+            server.start_pending_trip_executions()
 
-        # Trip should NOT be matched yet (deferred)
-        assert trip.state == TripState.OFFER_SENT
+            # Trip should NOT be matched yet (deferred)
+            assert trip.state == TripState.OFFER_SENT
 
-        env.run()
-        elapsed = env.now - start_time
+            # Before the 6.0s delay
+            env.run(until=5.9)
+            assert trip.state == TripState.OFFER_SENT
 
-        # response_time=5.0 with variance [-2,+2] → delay in [3.0, 7.0]
-        assert 3.0 <= elapsed <= 7.0
-        assert trip.state == TripState.DRIVER_ASSIGNED
+            # After the 6.0s delay
+            env.run(until=6.1)
+            assert trip.state == TripState.DRIVER_ASSIGNED
 
 
 @pytest.mark.unit
@@ -522,19 +532,23 @@ class TestOfferCycle:
         ]
 
         # First driver rejects, second accepts
+        # Patch gauss to keep delay (4.0s) well under the 10s offer timeout
         decisions = iter([False, True])
-        with patch.object(server, "_compute_offer_decision", side_effect=decisions):
+        with (
+            patch.object(server, "_compute_offer_decision", side_effect=decisions),
+            patch("matching.matching_server.random.gauss", return_value=4.0),
+        ):
             result = server.send_offer_cycle(trip, ranked_drivers, max_attempts=5)
 
-        assert result is not None
+            assert result is not None
 
-        # Process first deferred offer (driver1 rejects → queues driver2)
-        server.start_pending_trip_executions()
-        env.run()
+            # Process first deferred offer (driver1 rejects → queues driver2)
+            server.start_pending_trip_executions()
+            env.run(until=5)
 
-        # Process second deferred offer (driver2 accepts)
-        server.start_pending_trip_executions()
-        env.run()
+            # Process second deferred offer (driver2 accepts)
+            server.start_pending_trip_executions()
+            env.run(until=10)
 
         assert trip.driver_id == "driver-2"
         assert trip.state == TripState.DRIVER_ASSIGNED
@@ -575,13 +589,17 @@ class TestOfferCycle:
 
         # All drivers reject — patch must cover the entire cycle including env.run()
         # because continuations call _compute_offer_decision from inside SimPy processes
-        with patch.object(server, "_compute_offer_decision", return_value=False):
+        # Patch gauss to keep delay (4.0s) well under the 10s offer timeout
+        with (
+            patch.object(server, "_compute_offer_decision", return_value=False),
+            patch("matching.matching_server.random.gauss", return_value=4.0),
+        ):
             server.send_offer_cycle(trip, ranked_drivers, max_attempts=5)
 
             # Process all 5 offers through the deferred cycle
-            for _ in range(5):
+            for i in range(5):
                 server.start_pending_trip_executions()
-                env.run()
+                env.run(until=(i + 1) * 5)
 
         # Trip should have no driver but stays alive for retry
         assert trip.trip_id in server._active_trips
@@ -649,8 +667,11 @@ class TestMatchFlow:
         )
         server._drivers = {"driver-1": driver}
 
-        # Force acceptance
-        with patch.object(server, "_compute_offer_decision", return_value=True):
+        # Force acceptance with controlled delay under timeout
+        with (
+            patch.object(server, "_compute_offer_decision", return_value=True),
+            patch("matching.matching_server.random.gauss", return_value=4.0),
+        ):
             result = await server.request_match(
                 rider_id="rider-456",
                 pickup_location=(-23.55, -46.63),
@@ -661,13 +682,13 @@ class TestMatchFlow:
                 fare=25.50,
             )
 
-        assert result is not None
-        # Trip is pending (deferred), not yet matched
-        assert result.state == TripState.OFFER_SENT
+            assert result is not None
+            # Trip is pending (deferred), not yet matched
+            assert result.state == TripState.OFFER_SENT
 
-        # Process deferred offer and run SimPy
-        server.start_pending_trip_executions()
-        env.run()
+            # Process deferred offer and run SimPy
+            server.start_pending_trip_executions()
+            env.run(until=5)
 
         assert result.driver_id == "driver-1"
         assert result.state == TripState.DRIVER_ASSIGNED
@@ -704,8 +725,12 @@ class TestMatchFlow:
         server._drivers = {f"driver-{i}": d for i, d in enumerate(drivers)}
 
         # First 3 reject, last accepts — patch must cover the entire cycle
+        # Patch gauss to keep delay (4.0s) well under the 10s offer timeout
         decisions = iter([False, False, False, True])
-        with patch.object(server, "_compute_offer_decision", side_effect=decisions):
+        with (
+            patch.object(server, "_compute_offer_decision", side_effect=decisions),
+            patch("matching.matching_server.random.gauss", return_value=4.0),
+        ):
             result = await server.request_match(
                 rider_id="rider-456",
                 pickup_location=(-23.55, -46.63),
@@ -719,9 +744,9 @@ class TestMatchFlow:
             assert result is not None
 
             # Process all deferred offers through the cycle
-            for _ in range(4):
+            for i in range(4):
                 server.start_pending_trip_executions()
-                env.run()
+                env.run(until=(i + 1) * 5)
 
         assert result.driver_id == "driver-3"
         assert result.state == TripState.DRIVER_ASSIGNED
@@ -758,7 +783,11 @@ class TestMatchFlow:
         server._drivers = {f"driver-{i}": d for i, d in enumerate(drivers)}
 
         # All drivers reject — patch must cover the entire cycle
-        with patch.object(server, "_compute_offer_decision", return_value=False):
+        # Patch gauss to keep delay (4.0s) well under the 10s offer timeout
+        with (
+            patch.object(server, "_compute_offer_decision", return_value=False),
+            patch("matching.matching_server.random.gauss", return_value=4.0),
+        ):
             result = await server.request_match(
                 rider_id="rider-456",
                 pickup_location=(-23.55, -46.63),
@@ -773,9 +802,9 @@ class TestMatchFlow:
             assert result is not None
 
             # Process all deferred offers
-            for _ in range(3):
+            for i in range(3):
                 server.start_pending_trip_executions()
-                env.run()
+                env.run(until=(i + 1) * 5)
 
         # Trip stays alive for retry after all rejections
         assert result.trip_id in server._active_trips
@@ -820,17 +849,20 @@ class TestDeferredOfferCancellation:
 
         ranked_drivers = [(driver, 300, 0.9)]
 
-        with patch.object(server, "_compute_offer_decision", return_value=True):
+        with (
+            patch.object(server, "_compute_offer_decision", return_value=True),
+            patch("matching.matching_server.random.gauss", return_value=8.0),
+        ):
             server.send_offer_cycle(trip, ranked_drivers)
 
-        # Start the deferred offer
-        server.start_pending_trip_executions()
+            # Start the deferred offer
+            server.start_pending_trip_executions()
 
-        # Simulate rider patience timeout: cancel trip before driver responds
-        server.cancel_trip("trip-123", cancelled_by="rider", reason="patience_timeout")
+            # Simulate rider patience timeout: cancel trip before driver responds
+            server.cancel_trip("trip-123", cancelled_by="rider", reason="patience_timeout")
 
-        # Run SimPy — deferred response fires but trip is gone
-        env.run()
+            # Run SimPy — deferred response fires but trip is gone
+            env.run(until=9)
 
         # Driver should be released, trip should NOT be matched
         assert "driver-1" not in server._reserved_drivers
@@ -899,12 +931,15 @@ class TestPuppetReOfferFlow:
         assert len(server._pending_offer_candidates[trip.trip_id]["remaining_drivers"]) == 1
 
         # Puppet rejects - should queue next offer for regular driver
-        with patch.object(server, "_compute_offer_decision", return_value=True):
+        with (
+            patch.object(server, "_compute_offer_decision", return_value=True),
+            patch("matching.matching_server.random.gauss", return_value=4.0),
+        ):
             server.process_puppet_reject("puppet-driver", "trip-123")
 
-        # Process the deferred offer for regular driver
-        server.start_pending_trip_executions()
-        env.run()
+            # Process the deferred offer for regular driver
+            server.start_pending_trip_executions()
+            env.run(until=5)
 
         # Trip should now be matched with regular driver
         assert trip.driver_id == "regular-driver"
@@ -1067,12 +1102,15 @@ class TestPuppetReOfferFlow:
         server.send_offer_cycle(trip, ranked_drivers, max_attempts=5)
 
         # Puppet times out - should queue next offer for regular driver
-        with patch.object(server, "_compute_offer_decision", return_value=True):
+        with (
+            patch.object(server, "_compute_offer_decision", return_value=True),
+            patch("matching.matching_server.random.gauss", return_value=4.0),
+        ):
             server.process_puppet_timeout("puppet-driver", "trip-123")
 
-        # Process the deferred offer for regular driver
-        server.start_pending_trip_executions()
-        env.run()
+            # Process the deferred offer for regular driver
+            server.start_pending_trip_executions()
+            env.run(until=5)
 
         # Trip should now be matched with regular driver
         assert trip.driver_id == "regular-driver"
@@ -1928,15 +1966,18 @@ class TestRetryQueue:
         server._drivers["driver-1"] = driver
         mock_driver_index.find_nearest_drivers.return_value = [("driver-1", 2.5)]
 
-        with patch.object(server, "_compute_offer_decision", return_value=True):
+        with (
+            patch.object(server, "_compute_offer_decision", return_value=True),
+            patch("matching.matching_server.random.gauss", return_value=4.0),
+        ):
             await server.retry_pending_matches()
 
-        # Trip should be removed from retry queue
-        assert trip_id not in server._retry_queue
+            # Trip should be removed from retry queue
+            assert trip_id not in server._retry_queue
 
-        # Process deferred offer and run SimPy
-        server.start_pending_trip_executions()
-        env.run()
+            # Process deferred offer and run SimPy
+            server.start_pending_trip_executions()
+            env.run(until=env.now + 5)
 
         assert result.state == TripState.DRIVER_ASSIGNED
         assert result.driver_id == "driver-1"
@@ -2079,13 +2120,16 @@ class TestRetryQueue:
         server._drivers["driver-1"] = driver
         mock_driver_index.find_nearest_drivers.return_value = [("driver-1", 2.5)]
 
-        with patch.object(server, "_compute_offer_decision", return_value=True):
+        with (
+            patch.object(server, "_compute_offer_decision", return_value=True),
+            patch("matching.matching_server.random.gauss", return_value=4.0),
+        ):
             await server.retry_pending_matches()
 
-        assert trip_id not in server._retry_queue
+            assert trip_id not in server._retry_queue
 
-        server.start_pending_trip_executions()
-        env.run()
+            server.start_pending_trip_executions()
+            env.run(until=env.now + 5)
 
         assert result.state == TripState.DRIVER_ASSIGNED
         assert result.driver_id == "driver-1"
@@ -2127,12 +2171,15 @@ class TestRetryQueue:
             (driver2, 400, 0.85),
         ]
 
-        with patch.object(server, "_compute_offer_decision", return_value=False):
+        with (
+            patch.object(server, "_compute_offer_decision", return_value=False),
+            patch("matching.matching_server.random.gauss", return_value=4.0),
+        ):
             server.send_offer_cycle(trip, ranked_drivers, max_attempts=5)
 
-            for _ in range(2):
+            for i in range(2):
                 server.start_pending_trip_executions()
-                env.run()
+                env.run(until=(i + 1) * 5)
 
         # Trip should be in retry queue, not removed
         assert trip.trip_id in server._active_trips
@@ -2184,3 +2231,255 @@ class TestRetryQueue:
 
         stats = server.get_matching_stats()
         assert stats["trips_awaiting_retry"] == 2
+
+
+@pytest.mark.unit
+class TestOfferTimeoutForRegularDrivers:
+    """Tests that offer timeouts fire for regular drivers when response delay exceeds timeout."""
+
+    def test_offer_expired_when_response_exceeds_timeout(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+        sample_driver_dna,
+    ):
+        """When Gaussian delay > timeout, OfferTimeoutManager fires and trip moves to OFFER_EXPIRED."""
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+
+        driver = create_mock_driver("driver-1", sample_driver_dna)
+        server.register_driver(driver)
+
+        trip = Trip(
+            trip_id="trip-1",
+            rider_id="rider-1",
+            pickup_location=(-23.55, -46.63),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="zone-1",
+            dropoff_zone_id="zone-2",
+            surge_multiplier=1.0,
+            fare=15.0,
+        )
+
+        # Add trip to active trips (normally done by send_offer_cycle)
+        server._active_trips["trip-1"] = trip
+
+        # Patch gauss to return a delay much larger than timeout (10s)
+        with (
+            patch("matching.matching_server.random.gauss", return_value=20.0),
+            patch("matching.matching_server.random.random", return_value=0.5),
+        ):
+            server.send_offer(driver, trip, 1, 300)
+            server.start_pending_trip_executions()
+            # Run past the timeout (10s) but before driver responds (20s)
+            env.run(until=11)
+
+        assert trip.state == TripState.OFFER_EXPIRED
+        assert server._offers_expired >= 1
+
+    def test_offer_accepted_when_response_before_timeout(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+        sample_driver_dna,
+    ):
+        """When Gaussian delay < timeout, driver responds and timeout is cleared."""
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+
+        driver = create_mock_driver("driver-1", sample_driver_dna)
+        server.register_driver(driver)
+
+        trip = Trip(
+            trip_id="trip-1",
+            rider_id="rider-1",
+            pickup_location=(-23.55, -46.63),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="zone-1",
+            dropoff_zone_id="zone-2",
+            surge_multiplier=1.0,
+            fare=15.0,
+        )
+
+        # Add trip to active trips (normally done by send_offer_cycle)
+        server._active_trips["trip-1"] = trip
+
+        # Patch gauss to return a delay shorter than timeout (10s)
+        # random.random < acceptance_rate (0.8) => accepted
+        with (
+            patch("matching.matching_server.random.gauss", return_value=5.0),
+            patch("matching.matching_server.random.random", return_value=0.1),
+        ):
+            server.send_offer(driver, trip, 1, 300)
+            server.start_pending_trip_executions()
+            env.run(until=6)
+
+        assert trip.state == TripState.DRIVER_ASSIGNED
+        assert server._offers_accepted >= 1
+
+
+@pytest.mark.unit
+class TestOfferRejectedEventEmission:
+    """Tests that offer_rejected events are emitted to Kafka."""
+
+    def test_rejected_event_emitted_for_regular_driver(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+        sample_driver_dna,
+    ):
+        """When a regular driver rejects, _emit_offer_rejected_event is called."""
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+
+        driver = create_mock_driver("driver-1", sample_driver_dna)
+        server.register_driver(driver)
+
+        trip = Trip(
+            trip_id="trip-1",
+            rider_id="rider-1",
+            pickup_location=(-23.55, -46.63),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="zone-1",
+            dropoff_zone_id="zone-2",
+            surge_multiplier=1.0,
+            fare=15.0,
+        )
+
+        # Add trip to active trips (normally done by send_offer_cycle)
+        server._active_trips["trip-1"] = trip
+
+        # Force rejection: random.random >= acceptance_rate
+        with (
+            patch("matching.matching_server.random.gauss", return_value=4.0),
+            patch("matching.matching_server.random.random", return_value=0.99),
+        ):
+            server.send_offer(driver, trip, 1, 300)
+            server.start_pending_trip_executions()
+            env.run(until=5)
+
+        assert server._offers_rejected >= 1
+        # Verify Kafka produce was called for the rejected event
+        calls = mock_kafka_producer.produce.call_args_list
+        rejected_calls = [c for c in calls if "offer_rejected" in str(c)]
+        assert len(rejected_calls) >= 1
+
+    def test_rejected_event_emitted_for_puppet_driver(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+        sample_driver_dna,
+    ):
+        """When a puppet driver rejects via API, _emit_offer_rejected_event is called."""
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+
+        driver = create_mock_driver("driver-1", sample_driver_dna)
+        driver._is_puppet = True
+        server.register_driver(driver)
+
+        trip = Trip(
+            trip_id="trip-1",
+            rider_id="rider-1",
+            pickup_location=(-23.55, -46.63),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="zone-1",
+            dropoff_zone_id="zone-2",
+            surge_multiplier=1.0,
+            fare=15.0,
+        )
+        server._active_trips["trip-1"] = trip
+
+        server.send_offer(driver, trip, 1, 300)
+        server.process_puppet_reject("driver-1", "trip-1")
+
+        assert server._offers_rejected >= 1
+        calls = mock_kafka_producer.produce.call_args_list
+        rejected_calls = [c for c in calls if "offer_rejected" in str(c)]
+        assert len(rejected_calls) >= 1
+
+
+@pytest.mark.unit
+class TestOfferExpiredEventEmission:
+    """Tests that offer_expired events are emitted to Kafka via _handle_offer_expired."""
+
+    def test_expired_event_emitted_via_timeout_manager(
+        self,
+        env,
+        mock_driver_index,
+        mock_notification_dispatch,
+        mock_osrm_client,
+        mock_kafka_producer,
+        sample_driver_dna,
+    ):
+        """When timeout fires, _handle_offer_expired emits offer_expired event."""
+        server = MatchingServer(
+            env=env,
+            driver_index=mock_driver_index,
+            notification_dispatch=mock_notification_dispatch,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+        )
+
+        driver = create_mock_driver("driver-1", sample_driver_dna)
+        server.register_driver(driver)
+
+        trip = Trip(
+            trip_id="trip-1",
+            rider_id="rider-1",
+            pickup_location=(-23.55, -46.63),
+            dropoff_location=(-23.56, -46.64),
+            pickup_zone_id="zone-1",
+            dropoff_zone_id="zone-2",
+            surge_multiplier=1.0,
+            fare=15.0,
+        )
+
+        # Add trip to active trips (normally done by send_offer_cycle)
+        server._active_trips["trip-1"] = trip
+
+        # Force delay > timeout to trigger expiry
+        with (
+            patch("matching.matching_server.random.gauss", return_value=15.0),
+            patch("matching.matching_server.random.random", return_value=0.1),
+        ):
+            server.send_offer(driver, trip, 1, 300)
+            server.start_pending_trip_executions()
+            env.run(until=11)
+
+        assert server._offers_expired >= 1
+        calls = mock_kafka_producer.produce.call_args_list
+        expired_calls = [c for c in calls if "offer_expired" in str(c)]
+        assert len(expired_calls) >= 1

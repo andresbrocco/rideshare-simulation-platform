@@ -1077,7 +1077,7 @@ export interface components {
       /** Service Quality */
       service_quality?: number | null;
       /** Response Time */
-      response_time?: number | null;
+      avg_response_time?: number | null;
       /** Min Rider Rating */
       min_rider_rating?: number | null;
       /** Surge Acceptance Modifier */
@@ -1098,8 +1098,8 @@ export interface components {
       cancellation_tendency: number;
       /** Service Quality */
       service_quality: number;
-      /** Response Time */
-      response_time: number;
+      /** Avg Response Time */
+      avg_response_time: number;
       /** Min Rider Rating */
       min_rider_rating: number;
       /** Surge Acceptance Modifier */
