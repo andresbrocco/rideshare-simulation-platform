@@ -8,7 +8,7 @@ interface InfrastructurePanelProps {
   loading: boolean;
   error: string | null;
   onRefresh: () => void;
-  simulationSpeedMultiplier?: number;
+  simulationRealTimeRatio?: number;
 }
 
 function formatMemory(mb: number): string {
@@ -44,6 +44,12 @@ function getLatencyClass(latency_ms: number | null): string {
   return styles.latencyRed;
 }
 
+function getRtrClass(rtr: number): string {
+  if (rtr >= 0.95) return styles.latencyGreen;
+  if (rtr >= 0.8) return styles.latencyOrange;
+  return styles.latencyRed;
+}
+
 function getProgressColor(percent: number): string {
   if (percent >= 90) return styles.progressRed;
   if (percent >= 70) return styles.progressOrange;
@@ -58,14 +64,14 @@ interface ServiceCardProps {
   service: ServiceMetrics;
   showResources: boolean;
   totalCores: number;
-  simulationSpeedMultiplier?: number;
+  simulationRealTimeRatio?: number;
 }
 
 function ServiceCard({
   service,
   showResources,
   totalCores,
-  simulationSpeedMultiplier,
+  simulationRealTimeRatio,
 }: ServiceCardProps) {
   return (
     <div className={styles.serviceCard}>
@@ -74,11 +80,11 @@ function ServiceCard({
         <span className={`${styles.statusIndicator} ${getStatusClass(service.status)}`} />
       </div>
 
-      {simulationSpeedMultiplier !== undefined ? (
+      {simulationRealTimeRatio !== undefined ? (
         <div className={styles.metricRow}>
           <span className={styles.metricLabel}>Real-Time Ratio</span>
-          <span className={`${styles.metricValue} ${styles.latencyGreen}`}>
-            {simulationSpeedMultiplier}x
+          <span className={`${styles.metricValue} ${getRtrClass(simulationRealTimeRatio)}`}>
+            {simulationRealTimeRatio.toFixed(2)}
           </span>
         </div>
       ) : service.latency_ms !== null ? (
@@ -145,7 +151,7 @@ export default function InfrastructurePanel({
   loading,
   error,
   onRefresh,
-  simulationSpeedMultiplier,
+  simulationRealTimeRatio,
 }: InfrastructurePanelProps) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -254,8 +260,8 @@ export default function InfrastructurePanel({
                 service={service}
                 showResources={showResources}
                 totalCores={data?.total_cores ?? 0}
-                simulationSpeedMultiplier={
-                  service.name === 'Simulation' ? simulationSpeedMultiplier : undefined
+                simulationRealTimeRatio={
+                  service.name === 'Simulation' ? simulationRealTimeRatio : undefined
                 }
               />
             ))}

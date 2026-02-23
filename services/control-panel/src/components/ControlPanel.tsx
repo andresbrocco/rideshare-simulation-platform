@@ -281,7 +281,7 @@ export default function ControlPanel({
         loading={infraLoading}
         error={infraError}
         onRefresh={refreshInfra}
-        simulationSpeedMultiplier={status.speed_multiplier}
+        simulationRealTimeRatio={status.real_time_ratio ?? undefined}
       />
 
       <PerformancePanel

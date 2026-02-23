@@ -17,6 +17,7 @@ export interface SimulationStatus {
   // Trips
   active_trips_count: number;
   uptime_seconds: number;
+  real_time_ratio: number | null;
 }
 
 export type SpawnMode = 'immediate' | 'scheduled';
