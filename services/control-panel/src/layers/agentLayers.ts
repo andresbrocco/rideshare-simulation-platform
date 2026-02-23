@@ -1,4 +1,4 @@
-import { IconLayer, PathLayer } from '@deck.gl/layers';
+import { IconLayer, PathLayer, LineLayer } from '@deck.gl/layers';
 import type { Driver, Rider, Trip, TripStateValue } from '../types/api';
 import { STAGE_RGB, STAGE_TRAIL } from '../theme';
 import type { RgbTuple } from '../utils/colorUtils';
@@ -672,6 +672,44 @@ export function createDriverLayer(drivers: Driver[], scaleFactor: number = 1) {
   }
 
   return layers;
+}
+
+interface MatchingPair {
+  riderPos: [number, number]; // [lon, lat] — deck.gl order
+  driverPos: [number, number];
+}
+
+export function createMatchingLineLayer(
+  trips: Trip[],
+  drivers: Driver[],
+  riders: Rider[],
+  blinkOn: boolean
+): LineLayer<MatchingPair> {
+  const pairs: MatchingPair[] = [];
+
+  for (const trip of trips) {
+    if (trip.status !== 'offer_sent') continue;
+    const driver = drivers.find((d) => d.id === trip.driver_id);
+    const rider = riders.find((r) => r.id === trip.rider_id);
+    if (!driver || !rider) continue;
+    pairs.push({
+      driverPos: [driver.longitude, driver.latitude],
+      riderPos: [rider.longitude, rider.latitude],
+    });
+  }
+
+  const alpha = blinkOn ? 220 : 0;
+
+  return new LineLayer<MatchingPair>({
+    id: 'matching-lines',
+    data: pairs,
+    pickable: false,
+    getSourcePosition: (d) => d.driverPos,
+    getTargetPosition: (d) => d.riderPos,
+    getColor: [255, 255, 255, alpha],
+    getWidth: 2,
+    widthUnits: 'pixels',
+  });
 }
 
 // All rider states use the same monochrome icon, tinted via getColor

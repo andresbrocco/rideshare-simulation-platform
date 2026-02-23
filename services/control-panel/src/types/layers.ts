@@ -14,6 +14,7 @@ export interface LayerVisibility {
   pendingRoutes: boolean; // Orange - requested but no driver matched
   pickupRoutes: boolean; // Yellow dashed - driver en route to pickup
   tripRoutes: boolean; // Blue solid - rider in vehicle
+  matchingLines: boolean; // White blinking line — driver ↔ rider during offer phase
   // Zone layers
   zoneBoundaries: boolean;
   surgeHeatmap: boolean;
@@ -35,6 +36,7 @@ export const DEFAULT_VISIBILITY: LayerVisibility = {
   pendingRoutes: true, // Show pending routes by default
   pickupRoutes: true, // Show pickup routes by default
   tripRoutes: true, // Show trip routes by default
+  matchingLines: true,
   // Zone layers
   zoneBoundaries: true,
   surgeHeatmap: true,

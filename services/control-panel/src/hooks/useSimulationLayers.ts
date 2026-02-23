@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import type { Layer } from '@deck.gl/core';
 import type { Driver, Rider, Trip, ZoneData, DemandPoint } from '../types/api';
 import type { LayerVisibility } from '../types/layers';
@@ -19,6 +19,7 @@ import {
   createCompletedTripRouteLayer,
   createRemainingTripRouteLayer,
   createDestinationFlagLayer,
+  createMatchingLineLayer,
   createDriverLayer,
   createRiderLayer,
 } from '../layers/agentLayers';
@@ -43,6 +44,13 @@ export function useSimulationLayers({
   layerVisibility,
   zoom = 11,
 }: UseSimulationLayersProps): Layer[] {
+  const [blinkOn, setBlinkOn] = useState(true);
+
+  useEffect(() => {
+    const id = setInterval(() => setBlinkOn((v) => !v), 500);
+    return () => clearInterval(id);
+  }, []);
+
   return useMemo(() => {
     const scaleFactor = calculateZoomScale(zoom);
     const layers: Layer[] = [];
@@ -77,6 +85,10 @@ export function useSimulationLayers({
         layers.push(createRemainingTripRouteLayer(trips, true, scaleFactor));
         // Destination flag at dropoff location
         layers.push(createDestinationFlagLayer(trips, true, scaleFactor));
+      }
+
+      if (layerVisibility.matchingLines) {
+        layers.push(createMatchingLineLayer(trips, drivers, riders, blinkOn));
       }
 
       // Add agent layers last (highest pick priority) so clicking on agents works
@@ -133,11 +145,12 @@ export function useSimulationLayers({
         createCompletedTripRouteLayer(trips, true, scaleFactor),
         createRemainingTripRouteLayer(trips, true, scaleFactor),
         createDestinationFlagLayer(trips, true, scaleFactor),
+        createMatchingLineLayer(trips, drivers, riders, blinkOn),
         ...createDriverLayer(drivers, scaleFactor),
         ...createRiderLayer(riders, scaleFactor)
       );
     }
 
     return layers;
-  }, [drivers, riders, trips, zoneData, demandPoints, layerVisibility, zoom]);
+  }, [drivers, riders, trips, zoneData, demandPoints, layerVisibility, zoom, blinkOn]);
 }

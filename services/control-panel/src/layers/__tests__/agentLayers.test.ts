@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { IconLayer, PathLayer } from '@deck.gl/layers';
+import { IconLayer, LineLayer, PathLayer } from '@deck.gl/layers';
 import type { Driver, Rider, Trip } from '../../types/api';
 import {
   createDriverLayer,
@@ -17,6 +17,7 @@ import {
   createRemainingPickupRouteLayer,
   createCompletedTripRouteLayer,
   createRemainingTripRouteLayer,
+  createMatchingLineLayer,
   clearRouteCache,
   evictTripFromRouteCache,
   DRIVER_COLORS,
@@ -277,6 +278,109 @@ describe('agentLayers', () => {
       expect(RIDER_TRIP_STATE_COLORS.idle).toBeDefined();
       expect(RIDER_TRIP_STATE_COLORS.requested).toBeDefined();
       expect(RIDER_TRIP_STATE_COLORS.in_transit).toBeDefined();
+    });
+  });
+
+  describe('createMatchingLineLayer', () => {
+    const makeDriver = (id: string, lat: number, lon: number): Driver => ({
+      id,
+      latitude: lat,
+      longitude: lon,
+      status: 'offer_pending',
+      rating: 4.5,
+      zone: 'z1',
+    });
+
+    const makeRider = (id: string, lat: number, lon: number): Rider => ({
+      id,
+      latitude: lat,
+      longitude: lon,
+      status: 'requesting',
+      trip_state: 'offer_sent',
+    });
+
+    const makeTrip = (id: string, driverId: string, riderId: string, status: string): Trip => ({
+      id,
+      driver_id: driverId,
+      rider_id: riderId,
+      pickup_latitude: -23.5,
+      pickup_longitude: -46.6,
+      dropoff_latitude: -23.6,
+      dropoff_longitude: -46.7,
+      route: [
+        [-23.5, -46.6],
+        [-23.6, -46.7],
+      ],
+      pickup_route: [],
+      status,
+    });
+
+    it('returns a LineLayer instance', () => {
+      const layer = createMatchingLineLayer([], [], [], true);
+      expect(layer).toBeInstanceOf(LineLayer);
+    });
+
+    it('has id matching-lines', () => {
+      const layer = createMatchingLineLayer([], [], [], true);
+      expect(layer.id).toBe('matching-lines');
+    });
+
+    it('pickable is false', () => {
+      const layer = createMatchingLineLayer([], [], [], true);
+      expect(layer.props.pickable).toBe(false);
+    });
+
+    it('empty trips array yields a LineLayer with empty data', () => {
+      const layer = createMatchingLineLayer([], [], [], true);
+      expect((layer.props.data as unknown[]).length).toBe(0);
+    });
+
+    it('filters out trips not in offer_sent status', () => {
+      const drivers = [makeDriver('d1', -23.5, -46.6)];
+      const riders = [makeRider('r1', -23.55, -46.65)];
+      const trips = [
+        makeTrip('t1', 'd1', 'r1', 'requested'),
+        makeTrip('t2', 'd1', 'r1', 'driver_assigned'),
+        makeTrip('t3', 'd1', 'r1', 'in_transit'),
+      ];
+      const layer = createMatchingLineLayer(trips, drivers, riders, true);
+      expect((layer.props.data as unknown[]).length).toBe(0);
+    });
+
+    it('includes pairs for offer_sent trips with matching driver and rider', () => {
+      const drivers = [makeDriver('d1', -23.5, -46.6)];
+      const riders = [makeRider('r1', -23.55, -46.65)];
+      const trips = [makeTrip('t1', 'd1', 'r1', 'offer_sent')];
+      const layer = createMatchingLineLayer(trips, drivers, riders, true);
+      expect((layer.props.data as unknown[]).length).toBe(1);
+    });
+
+    it('skips pairs where the driver is not in the drivers array', () => {
+      const drivers: Driver[] = [];
+      const riders = [makeRider('r1', -23.55, -46.65)];
+      const trips = [makeTrip('t1', 'd1', 'r1', 'offer_sent')];
+      const layer = createMatchingLineLayer(trips, drivers, riders, true);
+      expect((layer.props.data as unknown[]).length).toBe(0);
+    });
+
+    it('skips pairs where the rider is not in the riders array', () => {
+      const drivers = [makeDriver('d1', -23.5, -46.6)];
+      const riders: Rider[] = [];
+      const trips = [makeTrip('t1', 'd1', 'r1', 'offer_sent')];
+      const layer = createMatchingLineLayer(trips, drivers, riders, true);
+      expect((layer.props.data as unknown[]).length).toBe(0);
+    });
+
+    it('blinkOn: true → getColor alpha is non-zero', () => {
+      const layer = createMatchingLineLayer([], [], [], true);
+      const color = layer.props.getColor as number[];
+      expect(color[3]).toBeGreaterThan(0);
+    });
+
+    it('blinkOn: false → getColor alpha is 0', () => {
+      const layer = createMatchingLineLayer([], [], [], false);
+      const color = layer.props.getColor as number[];
+      expect(color[3]).toBe(0);
     });
   });
 
