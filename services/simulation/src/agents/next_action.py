@@ -18,6 +18,19 @@ class NextActionType(str, Enum):
 
 
 @dataclass
+class ActionHistoryEntry:
+    """A completed action recorded in an agent's history ring buffer.
+
+    Attributes:
+        action_type: The type of action that occurred (e.g. "go_online", "accept_trip")
+        occurred_at: SimPy simulation time (env.now) when the action happened
+    """
+
+    action_type: str
+    occurred_at: float
+
+
+@dataclass
 class NextAction:
     """Represents a scheduled future action for an agent.
 

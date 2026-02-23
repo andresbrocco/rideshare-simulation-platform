@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from api.auth import verify_api_key
 from api.models.agents import (
+    ActionHistoryEntryResponse,
     ActiveTripInfo,
     DriverCreateRequest,
     DriverDNAResponse,
@@ -77,6 +78,20 @@ def compute_next_action_response(agent: Any, engine: Any) -> NextActionResponse 
         scheduled_at_iso=scheduled_datetime.isoformat(),
         description=na.description,
     )
+
+
+def compute_action_history_response(agent: Any, engine: Any) -> list[ActionHistoryEntryResponse]:
+    """Convert agent's in-memory action history to API response format.
+
+    Returns entries in reverse chronological order (newest first).
+    """
+    return [
+        ActionHistoryEntryResponse(
+            action_type=entry.action_type,
+            occurred_at_iso=engine._time_manager.to_datetime(entry.occurred_at).isoformat(),
+        )
+        for entry in reversed(agent._action_history)
+    ]
 
 
 # --- Standard Agent Creation ---
@@ -236,6 +251,7 @@ def get_driver_state(
 
     # Compute next action for autonomous agents
     next_action_info = compute_next_action_response(driver, engine)
+    action_history = compute_action_history_response(driver, engine)
 
     return DriverStateResponse(
         driver_id=driver.driver_id,
@@ -246,6 +262,7 @@ def get_driver_state(
         active_trip=active_trip_info,
         pending_offer=pending_offer_info,
         next_action=next_action_info,
+        action_history=action_history,
         zone_id=state["zone_id"],
         is_ephemeral=state["is_ephemeral"],
         is_puppet=state["is_puppet"],
@@ -335,6 +352,7 @@ def get_rider_state(
 
     # Compute next action for autonomous agents
     next_action_info = compute_next_action_response(rider, engine)
+    action_history = compute_action_history_response(rider, engine)
 
     return RiderStateResponse(
         rider_id=rider.rider_id,
@@ -344,6 +362,7 @@ def get_rider_state(
         rating_count=state["rating_count"],
         active_trip=active_trip_info,
         next_action=next_action_info,
+        action_history=action_history,
         zone_id=state["zone_id"],
         is_ephemeral=state["is_ephemeral"],
         is_puppet=state["is_puppet"],

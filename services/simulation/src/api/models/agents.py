@@ -173,6 +173,13 @@ class PendingOfferInfo(BaseModel):
     eta_seconds: int
 
 
+class ActionHistoryEntryResponse(BaseModel):
+    """A completed action in an agent's history."""
+
+    action_type: str
+    occurred_at_iso: str  # Wall-clock ISO timestamp
+
+
 class NextActionResponse(BaseModel):
     """Scheduled next action for an autonomous agent."""
 
@@ -241,6 +248,7 @@ class DriverStateResponse(BaseModel):
     active_trip: ActiveTripInfo | None
     pending_offer: PendingOfferInfo | None = None
     next_action: NextActionResponse | None = None
+    action_history: list[ActionHistoryEntryResponse] = Field(default_factory=list)
     zone_id: str | None
     dna: DriverDNAResponse
     statistics: DriverStatisticsResponse
@@ -258,6 +266,7 @@ class RiderStateResponse(BaseModel):
     rating_count: int
     active_trip: ActiveTripInfo | None
     next_action: NextActionResponse | None = None
+    action_history: list[ActionHistoryEntryResponse] = Field(default_factory=list)
     zone_id: str | None
     dna: RiderDNAResponse
     statistics: RiderStatisticsResponse

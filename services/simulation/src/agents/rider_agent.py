@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import random
+from collections import deque
 from collections.abc import Generator
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -15,7 +16,7 @@ from agents.event_emitter import (
     PROFILE_UPDATE_INTERVAL_SECONDS,
     EventEmitter,
 )
-from agents.next_action import NextAction, NextActionType
+from agents.next_action import ActionHistoryEntry, NextAction, NextActionType
 from agents.profile_mutations import mutate_rider_profile
 from agents.rating_logic import generate_rating_value, should_submit_rating
 from agents.statistics import RiderStatistics
@@ -83,6 +84,7 @@ class RiderAgent(EventEmitter):
         self._rating_count = 0
         self._statistics = RiderStatistics()  # Session-only stats
         self._next_action: NextAction | None = None  # Scheduled next action
+        self._action_history: deque[ActionHistoryEntry] = deque(maxlen=200)
         self._persistence_dirty: bool = False  # Tracks failed persistence operations
         self._trip_state_value: str | None = None
         self._last_emitted_location: tuple[float, float] | None = None
@@ -143,11 +145,18 @@ class RiderAgent(EventEmitter):
     def next_action(self) -> NextAction | None:
         return self._next_action
 
+    def record_action(self, action_type: str) -> None:
+        """Record a completed action in the agent's history ring buffer."""
+        self._action_history.append(
+            ActionHistoryEntry(action_type=action_type, occurred_at=self._env.now)
+        )
+
     def request_trip(self, trip_id: str) -> None:
         """Transition from offline to waiting, set active trip."""
         self._status = "requesting"
         self._active_trip = trip_id
         self._statistics.record_trip_requested()
+        self.record_action("request_trip")
 
         if self._rider_repository:
             try:
@@ -169,6 +178,7 @@ class RiderAgent(EventEmitter):
     def start_trip(self) -> None:
         """Transition from awaiting_pickup to on_trip."""
         self._status = "on_trip"
+        self.record_action("start_trip")
 
         if self._rider_repository:
             try:
@@ -190,6 +200,7 @@ class RiderAgent(EventEmitter):
         self._active_trip = None
         self._trip_state_value = None
         self._last_emitted_location = None
+        self.record_action("complete_trip")
 
         if self._rider_repository:
             try:
@@ -214,6 +225,7 @@ class RiderAgent(EventEmitter):
         self._active_trip = None
         self._trip_state_value = None
         self._last_emitted_location = None
+        self.record_action("cancel_trip")
 
         if self._rider_repository:
             try:
@@ -414,6 +426,7 @@ class RiderAgent(EventEmitter):
         """
         if self._status == "requesting":
             self._status = "awaiting_pickup"
+            self.record_action("driver_assigned")
 
             if self._rider_repository:
                 try:
@@ -918,5 +931,6 @@ class RiderAgent(EventEmitter):
         agent._current_rating = rider.current_rating
         agent._rating_count = rider.rating_count
         agent._statistics = RiderStatistics()  # Session-only, not persisted
+        agent._action_history = deque(maxlen=200)
 
         return agent

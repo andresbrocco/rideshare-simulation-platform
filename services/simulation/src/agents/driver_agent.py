@@ -3,6 +3,7 @@
 import logging
 import random
 import time
+from collections import deque
 from collections.abc import Generator
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -17,7 +18,7 @@ from agents.event_emitter import (
     PROFILE_UPDATE_INTERVAL_SECONDS,
     EventEmitter,
 )
-from agents.next_action import NextAction, NextActionType
+from agents.next_action import ActionHistoryEntry, NextAction, NextActionType
 from agents.profile_mutations import mutate_driver_profile
 from agents.rating_logic import generate_rating_value, should_submit_rating
 from agents.statistics import DriverStatistics
@@ -92,6 +93,7 @@ class DriverAgent(EventEmitter):
         self._heading: float = 0.0  # Direction in degrees (0 = North, clockwise)
         self._statistics = DriverStatistics()  # Session-only stats
         self._next_action: NextAction | None = None  # Scheduled next action
+        self._action_history: deque[ActionHistoryEntry] = deque(maxlen=200)
         self._persistence_dirty: bool = False  # Tracks failed persistence operations
         self._last_emitted_location: tuple[float, float] | None = None
         self._route_progress_index: int | None = None
@@ -166,6 +168,12 @@ class DriverAgent(EventEmitter):
     def next_action(self) -> NextAction | None:
         return self._next_action
 
+    def record_action(self, action_type: str) -> None:
+        """Record a completed action in the agent's history ring buffer."""
+        self._action_history.append(
+            ActionHistoryEntry(action_type=action_type, occurred_at=self._env.now)
+        )
+
     def go_online(self) -> None:
         """Transition from offline to online."""
         previous_status = self._status
@@ -197,6 +205,7 @@ class DriverAgent(EventEmitter):
             self._registry_manager.driver_went_online(self._driver_id, self._location, zone_id)
 
         self._emit_status_event(previous_status, self._status, "go_online")
+        self.record_action("go_online")
 
     def go_offline(self) -> None:
         """Transition to offline."""
@@ -231,6 +240,7 @@ class DriverAgent(EventEmitter):
 
         self._last_emitted_location = None
         self._emit_status_event(previous_status, self._status, "go_offline")
+        self.record_action("go_offline")
 
     def accept_trip(self, trip_id: str) -> None:
         """Accept a trip offer, transition directly to en_route_pickup."""
@@ -260,6 +270,7 @@ class DriverAgent(EventEmitter):
             self._registry_manager.driver_status_changed(self._driver_id, self._status)
 
         self._emit_status_event(previous_status, self._status, "accept_trip")
+        self.record_action("accept_trip")
 
     def start_pickup(self) -> None:
         """Start driving to pickup location."""
@@ -285,6 +296,7 @@ class DriverAgent(EventEmitter):
             self._registry_manager.driver_status_changed(self._driver_id, self._status)
 
         self._emit_status_event(previous_status, self._status, "start_pickup")
+        self.record_action("start_pickup")
 
     def start_trip(self) -> None:
         """Start the trip after rider pickup."""
@@ -310,6 +322,7 @@ class DriverAgent(EventEmitter):
             self._registry_manager.driver_status_changed(self._driver_id, self._status)
 
         self._emit_status_event(previous_status, self._status, "start_trip")
+        self.record_action("start_trip")
 
     def complete_trip(self) -> None:
         """Complete the trip and return to online."""
@@ -341,6 +354,7 @@ class DriverAgent(EventEmitter):
             self._registry_manager.driver_status_changed(self._driver_id, self._status)
 
         self._emit_status_event(previous_status, self._status, "complete_trip")
+        self.record_action("complete_trip")
 
     def update_route_progress(
         self,
@@ -546,6 +560,7 @@ class DriverAgent(EventEmitter):
             if self._registry_manager:
                 self._registry_manager.driver_status_changed(self._driver_id, self._status)
             self._emit_status_event(previous_status, self._status, "start_repositioning")
+            self.record_action("start_repositioning")
 
             route = self._osrm_client.get_route_sync(self._location, target)
 
@@ -565,6 +580,7 @@ class DriverAgent(EventEmitter):
             if self._registry_manager:
                 self._registry_manager.driver_status_changed(self._driver_id, self._status)
             self._emit_status_event(previous_status, self._status, "end_repositioning")
+            self.record_action("end_repositioning")
 
         except simpy.Interrupt:
             logger.debug(f"Driver {self._driver_id}: Repositioning interrupted by trip offer")
@@ -577,6 +593,7 @@ class DriverAgent(EventEmitter):
                 if self._registry_manager:
                     self._registry_manager.driver_status_changed(self._driver_id, self._status)
                 self._emit_status_event(previous_status, self._status, "repositioning_failed")
+                self.record_action("repositioning_failed")
 
     def on_trip_cancelled(self, trip: "Trip") -> None:
         """Handle trip cancellation notification."""
@@ -1073,5 +1090,6 @@ class DriverAgent(EventEmitter):
         agent._current_rating = driver.current_rating
         agent._rating_count = driver.rating_count
         agent._statistics = DriverStatistics()  # Session-only, not persisted
+        agent._action_history = deque(maxlen=200)
 
         return agent

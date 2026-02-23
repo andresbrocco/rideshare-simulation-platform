@@ -3,6 +3,7 @@ import { formatTripState } from '../../utils/tripStateFormatter';
 import { formatDriverStatus } from '../../utils/driverStatusFormatter';
 import { formatNumber, formatPercent } from '../../utils/formatNumber';
 import { NextActionsSection } from '../NextActionsSection';
+import { PreviousActionsSection } from '../PreviousActionsSection';
 import { InspectorSection } from './InspectorSection';
 import { InspectorRow } from './InspectorRow';
 import { StatsGrid } from './StatsGrid';
@@ -179,6 +180,9 @@ export function DriverInspector({
         </InspectorSection>
       )}
 
+      {!state.is_puppet && (
+        <PreviousActionsSection actionHistory={state.action_history} isPuppet={false} />
+      )}
       {!state.is_puppet && <NextActionsSection nextAction={state.next_action} isPuppet={false} />}
     </>
   );

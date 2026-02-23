@@ -1,0 +1,77 @@
+.section {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(var(--text-emphasis-rgb), 0.1);
+}
+
+.section h4 {
+  margin: 0 0 8px 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.list {
+  max-height: 200px;
+  overflow-y: auto;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.list::-webkit-scrollbar-thumb {
+  background: rgba(var(--text-emphasis-rgb), 0.2);
+  border-radius: 2px;
+}
+
+.item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(var(--text-emphasis-rgb), 0.06);
+}
+
+.item:last-child {
+  border-bottom: none;
+}
+
+.itemAction {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.itemIcon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.itemLabel {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.itemTimestamp {
+  font-size: 12px;
+  font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.noHistory {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-style: italic;
+}

@@ -550,6 +550,7 @@ class MatchingServer:
         else:
             # Apply rejection
             driver.statistics.record_offer_rejected()
+            driver.record_action("reject_offer")
             self._offers_rejected += 1
             with self._state_lock:
                 self._reserved_drivers.discard(driver.driver_id)
@@ -902,6 +903,7 @@ class MatchingServer:
         self._offers_expired += 1
         if driver:
             driver.statistics.record_offer_expired()
+            driver.record_action("offer_expired")
         with self._state_lock:
             self._reserved_drivers.discard(driver_id)
             self._driver_index.update_driver_status(driver_id, "available")
@@ -1070,6 +1072,7 @@ class MatchingServer:
         self._offers_rejected += 1
         if driver:
             driver.statistics.record_offer_rejected()
+            driver.record_action("reject_offer")
 
         # Release reservation and restore driver to matchable status
         with self._state_lock:
@@ -1103,6 +1106,7 @@ class MatchingServer:
         self._offers_expired += 1
         if driver:
             driver.statistics.record_offer_expired()
+            driver.record_action("offer_expired")
 
         # Release reservation and restore driver to matchable status
         with self._state_lock:

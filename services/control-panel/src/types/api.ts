@@ -279,6 +279,11 @@ export type NextActionType =
   | 'request_ride'
   | 'patience_timeout';
 
+export interface ActionHistoryEntry {
+  action_type: string;
+  occurred_at_iso: string;
+}
+
 export interface NextAction {
   action_type: NextActionType;
   scheduled_at: number;
@@ -295,6 +300,7 @@ export interface DriverState {
   active_trip: ActiveTripInfo | null;
   pending_offer: PendingOfferInfo | null;
   next_action: NextAction | null;
+  action_history: ActionHistoryEntry[];
   zone_id: string | null;
   dna: DriverDNA;
   statistics: DriverStatistics;
@@ -310,6 +316,7 @@ export interface RiderState {
   rating_count: number;
   active_trip: ActiveTripInfo | null;
   next_action: NextAction | null;
+  action_history: ActionHistoryEntry[];
   zone_id: string | null;
   dna: RiderDNA;
   statistics: RiderStatistics;
