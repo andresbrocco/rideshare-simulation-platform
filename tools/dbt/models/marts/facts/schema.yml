@@ -158,7 +158,7 @@ models:
               field: time_key
 
   - name: fact_driver_activity
-    description: Driver status durations for utilization analysis.
+    description: Driver status durations for idle time analysis.
     columns:
       - name: activity_key
         tests:

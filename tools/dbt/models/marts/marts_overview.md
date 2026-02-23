@@ -166,7 +166,7 @@ Driver KPIs by day:
 
 - **Grain**: One row per driver per day
 - **Foreign Keys**: driver_key, time_key
-- **Measures**: trips_completed, total_payout, avg_rating, online_minutes, utilization_pct
+- **Measures**: trips_completed, total_payout, avg_rating, online_minutes, idle_pct
 
 #### agg_daily_platform_revenue
 
@@ -228,13 +228,13 @@ Benefits:
 - **relationships**: Foreign keys exist in dimensions
 - **accepted_values**: Enum fields (status, state, type)
 - **accepted_range**: Numeric bounds (ratings, multipliers)
-- **Custom business rules**: Fee percentages, utilization bounds, revenue consistency
+- **Custom business rules**: Fee percentages, idle time bounds, revenue consistency
 
 ### Aggregate Tests
 
 - **expression_is_true** (dbt_utils): Business logic validation
   - Completed trips ≤ requested trips
-  - Utilization ≤ 100%
+  - Idle % ≤ 100%
   - Revenue = platform_fees + driver_payouts
   - Max surge ≥ avg surge ≥ min surge
 
@@ -275,7 +275,7 @@ group by z.name
 ```sql
 select
   d.first_name || ' ' || d.last_name as driver_name,
-  avg(p.utilization_pct) as avg_utilization,
+  avg(p.idle_pct) as avg_idle_pct,
   sum(p.total_payout) as total_earnings
 from agg_daily_driver_performance p
 join dim_drivers d on p.driver_key = d.driver_key

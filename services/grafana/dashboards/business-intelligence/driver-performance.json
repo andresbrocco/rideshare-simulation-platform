@@ -226,7 +226,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT AVG(100.0 - utilization_pct) as avg_idle_pct\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= current_date - INTERVAL '7' DAY",
+          "rawSql": "SELECT AVG(idle_pct) as avg_idle_pct\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= current_date - INTERVAL '7' DAY",
           "refId": "A"
         }
       ],
@@ -392,7 +392,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  CASE\n    WHEN (100.0 - dp.utilization_pct) >= 80 THEN 'High Idle (80%+)'\n    WHEN (100.0 - dp.utilization_pct) >= 50 THEN 'Moderate Idle (50-80%)'\n    ELSE 'Low Idle (<50%)'\n  END as idle_tier,\n  COUNT(DISTINCT dp.driver_key) as driver_count\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= CAST(current_timestamp - INTERVAL '7' DAY AS DATE)\nGROUP BY\n  CASE\n    WHEN (100.0 - dp.utilization_pct) >= 80 THEN 'High Idle (80%+)'\n    WHEN (100.0 - dp.utilization_pct) >= 50 THEN 'Moderate Idle (50-80%)'\n    ELSE 'Low Idle (<50%)'\n  END\nORDER BY driver_count DESC",
+          "rawSql": "SELECT\n  CASE\n    WHEN dp.idle_pct >= 80 THEN 'High Idle (80%+)'\n    WHEN dp.idle_pct >= 50 THEN 'Moderate Idle (50-80%)'\n    ELSE 'Low Idle (<50%)'\n  END as idle_tier,\n  COUNT(DISTINCT dp.driver_key) as driver_count\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= CAST(current_timestamp - INTERVAL '7' DAY AS DATE)\nGROUP BY\n  CASE\n    WHEN dp.idle_pct >= 80 THEN 'High Idle (80%+)'\n    WHEN dp.idle_pct >= 50 THEN 'Moderate Idle (50-80%)'\n    ELSE 'Low Idle (<50%)'\n  END\nORDER BY driver_count DESC",
           "refId": "A"
         }
       ],
@@ -484,12 +484,12 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "utilization_rate"
+              "options": "idle_rate"
             },
             "properties": [
               {
                 "id": "displayName",
-                "value": "Utilization Rate (%)"
+                "value": "Idle Rate (%)"
               },
               {
                 "id": "unit",
@@ -501,7 +501,7 @@
               },
               {
                 "id": "custom.axisLabel",
-                "value": "Utilization Rate"
+                "value": "Idle Rate"
               }
             ]
           },
@@ -538,7 +538,7 @@
         "y": 15
       },
       "id": 9,
-      "description": "Three daily metrics overlaid: average rating (left axis, 0-5), utilization rate (right axis, %), and average on-trip minutes (right axis). Shows correlation between performance dimensions.",
+      "description": "Three daily metrics overlaid: average rating (left axis, 0-5), idle rate (right axis, %), and average on-trip minutes (right axis). Shows correlation between performance dimensions.",
       "options": {
         "legend": {
           "calcs": ["mean", "max"],
@@ -559,7 +559,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  CAST(dt.date_key AS TIMESTAMP) as time,\n  AVG(dp.avg_rating) as avg_rating,\n  AVG(dp.utilization_pct) / 100.0 as utilization_rate,\n  AVG(dp.on_trip_minutes) as avg_on_trip_minutes\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= CAST(current_timestamp - INTERVAL '7' DAY AS DATE)\nGROUP BY dt.date_key\nORDER BY dt.date_key",
+          "rawSql": "SELECT\n  CAST(dt.date_key AS TIMESTAMP) as time,\n  AVG(dp.avg_rating) as avg_rating,\n  AVG(dp.idle_pct) / 100.0 as idle_rate,\n  AVG(dp.on_trip_minutes) as avg_on_trip_minutes\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= CAST(current_timestamp - INTERVAL '7' DAY AS DATE)\nGROUP BY dt.date_key\nORDER BY dt.date_key",
           "refId": "A"
         }
       ],

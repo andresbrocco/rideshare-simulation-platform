@@ -5094,7 +5094,7 @@ data:
             "y": 1
           },
           "id": 4,
-          "description": "Mean utilization percentage from agg_daily_driver_performance. Represents ratio of on-trip time to total available time. Color thresholds: red (<60%), yellow (60-80%), green (80%+).",
+          "description": "Mean idle percentage from agg_daily_driver_performance. Represents ratio of available (non-trip) time to total online time. Color thresholds: green (<20%), yellow (20-40%), red (40%+).",
           "options": {
             "colorMode": "value",
             "graphMode": "area",
@@ -5116,11 +5116,11 @@ data:
               },
               "format": 0,
               "rawQuery": true,
-              "rawSql": "SELECT AVG(utilization_pct) as avg_utilization\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= current_date - INTERVAL '7' DAY",
+              "rawSql": "SELECT AVG(idle_pct) as avg_idle_pct\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= current_date - INTERVAL '7' DAY",
               "refId": "A"
             }
           ],
-          "title": "Average Utilization %",
+          "title": "Average Idle Time %",
           "type": "stat"
         },
         {
@@ -5282,11 +5282,11 @@ data:
               },
               "format": 0,
               "rawQuery": true,
-              "rawSql": "SELECT\n  CASE\n    WHEN dp.utilization_pct >= 50 THEN 'High (50%+)'\n    WHEN dp.utilization_pct >= 20 THEN 'Medium (20-50%)'\n    ELSE 'Low (<20%)'\n  END as utilization_tier,\n  COUNT(DISTINCT dp.driver_key) as driver_count\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= CAST(current_timestamp - INTERVAL '7' DAY AS DATE)\nGROUP BY\n  CASE\n    WHEN dp.utilization_pct >= 50 THEN 'High (50%+)'\n    WHEN dp.utilization_pct >= 20 THEN 'Medium (20-50%)'\n    ELSE 'Low (<20%)'\n  END\nORDER BY driver_count DESC",
+              "rawSql": "SELECT\n  CASE\n    WHEN dp.idle_pct >= 80 THEN 'High Idle (80%+)'\n    WHEN dp.idle_pct >= 50 THEN 'Moderate Idle (50-80%)'\n    ELSE 'Low Idle (<50%)'\n  END as idle_tier,\n  COUNT(DISTINCT dp.driver_key) as driver_count\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= CAST(current_timestamp - INTERVAL '7' DAY AS DATE)\nGROUP BY\n  CASE\n    WHEN dp.idle_pct >= 80 THEN 'High Idle (80%+)'\n    WHEN dp.idle_pct >= 50 THEN 'Moderate Idle (50-80%)'\n    ELSE 'Low Idle (<50%)'\n  END\nORDER BY driver_count DESC",
               "refId": "A"
             }
           ],
-          "title": "Driver Utilization Tiers",
+          "title": "Driver Idle Time Breakdown",
           "type": "piechart"
         },
         {
@@ -5374,12 +5374,12 @@ data:
               {
                 "matcher": {
                   "id": "byName",
-                  "options": "utilization_rate"
+                  "options": "idle_rate"
                 },
                 "properties": [
                   {
                     "id": "displayName",
-                    "value": "Utilization Rate (%)"
+                    "value": "Idle Rate (%)"
                   },
                   {
                     "id": "unit",
@@ -5391,7 +5391,7 @@ data:
                   },
                   {
                     "id": "custom.axisLabel",
-                    "value": "Utilization Rate"
+                    "value": "Idle Rate"
                   }
                 ]
               },
@@ -5428,7 +5428,7 @@ data:
             "y": 15
           },
           "id": 9,
-          "description": "Three daily metrics overlaid: average rating (left axis, 0-5), utilization rate (right axis, %), and average on-trip minutes (right axis). Shows correlation between performance dimensions.",
+          "description": "Three daily metrics overlaid: average rating (left axis, 0-5), idle rate (right axis, %), and average on-trip minutes (right axis). Shows correlation between performance dimensions.",
           "options": {
             "legend": {
               "calcs": ["mean", "max"],
@@ -5449,7 +5449,7 @@ data:
               },
               "format": 0,
               "rawQuery": true,
-              "rawSql": "SELECT\n  CAST(dt.date_key AS TIMESTAMP) as time,\n  AVG(dp.avg_rating) as avg_rating,\n  AVG(dp.utilization_pct) / 100.0 as utilization_rate,\n  AVG(dp.on_trip_minutes) as avg_on_trip_minutes\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= CAST(current_timestamp - INTERVAL '7' DAY AS DATE)\nGROUP BY dt.date_key\nORDER BY dt.date_key",
+              "rawSql": "SELECT\n  CAST(dt.date_key AS TIMESTAMP) as time,\n  AVG(dp.avg_rating) as avg_rating,\n  AVG(dp.idle_pct) / 100.0 as idle_rate,\n  AVG(dp.on_trip_minutes) as avg_on_trip_minutes\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= CAST(current_timestamp - INTERVAL '7' DAY AS DATE)\nGROUP BY dt.date_key\nORDER BY dt.date_key",
               "refId": "A"
             }
           ],

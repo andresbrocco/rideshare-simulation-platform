@@ -340,9 +340,9 @@ def test_agg_daily_driver_performance_consistency():
         assert len(col_not_null) > 0, f"Missing not null check for {col}"
 
     utilization_check = [
-        exp for exp in expectations if exp.get("kwargs", {}).get("column") == "utilization_pct"
+        exp for exp in expectations if exp.get("kwargs", {}).get("column") == "idle_pct"
     ]
-    assert len(utilization_check) > 0, "Missing utilization_pct validation"
+    assert len(utilization_check) > 0, "Missing idle_pct validation"
 
 
 def test_dim_completeness():

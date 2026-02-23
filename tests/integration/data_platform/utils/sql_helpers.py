@@ -633,7 +633,7 @@ GOLD_TABLE_DDL = {
             online_minutes DOUBLE,
             en_route_minutes DOUBLE,
             on_trip_minutes DOUBLE,
-            utilization_pct DOUBLE
+            idle_pct DOUBLE
         )
         USING DELTA
         LOCATION 's3a://rideshare-gold/agg_daily_driver_performance/'

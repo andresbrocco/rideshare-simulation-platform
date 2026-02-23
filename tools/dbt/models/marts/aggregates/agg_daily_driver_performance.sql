@@ -50,10 +50,10 @@ final as (
         coalesce(da.on_trip_minutes, 0.0) as on_trip_minutes,
         case
             when coalesce(da.online_minutes, 0.0) = 0 then 0.0
-            else (coalesce(da.en_route_minutes, 0.0) + coalesce(da.on_trip_minutes, 0.0))
+            else (coalesce(da.online_minutes, 0.0) - coalesce(da.en_route_minutes, 0.0) - coalesce(da.on_trip_minutes, 0.0))
                  / coalesce(da.online_minutes, 1.0)
                  * 100.0
-        end as utilization_pct
+        end as idle_pct
     from driver_activity da
     left join driver_trips dt
         on da.driver_key = dt.driver_key

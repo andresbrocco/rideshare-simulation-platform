@@ -19,7 +19,7 @@ models:
           name: completion_rate_range
 
   - name: agg_daily_driver_performance
-    description: Daily driver KPIs including utilization and earnings.
+    description: Daily driver KPIs including idle time and earnings.
     columns:
       - name: driver_key
         tests:
@@ -35,8 +35,8 @@ models:
               field: time_key
     tests:
       - dbt_utils.expression_is_true:
-          expression: "utilization_pct between 0.0 and 100.0"
-          name: utilization_range
+          expression: "idle_pct between 0.0 and 100.0"
+          name: idle_range
       - dbt_utils.expression_is_true:
           expression: "en_route_minutes + on_trip_minutes <= online_minutes"
           name: time_consistency

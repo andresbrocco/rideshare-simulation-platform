@@ -188,7 +188,7 @@
     },
     {
       "datasource": { "type": "trino-datasource", "uid": "trino" },
-      "description": "Average utilization percentage from agg_daily_driver_performance. Utilization = (en_route + on_trip) / online time.",
+      "description": "Average idle percentage from agg_daily_driver_performance. Idle = (online - en_route - on_trip) / online time.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -197,9 +197,9 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red", "value": null },
-              { "color": "yellow", "value": 30 },
-              { "color": "green", "value": 60 }
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 20 },
+              { "color": "red", "value": 40 }
             ]
           },
           "unit": "percent"
@@ -222,11 +222,11 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT ROUND(AVG(utilization_pct), 1) AS utilization_pct\nFROM delta.gold.agg_daily_driver_performance adp\nJOIN delta.gold.dim_drivers dd ON adp.driver_key = dd.driver_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE",
+          "rawSql": "SELECT ROUND(AVG(idle_pct), 1) AS idle_pct\nFROM delta.gold.agg_daily_driver_performance adp\nJOIN delta.gold.dim_drivers dd ON adp.driver_key = dd.driver_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE",
           "refId": "A"
         }
       ],
-      "title": "Utilization %",
+      "title": "Idle %",
       "type": "stat"
     },
     {

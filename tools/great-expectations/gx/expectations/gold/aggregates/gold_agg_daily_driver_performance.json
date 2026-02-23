@@ -61,15 +61,15 @@
     {
       "expectation_type": "expect_column_values_to_not_be_null",
       "kwargs": {
-        "column": "utilization_pct"
+        "column": "idle_pct"
       }
     },
     {
       "expectation_type": "expect_column_values_to_be_between",
       "kwargs": {
-        "column": "utilization_pct",
+        "column": "idle_pct",
         "min_value": 0,
-        "max_value": 1
+        "max_value": 100
       }
     },
     {
