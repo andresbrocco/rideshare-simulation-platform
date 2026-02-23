@@ -440,10 +440,10 @@ async def request_rider_trip(
     if not rider:
         raise HTTPException(status_code=404, detail=f"Rider {rider_id} not found")
 
-    if rider.status != "offline":
+    if rider.status != "idle":
         raise HTTPException(
             status_code=400,
-            detail=f"Rider must be offline to request trip. Current status: {rider.status}",
+            detail=f"Rider must be idle to request trip. Current status: {rider.status}",
         )
 
     if not rider.location:
