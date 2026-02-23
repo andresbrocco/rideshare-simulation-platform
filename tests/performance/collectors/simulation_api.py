@@ -30,6 +30,7 @@ class SimulationStatus:
     riders_total: int
     active_trips_count: int
     uptime_seconds: float
+    real_time_ratio: float | None = None
 
 
 class SimulationAPIClient:
@@ -112,6 +113,7 @@ class SimulationAPIClient:
             riders_total=data["riders_total"],
             active_trips_count=data["active_trips_count"],
             uptime_seconds=data.get("uptime_seconds", 0.0),
+            real_time_ratio=data.get("real_time_ratio"),
         )
 
     def start(self) -> dict[str, Any]:

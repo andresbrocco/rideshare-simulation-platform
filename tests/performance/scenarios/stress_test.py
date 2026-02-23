@@ -134,7 +134,7 @@ class StressTestScenario(BaseScenario):
         return (
             f"Stress test: spawn agents until {self.params['global_cpu_threshold_percent']}% "
             f"global CPU, {self.params['memory_threshold_percent']}% memory, "
-            f"or {self.params['rtr_threshold']}x RTR reached"
+            f"or RTR <= {self.params['rtr_threshold']} reached"
         )
 
     @property
@@ -265,7 +265,7 @@ class StressTestScenario(BaseScenario):
         self._metadata["riders_queued"] = self._total_riders_queued
         self._metadata["peak_values"] = self._peak_values
         self._metadata["rtr_peak"] = (
-            round(max(self._rtr_rolling.values), 4) if self._rtr_rolling.values else None
+            round(min(self._rtr_rolling.values), 4) if self._rtr_rolling.values else None
         )
         self._metadata["duration_seconds"] = elapsed
         self._metadata["batch_count"] = batch_count
@@ -391,7 +391,7 @@ class StressTestScenario(BaseScenario):
         rtr_threshold = self.config.scenarios.stress_rtr_threshold
         if self._rtr_rolling.values:
             rtr_avg = self._rtr_rolling.average
-            if rtr_avg >= rtr_threshold:
+            if rtr_avg <= rtr_threshold:
                 return ThresholdTrigger(
                     container="__simulation__",
                     metric="rtr",

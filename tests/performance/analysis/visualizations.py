@@ -780,8 +780,8 @@ class ChartGenerator:
         if not rtr_timestamps and not rolling_timestamps:
             return []
 
-        all_vals = rtr_values + rolling_values + [rtr_threshold, 1.0]
-        y_max = max(all_vals) * 1.2 if all_vals else 3.0
+        all_vals = rtr_values + rolling_values + [rtr_threshold, 0.95]
+        y_max = max(all_vals) * 1.2 if all_vals else 1.5
 
         fig = go.Figure()
 
@@ -807,19 +807,19 @@ class ChartGenerator:
             )
 
         fig.add_hline(
-            y=1.0, line_dash="dot", line_color="green", annotation_text="1.0x (keeping pace)"
+            y=0.95, line_dash="dot", line_color="green", annotation_text="0.95 (keeping pace)"
         )
         fig.add_hline(
             y=rtr_threshold,
             line_dash="dash",
             line_color="darkred",
-            annotation_text=f"{rtr_threshold}x threshold",
+            annotation_text=f"{rtr_threshold} threshold",
         )
 
         fig.update_layout(
             title=f"Simulation RTR Timeline (Total Agents: {total_agents})",
             xaxis_title="Time (seconds)",
-            yaxis_title="Real-Time Ratio (higher = more behind)",
+            yaxis_title="RTR (1.0 = perfect)",
             yaxis_range=[0, y_max],
         )
 
@@ -936,9 +936,9 @@ class ChartGenerator:
             step_labels.append(f"{step['multiplier']}x")
             rtr_means.append(mean_rtr)
 
-            if mean_rtr > rtr_threshold:
+            if mean_rtr < rtr_threshold:
                 colors.append("red")
-            elif mean_rtr > 1.0:
+            elif mean_rtr < 0.95:
                 colors.append("#FFA500")  # orange/yellow
             else:
                 colors.append("green")
@@ -959,22 +959,22 @@ class ChartGenerator:
         )
 
         fig.add_hline(
-            y=1.0, line_dash="dot", line_color="green", annotation_text="1.0x (keeping pace)"
+            y=0.95, line_dash="dot", line_color="green", annotation_text="0.95 (keeping pace)"
         )
         fig.add_hline(
             y=rtr_threshold,
             line_dash="dash",
             line_color="darkred",
-            annotation_text=f"{rtr_threshold}x threshold",
+            annotation_text=f"{rtr_threshold} threshold",
         )
 
-        y_max = max(rtr_means) * 1.3 if rtr_means else 3.0
-        y_max = max(y_max, rtr_threshold * 1.2)
+        y_max = max(rtr_means) * 1.3 if rtr_means else 1.5
+        y_max = max(y_max, 1.1)
 
         fig.update_layout(
             title="Speed Scaling: Mean RTR Per Step",
             xaxis_title="Speed Multiplier",
-            yaxis_title="Mean Real-Time Ratio",
+            yaxis_title="RTR (1.0 = perfect)",
             yaxis_range=[0, y_max],
         )
 

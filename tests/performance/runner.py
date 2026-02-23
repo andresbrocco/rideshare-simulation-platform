@@ -383,7 +383,7 @@ def _extract_key_metrics(
             rtr = sample.get("rtr")
             if rtr is not None and "rtr" in rtr:
                 v = rtr["rtr"]
-                if rtr_peak is None or v > rtr_peak:
+                if rtr_peak is None or v < rtr_peak:
                     rtr_peak = v
 
     # Leak rates (container display name -> MB/min slope)

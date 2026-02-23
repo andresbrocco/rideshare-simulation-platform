@@ -212,7 +212,7 @@ class SpeedScalingScenario(BaseScenario):
         rtr_values = [
             s["rtr"]["rtr"] for s in step_samples if s.get("rtr") is not None and "rtr" in s["rtr"]
         ]
-        rtr_peak = max(rtr_values) if rtr_values else None
+        rtr_peak = min(rtr_values) if rtr_values else None
         rtr_mean = (sum(rtr_values) / len(rtr_values)) if rtr_values else None
 
         return {
@@ -313,7 +313,7 @@ class SpeedScalingScenario(BaseScenario):
 
         if rtr_rolling.values:
             rtr_avg = rtr_rolling.average
-            if rtr_avg >= rtr_threshold:
+            if rtr_avg <= rtr_threshold:
                 return ThresholdTrigger(
                     container="__simulation__",
                     metric="rtr",

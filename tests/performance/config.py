@@ -55,7 +55,9 @@ class ScenarioConfig:
     stress_spawn_batch_size: int = 18
     stress_spawn_interval_seconds: float = 1.0
     stress_max_duration_minutes: int = 30
-    stress_rtr_threshold: float = 1.5  # RTR rolling avg above this triggers stop
+    stress_rtr_threshold: float = (
+        0.67  # RTR rolling avg below this triggers stop (0.67 ≈ 67% of target speed)
+    )
     stress_rtr_rolling_window_seconds: int = 10  # Separate window for RTR smoothing
 
     # Speed scaling test settings
