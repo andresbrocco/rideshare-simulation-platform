@@ -46,7 +46,6 @@ class TripExecutor:
         matching_server: "MatchingServer | None" = None,
         settings: SimulationSettings | None = None,
         wait_timeout: int = 300,
-        rider_boards: bool = True,
         rider_cancels_mid_trip: bool = False,
         simulation_engine: "SimulationEngine | None" = None,
     ):
@@ -60,7 +59,6 @@ class TripExecutor:
         self._matching_server = matching_server
         self._settings = settings or SimulationSettings()
         self._wait_timeout = wait_timeout
-        self._rider_boards = rider_boards
         self._rider_cancels_mid_trip = rider_cancels_mid_trip
         self._simulation_engine = simulation_engine
 
@@ -112,28 +110,9 @@ class TripExecutor:
             logger.info(f"Trip {self._trip.trip_id}: Completing trip")
             yield from self._complete_trip()
             logger.info(f"Trip {self._trip.trip_id}: Trip completed successfully!")
-        except PermanentError as e:
-            # Non-retryable errors (validation, not found, etc.)
-            self._cleanup_failed_trip(
-                reason="permanent_error",
-                stage=self._determine_current_stage(),
-                error=e,
-            )
-        except TransientError as e:
-            # Retryable errors (network, service unavailable)
-            # Note: retries already handled in _get_route_with_retry
-            self._cleanup_failed_trip(
-                reason="transient_error",
-                stage=self._determine_current_stage(),
-                error=e,
-            )
-        except Exception as e:
+        except Exception:
             logger.exception(f"Unexpected error in trip {self._trip.trip_id}")
-            self._cleanup_failed_trip(
-                reason="unexpected_error",
-                stage=self._determine_current_stage(),
-                error=e,
-            )
+            raise
 
     def _drive_to_pickup(self) -> Generator[simpy.Event]:
         """Drive from current location to pickup."""
@@ -168,7 +147,7 @@ class TripExecutor:
                 f"(tendency={self._driver.dna.cancellation_tendency:.3f}, "
                 f"eta={route.duration_seconds:.0f}s, prob={cancel_prob:.3f})"
             )
-            self._trip.cancel(by="driver", reason="driver_cancelled", stage="pickup")
+            self._trip.cancel(by="driver", reason="driver_cancelled_before_pickup", stage="pickup")
             self._emit_trip_event("trip.cancelled")
             self._driver.complete_trip()
             self._rider.cancel_trip()
@@ -204,20 +183,6 @@ class TripExecutor:
 
         self._emit_trip_event("trip.at_pickup")
         self._rider.on_driver_arrived(self._trip)
-
-        if not self._rider_boards:
-            yield self._env.timeout(self._wait_timeout)
-            self._trip.cancel(by="driver", reason="no_show", stage="pickup")
-            self._emit_trip_event("trip.cancelled")
-            self._driver.complete_trip()
-            self._rider.cancel_trip()
-            # Track cancellation stats
-            self._driver.statistics.record_trip_cancelled()
-            self._rider.statistics.record_trip_cancelled()
-            # Remove from active trips tracking and record cancellation
-            if self._matching_server:
-                self._matching_server.complete_trip(self._trip.trip_id, self._trip)
-            return
 
         yield self._env.timeout(30)
 
@@ -257,6 +222,17 @@ class TripExecutor:
                     num_intervals // 2, num_intervals - 1
                 )
 
+        # Probabilistic mid-trip driver cancellation
+        driver_cancel_interval: int | None = None
+        if (
+            self._settings.driver_mid_trip_cancellation_rate > 0
+            and random.random() < self._settings.driver_mid_trip_cancellation_rate
+        ):
+            gps_interval = GPS_PING_INTERVAL_MOVING
+            num_intervals_d = int(duration / gps_interval)
+            if num_intervals_d > 1:
+                driver_cancel_interval = random.randint(num_intervals_d // 2, num_intervals_d - 1)
+
         yield from self._simulate_drive(
             geometry=route.geometry,
             duration=duration,
@@ -264,6 +240,7 @@ class TripExecutor:
             check_proximity=True,
             check_rider_cancel=True,
             probabilistic_cancel_interval=probabilistic_cancel_interval,
+            driver_cancel_interval=driver_cancel_interval,
         )
 
     def _complete_trip(self) -> Generator[simpy.Event]:
@@ -378,50 +355,6 @@ class TripExecutor:
         # Should never reach here, but satisfy type checker
         raise OSRMServiceError("Max retries exceeded")
 
-    def _determine_current_stage(self) -> str:
-        """Determine current trip stage based on state."""
-        state_to_stage = {
-            TripState.REQUESTED: "requested",
-            TripState.OFFER_SENT: "matching",
-            TripState.DRIVER_ASSIGNED: "matched",
-            TripState.EN_ROUTE_PICKUP: "pickup",
-            TripState.AT_PICKUP: "pickup",
-            TripState.IN_TRANSIT: "in_transit",
-        }
-        return state_to_stage.get(self._trip.state, "unknown")
-
-    def _cleanup_failed_trip(
-        self,
-        reason: str,
-        stage: str,
-        error: Exception | None = None,
-    ) -> None:
-        """Clean up trip state after unrecoverable failure."""
-        logger.error(
-            f"Trip {self._trip.trip_id}: Cleaning up failed trip - reason={reason}, stage={stage}"
-        )
-
-        # Cancel trip if not already terminal
-        if self._trip.state not in {TripState.COMPLETED, TripState.CANCELLED}:
-            self._trip.cancel(by="system", reason=reason, stage=stage)
-            self._emit_trip_event("trip.cancelled")
-
-        # Release driver back to online
-        if self._driver.status != "offline":
-            self._driver.complete_trip()
-
-        # Release rider back to idle
-        if self._rider.status != "idle":
-            self._rider.cancel_trip()
-
-        # Record failure statistics
-        self._driver.statistics.record_trip_cancelled()
-        self._rider.statistics.record_trip_cancelled()
-
-        # Clean up matching server
-        if self._matching_server:
-            self._matching_server.complete_trip(self._trip.trip_id, self._trip)
-
     def _simulate_drive(
         self,
         geometry: list[tuple[float, float]],
@@ -430,6 +363,7 @@ class TripExecutor:
         check_proximity: bool = False,
         check_rider_cancel: bool = False,
         probabilistic_cancel_interval: int | None = None,
+        driver_cancel_interval: int | None = None,
     ) -> Generator[simpy.Event]:
         """Simulate driving along route with GPS updates and optional proximity detection.
 
@@ -439,6 +373,7 @@ class TripExecutor:
             destination: Optional (lat, lon) for proximity-based arrival detection
             check_proximity: If True, check distance to destination at each update
             check_rider_cancel: If True, handle mid-trip rider cancellation
+            driver_cancel_interval: If set, driver cancels at this interval
 
         Yields:
             SimPy timeout events for each GPS interval
@@ -456,7 +391,7 @@ class TripExecutor:
 
         for i in range(num_intervals):
             if check_rider_cancel and self._rider_cancels_mid_trip and i == num_intervals // 2:
-                self._trip.cancel(by="rider", reason="changed_mind", stage="in_transit")
+                self._trip.cancel(by="rider", reason="rider_cancelled_mid_trip", stage="in_transit")
                 self._emit_trip_event("trip.cancelled")
                 self._driver.complete_trip()
                 self._rider.cancel_trip()
@@ -473,7 +408,24 @@ class TripExecutor:
                     f"Trip {self._trip.trip_id}: Rider cancelled mid-trip "
                     f"(probabilistic at interval {i}/{num_intervals})"
                 )
-                self._trip.cancel(by="rider", reason="changed_mind", stage="in_transit")
+                self._trip.cancel(by="rider", reason="rider_cancelled_mid_trip", stage="in_transit")
+                self._emit_trip_event("trip.cancelled")
+                self._driver.complete_trip()
+                self._rider.cancel_trip()
+                self._driver.statistics.record_trip_cancelled()
+                self._rider.statistics.record_trip_cancelled()
+                if self._matching_server:
+                    self._matching_server.complete_trip(self._trip.trip_id, self._trip)
+                return
+
+            if driver_cancel_interval is not None and i == driver_cancel_interval:
+                logger.info(
+                    f"Trip {self._trip.trip_id}: Driver cancelled mid-trip "
+                    f"(probabilistic at interval {i}/{num_intervals})"
+                )
+                self._trip.cancel(
+                    by="driver", reason="driver_cancelled_mid_trip", stage="in_transit"
+                )
                 self._emit_trip_event("trip.cancelled")
                 self._driver.complete_trip()
                 self._rider.cancel_trip()

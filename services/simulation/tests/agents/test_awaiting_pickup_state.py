@@ -160,9 +160,9 @@ class TestPatienceTimeoutDoesNotFireOnAwaitingPickup:
         ]
         assert len(cancelled_events) > 0, "Patience timeout must have cancelled the trip"
 
-        # The cancellation reason must be patience_timeout (not awaiting_pickup path)
+        # The cancellation reason must be no_drivers_available (no offers were sent)
         event = json.loads(cancelled_events[0].kwargs["value"])
-        assert event["cancellation_reason"] == "patience_timeout"
+        assert event["cancellation_reason"] == "no_drivers_available"
 
 
 @pytest.mark.unit

@@ -18,7 +18,7 @@ models:
       - name: cancellation_reason
         tests:
           - accepted_values:
-              values: ['changed_mind', 'driver_cancelled', 'no_show', 'permanent_error', 'transient_error', 'unexpected_error', 'no_drivers_available', 'patience_timeout', 'system_pause']
+              values: ['no_drivers_available', 'rider_cancelled_before_pickup', 'driver_cancelled_before_pickup', 'rider_cancelled_mid_trip', 'driver_cancelled_mid_trip']
               config:
                 where: "cancellation_reason is not null"
       - name: offer_sequence

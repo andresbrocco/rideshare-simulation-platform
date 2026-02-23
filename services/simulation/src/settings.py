@@ -52,6 +52,12 @@ class SimulationSettings(BaseSettings):
         le=1.0,
         description="Probability that a rider cancels during IN_TRANSIT. 0.002 = ~0.2% of trips.",
     )
+    driver_mid_trip_cancellation_rate: float = Field(
+        default=0.001,
+        ge=0.0,
+        le=1.0,
+        description="Probability that a driver cancels during IN_TRANSIT. 0.001 = ~0.1% of trips.",
+    )
 
     # Real-Time Ratio sliding window
     rtr_window_seconds: float = Field(

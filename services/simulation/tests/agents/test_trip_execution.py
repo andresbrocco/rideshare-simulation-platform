@@ -218,71 +218,6 @@ class TestTripEvents:
 @pytest.mark.unit
 @pytest.mark.slow
 class TestTripCancellation:
-    def test_trip_driver_wait_timeout(
-        self,
-        simpy_env,
-        driver_agent,
-        rider_agent,
-        trip,
-        mock_osrm_client,
-        mock_kafka_producer,
-    ):
-        executor = TripExecutor(
-            env=simpy_env,
-            driver=driver_agent,
-            rider=rider_agent,
-            trip=trip,
-            osrm_client=mock_osrm_client,
-            kafka_producer=mock_kafka_producer,
-            wait_timeout=10,
-            rider_boards=False,
-        )
-
-        process = simpy_env.process(executor.execute())
-        simpy_env.run(process)
-
-        assert trip.state == TripState.CANCELLED
-        assert trip.cancelled_by == "driver"
-        assert trip.cancellation_reason == "no_show"
-
-    def test_trip_driver_cancellation_no_show(
-        self,
-        simpy_env,
-        driver_agent,
-        rider_agent,
-        trip,
-        mock_osrm_client,
-        mock_kafka_producer,
-    ):
-        executor = TripExecutor(
-            env=simpy_env,
-            driver=driver_agent,
-            rider=rider_agent,
-            trip=trip,
-            osrm_client=mock_osrm_client,
-            kafka_producer=mock_kafka_producer,
-            wait_timeout=10,
-            rider_boards=False,
-        )
-
-        process = simpy_env.process(executor.execute())
-        simpy_env.run(process)
-
-        events = [
-            call[1]["value"]
-            for call in mock_kafka_producer.produce.call_args_list
-            if call[1].get("topic") == "trips"
-        ]
-
-        cancelled_events = [
-            evt
-            for evt in events
-            if (isinstance(evt, dict) and evt.get("event_type") == "trip.cancelled")
-            or (hasattr(evt, "event_type") and evt.event_type == "trip.cancelled")
-        ]
-
-        assert len(cancelled_events) > 0
-
     def test_trip_rider_cancellation_during_trip(
         self,
         simpy_env,
@@ -604,7 +539,7 @@ class TestProbabilisticMidTripCancellation:
 
         assert trip.state == TripState.CANCELLED
         assert trip.cancelled_by == "rider"
-        assert trip.cancellation_reason == "changed_mind"
+        assert trip.cancellation_reason == "rider_cancelled_mid_trip"
         assert trip.cancellation_stage == "in_transit"
 
     def test_test_flag_takes_precedence_over_probabilistic(
@@ -636,7 +571,7 @@ class TestProbabilisticMidTripCancellation:
 
         assert trip.state == TripState.CANCELLED
         assert trip.cancelled_by == "rider"
-        assert trip.cancellation_reason == "changed_mind"
+        assert trip.cancellation_reason == "rider_cancelled_mid_trip"
 
     def test_no_cancellation_with_rate_0(
         self,
@@ -665,3 +600,41 @@ class TestProbabilisticMidTripCancellation:
         simpy_env.run(process)
 
         assert trip.state == TripState.COMPLETED
+
+
+@pytest.mark.unit
+@pytest.mark.slow
+class TestDriverMidTripCancellation:
+    def test_driver_mid_trip_cancellation_triggers_with_rate_1(
+        self,
+        simpy_env,
+        driver_agent,
+        rider_agent,
+        trip,
+        mock_osrm_client,
+        mock_kafka_producer,
+    ):
+        """With driver_mid_trip_cancellation_rate=1.0, the driver cancels mid-trip."""
+        from src.settings import SimulationSettings
+
+        settings = SimulationSettings(
+            mid_trip_cancellation_rate=0.0,
+            driver_mid_trip_cancellation_rate=1.0,
+        )
+        executor = TripExecutor(
+            env=simpy_env,
+            driver=driver_agent,
+            rider=rider_agent,
+            trip=trip,
+            osrm_client=mock_osrm_client,
+            kafka_producer=mock_kafka_producer,
+            settings=settings,
+        )
+
+        process = simpy_env.process(executor.execute())
+        simpy_env.run(process)
+
+        assert trip.state == TripState.CANCELLED
+        assert trip.cancelled_by == "driver"
+        assert trip.cancellation_reason == "driver_cancelled_mid_trip"
+        assert trip.cancellation_stage == "in_transit"

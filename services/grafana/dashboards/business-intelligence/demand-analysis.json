@@ -783,7 +783,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT 'completed' as trip_outcome, COUNT(*) as trip_count\nFROM delta.gold.fact_trips\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\nUNION ALL\nSELECT\n  CASE\n    WHEN cancellation_reason IN ('no_drivers_available', 'patience_timeout') THEN 'no_drivers_available'\n    WHEN cancellation_reason IN ('driver_cancelled', 'no_show') THEN 'driver_cancelled_before_pickup'\n    WHEN cancellation_reason = 'changed_mind' AND cancellation_stage = 'in_transit' THEN 'rider_cancelled_mid_trip'\n    WHEN cancellation_reason = 'changed_mind' THEN 'rider_cancelled_before_pickup'\n    WHEN cancellation_stage = 'in_transit' THEN 'driver_cancelled_mid_trip'\n    ELSE 'no_drivers_available'\n  END as trip_outcome,\n  COUNT(*) as trip_count\nFROM delta.gold.fact_cancellations\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\nGROUP BY 1",
+          "rawSql": "SELECT 'completed' as trip_outcome, COUNT(*) as trip_count\nFROM delta.gold.fact_trips\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\nUNION ALL\nSELECT\n  cancellation_reason as trip_outcome,\n  COUNT(*) as trip_count\nFROM delta.gold.fact_cancellations\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\nGROUP BY cancellation_reason",
           "refId": "A"
         }
       ],

@@ -518,7 +518,7 @@ def puppet_driver_cancel_trip(
         raise HTTPException(status_code=400, detail="No active trip for this driver")
 
     matching_server.cancel_trip(
-        driver.active_trip, cancelled_by="driver", reason="Puppet driver cancelled"
+        driver.active_trip, cancelled_by="driver", reason="driver_cancelled_before_pickup"
     )
 
     return PuppetActionResponse(
@@ -642,7 +642,7 @@ def puppet_rider_cancel_trip(
         raise HTTPException(status_code=400, detail="No active trip for this rider")
 
     matching_server.cancel_trip(
-        rider.active_trip, cancelled_by="rider", reason="Puppet rider cancelled"
+        rider.active_trip, cancelled_by="rider", reason="rider_cancelled_before_pickup"
     )
 
     return PuppetActionResponse(

@@ -249,7 +249,7 @@ class TestCancelledTripNoRatings:
             osrm_client=mock_osrm_client_for_ratings,
             kafka_producer=mock_kafka_producer,
             settings=SimulationSettings(arrival_proximity_threshold_m=50.0),
-            rider_boards=False,  # Rider won't board, causing cancellation
+            rider_cancels_mid_trip=True,  # Rider cancels mid-trip, causing cancellation
         )
 
         process = simpy_env.process(executor.execute())

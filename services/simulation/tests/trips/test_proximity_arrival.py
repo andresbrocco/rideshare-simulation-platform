@@ -273,36 +273,6 @@ class TestProximityArrivalDetection:
 class TestProximityWithCancellation:
     """Tests for proximity detection interaction with cancellation scenarios."""
 
-    def test_proximity_with_rider_no_show(
-        self,
-        simpy_env,
-        driver_agent,
-        rider_agent,
-        trip_with_far_pickup,
-        mock_osrm_client_for_proximity,
-        mock_kafka_producer,
-        proximity_settings,
-    ):
-        """Test proximity detection works correctly when rider doesn't board."""
-        executor = TripExecutor(
-            env=simpy_env,
-            driver=driver_agent,
-            rider=rider_agent,
-            trip=trip_with_far_pickup,
-            osrm_client=mock_osrm_client_for_proximity,
-            kafka_producer=mock_kafka_producer,
-            settings=proximity_settings,
-            wait_timeout=10,  # Short timeout
-            rider_boards=False,  # Rider doesn't board
-        )
-
-        process = simpy_env.process(executor.execute())
-        simpy_env.run(process)
-
-        assert trip_with_far_pickup.state == TripState.CANCELLED
-        assert trip_with_far_pickup.cancelled_by == "driver"
-        assert trip_with_far_pickup.cancellation_reason == "no_show"
-
     def test_proximity_with_mid_trip_cancellation(
         self,
         simpy_env,
@@ -330,7 +300,7 @@ class TestProximityWithCancellation:
 
         assert trip_with_far_pickup.state == TripState.CANCELLED
         assert trip_with_far_pickup.cancelled_by == "rider"
-        assert trip_with_far_pickup.cancellation_reason == "changed_mind"
+        assert trip_with_far_pickup.cancellation_reason == "rider_cancelled_mid_trip"
 
 
 @pytest.mark.unit

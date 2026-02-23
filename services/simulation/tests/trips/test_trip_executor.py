@@ -506,7 +506,7 @@ class TestPrePickupCancellation:
 
         assert cancel_trip.state == TripState.CANCELLED
         assert cancel_trip.cancelled_by == "driver"
-        assert cancel_trip.cancellation_reason == "driver_cancelled"
+        assert cancel_trip.cancellation_reason == "driver_cancelled_before_pickup"
         assert cancel_trip.cancellation_stage == "pickup"
         assert high_cancel_driver.status == "available"
 

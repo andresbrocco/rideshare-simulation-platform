@@ -6,7 +6,7 @@ This module tests the error handling improvements for PATTERN-006:
 - Agent state restoration after failures
 """
 
-from unittest.mock import Mock, call
+from unittest.mock import Mock
 
 import pytest
 import simpy
@@ -258,14 +258,13 @@ class TestOSRMRetryLogic:
             ),
         )
 
-        process = simpy_env.process(executor.execute())
-        simpy_env.run(process)
+        with pytest.raises(NoRouteFoundError):
+            process = simpy_env.process(executor.execute())
+            simpy_env.run(process)
 
-        # Trip should be cancelled after NoRouteFoundError
-        assert sample_trip.state == TripState.CANCELLED
         assert call_count == 1  # No retries for NoRouteFoundError
 
-    def test_retry_exhaustion_triggers_cleanup(
+    def test_retry_exhaustion_raises(
         self,
         simpy_env,
         driver_agent,
@@ -274,7 +273,7 @@ class TestOSRMRetryLogic:
         mock_kafka_producer,
         mock_matching_server,
     ):
-        """Trip is cancelled after exhausting all retries."""
+        """Exception propagates after exhausting all retries."""
         osrm_client = Mock()
         osrm_client.get_route_sync = Mock(side_effect=OSRMTimeoutError("Persistent failure"))
 
@@ -292,10 +291,10 @@ class TestOSRMRetryLogic:
             ),
         )
 
-        process = simpy_env.process(executor.execute())
-        simpy_env.run(process)
+        with pytest.raises(OSRMTimeoutError):
+            process = simpy_env.process(executor.execute())
+            simpy_env.run(process)
 
-        assert sample_trip.state == TripState.CANCELLED
         # 3 attempts: initial + 2 retries
         assert osrm_client.get_route_sync.call_count == 3
 
@@ -355,10 +354,14 @@ class TestOSRMRetryLogic:
 
 
 @pytest.mark.unit
-class TestCleanupHandler:
-    """Tests for trip cleanup on unrecoverable failures."""
+class TestErrorPropagation:
+    """Tests that unrecoverable errors propagate as exceptions.
 
-    def test_cleanup_cancels_trip(
+    With cleanup handler removed, errors now raise instead of silently
+    cancelling trips. The caller (MatchingServer) handles cleanup.
+    """
+
+    def test_permanent_error_propagates(
         self,
         simpy_env,
         driver_agent,
@@ -367,40 +370,7 @@ class TestCleanupHandler:
         mock_kafka_producer,
         mock_matching_server,
     ):
-        """Failed trip transitions to CANCELLED state."""
-        osrm_client = Mock()
-        osrm_client.get_route_sync = Mock(side_effect=OSRMTimeoutError("Failure"))
-
-        executor = TripExecutor(
-            env=simpy_env,
-            driver=driver_agent,
-            rider=rider_agent,
-            trip=sample_trip,
-            osrm_client=osrm_client,
-            kafka_producer=mock_kafka_producer,
-            matching_server=mock_matching_server,
-            settings=SimulationSettings(
-                arrival_proximity_threshold_m=50.0,
-                osrm_max_retries=0,  # Fail immediately
-            ),
-        )
-
-        process = simpy_env.process(executor.execute())
-        simpy_env.run(process)
-
-        assert sample_trip.state == TripState.CANCELLED
-        assert sample_trip.cancelled_by == "system"
-
-    def test_cleanup_releases_driver(
-        self,
-        simpy_env,
-        driver_agent,
-        rider_agent,
-        sample_trip,
-        mock_kafka_producer,
-        mock_matching_server,
-    ):
-        """Driver returns to online status after failure."""
+        """NoRouteFoundError propagates out of execute()."""
         osrm_client = Mock()
         osrm_client.get_route_sync = Mock(side_effect=NoRouteFoundError("No route"))
 
@@ -418,13 +388,11 @@ class TestCleanupHandler:
             ),
         )
 
-        process = simpy_env.process(executor.execute())
-        simpy_env.run(process)
+        with pytest.raises(NoRouteFoundError):
+            process = simpy_env.process(executor.execute())
+            simpy_env.run(process)
 
-        # Driver should be back online and available
-        assert driver_agent.status == "available"
-
-    def test_cleanup_releases_rider(
+    def test_transient_error_propagates_after_retries(
         self,
         simpy_env,
         driver_agent,
@@ -433,9 +401,9 @@ class TestCleanupHandler:
         mock_kafka_producer,
         mock_matching_server,
     ):
-        """Rider returns to offline status after failure."""
+        """OSRMTimeoutError propagates after all retries exhausted."""
         osrm_client = Mock()
-        osrm_client.get_route_sync = Mock(side_effect=NoRouteFoundError("No route"))
+        osrm_client.get_route_sync = Mock(side_effect=OSRMTimeoutError("Persistent failure"))
 
         executor = TripExecutor(
             env=simpy_env,
@@ -451,13 +419,11 @@ class TestCleanupHandler:
             ),
         )
 
-        process = simpy_env.process(executor.execute())
-        simpy_env.run(process)
+        with pytest.raises(OSRMTimeoutError):
+            process = simpy_env.process(executor.execute())
+            simpy_env.run(process)
 
-        # Rider should be back to idle (can request another ride)
-        assert rider_agent.status == "idle"
-
-    def test_cleanup_emits_cancellation_event(
+    def test_service_error_propagates_after_retries(
         self,
         simpy_env,
         driver_agent,
@@ -466,7 +432,7 @@ class TestCleanupHandler:
         mock_kafka_producer,
         mock_matching_server,
     ):
-        """Cancellation event is emitted to Kafka on failure."""
+        """OSRMServiceError propagates after all retries exhausted."""
         osrm_client = Mock()
         osrm_client.get_route_sync = Mock(side_effect=OSRMServiceError("503"))
 
@@ -484,254 +450,9 @@ class TestCleanupHandler:
             ),
         )
 
-        process = simpy_env.process(executor.execute())
-        simpy_env.run(process)
-
-        # Check Kafka received a cancellation event
-        trip_events = [
-            c for c in mock_kafka_producer.produce.call_args_list if c[1].get("topic") == "trips"
-        ]
-        assert len(trip_events) > 0
-
-        # Find the cancellation event
-        cancellation_events = [
-            c for c in trip_events if "cancelled" in str(c[1].get("value", "")).lower()
-        ]
-        assert len(cancellation_events) > 0
-
-    def test_cleanup_removes_from_matching_server(
-        self,
-        simpy_env,
-        driver_agent,
-        rider_agent,
-        sample_trip,
-        mock_kafka_producer,
-        mock_matching_server,
-    ):
-        """Trip is removed from matching server tracking on failure."""
-        osrm_client = Mock()
-        osrm_client.get_route_sync = Mock(side_effect=OSRMTimeoutError("Timeout"))
-
-        executor = TripExecutor(
-            env=simpy_env,
-            driver=driver_agent,
-            rider=rider_agent,
-            trip=sample_trip,
-            osrm_client=osrm_client,
-            kafka_producer=mock_kafka_producer,
-            matching_server=mock_matching_server,
-            settings=SimulationSettings(
-                arrival_proximity_threshold_m=50.0,
-                osrm_max_retries=0,
-            ),
-        )
-
-        process = simpy_env.process(executor.execute())
-        simpy_env.run(process)
-
-        mock_matching_server.complete_trip.assert_called_once_with(sample_trip.trip_id, sample_trip)
-
-    def test_cleanup_records_statistics(
-        self,
-        simpy_env,
-        driver_agent,
-        rider_agent,
-        sample_trip,
-        mock_kafka_producer,
-        mock_matching_server,
-    ):
-        """Failure statistics are recorded for driver and rider."""
-        initial_driver_cancelled = driver_agent.statistics.trips_cancelled
-        initial_rider_cancelled = rider_agent.statistics.trips_cancelled
-
-        osrm_client = Mock()
-        osrm_client.get_route_sync = Mock(side_effect=OSRMServiceError("Error"))
-
-        executor = TripExecutor(
-            env=simpy_env,
-            driver=driver_agent,
-            rider=rider_agent,
-            trip=sample_trip,
-            osrm_client=osrm_client,
-            kafka_producer=mock_kafka_producer,
-            matching_server=mock_matching_server,
-            settings=SimulationSettings(
-                arrival_proximity_threshold_m=50.0,
-                osrm_max_retries=0,
-            ),
-        )
-
-        process = simpy_env.process(executor.execute())
-        simpy_env.run(process)
-
-        assert driver_agent.statistics.trips_cancelled == initial_driver_cancelled + 1
-        assert rider_agent.statistics.trips_cancelled == initial_rider_cancelled + 1
-
-
-@pytest.mark.unit
-class TestCleanupFromDifferentStates:
-    """Tests for cleanup at different trip lifecycle stages."""
-
-    def test_cleanup_during_pickup_drive(
-        self,
-        simpy_env,
-        driver_agent,
-        rider_agent,
-        sample_trip,
-        mock_kafka_producer,
-        mock_matching_server,
-    ):
-        """Cleanup works when failure occurs during drive to pickup."""
-        osrm_client = Mock()
-        osrm_client.get_route_sync = Mock(side_effect=OSRMTimeoutError("Timeout"))
-
-        executor = TripExecutor(
-            env=simpy_env,
-            driver=driver_agent,
-            rider=rider_agent,
-            trip=sample_trip,
-            osrm_client=osrm_client,
-            kafka_producer=mock_kafka_producer,
-            matching_server=mock_matching_server,
-            settings=SimulationSettings(
-                arrival_proximity_threshold_m=50.0,
-                osrm_max_retries=0,
-            ),
-        )
-
-        process = simpy_env.process(executor.execute())
-        simpy_env.run(process)
-
-        assert sample_trip.state == TripState.CANCELLED
-        assert sample_trip.cancellation_stage == "pickup"
-
-    def test_cleanup_during_destination_drive(
-        self,
-        simpy_env,
-        driver_agent,
-        rider_agent,
-        sample_trip,
-        mock_kafka_producer,
-        mock_matching_server,
-    ):
-        """Cleanup works when failure occurs during drive to destination."""
-        call_count = 0
-
-        def mock_route(origin, destination):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                # First call (pickup route) succeeds
-                return create_successful_route(origin, destination)
-            # Second call (destination route) fails
-            raise OSRMTimeoutError("Timeout during trip")
-
-        osrm_client = Mock()
-        osrm_client.get_route_sync = Mock(side_effect=mock_route)
-
-        executor = TripExecutor(
-            env=simpy_env,
-            driver=driver_agent,
-            rider=rider_agent,
-            trip=sample_trip,
-            osrm_client=osrm_client,
-            kafka_producer=mock_kafka_producer,
-            matching_server=mock_matching_server,
-            settings=SimulationSettings(
-                arrival_proximity_threshold_m=50.0,
-                osrm_max_retries=0,
-            ),
-        )
-
-        process = simpy_env.process(executor.execute())
-        simpy_env.run(process)
-
-        assert sample_trip.state == TripState.CANCELLED
-        assert sample_trip.cancellation_stage == "in_transit"
-
-
-@pytest.mark.unit
-class TestCleanupIdempotency:
-    """Tests for idempotent cleanup operations."""
-
-    def test_cleanup_is_idempotent(
-        self,
-        simpy_env,
-        driver_agent,
-        rider_agent,
-        sample_trip,
-        mock_kafka_producer,
-        mock_matching_server,
-    ):
-        """Calling cleanup multiple times does not cause errors."""
-        osrm_client = Mock()
-        osrm_client.get_route_sync = Mock(side_effect=OSRMTimeoutError("Failure"))
-
-        executor = TripExecutor(
-            env=simpy_env,
-            driver=driver_agent,
-            rider=rider_agent,
-            trip=sample_trip,
-            osrm_client=osrm_client,
-            kafka_producer=mock_kafka_producer,
-            matching_server=mock_matching_server,
-            settings=SimulationSettings(
-                arrival_proximity_threshold_m=50.0,
-                osrm_max_retries=0,
-            ),
-        )
-
-        process = simpy_env.process(executor.execute())
-        simpy_env.run(process)
-
-        # Trip already cancelled
-        assert sample_trip.state == TripState.CANCELLED
-
-        # Manually calling cleanup again should not raise
-        executor._cleanup_failed_trip(
-            reason="test_duplicate",
-            stage="test",
-            error=None,
-        )
-
-        # State should still be cancelled
-        assert sample_trip.state == TripState.CANCELLED
-
-    def test_cleanup_handles_already_offline_agents(
-        self,
-        simpy_env,
-        driver_agent,
-        rider_agent,
-        sample_trip,
-        mock_kafka_producer,
-        mock_matching_server,
-    ):
-        """Cleanup handles agents that are already offline gracefully."""
-        osrm_client = Mock()
-        osrm_client.get_route_sync = Mock(side_effect=OSRMTimeoutError("Failure"))
-
-        # Force driver offline before failure (rider starts offline by default)
-        driver_agent.go_offline()
-
-        executor = TripExecutor(
-            env=simpy_env,
-            driver=driver_agent,
-            rider=rider_agent,
-            trip=sample_trip,
-            osrm_client=osrm_client,
-            kafka_producer=mock_kafka_producer,
-            matching_server=mock_matching_server,
-            settings=SimulationSettings(
-                arrival_proximity_threshold_m=50.0,
-                osrm_max_retries=0,
-            ),
-        )
-
-        # Should not raise despite driver being offline
-        process = simpy_env.process(executor.execute())
-        simpy_env.run(process)
-
-        assert sample_trip.state == TripState.CANCELLED
+        with pytest.raises(OSRMServiceError):
+            process = simpy_env.process(executor.execute())
+            simpy_env.run(process)
 
 
 @pytest.mark.unit
@@ -765,8 +486,8 @@ class TestZeroRetryConfiguration:
             ),
         )
 
-        process = simpy_env.process(executor.execute())
-        simpy_env.run(process)
+        with pytest.raises(OSRMTimeoutError):
+            process = simpy_env.process(executor.execute())
+            simpy_env.run(process)
 
-        assert sample_trip.state == TripState.CANCELLED
         assert osrm_client.get_route_sync.call_count == 1

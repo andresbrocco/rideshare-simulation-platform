@@ -726,10 +726,15 @@ class RiderAgent(EventEmitter):
                     self._surge_calculator.decrement_pending_request(pickup_zone_id)
 
                 # Cancel trip in matching server to clean up _active_trips
+                # Determine resolved cancellation reason based on offer history
+                resolved_reason = "no_drivers_available"
                 if self._simulation_engine and hasattr(self._simulation_engine, "_matching_server"):
                     matching_server = self._simulation_engine._matching_server
                     if matching_server:
-                        matching_server.cancel_trip(trip_id, "rider", "patience_timeout")
+                        trip_obj = matching_server._active_trips.get(trip_id)
+                        if trip_obj and trip_obj.offer_sequence > 0:
+                            resolved_reason = "rider_cancelled_before_pickup"
+                        matching_server.cancel_trip(trip_id, "rider", resolved_reason)
 
                 event = EventFactory.create(
                     TripEvent,
@@ -746,7 +751,7 @@ class RiderAgent(EventEmitter):
                     surge_multiplier=surge_multiplier,
                     fare=fare,
                     cancelled_by="rider",
-                    cancellation_reason="patience_timeout",
+                    cancellation_reason=resolved_reason,
                 )
 
                 self._emit_event(

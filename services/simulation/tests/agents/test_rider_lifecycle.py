@@ -149,7 +149,7 @@ class TestRiderPatienceTimeout:
         assert len(cancelled_events) > 0
         event = json.loads(cancelled_events[0].kwargs["value"])
         assert event["cancelled_by"] == "rider"
-        assert event["cancellation_reason"] == "patience_timeout"
+        assert event["cancellation_reason"] == "no_drivers_available"
 
 
 @pytest.mark.unit

@@ -1249,6 +1249,13 @@ class MatchingServer:
         if not trip:
             return
 
+        # Resolve ambiguous patience_timeout into specific taxonomy reasons
+        if reason == "patience_timeout":
+            if trip.offer_sequence > 0:
+                reason = "rider_cancelled_before_pickup"
+            else:
+                reason = "no_drivers_available"
+
         driver = None
         rider = None
 
@@ -1300,6 +1307,9 @@ class MatchingServer:
             dropoff_zone_id=trip.dropoff_zone_id,
             surge_multiplier=trip.surge_multiplier,
             fare=trip.fare,
+            cancelled_by=trip.cancelled_by,
+            cancellation_reason=trip.cancellation_reason,
+            cancellation_stage=trip.cancellation_stage,
             timestamp=self._format_timestamp(),
         )
 
