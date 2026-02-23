@@ -24,7 +24,7 @@ const LAYER_CONFIGS: LayerConfig[] = [
   { key: 'offlineRiders', label: 'Idle', color: STAGE_HEX.idle.light },
   { key: 'requestingRiders', label: 'Requesting', color: STAGE_HEX.requesting.base },
   { key: 'enRouteRiders', label: 'Awaiting Pickup', color: STAGE_HEX.pickup.light },
-  { key: 'arrivedRiders', label: 'Awaiting Pickup (arrived)', color: STAGE_HEX.pickup.lighter },
+  { key: 'arrivedRiders', label: 'Onboarding', color: STAGE_HEX.pickup.lighter },
   { key: 'inTransitRiders', label: 'In Transit', color: STAGE_HEX.transit.base },
   // Trip/Route layers
   { key: 'pendingRoutes', label: 'Pending Routes', color: STAGE_HEX.requesting.route },

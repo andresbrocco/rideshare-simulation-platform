@@ -11,7 +11,7 @@ const LEGEND_ITEMS = [
   { id: 'offline-riders', label: 'Idle', color: STAGE_CSS.idle.light },
   { id: 'requesting-riders', label: 'Requesting', color: STAGE_CSS.requesting.base },
   { id: 'en-route-riders', label: 'Awaiting Pickup', color: STAGE_CSS.pickup.light },
-  { id: 'arrived-riders', label: 'Awaiting Pickup (arrived)', color: STAGE_CSS.pickup.lighter },
+  { id: 'arrived-riders', label: 'Onboarding', color: STAGE_CSS.pickup.lighter },
   { id: 'in-transit-riders', label: 'In Transit', color: STAGE_CSS.transit.base },
   // Route layers
   { id: 'pending-routes', label: 'Pending Routes', color: STAGE_CSS.requesting.route },
