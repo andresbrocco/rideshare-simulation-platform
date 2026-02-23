@@ -1,6 +1,7 @@
 import type { Driver, DriverState } from '../../types/api';
 import { formatTripState } from '../../utils/tripStateFormatter';
 import { formatDriverStatus } from '../../utils/driverStatusFormatter';
+import { formatNumber, formatPercent } from '../../utils/formatNumber';
 import { NextActionsSection } from '../NextActionsSection';
 import { InspectorSection } from './InspectorSection';
 import { InspectorRow } from './InspectorRow';
@@ -73,7 +74,7 @@ export function DriverInspector({
           value={
             state.rating_count === 0
               ? '-'
-              : `${state.current_rating.toFixed(2)} (${state.rating_count})`
+              : `${formatNumber(state.current_rating, 2)} (${state.rating_count})`
           }
         />
         <InspectorRow label="Zone" value={state.zone_id || 'Unknown'} />
@@ -82,8 +83,11 @@ export function DriverInspector({
       {pending_offer && (
         <InspectorSection title="Pending Offer">
           <InspectorRow label="Trip ID" value={`${pending_offer.trip_id.slice(0, 8)}...`} />
-          <InspectorRow label="Surge" value={`${pending_offer.surge_multiplier.toFixed(1)}x`} />
-          <InspectorRow label="Rider Rating" value={pending_offer.rider_rating.toFixed(1)} />
+          <InspectorRow
+            label="Surge"
+            value={`${formatNumber(pending_offer.surge_multiplier, 1)}x`}
+          />
+          <InspectorRow label="Rider Rating" value={formatNumber(pending_offer.rider_rating, 1)} />
           <InspectorRow label="ETA" value={`${pending_offer.eta_seconds}s`} />
         </InspectorSection>
       )}
@@ -105,19 +109,19 @@ export function DriverInspector({
             />
           )}
           <InspectorRow label="State" value={formatTripState(active_trip.state)} />
-          <InspectorRow label="Fare" value={`R$ ${active_trip.fare.toFixed(2)}`} />
-          <InspectorRow label="Surge" value={`${active_trip.surge_multiplier.toFixed(1)}x`} />
+          <InspectorRow label="Fare" value={`R$ ${formatNumber(active_trip.fare, 2)}`} />
+          <InspectorRow label="Surge" value={`${formatNumber(active_trip.surge_multiplier, 1)}x`} />
         </InspectorSection>
       )}
 
       <InspectorSection title="Behavioral DNA">
-        <InspectorRow label="Acceptance" value={`${(dna.acceptance_rate * 100).toFixed(0)}%`} />
+        <InspectorRow label="Acceptance" value={formatPercent(dna.acceptance_rate, 0)} />
+        <InspectorRow label="Service Quality" value={formatPercent(dna.service_quality, 0)} />
         <InspectorRow
-          label="Service Quality"
-          value={`${(dna.service_quality * 100).toFixed(0)}%`}
+          label="Avg Response Time"
+          value={`${formatNumber(dna.avg_response_time, 1)}s`}
         />
-        <InspectorRow label="Avg Response Time" value={`${dna.avg_response_time.toFixed(1)}s`} />
-        <InspectorRow label="Min Rider Rating" value={dna.min_rider_rating.toFixed(1)} />
+        <InspectorRow label="Min Rider Rating" value={formatNumber(dna.min_rider_rating, 1)} />
       </InspectorSection>
 
       <InspectorSection title="Vehicle">
@@ -134,25 +138,28 @@ export function DriverInspector({
             { value: statistics.trips_completed, label: 'Completed' },
             { value: statistics.trips_cancelled, label: 'Cancelled' },
             { value: statistics.offers_received, label: 'Offers' },
-            { value: `${statistics.acceptance_rate.toFixed(0)}%`, label: 'Accept Rate' },
+            { value: `${formatNumber(statistics.acceptance_rate, 0)}%`, label: 'Accept Rate' },
           ]}
         />
-        <InspectorRow label="Earnings" value={`R$ ${statistics.total_earnings.toFixed(2)}`} />
+        <InspectorRow label="Earnings" value={`R$ ${formatNumber(statistics.total_earnings, 2)}`} />
         {statistics.trips_completed > 0 && (
           <>
-            <InspectorRow label="Avg Fare" value={`R$ ${statistics.avg_fare.toFixed(2)}`} />
+            <InspectorRow label="Avg Fare" value={`R$ ${formatNumber(statistics.avg_fare, 2)}`} />
             <InspectorRow
               label="Avg Pickup"
-              value={`${statistics.avg_pickup_time_seconds.toFixed(0)}s`}
+              value={`${formatNumber(statistics.avg_pickup_time_seconds, 0)}s`}
             />
             <InspectorRow
               label="Avg Trip"
-              value={`${statistics.avg_trip_duration_minutes.toFixed(1)} min`}
+              value={`${formatNumber(statistics.avg_trip_duration_minutes, 1)} min`}
             />
           </>
         )}
         {statistics.avg_rating_given > 0 && (
-          <InspectorRow label="Avg Rating Given" value={statistics.avg_rating_given.toFixed(1)} />
+          <InspectorRow
+            label="Avg Rating Given"
+            value={formatNumber(statistics.avg_rating_given, 1)}
+          />
         )}
       </InspectorSection>
 

@@ -8,5 +8,5 @@ const RIDER_STATUS_LABELS: Record<Rider['status'], string> = {
 };
 
 export function formatRiderStatus(status: Rider['status']): string {
-  return RIDER_STATUS_LABELS[status];
+  return RIDER_STATUS_LABELS[status] ?? status;
 }

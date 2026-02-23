@@ -7,6 +7,7 @@ import ControlPanel from './components/ControlPanel';
 import LayerControls from './components/LayerControls';
 import LaunchDemoPanel from './components/LaunchDemoPanel';
 import InspectorPopup, { type InspectedEntity } from './components/InspectorPopup';
+import InspectorErrorBoundary from './components/InspectorErrorBoundary';
 import AgentPlacement from './components/AgentPlacement';
 import { useApiHealth } from './hooks/useApiHealth';
 import { useSimulationState } from './hooks/useSimulationState';
@@ -244,23 +245,25 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
           )}
           <LayerControls visibility={layerVisibility} onChange={setLayerVisibility} />
           {inspectedEntity && (
-            <InspectorPopup
-              entity={inspectedEntity}
-              x={popupPosition.x}
-              y={popupPosition.y}
-              onClose={handleClosePopup}
-              onToggleDriverStatus={toggleDriverStatus}
-              onRequestRiderTrip={handleRequestRiderTrip}
-              // Puppet driver actions
-              onAcceptOffer={acceptOffer}
-              onRejectOffer={rejectOffer}
-              onArriveAtPickup={arriveAtPickup}
-              onStartTrip={startTrip}
-              onCompleteTrip={completeTrip}
-              onCancelDriverTrip={cancelDriverTrip}
-              // Puppet rider actions
-              onCancelRiderTrip={cancelRiderTrip}
-            />
+            <InspectorErrorBoundary onDismiss={handleClosePopup}>
+              <InspectorPopup
+                entity={inspectedEntity}
+                x={popupPosition.x}
+                y={popupPosition.y}
+                onClose={handleClosePopup}
+                onToggleDriverStatus={toggleDriverStatus}
+                onRequestRiderTrip={handleRequestRiderTrip}
+                // Puppet driver actions
+                onAcceptOffer={acceptOffer}
+                onRejectOffer={rejectOffer}
+                onArriveAtPickup={arriveAtPickup}
+                onStartTrip={startTrip}
+                onCompleteTrip={completeTrip}
+                onCancelDriverTrip={cancelDriverTrip}
+                // Puppet rider actions
+                onCancelRiderTrip={cancelRiderTrip}
+              />
+            </InspectorErrorBoundary>
           )}
           {!connected && (
             <div

@@ -15,5 +15,5 @@ const STATE_LABELS: Record<TripStateValue, string> = {
 };
 
 export function formatTripState(state: TripStateValue): string {
-  return STATE_LABELS[state];
+  return STATE_LABELS[state] ?? state;
 }

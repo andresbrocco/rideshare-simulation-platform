@@ -9,5 +9,5 @@ const DRIVER_STATUS_LABELS: Record<Driver['status'], string> = {
 };
 
 export function formatDriverStatus(status: Driver['status']): string {
-  return DRIVER_STATUS_LABELS[status];
+  return DRIVER_STATUS_LABELS[status] ?? status;
 }

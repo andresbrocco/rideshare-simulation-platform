@@ -1,6 +1,7 @@
 import type { Rider, RiderState } from '../../types/api';
 import { formatTripState } from '../../utils/tripStateFormatter';
 import { formatRiderStatus } from '../../utils/riderStatusFormatter';
+import { formatNumber, formatPercent } from '../../utils/formatNumber';
 import { NextActionsSection } from '../NextActionsSection';
 import { InspectorSection } from './InspectorSection';
 import { InspectorRow } from './InspectorRow';
@@ -68,7 +69,7 @@ export function RiderInspector({
           value={
             state.rating_count === 0
               ? '-'
-              : `${state.current_rating.toFixed(2)} (${state.rating_count})`
+              : `${formatNumber(state.current_rating, 2)} (${state.rating_count})`
           }
         />
         <InspectorRow label="Zone" value={state.zone_id || 'Unknown'} />
@@ -91,18 +92,15 @@ export function RiderInspector({
             />
           )}
           <InspectorRow label="State" value={formatTripState(active_trip.state)} />
-          <InspectorRow label="Fare" value={`R$ ${active_trip.fare.toFixed(2)}`} />
-          <InspectorRow label="Surge" value={`${active_trip.surge_multiplier.toFixed(1)}x`} />
+          <InspectorRow label="Fare" value={`R$ ${formatNumber(active_trip.fare, 2)}`} />
+          <InspectorRow label="Surge" value={`${formatNumber(active_trip.surge_multiplier, 1)}x`} />
         </InspectorSection>
       )}
 
       <InspectorSection title="Behavioral DNA">
-        <InspectorRow
-          label="Behavior Factor"
-          value={`${(dna.behavior_factor * 100).toFixed(0)}%`}
-        />
+        <InspectorRow label="Behavior Factor" value={formatPercent(dna.behavior_factor, 0)} />
         <InspectorRow label="Patience" value={`${dna.patience_threshold}s`} />
-        <InspectorRow label="Max Surge" value={`${dna.max_surge_multiplier.toFixed(1)}x`} />
+        <InspectorRow label="Max Surge" value={`${formatNumber(dna.max_surge_multiplier, 1)}x`} />
         <InspectorRow label="Rides/Week" value={dna.avg_rides_per_week} />
       </InspectorSection>
 
@@ -120,26 +118,29 @@ export function RiderInspector({
             { value: statistics.requests_timed_out, label: 'Timed Out' },
           ]}
         />
-        <InspectorRow label="Total Spent" value={`R$ ${statistics.total_spent.toFixed(2)}`} />
+        <InspectorRow label="Total Spent" value={`R$ ${formatNumber(statistics.total_spent, 2)}`} />
         {statistics.trips_completed > 0 && (
           <>
-            <InspectorRow label="Avg Fare" value={`R$ ${statistics.avg_fare.toFixed(2)}`} />
+            <InspectorRow label="Avg Fare" value={`R$ ${formatNumber(statistics.avg_fare, 2)}`} />
             <InspectorRow
               label="Avg Wait"
-              value={`${statistics.avg_wait_time_seconds.toFixed(0)}s`}
+              value={`${formatNumber(statistics.avg_wait_time_seconds, 0)}s`}
             />
             <InspectorRow
               label="Avg Pickup Wait"
-              value={`${statistics.avg_pickup_wait_seconds.toFixed(0)} sec`}
+              value={`${formatNumber(statistics.avg_pickup_wait_seconds, 0)} sec`}
             />
             <InspectorRow
               label="Surge Trips"
-              value={`${statistics.surge_trips_percentage.toFixed(0)}%`}
+              value={`${formatNumber(statistics.surge_trips_percentage, 0)}%`}
             />
           </>
         )}
         {statistics.avg_rating_given > 0 && (
-          <InspectorRow label="Avg Rating Given" value={statistics.avg_rating_given.toFixed(1)} />
+          <InspectorRow
+            label="Avg Rating Given"
+            value={formatNumber(statistics.avg_rating_given, 1)}
+          />
         )}
       </InspectorSection>
 

@@ -56,7 +56,6 @@ export default function Map({
 
   const handleWebGLError = useCallback((error: Error) => {
     console.error('DeckGL WebGL error:', error);
-    throw error;
   }, []);
 
   const getCursor = useCallback(

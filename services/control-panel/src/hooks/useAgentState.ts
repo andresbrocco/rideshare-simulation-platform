@@ -92,6 +92,8 @@ export function useAgentState<T = DriverState | RiderState>({
       return;
     }
 
+    setState(null);
+
     const controller = new AbortController();
     let intervalId: ReturnType<typeof setInterval> | null = null;
 

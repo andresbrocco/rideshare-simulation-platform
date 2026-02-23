@@ -19,18 +19,22 @@ export function useDraggable({
   popupWidth = 320,
   popupHeight = 100,
 }: UseDraggableOptions): UseDraggableReturn {
-  const [position, setPosition] = useState({ x: initialX, y: initialY });
+  const [positionState, setPositionState] = useState({
+    x: initialX,
+    y: initialY,
+    sourceX: initialX,
+    sourceY: initialY,
+  });
   const [isDragging, setIsDragging] = useState(false);
   const dragOffsetRef = useRef({ x: 0, y: 0 });
-  const prevInitialRef = useRef({ x: initialX, y: initialY });
 
   // Reset position when initial coordinates change (new entity selected)
-  // eslint-disable-next-line react-hooks/refs
-  if (prevInitialRef.current.x !== initialX || prevInitialRef.current.y !== initialY) {
-    // eslint-disable-next-line react-hooks/refs
-    prevInitialRef.current = { x: initialX, y: initialY };
-    setPosition({ x: initialX, y: initialY });
+  // This is the React-recommended render-phase setState pattern for prop-driven resets.
+  if (positionState.sourceX !== initialX || positionState.sourceY !== initialY) {
+    setPositionState({ x: initialX, y: initialY, sourceX: initialX, sourceY: initialY });
   }
+
+  const position = { x: positionState.x, y: positionState.y };
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -46,7 +50,8 @@ export function useDraggable({
 
   const handleMouseMove = useCallback(
     (e: MouseEvent) => {
-      setPosition({
+      setPositionState((prev) => ({
+        ...prev,
         x: Math.max(
           0,
           Math.min(window.innerWidth - popupWidth, e.clientX - dragOffsetRef.current.x)
@@ -55,7 +60,7 @@ export function useDraggable({
           0,
           Math.min(window.innerHeight - popupHeight, e.clientY - dragOffsetRef.current.y)
         ),
-      });
+      }));
     },
     [popupWidth, popupHeight]
   );
