@@ -305,6 +305,8 @@ class S3CheckpointManager:
                 rider._rating_count = rider_data["rating_count"]
 
                 engine._active_riders[rider.rider_id] = rider
+                if registry_manager:
+                    registry_manager.register_rider(rider)
                 restored_riders += 1
             except Exception as e:
                 logger.error("Failed to restore rider %s: %s", rider_data.get("id"), e)

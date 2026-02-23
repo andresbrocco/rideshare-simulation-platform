@@ -486,6 +486,8 @@ class CheckpointManager:
                 rider._rating_count = rider_data["rating_count"]
 
                 engine._active_riders[rider.rider_id] = rider
+                if registry_manager:
+                    registry_manager.register_rider(rider)
                 restored_riders += 1
             except Exception as e:
                 logger.error(f"Failed to restore rider {rider_data.get('id')}: {e}")

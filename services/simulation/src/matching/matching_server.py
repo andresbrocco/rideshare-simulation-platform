@@ -1159,6 +1159,8 @@ class MatchingServer:
 
         # Update driver status if assigned
         if trip.driver_id:
+            with self._state_lock:
+                self._reserved_drivers.discard(trip.driver_id)
             driver = self._drivers.get(trip.driver_id)
             if driver:
                 driver.complete_trip()
