@@ -180,16 +180,16 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
+                "color": "green",
                 "value": null
               },
               {
                 "color": "yellow",
-                "value": 60
+                "value": 20
               },
               {
-                "color": "green",
-                "value": 80
+                "color": "red",
+                "value": 40
               }
             ]
           },
@@ -204,7 +204,7 @@
         "y": 1
       },
       "id": 4,
-      "description": "Mean utilization percentage from agg_daily_driver_performance. Represents ratio of on-trip time to total available time. Color thresholds: red (<60%), yellow (60-80%), green (80%+).",
+      "description": "Mean idle percentage from agg_daily_driver_performance. Represents ratio of available (non-trip) time to total online time. Color thresholds: green (<20%), yellow (20-40%), red (40%+).",
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -226,11 +226,11 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT AVG(utilization_pct) as avg_utilization\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= current_date - INTERVAL '7' DAY",
+          "rawSql": "SELECT AVG(100.0 - utilization_pct) as avg_idle_pct\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= current_date - INTERVAL '7' DAY",
           "refId": "A"
         }
       ],
-      "title": "Average Utilization %",
+      "title": "Average Idle Time %",
       "type": "stat"
     },
     {
@@ -365,7 +365,7 @@
         "y": 6
       },
       "id": 7,
-      "description": "Donut chart segmenting drivers into High (50%+), Medium (20-50%), and Low (<20%) utilization tiers. Shows workforce efficiency distribution.",
+      "description": "Donut chart segmenting drivers by idle time: Low (<50%), Moderate (50-80%), and High (80%+). Shows how much of the workforce is underutilized.",
       "options": {
         "legend": {
           "displayMode": "table",
@@ -392,11 +392,11 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  CASE\n    WHEN dp.utilization_pct >= 50 THEN 'High (50%+)'\n    WHEN dp.utilization_pct >= 20 THEN 'Medium (20-50%)'\n    ELSE 'Low (<20%)'\n  END as utilization_tier,\n  COUNT(DISTINCT dp.driver_key) as driver_count\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= CAST(current_timestamp - INTERVAL '7' DAY AS DATE)\nGROUP BY\n  CASE\n    WHEN dp.utilization_pct >= 50 THEN 'High (50%+)'\n    WHEN dp.utilization_pct >= 20 THEN 'Medium (20-50%)'\n    ELSE 'Low (<20%)'\n  END\nORDER BY driver_count DESC",
+          "rawSql": "SELECT\n  CASE\n    WHEN (100.0 - dp.utilization_pct) >= 80 THEN 'High Idle (80%+)'\n    WHEN (100.0 - dp.utilization_pct) >= 50 THEN 'Moderate Idle (50-80%)'\n    ELSE 'Low Idle (<50%)'\n  END as idle_tier,\n  COUNT(DISTINCT dp.driver_key) as driver_count\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= CAST(current_timestamp - INTERVAL '7' DAY AS DATE)\nGROUP BY\n  CASE\n    WHEN (100.0 - dp.utilization_pct) >= 80 THEN 'High Idle (80%+)'\n    WHEN (100.0 - dp.utilization_pct) >= 50 THEN 'Moderate Idle (50-80%)'\n    ELSE 'Low Idle (<50%)'\n  END\nORDER BY driver_count DESC",
           "refId": "A"
         }
       ],
-      "title": "Driver Utilization Tiers",
+      "title": "Driver Idle Time Breakdown",
       "type": "piechart"
     },
     {
@@ -768,7 +768,7 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "Driver Performance",
-  "description": "Driver workforce analytics from the Gold layer. Monitors active driver count, ratings, utilization efficiency, performance trends, and individual driver rankings. 7-day lookback via Trino against agg_daily_driver_performance and related Gold tables.",
+  "description": "Driver workforce analytics from the Gold layer. Monitors active driver count, ratings, idle time distribution, performance trends, and individual driver rankings. 7-day lookback via Trino against agg_daily_driver_performance and related Gold tables.",
   "uid": "driver-performance",
   "version": 1,
   "weekStart": ""
