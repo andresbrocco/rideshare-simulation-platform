@@ -25,8 +25,8 @@ trip_completions as (
         -- This ensures completed_trips <= requested_trips for any given hour/zone
         date_trunc('hour', requested_at) as hour_timestamp,
         case
-            when matched_at is not null and started_at is not null
-            then ({{ epoch_seconds('started_at') }} - {{ epoch_seconds('matched_at') }}) / 60.0
+            when requested_at is not null and matched_at is not null
+            then ({{ epoch_seconds('matched_at') }} - {{ epoch_seconds('requested_at') }}) / 60.0
             else null
         end as wait_time_minutes,
         surge_multiplier
