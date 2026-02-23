@@ -116,3 +116,68 @@ def test_speed_change_emits_event(engine):
 # Note: Real-time pacing tests were removed because they wait for actual
 # wall clock time (10+ seconds each), making the test suite too slow.
 # The speed multiplier logic is tested via unit tests above.
+
+
+@pytest.mark.unit
+def test_rtr_none_with_no_samples(engine):
+    """RTR is None before any step() calls."""
+    assert engine.real_time_ratio() is None
+
+
+@pytest.mark.unit
+def test_rtr_none_with_one_sample(engine):
+    """RTR requires at least 2 samples."""
+    engine._rtr_samples.append((time.perf_counter(), 0.0))
+    assert engine.real_time_ratio() is None
+
+
+@pytest.mark.unit
+def test_rtr_computed_from_samples(engine):
+    """RTR is computed when 2+ samples exist in the window."""
+    now = time.perf_counter()
+    # 1x speed, 5 wall seconds, 5 sim seconds → RTR = 1.0
+    # Use 5s gap (well within the 10s default window)
+    engine._speed_multiplier = 1
+    engine._rtr_samples.append((now - 5.0, 0.0))
+    engine._rtr_samples.append((now, 5.0))
+    rtr = engine.real_time_ratio()
+    assert rtr is not None
+    assert abs(rtr - 1.0) < 0.01
+
+
+@pytest.mark.unit
+def test_rtr_reflects_lag(engine):
+    """RTR < 1.0 when simulation runs slower than expected."""
+    now = time.perf_counter()
+    # 4x speed, 1 wall second, 3.8 sim seconds → RTR = 0.95
+    engine._speed_multiplier = 4
+    engine._rtr_samples.append((now - 1.0, 0.0))
+    engine._rtr_samples.append((now, 3.8))
+    rtr = engine.real_time_ratio()
+    assert rtr is not None
+    assert abs(rtr - 0.95) < 0.01
+
+
+@pytest.mark.unit
+def test_rtr_clears_on_speed_change(engine):
+    """Speed change resets the RTR window."""
+    now = time.perf_counter()
+    engine._rtr_samples.append((now - 5.0, 0.0))
+    engine._rtr_samples.append((now, 5.0))
+    engine.set_speed(10)
+    assert engine.real_time_ratio() is None
+
+
+@pytest.mark.unit
+def test_rtr_excludes_stale_samples(engine):
+    """Samples older than the window are excluded."""
+    now = time.perf_counter()
+    engine._rtr_window_seconds = 5.0
+    # Only the second pair is within 5s
+    engine._rtr_samples.append((now - 20.0, 0.0))  # stale
+    engine._rtr_samples.append((now - 3.0, 100.0))  # in window
+    engine._rtr_samples.append((now, 103.0))  # in window
+    rtr = engine.real_time_ratio()
+    # 3 sim-sec in 3 wall-sec at 1x → RTR = 1.0
+    assert rtr is not None
+    assert abs(rtr - 1.0) < 0.01

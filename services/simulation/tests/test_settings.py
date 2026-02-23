@@ -56,6 +56,21 @@ class TestSimulationSettings:
         settings = SimulationSettings()
         assert settings.mid_trip_cancellation_rate == 0.05
 
+    def test_rtr_window_seconds_default(self):
+        settings = SimulationSettings()
+        assert settings.rtr_window_seconds == 10.0
+
+    def test_rtr_window_seconds_env_override(self, monkeypatch):
+        monkeypatch.setenv("SIM_RTR_WINDOW_SECONDS", "30.0")
+        settings = SimulationSettings()
+        assert settings.rtr_window_seconds == 30.0
+
+    def test_rtr_window_seconds_validation(self):
+        with pytest.raises(ValidationError):
+            SimulationSettings(rtr_window_seconds=0.5)  # below ge=1.0
+        with pytest.raises(ValidationError):
+            SimulationSettings(rtr_window_seconds=400.0)  # above le=300.0
+
 
 @pytest.mark.unit
 class TestKafkaSettings:

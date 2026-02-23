@@ -53,6 +53,14 @@ class SimulationSettings(BaseSettings):
         description="Probability that a rider cancels during IN_TRANSIT. 0.002 = ~0.2% of trips.",
     )
 
+    # Real-Time Ratio sliding window
+    rtr_window_seconds: float = Field(
+        default=10.0,
+        ge=1.0,
+        le=300.0,
+        description="Sliding window length (wall-clock seconds) for RTR calculation.",
+    )
+
     model_config = SettingsConfigDict(env_prefix="SIM_")
 
 
