@@ -187,5 +187,8 @@ class StateSnapshotManager:
                 "riders_on_trip": rider_counts["on_trip"],
                 "active_trips_count": len(trips),
                 "uptime_seconds": engine._env.now if hasattr(engine, "_env") else 0,
+                "real_time_ratio": (
+                    engine.real_time_ratio() if hasattr(engine, "real_time_ratio") else None
+                ),
             },
         }

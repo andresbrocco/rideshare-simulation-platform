@@ -187,4 +187,5 @@ def get_status(
         riders_on_trip=rider_counts["on_trip"],
         active_trips_count=len(in_flight),
         uptime_seconds=uptime,
+        real_time_ratio=engine.real_time_ratio() if hasattr(engine, "real_time_ratio") else None,
     )

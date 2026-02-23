@@ -35,3 +35,4 @@ class SimulationStatusResponse(BaseModel):
     # Trips
     active_trips_count: int
     uptime_seconds: float
+    real_time_ratio: float | None = None

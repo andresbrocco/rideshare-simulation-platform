@@ -271,6 +271,7 @@ def main() -> None:
         osrm_client=osrm_client,
         sqlite_db=session_factory,
         simulation_start_time=simulation_start_time,
+        rtr_window_seconds=settings.simulation.rtr_window_seconds,
     )
 
     # Wire simulation engine into components that need simulated time
