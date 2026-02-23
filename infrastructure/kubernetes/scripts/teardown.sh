@@ -71,14 +71,6 @@ if [ "$PRESERVE_DATA" = true ]; then
     kubectl exec -i "$AIRFLOW_PG_POD" -- tar czf - /var/lib/postgresql/data 2>/dev/null > "$TEMP_BACKUP_DIR/airflow-postgres/data.tar.gz" || echo "Warning: Airflow Postgres backup failed"
   fi
 
-  # Backup Superset Postgres data
-  SUPERSET_PG_POD=$(kubectl get pods -l app=superset-postgres --no-headers 2>/dev/null | awk '{print $1}' | head -n 1 || true)
-  if [ -n "$SUPERSET_PG_POD" ]; then
-    echo "  Backing up Superset Postgres data..."
-    mkdir -p "$TEMP_BACKUP_DIR/superset-postgres"
-    kubectl exec -i "$SUPERSET_PG_POD" -- tar czf - /var/lib/postgresql/data 2>/dev/null > "$TEMP_BACKUP_DIR/superset-postgres/data.tar.gz" || echo "Warning: Superset Postgres backup failed"
-  fi
-
   # Export all manifests
   echo "  Exporting Kubernetes manifests..."
   mkdir -p "$TEMP_BACKUP_DIR/manifests"

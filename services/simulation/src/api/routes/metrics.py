@@ -1034,31 +1034,6 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         except Exception as e:
             return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
 
-    async def check_superset() -> tuple[ContainerStatus, float | None, str | None]:
-        """Check Superset health via health endpoint."""
-        superset_url = "http://superset:8088/health"
-        try:
-            start = time.perf_counter()
-            async with httpx.AsyncClient(timeout=3.0) as client:
-                response = await client.get(superset_url)
-                latency_ms = (time.perf_counter() - start) * 1000
-                if response.status_code == 200:
-                    return (
-                        _determine_status(latency_ms),
-                        round(latency_ms, 2),
-                        "Healthy",
-                    )
-                else:
-                    return (
-                        ContainerStatus.DEGRADED,
-                        round(latency_ms, 2),
-                        f"HTTP {response.status_code}",
-                    )
-        except httpx.TimeoutException:
-            return ContainerStatus.UNHEALTHY, None, "Request timed out"
-        except Exception as e:
-            return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
-
     # Run all health checks concurrently
     (
         redis_result,
@@ -1073,7 +1048,6 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         cadvisor_result,
         grafana_result,
         airflow_web_result,
-        superset_result,
     ) = await asyncio.gather(
         check_redis(),
         check_osrm(),
@@ -1087,7 +1061,6 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         check_cadvisor(),
         check_grafana(),
         check_airflow_web(),
-        check_superset(),
     )
     simulation_result = check_simulation()
 
@@ -1116,11 +1089,6 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         "rideshare-postgres-airflow": no_health_endpoint,
         "rideshare-airflow-webserver": airflow_web_result,
         "rideshare-airflow-scheduler": no_health_endpoint,
-        # BI profile
-        "rideshare-postgres-superset": no_health_endpoint,
-        "rideshare-redis-superset": no_health_endpoint,
-        "rideshare-superset": superset_result,
-        "rideshare-superset-celery-worker": no_health_endpoint,
         "rideshare-spark-thrift-server": spark_thrift_result,
     }
 

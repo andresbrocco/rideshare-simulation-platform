@@ -12,7 +12,7 @@ Lifecycle management scripts for local Kind cluster operations. Provides idempot
 
 ## Key Concepts
 
-**Deployment Order**: Scripts enforce dependency-aware deployment: storage resources → secrets/configmaps → data platform (MinIO, Spark, Airflow, Superset) → core simulation services (Kafka, Redis, OSRM) → networking (Gateway API). This prevents initialization race conditions.
+**Deployment Order**: Scripts enforce dependency-aware deployment: storage resources → secrets/configmaps → data platform (MinIO, Spark, Airflow) → core simulation services (Kafka, Redis, OSRM) → networking (Gateway API). This prevents initialization race conditions.
 
 **Graceful Degradation**: Non-critical failures (StorageClass immutability, Gateway API CRDs, optional service pods) are logged but don't fail the deployment. Critical services (Kafka, Redis, MinIO) must pass health checks.
 

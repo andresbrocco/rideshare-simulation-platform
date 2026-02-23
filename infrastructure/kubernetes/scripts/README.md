@@ -31,7 +31,7 @@ bash infrastructure/kubernetes/scripts/deploy-services.sh
 Deployment order enforced by script:
 1. Storage resources (StorageClass, PVs, PVCs)
 2. ConfigMaps and Secrets
-3. Data platform services (MinIO, Spark, Airflow, Superset)
+3. Data platform services (MinIO, Spark, Airflow)
 4. Core simulation services (Kafka, Redis, OSRM, simulation, stream-processor)
 5. Networking (Gateway API resources)
 

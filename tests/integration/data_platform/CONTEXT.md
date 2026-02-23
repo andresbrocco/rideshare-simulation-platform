@@ -8,7 +8,7 @@ Validates end-to-end integration of the data platform across all services: the c
 
 - **Owns**: Integration test orchestration, Docker lifecycle management, test data generation, cross-service validation, core pipeline testing, and resilience testing of the complete data platform
 - **Delegates to**: Individual service health checks to service containers, schema definitions to production code in `schemas/`, DBT transformations to `tools/dbt/`, data generation logic to fixture modules
-- **Does not handle**: Unit testing of individual services, performance benchmarking, production monitoring, load testing, or vendor service validation (Airflow, Superset, Great Expectations)
+- **Does not handle**: Unit testing of individual services, performance benchmarking, production monitoring, load testing, or vendor service validation (Airflow, Great Expectations)
 
 ## Key Concepts
 

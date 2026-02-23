@@ -27,7 +27,6 @@ from tests.integration.data_platform.utils.api_clients import (
     AirflowClient,
     GrafanaClient,
     PrometheusClient,
-    SupersetClient,
 )
 from tests.integration.data_platform.utils.credentials import fetch_all_credentials
 from tests.integration.data_platform.utils.sql_helpers import count_rows
@@ -56,7 +55,6 @@ DOCKER_PROFILES = {
     "core": "Kafka, Redis, OSRM, Simulation, Stream Processor, Frontend",
     "data-pipeline": "MinIO, Bronze Ingestion, Hive Metastore, Trino, Airflow",
     "monitoring": "Prometheus, Grafana, cAdvisor",
-    "bi": "Superset, Postgres for Superset, Redis for Superset",
 }
 
 
@@ -103,8 +101,8 @@ def docker_compose(request):
         def test_something():
             ...
 
-        @pytest.mark.requires_profiles("core", "data-pipeline", "analytics")
-        class TestSupersetIntegration:
+        @pytest.mark.requires_profiles("core", "data-pipeline", "monitoring")
+        class TestMonitoringIntegration:
             ...
     """
     compose_file = "infrastructure/docker/compose.yml"
@@ -505,22 +503,6 @@ def airflow_client(wait_for_services):
         base_url="http://localhost:8082",
         username=os.environ["AIRFLOW_ADMIN_USERNAME"],
         password=os.environ["AIRFLOW_ADMIN_PASSWORD"],
-    )
-
-    yield client
-
-    client.close()
-
-
-@pytest.fixture(scope="session")
-def superset_client(wait_for_services):
-    """HTTP client for Superset REST API with session-based auth."""
-    # Superset is not in the secrets pipeline (no rideshare/superset secret),
-    # so keep env-var-with-fallback pattern until a secret source is added.
-    client = SupersetClient(
-        base_url="http://localhost:8088",
-        username=os.environ.get("SUPERSET_ADMIN_USER", "admin"),
-        password=os.environ.get("SUPERSET_ADMIN_PASSWORD", "admin"),
     )
 
     yield client

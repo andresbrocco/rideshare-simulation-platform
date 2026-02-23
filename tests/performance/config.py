@@ -117,10 +117,6 @@ CONTAINER_CONFIG: dict[str, dict[str, str]] = {
         "display_name": "Airflow Scheduler",
         "profile": "data-pipeline",
     },
-    # BI/Analytics profile
-    "rideshare-postgres-superset": {"display_name": "Postgres (Superset)", "profile": "analytics"},
-    "rideshare-redis-superset": {"display_name": "Redis (Superset)", "profile": "analytics"},
-    "rideshare-superset": {"display_name": "Superset", "profile": "analytics"},
 }
 
 # Effective CPU parallelism per container (accounts for Docker limits AND threading model)

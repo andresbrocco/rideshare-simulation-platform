@@ -22,9 +22,6 @@ declare -a MANIFESTS=(
     "airflow-postgres.yaml"
     "airflow-webserver.yaml"
     "airflow-scheduler.yaml"
-    "superset-postgres.yaml"
-    "superset-redis.yaml"
-    "superset.yaml"
     "prometheus.yaml"
     "grafana.yaml"
 )
@@ -63,9 +60,6 @@ declare -a POD_LABELS=(
     "app=airflow-postgres"
     "app=airflow-webserver"
     "app=airflow-scheduler"
-    "app=superset-postgres"
-    "app=superset-redis"
-    "app=superset"
     "app=prometheus"
     "app=grafana"
 )
@@ -89,7 +83,7 @@ if [ ${TIMEOUT_COUNT} -gt 0 ]; then
     echo "Timed out: ${TIMEOUT_COUNT} pods"
     echo ""
     echo "Pod status:"
-    kubectl get pods -l 'app in (minio,bronze-ingestion,spark-thrift-server,localstack,airflow-postgres,airflow-webserver,airflow-scheduler,superset-postgres,superset-redis,superset,prometheus,grafana)'
+    kubectl get pods -l 'app in (minio,bronze-ingestion,spark-thrift-server,localstack,airflow-postgres,airflow-webserver,airflow-scheduler,prometheus,grafana)'
     exit 1
 fi
 
@@ -99,7 +93,7 @@ echo "Test 3: Verifying resource allocations..."
 echo "------------------------------------------"
 
 # Expected memory allocations (adjusted to fit 5.6GB limit)
-# Total: 5.07GB (within 5.6GB spec)
+# Total: ~4.17GB (within 5.6GB spec)
 # Format: app:memory
 declare -a EXPECTED_MEMORY=(
     "minio:256Mi"
@@ -109,9 +103,6 @@ declare -a EXPECTED_MEMORY=(
     "airflow-postgres:256Mi"
     "airflow-webserver:384Mi"
     "airflow-scheduler:384Mi"
-    "superset-postgres:256Mi"
-    "superset-redis:128Mi"
-    "superset:512Mi"
     "prometheus:256Mi"
     "grafana:192Mi"
 )
@@ -157,9 +148,6 @@ declare -a EXPECTED_SERVICES=(
     "localstack"
     "airflow-postgres"
     "airflow-webserver"
-    "superset-postgres"
-    "superset-redis"
-    "superset"
     "prometheus"
     "grafana"
 )
@@ -195,7 +183,6 @@ echo "  1. MinIO console: kubectl port-forward svc/minio 9001:9001"
 echo "  2. Bronze ingestion health: kubectl port-forward svc/bronze-ingestion 8086:8080"
 echo "  3. Spark thrift server: kubectl port-forward svc/spark-thrift-server 10000:10000"
 echo "  4. Airflow UI: kubectl port-forward svc/airflow-webserver 8082:8082"
-echo "  5. Superset UI: kubectl port-forward svc/superset 8088:8088"
-echo "  6. Prometheus UI: kubectl port-forward svc/prometheus 9090:9090"
-echo "  7. Grafana UI: kubectl port-forward svc/grafana 3001:3001"
+echo "  5. Prometheus UI: kubectl port-forward svc/prometheus 9090:9090"
+echo "  6. Grafana UI: kubectl port-forward svc/grafana 3001:3001"
 echo ""

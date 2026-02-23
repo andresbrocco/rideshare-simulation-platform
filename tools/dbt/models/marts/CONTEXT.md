@@ -8,7 +8,7 @@ The marts layer implements a star schema dimensional model for analytics on ride
 
 - **Owns**: Star schema design, dimensional modeling, surrogate key generation, SCD Type 2 tracking for drivers and payment methods, referential integrity validation, pre-computed aggregates for dashboard performance
 - **Delegates to**: Silver layer (stg_*) models for cleaned and validated source data, dbt_utils for surrogate key generation and test utilities
-- **Does not handle**: Raw data ingestion (bronze layer), data validation and cleaning (silver layer), visualization (Grafana/Superset), query execution (Trino)
+- **Does not handle**: Raw data ingestion (bronze layer), data validation and cleaning (silver layer), visualization (Grafana), query execution (Trino)
 
 ## Key Concepts
 
