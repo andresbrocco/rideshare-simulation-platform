@@ -73,7 +73,6 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
     // Puppet driver actions
     acceptOffer,
     rejectOffer,
-    arriveAtPickup,
     startTrip,
     completeTrip,
     cancelDriverTrip,
@@ -259,7 +258,6 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
                 // Puppet driver actions
                 onAcceptOffer={acceptOffer}
                 onRejectOffer={rejectOffer}
-                onArriveAtPickup={arriveAtPickup}
                 onStartTrip={startTrip}
                 onCompleteTrip={completeTrip}
                 onCancelDriverTrip={cancelDriverTrip}

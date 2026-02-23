@@ -220,17 +220,6 @@ export function useSimulationControl(onStatusUpdate?: (status: SimulationStatus)
     }
   };
 
-  const arriveAtPickup = async (driverId: string): Promise<boolean> => {
-    try {
-      await apiCall(`/agents/puppet/drivers/${driverId}/arrive-pickup`, 'POST');
-      showToast.success('Arrived at pickup');
-      return true;
-    } catch {
-      showToast.error('Failed to mark arrival');
-      return false;
-    }
-  };
-
   const startTrip = async (driverId: string): Promise<boolean> => {
     try {
       await apiCall(`/agents/puppet/drivers/${driverId}/start-trip`, 'POST');
@@ -359,7 +348,6 @@ export function useSimulationControl(onStatusUpdate?: (status: SimulationStatus)
     // Puppet driver actions
     acceptOffer,
     rejectOffer,
-    arriveAtPickup,
     startTrip,
     completeTrip,
     cancelDriverTrip,

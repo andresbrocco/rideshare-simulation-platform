@@ -19,7 +19,6 @@ interface DriverInspectorProps {
   onRefetch: () => void;
   onAcceptOffer?: () => void;
   onRejectOffer?: () => void;
-  onArriveAtPickup?: () => void;
   onStartTrip?: () => void;
   onCompleteTrip?: () => void;
   onCancelTrip?: () => void;
@@ -34,7 +33,6 @@ export function DriverInspector({
   actionLoading = false,
   onAcceptOffer,
   onRejectOffer,
-  onArriveAtPickup,
   onStartTrip,
   onCompleteTrip,
   onCancelTrip,
@@ -171,7 +169,6 @@ export function DriverInspector({
             actionLoading={actionLoading}
             onAcceptOffer={onAcceptOffer || (() => {})}
             onRejectOffer={onRejectOffer || (() => {})}
-            onArriveAtPickup={onArriveAtPickup || (() => {})}
             onStartTrip={onStartTrip || (() => {})}
             onCompleteTrip={onCompleteTrip || (() => {})}
             onCancelTrip={onCancelTrip || (() => {})}

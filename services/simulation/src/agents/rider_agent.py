@@ -547,6 +547,7 @@ class RiderAgent(EventEmitter):
             speed=None,
             accuracy=5.0,
             trip_id=self._active_trip,
+            trip_state=self._trip_state_value,
         )
 
         self._emit_event(

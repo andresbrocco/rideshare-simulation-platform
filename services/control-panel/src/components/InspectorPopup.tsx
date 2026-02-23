@@ -20,7 +20,6 @@ interface InspectorPopupProps {
   onRequestRiderTrip?: (riderId: string, riderName: string) => void;
   onAcceptOffer?: (driverId: string) => Promise<boolean>;
   onRejectOffer?: (driverId: string) => Promise<boolean>;
-  onArriveAtPickup?: (driverId: string) => Promise<boolean>;
   onStartTrip?: (driverId: string) => Promise<boolean>;
   onCompleteTrip?: (driverId: string) => Promise<boolean>;
   onCancelDriverTrip?: (driverId: string) => Promise<boolean>;
@@ -37,7 +36,6 @@ export default function InspectorPopup({
   onRequestRiderTrip,
   onAcceptOffer,
   onRejectOffer,
-  onArriveAtPickup,
   onStartTrip,
   onCompleteTrip,
   onCancelDriverTrip,
@@ -175,10 +173,6 @@ export default function InspectorPopup({
     entity?.type === 'driver' && onRejectOffer
       ? wrapAction(() => onRejectOffer(entity.data.id))
       : undefined;
-  const handleArriveAtPickup =
-    entity?.type === 'driver' && onArriveAtPickup
-      ? wrapAction(() => onArriveAtPickup(entity.data.id))
-      : undefined;
   const handleStartTrip =
     entity?.type === 'driver' && onStartTrip
       ? wrapAction(() => onStartTrip(entity.data.id))
@@ -240,7 +234,6 @@ export default function InspectorPopup({
           onRefetch={refetch}
           onAcceptOffer={handleAcceptOffer}
           onRejectOffer={handleRejectOffer}
-          onArriveAtPickup={handleArriveAtPickup}
           onStartTrip={handleStartTrip}
           onCompleteTrip={handleCompleteTrip}
           onCancelTrip={handleCancelDriverTrip}

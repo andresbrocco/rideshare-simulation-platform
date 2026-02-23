@@ -1052,11 +1052,19 @@ class MatchingServer:
             rider = self._registry_manager.get_rider(trip.rider_id)
             if rider:
                 rider.on_driver_en_route(trip)
+                rider.update_trip_state("en_route_pickup")
 
-        # Note: Do NOT start TripExecutor for puppet drivers.
-        # Puppets are controlled entirely via API endpoints (drive-to-pickup,
-        # arrive-pickup, start-trip, drive-to-destination, complete-trip, etc.)
-        # rather than autonomous simulation.
+        # Auto-start pickup drive for puppet driver
+        try:
+            captured_trip_id: str = trip.trip_id
+            _route, controller = self.start_puppet_drive_to_pickup(driver_id, captured_trip_id)
+
+            def on_pickup_complete(did: str = driver_id, tid: str = captured_trip_id) -> None:
+                self._on_puppet_pickup_drive_complete(did, tid)
+
+            controller.on_completion(on_pickup_complete)
+        except Exception as e:
+            logger.error(f"Failed to auto-start pickup drive for puppet driver {driver_id}: {e}")
 
     def process_puppet_reject(self, driver_id: str, trip_id: str) -> None:
         """Process offer rejection for a puppet driver and continue to next candidate.
@@ -1138,7 +1146,29 @@ class MatchingServer:
 
         # Transition trip to driver_arrived
         trip.transition_to(TripState.AT_PICKUP)
+
+        # Update rider trip_state for GPS pings
+        if self._registry_manager:
+            rider = self._registry_manager.get_rider(trip.rider_id)
+            if rider:
+                rider.update_trip_state("at_pickup")
+
         self._emit_trip_state_event(trip, "trip.at_pickup")
+
+    def _on_puppet_pickup_drive_complete(self, driver_id: str, trip_id: str) -> None:
+        """Auto-trigger AT_PICKUP when puppet pickup drive finishes."""
+        trip = self._active_trips.get(trip_id)
+        if not trip or trip.state != TripState.EN_ROUTE_PICKUP:
+            return
+
+        driver = self._drivers.get(driver_id)
+        if driver:
+            driver.update_location(*trip.pickup_location)
+
+        if trip.pickup_route:
+            trip.pickup_route_progress_index = len(trip.pickup_route) - 1
+
+        self.signal_driver_arrived(driver_id, trip_id)
 
     def signal_trip_started(self, driver_id: str, trip_id: str) -> None:
         """Signal that a puppet trip has started (rider picked up)."""
@@ -1158,11 +1188,21 @@ class MatchingServer:
             rider = self._registry_manager.get_rider(trip.rider_id)
             if rider:
                 rider.start_trip()
+                rider.update_trip_state("in_transit")
 
         # Transition trip to started
         trip.transition_to(TripState.IN_TRANSIT)
         trip.started_at = self._current_time()
         self._emit_trip_state_event(trip, "trip.in_transit")
+
+        # Auto-start destination drive for puppet drivers
+        if getattr(driver, "_is_puppet", False):
+            try:
+                self.start_puppet_drive_to_destination(driver_id, trip_id)
+            except Exception as e:
+                logger.error(
+                    f"Failed to auto-start destination drive for puppet driver {driver_id}: {e}"
+                )
 
     def signal_trip_completed(self, driver_id: str, trip_id: str) -> None:
         """Signal that a puppet trip has been completed."""
@@ -1311,6 +1351,10 @@ class MatchingServer:
             dropoff_zone_id=trip.dropoff_zone_id,
             surge_multiplier=trip.surge_multiplier,
             fare=trip.fare,
+            route=trip.route,
+            pickup_route=trip.pickup_route,
+            route_progress_index=trip.route_progress_index,
+            pickup_route_progress_index=trip.pickup_route_progress_index,
             cancelled_by=trip.cancelled_by,
             cancellation_reason=trip.cancellation_reason,
             cancellation_stage=trip.cancellation_stage,
@@ -1357,6 +1401,7 @@ class MatchingServer:
 
         # Store pickup route on trip for visualization
         trip.pickup_route = route.geometry
+        self._emit_trip_state_event(trip, "trip.en_route_pickup")
 
         # Create and start drive controller
         controller = PuppetDriveController(
@@ -1411,6 +1456,9 @@ class MatchingServer:
 
         # Store route on trip for visualization
         trip.route = route.geometry
+
+        # Re-emit trip state with route data for frontend visualization
+        self._emit_trip_state_event(trip, "trip.in_transit")
 
         # Create and start drive controller
         controller = PuppetDriveController(

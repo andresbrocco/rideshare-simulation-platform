@@ -57,7 +57,6 @@ describe('DriverActionsSection', () => {
   const defaultHandlers = {
     onAcceptOffer: vi.fn(),
     onRejectOffer: vi.fn(),
-    onArriveAtPickup: vi.fn(),
     onStartTrip: vi.fn(),
     onCompleteTrip: vi.fn(),
     onCancelTrip: vi.fn(),
@@ -135,30 +134,6 @@ describe('DriverActionsSection', () => {
 
     await user.click(screen.getByRole('button', { name: /reject offer/i }));
     expect(onRejectOffer).toHaveBeenCalled();
-  });
-
-  it('shows arrive at pickup button when driver is en route', () => {
-    const stateEnRoute: DriverState = {
-      ...baseDriverState,
-      status: 'en_route_pickup',
-      active_trip: {
-        trip_id: 'trip-456',
-        state: 'en_route_pickup',
-        rider_id: 'rider-789',
-        driver_id: 'driver-123',
-        counterpart_name: 'Ana Santos',
-        pickup_location: [-23.55, -46.63],
-        dropoff_location: [-23.56, -46.64],
-        surge_multiplier: 1.0,
-        fare: 35.0,
-      },
-    };
-
-    render(
-      <DriverActionsSection state={stateEnRoute} actionLoading={false} {...defaultHandlers} />
-    );
-
-    expect(screen.getByRole('button', { name: /arrive at pickup/i })).toBeInTheDocument();
   });
 
   it('shows start trip button when driver has arrived', () => {
