@@ -1,9 +1,21 @@
 """Statistical analysis for performance test results."""
 
+from __future__ import annotations
+
+import math
 from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
+from scipy.optimize import curve_fit
+
+from .findings import (
+    KneePoint,
+    SaturationCurve,
+    SaturationPoint,
+    USLFit,
+)
 
 
 @dataclass
@@ -446,3 +458,258 @@ def compute_baseline_calibration(
         calibration.rtr_threshold_source = "config-fallback"
 
     return calibration
+
+
+# ---------------------------------------------------------------------------
+# USL Model Fitting & Saturation Curve Analysis
+# ---------------------------------------------------------------------------
+
+
+def _usl_model(
+    n: NDArray[np.floating[Any]], lam: float, sigma: float, kappa: float
+) -> NDArray[np.floating[Any]]:
+    """Universal Scalability Law: X(N) = λN / (1 + σ(N-1) + κN(N-1))."""
+    return (lam * n) / (1.0 + sigma * (n - 1.0) + kappa * n * (n - 1.0))
+
+
+def fit_usl_model(load: list[float], throughput: list[float]) -> USLFit:
+    """Fit the USL model to observed (load, throughput) data.
+
+    Args:
+        load: Active trip counts (independent variable).
+        throughput: Effective throughput values (dependent variable).
+
+    Returns:
+        USLFit with model parameters, R-squared, and analytical peak.
+    """
+    if len(load) < 3 or len(throughput) < 3:
+        return USLFit(
+            lambda_param=0.0,
+            sigma_param=0.0,
+            kappa_param=0.0,
+            r_squared=0.0,
+            n_star=0.0,
+            x_max=0.0,
+            fit_successful=False,
+            fit_message=f"Insufficient data points ({len(load)}, need >= 3)",
+        )
+
+    n_arr = np.array(load, dtype=np.float64)
+    x_arr = np.array(throughput, dtype=np.float64)
+
+    # Filter out zero/negative load values
+    mask = n_arr > 0
+    n_arr = n_arr[mask]
+    x_arr = x_arr[mask]
+
+    if len(n_arr) < 3:
+        return USLFit(
+            lambda_param=0.0,
+            sigma_param=0.0,
+            kappa_param=0.0,
+            r_squared=0.0,
+            n_star=0.0,
+            x_max=0.0,
+            fit_successful=False,
+            fit_message="Insufficient positive data points after filtering",
+        )
+
+    # Initial guess
+    first_load = max(n_arr[0], 1e-9)
+    p0 = [x_arr[0] / first_load, 0.1, 0.001]
+
+    try:
+        popt, _ = curve_fit(
+            _usl_model,
+            n_arr,
+            x_arr,
+            p0=p0,
+            bounds=([0.0, 0.0, 0.0], [np.inf, 1.0, 1.0]),
+            maxfev=10000,
+        )
+        lam, sigma, kappa = float(popt[0]), float(popt[1]), float(popt[2])
+
+        # R-squared
+        x_pred = _usl_model(n_arr, lam, sigma, kappa)
+        ss_res = float(np.sum((x_arr - x_pred) ** 2))
+        ss_tot = float(np.sum((x_arr - np.mean(x_arr)) ** 2))
+        r_squared = 1.0 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
+
+        # Analytical peak: N* = sqrt((1 - sigma) / kappa) when kappa > 0
+        if kappa > 1e-12 and sigma < 1.0:
+            n_star = math.sqrt((1.0 - sigma) / kappa)
+        else:
+            # No coherency penalty — throughput increases monotonically
+            n_star = float(np.max(n_arr))
+
+        x_max = float(_usl_model(np.array([n_star]), lam, sigma, kappa)[0])
+
+        return USLFit(
+            lambda_param=lam,
+            sigma_param=sigma,
+            kappa_param=kappa,
+            r_squared=r_squared,
+            n_star=n_star,
+            x_max=x_max,
+            fit_successful=True,
+            fit_message="Converged",
+        )
+    except RuntimeError as e:
+        return USLFit(
+            lambda_param=0.0,
+            sigma_param=0.0,
+            kappa_param=0.0,
+            r_squared=0.0,
+            n_star=0.0,
+            x_max=0.0,
+            fit_successful=False,
+            fit_message=f"Curve fit failed: {e}",
+        )
+
+
+def detect_knee_point(
+    load: list[float], throughput: list[float], usl_fit: USLFit | None
+) -> KneePoint:
+    """Detect the knee point in a saturation curve.
+
+    Primary: USL analytical N* when fit is good (R² >= 0.80).
+    Fallback: second derivative max curvature.
+
+    Args:
+        load: Active trip counts.
+        throughput: Throughput values.
+        usl_fit: USL fit results (may be None).
+
+    Returns:
+        KneePoint with detection method and confidence.
+    """
+    # Primary: USL analytical
+    if usl_fit is not None and usl_fit.fit_successful and usl_fit.r_squared >= 0.80:
+        return KneePoint(
+            n_knee=usl_fit.n_star,
+            x_knee=usl_fit.x_max,
+            detection_method="usl_analytical",
+            confidence=min(usl_fit.r_squared, 1.0),
+        )
+
+    # Fallback: second derivative
+    if len(load) >= 3 and len(throughput) >= 3:
+        n_arr = np.array(load, dtype=np.float64)
+        x_arr = np.array(throughput, dtype=np.float64)
+
+        # Sort by load
+        sort_idx = np.argsort(n_arr)
+        n_sorted = n_arr[sort_idx]
+        x_sorted = x_arr[sort_idx]
+
+        # Compute second derivative
+        dx = np.gradient(x_sorted, n_sorted)
+        d2x = np.gradient(dx, n_sorted)
+
+        # Find max negative curvature (where throughput bends down)
+        knee_idx = int(np.argmin(d2x))
+        confidence = 0.5 if abs(float(d2x[knee_idx])) > 1e-6 else 0.2
+
+        return KneePoint(
+            n_knee=float(n_sorted[knee_idx]),
+            x_knee=float(x_sorted[knee_idx]),
+            detection_method="second_derivative",
+            confidence=confidence,
+        )
+
+    return KneePoint(
+        n_knee=0.0,
+        x_knee=0.0,
+        detection_method="none",
+        confidence=0.0,
+    )
+
+
+def extract_saturation_points(
+    samples: list[dict[str, Any]], speed_multiplier: int
+) -> list[SaturationPoint]:
+    """Extract (active_trips, throughput) data points from samples.
+
+    Throughput proxy: active_trips * rtr * speed_multiplier.
+    This captures effective event production rate and curves down
+    when the system saturates (RTR drops).
+
+    Args:
+        samples: Sample dicts with rtr sub-dict.
+        speed_multiplier: Speed multiplier for this data set.
+
+    Returns:
+        List of SaturationPoint sorted by active_trips.
+    """
+    points: list[SaturationPoint] = []
+
+    for sample in samples:
+        rtr_data = sample.get("rtr")
+        if rtr_data is None:
+            continue
+
+        active_trips = rtr_data.get("active_trips")
+        rtr_value = rtr_data.get("rtr")
+
+        if active_trips is None or rtr_value is None:
+            continue
+
+        active_trips_f = float(active_trips)
+        if active_trips_f <= 0:
+            continue
+
+        throughput = active_trips_f * float(rtr_value) * speed_multiplier
+        points.append(
+            SaturationPoint(
+                active_trips=active_trips_f,
+                throughput=throughput,
+                speed_multiplier=speed_multiplier,
+                timestamp=sample.get("timestamp", 0.0),
+            )
+        )
+
+    # Sort by active_trips
+    points.sort(key=lambda p: p.active_trips)
+    return points
+
+
+def build_saturation_curve(samples: list[dict[str, Any]], speed_multiplier: int) -> SaturationCurve:
+    """Build a complete saturation curve from samples.
+
+    Extracts points, fits USL model, detects knee point, and
+    identifies the resource bottleneck.
+
+    Args:
+        samples: Sample dicts.
+        speed_multiplier: Speed multiplier for this dataset.
+
+    Returns:
+        SaturationCurve with fit results and knee point.
+    """
+    points = extract_saturation_points(samples, speed_multiplier)
+
+    load = [p.active_trips for p in points]
+    throughput = [p.throughput for p in points]
+
+    usl_fit = fit_usl_model(load, throughput)
+    knee_point = detect_knee_point(load, throughput, usl_fit)
+
+    # Identify bottleneck: container with highest peak CPU
+    peak_cpu: dict[str, float] = {}
+    for sample in samples:
+        for container_name, container_data in sample.get("containers", {}).items():
+            cpu = container_data.get("cpu_percent", 0.0)
+            if container_name not in peak_cpu or cpu > peak_cpu[container_name]:
+                peak_cpu[container_name] = cpu
+
+    bottleneck = "unknown"
+    if peak_cpu:
+        bottleneck = max(peak_cpu, key=lambda k: peak_cpu[k])
+
+    return SaturationCurve(
+        speed_multiplier=speed_multiplier,
+        points=points,
+        usl_fit=usl_fit if usl_fit.fit_successful else None,
+        knee_point=knee_point if knee_point.detection_method != "none" else None,
+        resource_bottleneck=bottleneck,
+    )

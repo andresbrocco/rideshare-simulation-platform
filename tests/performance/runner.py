@@ -23,6 +23,7 @@ from .analysis.findings import (
     ContainerHealth,
     ContainerHealthAggregated,
     KeyMetrics,
+    SaturationFamily,
     ServiceHealthLatency,
     SuggestedThresholds,
     TestSummary,
@@ -30,6 +31,7 @@ from .analysis.findings import (
 from .analysis.report_generator import ReportGenerator
 from .analysis.statistics import (
     BaselineCalibration,
+    build_saturation_curve,
     calculate_all_container_stats,
     calculate_all_health_stats,
     summarize_scenario_stats,
@@ -137,9 +139,9 @@ def analyze_results(
     scenario_summaries: list[dict[str, Any]] = []
     for scenario in scenarios:
         samples = scenario.get("samples", [])
-        summary = summarize_scenario_stats(samples, None)
-        summary["scenario_name"] = scenario["scenario_name"]
-        scenario_summaries.append(summary)
+        scenario_stats = summarize_scenario_stats(samples, None)
+        scenario_stats["scenario_name"] = scenario["scenario_name"]
+        scenario_summaries.append(scenario_stats)
 
     analysis["scenario_summaries"] = scenario_summaries
 
@@ -156,12 +158,16 @@ def analyze_results(
     service_health_latency = _generate_service_health_latency(results)
     suggested_thresholds = _compute_suggested_thresholds(service_health_latency, config)
 
+    # Saturation curve analysis
+    saturation_family = _build_saturation_family(results)
+
     summary = TestSummary(
         container_health=container_health,
         aggregated_container_health=aggregated_health,
         key_metrics=key_metrics,
         service_health_latency=service_health_latency,
         suggested_thresholds=suggested_thresholds,
+        saturation_family=saturation_family,
     )
 
     return analysis, summary
@@ -503,6 +509,72 @@ def _compute_suggested_thresholds(
         )
 
     return thresholds
+
+
+def _build_saturation_family(results: dict[str, Any]) -> SaturationFamily | None:
+    """Build a SaturationFamily from scenario results.
+
+    For stress_test: builds one curve at speed_multiplier=1.
+    For speed_scaling: builds one curve per speed step.
+
+    Args:
+        results: Full test results dictionary.
+
+    Returns:
+        SaturationFamily or None if no saturation data.
+    """
+    from .analysis.findings import SaturationCurve
+
+    curves: list[SaturationCurve] = []
+    scenarios = results.get("scenarios", [])
+
+    # Stress test: single curve at 1x speed
+    stress_scenarios = [s for s in scenarios if s.get("scenario_name") == "stress_test"]
+    if stress_scenarios:
+        stress = stress_scenarios[0]
+        if stress.get("metadata", {}).get("saturation_curve_data"):
+            curve = build_saturation_curve(stress.get("samples", []), speed_multiplier=1)
+            if curve.points:
+                curves.append(curve)
+
+    # Speed scaling: one curve per speed step
+    speed_scenarios = [s for s in scenarios if s.get("scenario_name") == "speed_scaling"]
+    if speed_scenarios:
+        speed = speed_scenarios[0]
+        if speed.get("metadata", {}).get("saturation_curve_data"):
+            step_results = speed.get("metadata", {}).get("step_results", [])
+            all_samples = speed.get("samples", [])
+
+            # Slice samples per step based on sample counts
+            sample_offset = 0
+            for step in step_results:
+                step_count = step.get("sample_count", 0)
+                multiplier = step.get("multiplier", 1)
+                step_samples = all_samples[sample_offset : sample_offset + step_count]
+                sample_offset += step_count
+
+                if step_samples:
+                    curve = build_saturation_curve(step_samples, speed_multiplier=multiplier)
+                    if curve.points:
+                        curves.append(curve)
+
+    if not curves:
+        return None
+
+    # Find best N* (lowest across curves with successful fits)
+    best_n_star: float | None = None
+    best_speed: int | None = None
+    for curve in curves:
+        if curve.usl_fit is not None and curve.usl_fit.n_star > 0:
+            if best_n_star is None or curve.usl_fit.n_star < best_n_star:
+                best_n_star = curve.usl_fit.n_star
+                best_speed = curve.speed_multiplier
+
+    return SaturationFamily(
+        curves=curves,
+        best_n_star=best_n_star,
+        best_speed_multiplier=best_speed,
+    )
 
 
 def _extract_key_metrics(
@@ -1009,6 +1081,15 @@ def run(
     total_charts = sum(len(paths) for paths in chart_paths.values())
     console.print(f"[green]Generated {total_charts} charts in subdirectories[/green]")
 
+    # Generate saturation charts if data is available
+    if summary.saturation_family is not None:
+        saturation_dir = output_dir / "charts" / "saturation"
+        sat_chart_paths = chart_gen.generate_saturation_charts(
+            summary.saturation_family, saturation_dir
+        )
+        chart_paths.setdefault("saturation", []).extend(sat_chart_paths)
+        console.print(f"[green]Generated {len(sat_chart_paths)} saturation charts[/green]")
+
     # Generate reports
     console.print("\n[bold]Generating reports...[/bold]")
     report_gen = ReportGenerator(output_dir, output_dir / "charts")
@@ -1120,6 +1201,15 @@ def analyze(results_file: str) -> None:
     chart_paths = chart_gen.generate_charts_by_scenario(results)
     total_charts = sum(len(paths) for paths in chart_paths.values())
     console.print(f"[green]Generated {total_charts} charts[/green]")
+
+    # Generate saturation charts if data is available
+    if summary.saturation_family is not None:
+        saturation_dir = output_dir / "charts" / "saturation"
+        sat_chart_paths = chart_gen.generate_saturation_charts(
+            summary.saturation_family, saturation_dir
+        )
+        chart_paths.setdefault("saturation", []).extend(sat_chart_paths)
+        console.print(f"[green]Generated {len(sat_chart_paths)} saturation charts[/green]")
 
     # Generate reports
     report_gen = ReportGenerator(output_dir, output_dir / "charts")
@@ -1485,6 +1575,47 @@ def _print_summary(results: dict[str, Any], summary: TestSummary | None = None) 
                 step_table.add_row(str(step_num), multiplier, result_str)
 
             console.print(step_table)
+
+    # --- Saturation Analysis (USL) ---
+    if summary.saturation_family is not None:
+        console.print("\n[bold]Saturation Analysis (USL):[/bold]")
+        usl_table = Table(show_header=True, header_style="bold")
+        usl_table.add_column("Speed")
+        usl_table.add_column("N* (Knee)", justify="right")
+        usl_table.add_column("X_max (Peak)", justify="right")
+        usl_table.add_column("R\u00b2", justify="right")
+        usl_table.add_column("Bottleneck")
+        usl_table.add_column("Method")
+
+        for curve in summary.saturation_family.curves:
+            if curve.usl_fit is not None:
+                n_star = f"{curve.usl_fit.n_star:.0f}"
+                x_max = f"{curve.usl_fit.x_max:.1f}"
+                r2 = f"{curve.usl_fit.r_squared:.3f}"
+            else:
+                n_star = "-"
+                x_max = "-"
+                r2 = "-"
+
+            method = curve.knee_point.detection_method if curve.knee_point else "none"
+            bottleneck = _get_display_name(curve.resource_bottleneck)
+
+            usl_table.add_row(
+                f"{curve.speed_multiplier}x",
+                n_star,
+                x_max,
+                r2,
+                bottleneck,
+                method,
+            )
+
+        console.print(usl_table)
+
+        if summary.saturation_family.best_n_star is not None:
+            console.print(
+                f"  Best operating point: N*={summary.saturation_family.best_n_star:.0f} "
+                f"active trips at {summary.saturation_family.best_speed_multiplier}x"
+            )
 
     # --- Derived Configuration ---
     derived_config = results.get("derived_config", {})

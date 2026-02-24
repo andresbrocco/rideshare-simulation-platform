@@ -10,7 +10,12 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from ..config import CONTAINER_CONFIG
-from .statistics import calculate_all_container_stats, calculate_all_health_stats
+from .findings import SaturationFamily
+from .statistics import (
+    _usl_model,
+    calculate_all_container_stats,
+    calculate_all_health_stats,
+)
 
 
 # Priority containers shown first in charts
@@ -1201,6 +1206,169 @@ class ChartGenerator:
 
         return _write_chart(fig, self.charts_dir / "health_latency_heatmap")
 
+    def generate_saturation_charts(
+        self, saturation_family: SaturationFamily, output_dir: Path
+    ) -> list[str]:
+        """Generate saturation curve charts with USL model overlay.
+
+        Chart A: One per-curve USL overlay per speed multiplier.
+        Chart B: Family overlay with all speed multipliers on one chart.
+
+        Args:
+            saturation_family: Family of saturation curves.
+            output_dir: Directory to write chart files.
+
+        Returns:
+            List of generated file paths.
+        """
+        output_dir.mkdir(parents=True, exist_ok=True)
+        all_paths: list[str] = []
+
+        colors = [
+            "#636EFA",
+            "#EF553B",
+            "#00CC96",
+            "#AB63FA",
+            "#FFA15A",
+            "#19D3F3",
+            "#FF6692",
+            "#B6E880",
+        ]
+
+        # Chart A: Per-curve USL overlay
+        for i, curve in enumerate(saturation_family.curves):
+            if not curve.points:
+                continue
+
+            fig = go.Figure()
+            color = colors[i % len(colors)]
+
+            # Scatter: observed points
+            x_obs = [p.active_trips for p in curve.points]
+            y_obs = [p.throughput for p in curve.points]
+            fig.add_trace(
+                go.Scatter(
+                    x=x_obs,
+                    y=y_obs,
+                    mode="markers",
+                    name="Observed",
+                    marker={"color": color, "size": 6},
+                )
+            )
+
+            title_parts = [f"Saturation Curve @ {curve.speed_multiplier}x"]
+
+            # USL model prediction line
+            if curve.usl_fit is not None:
+                import numpy as np_local
+
+                n_range = np_local.linspace(max(min(x_obs), 0.1), max(x_obs) * 1.2, 200)
+                y_pred = _usl_model(
+                    n_range,
+                    curve.usl_fit.lambda_param,
+                    curve.usl_fit.sigma_param,
+                    curve.usl_fit.kappa_param,
+                )
+                fig.add_trace(
+                    go.Scatter(
+                        x=n_range.tolist(),
+                        y=y_pred.tolist(),
+                        mode="lines",
+                        name=f"USL Model (R\u00b2={curve.usl_fit.r_squared:.3f})",
+                        line={"color": color, "dash": "dash"},
+                    )
+                )
+                title_parts.append(f"(R\u00b2={curve.usl_fit.r_squared:.3f})")
+
+            # Knee point annotation
+            if curve.knee_point is not None:
+                fig.add_vline(
+                    x=curve.knee_point.n_knee,
+                    line_dash="dot",
+                    line_color="red",
+                    annotation_text=f"N*={curve.knee_point.n_knee:.0f}",
+                    annotation_position="top right",
+                )
+
+            fig.update_layout(
+                title=" ".join(title_parts),
+                xaxis_title="Active Trips",
+                yaxis_title="Effective Throughput",
+                template="plotly_white",
+            )
+            all_paths.extend(
+                _write_chart(fig, output_dir / f"saturation_{curve.speed_multiplier}x")
+            )
+
+        # Chart B: Family overlay
+        if len(saturation_family.curves) > 1:
+            fig = go.Figure()
+
+            for i, curve in enumerate(saturation_family.curves):
+                if not curve.points:
+                    continue
+
+                color = colors[i % len(colors)]
+                x_obs = [p.active_trips for p in curve.points]
+                y_obs = [p.throughput for p in curve.points]
+
+                fig.add_trace(
+                    go.Scatter(
+                        x=x_obs,
+                        y=y_obs,
+                        mode="markers",
+                        name=f"{curve.speed_multiplier}x observed",
+                        marker={"color": color, "size": 5},
+                        legendgroup=f"speed_{curve.speed_multiplier}",
+                    )
+                )
+
+                if curve.usl_fit is not None:
+                    import numpy as np_local
+
+                    n_range = np_local.linspace(max(min(x_obs), 0.1), max(x_obs) * 1.2, 200)
+                    y_pred = _usl_model(
+                        n_range,
+                        curve.usl_fit.lambda_param,
+                        curve.usl_fit.sigma_param,
+                        curve.usl_fit.kappa_param,
+                    )
+                    fig.add_trace(
+                        go.Scatter(
+                            x=n_range.tolist(),
+                            y=y_pred.tolist(),
+                            mode="lines",
+                            name=f"{curve.speed_multiplier}x USL",
+                            line={"color": color, "dash": "dash"},
+                            legendgroup=f"speed_{curve.speed_multiplier}",
+                        )
+                    )
+
+                if curve.knee_point is not None:
+                    fig.add_vline(
+                        x=curve.knee_point.n_knee,
+                        line_dash="dot",
+                        line_color=color,
+                        annotation_text=f"N*={curve.knee_point.n_knee:.0f} ({curve.speed_multiplier}x)",
+                        annotation_position="top right",
+                        opacity=0.5,
+                    )
+
+            fig.update_layout(
+                title="Saturation Curve Family",
+                xaxis_title="Active Trips",
+                yaxis_title="Effective Throughput",
+                template="plotly_white",
+            )
+            all_paths.extend(_write_chart(fig, output_dir / "saturation_family"))
+
+        # Chart for single-curve case (stress test only produces one curve)
+        elif len(saturation_family.curves) == 1:
+            # Already generated as per-curve chart above
+            pass
+
+        return all_paths
+
     def _create_scenario_subdirs(self) -> dict[str, Path]:
         """Create subdirectories for organizing charts by scenario type."""
         subdirs = {
@@ -1209,6 +1377,7 @@ class ChartGenerator:
             "stress": self.charts_dir / "stress",
             "speed_scaling": self.charts_dir / "speed_scaling",
             "health": self.charts_dir / "health",
+            "saturation": self.charts_dir / "saturation",
         }
         for subdir in subdirs.values():
             subdir.mkdir(parents=True, exist_ok=True)
@@ -1383,6 +1552,7 @@ class ChartGenerator:
             "duration": "Duration/Leak Tests",
             "stress": "Stress Tests",
             "speed_scaling": "Speed Scaling Tests",
+            "saturation": "Saturation Analysis (USL)",
         }
 
         for section_key, section_title in section_titles.items():

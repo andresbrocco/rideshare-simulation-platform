@@ -7,7 +7,7 @@ from typing import Any, Iterator
 
 from rich.console import Console
 
-from ..analysis.statistics import BaselineCalibration
+from ..analysis.statistics import BaselineCalibration, extract_saturation_points, fit_usl_model
 from .base import BaseScenario
 
 console = Console()
@@ -147,6 +147,7 @@ class StressTestScenario(BaseScenario):
         self._peak_values: dict[str, dict[str, float]] = {}
         self._health_rolling_stats: dict[str, HealthRollingStats] = {}
         self._health_latency_peaks: dict[str, float] = {}
+        self._saturation_sample_counter = 0
 
     @property
     def name(self) -> str:
@@ -255,6 +256,18 @@ class StressTestScenario(BaseScenario):
                 self._trigger = trigger
                 break
 
+            # Check USL saturation stop (never pre-empts safety stops)
+            saturation_trigger = self._check_saturation_stop()
+            if saturation_trigger:
+                console.print(
+                    f"\n[yellow bold]SATURATION KNEE EXCEEDED: "
+                    f"active_trips={saturation_trigger.value:.0f} > "
+                    f"N*×{self.config.scenarios.saturation_overshoot_factor} "
+                    f"= {saturation_trigger.threshold:.0f}[/yellow bold]"
+                )
+                self._trigger = saturation_trigger
+                break
+
             # Wait for next batch
             time.sleep(spawn_interval)
 
@@ -311,6 +324,7 @@ class StressTestScenario(BaseScenario):
             * self._available_cores
             * 100
         )
+        self._metadata["saturation_curve_data"] = True
         self._metadata["rtr_threshold_used"] = self._effective_rtr_threshold
         self._metadata["rtr_threshold_source"] = self._rtr_threshold_source
         self._metadata["health_threshold_source"] = (
@@ -464,7 +478,7 @@ class StressTestScenario(BaseScenario):
                     threshold=self._effective_rtr_threshold,
                 )
 
-        # Check health latency thresholds for critical services
+        # Check health latency thresholds for critical services (Priority 4)
         if self.config.scenarios.health_check_enabled and self._samples:
             last_sample = self._samples[-1]
             health_data = last_sample.get("health", {})
@@ -488,5 +502,56 @@ class StressTestScenario(BaseScenario):
                         value=rolling_avg,
                         threshold=threshold_unhealthy,
                     )
+
+        return None
+
+    def _check_saturation_stop(self) -> ThresholdTrigger | None:
+        """Check if active trips have exceeded the USL knee point.
+
+        Only runs when saturation_early_stop_enabled is True and enough
+        samples exist. Fits USL model every saturation_fit_interval samples
+        to avoid scipy overhead in the hot loop.
+
+        Returns:
+            ThresholdTrigger if knee exceeded, None otherwise.
+        """
+        if not self.config.scenarios.saturation_early_stop_enabled:
+            return None
+
+        self._saturation_sample_counter += 1
+        fit_interval = self.config.scenarios.saturation_fit_interval
+        if self._saturation_sample_counter % fit_interval != 0:
+            return None
+
+        if len(self._samples) < self.config.scenarios.saturation_min_points:
+            return None
+
+        points = extract_saturation_points(self._samples, speed_multiplier=1)
+        if len(points) < 3:
+            return None
+
+        load = [p.active_trips for p in points]
+        throughput = [p.throughput for p in points]
+        usl = fit_usl_model(load, throughput)
+
+        if not usl.fit_successful:
+            return None
+        if usl.r_squared < self.config.scenarios.saturation_r2_threshold:
+            return None
+
+        # Check if current active_trips exceeds N* × overshoot_factor
+        current_active_trips = 0.0
+        last_rtr = self._samples[-1].get("rtr")
+        if last_rtr is not None:
+            current_active_trips = float(last_rtr.get("active_trips", 0))
+
+        overshoot_limit = usl.n_star * self.config.scenarios.saturation_overshoot_factor
+        if current_active_trips > overshoot_limit:
+            return ThresholdTrigger(
+                container="__saturation__",
+                metric="usl_knee_exceeded",
+                value=current_active_trips,
+                threshold=overshoot_limit,
+            )
 
         return None

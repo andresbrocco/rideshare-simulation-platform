@@ -145,6 +145,7 @@ class MetricsUpdater:
                     simpy_events=simpy_events,
                     offers_rejected=offers_rejected,
                     offers_expired=offers_expired,
+                    real_time_ratio=self._engine.real_time_ratio(),
                 )
             except asyncio.CancelledError:
                 break

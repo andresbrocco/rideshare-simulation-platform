@@ -78,6 +78,13 @@ class ScenarioConfig:
         ]
     )
 
+    # Saturation curve / USL fitting settings
+    saturation_min_points: int = 8  # minimum data points before USL fitting
+    saturation_early_stop_enabled: bool = True
+    saturation_r2_threshold: float = 0.80  # R² above which USL knee is trusted
+    saturation_overshoot_factor: float = 1.5  # stop when active_trips > N* × this
+    saturation_fit_interval: int = 10  # only run USL fit every N samples
+
     # Speed scaling test settings
     speed_scaling_step_duration_minutes: int = 8
     speed_scaling_max_multiplier: int = 1024

@@ -170,6 +170,109 @@ class SuggestedThresholds:
 
 
 @dataclass
+class SaturationPoint:
+    """A single observed (load, throughput) data point."""
+
+    active_trips: float
+    throughput: float  # effective throughput proxy
+    speed_multiplier: int
+    timestamp: float
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "active_trips": round(self.active_trips, 2),
+            "throughput": round(self.throughput, 2),
+            "speed_multiplier": self.speed_multiplier,
+            "timestamp": self.timestamp,
+        }
+
+
+@dataclass
+class USLFit:
+    """Universal Scalability Law model fit results."""
+
+    lambda_param: float  # throughput per unit load at N=1
+    sigma_param: float  # contention coefficient [0,1]
+    kappa_param: float  # coherency coefficient [0,1]
+    r_squared: float  # goodness of fit
+    n_star: float  # analytical peak: N* where dX/dN = 0
+    x_max: float  # X(N*): predicted max throughput
+    fit_successful: bool
+    fit_message: str
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "lambda_param": round(self.lambda_param, 6),
+            "sigma_param": round(self.sigma_param, 6),
+            "kappa_param": round(self.kappa_param, 6),
+            "r_squared": round(self.r_squared, 4),
+            "n_star": round(self.n_star, 2),
+            "x_max": round(self.x_max, 2),
+            "fit_successful": self.fit_successful,
+            "fit_message": self.fit_message,
+        }
+
+
+@dataclass
+class KneePoint:
+    """Detected knee point in the saturation curve."""
+
+    n_knee: float
+    x_knee: float
+    detection_method: str  # "usl_analytical" | "second_derivative" | "none"
+    confidence: float  # [0, 1]
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "n_knee": round(self.n_knee, 2),
+            "x_knee": round(self.x_knee, 2),
+            "detection_method": self.detection_method,
+            "confidence": round(self.confidence, 4),
+        }
+
+
+@dataclass
+class SaturationCurve:
+    """Saturation curve for a single speed multiplier."""
+
+    speed_multiplier: int
+    points: list[SaturationPoint]
+    usl_fit: USLFit | None
+    knee_point: KneePoint | None
+    resource_bottleneck: str  # e.g. "rideshare-simulation", "unknown"
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "speed_multiplier": self.speed_multiplier,
+            "points": [p.to_dict() for p in self.points],
+            "usl_fit": self.usl_fit.to_dict() if self.usl_fit is not None else None,
+            "knee_point": self.knee_point.to_dict() if self.knee_point is not None else None,
+            "resource_bottleneck": self.resource_bottleneck,
+        }
+
+
+@dataclass
+class SaturationFamily:
+    """Family of saturation curves across speed multipliers."""
+
+    curves: list[SaturationCurve]
+    best_n_star: float | None  # lowest N* across curves
+    best_speed_multiplier: int | None  # speed at lowest N*
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "curves": [c.to_dict() for c in self.curves],
+            "best_n_star": round(self.best_n_star, 2) if self.best_n_star is not None else None,
+            "best_speed_multiplier": self.best_speed_multiplier,
+        }
+
+
+@dataclass
 class TestSummary:
     """Factual summary of test results — no severity judgments."""
 
@@ -178,6 +281,7 @@ class TestSummary:
     key_metrics: KeyMetrics | None = None
     service_health_latency: list[ServiceHealthLatency] = field(default_factory=list)
     suggested_thresholds: list[SuggestedThresholds] = field(default_factory=list)
+    saturation_family: SaturationFamily | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -191,4 +295,6 @@ class TestSummary:
             result["service_health_latency"] = [s.to_dict() for s in self.service_health_latency]
         if self.suggested_thresholds:
             result["suggested_thresholds"] = [s.to_dict() for s in self.suggested_thresholds]
+        if self.saturation_family is not None:
+            result["saturation_family"] = self.saturation_family.to_dict()
         return result

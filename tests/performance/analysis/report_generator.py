@@ -6,8 +6,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from ..config import CONTAINER_CONFIG
 from .findings import (
     ContainerHealthAggregated,
+    SaturationFamily,
     TestSummary,
 )
 
@@ -94,6 +96,9 @@ class ReportGenerator:
                 ]
             )
 
+        # ── Saturation Analysis ──
+        lines.extend(self._md_saturation_analysis(summary))
+
         # ── Scenario Details ──
         lines.extend(["## Scenario Details", ""])
 
@@ -138,7 +143,6 @@ class ReportGenerator:
     def _md_scenario_section(self, name: str, scenario: dict[str, Any]) -> list[str]:
         """Generate markdown subsection for a scenario."""
         from .statistics import calculate_all_container_stats
-        from ..config import CONTAINER_CONFIG
 
         lines: list[str] = []
         display_name = {
@@ -444,6 +448,49 @@ class ReportGenerator:
 
         return lines
 
+    def _md_saturation_analysis(self, summary: TestSummary) -> list[str]:
+        """Generate markdown saturation analysis section."""
+        if summary.saturation_family is None:
+            return []
+
+        family = summary.saturation_family
+        lines: list[str] = ["## Saturation Analysis", ""]
+        lines.extend(
+            [
+                "| Speed | N* (Knee) | X_max (Peak) | R\u00b2 | Bottleneck | Detection |",
+                "|-------|-----------|-------------|------|------------|-----------|",
+            ]
+        )
+
+        for curve in family.curves:
+            speed = f"{curve.speed_multiplier}x"
+            if curve.usl_fit is not None:
+                n_star = f"{curve.usl_fit.n_star:.0f}"
+                x_max = f"{curve.usl_fit.x_max:.1f}"
+                r2 = f"{curve.usl_fit.r_squared:.3f}"
+            else:
+                n_star = "-"
+                x_max = "-"
+                r2 = "-"
+
+            bottleneck = CONTAINER_CONFIG.get(curve.resource_bottleneck, {}).get(
+                "display_name", curve.resource_bottleneck
+            )
+            method = curve.knee_point.detection_method if curve.knee_point else "none"
+
+            lines.append(f"| {speed} | {n_star} | {x_max} | {r2} | {bottleneck} | {method} |")
+
+        lines.append("")
+
+        if family.best_n_star is not None:
+            lines.append(
+                f"Best operating point: N*={family.best_n_star:.0f} active trips "
+                f"at {family.best_speed_multiplier}x"
+            )
+            lines.append("")
+
+        return lines
+
     # ─────────────────────────────────────────────────────────
     #  HTML Report
     # ─────────────────────────────────────────────────────────
@@ -539,6 +586,7 @@ class ReportGenerator:
         <nav>
             <a href="#metrics">Metrics</a>
             <a href="#scenarios">Scenarios</a>
+            <a href="#saturation">Saturation</a>
             <a href="#health">Health</a>
             <a href="#health-latency">Latency</a>
             <a href="charts/index.html">All Charts</a>
@@ -597,6 +645,13 @@ class ReportGenerator:
 
         html += "        </section>\n"
 
+        # ── Saturation Analysis ──
+        if summary.saturation_family is not None:
+            html += '\n        <section id="saturation">\n'
+            html += "            <h2>Saturation Analysis</h2>\n"
+            html += self._html_saturation_table(summary.saturation_family)
+            html += "        </section>\n"
+
         # ── Service Health Latency ──
         if summary.service_health_latency:
             html += '\n        <section id="health-latency">\n'
@@ -619,7 +674,7 @@ class ReportGenerator:
         """
         fragments: dict[str, str] = {}
         # Look in subdirectories
-        for subdir in ["overview", "stress", "speed_scaling", "duration", "health"]:
+        for subdir in ["overview", "stress", "speed_scaling", "duration", "health", "saturation"]:
             chart_dir = self.charts_dir / subdir
             if not chart_dir.exists():
                 continue
@@ -836,6 +891,44 @@ class ReportGenerator:
 
         return html
 
+    def _html_saturation_table(self, family: SaturationFamily) -> str:
+        """Generate HTML table for saturation analysis."""
+        html = "<table><thead><tr>"
+        html += "<th>Speed</th><th>N* (Knee)</th><th>X_max (Peak)</th>"
+        html += "<th>R\u00b2</th><th>Bottleneck</th><th>Detection</th>"
+        html += "</tr></thead><tbody>\n"
+
+        for curve in family.curves:
+            speed = f"{curve.speed_multiplier}x"
+            if curve.usl_fit is not None:
+                n_star = f"{curve.usl_fit.n_star:.0f}"
+                x_max = f"{curve.usl_fit.x_max:.1f}"
+                r2 = f"{curve.usl_fit.r_squared:.3f}"
+            else:
+                n_star = "-"
+                x_max = "-"
+                r2 = "-"
+
+            bottleneck = CONTAINER_CONFIG.get(curve.resource_bottleneck, {}).get(
+                "display_name", curve.resource_bottleneck
+            )
+            method = curve.knee_point.detection_method if curve.knee_point else "none"
+
+            html += (
+                f"<tr><td>{speed}</td><td>{n_star}</td><td>{x_max}</td>"
+                f"<td>{r2}</td><td>{bottleneck}</td><td>{method}</td></tr>\n"
+            )
+
+        html += "</tbody></table>\n"
+
+        if family.best_n_star is not None:
+            html += (
+                f"<p>Best operating point: N*={family.best_n_star:.0f} active trips "
+                f"at {family.best_speed_multiplier}x</p>\n"
+            )
+
+        return html
+
     # ─────────────────────────────────────────────────────────
     #  JSON Summary
     # ─────────────────────────────────────────────────────────
@@ -884,6 +977,10 @@ class ReportGenerator:
             summary_dict["container_health"] = [
                 h.to_dict() for h in summary.aggregated_container_health
             ]
+
+        # Saturation analysis
+        if summary.saturation_family is not None:
+            summary_dict["saturation_family"] = summary.saturation_family.to_dict()
 
         # Full summary data
         summary_dict["summary"] = summary.to_dict()

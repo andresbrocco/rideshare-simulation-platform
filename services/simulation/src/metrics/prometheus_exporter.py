@@ -120,6 +120,7 @@ _snapshot_values: dict[str, float] = {
     "avg_pickup_seconds": 0.0,
     "matching_success_rate": 0.0,
     "pending_offers": 0.0,
+    "real_time_ratio": 0.0,
     "memory_rss_mb": 0.0,
     "memory_percent": 0.0,
     "cpu_percent": 0.0,
@@ -132,6 +133,12 @@ def _observe(key: str) -> list[Observation]:
     with _snapshot_lock:
         return [Observation(value=_snapshot_values.get(key, 0.0))]
 
+
+simulation_real_time_ratio = meter.create_observable_gauge(
+    name="simulation_real_time_ratio",
+    callbacks=[lambda options: _observe("real_time_ratio")],
+    description="Real-time ratio (sim_time / wall_time / speed_multiplier)",
+)
 
 simulation_avg_fare = meter.create_observable_gauge(
     name="simulation_avg_fare_dollars",
@@ -248,6 +255,7 @@ def update_metrics_from_snapshot(
     simpy_events: int = 0,
     offers_rejected: int = 0,
     offers_expired: int = 0,
+    real_time_ratio: float | None = None,
 ) -> None:
     """Update OTel metrics from a MetricsCollector snapshot.
 
@@ -269,6 +277,8 @@ def update_metrics_from_snapshot(
         _snapshot_values["avg_pickup_seconds"] = avg_pickup_seconds
         _snapshot_values["matching_success_rate"] = matching_success_rate
         _snapshot_values["pending_offers"] = float(pending_offers)
+        if real_time_ratio is not None:
+            _snapshot_values["real_time_ratio"] = real_time_ratio
         _snapshot_values["memory_rss_mb"] = snapshot.memory_rss_mb
         _snapshot_values["memory_percent"] = snapshot.memory_percent
         _snapshot_values["cpu_percent"] = snapshot.cpu_percent

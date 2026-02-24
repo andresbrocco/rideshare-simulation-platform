@@ -129,6 +129,7 @@ class SpeedScalingScenario(BaseScenario):
 
         # Store metadata
         max_speed = self._step_results[-1]["multiplier"] if self._step_results else 1
+        self._metadata["saturation_curve_data"] = True
         self._metadata["step_results"] = self._step_results
         self._metadata["total_steps"] = len(self._step_results)
         self._metadata["max_speed_achieved"] = max_speed
@@ -243,6 +244,19 @@ class SpeedScalingScenario(BaseScenario):
         rtr_peak = min(rtr_values) if rtr_values else None
         rtr_mean = (sum(rtr_values) / len(rtr_values)) if rtr_values else None
 
+        # Compute active_trips stats for saturation analysis
+        active_trips_values = [
+            s["rtr"]["active_trips"]
+            for s in step_samples
+            if s.get("rtr") is not None and "active_trips" in s.get("rtr", {})
+        ]
+        active_trips_mean = (
+            round(sum(active_trips_values) / len(active_trips_values), 2)
+            if active_trips_values
+            else None
+        )
+        active_trips_max = max(active_trips_values) if active_trips_values else None
+
         return {
             "step": step_number,
             "multiplier": multiplier,
@@ -262,6 +276,8 @@ class SpeedScalingScenario(BaseScenario):
             ),
             "rtr_peak": round(rtr_peak, 4) if rtr_peak is not None else None,
             "rtr_mean": round(rtr_mean, 4) if rtr_mean is not None else None,
+            "active_trips_mean": active_trips_mean,
+            "active_trips_max": active_trips_max,
         }
 
     def _check_step_thresholds(self, step_samples: list[dict[str, Any]]) -> ThresholdTrigger | None:

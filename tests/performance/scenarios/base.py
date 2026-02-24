@@ -275,6 +275,9 @@ class BaseScenario(ABC):
             "sim_time_iso": status.current_time,
             "speed_multiplier": status.speed_multiplier,
             "state": status.state,
+            "active_trips": status.active_trips_count,
+            "drivers_total": status.drivers_total,
+            "riders_total": status.riders_total,
         }
         if status.real_time_ratio is not None:
             result["rtr"] = status.real_time_ratio
