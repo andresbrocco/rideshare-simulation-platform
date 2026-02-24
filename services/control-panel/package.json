@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "test": "vitest",
-    "generate-types": "npx openapi-typescript ../../schemas/api/openapi.json -o src/types/api.generated.ts"
+    "generate-types": "npx openapi-typescript ../../schemas/api/openapi.json -o src/types/api.generated.ts && prettier --write src/types/api.generated.ts"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
