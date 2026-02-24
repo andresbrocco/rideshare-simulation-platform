@@ -776,7 +776,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSQL": "SELECT\n  latitude,\n  longitude,\n  speed,\n  trip_state,\n  timestamp\nFROM delta.silver.stg_gps_pings\nWHERE entity_type = 'driver'\n  AND entity_id = '$driver_id'\nORDER BY timestamp DESC\nLIMIT 1000",
+          "rawSQL": "SELECT\n  latitude,\n  longitude,\n  speed,\n  trip_state,\n  timestamp\nFROM delta.silver.stg_gps_pings\nWHERE entity_type = 'driver'\n  AND entity_id = '$driver_id'\nORDER BY timestamp\nLIMIT 1000",
           "refId": "A"
         }
       ],
