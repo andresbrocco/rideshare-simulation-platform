@@ -457,6 +457,7 @@ _DISPLAY_NAME_OVERRIDES: dict[str, str] = {
     "rideshare-postgres-metastore": "Postgres (Metastore)",
     "rideshare-airflow-webserver": "Airflow Web",
     "rideshare-localstack": "LocalStack",
+    "rideshare-openldap": "OpenLDAP",
 }
 
 # Per-service health-check thresholds: (degraded_ms, unhealthy_ms)
@@ -486,6 +487,13 @@ _SERVICE_THRESHOLDS: dict[str, tuple[float, float]] = {
     "rideshare-postgres-metastore": (10, 50),
     # Special
     "rideshare-bronze-ingestion": (100, 500),
+    # Data Pipeline — query / metastore
+    "rideshare-trino": (500, 2000),
+    "rideshare-hive-metastore": (200, 1000),
+    "rideshare-openldap": (50, 200),
+    # Monitoring — log / trace backends
+    "rideshare-loki": (100, 500),
+    "rideshare-tempo": (100, 500),
 }
 
 _HEARTBEAT_THRESHOLDS: dict[str, tuple[float, float]] = {
@@ -1063,6 +1071,115 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         except Exception as e:
             return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
 
+    async def check_loki() -> tuple[ContainerStatus, float | None, str | None]:
+        """Check Loki health via /ready endpoint."""
+        loki_url = "http://loki:3100/ready"
+        try:
+            start = time.perf_counter()
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                response = await client.get(loki_url)
+                latency_ms = (time.perf_counter() - start) * 1000
+                if response.status_code == 200:
+                    return _determine_status(latency_ms), round(latency_ms, 2), "Ready"
+                else:
+                    return (
+                        ContainerStatus.DEGRADED,
+                        round(latency_ms, 2),
+                        f"HTTP {response.status_code}",
+                    )
+        except httpx.TimeoutException:
+            return ContainerStatus.UNHEALTHY, None, "Request timed out"
+        except Exception as e:
+            return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
+
+    async def check_tempo() -> tuple[ContainerStatus, float | None, str | None]:
+        """Check Tempo health via /ready endpoint."""
+        tempo_url = "http://tempo:3200/ready"
+        try:
+            start = time.perf_counter()
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                response = await client.get(tempo_url)
+                latency_ms = (time.perf_counter() - start) * 1000
+                if response.status_code == 200:
+                    return _determine_status(latency_ms), round(latency_ms, 2), "Ready"
+                else:
+                    return (
+                        ContainerStatus.DEGRADED,
+                        round(latency_ms, 2),
+                        f"HTTP {response.status_code}",
+                    )
+        except httpx.TimeoutException:
+            return ContainerStatus.UNHEALTHY, None, "Request timed out"
+        except Exception as e:
+            return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
+
+    async def check_trino() -> tuple[ContainerStatus, float | None, str | None]:
+        """Check Trino health via /v1/info endpoint."""
+        trino_url = "http://trino:8080/v1/info"
+        try:
+            start = time.perf_counter()
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.get(trino_url)
+                latency_ms = (time.perf_counter() - start) * 1000
+                if response.status_code == 200:
+                    data = response.json()
+                    starting = data.get("starting", False)
+                    if starting:
+                        return (
+                            ContainerStatus.DEGRADED,
+                            round(latency_ms, 2),
+                            "Starting up",
+                        )
+                    return (
+                        _determine_status(latency_ms),
+                        round(latency_ms, 2),
+                        f"Uptime: {data.get('uptime', 'unknown')}",
+                    )
+                else:
+                    return (
+                        ContainerStatus.DEGRADED,
+                        round(latency_ms, 2),
+                        f"HTTP {response.status_code}",
+                    )
+        except httpx.TimeoutException:
+            return ContainerStatus.UNHEALTHY, None, "Request timed out"
+        except Exception as e:
+            return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
+
+    async def check_hive_metastore() -> tuple[ContainerStatus, float | None, str | None]:
+        """Check Hive Metastore health via TCP connect to Thrift port."""
+        try:
+            start = time.perf_counter()
+            _, writer = await asyncio.wait_for(
+                asyncio.open_connection("hive-metastore", 9083),
+                timeout=3.0,
+            )
+            latency_ms = (time.perf_counter() - start) * 1000
+            writer.close()
+            await writer.wait_closed()
+            return _determine_status(latency_ms), round(latency_ms, 2), "Thrift port open"
+        except TimeoutError:
+            return ContainerStatus.UNHEALTHY, None, "Connection timed out"
+        except Exception as e:
+            return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
+
+    async def check_openldap() -> tuple[ContainerStatus, float | None, str | None]:
+        """Check OpenLDAP health via TCP connect to LDAP port."""
+        try:
+            start = time.perf_counter()
+            _, writer = await asyncio.wait_for(
+                asyncio.open_connection("openldap", 389),
+                timeout=3.0,
+            )
+            latency_ms = (time.perf_counter() - start) * 1000
+            writer.close()
+            await writer.wait_closed()
+            return _determine_status(latency_ms), round(latency_ms, 2), "LDAP port open"
+        except TimeoutError:
+            return ContainerStatus.UNHEALTHY, None, "Connection timed out"
+        except Exception as e:
+            return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
+
     async def check_control_panel() -> tuple[ContainerStatus, float | None, str | None]:
         """Check Control Panel health via Vite dev server."""
         control_panel_url = "http://control-panel:5173/"
@@ -1279,6 +1396,11 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         bronze_ingestion_result,
         postgres_airflow_result,
         postgres_metastore_result,
+        loki_result,
+        tempo_result,
+        trino_result,
+        hive_metastore_result,
+        openldap_result,
     ) = await asyncio.gather(
         check_redis(),
         check_osrm(),
@@ -1296,6 +1418,11 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         check_bronze_ingestion(),
         check_postgres_airflow(),
         check_postgres_metastore(),
+        check_loki(),
+        check_tempo(),
+        check_trino(),
+        check_hive_metastore(),
+        check_openldap(),
     )
     # Await the Airflow combined result (ran concurrently with the gather above)
     airflow_web_result, airflow_scheduler_raw = await airflow_task
@@ -1320,6 +1447,12 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         "rideshare-cadvisor": cadvisor_result,
         "rideshare-grafana": grafana_result,
         "rideshare-otel-collector": otel_collector_result,
+        "rideshare-loki": loki_result,
+        "rideshare-tempo": tempo_result,
+        # Data Pipeline — query / metastore
+        "rideshare-trino": trino_result,
+        "rideshare-hive-metastore": hive_metastore_result,
+        "rideshare-openldap": openldap_result,
         # Quality Orchestration profile
         "rideshare-postgres-airflow": postgres_airflow_result,
         "rideshare-postgres-metastore": postgres_metastore_result,
