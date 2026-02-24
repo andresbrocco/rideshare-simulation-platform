@@ -62,11 +62,12 @@ class Config:
 
     no_reset: bool = False
     skip_agents: bool = False
+    speed: int = 8
     immediate_drivers: int = 50
-    immediate_riders: int = 25
-    scheduled_drivers: int = 50
-    scheduled_riders: int = 475
-    delay: int = 25
+    immediate_riders: int = 50
+    scheduled_drivers: int = 150
+    scheduled_riders: int = 3950
+    delay: int = 0
     trigger_silver: bool = False
 
 
@@ -149,6 +150,7 @@ def docker_compose_up() -> None:
             "up",
             "-d",
         ],
+        env={"SILVER_SCHEDULE": "*/15 * * * *"},
     )
     log_success("Docker services started")
 
@@ -266,6 +268,25 @@ def start_simulation() -> bool:
         return False
     except requests.RequestException as e:
         log_error(f"Failed to start simulation: {e}")
+        return False
+
+
+def set_simulation_speed(multiplier: int) -> bool:
+    """Set the simulation speed multiplier."""
+    try:
+        response = requests.put(
+            f"{SIMULATION_URL}/simulation/speed",
+            headers={"X-API-Key": SIMULATION_API_KEY},
+            json={"multiplier": multiplier},
+            timeout=10,
+        )
+        if response.status_code == 200:
+            log_success(f"Simulation speed set to {multiplier}x")
+            return True
+        log_error(f"Failed to set speed: {response.status_code} - {response.text}")
+        return False
+    except requests.RequestException as e:
+        log_error(f"Failed to set speed: {e}")
         return False
 
 
@@ -439,6 +460,12 @@ def main() -> int:
         help="Only start simulation, don't spawn agents",
     )
     parser.add_argument(
+        "--speed",
+        type=int,
+        default=8,
+        help="Simulation speed multiplier (default: 8)",
+    )
+    parser.add_argument(
         "--immediate-drivers",
         type=int,
         default=50,
@@ -447,26 +474,26 @@ def main() -> int:
     parser.add_argument(
         "--immediate-riders",
         type=int,
-        default=25,
-        help="Number of immediate riders (default: 25)",
+        default=50,
+        help="Number of immediate riders (default: 50)",
     )
     parser.add_argument(
         "--scheduled-drivers",
         type=int,
-        default=50,
-        help="Number of scheduled drivers (default: 50)",
+        default=150,
+        help="Number of scheduled drivers (default: 150)",
     )
     parser.add_argument(
         "--scheduled-riders",
         type=int,
-        default=475,
-        help="Number of scheduled riders (default: 475)",
+        default=3950,
+        help="Number of scheduled riders (default: 3950)",
     )
     parser.add_argument(
         "--delay",
         type=int,
-        default=25,
-        help="Seconds between spawning drivers and riders (default: 25)",
+        default=0,
+        help="Seconds between spawning drivers and riders (default: 0)",
     )
     parser.add_argument(
         "--trigger-silver",
@@ -479,6 +506,7 @@ def main() -> int:
     config = Config(
         no_reset=args.no_reset,
         skip_agents=args.skip_agents,
+        speed=args.speed,
         immediate_drivers=args.immediate_drivers,
         immediate_riders=args.immediate_riders,
         scheduled_drivers=args.scheduled_drivers,
@@ -510,6 +538,10 @@ def main() -> int:
     # Step 3: Start simulation
     if not start_simulation():
         return 1
+
+    # Step 3b: Set simulation speed
+    if not set_simulation_speed(config.speed):
+        log_warning("Could not set simulation speed, continuing with default")
 
     # Step 4: Spawn agents
     if not config.skip_agents:

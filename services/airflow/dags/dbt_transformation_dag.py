@@ -76,12 +76,14 @@ default_args = {
     "retry_delay": timedelta(minutes=5),
 }
 
-# Silver DAG - Runs at :10 past each hour with Bronze freshness check
+SILVER_SCHEDULE = os.environ.get("SILVER_SCHEDULE", "10 * * * *")
+
+# Silver DAG - Runs at :10 past each hour with Bronze freshness check (configurable via SILVER_SCHEDULE env var)
 with DAG(
     "dbt_silver_transformation",
     default_args=default_args,
-    description="DBT Silver layer transformations (hourly at :10)",
-    schedule="10 * * * *",
+    description="DBT Silver layer transformations",
+    schedule=SILVER_SCHEDULE,
     start_date=datetime(2026, 1, 1),
     catchup=False,
     max_active_runs=1,
