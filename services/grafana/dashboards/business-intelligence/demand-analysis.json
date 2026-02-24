@@ -89,7 +89,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(*) as total_requests\nFROM delta.gold.fact_trips\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY",
+          "rawSQL": "SELECT COUNT(*) as total_requests\nFROM delta.gold.fact_trips\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY",
           "refId": "A"
         }
       ],
@@ -158,7 +158,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT AVG(date_diff('second', requested_at, matched_at)) as avg_wait\nFROM delta.gold.fact_trips\nWHERE completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND matched_at IS NOT NULL",
+          "rawSQL": "SELECT AVG(date_diff('second', requested_at, matched_at)) as avg_wait\nFROM delta.gold.fact_trips\nWHERE completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND matched_at IS NOT NULL",
           "refId": "A"
         }
       ],
@@ -227,7 +227,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "WITH all_trips AS (\n  SELECT trip_id, requested_at\n  FROM delta.gold.fact_trips\n  WHERE requested_at >= current_timestamp - INTERVAL '7' DAY\n  UNION ALL\n  SELECT trip_id, requested_at\n  FROM delta.gold.fact_cancellations\n  WHERE requested_at >= current_timestamp - INTERVAL '7' DAY\n),\ncompleted AS (\n  SELECT COUNT(*) as cnt\n  FROM delta.gold.fact_trips\n  WHERE requested_at >= current_timestamp - INTERVAL '7' DAY\n)\nSELECT\n  CASE WHEN COUNT(*) = 0 THEN 0.0\n    ELSE CAST((SELECT cnt FROM completed) AS DOUBLE) * 100.0 / CAST(COUNT(*) AS DOUBLE)\n  END as completion_rate\nFROM all_trips",
+          "rawSQL": "WITH all_trips AS (\n  SELECT trip_id, requested_at\n  FROM delta.gold.fact_trips\n  WHERE requested_at >= current_timestamp - INTERVAL '7' DAY\n  UNION ALL\n  SELECT trip_id, requested_at\n  FROM delta.gold.fact_cancellations\n  WHERE requested_at >= current_timestamp - INTERVAL '7' DAY\n),\ncompleted AS (\n  SELECT COUNT(*) as cnt\n  FROM delta.gold.fact_trips\n  WHERE requested_at >= current_timestamp - INTERVAL '7' DAY\n)\nSELECT\n  CASE WHEN COUNT(*) = 0 THEN 0.0\n    ELSE CAST((SELECT cnt FROM completed) AS DOUBLE) * 100.0 / CAST(COUNT(*) AS DOUBLE)\n  END as completion_rate\nFROM all_trips",
           "refId": "A"
         }
       ],
@@ -287,7 +287,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(DISTINCT rider_key) as unique_riders\nFROM delta.gold.fact_trips\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY",
+          "rawSQL": "SELECT COUNT(DISTINCT rider_key) as unique_riders\nFROM delta.gold.fact_trips\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY",
           "refId": "A"
         }
       ],
@@ -387,7 +387,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "WITH hours AS (\n  SELECT hour_val, LPAD(CAST(hour_val AS VARCHAR), 2, '0') || ':00' as hour_label\n  FROM UNNEST(ARRAY[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]) AS t(hour_val)\n),\ntrip_data AS (\n  SELECT hour(requested_at) as hour_val, COUNT(*) as trip_count\n  FROM delta.gold.fact_trips\n  WHERE requested_at >= current_timestamp - INTERVAL '7' DAY\n  GROUP BY hour(requested_at)\n)\nSELECT h.hour_label as hour_of_day, COALESCE(t.trip_count, 0) as trip_count\nFROM hours h LEFT JOIN trip_data t ON h.hour_val = t.hour_val\nORDER BY h.hour_val",
+          "rawSQL": "WITH hours AS (\n  SELECT hour_val, LPAD(CAST(hour_val AS VARCHAR), 2, '0') || ':00' as hour_label\n  FROM UNNEST(ARRAY[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]) AS t(hour_val)\n),\ntrip_data AS (\n  SELECT hour(requested_at) as hour_val, COUNT(*) as trip_count\n  FROM delta.gold.fact_trips\n  WHERE requested_at >= current_timestamp - INTERVAL '7' DAY\n  GROUP BY hour(requested_at)\n)\nSELECT h.hour_label as hour_of_day, COALESCE(t.trip_count, 0) as trip_count\nFROM hours h LEFT JOIN trip_data t ON h.hour_val = t.hour_val\nORDER BY h.hour_val",
           "refId": "A"
         }
       ],
@@ -474,7 +474,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "WITH all_days AS (\n  SELECT day_num, day_name\n  FROM UNNEST(ARRAY[1,2,3,4,5,6,7],\n              ARRAY['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']) AS t(day_num, day_name)\n),\ntrip_data AS (\n  SELECT day_of_week(requested_at) as day_num, COUNT(*) as trip_count\n  FROM delta.gold.fact_trips\n  WHERE requested_at >= current_timestamp - INTERVAL '7' DAY\n  GROUP BY day_of_week(requested_at)\n)\nSELECT d.day_name, COALESCE(t.trip_count, 0) as trip_count\nFROM all_days d LEFT JOIN trip_data t ON d.day_num = t.day_num\nORDER BY d.day_num",
+          "rawSQL": "WITH all_days AS (\n  SELECT day_num, day_name\n  FROM UNNEST(ARRAY[1,2,3,4,5,6,7],\n              ARRAY['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']) AS t(day_num, day_name)\n),\ntrip_data AS (\n  SELECT day_of_week(requested_at) as day_num, COUNT(*) as trip_count\n  FROM delta.gold.fact_trips\n  WHERE requested_at >= current_timestamp - INTERVAL '7' DAY\n  GROUP BY day_of_week(requested_at)\n)\nSELECT d.day_name, COALESCE(t.trip_count, 0) as trip_count\nFROM all_days d LEFT JOIN trip_data t ON d.day_num = t.day_num\nORDER BY d.day_num",
           "refId": "A"
         }
       ],
@@ -615,7 +615,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  date_trunc('hour', requested_at) - (hour(requested_at) % 3) * INTERVAL '1' HOUR as time,\n  AVG(date_diff('second', requested_at, matched_at)) as avg_wait,\n  MAX(date_diff('second', requested_at, matched_at)) as max_wait,\n  APPROX_PERCENTILE(date_diff('second', requested_at, matched_at), 0.95) as p95_wait\nFROM delta.gold.fact_trips\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\n  AND matched_at IS NOT NULL\nGROUP BY date_trunc('hour', requested_at) - (hour(requested_at) % 3) * INTERVAL '1' HOUR\nORDER BY time",
+          "rawSQL": "SELECT\n  date_trunc('hour', requested_at) - (hour(requested_at) % 3) * INTERVAL '1' HOUR as time,\n  AVG(date_diff('second', requested_at, matched_at)) as avg_wait,\n  MAX(date_diff('second', requested_at, matched_at)) as max_wait,\n  APPROX_PERCENTILE(date_diff('second', requested_at, matched_at), 0.95) as p95_wait\nFROM delta.gold.fact_trips\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\n  AND matched_at IS NOT NULL\nGROUP BY date_trunc('hour', requested_at) - (hour(requested_at) % 3) * INTERVAL '1' HOUR\nORDER BY time",
           "refId": "A"
         }
       ],
@@ -715,7 +715,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "WITH buckets AS (\n  SELECT bucket_name, bucket_order\n  FROM UNNEST(ARRAY['0-2 min','2-5 min','5-10 min','10-15 min','15+ min'],\n              ARRAY[1,2,3,4,5]) AS t(bucket_name, bucket_order)\n),\ntrip_data AS (\n  SELECT\n    CASE\n      WHEN date_diff('minute', requested_at, matched_at) < 2 THEN '0-2 min'\n      WHEN date_diff('minute', requested_at, matched_at) < 5 THEN '2-5 min'\n      WHEN date_diff('minute', requested_at, matched_at) < 10 THEN '5-10 min'\n      WHEN date_diff('minute', requested_at, matched_at) < 15 THEN '10-15 min'\n      ELSE '15+ min'\n    END as bucket_name,\n    COUNT(*) as trip_count\n  FROM delta.gold.fact_trips\n  WHERE requested_at >= current_timestamp - INTERVAL '7' DAY AND matched_at IS NOT NULL\n  GROUP BY 1\n)\nSELECT b.bucket_name as wait_bucket, COALESCE(t.trip_count, 0) as trip_count\nFROM buckets b LEFT JOIN trip_data t ON b.bucket_name = t.bucket_name\nORDER BY b.bucket_order",
+          "rawSQL": "WITH buckets AS (\n  SELECT bucket_name, bucket_order\n  FROM UNNEST(ARRAY['0-2 min','2-5 min','5-10 min','10-15 min','15+ min'],\n              ARRAY[1,2,3,4,5]) AS t(bucket_name, bucket_order)\n),\ntrip_data AS (\n  SELECT\n    CASE\n      WHEN date_diff('minute', requested_at, matched_at) < 2 THEN '0-2 min'\n      WHEN date_diff('minute', requested_at, matched_at) < 5 THEN '2-5 min'\n      WHEN date_diff('minute', requested_at, matched_at) < 10 THEN '5-10 min'\n      WHEN date_diff('minute', requested_at, matched_at) < 15 THEN '10-15 min'\n      ELSE '15+ min'\n    END as bucket_name,\n    COUNT(*) as trip_count\n  FROM delta.gold.fact_trips\n  WHERE requested_at >= current_timestamp - INTERVAL '7' DAY AND matched_at IS NOT NULL\n  GROUP BY 1\n)\nSELECT b.bucket_name as wait_bucket, COALESCE(t.trip_count, 0) as trip_count\nFROM buckets b LEFT JOIN trip_data t ON b.bucket_name = t.bucket_name\nORDER BY b.bucket_order",
           "refId": "A"
         }
       ],
@@ -783,7 +783,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT 'completed' as trip_outcome, COUNT(*) as trip_count\nFROM delta.gold.fact_trips\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\nUNION ALL\nSELECT\n  cancellation_reason as trip_outcome,\n  COUNT(*) as trip_count\nFROM delta.gold.fact_cancellations\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\nGROUP BY cancellation_reason",
+          "rawSQL": "SELECT 'completed' as trip_outcome, COUNT(*) as trip_count\nFROM delta.gold.fact_trips\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\nUNION ALL\nSELECT\n  cancellation_reason as trip_outcome,\n  COUNT(*) as trip_count\nFROM delta.gold.fact_cancellations\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\nGROUP BY cancellation_reason",
           "refId": "A"
         }
       ],
@@ -912,7 +912,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  z.name as pickup_zone,\n  COUNT(*) as trip_count,\n  AVG(date_diff('second', t.requested_at, t.matched_at)) as avg_wait,\n  CAST(SUM(CASE WHEN t.trip_state = 'completed' THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*) as completion_rate\nFROM delta.gold.fact_trips t\nJOIN delta.gold.dim_zones z ON t.pickup_zone_key = z.zone_key\nWHERE t.requested_at >= current_timestamp - INTERVAL '7' DAY\nGROUP BY z.name\nORDER BY trip_count DESC\nLIMIT 20",
+          "rawSQL": "SELECT\n  z.name as pickup_zone,\n  COUNT(*) as trip_count,\n  AVG(date_diff('second', t.requested_at, t.matched_at)) as avg_wait,\n  CAST(SUM(CASE WHEN t.trip_state = 'completed' THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*) as completion_rate\nFROM delta.gold.fact_trips t\nJOIN delta.gold.dim_zones z ON t.pickup_zone_key = z.zone_key\nWHERE t.requested_at >= current_timestamp - INTERVAL '7' DAY\nGROUP BY z.name\nORDER BY trip_count DESC\nLIMIT 20",
           "refId": "A"
         }
       ],
@@ -1028,7 +1028,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  CASE\n    WHEN hour(requested_at) BETWEEN 7 AND 9 THEN 'Morning Peak (7-9)'\n    WHEN hour(requested_at) BETWEEN 17 AND 19 THEN 'Evening Peak (17-19)'\n    ELSE 'Off-Peak'\n  END as time_period,\n  COUNT(*) as trip_count,\n  AVG(date_diff('second', requested_at, matched_at)) as avg_wait\nFROM delta.gold.fact_trips\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\nGROUP BY\n  CASE\n    WHEN hour(requested_at) BETWEEN 7 AND 9 THEN 'Morning Peak (7-9)'\n    WHEN hour(requested_at) BETWEEN 17 AND 19 THEN 'Evening Peak (17-19)'\n    ELSE 'Off-Peak'\n  END\nORDER BY\n  CASE time_period\n    WHEN 'Morning Peak (7-9)' THEN 1\n    WHEN 'Evening Peak (17-19)' THEN 2\n    ELSE 3\n  END",
+          "rawSQL": "SELECT\n  CASE\n    WHEN hour(requested_at) BETWEEN 7 AND 9 THEN 'Morning Peak (7-9)'\n    WHEN hour(requested_at) BETWEEN 17 AND 19 THEN 'Evening Peak (17-19)'\n    ELSE 'Off-Peak'\n  END as time_period,\n  COUNT(*) as trip_count,\n  AVG(date_diff('second', requested_at, matched_at)) as avg_wait\nFROM delta.gold.fact_trips\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\nGROUP BY\n  CASE\n    WHEN hour(requested_at) BETWEEN 7 AND 9 THEN 'Morning Peak (7-9)'\n    WHEN hour(requested_at) BETWEEN 17 AND 19 THEN 'Evening Peak (17-19)'\n    ELSE 'Off-Peak'\n  END\nORDER BY\n  CASE time_period\n    WHEN 'Morning Peak (7-9)' THEN 1\n    WHEN 'Evening Peak (17-19)' THEN 2\n    ELSE 3\n  END",
           "refId": "A"
         }
       ],
@@ -1174,7 +1174,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  z.name AS zone_name,\n  z.centroid_latitude,\n  z.centroid_longitude,\n  SUM(d.requested_trips) AS requested_trips,\n  SUM(d.completed_trips) AS completed_trips,\n  AVG(d.avg_wait_time_minutes) AS avg_wait_minutes,\n  CAST(SUM(d.completed_trips) AS DOUBLE) * 100.0\n    / NULLIF(SUM(d.requested_trips), 0) AS completion_rate_pct\nFROM delta.gold.agg_hourly_zone_demand d\nJOIN delta.gold.dim_zones z ON d.zone_key = z.zone_key\nWHERE d.hour_timestamp >= current_timestamp - INTERVAL '7' DAY\nGROUP BY z.name, z.centroid_latitude, z.centroid_longitude\nORDER BY requested_trips DESC",
+          "rawSQL": "SELECT\n  z.name AS zone_name,\n  z.centroid_latitude,\n  z.centroid_longitude,\n  SUM(d.requested_trips) AS requested_trips,\n  SUM(d.completed_trips) AS completed_trips,\n  AVG(d.avg_wait_time_minutes) AS avg_wait_minutes,\n  CAST(SUM(d.completed_trips) AS DOUBLE) * 100.0\n    / NULLIF(SUM(d.requested_trips), 0) AS completion_rate_pct\nFROM delta.gold.agg_hourly_zone_demand d\nJOIN delta.gold.dim_zones z ON d.zone_key = z.zone_key\nWHERE d.hour_timestamp >= current_timestamp - INTERVAL '7' DAY\nGROUP BY z.name, z.centroid_latitude, z.centroid_longitude\nORDER BY requested_trips DESC",
           "refId": "A"
         }
       ],
@@ -1306,7 +1306,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  z.name AS zone_name,\n  z.centroid_latitude,\n  z.centroid_longitude,\n  AVG(s.avg_surge_multiplier) AS avg_surge_multiplier,\n  MAX(s.max_surge_multiplier) AS max_surge_multiplier,\n  AVG(s.avg_available_drivers) AS avg_available_drivers,\n  AVG(s.avg_pending_requests) AS avg_pending_requests\nFROM delta.gold.agg_surge_history s\nJOIN delta.gold.dim_zones z ON s.zone_key = z.zone_key\nWHERE s.hour_timestamp >= current_timestamp - INTERVAL '7' DAY\nGROUP BY z.name, z.centroid_latitude, z.centroid_longitude\nORDER BY avg_surge_multiplier DESC",
+          "rawSQL": "SELECT\n  z.name AS zone_name,\n  z.centroid_latitude,\n  z.centroid_longitude,\n  AVG(s.avg_surge_multiplier) AS avg_surge_multiplier,\n  MAX(s.max_surge_multiplier) AS max_surge_multiplier,\n  AVG(s.avg_available_drivers) AS avg_available_drivers,\n  AVG(s.avg_pending_requests) AS avg_pending_requests\nFROM delta.gold.agg_surge_history s\nJOIN delta.gold.dim_zones z ON s.zone_key = z.zone_key\nWHERE s.hour_timestamp >= current_timestamp - INTERVAL '7' DAY\nGROUP BY z.name, z.centroid_latitude, z.centroid_longitude\nORDER BY avg_surge_multiplier DESC",
           "refId": "A"
         }
       ],

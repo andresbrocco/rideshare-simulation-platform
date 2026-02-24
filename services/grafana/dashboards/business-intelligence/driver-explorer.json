@@ -59,7 +59,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  first_name || ' ' || last_name AS name,\n  vehicle_make || ' ' || vehicle_model || ' (' || CAST(vehicle_year AS VARCHAR) || ')' AS vehicle,\n  license_plate,\n  shift_preference,\n  home_lat,\n  home_lon\nFROM delta.gold.dim_drivers\nWHERE driver_id = '$driver_id'\n  AND current_flag = TRUE",
+          "rawSQL": "SELECT\n  first_name || ' ' || last_name AS name,\n  vehicle_make || ' ' || vehicle_model || ' (' || CAST(vehicle_year AS VARCHAR) || ')' AS vehicle,\n  license_plate,\n  shift_preference,\n  home_lat,\n  home_lon\nFROM delta.gold.dim_drivers\nWHERE driver_id = '$driver_id'\n  AND current_flag = TRUE",
           "refId": "A"
         }
       ],
@@ -97,7 +97,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(*) AS trips_completed\nFROM delta.gold.fact_trips ft\nJOIN delta.gold.dim_drivers dd ON ft.driver_key = dd.driver_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE",
+          "rawSQL": "SELECT COUNT(*) AS trips_completed\nFROM delta.gold.fact_trips ft\nJOIN delta.gold.dim_drivers dd ON ft.driver_key = dd.driver_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE",
           "refId": "A"
         }
       ],
@@ -136,7 +136,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT COALESCE(SUM(driver_payout), 0) AS total_earnings\nFROM delta.gold.fact_payments fp\nJOIN delta.gold.dim_drivers dd ON fp.driver_key = dd.driver_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE",
+          "rawSQL": "SELECT COALESCE(SUM(driver_payout), 0) AS total_earnings\nFROM delta.gold.fact_payments fp\nJOIN delta.gold.dim_drivers dd ON fp.driver_key = dd.driver_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE",
           "refId": "A"
         }
       ],
@@ -179,7 +179,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT ROUND(AVG(CAST(rating AS DOUBLE)), 2) AS avg_rating\nFROM delta.gold.fact_ratings fr\nJOIN delta.gold.dim_drivers dd ON fr.ratee_key = dd.driver_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE\n  AND fr.ratee_type = 'driver'",
+          "rawSQL": "SELECT ROUND(AVG(CAST(rating AS DOUBLE)), 2) AS avg_rating\nFROM delta.gold.fact_ratings fr\nJOIN delta.gold.dim_drivers dd ON fr.ratee_key = dd.driver_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE\n  AND fr.ratee_type = 'driver'",
           "refId": "A"
         }
       ],
@@ -222,7 +222,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT ROUND(AVG(idle_pct), 1) AS idle_pct\nFROM delta.gold.agg_daily_driver_performance adp\nJOIN delta.gold.dim_drivers dd ON adp.driver_key = dd.driver_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE",
+          "rawSQL": "SELECT ROUND(AVG(idle_pct), 1) AS idle_pct\nFROM delta.gold.agg_daily_driver_performance adp\nJOIN delta.gold.dim_drivers dd ON adp.driver_key = dd.driver_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE",
           "refId": "A"
         }
       ],
@@ -296,7 +296,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  CAST(dt.date_key AS TIMESTAMP) AS time,\n  adp.trips_completed,\n  adp.total_payout,\n  adp.avg_rating\nFROM delta.gold.agg_daily_driver_performance adp\nJOIN delta.gold.dim_drivers dd ON adp.driver_key = dd.driver_key\nJOIN delta.gold.dim_time dt ON adp.time_key = dt.time_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE\nORDER BY time",
+          "rawSQL": "SELECT\n  CAST(dt.date_key AS TIMESTAMP) AS time,\n  adp.trips_completed,\n  adp.total_payout,\n  adp.avg_rating\nFROM delta.gold.agg_daily_driver_performance adp\nJOIN delta.gold.dim_drivers dd ON adp.driver_key = dd.driver_key\nJOIN delta.gold.dim_time dt ON adp.time_key = dt.time_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE\nORDER BY time",
           "refId": "A"
         }
       ],
@@ -353,7 +353,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  CAST(dt.date_key AS TIMESTAMP) AS time,\n  SUM(CASE WHEN fa.status = 'available' THEN fa.duration_minutes ELSE 0 END) AS available_minutes,\n  SUM(CASE WHEN fa.status = 'en_route_pickup' THEN fa.duration_minutes ELSE 0 END) AS en_route_minutes,\n  SUM(CASE WHEN fa.status = 'on_trip' THEN fa.duration_minutes ELSE 0 END) AS on_trip_minutes\nFROM delta.gold.fact_driver_activity fa\nJOIN delta.gold.dim_drivers dd ON fa.driver_key = dd.driver_key\nJOIN delta.gold.dim_time dt ON fa.time_key = dt.time_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE\nGROUP BY dt.date_key\nORDER BY time",
+          "rawSQL": "SELECT\n  CAST(dt.date_key AS TIMESTAMP) AS time,\n  SUM(CASE WHEN fa.status = 'available' THEN fa.duration_minutes ELSE 0 END) AS available_minutes,\n  SUM(CASE WHEN fa.status = 'en_route_pickup' THEN fa.duration_minutes ELSE 0 END) AS en_route_minutes,\n  SUM(CASE WHEN fa.status = 'on_trip' THEN fa.duration_minutes ELSE 0 END) AS on_trip_minutes\nFROM delta.gold.fact_driver_activity fa\nJOIN delta.gold.dim_drivers dd ON fa.driver_key = dd.driver_key\nJOIN delta.gold.dim_time dt ON fa.time_key = dt.time_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE\nGROUP BY dt.date_key\nORDER BY time",
           "refId": "A"
         }
       ],
@@ -400,7 +400,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  outcome,\n  COUNT(*) AS offer_count\nFROM delta.gold.fact_offers\nWHERE driver_id = '$driver_id'\nGROUP BY outcome\nORDER BY offer_count DESC",
+          "rawSQL": "SELECT\n  outcome,\n  COUNT(*) AS offer_count\nFROM delta.gold.fact_offers\nWHERE driver_id = '$driver_id'\nGROUP BY outcome\nORDER BY offer_count DESC",
           "refId": "A"
         }
       ],
@@ -443,7 +443,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT ROUND(AVG(CAST(response_seconds AS DOUBLE)), 1) AS avg_response_seconds\nFROM delta.gold.fact_offers\nWHERE driver_id = '$driver_id'\n  AND response_seconds IS NOT NULL",
+          "rawSQL": "SELECT ROUND(AVG(CAST(response_seconds AS DOUBLE)), 1) AS avg_response_seconds\nFROM delta.gold.fact_offers\nWHERE driver_id = '$driver_id'\n  AND response_seconds IS NOT NULL",
           "refId": "A"
         }
       ],
@@ -508,7 +508,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  CAST(dt.date_key AS TIMESTAMP) AS time,\n  AVG(CAST(fo.response_seconds AS DOUBLE)) AS avg_response_seconds,\n  COUNT(*) AS offer_count\nFROM delta.gold.fact_offers fo\nJOIN delta.gold.dim_time dt ON fo.time_key = dt.time_key\nWHERE fo.driver_id = '$driver_id'\nGROUP BY dt.date_key\nORDER BY time",
+          "rawSQL": "SELECT\n  CAST(dt.date_key AS TIMESTAMP) AS time,\n  AVG(CAST(fo.response_seconds AS DOUBLE)) AS avg_response_seconds,\n  COUNT(*) AS offer_count\nFROM delta.gold.fact_offers fo\nJOIN delta.gold.dim_time dt ON fo.time_key = dt.time_key\nWHERE fo.driver_id = '$driver_id'\nGROUP BY dt.date_key\nORDER BY time",
           "refId": "A"
         }
       ],
@@ -560,7 +560,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "WITH buckets AS (\n  SELECT rating_val, rating_label\n  FROM UNNEST(ARRAY[1,2,3,4,5],\n              ARRAY['1 Star','2 Stars','3 Stars','4 Stars','5 Stars']) AS t(rating_val, rating_label)\n),\nrating_data AS (\n  SELECT CAST(fr.rating AS INTEGER) AS rating_val, COUNT(*) AS rating_count\n  FROM delta.gold.fact_ratings fr\n  JOIN delta.gold.dim_drivers dd ON fr.ratee_key = dd.driver_key\n  WHERE dd.driver_id = '$driver_id'\n    AND dd.current_flag = TRUE\n    AND fr.ratee_type = 'driver'\n  GROUP BY CAST(fr.rating AS INTEGER)\n)\nSELECT b.rating_label AS rating, COALESCE(r.rating_count, 0) AS rating_count\nFROM buckets b LEFT JOIN rating_data r ON b.rating_val = r.rating_val\nORDER BY b.rating_val",
+          "rawSQL": "WITH buckets AS (\n  SELECT rating_val, rating_label\n  FROM UNNEST(ARRAY[1,2,3,4,5],\n              ARRAY['1 Star','2 Stars','3 Stars','4 Stars','5 Stars']) AS t(rating_val, rating_label)\n),\nrating_data AS (\n  SELECT CAST(fr.rating AS INTEGER) AS rating_val, COUNT(*) AS rating_count\n  FROM delta.gold.fact_ratings fr\n  JOIN delta.gold.dim_drivers dd ON fr.ratee_key = dd.driver_key\n  WHERE dd.driver_id = '$driver_id'\n    AND dd.current_flag = TRUE\n    AND fr.ratee_type = 'driver'\n  GROUP BY CAST(fr.rating AS INTEGER)\n)\nSELECT b.rating_label AS rating, COALESCE(r.rating_count, 0) AS rating_count\nFROM buckets b LEFT JOIN rating_data r ON b.rating_val = r.rating_val\nORDER BY b.rating_val",
           "refId": "A"
         }
       ],
@@ -612,7 +612,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "WITH buckets AS (\n  SELECT rating_val, rating_label\n  FROM UNNEST(ARRAY[1,2,3,4,5],\n              ARRAY['1 Star','2 Stars','3 Stars','4 Stars','5 Stars']) AS t(rating_val, rating_label)\n),\nrating_data AS (\n  SELECT CAST(fr.rating AS INTEGER) AS rating_val, COUNT(*) AS rating_count\n  FROM delta.gold.fact_ratings fr\n  JOIN delta.gold.dim_drivers dd ON fr.rater_key = dd.driver_key\n  WHERE dd.driver_id = '$driver_id'\n    AND dd.current_flag = TRUE\n    AND fr.rater_type = 'driver'\n  GROUP BY CAST(fr.rating AS INTEGER)\n)\nSELECT b.rating_label AS rating, COALESCE(r.rating_count, 0) AS rating_count\nFROM buckets b LEFT JOIN rating_data r ON b.rating_val = r.rating_val\nORDER BY b.rating_val",
+          "rawSQL": "WITH buckets AS (\n  SELECT rating_val, rating_label\n  FROM UNNEST(ARRAY[1,2,3,4,5],\n              ARRAY['1 Star','2 Stars','3 Stars','4 Stars','5 Stars']) AS t(rating_val, rating_label)\n),\nrating_data AS (\n  SELECT CAST(fr.rating AS INTEGER) AS rating_val, COUNT(*) AS rating_count\n  FROM delta.gold.fact_ratings fr\n  JOIN delta.gold.dim_drivers dd ON fr.rater_key = dd.driver_key\n  WHERE dd.driver_id = '$driver_id'\n    AND dd.current_flag = TRUE\n    AND fr.rater_type = 'driver'\n  GROUP BY CAST(fr.rating AS INTEGER)\n)\nSELECT b.rating_label AS rating, COALESCE(r.rating_count, 0) AS rating_count\nFROM buckets b LEFT JOIN rating_data r ON b.rating_val = r.rating_val\nORDER BY b.rating_val",
           "refId": "A"
         }
       ],
@@ -671,7 +671,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  ft.completed_at,\n  dr.first_name || ' ' || dr.last_name AS rider_name,\n  pz.name AS pickup_zone,\n  dz.name AS dropoff_zone,\n  ft.fare,\n  ft.surge_multiplier AS surge,\n  ROUND(ft.distance_km, 1) AS distance_km,\n  ROUND(ft.duration_minutes, 0) AS duration_min\nFROM delta.gold.fact_trips ft\nJOIN delta.gold.dim_drivers dd ON ft.driver_key = dd.driver_key\nJOIN delta.gold.dim_riders dr ON ft.rider_key = dr.rider_key\nLEFT JOIN delta.gold.dim_zones pz ON ft.pickup_zone_key = pz.zone_key\nLEFT JOIN delta.gold.dim_zones dz ON ft.dropoff_zone_key = dz.zone_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE\nORDER BY ft.completed_at DESC\nLIMIT 50",
+          "rawSQL": "SELECT\n  ft.completed_at,\n  dr.first_name || ' ' || dr.last_name AS rider_name,\n  pz.name AS pickup_zone,\n  dz.name AS dropoff_zone,\n  ft.fare,\n  ft.surge_multiplier AS surge,\n  ROUND(ft.distance_km, 1) AS distance_km,\n  ROUND(ft.duration_minutes, 0) AS duration_min\nFROM delta.gold.fact_trips ft\nJOIN delta.gold.dim_drivers dd ON ft.driver_key = dd.driver_key\nJOIN delta.gold.dim_riders dr ON ft.rider_key = dr.rider_key\nLEFT JOIN delta.gold.dim_zones pz ON ft.pickup_zone_key = pz.zone_key\nLEFT JOIN delta.gold.dim_zones dz ON ft.dropoff_zone_key = dz.zone_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE\nORDER BY ft.completed_at DESC\nLIMIT 50",
           "refId": "A"
         }
       ],
@@ -707,7 +707,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  fc.cancelled_at,\n  dr.first_name || ' ' || dr.last_name AS rider_name,\n  fc.cancellation_reason,\n  fc.cancellation_stage,\n  fc.surge_multiplier AS surge\nFROM delta.gold.fact_cancellations fc\nJOIN delta.gold.dim_drivers dd ON fc.driver_key = dd.driver_key\nLEFT JOIN delta.gold.dim_riders dr ON fc.rider_key = dr.rider_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE\nORDER BY fc.cancelled_at DESC",
+          "rawSQL": "SELECT\n  fc.cancelled_at,\n  dr.first_name || ' ' || dr.last_name AS rider_name,\n  fc.cancellation_reason,\n  fc.cancellation_stage,\n  fc.surge_multiplier AS surge\nFROM delta.gold.fact_cancellations fc\nJOIN delta.gold.dim_drivers dd ON fc.driver_key = dd.driver_key\nLEFT JOIN delta.gold.dim_riders dr ON fc.rider_key = dr.rider_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE\nORDER BY fc.cancelled_at DESC",
           "refId": "A"
         }
       ],
@@ -776,7 +776,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  latitude,\n  longitude,\n  speed,\n  trip_state,\n  timestamp\nFROM delta.silver.stg_gps_pings\nWHERE entity_type = 'driver'\n  AND entity_id = '$driver_id'\nORDER BY timestamp DESC\nLIMIT 1000",
+          "rawSQL": "SELECT\n  latitude,\n  longitude,\n  speed,\n  trip_state,\n  timestamp\nFROM delta.silver.stg_gps_pings\nWHERE entity_type = 'driver'\n  AND entity_id = '$driver_id'\nORDER BY timestamp DESC\nLIMIT 1000",
           "refId": "A"
         }
       ],

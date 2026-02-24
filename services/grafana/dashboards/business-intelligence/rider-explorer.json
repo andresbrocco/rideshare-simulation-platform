@@ -59,7 +59,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  first_name || ' ' || last_name AS name,\n  payment_method_type,\n  behavior_factor,\n  home_lat,\n  home_lon\nFROM delta.gold.dim_riders\nWHERE rider_id = '$rider_id'",
+          "rawSQL": "SELECT\n  first_name || ' ' || last_name AS name,\n  payment_method_type,\n  behavior_factor,\n  home_lat,\n  home_lon\nFROM delta.gold.dim_riders\nWHERE rider_id = '$rider_id'",
           "refId": "A"
         }
       ],
@@ -97,7 +97,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(*) AS trips_completed\nFROM delta.gold.fact_trips ft\nJOIN delta.gold.dim_riders dr ON ft.rider_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'",
+          "rawSQL": "SELECT COUNT(*) AS trips_completed\nFROM delta.gold.fact_trips ft\nJOIN delta.gold.dim_riders dr ON ft.rider_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'",
           "refId": "A"
         }
       ],
@@ -136,7 +136,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT COALESCE(SUM(total_fare), 0) AS total_spent\nFROM delta.gold.fact_payments fp\nJOIN delta.gold.dim_riders dr ON fp.rider_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'",
+          "rawSQL": "SELECT COALESCE(SUM(total_fare), 0) AS total_spent\nFROM delta.gold.fact_payments fp\nJOIN delta.gold.dim_riders dr ON fp.rider_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'",
           "refId": "A"
         }
       ],
@@ -179,7 +179,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT ROUND(AVG(CAST(rating AS DOUBLE)), 2) AS avg_rating\nFROM delta.gold.fact_ratings fr\nJOIN delta.gold.dim_riders dr ON fr.ratee_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'\n  AND fr.ratee_type = 'rider'",
+          "rawSQL": "SELECT ROUND(AVG(CAST(rating AS DOUBLE)), 2) AS avg_rating\nFROM delta.gold.fact_ratings fr\nJOIN delta.gold.dim_riders dr ON fr.ratee_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'\n  AND fr.ratee_type = 'rider'",
           "refId": "A"
         }
       ],
@@ -222,7 +222,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT ROUND(AVG(date_diff('second', requested_at, matched_at)), 0) AS avg_wait_seconds\nFROM delta.gold.fact_trips ft\nJOIN delta.gold.dim_riders dr ON ft.rider_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'\n  AND ft.matched_at IS NOT NULL",
+          "rawSQL": "SELECT ROUND(AVG(date_diff('second', requested_at, matched_at)), 0) AS avg_wait_seconds\nFROM delta.gold.fact_trips ft\nJOIN delta.gold.dim_riders dr ON ft.rider_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'\n  AND ft.matched_at IS NOT NULL",
           "refId": "A"
         }
       ],
@@ -287,7 +287,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  CAST(dt.date_key AS TIMESTAMP) AS time,\n  SUM(fp.total_fare) AS daily_spending\nFROM delta.gold.fact_payments fp\nJOIN delta.gold.dim_riders dr ON fp.rider_key = dr.rider_key\nJOIN delta.gold.dim_time dt ON fp.time_key = dt.time_key\nWHERE dr.rider_id = '$rider_id'\nGROUP BY dt.date_key\nORDER BY time",
+          "rawSQL": "SELECT\n  CAST(dt.date_key AS TIMESTAMP) AS time,\n  SUM(fp.total_fare) AS daily_spending\nFROM delta.gold.fact_payments fp\nJOIN delta.gold.dim_riders dr ON fp.rider_key = dr.rider_key\nJOIN delta.gold.dim_time dt ON fp.time_key = dt.time_key\nWHERE dr.rider_id = '$rider_id'\nGROUP BY dt.date_key\nORDER BY time",
           "refId": "A"
         }
       ],
@@ -346,7 +346,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  fr.rating_timestamp AS time,\n  fr.rating\nFROM delta.gold.fact_ratings fr\nJOIN delta.gold.dim_riders dr ON fr.ratee_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'\n  AND fr.ratee_type = 'rider'\nORDER BY time",
+          "rawSQL": "SELECT\n  fr.rating_timestamp AS time,\n  fr.rating\nFROM delta.gold.fact_ratings fr\nJOIN delta.gold.dim_riders dr ON fr.ratee_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'\n  AND fr.ratee_type = 'rider'\nORDER BY time",
           "refId": "A"
         }
       ],
@@ -398,7 +398,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "WITH buckets AS (\n  SELECT rating_val, rating_label\n  FROM UNNEST(ARRAY[1,2,3,4,5],\n              ARRAY['1 Star','2 Stars','3 Stars','4 Stars','5 Stars']) AS t(rating_val, rating_label)\n),\nrating_data AS (\n  SELECT CAST(fr.rating AS INTEGER) AS rating_val, COUNT(*) AS rating_count\n  FROM delta.gold.fact_ratings fr\n  JOIN delta.gold.dim_riders dr ON fr.ratee_key = dr.rider_key\n  WHERE dr.rider_id = '$rider_id'\n    AND fr.ratee_type = 'rider'\n  GROUP BY CAST(fr.rating AS INTEGER)\n)\nSELECT b.rating_label AS rating, COALESCE(r.rating_count, 0) AS rating_count\nFROM buckets b LEFT JOIN rating_data r ON b.rating_val = r.rating_val\nORDER BY b.rating_val",
+          "rawSQL": "WITH buckets AS (\n  SELECT rating_val, rating_label\n  FROM UNNEST(ARRAY[1,2,3,4,5],\n              ARRAY['1 Star','2 Stars','3 Stars','4 Stars','5 Stars']) AS t(rating_val, rating_label)\n),\nrating_data AS (\n  SELECT CAST(fr.rating AS INTEGER) AS rating_val, COUNT(*) AS rating_count\n  FROM delta.gold.fact_ratings fr\n  JOIN delta.gold.dim_riders dr ON fr.ratee_key = dr.rider_key\n  WHERE dr.rider_id = '$rider_id'\n    AND fr.ratee_type = 'rider'\n  GROUP BY CAST(fr.rating AS INTEGER)\n)\nSELECT b.rating_label AS rating, COALESCE(r.rating_count, 0) AS rating_count\nFROM buckets b LEFT JOIN rating_data r ON b.rating_val = r.rating_val\nORDER BY b.rating_val",
           "refId": "A"
         }
       ],
@@ -450,7 +450,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "WITH buckets AS (\n  SELECT rating_val, rating_label\n  FROM UNNEST(ARRAY[1,2,3,4,5],\n              ARRAY['1 Star','2 Stars','3 Stars','4 Stars','5 Stars']) AS t(rating_val, rating_label)\n),\nrating_data AS (\n  SELECT CAST(fr.rating AS INTEGER) AS rating_val, COUNT(*) AS rating_count\n  FROM delta.gold.fact_ratings fr\n  JOIN delta.gold.dim_riders dr ON fr.rater_key = dr.rider_key\n  WHERE dr.rider_id = '$rider_id'\n    AND fr.rater_type = 'rider'\n  GROUP BY CAST(fr.rating AS INTEGER)\n)\nSELECT b.rating_label AS rating, COALESCE(r.rating_count, 0) AS rating_count\nFROM buckets b LEFT JOIN rating_data r ON b.rating_val = r.rating_val\nORDER BY b.rating_val",
+          "rawSQL": "WITH buckets AS (\n  SELECT rating_val, rating_label\n  FROM UNNEST(ARRAY[1,2,3,4,5],\n              ARRAY['1 Star','2 Stars','3 Stars','4 Stars','5 Stars']) AS t(rating_val, rating_label)\n),\nrating_data AS (\n  SELECT CAST(fr.rating AS INTEGER) AS rating_val, COUNT(*) AS rating_count\n  FROM delta.gold.fact_ratings fr\n  JOIN delta.gold.dim_riders dr ON fr.rater_key = dr.rider_key\n  WHERE dr.rider_id = '$rider_id'\n    AND fr.rater_type = 'rider'\n  GROUP BY CAST(fr.rating AS INTEGER)\n)\nSELECT b.rating_label AS rating, COALESCE(r.rating_count, 0) AS rating_count\nFROM buckets b LEFT JOIN rating_data r ON b.rating_val = r.rating_val\nORDER BY b.rating_val",
           "refId": "A"
         }
       ],
@@ -509,7 +509,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  ft.completed_at,\n  dd.first_name || ' ' || dd.last_name AS driver_name,\n  pz.name AS pickup_zone,\n  dz.name AS dropoff_zone,\n  ft.fare,\n  ft.surge_multiplier AS surge,\n  ROUND(ft.distance_km, 1) AS distance_km,\n  ROUND(ft.duration_minutes, 0) AS duration_min\nFROM delta.gold.fact_trips ft\nJOIN delta.gold.dim_riders dr ON ft.rider_key = dr.rider_key\nJOIN delta.gold.dim_drivers dd ON ft.driver_key = dd.driver_key\nLEFT JOIN delta.gold.dim_zones pz ON ft.pickup_zone_key = pz.zone_key\nLEFT JOIN delta.gold.dim_zones dz ON ft.dropoff_zone_key = dz.zone_key\nWHERE dr.rider_id = '$rider_id'\nORDER BY ft.completed_at DESC\nLIMIT 50",
+          "rawSQL": "SELECT\n  ft.completed_at,\n  dd.first_name || ' ' || dd.last_name AS driver_name,\n  pz.name AS pickup_zone,\n  dz.name AS dropoff_zone,\n  ft.fare,\n  ft.surge_multiplier AS surge,\n  ROUND(ft.distance_km, 1) AS distance_km,\n  ROUND(ft.duration_minutes, 0) AS duration_min\nFROM delta.gold.fact_trips ft\nJOIN delta.gold.dim_riders dr ON ft.rider_key = dr.rider_key\nJOIN delta.gold.dim_drivers dd ON ft.driver_key = dd.driver_key\nLEFT JOIN delta.gold.dim_zones pz ON ft.pickup_zone_key = pz.zone_key\nLEFT JOIN delta.gold.dim_zones dz ON ft.dropoff_zone_key = dz.zone_key\nWHERE dr.rider_id = '$rider_id'\nORDER BY ft.completed_at DESC\nLIMIT 50",
           "refId": "A"
         }
       ],
@@ -548,7 +548,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  cancellation_reason,\n  COUNT(*) AS cancellation_count\nFROM delta.gold.fact_cancellations fc\nJOIN delta.gold.dim_riders dr ON fc.rider_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'\nGROUP BY cancellation_reason\nORDER BY cancellation_count DESC",
+          "rawSQL": "SELECT\n  cancellation_reason,\n  COUNT(*) AS cancellation_count\nFROM delta.gold.fact_cancellations fc\nJOIN delta.gold.dim_riders dr ON fc.rider_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'\nGROUP BY cancellation_reason\nORDER BY cancellation_count DESC",
           "refId": "A"
         }
       ],
@@ -591,7 +591,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  ROUND(\n    100.0 * SUM(CASE WHEN ft.surge_multiplier > 1.0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0),\n    1\n  ) AS surge_trip_pct\nFROM delta.gold.fact_trips ft\nJOIN delta.gold.dim_riders dr ON ft.rider_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'",
+          "rawSQL": "SELECT\n  ROUND(\n    100.0 * SUM(CASE WHEN ft.surge_multiplier > 1.0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0),\n    1\n  ) AS surge_trip_pct\nFROM delta.gold.fact_trips ft\nJOIN delta.gold.dim_riders dr ON ft.rider_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'",
           "refId": "A"
         }
       ],
@@ -643,7 +643,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "WITH buckets AS (\n  SELECT range_name, range_order\n  FROM UNNEST(ARRAY['1.0x (none)','1.0-1.5x','1.5-2.0x','2.0x+'],\n              ARRAY[1,2,3,4]) AS t(range_name, range_order)\n),\nsurge_data AS (\n  SELECT\n    CASE\n      WHEN ft.surge_multiplier <= 1.0 THEN '1.0x (none)'\n      WHEN ft.surge_multiplier <= 1.5 THEN '1.0-1.5x'\n      WHEN ft.surge_multiplier <= 2.0 THEN '1.5-2.0x'\n      ELSE '2.0x+'\n    END AS surge_bucket,\n    COUNT(*) AS trip_count\n  FROM delta.gold.fact_trips ft\n  JOIN delta.gold.dim_riders dr ON ft.rider_key = dr.rider_key\n  WHERE dr.rider_id = '$rider_id'\n  GROUP BY 1\n)\nSELECT b.range_name AS surge_range, COALESCE(s.trip_count, 0) AS trip_count\nFROM buckets b LEFT JOIN surge_data s ON b.range_name = s.surge_bucket\nORDER BY b.range_order",
+          "rawSQL": "WITH buckets AS (\n  SELECT range_name, range_order\n  FROM UNNEST(ARRAY['1.0x (none)','1.0-1.5x','1.5-2.0x','2.0x+'],\n              ARRAY[1,2,3,4]) AS t(range_name, range_order)\n),\nsurge_data AS (\n  SELECT\n    CASE\n      WHEN ft.surge_multiplier <= 1.0 THEN '1.0x (none)'\n      WHEN ft.surge_multiplier <= 1.5 THEN '1.0-1.5x'\n      WHEN ft.surge_multiplier <= 2.0 THEN '1.5-2.0x'\n      ELSE '2.0x+'\n    END AS surge_bucket,\n    COUNT(*) AS trip_count\n  FROM delta.gold.fact_trips ft\n  JOIN delta.gold.dim_riders dr ON ft.rider_key = dr.rider_key\n  WHERE dr.rider_id = '$rider_id'\n  GROUP BY 1\n)\nSELECT b.range_name AS surge_range, COALESCE(s.trip_count, 0) AS trip_count\nFROM buckets b LEFT JOIN surge_data s ON b.range_name = s.surge_bucket\nORDER BY b.range_order",
           "refId": "A"
         }
       ],
@@ -712,7 +712,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  latitude,\n  longitude,\n  speed,\n  trip_state,\n  timestamp\nFROM delta.silver.stg_gps_pings\nWHERE entity_type = 'rider'\n  AND entity_id = '$rider_id'\nORDER BY timestamp DESC\nLIMIT 1000",
+          "rawSQL": "SELECT\n  latitude,\n  longitude,\n  speed,\n  trip_state,\n  timestamp\nFROM delta.silver.stg_gps_pings\nWHERE entity_type = 'rider'\n  AND entity_id = '$rider_id'\nORDER BY timestamp DESC\nLIMIT 1000",
           "refId": "A"
         }
       ],

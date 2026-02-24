@@ -88,7 +88,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(DISTINCT driver_key) as active_drivers\nFROM delta.gold.fact_trips\nWHERE completed_at >= current_timestamp - INTERVAL '7' DAY",
+          "rawSQL": "SELECT COUNT(DISTINCT driver_key) as active_drivers\nFROM delta.gold.fact_trips\nWHERE completed_at >= current_timestamp - INTERVAL '7' DAY",
           "refId": "A"
         }
       ],
@@ -157,7 +157,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT AVG(r.rating) as avg_rating\nFROM delta.gold.fact_ratings r\nJOIN delta.gold.fact_trips t ON r.trip_key = t.trip_key\nWHERE t.completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND r.ratee_type = 'driver'",
+          "rawSQL": "SELECT AVG(r.rating) as avg_rating\nFROM delta.gold.fact_ratings r\nJOIN delta.gold.fact_trips t ON r.trip_key = t.trip_key\nWHERE t.completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND r.ratee_type = 'driver'",
           "refId": "A"
         }
       ],
@@ -226,7 +226,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT AVG(idle_pct) as avg_idle_pct\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= current_date - INTERVAL '7' DAY",
+          "rawSQL": "SELECT AVG(idle_pct) as avg_idle_pct\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= current_date - INTERVAL '7' DAY",
           "refId": "A"
         }
       ],
@@ -328,7 +328,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "WITH ratings AS (\n  SELECT rating_val, rating_label\n  FROM UNNEST(ARRAY[1,2,3,4,5],\n              ARRAY['1 Star','2 Stars','3 Stars','4 Stars','5 Stars']) AS t(rating_val, rating_label)\n),\nrating_data AS (\n  SELECT CAST(FLOOR(r.rating) AS INTEGER) as rating_val, COUNT(*) as trip_count\n  FROM delta.gold.fact_ratings r\n  JOIN delta.gold.fact_trips t ON r.trip_key = t.trip_key\n  WHERE t.completed_at >= current_timestamp - INTERVAL '7' DAY AND r.ratee_type = 'driver'\n  GROUP BY CAST(FLOOR(r.rating) AS INTEGER)\n)\nSELECT rt.rating_label as rating_bucket, COALESCE(rd.trip_count, 0) as trip_count\nFROM ratings rt LEFT JOIN rating_data rd ON rt.rating_val = rd.rating_val\nORDER BY rt.rating_val",
+          "rawSQL": "WITH ratings AS (\n  SELECT rating_val, rating_label\n  FROM UNNEST(ARRAY[1,2,3,4,5],\n              ARRAY['1 Star','2 Stars','3 Stars','4 Stars','5 Stars']) AS t(rating_val, rating_label)\n),\nrating_data AS (\n  SELECT CAST(FLOOR(r.rating) AS INTEGER) as rating_val, COUNT(*) as trip_count\n  FROM delta.gold.fact_ratings r\n  JOIN delta.gold.fact_trips t ON r.trip_key = t.trip_key\n  WHERE t.completed_at >= current_timestamp - INTERVAL '7' DAY AND r.ratee_type = 'driver'\n  GROUP BY CAST(FLOOR(r.rating) AS INTEGER)\n)\nSELECT rt.rating_label as rating_bucket, COALESCE(rd.trip_count, 0) as trip_count\nFROM ratings rt LEFT JOIN rating_data rd ON rt.rating_val = rd.rating_val\nORDER BY rt.rating_val",
           "refId": "A"
         }
       ],
@@ -392,7 +392,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  CASE\n    WHEN dp.idle_pct >= 80 THEN 'High Idle (80%+)'\n    WHEN dp.idle_pct >= 50 THEN 'Moderate Idle (50-80%)'\n    ELSE 'Low Idle (<50%)'\n  END as idle_tier,\n  COUNT(DISTINCT dp.driver_key) as driver_count\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= CAST(current_timestamp - INTERVAL '7' DAY AS DATE)\nGROUP BY\n  CASE\n    WHEN dp.idle_pct >= 80 THEN 'High Idle (80%+)'\n    WHEN dp.idle_pct >= 50 THEN 'Moderate Idle (50-80%)'\n    ELSE 'Low Idle (<50%)'\n  END\nORDER BY driver_count DESC",
+          "rawSQL": "SELECT\n  CASE\n    WHEN dp.idle_pct >= 80 THEN 'High Idle (80%+)'\n    WHEN dp.idle_pct >= 50 THEN 'Moderate Idle (50-80%)'\n    ELSE 'Low Idle (<50%)'\n  END as idle_tier,\n  COUNT(DISTINCT dp.driver_key) as driver_count\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= CAST(current_timestamp - INTERVAL '7' DAY AS DATE)\nGROUP BY\n  CASE\n    WHEN dp.idle_pct >= 80 THEN 'High Idle (80%+)'\n    WHEN dp.idle_pct >= 50 THEN 'Moderate Idle (50-80%)'\n    ELSE 'Low Idle (<50%)'\n  END\nORDER BY driver_count DESC",
           "refId": "A"
         }
       ],
@@ -559,7 +559,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  CAST(dt.date_key AS TIMESTAMP) as time,\n  AVG(dp.avg_rating) as avg_rating,\n  AVG(dp.idle_pct) / 100.0 as idle_rate,\n  AVG(dp.on_trip_minutes) as avg_on_trip_minutes\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= CAST(current_timestamp - INTERVAL '7' DAY AS DATE)\nGROUP BY dt.date_key\nORDER BY dt.date_key",
+          "rawSQL": "SELECT\n  CAST(dt.date_key AS TIMESTAMP) as time,\n  AVG(dp.avg_rating) as avg_rating,\n  AVG(dp.idle_pct) / 100.0 as idle_rate,\n  AVG(dp.on_trip_minutes) as avg_on_trip_minutes\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= CAST(current_timestamp - INTERVAL '7' DAY AS DATE)\nGROUP BY dt.date_key\nORDER BY dt.date_key",
           "refId": "A"
         }
       ],
@@ -664,7 +664,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  d.driver_id,\n  d.first_name || ' ' || d.last_name as driver_name,\n  COUNT(t.trip_key) as total_trips,\n  AVG(r.rating) as avg_rating,\n  CAST(SUM(t.fare) AS DECIMAL(10,2)) as total_earnings\nFROM delta.gold.dim_drivers d\nJOIN delta.gold.fact_trips t ON d.driver_key = t.driver_key\nLEFT JOIN delta.gold.fact_ratings r ON t.trip_key = r.trip_key AND r.ratee_type = 'driver'\nWHERE t.completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND t.trip_state = 'completed'\nGROUP BY d.driver_id, d.first_name, d.last_name\nORDER BY total_trips DESC\nLIMIT 20",
+          "rawSQL": "SELECT\n  d.driver_id,\n  d.first_name || ' ' || d.last_name as driver_name,\n  COUNT(t.trip_key) as total_trips,\n  AVG(r.rating) as avg_rating,\n  CAST(SUM(t.fare) AS DECIMAL(10,2)) as total_earnings\nFROM delta.gold.dim_drivers d\nJOIN delta.gold.fact_trips t ON d.driver_key = t.driver_key\nLEFT JOIN delta.gold.fact_ratings r ON t.trip_key = r.trip_key AND r.ratee_type = 'driver'\nWHERE t.completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND t.trip_state = 'completed'\nGROUP BY d.driver_id, d.first_name, d.last_name\nORDER BY total_trips DESC\nLIMIT 20",
           "refId": "A"
         }
       ],
@@ -746,7 +746,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  d.driver_id,\n  dp.trips_completed,\n  dp.total_payout,\n  dp.avg_rating\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_drivers d ON dp.driver_key = d.driver_key\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= CAST(current_timestamp - INTERVAL '7' DAY AS DATE)\n  AND dp.trips_completed > 0\nORDER BY dp.trips_completed DESC\nLIMIT 100",
+          "rawSQL": "SELECT\n  d.driver_id,\n  dp.trips_completed,\n  dp.total_payout,\n  dp.avg_rating\nFROM delta.gold.agg_daily_driver_performance dp\nJOIN delta.gold.dim_drivers d ON dp.driver_key = d.driver_key\nJOIN delta.gold.dim_time dt ON dp.time_key = dt.time_key\nWHERE dt.date_key >= CAST(current_timestamp - INTERVAL '7' DAY AS DATE)\n  AND dp.trips_completed > 0\nORDER BY dp.trips_completed DESC\nLIMIT 100",
           "refId": "A"
         }
       ],

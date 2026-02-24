@@ -89,7 +89,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(*) as total_records\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR",
+          "rawSQL": "SELECT COUNT(*) as total_records\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR",
           "refId": "A"
         }
       ],
@@ -158,7 +158,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  CAST(SUM(CASE WHEN trip_id IS NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*) as null_rate\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR",
+          "rawSQL": "SELECT\n  CAST(SUM(CASE WHEN trip_id IS NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*) as null_rate\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR",
           "refId": "A"
         }
       ],
@@ -227,7 +227,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  (COUNT(*) - COUNT(DISTINCT trip_id)) * 100.0 / NULLIF(COUNT(*), 0) as duplicate_rate\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR",
+          "rawSQL": "SELECT\n  (COUNT(*) - COUNT(DISTINCT trip_id)) * 100.0 / NULLIF(COUNT(*), 0) as duplicate_rate\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR",
           "refId": "A"
         }
       ],
@@ -295,7 +295,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(*) as violations\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\n  AND (\n    trip_id IS NULL\n    OR timestamp IS NULL\n    OR event_type IS NULL\n  )",
+          "rawSQL": "SELECT COUNT(*) as violations\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\n  AND (\n    trip_id IS NULL\n    OR timestamp IS NULL\n    OR event_type IS NULL\n  )",
           "refId": "A"
         }
       ],
@@ -386,7 +386,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  'stg_trips' as table_name,\n  CAST(SUM(CASE WHEN trip_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*) as completeness\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT\n  'stg_gps_pings',\n  CAST(SUM(CASE WHEN event_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*)\nFROM delta.silver.stg_gps_pings\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT\n  'stg_driver_status',\n  CAST(SUM(CASE WHEN driver_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*)\nFROM delta.silver.stg_driver_status\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT\n  'stg_surge_updates',\n  CAST(SUM(CASE WHEN zone_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*)\nFROM delta.silver.stg_surge_updates\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT\n  'stg_ratings',\n  CAST(SUM(CASE WHEN rating_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*)\nFROM delta.silver.stg_ratings\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT\n  'stg_payments',\n  CAST(SUM(CASE WHEN payment_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*)\nFROM delta.silver.stg_payments\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nORDER BY completeness",
+          "rawSQL": "SELECT\n  'stg_trips' as table_name,\n  CAST(SUM(CASE WHEN trip_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*) as completeness\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT\n  'stg_gps_pings',\n  CAST(SUM(CASE WHEN event_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*)\nFROM delta.silver.stg_gps_pings\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT\n  'stg_driver_status',\n  CAST(SUM(CASE WHEN driver_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*)\nFROM delta.silver.stg_driver_status\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT\n  'stg_surge_updates',\n  CAST(SUM(CASE WHEN zone_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*)\nFROM delta.silver.stg_surge_updates\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT\n  'stg_ratings',\n  CAST(SUM(CASE WHEN rating_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*)\nFROM delta.silver.stg_ratings\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT\n  'stg_payments',\n  CAST(SUM(CASE WHEN payment_id IS NOT NULL THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*)\nFROM delta.silver.stg_payments\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nORDER BY completeness",
           "refId": "A"
         }
       ],
@@ -444,7 +444,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  'trip_id' as field_name,\n  SUM(CASE WHEN trip_id IS NULL THEN 1 ELSE 0 END) as null_count\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT\n  'driver_id',\n  SUM(CASE WHEN driver_id IS NULL THEN 1 ELSE 0 END)\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT\n  'fare',\n  SUM(CASE WHEN fare IS NULL THEN 1 ELSE 0 END)\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR",
+          "rawSQL": "SELECT\n  'trip_id' as field_name,\n  SUM(CASE WHEN trip_id IS NULL THEN 1 ELSE 0 END) as null_count\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT\n  'driver_id',\n  SUM(CASE WHEN driver_id IS NULL THEN 1 ELSE 0 END)\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT\n  'fare',\n  SUM(CASE WHEN fare IS NULL THEN 1 ELSE 0 END)\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR",
           "refId": "A"
         }
       ],
@@ -578,7 +578,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  date_trunc('hour', _ingested_at) as time,\n  COUNT(*) as total_records,\n  SUM(CASE WHEN trip_id IS NULL THEN 1 ELSE 0 END) as null_records\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nGROUP BY date_trunc('hour', _ingested_at)\nORDER BY time",
+          "rawSQL": "SELECT\n  date_trunc('hour', _ingested_at) as time,\n  COUNT(*) as total_records,\n  SUM(CASE WHEN trip_id IS NULL THEN 1 ELSE 0 END) as null_records\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nGROUP BY date_trunc('hour', _ingested_at)\nORDER BY time",
           "refId": "A"
         }
       ],
@@ -717,7 +717,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  event_id,\n  trip_id,\n  event_type,\n  trip_state,\n  timestamp,\n  fare\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\n  AND (\n    trip_id IS NULL\n    OR fare IS NULL\n    OR fare < 0\n  )\nORDER BY _ingested_at DESC\nLIMIT 50",
+          "rawSQL": "SELECT\n  event_id,\n  trip_id,\n  event_type,\n  trip_state,\n  timestamp,\n  fare\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\n  AND (\n    trip_id IS NULL\n    OR fare IS NULL\n    OR fare < 0\n  )\nORDER BY _ingested_at DESC\nLIMIT 50",
           "refId": "A"
         }
       ],
@@ -785,7 +785,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(*) as violations\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\n  AND (\n    TRY_CAST(fare AS DOUBLE) IS NULL\n    OR TRY_CAST(surge_multiplier AS DOUBLE) IS NULL\n  )",
+          "rawSQL": "SELECT COUNT(*) as violations\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\n  AND (\n    TRY_CAST(fare AS DOUBLE) IS NULL\n    OR TRY_CAST(surge_multiplier AS DOUBLE) IS NULL\n  )",
           "refId": "A"
         }
       ],
@@ -866,7 +866,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  event_type,\n  COUNT(*) - COUNT(DISTINCT event_id) as duplicate_count\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nGROUP BY event_type\nORDER BY duplicate_count DESC",
+          "rawSQL": "SELECT\n  event_type,\n  COUNT(*) - COUNT(DISTINCT event_id) as duplicate_count\nFROM delta.silver.stg_trips\nWHERE _ingested_at >= current_timestamp - INTERVAL '24' HOUR\nGROUP BY event_type\nORDER BY duplicate_count DESC",
           "refId": "A"
         }
       ],
@@ -1175,7 +1175,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(*) as total_anomalies\nFROM delta.silver.anomalies_all\nWHERE detected_at >= current_timestamp - INTERVAL '24' HOUR",
+          "rawSQL": "SELECT COUNT(*) as total_anomalies\nFROM delta.silver.anomalies_all\nWHERE detected_at >= current_timestamp - INTERVAL '24' HOUR",
           "refId": "A"
         }
       ],
@@ -1243,7 +1243,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  anomaly_type,\n  COUNT(*) as anomaly_count\nFROM delta.silver.anomalies_all\nWHERE detected_at >= current_timestamp - INTERVAL '24' HOUR\nGROUP BY anomaly_type\nORDER BY anomaly_count DESC",
+          "rawSQL": "SELECT\n  anomaly_type,\n  COUNT(*) as anomaly_count\nFROM delta.silver.anomalies_all\nWHERE detected_at >= current_timestamp - INTERVAL '24' HOUR\nGROUP BY anomaly_type\nORDER BY anomaly_count DESC",
           "refId": "A"
         }
       ],
@@ -1335,7 +1335,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSql": "SELECT\n  detected_at,\n  anomaly_type,\n  entity_id,\n  details\nFROM delta.silver.anomalies_all\nORDER BY detected_at DESC\nLIMIT 50",
+          "rawSQL": "SELECT\n  detected_at,\n  anomaly_type,\n  entity_id,\n  details\nFROM delta.silver.anomalies_all\nORDER BY detected_at DESC\nLIMIT 50",
           "refId": "A"
         }
       ],
