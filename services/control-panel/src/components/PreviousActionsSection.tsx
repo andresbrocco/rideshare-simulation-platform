@@ -56,7 +56,10 @@ function formatTimestamp(isoString: string): string {
   }
 }
 
-export function PreviousActionsSection({ actionHistory, isPuppet }: PreviousActionsSectionProps) {
+export function PreviousActionsSection({
+  actionHistory = [],
+  isPuppet,
+}: PreviousActionsSectionProps) {
   if (isPuppet) {
     return null;
   }

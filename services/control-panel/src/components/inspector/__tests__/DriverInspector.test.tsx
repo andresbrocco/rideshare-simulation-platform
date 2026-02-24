@@ -57,6 +57,7 @@ const mockDriverState: DriverState = {
     avg_trip_duration_minutes: 20,
     avg_rating_given: 4.5,
   },
+  action_history: [],
   is_ephemeral: false,
   is_puppet: false,
 };

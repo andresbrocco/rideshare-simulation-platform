@@ -48,6 +48,7 @@ const mockRiderState: RiderState = {
     avg_rating_given: 4.7,
     surge_trips_percentage: 20,
   },
+  action_history: [],
   is_ephemeral: false,
   is_puppet: false,
 };

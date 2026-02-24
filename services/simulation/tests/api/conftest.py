@@ -108,6 +108,7 @@ def mock_simulation_engine(mock_matching_server):
     engine.resume = Mock()
     engine.set_speed = Mock()
     engine.reset = Mock()
+    engine.real_time_ratio = Mock(return_value=1.0)
     return engine
 
 

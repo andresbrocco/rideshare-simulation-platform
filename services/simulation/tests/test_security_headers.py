@@ -38,6 +38,7 @@ def test_app(monkeypatch: MonkeyPatch) -> FastAPI:
     mock_engine._matching_server = mock_matching_server
     mock_engine._env = mock_env
     mock_engine.set_event_loop = Mock()
+    mock_engine.real_time_ratio = Mock(return_value=1.0)
 
     mock_agent_factory = Mock()
 

@@ -92,22 +92,6 @@ export default function InspectorPopup({
     setIsMinimized(false);
   }, [entityKey]);
 
-  // Notify parent of home location changes for map marker
-  useEffect(() => {
-    if (!onHomeLocationChange) return;
-
-    let homeLocation: [number, number] | null = null;
-    if (driverState?.dna?.home_location) {
-      const [lat, lon] = driverState.dna.home_location;
-      homeLocation = [lon, lat]; // Swap to [lon, lat] for deck.gl
-    } else if (riderState?.dna?.home_location) {
-      const [lat, lon] = riderState.dna.home_location;
-      homeLocation = [lon, lat];
-    }
-
-    onHomeLocationChange(homeLocation);
-  }, [driverState?.dna?.home_location, riderState?.dna?.home_location, onHomeLocationChange]);
-
   // Determine entity type for API polling
   const entityType = entity?.type === 'driver' || entity?.type === 'rider' ? entity.type : null;
   const entityId = entity?.type === 'driver' || entity?.type === 'rider' ? entity.data.id : null;
@@ -126,6 +110,22 @@ export default function InspectorPopup({
 
   const driverState = entity?.type === 'driver' ? (agentState as DriverState | null) : null;
   const riderState = entity?.type === 'rider' ? (agentState as RiderState | null) : null;
+
+  // Notify parent of home location changes for map marker
+  useEffect(() => {
+    if (!onHomeLocationChange) return;
+
+    let homeLocation: [number, number] | null = null;
+    if (driverState?.dna?.home_location) {
+      const [lat, lon] = driverState.dna.home_location;
+      homeLocation = [lon, lat]; // Swap to [lon, lat] for deck.gl
+    } else if (riderState?.dna?.home_location) {
+      const [lat, lon] = riderState.dna.home_location;
+      homeLocation = [lon, lat];
+    }
+
+    onHomeLocationChange(homeLocation);
+  }, [driverState?.dna?.home_location, riderState?.dna?.home_location, onHomeLocationChange]);
 
   // Get entity title for minimized header
   const getEntityTitle = useCallback(() => {

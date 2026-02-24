@@ -10,6 +10,7 @@ describe('LayerControls', () => {
     offlineDrivers: false,
     enRoutePickupDrivers: true,
     withPassengerDrivers: true,
+    repositioningDrivers: true,
     offlineRiders: true,
     requestingRiders: true,
     enRouteRiders: true,
@@ -18,6 +19,7 @@ describe('LayerControls', () => {
     pendingRoutes: true,
     pickupRoutes: true,
     tripRoutes: true,
+    matchingLines: true,
     zoneBoundaries: true,
     surgeHeatmap: false,
   };
@@ -88,6 +90,7 @@ describe('LayerControls', () => {
       offlineDrivers: false,
       enRoutePickupDrivers: false,
       withPassengerDrivers: false,
+      repositioningDrivers: false,
       offlineRiders: false,
       requestingRiders: false,
       enRouteRiders: false,
@@ -96,6 +99,7 @@ describe('LayerControls', () => {
       pendingRoutes: false,
       pickupRoutes: false,
       tripRoutes: false,
+      matchingLines: false,
       zoneBoundaries: false,
       surgeHeatmap: false,
     });
@@ -153,6 +157,7 @@ describe('LayerControls', () => {
         offlineDrivers: false,
         enRoutePickupDrivers: false,
         withPassengerDrivers: false,
+        repositioningDrivers: false,
       });
     });
 

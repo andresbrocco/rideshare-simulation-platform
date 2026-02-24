@@ -34,6 +34,7 @@ def test_app(monkeypatch: MonkeyPatch) -> FastAPI:
     mock_engine._active_drivers = {}
     mock_engine._active_riders = {}
     mock_engine.set_event_loop = Mock()
+    mock_engine.real_time_ratio = Mock(return_value=1.0)
 
     mock_agent_factory = Mock()
 
