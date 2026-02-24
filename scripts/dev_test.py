@@ -291,25 +291,39 @@ def set_simulation_speed(multiplier: int) -> bool:
 
 
 def spawn_agents(agent_type: str, mode: str, count: int) -> bool:
-    """Spawn agents (drivers or riders)."""
+    """Spawn agents (drivers or riders) in batches respecting API limits."""
+    max_per_request = 100 if agent_type == "driver" else 2000
     endpoint = "drivers" if agent_type == "driver" else "riders"
     url = f"{SIMULATION_URL}/agents/{endpoint}?mode={mode}"
 
-    try:
-        response = requests.post(
-            url,
-            headers={"X-API-Key": SIMULATION_API_KEY},
-            json={"count": count},
-            timeout=30,
-        )
-        if response.status_code in (200, 201):
-            log_success(f"Spawned {count} {mode} {agent_type}s")
-            return True
-        log_error(f"Failed to spawn {agent_type}s: {response.status_code} - {response.text}")
-        return False
-    except requests.RequestException as e:
-        log_error(f"Failed to spawn {agent_type}s: {e}")
-        return False
+    remaining = count
+    total_spawned = 0
+
+    while remaining > 0:
+        batch = min(remaining, max_per_request)
+        try:
+            response = requests.post(
+                url,
+                headers={"X-API-Key": SIMULATION_API_KEY},
+                json={"count": batch},
+                timeout=30,
+            )
+            if response.status_code in (200, 201):
+                total_spawned += batch
+                remaining -= batch
+                if remaining > 0:
+                    log_info(f"Spawned {total_spawned}/{count} {mode} {agent_type}s...")
+            else:
+                log_error(
+                    f"Failed to spawn {agent_type}s: {response.status_code} - {response.text}"
+                )
+                return False
+        except requests.RequestException as e:
+            log_error(f"Failed to spawn {agent_type}s: {e}")
+            return False
+
+    log_success(f"Spawned {total_spawned} {mode} {agent_type}s")
+    return True
 
 
 def spawn_all_agents(config: Config) -> bool:
