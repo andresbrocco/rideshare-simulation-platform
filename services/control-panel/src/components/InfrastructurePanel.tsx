@@ -37,10 +37,14 @@ function getStatusClass(status: ContainerStatus): string {
   }
 }
 
-function getLatencyClass(latency_ms: number | null): string {
+function getLatencyClass(
+  latency_ms: number | null,
+  degraded: number = 100,
+  unhealthy: number = 500
+): string {
   if (latency_ms === null) return '';
-  if (latency_ms < 100) return styles.latencyGreen;
-  if (latency_ms < 500) return styles.latencyOrange;
+  if (latency_ms < degraded) return styles.latencyGreen;
+  if (latency_ms < unhealthy) return styles.latencyOrange;
   return styles.latencyRed;
 }
 
@@ -56,10 +60,14 @@ function formatHeartbeatAge(seconds: number | null): string {
   return `${Math.round(seconds)} s`;
 }
 
-function getHeartbeatAgeClass(seconds: number | null): string {
+function getHeartbeatAgeClass(
+  seconds: number | null,
+  degraded: number = 30,
+  unhealthy: number = 90
+): string {
   if (seconds === null) return '';
-  if (seconds < 30) return styles.latencyGreen;
-  if (seconds < 120) return styles.latencyOrange;
+  if (seconds < degraded) return styles.latencyGreen;
+  if (seconds < unhealthy) return styles.latencyOrange;
   return styles.latencyRed;
 }
 
@@ -104,7 +112,7 @@ function ServiceCard({
         <div className={styles.metricRow}>
           <span className={styles.metricLabel}>Heartbeat Age</span>
           <span
-            className={`${styles.metricValue} ${getHeartbeatAgeClass(service.heartbeat_age_seconds)}`}
+            className={`${styles.metricValue} ${getHeartbeatAgeClass(service.heartbeat_age_seconds, service.threshold_degraded ?? 30, service.threshold_unhealthy ?? 90)}`}
           >
             {formatHeartbeatAge(service.heartbeat_age_seconds)}
           </span>
@@ -112,7 +120,9 @@ function ServiceCard({
       ) : service.latency_ms !== null ? (
         <div className={styles.metricRow}>
           <span className={styles.metricLabel}>Latency</span>
-          <span className={`${styles.metricValue} ${getLatencyClass(service.latency_ms)}`}>
+          <span
+            className={`${styles.metricValue} ${getLatencyClass(service.latency_ms, service.threshold_degraded ?? 100, service.threshold_unhealthy ?? 500)}`}
+          >
             {formatLatency(service.latency_ms)}
           </span>
         </div>

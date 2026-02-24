@@ -92,6 +92,48 @@ describe('InfrastructurePanel', () => {
     expect(screen.queryByText('simulation')).not.toBeInTheDocument();
   });
 
+  it('applies per-service threshold coloring', () => {
+    const data = buildMockData({
+      services: [
+        {
+          name: 'Redis',
+          status: 'degraded',
+          latency_ms: 10,
+          message: 'Connected',
+          memory_used_mb: 64,
+          memory_limit_mb: 256,
+          memory_percent: 25,
+          cpu_percent: 1.0,
+          threshold_degraded: 5,
+          threshold_unhealthy: 20,
+        },
+        {
+          name: 'Airflow Web',
+          status: 'healthy',
+          latency_ms: 200,
+          message: 'MetaDB: healthy',
+          memory_used_mb: 512,
+          memory_limit_mb: 2048,
+          memory_percent: 25,
+          cpu_percent: 2.0,
+          threshold_degraded: 500,
+          threshold_unhealthy: 2000,
+        },
+      ],
+    });
+    const { container } = render(<InfrastructurePanel data={data} {...defaultProps} />);
+
+    // Redis at 10ms with thresholds 5/20 should show orange (degraded)
+    const redisLatency = container.querySelector('.latencyOrange');
+    expect(redisLatency).toBeInTheDocument();
+    expect(redisLatency?.textContent).toBe('10 ms');
+
+    // Airflow at 200ms with thresholds 500/2000 should show green (healthy)
+    const airflowLatency = container.querySelector('.latencyGreen');
+    expect(airflowLatency).toBeInTheDocument();
+    expect(airflowLatency?.textContent).toBe('200 ms');
+  });
+
   it('shows warning when cAdvisor is unavailable', () => {
     const data = buildMockData({ cadvisor_available: false });
     render(<InfrastructurePanel data={data} {...defaultProps} />);

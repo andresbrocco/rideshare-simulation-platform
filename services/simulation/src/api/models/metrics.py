@@ -156,6 +156,8 @@ class ServiceMetrics(BaseModel):
     memory_percent: float = 0.0
     cpu_percent: float = 0.0
     heartbeat_age_seconds: float | None = None  # For scheduler heartbeat checks
+    threshold_degraded: float | None = None  # Green/yellow boundary (ms or seconds)
+    threshold_unhealthy: float | None = None  # Yellow/red boundary (ms or seconds)
 
 
 class InfrastructureResponse(BaseModel):

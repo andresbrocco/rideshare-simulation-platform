@@ -459,6 +459,39 @@ _DISPLAY_NAME_OVERRIDES: dict[str, str] = {
     "rideshare-localstack": "LocalStack",
 }
 
+# Per-service health-check thresholds: (degraded_ms, unhealthy_ms)
+_DEFAULT_THRESHOLDS: tuple[float, float] = (100, 500)
+
+_SERVICE_THRESHOLDS: dict[str, tuple[float, float]] = {
+    # Critical Real-Time Path
+    "rideshare-redis": (5, 20),
+    "rideshare-kafka": (50, 200),
+    "rideshare-stream-processor": (50, 150),
+    # Trip Matching Path
+    "rideshare-osrm": (150, 500),
+    "rideshare-schema-registry": (100, 500),
+    # Batch / Analytics Path
+    "rideshare-minio": (200, 1000),
+    "rideshare-airflow-webserver": (500, 2000),
+    "rideshare-spark-thrift-server": (500, 2000),
+    "rideshare-localstack": (200, 1000),
+    # Infrastructure / Monitoring
+    "rideshare-prometheus": (100, 500),
+    "rideshare-cadvisor": (100, 500),
+    "rideshare-grafana": (200, 1000),
+    "rideshare-control-panel": (100, 500),
+    "rideshare-otel-collector": (100, 500),
+    # Database Services
+    "rideshare-postgres-airflow": (10, 50),
+    "rideshare-postgres-metastore": (10, 50),
+    # Special
+    "rideshare-bronze-ingestion": (100, 500),
+}
+
+_HEARTBEAT_THRESHOLDS: dict[str, tuple[float, float]] = {
+    "rideshare-airflow-scheduler": (30, 90),
+}
+
 # Minimal fallback used when compose.yml is missing or malformed
 _FALLBACK_CONTAINER_CONFIG: dict[str, dict[str, str]] = {
     "rideshare-kafka": {"display_name": "Kafka"},
@@ -1179,7 +1212,7 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
                         heartbeat_age = (now_utc - heartbeat_dt).total_seconds()
                         if heartbeat_age < 30:
                             sched_status = ContainerStatus.HEALTHY
-                        elif heartbeat_age < 120:
+                        elif heartbeat_age < 90:
                             sched_status = ContainerStatus.DEGRADED
                         else:
                             sched_status = ContainerStatus.UNHEALTHY
@@ -1331,6 +1364,17 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
             container_name, (ContainerStatus.HEALTHY, None, "No health endpoint")
         )
 
+        # Look up per-service thresholds
+        svc_thresholds = _SERVICE_THRESHOLDS.get(container_name, _DEFAULT_THRESHOLDS)
+
+        # Re-evaluate latency-based status with per-service thresholds.
+        # Skip: simulation (uses RTR), scheduler (uses heartbeat age).
+        if latency_ms is not None and container_name not in (
+            "rideshare-simulation",
+            "rideshare-airflow-scheduler",
+        ):
+            status = _determine_status(latency_ms, svc_thresholds[0], svc_thresholds[1])
+
         # Get resource metrics from cAdvisor if available
         memory_used_mb = 0.0
         memory_limit_mb = 0.0
@@ -1365,6 +1409,9 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         ):
             continue
 
+        # Determine which thresholds to send to frontend
+        frontend_thresholds = _HEARTBEAT_THRESHOLDS.get(container_name, svc_thresholds)
+
         services.append(
             ServiceMetrics(
                 name=str(config["display_name"]),
@@ -1376,6 +1423,8 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
                 memory_percent=memory_percent,
                 cpu_percent=cpu_percent,
                 heartbeat_age_seconds=heartbeat_ages.get(container_name),
+                threshold_degraded=frontend_thresholds[0],
+                threshold_unhealthy=frontend_thresholds[1],
             )
         )
 

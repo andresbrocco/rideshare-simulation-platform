@@ -451,6 +451,8 @@ export interface ServiceMetrics {
   memory_percent: number;
   cpu_percent: number;
   heartbeat_age_seconds?: number | null;
+  threshold_degraded?: number | null;
+  threshold_unhealthy?: number | null;
 }
 
 export interface InfrastructureResponse {
