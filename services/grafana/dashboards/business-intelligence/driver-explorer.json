@@ -629,7 +629,7 @@
     },
     {
       "datasource": { "type": "trino-datasource", "uid": "trino" },
-      "description": "Recent trips for this driver with rider name, zones, fare, surge, distance, and duration. Limited to 50 most recent.",
+      "description": "Recent completed trips for this driver with rider name, zones, fare, surge, distance, and duration. Limited to 50 most recent.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -675,7 +675,7 @@
           "refId": "A"
         }
       ],
-      "title": "Trip History",
+      "title": "Completed Trips History",
       "type": "table"
     },
     {
@@ -711,7 +711,7 @@
           "refId": "A"
         }
       ],
-      "title": "Cancellation Log",
+      "title": "Cancelled Trips History",
       "type": "table"
     },
     {

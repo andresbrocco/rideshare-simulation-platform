@@ -467,7 +467,7 @@
     },
     {
       "datasource": { "type": "trino-datasource", "uid": "trino" },
-      "description": "Recent trips for this rider with driver name, zones, fare, surge, distance, and duration. Limited to 50 most recent.",
+      "description": "Recent completed trips for this rider with driver name, zones, fare, surge, distance, and duration. Limited to 50 most recent.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -513,7 +513,43 @@
           "refId": "A"
         }
       ],
-      "title": "Trip History",
+      "title": "Completed Trips History",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "trino-datasource", "uid": "trino" },
+      "description": "Recent cancelled trips for this rider with cancellation reason, stage at which cancellation occurred, pickup zone, and surge at time of request. Limited to 50 most recent.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "custom": { "align": "auto", "displayMode": "auto", "inspect": true }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 31 },
+      "id": 18,
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": { "show": false, "reducer": ["sum"], "fields": "" },
+        "sortBy": [{ "desc": true, "displayName": "cancelled_at" }]
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "format": 0,
+          "rawQuery": true,
+          "rawSQL": "SELECT\n  fc.cancelled_at,\n  fc.cancellation_reason,\n  fc.cancellation_stage,\n  pz.name AS pickup_zone,\n  fc.surge_multiplier AS surge\nFROM delta.gold.fact_cancellations fc\nJOIN delta.gold.dim_riders dr ON fc.rider_key = dr.rider_key\nLEFT JOIN delta.gold.dim_zones pz ON fc.pickup_zone_key = pz.zone_key\nWHERE dr.rider_id = '$rider_id'\nORDER BY fc.cancelled_at DESC\nLIMIT 50",
+          "refId": "A"
+        }
+      ],
+      "title": "Cancelled Trips History",
       "type": "table"
     },
     {
@@ -530,7 +566,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 31 },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 39 },
       "id": 14,
       "options": {
         "legend": {
@@ -575,7 +611,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 31 },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 39 },
       "id": 15,
       "options": {
         "colorMode": "value",
@@ -632,7 +668,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 35 },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 43 },
       "id": 16,
       "options": {
         "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": false },
@@ -669,7 +705,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 39 },
       "id": 17,
       "options": {
         "basemap": { "config": {}, "name": "Layer 0", "type": "default" },
