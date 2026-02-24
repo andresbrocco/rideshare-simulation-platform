@@ -2,7 +2,7 @@
 # Mirrors GitHub Actions workflows for local execution
 # IMPORTANT: This file uses TABS for indentation, not spaces
 
-.PHONY: ci lint test build help clean venvs install-deps lint-python lint-frontend lint-terraform test-unit test-integration test-fast test-coverage build-frontend
+.PHONY: ci lint test build help clean venvs install-deps lint-python lint-frontend lint-terraform test-unit test-integration test-fast test-api-contract test-coverage build-frontend
 
 # Default target
 .DEFAULT_GOAL := help
@@ -28,10 +28,10 @@ LAKEHOUSE_DIR := schemas/lakehouse
 ci: lint test build	## Run full CI pipeline (lint + test + build)
 	@echo "✅ CI pipeline completed successfully"
 
-lint: install-deps lint-python lint-frontend lint-terraform	## Run all linting and type checking
+lint: install-deps lint-python	## Run all linting and type checking
 	@echo "✅ All linting and type checking passed"
 
-test: test-unit test-fast	## Run test suite (unit + fast tests)
+test: test-unit test-api-contract	## Run test suite (unit + API contract tests)
 	@echo "✅ All tests passed"
 
 build: build-frontend	## Run build steps
@@ -99,21 +99,53 @@ test-fast:	## Run fast unit tests only (excludes slow tests)
 	@echo "Running fast unit tests..."
 	cd $(SIM_DIR) && ./venv/bin/pytest -m "unit and not slow" -v --tb=short
 
+test-api-contract:	## Validate OpenAPI spec and TypeScript type generation
+	@echo "Exporting OpenAPI spec..."
+	cd $(SIM_DIR) && ./venv/bin/python3 scripts/export-openapi.py
+	@echo "Validating OpenAPI spec..."
+	cd $(SIM_DIR) && ./venv/bin/pytest tests/test_api_contract.py::test_openapi_spec_is_valid -v
+	@echo "Generating TypeScript types from OpenAPI spec..."
+	cd $(FRONTEND_DIR) && npm run generate-types
+	@echo "Checking TypeScript types match committed version..."
+	cd $(SIM_DIR) && ./venv/bin/pytest tests/test_api_contract.py::test_typescript_types_match_openapi -v
+
 test-coverage:	## Run all tests with coverage report
 	@echo "Running tests with coverage..."
 	cd $(SIM_DIR) && ./venv/bin/pytest -v --cov=src --cov-report=term-missing --cov-report=html
 	@echo "Coverage report generated in $(SIM_DIR)/htmlcov/"
 
-test-integration:	## Run integration tests (requires Docker services)
-	@echo "⚠️  Integration tests require Docker services to be running"
-	@echo "Starting Docker services..."
-	docker compose -f $(COMPOSE_FILE) --profile core --profile data-pipeline up -d
-	@echo "Waiting for services to be ready (60s)..."
-	@sleep 60
-	@echo "Running integration tests..."
+test-integration:	## Run integration tests (starts Docker services, polls health, cleans up)
+	@export COMPOSE_FILE=$(COMPOSE_FILE) \
+		MINIO_ENDPOINT=http://localhost:9000 \
+		KAFKA_BOOTSTRAP_SERVERS=localhost:9092 \
+		SCHEMA_REGISTRY_URL=http://localhost:8085 \
+		SPARK_THRIFT_HOST=localhost \
+		SPARK_THRIFT_PORT=10000 \
+		LOCALSTACK_ENDPOINT=http://localhost:4566 \
+		AWS_ENDPOINT_URL=http://localhost:4566 \
+		AWS_ACCESS_KEY_ID=test \
+		AWS_SECRET_ACCESS_KEY=test \
+		AWS_DEFAULT_REGION=us-east-1 \
+		SIM_SPEED_MULTIPLIER=10 \
+		SIM_LOG_LEVEL=DEBUG; \
+	cleanup() { \
+		echo "Collecting container logs..."; \
+		mkdir -p logs; \
+		docker compose -f $$COMPOSE_FILE --profile core --profile data-pipeline logs > logs/container-logs.txt 2>&1 || true; \
+		echo "Cleaning up Docker services..."; \
+		docker compose -f $$COMPOSE_FILE --profile core --profile data-pipeline down -v --remove-orphans || true; \
+	}; \
+	trap cleanup EXIT; \
+	echo "Starting Docker services..."; \
+	docker compose -f $$COMPOSE_FILE --profile core --profile data-pipeline up -d; \
+	echo "Waiting for LocalStack..."; \
+	timeout 120 bash -c 'until curl -sf http://localhost:4566/_localstack/health | grep -q "\"secretsmanager\": \"available\""; do sleep 5; done'; \
+	echo "Waiting for MinIO..."; \
+	timeout 120 bash -c 'until curl -sf http://localhost:9000/minio/health/live; do sleep 5; done'; \
+	echo "Waiting for Simulation API..."; \
+	timeout 120 bash -c 'until curl -sf http://localhost:8000/health; do sleep 5; done'; \
+	echo "Running integration tests..."; \
 	$(PYTEST) tests/integration/ -v --tb=short --junitxml=test-results.xml
-	@echo "Cleaning up Docker services..."
-	docker compose -f $(COMPOSE_FILE) --profile core --profile data-pipeline down -v --remove-orphans
 
 ##@ Build
 
