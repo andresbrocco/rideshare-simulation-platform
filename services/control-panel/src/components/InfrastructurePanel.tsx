@@ -8,7 +8,7 @@ interface InfrastructurePanelProps {
   loading: boolean;
   error: string | null;
   onRefresh: () => void;
-  simulationRealTimeRatio?: number;
+  simulationRealTimeRatio?: number | null;
 }
 
 function formatMemory(mb: number): string {
@@ -85,7 +85,7 @@ interface ServiceCardProps {
   service: ServiceMetrics;
   showResources: boolean;
   totalCores: number;
-  simulationRealTimeRatio?: number;
+  simulationRealTimeRatio?: number | null;
 }
 
 function ServiceCard({
@@ -104,8 +104,10 @@ function ServiceCard({
       {simulationRealTimeRatio !== undefined ? (
         <div className={styles.metricRow}>
           <span className={styles.metricLabel}>Real-Time Ratio</span>
-          <span className={`${styles.metricValue} ${getRtrClass(simulationRealTimeRatio)}`}>
-            {simulationRealTimeRatio.toFixed(2)}
+          <span
+            className={`${styles.metricValue} ${simulationRealTimeRatio !== null ? getRtrClass(simulationRealTimeRatio) : styles.latencyRed}`}
+          >
+            {simulationRealTimeRatio !== null ? simulationRealTimeRatio.toFixed(2) : '—'}
           </span>
         </div>
       ) : service.heartbeat_age_seconds != null ? (
