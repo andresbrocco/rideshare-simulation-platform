@@ -15,14 +15,14 @@ from airflow.providers.standard.operators.empty import EmptyOperator
 ERROR_THRESHOLD = 10
 
 DLQ_TABLES = [
-    "dlq_trips",
-    "dlq_gps_pings",
-    "dlq_driver_status",
-    "dlq_surge_updates",
-    "dlq_ratings",
-    "dlq_payments",
-    "dlq_driver_profiles",
-    "dlq_rider_profiles",
+    "dlq_bronze_trips",
+    "dlq_bronze_gps_pings",
+    "dlq_bronze_driver_status",
+    "dlq_bronze_surge_updates",
+    "dlq_bronze_ratings",
+    "dlq_bronze_payments",
+    "dlq_bronze_driver_profiles",
+    "dlq_bronze_rider_profiles",
 ]
 
 default_args = {

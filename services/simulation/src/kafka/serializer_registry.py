@@ -54,7 +54,7 @@ class SerializerRegistry:
         # Get serializer for a topic
         serializer = SerializerRegistry.get_serializer("trips")
         if serializer:
-            json_str, is_corrupted = serializer.serialize_for_kafka(event, "trips")
+            json_str, corrupted_json, corruption_type = serializer.serialize_for_kafka(event, "trips")
     """
 
     _instance: "SerializerRegistry | None" = None

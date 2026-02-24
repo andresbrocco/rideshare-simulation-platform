@@ -78,13 +78,20 @@ class EventEmitter:
             # Use serializer if Schema Registry is enabled
             serializer = SerializerRegistry.get_serializer(topic)
             if serializer:
-                json_str, is_corrupted = serializer.serialize_for_kafka(event, topic)
-                if is_corrupted:
-                    logger.debug(f"Emitting corrupted event for testing: {topic}")
+                json_str, corrupted_json, corruption_type = serializer.serialize_for_kafka(
+                    event, topic
+                )
             else:
                 json_str = event.model_dump_json()
+                corrupted_json = None
 
+            # Always produce the clean event
             self._kafka_producer.produce(topic=topic, key=key, value=json_str)
+
+            # If corruption fired, also produce the corrupted copy
+            if corrupted_json is not None:
+                logger.debug(f"Emitting corrupted event for testing: {topic}")
+                self._kafka_producer.produce(topic=topic, key=key, value=corrupted_json)
             latency_ms = (time.perf_counter() - start_time) * 1000
             collector.record_latency("kafka", latency_ms)
             observe_latency("kafka", latency_ms)

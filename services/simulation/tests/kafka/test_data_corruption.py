@@ -207,6 +207,51 @@ class TestTopicAwareCorruption:
 
 
 @pytest.mark.unit
+class TestCorruptEventIdReplacement:
+    def test_corrupt_replaces_event_id(self):
+        """Corrupted output should have a new event_id starting with 'corrupted-'."""
+        event = {
+            "event_id": "550e8400-e29b-41d4-a716-446655440000",
+            "event_type": "trip.requested",
+            "trip_id": "660e8400-e29b-41d4-a716-446655440001",
+            "rider_id": "770e8400-e29b-41d4-a716-446655440002",
+            "timestamp": "2025-07-30T10:00:00Z",
+            "fare": 25.50,
+            "surge_multiplier": 1.5,
+        }
+        corruptor = DataCorruptor(corruption_rate=1.0)
+        # Use a corruption type that produces parseable JSON
+        corruptor._corruption_types = [CorruptionType.OUT_OF_RANGE_VALUE]
+        corruptor._corruption_weights = [100]
+        corrupted_str, _ = corruptor.corrupt(event, "trips")
+        parsed = json.loads(corrupted_str)
+        assert parsed["event_id"].startswith("corrupted-")
+        assert parsed["event_id"] != event["event_id"]
+
+    def test_corrupt_does_not_mutate_input_dict(self):
+        """Original dict must be unchanged after corrupt() call."""
+        event = {
+            "event_id": "550e8400-e29b-41d4-a716-446655440000",
+            "event_type": "trip.requested",
+            "trip_id": "660e8400-e29b-41d4-a716-446655440001",
+            "rider_id": "770e8400-e29b-41d4-a716-446655440002",
+            "timestamp": "2025-07-30T10:00:00Z",
+            "fare": 25.50,
+            "surge_multiplier": 1.5,
+        }
+        original_event_id = event["event_id"]
+        original_keys = set(event.keys())
+        original_values = dict(event)
+
+        corruptor = DataCorruptor(corruption_rate=1.0)
+        corruptor.corrupt(event, "trips")
+
+        assert event["event_id"] == original_event_id
+        assert set(event.keys()) == original_keys
+        assert event == original_values
+
+
+@pytest.mark.unit
 class TestFactoryFunction:
     def test_get_corruptor_returns_instance(self, monkeypatch):
         monkeypatch.setenv("MALFORMED_EVENT_RATE", "0.03")

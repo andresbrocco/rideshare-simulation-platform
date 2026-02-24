@@ -7,6 +7,7 @@ import os
 import random
 from enum import Enum
 from typing import TYPE_CHECKING, Any
+from uuid import uuid4
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -94,9 +95,17 @@ class DataCorruptor:
         return random.random() < self.corruption_rate
 
     def corrupt(self, event_dict: dict[str, Any], topic: str) -> tuple[str, CorruptionType]:
-        """Apply random corruption to an event."""
+        """Apply random corruption to an event.
+
+        Creates a shallow copy with a new event_id before corrupting, so the
+        original dict is never mutated and the corrupted copy won't be
+        deduplicated by the stream processor's Redis dedup check.
+        """
         corruption_type = self._select_type()
-        corrupted = self._apply_corruption(event_dict, topic, corruption_type)
+        # Replace event_id so the corrupted copy is not deduplicated
+        event_with_new_id = dict(event_dict)
+        event_with_new_id["event_id"] = f"corrupted-{uuid4()}"
+        corrupted = self._apply_corruption(event_with_new_id, topic, corruption_type)
         return corrupted, corruption_type
 
     def _select_type(self) -> CorruptionType:

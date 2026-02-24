@@ -332,12 +332,75 @@ def test_serialize_for_kafka_uses_model_dump_json(mock_schema_registry, schema_p
         fare=25.50,
     )
 
-    result, is_corrupted = serializer.serialize_for_kafka(event, "trips")
+    clean_json, corrupted_json, corruption_type = serializer.serialize_for_kafka(event, "trips")
 
-    assert not is_corrupted
+    assert corrupted_json is None
+    assert corruption_type is None
     # Result must match model_dump_json() output exactly
-    assert result == event.model_dump_json()
+    assert clean_json == event.model_dump_json()
     # Verify it's valid JSON with expected fields
-    parsed = json.loads(result)
+    parsed = json.loads(clean_json)
     assert parsed["event_type"] == "trip.requested"
     assert parsed["trip_id"] == "trip_001"
+
+
+@pytest.mark.unit
+def test_serialize_for_kafka_returns_both_clean_and_corrupted(mock_schema_registry, schema_path):
+    """When corruption fires, both clean and corrupted payloads are returned."""
+    serializer = TripEventSerializer(mock_schema_registry, schema_path)
+    event = TripEvent(
+        event_type="trip.requested",
+        trip_id="trip_001",
+        timestamp="2025-07-29T14:30:00Z",
+        rider_id="rider_001",
+        driver_id=None,
+        pickup_location=(40.7128, -74.0060),
+        dropoff_location=(40.7589, -73.9851),
+        pickup_zone_id="zone_001",
+        dropoff_zone_id="zone_002",
+        surge_multiplier=1.5,
+        fare=25.50,
+    )
+
+    with patch("src.kafka.serialization.get_corruptor") as mock_get:
+        mock_corruptor = MagicMock()
+        mock_corruptor.should_corrupt.return_value = True
+        mock_corruptor.corrupt.return_value = ('{"corrupted": true}', MagicMock(value="test"))
+        mock_get.return_value = mock_corruptor
+        # Force fresh corruptor
+        serializer._corruptor = None
+
+        clean_json, corrupted_json, corruption_type = serializer.serialize_for_kafka(event, "trips")
+
+    # Clean event is always the model_dump_json output
+    assert clean_json == event.model_dump_json()
+    # Corrupted copy is the separate payload
+    assert corrupted_json == '{"corrupted": true}'
+    assert corruption_type is not None
+
+
+@pytest.mark.unit
+def test_serialize_for_kafka_clean_unaffected_when_schema_missing(schema_path, tmp_path):
+    """Clean JSON is returned even when schema files are missing."""
+    registry = MagicMock()
+    # Use a temp dir with no schema files — _register_schema will fail
+    serializer = TripEventSerializer(registry, tmp_path)
+    event = TripEvent(
+        event_type="trip.requested",
+        trip_id="trip_001",
+        timestamp="2025-07-29T14:30:00Z",
+        rider_id="rider_001",
+        driver_id=None,
+        pickup_location=(40.7128, -74.0060),
+        dropoff_location=(40.7589, -73.9851),
+        pickup_zone_id="zone_001",
+        dropoff_zone_id="zone_002",
+        surge_multiplier=1.5,
+        fare=25.50,
+    )
+
+    clean_json, corrupted_json, corruption_type = serializer.serialize_for_kafka(event, "trips")
+
+    assert clean_json == event.model_dump_json()
+    assert corrupted_json is None
+    assert corruption_type is None

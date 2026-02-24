@@ -62,6 +62,26 @@ GOLD_TABLES = [
     "agg_surge_history",
 ]
 
+# Bronze tables: raw ingested data + DLQ (dead letter queue) tables
+BRONZE_TABLES = [
+    "bronze_trips",
+    "bronze_gps_pings",
+    "bronze_driver_status",
+    "bronze_surge_updates",
+    "bronze_ratings",
+    "bronze_payments",
+    "bronze_driver_profiles",
+    "bronze_rider_profiles",
+    "dlq_bronze_trips",
+    "dlq_bronze_gps_pings",
+    "dlq_bronze_driver_status",
+    "dlq_bronze_surge_updates",
+    "dlq_bronze_ratings",
+    "dlq_bronze_payments",
+    "dlq_bronze_driver_profiles",
+    "dlq_bronze_rider_profiles",
+]
+
 
 def execute_trino_sql(sql: str, schema: str = "default") -> List[List[str]]:
     """Submit SQL to Trino REST API and wait for results.
@@ -135,13 +155,17 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Register Delta tables in Trino via REST API")
     parser.add_argument(
         "--layer",
-        choices=["silver", "gold"],
+        choices=["bronze", "silver", "gold"],
         required=True,
         help="Layer to register (silver or gold)",
     )
     args = parser.parse_args()
 
-    if args.layer == "silver":
+    if args.layer == "bronze":
+        tables = BRONZE_TABLES
+        bucket = "rideshare-bronze"
+        schema = "bronze"
+    elif args.layer == "silver":
         tables = SILVER_TABLES
         bucket = "rideshare-silver"
         schema = "silver"

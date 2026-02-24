@@ -855,15 +855,23 @@ class MatchingServer:
 
         serializer = SerializerRegistry.get_serializer("trips")
         if serializer:
-            json_str, _ = serializer.serialize_for_kafka(event, "trips")
+            json_str, corrupted_json, _ = serializer.serialize_for_kafka(event, "trips")
         else:
             json_str = event.model_dump_json()
+            corrupted_json = None
 
         self._kafka_producer.produce(
             topic="trips",
             key=trip_id,
             value=json_str,
         )
+
+        if corrupted_json is not None:
+            self._kafka_producer.produce(
+                topic="trips",
+                key=trip_id,
+                value=corrupted_json,
+            )
 
     def _emit_offer_sent_event(
         self,
