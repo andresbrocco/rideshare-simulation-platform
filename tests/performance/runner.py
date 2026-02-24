@@ -899,11 +899,12 @@ def run(
                             aborted = True
                             abort_reason = "stress_test_insufficient_agents"
                             break
-                        agent_count = total_agents_queued // 2
-                        agent_count -= agent_count % 2
+                        agent_count = round(total_agents_queued / 50 / 2) * 2
+                        if agent_count < 2:
+                            agent_count = 2
                         console.print(
                             f"\n[cyan]Derived agent count: {agent_count} "
-                            f"(half of {total_agents_queued} total from stress test)[/cyan]\n"
+                            f"(1/50 of {total_agents_queued} total from stress test)[/cyan]\n"
                         )
                         results.setdefault("derived_config", {}).update(
                             {
@@ -1494,7 +1495,7 @@ def _print_summary(results: dict[str, Any], summary: TestSummary | None = None) 
         if duration_agents and total_queued:
             console.print(
                 f"  Duration test agents: {duration_agents} "
-                f"(half of {total_queued} total from stress test)"
+                f"(1/50 of {total_queued} total from stress test)"
             )
         duration_speed = derived_config.get("duration_speed_multiplier")
         if duration_speed and duration_agents:
