@@ -112,7 +112,7 @@ describe('RiderActionsSection', () => {
     expect(screen.getByRole('button', { name: /cancel trip/i })).toBeInTheDocument();
   });
 
-  it('does not show cancel button when trip has started', () => {
+  it('shows cancel trip button when trip is in transit', () => {
     const tripStartedState: RiderState = {
       ...baseRiderState,
       status: 'on_trip',
@@ -133,7 +133,7 @@ describe('RiderActionsSection', () => {
       <RiderActionsSection state={tripStartedState} actionLoading={false} {...defaultHandlers} />
     );
 
-    expect(screen.queryByRole('button', { name: /cancel trip/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /cancel trip/i })).toBeInTheDocument();
   });
 
   it('calls onCancelTrip when cancel button is clicked', async () => {
@@ -216,7 +216,7 @@ describe('RiderActionsSection', () => {
     expect(screen.queryByRole('button', { name: /request trip/i })).not.toBeInTheDocument();
   });
 
-  it('shows info message for other statuses', () => {
+  it('shows cancel trip and in transit badge when trip is in transit', () => {
     const inTripState: RiderState = {
       ...baseRiderState,
       status: 'on_trip',
@@ -235,8 +235,8 @@ describe('RiderActionsSection', () => {
 
     render(<RiderActionsSection state={inTripState} actionLoading={false} {...defaultHandlers} />);
 
-    // Trip started, no cancel button, should show status
-    expect(screen.getByText(/on_trip/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /cancel trip/i })).toBeInTheDocument();
+    expect(screen.getByText(/in transit/i)).toBeInTheDocument();
   });
 
   it('shows cancel trip button when rider is awaiting pickup', () => {

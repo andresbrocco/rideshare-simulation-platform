@@ -58,7 +58,6 @@ describe('DriverActionsSection', () => {
     onAcceptOffer: vi.fn(),
     onRejectOffer: vi.fn(),
     onStartTrip: vi.fn(),
-    onCompleteTrip: vi.fn(),
     onCancelTrip: vi.fn(),
     onToggleStatus: vi.fn(),
   };
@@ -160,7 +159,7 @@ describe('DriverActionsSection', () => {
     expect(screen.getByRole('button', { name: /start trip/i })).toBeInTheDocument();
   });
 
-  it('shows complete trip button when in transit', () => {
+  it('shows cancel trip button when in transit', () => {
     const stateInTransit: DriverState = {
       ...baseDriverState,
       status: 'on_trip',
@@ -181,7 +180,7 @@ describe('DriverActionsSection', () => {
       <DriverActionsSection state={stateInTransit} actionLoading={false} {...defaultHandlers} />
     );
 
-    expect(screen.getByRole('button', { name: /complete trip/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /cancel trip/i })).toBeInTheDocument();
   });
 
   it('shows cancel trip button when trip can be cancelled', () => {

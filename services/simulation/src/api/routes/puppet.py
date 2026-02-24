@@ -496,9 +496,9 @@ def puppet_driver_cancel_trip(
     engine: SimulationEngineDep,
     matching_server: MatchingServerDep,
 ) -> PuppetActionResponse:
-    """Cancel the current trip (before pickup only).
+    """Cancel the current trip.
 
-    Valid from: en_route_pickup
+    Valid from: en_route_pickup, on_trip
     """
     driver = engine._active_drivers.get(driver_id)
     if not driver:
@@ -507,19 +507,22 @@ def puppet_driver_cancel_trip(
     if not getattr(driver, "_is_puppet", False):
         raise HTTPException(status_code=400, detail="Agent is not a puppet driver")
 
-    if driver.status != "en_route_pickup":
+    if driver.status not in ("en_route_pickup", "on_trip"):
         raise HTTPException(
             status_code=400,
             detail=f"Cannot cancel trip from status '{driver.status}'. "
-            "Must be 'en_route_pickup'.",
+            "Must be 'en_route_pickup' or 'on_trip'.",
         )
 
     if not driver.active_trip:
         raise HTTPException(status_code=400, detail="No active trip for this driver")
 
-    matching_server.cancel_trip(
-        driver.active_trip, cancelled_by="driver", reason="driver_cancelled_before_pickup"
+    reason = (
+        "driver_cancelled_mid_trip"
+        if driver.status == "on_trip"
+        else "driver_cancelled_before_pickup"
     )
+    matching_server.cancel_trip(driver.active_trip, cancelled_by="driver", reason=reason)
 
     return PuppetActionResponse(
         success=True,
@@ -621,9 +624,9 @@ def puppet_rider_cancel_trip(
     engine: SimulationEngineDep,
     matching_server: MatchingServerDep,
 ) -> PuppetActionResponse:
-    """Cancel the pending trip request.
+    """Cancel the trip request or active trip.
 
-    Valid from: requesting, awaiting_pickup
+    Valid from: requesting, awaiting_pickup, on_trip
     """
     rider = engine._active_riders.get(rider_id)
     if not rider:
@@ -632,19 +635,20 @@ def puppet_rider_cancel_trip(
     if not getattr(rider, "_is_puppet", False):
         raise HTTPException(status_code=400, detail="Agent is not a puppet rider")
 
-    if rider.status not in ("requesting", "awaiting_pickup"):
+    if rider.status not in ("requesting", "awaiting_pickup", "on_trip"):
         raise HTTPException(
             status_code=400,
             detail=f"Cannot cancel trip from status '{rider.status}'. "
-            "Must be 'requesting' or 'awaiting_pickup'.",
+            "Must be 'requesting', 'awaiting_pickup', or 'on_trip'.",
         )
 
     if not rider.active_trip:
         raise HTTPException(status_code=400, detail="No active trip for this rider")
 
-    matching_server.cancel_trip(
-        rider.active_trip, cancelled_by="rider", reason="rider_cancelled_before_pickup"
+    reason = (
+        "rider_cancelled_mid_trip" if rider.status == "on_trip" else "rider_cancelled_before_pickup"
     )
+    matching_server.cancel_trip(rider.active_trip, cancelled_by="rider", reason=reason)
 
     return PuppetActionResponse(
         success=True,

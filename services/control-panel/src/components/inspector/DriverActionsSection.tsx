@@ -7,7 +7,6 @@ interface DriverActionsSectionProps {
   onAcceptOffer: () => void;
   onRejectOffer: () => void;
   onStartTrip: () => void;
-  onCompleteTrip: () => void;
   onCancelTrip: () => void;
   onToggleStatus: () => void;
 }
@@ -18,7 +17,6 @@ export function DriverActionsSection({
   onAcceptOffer,
   onRejectOffer,
   onStartTrip,
-  onCompleteTrip,
   onCancelTrip,
   onToggleStatus,
 }: DriverActionsSectionProps) {
@@ -63,17 +61,7 @@ export function DriverActionsSection({
             </button>
           )}
 
-          {status === 'on_trip' && (
-            <button
-              className={`${styles.actionButton} ${styles.successButton}`}
-              onClick={onCompleteTrip}
-              disabled={actionLoading}
-            >
-              {actionLoading ? 'Loading...' : 'Complete Trip'}
-            </button>
-          )}
-
-          {status === 'en_route_pickup' && active_trip.state !== 'in_transit' && (
+          {(status === 'en_route_pickup' || status === 'on_trip') && (
             <button
               className={`${styles.actionButton} ${styles.dangerButton}`}
               onClick={onCancelTrip}

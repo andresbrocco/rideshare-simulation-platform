@@ -74,7 +74,6 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
     acceptOffer,
     rejectOffer,
     startTrip,
-    completeTrip,
     cancelDriverTrip,
     // Puppet rider actions
     cancelRiderTrip,
@@ -259,7 +258,6 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
                 onAcceptOffer={acceptOffer}
                 onRejectOffer={rejectOffer}
                 onStartTrip={startTrip}
-                onCompleteTrip={completeTrip}
                 onCancelDriverTrip={cancelDriverTrip}
                 // Puppet rider actions
                 onCancelRiderTrip={cancelRiderTrip}

@@ -1356,6 +1356,12 @@ class MatchingServer:
         driver = None
         rider = None
 
+        # Stop any active puppet drive controller to prevent orphaned threads
+        if trip.driver_id:
+            puppet_controller = self._puppet_drives.pop(trip.driver_id, None)
+            if puppet_controller:
+                puppet_controller.stop()
+
         # Update driver status if assigned
         if trip.driver_id:
             with self._state_lock:
@@ -1526,6 +1532,17 @@ class MatchingServer:
         )
 
         self._puppet_drives[driver_id] = controller
+
+        # Auto-complete trip when destination drive finishes
+        captured_driver_id = driver_id
+        captured_trip_id = trip_id
+
+        def on_destination_complete(
+            did: str = captured_driver_id, tid: str = captured_trip_id
+        ) -> None:
+            self.signal_trip_completed(did, tid)
+
+        controller.on_completion(on_destination_complete)
         controller.start()
 
         return route, controller

@@ -21,7 +21,6 @@ interface InspectorPopupProps {
   onAcceptOffer?: (driverId: string) => Promise<boolean>;
   onRejectOffer?: (driverId: string) => Promise<boolean>;
   onStartTrip?: (driverId: string) => Promise<boolean>;
-  onCompleteTrip?: (driverId: string) => Promise<boolean>;
   onCancelDriverTrip?: (driverId: string) => Promise<boolean>;
   onCancelRiderTrip?: (riderId: string) => Promise<boolean>;
   onHomeLocationChange?: (location: [number, number] | null) => void;
@@ -37,7 +36,6 @@ export default function InspectorPopup({
   onAcceptOffer,
   onRejectOffer,
   onStartTrip,
-  onCompleteTrip,
   onCancelDriverTrip,
   onCancelRiderTrip,
   onHomeLocationChange,
@@ -177,10 +175,6 @@ export default function InspectorPopup({
     entity?.type === 'driver' && onStartTrip
       ? wrapAction(() => onStartTrip(entity.data.id))
       : undefined;
-  const handleCompleteTrip =
-    entity?.type === 'driver' && onCompleteTrip
-      ? wrapAction(() => onCompleteTrip(entity.data.id))
-      : undefined;
   const handleCancelDriverTrip =
     entity?.type === 'driver' && onCancelDriverTrip
       ? wrapAction(() => onCancelDriverTrip(entity.data.id))
@@ -235,7 +229,6 @@ export default function InspectorPopup({
           onAcceptOffer={handleAcceptOffer}
           onRejectOffer={handleRejectOffer}
           onStartTrip={handleStartTrip}
-          onCompleteTrip={handleCompleteTrip}
           onCancelTrip={handleCancelDriverTrip}
           onToggleStatus={handleToggleDriverStatus}
         />

@@ -231,17 +231,6 @@ export function useSimulationControl(onStatusUpdate?: (status: SimulationStatus)
     }
   };
 
-  const completeTrip = async (driverId: string): Promise<boolean> => {
-    try {
-      await apiCall(`/agents/puppet/drivers/${driverId}/complete-trip`, 'POST');
-      showToast.success('Trip completed');
-      return true;
-    } catch {
-      showToast.error('Failed to complete trip');
-      return false;
-    }
-  };
-
   const cancelDriverTrip = async (driverId: string): Promise<boolean> => {
     try {
       await apiCall(`/agents/puppet/drivers/${driverId}/cancel-trip`, 'POST');
@@ -349,7 +338,6 @@ export function useSimulationControl(onStatusUpdate?: (status: SimulationStatus)
     acceptOffer,
     rejectOffer,
     startTrip,
-    completeTrip,
     cancelDriverTrip,
     // Puppet rider actions
     cancelRiderTrip,

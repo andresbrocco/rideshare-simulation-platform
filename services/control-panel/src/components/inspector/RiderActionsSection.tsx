@@ -15,11 +15,7 @@ export function RiderActionsSection({
   onCancelTrip,
 }: RiderActionsSectionProps) {
   const { active_trip, status } = state;
-  const canCancel =
-    status === 'requesting' ||
-    status === 'awaiting_pickup' ||
-    (active_trip !== null && active_trip.state !== 'in_transit');
-  const tripStarted = active_trip?.state === 'in_transit';
+  const canCancel = status === 'requesting' || status === 'awaiting_pickup' || status === 'on_trip';
 
   if (status === 'idle' && !active_trip) {
     return (
@@ -48,10 +44,6 @@ export function RiderActionsSection({
         </button>
       </div>
     );
-  }
-
-  if (tripStarted) {
-    return <div className={styles.infoMessage}>Status: {status}</div>;
   }
 
   if (!active_trip) {

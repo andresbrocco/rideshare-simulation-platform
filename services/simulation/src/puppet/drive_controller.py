@@ -13,6 +13,7 @@ from geo.gps_simulation import GPSSimulator
 
 if TYPE_CHECKING:
     from agents.driver_agent import DriverAgent
+    from agents.rider_agent import RiderAgent
     from engine import SimulationEngine
     from geo.osrm_client import RouteResponse
     from kafka.producer import KafkaProducer
@@ -69,6 +70,17 @@ class PuppetDriveController:
         """Register callback to be called when drive completes."""
         self._completion_callbacks.append(callback)
 
+    def _resolve_rider(self) -> "RiderAgent | None":
+        """Resolve the rider for this trip during destination drives.
+
+        During the destination leg the rider is physically in the car,
+        so their location should mirror the driver's position.
+        Returns None for pickup drives (rider is still at pickup location).
+        """
+        if self._is_pickup_drive or not self._simulation_engine:
+            return None
+        return self._simulation_engine._active_riders.get(self._trip.rider_id)
+
     def start(self) -> None:
         """Start the drive in a background thread."""
         if self.is_running:
@@ -108,6 +120,9 @@ class PuppetDriveController:
 
         gps_simulator = GPSSimulator(noise_meters=0)
 
+        # Resolve rider once — during destination drives the rider moves with the driver
+        rider = self._resolve_rider()
+
         for i in range(num_intervals):
             if self._stop_event.is_set():
                 logger.info(f"Puppet drive stopped early: {self._driver.driver_id}")
@@ -128,6 +143,10 @@ class PuppetDriveController:
             # Update driver location
             self._driver.update_location(*current_pos, heading=heading)
 
+            # Mirror position to rider during destination leg
+            if rider:
+                rider.update_location(*current_pos)
+
             # Update route progress on trip
             if self._is_pickup_drive:
                 self._trip.pickup_route_progress_index = idx
@@ -143,6 +162,8 @@ class PuppetDriveController:
         # Ensure final position is exactly at destination
         final_pos = geometry[-1]
         self._driver.update_location(*final_pos)
+        if rider:
+            rider.update_location(*final_pos)
         self._emit_gps_ping(final_pos, self._driver.heading or 0.0)
 
         # Mark complete and run callbacks
