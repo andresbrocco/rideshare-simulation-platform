@@ -1,0 +1,758 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Individual rider deep-dive analytics from Gold and Silver layers. Select a rider from the dropdown to explore trip history, spending, ratings, cancellations, surge exposure, and GPS trails. All data queried from Delta Lake via Trino.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "panels": [],
+      "title": "Rider Overview",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "trino-datasource", "uid": "trino" },
+      "description": "Profile details for the selected rider from dim_riders.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "custom": { "align": "auto", "displayMode": "auto", "inspect": true }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 12, "x": 0, "y": 1 },
+      "id": 2,
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": { "show": false, "reducer": ["sum"], "fields": "" }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "format": 0,
+          "rawQuery": true,
+          "rawSql": "SELECT\n  first_name || ' ' || last_name AS name,\n  payment_method_type,\n  behavior_factor,\n  home_lat,\n  home_lon\nFROM delta.gold.dim_riders\nWHERE rider_id = '$rider_id'",
+          "refId": "A"
+        }
+      ],
+      "title": "Rider Profile",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "trino-datasource", "uid": "trino" },
+      "description": "Total number of trips for this rider.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 3, "x": 12, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "format": 0,
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) AS trips_completed\nFROM delta.gold.fact_trips ft\nJOIN delta.gold.dim_riders dr ON ft.rider_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'",
+          "refId": "A"
+        }
+      ],
+      "title": "Trips Completed",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "trino-datasource", "uid": "trino" },
+      "description": "Total amount spent by this rider from fact_payments.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "unit": "currencyUSD",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 3, "x": 15, "y": 1 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "format": 0,
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(SUM(total_fare), 0) AS total_spent\nFROM delta.gold.fact_payments fp\nJOIN delta.gold.dim_riders dr ON fp.rider_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'",
+          "refId": "A"
+        }
+      ],
+      "title": "Total Spent",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "trino-datasource", "uid": "trino" },
+      "description": "Average rating received by this rider. Thresholds: red (<3.5), yellow (3.5-4.0), green (4.0+).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 2,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 3.5 },
+              { "color": "green", "value": 4.0 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 3, "x": 18, "y": 1 },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "format": 0,
+          "rawQuery": true,
+          "rawSql": "SELECT ROUND(AVG(CAST(rating AS DOUBLE)), 2) AS avg_rating\nFROM delta.gold.fact_ratings fr\nJOIN delta.gold.dim_riders dr ON fr.ratee_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'\n  AND fr.ratee_type = 'rider'",
+          "refId": "A"
+        }
+      ],
+      "title": "Avg Rating Received",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "trino-datasource", "uid": "trino" },
+      "description": "Average wait time from request to match for this rider.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 60 },
+              { "color": "red", "value": 120 }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 3, "x": 21, "y": 1 },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "format": 0,
+          "rawQuery": true,
+          "rawSql": "SELECT ROUND(AVG(date_diff('second', requested_at, matched_at)), 0) AS avg_wait_seconds\nFROM delta.gold.fact_trips ft\nJOIN delta.gold.dim_riders dr ON ft.rider_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'\n  AND ft.matched_at IS NOT NULL",
+          "refId": "A"
+        }
+      ],
+      "title": "Avg Wait Time",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 7,
+      "panels": [],
+      "title": "Spending & Ratings",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "trino-datasource", "uid": "trino" },
+      "description": "Daily total spending by this rider from fact_payments.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": ["sum", "mean"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "format": 0,
+          "rawQuery": true,
+          "rawSql": "SELECT\n  CAST(dt.date_key AS TIMESTAMP) AS time,\n  SUM(fp.total_fare) AS daily_spending\nFROM delta.gold.fact_payments fp\nJOIN delta.gold.dim_riders dr ON fp.rider_key = dr.rider_key\nJOIN delta.gold.dim_time dt ON fp.time_key = dt.time_key\nWHERE dr.rider_id = '$rider_id'\nGROUP BY dt.date_key\nORDER BY time",
+          "refId": "A"
+        }
+      ],
+      "title": "Spending Over Time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "trino-datasource", "uid": "trino" },
+      "description": "Individual rating events received by this rider over time. Each point is one rating.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Rating",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "points",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineInterpolation": "linear",
+            "lineWidth": 0,
+            "pointSize": 8,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "always",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "min": 0,
+          "max": 5,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 9,
+      "options": {
+        "legend": {
+          "calcs": ["mean"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "format": 0,
+          "rawQuery": true,
+          "rawSql": "SELECT\n  fr.rating_timestamp AS time,\n  fr.rating\nFROM delta.gold.fact_ratings fr\nJOIN delta.gold.dim_riders dr ON fr.ratee_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'\n  AND fr.ratee_type = 'rider'\nORDER BY time",
+          "refId": "A"
+        }
+      ],
+      "title": "Rating History",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "trino-datasource", "uid": "trino" },
+      "description": "Distribution of ratings received by this rider (1-5 stars).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Count",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 14 },
+      "id": 10,
+      "options": {
+        "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": false },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "format": 0,
+          "rawQuery": true,
+          "rawSql": "WITH buckets AS (\n  SELECT rating_val, rating_label\n  FROM UNNEST(ARRAY[1,2,3,4,5],\n              ARRAY['1 Star','2 Stars','3 Stars','4 Stars','5 Stars']) AS t(rating_val, rating_label)\n),\nrating_data AS (\n  SELECT CAST(fr.rating AS INTEGER) AS rating_val, COUNT(*) AS rating_count\n  FROM delta.gold.fact_ratings fr\n  JOIN delta.gold.dim_riders dr ON fr.ratee_key = dr.rider_key\n  WHERE dr.rider_id = '$rider_id'\n    AND fr.ratee_type = 'rider'\n  GROUP BY CAST(fr.rating AS INTEGER)\n)\nSELECT b.rating_label AS rating, COALESCE(r.rating_count, 0) AS rating_count\nFROM buckets b LEFT JOIN rating_data r ON b.rating_val = r.rating_val\nORDER BY b.rating_val",
+          "refId": "A"
+        }
+      ],
+      "title": "Ratings Received (Distribution)",
+      "type": "barchart"
+    },
+    {
+      "datasource": { "type": "trino-datasource", "uid": "trino" },
+      "description": "Distribution of ratings given by this rider to drivers. Shows how this rider rates others.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Count",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 14 },
+      "id": 11,
+      "options": {
+        "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": false },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "format": 0,
+          "rawQuery": true,
+          "rawSql": "WITH buckets AS (\n  SELECT rating_val, rating_label\n  FROM UNNEST(ARRAY[1,2,3,4,5],\n              ARRAY['1 Star','2 Stars','3 Stars','4 Stars','5 Stars']) AS t(rating_val, rating_label)\n),\nrating_data AS (\n  SELECT CAST(fr.rating AS INTEGER) AS rating_val, COUNT(*) AS rating_count\n  FROM delta.gold.fact_ratings fr\n  JOIN delta.gold.dim_riders dr ON fr.rater_key = dr.rider_key\n  WHERE dr.rider_id = '$rider_id'\n    AND fr.rater_type = 'rider'\n  GROUP BY CAST(fr.rating AS INTEGER)\n)\nSELECT b.rating_label AS rating, COALESCE(r.rating_count, 0) AS rating_count\nFROM buckets b LEFT JOIN rating_data r ON b.rating_val = r.rating_val\nORDER BY b.rating_val",
+          "refId": "A"
+        }
+      ],
+      "title": "Ratings Given (Distribution)",
+      "type": "barchart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 12,
+      "panels": [],
+      "title": "Trip History, Cancellations & GPS",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "trino-datasource", "uid": "trino" },
+      "description": "Recent trips for this rider with driver name, zones, fare, surge, distance, and duration. Limited to 50 most recent.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "custom": { "align": "auto", "displayMode": "auto", "inspect": true }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "fare" },
+            "properties": [
+              { "id": "unit", "value": "currencyUSD" },
+              { "id": "decimals", "value": 2 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "distance_km" },
+            "properties": [
+              { "id": "unit", "value": "km" },
+              { "id": "decimals", "value": 1 }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 23 },
+      "id": 13,
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": { "show": false, "reducer": ["sum"], "fields": "" },
+        "sortBy": [{ "desc": true, "displayName": "completed_at" }]
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "format": 0,
+          "rawQuery": true,
+          "rawSql": "SELECT\n  ft.completed_at,\n  dd.first_name || ' ' || dd.last_name AS driver_name,\n  pz.name AS pickup_zone,\n  dz.name AS dropoff_zone,\n  ft.fare,\n  ft.surge_multiplier AS surge,\n  ROUND(ft.distance_km, 1) AS distance_km,\n  ROUND(ft.duration_minutes, 0) AS duration_min\nFROM delta.gold.fact_trips ft\nJOIN delta.gold.dim_riders dr ON ft.rider_key = dr.rider_key\nJOIN delta.gold.dim_drivers dd ON ft.driver_key = dd.driver_key\nLEFT JOIN delta.gold.dim_zones pz ON ft.pickup_zone_key = pz.zone_key\nLEFT JOIN delta.gold.dim_zones dz ON ft.dropoff_zone_key = dz.zone_key\nWHERE dr.rider_id = '$rider_id'\nORDER BY ft.completed_at DESC\nLIMIT 50",
+          "refId": "A"
+        }
+      ],
+      "title": "Trip History",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "trino-datasource", "uid": "trino" },
+      "description": "Distribution of cancellation reasons for this rider.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 31 },
+      "id": 14,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": ["value", "percent"]
+        },
+        "pieType": "donut",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": true },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "format": 0,
+          "rawQuery": true,
+          "rawSql": "SELECT\n  cancellation_reason,\n  COUNT(*) AS cancellation_count\nFROM delta.gold.fact_cancellations fc\nJOIN delta.gold.dim_riders dr ON fc.rider_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'\nGROUP BY cancellation_reason\nORDER BY cancellation_count DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Cancellation Reasons",
+      "type": "piechart"
+    },
+    {
+      "datasource": { "type": "trino-datasource", "uid": "trino" },
+      "description": "Percentage of this rider's trips that had surge pricing (multiplier > 1.0).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 30 },
+              { "color": "red", "value": 60 }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 31 },
+      "id": 15,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "format": 0,
+          "rawQuery": true,
+          "rawSql": "SELECT\n  ROUND(\n    100.0 * SUM(CASE WHEN ft.surge_multiplier > 1.0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0),\n    1\n  ) AS surge_trip_pct\nFROM delta.gold.fact_trips ft\nJOIN delta.gold.dim_riders dr ON ft.rider_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'",
+          "refId": "A"
+        }
+      ],
+      "title": "Surge Exposure %",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "trino-datasource", "uid": "trino" },
+      "description": "Distribution of surge multiplier ranges across this rider's trips.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Trips",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 35 },
+      "id": 16,
+      "options": {
+        "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": false },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "format": 0,
+          "rawQuery": true,
+          "rawSql": "WITH buckets AS (\n  SELECT range_name, range_order\n  FROM UNNEST(ARRAY['1.0x (none)','1.0-1.5x','1.5-2.0x','2.0x+'],\n              ARRAY[1,2,3,4]) AS t(range_name, range_order)\n),\nsurge_data AS (\n  SELECT\n    CASE\n      WHEN ft.surge_multiplier <= 1.0 THEN '1.0x (none)'\n      WHEN ft.surge_multiplier <= 1.5 THEN '1.0-1.5x'\n      WHEN ft.surge_multiplier <= 2.0 THEN '1.5-2.0x'\n      ELSE '2.0x+'\n    END AS surge_bucket,\n    COUNT(*) AS trip_count\n  FROM delta.gold.fact_trips ft\n  JOIN delta.gold.dim_riders dr ON ft.rider_key = dr.rider_key\n  WHERE dr.rider_id = '$rider_id'\n  GROUP BY 1\n)\nSELECT b.range_name AS surge_range, COALESCE(s.trip_count, 0) AS trip_count\nFROM buckets b LEFT JOIN surge_data s ON b.range_name = s.surge_bucket\nORDER BY b.range_order",
+          "refId": "A"
+        }
+      ],
+      "title": "Surge Distribution",
+      "type": "barchart"
+    },
+    {
+      "datasource": { "type": "trino-datasource", "uid": "trino" },
+      "description": "GPS ping trail for this rider from the Silver layer. Marker size by speed, color by trip state. Centered on Sao Paulo.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#B4D5E8", "value": null },
+              { "color": "#6BAED6", "value": 10 },
+              { "color": "#3182BD", "value": 30 },
+              { "color": "#08519C", "value": 50 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 },
+      "id": 17,
+      "options": {
+        "basemap": { "config": {}, "name": "Layer 0", "type": "default" },
+        "controls": {
+          "mouseWheelZoom": true,
+          "showAttribution": true,
+          "showDebug": false,
+          "showMeasure": false,
+          "showScale": false,
+          "showZoom": true
+        },
+        "layers": [
+          {
+            "config": {
+              "showLegend": true,
+              "style": {
+                "color": { "field": "trip_state", "fixed": "dark-green" },
+                "opacity": 0.7,
+                "rotation": { "fixed": 0, "max": 360, "min": -360, "mode": "mod" },
+                "size": { "field": "speed", "fixed": 5, "max": 15, "min": 3 },
+                "symbol": { "fixed": "img/icons/marker/circle.svg", "mode": "fixed" }
+              }
+            },
+            "location": {
+              "latitude": "latitude",
+              "longitude": "longitude",
+              "mode": "coords"
+            },
+            "name": "GPS Pings",
+            "tooltip": true,
+            "type": "markers"
+          }
+        ],
+        "tooltip": { "mode": "details" },
+        "view": { "allLayers": true, "id": "coords", "lat": -23.55, "lon": -46.63, "zoom": 11 }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "format": 0,
+          "rawQuery": true,
+          "rawSql": "SELECT\n  latitude,\n  longitude,\n  speed,\n  trip_state,\n  timestamp\nFROM delta.silver.stg_gps_pings\nWHERE entity_type = 'rider'\n  AND entity_id = '$rider_id'\nORDER BY timestamp DESC\nLIMIT 1000",
+          "refId": "A"
+        }
+      ],
+      "title": "GPS Trail",
+      "type": "geomap"
+    }
+  ],
+  "refresh": "5m",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["business-intelligence", "riders", "gold"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "", "value": "" },
+        "datasource": { "type": "trino-datasource", "uid": "trino" },
+        "definition": "SELECT rider_id AS __value, first_name || ' ' || last_name || ' (' || rider_id || ')' AS __text FROM delta.gold.dim_riders ORDER BY first_name",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Rider",
+        "multi": false,
+        "name": "rider_id",
+        "options": [],
+        "query": "SELECT rider_id AS __value, first_name || ' ' || last_name || ' (' || rider_id || ')' AS __text FROM delta.gold.dim_riders ORDER BY first_name",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Rider Explorer",
+  "uid": "rider-explorer",
+  "version": 1,
+  "weekStart": ""
+}
