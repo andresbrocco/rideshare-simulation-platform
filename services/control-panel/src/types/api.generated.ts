@@ -144,167 +144,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/metrics/overview': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /**
-     * Get Overview Metrics
-     * @description Returns overview metrics with total counts.
-     */
-    get: operations['get_overview_metrics_metrics_overview_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/metrics/zones': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /**
-     * Get Zone Metrics
-     * @description Returns per-zone metrics with supply, demand, and surge.
-     */
-    get: operations['get_zone_metrics_metrics_zones_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/metrics/trips': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /**
-     * Get Trip Metrics
-     * @description Returns trip statistics including active, completed, and averages.
-     */
-    get: operations['get_trip_metrics_metrics_trips_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/metrics/drivers': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /**
-     * Get Driver Metrics
-     * @description Returns driver status counts.
-     */
-    get: operations['get_driver_metrics_metrics_drivers_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/metrics/riders': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /**
-     * Get Rider Metrics
-     * @description Returns rider status counts derived from rider agent status.
-     *
-     *     Rider states:
-     *     - idle: riders not currently requesting a trip
-     *     - requesting: riders actively requesting a trip match
-     *     - awaiting_pickup: rider has a driver assigned and is waiting at pickup
-     *     - in_transit: rider is in vehicle (on_trip)
-     */
-    get: operations['get_rider_metrics_metrics_riders_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/metrics/performance': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /**
-     * Get Performance Metrics
-     * @description Returns real-time performance metrics.
-     *
-     *     Includes:
-     *     - Event throughput (events per second by type)
-     *     - Latency statistics (OSRM, Kafka, Redis)
-     *     - Error statistics (OSRM, Kafka, Redis)
-     *     - Queue depths (pending offers, simpy events)
-     *     - Memory and CPU usage
-     *     - Stream processor metrics (optional)
-     */
-    get: operations['get_performance_metrics_metrics_performance_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/metrics/infrastructure': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /**
-     * Get Infrastructure Metrics
-     * @description Returns unified infrastructure metrics for all services.
-     *
-     *     Combines health check status with container resource metrics from cAdvisor.
-     *     Each service includes:
-     *     - Health status (healthy/degraded/unhealthy)
-     *     - Health check latency
-     *     - Memory usage and limit
-     *     - CPU usage percentage
-     */
-    get: operations['get_infrastructure_metrics_metrics_infrastructure_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   '/agents/drivers': {
     parameters: {
       query?: never;
@@ -471,7 +310,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/puppet/puppet/drivers': {
+  '/agents/puppet/drivers': {
     parameters: {
       query?: never;
       header?: never;
@@ -490,14 +329,14 @@ export interface paths {
      *     - All state transitions triggered via API
      *     - Support optional DNA overrides for testing specific behaviors
      */
-    post: operations['create_puppet_driver_puppet_puppet_drivers_post'];
+    post: operations['create_puppet_driver_agents_puppet_drivers_post'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  '/puppet/puppet/riders': {
+  '/agents/puppet/riders': {
     parameters: {
       query?: never;
       header?: never;
@@ -516,14 +355,14 @@ export interface paths {
      *     - All state transitions triggered via API
      *     - Support optional DNA overrides for testing specific behaviors
      */
-    post: operations['create_puppet_rider_puppet_puppet_riders_post'];
+    post: operations['create_puppet_rider_agents_puppet_riders_post'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  '/puppet/puppet/drivers/{driver_id}/go-online': {
+  '/agents/puppet/drivers/{driver_id}/go-online': {
     parameters: {
       query?: never;
       header?: never;
@@ -537,7 +376,7 @@ export interface paths {
      *
      *     Valid from: offline
      */
-    put: operations['puppet_driver_go_online_puppet_puppet_drivers__driver_id__go_online_put'];
+    put: operations['puppet_driver_go_online_agents_puppet_drivers__driver_id__go_online_put'];
     post?: never;
     delete?: never;
     options?: never;
@@ -545,7 +384,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/puppet/puppet/drivers/{driver_id}/go-offline': {
+  '/agents/puppet/drivers/{driver_id}/go-offline': {
     parameters: {
       query?: never;
       header?: never;
@@ -559,7 +398,7 @@ export interface paths {
      *
      *     Valid from: online (with no active trip)
      */
-    put: operations['puppet_driver_go_offline_puppet_puppet_drivers__driver_id__go_offline_put'];
+    put: operations['puppet_driver_go_offline_agents_puppet_drivers__driver_id__go_offline_put'];
     post?: never;
     delete?: never;
     options?: never;
@@ -567,7 +406,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/puppet/puppet/drivers/{driver_id}/accept-offer': {
+  '/agents/puppet/drivers/{driver_id}/accept-offer': {
     parameters: {
       query?: never;
       header?: never;
@@ -582,14 +421,14 @@ export interface paths {
      *
      *     Valid from: online (with pending offer)
      */
-    post: operations['puppet_driver_accept_offer_puppet_puppet_drivers__driver_id__accept_offer_post'];
+    post: operations['puppet_driver_accept_offer_agents_puppet_drivers__driver_id__accept_offer_post'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  '/puppet/puppet/drivers/{driver_id}/reject-offer': {
+  '/agents/puppet/drivers/{driver_id}/reject-offer': {
     parameters: {
       query?: never;
       header?: never;
@@ -604,14 +443,14 @@ export interface paths {
      *
      *     Valid from: online (with pending offer)
      */
-    post: operations['puppet_driver_reject_offer_puppet_puppet_drivers__driver_id__reject_offer_post'];
+    post: operations['puppet_driver_reject_offer_agents_puppet_drivers__driver_id__reject_offer_post'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  '/puppet/puppet/drivers/{driver_id}/drive-to-pickup': {
+  '/agents/puppet/drivers/{driver_id}/drive-to-pickup': {
     parameters: {
       query?: never;
       header?: never;
@@ -632,14 +471,14 @@ export interface paths {
      *     OSRM route in the background, emitting GPS updates at regular intervals.
      *     Use the WebSocket or GET /agents/drivers/{id} to monitor progress.
      */
-    post: operations['puppet_driver_drive_to_pickup_puppet_puppet_drivers__driver_id__drive_to_pickup_post'];
+    post: operations['puppet_driver_drive_to_pickup_agents_puppet_drivers__driver_id__drive_to_pickup_post'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  '/puppet/puppet/drivers/{driver_id}/drive-to-destination': {
+  '/agents/puppet/drivers/{driver_id}/drive-to-destination': {
     parameters: {
       query?: never;
       header?: never;
@@ -660,14 +499,14 @@ export interface paths {
      *     OSRM route in the background, emitting GPS updates at regular intervals.
      *     Use the WebSocket or GET /agents/drivers/{id} to monitor progress.
      */
-    post: operations['puppet_driver_drive_to_destination_puppet_puppet_drivers__driver_id__drive_to_destination_post'];
+    post: operations['puppet_driver_drive_to_destination_agents_puppet_drivers__driver_id__drive_to_destination_post'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  '/puppet/puppet/drivers/{driver_id}/arrive-pickup': {
+  '/agents/puppet/drivers/{driver_id}/arrive-pickup': {
     parameters: {
       query?: never;
       header?: never;
@@ -682,14 +521,14 @@ export interface paths {
      *
      *     Valid from: en_route_pickup
      */
-    post: operations['puppet_driver_arrive_pickup_puppet_puppet_drivers__driver_id__arrive_pickup_post'];
+    post: operations['puppet_driver_arrive_pickup_agents_puppet_drivers__driver_id__arrive_pickup_post'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  '/puppet/puppet/drivers/{driver_id}/start-trip': {
+  '/agents/puppet/drivers/{driver_id}/start-trip': {
     parameters: {
       query?: never;
       header?: never;
@@ -704,14 +543,14 @@ export interface paths {
      *
      *     Valid from: en_route_pickup (after arrive-pickup)
      */
-    post: operations['puppet_driver_start_trip_puppet_puppet_drivers__driver_id__start_trip_post'];
+    post: operations['puppet_driver_start_trip_agents_puppet_drivers__driver_id__start_trip_post'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  '/puppet/puppet/drivers/{driver_id}/complete-trip': {
+  '/agents/puppet/drivers/{driver_id}/complete-trip': {
     parameters: {
       query?: never;
       header?: never;
@@ -726,14 +565,14 @@ export interface paths {
      *
      *     Valid from: en_route_destination (after start-trip)
      */
-    post: operations['puppet_driver_complete_trip_puppet_puppet_drivers__driver_id__complete_trip_post'];
+    post: operations['puppet_driver_complete_trip_agents_puppet_drivers__driver_id__complete_trip_post'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  '/puppet/puppet/drivers/{driver_id}/cancel-trip': {
+  '/agents/puppet/drivers/{driver_id}/cancel-trip': {
     parameters: {
       query?: never;
       header?: never;
@@ -748,14 +587,14 @@ export interface paths {
      *
      *     Valid from: en_route_pickup
      */
-    post: operations['puppet_driver_cancel_trip_puppet_puppet_drivers__driver_id__cancel_trip_post'];
+    post: operations['puppet_driver_cancel_trip_agents_puppet_drivers__driver_id__cancel_trip_post'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  '/puppet/puppet/riders/{rider_id}/request-trip': {
+  '/agents/puppet/riders/{rider_id}/request-trip': {
     parameters: {
       query?: never;
       header?: never;
@@ -770,14 +609,14 @@ export interface paths {
      *
      *     Valid from: offline
      */
-    post: operations['puppet_rider_request_trip_puppet_puppet_riders__rider_id__request_trip_post'];
+    post: operations['puppet_rider_request_trip_agents_puppet_riders__rider_id__request_trip_post'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  '/puppet/puppet/riders/{rider_id}/cancel-trip': {
+  '/agents/puppet/riders/{rider_id}/cancel-trip': {
     parameters: {
       query?: never;
       header?: never;
@@ -792,14 +631,14 @@ export interface paths {
      *
      *     Valid from: waiting
      */
-    post: operations['puppet_rider_cancel_trip_puppet_puppet_riders__rider_id__cancel_trip_post'];
+    post: operations['puppet_rider_cancel_trip_agents_puppet_riders__rider_id__cancel_trip_post'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  '/puppet/puppet/drivers/{driver_id}/rating': {
+  '/agents/puppet/drivers/{driver_id}/rating': {
     parameters: {
       query?: never;
       header?: never;
@@ -813,7 +652,7 @@ export interface paths {
      *
      *     Allows testing driver acceptance thresholds and rating-based matching.
      */
-    put: operations['update_driver_rating_puppet_puppet_drivers__driver_id__rating_put'];
+    put: operations['update_driver_rating_agents_puppet_drivers__driver_id__rating_put'];
     post?: never;
     delete?: never;
     options?: never;
@@ -821,7 +660,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/puppet/puppet/riders/{rider_id}/rating': {
+  '/agents/puppet/riders/{rider_id}/rating': {
     parameters: {
       query?: never;
       header?: never;
@@ -835,7 +674,7 @@ export interface paths {
      *
      *     Allows testing driver acceptance based on rider rating thresholds.
      */
-    put: operations['update_rider_rating_puppet_puppet_riders__rider_id__rating_put'];
+    put: operations['update_rider_rating_agents_puppet_riders__rider_id__rating_put'];
     post?: never;
     delete?: never;
     options?: never;
@@ -843,7 +682,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/puppet/puppet/drivers/{driver_id}/location': {
+  '/agents/puppet/drivers/{driver_id}/location': {
     parameters: {
       query?: never;
       header?: never;
@@ -858,7 +697,7 @@ export interface paths {
      *     Useful for testing geospatial matching logic.
      *     Constraint: Cannot teleport while in active trip.
      */
-    put: operations['teleport_driver_puppet_puppet_drivers__driver_id__location_put'];
+    put: operations['teleport_driver_agents_puppet_drivers__driver_id__location_put'];
     post?: never;
     delete?: never;
     options?: never;
@@ -866,7 +705,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/puppet/puppet/riders/{rider_id}/location': {
+  '/agents/puppet/riders/{rider_id}/location': {
     parameters: {
       query?: never;
       header?: never;
@@ -881,7 +720,7 @@ export interface paths {
      *     Useful for testing zone-based surge pricing and matching.
      *     Constraint: Cannot teleport while in active trip.
      */
-    put: operations['teleport_rider_puppet_puppet_riders__rider_id__location_put'];
+    put: operations['teleport_rider_agents_puppet_riders__rider_id__location_put'];
     post?: never;
     delete?: never;
     options?: never;
@@ -889,7 +728,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/puppet/puppet/drivers/{driver_id}/force-offer-timeout': {
+  '/agents/puppet/drivers/{driver_id}/force-offer-timeout': {
     parameters: {
       query?: never;
       header?: never;
@@ -905,14 +744,14 @@ export interface paths {
      *     Simulates offer expiry without waiting for actual timeout.
      *     Valid from: online with pending offer
      */
-    post: operations['force_driver_offer_timeout_puppet_puppet_drivers__driver_id__force_offer_timeout_post'];
+    post: operations['force_driver_offer_timeout_agents_puppet_drivers__driver_id__force_offer_timeout_post'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  '/puppet/puppet/riders/{rider_id}/force-patience-timeout': {
+  '/agents/puppet/riders/{rider_id}/force-patience-timeout': {
     parameters: {
       query?: never;
       header?: never;
@@ -928,7 +767,232 @@ export interface paths {
      *     Simulates patience expiry without waiting for actual timeout.
      *     Valid from: waiting
      */
-    post: operations['force_rider_patience_timeout_puppet_puppet_riders__rider_id__force_patience_timeout_post'];
+    post: operations['force_rider_patience_timeout_agents_puppet_riders__rider_id__force_patience_timeout_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/metrics/overview': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Overview Metrics
+     * @description Returns overview metrics with total counts.
+     */
+    get: operations['get_overview_metrics_metrics_overview_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/metrics/zones': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Zone Metrics
+     * @description Returns per-zone metrics with supply, demand, and surge.
+     */
+    get: operations['get_zone_metrics_metrics_zones_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/metrics/trips': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Trip Metrics
+     * @description Returns trip statistics including active, completed, and averages.
+     */
+    get: operations['get_trip_metrics_metrics_trips_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/metrics/drivers': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Driver Metrics
+     * @description Returns driver status counts.
+     */
+    get: operations['get_driver_metrics_metrics_drivers_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/metrics/riders': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Rider Metrics
+     * @description Returns rider status counts derived from rider agent status.
+     *
+     *     Rider states:
+     *     - idle: riders not currently requesting a trip
+     *     - requesting: riders actively requesting a trip match
+     *     - awaiting_pickup: rider has a driver assigned and is waiting at pickup
+     *     - in_transit: rider is in vehicle (on_trip)
+     */
+    get: operations['get_rider_metrics_metrics_riders_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/metrics/performance': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Performance Metrics
+     * @description Returns real-time performance metrics.
+     *
+     *     Includes:
+     *     - Event throughput (events per second by type)
+     *     - Latency statistics (OSRM, Kafka, Redis)
+     *     - Error statistics (OSRM, Kafka, Redis)
+     *     - Queue depths (pending offers, simpy events)
+     *     - Memory and CPU usage
+     *     - Stream processor metrics (optional)
+     */
+    get: operations['get_performance_metrics_metrics_performance_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/metrics/infrastructure': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Infrastructure Metrics
+     * @description Returns unified infrastructure metrics for all services.
+     *
+     *     Combines health check status with container resource metrics from cAdvisor.
+     *     Each service includes:
+     *     - Health status (healthy/degraded/unhealthy)
+     *     - Health check latency
+     *     - Memory usage and limit
+     *     - CPU usage percentage
+     */
+    get: operations['get_infrastructure_metrics_metrics_infrastructure_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/health': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Health Check
+     * @description Health check endpoint for monitoring (unauthenticated for infrastructure).
+     */
+    get: operations['health_check_health_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/auth/validate': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Validate Api Key Endpoint
+     * @description Validate API key for login.
+     *
+     *     This endpoint requires a valid API key and returns 200 if valid.
+     *     Used by the frontend login screen to validate credentials.
+     *     Returns 401 if the API key is invalid.
+     */
+    get: operations['validate_api_key_endpoint_auth_validate_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/health/detailed': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Detailed Health Check
+     * @description Detailed health check for all services with latency metrics.
+     */
+    get: operations['detailed_health_check_health_detailed_get'];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -985,6 +1049,24 @@ export interface components {
       status: string;
       /** Message */
       message?: string | null;
+    };
+    /**
+     * DetailedHealthResponse
+     * @description Detailed health check response for all services.
+     */
+    DetailedHealthResponse: {
+      /**
+       * Overall Status
+       * @enum {string}
+       */
+      overall_status: 'healthy' | 'degraded' | 'unhealthy';
+      redis: components['schemas']['ServiceHealth'];
+      osrm: components['schemas']['ServiceHealth'];
+      kafka: components['schemas']['ServiceHealth'];
+      simulation_engine: components['schemas']['ServiceHealth'];
+      stream_processor: components['schemas']['StreamProcessorHealth'];
+      /** Timestamp */
+      timestamp: string;
     };
     /** DriverCreateRequest */
     DriverCreateRequest: {
@@ -1682,6 +1764,21 @@ export interface components {
       estimated_completion_seconds: number;
     };
     /**
+     * ServiceHealth
+     * @description Health status for a single service.
+     */
+    ServiceHealth: {
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: 'healthy' | 'degraded' | 'unhealthy';
+      /** Latency Ms */
+      latency_ms?: number | null;
+      /** Message */
+      message?: string | null;
+    };
+    /**
      * ServiceMetrics
      * @description Unified metrics for a single service/container.
      */
@@ -1783,6 +1880,25 @@ export interface components {
     SpeedChangeResponse: {
       /** Speed */
       speed: number;
+    };
+    /**
+     * StreamProcessorHealth
+     * @description Health status for stream processor service.
+     */
+    StreamProcessorHealth: {
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: 'healthy' | 'degraded' | 'unhealthy';
+      /** Latency Ms */
+      latency_ms?: number | null;
+      /** Message */
+      message?: string | null;
+      /** Kafka Connected */
+      kafka_connected?: boolean | null;
+      /** Redis Connected */
+      redis_connected?: boolean | null;
     };
     /**
      * StreamProcessorLatency
@@ -2119,223 +2235,6 @@ export interface operations {
       };
     };
   };
-  get_overview_metrics_metrics_overview_get: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['OverviewMetrics'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_zone_metrics_metrics_zones_get: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ZoneMetrics'][];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_trip_metrics_metrics_trips_get: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['TripMetrics'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_driver_metrics_metrics_drivers_get: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['DriverMetrics'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_rider_metrics_metrics_riders_get: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['RiderMetrics'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_performance_metrics_metrics_performance_get: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PerformanceMetrics'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_infrastructure_metrics_metrics_infrastructure_get: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['InfrastructureResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
   create_drivers_agents_drivers_post: {
     parameters: {
       query?: {
@@ -2583,7 +2482,7 @@ export interface operations {
       };
     };
   };
-  create_puppet_driver_puppet_puppet_drivers_post: {
+  create_puppet_driver_agents_puppet_drivers_post: {
     parameters: {
       query?: never;
       header: {
@@ -2618,7 +2517,7 @@ export interface operations {
       };
     };
   };
-  create_puppet_rider_puppet_puppet_riders_post: {
+  create_puppet_rider_agents_puppet_riders_post: {
     parameters: {
       query?: never;
       header: {
@@ -2653,7 +2552,7 @@ export interface operations {
       };
     };
   };
-  puppet_driver_go_online_puppet_puppet_drivers__driver_id__go_online_put: {
+  puppet_driver_go_online_agents_puppet_drivers__driver_id__go_online_put: {
     parameters: {
       query?: never;
       header: {
@@ -2686,7 +2585,7 @@ export interface operations {
       };
     };
   };
-  puppet_driver_go_offline_puppet_puppet_drivers__driver_id__go_offline_put: {
+  puppet_driver_go_offline_agents_puppet_drivers__driver_id__go_offline_put: {
     parameters: {
       query?: never;
       header: {
@@ -2719,7 +2618,7 @@ export interface operations {
       };
     };
   };
-  puppet_driver_accept_offer_puppet_puppet_drivers__driver_id__accept_offer_post: {
+  puppet_driver_accept_offer_agents_puppet_drivers__driver_id__accept_offer_post: {
     parameters: {
       query?: never;
       header: {
@@ -2752,7 +2651,7 @@ export interface operations {
       };
     };
   };
-  puppet_driver_reject_offer_puppet_puppet_drivers__driver_id__reject_offer_post: {
+  puppet_driver_reject_offer_agents_puppet_drivers__driver_id__reject_offer_post: {
     parameters: {
       query?: never;
       header: {
@@ -2785,7 +2684,7 @@ export interface operations {
       };
     };
   };
-  puppet_driver_drive_to_pickup_puppet_puppet_drivers__driver_id__drive_to_pickup_post: {
+  puppet_driver_drive_to_pickup_agents_puppet_drivers__driver_id__drive_to_pickup_post: {
     parameters: {
       query?: never;
       header: {
@@ -2818,7 +2717,7 @@ export interface operations {
       };
     };
   };
-  puppet_driver_drive_to_destination_puppet_puppet_drivers__driver_id__drive_to_destination_post: {
+  puppet_driver_drive_to_destination_agents_puppet_drivers__driver_id__drive_to_destination_post: {
     parameters: {
       query?: never;
       header: {
@@ -2851,7 +2750,7 @@ export interface operations {
       };
     };
   };
-  puppet_driver_arrive_pickup_puppet_puppet_drivers__driver_id__arrive_pickup_post: {
+  puppet_driver_arrive_pickup_agents_puppet_drivers__driver_id__arrive_pickup_post: {
     parameters: {
       query?: never;
       header: {
@@ -2884,7 +2783,7 @@ export interface operations {
       };
     };
   };
-  puppet_driver_start_trip_puppet_puppet_drivers__driver_id__start_trip_post: {
+  puppet_driver_start_trip_agents_puppet_drivers__driver_id__start_trip_post: {
     parameters: {
       query?: never;
       header: {
@@ -2917,7 +2816,7 @@ export interface operations {
       };
     };
   };
-  puppet_driver_complete_trip_puppet_puppet_drivers__driver_id__complete_trip_post: {
+  puppet_driver_complete_trip_agents_puppet_drivers__driver_id__complete_trip_post: {
     parameters: {
       query?: never;
       header: {
@@ -2950,7 +2849,7 @@ export interface operations {
       };
     };
   };
-  puppet_driver_cancel_trip_puppet_puppet_drivers__driver_id__cancel_trip_post: {
+  puppet_driver_cancel_trip_agents_puppet_drivers__driver_id__cancel_trip_post: {
     parameters: {
       query?: never;
       header: {
@@ -2983,7 +2882,7 @@ export interface operations {
       };
     };
   };
-  puppet_rider_request_trip_puppet_puppet_riders__rider_id__request_trip_post: {
+  puppet_rider_request_trip_agents_puppet_riders__rider_id__request_trip_post: {
     parameters: {
       query?: never;
       header: {
@@ -3020,7 +2919,7 @@ export interface operations {
       };
     };
   };
-  puppet_rider_cancel_trip_puppet_puppet_riders__rider_id__cancel_trip_post: {
+  puppet_rider_cancel_trip_agents_puppet_riders__rider_id__cancel_trip_post: {
     parameters: {
       query?: never;
       header: {
@@ -3053,7 +2952,7 @@ export interface operations {
       };
     };
   };
-  update_driver_rating_puppet_puppet_drivers__driver_id__rating_put: {
+  update_driver_rating_agents_puppet_drivers__driver_id__rating_put: {
     parameters: {
       query?: never;
       header: {
@@ -3090,7 +2989,7 @@ export interface operations {
       };
     };
   };
-  update_rider_rating_puppet_puppet_riders__rider_id__rating_put: {
+  update_rider_rating_agents_puppet_riders__rider_id__rating_put: {
     parameters: {
       query?: never;
       header: {
@@ -3127,7 +3026,7 @@ export interface operations {
       };
     };
   };
-  teleport_driver_puppet_puppet_drivers__driver_id__location_put: {
+  teleport_driver_agents_puppet_drivers__driver_id__location_put: {
     parameters: {
       query?: never;
       header: {
@@ -3164,7 +3063,7 @@ export interface operations {
       };
     };
   };
-  teleport_rider_puppet_puppet_riders__rider_id__location_put: {
+  teleport_rider_agents_puppet_riders__rider_id__location_put: {
     parameters: {
       query?: never;
       header: {
@@ -3201,7 +3100,7 @@ export interface operations {
       };
     };
   };
-  force_driver_offer_timeout_puppet_puppet_drivers__driver_id__force_offer_timeout_post: {
+  force_driver_offer_timeout_agents_puppet_drivers__driver_id__force_offer_timeout_post: {
     parameters: {
       query?: never;
       header: {
@@ -3234,7 +3133,7 @@ export interface operations {
       };
     };
   };
-  force_rider_patience_timeout_puppet_puppet_riders__rider_id__force_patience_timeout_post: {
+  force_rider_patience_timeout_agents_puppet_riders__rider_id__force_patience_timeout_post: {
     parameters: {
       query?: never;
       header: {
@@ -3263,6 +3162,298 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  get_overview_metrics_metrics_overview_get: {
+    parameters: {
+      query?: never;
+      header: {
+        'x-api-key': string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['OverviewMetrics'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  get_zone_metrics_metrics_zones_get: {
+    parameters: {
+      query?: never;
+      header: {
+        'x-api-key': string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ZoneMetrics'][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  get_trip_metrics_metrics_trips_get: {
+    parameters: {
+      query?: never;
+      header: {
+        'x-api-key': string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['TripMetrics'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  get_driver_metrics_metrics_drivers_get: {
+    parameters: {
+      query?: never;
+      header: {
+        'x-api-key': string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DriverMetrics'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  get_rider_metrics_metrics_riders_get: {
+    parameters: {
+      query?: never;
+      header: {
+        'x-api-key': string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['RiderMetrics'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  get_performance_metrics_metrics_performance_get: {
+    parameters: {
+      query?: never;
+      header: {
+        'x-api-key': string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PerformanceMetrics'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  get_infrastructure_metrics_metrics_infrastructure_get: {
+    parameters: {
+      query?: never;
+      header: {
+        'x-api-key': string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['InfrastructureResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  health_check_health_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            [key: string]: string;
+          };
+        };
+      };
+    };
+  };
+  validate_api_key_endpoint_auth_validate_get: {
+    parameters: {
+      query?: never;
+      header: {
+        'x-api-key': string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            [key: string]: string;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  detailed_health_check_health_detailed_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DetailedHealthResponse'];
         };
       };
     };

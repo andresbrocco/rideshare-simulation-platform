@@ -6,6 +6,7 @@ const DRIVER_STATUS_LABELS: Record<Driver['status'], string> = {
   en_route_pickup: 'To Pickup',
   on_trip: 'On Trip',
   offer_pending: 'Offer Pending',
+  driving_closer_to_home: 'Returning Home',
 };
 
 export function formatDriverStatus(status: Driver['status']): string {

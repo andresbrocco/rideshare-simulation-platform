@@ -144,9 +144,11 @@ jobs:
           CLUSTER_NAME=$(terraform output -raw cluster_name)
           CLUSTER_ENDPOINT=$(terraform output -raw cluster_endpoint)
           RDS_ENDPOINT=$(terraform output -raw rds_endpoint)
-          echo "cluster_name=$CLUSTER_NAME" >> "$GITHUB_OUTPUT"
-          echo "cluster_endpoint=$CLUSTER_ENDPOINT" >> "$GITHUB_OUTPUT"
-          echo "rds_endpoint=$RDS_ENDPOINT" >> "$GITHUB_OUTPUT"
+          {
+            echo "cluster_name=$CLUSTER_NAME"
+            echo "cluster_endpoint=$CLUSTER_ENDPOINT"
+            echo "rds_endpoint=$RDS_ENDPOINT"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Resolve Production Values
         run: |

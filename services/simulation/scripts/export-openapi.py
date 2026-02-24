@@ -2,12 +2,22 @@
 """Export OpenAPI spec from FastAPI app to schemas/api/openapi.json."""
 
 import json
+import os
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
 # Add src to path so we can import from api
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
+# Set minimal required env vars so Settings validation passes without real credentials.
+# These dummy values are only used to satisfy Pydantic validators during schema export;
+# no actual Kafka/Redis connections are made.
+os.environ.setdefault("KAFKA_SASL_USERNAME", "ci-export")
+os.environ.setdefault("KAFKA_SASL_PASSWORD", "ci-export")
+os.environ.setdefault("KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO", "ci-export:ci-export")
+os.environ.setdefault("REDIS_PASSWORD", "ci-export")
+os.environ.setdefault("API_KEY", "ci-export")
 
 from api.app import create_app
 
@@ -39,5 +49,6 @@ output_path.parent.mkdir(parents=True, exist_ok=True)
 
 with output_path.open("w") as f:
     json.dump(openapi_schema, f, indent=2)
+    f.write("\n")
 
 print(f"OpenAPI spec exported to {output_path}")

@@ -54,12 +54,7 @@ export function RiderActionsSection({
     return <div className={styles.infoMessage}>Status: {status}</div>;
   }
 
-  if (
-    status !== 'idle' &&
-    status !== 'requesting' &&
-    status !== 'awaiting_pickup' &&
-    !active_trip
-  ) {
+  if (!active_trip) {
     return <div className={styles.infoMessage}>Status: {status}</div>;
   }
 

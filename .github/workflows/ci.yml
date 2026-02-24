@@ -92,6 +92,17 @@ jobs:
         with:
           python-version: '3.13'
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: services/control-panel/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: services/control-panel
+
       - name: Install simulation dependencies and run tests
         working-directory: services/simulation
         run: |
