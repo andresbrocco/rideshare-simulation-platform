@@ -842,7 +842,7 @@ def run(
                         )
 
                 elif scenario_name == "stress":
-                    # Compute effective RTR threshold for display
+                    # Compute effective threshold sources for display
                     if (
                         baseline_calibration is not None
                         and baseline_calibration.rtr_threshold is not None
@@ -852,11 +852,17 @@ def run(
                     else:
                         effective_rtr = config.scenarios.stress_rtr_threshold
                         rtr_source_label = "config-fallback"
+                    health_source_label = (
+                        baseline_calibration.health_threshold_source
+                        if baseline_calibration is not None
+                        else "api-reported"
+                    )
                     console.rule(
                         f"[bold cyan]{step_label}: Running Stress Test "
                         f"(until {config.scenarios.stress_global_cpu_threshold_percent}% global CPU, "
                         f"{config.scenarios.stress_memory_threshold_percent}% memory, "
-                        f"or {effective_rtr}x RTR [{rtr_source_label}])"
+                        f"RTR <= {effective_rtr}x [{rtr_source_label}], "
+                        f"or health latency [{health_source_label}])"
                         f"[/bold cyan]"
                     )
                     stress_result = run_scenario(

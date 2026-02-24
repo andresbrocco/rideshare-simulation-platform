@@ -162,7 +162,8 @@ class StressTestScenario(BaseScenario):
         return (
             f"Stress test: spawn agents until {self.params['global_cpu_threshold_percent']}% "
             f"global CPU, {self.params['memory_threshold_percent']}% memory, "
-            f"or RTR <= {self.params['rtr_threshold']} reached"
+            f"RTR <= {self.params['rtr_threshold']} [{self.params['rtr_threshold_source']}], "
+            f"or health latency [{self.params['health_threshold_source']}] reached"
         )
 
     @property
@@ -172,6 +173,11 @@ class StressTestScenario(BaseScenario):
             "memory_threshold_percent": self.config.scenarios.stress_memory_threshold_percent,
             "rtr_threshold": self._effective_rtr_threshold,
             "rtr_threshold_source": self._rtr_threshold_source,
+            "health_threshold_source": (
+                self._baseline_calibration.health_threshold_source
+                if self._baseline_calibration is not None
+                else "api-reported"
+            ),
             "rolling_window_seconds": self.config.scenarios.stress_rolling_window_seconds,
             "rolling_window_samples": self._rolling_window_samples,
             "spawn_batch_size": self.config.scenarios.stress_spawn_batch_size,

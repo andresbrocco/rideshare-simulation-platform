@@ -52,7 +52,7 @@ class ScenarioConfig:
     stress_global_cpu_threshold_percent: float = 90.0  # % of total available cores
     stress_memory_threshold_percent: float = 90.0
     stress_rolling_window_seconds: int = 10
-    stress_spawn_batch_size: int = 18
+    stress_spawn_batch_size: int = 19
     stress_spawn_interval_seconds: float = 1.0
     stress_max_duration_minutes: int = 30
     stress_rtr_threshold: float = (
@@ -61,8 +61,8 @@ class ScenarioConfig:
     stress_rtr_rolling_window_seconds: int = 10  # Separate window for RTR smoothing
 
     # Baseline calibration multipliers (for dynamic stop-condition thresholds)
-    health_baseline_degraded_multiplier: float = 2.0
-    health_baseline_unhealthy_multiplier: float = 5.0
+    health_baseline_degraded_multiplier: float = 1.25
+    health_baseline_unhealthy_multiplier: float = 1.5
     rtr_baseline_fraction: float = 0.80  # stop if RTR drops below 80% of baseline mean
 
     # Health check settings
