@@ -117,6 +117,8 @@ class MatchingServer:
         self._pending_trip_executions: list[tuple[DriverAgent, Trip]] = []
         # Queue for deferred offer responses to be started from SimPy thread
         self._pending_deferred_offers: list[tuple[DriverAgent, Trip, bool, int]] = []
+        # Queue for offer timeouts to be started from SimPy thread (avoids env.process from asyncio)
+        self._pending_offer_timeouts: list[tuple[Trip, str, int]] = []
         # Trip completion tracking (bounded deques to prevent memory growth)
         self._completed_trips: deque[Trip] = deque(maxlen=self._settings.matching.max_trip_history)
         self._cancelled_trips: deque[Trip] = deque(maxlen=self._settings.matching.max_trip_history)
@@ -125,6 +127,8 @@ class MatchingServer:
         self._reserved_drivers: set[str] = set()  # Drivers currently receiving offers
         # Retry queue for trips where no drivers were found (trip_id -> next_retry_sim_time)
         self._retry_queue: dict[str, float] = {}
+        # Guard against duplicate concurrent retry_pending_matches() coroutines
+        self._retry_in_progress = False
         # Matching outcome tracking
         self._offers_sent: int = 0
         self._offers_accepted: int = 0
@@ -325,13 +329,19 @@ class MatchingServer:
         )
         logger.debug(f"Spatial index returned {len(nearby)} nearby online drivers")
 
-        # Filter to valid drivers with locations
+        # Filter to valid drivers with locations, excluding reserved drivers
         valid_drivers: list[tuple[DriverAgent, float]] = []
         for driver_id, distance_km in nearby:
             logger.debug(f"Processing driver {driver_id}, distance={distance_km:.2f}km")
+            if driver_id in self._reserved_drivers:
+                logger.debug(f"Driver {driver_id} reserved for another offer, skipping")
+                continue
             driver = self._drivers.get(driver_id)
             if not driver or not driver.location:
                 logger.warning(f"Driver {driver_id} not found or has no location")
+                continue
+            if driver.active_trip:
+                logger.debug(f"Driver {driver_id} already has active trip, skipping")
                 continue
             logger.debug(f"Driver {driver_id} location: {driver.location}")
             valid_drivers.append((driver, distance_km))
@@ -461,11 +471,14 @@ class MatchingServer:
         }
         self._active_trips[trip.trip_id] = trip
 
-        # Send offer to first candidate — result comes via SimPy process (regular)
-        # or API action (puppet)
+        # Send offer to first available candidate — skip reserved/busy drivers
+        # immediately rather than stalling the cycle
         first_driver, eta_seconds, _score = ranked_drivers[0]
         logger.info(f"Sending offer to driver {first_driver.driver_id} (attempt 1)")
-        self.send_offer(first_driver, trip, trip.offer_sequence + 1, eta_seconds)
+        result = self.send_offer(first_driver, trip, trip.offer_sequence + 1, eta_seconds)
+        if result is None:
+            # Driver was skipped (reserved/busy) — continue to next candidate
+            self._continue_deferred_offer_cycle(trip)
         return trip  # Trip is pending
 
     def _compute_offer_decision(self, driver: "DriverAgent", trip: Trip) -> bool:
@@ -583,23 +596,31 @@ class MatchingServer:
         Unified continuation method for both deferred regular driver rejections
         and puppet driver rejections/timeouts. Calls send_offer() which queues
         the deferred response for thread-safe SimPy process creation.
-        """
-        next_candidate = self._pop_next_candidate(trip)
-        if next_candidate is None:
-            logger.warning(f"All offers exhausted for trip {trip.trip_id}")
-            self._emit_no_drivers_event(trip)
-            # Keep trip alive for retry — schedule next retry attempt
-            self._retry_queue[trip.trip_id] = (
-                self._env.now + self._settings.matching.retry_interval_seconds
-            )
-            return
 
-        driver, eta_seconds, _score = next_candidate
-        logger.info(
-            f"Continuing offer cycle for trip {trip.trip_id}: "
-            f"sending to driver {driver.driver_id}"
-        )
-        self.send_offer(driver, trip, trip.offer_sequence + 1, eta_seconds)
+        If a candidate is skipped (reserved/busy), automatically tries the next
+        candidate instead of stalling the cycle.
+        """
+        while True:
+            next_candidate = self._pop_next_candidate(trip)
+            if next_candidate is None:
+                logger.warning(f"All offers exhausted for trip {trip.trip_id}")
+                self._emit_no_drivers_event(trip)
+                # Keep trip alive for retry — schedule next retry attempt
+                self._retry_queue[trip.trip_id] = (
+                    self._env.now + self._settings.matching.retry_interval_seconds
+                )
+                return
+
+            driver, eta_seconds, _score = next_candidate
+            logger.info(
+                f"Continuing offer cycle for trip {trip.trip_id}: "
+                f"sending to driver {driver.driver_id}"
+            )
+            result = self.send_offer(driver, trip, trip.offer_sequence + 1, eta_seconds)
+            if result is not None:
+                # Offer was sent (not skipped) — wait for async response
+                return
+            # result is None → driver was skipped, try next candidate immediately
 
     def _start_trip_execution(self, driver: "DriverAgent", trip: Trip) -> None:
         """Queue trip execution to be started from SimPy thread.
@@ -627,9 +648,15 @@ class MatchingServer:
         with self._state_lock:
             deferred = list(self._pending_deferred_offers)
             self._pending_deferred_offers.clear()
+            # Start queued offer timeouts from SimPy thread (env.process is not thread-safe)
+            timeouts = list(self._pending_offer_timeouts)
+            self._pending_offer_timeouts.clear()
 
         for driver, trip, decision, eta in deferred:
             self._env.process(self._deferred_offer_response(driver, trip, decision, eta))
+        for trip, driver_id, offer_sequence in timeouts:
+            if self._offer_timeout_manager:
+                self._offer_timeout_manager.start_offer_timeout(trip, driver_id, offer_sequence)
 
         # Process pending trip executions
         with self._state_lock:
@@ -650,8 +677,12 @@ class MatchingServer:
 
         Called from start_pending_trip_executions() in the SimPy thread.
         The async retry coroutine runs on the engine's asyncio event loop.
+        Uses _retry_in_progress guard to prevent duplicate concurrent coroutines.
         """
         if not self._retry_queue:
+            return
+
+        if self._retry_in_progress:
             return
 
         now = self._env.now
@@ -660,6 +691,7 @@ class MatchingServer:
 
         loop = self._simulation_engine.get_event_loop() if self._simulation_engine else None
         if loop:
+            self._retry_in_progress = True
             asyncio.run_coroutine_threadsafe(self.retry_pending_matches(), loop)
 
     async def retry_pending_matches(self) -> None:
@@ -668,27 +700,31 @@ class MatchingServer:
         Called from the asyncio event loop (scheduled by _schedule_pending_retries).
         Trips remain in the queue until matched or cancelled by the rider.
         """
-        now = self._env.now
-        due_trip_ids = [tid for tid, t in self._retry_queue.items() if now >= t]
+        try:
+            now = self._env.now
+            due_trip_ids = [tid for tid, t in self._retry_queue.items() if now >= t]
 
-        for trip_id in due_trip_ids:
-            trip = self._active_trips.get(trip_id)
-            if not trip:
-                # Trip was cancelled by rider patience timeout
-                self._retry_queue.pop(trip_id, None)
-                continue
+            for trip_id in due_trip_ids:
+                trip = self._active_trips.get(trip_id)
+                if not trip:
+                    # Trip was cancelled by rider patience timeout
+                    self._retry_queue.pop(trip_id, None)
+                    continue
 
-            nearby_drivers = await self.find_nearby_drivers(trip.pickup_location)
-            if nearby_drivers:
-                self._retry_queue.pop(trip_id, None)
-                ranked = self.rank_drivers(nearby_drivers)
-                self.send_offer_cycle(trip, ranked)
-            else:
-                # Reschedule next retry
-                self._emit_no_drivers_event(trip)
-                self._retry_queue[trip_id] = (
-                    self._env.now + self._settings.matching.retry_interval_seconds
-                )
+                nearby_drivers = await self.find_nearby_drivers(trip.pickup_location)
+                if nearby_drivers:
+                    self._retry_queue.pop(trip_id, None)
+                    ranked = self.rank_drivers(nearby_drivers)
+                    self.send_offer_cycle(trip, ranked)
+                else:
+                    # Reschedule next retry using the snapshot time (not current env.now
+                    # which may have drifted on the SimPy thread)
+                    self._emit_no_drivers_event(trip)
+                    self._retry_queue[trip_id] = (
+                        now + self._settings.matching.retry_interval_seconds
+                    )
+        finally:
+            self._retry_in_progress = False
 
     def _start_trip_execution_internal(self, driver: "DriverAgent", trip: Trip) -> None:
         """Actually start the TripExecutor. Must be called from SimPy thread.
@@ -735,18 +771,25 @@ class MatchingServer:
         trip: Trip,
         offer_sequence: int,
         eta_seconds: int,
-    ) -> bool:
+    ) -> bool | None:
+        """Send an offer to a driver.
+
+        Returns:
+            None  — driver was skipped (reserved or busy), caller should try next candidate
+            False — offer sent, waiting for async response (deferred or puppet API)
+        """
         driver_id = driver.driver_id
 
         # Atomic check-and-reserve to prevent double-matching
         with self._state_lock:
-            # Skip if driver already reserved or in a trip
+            # Skip if driver already reserved or in a trip — return None so
+            # caller knows to immediately try the next candidate
             if driver_id in self._reserved_drivers:
                 logger.warning(f"Driver {driver_id} already reserved, skipping")
-                return False
+                return None
             if driver.active_trip:
                 logger.warning(f"Driver {driver_id} already has active trip, skipping")
-                return False
+                return None
 
             # Reserve this driver (prevents double-matching without changing status)
             self._reserved_drivers.add(driver_id)
@@ -779,10 +822,10 @@ class MatchingServer:
         decision = self._compute_offer_decision(driver, trip)
         with self._state_lock:
             self._pending_deferred_offers.append((driver, trip, decision, eta_seconds))
-        # Start timeout race — if driver's response delay exceeds timeout,
-        # the OfferTimeoutManager fires _handle_offer_expired first.
-        if self._offer_timeout_manager:
-            self._offer_timeout_manager.start_offer_timeout(trip, driver_id, offer_sequence)
+            # Queue timeout for SimPy thread — env.process() is not thread-safe,
+            # so we defer it to start_pending_trip_executions() like deferred offers.
+            if self._offer_timeout_manager:
+                self._pending_offer_timeouts.append((trip, driver_id, offer_sequence))
         return False  # Result comes asynchronously via _deferred_offer_response
 
     def _format_timestamp(self) -> str:
@@ -975,7 +1018,9 @@ class MatchingServer:
             self._pending_offer_candidates.clear()
             self._pending_trip_executions.clear()
             self._retry_queue.clear()
+            self._retry_in_progress = False
             self._pending_deferred_offers.clear()
+            self._pending_offer_timeouts.clear()
             self._drivers.clear()
             self._reserved_drivers.clear()
             # Reset matching counters

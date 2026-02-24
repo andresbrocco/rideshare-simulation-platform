@@ -287,7 +287,14 @@ class SimulationEngine:
         target_time = self._env.now + seconds
 
         if self._speed_multiplier == 100:
-            self._env.run(until=target_time)
+            # Break turbo mode into retry-interval-sized chunks so that
+            # pending retries get dispatched mid-step instead of only at the end
+            retry_interval = self._matching_server._settings.matching.retry_interval_seconds
+            while self._env.now < target_time:
+                chunk_end = min(self._env.now + retry_interval, target_time)
+                self._env.run(until=chunk_end)
+                if hasattr(self._matching_server, "start_pending_trip_executions"):
+                    self._matching_server.start_pending_trip_executions()
             return
 
         start_wall = time.perf_counter()
