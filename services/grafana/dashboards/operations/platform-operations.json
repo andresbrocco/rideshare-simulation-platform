@@ -39,7 +39,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -56,11 +56,11 @@
               },
               {
                 "color": "yellow",
-                "value": 50
+                "value": 10
               },
               {
                 "color": "green",
-                "value": 100
+                "value": 50
               }
             ]
           },
@@ -74,7 +74,7 @@
         "x": 0,
         "y": 1
       },
-      "description": "Current driver count from Prometheus (real-time). Color thresholds: red (<50), yellow (50-100), green (100+). Uses operations-specific thresholds.",
+      "description": "Current driver count from Prometheus (real-time). Color thresholds: red (<10), yellow (10-50), green (50+). Uses operations-specific thresholds.",
       "id": 2,
       "options": {
         "colorMode": "value",
@@ -93,7 +93,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
           "expr": "simulation_drivers_available",
           "legendFormat": "Drivers Available",
@@ -106,7 +106,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -152,7 +152,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
           "expr": "simulation_trips_active",
           "legendFormat": "Active Trips",
@@ -165,7 +165,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -219,7 +219,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
           "expr": "simulation_riders_in_transit",
           "legendFormat": "Riders In Transit",
@@ -232,7 +232,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -288,7 +288,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
           "expr": "simulation_offers_pending",
           "legendFormat": "Pending Offers",
@@ -314,7 +314,7 @@
     {
       "datasource": {
         "type": "trino-datasource",
-        "uid": "${DS_TRINO}"
+        "uid": "trino"
       },
       "fieldConfig": {
         "defaults": {
@@ -366,7 +366,7 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
+        "h": 8,
         "w": 12,
         "x": 0,
         "y": 6
@@ -389,10 +389,11 @@
         {
           "datasource": {
             "type": "trino-datasource",
-            "uid": "${DS_TRINO}"
+            "uid": "trino"
           },
-          "format": 1,
-          "rawSQL": "SELECT\n  hour_timestamp as time,\n  SUM(completed_trips) as trips_completed\nFROM delta.gold.agg_hourly_zone_demand\nWHERE hour_timestamp >= current_timestamp - INTERVAL '24' HOUR\nGROUP BY hour_timestamp\nORDER BY hour_timestamp",
+          "format": 0,
+          "rawQuery": true,
+          "rawSQL": "SELECT date_trunc('hour', completed_at) as time, COUNT(*) as trips_completed\nFROM delta.gold.fact_trips\nWHERE completed_at >= current_timestamp - INTERVAL '24' HOUR\nGROUP BY 1 ORDER BY 1",
           "refId": "A"
         }
       ],
@@ -402,7 +403,7 @@
     {
       "datasource": {
         "type": "trino-datasource",
-        "uid": "${DS_TRINO}"
+        "uid": "trino"
       },
       "fieldConfig": {
         "defaults": {
@@ -412,7 +413,7 @@
           "custom": {
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "Minutes",
+            "axisLabel": "Seconds",
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
@@ -449,17 +450,17 @@
               }
             ]
           },
-          "unit": "m"
+          "unit": "s"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
+        "h": 8,
         "w": 12,
         "x": 12,
         "y": 6
       },
-      "description": "Hourly average wait time (time from trip request to driver arrival) from the zone demand aggregation table. Shows rider wait time trends over the past 24 hours.",
+      "description": "Average time from trip request to driver match",
       "id": 8,
       "options": {
         "legend": {
@@ -477,10 +478,11 @@
         {
           "datasource": {
             "type": "trino-datasource",
-            "uid": "${DS_TRINO}"
+            "uid": "trino"
           },
-          "format": 1,
-          "rawSQL": "SELECT\n  hour_timestamp as time,\n  AVG(avg_wait_time_minutes) as avg_wait_time_minutes\nFROM delta.gold.agg_hourly_zone_demand\nWHERE hour_timestamp >= current_timestamp - INTERVAL '24' HOUR\nGROUP BY hour_timestamp\nORDER BY hour_timestamp",
+          "format": 0,
+          "rawQuery": true,
+          "rawSQL": "SELECT date_trunc('hour', requested_at) as time,\n  AVG(date_diff('second', requested_at, matched_at)) as avg_wait_seconds\nFROM delta.gold.fact_trips\nWHERE requested_at >= current_timestamp - INTERVAL '24' HOUR AND matched_at IS NOT NULL\nGROUP BY 1 ORDER BY 1",
           "refId": "A"
         }
       ],
@@ -493,7 +495,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 13
+        "y": 14
       },
       "id": 9,
       "panels": [],
@@ -503,7 +505,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -555,10 +557,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
+        "h": 8,
         "w": 12,
         "x": 0,
-        "y": 14
+        "y": 15
       },
       "description": "5-minute rate of total simulation events per second. Indicates real-time simulation engine throughput. Flat lines may indicate simulation pause or crash.",
       "id": 10,
@@ -578,9 +580,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
-          "expr": "rate(simulation_events_total[5m])",
+          "expr": "sum(rate(simulation_events_total[$__rate_interval]))",
           "legendFormat": "Events/sec",
           "refId": "A"
         }
@@ -591,7 +593,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -648,16 +650,16 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
+        "h": 8,
         "w": 12,
         "x": 12,
-        "y": 14
+        "y": 15
       },
       "description": "5-minute error rate with a red threshold line at 10 errors/sec. Sustained rates above threshold indicate systemic failures requiring investigation.",
       "id": 11,
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
+          "calcs": ["mean", "last"],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
@@ -671,9 +673,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
-          "expr": "rate(simulation_errors_total[5m])",
+          "expr": "sum(rate(simulation_errors_total[$__rate_interval]))",
           "legendFormat": "Errors/sec",
           "refId": "A"
         }
@@ -687,7 +689,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 21
+        "y": 23
       },
       "id": 12,
       "panels": [],
@@ -695,92 +697,57 @@
       "type": "row"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
+      "id": 13,
+      "title": "Active Trips (Live)",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "simulation_trips_active", "refId": "A"}],
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "short"
+          "color": {"mode": "fixed", "fixedColor": "blue"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]}
         },
         "overrides": []
       },
-      "gridPos": {
-        "h": 7,
-        "w": 12,
-        "x": 0,
-        "y": 22
+      "options": {"graphMode": "area", "colorMode": "value", "justifyMode": "auto", "textMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+      "gridPos": {"h": 8, "w": 4, "x": 0, "y": 24}
+    },
+    {
+      "id": 18,
+      "title": "Completed / 5m",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "increase(simulation_trips_completed_total[5m])", "refId": "A"}],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "fixed", "fixedColor": "green"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}
+        },
+        "overrides": []
       },
-      "description": "Donut chart showing current active trips vs recently completed and cancelled trips (5-minute window). Provides a real-time snapshot of trip lifecycle distribution.",
-      "id": 13,
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true,
-          "values": ["value", "percent"]
+      "options": {"graphMode": "area", "colorMode": "value", "justifyMode": "auto", "textMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+      "gridPos": {"h": 8, "w": 4, "x": 4, "y": 24}
+    },
+    {
+      "id": 19,
+      "title": "Cancelled / 5m",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "increase(simulation_trips_cancelled_total[5m])", "refId": "A"}],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "fixed", "fixedColor": "orange"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "orange", "value": null}]}
         },
-        "pieType": "donut",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
+        "overrides": []
       },
-      "pluginVersion": "10.0.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "simulation_trips_active",
-          "legendFormat": "Active",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "increase(simulation_trips_completed_total[5m])",
-          "legendFormat": "Completed (5m)",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "increase(simulation_trips_cancelled_total[5m])",
-          "legendFormat": "Cancelled (5m)",
-          "refId": "C"
-        }
-      ],
-      "title": "Trip States (Real-time)",
-      "type": "piechart"
+      "options": {"graphMode": "area", "colorMode": "value", "justifyMode": "auto", "textMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+      "gridPos": {"h": 8, "w": 4, "x": 8, "y": 24}
     },
     {
       "datasource": {
         "type": "trino-datasource",
-        "uid": "${DS_TRINO}"
+        "uid": "trino"
       },
       "fieldConfig": {
         "defaults": {
@@ -802,14 +769,15 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
+        "h": 8,
         "w": 12,
         "x": 12,
-        "y": 22
+        "y": 24
       },
       "description": "Donut chart of all trip outcomes from the Gold layer over 24 hours. Provides historical context for the real-time view in the adjacent panel.",
       "id": 14,
       "options": {
+        "displayLabels": ["percent"],
         "legend": {
           "displayMode": "table",
           "placement": "right",
@@ -819,8 +787,8 @@
         "pieType": "donut",
         "reduceOptions": {
           "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
+          "fields": "/^trip_count$/",
+          "values": true
         },
         "tooltip": {
           "mode": "single",
@@ -832,10 +800,11 @@
         {
           "datasource": {
             "type": "trino-datasource",
-            "uid": "${DS_TRINO}"
+            "uid": "trino"
           },
           "format": 0,
-          "rawSQL": "SELECT 'completed' as trip_state, COUNT(*) as trip_count\nFROM delta.gold.fact_trips\nWHERE completed_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT 'cancelled' as trip_state, COUNT(*) as trip_count\nFROM delta.gold.fact_cancellations\nWHERE cancelled_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT outcome as trip_state, COUNT(*) as trip_count\nFROM delta.gold.fact_offers\nWHERE offered_at >= current_timestamp - INTERVAL '24' HOUR\nAND outcome IN ('expired', 'rejected')\nGROUP BY outcome",
+          "rawQuery": true,
+          "rawSQL": "SELECT 'completed' as trip_outcome, COUNT(*) as trip_count\nFROM delta.gold.fact_trips\nWHERE requested_at >= current_timestamp - INTERVAL '24' HOUR\nUNION ALL\nSELECT cancellation_reason as trip_outcome, COUNT(*) as trip_count\nFROM delta.gold.fact_cancellations\nWHERE requested_at >= current_timestamp - INTERVAL '24' HOUR\nGROUP BY cancellation_reason",
           "refId": "A"
         }
       ],
@@ -848,7 +817,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 29
+        "y": 32
       },
       "id": 15,
       "panels": [],
@@ -858,7 +827,7 @@
     {
       "datasource": {
         "type": "trino-datasource",
-        "uid": "${DS_TRINO}"
+        "uid": "trino"
       },
       "fieldConfig": {
         "defaults": {
@@ -867,10 +836,8 @@
           },
           "custom": {
             "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false
+            "displayMode": "auto",
+            "inspect": true
           },
           "mappings": [],
           "thresholds": {
@@ -887,13 +854,25 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "avg_fare"
+              "options": "total_earnings"
             },
             "properties": [
               {
                 "id": "unit",
                 "value": "currencyUSD"
               },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg_rating"
+            },
+            "properties": [
               {
                 "id": "decimals",
                 "value": 2
@@ -919,10 +898,10 @@
         ]
       },
       "gridPos": {
-        "h": 7,
+        "h": 8,
         "w": 12,
         "x": 0,
-        "y": 30
+        "y": 33
       },
       "description": "Top 20 drivers by completed trip count in the last 24 hours with average fare and distance. Operations-focused variant with 24-hour lookback.",
       "id": 16,
@@ -947,10 +926,11 @@
         {
           "datasource": {
             "type": "trino-datasource",
-            "uid": "${DS_TRINO}"
+            "uid": "trino"
           },
           "format": 0,
-          "rawSQL": "SELECT\n  d.driver_id,\n  d.first_name || ' ' || d.last_name as driver_name,\n  COUNT(t.trip_key) as total_trips,\n  AVG(t.fare) as avg_fare,\n  AVG(t.distance_km) as avg_distance\nFROM delta.gold.fact_trips t\nJOIN delta.gold.dim_drivers d ON t.driver_key = d.driver_key\nWHERE t.completed_at >= current_timestamp - INTERVAL '24' HOUR\nGROUP BY d.driver_id, d.first_name, d.last_name\nORDER BY total_trips DESC\nLIMIT 20",
+          "rawQuery": true,
+          "rawSQL": "SELECT d.driver_id, d.first_name || ' ' || d.last_name as driver_name,\n  COUNT(t.trip_key) as total_trips, AVG(r.rating) as avg_rating,\n  CAST(SUM(t.fare) AS DECIMAL(10,2)) as total_earnings, AVG(t.distance_km) as avg_distance\nFROM delta.gold.fact_trips t\nJOIN delta.gold.dim_drivers d ON t.driver_key = d.driver_key AND d.current_flag = TRUE\nLEFT JOIN delta.gold.fact_ratings r ON t.trip_key = r.trip_key AND r.ratee_type = 'driver'\nWHERE t.completed_at >= current_timestamp - INTERVAL '24' HOUR AND t.trip_state = 'completed'\nGROUP BY d.driver_id, d.first_name, d.last_name ORDER BY total_trips DESC LIMIT 20",
           "refId": "A"
         }
       ],
@@ -960,7 +940,7 @@
     {
       "datasource": {
         "type": "trino-datasource",
-        "uid": "${DS_TRINO}"
+        "uid": "trino"
       },
       "fieldConfig": {
         "defaults": {
@@ -1003,12 +983,12 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "avg_wait_time_minutes"
+              "options": "avg_wait_seconds"
             },
             "properties": [
               {
                 "id": "unit",
-                "value": "m"
+                "value": "s"
               },
               {
                 "id": "custom.axisPlacement",
@@ -1019,16 +999,16 @@
         ]
       },
       "gridPos": {
-        "h": 7,
+        "h": 8,
         "w": 12,
         "x": 12,
-        "y": 30
+        "y": 33
       },
       "description": "Dual-axis bar chart: completed trips vs average wait time by hour of day. Identifies peak operational hours and corresponding service quality.",
       "id": 17,
       "options": {
-        "barRadius": 0.05,
-        "barWidth": 0.7,
+        "barRadius": 0.1,
+        "barWidth": 0.8,
         "groupWidth": 0.7,
         "legend": {
           "calcs": [],
@@ -1036,7 +1016,7 @@
           "placement": "bottom",
           "showLegend": true
         },
-        "orientation": "auto",
+        "orientation": "vertical",
         "showValue": "auto",
         "stacking": "none",
         "tooltip": {
@@ -1050,10 +1030,11 @@
         {
           "datasource": {
             "type": "trino-datasource",
-            "uid": "${DS_TRINO}"
+            "uid": "trino"
           },
           "format": 0,
-          "rawSQL": "WITH hours AS (\n  SELECT hour_val, LPAD(CAST(hour_val AS VARCHAR), 2, '0') || ':00' as hour_label\n  FROM UNNEST(ARRAY[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]) AS t(hour_val)\n),\nhourly_data AS (\n  SELECT\n    hour(hour_timestamp) as hour_val,\n    SUM(completed_trips) as trips_completed,\n    AVG(avg_wait_time_minutes) as avg_wait_time_minutes\n  FROM delta.gold.agg_hourly_zone_demand\n  WHERE hour_timestamp >= current_timestamp - INTERVAL '24' HOUR\n  GROUP BY hour(hour_timestamp)\n)\nSELECT h.hour_label as hour_of_day, COALESCE(d.trips_completed, 0) as trips_completed, COALESCE(d.avg_wait_time_minutes, 0) as avg_wait_time_minutes\nFROM hours h LEFT JOIN hourly_data d ON h.hour_val = d.hour_val\nORDER BY h.hour_val",
+          "rawQuery": true,
+          "rawSQL": "WITH hours AS (\n  SELECT hour_val, LPAD(CAST(hour_val AS VARCHAR), 2, '0') || ':00' as hour_label\n  FROM UNNEST(ARRAY[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]) AS t(hour_val)\n),\nhourly_data AS (\n  SELECT hour(completed_at) as hour_val, COUNT(*) as trips_completed,\n    AVG(date_diff('second', requested_at, matched_at)) as avg_wait_seconds\n  FROM delta.gold.fact_trips\n  WHERE completed_at >= current_timestamp - INTERVAL '24' HOUR AND matched_at IS NOT NULL\n  GROUP BY hour(completed_at)\n)\nSELECT h.hour_label as hour_of_day, COALESCE(d.trips_completed, 0) as trips_completed,\n  COALESCE(d.avg_wait_seconds, 0) as avg_wait_seconds\nFROM hours h LEFT JOIN hourly_data d ON h.hour_val = d.hour_val ORDER BY h.hour_val",
           "refId": "A"
         }
       ],
@@ -1061,49 +1042,12 @@
       "type": "barchart"
     }
   ],
-  "refresh": "1m",
+  "refresh": "5m",
   "schemaVersion": 38,
   "style": "dark",
   "tags": ["operations", "gold", "prometheus", "real-time"],
   "templating": {
-    "list": [
-      {
-        "current": {
-          "selected": false,
-          "text": "Prometheus",
-          "value": "prometheus"
-        },
-        "hide": 0,
-        "includeAll": false,
-        "label": "Prometheus",
-        "multi": false,
-        "name": "DS_PROMETHEUS",
-        "options": [],
-        "query": "prometheus",
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
-        "type": "datasource"
-      },
-      {
-        "current": {
-          "selected": false,
-          "text": "Trino",
-          "value": "trino"
-        },
-        "hide": 0,
-        "includeAll": false,
-        "label": "Trino",
-        "multi": false,
-        "name": "DS_TRINO",
-        "options": [],
-        "query": "trino-datasource",
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
-        "type": "datasource"
-      }
-    ]
+    "list": []
   },
   "time": {
     "from": "now-24h",

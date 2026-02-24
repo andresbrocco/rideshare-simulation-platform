@@ -158,7 +158,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSQL": "SELECT AVG(date_diff('second', requested_at, matched_at)) as avg_wait\nFROM delta.gold.fact_trips\nWHERE completed_at >= current_timestamp - INTERVAL '7' DAY\n  AND matched_at IS NOT NULL",
+          "rawSQL": "SELECT AVG(date_diff('second', requested_at, matched_at)) as avg_wait\nFROM delta.gold.fact_trips\nWHERE requested_at >= current_timestamp - INTERVAL '7' DAY\n  AND matched_at IS NOT NULL",
           "refId": "A"
         }
       ],
@@ -912,7 +912,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSQL": "SELECT\n  z.name as pickup_zone,\n  COUNT(*) as trip_count,\n  AVG(date_diff('second', t.requested_at, t.matched_at)) as avg_wait,\n  CAST(SUM(CASE WHEN t.trip_state = 'completed' THEN 1 ELSE 0 END) AS DOUBLE) * 100.0 / COUNT(*) as completion_rate\nFROM delta.gold.fact_trips t\nJOIN delta.gold.dim_zones z ON t.pickup_zone_key = z.zone_key\nWHERE t.requested_at >= current_timestamp - INTERVAL '7' DAY\nGROUP BY z.name\nORDER BY trip_count DESC\nLIMIT 20",
+          "rawSQL": "WITH zone_trips AS (\n  SELECT t.pickup_zone_key, COUNT(*) as completed_trips,\n    AVG(date_diff('second', t.requested_at, t.matched_at)) as avg_wait\n  FROM delta.gold.fact_trips t\n  WHERE t.requested_at >= current_timestamp - INTERVAL '7' DAY AND t.matched_at IS NOT NULL\n  GROUP BY t.pickup_zone_key\n),\nzone_cancellations AS (\n  SELECT c.pickup_zone_key, COUNT(*) as cancelled_trips\n  FROM delta.gold.fact_cancellations c\n  WHERE c.requested_at >= current_timestamp - INTERVAL '7' DAY\n  GROUP BY c.pickup_zone_key\n)\nSELECT z.name as pickup_zone,\n  COALESCE(zt.completed_trips, 0) + COALESCE(zc.cancelled_trips, 0) as trip_count,\n  zt.avg_wait,\n  CAST(COALESCE(zt.completed_trips, 0) AS DOUBLE) * 100.0\n    / NULLIF(COALESCE(zt.completed_trips, 0) + COALESCE(zc.cancelled_trips, 0), 0) as completion_rate\nFROM delta.gold.dim_zones z\nLEFT JOIN zone_trips zt ON z.zone_key = zt.pickup_zone_key\nLEFT JOIN zone_cancellations zc ON z.zone_key = zc.pickup_zone_key\nWHERE COALESCE(zt.completed_trips, 0) + COALESCE(zc.cancelled_trips, 0) > 0\nORDER BY trip_count DESC LIMIT 20",
           "refId": "A"
         }
       ],
