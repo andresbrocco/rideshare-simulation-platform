@@ -840,6 +840,7 @@ def run(
                                 ),
                             }
                         )
+                        _print_baseline_health_table(calibration_dict)
 
                 elif scenario_name == "stress":
                     # Compute effective threshold sources for display
@@ -1268,6 +1269,37 @@ def _print_scenario_result(scenario_name: str, result: dict[str, Any]) -> None:
 def _get_display_name(container: str) -> str:
     """Get display name for a container."""
     return CONTAINER_CONFIG.get(container, {}).get("display_name", container)
+
+
+def _print_baseline_health_table(calibration_dict: dict[str, Any]) -> None:
+    """Print baseline health thresholds immediately after baseline completes."""
+    health_thresholds = calibration_dict.get("health_thresholds", {})
+    if health_thresholds:
+        console.print("\n[bold]Baseline Health Calibration:[/bold]")
+        cal_table = Table(show_header=True, header_style="bold")
+        cal_table.add_column("Service")
+        cal_table.add_column("Baseline p95 (ms)", justify="right")
+        cal_table.add_column("Degraded Threshold (ms)", justify="right")
+        cal_table.add_column("Unhealthy Threshold (ms)", justify="right")
+        for svc_name in sorted(health_thresholds.keys()):
+            th = health_thresholds[svc_name]
+            cal_table.add_row(
+                svc_name,
+                f"{th.get('baseline_p95', 0):.1f}",
+                f"{th.get('degraded', 0):.0f}",
+                f"{th.get('unhealthy', 0):.0f}",
+            )
+        console.print(cal_table)
+
+    rtr_threshold = calibration_dict.get("rtr_threshold")
+    rtr_mean = calibration_dict.get("rtr_mean")
+    rtr_source = calibration_dict.get("rtr_threshold_source", "unknown")
+    if rtr_threshold is not None:
+        console.print(
+            f"  RTR threshold: {rtr_threshold:.4f}x (mean={rtr_mean:.4f}x, {rtr_source})"
+            if rtr_mean is not None
+            else f"  RTR threshold: {rtr_threshold:.4f}x ({rtr_source})"
+        )
 
 
 def _print_summary(results: dict[str, Any], summary: TestSummary | None = None) -> None:
