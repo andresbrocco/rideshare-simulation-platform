@@ -450,6 +450,7 @@ export interface ServiceMetrics {
   memory_limit_mb: number;
   memory_percent: number;
   cpu_percent: number;
+  heartbeat_age_seconds?: number | null;
 }
 
 export interface InfrastructureResponse {

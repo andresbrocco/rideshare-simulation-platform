@@ -1,8 +1,10 @@
 import functools
 import logging
+import os
 import pathlib
 import time
 from collections.abc import Callable
+from datetime import UTC
 from typing import Annotated, Any, TypeVar, cast
 
 import httpx
@@ -1007,21 +1009,70 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         except Exception as e:
             return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
 
-    async def check_airflow_web() -> tuple[ContainerStatus, float | None, str | None]:
-        """Check Airflow webserver health via health endpoint."""
-        airflow_url = "http://airflow-webserver:8080/health"
+    async def check_otel_collector() -> tuple[ContainerStatus, float | None, str | None]:
+        """Check OTel Collector health via health_check extension."""
+        otel_url = "http://otel-collector:13133/"
         try:
             start = time.perf_counter()
             async with httpx.AsyncClient(timeout=3.0) as client:
-                response = await client.get(airflow_url)
+                response = await client.get(otel_url)
+                latency_ms = (time.perf_counter() - start) * 1000
+                if response.status_code == 200:
+                    return _determine_status(latency_ms), round(latency_ms, 2), "Healthy"
+                else:
+                    return (
+                        ContainerStatus.DEGRADED,
+                        round(latency_ms, 2),
+                        f"HTTP {response.status_code}",
+                    )
+        except httpx.TimeoutException:
+            return ContainerStatus.UNHEALTHY, None, "Request timed out"
+        except Exception as e:
+            return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
+
+    async def check_control_panel() -> tuple[ContainerStatus, float | None, str | None]:
+        """Check Control Panel health via Vite dev server."""
+        control_panel_url = "http://control-panel:5173/"
+        try:
+            start = time.perf_counter()
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                response = await client.get(control_panel_url)
+                latency_ms = (time.perf_counter() - start) * 1000
+                if response.status_code == 200:
+                    return _determine_status(latency_ms), round(latency_ms, 2), "Serving"
+                else:
+                    return (
+                        ContainerStatus.DEGRADED,
+                        round(latency_ms, 2),
+                        f"HTTP {response.status_code}",
+                    )
+        except httpx.TimeoutException:
+            return ContainerStatus.UNHEALTHY, None, "Request timed out"
+        except Exception as e:
+            return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
+
+    async def check_bronze_ingestion() -> tuple[ContainerStatus, float | None, str | None]:
+        """Check Bronze Ingestion health via its health endpoint."""
+        bronze_url = "http://bronze-ingestion:8080/health"
+        try:
+            start = time.perf_counter()
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                response = await client.get(bronze_url)
                 latency_ms = (time.perf_counter() - start) * 1000
                 if response.status_code == 200:
                     data = response.json()
-                    metadb = data.get("metadatabase", {}).get("status", "unknown")
+                    svc_status = data.get("status", "unhealthy")
+                    messages_written = data.get("messages_written", 0)
+                    if svc_status == "unhealthy":
+                        return (
+                            ContainerStatus.UNHEALTHY,
+                            round(latency_ms, 2),
+                            f"{messages_written} messages written",
+                        )
                     return (
                         _determine_status(latency_ms),
                         round(latency_ms, 2),
-                        f"MetaDB: {metadb}",
+                        f"{messages_written} messages written",
                     )
                 else:
                     return (
@@ -1034,7 +1085,150 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         except Exception as e:
             return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
 
-    # Run all health checks concurrently
+    async def check_postgres_airflow() -> tuple[ContainerStatus, float | None, str | None]:
+        """Check Postgres (Airflow) health via SQL ping."""
+        import asyncpg
+
+        pg_user = os.environ.get("POSTGRES_AIRFLOW_USER", "")
+        pg_password = os.environ.get("POSTGRES_AIRFLOW_PASSWORD", "")
+        if not pg_user or not pg_password:
+            return ContainerStatus.HEALTHY, None, "No credentials available"
+        try:
+            start = time.perf_counter()
+            conn = await asyncpg.connect(
+                host="postgres-airflow",
+                port=5432,
+                user=pg_user,
+                password=pg_password,
+                database="airflow",
+                timeout=3.0,
+            )
+            try:
+                await conn.fetchval("SELECT 1")
+            finally:
+                await conn.close()
+            latency_ms = (time.perf_counter() - start) * 1000
+            return _determine_status(latency_ms), round(latency_ms, 2), "Connected"
+        except Exception as e:
+            return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
+
+    async def check_postgres_metastore() -> tuple[ContainerStatus, float | None, str | None]:
+        """Check Postgres (Metastore) health via SQL ping."""
+        import asyncpg
+
+        pg_user = os.environ.get("POSTGRES_METASTORE_USER", "")
+        pg_password = os.environ.get("POSTGRES_METASTORE_PASSWORD", "")
+        if not pg_user or not pg_password:
+            return ContainerStatus.HEALTHY, None, "No credentials available"
+        try:
+            start = time.perf_counter()
+            conn = await asyncpg.connect(
+                host="postgres-metastore",
+                port=5432,
+                user=pg_user,
+                password=pg_password,
+                database="metastore",
+                timeout=3.0,
+            )
+            try:
+                await conn.fetchval("SELECT 1")
+            finally:
+                await conn.close()
+            latency_ms = (time.perf_counter() - start) * 1000
+            return _determine_status(latency_ms), round(latency_ms, 2), "Connected"
+        except Exception as e:
+            return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
+
+    async def check_airflow() -> tuple[
+        tuple[ContainerStatus, float | None, str | None],
+        tuple[ContainerStatus, float | None, str | None, float | None],
+    ]:
+        """Check Airflow health — returns (webserver_result, scheduler_result).
+
+        Makes one HTTP call to /health and extracts both webserver and scheduler status.
+        The scheduler result includes heartbeat_age_seconds as the 4th element.
+        """
+        from datetime import datetime
+
+        airflow_url = "http://airflow-webserver:8080/health"
+        try:
+            start = time.perf_counter()
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                response = await client.get(airflow_url)
+                latency_ms = (time.perf_counter() - start) * 1000
+
+                if response.status_code == 200:
+                    data = response.json()
+
+                    # Webserver result
+                    metadb = data.get("metadatabase", {}).get("status", "unknown")
+                    web_result: tuple[ContainerStatus, float | None, str | None] = (
+                        _determine_status(latency_ms),
+                        round(latency_ms, 2),
+                        f"MetaDB: {metadb}",
+                    )
+
+                    # Scheduler result
+                    scheduler_info = data.get("scheduler", {})
+                    heartbeat_str = scheduler_info.get("latest_heartbeat")
+                    if heartbeat_str:
+                        heartbeat_dt = datetime.fromisoformat(heartbeat_str)
+                        if heartbeat_dt.tzinfo is None:
+                            heartbeat_dt = heartbeat_dt.replace(tzinfo=UTC)
+                        now_utc = datetime.now(UTC)
+                        heartbeat_age = (now_utc - heartbeat_dt).total_seconds()
+                        if heartbeat_age < 30:
+                            sched_status = ContainerStatus.HEALTHY
+                        elif heartbeat_age < 120:
+                            sched_status = ContainerStatus.DEGRADED
+                        else:
+                            sched_status = ContainerStatus.UNHEALTHY
+                        sched_result: tuple[
+                            ContainerStatus, float | None, str | None, float | None
+                        ] = (
+                            sched_status,
+                            None,
+                            f"Heartbeat: {heartbeat_age:.0f}s ago",
+                            round(heartbeat_age, 1),
+                        )
+                    else:
+                        sched_result = (
+                            ContainerStatus.UNHEALTHY,
+                            None,
+                            "No heartbeat data",
+                            None,
+                        )
+
+                    return web_result, sched_result
+                else:
+                    err_result: tuple[ContainerStatus, float | None, str | None] = (
+                        ContainerStatus.DEGRADED,
+                        round(latency_ms, 2),
+                        f"HTTP {response.status_code}",
+                    )
+                    sched_err: tuple[ContainerStatus, float | None, str | None, float | None] = (
+                        ContainerStatus.UNHEALTHY,
+                        None,
+                        f"HTTP {response.status_code}",
+                        None,
+                    )
+                    return err_result, sched_err
+        except httpx.TimeoutException:
+            return (
+                (ContainerStatus.UNHEALTHY, None, "Request timed out"),
+                (ContainerStatus.UNHEALTHY, None, "Request timed out", None),
+            )
+        except Exception as e:
+            msg = f"Connection failed: {str(e)[:50]}"
+            return (
+                (ContainerStatus.UNHEALTHY, None, msg),
+                (ContainerStatus.UNHEALTHY, None, msg, None),
+            )
+
+    # Run all health checks concurrently.
+    # check_airflow() returns a different tuple shape (nested), so we run it
+    # via create_task to keep the main gather's type signature uniform.
+    airflow_task = asyncio.create_task(check_airflow())
     (
         redis_result,
         osrm_result,
@@ -1047,7 +1241,11 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         prometheus_result,
         cadvisor_result,
         grafana_result,
-        airflow_web_result,
+        otel_collector_result,
+        control_panel_result,
+        bronze_ingestion_result,
+        postgres_airflow_result,
+        postgres_metastore_result,
     ) = await asyncio.gather(
         check_redis(),
         check_osrm(),
@@ -1060,15 +1258,18 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         check_prometheus(),
         check_cadvisor(),
         check_grafana(),
-        check_airflow_web(),
+        check_otel_collector(),
+        check_control_panel(),
+        check_bronze_ingestion(),
+        check_postgres_airflow(),
+        check_postgres_metastore(),
     )
+    # Await the Airflow combined result (ran concurrently with the gather above)
+    airflow_web_result, airflow_scheduler_raw = await airflow_task
     simulation_result = check_simulation()
 
-    # Default result for containers without health endpoints (status based on cAdvisor)
-    no_health_endpoint = (ContainerStatus.HEALTHY, None, "No health endpoint")
-
     # Map container names to health check results
-    health_results = {
+    health_results: dict[str, tuple[ContainerStatus, float | None, str | None]] = {
         # Core profile
         "rideshare-kafka": kafka_result,
         "rideshare-schema-registry": schema_registry_result,
@@ -1076,20 +1277,31 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         "rideshare-osrm": osrm_result,
         "rideshare-simulation": simulation_result,
         "rideshare-stream-processor": stream_processor_result,
-        "rideshare-control-panel": no_health_endpoint,
+        "rideshare-control-panel": control_panel_result,
         # Data Pipeline profile
         "rideshare-minio": minio_result,
-        "rideshare-bronze-ingestion": no_health_endpoint,
+        "rideshare-bronze-ingestion": bronze_ingestion_result,
         "rideshare-localstack": localstack_result,
         # Monitoring profile
         "rideshare-prometheus": prometheus_result,
         "rideshare-cadvisor": cadvisor_result,
         "rideshare-grafana": grafana_result,
+        "rideshare-otel-collector": otel_collector_result,
         # Quality Orchestration profile
-        "rideshare-postgres-airflow": no_health_endpoint,
+        "rideshare-postgres-airflow": postgres_airflow_result,
+        "rideshare-postgres-metastore": postgres_metastore_result,
         "rideshare-airflow-webserver": airflow_web_result,
-        "rideshare-airflow-scheduler": no_health_endpoint,
+        "rideshare-airflow-scheduler": (
+            airflow_scheduler_raw[0],
+            airflow_scheduler_raw[1],
+            airflow_scheduler_raw[2],
+        ),
         "rideshare-spark-thrift-server": spark_thrift_result,
+    }
+
+    # Heartbeat ages for services that report heartbeat instead of latency
+    heartbeat_ages: dict[str, float | None] = {
+        "rideshare-airflow-scheduler": airflow_scheduler_raw[3],
     }
 
     # Fetch container resource metrics from cAdvisor
@@ -1163,6 +1375,7 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
                 memory_limit_mb=memory_limit_mb,
                 memory_percent=memory_percent,
                 cpu_percent=cpu_percent,
+                heartbeat_age_seconds=heartbeat_ages.get(container_name),
             )
         )
 

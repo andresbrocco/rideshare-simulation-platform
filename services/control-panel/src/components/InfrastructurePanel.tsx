@@ -50,6 +50,19 @@ function getRtrClass(rtr: number): string {
   return styles.latencyRed;
 }
 
+function formatHeartbeatAge(seconds: number | null): string {
+  if (seconds === null) return '-';
+  if (seconds < 1) return '<1 s';
+  return `${Math.round(seconds)} s`;
+}
+
+function getHeartbeatAgeClass(seconds: number | null): string {
+  if (seconds === null) return '';
+  if (seconds < 30) return styles.latencyGreen;
+  if (seconds < 120) return styles.latencyOrange;
+  return styles.latencyRed;
+}
+
 function getProgressColor(percent: number): string {
   if (percent >= 90) return styles.progressRed;
   if (percent >= 70) return styles.progressOrange;
@@ -85,6 +98,15 @@ function ServiceCard({
           <span className={styles.metricLabel}>Real-Time Ratio</span>
           <span className={`${styles.metricValue} ${getRtrClass(simulationRealTimeRatio)}`}>
             {simulationRealTimeRatio.toFixed(2)}
+          </span>
+        </div>
+      ) : service.heartbeat_age_seconds != null ? (
+        <div className={styles.metricRow}>
+          <span className={styles.metricLabel}>Heartbeat Age</span>
+          <span
+            className={`${styles.metricValue} ${getHeartbeatAgeClass(service.heartbeat_age_seconds)}`}
+          >
+            {formatHeartbeatAge(service.heartbeat_age_seconds)}
           </span>
         </div>
       ) : service.latency_ms !== null ? (

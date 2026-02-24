@@ -155,6 +155,7 @@ class ServiceMetrics(BaseModel):
     memory_limit_mb: float = 0.0
     memory_percent: float = 0.0
     cpu_percent: float = 0.0
+    heartbeat_age_seconds: float | None = None  # For scheduler heartbeat checks
 
 
 class InfrastructureResponse(BaseModel):

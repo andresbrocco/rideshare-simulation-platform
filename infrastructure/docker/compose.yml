@@ -274,6 +274,8 @@ services:
           set -a && eval "$$(grep '^MINIO_ROOT_PASSWORD' /secrets/data-pipeline.env)" && set +a
           export AWS_ACCESS_KEY_ID="$$MINIO_ROOT_USER"
           export AWS_SECRET_ACCESS_KEY="$$MINIO_ROOT_PASSWORD"
+          set -a && eval "$$(grep '^POSTGRES_AIRFLOW_' /secrets/data-pipeline.env)" && set +a
+          set -a && eval "$$(grep '^POSTGRES_METASTORE_' /secrets/data-pipeline.env)" && set +a
         fi
         exec python main.py
     depends_on:
