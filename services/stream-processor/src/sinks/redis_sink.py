@@ -3,10 +3,12 @@
 import json
 import logging
 import time
+from datetime import UTC, datetime
 
 import redis
 
 from ..metrics import get_metrics_collector
+from ..prometheus_exporter import observe_pipeline_latency
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +93,15 @@ class RedisSink:
 
         collector = get_metrics_collector()
         collector.record_publish(latency_ms)
+
+        produced_at_str = event.get("produced_at")
+        if produced_at_str is not None:
+            try:
+                produced_at_dt = datetime.fromisoformat(produced_at_str)
+                pipeline_latency = (datetime.now(UTC) - produced_at_dt).total_seconds()
+                observe_pipeline_latency(pipeline_latency)
+            except (ValueError, TypeError):
+                pass
 
         return True
 

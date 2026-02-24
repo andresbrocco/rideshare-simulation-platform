@@ -287,10 +287,12 @@ class StreamProcessor:
 
         # Check for duplicate events using event_id
         correlation_id: str | None = None
+        produced_at: str | None = None
         try:
             event_data = json.loads(msg.value())
             event_id = event_data.get("event_id")
             correlation_id = event_data.get("correlation_id")
+            produced_at = event_data.get("produced_at")
             if event_id and self._deduplicator.is_duplicate(event_id):
                 return
         except (json.JSONDecodeError, TypeError):
@@ -312,6 +314,11 @@ class StreamProcessor:
             try:
                 # Handle the message
                 results = handler.handle(msg.value())
+
+                # Re-inject produced_at so the Redis sink can measure end-to-end latency
+                if results and produced_at is not None:
+                    for _, event_dict in results:
+                        event_dict["produced_at"] = produced_at
 
                 # Publish any immediate results (pass-through handlers)
                 if results:

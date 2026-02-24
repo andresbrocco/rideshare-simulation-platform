@@ -1168,6 +1168,63 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:latest
+    container_name: rideshare-kafka-exporter
+    mem_limit: 128m
+    profiles: ["monitoring"]
+    networks:
+      - rideshare-network
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        . /secrets/core.env
+        exec kafka_exporter \
+          --kafka.server=kafka:29092 \
+          --sasl.enabled \
+          --sasl.mechanism=plain \
+          --sasl.username=$$KAFKA_SASL_USERNAME \
+          --sasl.password=$$KAFKA_SASL_PASSWORD
+    volumes:
+      - secrets-volume:/secrets:ro
+    depends_on:
+      secrets-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9308/metrics"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    ports:
+      - "9308:9308"
+
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: rideshare-redis-exporter
+    mem_limit: 64m
+    profiles: ["monitoring"]
+    networks:
+      - rideshare-network
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        . /secrets/core.env
+        exec redis_exporter \
+          --redis.addr=redis://redis:6379 \
+          --redis.password=$$REDIS_PASSWORD
+    volumes:
+      - secrets-volume:/secrets:ro
+    depends_on:
+      secrets-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9121/metrics"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    ports:
+      - "9121:9121"
+
 networks:
   rideshare-network:
     driver: bridge

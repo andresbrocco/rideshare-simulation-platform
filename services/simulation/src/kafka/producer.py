@@ -2,6 +2,7 @@ import json
 import logging
 import random
 from contextlib import nullcontext
+from datetime import UTC, datetime
 from typing import Any
 
 from confluent_kafka import Producer
@@ -86,13 +87,16 @@ class KafkaProducer:
                     span.set_attribute("correlation_id", correlation_id)
 
             # Serialize value to JSON string if it's not already a string
+            produced_at = datetime.now(UTC).isoformat()
             if isinstance(value, str):
                 serialized = value
             elif isinstance(value, dict):
-                serialized = json.dumps(value)
-            elif hasattr(value, "model_dump_json"):
+                serialized = json.dumps({**value, "produced_at": produced_at})
+            elif hasattr(value, "model_dump"):
                 # Pydantic model
-                serialized = value.model_dump_json()
+                value_dict = value.model_dump(mode="json")
+                value_dict["produced_at"] = produced_at
+                serialized = json.dumps(value_dict)
             else:
                 serialized = json.dumps(value)
 

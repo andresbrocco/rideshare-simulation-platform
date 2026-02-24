@@ -117,6 +117,12 @@ stream_processor_redis_publish_latency_seconds = meter.create_histogram(
     unit="s",
 )
 
+stream_processor_pipeline_latency_seconds = meter.create_histogram(
+    name="stream_processor_pipeline_latency_seconds",
+    description="End-to-end latency from Kafka produce to Redis publish",
+    unit="s",
+)
+
 
 # ---------------------------------------------------------------------------
 # Helper functions for recording metrics
@@ -136,6 +142,15 @@ def update_snapshot_gauges(snapshot: StreamProcessorMetrics) -> None:
         _snapshot_values["kafka_connected"] = 1.0 if snapshot.kafka_connected else 0.0
         _snapshot_values["redis_connected"] = 1.0 if snapshot.redis_connected else 0.0
         _snapshot_values["uptime_seconds"] = snapshot.uptime_seconds
+
+
+def observe_pipeline_latency(latency_seconds: float) -> None:
+    """Observe an end-to-end pipeline latency sample.
+
+    Args:
+        latency_seconds: Latency in seconds from Kafka produce to Redis publish
+    """
+    stream_processor_pipeline_latency_seconds.record(latency_seconds)
 
 
 def observe_redis_latency(latency_ms: float) -> None:

@@ -90,19 +90,19 @@ groups:
           description: "SimPy event queue has {{ $value }} pending events"
 
       - alert: SimulationServiceDown
-        expr: up{job="simulation"} == 0
-        for: 1m
+        expr: absent_over_time(simulation_events_total[5m])
+        for: 2m
         labels:
           severity: critical
         annotations:
-          summary: "Simulation service down"
-          description: "Simulation service has been unreachable for more than 1 minute"
+          summary: "Simulation service is not producing metrics"
+          description: "No simulation_events_total metrics received for 5 minutes, indicating the simulation service may be down."
 
       - alert: StreamProcessorServiceDown
-        expr: up{job="stream-processor"} == 0
-        for: 1m
+        expr: absent_over_time(stream_processor_messages_consumed_total[5m])
+        for: 2m
         labels:
           severity: critical
         annotations:
-          summary: "Stream processor down"
-          description: "Stream processor service has been unreachable for more than 1 minute"
+          summary: "Stream processor is not producing metrics"
+          description: "No stream_processor_messages_consumed_total metrics received for 5 minutes, indicating the stream processor may be down."

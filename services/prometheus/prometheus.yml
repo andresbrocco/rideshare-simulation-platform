@@ -34,3 +34,13 @@ scrape_configs:
 
   # NOTE: simulation and stream-processor no longer scraped directly.
   # They export metrics via OTLP to OTel Collector, which pushes via remote_write.
+
+  - job_name: 'kafka-exporter'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['kafka-exporter:9308']
+
+  - job_name: 'redis-exporter'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['redis-exporter:9121']
