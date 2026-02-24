@@ -623,7 +623,7 @@ def puppet_rider_cancel_trip(
 ) -> PuppetActionResponse:
     """Cancel the pending trip request.
 
-    Valid from: waiting
+    Valid from: requesting, awaiting_pickup
     """
     rider = engine._active_riders.get(rider_id)
     if not rider:
@@ -632,10 +632,11 @@ def puppet_rider_cancel_trip(
     if not getattr(rider, "_is_puppet", False):
         raise HTTPException(status_code=400, detail="Agent is not a puppet rider")
 
-    if rider.status != "requesting":
+    if rider.status not in ("requesting", "awaiting_pickup"):
         raise HTTPException(
             status_code=400,
-            detail=f"Cannot cancel trip from status '{rider.status}'. Must be 'waiting'.",
+            detail=f"Cannot cancel trip from status '{rider.status}'. "
+            "Must be 'requesting' or 'awaiting_pickup'.",
         )
 
     if not rider.active_trip:
