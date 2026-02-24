@@ -29,6 +29,7 @@ from .analysis.findings import (
 )
 from .analysis.report_generator import ReportGenerator
 from .analysis.statistics import (
+    BaselineCalibration,
     calculate_all_container_stats,
     calculate_all_health_stats,
     summarize_scenario_stats,
@@ -153,7 +154,7 @@ def analyze_results(
 
     # Service health latency analysis
     service_health_latency = _generate_service_health_latency(results)
-    suggested_thresholds = _compute_suggested_thresholds(service_health_latency)
+    suggested_thresholds = _compute_suggested_thresholds(service_health_latency, config)
 
     summary = TestSummary(
         container_health=container_health,
@@ -371,11 +372,19 @@ def _generate_service_health_latency(
     """Generate service health latency summaries across scenarios.
 
     For each service found in health data, computes baseline p95, stressed p95,
-    and peak latency across all scenarios.
+    and peak latency across all scenarios.  When baseline calibration data exists,
+    uses baseline-derived thresholds instead of API-reported values.
     """
     scenarios = results.get("scenarios", [])
     if not scenarios:
         return []
+
+    # Extract baseline calibration if available
+    calibration_dict: dict[str, Any] | None = None
+    for scenario in scenarios:
+        if scenario.get("scenario_name") == "baseline":
+            calibration_dict = scenario.get("metadata", {}).get("calibration")
+            break
 
     # Compute health stats per scenario
     per_scenario: dict[str, dict[str, Any]] = {}
@@ -403,6 +412,15 @@ def _generate_service_health_latency(
         peak_scenario: str | None = None
         threshold_degraded: float | None = None
         threshold_unhealthy: float | None = None
+        threshold_source = "api-reported"
+
+        # Use baseline-derived thresholds when available
+        if calibration_dict is not None:
+            cal_thresholds = calibration_dict.get("health_thresholds", {}).get(svc_name)
+            if cal_thresholds is not None:
+                threshold_degraded = cal_thresholds.get("degraded")
+                threshold_unhealthy = cal_thresholds.get("unhealthy")
+                threshold_source = "baseline-derived"
 
         # Baseline
         baseline_stats = per_scenario.get("baseline", {}).get(svc_name)
@@ -421,7 +439,7 @@ def _generate_service_health_latency(
                 if peak_latency is None or svc_stats.latency_max > peak_latency:
                     peak_latency = svc_stats.latency_max
                     peak_scenario = scenario_name
-                # Capture thresholds from first available
+                # Capture thresholds from first available (only if not already set by calibration)
                 if threshold_degraded is None and svc_stats.threshold_degraded is not None:
                     threshold_degraded = svc_stats.threshold_degraded
                 if threshold_unhealthy is None and svc_stats.threshold_unhealthy is not None:
@@ -436,6 +454,7 @@ def _generate_service_health_latency(
                 peak_latency_scenario=peak_scenario,
                 threshold_degraded=threshold_degraded,
                 threshold_unhealthy=threshold_unhealthy,
+                threshold_source=threshold_source,
             )
         )
 
@@ -444,14 +463,17 @@ def _generate_service_health_latency(
 
 def _compute_suggested_thresholds(
     health_latency: list[ServiceHealthLatency],
+    config: TestConfig,
 ) -> list[SuggestedThresholds]:
     """Compute suggested thresholds based on empirically observed p95 latencies.
 
     Derivation rule:
-        suggested_degraded = reference_p95 * 2.0
-        suggested_unhealthy = reference_p95 * 5.0
+        suggested_degraded = reference_p95 * degraded_multiplier
+        suggested_unhealthy = reference_p95 * unhealthy_multiplier
     Prefers stressed p95 when available, falls back to baseline p95.
     """
+    degraded_mult = config.scenarios.health_baseline_degraded_multiplier
+    unhealthy_mult = config.scenarios.health_baseline_unhealthy_multiplier
     thresholds: list[SuggestedThresholds] = []
 
     for h in health_latency:
@@ -473,8 +495,8 @@ def _compute_suggested_thresholds(
                 service_name=h.service_name,
                 current_degraded=h.threshold_degraded,
                 current_unhealthy=h.threshold_unhealthy,
-                suggested_degraded=round(reference_p95 * 2.0, 1),
-                suggested_unhealthy=round(reference_p95 * 5.0, 1),
+                suggested_degraded=round(reference_p95 * degraded_mult, 1),
+                suggested_unhealthy=round(reference_p95 * unhealthy_mult, 1),
                 based_on_p95=reference_p95,
                 based_on_scenario=based_on_scenario,
             )
@@ -746,6 +768,9 @@ def run(
                 "stress_global_cpu_threshold_percent": config.scenarios.stress_global_cpu_threshold_percent,
                 "stress_memory_threshold_percent": config.scenarios.stress_memory_threshold_percent,
                 "stress_rtr_threshold": config.scenarios.stress_rtr_threshold,
+                "health_baseline_degraded_multiplier": config.scenarios.health_baseline_degraded_multiplier,
+                "health_baseline_unhealthy_multiplier": config.scenarios.health_baseline_unhealthy_multiplier,
+                "rtr_baseline_fraction": config.scenarios.rtr_baseline_fraction,
                 "speed_scaling_step_duration_minutes": config.scenarios.speed_scaling_step_duration_minutes,
                 "speed_scaling_max_multiplier": config.scenarios.speed_scaling_max_multiplier,
                 "health_check_enabled": config.scenarios.health_check_enabled,
@@ -760,6 +785,7 @@ def run(
 
     agent_count: int | None = agents
     derived_speed: int | None = speed_multiplier
+    baseline_calibration: BaselineCalibration | None = None
 
     try:
         if ordered[0] in _REUSES_PREVIOUS_STATE and not api_client.is_available():
@@ -791,12 +817,46 @@ def run(
                     scenario_results.append(result_dict)
                     _print_scenario_result("baseline", result_dict)
 
+                    # Extract baseline calibration for downstream scenarios
+                    calibration_dict = baseline_result.metadata.get("calibration")
+                    if calibration_dict is not None:
+                        baseline_calibration = BaselineCalibration(
+                            health_thresholds=calibration_dict.get("health_thresholds", {}),
+                            rtr_mean=calibration_dict.get("rtr_mean"),
+                            rtr_threshold=calibration_dict.get("rtr_threshold"),
+                            rtr_threshold_source=calibration_dict.get(
+                                "rtr_threshold_source", "config-fallback"
+                            ),
+                            health_threshold_source=calibration_dict.get(
+                                "health_threshold_source", "config-fallback"
+                            ),
+                        )
+                        results.setdefault("derived_config", {}).update(
+                            {
+                                "baseline_rtr_mean": baseline_calibration.rtr_mean,
+                                "baseline_rtr_threshold": baseline_calibration.rtr_threshold,
+                                "baseline_rtr_threshold_source": (
+                                    baseline_calibration.rtr_threshold_source
+                                ),
+                            }
+                        )
+
                 elif scenario_name == "stress":
+                    # Compute effective RTR threshold for display
+                    if (
+                        baseline_calibration is not None
+                        and baseline_calibration.rtr_threshold is not None
+                    ):
+                        effective_rtr = baseline_calibration.rtr_threshold
+                        rtr_source_label = "baseline-derived"
+                    else:
+                        effective_rtr = config.scenarios.stress_rtr_threshold
+                        rtr_source_label = "config-fallback"
                     console.rule(
                         f"[bold cyan]{step_label}: Running Stress Test "
                         f"(until {config.scenarios.stress_global_cpu_threshold_percent}% global CPU, "
                         f"{config.scenarios.stress_memory_threshold_percent}% memory, "
-                        f"or {config.scenarios.stress_rtr_threshold}x RTR)"
+                        f"or {effective_rtr}x RTR [{rtr_source_label}])"
                         f"[/bold cyan]"
                     )
                     stress_result = run_scenario(
@@ -807,6 +867,7 @@ def run(
                         api_client,
                         oom_detector,
                         health_collector,
+                        baseline_calibration=baseline_calibration,
                     )
                     result_dict = _result_to_dict(stress_result)
                     scenario_results.append(result_dict)
@@ -865,6 +926,7 @@ def run(
                         oom_detector,
                         health_collector,
                         agent_count=agent_count,
+                        baseline_calibration=baseline_calibration,
                     )
                     result_dict = _result_to_dict(speed_result)
                     scenario_results.append(result_dict)
@@ -1140,12 +1202,16 @@ def _print_scenario_result(scenario_name: str, result: dict[str, Any]) -> None:
         total_agents = meta.get("total_agents_queued", 0)
         trigger = meta.get("trigger", {})
         batch_count = meta.get("batch_count", 0)
+        rtr_source = meta.get("rtr_threshold_source", "")
+        source_tag = f" [{rtr_source}]" if rtr_source else ""
         trigger_desc = ""
         if trigger:
             metric = trigger.get("metric", "")
             value = trigger.get("value", 0)
             trigger_desc = (
-                f"stopped by {metric} ({value:.2f}x)" if metric == "rtr" else f"stopped by {metric}"
+                f"stopped by {metric} ({value:.2f}x){source_tag}"
+                if metric == "rtr"
+                else f"stopped by {metric}"
             )
         console.print(
             f"  [green]Stress:[/green] {total_agents} agents, {trigger_desc}, "
@@ -1246,8 +1312,44 @@ def _print_summary(results: dict[str, Any], summary: TestSummary | None = None) 
         )
         console.print(metrics_table)
 
-    # --- Scenario Results Table ---
+    # --- Baseline Calibration ---
+    calibration_data: dict[str, Any] | None = None
     scenarios = results.get("scenarios", [])
+    for s in scenarios:
+        if s.get("scenario_name") == "baseline":
+            calibration_data = s.get("metadata", {}).get("calibration")
+            break
+
+    if calibration_data is not None:
+        health_thresholds = calibration_data.get("health_thresholds", {})
+        if health_thresholds:
+            console.print("\n[bold]Baseline Calibration:[/bold]")
+            cal_table = Table(show_header=True, header_style="bold")
+            cal_table.add_column("Service")
+            cal_table.add_column("Baseline p95 (ms)", justify="right")
+            cal_table.add_column("Degraded Threshold", justify="right")
+            cal_table.add_column("Unhealthy Threshold", justify="right")
+            for svc_name in sorted(health_thresholds.keys()):
+                th = health_thresholds[svc_name]
+                cal_table.add_row(
+                    svc_name,
+                    f"{th.get('baseline_p95', 0):.1f}",
+                    f"{th.get('degraded', 0):.0f}",
+                    f"{th.get('unhealthy', 0):.0f}",
+                )
+            console.print(cal_table)
+
+        rtr_threshold = calibration_data.get("rtr_threshold")
+        rtr_mean = calibration_data.get("rtr_mean")
+        rtr_source = calibration_data.get("rtr_threshold_source", "unknown")
+        if rtr_threshold is not None:
+            console.print(
+                f"  RTR threshold: {rtr_threshold:.4f}x " f"(mean={rtr_mean:.4f}x, {rtr_source})"
+                if rtr_mean is not None
+                else f"  RTR threshold: {rtr_threshold:.4f}x ({rtr_source})"
+            )
+
+    # --- Scenario Results Table ---
     if scenarios:
         console.print("\n[bold]Scenario Results:[/bold]")
         scenario_table = Table(show_header=True, header_style="bold")
@@ -1362,6 +1464,15 @@ def _print_summary(results: dict[str, Any], summary: TestSummary | None = None) 
                 f"  With {duration_agents} agents, simulation ran reliably "
                 f"up to {duration_speed}x speed"
             )
+        baseline_rtr_threshold = derived_config.get("baseline_rtr_threshold")
+        baseline_rtr_mean = derived_config.get("baseline_rtr_mean")
+        baseline_rtr_source = derived_config.get("baseline_rtr_threshold_source")
+        if baseline_rtr_threshold is not None:
+            mean_str = f", mean={baseline_rtr_mean:.4f}x" if baseline_rtr_mean is not None else ""
+            console.print(
+                f"  Baseline RTR threshold: {baseline_rtr_threshold:.4f}x"
+                f"{mean_str} ({baseline_rtr_source})"
+            )
 
 
 def _print_summary_legacy(results: dict[str, Any]) -> None:
@@ -1435,8 +1546,10 @@ def _scenario_key_result(name: str, scenario: dict[str, Any]) -> str:
         total_agents = meta.get("total_agents_queued", 0)
         trigger = meta.get("trigger", {})
         metric = trigger.get("metric", "") if trigger else ""
+        rtr_source = meta.get("rtr_threshold_source", "")
+        source_suffix = f" [{rtr_source}]" if rtr_source else ""
         if metric == "rtr":
-            return f"{total_agents} agents -> RTR trigger"
+            return f"{total_agents} agents -> RTR trigger{source_suffix}"
         elif metric:
             return f"{total_agents} agents -> {metric} trigger"
         return f"{total_agents} agents"
@@ -1445,8 +1558,10 @@ def _scenario_key_result(name: str, scenario: dict[str, Any]) -> str:
         max_speed = meta.get("max_speed_achieved", 0)
         total_steps = meta.get("total_steps", 0)
         stopped = meta.get("stopped_by_threshold", False)
+        rtr_source = meta.get("rtr_threshold_source", "")
+        source_suffix = f" [{rtr_source}]" if rtr_source else ""
         if stopped:
-            return f"{max_speed}x max ({total_steps} steps, threshold)"
+            return f"{max_speed}x max ({total_steps} steps, threshold){source_suffix}"
         return f"{max_speed}x max ({total_steps} steps)"
 
     elif name == "duration_leak" or name.startswith("duration_leak_"):

@@ -1,6 +1,6 @@
 """Statistical analysis for performance test results."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -367,3 +367,82 @@ def summarize_scenario_stats(
             }
 
     return summary
+
+
+@dataclass
+class BaselineCalibration:
+    """Dynamic thresholds derived from baseline measurement."""
+
+    health_thresholds: dict[str, dict[str, float]] = field(default_factory=dict)
+    """Per-service thresholds: {service: {degraded, unhealthy, baseline_p95}}."""
+    rtr_mean: float | None = None
+    rtr_threshold: float | None = None
+    rtr_threshold_source: str = "config-fallback"
+    health_threshold_source: str = "config-fallback"
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "health_thresholds": {
+                svc: {k: round(v, 2) for k, v in thresholds.items()}
+                for svc, thresholds in self.health_thresholds.items()
+            },
+            "rtr_mean": round(self.rtr_mean, 4) if self.rtr_mean is not None else None,
+            "rtr_threshold": (
+                round(self.rtr_threshold, 4) if self.rtr_threshold is not None else None
+            ),
+            "rtr_threshold_source": self.rtr_threshold_source,
+            "health_threshold_source": self.health_threshold_source,
+        }
+
+
+def compute_baseline_calibration(
+    samples: list[dict[str, Any]],
+    degraded_multiplier: float,
+    unhealthy_multiplier: float,
+    rtr_fraction: float,
+    rtr_config_fallback: float,
+) -> BaselineCalibration:
+    """Derive dynamic stop-condition thresholds from baseline samples.
+
+    Args:
+        samples: Baseline scenario samples.
+        degraded_multiplier: Multiply baseline p95 to get degraded threshold.
+        unhealthy_multiplier: Multiply baseline p95 to get unhealthy threshold.
+        rtr_fraction: Fraction of baseline RTR mean for the stop threshold.
+        rtr_config_fallback: Absolute RTR threshold from config (used when no RTR data).
+
+    Returns:
+        BaselineCalibration with derived thresholds.
+    """
+    calibration = BaselineCalibration()
+
+    # Health latency thresholds
+    health_stats = calculate_all_health_stats(samples)
+    if health_stats:
+        calibration.health_threshold_source = "baseline-derived"
+        for svc_name, stats in health_stats.items():
+            calibration.health_thresholds[svc_name] = {
+                "baseline_p95": stats.latency_p95,
+                "degraded": round(stats.latency_p95 * degraded_multiplier, 2),
+                "unhealthy": round(stats.latency_p95 * unhealthy_multiplier, 2),
+            }
+
+    # RTR threshold
+    rtr_values: list[float] = []
+    for sample in samples:
+        rtr_data = sample.get("rtr")
+        if rtr_data is not None and "rtr" in rtr_data:
+            rtr_values.append(rtr_data["rtr"])
+
+    if rtr_values:
+        rtr_arr = np.array(rtr_values)
+        calibration.rtr_mean = float(np.mean(rtr_arr))
+        calibration.rtr_threshold = round(calibration.rtr_mean * rtr_fraction, 4)
+        calibration.rtr_threshold_source = "baseline-derived"
+    else:
+        calibration.rtr_mean = None
+        calibration.rtr_threshold = rtr_config_fallback
+        calibration.rtr_threshold_source = "config-fallback"
+
+    return calibration

@@ -171,15 +171,50 @@ class ReportGenerator:
                     lines.append(f"| {dn} | {s.memory_mean:.0f} | {s.cpu_mean:.1f} |")
                 lines.append("")
 
+            # Calibration thresholds
+            calibration = meta.get("calibration")
+            if calibration is not None:
+                health_thresholds = calibration.get("health_thresholds", {})
+                if health_thresholds:
+                    lines.extend(
+                        [
+                            "#### Derived Stop-Condition Thresholds",
+                            "",
+                            "| Service | Baseline p95 (ms) | Degraded Threshold | "
+                            "Unhealthy Threshold |",
+                            "|---------|-------------------|-------------------|"
+                            "---------------------|",
+                        ]
+                    )
+                    for svc_name in sorted(health_thresholds.keys()):
+                        th = health_thresholds[svc_name]
+                        lines.append(
+                            f"| {svc_name} | {th.get('baseline_p95', 0):.1f} | "
+                            f"{th.get('degraded', 0):.0f} | {th.get('unhealthy', 0):.0f} |"
+                        )
+                    lines.append("")
+
+                rtr_threshold = calibration.get("rtr_threshold")
+                rtr_mean = calibration.get("rtr_mean")
+                rtr_source = calibration.get("rtr_threshold_source", "unknown")
+                if rtr_threshold is not None:
+                    mean_str = f" (mean={rtr_mean:.4f}x)" if rtr_mean is not None else ""
+                    lines.append(
+                        f"RTR threshold: **{rtr_threshold:.4f}x**{mean_str} ({rtr_source})"
+                    )
+                    lines.append("")
+
         elif name == "stress_test":
             total_agents = meta.get("total_agents_queued", 0)
             batch_count = meta.get("batch_count", 0)
             trigger = meta.get("trigger", {})
+            rtr_source = meta.get("rtr_threshold_source", "")
             trigger_str = ""
             if trigger:
                 metric = trigger.get("metric", "")
                 value = trigger.get("value", 0)
-                trigger_str = f"Stopped by **{metric}** at {value:.2f}"
+                source_tag = f" [{rtr_source}]" if metric == "rtr" and rtr_source else ""
+                trigger_str = f"Stopped by **{metric}** at {value:.2f}{source_tag}"
 
             lines.extend(
                 [
@@ -368,9 +403,9 @@ class ReportGenerator:
                     "## Service Health Latency",
                     "",
                     "| Service | Baseline p95 (ms) | Stressed p95 (ms) | Peak (ms) | "
-                    "Degraded Threshold | Unhealthy Threshold |",
+                    "Degraded Threshold | Unhealthy Threshold | Source |",
                     "|---------|-------------------|-------------------|-----------|"
-                    "-------------------|---------------------|",
+                    "-------------------|---------------------|--------|",
                 ]
             )
             for h in summary.service_health_latency:
@@ -381,7 +416,7 @@ class ReportGenerator:
                 unhealthy = f"{h.threshold_unhealthy:.0f}" if h.threshold_unhealthy else "N/A"
                 lines.append(
                     f"| {h.service_name} | {baseline} | {stressed} | {peak} | "
-                    f"{degraded} | {unhealthy} |"
+                    f"{degraded} | {unhealthy} | {h.threshold_source} |"
                 )
             lines.append("")
 
@@ -615,13 +650,47 @@ class ReportGenerator:
             if "baseline_resources" in chart_fragments:
                 html += f'<div class="chart-embed">{chart_fragments["baseline_resources"]}</div>\n'
 
+            # Calibration thresholds
+            calibration = meta.get("calibration")
+            if calibration is not None:
+                health_thresholds = calibration.get("health_thresholds", {})
+                if health_thresholds:
+                    html += "<h4>Derived Stop-Condition Thresholds</h4>\n"
+                    html += "<table><thead><tr>"
+                    html += "<th>Service</th><th>Baseline p95 (ms)</th>"
+                    html += "<th>Degraded Threshold</th><th>Unhealthy Threshold</th>"
+                    html += "</tr></thead><tbody>\n"
+                    for svc_name in sorted(health_thresholds.keys()):
+                        th = health_thresholds[svc_name]
+                        html += (
+                            f"<tr><td>{svc_name}</td>"
+                            f"<td>{th.get('baseline_p95', 0):.1f}</td>"
+                            f"<td>{th.get('degraded', 0):.0f}</td>"
+                            f"<td>{th.get('unhealthy', 0):.0f}</td></tr>\n"
+                        )
+                    html += "</tbody></table>\n"
+
+                rtr_threshold = calibration.get("rtr_threshold")
+                rtr_mean = calibration.get("rtr_mean")
+                rtr_source = calibration.get("rtr_threshold_source", "unknown")
+                if rtr_threshold is not None:
+                    mean_str = f" (mean={rtr_mean:.4f}x)" if rtr_mean is not None else ""
+                    html += (
+                        f"<p>RTR threshold: <strong>{rtr_threshold:.4f}x</strong>"
+                        f"{mean_str} ({rtr_source})</p>\n"
+                    )
+
         elif name == "stress_test":
             total = meta.get("total_agents_queued", 0)
             batches = meta.get("batch_count", 0)
             trigger = meta.get("trigger", {})
+            rtr_source = meta.get("rtr_threshold_source", "")
             trigger_str = ""
             if trigger:
-                trigger_str = f" Stopped by <strong>{trigger.get('metric', '')}</strong> at {trigger.get('value', 0):.2f}."
+                metric = trigger.get("metric", "")
+                value = trigger.get("value", 0)
+                source_tag = f" [{rtr_source}]" if metric == "rtr" and rtr_source else ""
+                trigger_str = f" Stopped by <strong>{metric}</strong> at {value:.2f}.{source_tag}"
             html += f"<p><strong>{total} agents</strong> in {batches} batches over {_fmt_duration(duration)}.{trigger_str}</p>\n"
 
             # Embed key stress charts
@@ -727,6 +796,7 @@ class ReportGenerator:
         html = "<table><thead><tr>"
         html += "<th>Service</th><th>Baseline p95</th><th>Stressed p95</th>"
         html += "<th>Peak</th><th>Degraded Threshold</th><th>Unhealthy Threshold</th>"
+        html += "<th>Source</th>"
         html += "</tr></thead><tbody>\n"
 
         for h in summary.service_health_latency:
@@ -738,7 +808,8 @@ class ReportGenerator:
 
             html += f"<tr><td>{h.service_name}</td><td>{baseline}</td>"
             html += f"<td>{stressed}</td><td>{peak}</td>"
-            html += f"<td>{degraded}</td><td>{unhealthy}</td></tr>\n"
+            html += f"<td>{degraded}</td><td>{unhealthy}</td>"
+            html += f"<td>{h.threshold_source}</td></tr>\n"
 
         html += "</tbody></table>\n"
 

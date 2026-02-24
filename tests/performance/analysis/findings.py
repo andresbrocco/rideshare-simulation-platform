@@ -118,6 +118,7 @@ class ServiceHealthLatency:
     peak_latency_scenario: str | None
     threshold_degraded: float | None
     threshold_unhealthy: float | None
+    threshold_source: str = "api-reported"
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -139,6 +140,7 @@ class ServiceHealthLatency:
             "peak_latency_scenario": self.peak_latency_scenario,
             "threshold_degraded": self.threshold_degraded,
             "threshold_unhealthy": self.threshold_unhealthy,
+            "threshold_source": self.threshold_source,
         }
 
 

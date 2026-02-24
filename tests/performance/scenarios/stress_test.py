@@ -7,6 +7,7 @@ from typing import Any, Iterator
 
 from rich.console import Console
 
+from ..analysis.statistics import BaselineCalibration
 from .base import BaseScenario
 
 console = Console()
@@ -107,8 +108,21 @@ class StressTestScenario(BaseScenario):
     6. Store metadata (trigger info, peak values, total agents)
     """
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        *args: Any,
+        baseline_calibration: BaselineCalibration | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(*args, **kwargs)
+        self._baseline_calibration = baseline_calibration
+        # Compute effective RTR threshold: prefer baseline-derived, else config fallback
+        if baseline_calibration is not None and baseline_calibration.rtr_threshold is not None:
+            self._effective_rtr_threshold = baseline_calibration.rtr_threshold
+            self._rtr_threshold_source = baseline_calibration.rtr_threshold_source
+        else:
+            self._effective_rtr_threshold = self.config.scenarios.stress_rtr_threshold
+            self._rtr_threshold_source = "config-fallback"
         # Calculate rolling window sample count from config
         # e.g., 10s window / 2s interval = 5 samples
         self._rolling_window_samples = int(
@@ -156,7 +170,8 @@ class StressTestScenario(BaseScenario):
         return {
             "global_cpu_threshold_percent": self.config.scenarios.stress_global_cpu_threshold_percent,
             "memory_threshold_percent": self.config.scenarios.stress_memory_threshold_percent,
-            "rtr_threshold": self.config.scenarios.stress_rtr_threshold,
+            "rtr_threshold": self._effective_rtr_threshold,
+            "rtr_threshold_source": self._rtr_threshold_source,
             "rolling_window_seconds": self.config.scenarios.stress_rolling_window_seconds,
             "rolling_window_samples": self._rolling_window_samples,
             "spawn_batch_size": self.config.scenarios.stress_spawn_batch_size,
@@ -289,6 +304,13 @@ class StressTestScenario(BaseScenario):
             (self.config.scenarios.stress_global_cpu_threshold_percent / 100)
             * self._available_cores
             * 100
+        )
+        self._metadata["rtr_threshold_used"] = self._effective_rtr_threshold
+        self._metadata["rtr_threshold_source"] = self._rtr_threshold_source
+        self._metadata["health_threshold_source"] = (
+            self._baseline_calibration.health_threshold_source
+            if self._baseline_calibration is not None
+            else "api-reported"
         )
 
         console.print(
@@ -426,15 +448,14 @@ class StressTestScenario(BaseScenario):
             )
 
         # Check RTR (simulation lag) threshold
-        rtr_threshold = self.config.scenarios.stress_rtr_threshold
         if self._rtr_rolling.values:
             rtr_avg = self._rtr_rolling.average
-            if rtr_avg <= rtr_threshold:
+            if rtr_avg <= self._effective_rtr_threshold:
                 return ThresholdTrigger(
                     container="__simulation__",
                     metric="rtr",
                     value=rtr_avg,
-                    threshold=rtr_threshold,
+                    threshold=self._effective_rtr_threshold,
                 )
 
         # Check health latency thresholds for critical services
@@ -445,8 +466,15 @@ class StressTestScenario(BaseScenario):
                 if svc_name not in self._health_rolling_stats:
                     continue
                 rolling_avg = self._health_rolling_stats[svc_name].latency_ms.average
-                svc_health = health_data.get(svc_name, {})
-                threshold_unhealthy = svc_health.get("threshold_unhealthy")
+                # Prefer baseline-derived threshold, fall back to API-reported value
+                threshold_unhealthy: float | None = None
+                if self._baseline_calibration is not None:
+                    threshold_unhealthy = self._baseline_calibration.health_thresholds.get(
+                        svc_name, {}
+                    ).get("unhealthy")
+                if threshold_unhealthy is None:
+                    svc_health = health_data.get(svc_name, {})
+                    threshold_unhealthy = svc_health.get("threshold_unhealthy")
                 if threshold_unhealthy is not None and rolling_avg >= threshold_unhealthy:
                     return ThresholdTrigger(
                         container=svc_name,

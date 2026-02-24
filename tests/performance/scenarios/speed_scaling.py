@@ -5,6 +5,7 @@ from typing import Any, Iterator
 
 from rich.console import Console
 
+from ..analysis.statistics import BaselineCalibration
 from .base import BaseScenario
 from .stress_test import (
     ContainerRollingStats,
@@ -38,15 +39,30 @@ class SpeedScalingScenario(BaseScenario):
     3. Store step results in metadata
     """
 
-    def __init__(self, agent_count: int, *args: Any, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        agent_count: int,
+        *args: Any,
+        baseline_calibration: BaselineCalibration | None = None,
+        **kwargs: Any,
+    ) -> None:
         """Initialize speed scaling scenario.
 
         Args:
             agent_count: Total agent count (split equally between drivers and riders).
             *args: Positional arguments passed to BaseScenario.
+            baseline_calibration: Dynamic thresholds from baseline (None = use config).
             **kwargs: Keyword arguments passed to BaseScenario.
         """
         super().__init__(*args, **kwargs)
+        self._baseline_calibration = baseline_calibration
+        # Compute effective RTR threshold: prefer baseline-derived, else config fallback
+        if baseline_calibration is not None and baseline_calibration.rtr_threshold is not None:
+            self._effective_rtr_threshold = baseline_calibration.rtr_threshold
+            self._rtr_threshold_source = baseline_calibration.rtr_threshold_source
+        else:
+            self._effective_rtr_threshold = self.config.scenarios.stress_rtr_threshold
+            self._rtr_threshold_source = "config-fallback"
         self.base_agent_count = agent_count
         self.step_duration_minutes = self.config.scenarios.speed_scaling_step_duration_minutes
         self.max_multiplier = self.config.scenarios.speed_scaling_max_multiplier
@@ -117,6 +133,13 @@ class SpeedScalingScenario(BaseScenario):
         self._metadata["total_steps"] = len(self._step_results)
         self._metadata["max_speed_achieved"] = max_speed
         self._metadata["stopped_by_threshold"] = self._stopped_by_threshold
+        self._metadata["rtr_threshold_used"] = self._effective_rtr_threshold
+        self._metadata["rtr_threshold_source"] = self._rtr_threshold_source
+        self._metadata["health_threshold_source"] = (
+            self._baseline_calibration.health_threshold_source
+            if self._baseline_calibration is not None
+            else "api-reported"
+        )
 
         console.print(
             f"\n[green]Speed scaling complete: {len(self._step_results)} steps, "
@@ -309,7 +332,6 @@ class SpeedScalingScenario(BaseScenario):
             )
 
         # Check RTR (simulation lag) threshold
-        rtr_threshold = self.config.scenarios.stress_rtr_threshold
         rtr_rolling = RollingStats.with_window(rolling_window_samples)
         for sample in step_samples:
             rtr_data = sample.get("rtr")
@@ -318,12 +340,12 @@ class SpeedScalingScenario(BaseScenario):
 
         if rtr_rolling.values:
             rtr_avg = rtr_rolling.average
-            if rtr_avg <= rtr_threshold:
+            if rtr_avg <= self._effective_rtr_threshold:
                 return ThresholdTrigger(
                     container="__simulation__",
                     metric="rtr",
                     value=rtr_avg,
-                    threshold=rtr_threshold,
+                    threshold=self._effective_rtr_threshold,
                 )
 
         # Check health latency thresholds for critical services
@@ -340,7 +362,7 @@ class SpeedScalingScenario(BaseScenario):
                         health_stats[svc_name].latency_ms.add(latency)
 
             # Get threshold values from the last sample that has health data
-            last_health: dict[str, dict[str, float | None]] = {}
+            last_health: dict[str, dict[str, Any]] = {}
             for sample in reversed(step_samples):
                 if "health" in sample:
                     last_health = sample["health"]
@@ -350,8 +372,15 @@ class SpeedScalingScenario(BaseScenario):
                 if svc_name not in health_stats:
                     continue
                 rolling_avg = health_stats[svc_name].latency_ms.average
-                svc_health = last_health.get(svc_name, {})
-                threshold_unhealthy = svc_health.get("threshold_unhealthy")
+                # Prefer baseline-derived threshold, fall back to API-reported value
+                threshold_unhealthy: float | None = None
+                if self._baseline_calibration is not None:
+                    threshold_unhealthy = self._baseline_calibration.health_thresholds.get(
+                        svc_name, {}
+                    ).get("unhealthy")
+                if threshold_unhealthy is None:
+                    svc_health = last_health.get(svc_name, {})
+                    threshold_unhealthy = svc_health.get("threshold_unhealthy")
                 if threshold_unhealthy is not None and rolling_avg >= threshold_unhealthy:
                     return ThresholdTrigger(
                         container=svc_name,

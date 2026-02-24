@@ -60,6 +60,11 @@ class ScenarioConfig:
     )
     stress_rtr_rolling_window_seconds: int = 10  # Separate window for RTR smoothing
 
+    # Baseline calibration multipliers (for dynamic stop-condition thresholds)
+    health_baseline_degraded_multiplier: float = 2.0
+    health_baseline_unhealthy_multiplier: float = 5.0
+    rtr_baseline_fraction: float = 0.80  # stop if RTR drops below 80% of baseline mean
+
     # Health check settings
     health_check_enabled: bool = True
     health_critical_services: list[str] = field(

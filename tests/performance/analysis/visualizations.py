@@ -1045,6 +1045,7 @@ class ChartGenerator:
         scenario: dict[str, Any],
         scenario_label: str,
         services: list[str] | None = None,
+        baseline_calibration: dict[str, Any] | None = None,
     ) -> list[str]:
         """Generate timeline of per-service health latencies over time.
 
@@ -1052,6 +1053,7 @@ class ChartGenerator:
             scenario: Scenario result dict with samples.
             scenario_label: Label for chart title (e.g., "Stress Test").
             services: Specific services to plot (None = all).
+            baseline_calibration: Calibration dict from baseline metadata (optional).
 
         Returns:
             List of generated file paths.
@@ -1094,6 +1096,34 @@ class ChartGenerator:
                         name=svc_name,
                     )
                 )
+
+        # Add baseline-derived threshold lines if calibration data is present
+        if baseline_calibration is not None:
+            health_thresholds = baseline_calibration.get("health_thresholds", {})
+            for svc_name in plot_services:
+                svc_thresholds = health_thresholds.get(svc_name)
+                if svc_thresholds is None:
+                    continue
+                degraded = svc_thresholds.get("degraded")
+                unhealthy = svc_thresholds.get("unhealthy")
+                if degraded is not None:
+                    fig.add_hline(
+                        y=degraded,
+                        line_dash="dot",
+                        line_color="orange",
+                        annotation_text=f"{svc_name} degraded ({degraded:.0f}ms)",
+                        annotation_position="top right",
+                        annotation_font_size=9,
+                    )
+                if unhealthy is not None:
+                    fig.add_hline(
+                        y=unhealthy,
+                        line_dash="dash",
+                        line_color="red",
+                        annotation_text=f"{svc_name} unhealthy ({unhealthy:.0f}ms)",
+                        annotation_position="top right",
+                        annotation_font_size=9,
+                    )
 
         fig.update_layout(
             title=f"Health Check Latency Timeline ({scenario_label})",
@@ -1254,6 +1284,10 @@ class ChartGenerator:
             original_dir = self.charts_dir
             self.charts_dir = subdirs["health"]
             chart_paths["health"].extend(self.generate_health_latency_heatmap(scenarios))
+            # Extract baseline calibration for threshold lines
+            baseline_cal: dict[str, Any] | None = None
+            if baseline_scenarios:
+                baseline_cal = baseline_scenarios[0].get("metadata", {}).get("calibration")
             # Use stress scenario for timeline if available, otherwise first with health data
             timeline_scenario = stress_scenarios[0] if stress_scenarios else None
             if timeline_scenario is None:
@@ -1272,7 +1306,11 @@ class ChartGenerator:
                     timeline_scenario.get("scenario_name", "Unknown"),
                 )
                 chart_paths["health"].extend(
-                    self.generate_health_latency_timeline(timeline_scenario, label)
+                    self.generate_health_latency_timeline(
+                        timeline_scenario,
+                        label,
+                        baseline_calibration=baseline_cal,
+                    )
                 )
             self.charts_dir = original_dir
 
