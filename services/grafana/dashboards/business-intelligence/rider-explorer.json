@@ -591,7 +591,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSQL": "SELECT\n  ROUND(\n    100.0 * SUM(CASE WHEN ft.surge_multiplier > 1.0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0),\n    1\n  ) AS surge_trip_pct\nFROM delta.gold.fact_trips ft\nJOIN delta.gold.dim_riders dr ON ft.rider_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'",
+          "rawSQL": "SELECT\n  COALESCE(\n    ROUND(\n      100.0 * SUM(CASE WHEN ft.surge_multiplier > 1.0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0),\n      1\n    ),\n    DOUBLE '0.0'\n  ) AS surge_trip_pct\nFROM delta.gold.fact_trips ft\nJOIN delta.gold.dim_riders dr ON ft.rider_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'",
           "refId": "A"
         }
       ],
@@ -712,7 +712,7 @@
           "datasource": { "type": "trino-datasource", "uid": "trino" },
           "format": 0,
           "rawQuery": true,
-          "rawSQL": "SELECT\n  latitude,\n  longitude,\n  speed,\n  trip_state,\n  timestamp\nFROM delta.silver.stg_gps_pings\nWHERE entity_type = 'rider'\n  AND entity_id = '$rider_id'\nORDER BY timestamp DESC\nLIMIT 1000",
+          "rawSQL": "SELECT\n  latitude,\n  longitude,\n  speed,\n  trip_state,\n  timestamp\nFROM delta.silver.stg_gps_pings\nWHERE entity_type = 'rider'\n  AND entity_id = '$rider_id'\nORDER BY timestamp\nLIMIT 1000",
           "refId": "A"
         }
       ],
