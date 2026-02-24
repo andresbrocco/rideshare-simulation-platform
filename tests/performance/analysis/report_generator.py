@@ -104,6 +104,9 @@ class ReportGenerator:
         # ── Container Health ──
         lines.extend(self._md_container_health(summary))
 
+        # ── Health Latency ──
+        lines.extend(self._md_health_latency(summary))
+
         # ── Derived Configuration ──
         derived_config = results.get("derived_config", {})
         if derived_config:
@@ -119,7 +122,12 @@ class ReportGenerator:
 
         # ── Charts ──
         lines.extend(
-            ["## Charts", "", "See [charts/index.html](charts/index.html) for all charts.", ""]
+            [
+                "## Charts",
+                "",
+                "See [charts/index.html](charts/index.html) for all charts.",
+                "",
+            ]
         )
 
         report_path = self.output_dir / "report.md"
@@ -350,6 +358,57 @@ class ReportGenerator:
 
         return lines
 
+    def _md_health_latency(self, summary: TestSummary) -> list[str]:
+        """Generate markdown health latency and suggested thresholds tables."""
+        lines: list[str] = []
+
+        if summary.service_health_latency:
+            lines.extend(
+                [
+                    "## Service Health Latency",
+                    "",
+                    "| Service | Baseline p95 (ms) | Stressed p95 (ms) | Peak (ms) | "
+                    "Degraded Threshold | Unhealthy Threshold |",
+                    "|---------|-------------------|-------------------|-----------|"
+                    "-------------------|---------------------|",
+                ]
+            )
+            for h in summary.service_health_latency:
+                baseline = f"{h.baseline_latency_p95:.1f}" if h.baseline_latency_p95 else "N/A"
+                stressed = f"{h.stressed_latency_p95:.1f}" if h.stressed_latency_p95 else "N/A"
+                peak = f"{h.peak_latency_ms:.1f}" if h.peak_latency_ms else "N/A"
+                degraded = f"{h.threshold_degraded:.0f}" if h.threshold_degraded else "N/A"
+                unhealthy = f"{h.threshold_unhealthy:.0f}" if h.threshold_unhealthy else "N/A"
+                lines.append(
+                    f"| {h.service_name} | {baseline} | {stressed} | {peak} | "
+                    f"{degraded} | {unhealthy} |"
+                )
+            lines.append("")
+
+        if summary.suggested_thresholds:
+            lines.extend(
+                [
+                    "### Suggested Thresholds",
+                    "",
+                    "| Service | Current Degraded | Suggested Degraded | "
+                    "Current Unhealthy | Suggested Unhealthy | Based On |",
+                    "|---------|-----------------|-------------------|"
+                    "------------------|---------------------|----------|",
+                ]
+            )
+            for t in summary.suggested_thresholds:
+                cur_deg = f"{t.current_degraded:.0f}" if t.current_degraded else "N/A"
+                sug_deg = f"{t.suggested_degraded:.1f}"
+                cur_unh = f"{t.current_unhealthy:.0f}" if t.current_unhealthy else "N/A"
+                sug_unh = f"{t.suggested_unhealthy:.1f}"
+                lines.append(
+                    f"| {t.service_name} | {cur_deg} | {sug_deg} | "
+                    f"{cur_unh} | {sug_unh} | p95={t.based_on_p95:.1f}ms ({t.based_on_scenario}) |"
+                )
+            lines.append("")
+
+        return lines
+
     # ─────────────────────────────────────────────────────────
     #  HTML Report
     # ─────────────────────────────────────────────────────────
@@ -446,6 +505,7 @@ class ReportGenerator:
             <a href="#metrics">Metrics</a>
             <a href="#scenarios">Scenarios</a>
             <a href="#health">Health</a>
+            <a href="#health-latency">Latency</a>
             <a href="charts/index.html">All Charts</a>
         </nav>
 """
@@ -502,6 +562,13 @@ class ReportGenerator:
 
         html += "        </section>\n"
 
+        # ── Service Health Latency ──
+        if summary.service_health_latency:
+            html += '\n        <section id="health-latency">\n'
+            html += "            <h2>Service Health Latency</h2>\n"
+            html += self._html_health_latency_table(summary)
+            html += "        </section>\n"
+
         html += "    </div>\n</body>\n</html>\n"
 
         report_path = self.output_dir / "report.html"
@@ -517,7 +584,7 @@ class ReportGenerator:
         """
         fragments: dict[str, str] = {}
         # Look in subdirectories
-        for subdir in ["overview", "stress", "speed_scaling", "duration"]:
+        for subdir in ["overview", "stress", "speed_scaling", "duration", "health"]:
             chart_dir = self.charts_dir / subdir
             if not chart_dir.exists():
                 continue
@@ -653,6 +720,49 @@ class ReportGenerator:
             html += f"<td>{h.cpu_peak_percent:.1f}%</td></tr>\n"
 
         html += "</tbody></table>\n"
+        return html
+
+    def _html_health_latency_table(self, summary: TestSummary) -> str:
+        """Generate HTML for service health latency table."""
+        html = "<table><thead><tr>"
+        html += "<th>Service</th><th>Baseline p95</th><th>Stressed p95</th>"
+        html += "<th>Peak</th><th>Degraded Threshold</th><th>Unhealthy Threshold</th>"
+        html += "</tr></thead><tbody>\n"
+
+        for h in summary.service_health_latency:
+            baseline = f"{h.baseline_latency_p95:.1f} ms" if h.baseline_latency_p95 else "N/A"
+            stressed = f"{h.stressed_latency_p95:.1f} ms" if h.stressed_latency_p95 else "N/A"
+            peak = f"{h.peak_latency_ms:.1f} ms" if h.peak_latency_ms else "N/A"
+            degraded = f"{h.threshold_degraded:.0f} ms" if h.threshold_degraded else "N/A"
+            unhealthy = f"{h.threshold_unhealthy:.0f} ms" if h.threshold_unhealthy else "N/A"
+
+            html += f"<tr><td>{h.service_name}</td><td>{baseline}</td>"
+            html += f"<td>{stressed}</td><td>{peak}</td>"
+            html += f"<td>{degraded}</td><td>{unhealthy}</td></tr>\n"
+
+        html += "</tbody></table>\n"
+
+        if summary.suggested_thresholds:
+            html += "<h3>Suggested Thresholds</h3>\n"
+            html += "<table><thead><tr>"
+            html += "<th>Service</th><th>Current Degraded</th><th>Suggested Degraded</th>"
+            html += "<th>Current Unhealthy</th><th>Suggested Unhealthy</th><th>Based On</th>"
+            html += "</tr></thead><tbody>\n"
+
+            for t in summary.suggested_thresholds:
+                cur_deg = f"{t.current_degraded:.0f}" if t.current_degraded else "N/A"
+                sug_deg = f"{t.suggested_degraded:.1f}"
+                cur_unh = f"{t.current_unhealthy:.0f}" if t.current_unhealthy else "N/A"
+                sug_unh = f"{t.suggested_unhealthy:.1f}"
+
+                html += f"<tr><td>{t.service_name}</td><td>{cur_deg}</td><td>{sug_deg}</td>"
+                html += (
+                    f"<td>{cur_unh}</td><td>{sug_unh}</td>"
+                    f"<td>p95={t.based_on_p95:.1f}ms ({t.based_on_scenario})</td></tr>\n"
+                )
+
+            html += "</tbody></table>\n"
+
         return html
 
     # ─────────────────────────────────────────────────────────

@@ -31,6 +31,99 @@ class ContainerStats:
     cpu_p99: float
 
 
+@dataclass
+class HealthLatencyStats:
+    """Statistical summary for a service's health check latency."""
+
+    service_name: str
+    sample_count: int
+    latency_mean: float
+    latency_std: float
+    latency_min: float
+    latency_max: float
+    latency_p50: float
+    latency_p95: float
+    latency_p99: float
+    threshold_degraded: float | None
+    threshold_unhealthy: float | None
+
+
+def calculate_health_stats(
+    samples: list[dict[str, Any]],
+    service_name: str,
+) -> HealthLatencyStats | None:
+    """Calculate latency statistics for a service from samples.
+
+    Args:
+        samples: List of sample dicts with optional 'health' key.
+        service_name: Display name of the service to analyze.
+
+    Returns:
+        HealthLatencyStats with calculated statistics, or None if no data.
+    """
+    latency_values: list[float] = []
+    threshold_degraded: float | None = None
+    threshold_unhealthy: float | None = None
+
+    for sample in samples:
+        health = sample.get("health", {})
+        svc_data = health.get(service_name)
+        if svc_data is None:
+            continue
+        latency = svc_data.get("latency_ms")
+        if latency is not None and isinstance(latency, (int, float)):
+            latency_values.append(float(latency))
+        # Capture thresholds from the first sample that has them
+        if threshold_degraded is None and svc_data.get("threshold_degraded") is not None:
+            threshold_degraded = svc_data["threshold_degraded"]
+        if threshold_unhealthy is None and svc_data.get("threshold_unhealthy") is not None:
+            threshold_unhealthy = svc_data["threshold_unhealthy"]
+
+    if not latency_values:
+        return None
+
+    arr = np.array(latency_values)
+
+    return HealthLatencyStats(
+        service_name=service_name,
+        sample_count=len(latency_values),
+        latency_mean=float(np.mean(arr)),
+        latency_std=float(np.std(arr)),
+        latency_min=float(np.min(arr)),
+        latency_max=float(np.max(arr)),
+        latency_p50=float(np.percentile(arr, 50)),
+        latency_p95=float(np.percentile(arr, 95)),
+        latency_p99=float(np.percentile(arr, 99)),
+        threshold_degraded=threshold_degraded,
+        threshold_unhealthy=threshold_unhealthy,
+    )
+
+
+def calculate_all_health_stats(
+    samples: list[dict[str, Any]],
+) -> dict[str, HealthLatencyStats]:
+    """Calculate latency statistics for all services in samples.
+
+    Args:
+        samples: List of sample dicts.
+
+    Returns:
+        Dict mapping service display name to HealthLatencyStats.
+    """
+    service_names: set[str] = set()
+    for sample in samples:
+        health = sample.get("health", {})
+        service_names.update(health.keys())
+
+    results: dict[str, HealthLatencyStats] = {}
+    for name in service_names:
+        stats = calculate_health_stats(samples, name)
+        if stats is not None:
+            results[name] = stats
+
+    return results
+
+
 def calculate_stats(
     samples: list[dict[str, Any]],
     container_name: str,

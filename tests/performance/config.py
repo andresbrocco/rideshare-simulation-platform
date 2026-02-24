@@ -60,6 +60,19 @@ class ScenarioConfig:
     )
     stress_rtr_rolling_window_seconds: int = 10  # Separate window for RTR smoothing
 
+    # Health check settings
+    health_check_enabled: bool = True
+    health_critical_services: list[str] = field(
+        default_factory=lambda: [
+            "Redis",
+            "Kafka",
+            "Stream Processor",
+            "OSRM",
+            "Postgres (Airflow)",
+            "Postgres (Metastore)",
+        ]
+    )
+
     # Speed scaling test settings
     speed_scaling_step_duration_minutes: int = 8
     speed_scaling_max_multiplier: int = 1024
@@ -97,11 +110,17 @@ CONTAINER_CONFIG: dict[str, dict[str, str]] = {
     "rideshare-redis": {"display_name": "Redis", "profile": "core"},
     "rideshare-osrm": {"display_name": "OSRM", "profile": "core"},
     "rideshare-simulation": {"display_name": "Simulation", "profile": "core"},
-    "rideshare-stream-processor": {"display_name": "Stream Processor", "profile": "core"},
+    "rideshare-stream-processor": {
+        "display_name": "Stream Processor",
+        "profile": "core",
+    },
     "rideshare-control-panel": {"display_name": "Control Panel", "profile": "core"},
     # Data Pipeline profile
     "rideshare-minio": {"display_name": "MinIO", "profile": "data-pipeline"},
-    "rideshare-bronze-ingestion": {"display_name": "Bronze Ingestion", "profile": "data-pipeline"},
+    "rideshare-bronze-ingestion": {
+        "display_name": "Bronze Ingestion",
+        "profile": "data-pipeline",
+    },
     "rideshare-localstack": {"display_name": "LocalStack", "profile": "data-pipeline"},
     # Monitoring profile
     "rideshare-prometheus": {"display_name": "Prometheus", "profile": "monitoring"},
@@ -112,11 +131,23 @@ CONTAINER_CONFIG: dict[str, dict[str, str]] = {
         "display_name": "Postgres (Airflow)",
         "profile": "data-pipeline",
     },
-    "rideshare-airflow-webserver": {"display_name": "Airflow Web", "profile": "data-pipeline"},
+    "rideshare-airflow-webserver": {
+        "display_name": "Airflow Web",
+        "profile": "data-pipeline",
+    },
     "rideshare-airflow-scheduler": {
         "display_name": "Airflow Scheduler",
         "profile": "data-pipeline",
     },
+    # Services with health checks added via infrastructure monitoring
+    "rideshare-loki": {"display_name": "Loki", "profile": "monitoring"},
+    "rideshare-tempo": {"display_name": "Tempo", "profile": "monitoring"},
+    "rideshare-trino": {"display_name": "Trino", "profile": "data-pipeline"},
+    "rideshare-hive-metastore": {
+        "display_name": "Hive Metastore",
+        "profile": "data-pipeline",
+    },
+    "rideshare-openldap": {"display_name": "OpenLDAP", "profile": "data-pipeline"},
 }
 
 # Effective CPU parallelism per container (accounts for Docker limits AND threading model)

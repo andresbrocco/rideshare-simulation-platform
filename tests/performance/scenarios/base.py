@@ -11,6 +11,7 @@ from rich.console import Console
 
 from ..collectors.docker_lifecycle import DockerLifecycleManager
 from ..collectors.docker_stats import DockerStatsCollector
+from ..collectors.infrastructure_health import InfrastructureHealthCollector
 from ..collectors.oom_detector import OOMDetector, OOMEvent
 from ..collectors.simulation_api import SimulationAPIClient
 from ..config import TestConfig
@@ -50,12 +51,14 @@ class BaseScenario(ABC):
         stats_collector: DockerStatsCollector,
         api_client: SimulationAPIClient,
         oom_detector: OOMDetector,
+        health_collector: InfrastructureHealthCollector,
     ) -> None:
         self.config = config
         self.lifecycle = lifecycle
         self.stats_collector = stats_collector
         self.api_client = api_client
         self.oom_detector = oom_detector
+        self.health_collector = health_collector
         self._samples: list[dict[str, Any]] = []
         self._oom_events: list[OOMEvent] = []
         self._aborted = False
@@ -242,6 +245,21 @@ class BaseScenario(ABC):
         rtr_data = self._collect_rtr_sample()
         if rtr_data is not None:
             sample["rtr"] = rtr_data
+
+        # Collect infrastructure health latencies
+        if self.config.scenarios.health_check_enabled:
+            health_data = self.health_collector.collect()
+            if health_data is not None:
+                sample["health"] = {
+                    name: {
+                        "latency_ms": svc.latency_ms,
+                        "status": svc.status,
+                        "message": svc.message,
+                        "threshold_degraded": svc.threshold_degraded,
+                        "threshold_unhealthy": svc.threshold_unhealthy,
+                    }
+                    for name, svc in health_data.items()
+                }
 
         self._samples.append(sample)
         return sample

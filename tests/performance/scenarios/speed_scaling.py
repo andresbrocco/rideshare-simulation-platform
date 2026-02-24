@@ -6,7 +6,12 @@ from typing import Any, Iterator
 from rich.console import Console
 
 from .base import BaseScenario
-from .stress_test import ContainerRollingStats, RollingStats, ThresholdTrigger
+from .stress_test import (
+    ContainerRollingStats,
+    HealthRollingStats,
+    RollingStats,
+    ThresholdTrigger,
+)
 
 console = Console()
 
@@ -320,5 +325,39 @@ class SpeedScalingScenario(BaseScenario):
                     value=rtr_avg,
                     threshold=rtr_threshold,
                 )
+
+        # Check health latency thresholds for critical services
+        if self.config.scenarios.health_check_enabled:
+            health_stats: dict[str, HealthRollingStats] = {}
+            for sample in step_samples:
+                for svc_name, svc_data in sample.get("health", {}).items():
+                    latency = svc_data.get("latency_ms")
+                    if latency is not None and isinstance(latency, (int, float)):
+                        if svc_name not in health_stats:
+                            health_stats[svc_name] = HealthRollingStats.with_window(
+                                rolling_window_samples
+                            )
+                        health_stats[svc_name].latency_ms.add(latency)
+
+            # Get threshold values from the last sample that has health data
+            last_health: dict[str, dict[str, float | None]] = {}
+            for sample in reversed(step_samples):
+                if "health" in sample:
+                    last_health = sample["health"]
+                    break
+
+            for svc_name in self.config.scenarios.health_critical_services:
+                if svc_name not in health_stats:
+                    continue
+                rolling_avg = health_stats[svc_name].latency_ms.average
+                svc_health = last_health.get(svc_name, {})
+                threshold_unhealthy = svc_health.get("threshold_unhealthy")
+                if threshold_unhealthy is not None and rolling_avg >= threshold_unhealthy:
+                    return ThresholdTrigger(
+                        container=svc_name,
+                        metric="health_latency",
+                        value=rolling_avg,
+                        threshold=threshold_unhealthy,
+                    )
 
         return None

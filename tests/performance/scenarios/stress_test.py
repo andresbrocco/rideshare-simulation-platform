@@ -66,11 +66,23 @@ class ContainerRollingStats:
 
 
 @dataclass
+class HealthRollingStats:
+    """Rolling statistics for health latency of a service."""
+
+    latency_ms: RollingStats = field(default_factory=RollingStats)
+
+    @classmethod
+    def with_window(cls, max_samples: int) -> "HealthRollingStats":
+        """Create HealthRollingStats with a specific window size."""
+        return cls(latency_ms=RollingStats.with_window(max_samples))
+
+
+@dataclass
 class ThresholdTrigger:
     """Records which container/metric triggered the threshold stop."""
 
     container: str
-    metric: str  # "memory" or "cpu"
+    metric: str  # "memory", "cpu", "health_latency"
     value: float
     threshold: float
 
@@ -119,6 +131,8 @@ class StressTestScenario(BaseScenario):
         self._total_riders_queued = 0
         self._trigger: ThresholdTrigger | None = None
         self._peak_values: dict[str, dict[str, float]] = {}
+        self._health_rolling_stats: dict[str, HealthRollingStats] = {}
+        self._health_latency_peaks: dict[str, float] = {}
 
     @property
     def name(self) -> str:
@@ -264,6 +278,7 @@ class StressTestScenario(BaseScenario):
         self._metadata["drivers_queued"] = self._total_drivers_queued
         self._metadata["riders_queued"] = self._total_riders_queued
         self._metadata["peak_values"] = self._peak_values
+        self._metadata["health_latency_peaks"] = self._health_latency_peaks
         self._metadata["rtr_peak"] = (
             round(min(self._rtr_rolling.values), 4) if self._rtr_rolling.values else None
         )
@@ -317,7 +332,10 @@ class StressTestScenario(BaseScenario):
 
             # Update peak values
             if container_name not in self._peak_values:
-                self._peak_values[container_name] = {"memory_percent": 0.0, "cpu_percent": 0.0}
+                self._peak_values[container_name] = {
+                    "memory_percent": 0.0,
+                    "cpu_percent": 0.0,
+                }
 
             self._peak_values[container_name]["memory_percent"] = max(
                 self._peak_values[container_name]["memory_percent"], memory_pct
@@ -339,6 +357,26 @@ class StressTestScenario(BaseScenario):
             self._rtr_rolling.add(rtr_data["rtr"])
         if self._rtr_rolling.values:
             sample["rtr_rolling_avg"] = round(self._rtr_rolling.average, 4)
+
+        # Update health latency rolling stats
+        health_rolling_averages: dict[str, float] = {}
+        for svc_name, svc_data in sample.get("health", {}).items():
+            latency = svc_data.get("latency_ms")
+            if latency is not None and isinstance(latency, (int, float)):
+                if svc_name not in self._health_rolling_stats:
+                    self._health_rolling_stats[svc_name] = HealthRollingStats.with_window(
+                        self._rolling_window_samples
+                    )
+                self._health_rolling_stats[svc_name].latency_ms.add(latency)
+                health_rolling_averages[svc_name] = round(
+                    self._health_rolling_stats[svc_name].latency_ms.average, 2
+                )
+                # Track peak latency
+                current_peak = self._health_latency_peaks.get(svc_name, 0.0)
+                self._health_latency_peaks[svc_name] = max(current_peak, latency)
+
+        if health_rolling_averages:
+            sample["health_rolling_averages"] = health_rolling_averages
 
         # Augment sample with rolling averages and agent count
         sample["rolling_averages"] = rolling_averages
@@ -398,5 +436,23 @@ class StressTestScenario(BaseScenario):
                     value=rtr_avg,
                     threshold=rtr_threshold,
                 )
+
+        # Check health latency thresholds for critical services
+        if self.config.scenarios.health_check_enabled and self._samples:
+            last_sample = self._samples[-1]
+            health_data = last_sample.get("health", {})
+            for svc_name in self.config.scenarios.health_critical_services:
+                if svc_name not in self._health_rolling_stats:
+                    continue
+                rolling_avg = self._health_rolling_stats[svc_name].latency_ms.average
+                svc_health = health_data.get(svc_name, {})
+                threshold_unhealthy = svc_health.get("threshold_unhealthy")
+                if threshold_unhealthy is not None and rolling_avg >= threshold_unhealthy:
+                    return ThresholdTrigger(
+                        container=svc_name,
+                        metric="health_latency",
+                        value=rolling_avg,
+                        threshold=threshold_unhealthy,
+                    )
 
         return None

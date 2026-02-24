@@ -108,12 +108,74 @@ class KeyMetrics:
 
 
 @dataclass
+class ServiceHealthLatency:
+    """Health latency summary for a single service across scenarios."""
+
+    service_name: str
+    baseline_latency_p95: float | None
+    stressed_latency_p95: float | None
+    peak_latency_ms: float | None
+    peak_latency_scenario: str | None
+    threshold_degraded: float | None
+    threshold_unhealthy: float | None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "service_name": self.service_name,
+            "baseline_latency_p95": (
+                round(self.baseline_latency_p95, 2)
+                if self.baseline_latency_p95 is not None
+                else None
+            ),
+            "stressed_latency_p95": (
+                round(self.stressed_latency_p95, 2)
+                if self.stressed_latency_p95 is not None
+                else None
+            ),
+            "peak_latency_ms": (
+                round(self.peak_latency_ms, 2) if self.peak_latency_ms is not None else None
+            ),
+            "peak_latency_scenario": self.peak_latency_scenario,
+            "threshold_degraded": self.threshold_degraded,
+            "threshold_unhealthy": self.threshold_unhealthy,
+        }
+
+
+@dataclass
+class SuggestedThresholds:
+    """Empirically-derived threshold suggestions for a service."""
+
+    service_name: str
+    current_degraded: float | None
+    current_unhealthy: float | None
+    suggested_degraded: float
+    suggested_unhealthy: float
+    based_on_p95: float
+    based_on_scenario: str
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "service_name": self.service_name,
+            "current_degraded": self.current_degraded,
+            "current_unhealthy": self.current_unhealthy,
+            "suggested_degraded": self.suggested_degraded,
+            "suggested_unhealthy": self.suggested_unhealthy,
+            "based_on_p95": round(self.based_on_p95, 2),
+            "based_on_scenario": self.based_on_scenario,
+        }
+
+
+@dataclass
 class TestSummary:
     """Factual summary of test results — no severity judgments."""
 
     container_health: list[ContainerHealth] = field(default_factory=list)
     aggregated_container_health: list[ContainerHealthAggregated] = field(default_factory=list)
     key_metrics: KeyMetrics | None = None
+    service_health_latency: list[ServiceHealthLatency] = field(default_factory=list)
+    suggested_thresholds: list[SuggestedThresholds] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -123,4 +185,8 @@ class TestSummary:
         }
         if self.key_metrics is not None:
             result["key_metrics"] = self.key_metrics.to_dict()
+        if self.service_health_latency:
+            result["service_health_latency"] = [s.to_dict() for s in self.service_health_latency]
+        if self.suggested_thresholds:
+            result["suggested_thresholds"] = [s.to_dict() for s in self.suggested_thresholds]
         return result

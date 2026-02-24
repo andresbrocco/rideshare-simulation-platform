@@ -23,13 +23,20 @@ from .analysis.findings import (
     ContainerHealth,
     ContainerHealthAggregated,
     KeyMetrics,
+    ServiceHealthLatency,
+    SuggestedThresholds,
     TestSummary,
 )
 from .analysis.report_generator import ReportGenerator
-from .analysis.statistics import calculate_all_container_stats, summarize_scenario_stats
+from .analysis.statistics import (
+    calculate_all_container_stats,
+    calculate_all_health_stats,
+    summarize_scenario_stats,
+)
 from .analysis.visualizations import ChartGenerator
 from .collectors.docker_lifecycle import DockerLifecycleManager
 from .collectors.docker_stats import DockerStatsCollector
+from .collectors.infrastructure_health import InfrastructureHealthCollector
 from .collectors.oom_detector import OOMDetector
 from .collectors.simulation_api import SimulationAPIClient
 from .config import CONTAINER_CONFIG, TestConfig
@@ -57,18 +64,22 @@ def create_test_config() -> TestConfig:
     return TestConfig()
 
 
-def create_collectors(config: TestConfig) -> tuple[
+def create_collectors(
+    config: TestConfig,
+) -> tuple[
     DockerLifecycleManager,
     DockerStatsCollector,
     SimulationAPIClient,
     OOMDetector,
+    InfrastructureHealthCollector,
 ]:
     """Create all collector instances."""
     lifecycle = DockerLifecycleManager(config)
     stats_collector = DockerStatsCollector(config)
     api_client = SimulationAPIClient(config)
     oom_detector = OOMDetector()
-    return lifecycle, stats_collector, api_client, oom_detector
+    health_collector = InfrastructureHealthCollector(config)
+    return lifecycle, stats_collector, api_client, oom_detector, health_collector
 
 
 def run_scenario(
@@ -78,6 +89,7 @@ def run_scenario(
     stats_collector: DockerStatsCollector,
     api_client: SimulationAPIClient,
     oom_detector: OOMDetector,
+    health_collector: InfrastructureHealthCollector,
     **kwargs: Any,
 ) -> ScenarioResult:
     """Run a single scenario."""
@@ -87,6 +99,7 @@ def run_scenario(
         stats_collector=stats_collector,
         api_client=api_client,
         oom_detector=oom_detector,
+        health_collector=health_collector,
         **kwargs,
     )
     return scenario.run()
@@ -138,10 +151,16 @@ def analyze_results(
     # Key metrics
     key_metrics = _extract_key_metrics(results, aggregated_health)
 
+    # Service health latency analysis
+    service_health_latency = _generate_service_health_latency(results)
+    suggested_thresholds = _compute_suggested_thresholds(service_health_latency)
+
     summary = TestSummary(
         container_health=container_health,
         aggregated_container_health=aggregated_health,
         key_metrics=key_metrics,
+        service_health_latency=service_health_latency,
+        suggested_thresholds=suggested_thresholds,
     )
 
     return analysis, summary
@@ -344,6 +363,124 @@ def _generate_aggregated_container_health(
     )
 
     return health_list
+
+
+def _generate_service_health_latency(
+    results: dict[str, Any],
+) -> list[ServiceHealthLatency]:
+    """Generate service health latency summaries across scenarios.
+
+    For each service found in health data, computes baseline p95, stressed p95,
+    and peak latency across all scenarios.
+    """
+    scenarios = results.get("scenarios", [])
+    if not scenarios:
+        return []
+
+    # Compute health stats per scenario
+    per_scenario: dict[str, dict[str, Any]] = {}
+    for scenario in scenarios:
+        name = scenario.get("scenario_name", "unknown")
+        samples = scenario.get("samples", [])
+        stats = calculate_all_health_stats(samples)
+        if stats:
+            per_scenario[name] = {svc: s for svc, s in stats.items()}
+
+    if not per_scenario:
+        return []
+
+    # Discover all service names
+    all_services: set[str] = set()
+    for stats_dict in per_scenario.values():
+        all_services.update(stats_dict.keys())
+
+    # Build ServiceHealthLatency for each service
+    health_list: list[ServiceHealthLatency] = []
+    for svc_name in sorted(all_services):
+        baseline_p95: float | None = None
+        stressed_p95: float | None = None
+        peak_latency: float | None = None
+        peak_scenario: str | None = None
+        threshold_degraded: float | None = None
+        threshold_unhealthy: float | None = None
+
+        # Baseline
+        baseline_stats = per_scenario.get("baseline", {}).get(svc_name)
+        if baseline_stats is not None:
+            baseline_p95 = baseline_stats.latency_p95
+
+        # Stress
+        stress_stats = per_scenario.get("stress_test", {}).get(svc_name)
+        if stress_stats is not None:
+            stressed_p95 = stress_stats.latency_p95
+
+        # Peak across all scenarios
+        for scenario_name, stats_dict in per_scenario.items():
+            svc_stats = stats_dict.get(svc_name)
+            if svc_stats is not None:
+                if peak_latency is None or svc_stats.latency_max > peak_latency:
+                    peak_latency = svc_stats.latency_max
+                    peak_scenario = scenario_name
+                # Capture thresholds from first available
+                if threshold_degraded is None and svc_stats.threshold_degraded is not None:
+                    threshold_degraded = svc_stats.threshold_degraded
+                if threshold_unhealthy is None and svc_stats.threshold_unhealthy is not None:
+                    threshold_unhealthy = svc_stats.threshold_unhealthy
+
+        health_list.append(
+            ServiceHealthLatency(
+                service_name=svc_name,
+                baseline_latency_p95=baseline_p95,
+                stressed_latency_p95=stressed_p95,
+                peak_latency_ms=peak_latency,
+                peak_latency_scenario=peak_scenario,
+                threshold_degraded=threshold_degraded,
+                threshold_unhealthy=threshold_unhealthy,
+            )
+        )
+
+    return health_list
+
+
+def _compute_suggested_thresholds(
+    health_latency: list[ServiceHealthLatency],
+) -> list[SuggestedThresholds]:
+    """Compute suggested thresholds based on empirically observed p95 latencies.
+
+    Derivation rule:
+        suggested_degraded = reference_p95 * 2.0
+        suggested_unhealthy = reference_p95 * 5.0
+    Prefers stressed p95 when available, falls back to baseline p95.
+    """
+    thresholds: list[SuggestedThresholds] = []
+
+    for h in health_latency:
+        # Choose reference p95: prefer stressed, fall back to baseline
+        reference_p95: float | None = None
+        based_on_scenario = "unknown"
+        if h.stressed_latency_p95 is not None:
+            reference_p95 = h.stressed_latency_p95
+            based_on_scenario = "stress_test"
+        elif h.baseline_latency_p95 is not None:
+            reference_p95 = h.baseline_latency_p95
+            based_on_scenario = "baseline"
+
+        if reference_p95 is None or reference_p95 <= 0:
+            continue
+
+        thresholds.append(
+            SuggestedThresholds(
+                service_name=h.service_name,
+                current_degraded=h.threshold_degraded,
+                current_unhealthy=h.threshold_unhealthy,
+                suggested_degraded=round(reference_p95 * 2.0, 1),
+                suggested_unhealthy=round(reference_p95 * 5.0, 1),
+                based_on_p95=reference_p95,
+                based_on_scenario=based_on_scenario,
+            )
+        )
+
+    return thresholds
 
 
 def _extract_key_metrics(
@@ -576,7 +713,9 @@ def run(
     if speed_max_multiplier is not None:
         config.scenarios.speed_scaling_max_multiplier = speed_max_multiplier
 
-    lifecycle, stats_collector, api_client, oom_detector = create_collectors(config)
+    lifecycle, stats_collector, api_client, oom_detector, health_collector = create_collectors(
+        config
+    )
 
     test_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir = config.output_dir / test_id
@@ -609,6 +748,7 @@ def run(
                 "stress_rtr_threshold": config.scenarios.stress_rtr_threshold,
                 "speed_scaling_step_duration_minutes": config.scenarios.speed_scaling_step_duration_minutes,
                 "speed_scaling_max_multiplier": config.scenarios.speed_scaling_max_multiplier,
+                "health_check_enabled": config.scenarios.health_check_enabled,
             },
         },
         "scenarios": [],
@@ -645,6 +785,7 @@ def run(
                         stats_collector,
                         api_client,
                         oom_detector,
+                        health_collector,
                     )
                     result_dict = _result_to_dict(baseline_result)
                     scenario_results.append(result_dict)
@@ -665,6 +806,7 @@ def run(
                         stats_collector,
                         api_client,
                         oom_detector,
+                        health_collector,
                     )
                     result_dict = _result_to_dict(stress_result)
                     scenario_results.append(result_dict)
@@ -721,6 +863,7 @@ def run(
                         stats_collector,
                         api_client,
                         oom_detector,
+                        health_collector,
                         agent_count=agent_count,
                     )
                     result_dict = _result_to_dict(speed_result)
@@ -760,6 +903,7 @@ def run(
                         stats_collector,
                         api_client,
                         oom_detector,
+                        health_collector,
                         agent_count=agent_count,
                         speed_multiplier=effective_speed,
                     )
@@ -817,7 +961,7 @@ def run(
 def check() -> None:
     """Check status of required services."""
     config = create_test_config()
-    lifecycle, stats_collector, api_client, _ = create_collectors(config)
+    lifecycle, stats_collector, api_client, _, health_collector = create_collectors(config)
 
     table = Table(title="Service Status")
     table.add_column("Service", style="cyan")
@@ -838,6 +982,21 @@ def check() -> None:
         )
     else:
         table.add_row("Simulation API", "[red]Unavailable[/red]", config.api.base_url)
+
+    if health_collector.is_available():
+        health_data = health_collector.collect()
+        service_count = len(health_data) if health_data else 0
+        table.add_row(
+            "Health API",
+            "Available",
+            f"{service_count} services reporting",
+        )
+    else:
+        table.add_row(
+            "Health API",
+            "[red]Unavailable[/red]",
+            f"{config.api.base_url}/metrics/infrastructure",
+        )
 
     console.print(table)
     console.print()

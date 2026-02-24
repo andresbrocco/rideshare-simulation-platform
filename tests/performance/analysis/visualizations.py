@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from ..config import CONTAINER_CONFIG
-from .statistics import calculate_all_container_stats
+from .statistics import calculate_all_container_stats, calculate_all_health_stats
 
 
 # Priority containers shown first in charts
@@ -807,7 +807,10 @@ class ChartGenerator:
             )
 
         fig.add_hline(
-            y=0.95, line_dash="dot", line_color="green", annotation_text="0.95 (keeping pace)"
+            y=0.95,
+            line_dash="dot",
+            line_color="green",
+            annotation_text="0.95 (keeping pace)",
         )
         fig.add_hline(
             y=rtr_threshold,
@@ -959,7 +962,10 @@ class ChartGenerator:
         )
 
         fig.add_hline(
-            y=0.95, line_dash="dot", line_color="green", annotation_text="0.95 (keeping pace)"
+            y=0.95,
+            line_dash="dot",
+            line_color="green",
+            annotation_text="0.95 (keeping pace)",
         )
         fig.add_hline(
             y=rtr_threshold,
@@ -1034,6 +1040,137 @@ class ChartGenerator:
 
         return _write_chart(fig, self.charts_dir / "duration_phase_comparison")
 
+    def generate_health_latency_timeline(
+        self,
+        scenario: dict[str, Any],
+        scenario_label: str,
+        services: list[str] | None = None,
+    ) -> list[str]:
+        """Generate timeline of per-service health latencies over time.
+
+        Args:
+            scenario: Scenario result dict with samples.
+            scenario_label: Label for chart title (e.g., "Stress Test").
+            services: Specific services to plot (None = all).
+
+        Returns:
+            List of generated file paths.
+        """
+        samples = scenario.get("samples", [])
+        if not samples:
+            return []
+
+        # Discover services with health data
+        all_services: set[str] = set()
+        for sample in samples:
+            all_services.update(sample.get("health", {}).keys())
+
+        if not all_services:
+            return []
+
+        plot_services = sorted(services) if services else sorted(all_services)
+
+        first_ts = samples[0]["timestamp"]
+
+        fig = go.Figure()
+        for svc_name in plot_services:
+            timestamps: list[float] = []
+            latencies: list[float] = []
+            for sample in samples:
+                svc_data = sample.get("health", {}).get(svc_name)
+                if svc_data is None:
+                    continue
+                latency = svc_data.get("latency_ms")
+                if latency is not None and isinstance(latency, (int, float)):
+                    timestamps.append(sample["timestamp"] - first_ts)
+                    latencies.append(latency)
+
+            if timestamps:
+                fig.add_trace(
+                    go.Scatter(
+                        x=timestamps,
+                        y=latencies,
+                        mode="lines",
+                        name=svc_name,
+                    )
+                )
+
+        fig.update_layout(
+            title=f"Health Check Latency Timeline ({scenario_label})",
+            xaxis_title="Time (seconds)",
+            yaxis_title="Latency (ms)",
+        )
+
+        return _write_chart(fig, self.charts_dir / "health_latency_timeline")
+
+    def generate_health_latency_heatmap(self, scenarios: list[dict[str, Any]]) -> list[str]:
+        """Generate heatmap of p95 health latencies across scenarios and services.
+
+        Args:
+            scenarios: List of scenario result dicts.
+
+        Returns:
+            List of generated file paths.
+        """
+        if not scenarios:
+            return []
+
+        scenario_labels: list[str] = []
+        all_service_names: set[str] = set()
+        per_scenario_stats: list[dict[str, float]] = []
+
+        for scenario in scenarios:
+            name = scenario.get("scenario_name", "unknown")
+            label = {
+                "baseline": "Baseline",
+                "stress_test": "Stress Test",
+                "speed_scaling": "Speed Scaling",
+                "duration_leak": "Duration Leak",
+            }.get(name, name.replace("_", " ").title())
+
+            stats = calculate_all_health_stats(scenario.get("samples", []))
+            if not stats:
+                continue
+
+            scenario_labels.append(label)
+            all_service_names.update(stats.keys())
+            per_scenario_stats.append({svc: s.latency_p95 for svc, s in stats.items()})
+
+        if not scenario_labels or not all_service_names:
+            return []
+
+        service_names = sorted(all_service_names)
+
+        # Build matrix: rows = scenarios, cols = services
+        z: list[list[float | None]] = []
+        for stats_dict in per_scenario_stats:
+            row: list[float | None] = []
+            for svc in service_names:
+                val = stats_dict.get(svc)
+                row.append(round(val, 2) if val is not None else None)
+            z.append(row)
+
+        fig = go.Figure(
+            data=go.Heatmap(
+                z=z,
+                x=service_names,
+                y=scenario_labels,
+                colorscale="RdYlGn_r",
+                text=[[f"{v:.1f}" if v is not None else "" for v in row] for row in z],
+                texttemplate="%{text}",
+                colorbar_title="p95 (ms)",
+            )
+        )
+
+        fig.update_layout(
+            title="Health Check Latency Heatmap (p95 ms)",
+            xaxis_title="Service",
+            yaxis_title="Scenario",
+            xaxis_tickangle=-45,
+        )
+
+        return _write_chart(fig, self.charts_dir / "health_latency_heatmap")
+
     def _create_scenario_subdirs(self) -> dict[str, Path]:
         """Create subdirectories for organizing charts by scenario type."""
         subdirs = {
@@ -1041,6 +1178,7 @@ class ChartGenerator:
             "duration": self.charts_dir / "duration",
             "stress": self.charts_dir / "stress",
             "speed_scaling": self.charts_dir / "speed_scaling",
+            "health": self.charts_dir / "health",
         }
         for subdir in subdirs.values():
             subdir.mkdir(parents=True, exist_ok=True)
@@ -1107,6 +1245,35 @@ class ChartGenerator:
                 self.generate_speed_scaling_chart(speed_scenarios[0])
             )
             chart_paths["speed_scaling"].extend(self.generate_speed_rtr_chart(speed_scenarios[0]))
+            self.charts_dir = original_dir
+
+        # Health latency charts
+        # Check if any scenario has health data
+        has_health = any("health" in sample for s in scenarios for sample in s.get("samples", []))
+        if has_health:
+            original_dir = self.charts_dir
+            self.charts_dir = subdirs["health"]
+            chart_paths["health"].extend(self.generate_health_latency_heatmap(scenarios))
+            # Use stress scenario for timeline if available, otherwise first with health data
+            timeline_scenario = stress_scenarios[0] if stress_scenarios else None
+            if timeline_scenario is None:
+                for s in scenarios:
+                    if any("health" in sample for sample in s.get("samples", [])):
+                        timeline_scenario = s
+                        break
+            if timeline_scenario is not None:
+                label = {
+                    "baseline": "Baseline",
+                    "stress_test": "Stress Test",
+                    "speed_scaling": "Speed Scaling",
+                    "duration_leak": "Duration Leak",
+                }.get(
+                    timeline_scenario.get("scenario_name", ""),
+                    timeline_scenario.get("scenario_name", "Unknown"),
+                )
+                chart_paths["health"].extend(
+                    self.generate_health_latency_timeline(timeline_scenario, label)
+                )
             self.charts_dir = original_dir
 
         # Generate index page
