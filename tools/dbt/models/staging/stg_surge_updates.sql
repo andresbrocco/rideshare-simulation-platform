@@ -39,5 +39,6 @@ parsed as (
 )
 
 select * from parsed
-where previous_multiplier between 1.0 and 2.5
+where timestamp is not null
+  and previous_multiplier between 1.0 and 2.5
   and new_multiplier between 1.0 and 2.5

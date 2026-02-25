@@ -55,14 +55,20 @@ def query_dlq_errors(**context):
         conn.load_extension("delta")
         conn.load_extension("httpfs")
 
-        conn.execute("SET s3_endpoint='minio:9000'")
-        conn.execute(f"SET s3_access_key_id='{os.environ.get('AWS_ACCESS_KEY_ID', 'minioadmin')}'")
+        access_key = os.environ.get("AWS_ACCESS_KEY_ID", "minioadmin")
+        secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY", "minioadmin")
         conn.execute(
-            f"SET s3_secret_access_key='{os.environ.get('AWS_SECRET_ACCESS_KEY', 'minioadmin')}'"
+            f"""
+            CREATE SECRET minio_secret (
+                TYPE S3,
+                KEY_ID '{access_key}',
+                SECRET '{secret_key}',
+                ENDPOINT 'minio:9000',
+                USE_SSL false,
+                URL_STYLE 'path'
+            )
+        """
         )
-
-        conn.execute("SET s3_use_ssl=false")
-        conn.execute("SET s3_url_style='path'")
 
         for table in DLQ_TABLES:
             try:

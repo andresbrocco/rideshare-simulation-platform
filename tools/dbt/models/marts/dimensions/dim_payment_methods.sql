@@ -10,8 +10,8 @@ with rider_payment_changes as (
         payment_method_type,
         payment_method_masked,
         timestamp,
-        lag(timestamp) over (partition by rider_id order by timestamp) as prev_timestamp,
-        lead(timestamp) over (partition by rider_id order by timestamp) as next_timestamp
+        lag(timestamp) over (partition by rider_id, payment_method_type, payment_method_masked order by timestamp) as prev_timestamp,
+        lead(timestamp) over (partition by rider_id, payment_method_type, payment_method_masked order by timestamp) as next_timestamp
     from {{ ref('stg_riders') }}
 ),
 

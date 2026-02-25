@@ -39,3 +39,4 @@ parsed as (
 )
 
 select * from parsed
+where timestamp is not null

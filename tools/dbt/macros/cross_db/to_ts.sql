@@ -14,7 +14,7 @@
 {% endmacro %}
 
 {% macro duckdb__to_ts(expression) %}
-  cast({{ expression }} as timestamp)
+  try_cast({{ expression }} as timestamp)
 {% endmacro %}
 
 {% macro spark__to_ts(expression) %}

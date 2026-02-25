@@ -142,7 +142,10 @@ with DAG(
         task_id="trigger_gold_dag",
         trigger_dag_id="dbt_gold_transformation",
         wait_for_completion=False,
-        conf={"triggered_by": "silver_dag", "silver_logical_date": "{{ logical_date }}"},
+        conf={
+            "triggered_by": "silver_dag",
+            "silver_logical_date": "{{ logical_date | default('manual', true) }}",
+        },
     )
 
     skip_gold_trigger = EmptyOperator(task_id="skip_gold_trigger")

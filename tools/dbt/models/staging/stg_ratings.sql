@@ -39,4 +39,5 @@ parsed as (
 )
 
 select * from parsed
-where rating between 1 and 5
+where timestamp is not null
+  and rating between 1 and 5

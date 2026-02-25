@@ -43,8 +43,33 @@ parsed as (
         _ingested_at
     from source
     where {{ json_field('_raw_value', '$.event_id') }} is not null
+),
+
+-- Deduplicate by event_id, keeping the record with the latest _ingested_at
+deduplicated as (
+    select
+        *,
+        row_number() over (partition by event_id order by _ingested_at desc) as _row_num
+    from parsed
 )
 
-select * from parsed
-where latitude between -23.8 and -23.3
+select
+    event_id,
+    entity_type,
+    entity_id,
+    timestamp,
+    latitude,
+    longitude,
+    location,
+    accuracy,
+    heading,
+    speed,
+    trip_id,
+    trip_state,
+    _ingested_at
+from deduplicated
+where _row_num = 1
+  and timestamp is not null
+  and entity_type in ('driver', 'rider')
+  and latitude between -23.8 and -23.3
   and longitude between -46.9 and -46.3

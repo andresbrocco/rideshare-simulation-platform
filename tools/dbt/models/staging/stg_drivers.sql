@@ -43,6 +43,41 @@ parsed as (
         _ingested_at
     from source
     where {{ json_field('_raw_value', '$.event_id') }} is not null
+),
+
+-- Deduplicate by event_id, then by (driver_id, timestamp) for SCD2 safety
+dedup_event as (
+    select
+        *,
+        row_number() over (partition by event_id order by _ingested_at desc) as _rn_event
+    from parsed
+),
+
+dedup_driver as (
+    select
+        *,
+        row_number() over (partition by driver_id, timestamp order by _ingested_at desc) as _rn_driver
+    from dedup_event
+    where _rn_event = 1
+      and timestamp is not null
 )
 
-select * from parsed
+select
+    event_id,
+    event_type,
+    driver_id,
+    timestamp,
+    first_name,
+    last_name,
+    email,
+    phone,
+    home_lat,
+    home_lon,
+    shift_preference,
+    vehicle_make,
+    vehicle_model,
+    vehicle_year,
+    license_plate,
+    _ingested_at
+from dedup_driver
+where _rn_driver = 1

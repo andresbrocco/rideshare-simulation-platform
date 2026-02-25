@@ -43,6 +43,7 @@ parsed as (
 )
 
 select * from parsed
-where fare_amount > 0
+where timestamp is not null
+  and fare_amount > 0
   and platform_fee_amount > 0
   and driver_payout_amount > 0

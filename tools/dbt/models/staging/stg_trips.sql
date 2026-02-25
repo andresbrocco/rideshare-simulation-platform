@@ -85,3 +85,6 @@ select
     _ingested_at
 from deduplicated
 where _row_num = 1
+  and timestamp is not null
+  and trip_id is not null
+  and trip_state in ('requested', 'offer_sent', 'offer_expired', 'offer_rejected', 'driver_assigned', 'en_route_pickup', 'at_pickup', 'in_transit', 'completed', 'cancelled', 'no_drivers_available')
