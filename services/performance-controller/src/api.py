@@ -5,10 +5,11 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from pydantic import BaseModel
 
@@ -37,31 +38,27 @@ class HealthResponse(BaseModel):
     """Health check response."""
 
     status: str
-    baseline_complete: bool
+    mode: str
     current_speed: int
     performance_index: float
     uptime_seconds: float
-
-
-class BaselineResponse(BaseModel):
-    """Baseline calibration parameters."""
-
-    lag_capacity: float
-    queue_capacity: float
-    steady_throughput: float
-    steady_rtr: float
 
 
 class StatusResponse(BaseModel):
     """Detailed controller state."""
 
+    mode: str
     performance_index: float
     current_speed: int
     target_speed: int
     consecutive_healthy: int
-    baseline_complete: bool
-    baseline: BaselineResponse | None
     uptime_seconds: float
+
+
+class ModeRequest(BaseModel):
+    """Request body for setting controller mode."""
+
+    mode: Literal["on", "off"]
 
 
 # ------------------------------------------------------------------
@@ -69,6 +66,15 @@ class StatusResponse(BaseModel):
 # ------------------------------------------------------------------
 
 app = FastAPI(title="Performance Controller API", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 FastAPIInstrumentor.instrument_app(app)
 
 
@@ -79,16 +85,15 @@ def health_check() -> HealthResponse:
     if ctrl is None:
         return HealthResponse(
             status="starting",
-            baseline_complete=False,
+            mode="off",
             current_speed=0,
             performance_index=0.0,
             uptime_seconds=time.monotonic() - _start_time,
         )
 
-    status = "healthy" if ctrl.baseline_complete else "calibrating"
     return HealthResponse(
-        status=status,
-        baseline_complete=ctrl.baseline_complete,
+        status="healthy",
+        mode=ctrl.mode,
         current_speed=ctrl.current_speed,
         performance_index=ctrl.performance_index,
         uptime_seconds=time.monotonic() - _start_time,
@@ -103,31 +108,48 @@ def get_status() -> StatusResponse:
 
     if ctrl is None:
         return StatusResponse(
+            mode="off",
             performance_index=0.0,
             current_speed=0,
             target_speed=0,
             consecutive_healthy=0,
-            baseline_complete=False,
-            baseline=None,
             uptime_seconds=uptime,
         )
 
-    baseline_resp = None
-    if ctrl.baseline is not None:
-        baseline_resp = BaselineResponse(
-            lag_capacity=ctrl.baseline.lag_capacity,
-            queue_capacity=ctrl.baseline.queue_capacity,
-            steady_throughput=ctrl.baseline.steady_throughput,
-            steady_rtr=ctrl.baseline.steady_rtr,
-        )
-
     return StatusResponse(
+        mode=ctrl.mode,
         performance_index=ctrl.performance_index,
         current_speed=ctrl.current_speed,
         target_speed=ctrl._settings.controller.target_speed,
         consecutive_healthy=ctrl.consecutive_healthy,
-        baseline_complete=ctrl.baseline_complete,
-        baseline=baseline_resp,
+        uptime_seconds=uptime,
+    )
+
+
+@app.put("/controller/mode", response_model=StatusResponse)
+def set_mode(body: ModeRequest) -> StatusResponse:
+    """Set controller mode (on/off)."""
+    ctrl = _controller_ref
+    uptime = time.monotonic() - _start_time
+
+    if ctrl is None:
+        return StatusResponse(
+            mode="off",
+            performance_index=0.0,
+            current_speed=0,
+            target_speed=0,
+            consecutive_healthy=0,
+            uptime_seconds=uptime,
+        )
+
+    ctrl.set_mode(body.mode)
+
+    return StatusResponse(
+        mode=ctrl.mode,
+        performance_index=ctrl.performance_index,
+        current_speed=ctrl.current_speed,
+        target_speed=ctrl._settings.controller.target_speed,
+        consecutive_healthy=ctrl.consecutive_healthy,
         uptime_seconds=uptime,
     )
 

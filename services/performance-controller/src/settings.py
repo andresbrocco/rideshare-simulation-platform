@@ -29,11 +29,6 @@ class ControllerSettings(BaseSettings):
         ge=1.0,
         description="Seconds between control loop iterations",
     )
-    baseline_duration_seconds: float = Field(
-        default=30.0,
-        ge=5.0,
-        description="Duration of baseline calibration phase",
-    )
     target_speed: int = Field(
         default=10,
         ge=1,
@@ -62,17 +57,6 @@ class ControllerSettings(BaseSettings):
         ge=1,
         description="Consecutive healthy cycles before speed increase",
     )
-    lag_capacity_multiplier: float = Field(
-        default=3.0,
-        ge=1.0,
-        description="Multiply max observed lag to derive capacity",
-    )
-    queue_capacity_multiplier: float = Field(
-        default=3.0,
-        ge=1.0,
-        description="Multiply max observed queue depth to derive capacity",
-    )
-
     model_config = SettingsConfigDict(env_prefix="CONTROLLER_")
 
 

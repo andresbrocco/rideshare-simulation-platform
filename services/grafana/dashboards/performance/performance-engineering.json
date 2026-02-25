@@ -698,7 +698,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Composite performance index (0-1) from the performance controller sidecar. Combines RTR degradation, consumer lag, and resource utilization into a single score. Shows 'No data' until the controller sidecar is deployed.",
+      "description": "Composite performance index (0-1) from Prometheus recording rules. Combines Kafka lag, SimPy queue, CPU, memory, and consumption ratio headroom into a single score. Always available when the simulation is running.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -718,7 +718,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 37 },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 37 },
       "id": 18,
       "options": {
         "orientation": "auto",
@@ -733,13 +733,142 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "controller_performance_index_ratio",
+          "expr": "rideshare:performance:index",
           "legendFormat": "Performance Index",
           "refId": "A"
         }
       ],
       "title": "Performance Index",
       "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Individual headroom components (0-1) from Prometheus recording rules. The lowest component is the bottleneck driving the composite index down.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisLabel": "headroom",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "line" }
+          },
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.5 }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 6, "y": 37 },
+      "id": 21,
+      "options": {
+        "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "asc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "rideshare:performance:kafka_lag_headroom",
+          "legendFormat": "Kafka Lag",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "rideshare:performance:simpy_queue_headroom",
+          "legendFormat": "SimPy Queue",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "rideshare:performance:cpu_headroom",
+          "legendFormat": "CPU",
+          "refId": "C"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "rideshare:performance:memory_headroom",
+          "legendFormat": "Memory",
+          "refId": "D"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "rideshare:performance:consumption_ratio",
+          "legendFormat": "Consumption",
+          "refId": "E"
+        }
+      ],
+      "title": "Component Breakdown",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Performance controller mode. Shows 'No data' when the controller sidecar is not deployed.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            { "options": { "0": { "color": "text", "text": "OFF" } }, "type": "value" },
+            { "options": { "1": { "color": "green", "text": "ON" } }, "type": "value" }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "text", "value": null }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 37 },
+      "id": 22,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "controller_mode_ratio",
+          "legendFormat": "Mode",
+          "refId": "A"
+        }
+      ],
+      "title": "Controller Mode",
+      "type": "stat"
     },
     {
       "datasource": {
@@ -764,7 +893,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 37 },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 45 },
       "id": 19,
       "options": {
         "colorMode": "value",
@@ -812,7 +941,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 37 },
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 45 },
       "id": 20,
       "options": {
         "colorMode": "value",

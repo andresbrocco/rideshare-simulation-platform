@@ -3,37 +3,10 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
 
 import httpx
 
 logger = logging.getLogger(__name__)
-
-# PromQL queries for each saturation signal
-QUERIES: dict[str, str] = {
-    "kafka_lag": "sum(kafka_consumergroup_lag)",
-    "simpy_queue": "simulation_simpy_events",
-    "cpu_percent": "simulation_cpu_percent",
-    "memory_percent": "simulation_memory_percent",
-    "produced_rate": "sum(rate(simulation_events_total[30s]))",
-    "consumed_rate": "sum(rate(stream_processor_messages_consumed_total[30s]))",
-    "real_time_ratio": "simulation_real_time_ratio",
-    "speed_multiplier": "simulation_speed_multiplier",
-}
-
-
-@dataclass(frozen=True)
-class SaturationMetrics:
-    """Snapshot of all performance-relevant metrics from Prometheus."""
-
-    kafka_lag: float | None
-    simpy_queue: float | None
-    cpu_percent: float | None
-    memory_percent: float | None
-    produced_rate: float | None
-    consumed_rate: float | None
-    real_time_ratio: float | None
-    speed_multiplier: float | None
 
 
 class PrometheusClient:
@@ -70,20 +43,9 @@ class PrometheusClient:
             logger.debug("Prometheus query failed for %r: %s", promql, exc)
             return None
 
-    def get_saturation_metrics(self) -> SaturationMetrics | None:
-        """Fetch all saturation metrics in one pass.
-
-        Returns None if Prometheus is unreachable.
-        Individual fields may be None when the metric hasn't been scraped yet.
-        """
-        try:
-            values: dict[str, float | None] = {}
-            for key, promql in QUERIES.items():
-                values[key] = self.query_instant(promql)
-            return SaturationMetrics(**values)
-        except Exception as exc:
-            logger.warning("Failed to fetch saturation metrics: %s", exc)
-            return None
+    def get_performance_index(self) -> float | None:
+        """Fetch the composite performance index from Prometheus recording rules."""
+        return self.query_instant("rideshare:performance:index")
 
     def is_available(self) -> bool:
         """Test connectivity to Prometheus."""

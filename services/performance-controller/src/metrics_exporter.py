@@ -24,8 +24,7 @@ _snapshot_lock = threading.Lock()
 _snapshot_values: dict[str, float] = {
     "performance_index": 0.0,
     "target_speed_multiplier": 0.0,
-    "baseline_lag_capacity": 0.0,
-    "baseline_queue_capacity": 0.0,
+    "mode": 0.0,
 }
 
 
@@ -52,17 +51,10 @@ controller_target_speed_multiplier = meter.create_observable_gauge(
     unit="1",
 )
 
-controller_baseline_lag_capacity = meter.create_observable_gauge(
-    name="controller_baseline_lag_capacity",
-    callbacks=[lambda options: _observe("baseline_lag_capacity")],
-    description="Baseline-derived Kafka lag capacity",
-    unit="1",
-)
-
-controller_baseline_queue_capacity = meter.create_observable_gauge(
-    name="controller_baseline_queue_capacity",
-    callbacks=[lambda options: _observe("baseline_queue_capacity")],
-    description="Baseline-derived SimPy queue capacity",
+controller_mode = meter.create_observable_gauge(
+    name="controller_mode",
+    callbacks=[lambda options: _observe("mode")],
+    description="Controller mode (0=off, 1=on)",
     unit="1",
 )
 
@@ -87,11 +79,10 @@ def update_snapshot(index: float, speed: float) -> None:
         _snapshot_values["target_speed_multiplier"] = speed
 
 
-def update_baseline(lag_capacity: float, queue_capacity: float) -> None:
-    """Update baseline calibration values in the observable snapshot."""
+def update_mode(mode_on: bool) -> None:
+    """Update the controller mode in the observable snapshot."""
     with _snapshot_lock:
-        _snapshot_values["baseline_lag_capacity"] = lag_capacity
-        _snapshot_values["baseline_queue_capacity"] = queue_capacity
+        _snapshot_values["mode"] = 1.0 if mode_on else 0.0
 
 
 def record_adjustment() -> None:

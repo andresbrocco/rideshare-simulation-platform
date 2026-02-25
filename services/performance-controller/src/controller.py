@@ -1,38 +1,21 @@
-"""Performance controller — baseline calibration, index computation, throttle logic."""
+"""Performance controller — reads index from Prometheus, throttle logic."""
 
 from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass
 
 import httpx
 
-from .metrics_exporter import record_adjustment, update_baseline, update_snapshot
-from .prometheus_client import PrometheusClient, SaturationMetrics
+from .metrics_exporter import record_adjustment, update_mode, update_snapshot
+from .prometheus_client import PrometheusClient
 from .settings import Settings
 
 logger = logging.getLogger(__name__)
 
-# Sensible floors so we never divide by zero when baseline observes zeros
-_MIN_LAG_CAPACITY = 100.0
-_MIN_QUEUE_CAPACITY = 50.0
-_MIN_THROUGHPUT = 0.1
-_MIN_RTR = 0.1
-
-
-@dataclass(frozen=True)
-class BaselineCalibration:
-    """Derived capacity limits from the baseline observation window."""
-
-    lag_capacity: float
-    queue_capacity: float
-    steady_throughput: float
-    steady_rtr: float
-
 
 class PerformanceController:
-    """Monitors Prometheus metrics and auto-throttles simulation speed."""
+    """Monitors Prometheus recording rules and auto-throttles simulation speed."""
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
@@ -44,7 +27,7 @@ class PerformanceController:
         self._api_key = settings.simulation.api_key
 
         self._running = False
-        self._baseline: BaselineCalibration | None = None
+        self._mode: str = "off"
         self._consecutive_healthy = 0
         self._current_speed: int = settings.controller.target_speed
         self._performance_index: float = 1.0
@@ -54,12 +37,19 @@ class PerformanceController:
     # ------------------------------------------------------------------
 
     @property
-    def baseline(self) -> BaselineCalibration | None:
-        return self._baseline
+    def mode(self) -> str:
+        return self._mode
 
-    @property
-    def baseline_complete(self) -> bool:
-        return self._baseline is not None
+    def set_mode(self, mode: str) -> None:
+        if mode not in ("on", "off"):
+            raise ValueError(f"Invalid mode: {mode!r}, must be 'on' or 'off'")
+        old = self._mode
+        self._mode = mode
+        update_mode(mode == "on")
+        if old != mode:
+            logger.info("Controller mode changed: %s → %s", old, mode)
+            if mode == "off":
+                self._consecutive_healthy = 0
 
     @property
     def current_speed(self) -> int:
@@ -72,108 +62,6 @@ class PerformanceController:
     @property
     def consecutive_healthy(self) -> int:
         return self._consecutive_healthy
-
-    # ------------------------------------------------------------------
-    # Baseline calibration
-    # ------------------------------------------------------------------
-
-    def run_baseline_calibration(self) -> BaselineCalibration:
-        """Collect metric samples over the baseline window and derive capacities."""
-        cfg = self._settings.controller
-        logger.info(
-            "Starting baseline calibration (%.0fs window)...",
-            cfg.baseline_duration_seconds,
-        )
-
-        max_lag = 0.0
-        max_queue = 0.0
-        throughput_samples: list[float] = []
-        rtr_samples: list[float] = []
-
-        deadline = time.monotonic() + cfg.baseline_duration_seconds
-        while time.monotonic() < deadline and self._running:
-            metrics = self._prom.get_saturation_metrics()
-            if metrics is not None:
-                if metrics.kafka_lag is not None:
-                    max_lag = max(max_lag, metrics.kafka_lag)
-                if metrics.simpy_queue is not None:
-                    max_queue = max(max_queue, metrics.simpy_queue)
-                if metrics.produced_rate is not None:
-                    throughput_samples.append(metrics.produced_rate)
-                if metrics.real_time_ratio is not None:
-                    rtr_samples.append(metrics.real_time_ratio)
-            time.sleep(cfg.poll_interval_seconds)
-
-        lag_capacity = max(max_lag * cfg.lag_capacity_multiplier, _MIN_LAG_CAPACITY)
-        queue_capacity = max(max_queue * cfg.queue_capacity_multiplier, _MIN_QUEUE_CAPACITY)
-        steady_throughput = (
-            sum(throughput_samples) / len(throughput_samples)
-            if throughput_samples
-            else _MIN_THROUGHPUT
-        )
-        steady_rtr = sum(rtr_samples) / len(rtr_samples) if rtr_samples else _MIN_RTR
-
-        baseline = BaselineCalibration(
-            lag_capacity=lag_capacity,
-            queue_capacity=queue_capacity,
-            steady_throughput=steady_throughput,
-            steady_rtr=steady_rtr,
-        )
-
-        logger.info(
-            "Baseline calibration complete: lag_cap=%.0f queue_cap=%.0f "
-            "throughput=%.1f rtr=%.2f",
-            baseline.lag_capacity,
-            baseline.queue_capacity,
-            baseline.steady_throughput,
-            baseline.steady_rtr,
-        )
-        update_baseline(baseline.lag_capacity, baseline.queue_capacity)
-        return baseline
-
-    # ------------------------------------------------------------------
-    # Performance index computation
-    # ------------------------------------------------------------------
-
-    def compute_performance_index(self, metrics: SaturationMetrics) -> float:
-        """Compute composite performance index (0–1). Lower = more saturated."""
-        assert self._baseline is not None
-        bl = self._baseline
-
-        components: list[float] = []
-
-        # Kafka lag headroom
-        if metrics.kafka_lag is not None:
-            components.append(1.0 - metrics.kafka_lag / bl.lag_capacity)
-
-        # SimPy queue headroom
-        if metrics.simpy_queue is not None:
-            components.append(1.0 - metrics.simpy_queue / bl.queue_capacity)
-
-        # CPU headroom
-        if metrics.cpu_percent is not None:
-            components.append(1.0 - metrics.cpu_percent / 100.0)
-
-        # Memory headroom
-        if metrics.memory_percent is not None:
-            components.append(1.0 - metrics.memory_percent / 100.0)
-
-        # Throughput ratio (consumed / produced)
-        if metrics.consumed_rate is not None and metrics.produced_rate is not None:
-            produced = max(metrics.produced_rate, _MIN_THROUGHPUT)
-            components.append(metrics.consumed_rate / produced)
-
-        # RTR ratio (current / baseline)
-        if metrics.real_time_ratio is not None:
-            baseline_rtr = max(bl.steady_rtr, _MIN_RTR)
-            components.append(metrics.real_time_ratio / baseline_rtr)
-
-        if not components:
-            # No data at all — assume healthy to avoid unnecessary throttle
-            return 1.0
-
-        # Clamp to [0, 1]
-        return max(0.0, min(1.0, min(components)))
 
     # ------------------------------------------------------------------
     # Throttle decision
@@ -254,7 +142,7 @@ class PerformanceController:
     # ------------------------------------------------------------------
 
     def run(self) -> None:
-        """Run baseline calibration then enter the control loop."""
+        """Enter the control loop (no baseline calibration)."""
         self._running = True
         cfg = self._settings.controller
 
@@ -272,30 +160,25 @@ class PerformanceController:
         if not self._running:
             return
 
-        # Baseline calibration
-        self._baseline = self.run_baseline_calibration()
-        if not self._running:
-            return
-
         logger.info("Entering control loop (poll every %.1fs)", cfg.poll_interval_seconds)
 
         while self._running:
-            metrics = self._prom.get_saturation_metrics()
-            if metrics is None:
-                logger.debug("No metrics available, skipping cycle")
+            index = self._prom.get_performance_index()
+            if index is None:
+                logger.debug("No performance index available, skipping cycle")
                 time.sleep(cfg.poll_interval_seconds)
                 continue
 
-            index = self.compute_performance_index(metrics)
             self._performance_index = index
+            update_snapshot(index, float(self._current_speed))
 
-            new_speed = self.decide_speed(index)
-            update_snapshot(index, float(new_speed))
-
-            if new_speed != self._current_speed:
-                if self.actuate_speed(new_speed):
-                    self._current_speed = new_speed
-                    record_adjustment()
+            if self._mode == "on":
+                new_speed = self.decide_speed(index)
+                if new_speed != self._current_speed:
+                    if self.actuate_speed(new_speed):
+                        self._current_speed = new_speed
+                        record_adjustment()
+                        update_snapshot(index, float(self._current_speed))
 
             time.sleep(cfg.poll_interval_seconds)
 

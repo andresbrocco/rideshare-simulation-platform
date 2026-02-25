@@ -4,6 +4,7 @@ import { useMetrics } from '../hooks/useMetrics';
 import { useInfrastructure } from '../hooks/useInfrastructure';
 import { usePerformanceMetrics } from '../hooks/usePerformanceMetrics';
 import { usePerformanceContext } from '../hooks/usePerformanceContext';
+import { usePerformanceController } from '../hooks/usePerformanceController';
 import StatsPanel from './StatsPanel';
 import InfrastructurePanel from './InfrastructurePanel';
 import PerformancePanel from './PerformancePanel';
@@ -61,8 +62,10 @@ export default function ControlPanel({
     refresh: refreshPerf,
   } = usePerformanceMetrics();
   const { frontendMetrics } = usePerformanceContext();
+  const { status: controllerStatus, setMode: setControllerMode } = usePerformanceController();
 
   const isRunning = status.state === 'running';
+  const isAutoMode = controllerStatus !== null && controllerStatus.mode === 'on';
 
   const handleSpeedChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const multiplier = parseInt(e.target.value);
@@ -157,29 +160,53 @@ export default function ControlPanel({
       </div>
 
       <div className={styles.section}>
-        <label htmlFor="speed-select" className={styles.label}>
-          Speed:
-        </label>
-        <Tooltip text="Control simulation time speed (1x = real-time)">
-          <select
-            id="speed-select"
-            value={status.speed_multiplier}
-            onChange={handleSpeedChange}
-            className={styles.select}
-          >
-            <option value="1">1x</option>
-            <option value="2">2x</option>
-            <option value="4">4x</option>
-            <option value="8">8x</option>
-            <option value="16">16x</option>
-            <option value="32">32x</option>
-            <option value="64">64x</option>
-            <option value="128">128x</option>
-            <option value="256">256x</option>
-            <option value="512">512x</option>
-            <option value="1024">1024x</option>
-          </select>
-        </Tooltip>
+        <div className={styles.speedHeader}>
+          <label htmlFor="speed-select" className={styles.label}>
+            Speed:
+          </label>
+          {controllerStatus !== null && (
+            <label className={styles.toggleLabel}>
+              <input
+                type="checkbox"
+                className={styles.toggleInput}
+                checked={controllerStatus.mode === 'on'}
+                onChange={(e) => setControllerMode(e.target.checked ? 'on' : 'off')}
+              />
+              <span className={styles.toggleSwitch} />
+              <span className={styles.toggleText}>Auto</span>
+            </label>
+          )}
+        </div>
+        {isAutoMode ? (
+          <div className={styles.autoSpeedInfo}>
+            <span className={styles.autoSpeedValue}>{controllerStatus.current_speed}x</span>
+            <span className={styles.performanceIndex}>
+              Index: {Math.round(controllerStatus.performance_index * 100)}%
+            </span>
+            <span className={styles.autoSpeedManaged}>Managed by performance controller</span>
+          </div>
+        ) : (
+          <Tooltip text="Control simulation time speed (1x = real-time)">
+            <select
+              id="speed-select"
+              value={status.speed_multiplier}
+              onChange={handleSpeedChange}
+              className={styles.select}
+            >
+              <option value="1">1x</option>
+              <option value="2">2x</option>
+              <option value="4">4x</option>
+              <option value="8">8x</option>
+              <option value="16">16x</option>
+              <option value="32">32x</option>
+              <option value="64">64x</option>
+              <option value="128">128x</option>
+              <option value="256">256x</option>
+              <option value="512">512x</option>
+              <option value="1024">1024x</option>
+            </select>
+          </Tooltip>
+        )}
       </div>
 
       <div className={styles.section}>

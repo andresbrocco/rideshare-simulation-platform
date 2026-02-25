@@ -326,6 +326,19 @@ export interface RiderState {
   is_puppet: boolean;
 }
 
+// --- Performance Controller Types ---
+
+export type ControllerMode = 'on' | 'off';
+
+export interface PerformanceControllerStatus {
+  mode: ControllerMode;
+  performance_index: number;
+  current_speed: number;
+  target_speed: number;
+  consecutive_healthy: number;
+  uptime_seconds: number;
+}
+
 // --- Service Health Types ---
 
 export type ServiceStatus = 'healthy' | 'degraded' | 'unhealthy';

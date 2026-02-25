@@ -2,33 +2,42 @@
 
 ## Purpose
 
-Independent sidecar that monitors system saturation via Prometheus and auto-throttles the simulation speed multiplier to prevent pipeline overload.
+Independent sidecar that monitors system saturation via Prometheus recording rules and auto-throttles the simulation speed multiplier to prevent pipeline overload. Supports on/off mode toggling from the control panel.
 
 ## Architecture
 
 - **Option B design**: Standalone service that queries Prometheus HTTP API and calls the simulation REST API
 - **No direct Kafka dependency**: Reads Kafka lag via kafka-exporter metrics in Prometheus
 - **OTel metrics export**: Pushes `controller_*` metrics via OTLP → OTel Collector → Prometheus
+- **Static thresholds**: Performance index computed by Prometheus recording rules (no baseline calibration)
 
 ## Control Loop
 
-1. **Baseline calibration** (30s default): Samples metrics to derive capacity limits
-2. **Poll cycle** (every 5s): Query Prometheus → compute performance index → decide speed → actuate
+1. **Wait for Prometheus** to be reachable
+2. **Poll cycle** (every 5s): Read `rideshare:performance:index` from Prometheus → if mode is "on": decide speed → actuate
 
-## Performance Index Formula
+## Performance Index
 
-```
-index = min(
-    1 - kafka_lag / lag_capacity,
-    1 - simpy_queue / queue_capacity,
-    1 - cpu_percent / 100,
-    1 - memory_percent / 100,
-    consumed_rate / produced_rate,
-    rtr / baseline_rtr,
-)
-```
+The composite index is computed by Prometheus recording rules in `services/prometheus/rules/performance.yml`, not by the controller. This means the index is always available in Grafana when the simulation is running, regardless of whether the controller sidecar is deployed.
 
-Clamped to [0, 1]. The minimum component is the bottleneck signal.
+### Components (each 0-1, higher = healthier)
+
+| Rule | Threshold |
+|------|-----------|
+| `rideshare:performance:kafka_lag_headroom` | 10,000 messages |
+| `rideshare:performance:simpy_queue_headroom` | 500 events |
+| `rideshare:performance:cpu_headroom` | 85% |
+| `rideshare:performance:memory_headroom` | 85% |
+| `rideshare:performance:consumption_ratio` | consumed/produced rate |
+
+Composite: `rideshare:performance:index` = min of all components.
+
+## Mode (on/off)
+
+- **off** (default): Controller reads and exposes the performance index but does not actuate speed changes. The control panel speed dropdown remains functional.
+- **on**: Controller runs decide/actuate logic. The control panel shows auto-managed speed display.
+
+Mode is toggled via `PUT /controller/mode` or the "Auto" toggle in the control panel.
 
 ## Throttle Logic
 
@@ -51,9 +60,9 @@ The spec says "min 0.5x" but `PUT /simulation/speed` only accepts `int >= 1`. Th
 | `settings.py` | Pydantic settings (CONTROLLER_, PROMETHEUS_, SIMULATION_) |
 | `logging_setup.py` | Structured logging (same pattern as stream-processor) |
 | `prometheus_client.py` | HTTP client querying Prometheus instant API |
-| `controller.py` | Baseline calibration + control loop + throttle logic |
+| `controller.py` | Mode management + control loop + throttle logic |
 | `metrics_exporter.py` | OTel observable gauges + counter |
-| `api.py` | FastAPI /health and /status endpoints |
+| `api.py` | FastAPI /health, /status, PUT /controller/mode endpoints |
 
 ## Exported Metrics
 
@@ -62,12 +71,11 @@ The spec says "min 0.5x" but `PUT /simulation/speed` only accepts `int >= 1`. Th
 | `controller_performance_index` | ObservableGauge | performance-engineering.json |
 | `controller_target_speed_multiplier` | ObservableGauge | performance-engineering.json |
 | `controller_adjustments_total` | Counter | performance-engineering.json |
-| `controller_baseline_lag_capacity` | ObservableGauge | status endpoint |
-| `controller_baseline_queue_capacity` | ObservableGauge | status endpoint |
+| `controller_mode` | ObservableGauge | performance-engineering.json |
 
 ## Dependencies
 
-- **Prometheus** (reads metrics via HTTP API)
+- **Prometheus** (reads recording rules via HTTP API)
 - **Simulation API** (writes speed via `PUT /simulation/speed`)
 - **OTel Collector** (pushes metrics via OTLP gRPC)
 - **Secrets** (`API_KEY` from `/secrets/core.env`)
