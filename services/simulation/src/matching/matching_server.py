@@ -308,12 +308,7 @@ class MatchingServer:
         ranked_drivers = self.rank_drivers(nearby_drivers)
         logger.info(f"Ranked {len(ranked_drivers)} drivers, sending offers")
 
-        # Puppet riders resolve autonomous driver decisions immediately so matching
-        # doesn't depend on SimPy stepping (which may be paused or slow).
-        rider = self._registry_manager.get_rider(rider_id) if self._registry_manager else None
-        immediate_resolve = rider is not None and getattr(rider, "_is_puppet", False)
-
-        result = self.send_offer_cycle(trip, ranked_drivers, immediate_resolve=immediate_resolve)
+        result = self.send_offer_cycle(trip, ranked_drivers)
         logger.info(f"send_offer_cycle result: {result}")
         return result
 
@@ -458,7 +453,6 @@ class MatchingServer:
         trip: Trip,
         ranked_drivers: list[tuple["DriverAgent", int, float]],
         max_attempts: int = 5,
-        immediate_resolve: bool = False,
     ) -> Trip | None:
         logger.info(f"send_offer_cycle: {len(ranked_drivers)} drivers, max_attempts={max_attempts}")
         if not ranked_drivers:
@@ -481,20 +475,10 @@ class MatchingServer:
         # immediately rather than stalling the cycle
         first_driver, eta_seconds, _score = ranked_drivers[0]
         logger.info(f"Sending offer to driver {first_driver.driver_id} (attempt 1)")
-        result = self.send_offer(
-            first_driver,
-            trip,
-            trip.offer_sequence + 1,
-            eta_seconds,
-            immediate_resolve=immediate_resolve,
-        )
-        if result is True:
-            # Driver accepted immediately (immediate_resolve mode)
-            return trip
+        result = self.send_offer(first_driver, trip, trip.offer_sequence + 1, eta_seconds)
         if result is None:
-            # Driver was skipped (reserved/busy) or rejected immediately —
-            # continue to next candidate
-            self._continue_deferred_offer_cycle(trip, immediate_resolve=immediate_resolve)
+            # Driver was skipped (reserved/busy) — continue to next candidate
+            self._continue_deferred_offer_cycle(trip)
         return trip  # Trip is pending
 
     def _compute_offer_decision(self, driver: "DriverAgent", trip: Trip) -> bool:
@@ -606,11 +590,7 @@ class MatchingServer:
         candidates["current_attempt"] += 1
         return (next_driver, eta, score)
 
-    def _continue_deferred_offer_cycle(
-        self,
-        trip: Trip,
-        immediate_resolve: bool = False,
-    ) -> None:
+    def _continue_deferred_offer_cycle(self, trip: Trip) -> None:
         """Continue the offer cycle with the next candidate after a rejection.
 
         Unified continuation method for both deferred regular driver rejections
@@ -619,12 +599,6 @@ class MatchingServer:
 
         If a candidate is skipped (reserved/busy), automatically tries the next
         candidate instead of stalling the cycle.
-
-        Args:
-            trip: The trip seeking a driver match.
-            immediate_resolve: When True, autonomous driver decisions are applied
-                synchronously instead of being deferred via SimPy. Used for puppet
-                rider requests so matching doesn't depend on simulation stepping.
         """
         while True:
             next_candidate = self._pop_next_candidate(trip)
@@ -642,21 +616,11 @@ class MatchingServer:
                 f"Continuing offer cycle for trip {trip.trip_id}: "
                 f"sending to driver {driver.driver_id}"
             )
-            result = self.send_offer(
-                driver,
-                trip,
-                trip.offer_sequence + 1,
-                eta_seconds,
-                immediate_resolve=immediate_resolve,
-            )
-            if result is True:
-                # Driver accepted immediately (immediate_resolve mode)
-                return
+            result = self.send_offer(driver, trip, trip.offer_sequence + 1, eta_seconds)
             if result is not None:
                 # Offer was sent (not skipped) — wait for async response
                 return
-            # result is None → driver was skipped or rejected immediately,
-            # try next candidate immediately
+            # result is None → driver was skipped, try next candidate immediately
 
     def _start_trip_execution(self, driver: "DriverAgent", trip: Trip) -> None:
         """Queue trip execution to be started from SimPy thread.
@@ -751,13 +715,7 @@ class MatchingServer:
                 if nearby_drivers:
                     self._retry_queue.pop(trip_id, None)
                     ranked = self.rank_drivers(nearby_drivers)
-                    rider = (
-                        self._registry_manager.get_rider(trip.rider_id)
-                        if self._registry_manager
-                        else None
-                    )
-                    immediate = rider is not None and getattr(rider, "_is_puppet", False)
-                    self.send_offer_cycle(trip, ranked, immediate_resolve=immediate)
+                    self.send_offer_cycle(trip, ranked)
                 else:
                     # Reschedule next retry using the snapshot time (not current env.now
                     # which may have drifted on the SimPy thread)
@@ -813,24 +771,12 @@ class MatchingServer:
         trip: Trip,
         offer_sequence: int,
         eta_seconds: int,
-        immediate_resolve: bool = False,
     ) -> bool | None:
         """Send an offer to a driver.
 
-        Args:
-            driver: The driver to send the offer to.
-            trip: The trip requesting a match.
-            offer_sequence: The sequence number for this offer.
-            eta_seconds: Estimated time of arrival in seconds.
-            immediate_resolve: When True, autonomous driver decisions are applied
-                synchronously instead of being deferred via SimPy. Used for puppet
-                rider requests so matching doesn't depend on simulation stepping.
-
         Returns:
-            None  — driver was skipped (reserved or busy), or rejected immediately
-                     when immediate_resolve=True. Caller should try next candidate.
+            None  — driver was skipped (reserved or busy), caller should try next candidate
             False — offer sent, waiting for async response (deferred or puppet API)
-            True  — driver accepted immediately (only when immediate_resolve=True)
         """
         driver_id = driver.driver_id
 
@@ -870,17 +816,10 @@ class MatchingServer:
             # Return False to pause matching cycle - puppet will accept/reject via API
             return False
 
-        # Compute the autonomous driver's accept/reject decision
-        decision = self._compute_offer_decision(driver, trip)
-
-        if immediate_resolve:
-            # Apply decision synchronously so puppet rider matching doesn't
-            # depend on SimPy stepping (which may be paused or slow).
-            return self._apply_offer_decision_immediate(driver, trip, decision, eta_seconds)
-
-        # Regular deferred path: defer application via SimPy process.
+        # Regular drivers: compute decision now, defer application via SimPy process.
         # The accept/reject is predetermined but not applied until after the
         # driver's avg_response_time delay (simulating "think time").
+        decision = self._compute_offer_decision(driver, trip)
         with self._state_lock:
             self._pending_deferred_offers.append((driver, trip, decision, eta_seconds))
             # Queue timeout for SimPy thread — env.process() is not thread-safe,
@@ -888,51 +827,6 @@ class MatchingServer:
             if self._offer_timeout_manager:
                 self._pending_offer_timeouts.append((trip, driver_id, offer_sequence))
         return False  # Result comes asynchronously via _deferred_offer_response
-
-    def _apply_offer_decision_immediate(
-        self,
-        driver: "DriverAgent",
-        trip: Trip,
-        accepted: bool,
-        eta_seconds: int,
-    ) -> bool | None:
-        """Apply an autonomous driver's offer decision synchronously.
-
-        Used for puppet rider requests so matching completes within the API call
-        without waiting for SimPy to step.
-
-        Returns:
-            True  — driver accepted, trip is matched
-            None  — driver rejected, caller should try next candidate
-        """
-        if accepted:
-            driver.accept_trip(trip.trip_id)
-            driver.statistics.record_offer_accepted()
-            self._offers_accepted += 1
-            trip.driver_id = driver.driver_id
-            trip.transition_to(TripState.DRIVER_ASSIGNED)
-            trip.matched_at = self._current_time()
-            self._emit_matched_event(trip)
-
-            if self._surge_calculator:
-                self._surge_calculator.decrement_pending_request(trip.pickup_zone_id)
-
-            # Clean up pending candidates since trip is matched
-            self._pending_offer_candidates.pop(trip.trip_id, None)
-
-            # Queue trip execution for SimPy thread
-            self._start_trip_execution(driver, trip)
-            return True
-        else:
-            driver.statistics.record_offer_rejected()
-            driver.record_action("reject_offer")
-            self._offers_rejected += 1
-            with self._state_lock:
-                self._reserved_drivers.discard(driver.driver_id)
-                self._driver_index.update_driver_status(driver.driver_id, "available")
-            trip.transition_to(TripState.OFFER_REJECTED)
-            self._emit_offer_rejected_event(trip, driver.driver_id, trip.offer_sequence)
-            return None
 
     def _format_timestamp(self) -> str:
         """Format current timestamp using simulated time if available."""
