@@ -7,7 +7,7 @@
 ### Prerequisites
 
 - Docker Compose core profile services running
-- cAdvisor running (monitoring profile)
+- Prometheus and cAdvisor running (monitoring profile)
 
 Start required services:
 ```bash
@@ -24,16 +24,19 @@ Run all performance scenarios sequentially:
 Run specific scenarios:
 ```bash
 # Baseline: measure idle resource usage
-./venv/bin/python tests/performance/runner.py run baseline
+./venv/bin/python -m tests.performance run -s baseline
 
 # Stress test: find maximum sustainable agent count
-./venv/bin/python tests/performance/runner.py run stress
+./venv/bin/python -m tests.performance run -s stress
+
+# Stress test with early stop at USL saturation knee
+./venv/bin/python -m tests.performance run -s stress --stop-at-knee
 
 # Speed scaling: test doubling speed multiplier until threshold
-./venv/bin/python tests/performance/runner.py run speed-scaling
+./venv/bin/python -m tests.performance run -s speed
 
 # Duration/leak: 3-phase lifecycle test at optimal speed
-./venv/bin/python tests/performance/runner.py run duration-leak
+./venv/bin/python -m tests.performance run -s duration
 ```
 
 Check service status:
@@ -67,6 +70,7 @@ timeout: 30.0
 **Docker Settings:**
 ```python
 cadvisor_url: "http://localhost:8083"
+prometheus_url: "http://localhost:9090"
 compose_file: "infrastructure/docker/compose.yml"
 profiles: ["core", "data-pipeline", "monitoring"]
 ```
@@ -234,19 +238,22 @@ docker compose -f infrastructure/docker/compose.yml logs rideshare-simulation --
 
 ## Troubleshooting
 
-### "cAdvisor unavailable" error
-**Symptom:** `check` command shows cAdvisor as unavailable
+### "Prometheus unavailable" error
+**Symptom:** `check` command shows Prometheus as unavailable
 
 **Solution:**
 ```bash
 # Verify monitoring profile is running
 docker compose -f infrastructure/docker/compose.yml --profile monitoring ps
 
-# Restart cAdvisor
-docker compose -f infrastructure/docker/compose.yml --profile monitoring restart cadvisor
+# Restart Prometheus
+docker compose -f infrastructure/docker/compose.yml --profile monitoring restart prometheus
 
-# Check cAdvisor logs
-docker compose -f infrastructure/docker/compose.yml logs cadvisor
+# Check Prometheus logs
+docker compose -f infrastructure/docker/compose.yml logs prometheus
+
+# Verify Prometheus is scraping targets
+curl http://localhost:9090/api/v1/targets | jq '.data.activeTargets[] | {scrapeUrl, health}'
 ```
 
 ### "Simulation API unavailable" error

@@ -38,9 +38,8 @@ from .analysis.statistics import (
 )
 from .analysis.visualizations import ChartGenerator
 from .collectors.docker_lifecycle import DockerLifecycleManager
-from .collectors.docker_stats import DockerStatsCollector
-from .collectors.infrastructure_health import InfrastructureHealthCollector
 from .collectors.oom_detector import OOMDetector
+from .collectors.prometheus_collector import PrometheusCollector
 from .collectors.simulation_api import SimulationAPIClient
 from .config import CONTAINER_CONFIG, TestConfig
 from .scenarios.base import BaseScenario, ScenarioResult
@@ -71,38 +70,34 @@ def create_collectors(
     config: TestConfig,
 ) -> tuple[
     DockerLifecycleManager,
-    DockerStatsCollector,
+    PrometheusCollector,
     SimulationAPIClient,
     OOMDetector,
-    InfrastructureHealthCollector,
 ]:
     """Create all collector instances."""
     lifecycle = DockerLifecycleManager(config)
-    stats_collector = DockerStatsCollector(config)
+    prometheus = PrometheusCollector(config)
     api_client = SimulationAPIClient(config)
     oom_detector = OOMDetector()
-    health_collector = InfrastructureHealthCollector(config)
-    return lifecycle, stats_collector, api_client, oom_detector, health_collector
+    return lifecycle, prometheus, api_client, oom_detector
 
 
 def run_scenario(
     scenario_class: type[BaseScenario],
     config: TestConfig,
     lifecycle: DockerLifecycleManager,
-    stats_collector: DockerStatsCollector,
+    prometheus: PrometheusCollector,
     api_client: SimulationAPIClient,
     oom_detector: OOMDetector,
-    health_collector: InfrastructureHealthCollector,
     **kwargs: Any,
 ) -> ScenarioResult:
     """Run a single scenario."""
     scenario = scenario_class(
         config=config,
         lifecycle=lifecycle,
-        stats_collector=stats_collector,
+        prometheus=prometheus,
         api_client=api_client,
         oom_detector=oom_detector,
-        health_collector=health_collector,
         **kwargs,
     )
     return scenario.run()
@@ -589,10 +584,14 @@ def _extract_key_metrics(
     stress_trigger: str | None = None
     available_cores: int | None = None
     stress_scenarios = [s for s in scenarios if s["scenario_name"] == "stress_test"]
+    active_trips_peak: float | None = None
+    throughput_peak: float | None = None
     if stress_scenarios:
         meta = stress_scenarios[0].get("metadata", {})
         max_agents = meta.get("total_agents_queued")
         available_cores = meta.get("available_cores")
+        active_trips_peak = meta.get("active_trips_peak")
+        throughput_peak = meta.get("throughput_peak_events_per_sec")
         trigger = meta.get("trigger")
         if trigger:
             metric = trigger.get("metric", "unknown")
@@ -644,6 +643,8 @@ def _extract_key_metrics(
         stress_trigger=stress_trigger,
         total_duration_str=duration_str,
         available_cores=available_cores,
+        active_trips_peak=active_trips_peak,
+        throughput_peak_events_per_sec=throughput_peak,
     )
 
 
@@ -713,6 +714,12 @@ def cli() -> None:
     default=None,
     help="Override speed_scaling_max_multiplier.",
 )
+@click.option(
+    "--stop-at-knee",
+    is_flag=True,
+    default=False,
+    help="Stop stress test at USL knee point instead of running to failure.",
+)
 def run(
     scenarios: tuple[str, ...],
     agents: int | None,
@@ -723,6 +730,7 @@ def run(
     stress_max_minutes: int | None,
     speed_step_minutes: int | None,
     speed_max_multiplier: int | None,
+    stop_at_knee: bool,
 ) -> None:
     """Run performance test scenarios.
 
@@ -806,10 +814,10 @@ def run(
         config.scenarios.speed_scaling_step_duration_minutes = speed_step_minutes
     if speed_max_multiplier is not None:
         config.scenarios.speed_scaling_max_multiplier = speed_max_multiplier
+    if stop_at_knee:
+        config.scenarios.stop_at_knee = stop_at_knee
 
-    lifecycle, stats_collector, api_client, oom_detector, health_collector = create_collectors(
-        config
-    )
+    lifecycle, prometheus, api_client, oom_detector = create_collectors(config)
 
     test_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir = config.output_dir / test_id
@@ -880,10 +888,9 @@ def run(
                         BaselineScenario,
                         config,
                         lifecycle,
-                        stats_collector,
+                        prometheus,
                         api_client,
                         oom_detector,
-                        health_collector,
                     )
                     result_dict = _result_to_dict(baseline_result)
                     scenario_results.append(result_dict)
@@ -942,10 +949,9 @@ def run(
                         StressTestScenario,
                         config,
                         lifecycle,
-                        stats_collector,
+                        prometheus,
                         api_client,
                         oom_detector,
-                        health_collector,
                         baseline_calibration=baseline_calibration,
                     )
                     result_dict = _result_to_dict(stress_result)
@@ -1001,10 +1007,9 @@ def run(
                         SpeedScalingScenario,
                         config,
                         lifecycle,
-                        stats_collector,
+                        prometheus,
                         api_client,
                         oom_detector,
-                        health_collector,
                         agent_count=agent_count,
                         baseline_calibration=baseline_calibration,
                     )
@@ -1042,10 +1047,9 @@ def run(
                         DurationLeakScenario,
                         config,
                         lifecycle,
-                        stats_collector,
+                        prometheus,
                         api_client,
                         oom_detector,
-                        health_collector,
                         agent_count=agent_count,
                         speed_multiplier=effective_speed,
                     )
@@ -1112,17 +1116,17 @@ def run(
 def check() -> None:
     """Check status of required services."""
     config = create_test_config()
-    lifecycle, stats_collector, api_client, _, health_collector = create_collectors(config)
+    lifecycle, prometheus, api_client, _ = create_collectors(config)
 
     table = Table(title="Service Status")
     table.add_column("Service", style="cyan")
     table.add_column("Status", style="green")
     table.add_column("Details")
 
-    if stats_collector.is_available():
-        table.add_row("cAdvisor", "Available", config.docker.cadvisor_url)
+    if prometheus.is_available():
+        table.add_row("Prometheus", "Available", config.docker.prometheus_url)
     else:
-        table.add_row("cAdvisor", "[red]Unavailable[/red]", config.docker.cadvisor_url)
+        table.add_row("Prometheus", "[red]Unavailable[/red]", config.docker.prometheus_url)
 
     if api_client.is_available():
         status = api_client.get_simulation_status()
@@ -1134,13 +1138,12 @@ def check() -> None:
     else:
         table.add_row("Simulation API", "[red]Unavailable[/red]", config.api.base_url)
 
-    if health_collector.is_available():
-        health_data = health_collector.collect()
-        service_count = len(health_data) if health_data else 0
+    health_data = prometheus.get_health_latencies()
+    if health_data is not None:
         table.add_row(
             "Health API",
             "Available",
-            f"{service_count} services reporting",
+            f"{len(health_data)} services reporting",
         )
     else:
         table.add_row(
@@ -1152,7 +1155,7 @@ def check() -> None:
     console.print(table)
     console.print()
 
-    stats = stats_collector.get_all_container_stats()
+    stats = prometheus.get_all_container_stats()
     if stats:
         container_table = Table(title="Container Metrics")
         container_table.add_column("Container")

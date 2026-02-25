@@ -257,6 +257,15 @@ class SpeedScalingScenario(BaseScenario):
         )
         active_trips_max = max(active_trips_values) if active_trips_values else None
 
+        # Compute throughput stats from Prometheus data for saturation analysis
+        throughput_values = [
+            s["throughput_events_per_sec"] for s in step_samples if "throughput_events_per_sec" in s
+        ]
+        throughput_mean = (
+            round(sum(throughput_values) / len(throughput_values), 2) if throughput_values else None
+        )
+        throughput_max = round(max(throughput_values), 2) if throughput_values else None
+
         return {
             "step": step_number,
             "multiplier": multiplier,
@@ -278,6 +287,8 @@ class SpeedScalingScenario(BaseScenario):
             "rtr_mean": round(rtr_mean, 4) if rtr_mean is not None else None,
             "active_trips_mean": active_trips_mean,
             "active_trips_max": active_trips_max,
+            "throughput_mean_events_per_sec": throughput_mean,
+            "throughput_max_events_per_sec": throughput_max,
         }
 
     def _check_step_thresholds(self, step_samples: list[dict[str, Any]]) -> ThresholdTrigger | None:

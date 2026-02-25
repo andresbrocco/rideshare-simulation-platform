@@ -10,9 +10,8 @@ from typing import Any, Iterator
 from rich.console import Console
 
 from ..collectors.docker_lifecycle import DockerLifecycleManager
-from ..collectors.docker_stats import DockerStatsCollector
-from ..collectors.infrastructure_health import InfrastructureHealthCollector
 from ..collectors.oom_detector import OOMDetector, OOMEvent
+from ..collectors.prometheus_collector import PrometheusCollector
 from ..collectors.simulation_api import SimulationAPIClient
 from ..config import TestConfig
 
@@ -48,17 +47,15 @@ class BaseScenario(ABC):
         self,
         config: TestConfig,
         lifecycle: DockerLifecycleManager,
-        stats_collector: DockerStatsCollector,
+        prometheus: PrometheusCollector,
         api_client: SimulationAPIClient,
         oom_detector: OOMDetector,
-        health_collector: InfrastructureHealthCollector,
     ) -> None:
         self.config = config
         self.lifecycle = lifecycle
-        self.stats_collector = stats_collector
+        self.prometheus = prometheus
         self.api_client = api_client
         self.oom_detector = oom_detector
-        self.health_collector = health_collector
         self._samples: list[dict[str, Any]] = []
         self._oom_events: list[OOMEvent] = []
         self._aborted = False
@@ -199,7 +196,7 @@ class BaseScenario(ABC):
         Returns:
             Dict with timestamp and per-container metrics.
         """
-        container_stats = self.stats_collector.get_all_container_stats()
+        container_stats = self.prometheus.get_all_container_stats()
 
         # Check for OOM events
         oom_events = self.oom_detector.check_oom()
@@ -241,14 +238,14 @@ class BaseScenario(ABC):
         sample["global_cpu_percent"] = round(global_cpu, 2)
         sample["available_cores"] = self._available_cores
 
-        # Collect RTR (Real-Time Ratio) sample from simulation status
-        rtr_data = self._collect_rtr_sample()
-        if rtr_data is not None:
-            sample["rtr"] = rtr_data
+        # Collect simulation status from the API (control fields)
+        sim_status = self._collect_sim_status()
+        if sim_status is not None:
+            sample["rtr"] = sim_status
 
         # Collect infrastructure health latencies
         if self.config.scenarios.health_check_enabled:
-            health_data = self.health_collector.collect()
+            health_data = self.prometheus.get_health_latencies()
             if health_data is not None:
                 sample["health"] = {
                     name: {
@@ -261,11 +258,20 @@ class BaseScenario(ABC):
                     for name, svc in health_data.items()
                 }
 
+        # Collect simulation metrics from Prometheus
+        sim_metrics = self.prometheus.get_simulation_metrics()
+        if sim_metrics is not None:
+            sample["active_trips"] = sim_metrics.active_trips
+            sample["throughput_events_per_sec"] = sim_metrics.throughput_events_per_sec
+            sample["speed_multiplier"] = sim_metrics.speed_multiplier
+            if sim_metrics.real_time_ratio is not None:
+                sample.setdefault("rtr", {})["rtr"] = sim_metrics.real_time_ratio
+
         self._samples.append(sample)
         return sample
 
-    def _collect_rtr_sample(self) -> dict[str, Any] | None:
-        """Read RTR from the simulation API (computed server-side via sliding window)."""
+    def _collect_sim_status(self) -> dict[str, Any] | None:
+        """Read simulation status from the API (control fields only, RTR comes from Prometheus)."""
         try:
             status = self.api_client.get_simulation_status()
         except Exception:
@@ -279,9 +285,6 @@ class BaseScenario(ABC):
             "drivers_total": status.drivers_total,
             "riders_total": status.riders_total,
         }
-        if status.real_time_ratio is not None:
-            result["rtr"] = status.real_time_ratio
-
         return result
 
     def _wait_for_steady_state(self, duration_seconds: float) -> None:

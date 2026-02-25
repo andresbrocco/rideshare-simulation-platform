@@ -1,4 +1,11 @@
-"""Docker container stats collection via cAdvisor API."""
+"""Docker container stats collection via cAdvisor API.
+
+.. deprecated::
+    Replaced by ``PrometheusCollector`` which queries cAdvisor metrics
+    through Prometheus instead of the cAdvisor REST API directly.
+    This module is retained for the ``MetricSample`` dataclass (shared by
+    both old and new collectors) and for backward compatibility.
+"""
 
 import time
 from dataclasses import dataclass

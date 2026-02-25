@@ -93,6 +93,8 @@ class KeyMetrics:
     stress_trigger: str | None
     total_duration_str: str
     available_cores: int | None
+    active_trips_peak: float | None = None
+    throughput_peak_events_per_sec: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -104,6 +106,14 @@ class KeyMetrics:
             "stress_trigger": self.stress_trigger,
             "total_duration_str": self.total_duration_str,
             "available_cores": self.available_cores,
+            "active_trips_peak": (
+                round(self.active_trips_peak, 2) if self.active_trips_peak is not None else None
+            ),
+            "throughput_peak_events_per_sec": (
+                round(self.throughput_peak_events_per_sec, 2)
+                if self.throughput_peak_events_per_sec is not None
+                else None
+            ),
         }
 
 

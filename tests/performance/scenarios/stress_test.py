@@ -325,6 +325,19 @@ class StressTestScenario(BaseScenario):
             * 100
         )
         self._metadata["saturation_curve_data"] = True
+        # Active trips and throughput peaks from Prometheus data
+        active_trips_values = [s["active_trips"] for s in self._samples if "active_trips" in s]
+        throughput_values = [
+            s["throughput_events_per_sec"]
+            for s in self._samples
+            if "throughput_events_per_sec" in s
+        ]
+        self._metadata["active_trips_peak"] = (
+            max(active_trips_values) if active_trips_values else None
+        )
+        self._metadata["throughput_peak_events_per_sec"] = (
+            max(throughput_values) if throughput_values else None
+        )
         self._metadata["rtr_threshold_used"] = self._effective_rtr_threshold
         self._metadata["rtr_threshold_source"] = self._rtr_threshold_source
         self._metadata["health_threshold_source"] = (
@@ -508,14 +521,14 @@ class StressTestScenario(BaseScenario):
     def _check_saturation_stop(self) -> ThresholdTrigger | None:
         """Check if active trips have exceeded the USL knee point.
 
-        Only runs when saturation_early_stop_enabled is True and enough
+        Only runs when stop_at_knee is True and enough
         samples exist. Fits USL model every saturation_fit_interval samples
         to avoid scipy overhead in the hot loop.
 
         Returns:
             ThresholdTrigger if knee exceeded, None otherwise.
         """
-        if not self.config.scenarios.saturation_early_stop_enabled:
+        if not self.config.scenarios.stop_at_knee:
             return None
 
         self._saturation_sample_counter += 1
@@ -541,9 +554,13 @@ class StressTestScenario(BaseScenario):
 
         # Check if current active_trips exceeds N* × overshoot_factor
         current_active_trips = 0.0
-        last_rtr = self._samples[-1].get("rtr")
-        if last_rtr is not None:
-            current_active_trips = float(last_rtr.get("active_trips", 0))
+        last_sample = self._samples[-1]
+        if "active_trips" in last_sample:
+            current_active_trips = float(last_sample["active_trips"])
+        else:
+            last_rtr = last_sample.get("rtr")
+            if last_rtr is not None:
+                current_active_trips = float(last_rtr.get("active_trips", 0))
 
         overshoot_limit = usl.n_star * self.config.scenarios.saturation_overshoot_factor
         if current_active_trips > overshoot_limit:

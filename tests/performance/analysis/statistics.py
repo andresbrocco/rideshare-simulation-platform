@@ -630,9 +630,10 @@ def extract_saturation_points(
 ) -> list[SaturationPoint]:
     """Extract (active_trips, throughput) data points from samples.
 
-    Throughput proxy: active_trips * rtr * speed_multiplier.
-    This captures effective event production rate and curves down
-    when the system saturates (RTR drops).
+    Prefers Prometheus-sourced throughput (simulation_events_total rate)
+    and active_trips when available. Falls back to the RTR-based proxy
+    (active_trips * rtr * speed_multiplier) for backward compatibility
+    with old results.json files.
 
     Args:
         samples: Sample dicts with rtr sub-dict.
@@ -644,6 +645,22 @@ def extract_saturation_points(
     points: list[SaturationPoint] = []
 
     for sample in samples:
+        # Prefer Prometheus-sourced metrics (new format)
+        if "throughput_events_per_sec" in sample and "active_trips" in sample:
+            active_trips_f = float(sample["active_trips"])
+            throughput_f = float(sample["throughput_events_per_sec"])
+            if active_trips_f > 0 and throughput_f > 0:
+                points.append(
+                    SaturationPoint(
+                        active_trips=active_trips_f,
+                        throughput=throughput_f,
+                        speed_multiplier=speed_multiplier,
+                        timestamp=sample.get("timestamp", 0.0),
+                    )
+                )
+            continue
+
+        # Fallback: RTR-based proxy (backward compat with old results.json)
         rtr_data = sample.get("rtr")
         if rtr_data is None:
             continue

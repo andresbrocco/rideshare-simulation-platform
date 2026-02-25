@@ -18,6 +18,7 @@ class DockerConfig:
     """Configuration for Docker and cAdvisor."""
 
     cadvisor_url: str = "http://localhost:8083"
+    prometheus_url: str = "http://localhost:9090"
     compose_file: str = "infrastructure/docker/compose.yml"
     profiles: list[str] = field(default_factory=lambda: ["core", "data-pipeline", "monitoring"])
     available_cpu_cores: int | None = None  # Auto-detected from Docker if None
@@ -80,7 +81,7 @@ class ScenarioConfig:
 
     # Saturation curve / USL fitting settings
     saturation_min_points: int = 8  # minimum data points before USL fitting
-    saturation_early_stop_enabled: bool = True
+    stop_at_knee: bool = False
     saturation_r2_threshold: float = 0.80  # R² above which USL knee is trusted
     saturation_overshoot_factor: float = 1.5  # stop when active_trips > N* × this
     saturation_fit_interval: int = 10  # only run USL fit every N samples

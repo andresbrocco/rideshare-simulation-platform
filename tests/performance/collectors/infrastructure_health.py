@@ -1,4 +1,11 @@
-"""Infrastructure health collector via Simulation API /metrics/infrastructure endpoint."""
+"""Infrastructure health collector via Simulation API /metrics/infrastructure endpoint.
+
+.. deprecated::
+    Replaced by ``PrometheusCollector.get_health_latencies()`` which delegates
+    to the same REST endpoint internally. This module is retained for the
+    ``ServiceHealthSample`` dataclass (shared by both old and new collectors)
+    and for backward compatibility.
+"""
 
 from dataclasses import dataclass
 from typing import Any
