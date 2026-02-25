@@ -590,6 +590,7 @@ services:
       - core
       - data-pipeline
       - monitoring
+      - performance
     ports:
       - "4566:4566"
       - "4510-4559:4510-4559"
@@ -619,6 +620,7 @@ services:
       - core
       - data-pipeline
       - monitoring
+      - performance
     volumes:
       - secrets-volume:/secrets
       - ../../infrastructure/scripts/seed-secrets.py:/app/seed-secrets.py:ro
@@ -646,6 +648,7 @@ services:
       - core
       - data-pipeline
       - monitoring
+      - performance
     volumes:
       - ../../infrastructure/scripts/deploy-lambda.py:/app/deploy-lambda.py:ro
       - ../../infrastructure/lambda/auth-deploy/handler.py:/app/lambda/handler.py:ro
@@ -1224,6 +1227,51 @@ services:
       retries: 3
     ports:
       - "9121:9121"
+
+  performance-controller:
+    build:
+      context: ../../services/performance-controller
+    container_name: rideshare-performance-controller
+    mem_limit: 128m
+    cpus: 0.25
+    profiles: ["performance"]
+    networks:
+      - rideshare-network
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        . /secrets/core.env
+        export SIMULATION_API_KEY=$$API_KEY
+        exec python -m src.main
+    volumes:
+      - ../../services/performance-controller/src:/app/src:ro
+      - secrets-volume:/secrets:ro
+    environment:
+      - PROMETHEUS_URL=http://prometheus:9090
+      - SIMULATION_BASE_URL=http://simulation:8000
+      - CONTROLLER_TARGET_SPEED=${SIM_SPEED_MULTIPLIER:-10}
+      - CONTROLLER_POLL_INTERVAL_SECONDS=5.0
+      - CONTROLLER_BASELINE_DURATION_SECONDS=30.0
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - LOG_LEVEL=INFO
+    depends_on:
+      secrets-init:
+        condition: service_completed_successfully
+      simulation:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+      otel-collector:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8090/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+    ports:
+      - "8090:8090"
+    restart: unless-stopped
 
 networks:
   rideshare-network:
