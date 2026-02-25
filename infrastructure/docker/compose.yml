@@ -168,7 +168,7 @@ services:
       - -c
       - |
         set -a && . /secrets/core.env && set +a
-        exec redis-server --requirepass "$$REDIS_PASSWORD"
+        exec redis-server --requirepass "$$REDIS_PASSWORD" --maxmemory 256mb --maxmemory-policy allkeys-lru
     depends_on:
       secrets-init:
         condition: service_completed_successfully

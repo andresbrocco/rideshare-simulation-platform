@@ -68,7 +68,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(simulation_events_total[$__rate_interval])",
+          "expr": "sum(rate(simulation_events_total[$__rate_interval]))",
           "legendFormat": "Produced (simulation)",
           "refId": "A"
         },
@@ -98,7 +98,7 @@
             "axisLabel": "messages",
             "drawStyle": "line",
             "fillOpacity": 20,
-            "gradientMode": "scheme",
+            "gradientMode": "none",
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
@@ -209,25 +209,27 @@
       "gridPos": { "h": 8, "w": 4, "x": 20, "y": 1 },
       "id": 5,
       "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
           "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true
+        "textMode": "auto"
       },
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "redis_memory_used_bytes / redis_memory_max_bytes * 100",
+          "expr": "redis_memory_used_bytes / (redis_memory_max_bytes > 0) * 100",
           "legendFormat": "Memory %",
           "refId": "A"
         }
       ],
       "title": "Redis Memory %",
-      "type": "gauge"
+      "type": "stat"
     },
     {
       "collapsed": false,
@@ -242,7 +244,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "CPU utilization percentage per container. Sustained high CPU indicates compute saturation.",
+      "description": "CPU usage per container as percentage of one core. Multi-core containers may exceed 100%.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -250,7 +252,7 @@
           },
           "custom": {
             "axisCenteredZero": false,
-            "axisLabel": "CPU %",
+            "axisLabel": "CPU % (per core)",
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
@@ -274,7 +276,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(container_cpu_usage_seconds_total{name=~\"rideshare.*\"}[$__rate_interval]) * 100",
+          "expr": "rate(container_cpu_usage_seconds_total{name=~\"rideshare-(simulation|stream-processor|kafka|redis|bronze-ingestion|otel-collector|performance-controller)\"}[$__rate_interval]) * 100",
           "legendFormat": "{{name}}",
           "refId": "A"
         }
@@ -319,7 +321,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "container_memory_working_set_bytes{name=~\"rideshare.*\"} / container_spec_memory_limit_bytes{name=~\"rideshare.*\"} * 100",
+          "expr": "container_memory_working_set_bytes{name=~\"rideshare-(simulation|stream-processor|kafka|redis|bronze-ingestion|otel-collector|performance-controller)\"} / (container_spec_memory_limit_bytes{name=~\"rideshare-(simulation|stream-processor|kafka|redis|bronze-ingestion|otel-collector|performance-controller)\"} > 0) * 100",
           "legendFormat": "{{name}}",
           "refId": "A"
         }
@@ -391,7 +393,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Scatter plot of throughput (events/sec) vs active trips. The curve should follow a USL pattern — linear at low load, sublinear at moderate load, retrograde past saturation.",
+      "description": "Throughput (events/sec) and active trips over time with dual Y-axes. Rising trips with flat/declining throughput indicates approaching saturation.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -400,21 +402,38 @@
           "custom": {
             "axisCenteredZero": false,
             "axisLabel": "",
-            "drawStyle": "points",
-            "fillOpacity": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
             "gradientMode": "none",
-            "lineInterpolation": "linear",
-            "lineWidth": 0,
-            "pointSize": 6,
-            "showPoints": "always",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
             "spanNulls": false,
             "stacking": { "group": "A", "mode": "none" }
           },
-          "unit": "ops"
+          "unit": "none"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Throughput (events/sec)" },
+            "properties": [
+              { "id": "unit", "value": "ops" },
+              { "id": "custom.axisPlacement", "value": "left" },
+              { "id": "custom.axisLabel", "value": "events/sec" }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Active Trips" },
+            "properties": [
+              { "id": "unit", "value": "short" },
+              { "id": "custom.axisPlacement", "value": "right" },
+              { "id": "custom.axisLabel", "value": "trips" }
+            ]
+          }
+        ]
       },
-      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 19 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 19 },
       "id": 11,
       "options": {
         "legend": { "calcs": ["lastNotNull"], "displayMode": "list", "placement": "bottom" },
@@ -538,7 +557,7 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 29 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 },
       "id": 14,
       "panels": [],
       "title": "Real-Time Ratio",
@@ -578,13 +597,23 @@
           },
           "unit": "short"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Speed Multiplier (target)" },
+            "properties": [
+              { "id": "custom.lineInterpolation", "value": "stepAfter" },
+              { "id": "custom.lineStyle", "value": { "dash": [10, 10], "fill": "dash" } },
+              { "id": "custom.lineWidth", "value": 1 },
+              { "id": "custom.fillOpacity", "value": 0 }
+            ]
+          }
+        ]
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 30 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
       "id": 15,
       "options": {
         "legend": { "calcs": ["mean", "lastNotNull"], "displayMode": "table", "placement": "bottom" },
-        "tooltip": { "mode": "single", "sort": "none" }
+        "tooltip": { "mode": "multi", "sort": "desc" }
       },
       "targets": [
         {
@@ -592,6 +621,12 @@
           "expr": "simulation_real_time_ratio",
           "legendFormat": "RTR",
           "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "simulation_speed_multiplier_ratio",
+          "legendFormat": "Speed Multiplier (target)",
+          "refId": "B"
         }
       ],
       "title": "RTR Over Time",
@@ -625,7 +660,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 30 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
       "id": 16,
       "options": {
         "legend": { "calcs": ["mean", "lastNotNull"], "displayMode": "table", "placement": "bottom" },
@@ -634,7 +669,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "simulation_speed_multiplier",
+          "expr": "simulation_speed_multiplier_ratio",
           "legendFormat": "Speed Multiplier",
           "refId": "A"
         }
@@ -644,7 +679,7 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 38 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 36 },
       "id": 17,
       "panels": [],
       "title": "Composite Health Score",
@@ -675,7 +710,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 39 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 37 },
       "id": 18,
       "options": {
         "orientation": "auto",
@@ -690,7 +725,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "controller_performance_index",
+          "expr": "controller_performance_index_ratio",
           "legendFormat": "Performance Index",
           "refId": "A"
         }
@@ -717,11 +752,11 @@
               { "color": "red", "value": 0.5 }
             ]
           },
-          "unit": "ops"
+          "unit": "short"
         },
         "overrides": []
       },
-      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 39 },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 37 },
       "id": 19,
       "options": {
         "colorMode": "value",
@@ -738,8 +773,8 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(controller_adjustments_total[$__rate_interval])",
-          "legendFormat": "Adjustments/sec",
+          "expr": "increase(controller_adjustments_total[$__range])",
+          "legendFormat": "Adjustments in window",
           "refId": "A"
         }
       ],
@@ -769,7 +804,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 39 },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 37 },
       "id": 20,
       "options": {
         "colorMode": "value",
@@ -786,7 +821,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "controller_target_speed_multiplier",
+          "expr": "controller_target_speed_multiplier_ratio",
           "legendFormat": "Target Multiplier",
           "refId": "A"
         }
