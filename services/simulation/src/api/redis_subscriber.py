@@ -148,22 +148,24 @@ class RedisSubscriber:
             lat, lon = location[0], location[1]
 
             if is_gps_ping:
-                # Use trip_state from event if available, fallback to inference
+                # Use trip_state from event if available; omit when None so the
+                # frontend preserves whatever state it already has for this rider
                 trip_state = data.get("trip_state")
-                if not trip_state:
-                    trip_state = "idle"
 
                 # Return as gps_ping type for rider position updates during trips
+                ping_data: dict[str, Any] = {
+                    "id": data.get("entity_id"),
+                    "entity_type": "rider",
+                    "latitude": lat,
+                    "longitude": lon,
+                    "timestamp": data.get("timestamp"),
+                }
+                if trip_state:
+                    ping_data["trip_state"] = trip_state
+
                 return {
                     "type": "gps_ping",
-                    "data": {
-                        "id": data.get("entity_id"),
-                        "entity_type": "rider",
-                        "latitude": lat,
-                        "longitude": lon,
-                        "trip_state": trip_state,
-                        "timestamp": data.get("timestamp"),
-                    },
+                    "data": ping_data,
                 }
             else:
                 status = data.get("status", "requesting")

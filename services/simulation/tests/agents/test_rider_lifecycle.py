@@ -63,6 +63,66 @@ class TestRiderRequestTiming:
 
 
 @pytest.mark.unit
+class TestRiderRequestTripState:
+    """Verify request_trip sets _trip_state_value for GPS pings."""
+
+    def test_request_trip_sets_trip_state_to_requested(
+        self, simpy_env, mock_kafka_producer, dna_factory: DNAFactory
+    ):
+        dna = dna_factory.rider_dna()
+        agent = RiderAgent(
+            rider_id="rider_001",
+            dna=dna,
+            env=simpy_env,
+            kafka_producer=mock_kafka_producer,
+        )
+        assert agent._trip_state_value is None
+
+        agent.request_trip("trip-abc")
+
+        assert agent._trip_state_value == "requested"
+        assert agent.status == "requesting"
+        assert agent.active_trip == "trip-abc"
+
+    def test_cancel_trip_clears_trip_state(
+        self, simpy_env, mock_kafka_producer, dna_factory: DNAFactory
+    ):
+        dna = dna_factory.rider_dna()
+        agent = RiderAgent(
+            rider_id="rider_001",
+            dna=dna,
+            env=simpy_env,
+            kafka_producer=mock_kafka_producer,
+        )
+        agent.request_trip("trip-abc")
+        assert agent._trip_state_value == "requested"
+
+        agent.cancel_trip()
+
+        assert agent._trip_state_value is None
+        assert agent.status == "idle"
+
+    def test_complete_trip_clears_trip_state(
+        self, simpy_env, mock_kafka_producer, dna_factory: DNAFactory
+    ):
+        dna = dna_factory.rider_dna()
+        agent = RiderAgent(
+            rider_id="rider_001",
+            dna=dna,
+            env=simpy_env,
+            kafka_producer=mock_kafka_producer,
+        )
+        agent.request_trip("trip-abc")
+        agent.start_trip()
+        agent.update_trip_state("in_transit")
+        assert agent._trip_state_value == "in_transit"
+
+        agent.complete_trip()
+
+        assert agent._trip_state_value is None
+
+
+@pytest.mark.unit
 @pytest.mark.slow
 class TestRiderRequestCreatesTrip:
     def test_rider_request_creates_trip(

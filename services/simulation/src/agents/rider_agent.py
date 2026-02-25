@@ -154,6 +154,7 @@ class RiderAgent(EventEmitter):
     def request_trip(self, trip_id: str) -> None:
         """Transition from offline to waiting, set active trip."""
         self._status = "requesting"
+        self._trip_state_value = "requested"
         self._active_trip = trip_id
         self._statistics.record_trip_requested()
         self.record_action("request_trip")

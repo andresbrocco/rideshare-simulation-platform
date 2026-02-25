@@ -296,6 +296,13 @@ class MatchingServer:
         logger.info(f"Finding nearby drivers for trip {trip.trip_id}")
         nearby_drivers = await self.find_nearby_drivers(pickup_location)
         logger.info(f"Found {len(nearby_drivers)} nearby drivers")
+        if nearby_drivers:
+            for drv, eta in nearby_drivers:
+                logger.info(
+                    f"  candidate: {drv.driver_id} "
+                    f"ETA={eta}s puppet={getattr(drv, '_is_puppet', False)} "
+                    f"status={drv.status} active_trip={drv.active_trip}"
+                )
         if not nearby_drivers:
             logger.warning(f"No nearby drivers found for trip {trip.trip_id}")
             self._emit_no_drivers_event(trip)
@@ -327,27 +334,42 @@ class MatchingServer:
             radius_km=10.0,
             status_filter={"available", "driving_closer_to_home"},
         )
-        logger.debug(f"Spatial index returned {len(nearby)} nearby online drivers")
+        logger.info(
+            f"Spatial index returned {len(nearby)} drivers "
+            f"(index has {len(self._driver_index._driver_locations)} total, "
+            f"matching server has {len(self._drivers)} registered)"
+        )
 
         # Filter to valid drivers with locations, excluding reserved drivers
         valid_drivers: list[tuple[DriverAgent, float]] = []
+        skipped: dict[str, list[str]] = {
+            "reserved": [],
+            "not_registered": [],
+            "active_trip": [],
+        }
         for driver_id, distance_km in nearby:
-            logger.debug(f"Processing driver {driver_id}, distance={distance_km:.2f}km")
             if driver_id in self._reserved_drivers:
-                logger.debug(f"Driver {driver_id} reserved for another offer, skipping")
+                skipped["reserved"].append(driver_id)
                 continue
             driver = self._drivers.get(driver_id)
             if not driver or not driver.location:
-                logger.warning(f"Driver {driver_id} not found or has no location")
+                skipped["not_registered"].append(driver_id)
                 continue
             if driver.active_trip:
-                logger.debug(f"Driver {driver_id} already has active trip, skipping")
+                skipped["active_trip"].append(driver_id)
                 continue
-            logger.debug(f"Driver {driver_id} location: {driver.location}")
             valid_drivers.append((driver, distance_km))
 
+        if skipped["reserved"] or skipped["not_registered"] or skipped["active_trip"]:
+            logger.info(
+                f"Filtered out drivers: "
+                f"reserved={len(skipped['reserved'])}, "
+                f"not_registered={len(skipped['not_registered'])}, "
+                f"active_trip={len(skipped['active_trip'])}"
+            )
+
         if not valid_drivers:
-            logger.info("No valid drivers with locations found")
+            logger.info("No valid drivers with locations found after filtering")
             return []
 
         # Sort by haversine distance (already sorted from spatial index) and
@@ -800,9 +822,19 @@ class MatchingServer:
         driver.statistics.record_offer_received()
         self._emit_offer_sent_event(trip, driver_id, offer_sequence, eta_seconds)
 
+        # Update rider trip_state so GPS pings carry "offer_sent"
+        if self._registry_manager:
+            rider = self._registry_manager.get_rider(trip.rider_id)
+            if rider:
+                rider.update_trip_state("offer_sent")
+
         # For puppet drivers, store offer and wait for manual action via API
         # Reservation stays active — puppet accept/reject handles release
         if getattr(driver, "_is_puppet", False):
+            logger.info(
+                f"Trip {trip.trip_id}: offer to PUPPET driver {driver_id} "
+                f"(stored in _pending_offers, awaiting API action)"
+            )
             rider = (
                 self._registry_manager.get_rider(trip.rider_id) if self._registry_manager else None
             )
@@ -820,6 +852,11 @@ class MatchingServer:
         # The accept/reject is predetermined but not applied until after the
         # driver's avg_response_time delay (simulating "think time").
         decision = self._compute_offer_decision(driver, trip)
+        logger.info(
+            f"Trip {trip.trip_id}: offer to AUTONOMOUS driver {driver_id} "
+            f"(deferred, pre-computed decision={'ACCEPT' if decision else 'REJECT'}, "
+            f"avg_response_time={driver.dna.avg_response_time}s)"
+        )
         with self._state_lock:
             self._pending_deferred_offers.append((driver, trip, decision, eta_seconds))
             # Queue timeout for SimPy thread — env.process() is not thread-safe,
