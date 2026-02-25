@@ -165,16 +165,18 @@ export default function ControlPanel({
             Speed:
           </label>
           {controllerStatus !== null && (
-            <label className={styles.toggleLabel}>
-              <input
-                type="checkbox"
-                className={styles.toggleInput}
-                checked={controllerStatus.mode === 'on'}
-                onChange={(e) => setControllerMode(e.target.checked ? 'on' : 'off')}
-              />
-              <span className={styles.toggleSwitch} />
-              <span className={styles.toggleText}>Auto</span>
-            </label>
+            <Tooltip text={'Control simulation speed to work\nnear the performance limits'}>
+              <label className={styles.toggleLabel}>
+                <input
+                  type="checkbox"
+                  className={styles.toggleInput}
+                  checked={controllerStatus.mode === 'on'}
+                  onChange={(e) => setControllerMode(e.target.checked ? 'on' : 'off')}
+                />
+                <span className={styles.toggleSwitch} />
+                <span className={styles.toggleText}>Auto</span>
+              </label>
+            </Tooltip>
           )}
         </div>
         {isAutoMode ? (

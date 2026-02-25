@@ -10,7 +10,8 @@
   padding: 8px 12px;
   border-radius: 4px;
   font-size: 13px;
-  white-space: nowrap;
+  white-space: pre-line;
+  text-align: center;
   z-index: 9999;
   pointer-events: none;
   opacity: 0;
