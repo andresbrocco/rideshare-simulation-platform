@@ -1202,7 +1202,7 @@ services:
       - "9308:9308"
 
   redis-exporter:
-    image: oliver006/redis_exporter:latest
+    image: oliver006/redis_exporter:alpine
     container_name: rideshare-redis-exporter
     mem_limit: 64m
     profiles: ["monitoring"]
@@ -1212,7 +1212,7 @@ services:
     command:
       - |
         . /secrets/core.env
-        exec redis_exporter \
+        exec /redis_exporter \
           --redis.addr=redis://redis:6379 \
           --redis.password=$$REDIS_PASSWORD
     volumes:
