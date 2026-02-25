@@ -1007,6 +1007,15 @@ class MatchingServer:
         if not trip:
             self._pending_offer_candidates.pop(trip_id, None)
             return
+        # Guard: only expire if trip is still awaiting this offer response.
+        # The deferred_offer_response may have already accepted/rejected the offer
+        # if both processes resolved at the same SimPy time (race condition).
+        if trip.state != TripState.OFFER_SENT:
+            logger.debug(
+                f"Offer timeout for trip {trip_id} ignored: "
+                f"trip already in {trip.state.value} (driver {driver_id})"
+            )
+            return
         trip.transition_to(TripState.OFFER_EXPIRED)
         self._emit_offer_expired_event(trip, driver_id, trip.offer_sequence)
         self._continue_deferred_offer_cycle(trip)
@@ -1223,6 +1232,14 @@ class MatchingServer:
         if not trip:
             # Clean up candidates if trip is gone
             self._pending_offer_candidates.pop(trip_id, None)
+            return
+
+        # Guard: only expire if trip is still awaiting this offer response
+        if trip.state != TripState.OFFER_SENT:
+            logger.debug(
+                f"Puppet timeout for trip {trip_id} ignored: "
+                f"trip already in {trip.state.value} (driver {driver_id})"
+            )
             return
 
         # Transition to expired

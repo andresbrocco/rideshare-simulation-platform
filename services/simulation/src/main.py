@@ -107,7 +107,10 @@ class SimulationRunner:
         while self._running:
             # Step simulation when running or draining (drain process needs env to advance)
             if self._engine.state in (SimulationState.RUNNING, SimulationState.DRAINING):
-                self._engine.step(10)
+                try:
+                    self._engine.step(10)
+                except Exception:
+                    logger.exception("Error in simulation step (recovering)")
             time.sleep(0.1)
 
 
