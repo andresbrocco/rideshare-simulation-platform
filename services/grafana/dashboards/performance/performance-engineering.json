@@ -393,7 +393,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Throughput (events/sec) and active trips over time with dual Y-axes. Rising trips with flat/declining throughput indicates approaching saturation.",
+      "description": "Scatter plot of throughput vs active trips. Each point represents a moment in time. Reveals whether throughput scales linearly with load or saturates at high trip counts.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -401,25 +401,19 @@
           },
           "custom": {
             "axisCenteredZero": false,
-            "axisLabel": "",
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" }
-          },
-          "unit": "none"
+            "axisPlacement": "auto",
+            "fillOpacity": 50,
+            "pointSize": {
+              "fixed": 5
+            },
+            "show": "points"
+          }
         },
         "overrides": [
           {
             "matcher": { "id": "byName", "options": "Throughput (events/sec)" },
             "properties": [
               { "id": "unit", "value": "ops" },
-              { "id": "custom.axisPlacement", "value": "left" },
               { "id": "custom.axisLabel", "value": "events/sec" }
             ]
           },
@@ -427,7 +421,6 @@
             "matcher": { "id": "byName", "options": "Active Trips" },
             "properties": [
               { "id": "unit", "value": "short" },
-              { "id": "custom.axisPlacement", "value": "right" },
               { "id": "custom.axisLabel", "value": "trips" }
             ]
           }
@@ -436,7 +429,14 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 19 },
       "id": 11,
       "options": {
-        "legend": { "calcs": ["lastNotNull"], "displayMode": "list", "placement": "bottom" },
+        "mapping": "manual",
+        "series": [
+          {
+            "x": "Active Trips",
+            "y": "Throughput (events/sec)"
+          }
+        ],
+        "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true },
         "tooltip": { "mode": "single", "sort": "none" }
       },
       "targets": [
@@ -454,7 +454,15 @@
         }
       ],
       "title": "Throughput vs Active Trips",
-      "type": "timeseries"
+      "transformations": [
+        {
+          "id": "seriesToColumns",
+          "options": {
+            "byField": "Time"
+          }
+        }
+      ],
+      "type": "xychart"
     },
     {
       "datasource": {
