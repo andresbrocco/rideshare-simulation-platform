@@ -179,6 +179,10 @@ class MatchingServer:
             # Use provided trip or the removed one for tracking
             tracking_trip = trip or removed_trip
             if tracking_trip:
+                # Safety net: ensure driver reservation is always cleared on trip end
+                if tracking_trip.driver_id:
+                    self._reserved_drivers.discard(tracking_trip.driver_id)
+
                 if tracking_trip.state.value == "cancelled":
                     self._cancelled_trips.append(tracking_trip)
                 elif tracking_trip.state.value == "completed":
@@ -573,6 +577,10 @@ class MatchingServer:
             trip.transition_to(TripState.DRIVER_ASSIGNED)
             trip.matched_at = self._current_time()
             self._emit_matched_event(trip)
+
+            # Clear reservation (driver is now in active trip)
+            with self._state_lock:
+                self._reserved_drivers.discard(driver.driver_id)
 
             if self._surge_calculator:
                 self._surge_calculator.decrement_pending_request(trip.pickup_zone_id)
