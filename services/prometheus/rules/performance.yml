@@ -8,18 +8,18 @@ groups:
         expr: clamp(1 - (sum(kafka_consumergroup_lag) or vector(0)) / 10000, 0, 1)
 
       - record: rideshare:performance:simpy_queue_headroom
-        expr: clamp(1 - (simulation_simpy_events or vector(0)) / 500, 0, 1)
+        expr: clamp(1 - (max(simulation_simpy_events) or vector(0)) / 500, 0, 1)
 
       - record: rideshare:performance:cpu_headroom
-        expr: clamp(1 - (simulation_cpu_percent or vector(0)) / 85, 0, 1)
+        expr: clamp(1 - (max(simulation_cpu_percent) or vector(0)) / 85, 0, 1)
 
       - record: rideshare:performance:memory_headroom
-        expr: clamp(1 - (simulation_memory_percent or vector(0)) / 85, 0, 1)
+        expr: clamp(1 - (max(simulation_memory_percent) or vector(0)) / 85, 0, 1)
 
       - record: rideshare:performance:consumption_ratio
         expr: >-
           clamp(
-            (rate(stream_processor_messages_consumed_total[30s]) or vector(0))
+            (sum(rate(stream_processor_messages_consumed_total[30s])) or vector(0))
             / clamp_min(sum(rate(simulation_events_total[30s])) or vector(0.1), 0.1),
             0, 1
           )
@@ -30,7 +30,7 @@ groups:
       # --- Composite index = min of all components ---
       - record: rideshare:performance:index
         expr: >-
-          min without(component) (
+          min by() (
             label_replace(rideshare:performance:kafka_lag_headroom, "component", "kafka_lag", "", "")
             or label_replace(rideshare:performance:simpy_queue_headroom, "component", "simpy_queue", "", "")
             or label_replace(rideshare:performance:cpu_headroom, "component", "cpu", "", "")
