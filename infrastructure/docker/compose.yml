@@ -1194,11 +1194,14 @@ services:
     depends_on:
       secrets-init:
         condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:9308/metrics"]
       interval: 15s
       timeout: 5s
       retries: 3
+    restart: unless-stopped
     ports:
       - "9308:9308"
 
@@ -1221,11 +1224,14 @@ services:
     depends_on:
       secrets-init:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:9121/metrics"]
       interval: 15s
       timeout: 5s
       retries: 3
+    restart: unless-stopped
     ports:
       - "9121:9121"
 
