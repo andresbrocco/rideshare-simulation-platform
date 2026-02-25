@@ -60,6 +60,7 @@ def test_app(monkeypatch: MonkeyPatch) -> FastAPI:
             "offline": 0,
             "en_route_pickup": 0,
             "on_trip": 0,
+            "driving_closer_to_home": 0,
         }
     )
 
@@ -127,6 +128,7 @@ def test_simulation_status_matches_schema(test_client: TestClient) -> None:
         "drivers_available",
         "drivers_en_route_pickup",
         "drivers_on_trip",
+        "drivers_driving_closer_to_home",
         "riders_total",
         "riders_idle",
         "riders_requesting",

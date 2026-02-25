@@ -583,9 +583,9 @@ export interface paths {
     put?: never;
     /**
      * Puppet Driver Cancel Trip
-     * @description Cancel the current trip (before pickup only).
+     * @description Cancel the current trip.
      *
-     *     Valid from: en_route_pickup
+     *     Valid from: en_route_pickup, on_trip
      */
     post: operations['puppet_driver_cancel_trip_agents_puppet_drivers__driver_id__cancel_trip_post'];
     delete?: never;
@@ -627,9 +627,9 @@ export interface paths {
     put?: never;
     /**
      * Puppet Rider Cancel Trip
-     * @description Cancel the pending trip request.
+     * @description Cancel the trip request or active trip.
      *
-     *     Valid from: waiting
+     *     Valid from: requesting, awaiting_pickup, on_trip
      */
     post: operations['puppet_rider_cancel_trip_agents_puppet_riders__rider_id__cancel_trip_post'];
     delete?: never;
@@ -1147,6 +1147,8 @@ export interface components {
       en_route_pickup: number;
       /** On Trip */
       on_trip: number;
+      /** Driving Closer To Home */
+      driving_closer_to_home: number;
       /** Total */
       total: number;
     };
@@ -1838,6 +1840,8 @@ export interface components {
       drivers_en_route_pickup: number;
       /** Drivers On Trip */
       drivers_on_trip: number;
+      /** Drivers Driving Closer To Home */
+      drivers_driving_closer_to_home: number;
       /** Riders Total */
       riders_total: number;
       /** Riders Idle */

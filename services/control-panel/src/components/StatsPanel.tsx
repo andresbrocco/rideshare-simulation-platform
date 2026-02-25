@@ -75,6 +75,14 @@ export default function StatsPanel({
               </Tooltip>
               <span className={styles.statValue}>{driverMetrics?.on_trip ?? '-'}</span>
             </div>
+            <div className={styles.statItem}>
+              <Tooltip text="Drivers returning to home zone after trip">
+                <span className={styles.statLabel}>Returning:</span>
+              </Tooltip>
+              <span className={styles.statValue}>
+                {driverMetrics?.driving_closer_to_home ?? '-'}
+              </span>
+            </div>
           </div>
         </div>
 

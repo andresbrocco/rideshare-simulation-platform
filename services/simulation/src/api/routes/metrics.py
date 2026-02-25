@@ -263,6 +263,7 @@ def get_driver_metrics(request: Request, driver_registry: DriverRegistryDep) -> 
                 offline=0,
                 en_route_pickup=0,
                 on_trip=0,
+                driving_closer_to_home=0,
                 total=0,
             )
 
@@ -271,13 +272,15 @@ def get_driver_metrics(request: Request, driver_registry: DriverRegistryDep) -> 
         offline = status_counts.get("offline", 0)
         en_route_pickup = status_counts.get("en_route_pickup", 0)
         on_trip = status_counts.get("on_trip", 0)
-        total = available + offline + en_route_pickup + on_trip
+        driving_closer_to_home = status_counts.get("driving_closer_to_home", 0)
+        total = available + offline + en_route_pickup + on_trip + driving_closer_to_home
 
         return DriverMetrics(
             available=available,
             offline=offline,
             en_route_pickup=en_route_pickup,
             on_trip=on_trip,
+            driving_closer_to_home=driving_closer_to_home,
             total=total,
         )
 

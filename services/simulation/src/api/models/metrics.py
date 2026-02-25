@@ -43,6 +43,7 @@ class DriverMetrics(BaseModel):
     offline: int
     en_route_pickup: int
     on_trip: int
+    driving_closer_to_home: int
     total: int
 
 

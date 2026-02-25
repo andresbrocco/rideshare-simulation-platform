@@ -197,7 +197,7 @@ def main() -> None:
             from pathlib import Path
 
             # Schema path is relative to simulation/src, schemas are in project root
-            schema_base_path = Path(__file__).parent.parent.parent / settings.kafka.schema_base_path
+            schema_base_path = Path(__file__).parent.parent / settings.kafka.schema_base_path
             SerializerRegistry.initialize(
                 schema_registry_url=settings.kafka.schema_registry_url,
                 schema_base_path=schema_base_path,

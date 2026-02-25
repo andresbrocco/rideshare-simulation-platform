@@ -234,6 +234,7 @@ services:
       - simulation-db:/app/db
       - ./compose.yml:/app/compose.yml:ro
       - secrets-volume:/secrets:ro
+      - ../../schemas/kafka:/app/schemas:ro
     environment:
       - SIM_SPEED_MULTIPLIER=${SIM_SPEED_MULTIPLIER:-1}
       - SIM_LOG_LEVEL=${SIM_LOG_LEVEL:-INFO}

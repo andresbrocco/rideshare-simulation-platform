@@ -153,6 +153,7 @@ def get_status(
         "offline": 0,
         "en_route_pickup": 0,
         "on_trip": 0,
+        "driving_closer_to_home": 0,
     }
     if driver_registry and hasattr(driver_registry, "get_all_status_counts"):
         driver_counts = driver_registry.get_all_status_counts()
@@ -180,6 +181,7 @@ def get_status(
         drivers_available=driver_counts["available"],
         drivers_en_route_pickup=driver_counts["en_route_pickup"],
         drivers_on_trip=driver_counts["on_trip"],
+        drivers_driving_closer_to_home=driver_counts.get("driving_closer_to_home", 0),
         riders_total=sum(rider_counts.values()),
         riders_idle=rider_counts["idle"],
         riders_requesting=rider_counts["requesting"],

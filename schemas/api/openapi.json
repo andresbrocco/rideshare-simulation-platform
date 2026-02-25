@@ -1296,7 +1296,7 @@
           "puppet"
         ],
         "summary": "Puppet Driver Cancel Trip",
-        "description": "Cancel the current trip (before pickup only).\n\nValid from: en_route_pickup",
+        "description": "Cancel the current trip.\n\nValid from: en_route_pickup, on_trip",
         "operationId": "puppet_driver_cancel_trip_agents_puppet_drivers__driver_id__cancel_trip_post",
         "parameters": [
           {
@@ -1410,7 +1410,7 @@
           "puppet"
         ],
         "summary": "Puppet Rider Cancel Trip",
-        "description": "Cancel the pending trip request.\n\nValid from: waiting",
+        "description": "Cancel the trip request or active trip.\n\nValid from: requesting, awaiting_pickup, on_trip",
         "operationId": "puppet_rider_cancel_trip_agents_puppet_riders__rider_id__cancel_trip_post",
         "parameters": [
           {
@@ -2651,6 +2651,10 @@
             "type": "integer",
             "title": "On Trip"
           },
+          "driving_closer_to_home": {
+            "type": "integer",
+            "title": "Driving Closer To Home"
+          },
           "total": {
             "type": "integer",
             "title": "Total"
@@ -2662,6 +2666,7 @@
           "offline",
           "en_route_pickup",
           "on_trip",
+          "driving_closer_to_home",
           "total"
         ],
         "title": "DriverMetrics"
@@ -4421,6 +4426,10 @@
             "type": "integer",
             "title": "Drivers On Trip"
           },
+          "drivers_driving_closer_to_home": {
+            "type": "integer",
+            "title": "Drivers Driving Closer To Home"
+          },
           "riders_total": {
             "type": "integer",
             "title": "Riders Total"
@@ -4471,6 +4480,7 @@
           "drivers_available",
           "drivers_en_route_pickup",
           "drivers_on_trip",
+          "drivers_driving_closer_to_home",
           "riders_total",
           "riders_idle",
           "riders_requesting",

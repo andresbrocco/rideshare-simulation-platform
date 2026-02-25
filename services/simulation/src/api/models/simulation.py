@@ -26,6 +26,7 @@ class SimulationStatusResponse(BaseModel):
     drivers_available: int
     drivers_en_route_pickup: int
     drivers_on_trip: int
+    drivers_driving_closer_to_home: int
     # Detailed rider metrics
     riders_total: int
     riders_idle: int

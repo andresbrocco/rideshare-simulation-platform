@@ -8,6 +8,7 @@ export interface SimulationStatus {
   drivers_available: number;
   drivers_en_route_pickup: number;
   drivers_on_trip: number;
+  drivers_driving_closer_to_home: number;
   // Detailed rider metrics
   riders_total: number;
   riders_idle: number;
@@ -134,6 +135,7 @@ export interface DriverMetrics {
   offline: number;
   en_route_pickup: number;
   on_trip: number;
+  driving_closer_to_home: number;
   total: number;
 }
 
