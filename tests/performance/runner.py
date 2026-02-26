@@ -737,7 +737,12 @@ def _extract_key_metrics(
             metric = trigger.get("metric", "unknown")
             value = trigger.get("value", 0)
             threshold = trigger.get("threshold", 0)
-            stress_trigger = f"{metric} at {value:.1f} (threshold: {threshold})"
+            if metric == "rtr_collapse":
+                stress_trigger = f"RTR collapse at {value:.4f} (threshold: {threshold})"
+            elif metric == "max_duration":
+                stress_trigger = f"Time limit ({value:.0f}s)"
+            else:
+                stress_trigger = f"{metric} at {value:.1f} (threshold: {threshold})"
 
     # Max speed from speed_scaling
     max_speed: int | None = None
@@ -988,6 +993,7 @@ def run(
                 "stress_global_cpu_threshold_percent": config.scenarios.stress_global_cpu_threshold_percent,
                 "stress_memory_threshold_percent": config.scenarios.stress_memory_threshold_percent,
                 "stress_rtr_threshold": config.scenarios.stress_rtr_threshold,
+                "stress_rtr_collapse_threshold": config.scenarios.stress_rtr_collapse_threshold,
                 "health_baseline_degraded_multiplier": config.scenarios.health_baseline_degraded_multiplier,
                 "health_baseline_unhealthy_multiplier": config.scenarios.health_baseline_unhealthy_multiplier,
                 "rtr_baseline_fraction": config.scenarios.rtr_baseline_fraction,
@@ -1062,27 +1068,11 @@ def run(
                         _print_baseline_health_table(calibration_dict)
 
                 elif scenario_name == "stress":
-                    # Compute effective threshold sources for display
-                    if (
-                        baseline_calibration is not None
-                        and baseline_calibration.rtr_threshold is not None
-                    ):
-                        effective_rtr = baseline_calibration.rtr_threshold
-                        rtr_source_label = "baseline-derived"
-                    else:
-                        effective_rtr = config.scenarios.stress_rtr_threshold
-                        rtr_source_label = "config-fallback"
-                    health_source_label = (
-                        baseline_calibration.health_threshold_source
-                        if baseline_calibration is not None
-                        else "api-reported"
-                    )
                     console.rule(
                         f"[bold cyan]{step_label}: Running Stress Test "
-                        f"(until {config.scenarios.stress_global_cpu_threshold_percent}% global CPU, "
-                        f"{config.scenarios.stress_memory_threshold_percent}% memory, "
-                        f"RTR <= {effective_rtr}x [{rtr_source_label}], "
-                        f"or health latency [{health_source_label}])"
+                        f"(until RTR collapse <= {config.scenarios.stress_rtr_collapse_threshold:.2f}, "
+                        f"OOM, container death, or "
+                        f"{config.scenarios.stress_max_duration_minutes}m max)"
                         f"[/bold cyan]"
                     )
                     stress_result = run_scenario(
@@ -1451,17 +1441,16 @@ def _print_scenario_result(scenario_name: str, result: dict[str, Any]) -> None:
         total_agents = meta.get("total_agents_queued", 0)
         trigger = meta.get("trigger", {})
         batch_count = meta.get("batch_count", 0)
-        rtr_source = meta.get("rtr_threshold_source", "")
-        source_tag = f" [{rtr_source}]" if rtr_source else ""
         trigger_desc = ""
         if trigger:
             metric = trigger.get("metric", "")
             value = trigger.get("value", 0)
-            trigger_desc = (
-                f"stopped by {metric} ({value:.2f}x){source_tag}"
-                if metric == "rtr"
-                else f"stopped by {metric}"
-            )
+            if metric == "rtr_collapse":
+                trigger_desc = f"stopped by RTR collapse ({value:.4f})"
+            elif metric == "max_duration":
+                trigger_desc = f"stopped by time limit ({value:.0f}s)"
+            else:
+                trigger_desc = f"stopped by {metric}"
         console.print(
             f"  [green]Stress:[/green] {total_agents} agents, {trigger_desc}, "
             f"{batch_count} batches, {duration_str}"
@@ -1867,10 +1856,10 @@ def _scenario_key_result(name: str, scenario: dict[str, Any]) -> str:
         total_agents = meta.get("total_agents_queued", 0)
         trigger = meta.get("trigger", {})
         metric = trigger.get("metric", "") if trigger else ""
-        rtr_source = meta.get("rtr_threshold_source", "")
-        source_suffix = f" [{rtr_source}]" if rtr_source else ""
-        if metric == "rtr":
-            return f"{total_agents} agents -> RTR trigger{source_suffix}"
+        if metric == "rtr_collapse":
+            return f"{total_agents} agents -> RTR collapse"
+        elif metric == "max_duration":
+            return f"{total_agents} agents -> time limit"
         elif metric:
             return f"{total_agents} agents -> {metric} trigger"
         return f"{total_agents} agents"
@@ -1879,10 +1868,8 @@ def _scenario_key_result(name: str, scenario: dict[str, Any]) -> str:
         max_speed = meta.get("max_speed_achieved", 0)
         total_steps = meta.get("total_steps", 0)
         stopped = meta.get("stopped_by_threshold", False)
-        rtr_source = meta.get("rtr_threshold_source", "")
-        source_suffix = f" [{rtr_source}]" if rtr_source else ""
         if stopped:
-            return f"{max_speed}x max ({total_steps} steps, threshold){source_suffix}"
+            return f"{max_speed}x max ({total_steps} steps, threshold)"
         return f"{max_speed}x max ({total_steps} steps)"
 
     elif name == "duration_leak" or name.startswith("duration_leak_"):

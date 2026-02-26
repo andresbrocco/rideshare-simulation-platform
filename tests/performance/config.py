@@ -59,6 +59,9 @@ class ScenarioConfig:
     stress_rtr_threshold: float = (
         0.67  # RTR rolling avg below this triggers stop (0.67 ≈ 67% of target speed)
     )
+    stress_rtr_collapse_threshold: float = (
+        0.66  # RTR collapse: simulation can't sustain 2/3 of target speed
+    )
     stress_rtr_rolling_window_seconds: int = 10  # Separate window for RTR smoothing
 
     # Baseline calibration multipliers (for dynamic stop-condition thresholds)

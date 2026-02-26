@@ -185,7 +185,7 @@ class ReportGenerator:
                 if health_thresholds:
                     lines.extend(
                         [
-                            "#### Derived Stop-Condition Thresholds",
+                            "#### Baseline Health Latency Calibration",
                             "",
                             "| Service | Baseline p95 (ms) | Degraded Threshold | "
                             "Unhealthy Threshold |",
@@ -215,13 +215,16 @@ class ReportGenerator:
             total_agents = meta.get("total_agents_queued", 0)
             batch_count = meta.get("batch_count", 0)
             trigger = meta.get("trigger", {})
-            rtr_source = meta.get("rtr_threshold_source", "")
             trigger_str = ""
             if trigger:
                 metric = trigger.get("metric", "")
                 value = trigger.get("value", 0)
-                source_tag = f" [{rtr_source}]" if metric == "rtr" and rtr_source else ""
-                trigger_str = f"Stopped by **{metric}** at {value:.2f}{source_tag}"
+                if metric == "rtr_collapse":
+                    trigger_str = f"Stopped by **RTR collapse** at {value:.4f}"
+                elif metric == "max_duration":
+                    trigger_str = f"Stopped by **time limit** ({value:.0f}s)"
+                else:
+                    trigger_str = f"Stopped by **{metric}** at {value:.2f}"
 
             lines.extend(
                 [
@@ -767,13 +770,16 @@ class ReportGenerator:
             total = meta.get("total_agents_queued", 0)
             batches = meta.get("batch_count", 0)
             trigger = meta.get("trigger", {})
-            rtr_source = meta.get("rtr_threshold_source", "")
             trigger_str = ""
             if trigger:
                 metric = trigger.get("metric", "")
                 value = trigger.get("value", 0)
-                source_tag = f" [{rtr_source}]" if metric == "rtr" and rtr_source else ""
-                trigger_str = f" Stopped by <strong>{metric}</strong> at {value:.2f}.{source_tag}"
+                if metric == "rtr_collapse":
+                    trigger_str = f" Stopped by <strong>RTR collapse</strong> at {value:.4f}."
+                elif metric == "max_duration":
+                    trigger_str = f" Stopped by <strong>time limit</strong> ({value:.0f}s)."
+                else:
+                    trigger_str = f" Stopped by <strong>{metric}</strong> at {value:.2f}."
             html += f"<p><strong>{total} agents</strong> in {batches} batches over {_fmt_duration(duration)}.{trigger_str}</p>\n"
 
             # Embed key stress charts

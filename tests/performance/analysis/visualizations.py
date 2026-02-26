@@ -12,7 +12,6 @@ from plotly.subplots import make_subplots
 from ..config import CONTAINER_CONFIG
 from .findings import SaturationFamily
 from .statistics import (
-    _usl_model,
     calculate_all_container_stats,
     calculate_all_health_stats,
 )
@@ -762,7 +761,9 @@ class ChartGenerator:
 
         metadata = stress_scenario.get("metadata", {})
         total_agents = metadata.get("total_agents_queued", 0)
-        rtr_threshold = stress_scenario.get("scenario_params", {}).get("rtr_threshold", 1.5)
+        rtr_threshold = stress_scenario.get("scenario_params", {}).get(
+            "rtr_collapse_threshold", 0.66
+        )
 
         first_ts = samples[0]["timestamp"]
 
@@ -821,7 +822,7 @@ class ChartGenerator:
             y=rtr_threshold,
             line_dash="dash",
             line_color="darkred",
-            annotation_text=f"{rtr_threshold} threshold",
+            annotation_text=f"{rtr_threshold} collapse threshold",
         )
 
         fig.update_layout(
@@ -919,9 +920,11 @@ class ChartGenerator:
         if not step_results or not samples:
             return []
 
-        rtr_threshold = speed_scenario.get("scenario_params", {}).get("rtr_threshold", 1.5)
+        rtr_threshold = speed_scenario.get("scenario_params", {}).get(
+            "rtr_collapse_threshold", 0.66
+        )
         if rtr_threshold == 0:
-            rtr_threshold = 1.5
+            rtr_threshold = 0.66
 
         # Partition samples by step and compute mean RTR
         step_labels: list[str] = []
@@ -976,7 +979,7 @@ class ChartGenerator:
             y=rtr_threshold,
             line_dash="dash",
             line_color="darkred",
-            annotation_text=f"{rtr_threshold} threshold",
+            annotation_text=f"{rtr_threshold} collapse threshold",
         )
 
         y_max = max(rtr_means) * 1.3 if rtr_means else 1.5
@@ -1258,27 +1261,7 @@ class ChartGenerator:
 
             title_parts = [f"Saturation Curve @ {curve.speed_multiplier}x"]
 
-            # USL model prediction line
-            if curve.usl_fit is not None:
-                import numpy as np_local
-
-                n_range = np_local.linspace(max(min(x_obs), 0.1), max(x_obs) * 1.2, 200)
-                y_pred = _usl_model(
-                    n_range,
-                    curve.usl_fit.lambda_param,
-                    curve.usl_fit.sigma_param,
-                    curve.usl_fit.kappa_param,
-                )
-                fig.add_trace(
-                    go.Scatter(
-                        x=n_range.tolist(),
-                        y=y_pred.tolist(),
-                        mode="lines",
-                        name=f"USL Model (R\u00b2={curve.usl_fit.r_squared:.3f})",
-                        line={"color": color, "dash": "dash"},
-                    )
-                )
-                title_parts.append(f"(R\u00b2={curve.usl_fit.r_squared:.3f})")
+            # USL model prediction line (disabled — USL fitting deferred)
 
             # Knee point annotation
             if curve.knee_point is not None:
@@ -1323,26 +1306,7 @@ class ChartGenerator:
                     )
                 )
 
-                if curve.usl_fit is not None:
-                    import numpy as np_local
-
-                    n_range = np_local.linspace(max(min(x_obs), 0.1), max(x_obs) * 1.2, 200)
-                    y_pred = _usl_model(
-                        n_range,
-                        curve.usl_fit.lambda_param,
-                        curve.usl_fit.sigma_param,
-                        curve.usl_fit.kappa_param,
-                    )
-                    fig.add_trace(
-                        go.Scatter(
-                            x=n_range.tolist(),
-                            y=y_pred.tolist(),
-                            mode="lines",
-                            name=f"{curve.speed_multiplier}x USL",
-                            line={"color": color, "dash": "dash"},
-                            legendgroup=f"speed_{curve.speed_multiplier}",
-                        )
-                    )
+                # USL model overlay (disabled — USL fitting deferred)
 
                 if curve.knee_point is not None:
                     fig.add_vline(

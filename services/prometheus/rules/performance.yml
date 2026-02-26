@@ -5,15 +5,15 @@ groups:
       # --- Individual headroom components (0-1, higher = healthier) ---
 
       - record: rideshare:performance:kafka_lag_headroom
-        expr: clamp(1 - (sum(kafka_consumergroup_lag) or vector(0)) / 10000, 0, 1)
+        expr: clamp(1 - (sum(kafka_consumergroup_lag) or vector(0)) / 18758, 0, 1)
 
       - record: rideshare:performance:simpy_queue_headroom
-        expr: clamp(1 - (max(simulation_simpy_events) or vector(0)) / 500, 0, 1)
+        expr: clamp(1 - (max(simulation_simpy_events) or vector(0)) / 24096, 0, 1)
 
       - record: rideshare:performance:cpu_headroom
         expr: >-
           clamp(
-            1 - (max by() (rate(container_cpu_usage_seconds_total{name=~"rideshare.*"}[30s]) * 100) or vector(0)) / 85,
+            1 - (max by() (rate(container_cpu_usage_seconds_total{name=~"rideshare.*"}[1m]) * 100) or vector(0)) / 114,
             0, 1
           )
 
@@ -21,20 +21,20 @@ groups:
         expr: >-
           clamp(
             1 - (max by() (container_memory_working_set_bytes{name=~"rideshare.*"}
-              / (container_spec_memory_limit_bytes{name=~"rideshare.*"} > 0) * 100) or vector(0)) / 85,
+              / (container_spec_memory_limit_bytes{name=~"rideshare.*"} > 0) * 100) or vector(0)) / 88,
             0, 1
           )
 
       - record: rideshare:performance:consumption_ratio
         expr: >-
           clamp(
-            (sum(rate(stream_processor_messages_consumed_total[30s])) or vector(0))
-            / clamp_min(sum(rate(simulation_events_total[30s])) or vector(0.1), 0.1),
+            (sum(rate(stream_processor_messages_consumed_total[1m])) or vector(0))
+            / clamp_min(sum(rate(simulation_events_total[1m])) or vector(0.1), 0.1),
             0, 1
           )
 
       - record: rideshare:performance:rtr_headroom
-        expr: clamp(simulation_real_time_ratio or vector(0), 0, 1)
+        expr: clamp(max(simulation_real_time_ratio) or vector(0), 0, 1)
 
   - name: rideshare_performance_composite
     interval: 15s

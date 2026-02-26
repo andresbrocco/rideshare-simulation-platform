@@ -83,9 +83,45 @@ class ThresholdTrigger:
     """Records which container/metric triggered the threshold stop."""
 
     container: str
-    metric: str  # "memory", "cpu", "health_latency"
+    metric: str  # "rtr_collapse", "max_duration"
     value: float
     threshold: float
+
+
+@dataclass
+class PeakTracker:
+    """Tracks running maximum values across all samples for divisor computation."""
+
+    kafka_consumer_lag: float = 0.0
+    simpy_event_queue: float = 0.0
+    worst_container_cpu_percent: float = 0.0
+    worst_container_memory_percent: float = 0.0
+
+    def update_from_sample(self, sample: dict[str, Any]) -> None:
+        """Update peaks from a collected sample."""
+        lag = sample.get("kafka_consumer_lag")
+        if lag is not None and isinstance(lag, (int, float)):
+            self.kafka_consumer_lag = max(self.kafka_consumer_lag, float(lag))
+
+        queue = sample.get("simpy_event_queue")
+        if queue is not None and isinstance(queue, (int, float)):
+            self.simpy_event_queue = max(self.simpy_event_queue, float(queue))
+
+        containers = sample.get("containers", {})
+        for container_data in containers.values():
+            cpu = container_data.get("cpu_percent", 0.0)
+            mem = container_data.get("memory_percent", 0.0)
+            self.worst_container_cpu_percent = max(self.worst_container_cpu_percent, cpu)
+            self.worst_container_memory_percent = max(self.worst_container_memory_percent, mem)
+
+    def to_snapshot(self) -> dict[str, Any]:
+        """Convert to failure_snapshot dict (compatible with _compute_performance_index_thresholds)."""
+        return {
+            "kafka_consumer_lag": self.kafka_consumer_lag or None,
+            "simpy_event_queue": self.simpy_event_queue or None,
+            "worst_container_cpu_percent": self.worst_container_cpu_percent or None,
+            "worst_container_memory_percent": self.worst_container_memory_percent or None,
+        }
 
 
 class StressTestScenario(BaseScenario):
@@ -116,13 +152,17 @@ class StressTestScenario(BaseScenario):
     ) -> None:
         super().__init__(*args, **kwargs)
         self._baseline_calibration = baseline_calibration
-        # Compute effective RTR threshold: prefer baseline-derived, else config fallback
+        # RTR collapse threshold — the only RTR-based stop condition
+        self._rtr_collapse_threshold = self.config.scenarios.stress_rtr_collapse_threshold
+        # Keep baseline RTR info for observability metadata
         if baseline_calibration is not None and baseline_calibration.rtr_threshold is not None:
-            self._effective_rtr_threshold = baseline_calibration.rtr_threshold
-            self._rtr_threshold_source = baseline_calibration.rtr_threshold_source
+            self._baseline_rtr_threshold = baseline_calibration.rtr_threshold
+            self._baseline_rtr_source = baseline_calibration.rtr_threshold_source
         else:
-            self._effective_rtr_threshold = self.config.scenarios.stress_rtr_threshold
-            self._rtr_threshold_source = "config-fallback"
+            self._baseline_rtr_threshold = self.config.scenarios.stress_rtr_threshold
+            self._baseline_rtr_source = "config-fallback"
+        # Peak tracker for failure snapshot divisor computation
+        self._peak_tracker = PeakTracker()
         # Calculate rolling window sample count from config
         # e.g., 10s window / 2s interval = 5 samples
         self._rolling_window_samples = int(
@@ -160,25 +200,18 @@ class StressTestScenario(BaseScenario):
 
     @property
     def description(self) -> str:
+        max_duration = self.config.scenarios.stress_max_duration_minutes
         return (
-            f"Stress test: spawn agents until {self.params['global_cpu_threshold_percent']}% "
-            f"global CPU, {self.params['memory_threshold_percent']}% memory, "
-            f"RTR <= {self.params['rtr_threshold']} [{self.params['rtr_threshold_source']}], "
-            f"or health latency [{self.params['health_threshold_source']}] reached"
+            f"Stress test: spawn agents until RTR collapse "
+            f"(<= {self._rtr_collapse_threshold}), OOM, container death, "
+            f"or {max_duration}m max"
         )
 
     @property
     def params(self) -> dict[str, Any]:
         return {
-            "global_cpu_threshold_percent": self.config.scenarios.stress_global_cpu_threshold_percent,
-            "memory_threshold_percent": self.config.scenarios.stress_memory_threshold_percent,
-            "rtr_threshold": self._effective_rtr_threshold,
-            "rtr_threshold_source": self._rtr_threshold_source,
-            "health_threshold_source": (
-                self._baseline_calibration.health_threshold_source
-                if self._baseline_calibration is not None
-                else "api-reported"
-            ),
+            "rtr_collapse_threshold": self._rtr_collapse_threshold,
+            "baseline_rtr_threshold": self._baseline_rtr_threshold,
             "rolling_window_seconds": self.config.scenarios.stress_rolling_window_seconds,
             "rolling_window_samples": self._rolling_window_samples,
             "spawn_batch_size": self.config.scenarios.stress_spawn_batch_size,
@@ -250,8 +283,9 @@ class StressTestScenario(BaseScenario):
             trigger = self._check_thresholds()
             if trigger:
                 console.print(
-                    f"\n[red bold]THRESHOLD REACHED: {trigger.container} "
-                    f"{trigger.metric}={trigger.value:.1f}% >= {trigger.threshold}%[/red bold]"
+                    f"\n[red bold]THRESHOLD REACHED: "
+                    f"{trigger.metric} = {trigger.value:.4f} "
+                    f"(<= {trigger.threshold})[/red bold]"
                 )
                 self._trigger = trigger
                 break
@@ -282,6 +316,14 @@ class StressTestScenario(BaseScenario):
         elapsed = time.time() - start_time
 
         if not self._trigger:
+            # Capture peak-tracked snapshot for timeout (no trigger fired)
+            self._metadata["failure_snapshot"] = {
+                **self._peak_tracker.to_snapshot(),
+                "trigger_container": "__timeout__",
+                "trigger_metric": "max_duration",
+                "trigger_value": round(elapsed, 2),
+                "trigger_threshold": max_duration,
+            }
             console.print(
                 f"\n[yellow]Max duration reached without hitting threshold "
                 f"({elapsed:.1f}s, {total_agents} agents)[/yellow]"
@@ -319,11 +361,6 @@ class StressTestScenario(BaseScenario):
         self._metadata["duration_seconds"] = elapsed
         self._metadata["batch_count"] = batch_count
         self._metadata["available_cores"] = self._available_cores
-        self._metadata["global_cpu_threshold"] = (
-            (self.config.scenarios.stress_global_cpu_threshold_percent / 100)
-            * self._available_cores
-            * 100
-        )
         self._metadata["saturation_curve_data"] = True
         # Active trips and throughput peaks from Prometheus data
         active_trips_values = [s["active_trips"] for s in self._samples if "active_trips" in s]
@@ -338,13 +375,10 @@ class StressTestScenario(BaseScenario):
         self._metadata["throughput_peak_events_per_sec"] = (
             max(throughput_values) if throughput_values else None
         )
-        self._metadata["rtr_threshold_used"] = self._effective_rtr_threshold
-        self._metadata["rtr_threshold_source"] = self._rtr_threshold_source
-        self._metadata["health_threshold_source"] = (
-            self._baseline_calibration.health_threshold_source
-            if self._baseline_calibration is not None
-            else "api-reported"
-        )
+        self._metadata["rtr_collapse_threshold"] = self._rtr_collapse_threshold
+        self._metadata["baseline_rtr_threshold"] = self._baseline_rtr_threshold
+        self._metadata["baseline_rtr_source"] = self._baseline_rtr_source
+        self._metadata["peak_tracker"] = self._peak_tracker.to_snapshot()
 
         console.print(
             f"[green]Stress test complete: {batch_count} batches, "
@@ -359,6 +393,9 @@ class StressTestScenario(BaseScenario):
         """
         # Use base class sample collection
         sample = self._collect_sample()
+
+        # Update peak tracker for failure snapshot divisor computation
+        self._peak_tracker.update_from_sample(sample)
 
         # Update rolling stats and peak values for each container
         rolling_averages: dict[str, dict[str, float]] = {}
@@ -444,121 +481,41 @@ class StressTestScenario(BaseScenario):
         return sample
 
     def _capture_failure_snapshot(self, trigger: ThresholdTrigger) -> None:
-        """Capture a snapshot of current metrics at the point of threshold failure.
+        """Capture peak-tracked metrics as the failure snapshot.
 
-        Reads the last collected sample and writes a snapshot dict into
-        ``self._metadata["failure_snapshot"]`` containing Kafka lag, SimPy queue
-        size, worst-container resource usage, and trigger details.
+        Uses peak values observed across ALL samples (not just the last sample)
+        so that Prometheus rule divisors reflect true saturation points.
 
         Args:
             trigger: The threshold trigger that caused the stop.
         """
-        snapshot: dict[str, Any] = {
-            "kafka_consumer_lag": None,
-            "simpy_event_queue": None,
-            "worst_container_cpu_percent": None,
-            "worst_container_memory_percent": None,
-            "trigger_container": trigger.container,
-            "trigger_metric": trigger.metric,
-            "trigger_value": round(trigger.value, 2),
-            "trigger_threshold": trigger.threshold,
-        }
-
-        if self._samples:
-            last_sample = self._samples[-1]
-            snapshot["kafka_consumer_lag"] = last_sample.get("kafka_consumer_lag")
-            snapshot["simpy_event_queue"] = last_sample.get("simpy_event_queue")
-
-            containers = last_sample.get("containers", {})
-            if containers:
-                cpu_values = [c.get("cpu_percent", 0.0) for c in containers.values()]
-                mem_values = [c.get("memory_percent", 0.0) for c in containers.values()]
-                snapshot["worst_container_cpu_percent"] = max(cpu_values)
-                snapshot["worst_container_memory_percent"] = max(mem_values)
-
+        snapshot = self._peak_tracker.to_snapshot()
+        snapshot["trigger_container"] = trigger.container
+        snapshot["trigger_metric"] = trigger.metric
+        snapshot["trigger_value"] = round(trigger.value, 2)
+        snapshot["trigger_threshold"] = trigger.threshold
         self._metadata["failure_snapshot"] = snapshot
 
     def _check_thresholds(self) -> ThresholdTrigger | None:
-        """Check if global CPU or any container's memory exceeds thresholds.
+        """Check if RTR has collapsed (simulation frozen).
 
-        Global CPU threshold: stops when the sum of all container CPU usage
-        reaches threshold_pct% of total available cores (e.g., 90% of 7 cores
-        = 630% aggregate CPU).
-
-        Per-container memory threshold: unchanged (90% of container limit).
+        OOM and container death are handled by the base class.
+        Time limit is handled by the main loop.
 
         Returns:
-            ThresholdTrigger if threshold exceeded, None otherwise.
+            ThresholdTrigger if RTR collapsed, None otherwise.
         """
-        memory_threshold = self.config.scenarios.stress_memory_threshold_percent
-
-        # Check per-container memory thresholds
-        for container_name, stats in self._rolling_stats.items():
-            memory_avg = stats.memory_percent.average
-            if memory_avg >= memory_threshold:
-                trigger = ThresholdTrigger(
-                    container=container_name,
-                    metric="memory",
-                    value=memory_avg,
-                    threshold=memory_threshold,
-                )
-                self._capture_failure_snapshot(trigger)
-                return trigger
-
-        # Check global CPU threshold
-        global_threshold_pct = self.config.scenarios.stress_global_cpu_threshold_percent
-        global_cpu_limit = (global_threshold_pct / 100) * self._available_cores * 100
-        global_cpu_avg = self._global_cpu_rolling.average
-        if global_cpu_avg >= global_cpu_limit:
-            trigger = ThresholdTrigger(
-                container="__global__",
-                metric="global_cpu",
-                value=global_cpu_avg,
-                threshold=global_cpu_limit,
-            )
-            self._capture_failure_snapshot(trigger)
-            return trigger
-
-        # Check RTR (simulation lag) threshold
         if self._rtr_rolling.values:
             rtr_avg = self._rtr_rolling.average
-            if rtr_avg <= self._effective_rtr_threshold:
+            if rtr_avg <= self._rtr_collapse_threshold:
                 trigger = ThresholdTrigger(
                     container="__simulation__",
-                    metric="rtr",
+                    metric="rtr_collapse",
                     value=rtr_avg,
-                    threshold=self._effective_rtr_threshold,
+                    threshold=self._rtr_collapse_threshold,
                 )
                 self._capture_failure_snapshot(trigger)
                 return trigger
-
-        # Check health latency thresholds for critical services (Priority 4)
-        if self.config.scenarios.health_check_enabled and self._samples:
-            last_sample = self._samples[-1]
-            health_data = last_sample.get("health", {})
-            for svc_name in self.config.scenarios.health_critical_services:
-                if svc_name not in self._health_rolling_stats:
-                    continue
-                rolling_avg = self._health_rolling_stats[svc_name].latency_ms.average
-                # Prefer baseline-derived threshold, fall back to API-reported value
-                threshold_unhealthy: float | None = None
-                if self._baseline_calibration is not None:
-                    threshold_unhealthy = self._baseline_calibration.health_thresholds.get(
-                        svc_name, {}
-                    ).get("unhealthy")
-                if threshold_unhealthy is None:
-                    svc_health = health_data.get(svc_name, {})
-                    threshold_unhealthy = svc_health.get("threshold_unhealthy")
-                if threshold_unhealthy is not None and rolling_avg >= threshold_unhealthy:
-                    trigger = ThresholdTrigger(
-                        container=svc_name,
-                        metric="health_latency",
-                        value=rolling_avg,
-                        threshold=threshold_unhealthy,
-                    )
-                    self._capture_failure_snapshot(trigger)
-                    return trigger
-
         return None
 
     def _check_saturation_stop(self) -> ThresholdTrigger | None:

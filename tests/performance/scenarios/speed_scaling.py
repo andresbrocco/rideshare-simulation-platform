@@ -8,8 +8,7 @@ from rich.console import Console
 from ..analysis.statistics import BaselineCalibration
 from .base import BaseScenario
 from .stress_test import (
-    ContainerRollingStats,
-    HealthRollingStats,
+    PeakTracker,
     RollingStats,
     ThresholdTrigger,
 )
@@ -56,13 +55,15 @@ class SpeedScalingScenario(BaseScenario):
         """
         super().__init__(*args, **kwargs)
         self._baseline_calibration = baseline_calibration
-        # Compute effective RTR threshold: prefer baseline-derived, else config fallback
+        # RTR collapse threshold — the only RTR-based stop condition
+        self._rtr_collapse_threshold = self.config.scenarios.stress_rtr_collapse_threshold
+        # Keep baseline RTR info for observability metadata
         if baseline_calibration is not None and baseline_calibration.rtr_threshold is not None:
-            self._effective_rtr_threshold = baseline_calibration.rtr_threshold
-            self._rtr_threshold_source = baseline_calibration.rtr_threshold_source
+            self._baseline_rtr_threshold = baseline_calibration.rtr_threshold
+            self._baseline_rtr_source = baseline_calibration.rtr_threshold_source
         else:
-            self._effective_rtr_threshold = self.config.scenarios.stress_rtr_threshold
-            self._rtr_threshold_source = "config-fallback"
+            self._baseline_rtr_threshold = self.config.scenarios.stress_rtr_threshold
+            self._baseline_rtr_source = "config-fallback"
         self.base_agent_count = agent_count
         self.step_duration_minutes = self.config.scenarios.speed_scaling_step_duration_minutes
         self.max_multiplier = self.config.scenarios.speed_scaling_max_multiplier
@@ -134,13 +135,9 @@ class SpeedScalingScenario(BaseScenario):
         self._metadata["total_steps"] = len(self._step_results)
         self._metadata["max_speed_achieved"] = max_speed
         self._metadata["stopped_by_threshold"] = self._stopped_by_threshold
-        self._metadata["rtr_threshold_used"] = self._effective_rtr_threshold
-        self._metadata["rtr_threshold_source"] = self._rtr_threshold_source
-        self._metadata["health_threshold_source"] = (
-            self._baseline_calibration.health_threshold_source
-            if self._baseline_calibration is not None
-            else "api-reported"
-        )
+        self._metadata["rtr_collapse_threshold"] = self._rtr_collapse_threshold
+        self._metadata["baseline_rtr_threshold"] = self._baseline_rtr_threshold
+        self._metadata["baseline_rtr_source"] = self._baseline_rtr_source
 
         console.print(
             f"\n[green]Speed scaling complete: {len(self._step_results)} steps, "
@@ -224,8 +221,9 @@ class SpeedScalingScenario(BaseScenario):
 
         if trigger:
             console.print(
-                f"[red bold]THRESHOLD REACHED: {trigger.container} "
-                f"{trigger.metric}={trigger.value:.1f}% >= {trigger.threshold}%[/red bold]"
+                f"[red bold]THRESHOLD REACHED: "
+                f"{trigger.metric} = {trigger.value:.4f} "
+                f"(<= {trigger.threshold})[/red bold]"
             )
 
         # Stop simulation
@@ -299,109 +297,49 @@ class SpeedScalingScenario(BaseScenario):
     def _capture_step_failure_snapshot(
         self, trigger: ThresholdTrigger, step_samples: list[dict[str, Any]]
     ) -> dict[str, Any]:
-        """Build a snapshot dict of current metrics at the point of step threshold failure.
+        """Build a snapshot dict using peak values from step samples.
+
+        Uses PeakTracker to compute peaks across all step samples (not just
+        the last sample) so that divisors reflect true saturation points.
 
         Args:
             trigger: The threshold trigger that caused the step to stop.
             step_samples: Samples collected during this step.
 
         Returns:
-            Dict containing Kafka lag, SimPy queue size, worst-container resource
-            usage, and trigger details.
+            Dict containing peak Kafka lag, SimPy queue size, worst-container
+            resource usage, and trigger details.
         """
-        snapshot: dict[str, Any] = {
-            "kafka_consumer_lag": None,
-            "simpy_event_queue": None,
-            "worst_container_cpu_percent": None,
-            "worst_container_memory_percent": None,
-            "trigger_container": trigger.container,
-            "trigger_metric": trigger.metric,
-            "trigger_value": round(trigger.value, 2),
-            "trigger_threshold": trigger.threshold,
-        }
+        peak_tracker = PeakTracker()
+        for sample in step_samples:
+            peak_tracker.update_from_sample(sample)
 
-        if step_samples:
-            last_sample = step_samples[-1]
-            snapshot["kafka_consumer_lag"] = last_sample.get("kafka_consumer_lag")
-            snapshot["simpy_event_queue"] = last_sample.get("simpy_event_queue")
-
-            containers = last_sample.get("containers", {})
-            if containers:
-                cpu_values = [c.get("cpu_percent", 0.0) for c in containers.values()]
-                mem_values = [c.get("memory_percent", 0.0) for c in containers.values()]
-                snapshot["worst_container_cpu_percent"] = max(cpu_values)
-                snapshot["worst_container_memory_percent"] = max(mem_values)
-
+        snapshot = peak_tracker.to_snapshot()
+        snapshot["trigger_container"] = trigger.container
+        snapshot["trigger_metric"] = trigger.metric
+        snapshot["trigger_value"] = round(trigger.value, 2)
+        snapshot["trigger_threshold"] = trigger.threshold
         return snapshot
 
     def _check_step_thresholds(self, step_samples: list[dict[str, Any]]) -> ThresholdTrigger | None:
-        """Check if global CPU or any container's memory exceeded thresholds.
+        """Check if RTR collapsed during this step.
 
-        Uses rolling stats from step samples. Global CPU threshold stops when
-        the sum of all container CPU reaches threshold_pct% of available cores.
-        Per-container memory threshold remains unchanged.
+        OOM and container death are handled by the base class.
 
         Args:
             step_samples: Samples collected during this step.
 
         Returns:
-            ThresholdTrigger if threshold exceeded, None otherwise.
+            ThresholdTrigger if RTR collapsed, None otherwise.
         """
         if not step_samples:
             return None
-
-        memory_threshold = self.config.scenarios.stress_memory_threshold_percent
 
         rolling_window_samples = int(
             self.config.scenarios.stress_rolling_window_seconds
             / self.config.sampling.interval_seconds
         )
 
-        # Build rolling stats from step samples (memory per-container + global CPU)
-        container_stats: dict[str, ContainerRollingStats] = {}
-        global_cpu_rolling = RollingStats.with_window(rolling_window_samples)
-
-        for sample in step_samples:
-            # Per-container memory rolling stats
-            for container_name, container_data in sample.get("containers", {}).items():
-                if container_name not in container_stats:
-                    container_stats[container_name] = ContainerRollingStats(
-                        memory_percent=RollingStats.with_window(rolling_window_samples),
-                        cpu_percent=RollingStats.with_window(rolling_window_samples),
-                    )
-
-                stats = container_stats[container_name]
-                stats.memory_percent.add(container_data.get("memory_percent", 0.0))
-                stats.cpu_percent.add(container_data.get("cpu_percent", 0.0))
-
-            # Global CPU rolling stats
-            global_cpu = sample.get("global_cpu_percent", 0.0)
-            global_cpu_rolling.add(global_cpu)
-
-        # Check per-container memory thresholds
-        for container_name, stats in container_stats.items():
-            memory_avg = stats.memory_percent.average
-            if memory_avg >= memory_threshold:
-                return ThresholdTrigger(
-                    container=container_name,
-                    metric="memory",
-                    value=memory_avg,
-                    threshold=memory_threshold,
-                )
-
-        # Check global CPU threshold
-        global_threshold_pct = self.config.scenarios.stress_global_cpu_threshold_percent
-        global_cpu_limit = (global_threshold_pct / 100) * self._available_cores * 100
-        global_cpu_avg = global_cpu_rolling.average
-        if global_cpu_avg >= global_cpu_limit:
-            return ThresholdTrigger(
-                container="__global__",
-                metric="global_cpu",
-                value=global_cpu_avg,
-                threshold=global_cpu_limit,
-            )
-
-        # Check RTR (simulation lag) threshold
         rtr_rolling = RollingStats.with_window(rolling_window_samples)
         for sample in step_samples:
             rtr_data = sample.get("rtr")
@@ -410,53 +348,12 @@ class SpeedScalingScenario(BaseScenario):
 
         if rtr_rolling.values:
             rtr_avg = rtr_rolling.average
-            if rtr_avg <= self._effective_rtr_threshold:
+            if rtr_avg <= self._rtr_collapse_threshold:
                 return ThresholdTrigger(
                     container="__simulation__",
-                    metric="rtr",
+                    metric="rtr_collapse",
                     value=rtr_avg,
-                    threshold=self._effective_rtr_threshold,
+                    threshold=self._rtr_collapse_threshold,
                 )
-
-        # Check health latency thresholds for critical services
-        if self.config.scenarios.health_check_enabled:
-            health_stats: dict[str, HealthRollingStats] = {}
-            for sample in step_samples:
-                for svc_name, svc_data in sample.get("health", {}).items():
-                    latency = svc_data.get("latency_ms")
-                    if latency is not None and isinstance(latency, (int, float)):
-                        if svc_name not in health_stats:
-                            health_stats[svc_name] = HealthRollingStats.with_window(
-                                rolling_window_samples
-                            )
-                        health_stats[svc_name].latency_ms.add(latency)
-
-            # Get threshold values from the last sample that has health data
-            last_health: dict[str, dict[str, Any]] = {}
-            for sample in reversed(step_samples):
-                if "health" in sample:
-                    last_health = sample["health"]
-                    break
-
-            for svc_name in self.config.scenarios.health_critical_services:
-                if svc_name not in health_stats:
-                    continue
-                rolling_avg = health_stats[svc_name].latency_ms.average
-                # Prefer baseline-derived threshold, fall back to API-reported value
-                threshold_unhealthy: float | None = None
-                if self._baseline_calibration is not None:
-                    threshold_unhealthy = self._baseline_calibration.health_thresholds.get(
-                        svc_name, {}
-                    ).get("unhealthy")
-                if threshold_unhealthy is None:
-                    svc_health = last_health.get(svc_name, {})
-                    threshold_unhealthy = svc_health.get("threshold_unhealthy")
-                if threshold_unhealthy is not None and rolling_avg >= threshold_unhealthy:
-                    return ThresholdTrigger(
-                        container=svc_name,
-                        metric="health_latency",
-                        value=rolling_avg,
-                        threshold=threshold_unhealthy,
-                    )
 
         return None
