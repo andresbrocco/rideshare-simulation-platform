@@ -3,10 +3,6 @@
 from dataclasses import dataclass, field
 from typing import Any
 
-# Memory usage below this percentage is treated as baseline (100% headroom).
-# Headroom decreases linearly from this baseline to the saturation threshold.
-MEMORY_BASELINE_PERCENT: float = 66.66
-
 
 @dataclass
 class ContainerHealth:
@@ -185,13 +181,15 @@ class SuggestedThresholds:
 
 @dataclass
 class PerformanceIndexThresholds:
-    """Empirically-derived divisors for the Prometheus performance index recording rules."""
+    """Empirically-derived divisors for the Prometheus performance index recording rules.
+
+    Only Kafka lag and SimPy queue saturation are calibrated here.
+    CPU and memory headroom use self-contained PromQL formulas
+    (host cores via cAdvisor and container memory limits respectively).
+    """
 
     kafka_lag_saturation: int
     simpy_queue_saturation: int
-    global_cpu_saturation_percent: float
-    memory_saturation_percent: float
-    memory_pressure_range: float
     source_scenario: str
     source_trigger: str
 
@@ -200,9 +198,6 @@ class PerformanceIndexThresholds:
         return {
             "kafka_lag_saturation": self.kafka_lag_saturation,
             "simpy_queue_saturation": self.simpy_queue_saturation,
-            "global_cpu_saturation_percent": round(self.global_cpu_saturation_percent, 1),
-            "memory_saturation_percent": round(self.memory_saturation_percent, 1),
-            "memory_pressure_range": round(self.memory_pressure_range, 1),
             "source_scenario": self.source_scenario,
             "source_trigger": self.source_trigger,
         }

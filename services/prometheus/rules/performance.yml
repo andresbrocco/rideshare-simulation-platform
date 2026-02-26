@@ -13,28 +13,34 @@ groups:
       - record: rideshare:performance:cpu_headroom
         expr: >-
           clamp(
-            1 - (sum by() (rate(container_cpu_usage_seconds_total{name=~"rideshare.*"}[1m]) * 100) or vector(0)) / 114,
+            1 - (sum by() (rate(container_cpu_usage_seconds_total{name=~"rideshare.*"}[1m]) * 100) or vector(0))
+            / clamp_min(max(machine_cpu_cores) * 100, 100),
             0, 1
           )
 
       - record: rideshare:performance:memory_headroom
         expr: >-
           clamp(
-            1 - clamp_min((max by() (container_memory_working_set_bytes{name=~"rideshare.*"}
-              / (container_spec_memory_limit_bytes{name=~"rideshare.*"} > 0) * 100) or vector(0)) - 66.66, 0) / 21,
+            1 - (max by() (container_memory_working_set_bytes{name=~"rideshare.*"}
+              / (container_spec_memory_limit_bytes{name=~"rideshare.*"} > 0)) or vector(0)),
             0, 1
           )
 
       - record: rideshare:performance:consumption_ratio
         expr: >-
           clamp(
-            (sum(rate(stream_processor_messages_consumed_total[1m])) or vector(0))
-            / clamp_min(sum(rate(simulation_events_total[1m])) or vector(0.1), 0.1),
+            ((sum(rate(stream_processor_messages_consumed_total[1m])) or vector(0)) + 1)
+            / ((sum(rate(simulation_events_total[1m])) or vector(0)) + 1),
             0, 1
           )
 
       - record: rideshare:performance:rtr_headroom
-        expr: clamp(max(simulation_real_time_ratio) or vector(0), 0, 1)
+        expr: >-
+          (
+            clamp(max(simulation_real_time_ratio), 0, 1)
+            and on() (sum(rate(simulation_events_total[2m])) > 0)
+          )
+          or vector(1)
 
   - name: rideshare_performance_composite
     interval: 15s

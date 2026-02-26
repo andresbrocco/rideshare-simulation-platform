@@ -471,12 +471,9 @@ class ReportGenerator:
             f"{pit.source_scenario} ({pit.source_trigger}) |",
             f"| SimPy Event Queue Saturation | {pit.simpy_queue_saturation} | "
             f"{pit.source_scenario} ({pit.source_trigger}) |",
-            f"| Global CPU Saturation % (sum) | {pit.global_cpu_saturation_percent:.1f} | "
-            f"{pit.source_scenario} ({pit.source_trigger}) |",
-            f"| Memory Saturation % | {pit.memory_saturation_percent:.1f} | "
-            f"{pit.source_scenario} ({pit.source_trigger}) |",
-            f"| Memory Pressure Range % | {pit.memory_pressure_range:.1f} | "
-            f"{pit.source_scenario} ({pit.source_trigger}) |",
+            "",
+            "CPU and memory headroom use self-contained PromQL formulas "
+            "(host cores via cAdvisor and container memory limits respectively).",
             "",
         ]
         return lines

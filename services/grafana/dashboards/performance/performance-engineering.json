@@ -1203,7 +1203,7 @@
             "uid": "prometheus"
           },
           "expr": "rideshare:performance:cpu_headroom",
-          "legendFormat": "Total CPU Headroom",
+          "legendFormat": "CPU Headroom (% of host cores)",
           "refId": "C"
         },
         {
@@ -1212,7 +1212,7 @@
             "uid": "prometheus"
           },
           "expr": "rideshare:performance:memory_headroom",
-          "legendFormat": "Memory Pressure Headroom (above 66% baseline)",
+          "legendFormat": "Memory Headroom",
           "refId": "D"
         },
         {
