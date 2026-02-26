@@ -13,7 +13,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1g
+          memory: 1280m
           cpus: "1.5"
         reservations:
           cpus: "0.25"
@@ -28,7 +28,7 @@ services:
     environment:
       # JVM flags for ARM/Apple Silicon stability
       KAFKA_OPTS: "-XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35 -XX:+ExplicitGCInvokesConcurrent -Djava.security.auth.login.config=/tmp/kafka_jaas.conf"
-      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
+      KAFKA_HEAP_OPTS: "-Xms512m -Xmx1g"
 
       # Log retention - auto-delete since no consumers yet
       KAFKA_LOG_RETENTION_HOURS: 1

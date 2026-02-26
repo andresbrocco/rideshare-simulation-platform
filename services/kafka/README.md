@@ -191,7 +191,7 @@ docker compose -f infrastructure/docker/compose.yml start stream-processor
 | `kafka-init` fails with `Topic already exists` | Topics were manually created or kafka-init ran multiple times | This is expected behavior when using `--if-not-exists` flag (safe to ignore) |
 | `LEADER_NOT_AVAILABLE` error | Kafka broker starting up, metadata not ready | Wait 10-30 seconds for broker to complete initialization |
 | Topics not created after startup | `kafka-init` service failed or didn't run | Check `docker compose logs kafka-init`, ensure `secrets-init` completed successfully |
-| `OutOfMemoryError` | Kafka heap size too small for workload | Adjust `KAFKA_HEAP_OPTS` in compose.yml (default: `-Xms256m -Xmx512m`) |
+| `OutOfMemoryError` | Kafka heap size too small for workload | Adjust `KAFKA_HEAP_OPTS` in compose.yml (default: `-Xms512m -Xmx1g`) |
 | Consumer lag increasing | Producer rate exceeds consumer processing capacity | Scale consumers (increase partitions in `topics.yaml` and consumer instances), or optimize consumer logic |
 | `UnknownTopicOrPartitionException` | Topic doesn't exist or wrong topic name | Verify topic name with `kafka-topics --list`, check schema definitions in `schemas/kafka/` |
 

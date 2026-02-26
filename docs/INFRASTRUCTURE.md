@@ -279,7 +279,7 @@ Service URLs:
 ### Resource Limits (Docker)
 | Service | Memory Limit | CPU Limit |
 |---------|--------------|-----------|
-| kafka | 1g | 1.5 |
+| kafka | 1280m | 1.5 |
 | schema-registry | 512m | 0.5 |
 | redis | 512m | - |
 | osrm | 1g | - |

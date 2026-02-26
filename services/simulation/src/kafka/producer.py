@@ -120,11 +120,22 @@ class KafkaProducer:
                     topic, key=key, value=serialized, on_delivery=internal_callback
                 )
             except BufferError:
-                # Queue full - poll to make room and retry once
+                # Queue full - poll to drain delivered/timed-out messages, then retry.
                 self._producer.poll(1.0)
-                self._producer.produce(
-                    topic, key=key, value=serialized, on_delivery=internal_callback
-                )
+                try:
+                    self._producer.produce(
+                        topic, key=key, value=serialized, on_delivery=internal_callback
+                    )
+                except BufferError:
+                    # Still full — drop message rather than crash the SimPy process.
+                    logger.warning(
+                        "Kafka producer buffer full, dropping message on topic=%s key=%s",
+                        topic,
+                        key,
+                    )
+                    self._failed_deliveries.append(
+                        {"topic": topic, "key": key, "error": "BufferError: queue full"}
+                    )
 
             if critical:
                 self._producer.flush(timeout=5.0)
