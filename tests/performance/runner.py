@@ -21,6 +21,7 @@ from rich.console import Console
 from rich.table import Table
 
 from .analysis.findings import (
+    MEMORY_BASELINE_PERCENT,
     ContainerHealth,
     ContainerHealthAggregated,
     KeyMetrics,
@@ -601,12 +602,12 @@ def _compute_performance_index_thresholds(
     else:
         simpy_queue_saturation = 500
 
-    # CPU percent: worst-container value, minimum 50.0, default 85.0
-    raw_cpu = snapshot.get("worst_container_cpu_percent")
+    # Global CPU percent: sum of all container CPUs, minimum 100.0, default 200.0
+    raw_cpu = snapshot.get("global_cpu_percent")
     if raw_cpu is not None:
-        cpu_saturation_percent = max(50.0, float(raw_cpu))
+        global_cpu_saturation_percent = max(100.0, float(raw_cpu))
     else:
-        cpu_saturation_percent = 85.0
+        global_cpu_saturation_percent = 200.0
 
     # Memory percent: worst-container value, minimum 50.0, default 85.0
     raw_mem = snapshot.get("worst_container_memory_percent")
@@ -615,11 +616,16 @@ def _compute_performance_index_thresholds(
     else:
         memory_saturation_percent = 85.0
 
+    # Memory pressure range: headroom is computed from baseline to saturation.
+    # Anything below MEMORY_BASELINE_PERCENT is treated as 100% headroom.
+    memory_pressure_range = max(10.0, memory_saturation_percent - MEMORY_BASELINE_PERCENT)
+
     return PerformanceIndexThresholds(
         kafka_lag_saturation=kafka_lag_saturation,
         simpy_queue_saturation=simpy_queue_saturation,
-        cpu_saturation_percent=cpu_saturation_percent,
+        global_cpu_saturation_percent=global_cpu_saturation_percent,
         memory_saturation_percent=memory_saturation_percent,
+        memory_pressure_range=memory_pressure_range,
         source_scenario=source_scenario,
         source_trigger=source_trigger,
     )
@@ -677,25 +683,25 @@ def _update_performance_rules(
     # cpu_headroom: replace divisor after "/ <number>"
     new_content = re.sub(
         r"(cpu_headroom.*?/ )\d+(?:\.\d+)?",
-        rf"\g<1>{thresholds.cpu_saturation_percent:.0f}",
+        rf"\g<1>{thresholds.global_cpu_saturation_percent:.0f}",
         content,
         count=1,
         flags=re.DOTALL,
     )
     if new_content != content:
-        updates.append(f"cpu divisor -> {thresholds.cpu_saturation_percent:.0f}")
+        updates.append(f"cpu divisor -> {thresholds.global_cpu_saturation_percent:.0f}")
     content = new_content
 
     # memory_headroom: replace divisor after "/ <number>"
     new_content = re.sub(
         r"(memory_headroom.*?/ )\d+(?:\.\d+)?",
-        rf"\g<1>{thresholds.memory_saturation_percent:.0f}",
+        rf"\g<1>{thresholds.memory_pressure_range:.0f}",
         content,
         count=1,
         flags=re.DOTALL,
     )
     if new_content != content:
-        updates.append(f"memory divisor -> {thresholds.memory_saturation_percent:.0f}")
+        updates.append(f"memory divisor -> {thresholds.memory_pressure_range:.0f}")
     content = new_content
 
     if content == original:

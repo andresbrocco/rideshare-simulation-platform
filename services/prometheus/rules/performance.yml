@@ -13,15 +13,15 @@ groups:
       - record: rideshare:performance:cpu_headroom
         expr: >-
           clamp(
-            1 - (max by() (rate(container_cpu_usage_seconds_total{name=~"rideshare.*"}[1m]) * 100) or vector(0)) / 114,
+            1 - (sum by() (rate(container_cpu_usage_seconds_total{name=~"rideshare.*"}[1m]) * 100) or vector(0)) / 114,
             0, 1
           )
 
       - record: rideshare:performance:memory_headroom
         expr: >-
           clamp(
-            1 - (max by() (container_memory_working_set_bytes{name=~"rideshare.*"}
-              / (container_spec_memory_limit_bytes{name=~"rideshare.*"} > 0) * 100) or vector(0)) / 88,
+            1 - clamp_min((max by() (container_memory_working_set_bytes{name=~"rideshare.*"}
+              / (container_spec_memory_limit_bytes{name=~"rideshare.*"} > 0) * 100) or vector(0)) - 66.66, 0) / 21,
             0, 1
           )
 

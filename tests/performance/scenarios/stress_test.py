@@ -94,7 +94,7 @@ class PeakTracker:
 
     kafka_consumer_lag: float = 0.0
     simpy_event_queue: float = 0.0
-    worst_container_cpu_percent: float = 0.0
+    global_cpu_percent: float = 0.0
     worst_container_memory_percent: float = 0.0
 
     def update_from_sample(self, sample: dict[str, Any]) -> None:
@@ -107,11 +107,15 @@ class PeakTracker:
         if queue is not None and isinstance(queue, (int, float)):
             self.simpy_event_queue = max(self.simpy_event_queue, float(queue))
 
+        # Global CPU: sum of all container CPUs (already computed in base.py)
+        global_cpu = sample.get("global_cpu_percent")
+        if global_cpu is not None and isinstance(global_cpu, (int, float)):
+            self.global_cpu_percent = max(self.global_cpu_percent, float(global_cpu))
+
+        # Memory: worst single container (baseline-aware headroom is applied in PromQL)
         containers = sample.get("containers", {})
         for container_data in containers.values():
-            cpu = container_data.get("cpu_percent", 0.0)
             mem = container_data.get("memory_percent", 0.0)
-            self.worst_container_cpu_percent = max(self.worst_container_cpu_percent, cpu)
             self.worst_container_memory_percent = max(self.worst_container_memory_percent, mem)
 
     def to_snapshot(self) -> dict[str, Any]:
@@ -119,7 +123,7 @@ class PeakTracker:
         return {
             "kafka_consumer_lag": self.kafka_consumer_lag or None,
             "simpy_event_queue": self.simpy_event_queue or None,
-            "worst_container_cpu_percent": self.worst_container_cpu_percent or None,
+            "global_cpu_percent": self.global_cpu_percent or None,
             "worst_container_memory_percent": self.worst_container_memory_percent or None,
         }
 

@@ -3,6 +3,10 @@
 from dataclasses import dataclass, field
 from typing import Any
 
+# Memory usage below this percentage is treated as baseline (100% headroom).
+# Headroom decreases linearly from this baseline to the saturation threshold.
+MEMORY_BASELINE_PERCENT: float = 66.66
+
 
 @dataclass
 class ContainerHealth:
@@ -185,8 +189,9 @@ class PerformanceIndexThresholds:
 
     kafka_lag_saturation: int
     simpy_queue_saturation: int
-    cpu_saturation_percent: float
+    global_cpu_saturation_percent: float
     memory_saturation_percent: float
+    memory_pressure_range: float
     source_scenario: str
     source_trigger: str
 
@@ -195,8 +200,9 @@ class PerformanceIndexThresholds:
         return {
             "kafka_lag_saturation": self.kafka_lag_saturation,
             "simpy_queue_saturation": self.simpy_queue_saturation,
-            "cpu_saturation_percent": round(self.cpu_saturation_percent, 1),
+            "global_cpu_saturation_percent": round(self.global_cpu_saturation_percent, 1),
             "memory_saturation_percent": round(self.memory_saturation_percent, 1),
+            "memory_pressure_range": round(self.memory_pressure_range, 1),
             "source_scenario": self.source_scenario,
             "source_trigger": self.source_trigger,
         }

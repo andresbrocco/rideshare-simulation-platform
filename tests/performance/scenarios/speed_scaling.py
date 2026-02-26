@@ -307,8 +307,8 @@ class SpeedScalingScenario(BaseScenario):
             step_samples: Samples collected during this step.
 
         Returns:
-            Dict containing peak Kafka lag, SimPy queue size, worst-container
-            resource usage, and trigger details.
+            Dict containing peak Kafka lag, SimPy queue size, global CPU sum,
+            worst-container memory usage, and trigger details.
         """
         peak_tracker = PeakTracker()
         for sample in step_samples:
