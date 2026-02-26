@@ -11,10 +11,19 @@ groups:
         expr: clamp(1 - (max(simulation_simpy_events) or vector(0)) / 500, 0, 1)
 
       - record: rideshare:performance:cpu_headroom
-        expr: clamp(1 - (max(simulation_cpu_percent) or vector(0)) / 85, 0, 1)
+        expr: >-
+          clamp(
+            1 - (max by() (rate(container_cpu_usage_seconds_total{name=~"rideshare.*"}[30s]) * 100) or vector(0)) / 85,
+            0, 1
+          )
 
       - record: rideshare:performance:memory_headroom
-        expr: clamp(1 - (max(simulation_memory_percent) or vector(0)) / 85, 0, 1)
+        expr: >-
+          clamp(
+            1 - (max by() (container_memory_working_set_bytes{name=~"rideshare.*"}
+              / (container_spec_memory_limit_bytes{name=~"rideshare.*"} > 0) * 100) or vector(0)) / 85,
+            0, 1
+          )
 
       - record: rideshare:performance:consumption_ratio
         expr: >-
@@ -23,6 +32,9 @@ groups:
             / clamp_min(sum(rate(simulation_events_total[30s])) or vector(0.1), 0.1),
             0, 1
           )
+
+      - record: rideshare:performance:rtr_headroom
+        expr: clamp(simulation_real_time_ratio or vector(0), 0, 1)
 
   - name: rideshare_performance_composite
     interval: 15s
@@ -36,4 +48,5 @@ groups:
             or label_replace(rideshare:performance:cpu_headroom, "component", "cpu", "", "")
             or label_replace(rideshare:performance:memory_headroom, "component", "memory", "", "")
             or label_replace(rideshare:performance:consumption_ratio, "component", "consumption", "", "")
+            or label_replace(rideshare:performance:rtr_headroom, "component", "rtr", "", "")
           )

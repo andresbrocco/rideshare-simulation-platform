@@ -283,6 +283,11 @@ class SpeedScalingScenario(BaseScenario):
                 if trigger
                 else None
             ),
+            "failure_snapshot": (
+                self._capture_step_failure_snapshot(trigger, step_samples)
+                if trigger is not None
+                else None
+            ),
             "rtr_peak": round(rtr_peak, 4) if rtr_peak is not None else None,
             "rtr_mean": round(rtr_mean, 4) if rtr_mean is not None else None,
             "active_trips_mean": active_trips_mean,
@@ -290,6 +295,44 @@ class SpeedScalingScenario(BaseScenario):
             "throughput_mean_events_per_sec": throughput_mean,
             "throughput_max_events_per_sec": throughput_max,
         }
+
+    def _capture_step_failure_snapshot(
+        self, trigger: ThresholdTrigger, step_samples: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Build a snapshot dict of current metrics at the point of step threshold failure.
+
+        Args:
+            trigger: The threshold trigger that caused the step to stop.
+            step_samples: Samples collected during this step.
+
+        Returns:
+            Dict containing Kafka lag, SimPy queue size, worst-container resource
+            usage, and trigger details.
+        """
+        snapshot: dict[str, Any] = {
+            "kafka_consumer_lag": None,
+            "simpy_event_queue": None,
+            "worst_container_cpu_percent": None,
+            "worst_container_memory_percent": None,
+            "trigger_container": trigger.container,
+            "trigger_metric": trigger.metric,
+            "trigger_value": round(trigger.value, 2),
+            "trigger_threshold": trigger.threshold,
+        }
+
+        if step_samples:
+            last_sample = step_samples[-1]
+            snapshot["kafka_consumer_lag"] = last_sample.get("kafka_consumer_lag")
+            snapshot["simpy_event_queue"] = last_sample.get("simpy_event_queue")
+
+            containers = last_sample.get("containers", {})
+            if containers:
+                cpu_values = [c.get("cpu_percent", 0.0) for c in containers.values()]
+                mem_values = [c.get("memory_percent", 0.0) for c in containers.values()]
+                snapshot["worst_container_cpu_percent"] = max(cpu_values)
+                snapshot["worst_container_memory_percent"] = max(mem_values)
+
+        return snapshot
 
     def _check_step_thresholds(self, step_samples: list[dict[str, Any]]) -> ThresholdTrigger | None:
         """Check if global CPU or any container's memory exceeded thresholds.

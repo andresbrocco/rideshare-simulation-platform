@@ -23,6 +23,8 @@ class SimulationPrometheusMetrics:
     throughput_events_per_sec: float  # sum(rate(simulation_events_total[30s]))
     speed_multiplier: int
     real_time_ratio: float | None
+    kafka_consumer_lag: float | None
+    simpy_event_queue: float | None
 
 
 class PrometheusCollector:
@@ -215,11 +217,37 @@ class PrometheusCollector:
                     except ValueError:
                         pass
 
+        kafka_lag: float | None = None
+        kafka_lag_results = self._query_prometheus("sum(kafka_consumergroup_lag)")
+        if kafka_lag_results:
+            kl_item = kafka_lag_results[0]
+            if isinstance(kl_item, dict):
+                kl_value_pair = kl_item.get("value", [])
+                if isinstance(kl_value_pair, list) and len(kl_value_pair) >= 2:
+                    try:
+                        kafka_lag = float(str(kl_value_pair[1]))
+                    except ValueError:
+                        pass
+
+        simpy_queue: float | None = None
+        simpy_queue_results = self._query_prometheus("max(simulation_simpy_events)")
+        if simpy_queue_results:
+            sq_item = simpy_queue_results[0]
+            if isinstance(sq_item, dict):
+                sq_value_pair = sq_item.get("value", [])
+                if isinstance(sq_value_pair, list) and len(sq_value_pair) >= 2:
+                    try:
+                        simpy_queue = float(str(sq_value_pair[1]))
+                    except ValueError:
+                        pass
+
         return SimulationPrometheusMetrics(
             active_trips=active_trips,
             throughput_events_per_sec=throughput,
             speed_multiplier=speed_multiplier,
             real_time_ratio=rtr,
+            kafka_consumer_lag=kafka_lag,
+            simpy_event_queue=simpy_queue,
         )
 
     def get_health_latencies(self) -> dict[str, ServiceHealthSample] | None:

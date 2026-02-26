@@ -180,6 +180,29 @@ class SuggestedThresholds:
 
 
 @dataclass
+class PerformanceIndexThresholds:
+    """Empirically-derived divisors for the Prometheus performance index recording rules."""
+
+    kafka_lag_saturation: int
+    simpy_queue_saturation: int
+    cpu_saturation_percent: float
+    memory_saturation_percent: float
+    source_scenario: str
+    source_trigger: str
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "kafka_lag_saturation": self.kafka_lag_saturation,
+            "simpy_queue_saturation": self.simpy_queue_saturation,
+            "cpu_saturation_percent": round(self.cpu_saturation_percent, 1),
+            "memory_saturation_percent": round(self.memory_saturation_percent, 1),
+            "source_scenario": self.source_scenario,
+            "source_trigger": self.source_trigger,
+        }
+
+
+@dataclass
 class SaturationPoint:
     """A single observed (load, throughput) data point."""
 
@@ -292,6 +315,7 @@ class TestSummary:
     service_health_latency: list[ServiceHealthLatency] = field(default_factory=list)
     suggested_thresholds: list[SuggestedThresholds] = field(default_factory=list)
     saturation_family: SaturationFamily | None = None
+    performance_index_thresholds: PerformanceIndexThresholds | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -307,4 +331,6 @@ class TestSummary:
             result["suggested_thresholds"] = [s.to_dict() for s in self.suggested_thresholds]
         if self.saturation_family is not None:
             result["saturation_family"] = self.saturation_family.to_dict()
+        if self.performance_index_thresholds is not None:
+            result["performance_index_thresholds"] = self.performance_index_thresholds.to_dict()
         return result

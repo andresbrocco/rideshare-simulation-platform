@@ -7,7 +7,7 @@ from typing import Any, Iterator
 
 from rich.console import Console
 
-from ..analysis.statistics import BaselineCalibration, extract_saturation_points, fit_usl_model
+from ..analysis.statistics import BaselineCalibration
 from .base import BaseScenario
 
 console = Console()
@@ -443,6 +443,41 @@ class StressTestScenario(BaseScenario):
 
         return sample
 
+    def _capture_failure_snapshot(self, trigger: ThresholdTrigger) -> None:
+        """Capture a snapshot of current metrics at the point of threshold failure.
+
+        Reads the last collected sample and writes a snapshot dict into
+        ``self._metadata["failure_snapshot"]`` containing Kafka lag, SimPy queue
+        size, worst-container resource usage, and trigger details.
+
+        Args:
+            trigger: The threshold trigger that caused the stop.
+        """
+        snapshot: dict[str, Any] = {
+            "kafka_consumer_lag": None,
+            "simpy_event_queue": None,
+            "worst_container_cpu_percent": None,
+            "worst_container_memory_percent": None,
+            "trigger_container": trigger.container,
+            "trigger_metric": trigger.metric,
+            "trigger_value": round(trigger.value, 2),
+            "trigger_threshold": trigger.threshold,
+        }
+
+        if self._samples:
+            last_sample = self._samples[-1]
+            snapshot["kafka_consumer_lag"] = last_sample.get("kafka_consumer_lag")
+            snapshot["simpy_event_queue"] = last_sample.get("simpy_event_queue")
+
+            containers = last_sample.get("containers", {})
+            if containers:
+                cpu_values = [c.get("cpu_percent", 0.0) for c in containers.values()]
+                mem_values = [c.get("memory_percent", 0.0) for c in containers.values()]
+                snapshot["worst_container_cpu_percent"] = max(cpu_values)
+                snapshot["worst_container_memory_percent"] = max(mem_values)
+
+        self._metadata["failure_snapshot"] = snapshot
+
     def _check_thresholds(self) -> ThresholdTrigger | None:
         """Check if global CPU or any container's memory exceeds thresholds.
 
@@ -461,35 +496,41 @@ class StressTestScenario(BaseScenario):
         for container_name, stats in self._rolling_stats.items():
             memory_avg = stats.memory_percent.average
             if memory_avg >= memory_threshold:
-                return ThresholdTrigger(
+                trigger = ThresholdTrigger(
                     container=container_name,
                     metric="memory",
                     value=memory_avg,
                     threshold=memory_threshold,
                 )
+                self._capture_failure_snapshot(trigger)
+                return trigger
 
         # Check global CPU threshold
         global_threshold_pct = self.config.scenarios.stress_global_cpu_threshold_percent
         global_cpu_limit = (global_threshold_pct / 100) * self._available_cores * 100
         global_cpu_avg = self._global_cpu_rolling.average
         if global_cpu_avg >= global_cpu_limit:
-            return ThresholdTrigger(
+            trigger = ThresholdTrigger(
                 container="__global__",
                 metric="global_cpu",
                 value=global_cpu_avg,
                 threshold=global_cpu_limit,
             )
+            self._capture_failure_snapshot(trigger)
+            return trigger
 
         # Check RTR (simulation lag) threshold
         if self._rtr_rolling.values:
             rtr_avg = self._rtr_rolling.average
             if rtr_avg <= self._effective_rtr_threshold:
-                return ThresholdTrigger(
+                trigger = ThresholdTrigger(
                     container="__simulation__",
                     metric="rtr",
                     value=rtr_avg,
                     threshold=self._effective_rtr_threshold,
                 )
+                self._capture_failure_snapshot(trigger)
+                return trigger
 
         # Check health latency thresholds for critical services (Priority 4)
         if self.config.scenarios.health_check_enabled and self._samples:
@@ -509,66 +550,24 @@ class StressTestScenario(BaseScenario):
                     svc_health = health_data.get(svc_name, {})
                     threshold_unhealthy = svc_health.get("threshold_unhealthy")
                 if threshold_unhealthy is not None and rolling_avg >= threshold_unhealthy:
-                    return ThresholdTrigger(
+                    trigger = ThresholdTrigger(
                         container=svc_name,
                         metric="health_latency",
                         value=rolling_avg,
                         threshold=threshold_unhealthy,
                     )
+                    self._capture_failure_snapshot(trigger)
+                    return trigger
 
         return None
 
     def _check_saturation_stop(self) -> ThresholdTrigger | None:
         """Check if active trips have exceeded the USL knee point.
 
-        Only runs when stop_at_knee is True and enough
-        samples exist. Fits USL model every saturation_fit_interval samples
-        to avoid scipy overhead in the hot loop.
+        NOTE: USL-based saturation stopping is currently disabled.
+        This method always returns None.
 
         Returns:
-            ThresholdTrigger if knee exceeded, None otherwise.
+            None (saturation stop disabled).
         """
-        if not self.config.scenarios.stop_at_knee:
-            return None
-
-        self._saturation_sample_counter += 1
-        fit_interval = self.config.scenarios.saturation_fit_interval
-        if self._saturation_sample_counter % fit_interval != 0:
-            return None
-
-        if len(self._samples) < self.config.scenarios.saturation_min_points:
-            return None
-
-        points = extract_saturation_points(self._samples, speed_multiplier=1)
-        if len(points) < 3:
-            return None
-
-        load = [p.active_trips for p in points]
-        throughput = [p.throughput for p in points]
-        usl = fit_usl_model(load, throughput)
-
-        if not usl.fit_successful:
-            return None
-        if usl.r_squared < self.config.scenarios.saturation_r2_threshold:
-            return None
-
-        # Check if current active_trips exceeds N* × overshoot_factor
-        current_active_trips = 0.0
-        last_sample = self._samples[-1]
-        if "active_trips" in last_sample:
-            current_active_trips = float(last_sample["active_trips"])
-        else:
-            last_rtr = last_sample.get("rtr")
-            if last_rtr is not None:
-                current_active_trips = float(last_rtr.get("active_trips", 0))
-
-        overshoot_limit = usl.n_star * self.config.scenarios.saturation_overshoot_factor
-        if current_active_trips > overshoot_limit:
-            return ThresholdTrigger(
-                container="__saturation__",
-                metric="usl_knee_exceeded",
-                value=current_active_trips,
-                threshold=overshoot_limit,
-            )
-
         return None

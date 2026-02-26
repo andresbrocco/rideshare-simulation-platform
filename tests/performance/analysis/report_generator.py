@@ -112,6 +112,9 @@ class ReportGenerator:
         # ── Health Latency ──
         lines.extend(self._md_health_latency(summary))
 
+        # ── Performance Index Thresholds ──
+        lines.extend(self._md_performance_index_thresholds(summary))
+
         # ── Derived Configuration ──
         derived_config = results.get("derived_config", {})
         if derived_config:
@@ -446,6 +449,31 @@ class ReportGenerator:
                 )
             lines.append("")
 
+        return lines
+
+    def _md_performance_index_thresholds(self, summary: TestSummary) -> list[str]:
+        """Generate markdown section for performance index thresholds."""
+        pit = summary.performance_index_thresholds
+        if pit is None:
+            return []
+
+        lines: list[str] = [
+            "## Performance Index Thresholds",
+            "",
+            "Empirically-derived saturation divisors for Prometheus recording rules.",
+            "",
+            "| Parameter | Value | Source |",
+            "|-----------|-------|--------|",
+            f"| Kafka Consumer Lag Saturation | {pit.kafka_lag_saturation} | "
+            f"{pit.source_scenario} ({pit.source_trigger}) |",
+            f"| SimPy Event Queue Saturation | {pit.simpy_queue_saturation} | "
+            f"{pit.source_scenario} ({pit.source_trigger}) |",
+            f"| CPU Saturation % | {pit.cpu_saturation_percent:.1f} | "
+            f"{pit.source_scenario} ({pit.source_trigger}) |",
+            f"| Memory Saturation % | {pit.memory_saturation_percent:.1f} | "
+            f"{pit.source_scenario} ({pit.source_trigger}) |",
+            "",
+        ]
         return lines
 
     def _md_saturation_analysis(self, summary: TestSummary) -> list[str]:
@@ -981,6 +1009,12 @@ class ReportGenerator:
         # Saturation analysis
         if summary.saturation_family is not None:
             summary_dict["saturation_family"] = summary.saturation_family.to_dict()
+
+        # Performance index thresholds
+        if summary.performance_index_thresholds is not None:
+            summary_dict["performance_index_thresholds"] = (
+                summary.performance_index_thresholds.to_dict()
+            )
 
         # Full summary data
         summary_dict["summary"] = summary.to_dict()

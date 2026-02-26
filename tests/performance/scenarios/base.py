@@ -266,6 +266,10 @@ class BaseScenario(ABC):
             sample["speed_multiplier"] = sim_metrics.speed_multiplier
             if sim_metrics.real_time_ratio is not None:
                 sample.setdefault("rtr", {})["rtr"] = sim_metrics.real_time_ratio
+            if sim_metrics.kafka_consumer_lag is not None:
+                sample["kafka_consumer_lag"] = sim_metrics.kafka_consumer_lag
+            if sim_metrics.simpy_event_queue is not None:
+                sample["simpy_event_queue"] = sim_metrics.simpy_event_queue
 
         self._samples.append(sample)
         return sample

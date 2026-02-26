@@ -11,6 +11,7 @@ Usage:
 """
 
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,7 @@ from .analysis.findings import (
     ContainerHealth,
     ContainerHealthAggregated,
     KeyMetrics,
+    PerformanceIndexThresholds,
     SaturationFamily,
     ServiceHealthLatency,
     SuggestedThresholds,
@@ -31,7 +33,6 @@ from .analysis.findings import (
 from .analysis.report_generator import ReportGenerator
 from .analysis.statistics import (
     BaselineCalibration,
-    build_saturation_curve,
     calculate_all_container_stats,
     calculate_all_health_stats,
     summarize_scenario_stats,
@@ -59,6 +60,9 @@ SCENARIO_REGISTRY: dict[str, type[BaseScenario]] = {
 VALID_SCENARIO_NAMES: tuple[str, ...] = tuple(SCENARIO_REGISTRY.keys())
 _FULL_PIPELINE_ORDER: tuple[str, ...] = ("baseline", "stress", "speed", "duration")
 _REUSES_PREVIOUS_STATE: frozenset[str] = frozenset({"stress"})
+_PERFORMANCE_RULES_PATH = (
+    Path(__file__).parent.parent.parent / "services" / "prometheus" / "rules" / "performance.yml"
+)
 
 
 def create_test_config() -> TestConfig:
@@ -156,6 +160,9 @@ def analyze_results(
     # Saturation curve analysis
     saturation_family = _build_saturation_family(results)
 
+    # Performance index thresholds derived from failure snapshots
+    performance_index_thresholds = _compute_performance_index_thresholds(results)
+
     summary = TestSummary(
         container_health=container_health,
         aggregated_container_health=aggregated_health,
@@ -163,6 +170,7 @@ def analyze_results(
         service_health_latency=service_health_latency,
         suggested_thresholds=suggested_thresholds,
         saturation_family=saturation_family,
+        performance_index_thresholds=performance_index_thresholds,
     )
 
     return analysis, summary
@@ -509,67 +517,199 @@ def _compute_suggested_thresholds(
 def _build_saturation_family(results: dict[str, Any]) -> SaturationFamily | None:
     """Build a SaturationFamily from scenario results.
 
-    For stress_test: builds one curve at speed_multiplier=1.
-    For speed_scaling: builds one curve per speed step.
+    NOTE: USL-based saturation curve building is currently disabled.
+    This function always returns None.
 
     Args:
         results: Full test results dictionary.
 
     Returns:
-        SaturationFamily or None if no saturation data.
+        None (saturation family building disabled).
     """
-    from .analysis.findings import SaturationCurve
+    return None
 
-    curves: list[SaturationCurve] = []
+
+def _compute_performance_index_thresholds(
+    results: dict[str, Any],
+) -> PerformanceIndexThresholds | None:
+    """Derive performance index saturation divisors from observed failure snapshots.
+
+    Prefers the failure snapshot from the stress test scenario. Falls back to
+    the last triggered step in speed_scaling if no stress snapshot is available.
+    Returns None if no failure snapshot is found in either scenario.
+
+    Applies safety margins (10% headroom on counts, floor values on percentages)
+    so that divisors represent a safe saturation ceiling rather than the raw
+    observed peak.
+
+    Args:
+        results: Full test results dictionary.
+
+    Returns:
+        PerformanceIndexThresholds populated from observed data, or None.
+    """
     scenarios = results.get("scenarios", [])
 
-    # Stress test: single curve at 1x speed
-    stress_scenarios = [s for s in scenarios if s.get("scenario_name") == "stress_test"]
+    snapshot: dict[str, Any] | None = None
+    source_scenario = ""
+    source_trigger = ""
+
+    # Preferred: stress_test failure_snapshot
+    stress_scenarios = [s for s in scenarios if s["scenario_name"] == "stress_test"]
     if stress_scenarios:
-        stress = stress_scenarios[0]
-        if stress.get("metadata", {}).get("saturation_curve_data"):
-            curve = build_saturation_curve(stress.get("samples", []), speed_multiplier=1)
-            if curve.points:
-                curves.append(curve)
+        meta = stress_scenarios[0].get("metadata", {})
+        fs = meta.get("failure_snapshot")
+        if fs:
+            snapshot = fs
+            source_scenario = "stress_test"
+            trigger_info = meta.get("trigger", {}) or {}
+            source_trigger = (
+                f"{trigger_info.get('metric', 'unknown')} at " f"{trigger_info.get('value', 0)}"
+            )
 
-    # Speed scaling: one curve per speed step
-    speed_scenarios = [s for s in scenarios if s.get("scenario_name") == "speed_scaling"]
-    if speed_scenarios:
-        speed = speed_scenarios[0]
-        if speed.get("metadata", {}).get("saturation_curve_data"):
-            step_results = speed.get("metadata", {}).get("step_results", [])
-            all_samples = speed.get("samples", [])
+    # Fallback: last triggered step in speed_scaling
+    if snapshot is None:
+        speed_scenarios = [s for s in scenarios if s["scenario_name"] == "speed_scaling"]
+        if speed_scenarios:
+            meta = speed_scenarios[0].get("metadata", {})
+            step_results = meta.get("step_results", [])
+            for step in reversed(step_results):
+                if step.get("threshold_hit") and step.get("failure_snapshot"):
+                    snapshot = step["failure_snapshot"]
+                    source_scenario = "speed_scaling"
+                    trigger_info = step.get("trigger") or {}
+                    source_trigger = (
+                        f"{trigger_info.get('metric', 'unknown')} at "
+                        f"{trigger_info.get('value', 0)}"
+                    )
+                    break
 
-            # Slice samples per step based on sample counts
-            sample_offset = 0
-            for step in step_results:
-                step_count = step.get("sample_count", 0)
-                multiplier = step.get("multiplier", 1)
-                step_samples = all_samples[sample_offset : sample_offset + step_count]
-                sample_offset += step_count
-
-                if step_samples:
-                    curve = build_saturation_curve(step_samples, speed_multiplier=multiplier)
-                    if curve.points:
-                        curves.append(curve)
-
-    if not curves:
+    if snapshot is None:
         return None
 
-    # Find best N* (lowest across curves with successful fits)
-    best_n_star: float | None = None
-    best_speed: int | None = None
-    for curve in curves:
-        if curve.usl_fit is not None and curve.usl_fit.n_star > 0:
-            if best_n_star is None or curve.usl_fit.n_star < best_n_star:
-                best_n_star = curve.usl_fit.n_star
-                best_speed = curve.speed_multiplier
+    # Kafka lag: observed value * 1.1, minimum 1000, default 10000
+    raw_kafka_lag = snapshot.get("kafka_consumer_lag")
+    if raw_kafka_lag is not None:
+        kafka_lag_saturation = max(1000, int(raw_kafka_lag * 1.1))
+    else:
+        kafka_lag_saturation = 10000
 
-    return SaturationFamily(
-        curves=curves,
-        best_n_star=best_n_star,
-        best_speed_multiplier=best_speed,
+    # SimPy queue: observed value * 1.1, minimum 100, default 500
+    raw_simpy_queue = snapshot.get("simpy_event_queue")
+    if raw_simpy_queue is not None:
+        simpy_queue_saturation = max(100, int(raw_simpy_queue * 1.1))
+    else:
+        simpy_queue_saturation = 500
+
+    # CPU percent: worst-container value, minimum 50.0, default 85.0
+    raw_cpu = snapshot.get("worst_container_cpu_percent")
+    if raw_cpu is not None:
+        cpu_saturation_percent = max(50.0, float(raw_cpu))
+    else:
+        cpu_saturation_percent = 85.0
+
+    # Memory percent: worst-container value, minimum 50.0, default 85.0
+    raw_mem = snapshot.get("worst_container_memory_percent")
+    if raw_mem is not None:
+        memory_saturation_percent = max(50.0, float(raw_mem))
+    else:
+        memory_saturation_percent = 85.0
+
+    return PerformanceIndexThresholds(
+        kafka_lag_saturation=kafka_lag_saturation,
+        simpy_queue_saturation=simpy_queue_saturation,
+        cpu_saturation_percent=cpu_saturation_percent,
+        memory_saturation_percent=memory_saturation_percent,
+        source_scenario=source_scenario,
+        source_trigger=source_trigger,
     )
+
+
+def _update_performance_rules(
+    thresholds: PerformanceIndexThresholds,
+    rules_path: Path = _PERFORMANCE_RULES_PATH,
+) -> bool:
+    """Update Prometheus performance rule divisors from empirical thresholds.
+
+    Uses regex to replace the numeric divisors in the YAML while preserving
+    formatting. Each replacement targets the recording rule by name and swaps
+    the first numeric divisor in its expression.
+
+    Args:
+        thresholds: Empirically-derived saturation divisors.
+        rules_path: Path to the performance.yml rules file.
+
+    Returns:
+        True if any divisor was updated, False otherwise.
+    """
+    if not rules_path.exists():
+        console.print(f"[yellow]Performance rules not found at {rules_path}[/yellow]")
+        return False
+
+    content = rules_path.read_text()
+    original = content
+    updates: list[str] = []
+
+    # kafka_lag_headroom: replace divisor after "/ <number>"
+    new_content = re.sub(
+        r"(kafka_lag_headroom.*?/ )\d+",
+        rf"\g<1>{thresholds.kafka_lag_saturation}",
+        content,
+        count=1,
+        flags=re.DOTALL,
+    )
+    if new_content != content:
+        updates.append(f"kafka_lag divisor -> {thresholds.kafka_lag_saturation}")
+    content = new_content
+
+    # simpy_queue_headroom: replace divisor after "/ <number>"
+    new_content = re.sub(
+        r"(simpy_queue_headroom.*?/ )\d+",
+        rf"\g<1>{thresholds.simpy_queue_saturation}",
+        content,
+        count=1,
+        flags=re.DOTALL,
+    )
+    if new_content != content:
+        updates.append(f"simpy_queue divisor -> {thresholds.simpy_queue_saturation}")
+    content = new_content
+
+    # cpu_headroom: replace divisor after "/ <number>"
+    new_content = re.sub(
+        r"(cpu_headroom.*?/ )\d+(?:\.\d+)?",
+        rf"\g<1>{thresholds.cpu_saturation_percent:.0f}",
+        content,
+        count=1,
+        flags=re.DOTALL,
+    )
+    if new_content != content:
+        updates.append(f"cpu divisor -> {thresholds.cpu_saturation_percent:.0f}")
+    content = new_content
+
+    # memory_headroom: replace divisor after "/ <number>"
+    new_content = re.sub(
+        r"(memory_headroom.*?/ )\d+(?:\.\d+)?",
+        rf"\g<1>{thresholds.memory_saturation_percent:.0f}",
+        content,
+        count=1,
+        flags=re.DOTALL,
+    )
+    if new_content != content:
+        updates.append(f"memory divisor -> {thresholds.memory_saturation_percent:.0f}")
+    content = new_content
+
+    if content == original:
+        console.print("[dim]Performance rules unchanged (divisors already match)[/dim]")
+        return False
+
+    rules_path.write_text(content)
+    for update in updates:
+        console.print(f"[green]Updated performance rule: {update}[/green]")
+    console.print(
+        f"[green]Performance rules updated at {rules_path} "
+        f"(source: {thresholds.source_scenario})[/green]"
+    )
+    return True
 
 
 def _extract_key_metrics(
@@ -1102,6 +1242,10 @@ def run(
         f"[green]Generated reports: {report_paths.markdown.name}, {report_paths.html.name}[/green]"
     )
 
+    # Auto-update Prometheus performance rules from empirical thresholds
+    if summary.performance_index_thresholds is not None:
+        _update_performance_rules(summary.performance_index_thresholds)
+
     # Summary
     _print_summary(results, summary)
 
@@ -1220,6 +1364,10 @@ def analyze(results_file: str) -> None:
     console.print(
         f"[green]Generated reports: {report_paths.markdown.name}, {report_paths.html.name}[/green]"
     )
+
+    # Auto-update Prometheus performance rules from empirical thresholds
+    if summary.performance_index_thresholds is not None:
+        _update_performance_rules(summary.performance_index_thresholds)
 
     _print_summary(results, summary)
 
