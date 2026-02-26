@@ -1185,7 +1185,7 @@
             "uid": "prometheus"
           },
           "expr": "rideshare:performance:kafka_lag_headroom",
-          "legendFormat": "Kafka Lag",
+          "legendFormat": "Kafka Consumer Lag Headroom",
           "refId": "A"
         },
         {
@@ -1194,7 +1194,7 @@
             "uid": "prometheus"
           },
           "expr": "rideshare:performance:simpy_queue_headroom",
-          "legendFormat": "SimPy Queue",
+          "legendFormat": "SimPy Event Queue Headroom",
           "refId": "B"
         },
         {
@@ -1203,7 +1203,7 @@
             "uid": "prometheus"
           },
           "expr": "rideshare:performance:cpu_headroom",
-          "legendFormat": "CPU",
+          "legendFormat": "Container CPU Headroom",
           "refId": "C"
         },
         {
@@ -1212,7 +1212,7 @@
             "uid": "prometheus"
           },
           "expr": "rideshare:performance:memory_headroom",
-          "legendFormat": "Memory",
+          "legendFormat": "Container Memory Headroom",
           "refId": "D"
         },
         {
@@ -1221,7 +1221,7 @@
             "uid": "prometheus"
           },
           "expr": "rideshare:performance:consumption_ratio",
-          "legendFormat": "Consumption",
+          "legendFormat": "Stream Processor / Simulation Throughput Ratio",
           "refId": "E"
         },
         {
@@ -1230,7 +1230,7 @@
             "uid": "prometheus"
           },
           "expr": "rideshare:performance:rtr_headroom",
-          "legendFormat": "RTR",
+          "legendFormat": "Real-Time Ratio (sim speed vs wall clock)",
           "refId": "F"
         }
       ],
