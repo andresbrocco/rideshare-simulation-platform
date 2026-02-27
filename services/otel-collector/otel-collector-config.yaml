@@ -38,6 +38,11 @@ processors:
     timeout: 5s
     send_batch_size: 1000
 
+  # Fast batch for metrics so push-path data reaches Prometheus quickly
+  batch/metrics:
+    timeout: 1s
+    send_batch_size: 1000
+
   # Memory limiter for stability
   memory_limiter:
     check_interval: 1s
@@ -121,7 +126,7 @@ service:
     # Metrics pipeline: OTLP → Prometheus
     metrics:
       receivers: [otlp]
-      processors: [memory_limiter, batch, resource]
+      processors: [memory_limiter, batch/metrics, resource]
       exporters: [prometheusremotewrite]
 
     # Logs pipeline: Docker files → Loki

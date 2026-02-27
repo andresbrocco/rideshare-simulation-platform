@@ -1,6 +1,6 @@
 groups:
   - name: rideshare_performance
-    interval: 15s
+    interval: 4s
     rules:
       # --- Individual headroom components (0-1, higher = healthier) ---
 
@@ -42,14 +42,34 @@ groups:
           )
           or vector(1)
 
-      # --- Composite index = min of all components ---
+      # --- Smoothed components (16s rolling average, ~4 samples at 4s interval) ---
+
+      - record: rideshare:performance:kafka_lag_headroom:smooth
+        expr: avg_over_time(rideshare:performance:kafka_lag_headroom[16s])
+
+      - record: rideshare:performance:simpy_queue_headroom:smooth
+        expr: avg_over_time(rideshare:performance:simpy_queue_headroom[16s])
+
+      - record: rideshare:performance:cpu_headroom:smooth
+        expr: avg_over_time(rideshare:performance:cpu_headroom[16s])
+
+      - record: rideshare:performance:memory_headroom:smooth
+        expr: avg_over_time(rideshare:performance:memory_headroom[16s])
+
+      - record: rideshare:performance:consumption_ratio:smooth
+        expr: avg_over_time(rideshare:performance:consumption_ratio[16s])
+
+      - record: rideshare:performance:rtr_headroom:smooth
+        expr: avg_over_time(rideshare:performance:rtr_headroom[16s])
+
+      # --- Composite index = min of all smoothed components ---
       - record: rideshare:performance:index
         expr: >-
           min by() (
-            label_replace(rideshare:performance:kafka_lag_headroom, "component", "kafka_lag", "", "")
-            or label_replace(rideshare:performance:simpy_queue_headroom, "component", "simpy_queue", "", "")
-            or label_replace(rideshare:performance:cpu_headroom, "component", "cpu", "", "")
-            or label_replace(rideshare:performance:memory_headroom, "component", "memory", "", "")
-            or label_replace(rideshare:performance:consumption_ratio, "component", "consumption", "", "")
-            or label_replace(rideshare:performance:rtr_headroom, "component", "rtr", "", "")
+            label_replace(rideshare:performance:kafka_lag_headroom:smooth, "component", "kafka_lag", "", "")
+            or label_replace(rideshare:performance:simpy_queue_headroom:smooth, "component", "simpy_queue", "", "")
+            or label_replace(rideshare:performance:cpu_headroom:smooth, "component", "cpu", "", "")
+            or label_replace(rideshare:performance:memory_headroom:smooth, "component", "memory", "", "")
+            or label_replace(rideshare:performance:consumption_ratio:smooth, "component", "consumption", "", "")
+            or label_replace(rideshare:performance:rtr_headroom:smooth, "component", "rtr", "", "")
           )

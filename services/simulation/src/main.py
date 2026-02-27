@@ -73,7 +73,7 @@ def init_otel_sdk() -> None:
     # Metrics
     metric_reader = PeriodicExportingMetricReader(
         OTLPMetricExporter(endpoint=otlp_endpoint, insecure=True),
-        export_interval_millis=15_000,
+        export_interval_millis=4_000,
     )
     meter_provider = MeterProvider(resource=resource, metric_readers=[metric_reader])
     metrics.set_meter_provider(meter_provider)
