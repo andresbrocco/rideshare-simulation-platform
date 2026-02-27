@@ -838,7 +838,7 @@
       },
       "id": 14,
       "panels": [],
-      "title": "Speed Multiplier & Real-Time Ratio",
+      "title": "Speed & Real-Time Ratio",
       "type": "row"
     },
     {
@@ -846,7 +846,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Speed Multiplier (right axis) vs Real-Time Ratio (left axis). RTR measures actual sim-seconds per wall-second. When RTR < Speed Multiplier, the simulation is falling behind due to compute or I/O bottlenecks.",
+      "description": "Actual sim-seconds per wall-second. When RTR < Speed Multiplier, the simulation is falling behind.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -886,50 +886,11 @@
           },
           "unit": "short"
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Speed Multiplier"
-            },
-            "properties": [
-              {
-                "id": "custom.lineInterpolation",
-                "value": "stepAfter"
-              },
-              {
-                "id": "custom.lineStyle",
-                "value": {
-                  "dash": [
-                    10,
-                    10
-                  ],
-                  "fill": "dash"
-                }
-              },
-              {
-                "id": "custom.lineWidth",
-                "value": 1
-              },
-              {
-                "id": "custom.fillOpacity",
-                "value": 0
-              },
-              {
-                "id": "custom.axisPlacement",
-                "value": "right"
-              },
-              {
-                "id": "custom.axisLabel",
-                "value": "multiplier"
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
-        "w": 24,
+        "w": 12,
         "x": 0,
         "y": 28
       },
@@ -957,7 +918,71 @@
           "expr": "simulation_real_time_ratio",
           "legendFormat": "RTR",
           "refId": "A"
+        }
+      ],
+      "title": "Real-Time Ratio",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Configured simulation speed target. Compare with RTR to assess whether the simulation keeps up.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisLabel": "multiplier",
+            "drawStyle": "line",
+            "fillOpacity": 5,
+            "gradientMode": "none",
+            "lineInterpolation": "stepAfter",
+            "lineStyle": {
+              "dash": [
+                10,
+                10
+              ],
+              "fill": "dash"
+            },
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "unit": "short"
         },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
+      "id": 23,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
         {
           "datasource": {
             "type": "prometheus",
@@ -965,10 +990,10 @@
           },
           "expr": "simulation_speed_multiplier_ratio",
           "legendFormat": "Speed Multiplier",
-          "refId": "B"
+          "refId": "A"
         }
       ],
-      "title": "Speed Multiplier & RTR",
+      "title": "Speed Multiplier",
       "type": "timeseries"
     },
     {
