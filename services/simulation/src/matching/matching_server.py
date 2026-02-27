@@ -142,6 +142,14 @@ class MatchingServer:
         self._stats_match_time_count: int = 0
         self._stats_pickup_sum: float = 0.0
         self._stats_pickup_count: int = 0
+        self._stats_cancellation_by_reason: dict[str, int] = {
+            "no_drivers_available": 0,
+            "rider_cancelled_before_pickup": 0,
+            "driver_cancelled_before_pickup": 0,
+            "rider_cancelled_mid_trip": 0,
+            "driver_cancelled_mid_trip": 0,
+            "system_pause": 0,
+        }
         # Limit how many drivers get OSRM route fetches (top-N by haversine distance)
         self._osrm_candidate_limit: int = 15
         # Puppet drive controllers (for background thread movement)
@@ -185,6 +193,9 @@ class MatchingServer:
 
                 if tracking_trip.state.value == "cancelled":
                     self._cancelled_trips.append(tracking_trip)
+                    reason = tracking_trip.cancellation_reason
+                    if reason and reason in self._stats_cancellation_by_reason:
+                        self._stats_cancellation_by_reason[reason] += 1
                 elif tracking_trip.state.value == "completed":
                     self._completed_trips.append(tracking_trip)
                     self._accumulate_trip_stats(tracking_trip)
@@ -234,6 +245,7 @@ class MatchingServer:
             match_time_count = self._stats_match_time_count
             pickup_sum = self._stats_pickup_sum
             pickup_count = self._stats_pickup_count
+            cancellation_by_reason = dict(self._stats_cancellation_by_reason)
 
         avg_fare = total_fare / completed_count if completed_count > 0 else 0.0
         avg_duration = duration_sum / duration_count if duration_count > 0 else 0.0
@@ -247,6 +259,7 @@ class MatchingServer:
             "avg_duration_minutes": avg_duration,
             "avg_match_seconds": avg_match_seconds,
             "avg_pickup_seconds": avg_pickup_seconds,
+            "cancellation_by_reason": cancellation_by_reason,
         }
 
     def get_matching_stats(self) -> dict[str, Any]:
@@ -1098,6 +1111,8 @@ class MatchingServer:
             self._stats_match_time_count = 0
             self._stats_pickup_sum = 0.0
             self._stats_pickup_count = 0
+            for key in self._stats_cancellation_by_reason:
+                self._stats_cancellation_by_reason[key] = 0
 
             # Clear pending offer timeouts
             if self._offer_timeout_manager:

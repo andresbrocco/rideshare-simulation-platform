@@ -183,6 +183,56 @@ export default function StatsPanel({
             </div>
           </div>
         </div>
+
+        <div className={styles.statsSubsection}>
+          <div className={styles.statsSubtitle}>Cancellations</div>
+          <div className={styles.statsGrid}>
+            <div className={styles.statItem}>
+              <Tooltip text="No drivers were available within the rider's patience window">
+                <span className={styles.statLabel}>No Drivers:</span>
+              </Tooltip>
+              <span className={styles.statValue}>{tripMetrics?.cancelled_no_drivers ?? '-'}</span>
+            </div>
+            <div className={styles.statItem}>
+              <Tooltip text="Rider cancelled before driver arrived at pickup">
+                <span className={styles.statLabel}>Rider (Pre-Pickup):</span>
+              </Tooltip>
+              <span className={styles.statValue}>
+                {tripMetrics?.cancelled_rider_before_pickup ?? '-'}
+              </span>
+            </div>
+            <div className={styles.statItem}>
+              <Tooltip text="Driver cancelled while heading to pickup location">
+                <span className={styles.statLabel}>Driver (Pre-Pickup):</span>
+              </Tooltip>
+              <span className={styles.statValue}>
+                {tripMetrics?.cancelled_driver_before_pickup ?? '-'}
+              </span>
+            </div>
+            <div className={styles.statItem}>
+              <Tooltip text="Rider cancelled during the trip">
+                <span className={styles.statLabel}>Rider (Mid-Trip):</span>
+              </Tooltip>
+              <span className={styles.statValue}>
+                {tripMetrics?.cancelled_rider_mid_trip ?? '-'}
+              </span>
+            </div>
+            <div className={styles.statItem}>
+              <Tooltip text="Driver cancelled during the trip">
+                <span className={styles.statLabel}>Driver (Mid-Trip):</span>
+              </Tooltip>
+              <span className={styles.statValue}>
+                {tripMetrics?.cancelled_driver_mid_trip ?? '-'}
+              </span>
+            </div>
+            <div className={styles.statItem}>
+              <Tooltip text="Trip cancelled due to simulation pause">
+                <span className={styles.statLabel}>System Pause:</span>
+              </Tooltip>
+              <span className={styles.statValue}>{tripMetrics?.cancelled_system_pause ?? '-'}</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

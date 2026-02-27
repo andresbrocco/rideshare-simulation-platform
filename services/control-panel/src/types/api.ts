@@ -153,6 +153,13 @@ export interface TripMetrics {
   offers_rejected: number;
   offers_expired: number;
   matching_success_rate: number;
+  // Per-reason cancellation breakdown
+  cancelled_no_drivers: number;
+  cancelled_rider_before_pickup: number;
+  cancelled_driver_before_pickup: number;
+  cancelled_rider_mid_trip: number;
+  cancelled_driver_mid_trip: number;
+  cancelled_system_pause: number;
 }
 
 export interface RiderMetrics {
@@ -334,7 +341,7 @@ export interface PerformanceControllerStatus {
   mode: ControllerMode;
   performance_index: number;
   current_speed: number;
-  target_speed: number;
+  max_speed: number;
   consecutive_healthy: number;
   uptime_seconds: number;
 }

@@ -204,6 +204,7 @@ def get_trip_metrics(request: Request, engine: EngineDep) -> TripMetrics:
         avg_duration_minutes = 0.0
         avg_match_seconds = 0.0
         avg_pickup_seconds = 0.0
+        cancellation_by_reason: dict[str, int] = {}
 
         # Matching stats
         offers_sent = 0
@@ -222,6 +223,7 @@ def get_trip_metrics(request: Request, engine: EngineDep) -> TripMetrics:
                 avg_duration_minutes = stats.get("avg_duration_minutes", 0.0)
                 avg_match_seconds = stats.get("avg_match_seconds", 0.0)
                 avg_pickup_seconds = stats.get("avg_pickup_seconds", 0.0)
+                cancellation_by_reason = stats.get("cancellation_by_reason", {})
 
             # Get matching stats
             if hasattr(matching_server, "get_matching_stats"):
@@ -246,6 +248,16 @@ def get_trip_metrics(request: Request, engine: EngineDep) -> TripMetrics:
             offers_rejected=offers_rejected,
             offers_expired=offers_expired,
             matching_success_rate=matching_success_rate,
+            cancelled_no_drivers=cancellation_by_reason.get("no_drivers_available", 0),
+            cancelled_rider_before_pickup=cancellation_by_reason.get(
+                "rider_cancelled_before_pickup", 0
+            ),
+            cancelled_driver_before_pickup=cancellation_by_reason.get(
+                "driver_cancelled_before_pickup", 0
+            ),
+            cancelled_rider_mid_trip=cancellation_by_reason.get("rider_cancelled_mid_trip", 0),
+            cancelled_driver_mid_trip=cancellation_by_reason.get("driver_cancelled_mid_trip", 0),
+            cancelled_system_pause=cancellation_by_reason.get("system_pause", 0),
         )
 
     return _get_cached_or_compute("trips", compute)

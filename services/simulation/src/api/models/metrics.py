@@ -36,6 +36,13 @@ class TripMetrics(BaseModel):
     offers_rejected: int = 0
     offers_expired: int = 0
     matching_success_rate: float = 0.0  # Percentage
+    # Per-reason cancellation breakdown
+    cancelled_no_drivers: int = 0
+    cancelled_rider_before_pickup: int = 0
+    cancelled_driver_before_pickup: int = 0
+    cancelled_rider_mid_trip: int = 0
+    cancelled_driver_mid_trip: int = 0
+    cancelled_system_pause: int = 0
 
 
 class DriverMetrics(BaseModel):
