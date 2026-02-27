@@ -165,8 +165,8 @@ class SimulationEngine:
         self._time_manager = TimeManager(simulation_start_time, self._env)
         self._speed_multiplier: float = 1.0
         self._rtr_window_seconds = rtr_window_seconds
-        self._rtr_samples: deque[tuple[float, float]] = deque(maxlen=2000)
-        # (wall_perf_counter, env.now) pairs
+        self._rtr_samples: deque[tuple[float, float, float]] = deque(maxlen=2000)
+        # (wall_perf_counter, env.now, speed_multiplier) triples
         self._drain_process: simpy.Process | None = None
         self._event_loop: asyncio.AbstractEventLoop | None = None
 
@@ -197,8 +197,12 @@ class SimulationEngine:
     def real_time_ratio(self) -> float | None:
         """RTR over the last `rtr_window_seconds` of wall-clock time.
 
+        Uses piecewise normalization: each consecutive pair of samples
+        contributes actual_sim_progress / (wall_delta * speed_at_that_time).
+        This keeps RTR valid across speed multiplier changes.
+
         Returns None when fewer than 2 samples are in the window
-        (e.g. just started, just changed speed, or simulation stopped).
+        (e.g. just started or simulation stopped).
         """
         if len(self._rtr_samples) < 2:
             return None
@@ -210,15 +214,26 @@ class SimulationEngine:
         if len(self._rtr_samples) < 2:
             return None
 
-        wall_oldest, sim_oldest = self._rtr_samples[0]
-        wall_newest, sim_newest = self._rtr_samples[-1]
-        delta_wall = wall_newest - wall_oldest
-        delta_sim = sim_newest - sim_oldest
+        # Snapshot to local list — SimPy thread only appends to back,
+        # popleft above runs only in this call, so this is GIL-safe.
+        samples = list(self._rtr_samples)
 
-        if delta_wall <= 0 or self._speed_multiplier <= 0:
+        total_actual = 0.0
+        total_expected = 0.0
+
+        for i in range(len(samples) - 1):
+            w1, s1, spd1 = samples[i]
+            w2, s2, _ = samples[i + 1]
+            wall_delta = w2 - w1
+            if wall_delta <= 0:
+                continue
+            total_actual += s2 - s1
+            total_expected += wall_delta * spd1
+
+        if total_expected <= 0:
             return None
 
-        return (delta_sim / delta_wall) / self._speed_multiplier
+        return total_actual / total_expected
 
     @property
     def active_driver_count(self) -> int:
@@ -275,7 +290,7 @@ class SimulationEngine:
 
     def step(self, seconds: int) -> None:
         """Advance simulation by specified seconds."""
-        self._rtr_samples.append((time.perf_counter(), self._env.now))
+        self._rtr_samples.append((time.perf_counter(), self._env.now, self._speed_multiplier))
 
         # Start processes for any pending agents (thread-safe approach)
         self._start_pending_agents()
@@ -309,7 +324,7 @@ class SimulationEngine:
             self._env.run(until=next_step)
 
             # Record RTR sample after each inner step for fine-grained tracking
-            self._rtr_samples.append((time.perf_counter(), self._env.now))
+            self._rtr_samples.append((time.perf_counter(), self._env.now, self._speed_multiplier))
 
             elapsed_wall = time.perf_counter() - start_wall
             elapsed_sim = self._env.now - start_sim
@@ -319,7 +334,9 @@ class SimulationEngine:
             if sleep_time > 0.01:
                 while sleep_time > 1.0:
                     time.sleep(1.0)
-                    self._rtr_samples.append((time.perf_counter(), self._env.now))
+                    self._rtr_samples.append(
+                        (time.perf_counter(), self._env.now, self._speed_multiplier)
+                    )
                     sleep_time -= 1.0
                 if sleep_time > 0.01:
                     time.sleep(sleep_time)
@@ -333,7 +350,6 @@ class SimulationEngine:
 
         previous_speed = self._speed_multiplier
         self._speed_multiplier = multiplier
-        self._rtr_samples.clear()
 
         if self._kafka_producer:
             event = {

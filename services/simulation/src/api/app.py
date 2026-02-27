@@ -48,7 +48,7 @@ class MetricsUpdater:
     def __init__(self, engine: SimulationEngine) -> None:
         self._engine = engine
         self._task: asyncio.Task[None] | None = None
-        self._interval = 15.0  # seconds
+        self._interval = 4.0  # seconds — matches OTel export cadence
 
     async def start(self) -> None:
         self._task = asyncio.create_task(self._update_loop())
