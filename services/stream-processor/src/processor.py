@@ -116,6 +116,9 @@ class StreamProcessor:
         # Handle MagicMock or other non-int values from tests
         self._batch_commit_size = batch_size if isinstance(batch_size, int) else 1
 
+        # Time-based commit tracking
+        self._last_commit_time = time.time()
+
         # Initialize event deduplicator using same Redis connection
         dedup_redis = redis.Redis(
             host=settings.redis.host,
@@ -240,6 +243,7 @@ class StreamProcessor:
                 if msg is None:
                     # No message, check if we should flush windows
                     self._maybe_flush_windows()
+                    self._maybe_commit_offsets()
                     continue
 
                 error = msg.error()
@@ -265,6 +269,7 @@ class StreamProcessor:
 
                 # Check if we should flush windows
                 self._maybe_flush_windows()
+                self._maybe_commit_offsets()
 
         except KeyboardInterrupt:
             logger.info("Interrupted by user")
@@ -341,6 +346,18 @@ class StreamProcessor:
             self._consumer.commit()
             get_metrics_collector().record_commit()
             self._pending_commits = 0
+            self._last_commit_time = time.time()
+
+    def _maybe_commit_offsets(self) -> None:
+        """Commit offsets periodically to prevent stale lag reporting."""
+        if self.settings.kafka.enable_auto_commit:
+            return
+        now = time.time()
+        if now - self._last_commit_time >= self.settings.kafka.commit_interval_sec:
+            self._consumer.commit()
+            get_metrics_collector().record_commit()
+            self._pending_commits = 0
+            self._last_commit_time = now
 
     def _maybe_flush_windows(self) -> None:
         """Flush windowed handlers if window duration has elapsed."""

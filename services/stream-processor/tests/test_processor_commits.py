@@ -247,3 +247,190 @@ class TestCommitWithAutoCommitEnabled:
 
         # With auto_commit enabled, manual commit should not be called
         mock_consumer.commit.assert_not_called()
+
+
+class TestPeriodicTimeBasedCommit:
+    """Test periodic time-based offset commits for GPS-dominated workloads."""
+
+    @pytest.fixture
+    def mock_settings_gps(self):
+        """Create mock settings with GPS enabled and short commit interval."""
+        settings = MagicMock()
+        settings.kafka.bootstrap_servers = "localhost:9092"
+        settings.kafka.group_id = "test-group"
+        settings.kafka.auto_offset_reset = "latest"
+        settings.kafka.enable_auto_commit = False
+        settings.kafka.auto_commit_interval_ms = 5000
+        settings.kafka.session_timeout_ms = 30000
+        settings.kafka.max_poll_interval_ms = 300000
+        settings.kafka.batch_commit_size = 100
+        settings.kafka.commit_interval_sec = 1.0  # 1-second periodic commit
+        settings.kafka.fetch_min_bytes = 10240
+        settings.kafka.fetch_max_wait_ms = 100
+        settings.kafka.max_partition_fetch_bytes = 1048576
+        settings.kafka.security_protocol = "PLAINTEXT"
+        settings.redis.host = "localhost"
+        settings.redis.port = 6379
+        settings.redis.password = None
+        settings.redis.db = 0
+        settings.processor.window_size_ms = 100
+        settings.processor.aggregation_strategy = "latest"
+        settings.processor.sample_rate = 10
+        settings.processor.gps_enabled = True
+        settings.processor.trips_enabled = False
+        settings.processor.driver_status_enabled = False
+        settings.processor.surge_enabled = False
+        return settings
+
+    @pytest.fixture
+    def mock_gps_message(self):
+        """Create a mock GPS Kafka message."""
+        msg = MagicMock()
+        msg.topic.return_value = "gps_pings"
+        msg.value.return_value = json.dumps(
+            {
+                "event_type": "gps.ping",
+                "event_id": "gps-001",
+                "driver_id": "driver-123",
+                "timestamp": "2024-01-15T10:00:00Z",
+                "latitude": -23.5505,
+                "longitude": -46.6333,
+                "speed_kmh": 30.0,
+                "heading": 180.0,
+            }
+        ).encode()
+        msg.error.return_value = None
+        msg.partition.return_value = 0
+        msg.offset.return_value = 500
+        return msg
+
+    @patch("src.processor.Consumer")
+    @patch("src.processor.RedisSink")
+    def test_periodic_commit_fires_after_interval(
+        self, mock_redis_class, mock_consumer_class, mock_settings_gps, mock_gps_message
+    ):
+        """Periodic commit should fire after commit_interval_sec even with only GPS messages."""
+        from src.processor import StreamProcessor
+
+        mock_consumer = MagicMock()
+        mock_consumer_class.return_value = mock_consumer
+        mock_consumer.assignment.return_value = [MagicMock()]
+
+        mock_redis = MagicMock()
+        mock_redis_class.return_value = mock_redis
+
+        base_time = 1000.0
+
+        with patch("src.processor.time") as mock_time:
+            mock_time.time.return_value = base_time
+            processor = StreamProcessor(mock_settings_gps)
+
+        # Mock deduplicator to avoid real Redis connection
+        processor._deduplicator = MagicMock()
+        processor._deduplicator.is_duplicate.return_value = False
+
+        # Process GPS messages — windowed handler returns [], no batch commit
+        processor._process_message(mock_gps_message)
+        mock_consumer.commit.assert_not_called()
+
+        # Advance time past the commit interval
+        with patch("src.processor.time") as mock_time:
+            mock_time.time.return_value = base_time + 2.0  # 2s > 1s interval
+            processor._maybe_commit_offsets()
+
+        # Periodic commit should have fired
+        mock_consumer.commit.assert_called_once()
+
+    @patch("src.processor.Consumer")
+    @patch("src.processor.RedisSink")
+    def test_periodic_commit_skipped_when_auto_commit_enabled(
+        self, mock_redis_class, mock_consumer_class, mock_settings_gps
+    ):
+        """Periodic commit should not fire when auto_commit is enabled."""
+        from src.processor import StreamProcessor
+
+        mock_consumer = MagicMock()
+        mock_consumer_class.return_value = mock_consumer
+        mock_consumer.assignment.return_value = [MagicMock()]
+
+        mock_redis = MagicMock()
+        mock_redis_class.return_value = mock_redis
+
+        mock_settings_gps.kafka.enable_auto_commit = True
+
+        base_time = 1000.0
+
+        with patch("src.processor.time") as mock_time:
+            mock_time.time.return_value = base_time
+            processor = StreamProcessor(mock_settings_gps)
+
+        # Advance time past the commit interval
+        with patch("src.processor.time") as mock_time:
+            mock_time.time.return_value = base_time + 10.0
+            processor._maybe_commit_offsets()
+
+        # No commit when auto_commit is enabled
+        mock_consumer.commit.assert_not_called()
+
+    @patch("src.processor.Consumer")
+    @patch("src.processor.RedisSink")
+    def test_periodic_commit_not_fired_before_interval(
+        self, mock_redis_class, mock_consumer_class, mock_settings_gps
+    ):
+        """Periodic commit should not fire before commit_interval_sec elapses."""
+        from src.processor import StreamProcessor
+
+        mock_consumer = MagicMock()
+        mock_consumer_class.return_value = mock_consumer
+        mock_consumer.assignment.return_value = [MagicMock()]
+
+        mock_redis = MagicMock()
+        mock_redis_class.return_value = mock_redis
+
+        base_time = 1000.0
+
+        with patch("src.processor.time") as mock_time:
+            mock_time.time.return_value = base_time
+            processor = StreamProcessor(mock_settings_gps)
+
+        # Check before interval elapses
+        with patch("src.processor.time") as mock_time:
+            mock_time.time.return_value = base_time + 0.5  # 0.5s < 1s interval
+            processor._maybe_commit_offsets()
+
+        mock_consumer.commit.assert_not_called()
+
+    @patch("src.processor.Consumer")
+    @patch("src.processor.RedisSink")
+    def test_batch_commit_resets_periodic_timer(
+        self, mock_redis_class, mock_consumer_class, mock_settings_gps
+    ):
+        """Batch commit in _commit_offsets should reset the periodic timer."""
+        from src.processor import StreamProcessor
+
+        mock_consumer = MagicMock()
+        mock_consumer_class.return_value = mock_consumer
+        mock_consumer.assignment.return_value = [MagicMock()]
+
+        mock_redis = MagicMock()
+        mock_redis_class.return_value = mock_redis
+
+        base_time = 1000.0
+
+        with patch("src.processor.time") as mock_time:
+            mock_time.time.return_value = base_time
+            processor = StreamProcessor(mock_settings_gps)
+
+        # Simulate a batch commit at t=0.8s
+        processor._pending_commits = 5
+        with patch("src.processor.time") as mock_time:
+            mock_time.time.return_value = base_time + 0.8
+            processor._commit_offsets()
+
+        # Now check periodic commit at t=1.5s (0.7s after batch commit, < 1s interval)
+        with patch("src.processor.time") as mock_time:
+            mock_time.time.return_value = base_time + 1.5
+            processor._maybe_commit_offsets()
+
+        # Only the batch commit should have fired (at t=0.8), not a periodic one
+        assert mock_consumer.commit.call_count == 1

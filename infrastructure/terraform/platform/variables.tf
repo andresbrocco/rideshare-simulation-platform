@@ -31,7 +31,7 @@ variable "node_instance_type" {
 variable "node_count" {
   description = "Number of EKS nodes"
   type        = number
-  default     = 3
+  default     = 1
 }
 
 variable "node_disk_size" {
