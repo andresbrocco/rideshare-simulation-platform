@@ -14,7 +14,8 @@ variable "repository_names" {
     "bronze-ingestion",
     "hive-metastore",
     "osrm",
-    "otel-collector"
+    "otel-collector",
+    "performance-controller"
   ]
 }
 

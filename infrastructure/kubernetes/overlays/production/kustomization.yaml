@@ -12,6 +12,7 @@ resources:
   - ../../manifests/osrm.yaml
   - ../../manifests/simulation.yaml
   - ../../manifests/stream-processor.yaml
+  - ../../manifests/performance-controller.yaml
 
   # Data Pipeline
   - ../../manifests/bronze-ingestion.yaml
@@ -60,6 +61,9 @@ images:
     newTag: latest
   - name: rideshare-stream-processor
     newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/stream-processor
+    newTag: latest
+  - name: rideshare-performance-controller
+    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/performance-controller
     newTag: latest
   - name: rideshare-control-panel
     newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/control-panel
@@ -235,3 +239,21 @@ patches:
     target:
       kind: ConfigMap
       name: prometheus-config
+
+  # Performance Controller: production deployment environment
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: placeholder
+      spec:
+        template:
+          spec:
+            containers:
+              - name: performance-controller
+                env:
+                  - name: DEPLOYMENT_ENV
+                    value: "production"
+    target:
+      kind: Deployment
+      name: performance-controller
