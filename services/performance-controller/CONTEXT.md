@@ -41,7 +41,7 @@ Mode is toggled via `PUT /controller/mode` or the "Auto" toggle in the control p
 
 ## Throttle Logic
 
-Continuous asymmetric proportional controller with a target setpoint (default 0.70):
+Continuous asymmetric proportional controller with a target setpoint (default 0.66):
 
 ```
 error       = infrastructure_headroom - target

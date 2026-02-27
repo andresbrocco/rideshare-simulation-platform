@@ -24,8 +24,8 @@ Auto-throttle sidecar that monitors Prometheus recording rules and adjusts simul
 | `SIMULATION_BASE_URL` | `http://simulation:8000` | Simulation API base URL |
 | `SIMULATION_API_KEY` | (from secrets) | API key for simulation auth |
 | `CONTROLLER_POLL_INTERVAL_SECONDS` | `5.0` | Seconds between control loop iterations |
-| `CONTROLLER_TARGET` | `0.70` | Infrastructure headroom setpoint (stable equilibrium) |
-| `CONTROLLER_K_UP` | `0.3` | Gain for speed increases (gentle ramp-up) |
+| `CONTROLLER_TARGET` | `0.66` | Infrastructure headroom setpoint (stable equilibrium) |
+| `CONTROLLER_K_UP` | `0.15` | Gain for speed increases (gentle ramp-up) |
 | `CONTROLLER_K_DOWN` | `5.0` | Gain for speed decreases (aggressive cut-down) |
 | `CONTROLLER_SMOOTHNESS` | `12.0` | Sigmoid steepness blending k_up and k_down |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://otel-collector:4317` | OTel Collector gRPC endpoint |

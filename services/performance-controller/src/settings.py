@@ -40,13 +40,13 @@ class ControllerSettings(BaseSettings):
         description="Minimum simulation speed multiplier (1/8x)",
     )
     target: float = Field(
-        default=0.70,
+        default=0.66,
         ge=0.0,
         le=1.0,
         description="Infrastructure headroom setpoint — stable equilibrium target",
     )
     k_up: float = Field(
-        default=0.3,
+        default=0.15,
         gt=0.0,
         description="Gain for speed increases (small = gentle ramp-up)",
     )

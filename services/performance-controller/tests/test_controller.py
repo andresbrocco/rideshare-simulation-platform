@@ -189,8 +189,8 @@ def _make_controller_with_speed(
     current_speed: float = 10.0,
     max_speed: float = 32.0,
     min_speed: float = 0.125,
-    target: float = 0.70,
-    k_up: float = 0.3,
+    target: float = 0.66,
+    k_up: float = 0.15,
     k_down: float = 5.0,
     smoothness: float = 12.0,
 ) -> PerformanceController:
@@ -218,19 +218,19 @@ class TestDecideSpeed:
     def test_at_target_speed_unchanged(self) -> None:
         """At exactly the target index, factor ≈ 1 so speed stays the same."""
         ctrl = _make_controller_with_speed(current_speed=10.0)
-        new_speed = ctrl.decide_speed(0.70)
+        new_speed = ctrl.decide_speed(0.66)
         assert abs(new_speed - 10.0) < 0.01
 
     def test_above_target_speed_increases(self) -> None:
         """Index above target → speed should increase."""
         ctrl = _make_controller_with_speed(current_speed=10.0)
-        new_speed = ctrl.decide_speed(0.90)
+        new_speed = ctrl.decide_speed(0.86)
         assert new_speed > 10.0
 
     def test_below_target_speed_decreases(self) -> None:
         """Index below target → speed should decrease."""
         ctrl = _make_controller_with_speed(current_speed=10.0)
-        new_speed = ctrl.decide_speed(0.50)
+        new_speed = ctrl.decide_speed(0.46)
         assert new_speed < 10.0
 
     def test_asymmetry_decrease_larger_than_increase(self) -> None:
@@ -238,8 +238,8 @@ class TestDecideSpeed:
         ctrl_up = _make_controller_with_speed(current_speed=10.0)
         ctrl_down = _make_controller_with_speed(current_speed=10.0)
 
-        speed_up = ctrl_up.decide_speed(0.90)  # +0.20 above target
-        speed_down = ctrl_down.decide_speed(0.50)  # -0.20 below target
+        speed_up = ctrl_up.decide_speed(0.86)  # +0.20 above target
+        speed_down = ctrl_down.decide_speed(0.46)  # -0.20 below target
 
         increase = speed_up - 10.0
         decrease = 10.0 - speed_down
@@ -260,12 +260,12 @@ class TestDecideSpeed:
         assert new_speed >= 0.125
 
     def test_severely_degraded_aggressive_cut(self) -> None:
-        """Index=0.10 → >90% speed reduction (aggressive emergency cut)."""
+        """Index=0.10 → >80% speed reduction (aggressive emergency cut)."""
         ctrl = _make_controller_with_speed(current_speed=16.0)
         new_speed = ctrl.decide_speed(0.10)
         reduction_pct = (16.0 - new_speed) / 16.0
-        assert reduction_pct > 0.90, (
-            f"Expected >90% reduction, got {reduction_pct * 100:.1f}% " f"(speed: {new_speed:.3f})"
+        assert reduction_pct > 0.80, (
+            f"Expected >80% reduction, got {reduction_pct * 100:.1f}% " f"(speed: {new_speed:.3f})"
         )
 
     def test_continuous_near_target_small_adjustments(self) -> None:
@@ -276,14 +276,14 @@ class TestDecideSpeed:
         """
         ctrl_above = _make_controller_with_speed(current_speed=10.0)
         ctrl_below = _make_controller_with_speed(current_speed=10.0)
-        speed_slightly_above = ctrl_above.decide_speed(0.72)
-        speed_slightly_below = ctrl_below.decide_speed(0.68)
+        speed_slightly_above = ctrl_above.decide_speed(0.68)
+        speed_slightly_below = ctrl_below.decide_speed(0.64)
 
         # Above target: gentle ramp — within 5%
         assert abs(speed_slightly_above - 10.0) / 10.0 < 0.05
         # Below target: asymmetric response is larger — within 10%
         assert abs(speed_slightly_below - 10.0) / 10.0 < 0.10
-        # But still clearly smaller than a large deviation (e.g. index=0.30)
+        # But still clearly smaller than a large deviation (e.g. index=0.46)
         ctrl_large = _make_controller_with_speed(current_speed=10.0)
-        speed_large_drop = ctrl_large.decide_speed(0.30)
+        speed_large_drop = ctrl_large.decide_speed(0.46)
         assert (10.0 - speed_slightly_below) < (10.0 - speed_large_drop)
