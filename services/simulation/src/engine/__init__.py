@@ -317,7 +317,12 @@ class SimulationEngine:
             sleep_time = target_wall - elapsed_wall
 
             if sleep_time > 0.01:
-                time.sleep(sleep_time)
+                while sleep_time > 1.0:
+                    time.sleep(1.0)
+                    self._rtr_samples.append((time.perf_counter(), self._env.now))
+                    sleep_time -= 1.0
+                if sleep_time > 0.01:
+                    time.sleep(sleep_time)
 
     def set_speed(self, multiplier: float) -> None:
         """Change simulation speed (must be between 0.125 and 32)."""

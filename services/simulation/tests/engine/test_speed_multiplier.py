@@ -188,6 +188,44 @@ def test_rtr_clears_on_speed_change(engine):
 
 
 @pytest.mark.unit
+def test_rtr_valid_with_chunked_samples_at_low_speed(engine):
+    """At low speed (e.g. 0.125x), chunked sleep produces ~1 sample/sec, keeping RTR valid."""
+    now = time.perf_counter()
+    engine._speed_multiplier = 0.125
+
+    # Simulate 8 wall-seconds of chunked sleep for 1 sim-second at 0.125x.
+    # Each chunk records a sample ~1 wall-second apart, with env.now advancing
+    # by 0.125 sim-seconds per chunk (1 sim-sec / 8 chunks).
+    for i in range(9):  # 9 samples spanning 8 wall-seconds
+        wall_t = now - 8.0 + i  # -8, -7, ..., 0
+        sim_t = i * 0.125  # 0, 0.125, ..., 1.0
+        engine._rtr_samples.append((wall_t, sim_t))
+
+    rtr = engine.real_time_ratio()
+    assert rtr is not None
+    # 1 sim-sec / 8 wall-sec / 0.125 speed = 1.0
+    assert abs(rtr - 1.0) < 0.01
+
+
+@pytest.mark.unit
+def test_rtr_chunked_sleep_no_effect_at_high_speed(engine):
+    """At speeds >= 1x, no chunked sleep occurs — RTR comes from inner-step samples only."""
+    now = time.perf_counter()
+    engine._speed_multiplier = 4
+
+    # Simulate inner-step samples only (no chunking at 4x speed).
+    # 4 sim-seconds in 1 wall-second at 4x → RTR = 1.0
+    for i in range(5):
+        wall_t = now - 1.0 + (i * 0.25)  # 0.25s apart
+        sim_t = i * 1.0  # 1 sim-sec per step
+        engine._rtr_samples.append((wall_t, sim_t))
+
+    rtr = engine.real_time_ratio()
+    assert rtr is not None
+    assert abs(rtr - 1.0) < 0.01
+
+
+@pytest.mark.unit
 def test_rtr_excludes_stale_samples(engine):
     """Samples older than the window are excluded."""
     now = time.perf_counter()
