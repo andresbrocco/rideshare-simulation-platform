@@ -16,7 +16,7 @@ const FLAG_ICON_MAPPING = {
 // Home marker icon for inspector home location
 const HOME_ICON = '/icons/home.png';
 const HOME_ICON_MAPPING = {
-  home: { x: 0, y: 0, width: 100, height: 100, anchorY: 100, anchorX: 50, mask: true },
+  home: { x: 0, y: 0, width: 100, height: 100, anchorY: 100, anchorX: 50, mask: false },
 };
 
 // Icon mapping for deck.gl (defines icon bounds within the image)
@@ -805,6 +805,5 @@ export function createHomeMarkerLayer(
     getSize: 42 * scaleFactor,
 
     getPosition: (d: { position: [number, number] }) => d.position,
-    getColor: [236, 72, 153] as [number, number, number], // Vibrant pink (#EC4899)
   });
 }
