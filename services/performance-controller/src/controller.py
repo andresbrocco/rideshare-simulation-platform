@@ -29,7 +29,7 @@ class PerformanceController:
         self._running = False
         self._mode: str = "off"
         self._consecutive_healthy = 0
-        self._current_speed: int = settings.controller.target_speed
+        self._current_speed: float = settings.controller.max_speed
         self._performance_index: float = 1.0
 
     # ------------------------------------------------------------------
@@ -52,7 +52,7 @@ class PerformanceController:
                 self._consecutive_healthy = 0
 
     @property
-    def current_speed(self) -> int:
+    def current_speed(self) -> float:
         return self._current_speed
 
     @property
@@ -67,16 +67,16 @@ class PerformanceController:
     # Throttle decision
     # ------------------------------------------------------------------
 
-    def decide_speed(self, index: float) -> int:
-        """Decide the target speed based on the performance index."""
+    def decide_speed(self, index: float) -> float:
+        """Decide the speed based on the performance index using geometric ramping."""
         cfg = self._settings.controller
 
         if index < cfg.critical_threshold:
-            # Critical — aggressive reduction
-            new_speed = max(1, int(self._current_speed * 0.25))
+            # Critical — aggressive reduction (divide by ramp_factor²)
+            new_speed = max(cfg.min_speed, self._current_speed / (cfg.ramp_factor**2))
             self._consecutive_healthy = 0
             logger.warning(
-                "CRITICAL: index=%.2f < %.2f → reducing speed %d → %d",
+                "CRITICAL: index=%.2f < %.2f → reducing speed %.2f → %.2f",
                 index,
                 cfg.critical_threshold,
                 self._current_speed,
@@ -85,11 +85,11 @@ class PerformanceController:
             return new_speed
 
         if index < cfg.warning_threshold:
-            # Warning — moderate reduction
-            new_speed = max(1, int(self._current_speed * 0.5))
+            # Warning — moderate reduction (divide by ramp_factor)
+            new_speed = max(cfg.min_speed, self._current_speed / cfg.ramp_factor)
             self._consecutive_healthy = 0
             logger.warning(
-                "WARNING: index=%.2f < %.2f → reducing speed %d → %d",
+                "WARNING: index=%.2f < %.2f → reducing speed %.2f → %.2f",
                 index,
                 cfg.warning_threshold,
                 self._current_speed,
@@ -100,11 +100,11 @@ class PerformanceController:
         if index >= cfg.healthy_threshold:
             self._consecutive_healthy += 1
             if self._consecutive_healthy >= cfg.healthy_cycles_required:
-                # Healthy for long enough — double speed (capped at target)
-                new_speed = min(self._current_speed * 2, cfg.target_speed)
+                # Healthy for long enough — ramp up (multiply by ramp_factor, capped at max)
+                new_speed = min(self._current_speed * cfg.ramp_factor, cfg.max_speed)
                 if new_speed > self._current_speed:
                     logger.info(
-                        "HEALTHY: index=%.2f for %d cycles → increasing speed %d → %d",
+                        "HEALTHY: index=%.2f for %d cycles → increasing speed %.2f → %.2f",
                         index,
                         self._consecutive_healthy,
                         self._current_speed,
@@ -122,7 +122,7 @@ class PerformanceController:
     # Actuation
     # ------------------------------------------------------------------
 
-    def actuate_speed(self, new_speed: int) -> bool:
+    def actuate_speed(self, new_speed: float) -> bool:
         """Call PUT /simulation/speed to change the simulation speed."""
         try:
             resp = self._sim_client.put(
@@ -131,10 +131,10 @@ class PerformanceController:
                 headers={"X-API-Key": self._api_key},
             )
             resp.raise_for_status()
-            logger.info("Speed actuated: %d (response: %s)", new_speed, resp.json())
+            logger.info("Speed actuated: %.2f (response: %s)", new_speed, resp.json())
             return True
         except httpx.HTTPError as exc:
-            logger.error("Failed to actuate speed %d: %s", new_speed, exc)
+            logger.error("Failed to actuate speed %.2f: %s", new_speed, exc)
             return False
 
     # ------------------------------------------------------------------
@@ -146,10 +146,10 @@ class PerformanceController:
         self._running = True
         cfg = self._settings.controller
 
-        if cfg.target_speed < 4:
+        if cfg.max_speed < 4:
             logger.warning(
-                "target_speed=%d — throttle has limited headroom below 4x",
-                cfg.target_speed,
+                "max_speed=%.2f — throttle has limited headroom below 4x",
+                cfg.max_speed,
             )
 
         # Wait for Prometheus to be reachable
@@ -174,7 +174,7 @@ class PerformanceController:
 
             if self._mode == "on":
                 new_speed = self.decide_speed(index)
-                if new_speed != self._current_speed:
+                if abs(new_speed - self._current_speed) > 0.001:
                     if self.actuate_speed(new_speed):
                         self._current_speed = new_speed
                         record_adjustment()

@@ -39,7 +39,7 @@ class HealthResponse(BaseModel):
 
     status: str
     mode: str
-    current_speed: int
+    current_speed: float
     performance_index: float
     uptime_seconds: float
 
@@ -49,8 +49,8 @@ class StatusResponse(BaseModel):
 
     mode: str
     performance_index: float
-    current_speed: int
-    target_speed: int
+    current_speed: float
+    max_speed: float
     consecutive_healthy: int
     uptime_seconds: float
 
@@ -86,7 +86,7 @@ def health_check() -> HealthResponse:
         return HealthResponse(
             status="starting",
             mode="off",
-            current_speed=0,
+            current_speed=0.0,
             performance_index=0.0,
             uptime_seconds=time.monotonic() - _start_time,
         )
@@ -110,8 +110,8 @@ def get_status() -> StatusResponse:
         return StatusResponse(
             mode="off",
             performance_index=0.0,
-            current_speed=0,
-            target_speed=0,
+            current_speed=0.0,
+            max_speed=0.0,
             consecutive_healthy=0,
             uptime_seconds=uptime,
         )
@@ -120,7 +120,7 @@ def get_status() -> StatusResponse:
         mode=ctrl.mode,
         performance_index=ctrl.performance_index,
         current_speed=ctrl.current_speed,
-        target_speed=ctrl._settings.controller.target_speed,
+        max_speed=ctrl._settings.controller.max_speed,
         consecutive_healthy=ctrl.consecutive_healthy,
         uptime_seconds=uptime,
     )
@@ -136,8 +136,8 @@ def set_mode(body: ModeRequest) -> StatusResponse:
         return StatusResponse(
             mode="off",
             performance_index=0.0,
-            current_speed=0,
-            target_speed=0,
+            current_speed=0.0,
+            max_speed=0.0,
             consecutive_healthy=0,
             uptime_seconds=uptime,
         )
@@ -148,7 +148,7 @@ def set_mode(body: ModeRequest) -> StatusResponse:
         mode=ctrl.mode,
         performance_index=ctrl.performance_index,
         current_speed=ctrl.current_speed,
-        target_speed=ctrl._settings.controller.target_speed,
+        max_speed=ctrl._settings.controller.max_speed,
         consecutive_healthy=ctrl.consecutive_healthy,
         uptime_seconds=uptime,
     )

@@ -181,7 +181,9 @@ export default function ControlPanel({
         </div>
         {isAutoMode ? (
           <div className={styles.autoSpeedInfo}>
-            <span className={styles.autoSpeedValue}>{controllerStatus.current_speed}x</span>
+            <span className={styles.autoSpeedValue}>
+              {controllerStatus.current_speed.toFixed(1)}x
+            </span>
             <span className={styles.performanceIndex}>
               Index: {Math.round(controllerStatus.performance_index * 100)}%
             </span>

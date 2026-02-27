@@ -23,7 +23,7 @@ meter = metrics.get_meter("performance-controller")
 _snapshot_lock = threading.Lock()
 _snapshot_values: dict[str, float] = {
     "performance_index": 0.0,
-    "target_speed_multiplier": 0.0,
+    "applied_speed": 0.0,
     "mode": 0.0,
 }
 
@@ -44,10 +44,10 @@ controller_performance_index = meter.create_observable_gauge(
     unit="1",
 )
 
-controller_target_speed_multiplier = meter.create_observable_gauge(
-    name="controller_target_speed_multiplier",
-    callbacks=[lambda options: _observe("target_speed_multiplier")],
-    description="Current target speed multiplier set by controller",
+controller_applied_speed = meter.create_observable_gauge(
+    name="controller_applied_speed",
+    callbacks=[lambda options: _observe("applied_speed")],
+    description="Current applied speed set by controller",
     unit="1",
 )
 
@@ -76,7 +76,7 @@ def update_snapshot(index: float, speed: float) -> None:
     """Update the performance index and speed in the observable snapshot."""
     with _snapshot_lock:
         _snapshot_values["performance_index"] = index
-        _snapshot_values["target_speed_multiplier"] = speed
+        _snapshot_values["applied_speed"] = speed
 
 
 def update_mode(mode_on: bool) -> None:

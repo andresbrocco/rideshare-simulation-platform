@@ -105,12 +105,22 @@ def test_change_speed_valid(test_client, mock_simulation_engine, auth_headers):
 
 
 @pytest.mark.unit
+def test_change_speed_fractional(test_client, mock_simulation_engine, auth_headers):
+    """Accepts fractional speed multipliers."""
+    response = test_client.put("/simulation/speed", json={"multiplier": 0.5}, headers=auth_headers)
+
+    assert response.status_code == 200
+    assert response.json()["speed"] == 0.5
+    mock_simulation_engine.set_speed.assert_called_once_with(0.5)
+
+
+@pytest.mark.unit
 def test_change_speed_invalid(test_client, mock_simulation_engine, auth_headers):
-    """Rejects invalid multiplier (must be positive integer)."""
-    response = test_client.put("/simulation/speed", json={"multiplier": 0}, headers=auth_headers)
+    """Rejects multiplier below minimum (0.0625)."""
+    response = test_client.put("/simulation/speed", json={"multiplier": 0.06}, headers=auth_headers)
 
     assert response.status_code == 400
-    assert "positive integer" in response.json()["detail"]
+    assert ">= 0.0625" in response.json()["detail"]
 
 
 @pytest.mark.unit

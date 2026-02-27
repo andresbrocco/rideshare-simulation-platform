@@ -43,7 +43,7 @@ class CheckpointManager:
     def create_checkpoint(
         self,
         current_time: float,
-        speed_multiplier: int,
+        speed_multiplier: float,
         status: str,
         drivers: list[tuple[str, DriverDNA]],
         riders: list[tuple[str, RiderDNA]],

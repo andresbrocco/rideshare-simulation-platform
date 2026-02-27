@@ -1,6 +1,6 @@
 """Configuration settings for performance controller."""
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -29,22 +29,32 @@ class ControllerSettings(BaseSettings):
         ge=1.0,
         description="Seconds between control loop iterations",
     )
-    target_speed: int = Field(
-        default=10,
-        ge=1,
-        description="Desired simulation speed multiplier",
+    max_speed: float = Field(
+        default=16.0,
+        gt=0,
+        description="Maximum simulation speed multiplier",
+    )
+    min_speed: float = Field(
+        default=0.0625,
+        gt=0,
+        description="Minimum simulation speed multiplier (1/16x)",
+    )
+    ramp_factor: float = Field(
+        default=1.5,
+        gt=1.0,
+        description="Geometric factor for speed ramp up/down",
     )
     critical_threshold: float = Field(
         default=0.3,
         ge=0.0,
         le=1.0,
-        description="Below this index, reduce to 25% of current speed",
+        description="Below this index, aggressively reduce speed by ramp_factor²",
     )
     warning_threshold: float = Field(
         default=0.5,
         ge=0.0,
         le=1.0,
-        description="Below this index, reduce to 50% of current speed",
+        description="Below this index, moderately reduce speed by ramp_factor",
     )
     healthy_threshold: float = Field(
         default=0.8,
@@ -58,6 +68,14 @@ class ControllerSettings(BaseSettings):
         description="Consecutive healthy cycles before speed increase",
     )
     model_config = SettingsConfigDict(env_prefix="CONTROLLER_")
+
+    @model_validator(mode="after")
+    def validate_speed_bounds(self) -> "ControllerSettings":
+        if self.min_speed > self.max_speed:
+            raise ValueError(
+                f"min_speed ({self.min_speed}) must be <= max_speed ({self.max_speed})"
+            )
+        return self
 
 
 class APISettings(BaseSettings):

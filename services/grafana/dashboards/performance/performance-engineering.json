@@ -1384,12 +1384,12 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "controller_target_speed_multiplier_ratio",
-          "legendFormat": "Target Multiplier",
+          "expr": "controller_applied_speed_ratio",
+          "legendFormat": "Applied Speed",
           "refId": "A"
         }
       ],
-      "title": "Target Speed Multiplier",
+      "title": "Applied Speed",
       "type": "stat"
     }
   ],

@@ -4,11 +4,11 @@ from pydantic import BaseModel
 
 
 class SpeedChangeRequest(BaseModel):
-    multiplier: int
+    multiplier: float
 
 
 class SpeedChangeResponse(BaseModel):
-    speed: int
+    speed: float
 
 
 class ControlResponse(BaseModel):
@@ -18,7 +18,7 @@ class ControlResponse(BaseModel):
 
 class SimulationStatusResponse(BaseModel):
     state: Literal["stopped", "running", "draining", "paused"]
-    speed_multiplier: int
+    speed_multiplier: float
     current_time: str
     # Detailed driver metrics
     drivers_total: int

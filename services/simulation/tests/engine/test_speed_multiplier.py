@@ -83,12 +83,28 @@ def test_set_speed_100x(engine):
 
 
 @pytest.mark.unit
+def test_set_speed_fractional(engine):
+    """Accepts fractional speed multipliers."""
+    engine.set_speed(0.5)
+    assert engine.speed_multiplier == 0.5
+
+    engine.set_speed(0.0625)
+    assert engine.speed_multiplier == 0.0625
+
+    engine.set_speed(2.5)
+    assert engine.speed_multiplier == 2.5
+
+
+@pytest.mark.unit
 def test_set_speed_invalid(engine):
-    """Rejects invalid multiplier (must be positive integer)."""
-    with pytest.raises(ValueError, match="Speed multiplier must be a positive integer"):
+    """Rejects multiplier below minimum (0.0625)."""
+    with pytest.raises(ValueError, match="Speed multiplier must be >= 0.0625"):
+        engine.set_speed(0.06)
+
+    with pytest.raises(ValueError, match="Speed multiplier must be >= 0.0625"):
         engine.set_speed(0)
 
-    with pytest.raises(ValueError, match="Speed multiplier must be a positive integer"):
+    with pytest.raises(ValueError, match="Speed multiplier must be >= 0.0625"):
         engine.set_speed(-1)
 
 

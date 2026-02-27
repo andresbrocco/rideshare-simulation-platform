@@ -65,6 +65,13 @@ vi.mock('../../hooks/usePerformanceContext', () => ({
   }),
 }));
 
+vi.mock('../../hooks/usePerformanceController', () => ({
+  usePerformanceController: () => ({
+    status: null,
+    setMode: vi.fn(),
+  }),
+}));
+
 describe('ControlPanel', () => {
   const mockStatus: SimulationStatus = {
     state: 'stopped',
@@ -75,6 +82,7 @@ describe('ControlPanel', () => {
     drivers_available: 30,
     drivers_en_route_pickup: 5,
     drivers_on_trip: 5,
+    drivers_driving_closer_to_home: 0,
     riders_total: 20,
     riders_idle: 5,
     riders_requesting: 10,
@@ -82,6 +90,7 @@ describe('ControlPanel', () => {
     riders_on_trip: 5,
     active_trips_count: 10,
     uptime_seconds: 3600,
+    real_time_ratio: null,
   };
 
   beforeEach(() => {

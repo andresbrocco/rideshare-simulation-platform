@@ -16,7 +16,7 @@ from settings import (
 class TestSimulationSettings:
     def test_defaults(self):
         settings = SimulationSettings()
-        assert settings.speed_multiplier == 1
+        assert settings.speed_multiplier == 1.0
         assert settings.log_level == "INFO"
         assert settings.checkpoint_interval == 300
 
@@ -26,19 +26,26 @@ class TestSimulationSettings:
         monkeypatch.setenv("SIM_CHECKPOINT_INTERVAL", "600")
 
         settings = SimulationSettings()
-        assert settings.speed_multiplier == 10
+        assert settings.speed_multiplier == 10.0
         assert settings.log_level == "DEBUG"
         assert settings.checkpoint_interval == 600
 
     def test_validation(self):
         with pytest.raises(ValidationError):
-            SimulationSettings(speed_multiplier=0)
+            SimulationSettings(speed_multiplier=0.06)  # Below minimum 0.0625
 
         with pytest.raises(ValidationError):
-            SimulationSettings(speed_multiplier=1025)  # Max is 1024
+            SimulationSettings(speed_multiplier=1025.0)  # Max is 1024
 
         with pytest.raises(ValidationError):
             SimulationSettings(checkpoint_interval=30)
+
+    def test_speed_multiplier_accepts_float(self):
+        settings = SimulationSettings(speed_multiplier=0.0625)
+        assert settings.speed_multiplier == 0.0625
+
+        settings = SimulationSettings(speed_multiplier=2.5)
+        assert settings.speed_multiplier == 2.5
 
     def test_mid_trip_cancellation_rate_default(self):
         settings = SimulationSettings()
@@ -163,7 +170,7 @@ class TestSettings:
         settings = Settings()
         assert settings.kafka.bootstrap_servers == "localhost:9092"
         assert settings.redis.host == "localhost"
-        assert settings.simulation.speed_multiplier == 1
+        assert settings.simulation.speed_multiplier == 1.0
 
     def test_get_settings(self, monkeypatch):
         monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")

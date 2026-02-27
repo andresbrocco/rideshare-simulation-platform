@@ -163,7 +163,7 @@ class SimulationEngine:
         self._active_rider_counter: int = 0
 
         self._time_manager = TimeManager(simulation_start_time, self._env)
-        self._speed_multiplier = 1
+        self._speed_multiplier: float = 1.0
         self._rtr_window_seconds = rtr_window_seconds
         self._rtr_samples: deque[tuple[float, float]] = deque(maxlen=2000)
         # (wall_perf_counter, env.now) pairs
@@ -191,7 +191,7 @@ class SimulationEngine:
         return self._time_manager
 
     @property
-    def speed_multiplier(self) -> int:
+    def speed_multiplier(self) -> float:
         return self._speed_multiplier
 
     def real_time_ratio(self) -> float | None:
@@ -319,10 +319,10 @@ class SimulationEngine:
             if sleep_time > 0.01:
                 time.sleep(sleep_time)
 
-    def set_speed(self, multiplier: int) -> None:
-        """Change simulation speed (any positive integer)."""
-        if multiplier < 1:
-            raise ValueError("Speed multiplier must be a positive integer")
+    def set_speed(self, multiplier: float) -> None:
+        """Change simulation speed (must be >= 0.0625)."""
+        if multiplier < 0.0625:
+            raise ValueError("Speed multiplier must be >= 0.0625")
 
         previous_speed = self._speed_multiplier
         self._speed_multiplier = multiplier

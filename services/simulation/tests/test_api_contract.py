@@ -141,7 +141,7 @@ def test_simulation_status_matches_schema(test_client: TestClient) -> None:
         assert field in data, f"Missing required field: {field}"
 
     assert data["state"] in ["stopped", "running", "draining", "paused"]
-    assert isinstance(data["speed_multiplier"], int)
+    assert isinstance(data["speed_multiplier"], int | float)
     assert isinstance(data["drivers_total"], int)
     assert isinstance(data["uptime_seconds"], int | float)
 
