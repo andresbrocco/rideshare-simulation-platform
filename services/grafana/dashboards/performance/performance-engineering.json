@@ -838,7 +838,7 @@
       },
       "id": 14,
       "panels": [],
-      "title": "Real-Time Ratio",
+      "title": "Speed Multiplier & Real-Time Ratio",
       "type": "row"
     },
     {
@@ -846,7 +846,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Real-Time Ratio: how many seconds of simulation time pass per wall-clock second. RTR < speed multiplier means the simulation is falling behind real time due to compute or I/O bottlenecks.",
+      "description": "Speed Multiplier (right axis) vs Real-Time Ratio (left axis). RTR measures actual sim-seconds per wall-second. When RTR < Speed Multiplier, the simulation is falling behind due to compute or I/O bottlenecks.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -890,7 +890,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Speed Multiplier (target)"
+              "options": "Speed Multiplier"
             },
             "properties": [
               {
@@ -914,6 +914,14 @@
               {
                 "id": "custom.fillOpacity",
                 "value": 0
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "multiplier"
               }
             ]
           }
@@ -921,7 +929,7 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 24,
         "x": 0,
         "y": 28
       },
@@ -956,77 +964,11 @@
             "uid": "prometheus"
           },
           "expr": "simulation_speed_multiplier_ratio",
-          "legendFormat": "Speed Multiplier (target)",
+          "legendFormat": "Speed Multiplier",
           "refId": "B"
         }
       ],
-      "title": "RTR Over Time",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "description": "The configured speed multiplier controlling how fast simulation time advances relative to wall-clock time. Compare with RTR to detect when the system cannot sustain the requested speed.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisLabel": "multiplier",
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "lineInterpolation": "stepAfter",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            }
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 28
-      },
-      "id": 16,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "simulation_speed_multiplier_ratio",
-          "legendFormat": "Speed Multiplier",
-          "refId": "A"
-        }
-      ],
-      "title": "Speed Multiplier",
+      "title": "Speed Multiplier & RTR",
       "type": "timeseries"
     },
     {
