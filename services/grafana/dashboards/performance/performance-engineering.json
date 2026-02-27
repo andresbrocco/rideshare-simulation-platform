@@ -272,6 +272,7 @@
           "color": {
             "mode": "thresholds"
           },
+          "decimals": 0,
           "max": 100,
           "min": 0,
           "thresholds": {
@@ -1288,74 +1289,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Rate of speed adjustments made by the performance controller. Shows 'No data' until the controller sidecar is deployed.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 0.1
-              },
-              {
-                "color": "red",
-                "value": 0.5
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 6,
-        "x": 0,
-        "y": 45
-      },
-      "id": 19,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "increase(controller_adjustments_total[$__range])",
-          "legendFormat": "Adjustments in window",
-          "refId": "A"
-        }
-      ],
-      "title": "Controller Adjustments",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "description": "The speed multiplier target currently set by the performance controller. Shows 'No data' until the controller sidecar is deployed.",
+      "description": "Current simulation speed multiplier. Reflects the active speed setting whether set manually or by the performance controller.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1385,7 +1319,7 @@
       "gridPos": {
         "h": 8,
         "w": 6,
-        "x": 6,
+        "x": 0,
         "y": 45
       },
       "id": 20,
@@ -1409,12 +1343,12 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "controller_applied_speed_ratio",
-          "legendFormat": "Applied Speed",
+          "expr": "simulation_speed_multiplier_ratio",
+          "legendFormat": "Speed Multiplier",
           "refId": "A"
         }
       ],
-      "title": "Applied Speed",
+      "title": "Current Speed Multiplier",
       "type": "stat"
     }
   ],
