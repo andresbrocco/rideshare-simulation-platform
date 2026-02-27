@@ -13,8 +13,8 @@ groups:
       - record: rideshare:performance:cpu_headroom
         expr: >-
           clamp(
-            1 - (sum by() (rate(container_cpu_usage_seconds_total{name=~"rideshare.*"}[1m]) * 100) or vector(0))
-            / clamp_min(max(machine_cpu_cores) * 100, 100),
+            2 * (1 - (sum by() (rate(container_cpu_usage_seconds_total{name=~"rideshare.*"}[1m]) * 100) or vector(0))
+            / clamp_min(max(machine_cpu_cores) * 100, 100)),
             0, 1
           )
 
