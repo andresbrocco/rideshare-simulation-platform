@@ -74,16 +74,20 @@ spec:
           value: "32"
         - name: CONTROLLER_MIN_SPEED
           value: "0.125"
-        - name: CONTROLLER_RAMP_FACTOR
+        - name: CONTROLLER_TARGET
+          value: "0.66"
+        - name: CONTROLLER_K_UP
+          value: "0.15"
+        - name: CONTROLLER_K_DOWN
           value: "1.5"
-        - name: CONTROLLER_CRITICAL_THRESHOLD
-          value: "0.3"
-        - name: CONTROLLER_WARNING_THRESHOLD
-          value: "0.5"
-        - name: CONTROLLER_HEALTHY_THRESHOLD
-          value: "0.8"
-        - name: CONTROLLER_HEALTHY_CYCLES_REQUIRED
-          value: "3"
+        - name: CONTROLLER_SMOOTHNESS
+          value: "12.0"
+        - name: CONTROLLER_KI
+          value: "0.02"
+        - name: CONTROLLER_KD
+          value: "0.1"
+        - name: CONTROLLER_INTEGRAL_MAX
+          value: "5.0"
         - name: API_HOST
           value: "0.0.0.0"
         - name: API_PORT

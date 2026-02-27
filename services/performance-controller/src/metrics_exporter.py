@@ -25,6 +25,8 @@ _snapshot_values: dict[str, float] = {
     "infrastructure_headroom": 0.0,
     "applied_speed": 0.0,
     "mode": 0.0,
+    "error_integral": 0.0,
+    "error_derivative": 0.0,
 }
 
 
@@ -58,6 +60,20 @@ controller_mode = meter.create_observable_gauge(
     unit="1",
 )
 
+controller_error_integral = meter.create_observable_gauge(
+    name="controller_error_integral",
+    callbacks=[lambda options: _observe("error_integral")],
+    description="PID error integral (accumulated error-seconds)",
+    unit="1",
+)
+
+controller_error_derivative = meter.create_observable_gauge(
+    name="controller_error_derivative",
+    callbacks=[lambda options: _observe("error_derivative")],
+    description="PID error derivative (rate of error change)",
+    unit="1",
+)
+
 # ---------------------------------------------------------------------------
 # Counter
 # ---------------------------------------------------------------------------
@@ -83,6 +99,13 @@ def update_mode(mode_on: bool) -> None:
     """Update the controller mode in the observable snapshot."""
     with _snapshot_lock:
         _snapshot_values["mode"] = 1.0 if mode_on else 0.0
+
+
+def update_pid_state(error_integral: float, error_derivative: float) -> None:
+    """Update the PID state in the observable snapshot."""
+    with _snapshot_lock:
+        _snapshot_values["error_integral"] = error_integral
+        _snapshot_values["error_derivative"] = error_derivative
 
 
 def record_adjustment() -> None:

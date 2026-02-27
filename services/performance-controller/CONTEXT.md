@@ -9,7 +9,7 @@ Independent sidecar that monitors system saturation via Prometheus recording rul
 - **Option B design**: Standalone service that queries Prometheus HTTP API and calls the simulation REST API
 - **No direct Kafka dependency**: Reads Kafka lag via kafka-exporter metrics in Prometheus
 - **OTel metrics export**: Pushes `controller_*` metrics via OTLP → OTel Collector → Prometheus
-- **Continuous proportional control**: Sigmoid-blended asymmetric gain around a target setpoint (no discrete thresholds)
+- **PID control**: Sigmoid-blended asymmetric P-gain with integral and derivative terms (no discrete thresholds)
 
 ## Control Loop
 
@@ -41,17 +41,24 @@ Mode is toggled via `PUT /controller/mode` or the "Auto" toggle in the control p
 
 ## Throttle Logic
 
-Continuous asymmetric proportional controller with a target setpoint (default 0.66):
+PID controller with asymmetric proportional gain and a target setpoint (default 0.66):
 
 ```
-error       = infrastructure_headroom - target
-blend       = 1 / (1 + exp(-smoothness * error))       # sigmoid 0→1
-effective_k = k_down + (k_up - k_down) * blend          # large below target, small above
-factor      = exp(effective_k * error)                   # multiplicative adjustment
-new_speed   = clamp(current_speed * factor, min, max)
+error         = infrastructure_headroom - target
+integral     += error * dt                              # clamped to [-integral_max, +integral_max]
+derivative    = (error - previous_error) / dt           # skipped on first cycle
+
+blend         = 1 / (1 + exp(-smoothness * error))     # sigmoid 0→1
+effective_k   = k_down + (k_up - k_down) * blend       # large below target, small above
+p_factor      = exp(effective_k * error)                # asymmetric P-term
+i_factor      = exp(ki * integral)                      # steady-state correction
+d_factor      = exp(kd * derivative)                    # oscillation dampening
+
+factor        = p_factor * i_factor * d_factor
+new_speed     = clamp(current_speed * factor, min, max)
 ```
 
-The sigmoid blends between `k_down` (aggressive cut-down, default 5.0) and `k_up` (gentle ramp-up, default 0.3), producing smooth increases but fast emergency reductions — all without discrete thresholds.
+The P-term sigmoid blends between `k_down` (aggressive cut-down, default 1.5) and `k_up` (gentle ramp-up, default 0.15). The I-term corrects persistent steady-state error. The D-term dampens oscillation. Setting `ki=0` or `kd=0` disables that term, reducing to pure P-control.
 
 ## Speed Range
 
@@ -74,9 +81,11 @@ The controller operates across floats in **[0.125, 32.0]** via the continuous pr
 | Metric | Type | Dashboard |
 |--------|------|-----------|
 | `controller_infrastructure_headroom` | ObservableGauge | performance-engineering.json |
-| `controller_target_speed_multiplier` | ObservableGauge | performance-engineering.json |
+| `controller_applied_speed` | ObservableGauge | performance-engineering.json |
 | `controller_adjustments_total` | Counter | performance-engineering.json |
 | `controller_mode` | ObservableGauge | performance-engineering.json |
+| `controller_error_integral` | ObservableGauge | performance-engineering.json |
+| `controller_error_derivative` | ObservableGauge | performance-engineering.json |
 
 ## Dependencies
 

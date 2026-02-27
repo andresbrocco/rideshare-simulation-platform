@@ -51,7 +51,7 @@ class ControllerSettings(BaseSettings):
         description="Gain for speed increases (small = gentle ramp-up)",
     )
     k_down: float = Field(
-        default=5.0,
+        default=1.5,
         gt=0.0,
         description="Gain for speed decreases (large = aggressive cut-down)",
     )
@@ -59,6 +59,21 @@ class ControllerSettings(BaseSettings):
         default=12.0,
         gt=0.0,
         description="Sigmoid steepness blending k_up and k_down",
+    )
+    ki: float = Field(
+        default=0.02,
+        ge=0.0,
+        description="Integral gain for steady-state error correction",
+    )
+    kd: float = Field(
+        default=0.1,
+        ge=0.0,
+        description="Derivative gain for oscillation dampening",
+    )
+    integral_max: float = Field(
+        default=5.0,
+        gt=0.0,
+        description="Anti-windup clamp for error integral (error-seconds)",
     )
     model_config = SettingsConfigDict(env_prefix="CONTROLLER_")
 

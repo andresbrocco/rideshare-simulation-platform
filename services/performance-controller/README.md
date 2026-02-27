@@ -26,8 +26,11 @@ Auto-throttle sidecar that monitors Prometheus recording rules and adjusts simul
 | `CONTROLLER_POLL_INTERVAL_SECONDS` | `5.0` | Seconds between control loop iterations |
 | `CONTROLLER_TARGET` | `0.66` | Infrastructure headroom setpoint (stable equilibrium) |
 | `CONTROLLER_K_UP` | `0.15` | Gain for speed increases (gentle ramp-up) |
-| `CONTROLLER_K_DOWN` | `5.0` | Gain for speed decreases (aggressive cut-down) |
+| `CONTROLLER_K_DOWN` | `1.5` | Gain for speed decreases (aggressive cut-down) |
 | `CONTROLLER_SMOOTHNESS` | `12.0` | Sigmoid steepness blending k_up and k_down |
+| `CONTROLLER_KI` | `0.02` | Integral gain for steady-state error correction |
+| `CONTROLLER_KD` | `0.1` | Derivative gain for oscillation dampening |
+| `CONTROLLER_INTEGRAL_MAX` | `5.0` | Anti-windup clamp for error integral (error-seconds) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://otel-collector:4317` | OTel Collector gRPC endpoint |
 | `LOG_LEVEL` | `INFO` | Logging level |
 

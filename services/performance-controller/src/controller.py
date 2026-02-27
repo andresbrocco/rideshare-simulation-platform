@@ -8,7 +8,12 @@ import time
 
 import httpx
 
-from .metrics_exporter import record_adjustment, update_mode, update_snapshot
+from .metrics_exporter import (
+    record_adjustment,
+    update_mode,
+    update_pid_state,
+    update_snapshot,
+)
 from .prometheus_client import PrometheusClient
 from .settings import Settings
 
@@ -45,6 +50,21 @@ class PerformanceController:
         self._current_speed: float = settings.controller.max_speed
         self._infrastructure_headroom: float = 1.0
 
+        # PID state
+        self._error_integral: float = 0.0
+        self._previous_error: float | None = None
+        self._last_derivative: float = 0.0
+
+    # ------------------------------------------------------------------
+    # PID state management
+    # ------------------------------------------------------------------
+
+    def _reset_pid_state(self) -> None:
+        """Zero the integral accumulator and clear the previous error."""
+        self._error_integral = 0.0
+        self._previous_error = None
+        self._last_derivative = 0.0
+
     # ------------------------------------------------------------------
     # Public state accessors (used by api.py)
     # ------------------------------------------------------------------
@@ -62,6 +82,7 @@ class PerformanceController:
         if old != mode:
             logger.info("Controller mode changed: %s → %s", old, mode)
             if mode == "on":
+                self._reset_pid_state()
                 live_speed = self._fetch_current_speed()
                 if live_speed is not None:
                     self._current_speed = live_speed
@@ -106,36 +127,70 @@ class PerformanceController:
     # ------------------------------------------------------------------
 
     def decide_speed(self, index: float) -> float:
-        """Decide the speed using a continuous asymmetric proportional controller.
+        """Decide speed using a PID controller with asymmetric proportional gain.
 
-        A sigmoid blends between k_down (aggressive cut) and k_up (gentle ramp),
-        producing smooth increases but fast emergency reductions around a target
-        setpoint — all without discrete thresholds.
+        P-term: Sigmoid-blended asymmetric gain (fast cut, gentle ramp).
+        I-term: Accumulated error over time for steady-state correction.
+        D-term: Rate of error change for oscillation dampening.
         """
         cfg = self._settings.controller
+        dt = cfg.poll_interval_seconds
 
         error = index - cfg.target
+
+        # --- Integral term ---
+        self._error_integral += error * dt
+        self._error_integral = max(
+            -cfg.integral_max,
+            min(self._error_integral, cfg.integral_max),
+        )
+
+        # --- Derivative term ---
+        if self._previous_error is not None:
+            derivative = (error - self._previous_error) / dt
+        else:
+            derivative = 0.0
+        self._previous_error = error
+        self._last_derivative = derivative
+
+        # --- P factor (asymmetric sigmoid blend) ---
         blend = 1.0 / (1.0 + math.exp(-cfg.smoothness * error))
         effective_k = cfg.k_down + (cfg.k_up - cfg.k_down) * blend
-        factor = math.exp(effective_k * error)
+        p_factor = math.exp(effective_k * error)
+
+        # --- I factor ---
+        i_factor = math.exp(cfg.ki * self._error_integral)
+
+        # --- D factor ---
+        d_factor = math.exp(cfg.kd * derivative)
+
+        factor = p_factor * i_factor * d_factor
         new_speed = max(cfg.min_speed, min(self._current_speed * factor, cfg.max_speed))
 
         if new_speed > self._current_speed:
             logger.info(
-                "INCREASE: index=%.2f (target=%.2f) → speed %.3f → %.3f (factor=%.4f)",
+                "INCREASE: index=%.2f (target=%.2f) → speed %.3f → %.3f "
+                "(P=%.4f I=%.4f D=%.4f factor=%.4f)",
                 index,
                 cfg.target,
                 self._current_speed,
                 new_speed,
+                p_factor,
+                i_factor,
+                d_factor,
                 factor,
             )
         elif new_speed < self._current_speed:
             logger.info(
-                "DECREASE: index=%.2f (target=%.2f) → speed %.3f → %.3f (factor=%.4f)",
+                "DECREASE: index=%.2f (target=%.2f) → speed %.3f → %.3f "
+                "(P=%.4f I=%.4f D=%.4f factor=%.4f)",
                 index,
                 cfg.target,
                 self._current_speed,
                 new_speed,
+                p_factor,
+                i_factor,
+                d_factor,
                 factor,
             )
 
@@ -202,6 +257,7 @@ class PerformanceController:
                         self._current_speed = new_speed
                         record_adjustment()
                         update_snapshot(index, float(self._current_speed))
+                update_pid_state(self._error_integral, self._last_derivative)
 
             time.sleep(cfg.poll_interval_seconds)
 

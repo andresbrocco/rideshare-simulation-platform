@@ -191,8 +191,11 @@ def _make_controller_with_speed(
     min_speed: float = 0.125,
     target: float = 0.66,
     k_up: float = 0.15,
-    k_down: float = 5.0,
+    k_down: float = 1.5,
     smoothness: float = 12.0,
+    ki: float = 0.0,
+    kd: float = 0.0,
+    integral_max: float = 5.0,
 ) -> PerformanceController:
     """Create a controller seeded at a specific speed for decide_speed tests."""
     settings = Settings(
@@ -203,6 +206,9 @@ def _make_controller_with_speed(
             "k_up": k_up,
             "k_down": k_down,
             "smoothness": smoothness,
+            "ki": ki,
+            "kd": kd,
+            "integral_max": integral_max,
         },
         simulation={"api_key": "test-key"},
     )
@@ -260,12 +266,12 @@ class TestDecideSpeed:
         assert new_speed >= 0.125
 
     def test_severely_degraded_aggressive_cut(self) -> None:
-        """Index=0.10 → >80% speed reduction (aggressive emergency cut)."""
+        """Index=0.10 → >50% speed reduction (aggressive emergency cut)."""
         ctrl = _make_controller_with_speed(current_speed=16.0)
         new_speed = ctrl.decide_speed(0.10)
         reduction_pct = (16.0 - new_speed) / 16.0
-        assert reduction_pct > 0.80, (
-            f"Expected >80% reduction, got {reduction_pct * 100:.1f}% " f"(speed: {new_speed:.3f})"
+        assert reduction_pct > 0.50, (
+            f"Expected >50% reduction, got {reduction_pct * 100:.1f}% " f"(speed: {new_speed:.3f})"
         )
 
     def test_continuous_near_target_small_adjustments(self) -> None:
@@ -287,3 +293,120 @@ class TestDecideSpeed:
         ctrl_large = _make_controller_with_speed(current_speed=10.0)
         speed_large_drop = ctrl_large.decide_speed(0.46)
         assert (10.0 - speed_slightly_below) < (10.0 - speed_large_drop)
+
+
+# ------------------------------------------------------------------
+# PID-specific decide_speed tests
+# ------------------------------------------------------------------
+
+
+class TestPIDDecideSpeed:
+    """Verify PID integral and derivative behavior."""
+
+    def test_integral_accumulates_over_multiple_calls(self) -> None:
+        """Repeated below-target calls produce progressively larger cuts."""
+        ctrl = _make_controller_with_speed(current_speed=10.0, ki=0.02)
+        cuts: list[float] = []
+        for _ in range(5):
+            new_speed = ctrl.decide_speed(0.46)
+            cuts.append(10.0 - new_speed)
+            # Reset speed for fair comparison of the factor
+            ctrl._current_speed = 10.0
+
+        # Each cut should be larger than the previous (integral accumulates)
+        for i in range(1, len(cuts)):
+            assert (
+                cuts[i] > cuts[i - 1]
+            ), f"Cut {i} ({cuts[i]:.4f}) should be larger than cut {i - 1} ({cuts[i - 1]:.4f})"
+
+    def test_integral_anti_windup_clamps(self) -> None:
+        """Negative integral clamped at -integral_max."""
+        ctrl = _make_controller_with_speed(current_speed=10.0, ki=0.02, integral_max=2.0)
+        # Drive integral deeply negative with many below-target calls
+        for _ in range(100):
+            ctrl.decide_speed(0.10)
+            ctrl._current_speed = 10.0
+
+        assert ctrl._error_integral == pytest.approx(-2.0)
+
+    def test_integral_anti_windup_clamps_positive(self) -> None:
+        """Positive integral clamped at +integral_max."""
+        ctrl = _make_controller_with_speed(current_speed=10.0, ki=0.02, integral_max=2.0)
+        # Drive integral positive with many above-target calls
+        for _ in range(100):
+            ctrl.decide_speed(0.96)
+            ctrl._current_speed = 10.0
+
+        assert ctrl._error_integral == pytest.approx(2.0)
+
+    def test_derivative_dampens_improving_error(self) -> None:
+        """D-term resists cutting when error is improving (compare to P-only)."""
+        # P-only controller
+        ctrl_p = _make_controller_with_speed(current_speed=10.0, kd=0.0)
+        ctrl_p.decide_speed(0.46)  # First call to set previous_error
+        ctrl_p._current_speed = 10.0
+        speed_p = ctrl_p.decide_speed(0.56)  # Error improving toward target
+
+        # PID controller with derivative
+        ctrl_pid = _make_controller_with_speed(current_speed=10.0, kd=0.5)
+        ctrl_pid.decide_speed(0.46)  # First call to set previous_error
+        ctrl_pid._current_speed = 10.0
+        speed_pid = ctrl_pid.decide_speed(0.56)  # Error improving toward target
+
+        # D-term should resist cutting (speed higher with derivative dampening)
+        assert speed_pid > speed_p, (
+            f"PID speed ({speed_pid:.4f}) should be higher than P-only ({speed_p:.4f}) "
+            "when error is improving"
+        )
+
+    def test_derivative_skipped_on_first_cycle(self) -> None:
+        """First call with kd=10.0 matches kd=0.0 (no previous error)."""
+        ctrl_no_d = _make_controller_with_speed(current_speed=10.0, kd=0.0)
+        ctrl_with_d = _make_controller_with_speed(current_speed=10.0, kd=10.0)
+
+        speed_no_d = ctrl_no_d.decide_speed(0.46)
+        speed_with_d = ctrl_with_d.decide_speed(0.46)
+
+        assert speed_no_d == pytest.approx(speed_with_d, rel=1e-9)
+
+    @patch("src.controller.update_mode")
+    def test_mode_toggle_resets_pid_state(self, _mock_mode: MagicMock) -> None:
+        """set_mode('on') zeroes integral and clears previous_error."""
+        ctrl = _make_controller_with_speed(current_speed=10.0, ki=0.02)
+        # Accumulate some PID state
+        ctrl.decide_speed(0.46)
+        ctrl.decide_speed(0.46)
+        assert ctrl._error_integral != 0.0
+        assert ctrl._previous_error is not None
+
+        # Mock the simulation fetch
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"speed_multiplier": 10.0}
+        mock_response.raise_for_status = MagicMock()
+        ctrl._sim_client = MagicMock()
+        ctrl._sim_client.get.return_value = mock_response
+
+        # Toggle mode on — should reset PID state
+        ctrl._mode = "off"  # Ensure transition happens
+        ctrl.set_mode("on")
+
+        assert ctrl._error_integral == 0.0
+        assert ctrl._previous_error is None
+        assert ctrl._last_derivative == 0.0
+
+    def test_pure_p_mode_when_ki_kd_zero(self) -> None:
+        """With ki=0, kd=0, output matches P-only identically."""
+        ctrl_pid_zero = _make_controller_with_speed(current_speed=10.0, ki=0.0, kd=0.0)
+        ctrl_default = _make_controller_with_speed(current_speed=10.0)
+
+        for index in [0.10, 0.46, 0.66, 0.86, 0.96]:
+            ctrl_pid_zero._current_speed = 10.0
+            ctrl_default._current_speed = 10.0
+            # Reset PID state for fair comparison
+            ctrl_pid_zero._reset_pid_state()
+            ctrl_default._reset_pid_state()
+            speed_pid = ctrl_pid_zero.decide_speed(index)
+            speed_default = ctrl_default.decide_speed(index)
+            assert speed_pid == pytest.approx(
+                speed_default, rel=1e-9
+            ), f"At index={index}: PID({speed_pid:.6f}) != P-only({speed_default:.6f})"
