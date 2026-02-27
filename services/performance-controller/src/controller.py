@@ -13,6 +13,19 @@ from .settings import Settings
 
 logger = logging.getLogger(__name__)
 
+_VALID_MANUAL_SPEEDS: list[float] = [0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0]
+
+
+def _snap_to_floor_power_of_two(speed: float) -> float:
+    """Return the largest value from _VALID_MANUAL_SPEEDS that is <= speed."""
+    result = _VALID_MANUAL_SPEEDS[0]
+    for v in _VALID_MANUAL_SPEEDS:
+        if v <= speed:
+            result = v
+        else:
+            break
+    return result
+
 
 class PerformanceController:
     """Monitors Prometheus recording rules and auto-throttles simulation speed."""
@@ -48,8 +61,38 @@ class PerformanceController:
         update_mode(mode == "on")
         if old != mode:
             logger.info("Controller mode changed: %s → %s", old, mode)
-            if mode == "off":
+            if mode == "on":
+                live_speed = self._fetch_current_speed()
+                if live_speed is not None:
+                    self._current_speed = live_speed
+                    logger.info(
+                        "Seeded controller speed from simulation: %.2f",
+                        live_speed,
+                    )
+            elif mode == "off":
                 self._consecutive_healthy = 0
+                snapped = _snap_to_floor_power_of_two(self._current_speed)
+                if abs(snapped - self._current_speed) > 0.001:
+                    logger.info(
+                        "Snapped speed from %.2f to %.2f",
+                        self._current_speed,
+                        snapped,
+                    )
+                    if self.actuate_speed(snapped):
+                        self._current_speed = snapped
+
+    def _fetch_current_speed(self) -> float | None:
+        """Fetch the simulation's current speed multiplier via GET /simulation/status."""
+        try:
+            resp = self._sim_client.get(
+                "/simulation/status",
+                headers={"X-API-Key": self._api_key},
+            )
+            resp.raise_for_status()
+            return float(resp.json()["speed_multiplier"])
+        except (httpx.HTTPError, KeyError, ValueError, TypeError) as exc:
+            logger.warning("Failed to fetch simulation speed: %s", exc)
+            return None
 
     @property
     def current_speed(self) -> float:
