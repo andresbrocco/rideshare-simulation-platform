@@ -66,7 +66,7 @@ class Config:
     immediate_drivers: int = 50
     immediate_riders: int = 50
     scheduled_drivers: int = 150
-    scheduled_riders: int = 3950
+    scheduled_riders: int = 1950
     delay: int = 0
     trigger_silver: bool = False
 
@@ -125,6 +125,8 @@ def docker_compose_down() -> None:
             "data-pipeline",
             "--profile",
             "monitoring",
+            "--profile",
+            "performance",
             "down",
             "-v",
         ]
@@ -147,6 +149,8 @@ def docker_compose_up() -> None:
             "data-pipeline",
             "--profile",
             "monitoring",
+            "--profile",
+            "performance",
             "up",
             "-d",
         ],
