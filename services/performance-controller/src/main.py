@@ -67,7 +67,9 @@ def main() -> None:
     logger.info("Starting performance controller...")
     logger.info("Prometheus: %s", settings.prometheus.url)
     logger.info("Simulation API: %s", settings.simulation.base_url)
-    logger.info("Target speed: %d", settings.controller.target_speed)
+    logger.info(
+        "Speed range: %.3f–%.1f", settings.controller.min_speed, settings.controller.max_speed
+    )
     logger.info("Poll interval: %.1fs", settings.controller.poll_interval_seconds)
 
     # Start HTTP API server in background thread
