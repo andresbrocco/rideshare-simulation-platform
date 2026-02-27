@@ -222,6 +222,12 @@ patches:
       kind: Deployment
       name: bronze-ingestion
 
+  # Bronze Init: Override S3 bucket name for production
+  - path: bronze-init-patch.yaml
+    target:
+      kind: Job
+      name: bronze-init
+
   # Simulation: Production domain, S3 checkpoints, deployment env
   - path: simulation-patch.yaml
     target:

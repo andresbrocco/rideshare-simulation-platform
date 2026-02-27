@@ -108,13 +108,13 @@ data:
     echo ""
     echo "--- Bronze Tables (${#BRONZE_TABLES[@]}) ---"
     for table in "${BRONZE_TABLES[@]}"; do
-        register_table "$table" "rideshare-bronze"
+        register_table "$table" "$BRONZE_BUCKET"
     done
 
     echo ""
     echo "--- DLQ Tables (${#DLQ_TABLES[@]}) ---"
     for table in "${DLQ_TABLES[@]}"; do
-        register_table "$table" "rideshare-bronze"
+        register_table "$table" "$BRONZE_BUCKET"
     done
 
     echo ""
@@ -163,6 +163,8 @@ spec:
           value: trino
         - name: TRINO_PORT
           value: "8080"
+        - name: BRONZE_BUCKET
+          value: rideshare-bronze
         volumeMounts:
         - name: scripts
           mountPath: /opt/init-scripts
