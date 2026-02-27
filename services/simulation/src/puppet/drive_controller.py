@@ -48,7 +48,7 @@ class PuppetDriveController:
         self._route = route_response
         self._kafka_producer = kafka_producer
         self._redis_publisher = redis_publisher
-        self._speed_multiplier = max(0.0625, speed_multiplier)
+        self._speed_multiplier = max(0.125, speed_multiplier)
         self._gps_interval = gps_interval_seconds
         self._is_pickup_drive = is_pickup_drive
         self._simulation_engine = simulation_engine

@@ -48,10 +48,10 @@ def engine_10x(mock_dependencies):
 
 
 @pytest.fixture
-def engine_100x(mock_dependencies):
-    """Create engine at 100x speed."""
+def engine_32x(mock_dependencies):
+    """Create engine at 32x speed (maximum)."""
     engine = SimulationEngine(**mock_dependencies)
-    engine.set_speed(100)
+    engine.set_speed(32)
     return engine
 
 
@@ -76,10 +76,10 @@ def test_set_speed_10x(engine):
 
 
 @pytest.mark.unit
-def test_set_speed_100x(engine):
-    """Sets speed to 100x accelerated."""
-    engine.set_speed(100)
-    assert engine.speed_multiplier == 100
+def test_set_speed_32x(engine):
+    """Sets speed to 32x (maximum)."""
+    engine.set_speed(32)
+    assert engine.speed_multiplier == 32
 
 
 @pytest.mark.unit
@@ -88,8 +88,8 @@ def test_set_speed_fractional(engine):
     engine.set_speed(0.5)
     assert engine.speed_multiplier == 0.5
 
-    engine.set_speed(0.0625)
-    assert engine.speed_multiplier == 0.0625
+    engine.set_speed(0.125)
+    assert engine.speed_multiplier == 0.125
 
     engine.set_speed(2.5)
     assert engine.speed_multiplier == 2.5
@@ -97,15 +97,18 @@ def test_set_speed_fractional(engine):
 
 @pytest.mark.unit
 def test_set_speed_invalid(engine):
-    """Rejects multiplier below minimum (0.0625)."""
-    with pytest.raises(ValueError, match="Speed multiplier must be >= 0.0625"):
-        engine.set_speed(0.06)
+    """Rejects multiplier outside valid range (0.125–32)."""
+    with pytest.raises(ValueError, match="Speed multiplier must be >= 0.125"):
+        engine.set_speed(0.1)
 
-    with pytest.raises(ValueError, match="Speed multiplier must be >= 0.0625"):
+    with pytest.raises(ValueError, match="Speed multiplier must be >= 0.125"):
         engine.set_speed(0)
 
-    with pytest.raises(ValueError, match="Speed multiplier must be >= 0.0625"):
+    with pytest.raises(ValueError, match="Speed multiplier must be >= 0.125"):
         engine.set_speed(-1)
+
+    with pytest.raises(ValueError, match="Speed multiplier must be <= 32"):
+        engine.set_speed(33)
 
 
 @pytest.mark.unit

@@ -1256,7 +1256,7 @@ services:
     environment:
       - PROMETHEUS_URL=http://prometheus:9090
       - SIMULATION_BASE_URL=http://simulation:8000
-      - CONTROLLER_MAX_SPEED=${SIM_SPEED_MULTIPLIER:-16}
+      - CONTROLLER_MAX_SPEED=${CONTROLLER_MAX_SPEED:-32}
       - CONTROLLER_POLL_INTERVAL_SECONDS=5.0
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - LOG_LEVEL=INFO

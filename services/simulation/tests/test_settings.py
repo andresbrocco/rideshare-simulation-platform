@@ -32,17 +32,17 @@ class TestSimulationSettings:
 
     def test_validation(self):
         with pytest.raises(ValidationError):
-            SimulationSettings(speed_multiplier=0.06)  # Below minimum 0.0625
+            SimulationSettings(speed_multiplier=0.1)  # Below minimum 0.125
 
         with pytest.raises(ValidationError):
-            SimulationSettings(speed_multiplier=1025.0)  # Max is 1024
+            SimulationSettings(speed_multiplier=33.0)  # Max is 32
 
         with pytest.raises(ValidationError):
             SimulationSettings(checkpoint_interval=30)
 
     def test_speed_multiplier_accepts_float(self):
-        settings = SimulationSettings(speed_multiplier=0.0625)
-        assert settings.speed_multiplier == 0.0625
+        settings = SimulationSettings(speed_multiplier=0.125)
+        assert settings.speed_multiplier == 0.125
 
         settings = SimulationSettings(speed_multiplier=2.5)
         assert settings.speed_multiplier == 2.5

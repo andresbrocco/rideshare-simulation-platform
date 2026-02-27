@@ -91,7 +91,7 @@ class ScenarioConfig:
 
     # Speed scaling test settings
     speed_scaling_step_duration_minutes: int = 8
-    speed_scaling_max_multiplier: int = 1024
+    speed_scaling_max_multiplier: int = 32
 
 
 @dataclass

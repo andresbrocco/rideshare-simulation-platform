@@ -116,11 +116,14 @@ def test_change_speed_fractional(test_client, mock_simulation_engine, auth_heade
 
 @pytest.mark.unit
 def test_change_speed_invalid(test_client, mock_simulation_engine, auth_headers):
-    """Rejects multiplier below minimum (0.0625)."""
-    response = test_client.put("/simulation/speed", json={"multiplier": 0.06}, headers=auth_headers)
+    """Rejects multiplier outside valid range (0.125–32)."""
+    response = test_client.put("/simulation/speed", json={"multiplier": 0.1}, headers=auth_headers)
 
-    assert response.status_code == 400
-    assert ">= 0.0625" in response.json()["detail"]
+    assert response.status_code == 422  # Pydantic validation (ge=0.125)
+
+    response = test_client.put("/simulation/speed", json={"multiplier": 33}, headers=auth_headers)
+
+    assert response.status_code == 422  # Pydantic validation (le=32)
 
 
 @pytest.mark.unit

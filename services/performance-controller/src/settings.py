@@ -30,14 +30,14 @@ class ControllerSettings(BaseSettings):
         description="Seconds between control loop iterations",
     )
     max_speed: float = Field(
-        default=16.0,
+        default=32.0,
         gt=0,
         description="Maximum simulation speed multiplier",
     )
     min_speed: float = Field(
-        default=0.0625,
+        default=0.125,
         gt=0,
-        description="Minimum simulation speed multiplier (1/16x)",
+        description="Minimum simulation speed multiplier (1/8x)",
     )
     ramp_factor: float = Field(
         default=1.5,

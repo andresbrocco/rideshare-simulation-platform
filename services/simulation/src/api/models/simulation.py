@@ -1,10 +1,10 @@
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class SpeedChangeRequest(BaseModel):
-    multiplier: float
+    multiplier: float = Field(ge=0.125, le=32.0)
 
 
 class SpeedChangeResponse(BaseModel):

@@ -68,7 +68,7 @@ export default function ControlPanel({
   const isAutoMode = controllerStatus !== null && controllerStatus.mode === 'on';
 
   const handleSpeedChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const multiplier = parseInt(e.target.value);
+    const multiplier = parseFloat(e.target.value);
     await setSpeed(multiplier);
   };
 
@@ -197,17 +197,15 @@ export default function ControlPanel({
               onChange={handleSpeedChange}
               className={styles.select}
             >
+              <option value="0.125">⅛x</option>
+              <option value="0.25">¼x</option>
+              <option value="0.5">½x</option>
               <option value="1">1x</option>
               <option value="2">2x</option>
               <option value="4">4x</option>
               <option value="8">8x</option>
               <option value="16">16x</option>
               <option value="32">32x</option>
-              <option value="64">64x</option>
-              <option value="128">128x</option>
-              <option value="256">256x</option>
-              <option value="512">512x</option>
-              <option value="1024">1024x</option>
             </select>
           </Tooltip>
         )}
