@@ -192,6 +192,10 @@ resource "aws_secretsmanager_secret_version" "github_pat" {
   secret_string = jsonencode({
     GITHUB_PAT = "ghp_placeholder_set_real_token_in_production"
   })
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
 }
 
 # Secret: rideshare/rds

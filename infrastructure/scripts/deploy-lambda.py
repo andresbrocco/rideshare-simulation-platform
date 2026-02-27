@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 FUNCTION_NAME = "auth-deploy"
 HANDLER = "handler.lambda_handler"
-RUNTIME = "python3.12"
+RUNTIME = "python3.13"
 # LocalStack accepts any syntactically valid ARN for the execution role.
 ROLE = "arn:aws:iam::000000000000:role/lambda-role"
 HANDLER_PATH = "/app/lambda/handler.py"
