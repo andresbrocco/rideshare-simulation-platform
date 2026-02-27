@@ -48,9 +48,9 @@ Mode is toggled via `PUT /controller/mode` or the "Auto" toggle in the control p
 | >= 0.8 for 3 cycles | Double speed (capped at target) |
 | 0.5–0.8 | Hold steady, reset healthy counter |
 
-## Spec Deviation
+## Speed Range
 
-The spec says "min 0.5x" but `PUT /simulation/speed` only accepts `int >= 1`. The effective floor is **1x**. The controller clamps `max(1, computed_speed)`.
+The controller operates across floats in **[0.125, 32.0]** via geometric steps (`CONTROLLER_RAMP_FACTOR`, default 1.5). Both `CONTROLLER_MIN_SPEED` (default `0.125`) and `CONTROLLER_MAX_SPEED` (default `32`) are configurable via environment variables.
 
 ## Module Map
 

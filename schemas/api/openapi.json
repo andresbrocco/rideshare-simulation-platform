@@ -227,7 +227,7 @@
           "simulation"
         ],
         "summary": "Change Speed",
-        "description": "Change simulation speed multiplier (any positive integer).",
+        "description": "Change simulation speed multiplier (must be between 0.125 and 32).",
         "operationId": "change_speed_simulation_speed_put",
         "parameters": [
           {

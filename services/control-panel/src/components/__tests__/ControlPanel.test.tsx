@@ -154,12 +154,23 @@ describe('ControlPanel', () => {
     expect(mockSetSpeed).toHaveBeenCalledWith(2);
   });
 
+  it('test_speed_selector_changes_fractional', async () => {
+    const user = userEvent.setup();
+    render(<ControlPanel status={mockStatus} />);
+    const speedSelect = screen.getByLabelText(/speed/i);
+    await user.selectOptions(speedSelect, '0.5');
+    expect(mockSetSpeed).toHaveBeenCalledWith(0.5);
+  });
+
   it('test_speed_selector_values', () => {
     render(<ControlPanel status={mockStatus} />);
 
     const speedSelect = screen.getByLabelText(/speed/i) as HTMLSelectElement;
     const options = Array.from(speedSelect.options).map((o) => o.value);
 
+    expect(options).toContain('0.125');
+    expect(options).toContain('0.25');
+    expect(options).toContain('0.5');
     expect(options).toContain('1');
     expect(options).toContain('2');
     expect(options).toContain('4');

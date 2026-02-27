@@ -114,7 +114,7 @@ export interface paths {
     get?: never;
     /**
      * Change Speed
-     * @description Change simulation speed multiplier (any positive integer).
+     * @description Change simulation speed multiplier (must be between 0.125 and 32).
      */
     put: operations['change_speed_simulation_speed_put'];
     post?: never;

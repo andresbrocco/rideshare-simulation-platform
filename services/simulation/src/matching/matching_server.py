@@ -1546,7 +1546,11 @@ class MatchingServer:
             route_response=route,
             kafka_producer=self._kafka_producer,
             redis_publisher=self._redis_publisher,
-            speed_multiplier=self._settings.simulation.speed_multiplier,
+            speed_multiplier=(
+                self._simulation_engine.speed_multiplier
+                if self._simulation_engine
+                else self._settings.simulation.speed_multiplier
+            ),
             is_pickup_drive=True,
             simulation_engine=self._simulation_engine,
         )
@@ -1603,7 +1607,11 @@ class MatchingServer:
             route_response=route,
             kafka_producer=self._kafka_producer,
             redis_publisher=self._redis_publisher,
-            speed_multiplier=self._settings.simulation.speed_multiplier,
+            speed_multiplier=(
+                self._simulation_engine.speed_multiplier
+                if self._simulation_engine
+                else self._settings.simulation.speed_multiplier
+            ),
             is_pickup_drive=False,
             simulation_engine=self._simulation_engine,
         )
