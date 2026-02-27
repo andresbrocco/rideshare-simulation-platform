@@ -9,7 +9,7 @@ Independent sidecar that monitors system saturation via Prometheus recording rul
 - **Option B design**: Standalone service that queries Prometheus HTTP API and calls the simulation REST API
 - **No direct Kafka dependency**: Reads Kafka lag via kafka-exporter metrics in Prometheus
 - **OTel metrics export**: Pushes `controller_*` metrics via OTLP → OTel Collector → Prometheus
-- **Static thresholds**: Performance index computed by Prometheus recording rules (no baseline calibration)
+- **Continuous proportional control**: Sigmoid-blended asymmetric gain around a target setpoint (no discrete thresholds)
 
 ## Control Loop
 
@@ -41,16 +41,21 @@ Mode is toggled via `PUT /controller/mode` or the "Auto" toggle in the control p
 
 ## Throttle Logic
 
-| Index Range | Action |
-|-------------|--------|
-| < 0.3 (critical) | Reduce to 25% of current speed |
-| < 0.5 (warning) | Reduce to 50% of current speed |
-| >= 0.8 for 3 cycles | Double speed (capped at target) |
-| 0.5–0.8 | Hold steady, reset healthy counter |
+Continuous asymmetric proportional controller with a target setpoint (default 0.70):
+
+```
+error       = performance_index - target
+blend       = 1 / (1 + exp(-smoothness * error))       # sigmoid 0→1
+effective_k = k_down + (k_up - k_down) * blend          # large below target, small above
+factor      = exp(effective_k * error)                   # multiplicative adjustment
+new_speed   = clamp(current_speed * factor, min, max)
+```
+
+The sigmoid blends between `k_down` (aggressive cut-down, default 5.0) and `k_up` (gentle ramp-up, default 0.3), producing smooth increases but fast emergency reductions — all without discrete thresholds.
 
 ## Speed Range
 
-The controller operates across floats in **[0.125, 32.0]** via geometric steps (`CONTROLLER_RAMP_FACTOR`, default 1.5). Both `CONTROLLER_MIN_SPEED` (default `0.125`) and `CONTROLLER_MAX_SPEED` (default `32`) are configurable via environment variables.
+The controller operates across floats in **[0.125, 32.0]** via the continuous proportional formula. Both `CONTROLLER_MIN_SPEED` (default `0.125`) and `CONTROLLER_MAX_SPEED` (default `32`) are configurable via environment variables.
 
 ## Module Map
 

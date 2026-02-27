@@ -342,7 +342,6 @@ export interface PerformanceControllerStatus {
   performance_index: number;
   current_speed: number;
   max_speed: number;
-  consecutive_healthy: number;
   uptime_seconds: number;
 }
 

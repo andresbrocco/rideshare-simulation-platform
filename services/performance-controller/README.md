@@ -13,7 +13,7 @@ Auto-throttle sidecar that monitors Prometheus recording rules and adjusts simul
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Health check (status, mode, current_speed, performance_index, uptime) |
-| GET | `/status` | Detailed state (mode, index, speeds, consecutive_healthy) |
+| GET | `/status` | Detailed state (mode, index, speeds, max_speed) |
 | PUT | `/controller/mode` | Set mode on/off (body: `{"mode": "on"\|"off"}`, returns full status) |
 
 ## Environment Variables
@@ -23,12 +23,11 @@ Auto-throttle sidecar that monitors Prometheus recording rules and adjusts simul
 | `PROMETHEUS_URL` | `http://prometheus:9090` | Prometheus base URL |
 | `SIMULATION_BASE_URL` | `http://simulation:8000` | Simulation API base URL |
 | `SIMULATION_API_KEY` | (from secrets) | API key for simulation auth |
-| `CONTROLLER_TARGET_SPEED` | `10` | Desired simulation speed multiplier |
 | `CONTROLLER_POLL_INTERVAL_SECONDS` | `5.0` | Seconds between control loop iterations |
-| `CONTROLLER_CRITICAL_THRESHOLD` | `0.3` | Below this, reduce to 25% speed |
-| `CONTROLLER_WARNING_THRESHOLD` | `0.5` | Below this, reduce to 50% speed |
-| `CONTROLLER_HEALTHY_THRESHOLD` | `0.8` | Above this for N cycles, increase speed |
-| `CONTROLLER_HEALTHY_CYCLES_REQUIRED` | `3` | Consecutive healthy cycles before increase |
+| `CONTROLLER_TARGET` | `0.70` | Performance index setpoint (stable equilibrium) |
+| `CONTROLLER_K_UP` | `0.3` | Gain for speed increases (gentle ramp-up) |
+| `CONTROLLER_K_DOWN` | `5.0` | Gain for speed decreases (aggressive cut-down) |
+| `CONTROLLER_SMOOTHNESS` | `12.0` | Sigmoid steepness blending k_up and k_down |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://otel-collector:4317` | OTel Collector gRPC endpoint |
 | `LOG_LEVEL` | `INFO` | Logging level |
 

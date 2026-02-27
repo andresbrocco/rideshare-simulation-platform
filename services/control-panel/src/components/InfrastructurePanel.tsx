@@ -260,7 +260,7 @@ export default function InfrastructurePanel({
                     performanceIndex !== null
                       ? {
                           color:
-                            performanceIndex >= 0.8
+                            performanceIndex >= 0.7
                               ? 'var(--accent-green)'
                               : performanceIndex >= 0.5
                                 ? 'var(--accent-orange)'

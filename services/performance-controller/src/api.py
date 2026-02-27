@@ -51,7 +51,6 @@ class StatusResponse(BaseModel):
     performance_index: float
     current_speed: float
     max_speed: float
-    consecutive_healthy: int
     uptime_seconds: float
 
 
@@ -112,7 +111,6 @@ def get_status() -> StatusResponse:
             performance_index=0.0,
             current_speed=0.0,
             max_speed=0.0,
-            consecutive_healthy=0,
             uptime_seconds=uptime,
         )
 
@@ -121,7 +119,6 @@ def get_status() -> StatusResponse:
         performance_index=ctrl.performance_index,
         current_speed=ctrl.current_speed,
         max_speed=ctrl._settings.controller.max_speed,
-        consecutive_healthy=ctrl.consecutive_healthy,
         uptime_seconds=uptime,
     )
 
@@ -138,7 +135,6 @@ def set_mode(body: ModeRequest) -> StatusResponse:
             performance_index=0.0,
             current_speed=0.0,
             max_speed=0.0,
-            consecutive_healthy=0,
             uptime_seconds=uptime,
         )
 
@@ -149,7 +145,6 @@ def set_mode(body: ModeRequest) -> StatusResponse:
         performance_index=ctrl.performance_index,
         current_speed=ctrl.current_speed,
         max_speed=ctrl._settings.controller.max_speed,
-        consecutive_healthy=ctrl.consecutive_healthy,
         uptime_seconds=uptime,
     )
 

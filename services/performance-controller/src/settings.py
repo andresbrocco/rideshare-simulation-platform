@@ -39,33 +39,26 @@ class ControllerSettings(BaseSettings):
         gt=0,
         description="Minimum simulation speed multiplier (1/8x)",
     )
-    ramp_factor: float = Field(
-        default=1.5,
-        gt=1.0,
-        description="Geometric factor for speed ramp up/down",
+    target: float = Field(
+        default=0.70,
+        ge=0.0,
+        le=1.0,
+        description="Performance index setpoint — stable equilibrium target",
     )
-    critical_threshold: float = Field(
+    k_up: float = Field(
         default=0.3,
-        ge=0.0,
-        le=1.0,
-        description="Below this index, aggressively reduce speed by ramp_factor²",
+        gt=0.0,
+        description="Gain for speed increases (small = gentle ramp-up)",
     )
-    warning_threshold: float = Field(
-        default=0.5,
-        ge=0.0,
-        le=1.0,
-        description="Below this index, moderately reduce speed by ramp_factor",
+    k_down: float = Field(
+        default=5.0,
+        gt=0.0,
+        description="Gain for speed decreases (large = aggressive cut-down)",
     )
-    healthy_threshold: float = Field(
-        default=0.8,
-        ge=0.0,
-        le=1.0,
-        description="Above this index for N cycles, increase speed",
-    )
-    healthy_cycles_required: int = Field(
-        default=3,
-        ge=1,
-        description="Consecutive healthy cycles before speed increase",
+    smoothness: float = Field(
+        default=12.0,
+        gt=0.0,
+        description="Sigmoid steepness blending k_up and k_down",
     )
     model_config = SettingsConfigDict(env_prefix="CONTROLLER_")
 
@@ -74,6 +67,11 @@ class ControllerSettings(BaseSettings):
         if self.min_speed > self.max_speed:
             raise ValueError(
                 f"min_speed ({self.min_speed}) must be <= max_speed ({self.max_speed})"
+            )
+        if self.k_down <= self.k_up:
+            raise ValueError(
+                f"k_down ({self.k_down}) must be > k_up ({self.k_up}) "
+                "to ensure asymmetric response (fast cut, gentle ramp)"
             )
         return self
 

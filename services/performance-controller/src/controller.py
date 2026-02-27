@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import time
 
 import httpx
@@ -41,7 +42,6 @@ class PerformanceController:
 
         self._running = False
         self._mode: str = "off"
-        self._consecutive_healthy = 0
         self._current_speed: float = settings.controller.max_speed
         self._performance_index: float = 1.0
 
@@ -70,7 +70,6 @@ class PerformanceController:
                         live_speed,
                     )
             elif mode == "off":
-                self._consecutive_healthy = 0
                 snapped = _snap_to_floor_power_of_two(self._current_speed)
                 if abs(snapped - self._current_speed) > 0.001:
                     logger.info(
@@ -102,64 +101,45 @@ class PerformanceController:
     def performance_index(self) -> float:
         return self._performance_index
 
-    @property
-    def consecutive_healthy(self) -> int:
-        return self._consecutive_healthy
-
     # ------------------------------------------------------------------
     # Throttle decision
     # ------------------------------------------------------------------
 
     def decide_speed(self, index: float) -> float:
-        """Decide the speed based on the performance index using geometric ramping."""
+        """Decide the speed using a continuous asymmetric proportional controller.
+
+        A sigmoid blends between k_down (aggressive cut) and k_up (gentle ramp),
+        producing smooth increases but fast emergency reductions around a target
+        setpoint — all without discrete thresholds.
+        """
         cfg = self._settings.controller
 
-        if index < cfg.critical_threshold:
-            # Critical — aggressive reduction (divide by ramp_factor²)
-            new_speed = max(cfg.min_speed, self._current_speed / (cfg.ramp_factor**2))
-            self._consecutive_healthy = 0
-            logger.warning(
-                "CRITICAL: index=%.2f < %.2f → reducing speed %.2f → %.2f",
+        error = index - cfg.target
+        blend = 1.0 / (1.0 + math.exp(-cfg.smoothness * error))
+        effective_k = cfg.k_down + (cfg.k_up - cfg.k_down) * blend
+        factor = math.exp(effective_k * error)
+        new_speed = max(cfg.min_speed, min(self._current_speed * factor, cfg.max_speed))
+
+        if new_speed > self._current_speed:
+            logger.info(
+                "INCREASE: index=%.2f (target=%.2f) → speed %.3f → %.3f (factor=%.4f)",
                 index,
-                cfg.critical_threshold,
+                cfg.target,
                 self._current_speed,
                 new_speed,
+                factor,
             )
-            return new_speed
-
-        if index < cfg.warning_threshold:
-            # Warning — moderate reduction (divide by ramp_factor)
-            new_speed = max(cfg.min_speed, self._current_speed / cfg.ramp_factor)
-            self._consecutive_healthy = 0
-            logger.warning(
-                "WARNING: index=%.2f < %.2f → reducing speed %.2f → %.2f",
+        elif new_speed < self._current_speed:
+            logger.info(
+                "DECREASE: index=%.2f (target=%.2f) → speed %.3f → %.3f (factor=%.4f)",
                 index,
-                cfg.warning_threshold,
+                cfg.target,
                 self._current_speed,
                 new_speed,
+                factor,
             )
-            return new_speed
 
-        if index >= cfg.healthy_threshold:
-            self._consecutive_healthy += 1
-            if self._consecutive_healthy >= cfg.healthy_cycles_required:
-                # Healthy for long enough — ramp up (multiply by ramp_factor, capped at max)
-                new_speed = min(self._current_speed * cfg.ramp_factor, cfg.max_speed)
-                if new_speed > self._current_speed:
-                    logger.info(
-                        "HEALTHY: index=%.2f for %d cycles → increasing speed %.2f → %.2f",
-                        index,
-                        self._consecutive_healthy,
-                        self._current_speed,
-                        new_speed,
-                    )
-                    self._consecutive_healthy = 0
-                    return new_speed
-            return self._current_speed
-
-        # Between warning and healthy thresholds — hold steady
-        self._consecutive_healthy = 0
-        return self._current_speed
+        return new_speed
 
     # ------------------------------------------------------------------
     # Actuation
