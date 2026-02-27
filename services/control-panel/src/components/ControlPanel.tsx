@@ -184,19 +184,6 @@ export default function ControlPanel({
             <span className={styles.autoSpeedValue}>
               {controllerStatus.current_speed.toFixed(1)}x
             </span>
-            <span
-              className={styles.performanceIndex}
-              style={{
-                color:
-                  controllerStatus.performance_index >= 0.8
-                    ? 'var(--accent-green)'
-                    : controllerStatus.performance_index >= 0.5
-                      ? 'var(--accent-orange)'
-                      : 'var(--accent-red)',
-              }}
-            >
-              Performance Index: {Math.round(controllerStatus.performance_index * 100)}%
-            </span>
             <span className={styles.autoSpeedManaged}>Managed by performance controller</span>
           </div>
         ) : (
@@ -321,6 +308,7 @@ export default function ControlPanel({
         error={infraError}
         onRefresh={refreshInfra}
         simulationRealTimeRatio={status.real_time_ratio}
+        performanceIndex={controllerStatus?.performance_index ?? null}
       />
 
       <PerformancePanel

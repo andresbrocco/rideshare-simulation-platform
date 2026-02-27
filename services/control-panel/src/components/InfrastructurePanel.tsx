@@ -9,6 +9,7 @@ interface InfrastructurePanelProps {
   error: string | null;
   onRefresh: () => void;
   simulationRealTimeRatio?: number | null;
+  performanceIndex: number | null;
 }
 
 function formatMemory(mb: number): string {
@@ -37,38 +38,10 @@ function getStatusClass(status: ContainerStatus): string {
   }
 }
 
-function getLatencyClass(
-  latency_ms: number | null,
-  degraded: number = 100,
-  unhealthy: number = 500
-): string {
-  if (latency_ms === null) return '';
-  if (latency_ms < degraded) return styles.latencyGreen;
-  if (latency_ms < unhealthy) return styles.latencyOrange;
-  return styles.latencyRed;
-}
-
-function getRtrClass(rtr: number): string {
-  if (rtr >= 0.95) return styles.latencyGreen;
-  if (rtr >= 0.8) return styles.latencyOrange;
-  return styles.latencyRed;
-}
-
 function formatHeartbeatAge(seconds: number | null): string {
   if (seconds === null) return '-';
   if (seconds < 1) return '<1 s';
   return `${Math.round(seconds)} s`;
-}
-
-function getHeartbeatAgeClass(
-  seconds: number | null,
-  degraded: number = 30,
-  unhealthy: number = 90
-): string {
-  if (seconds === null) return '';
-  if (seconds < degraded) return styles.latencyGreen;
-  if (seconds < unhealthy) return styles.latencyOrange;
-  return styles.latencyRed;
 }
 
 function getProgressColor(percent: number): string {
@@ -104,29 +77,21 @@ function ServiceCard({
       {simulationRealTimeRatio !== undefined ? (
         <div className={styles.metricRow}>
           <span className={styles.metricLabel}>Real-Time Ratio</span>
-          <span
-            className={`${styles.metricValue} ${simulationRealTimeRatio !== null ? getRtrClass(simulationRealTimeRatio) : styles.latencyRed}`}
-          >
+          <span className={styles.metricValue}>
             {simulationRealTimeRatio !== null ? simulationRealTimeRatio.toFixed(2) : '—'}
           </span>
         </div>
       ) : service.heartbeat_age_seconds != null ? (
         <div className={styles.metricRow}>
           <span className={styles.metricLabel}>Heartbeat Age</span>
-          <span
-            className={`${styles.metricValue} ${getHeartbeatAgeClass(service.heartbeat_age_seconds, service.threshold_degraded ?? 30, service.threshold_unhealthy ?? 90)}`}
-          >
+          <span className={styles.metricValue}>
             {formatHeartbeatAge(service.heartbeat_age_seconds)}
           </span>
         </div>
       ) : service.latency_ms !== null ? (
         <div className={styles.metricRow}>
           <span className={styles.metricLabel}>Latency</span>
-          <span
-            className={`${styles.metricValue} ${getLatencyClass(service.latency_ms, service.threshold_degraded ?? 100, service.threshold_unhealthy ?? 500)}`}
-          >
-            {formatLatency(service.latency_ms)}
-          </span>
+          <span className={styles.metricValue}>{formatLatency(service.latency_ms)}</span>
         </div>
       ) : service.message && service.status !== 'unhealthy' && service.status !== 'stopped' ? (
         <div className={styles.metricRow}>
@@ -186,6 +151,7 @@ export default function InfrastructurePanel({
   error,
   onRefresh,
   simulationRealTimeRatio,
+  performanceIndex,
 }: InfrastructurePanelProps) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -245,44 +211,66 @@ export default function InfrastructurePanel({
           )}
 
           {/* System Totals */}
-          {data && data.cadvisor_available && (
+          {data && (data.cadvisor_available || performanceIndex !== null) && (
             <div className={styles.totalsSection}>
-              <div className={styles.totalsRow}>
-                <div className={styles.totalItem}>
-                  <Tooltip text="Container usage only. May differ from Activity Monitor which includes Docker VM overhead.">
-                    <span className={styles.totalLabel}>Total CPU</span>
-                  </Tooltip>
-                  <span className={styles.totalValue}>
-                    {formatCpuCores(data.total_cpu_percent, data.total_cores)} / {data.total_cores}{' '}
-                    cores
-                  </span>
-                  <div className={styles.progressBarRow}>
+              {data.cadvisor_available && (
+                <div className={styles.totalsRow}>
+                  <div className={styles.totalItem}>
+                    <Tooltip text="Container usage only. May differ from Activity Monitor which includes Docker VM overhead.">
+                      <span className={styles.totalLabel}>Total CPU</span>
+                    </Tooltip>
+                    <span className={styles.totalValue}>
+                      {formatCpuCores(data.total_cpu_percent, data.total_cores)} /{' '}
+                      {data.total_cores} cores
+                    </span>
+                    <div className={styles.progressBarRow}>
+                      <div className={styles.progressTrack}>
+                        <div
+                          className={`${styles.progressFill} ${getProgressColor(data.total_cpu_percent)}`}
+                          style={{ width: `${Math.min(data.total_cpu_percent, 100)}%` }}
+                        />
+                      </div>
+                      <span className={styles.progressPercent}>
+                        {data.total_cpu_percent.toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+                  <div className={styles.totalItem}>
+                    <Tooltip text="Container usage only. May differ from Activity Monitor which includes Docker VM overhead.">
+                      <span className={styles.totalLabel}>Total Memory</span>
+                    </Tooltip>
+                    <span className={styles.totalValue}>
+                      {formatMemory(data.total_memory_used_mb)} /{' '}
+                      {formatMemory(data.total_memory_capacity_mb)}
+                    </span>
                     <div className={styles.progressTrack}>
                       <div
-                        className={`${styles.progressFill} ${getProgressColor(data.total_cpu_percent)}`}
-                        style={{ width: `${Math.min(data.total_cpu_percent, 100)}%` }}
+                        className={`${styles.progressFill} ${getProgressColor(data.total_memory_percent)}`}
+                        style={{ width: `${Math.min(data.total_memory_percent, 100)}%` }}
                       />
                     </div>
-                    <span className={styles.progressPercent}>
-                      {data.total_cpu_percent.toFixed(1)}%
-                    </span>
                   </div>
                 </div>
-                <div className={styles.totalItem}>
-                  <Tooltip text="Container usage only. May differ from Activity Monitor which includes Docker VM overhead.">
-                    <span className={styles.totalLabel}>Total Memory</span>
-                  </Tooltip>
-                  <span className={styles.totalValue}>
-                    {formatMemory(data.total_memory_used_mb)} /{' '}
-                    {formatMemory(data.total_memory_capacity_mb)}
-                  </span>
-                  <div className={styles.progressTrack}>
-                    <div
-                      className={`${styles.progressFill} ${getProgressColor(data.total_memory_percent)}`}
-                      style={{ width: `${Math.min(data.total_memory_percent, 100)}%` }}
-                    />
-                  </div>
-                </div>
+              )}
+              <div className={styles.performanceIndexRow}>
+                <span className={styles.totalLabel}>Performance Index</span>
+                <span
+                  className={styles.totalValue}
+                  style={
+                    performanceIndex !== null
+                      ? {
+                          color:
+                            performanceIndex >= 0.8
+                              ? 'var(--accent-green)'
+                              : performanceIndex >= 0.5
+                                ? 'var(--accent-orange)'
+                                : 'var(--accent-red)',
+                        }
+                      : undefined
+                  }
+                >
+                  {performanceIndex !== null ? `${Math.round(performanceIndex * 100)}%` : '-'}
+                </span>
               </div>
             </div>
           )}

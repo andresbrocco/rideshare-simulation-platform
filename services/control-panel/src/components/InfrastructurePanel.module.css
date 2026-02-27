@@ -262,16 +262,14 @@
   background: var(--accent-red);
 }
 
-.latencyGreen {
-  color: var(--accent-green);
-}
-
-.latencyOrange {
-  color: var(--accent-orange);
-}
-
-.latencyRed {
-  color: var(--accent-red);
+/* Performance Index in totals */
+.performanceIndexRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
 }
 
 /* Messages */

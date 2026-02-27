@@ -45,6 +45,7 @@ describe('InfrastructurePanel', () => {
     loading: false,
     error: null,
     onRefresh: vi.fn(),
+    performanceIndex: null as number | null,
   };
 
   it('renders cores format for each service card', () => {
@@ -92,7 +93,7 @@ describe('InfrastructurePanel', () => {
     expect(screen.queryByText('simulation')).not.toBeInTheDocument();
   });
 
-  it('applies per-service threshold coloring', () => {
+  it('renders latency values without color classes', () => {
     const data = buildMockData({
       services: [
         {
@@ -123,15 +124,14 @@ describe('InfrastructurePanel', () => {
     });
     const { container } = render(<InfrastructurePanel data={data} {...defaultProps} />);
 
-    // Redis at 10ms with thresholds 5/20 should show orange (degraded)
-    const redisLatency = container.querySelector('.latencyOrange');
-    expect(redisLatency).toBeInTheDocument();
-    expect(redisLatency?.textContent).toBe('10 ms');
+    // Latency values render without color classes
+    expect(container.querySelector('.latencyOrange')).not.toBeInTheDocument();
+    expect(container.querySelector('.latencyGreen')).not.toBeInTheDocument();
+    expect(container.querySelector('.latencyRed')).not.toBeInTheDocument();
 
-    // Airflow at 200ms with thresholds 500/2000 should show green (healthy)
-    const airflowLatency = container.querySelector('.latencyGreen');
-    expect(airflowLatency).toBeInTheDocument();
-    expect(airflowLatency?.textContent).toBe('200 ms');
+    // Values still display correctly
+    expect(screen.getByText('10 ms')).toBeInTheDocument();
+    expect(screen.getByText('200 ms')).toBeInTheDocument();
   });
 
   it('shows warning when cAdvisor is unavailable', () => {
