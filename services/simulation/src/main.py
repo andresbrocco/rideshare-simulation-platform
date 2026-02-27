@@ -111,7 +111,8 @@ class SimulationRunner:
                     self._engine.step(10)
                 except Exception:
                     logger.exception("Error in simulation step (recovering)")
-            time.sleep(0.1)
+            else:
+                time.sleep(0.1)
 
 
 def create_kafka_producer(settings: Settings) -> KafkaProducer | None:
