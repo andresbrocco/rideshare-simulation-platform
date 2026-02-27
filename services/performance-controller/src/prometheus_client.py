@@ -43,9 +43,9 @@ class PrometheusClient:
             logger.debug("Prometheus query failed for %r: %s", promql, exc)
             return None
 
-    def get_performance_index(self) -> float | None:
-        """Fetch the composite performance index from Prometheus recording rules."""
-        return self.query_instant("rideshare:performance:index")
+    def get_infrastructure_headroom(self) -> float | None:
+        """Fetch the composite infrastructure headroom from Prometheus recording rules."""
+        return self.query_instant("rideshare:infrastructure:headroom")
 
     def is_available(self) -> bool:
         """Test connectivity to Prometheus."""

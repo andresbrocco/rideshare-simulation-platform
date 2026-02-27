@@ -308,7 +308,7 @@ export default function ControlPanel({
         error={infraError}
         onRefresh={refreshInfra}
         simulationRealTimeRatio={status.real_time_ratio}
-        performanceIndex={controllerStatus?.performance_index ?? null}
+        infrastructureHeadroom={controllerStatus?.infrastructure_headroom ?? null}
       />
 
       <PerformancePanel

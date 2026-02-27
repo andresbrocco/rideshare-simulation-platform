@@ -22,7 +22,7 @@ meter = metrics.get_meter("performance-controller")
 # ---------------------------------------------------------------------------
 _snapshot_lock = threading.Lock()
 _snapshot_values: dict[str, float] = {
-    "performance_index": 0.0,
+    "infrastructure_headroom": 0.0,
     "applied_speed": 0.0,
     "mode": 0.0,
 }
@@ -37,10 +37,10 @@ def _observe(key: str) -> list[Observation]:
 # ---------------------------------------------------------------------------
 # Observable Gauges
 # ---------------------------------------------------------------------------
-controller_performance_index = meter.create_observable_gauge(
-    name="controller_performance_index",
-    callbacks=[lambda options: _observe("performance_index")],
-    description="Composite performance index (0-1)",
+controller_infrastructure_headroom = meter.create_observable_gauge(
+    name="controller_infrastructure_headroom",
+    callbacks=[lambda options: _observe("infrastructure_headroom")],
+    description="Composite infrastructure headroom (0-1)",
     unit="1",
 )
 
@@ -73,9 +73,9 @@ controller_adjustments_total = meter.create_counter(
 
 
 def update_snapshot(index: float, speed: float) -> None:
-    """Update the performance index and speed in the observable snapshot."""
+    """Update the infrastructure headroom and speed in the observable snapshot."""
     with _snapshot_lock:
-        _snapshot_values["performance_index"] = index
+        _snapshot_values["infrastructure_headroom"] = index
         _snapshot_values["applied_speed"] = speed
 
 

@@ -43,7 +43,7 @@ class PerformanceController:
         self._running = False
         self._mode: str = "off"
         self._current_speed: float = settings.controller.max_speed
-        self._performance_index: float = 1.0
+        self._infrastructure_headroom: float = 1.0
 
     # ------------------------------------------------------------------
     # Public state accessors (used by api.py)
@@ -98,8 +98,8 @@ class PerformanceController:
         return self._current_speed
 
     @property
-    def performance_index(self) -> float:
-        return self._performance_index
+    def infrastructure_headroom(self) -> float:
+        return self._infrastructure_headroom
 
     # ------------------------------------------------------------------
     # Throttle decision
@@ -186,13 +186,13 @@ class PerformanceController:
         logger.info("Entering control loop (poll every %.1fs)", cfg.poll_interval_seconds)
 
         while self._running:
-            index = self._prom.get_performance_index()
+            index = self._prom.get_infrastructure_headroom()
             if index is None:
-                logger.debug("No performance index available, skipping cycle")
+                logger.debug("No infrastructure headroom available, skipping cycle")
                 time.sleep(cfg.poll_interval_seconds)
                 continue
 
-            self._performance_index = index
+            self._infrastructure_headroom = index
             update_snapshot(index, float(self._current_speed))
 
             if self._mode == "on":

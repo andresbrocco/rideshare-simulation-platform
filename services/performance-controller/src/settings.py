@@ -43,7 +43,7 @@ class ControllerSettings(BaseSettings):
         default=0.70,
         ge=0.0,
         le=1.0,
-        description="Performance index setpoint — stable equilibrium target",
+        description="Infrastructure headroom setpoint — stable equilibrium target",
     )
     k_up: float = Field(
         default=0.3,

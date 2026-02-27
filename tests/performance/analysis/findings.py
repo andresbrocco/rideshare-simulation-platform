@@ -180,8 +180,8 @@ class SuggestedThresholds:
 
 
 @dataclass
-class PerformanceIndexThresholds:
-    """Empirically-derived divisors for the Prometheus performance index recording rules.
+class InfrastructureHeadroomThresholds:
+    """Empirically-derived divisors for the Prometheus infrastructure headroom recording rules.
 
     Only Kafka lag and SimPy queue saturation are calibrated here.
     CPU and memory headroom use self-contained PromQL formulas
@@ -316,7 +316,7 @@ class TestSummary:
     service_health_latency: list[ServiceHealthLatency] = field(default_factory=list)
     suggested_thresholds: list[SuggestedThresholds] = field(default_factory=list)
     saturation_family: SaturationFamily | None = None
-    performance_index_thresholds: PerformanceIndexThresholds | None = None
+    infrastructure_headroom_thresholds: InfrastructureHeadroomThresholds | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -332,6 +332,8 @@ class TestSummary:
             result["suggested_thresholds"] = [s.to_dict() for s in self.suggested_thresholds]
         if self.saturation_family is not None:
             result["saturation_family"] = self.saturation_family.to_dict()
-        if self.performance_index_thresholds is not None:
-            result["performance_index_thresholds"] = self.performance_index_thresholds.to_dict()
+        if self.infrastructure_headroom_thresholds is not None:
+            result["infrastructure_headroom_thresholds"] = (
+                self.infrastructure_headroom_thresholds.to_dict()
+            )
         return result

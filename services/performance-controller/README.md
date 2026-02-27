@@ -12,7 +12,7 @@ Auto-throttle sidecar that monitors Prometheus recording rules and adjusts simul
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/health` | Health check (status, mode, current_speed, performance_index, uptime) |
+| GET | `/health` | Health check (status, mode, current_speed, infrastructure_headroom, uptime) |
 | GET | `/status` | Detailed state (mode, index, speeds, max_speed) |
 | PUT | `/controller/mode` | Set mode on/off (body: `{"mode": "on"\|"off"}`, returns full status) |
 
@@ -24,7 +24,7 @@ Auto-throttle sidecar that monitors Prometheus recording rules and adjusts simul
 | `SIMULATION_BASE_URL` | `http://simulation:8000` | Simulation API base URL |
 | `SIMULATION_API_KEY` | (from secrets) | API key for simulation auth |
 | `CONTROLLER_POLL_INTERVAL_SECONDS` | `5.0` | Seconds between control loop iterations |
-| `CONTROLLER_TARGET` | `0.70` | Performance index setpoint (stable equilibrium) |
+| `CONTROLLER_TARGET` | `0.70` | Infrastructure headroom setpoint (stable equilibrium) |
 | `CONTROLLER_K_UP` | `0.3` | Gain for speed increases (gentle ramp-up) |
 | `CONTROLLER_K_DOWN` | `5.0` | Gain for speed decreases (aggressive cut-down) |
 | `CONTROLLER_SMOOTHNESS` | `12.0` | Sigmoid steepness blending k_up and k_down |
@@ -60,5 +60,5 @@ curl -X PUT http://localhost:8090/controller/mode \
 
 - `secrets-init` (completed) — provides API_KEY
 - `simulation` (healthy) — target of speed actuation
-- `prometheus` (healthy) — source of recording rules (performance index)
+- `prometheus` (healthy) — source of recording rules (infrastructure headroom)
 - `otel-collector` (healthy) — sink for controller metrics

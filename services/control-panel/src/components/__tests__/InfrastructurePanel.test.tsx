@@ -45,7 +45,7 @@ describe('InfrastructurePanel', () => {
     loading: false,
     error: null,
     onRefresh: vi.fn(),
-    performanceIndex: null as number | null,
+    infrastructureHeadroom: null as number | null,
   };
 
   it('renders cores format for each service card', () => {

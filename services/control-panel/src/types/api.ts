@@ -339,7 +339,7 @@ export type ControllerMode = 'on' | 'off';
 
 export interface PerformanceControllerStatus {
   mode: ControllerMode;
-  performance_index: number;
+  infrastructure_headroom: number;
   current_speed: number;
   max_speed: number;
   uptime_seconds: number;

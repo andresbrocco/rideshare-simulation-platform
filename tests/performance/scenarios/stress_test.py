@@ -119,7 +119,7 @@ class PeakTracker:
             self.worst_container_memory_percent = max(self.worst_container_memory_percent, mem)
 
     def to_snapshot(self) -> dict[str, Any]:
-        """Convert to failure_snapshot dict (compatible with _compute_performance_index_thresholds)."""
+        """Convert to failure_snapshot dict (compatible with _compute_infrastructure_headroom_thresholds)."""
         return {
             "kafka_consumer_lag": self.kafka_consumer_lag or None,
             "simpy_event_queue": self.simpy_event_queue or None,

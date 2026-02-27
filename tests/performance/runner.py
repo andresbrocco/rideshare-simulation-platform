@@ -24,7 +24,7 @@ from .analysis.findings import (
     ContainerHealth,
     ContainerHealthAggregated,
     KeyMetrics,
-    PerformanceIndexThresholds,
+    InfrastructureHeadroomThresholds,
     SaturationFamily,
     ServiceHealthLatency,
     SuggestedThresholds,
@@ -160,8 +160,8 @@ def analyze_results(
     # Saturation curve analysis
     saturation_family = _build_saturation_family(results)
 
-    # Performance index thresholds derived from failure snapshots
-    performance_index_thresholds = _compute_performance_index_thresholds(results)
+    # Infrastructure headroom thresholds derived from failure snapshots
+    infrastructure_headroom_thresholds = _compute_infrastructure_headroom_thresholds(results)
 
     summary = TestSummary(
         container_health=container_health,
@@ -170,7 +170,7 @@ def analyze_results(
         service_health_latency=service_health_latency,
         suggested_thresholds=suggested_thresholds,
         saturation_family=saturation_family,
-        performance_index_thresholds=performance_index_thresholds,
+        infrastructure_headroom_thresholds=infrastructure_headroom_thresholds,
     )
 
     return analysis, summary
@@ -529,10 +529,10 @@ def _build_saturation_family(results: dict[str, Any]) -> SaturationFamily | None
     return None
 
 
-def _compute_performance_index_thresholds(
+def _compute_infrastructure_headroom_thresholds(
     results: dict[str, Any],
-) -> PerformanceIndexThresholds | None:
-    """Derive performance index saturation divisors from observed failure snapshots.
+) -> InfrastructureHeadroomThresholds | None:
+    """Derive infrastructure headroom saturation divisors from observed failure snapshots.
 
     Prefers the failure snapshot from the stress test scenario. Falls back to
     the last triggered step in speed_scaling if no stress snapshot is available.
@@ -546,7 +546,7 @@ def _compute_performance_index_thresholds(
         results: Full test results dictionary.
 
     Returns:
-        PerformanceIndexThresholds populated from observed data, or None.
+        InfrastructureHeadroomThresholds populated from observed data, or None.
     """
     scenarios = results.get("scenarios", [])
 
@@ -601,7 +601,7 @@ def _compute_performance_index_thresholds(
     else:
         simpy_queue_saturation = 500
 
-    return PerformanceIndexThresholds(
+    return InfrastructureHeadroomThresholds(
         kafka_lag_saturation=kafka_lag_saturation,
         simpy_queue_saturation=simpy_queue_saturation,
         source_scenario=source_scenario,
@@ -610,7 +610,7 @@ def _compute_performance_index_thresholds(
 
 
 def _update_performance_rules(
-    thresholds: PerformanceIndexThresholds,
+    thresholds: InfrastructureHeadroomThresholds,
     rules_path: Path = _PERFORMANCE_RULES_PATH,
 ) -> bool:
     """Update Prometheus performance rule divisors from empirical thresholds.
@@ -1193,8 +1193,8 @@ def run(
     )
 
     # Auto-update Prometheus performance rules from empirical thresholds
-    if summary.performance_index_thresholds is not None:
-        _update_performance_rules(summary.performance_index_thresholds)
+    if summary.infrastructure_headroom_thresholds is not None:
+        _update_performance_rules(summary.infrastructure_headroom_thresholds)
 
     # Summary
     _print_summary(results, summary)
@@ -1316,8 +1316,8 @@ def analyze(results_file: str) -> None:
     )
 
     # Auto-update Prometheus performance rules from empirical thresholds
-    if summary.performance_index_thresholds is not None:
-        _update_performance_rules(summary.performance_index_thresholds)
+    if summary.infrastructure_headroom_thresholds is not None:
+        _update_performance_rules(summary.infrastructure_headroom_thresholds)
 
     _print_summary(results, summary)
 

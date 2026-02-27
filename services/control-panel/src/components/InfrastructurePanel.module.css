@@ -262,8 +262,8 @@
   background: var(--accent-red);
 }
 
-/* Performance Index in totals */
-.performanceIndexRow {
+/* Infrastructure Headroom in totals */
+.infrastructureHeadroomRow {
   display: flex;
   justify-content: space-between;
   align-items: center;

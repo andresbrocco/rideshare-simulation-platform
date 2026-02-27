@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "Performance engineering dashboard answering: where is the bottleneck and how close are we to saturation? Covers saturation indicators, USE metrics per container, throughput curves, real-time ratio tracking, and composite health scores.",
+  "description": "Performance engineering dashboard answering: where is the bottleneck and how close are we to saturation? Covers saturation indicators, USE metrics per container, throughput curves, real-time ratio tracking, and infrastructure headroom.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -1007,7 +1007,7 @@
       },
       "id": 17,
       "panels": [],
-      "title": "Composite Health Score",
+      "title": "Infrastructure Headroom",
       "type": "row"
     },
     {
@@ -1015,7 +1015,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Composite performance index (0-1) from Prometheus recording rules. Combines Kafka lag, SimPy queue, CPU, memory, and consumption ratio headroom into a single score. Always available when the simulation is running.",
+      "description": "Composite infrastructure headroom (0-1) from Prometheus recording rules. Combines Kafka lag, SimPy queue, CPU, memory, and consumption ratio headroom into a single score. Always available when the simulation is running.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1069,12 +1069,12 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rideshare:performance:index",
-          "legendFormat": "Performance Index",
+          "expr": "rideshare:infrastructure:headroom",
+          "legendFormat": "Infrastructure Headroom",
           "refId": "A"
         }
       ],
-      "title": "Performance Index",
+      "title": "Infrastructure Headroom",
       "type": "gauge"
     },
     {
@@ -1082,7 +1082,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Individual headroom components (0-1) from Prometheus recording rules. The lowest component is the bottleneck driving the composite index down.",
+      "description": "Individual headroom components (0-1) from Prometheus recording rules. The lowest component is the bottleneck driving the composite infrastructure headroom down.",
       "fieldConfig": {
         "defaults": {
           "color": {

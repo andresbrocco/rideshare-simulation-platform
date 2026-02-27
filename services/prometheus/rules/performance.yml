@@ -62,8 +62,8 @@ groups:
       - record: rideshare:performance:rtr_headroom:smooth
         expr: avg_over_time(rideshare:performance:rtr_headroom[16s])
 
-      # --- Composite index = min of all smoothed components ---
-      - record: rideshare:performance:index
+      # --- Composite infrastructure headroom = min of all smoothed components ---
+      - record: rideshare:infrastructure:headroom
         expr: >-
           min by() (
             label_replace(rideshare:performance:kafka_lag_headroom:smooth, "component", "kafka_lag", "", "")

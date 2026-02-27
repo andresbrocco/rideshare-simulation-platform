@@ -9,7 +9,7 @@ interface InfrastructurePanelProps {
   error: string | null;
   onRefresh: () => void;
   simulationRealTimeRatio?: number | null;
-  performanceIndex: number | null;
+  infrastructureHeadroom: number | null;
 }
 
 function formatMemory(mb: number): string {
@@ -151,7 +151,7 @@ export default function InfrastructurePanel({
   error,
   onRefresh,
   simulationRealTimeRatio,
-  performanceIndex,
+  infrastructureHeadroom,
 }: InfrastructurePanelProps) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -211,7 +211,7 @@ export default function InfrastructurePanel({
           )}
 
           {/* System Totals */}
-          {data && (data.cadvisor_available || performanceIndex !== null) && (
+          {data && (data.cadvisor_available || infrastructureHeadroom !== null) && (
             <div className={styles.totalsSection}>
               {data.cadvisor_available && (
                 <div className={styles.totalsRow}>
@@ -252,24 +252,26 @@ export default function InfrastructurePanel({
                   </div>
                 </div>
               )}
-              <div className={styles.performanceIndexRow}>
-                <span className={styles.totalLabel}>Performance Index</span>
+              <div className={styles.infrastructureHeadroomRow}>
+                <span className={styles.totalLabel}>Infrastructure Headroom</span>
                 <span
                   className={styles.totalValue}
                   style={
-                    performanceIndex !== null
+                    infrastructureHeadroom !== null
                       ? {
                           color:
-                            performanceIndex >= 0.7
+                            infrastructureHeadroom >= 0.7
                               ? 'var(--accent-green)'
-                              : performanceIndex >= 0.5
+                              : infrastructureHeadroom >= 0.5
                                 ? 'var(--accent-orange)'
                                 : 'var(--accent-red)',
                         }
                       : undefined
                   }
                 >
-                  {performanceIndex !== null ? `${Math.round(performanceIndex * 100)}%` : '-'}
+                  {infrastructureHeadroom !== null
+                    ? `${Math.round(infrastructureHeadroom * 100)}%`
+                    : '-'}
                 </span>
               </div>
             </div>

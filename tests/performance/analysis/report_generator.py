@@ -112,8 +112,8 @@ class ReportGenerator:
         # ── Health Latency ──
         lines.extend(self._md_health_latency(summary))
 
-        # ── Performance Index Thresholds ──
-        lines.extend(self._md_performance_index_thresholds(summary))
+        # ── Infrastructure Headroom Thresholds ──
+        lines.extend(self._md_infrastructure_headroom_thresholds(summary))
 
         # ── Derived Configuration ──
         derived_config = results.get("derived_config", {})
@@ -454,14 +454,14 @@ class ReportGenerator:
 
         return lines
 
-    def _md_performance_index_thresholds(self, summary: TestSummary) -> list[str]:
-        """Generate markdown section for performance index thresholds."""
-        pit = summary.performance_index_thresholds
+    def _md_infrastructure_headroom_thresholds(self, summary: TestSummary) -> list[str]:
+        """Generate markdown section for infrastructure headroom thresholds."""
+        pit = summary.infrastructure_headroom_thresholds
         if pit is None:
             return []
 
         lines: list[str] = [
-            "## Performance Index Thresholds",
+            "## Infrastructure Headroom Thresholds",
             "",
             "Empirically-derived saturation divisors for Prometheus recording rules.",
             "",
@@ -1015,10 +1015,10 @@ class ReportGenerator:
         if summary.saturation_family is not None:
             summary_dict["saturation_family"] = summary.saturation_family.to_dict()
 
-        # Performance index thresholds
-        if summary.performance_index_thresholds is not None:
-            summary_dict["performance_index_thresholds"] = (
-                summary.performance_index_thresholds.to_dict()
+        # Infrastructure headroom thresholds
+        if summary.infrastructure_headroom_thresholds is not None:
+            summary_dict["infrastructure_headroom_thresholds"] = (
+                summary.infrastructure_headroom_thresholds.to_dict()
             )
 
         # Full summary data

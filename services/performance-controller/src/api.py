@@ -40,7 +40,7 @@ class HealthResponse(BaseModel):
     status: str
     mode: str
     current_speed: float
-    performance_index: float
+    infrastructure_headroom: float
     uptime_seconds: float
 
 
@@ -48,7 +48,7 @@ class StatusResponse(BaseModel):
     """Detailed controller state."""
 
     mode: str
-    performance_index: float
+    infrastructure_headroom: float
     current_speed: float
     max_speed: float
     uptime_seconds: float
@@ -86,7 +86,7 @@ def health_check() -> HealthResponse:
             status="starting",
             mode="off",
             current_speed=0.0,
-            performance_index=0.0,
+            infrastructure_headroom=0.0,
             uptime_seconds=time.monotonic() - _start_time,
         )
 
@@ -94,7 +94,7 @@ def health_check() -> HealthResponse:
         status="healthy",
         mode=ctrl.mode,
         current_speed=ctrl.current_speed,
-        performance_index=ctrl.performance_index,
+        infrastructure_headroom=ctrl.infrastructure_headroom,
         uptime_seconds=time.monotonic() - _start_time,
     )
 
@@ -108,7 +108,7 @@ def get_status() -> StatusResponse:
     if ctrl is None:
         return StatusResponse(
             mode="off",
-            performance_index=0.0,
+            infrastructure_headroom=0.0,
             current_speed=0.0,
             max_speed=0.0,
             uptime_seconds=uptime,
@@ -116,7 +116,7 @@ def get_status() -> StatusResponse:
 
     return StatusResponse(
         mode=ctrl.mode,
-        performance_index=ctrl.performance_index,
+        infrastructure_headroom=ctrl.infrastructure_headroom,
         current_speed=ctrl.current_speed,
         max_speed=ctrl._settings.controller.max_speed,
         uptime_seconds=uptime,
@@ -132,7 +132,7 @@ def set_mode(body: ModeRequest) -> StatusResponse:
     if ctrl is None:
         return StatusResponse(
             mode="off",
-            performance_index=0.0,
+            infrastructure_headroom=0.0,
             current_speed=0.0,
             max_speed=0.0,
             uptime_seconds=uptime,
@@ -142,7 +142,7 @@ def set_mode(body: ModeRequest) -> StatusResponse:
 
     return StatusResponse(
         mode=ctrl.mode,
-        performance_index=ctrl.performance_index,
+        infrastructure_headroom=ctrl.infrastructure_headroom,
         current_speed=ctrl.current_speed,
         max_speed=ctrl._settings.controller.max_speed,
         uptime_seconds=uptime,

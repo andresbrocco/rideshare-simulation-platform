@@ -14,9 +14,9 @@ Independent sidecar that monitors system saturation via Prometheus recording rul
 ## Control Loop
 
 1. **Wait for Prometheus** to be reachable
-2. **Poll cycle** (every 5s): Read `rideshare:performance:index` from Prometheus → if mode is "on": decide speed → actuate
+2. **Poll cycle** (every 5s): Read `rideshare:infrastructure:headroom` from Prometheus → if mode is "on": decide speed → actuate
 
-## Performance Index
+## Infrastructure Headroom
 
 The composite index is computed by Prometheus recording rules in `services/prometheus/rules/performance.yml`, not by the controller. This means the index is always available in Grafana when the simulation is running, regardless of whether the controller sidecar is deployed.
 
@@ -30,11 +30,11 @@ The composite index is computed by Prometheus recording rules in `services/prome
 | `rideshare:performance:memory_headroom` | 85% |
 | `rideshare:performance:consumption_ratio` | consumed/produced rate |
 
-Composite: `rideshare:performance:index` = min of all components.
+Composite: `rideshare:infrastructure:headroom` = min of all components.
 
 ## Mode (on/off)
 
-- **off** (default): Controller reads and exposes the performance index but does not actuate speed changes. The control panel speed dropdown remains functional.
+- **off** (default): Controller reads and exposes the infrastructure headroom but does not actuate speed changes. The control panel speed dropdown remains functional.
 - **on**: Controller runs decide/actuate logic. The control panel shows auto-managed speed display.
 
 Mode is toggled via `PUT /controller/mode` or the "Auto" toggle in the control panel.
@@ -44,7 +44,7 @@ Mode is toggled via `PUT /controller/mode` or the "Auto" toggle in the control p
 Continuous asymmetric proportional controller with a target setpoint (default 0.70):
 
 ```
-error       = performance_index - target
+error       = infrastructure_headroom - target
 blend       = 1 / (1 + exp(-smoothness * error))       # sigmoid 0→1
 effective_k = k_down + (k_up - k_down) * blend          # large below target, small above
 factor      = exp(effective_k * error)                   # multiplicative adjustment
@@ -73,7 +73,7 @@ The controller operates across floats in **[0.125, 32.0]** via the continuous pr
 
 | Metric | Type | Dashboard |
 |--------|------|-----------|
-| `controller_performance_index` | ObservableGauge | performance-engineering.json |
+| `controller_infrastructure_headroom` | ObservableGauge | performance-engineering.json |
 | `controller_target_speed_multiplier` | ObservableGauge | performance-engineering.json |
 | `controller_adjustments_total` | Counter | performance-engineering.json |
 | `controller_mode` | ObservableGauge | performance-engineering.json |
