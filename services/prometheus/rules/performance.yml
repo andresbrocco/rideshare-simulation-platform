@@ -37,7 +37,7 @@ groups:
       - record: rideshare:performance:rtr_headroom
         expr: >-
           (
-            clamp(max(simulation_real_time_ratio), 0, 1)
+            clamp((max(simulation_real_time_ratio) - 0.66) / 0.34, 0, 1)
             and on() (sum(rate(simulation_events_total[2m])) > 0)
           )
           or vector(1)
