@@ -86,6 +86,28 @@ resource "aws_iam_role_policy_attachment" "eks_nodes_ebs_csi" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
 }
 
+# Secrets Manager read access for External Secrets Operator running on nodes.
+# Uses node role instead of IRSA since the EKS Pod Identity webhook may not
+# be available during initial cluster bootstrap.
+resource "aws_iam_role_policy" "eks_nodes_secrets_manager" {
+  name = "secrets-manager-read"
+  role = aws_iam_role.eks_nodes.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret"
+        ]
+        Resource = "arn:aws:secretsmanager:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:secret:${var.project_name}/*"
+      }
+    ]
+  })
+}
+
 # --------------------------------------------------------------------------
 # IRSA Role: Simulation (S3 checkpoints)
 # --------------------------------------------------------------------------

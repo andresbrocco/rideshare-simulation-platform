@@ -84,6 +84,16 @@ images:
     newTag: latest
 
 patches:
+  # Override imagePullPolicy from Never (local dev) to IfNotPresent (ECR)
+  - patch: '[{"op": "replace", "path": "/spec/template/spec/containers/0/imagePullPolicy", "value": "IfNotPresent"}]'
+    target:
+      kind: Deployment
+      labelSelector: app in (simulation,stream-processor,performance-controller,control-panel,bronze-ingestion,hive-metastore,osrm,otel-collector)
+  - patch: '[{"op": "replace", "path": "/spec/template/spec/containers/0/imagePullPolicy", "value": "IfNotPresent"}]'
+    target:
+      kind: StatefulSet
+      name: kafka
+
   # ConfigMap patches for production environment
   - path: configmap-core-patch.yaml
     target:
