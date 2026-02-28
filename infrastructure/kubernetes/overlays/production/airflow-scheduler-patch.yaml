@@ -27,15 +27,16 @@ spec:
       containers:
         - name: airflow-scheduler
           env:
-            # RDS connection for Airflow metadata database
-            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
-              value: "postgresql+psycopg2://airflow:$(AIRFLOW_POSTGRES_PASSWORD)@<rds-endpoint>:5432/airflow"
-
+            # Password must be defined before the conn string that references it
             - name: AIRFLOW_POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: app-credentials
                   key: AIRFLOW_POSTGRES_PASSWORD
+
+            # RDS connection for Airflow metadata database
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+              value: "postgresql+psycopg2://airflow:$(AIRFLOW_POSTGRES_PASSWORD)@<rds-endpoint>:5432/airflow"
 
             # Remove MinIO endpoint override (use real AWS S3)
             - name: AWS_ENDPOINT_URL
