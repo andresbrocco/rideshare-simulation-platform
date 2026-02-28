@@ -7,3 +7,13 @@ variable "oidc_provider_arn" {
   description = "EKS OIDC provider ARN"
   type        = string
 }
+
+variable "vpc_id" {
+  description = "VPC ID for ALB controller"
+  type        = string
+}
+
+variable "aws_region" {
+  description = "AWS region for ALB controller"
+  type        = string
+}

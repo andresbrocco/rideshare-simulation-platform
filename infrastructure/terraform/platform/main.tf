@@ -35,6 +35,8 @@ module "alb" {
 
   cluster_name      = module.eks.cluster_name
   oidc_provider_arn = module.eks.oidc_provider_arn
+  vpc_id            = data.terraform_remote_state.foundation.outputs.vpc_id
+  aws_region        = var.aws_region
 }
 
 # DNS Module
