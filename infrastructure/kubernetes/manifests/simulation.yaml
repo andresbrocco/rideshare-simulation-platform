@@ -111,6 +111,11 @@ spec:
               key: KAFKA_SASL_PASSWORD
         - name: KAFKA_SCHEMA_REGISTRY_URL
           value: "http://schema-registry:8081"
+        - name: KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO
         - name: REDIS_HOST
           value: "redis"
         - name: REDIS_PORT
