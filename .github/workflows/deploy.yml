@@ -215,33 +215,45 @@ jobs:
           echo "Waiting for EKS nodes to reach Ready state..."
           kubectl wait --for=condition=Ready nodes --all --timeout=300s
 
-      - name: Create Metastore Database
+      - name: Create Application Databases
         run: |
-          echo "Creating metastore database in RDS (if not exists)..."
+          echo "Creating application databases in RDS..."
           POSTGRES_PASSWORD=$(aws secretsmanager get-secret-value \
             --secret-id rideshare/rds --query SecretString --output text | jq -r '.MASTER_PASSWORD')
+          DATA_PIPELINE_CREDS=$(aws secretsmanager get-secret-value \
+            --secret-id rideshare/data-pipeline --query SecretString --output text)
           RDS_ENDPOINT="${{ steps.tf-outputs.outputs.rds_endpoint }}"
 
           # CREATE DATABASE cannot use IF NOT EXISTS in PostgreSQL.
           # Run it and treat "already exists" (exit code 1) as success.
-          kubectl run rds-init --rm -i --restart=Never --namespace=default \
-            --image=postgres:16 -- \
-            psql "postgresql://postgres:${POSTGRES_PASSWORD}@${RDS_ENDPOINT}:5432/postgres" \
-            -c "CREATE DATABASE metastore;" \
-            && echo "Database created" \
-            || echo "Database may already exist (expected on re-runs)"
+          for DB in metastore airflow; do
+            kubectl run "rds-init-${DB}" --rm -i --restart=Never --namespace=default \
+              --image=postgres:16 -- \
+              psql "postgresql://postgres:${POSTGRES_PASSWORD}@${RDS_ENDPOINT}:5432/postgres" \
+              -c "CREATE DATABASE ${DB};" \
+              && echo "${DB} database created" \
+              || echo "${DB} database may already exist (expected on re-runs)"
+          done
 
           # Create metastore application user (used by Hive Metastore service)
-          METASTORE_PASSWORD=$(aws secretsmanager get-secret-value \
-            --secret-id rideshare/app-credentials --query SecretString --output text | jq -r '.POSTGRES_METASTORE_PASSWORD')
+          METASTORE_PASSWORD=$(echo "$DATA_PIPELINE_CREDS" | jq -r '.POSTGRES_METASTORE_PASSWORD')
           echo "CREATE ROLE metastore WITH LOGIN PASSWORD '${METASTORE_PASSWORD}'; GRANT ALL PRIVILEGES ON DATABASE metastore TO metastore; GRANT ALL PRIVILEGES ON SCHEMA public TO metastore;" | \
-            kubectl run rds-create-user --rm -i --restart=Never --namespace=default \
+            kubectl run rds-create-metastore-user --rm -i --restart=Never --namespace=default \
               --image=postgres:16 -- \
               psql "postgresql://postgres:${POSTGRES_PASSWORD}@${RDS_ENDPOINT}:5432/metastore" \
             && echo "Metastore user created" \
             || echo "Metastore user may already exist (expected on re-runs)"
 
-          echo "Metastore database ready"
+          # Create airflow application user (used by Airflow webserver/scheduler)
+          AIRFLOW_PASSWORD=$(echo "$DATA_PIPELINE_CREDS" | jq -r '.POSTGRES_AIRFLOW_PASSWORD')
+          echo "CREATE ROLE airflow WITH LOGIN PASSWORD '${AIRFLOW_PASSWORD}'; GRANT ALL PRIVILEGES ON DATABASE airflow TO airflow; GRANT ALL PRIVILEGES ON SCHEMA public TO airflow;" | \
+            kubectl run rds-create-airflow-user --rm -i --restart=Never --namespace=default \
+              --image=postgres:16 -- \
+              psql "postgresql://postgres:${POSTGRES_PASSWORD}@${RDS_ENDPOINT}:5432/airflow" \
+            && echo "Airflow user created" \
+            || echo "Airflow user may already exist (expected on re-runs)"
+
+          echo "Application databases ready"
 
       - name: Wait for ALB Controller or remove stale webhooks
         run: |
