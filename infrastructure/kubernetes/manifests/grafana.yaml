@@ -6083,7 +6083,7 @@ data:
             "y": 6
           },
           "id": 8,
-          "description": "Histogram of trip counts across 5 fare buckets ($0-10, $10-20, $20-30, $30-50, $50+). Shows the pricing distribution shape of the platform.",
+          "description": "Histogram of trip counts across fare ranges ($0-15, $15-30, $30-45, $45-60, $60-75, $75-90, $90+). Hover over a bar to see total revenue for that range.",
           "options": {
             "legend": {
               "calcs": [],
@@ -6104,7 +6104,7 @@ data:
               },
               "format": 0,
               "rawQuery": true,
-              "rawSql": "WITH fare_ranges AS (\n  SELECT range_name, range_order\n  FROM UNNEST(ARRAY['$0-10','$10-20','$20-30','$30-50','$50+'],\n              ARRAY[1,2,3,4,5]) AS t(range_name, range_order)\n),\ntrip_data AS (\n  SELECT\n    CASE\n      WHEN fare < 10 THEN '$0-10'\n      WHEN fare < 20 THEN '$10-20'\n      WHEN fare < 30 THEN '$20-30'\n      WHEN fare < 50 THEN '$30-50'\n      ELSE '$50+'\n    END as fare_bucket,\n    COUNT(*) as trip_count,\n    SUM(fare) as revenue\n  FROM delta.gold.fact_trips\n  WHERE completed_at >= current_timestamp - INTERVAL '7' DAY\n    AND trip_state = 'completed' AND fare > 0\n  GROUP BY 1\n)\nSELECT f.range_name as fare_bucket, COALESCE(t.trip_count, 0) as trip_count, COALESCE(t.revenue, 0) as revenue\nFROM fare_ranges f LEFT JOIN trip_data t ON f.range_name = t.fare_bucket\nORDER BY f.range_order",
+              "rawSql": "WITH fare_ranges AS (\n  SELECT range_name, range_order\n  FROM UNNEST(ARRAY['$0-15','$15-30','$30-45','$45-60','$60-75','$75-90','$90+'],\n              ARRAY[1,2,3,4,5,6,7]) AS t(range_name, range_order)\n),\ntrip_data AS (\n  SELECT\n    CASE\n      WHEN fare < 15 THEN '$0-15'\n      WHEN fare < 30 THEN '$15-30'\n      WHEN fare < 45 THEN '$30-45'\n      WHEN fare < 60 THEN '$45-60'\n      WHEN fare < 75 THEN '$60-75'\n      WHEN fare < 90 THEN '$75-90'\n      ELSE '$90+'\n    END as fare_bucket,\n    COUNT(*) as trip_count,\n    SUM(fare) as revenue\n  FROM delta.gold.fact_trips\n  WHERE completed_at >= current_timestamp - INTERVAL '7' DAY\n    AND trip_state = 'completed' AND fare > 0\n  GROUP BY 1\n)\nSELECT f.range_name as fare_bucket, COALESCE(t.trip_count, 0) as trip_count, COALESCE(t.revenue, 0) as revenue\nFROM fare_ranges f LEFT JOIN trip_data t ON f.range_name = t.fare_bucket\nORDER BY f.range_order",
               "refId": "A"
             }
           ],
