@@ -36,7 +36,7 @@ Kubernetes resource definitions for deploying the rideshare simulation platform 
 
 **Image Pull Policy**: Uses `imagePullPolicy: Never` for custom images (simulation, stream-processor, frontend, minio, bronze-ingestion, hive-metastore) as these are built locally and loaded into Kind with `kind load docker-image`.
 
-**Kafka Listener Configuration**: Kafka exposes three ports: 9092 (external), 29092 (internal cluster communication), 29093 (KRaft controller). Internal services connect via `kafka-0.kafka.default.svc.cluster.local:29092`.
+**Kafka Listener Configuration**: Kafka exposes three ports: 9092 (external), 29092 (internal cluster communication), 29093 (KRaft controller). Internal services connect via `kafka-0.kafka:29092`.
 
 **Headless Service Pattern**: Kafka uses a headless service (`clusterIP: None`) to enable direct pod-to-pod communication and stable DNS names for StatefulSet pods.
 
