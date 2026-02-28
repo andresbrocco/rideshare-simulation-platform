@@ -13,6 +13,7 @@ resources:
   - ../../manifests/simulation.yaml
   - ../../manifests/stream-processor.yaml
   - ../../manifests/performance-controller.yaml
+  - ../../manifests/control-panel.yaml
 
   # Data Pipeline
   - ../../manifests/bronze-ingestion.yaml
@@ -51,6 +52,7 @@ resources:
   - ingress-airflow.yaml
   - ingress-trino.yaml
   - ingress-prometheus.yaml
+  - ingress-control-panel.yaml
 
 namespace: rideshare-prod
 

@@ -41,6 +41,14 @@ COPY . .
 # Production builds need zones.geojson in public/ — sourced from services/simulation/data/
 # via Docker Compose bind mount in development; for production, widen the build context.
 
+# Vite bakes VITE_* env vars into the bundle at build time
+ARG VITE_API_URL
+ARG VITE_WS_URL
+ARG VITE_LAMBDA_URL
+ENV VITE_API_URL=${VITE_API_URL}
+ENV VITE_WS_URL=${VITE_WS_URL}
+ENV VITE_LAMBDA_URL=${VITE_LAMBDA_URL}
+
 RUN npm run build
 
 # Static stage - extract build artifacts only (for S3 deployment)

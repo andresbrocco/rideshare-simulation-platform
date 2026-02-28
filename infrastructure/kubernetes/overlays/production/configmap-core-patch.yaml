@@ -4,7 +4,7 @@ metadata:
   name: core-config
 data:
   # Production domain for CORS (replaces localhost origins)
-  CORS_ORIGINS: "https://ridesharing.portfolio.andresbrocco.com"
+  CORS_ORIGINS: "https://ridesharing.portfolio.andresbrocco.com,https://control-panel.ridesharing.portfolio.andresbrocco.com"
 
   # Production environment marker (replaces "local")
   DEPLOYMENT_ENV: "production"

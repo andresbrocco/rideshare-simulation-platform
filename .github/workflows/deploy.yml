@@ -61,6 +61,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: rideshare/${{ matrix.service }}
           IMAGE_TAG: ${{ github.sha }}
+          LAMBDA_URL: ${{ vars.LAMBDA_URL }}
         run: |
           BUILD_ARGS=(
             --file "services/${{ matrix.service }}/Dockerfile"
@@ -71,6 +72,15 @@ jobs:
 
           if [ -n "${{ matrix.target }}" ]; then
             BUILD_ARGS+=(--target "${{ matrix.target }}")
+          fi
+
+          # Control panel needs production URLs baked into the Vite bundle
+          if [ "${{ matrix.service }}" = "control-panel" ]; then
+            BUILD_ARGS+=(
+              --build-arg "VITE_API_URL=https://api.ridesharing.portfolio.andresbrocco.com"
+              --build-arg "VITE_WS_URL=wss://api.ridesharing.portfolio.andresbrocco.com/ws"
+              --build-arg "VITE_LAMBDA_URL=${LAMBDA_URL}"
+            )
           fi
 
           docker buildx build "${BUILD_ARGS[@]}" "services/${{ matrix.service }}"
@@ -352,9 +362,10 @@ jobs:
           echo "Cluster Endpoint: ${{ steps.tf-outputs.outputs.cluster_endpoint }}"
           echo "ALB Hostname: ${{ steps.alb-url.outputs.alb_hostname }}"
           echo ""
-          echo "Frontend URL: https://ridesharing.portfolio.andresbrocco.com"
-          echo "API URL:      https://api.ridesharing.portfolio.andresbrocco.com"
-          echo "Grafana:      https://grafana.ridesharing.portfolio.andresbrocco.com"
+          echo "Landing Page:    https://ridesharing.portfolio.andresbrocco.com"
+          echo "Control Panel:   https://control-panel.ridesharing.portfolio.andresbrocco.com"
+          echo "API URL:         https://api.ridesharing.portfolio.andresbrocco.com"
+          echo "Grafana:         https://grafana.ridesharing.portfolio.andresbrocco.com"
           echo "Airflow:      https://airflow.ridesharing.portfolio.andresbrocco.com"
           echo "Trino:        https://trino.ridesharing.portfolio.andresbrocco.com"
           echo "Prometheus:   https://prometheus.ridesharing.portfolio.andresbrocco.com"
@@ -431,4 +442,5 @@ jobs:
       - name: Output deployment summary
         run: |
           echo "Frontend deployed to S3 and CloudFront cache invalidated"
-          echo "Frontend URL: https://ridesharing.portfolio.andresbrocco.com"
+          echo "Landing Page:  https://ridesharing.portfolio.andresbrocco.com"
+          echo "Control Panel: https://control-panel.ridesharing.portfolio.andresbrocco.com (via ALB/EKS)"

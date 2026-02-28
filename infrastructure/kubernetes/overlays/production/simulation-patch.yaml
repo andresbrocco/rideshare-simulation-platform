@@ -18,7 +18,7 @@ spec:
           env:
             # Production CORS origins
             - name: CORS_ORIGINS
-              value: "https://ridesharing.portfolio.andresbrocco.com"
+              value: "https://ridesharing.portfolio.andresbrocco.com,https://control-panel.ridesharing.portfolio.andresbrocco.com"
 
             # Production deployment environment
             - name: DEPLOYMENT_ENV

@@ -142,6 +142,7 @@ module "lambda_auth_deploy" {
   # CORS configuration for frontend
   cors_allowed_origins = [
     "https://ridesharing.portfolio.andresbrocco.com",
+    "https://control-panel.ridesharing.portfolio.andresbrocco.com",
     "http://localhost:5173",
   ]
   cors_allowed_methods = ["POST", "OPTIONS"]

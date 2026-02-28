@@ -22,6 +22,7 @@ SECRET_GITHUB_PAT = "rideshare/github-pat"
 # CORS configuration
 ALLOWED_ORIGINS = [
     "https://ridesharing.portfolio.andresbrocco.com",
+    "https://control-panel.ridesharing.portfolio.andresbrocco.com",
     "http://localhost:5173",
 ]
 

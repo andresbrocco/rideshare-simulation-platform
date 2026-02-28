@@ -23,13 +23,88 @@ import type { WebSocketMessage } from './types/websocket';
 import type { ZoneData } from './types/api';
 import { DEFAULT_VISIBILITY, type LayerVisibility } from './types/layers';
 import type { PlacementMode } from './constants/dnaPresets';
+import {
+  getAppMode,
+  setAuthCookie,
+  getAuthCookie,
+  clearAuthCookie,
+  redirectToControlPanel,
+  redirectToLanding,
+} from './utils/auth';
 import './App.css';
 
-function AppContent() {
+/**
+ * Landing page mode: renders only the landing page + password dialog.
+ * On successful login, sets a shared cookie and redirects to the control panel domain.
+ */
+function LandingApp() {
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+
+  const handleLogin = (key: string) => {
+    setAuthCookie(key);
+    redirectToControlPanel();
+  };
+
+  return (
+    <div className="App landing-mode">
+      <Toaster position="top-right" />
+      <LandingPage onLoginClick={() => setShowPasswordDialog(true)} />
+      <PasswordDialog
+        open={showPasswordDialog}
+        onClose={() => setShowPasswordDialog(false)}
+        onLogin={handleLogin}
+      />
+    </div>
+  );
+}
+
+/**
+ * Control panel mode: checks for auth cookie on mount, transfers to sessionStorage,
+ * clears the cookie, then renders the full control panel.
+ * Redirects to landing page if no auth is found.
+ */
+function ControlPanelApp() {
+  const [apiKey] = useState<string | null>(() => {
+    // Check sessionStorage first (returning user in same tab)
+    const stored = sessionStorage.getItem('apiKey');
+    if (stored) return stored;
+
+    // Check cookie (fresh redirect from landing page)
+    const cookieKey = getAuthCookie();
+    if (cookieKey) {
+      sessionStorage.setItem('apiKey', cookieKey);
+      clearAuthCookie();
+      return cookieKey;
+    }
+
+    // No auth found — redirect back to landing
+    redirectToLanding();
+    return null;
+  });
+
+  // While redirect is happening, render nothing
+  if (!apiKey) return null;
+
+  return <OnlineApp apiAvailable={true} />;
+}
+
+/**
+ * Dev mode: preserves the existing local development behavior.
+ * Polls the API health endpoint and renders the full app with landing + control panel.
+ */
+function DevApp() {
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
   const { available } = useApiHealth(apiUrl);
 
   return <OnlineApp apiAvailable={available} />;
+}
+
+function AppContent() {
+  const mode = getAppMode();
+
+  if (mode === 'landing') return <LandingApp />;
+  if (mode === 'control-panel') return <ControlPanelApp />;
+  return <DevApp />;
 }
 
 function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
