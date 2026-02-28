@@ -10,7 +10,7 @@ variable "repository_names" {
   default = [
     "simulation",
     "stream-processor",
-    "frontend",
+    "control-panel",
     "bronze-ingestion",
     "hive-metastore",
     "osrm",
