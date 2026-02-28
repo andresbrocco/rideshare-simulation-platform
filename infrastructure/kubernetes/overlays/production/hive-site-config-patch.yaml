@@ -35,15 +35,8 @@ data:
         <value>jdbc:postgresql://<rds-endpoint>:5432/metastore</value>
       </property>
 
-      <property>
-        <name>javax.jdo.option.ConnectionUserName</name>
-        <value>${POSTGRES_METASTORE_USER}</value>
-      </property>
-
-      <property>
-        <name>javax.jdo.option.ConnectionPassword</name>
-        <value>${POSTGRES_METASTORE_PASSWORD}</value>
-      </property>
+      <!-- Credentials passed via SERVICE_OPTS JVM properties to avoid
+           XML-special characters in passwords breaking the XML parser -->
 
       <!-- S3A Configuration (IRSA provides credentials via default chain) -->
       <property>

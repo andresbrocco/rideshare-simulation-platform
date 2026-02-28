@@ -2,7 +2,9 @@
 # - Removes wait-for-minio initContainer (no MinIO in production)
 # - Updates postgres readiness check to target RDS endpoint
 # - Removes MINIO_ROOT_USER / MINIO_ROOT_PASSWORD env vars (IRSA handles S3)
-# - Updates SERVICE_OPTS to connect to RDS instead of local postgres-metastore
+# - Overrides container command to build SERVICE_OPTS from env vars at runtime
+#   (avoids Kubernetes $(VAR) expansion ordering issues with Kustomize merge
+#    and XML-special characters in passwords breaking hive-site.xml)
 #
 # Replace <rds-endpoint> with Terraform output during deploy:
 #   terraform -chdir=infrastructure/terraform/platform output -raw rds_endpoint
@@ -28,16 +30,24 @@ spec:
               echo "RDS PostgreSQL is ready"
       containers:
         - name: hive-metastore
+          command:
+            - bash
+            - -c
+            - |
+              # Build SERVICE_OPTS from env vars at runtime to avoid:
+              # 1. Kubernetes $(VAR) expansion ordering issues after Kustomize merge
+              # 2. XML-special characters in passwords breaking hive-site.xml
+              export SERVICE_OPTS="-Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver \
+              -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://<rds-endpoint>:5432/metastore \
+              -Djavax.jdo.option.ConnectionUserName=${POSTGRES_METASTORE_USER} \
+              -Djavax.jdo.option.ConnectionPassword=${POSTGRES_METASTORE_PASSWORD}"
+              # No envsubst needed — production hive-site.xml has no env var placeholders
+              cp /opt/hive/conf/hive-site.xml.template /opt/hive/conf/hive-site.xml
+              exec /entrypoint.sh
           env:
             - name: MINIO_ROOT_USER
               $patch: delete
             - name: MINIO_ROOT_PASSWORD
               $patch: delete
-            - name: SERVICE_OPTS
-              value: >-
-                -Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver
-                -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://<rds-endpoint>:5432/metastore
-                -Djavax.jdo.option.ConnectionUserName=$(POSTGRES_METASTORE_USER)
-                -Djavax.jdo.option.ConnectionPassword=$(POSTGRES_METASTORE_PASSWORD)
             - name: AWS_REGION
               value: "us-east-1"
