@@ -7,12 +7,16 @@ from typing import Optional
 class DLQConfig:
     enabled: bool
     validate_json: bool
+    validate_schema: bool
+    schema_dir: str
 
     @classmethod
     def from_env(cls) -> "DLQConfig":
         return cls(
             enabled=os.getenv("DLQ_ENABLED", "true").lower() == "true",
             validate_json=os.getenv("DLQ_VALIDATE_JSON", "false").lower() == "true",
+            validate_schema=os.getenv("DLQ_VALIDATE_SCHEMA", "false").lower() == "true",
+            schema_dir=os.getenv("DLQ_SCHEMA_DIR", "/app/schemas"),
         )
 
 

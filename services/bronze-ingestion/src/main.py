@@ -6,6 +6,7 @@ from typing import Optional, Any
 from src.consumer import KafkaConsumer
 from src.writer import DeltaWriter
 from src.dlq_writer import DLQWriter, DLQRecord
+from src.schema_validator import SchemaValidator
 from src.config import BronzeIngestionConfig
 from src.health import start_health_server, health_state
 
@@ -18,6 +19,7 @@ class IngestionService:
         self._consumer: Optional[KafkaConsumer] = None
         self._writer: Optional[DeltaWriter] = None
         self._dlq_writer: Optional[DLQWriter] = None
+        self._schema_validator: Optional[SchemaValidator] = None
 
         signal.signal(signal.SIGINT, self._handle_shutdown)
         signal.signal(signal.SIGTERM, self._handle_shutdown)
@@ -89,6 +91,11 @@ class IngestionService:
                 base_path=config.delta_base_path,
                 storage_options=config.get_storage_options(),
             )
+            self._dlq_writer.initialize_tables(KafkaConsumer.TOPICS)
+            print(f"Initialized {len(KafkaConsumer.TOPICS)} DLQ Delta tables")
+            if config.dlq.validate_schema:
+                self._schema_validator = SchemaValidator(config.dlq.schema_dir)
+                print(f"Schema validation enabled (schema_dir={config.dlq.schema_dir})")
             print(f"DLQ routing enabled (validate_json={config.dlq.validate_json})")
 
         message_batches: defaultdict[str, list[Any]] = defaultdict(list)
@@ -103,7 +110,9 @@ class IngestionService:
 
                 if config.dlq.enabled:
                     error_type, error_message = self._consumer.validate_message(
-                        msg, validate_json=config.dlq.validate_json
+                        msg,
+                        validate_json=config.dlq.validate_json,
+                        schema_validator=self._schema_validator,
                     )
                     if error_type is not None and error_message is not None:
                         dlq_record = self._consumer.build_dlq_record(msg, error_type, error_message)

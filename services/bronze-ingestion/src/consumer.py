@@ -1,10 +1,15 @@
+from __future__ import annotations
+
 import json
 from datetime import datetime, timezone
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from confluent_kafka import Consumer, KafkaException, Message
 
 from src.dlq_writer import DLQRecord
+
+if TYPE_CHECKING:
+    from src.schema_validator import SchemaValidator
 
 
 class KafkaConsumer:
@@ -82,9 +87,12 @@ class KafkaConsumer:
         return msg
 
     def validate_message(
-        self, msg: Message, validate_json: bool = False
+        self,
+        msg: Message,
+        validate_json: bool = False,
+        schema_validator: Optional[SchemaValidator] = None,
     ) -> tuple[Optional[str], Optional[str]]:
-        """Validate a Kafka message for encoding and optionally JSON structure.
+        """Validate a Kafka message for encoding, JSON structure, and schema.
 
         Returns (error_type, error_message) if invalid, or (None, None) if valid.
         """
@@ -93,15 +101,22 @@ class KafkaConsumer:
             return ("ENCODING_ERROR", "Message value is None")
 
         try:
-            raw_value.decode("utf-8")
+            decoded = raw_value.decode("utf-8")
         except UnicodeDecodeError as e:
             return ("ENCODING_ERROR", f"UTF-8 decode failed: {e}")
 
-        if validate_json:
+        needs_parse = validate_json or schema_validator is not None
+        if needs_parse:
             try:
-                json.loads(raw_value)
+                parsed = json.loads(decoded)
             except (json.JSONDecodeError, ValueError) as e:
                 return ("JSON_PARSE_ERROR", f"JSON parse failed: {e}")
+
+            if schema_validator is not None:
+                topic = msg.topic() or ""
+                error = schema_validator.validate(parsed, topic)
+                if error is not None:
+                    return ("SCHEMA_VALIDATION_ERROR", error)
 
         return (None, None)
 

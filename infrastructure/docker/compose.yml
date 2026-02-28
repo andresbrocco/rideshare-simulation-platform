@@ -469,6 +469,7 @@ services:
       - "8086:8080"
     volumes:
       - ../../services/bronze-ingestion/src:/app/src:ro
+      - ../../schemas/kafka:/app/schemas:ro
       - secrets-volume:/secrets:ro
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
@@ -478,6 +479,7 @@ services:
       - S3_ENDPOINT=http://minio:9000
       - BRONZE_BUCKET=rideshare-bronze
       - DLQ_VALIDATE_JSON=true
+      - DLQ_VALIDATE_SCHEMA=true
     entrypoint:
       - /bin/sh
       - -c

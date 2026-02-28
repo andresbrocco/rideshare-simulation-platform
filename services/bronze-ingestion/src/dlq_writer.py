@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Optional
 
 import pyarrow as pa
-from deltalake import write_deltalake
+from deltalake import DeltaTable, write_deltalake
 
 
 DLQ_SCHEMA = pa.schema(
@@ -66,6 +66,26 @@ class DLQWriter:
     def __init__(self, base_path: str, storage_options: Optional[dict[str, str]] = None):
         self.base_path = base_path
         self.storage_options = storage_options
+
+    def initialize_tables(self, topics: list[str]) -> None:
+        """Create empty DLQ Delta tables for all topics if they don't exist yet.
+
+        Ensures _delta_log/ metadata is present so downstream checks
+        (e.g. register-trino-tables.py) see every DLQ table immediately,
+        even before any messages are routed to the DLQ.
+        """
+        for topic in topics:
+            dlq_path = self.get_dlq_path(topic)
+            table_name = f"dlq_bronze_{topic.replace('-', '_')}"
+            try:
+                DeltaTable.create(
+                    table_uri=dlq_path,
+                    schema=DLQ_SCHEMA,
+                    mode="ignore",
+                    storage_options=self.storage_options,
+                )
+            except Exception as e:
+                print(f"Warning: could not initialize table {table_name}: {e}")
 
     def get_dlq_path(self, topic: str) -> str:
         """Get the DLQ table path for a given topic.

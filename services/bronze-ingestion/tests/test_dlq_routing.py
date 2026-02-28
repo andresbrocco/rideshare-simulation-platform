@@ -1,3 +1,5 @@
+import json
+import os
 import shutil
 import tempfile
 from datetime import datetime, timezone
@@ -304,6 +306,8 @@ class TestKafkaOffsetCommitForDLQ:
         mock_config.get_storage_options.return_value = None
         mock_config.dlq.enabled = True
         mock_config.dlq.validate_json = False
+        mock_config.dlq.validate_schema = False
+        mock_config.dlq.schema_dir = "/app/schemas"
         mock_config_cls.from_env.return_value = mock_config
 
         # Configure mock consumer
@@ -424,3 +428,194 @@ class TestDLQConfigDefaults:
             config = DLQConfig.from_env()
             assert config.enabled is False
             assert config.validate_json is True
+
+
+class TestDLQTableInitialization:
+    """Verify eager DLQ Delta table initialization."""
+
+    def test_initialize_creates_empty_delta_tables(self):
+        from src.dlq_writer import DLQWriter
+
+        temp_dir = tempfile.mkdtemp()
+        try:
+            writer = DLQWriter(base_path=temp_dir)
+            writer.initialize_tables(["trips", "gps_pings"])
+
+            assert DeltaTable.is_deltatable(f"{temp_dir}/dlq_bronze_trips")
+            assert DeltaTable.is_deltatable(f"{temp_dir}/dlq_bronze_gps_pings")
+
+            # Tables should be empty
+            dt = DeltaTable(f"{temp_dir}/dlq_bronze_trips")
+            assert len(dt.to_pyarrow_table()) == 0
+        finally:
+            shutil.rmtree(temp_dir)
+
+    def test_initialize_is_idempotent(self):
+        from src.dlq_writer import DLQWriter
+
+        temp_dir = tempfile.mkdtemp()
+        try:
+            writer = DLQWriter(base_path=temp_dir)
+            writer.initialize_tables(["trips"])
+
+            dt_before = DeltaTable(f"{temp_dir}/dlq_bronze_trips")
+            version_before = dt_before.version()
+
+            # Second call should not error or change version
+            writer.initialize_tables(["trips"])
+
+            dt_after = DeltaTable(f"{temp_dir}/dlq_bronze_trips")
+            assert dt_after.version() == version_before
+        finally:
+            shutil.rmtree(temp_dir)
+
+    def test_initialize_does_not_affect_existing_data(self):
+        from src.dlq_writer import DLQWriter, DLQRecord
+
+        temp_dir = tempfile.mkdtemp()
+        try:
+            writer = DLQWriter(base_path=temp_dir)
+            writer.initialize_tables(["trips"])
+
+            # Write a record
+            record = DLQRecord(
+                error_message="test",
+                error_type="ENCODING_ERROR",
+                original_payload="bad",
+                kafka_topic="trips",
+                kafka_partition=0,
+                kafka_offset=1,
+                ingested_at=datetime(2024, 7, 15, tzinfo=timezone.utc),
+            )
+            writer.write_record(record)
+
+            dt_before = DeltaTable(f"{temp_dir}/dlq_bronze_trips")
+            count_before = len(dt_before.to_pyarrow_table())
+
+            # Re-initialize should not affect existing data
+            writer.initialize_tables(["trips"])
+
+            dt_after = DeltaTable(f"{temp_dir}/dlq_bronze_trips")
+            assert len(dt_after.to_pyarrow_table()) == count_before
+        finally:
+            shutil.rmtree(temp_dir)
+
+
+class TestSchemaValidationErrorDetection:
+    """Verify schema validation catches corrupt but syntactically valid JSON."""
+
+    def _make_schema_dir(self) -> str:
+        """Create a temp dir with a minimal trip schema for testing."""
+        schema_dir = tempfile.mkdtemp()
+        trip_schema = {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "required": ["event_id", "timestamp"],
+            "properties": {
+                "event_id": {"type": "string"},
+                "timestamp": {"type": "string"},
+            },
+        }
+        with open(os.path.join(schema_dir, "trip_event.json"), "w") as f:
+            json.dump(trip_schema, f)
+        return schema_dir
+
+    def test_missing_required_field_detected(self):
+        from src.consumer import KafkaConsumer
+        from src.schema_validator import SchemaValidator
+
+        schema_dir = self._make_schema_dir()
+        try:
+            validator = SchemaValidator(schema_dir)
+            consumer = KafkaConsumer(bootstrap_servers="localhost:9092", group_id="test")
+
+            # Valid JSON but missing required field "event_id"
+            msg = Mock()
+            msg.value = lambda: json.dumps({"timestamp": "2024-01-01T00:00:00Z"}).encode()
+            msg.topic = lambda: "trips"
+
+            error_type, error_message = consumer.validate_message(msg, schema_validator=validator)
+
+            assert error_type == "SCHEMA_VALIDATION_ERROR"
+            assert error_message is not None
+            assert "event_id" in error_message
+        finally:
+            shutil.rmtree(schema_dir)
+
+    def test_wrong_data_type_detected(self):
+        from src.consumer import KafkaConsumer
+        from src.schema_validator import SchemaValidator
+
+        schema_dir = self._make_schema_dir()
+        try:
+            validator = SchemaValidator(schema_dir)
+            consumer = KafkaConsumer(bootstrap_servers="localhost:9092", group_id="test")
+
+            # timestamp should be string, not integer
+            msg = Mock()
+            msg.value = lambda: json.dumps({"event_id": "abc", "timestamp": 12345}).encode()
+            msg.topic = lambda: "trips"
+
+            error_type, error_message = consumer.validate_message(msg, schema_validator=validator)
+
+            assert error_type == "SCHEMA_VALIDATION_ERROR"
+            assert error_message is not None
+        finally:
+            shutil.rmtree(schema_dir)
+
+    def test_valid_event_passes_schema_validation(self):
+        from src.consumer import KafkaConsumer
+        from src.schema_validator import SchemaValidator
+
+        schema_dir = self._make_schema_dir()
+        try:
+            validator = SchemaValidator(schema_dir)
+            consumer = KafkaConsumer(bootstrap_servers="localhost:9092", group_id="test")
+
+            msg = Mock()
+            msg.value = lambda: json.dumps(
+                {"event_id": "abc-123", "timestamp": "2024-01-01T00:00:00Z"}
+            ).encode()
+            msg.topic = lambda: "trips"
+
+            error_type, error_message = consumer.validate_message(msg, schema_validator=validator)
+
+            assert error_type is None
+            assert error_message is None
+        finally:
+            shutil.rmtree(schema_dir)
+
+    def test_schema_validation_disabled_by_default(self):
+        from src.consumer import KafkaConsumer
+
+        consumer = KafkaConsumer(bootstrap_servers="localhost:9092", group_id="test")
+
+        # Valid JSON but would fail schema validation — no validator passed
+        msg = Mock()
+        msg.value = lambda: b'{"random": "data"}'
+
+        error_type, error_message = consumer.validate_message(msg)
+
+        assert error_type is None
+        assert error_message is None
+
+
+class TestDLQConfigSchemaValidation:
+    """Verify DLQ config schema validation fields."""
+
+    def test_validate_schema_defaults_false(self):
+        from src.config import DLQConfig
+
+        with patch.dict("os.environ", {}, clear=True):
+            config = DLQConfig.from_env()
+            assert config.validate_schema is False
+            assert config.schema_dir == "/app/schemas"
+
+    def test_validate_schema_from_env(self):
+        from src.config import DLQConfig
+
+        env = {"DLQ_VALIDATE_SCHEMA": "true", "DLQ_SCHEMA_DIR": "/custom/schemas"}
+        with patch.dict("os.environ", env, clear=True):
+            config = DLQConfig.from_env()
+            assert config.validate_schema is True
+            assert config.schema_dir == "/custom/schemas"

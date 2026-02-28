@@ -31,7 +31,7 @@ BRONZE_TABLES = [
 ]
 
 # DLQ tables (one per Bronze table)
-DLQ_TABLES = [f"dlq_{t.replace('bronze_', '')}" for t in BRONZE_TABLES]
+DLQ_TABLES = [f"dlq_{t}" for t in BRONZE_TABLES]
 
 # All tables to maintain
 ALL_TABLES = BRONZE_TABLES + DLQ_TABLES
