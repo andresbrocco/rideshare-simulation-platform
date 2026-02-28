@@ -258,7 +258,9 @@ resource "aws_iam_role_policy" "github_actions_ec2" {
           "ec2:CreateLaunchTemplate",
           "ec2:CreateLaunchTemplateVersion",
           "ec2:DeleteLaunchTemplate",
-          "ec2:ModifyLaunchTemplate"
+          "ec2:ModifyLaunchTemplate",
+          "ec2:RunInstances",
+          "ec2:CreateFleet"
         ]
         Resource = "*"
         Condition = {
@@ -268,12 +270,12 @@ resource "aws_iam_role_policy" "github_actions_ec2" {
         }
       },
       {
-        Sid    = "EC2TagLaunchTemplate"
+        Sid    = "EC2TagResources"
         Effect = "Allow"
         Action = [
           "ec2:CreateTags"
         ]
-        Resource = "arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:launch-template/*"
+        Resource = "arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:*"
       }
     ]
   })
