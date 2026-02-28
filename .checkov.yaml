@@ -34,6 +34,7 @@ skip-check:
   - CKV_AWS_38    # EKS secrets encryption with KMS
   - CKV_AWS_39    # EKS public endpoint CIDR restriction
   - CKV_AWS_58    # EKS public endpoint — needed for demo access
+  - CKV_AWS_341   # Launch template IMDS hop limit — pods need hop limit 2
 
   # VPC / Security Groups
   - CKV_AWS_130   # VPC default SG restrict all traffic

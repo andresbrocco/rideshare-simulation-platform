@@ -16,6 +16,35 @@ resource "aws_eks_cluster" "main" {
   }
 }
 
+# Launch template for EKS nodes with IMDS hop limit 2
+# checkov:skip=CKV_AWS_341:EKS pods require hop limit 2 to reach IMDS through container networking
+resource "aws_launch_template" "eks_nodes" {
+  name_prefix = "${var.project_name}-eks-"
+
+  instance_type = var.node_instance_type
+
+  block_device_mappings {
+    device_name = "/dev/xvda"
+    ebs {
+      volume_size = var.node_disk_size
+      volume_type = "gp3"
+    }
+  }
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name = "${var.project_name}-eks-node"
+    }
+  }
+}
+
 # EKS Managed Node Group
 resource "aws_eks_node_group" "main" {
   cluster_name    = aws_eks_cluster.main.name
@@ -29,9 +58,10 @@ resource "aws_eks_node_group" "main" {
     max_size     = var.node_count
   }
 
-  instance_types = [var.node_instance_type]
-
-  disk_size = var.node_disk_size
+  launch_template {
+    id      = aws_launch_template.eks_nodes.id
+    version = aws_launch_template.eks_nodes.latest_version
+  }
 
   ami_type = "AL2023_x86_64_STANDARD"
 
