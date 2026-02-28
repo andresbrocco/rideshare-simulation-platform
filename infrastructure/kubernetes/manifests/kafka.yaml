@@ -73,11 +73,11 @@ spec:
         - name: KAFKA_LISTENERS
           value: "PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9092"
         - name: KAFKA_ADVERTISED_LISTENERS
-          value: "PLAINTEXT://kafka-0.kafka.default.svc.cluster.local:29092,PLAINTEXT_HOST://localhost:9092"
+          value: "PLAINTEXT://kafka-0.kafka:29092,PLAINTEXT_HOST://localhost:9092"
         - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
           value: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
         - name: KAFKA_CONTROLLER_QUORUM_VOTERS
-          value: "1@kafka-0.kafka.default.svc.cluster.local:29093"
+          value: "1@kafka-0.kafka:29093"
         - name: KAFKA_CONTROLLER_LISTENER_NAMES
           value: "CONTROLLER"
         - name: KAFKA_INTER_BROKER_LISTENER_NAME
@@ -152,7 +152,7 @@ spec:
         - -c
         - |
           echo "Waiting for Kafka to be ready..."
-          until kafka-broker-api-versions --bootstrap-server kafka-0.kafka.default.svc.cluster.local:29092 2>/dev/null; do
+          until kafka-broker-api-versions --bootstrap-server kafka-0.kafka:29092 2>/dev/null; do
             echo "Kafka not ready, waiting..."
             sleep 5
           done
@@ -165,13 +165,13 @@ spec:
         - -c
         - |
           echo 'Creating Kafka topics...'
-          kafka-topics --bootstrap-server kafka-0.kafka.default.svc.cluster.local:29092 --create --if-not-exists --topic trips --partitions 4 --replication-factor 1
-          kafka-topics --bootstrap-server kafka-0.kafka.default.svc.cluster.local:29092 --create --if-not-exists --topic gps_pings --partitions 8 --replication-factor 1
-          kafka-topics --bootstrap-server kafka-0.kafka.default.svc.cluster.local:29092 --create --if-not-exists --topic driver_status --partitions 2 --replication-factor 1
-          kafka-topics --bootstrap-server kafka-0.kafka.default.svc.cluster.local:29092 --create --if-not-exists --topic surge_updates --partitions 2 --replication-factor 1
-          kafka-topics --bootstrap-server kafka-0.kafka.default.svc.cluster.local:29092 --create --if-not-exists --topic ratings --partitions 2 --replication-factor 1
-          kafka-topics --bootstrap-server kafka-0.kafka.default.svc.cluster.local:29092 --create --if-not-exists --topic payments --partitions 2 --replication-factor 1
-          kafka-topics --bootstrap-server kafka-0.kafka.default.svc.cluster.local:29092 --create --if-not-exists --topic driver_profiles --partitions 1 --replication-factor 1
-          kafka-topics --bootstrap-server kafka-0.kafka.default.svc.cluster.local:29092 --create --if-not-exists --topic rider_profiles --partitions 1 --replication-factor 1
+          kafka-topics --bootstrap-server kafka-0.kafka:29092 --create --if-not-exists --topic trips --partitions 4 --replication-factor 1
+          kafka-topics --bootstrap-server kafka-0.kafka:29092 --create --if-not-exists --topic gps_pings --partitions 8 --replication-factor 1
+          kafka-topics --bootstrap-server kafka-0.kafka:29092 --create --if-not-exists --topic driver_status --partitions 2 --replication-factor 1
+          kafka-topics --bootstrap-server kafka-0.kafka:29092 --create --if-not-exists --topic surge_updates --partitions 2 --replication-factor 1
+          kafka-topics --bootstrap-server kafka-0.kafka:29092 --create --if-not-exists --topic ratings --partitions 2 --replication-factor 1
+          kafka-topics --bootstrap-server kafka-0.kafka:29092 --create --if-not-exists --topic payments --partitions 2 --replication-factor 1
+          kafka-topics --bootstrap-server kafka-0.kafka:29092 --create --if-not-exists --topic driver_profiles --partitions 1 --replication-factor 1
+          kafka-topics --bootstrap-server kafka-0.kafka:29092 --create --if-not-exists --topic rider_profiles --partitions 1 --replication-factor 1
           echo 'Kafka topics created successfully'
-          kafka-topics --bootstrap-server kafka-0.kafka.default.svc.cluster.local:29092 --list
+          kafka-topics --bootstrap-server kafka-0.kafka:29092 --list
