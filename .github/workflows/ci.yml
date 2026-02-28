@@ -176,18 +176,18 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          python -m pip install --upgrade pip uv
-          cd services/simulation
-          uv pip install --system -r requirements.txt
+          python -m pip install --upgrade pip
+          python -m venv services/simulation/venv
+          services/simulation/venv/bin/pip install --quiet -e "services/simulation/[dev]"
 
       - name: Export OpenAPI spec
         run: |
-          python services/simulation/scripts/export-openapi.py
+          services/simulation/venv/bin/python services/simulation/scripts/export-openapi.py
 
       - name: Validate OpenAPI spec
         run: |
           cd services/simulation
-          python -m pytest tests/test_api_contract.py::test_openapi_spec_is_valid -v
+          ./venv/bin/pytest tests/test_api_contract.py::test_openapi_spec_is_valid -v
 
       - name: Install frontend dependencies
         run: |
@@ -202,7 +202,7 @@ jobs:
       - name: Check TypeScript types match OpenAPI spec
         run: |
           cd services/simulation
-          python -m pytest tests/test_api_contract.py::test_typescript_types_match_openapi -v
+          ./venv/bin/pytest tests/test_api_contract.py::test_typescript_types_match_openapi -v
 
       - name: Upload OpenAPI spec artifact
         uses: actions/upload-artifact@v4

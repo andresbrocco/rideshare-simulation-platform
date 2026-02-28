@@ -114,7 +114,7 @@ export interface paths {
     get?: never;
     /**
      * Change Speed
-     * @description Change simulation speed multiplier (must be between 0.125 and 32).
+     * @description Change simulation speed multiplier (must be between 0.5 and 128).
      */
     put: operations['change_speed_simulation_speed_put'];
     post?: never;
@@ -1984,6 +1984,36 @@ export interface components {
        * @default 0
        */
       matching_success_rate: number;
+      /**
+       * Cancelled No Drivers
+       * @default 0
+       */
+      cancelled_no_drivers: number;
+      /**
+       * Cancelled Rider Before Pickup
+       * @default 0
+       */
+      cancelled_rider_before_pickup: number;
+      /**
+       * Cancelled Driver Before Pickup
+       * @default 0
+       */
+      cancelled_driver_before_pickup: number;
+      /**
+       * Cancelled Rider Mid Trip
+       * @default 0
+       */
+      cancelled_rider_mid_trip: number;
+      /**
+       * Cancelled Driver Mid Trip
+       * @default 0
+       */
+      cancelled_driver_mid_trip: number;
+      /**
+       * Cancelled System Pause
+       * @default 0
+       */
+      cancelled_system_pause: number;
     };
     /** ValidationError */
     ValidationError: {

@@ -227,7 +227,7 @@
           "simulation"
         ],
         "summary": "Change Speed",
-        "description": "Change simulation speed multiplier (must be between 0.125 and 32).",
+        "description": "Change simulation speed multiplier (must be between 0.5 and 128).",
         "operationId": "change_speed_simulation_speed_put",
         "parameters": [
           {
@@ -4399,7 +4399,7 @@
             "title": "State"
           },
           "speed_multiplier": {
-            "type": "integer",
+            "type": "number",
             "title": "Speed Multiplier"
           },
           "current_time": {
@@ -4522,7 +4522,9 @@
       "SpeedChangeRequest": {
         "properties": {
           "multiplier": {
-            "type": "integer",
+            "type": "number",
+            "maximum": 128.0,
+            "minimum": 0.5,
             "title": "Multiplier"
           }
         },
@@ -4535,7 +4537,7 @@
       "SpeedChangeResponse": {
         "properties": {
           "speed": {
-            "type": "integer",
+            "type": "number",
             "title": "Speed"
           }
         },
@@ -4736,6 +4738,36 @@
             "type": "number",
             "title": "Matching Success Rate",
             "default": 0.0
+          },
+          "cancelled_no_drivers": {
+            "type": "integer",
+            "title": "Cancelled No Drivers",
+            "default": 0
+          },
+          "cancelled_rider_before_pickup": {
+            "type": "integer",
+            "title": "Cancelled Rider Before Pickup",
+            "default": 0
+          },
+          "cancelled_driver_before_pickup": {
+            "type": "integer",
+            "title": "Cancelled Driver Before Pickup",
+            "default": 0
+          },
+          "cancelled_rider_mid_trip": {
+            "type": "integer",
+            "title": "Cancelled Rider Mid Trip",
+            "default": 0
+          },
+          "cancelled_driver_mid_trip": {
+            "type": "integer",
+            "title": "Cancelled Driver Mid Trip",
+            "default": 0
+          },
+          "cancelled_system_pause": {
+            "type": "integer",
+            "title": "Cancelled System Pause",
+            "default": 0
           }
         },
         "type": "object",
