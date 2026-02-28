@@ -179,6 +179,12 @@ resource "aws_iam_role_policy" "github_actions_iam" {
         ]
       },
       {
+        Sid      = "ReadServiceLinkedRoles"
+        Effect   = "Allow"
+        Action   = "iam:GetRole"
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/*"
+      },
+      {
         Sid      = "CreateServiceLinkedRoles"
         Effect   = "Allow"
         Action   = "iam:CreateServiceLinkedRole"
