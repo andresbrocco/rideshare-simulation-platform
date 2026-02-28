@@ -99,6 +99,16 @@ spec:
           value: "kafka-0.kafka:29092"
         - name: KAFKA_SECURITY_PROTOCOL
           value: "PLAINTEXT"
+        - name: KAFKA_SASL_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: KAFKA_SASL_USERNAME
+        - name: KAFKA_SASL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: KAFKA_SASL_PASSWORD
         - name: KAFKA_SCHEMA_REGISTRY_URL
           value: "http://schema-registry:8081"
         - name: REDIS_HOST

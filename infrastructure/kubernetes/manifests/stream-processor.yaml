@@ -53,6 +53,16 @@ spec:
           value: "stream-processor"
         - name: KAFKA_AUTO_OFFSET_RESET
           value: "latest"
+        - name: KAFKA_SASL_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: KAFKA_SASL_USERNAME
+        - name: KAFKA_SASL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: KAFKA_SASL_PASSWORD
         - name: REDIS_HOST
           value: "redis"
         - name: REDIS_PORT

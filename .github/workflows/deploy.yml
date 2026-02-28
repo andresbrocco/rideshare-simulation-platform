@@ -231,6 +231,16 @@ jobs:
             && echo "Database created" \
             || echo "Database may already exist (expected on re-runs)"
 
+          # Create metastore application user (used by Hive Metastore service)
+          METASTORE_PASSWORD=$(aws secretsmanager get-secret-value \
+            --secret-id rideshare/app-credentials --query SecretString --output text | jq -r '.POSTGRES_METASTORE_PASSWORD')
+          echo "CREATE ROLE metastore WITH LOGIN PASSWORD '${METASTORE_PASSWORD}'; GRANT ALL PRIVILEGES ON DATABASE metastore TO metastore; GRANT ALL PRIVILEGES ON SCHEMA public TO metastore;" | \
+            kubectl run rds-create-user --rm -i --restart=Never --namespace=default \
+              --image=postgres:16 -- \
+              psql "postgresql://postgres:${POSTGRES_PASSWORD}@${RDS_ENDPOINT}:5432/metastore" \
+            && echo "Metastore user created" \
+            || echo "Metastore user may already exist (expected on re-runs)"
+
           echo "Metastore database ready"
 
       - name: Wait for ALB Controller or remove stale webhooks
