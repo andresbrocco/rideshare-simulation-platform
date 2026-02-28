@@ -91,7 +91,11 @@ resource "aws_iam_role_policy" "github_actions_eks" {
           "eks:DeleteAccessEntry",
           "eks:DescribeAccessEntry",
           "eks:ListAccessEntries",
-          "eks:ListAccessPolicies"
+          "eks:ListAccessPolicies",
+          "eks:CreatePodIdentityAssociation",
+          "eks:DeletePodIdentityAssociation",
+          "eks:DescribePodIdentityAssociation",
+          "eks:ListPodIdentityAssociations"
         ]
         Resource = "*"
       }
@@ -162,7 +166,8 @@ resource "aws_iam_role_policy" "github_actions_iam" {
           "iam:GetRolePolicy",
           "iam:ListRolePolicies",
           "iam:ListAttachedRolePolicies",
-          "iam:ListInstanceProfilesForRole"
+          "iam:ListInstanceProfilesForRole",
+          "iam:UpdateAssumeRolePolicy"
         ]
         Resource = [
           "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-load-balancer-controller",
