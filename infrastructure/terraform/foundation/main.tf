@@ -129,9 +129,7 @@ module "lambda_auth_deploy" {
   timeout       = 30
   memory_size   = 256
 
-  environment_variables = {
-    AWS_REGION = var.aws_region
-  }
+  environment_variables = {}
 
   # Grant read access to API key and GitHub PAT secrets
   secrets_arns = [
@@ -145,7 +143,7 @@ module "lambda_auth_deploy" {
     "https://control-panel.ridesharing.portfolio.andresbrocco.com",
     "http://localhost:5173",
   ]
-  cors_allowed_methods = ["POST", "OPTIONS"]
+  cors_allowed_methods = ["*"]
   cors_allowed_headers = ["Content-Type", "X-Requested-With"]
   cors_max_age         = 86400
 
