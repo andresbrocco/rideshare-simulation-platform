@@ -1186,7 +1186,7 @@
         "type": "trino-datasource",
         "uid": "trino"
       },
-      "description": "Geographic distribution of surge pricing across São Paulo zones. Equal-sized markers; color indicates average surge multiplier (green ≤1.25x, yellow 1.25-1.5x, orange 1.5-1.75x, red >1.75x). 7-day lookback from Gold layer aggregates.",
+      "description": "Geographic distribution of rider-experienced surge pricing across São Paulo zones. Color indicates trip-weighted average surge multiplier (green ≤1.25x, yellow 1.25-1.5x, orange 1.5-1.75x, red >1.75x). Marker size represents trip request volume per zone. Sourced from Silver layer trip requests for accurate weighting. 7-day lookback.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1255,7 +1255,8 @@
                   "mode": "mod"
                 },
                 "size": {
-                  "fixed": 10,
+                  "field": "trip_request_count",
+                  "fixed": 5,
                   "max": 30,
                   "min": 4
                 },
@@ -1306,7 +1307,7 @@
           },
           "format": 0,
           "rawQuery": true,
-          "rawSQL": "SELECT\n  z.name AS zone_name,\n  z.centroid_latitude,\n  z.centroid_longitude,\n  AVG(s.avg_surge_multiplier) AS avg_surge_multiplier,\n  MAX(s.max_surge_multiplier) AS max_surge_multiplier,\n  AVG(s.avg_available_drivers) AS avg_available_drivers,\n  AVG(s.avg_pending_requests) AS avg_pending_requests\nFROM delta.gold.agg_surge_history s\nJOIN delta.gold.dim_zones z ON s.zone_key = z.zone_key\nWHERE s.hour_timestamp >= current_timestamp - INTERVAL '7' DAY\nGROUP BY z.name, z.centroid_latitude, z.centroid_longitude\nORDER BY avg_surge_multiplier DESC",
+          "rawSQL": "SELECT\n  z.name AS zone_name,\n  z.centroid_latitude,\n  z.centroid_longitude,\n  AVG(t.surge_multiplier) AS avg_surge_multiplier,\n  MAX(t.surge_multiplier) AS max_surge_multiplier,\n  COUNT(*) AS trip_request_count\nFROM delta.silver.stg_trips t\nJOIN delta.gold.dim_zones z ON t.pickup_zone_id = z.zone_id\nWHERE t.trip_state = 'requested'\n  AND t.timestamp >= current_timestamp - INTERVAL '7' DAY\nGROUP BY z.name, z.centroid_latitude, z.centroid_longitude\nORDER BY avg_surge_multiplier DESC",
           "refId": "A"
         }
       ],
@@ -1317,7 +1318,7 @@
   "refresh": "5m",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["business-intelligence", "demand", "riders", "gold"],
+  "tags": ["business-intelligence", "demand", "riders", "gold", "silver"],
   "templating": {
     "list": []
   },
