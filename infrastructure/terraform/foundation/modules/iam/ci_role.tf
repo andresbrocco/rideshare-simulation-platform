@@ -226,15 +226,16 @@ resource "aws_iam_role_policy" "github_actions_secrets" {
   })
 }
 
-# EC2 Read Policy (required by EKS node groups, RDS subnet groups, and ALB)
+# EC2 Policy (required by EKS node groups, launch templates, RDS subnet groups, and ALB)
 resource "aws_iam_role_policy" "github_actions_ec2" {
-  name = "ec2-read"
+  name = "ec2-manage"
   role = aws_iam_role.github_actions.id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
+        Sid    = "EC2Describe"
         Effect = "Allow"
         Action = [
           "ec2:DescribeSubnets",
@@ -245,9 +246,34 @@ resource "aws_iam_role_policy" "github_actions_ec2" {
           "ec2:DescribeRouteTables",
           "ec2:DescribeInternetGateways",
           "ec2:DescribeAvailabilityZones",
+          "ec2:DescribeLaunchTemplates",
           "ec2:DescribeLaunchTemplateVersions"
         ]
         Resource = "*"
+      },
+      {
+        Sid    = "LaunchTemplateManage"
+        Effect = "Allow"
+        Action = [
+          "ec2:CreateLaunchTemplate",
+          "ec2:CreateLaunchTemplateVersion",
+          "ec2:DeleteLaunchTemplate",
+          "ec2:ModifyLaunchTemplate"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = "us-east-1"
+          }
+        }
+      },
+      {
+        Sid    = "EC2TagLaunchTemplate"
+        Effect = "Allow"
+        Action = [
+          "ec2:CreateTags"
+        ]
+        Resource = "arn:aws:ec2:us-east-1:${data.aws_caller_identity.current.account_id}:launch-template/*"
       }
     ]
   })
