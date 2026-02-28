@@ -880,6 +880,10 @@
                 "value": null
               },
               {
+                "color": "red",
+                "value": 0.66
+              },
+              {
                 "color": "green",
                 "value": 1
               }
