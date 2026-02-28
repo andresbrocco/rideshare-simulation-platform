@@ -30,7 +30,7 @@ class ControllerSettings(BaseSettings):
         description="Seconds between control loop iterations",
     )
     max_speed: float = Field(
-        default=32.0,
+        default=128.0,
         gt=0,
         description="Maximum simulation speed multiplier",
     )

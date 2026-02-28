@@ -38,7 +38,7 @@ class TestSimulationSettings:
             SimulationSettings(speed_multiplier=0.1)  # Below minimum 0.5
 
         with pytest.raises(ValidationError):
-            SimulationSettings(speed_multiplier=33.0)  # Max is 32
+            SimulationSettings(speed_multiplier=129.0)  # Max is 128
 
         with pytest.raises(ValidationError):
             SimulationSettings(checkpoint_interval=30)

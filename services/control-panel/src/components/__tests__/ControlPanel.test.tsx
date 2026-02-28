@@ -175,6 +175,8 @@ describe('ControlPanel', () => {
     expect(options).toContain('8');
     expect(options).toContain('16');
     expect(options).toContain('32');
+    expect(options).toContain('64');
+    expect(options).toContain('128');
   });
 
   it('autonomous_agent_creation_drivers', async () => {

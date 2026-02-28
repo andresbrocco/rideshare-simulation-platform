@@ -48,10 +48,10 @@ def engine_10x(mock_dependencies):
 
 
 @pytest.fixture
-def engine_32x(mock_dependencies):
-    """Create engine at 32x speed (maximum)."""
+def engine_128x(mock_dependencies):
+    """Create engine at 128x speed (maximum)."""
     engine = SimulationEngine(**mock_dependencies)
-    engine.set_speed(32)
+    engine.set_speed(128)
     return engine
 
 
@@ -76,10 +76,10 @@ def test_set_speed_10x(engine):
 
 
 @pytest.mark.unit
-def test_set_speed_32x(engine):
-    """Sets speed to 32x (maximum)."""
-    engine.set_speed(32)
-    assert engine.speed_multiplier == 32
+def test_set_speed_128x(engine):
+    """Sets speed to 128x (maximum)."""
+    engine.set_speed(128)
+    assert engine.speed_multiplier == 128
 
 
 @pytest.mark.unit
@@ -94,7 +94,7 @@ def test_set_speed_fractional(engine):
 
 @pytest.mark.unit
 def test_set_speed_invalid(engine):
-    """Rejects multiplier outside valid range (0.5–32)."""
+    """Rejects multiplier outside valid range (0.5–128)."""
     with pytest.raises(ValueError, match="Speed multiplier must be >= 0.5"):
         engine.set_speed(0.25)
 
@@ -107,8 +107,8 @@ def test_set_speed_invalid(engine):
     with pytest.raises(ValueError, match="Speed multiplier must be >= 0.5"):
         engine.set_speed(-1)
 
-    with pytest.raises(ValueError, match="Speed multiplier must be <= 32"):
-        engine.set_speed(33)
+    with pytest.raises(ValueError, match="Speed multiplier must be <= 128"):
+        engine.set_speed(129)
 
 
 @pytest.mark.unit

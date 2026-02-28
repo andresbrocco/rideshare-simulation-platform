@@ -117,11 +117,11 @@ def reset_simulation(
 def change_speed(
     request: Request, body: SpeedChangeRequest, engine: EngineDep
 ) -> SpeedChangeResponse:
-    """Change simulation speed multiplier (must be between 0.5 and 32)."""
+    """Change simulation speed multiplier (must be between 0.5 and 128)."""
     if body.multiplier < 0.5:
         raise HTTPException(status_code=400, detail="Invalid multiplier. Must be >= 0.5")
-    if body.multiplier > 32:
-        raise HTTPException(status_code=400, detail="Invalid multiplier. Must be <= 32")
+    if body.multiplier > 128:
+        raise HTTPException(status_code=400, detail="Invalid multiplier. Must be <= 128")
 
     engine.set_speed(body.multiplier)
     return SpeedChangeResponse(speed=body.multiplier)

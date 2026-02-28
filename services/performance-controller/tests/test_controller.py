@@ -16,7 +16,7 @@ from src.settings import Settings
 # ------------------------------------------------------------------
 
 
-def _make_controller(max_speed: float = 32.0) -> PerformanceController:
+def _make_controller(max_speed: float = 128.0) -> PerformanceController:
     """Create a controller with mocked external dependencies."""
     settings = Settings(
         controller={"max_speed": max_speed},
@@ -38,7 +38,7 @@ class TestSnapToFloorPowerOfTwo:
     @pytest.mark.parametrize(
         ("speed", "expected"),
         [
-            (32.0, 32.0),
+            (128.0, 128.0),
             (6.75, 4.0),
             (3.375, 2.0),
             (0.4, 0.5),
@@ -46,7 +46,7 @@ class TestSnapToFloorPowerOfTwo:
             (1.0, 1.0),
             (0.5, 0.5),
             (15.999, 8.0),
-            (64.0, 32.0),
+            (256.0, 128.0),
         ],
     )
     def test_snaps_correctly(self, speed: float, expected: float) -> None:
@@ -186,7 +186,7 @@ class TestSetModeOff:
 
 def _make_controller_with_speed(
     current_speed: float = 10.0,
-    max_speed: float = 32.0,
+    max_speed: float = 128.0,
     min_speed: float = 0.5,
     target: float = 0.66,
     k_up: float = 0.15,
@@ -254,9 +254,9 @@ class TestDecideSpeed:
 
     def test_clamped_to_max_speed(self) -> None:
         """Speed cannot exceed max_speed even with very high index."""
-        ctrl = _make_controller_with_speed(current_speed=30.0, max_speed=32.0)
+        ctrl = _make_controller_with_speed(current_speed=30.0, max_speed=128.0)
         new_speed = ctrl.decide_speed(1.0)
-        assert new_speed <= 32.0
+        assert new_speed <= 128.0
 
     def test_clamped_to_min_speed(self) -> None:
         """Speed cannot go below min_speed even with very low index."""

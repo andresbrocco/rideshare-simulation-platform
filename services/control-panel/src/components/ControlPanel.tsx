@@ -201,6 +201,8 @@ export default function ControlPanel({
               <option value="8">8x</option>
               <option value="16">16x</option>
               <option value="32">32x</option>
+              <option value="64">64x</option>
+              <option value="128">128x</option>
             </select>
           </Tooltip>
         )}

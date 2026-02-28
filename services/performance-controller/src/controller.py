@@ -19,7 +19,7 @@ from .settings import Settings
 
 logger = logging.getLogger(__name__)
 
-_VALID_MANUAL_SPEEDS: list[float] = [0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0]
+_VALID_MANUAL_SPEEDS: list[float] = [0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0]
 
 
 def _snap_to_floor_power_of_two(speed: float) -> float:
