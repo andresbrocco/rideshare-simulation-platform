@@ -3,11 +3,6 @@ variable "cluster_name" {
   type        = string
 }
 
-variable "oidc_provider_arn" {
-  description = "EKS OIDC provider ARN"
-  type        = string
-}
-
 variable "vpc_id" {
   description = "VPC ID for ALB controller"
   type        = string

@@ -8,14 +8,12 @@ resource "aws_iam_role" "alb_controller" {
       {
         Effect = "Allow"
         Principal = {
-          Federated = var.oidc_provider_arn
+          Service = "pods.eks.amazonaws.com"
         }
-        Action = "sts:AssumeRoleWithWebIdentity"
-        Condition = {
-          StringEquals = {
-            "${replace(var.oidc_provider_arn, "/^(.*provider/)/", "")}:sub" = "system:serviceaccount:kube-system:aws-load-balancer-controller"
-          }
-        }
+        Action = [
+          "sts:AssumeRole",
+          "sts:TagSession"
+        ]
       }
     ]
   })
@@ -313,6 +311,18 @@ resource "helm_release" "aws_load_balancer_controller" {
 
   depends_on = [
     aws_iam_role_policy.alb_controller
+  ]
+}
+
+# Pod Identity association (EKS injects credentials via the Pod Identity Agent)
+resource "aws_eks_pod_identity_association" "alb_controller" {
+  cluster_name    = var.cluster_name
+  namespace       = "kube-system"
+  service_account = "aws-load-balancer-controller"
+  role_arn        = aws_iam_role.alb_controller.arn
+
+  depends_on = [
+    helm_release.aws_load_balancer_controller
   ]
 }
 

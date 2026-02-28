@@ -33,10 +33,9 @@ module "rds" {
 module "alb" {
   source = "./modules/alb"
 
-  cluster_name      = module.eks.cluster_name
-  oidc_provider_arn = module.eks.oidc_provider_arn
-  vpc_id            = data.terraform_remote_state.foundation.outputs.vpc_id
-  aws_region        = var.aws_region
+  cluster_name = module.eks.cluster_name
+  vpc_id       = data.terraform_remote_state.foundation.outputs.vpc_id
+  aws_region   = var.aws_region
 }
 
 # DNS Module
