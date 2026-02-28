@@ -33,6 +33,7 @@ jobs:
             target: production
           - service: bronze-ingestion
           - service: hive-metastore
+          - service: performance-controller
           - service: osrm
           - service: otel-collector
       fail-fast: false
