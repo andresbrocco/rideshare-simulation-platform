@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 
 class SpeedChangeRequest(BaseModel):
-    multiplier: float = Field(ge=0.125, le=32.0)
+    multiplier: float = Field(ge=0.5, le=32.0)
 
 
 class SpeedChangeResponse(BaseModel):

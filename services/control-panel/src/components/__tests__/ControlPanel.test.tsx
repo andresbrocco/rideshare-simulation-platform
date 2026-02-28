@@ -168,8 +168,6 @@ describe('ControlPanel', () => {
     const speedSelect = screen.getByLabelText(/speed/i) as HTMLSelectElement;
     const options = Array.from(speedSelect.options).map((o) => o.value);
 
-    expect(options).toContain('0.125');
-    expect(options).toContain('0.25');
     expect(options).toContain('0.5');
     expect(options).toContain('1');
     expect(options).toContain('2');

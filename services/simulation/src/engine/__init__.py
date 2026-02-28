@@ -342,9 +342,9 @@ class SimulationEngine:
                     time.sleep(sleep_time)
 
     def set_speed(self, multiplier: float) -> None:
-        """Change simulation speed (must be between 0.125 and 32)."""
-        if multiplier < 0.125:
-            raise ValueError("Speed multiplier must be >= 0.125")
+        """Change simulation speed (must be between 0.5 and 32)."""
+        if multiplier < 0.5:
+            raise ValueError("Speed multiplier must be >= 0.5")
         if multiplier > 32:
             raise ValueError("Speed multiplier must be <= 32")
 

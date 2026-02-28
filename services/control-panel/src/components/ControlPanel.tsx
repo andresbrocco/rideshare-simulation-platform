@@ -194,8 +194,6 @@ export default function ControlPanel({
               onChange={handleSpeedChange}
               className={styles.select}
             >
-              <option value="0.125">⅛x</option>
-              <option value="0.25">¼x</option>
               <option value="0.5">½x</option>
               <option value="1">1x</option>
               <option value="2">2x</option>

@@ -41,10 +41,9 @@ class TestSnapToFloorPowerOfTwo:
             (32.0, 32.0),
             (6.75, 4.0),
             (3.375, 2.0),
-            (0.1, 0.125),
+            (0.4, 0.5),
             (31.9, 16.0),
             (1.0, 1.0),
-            (0.125, 0.125),
             (0.5, 0.5),
             (15.999, 8.0),
             (64.0, 32.0),
@@ -54,8 +53,8 @@ class TestSnapToFloorPowerOfTwo:
         assert _snap_to_floor_power_of_two(speed) == expected
 
     def test_below_minimum_returns_minimum(self) -> None:
-        # 0.1 < 0.125 but function still returns 0.125 (floor within list)
-        assert _snap_to_floor_power_of_two(0.01) == 0.125
+        # 0.1 < 0.5 but function still returns 0.5 (floor within list)
+        assert _snap_to_floor_power_of_two(0.01) == 0.5
 
 
 # ------------------------------------------------------------------
@@ -188,7 +187,7 @@ class TestSetModeOff:
 def _make_controller_with_speed(
     current_speed: float = 10.0,
     max_speed: float = 32.0,
-    min_speed: float = 0.125,
+    min_speed: float = 0.5,
     target: float = 0.66,
     k_up: float = 0.15,
     k_down: float = 1.5,
@@ -261,9 +260,9 @@ class TestDecideSpeed:
 
     def test_clamped_to_min_speed(self) -> None:
         """Speed cannot go below min_speed even with very low index."""
-        ctrl = _make_controller_with_speed(current_speed=0.5, min_speed=0.125)
+        ctrl = _make_controller_with_speed(current_speed=1.0, min_speed=0.5)
         new_speed = ctrl.decide_speed(0.10)
-        assert new_speed >= 0.125
+        assert new_speed >= 0.5
 
     def test_severely_degraded_aggressive_cut(self) -> None:
         """Index=0.10 → >50% speed reduction (aggressive emergency cut)."""

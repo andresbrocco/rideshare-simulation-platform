@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class SimulationSettings(BaseSettings):
-    speed_multiplier: float = Field(default=1.0, ge=0.125, le=32.0)
+    speed_multiplier: float = Field(default=1.0, ge=0.5, le=32.0)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     log_format: Literal["text", "json"] = "text"
     checkpoint_interval: int = Field(default=300, ge=60)

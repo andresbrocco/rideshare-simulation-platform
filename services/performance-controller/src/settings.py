@@ -35,9 +35,9 @@ class ControllerSettings(BaseSettings):
         description="Maximum simulation speed multiplier",
     )
     min_speed: float = Field(
-        default=0.125,
+        default=0.5,
         gt=0,
-        description="Minimum simulation speed multiplier (1/8x)",
+        description="Minimum simulation speed multiplier (1/2x)",
     )
     target: float = Field(
         default=0.66,

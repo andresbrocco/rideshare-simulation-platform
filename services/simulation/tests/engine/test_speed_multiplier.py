@@ -88,23 +88,23 @@ def test_set_speed_fractional(engine):
     engine.set_speed(0.5)
     assert engine.speed_multiplier == 0.5
 
-    engine.set_speed(0.125)
-    assert engine.speed_multiplier == 0.125
-
     engine.set_speed(2.5)
     assert engine.speed_multiplier == 2.5
 
 
 @pytest.mark.unit
 def test_set_speed_invalid(engine):
-    """Rejects multiplier outside valid range (0.125–32)."""
-    with pytest.raises(ValueError, match="Speed multiplier must be >= 0.125"):
+    """Rejects multiplier outside valid range (0.5–32)."""
+    with pytest.raises(ValueError, match="Speed multiplier must be >= 0.5"):
+        engine.set_speed(0.25)
+
+    with pytest.raises(ValueError, match="Speed multiplier must be >= 0.5"):
         engine.set_speed(0.1)
 
-    with pytest.raises(ValueError, match="Speed multiplier must be >= 0.125"):
+    with pytest.raises(ValueError, match="Speed multiplier must be >= 0.5"):
         engine.set_speed(0)
 
-    with pytest.raises(ValueError, match="Speed multiplier must be >= 0.125"):
+    with pytest.raises(ValueError, match="Speed multiplier must be >= 0.5"):
         engine.set_speed(-1)
 
     with pytest.raises(ValueError, match="Speed multiplier must be <= 32"):
@@ -250,21 +250,21 @@ def test_rtr_lagging_after_speed_increase(engine):
 
 @pytest.mark.unit
 def test_rtr_valid_with_chunked_samples_at_low_speed(engine):
-    """At low speed (e.g. 0.125x), chunked sleep produces ~1 sample/sec, keeping RTR valid."""
+    """At low speed (e.g. 0.5x), chunked sleep produces ~1 sample/sec, keeping RTR valid."""
     now = time.perf_counter()
-    engine._speed_multiplier = 0.125
+    engine._speed_multiplier = 0.5
 
-    # Simulate 8 wall-seconds of chunked sleep for 1 sim-second at 0.125x.
+    # Simulate 8 wall-seconds of chunked sleep for 4 sim-seconds at 0.5x.
     # Each chunk records a sample ~1 wall-second apart, with env.now advancing
-    # by 0.125 sim-seconds per chunk (1 sim-sec / 8 chunks).
+    # by 0.5 sim-seconds per chunk (4 sim-sec / 8 chunks).
     for i in range(9):  # 9 samples spanning 8 wall-seconds
         wall_t = now - 8.0 + i  # -8, -7, ..., 0
-        sim_t = i * 0.125  # 0, 0.125, ..., 1.0
-        engine._rtr_samples.append((wall_t, sim_t, 0.125))
+        sim_t = i * 0.5  # 0, 0.5, ..., 4.0
+        engine._rtr_samples.append((wall_t, sim_t, 0.5))
 
     rtr = engine.real_time_ratio()
     assert rtr is not None
-    # 1 sim-sec / 8 wall-sec / 0.125 speed = 1.0
+    # 4 sim-sec / 8 wall-sec / 0.5 speed = 1.0
     assert abs(rtr - 1.0) < 0.01
 
 
