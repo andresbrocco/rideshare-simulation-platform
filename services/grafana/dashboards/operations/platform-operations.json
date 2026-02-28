@@ -699,6 +699,7 @@
     {
       "id": 13,
       "title": "Active Trips (Live)",
+      "description": "Current count of trips in non-terminal states from Prometheus. Includes requested, matched, en-route, and in-progress trips.",
       "type": "stat",
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [{"expr": "simulation_trips_active", "refId": "A"}],
@@ -715,6 +716,7 @@
     {
       "id": 18,
       "title": "Completed / 5m",
+      "description": "Number of trips that reached a successful terminal state in the last 5 minutes. Sustained zero values may indicate simulation stall.",
       "type": "stat",
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [{"expr": "increase(simulation_trips_completed_total[5m])", "refId": "A"}],
@@ -731,6 +733,7 @@
     {
       "id": 19,
       "title": "Cancelled / 5m",
+      "description": "Number of trips cancelled in the last 5 minutes (no driver found, rider cancelled, or timeout). High values may indicate supply-demand imbalance.",
       "type": "stat",
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [{"expr": "increase(simulation_trips_cancelled_total[5m])", "refId": "A"}],
@@ -774,7 +777,7 @@
         "x": 12,
         "y": 24
       },
-      "description": "Donut chart of all trip outcomes from the Gold layer over 24 hours. Provides historical context for the real-time view in the adjacent panel.",
+      "description": "All trip outcomes from the Gold layer over 24 hours. Provides historical context for the real-time view in the adjacent panel.",
       "id": 14,
       "options": {
         "displayLabels": ["percent"],
