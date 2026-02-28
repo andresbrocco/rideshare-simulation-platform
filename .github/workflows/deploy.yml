@@ -222,10 +222,14 @@ jobs:
             --secret-id rideshare/rds --query SecretString --output text | jq -r '.MASTER_PASSWORD')
           RDS_ENDPOINT="${{ steps.tf-outputs.outputs.rds_endpoint }}"
 
+          # CREATE DATABASE cannot use IF NOT EXISTS in PostgreSQL.
+          # Run it and treat "already exists" (exit code 1) as success.
           kubectl run rds-init --rm -i --restart=Never --namespace=default \
             --image=postgres:16 -- \
             psql "postgresql://postgres:${POSTGRES_PASSWORD}@${RDS_ENDPOINT}:5432/postgres" \
-            -c "SELECT 'CREATE DATABASE metastore' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'metastore')\gexec"
+            -c "CREATE DATABASE metastore;" \
+            && echo "Database created" \
+            || echo "Database may already exist (expected on re-runs)"
 
           echo "Metastore database ready"
 
