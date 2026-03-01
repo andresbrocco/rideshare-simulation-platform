@@ -8,6 +8,7 @@ metadata:
     alb.ingress.kubernetes.io/group.name: rideshare
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/security-groups: <alb-sg-id>
     alb.ingress.kubernetes.io/certificate-arn: <acm-cert-arn>
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS": 443}]'
     alb.ingress.kubernetes.io/ssl-redirect: "443"
