@@ -1,11 +1,14 @@
 # Production patch: Point Airflow Scheduler to RDS and remove MinIO dependency
 # - Overrides init container to check RDS instead of local airflow-postgres
+# - Adds setup-dbt init container to extract the dbt project ConfigMap
 # - Overrides SQL_ALCHEMY_CONN to use RDS endpoint
 # - Removes AWS_ENDPOINT_URL (was for MinIO; production uses real AWS S3)
-# - Sets AWS_REGION for S3 access via IRSA
+# - Sets AWS_REGION and S3 bucket env vars for production
+# - Adds dbt-workspace, dbt-tar, and init-scripts volumes
 #
-# Replace <rds-endpoint> with Terraform output during deploy:
-#   terraform -chdir=infrastructure/terraform/platform output -raw rds_endpoint
+# Replace placeholders during deploy:
+#   <rds-endpoint>  → terraform -chdir=infrastructure/terraform/platform output -raw rds_endpoint
+#   <account-id>    → aws sts get-caller-identity --query Account --output text
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,12 +28,81 @@ spec:
                 sleep 2
               done
               echo "RDS PostgreSQL is ready"
+
+        # Extract the dbt project tar (from airflow-dbt-project ConfigMap) into
+        # a shared emptyDir volume at /opt/dbt so the scheduler container can
+        # cd into it and run dbt commands.  Runs as root (uid 0) so it can write
+        # to /opt/dbt and then chown to the airflow uid (50000).
+        - name: setup-dbt
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              echo "Extracting dbt project..."
+              tar -xzf /dbt-tar/dbt-project.tar.gz -C /opt/dbt
+              chown -R 50000:0 /opt/dbt
+              chmod -R g+rw /opt/dbt
+
+              echo "Writing production profiles.yml..."
+              cat > /opt/dbt/profiles.yml << 'PROFILES_EOF'
+              rideshare:
+                target: local
+                outputs:
+                  local:
+                    type: duckdb
+                    path: "{{ env_var('DUCKDB_PATH', '/tmp/rideshare.duckdb') }}"
+                    extensions:
+                      - delta
+                      - httpfs
+                    settings:
+                      s3_region: "{{ env_var('AWS_REGION', 'us-east-1') }}"
+                    secrets:
+                      - type: S3
+                        provider: credential_chain
+                        region: "{{ env_var('AWS_REGION', 'us-east-1') }}"
+                    threads: 4
+              PROFILES_EOF
+
+              chown 50000:0 /opt/dbt/profiles.yml
+              echo "dbt workspace ready"
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: dbt-tar
+              mountPath: /dbt-tar
+            - name: dbt-workspace
+              mountPath: /opt/dbt
+
       containers:
         - name: airflow-scheduler
           command:
             - bash
             - -c
             - |
+              # Install pipeline packages that the Airflow image doesn't include.
+              # We install them explicitly here because the production command
+              # overrides the default entrypoint, bypassing the
+              # _PIP_ADDITIONAL_REQUIREMENTS mechanism (which only runs through
+              # the official entrypoint script).
+              pip install --quiet --no-cache-dir \
+                dbt-core \
+                dbt-duckdb==1.10.0 \
+                duckdb==1.4.4 \
+                deltalake==1.4.2 \
+                duckdb-engine==0.17.0 \
+                great-expectations \
+                requests \
+                prison
+
+              # Install dbt package dependencies (dbt_utils, dbt_expectations, etc.)
+              # These are defined in packages.yml and must be installed before dbt run.
+              # dbt_packages directory is not included in the ConfigMap tar to keep
+              # it small; we install here at pod startup so the directory persists
+              # in the emptyDir volume for the lifetime of the pod.
+              cd /opt/dbt/dbt && dbt deps --profiles-dir /opt/dbt && cd -
+
               # URL-encode the password so special chars don't break the conn string
               ENCODED_PW=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${AIRFLOW_POSTGRES_PASSWORD}'))")
               export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql+psycopg2://airflow:${ENCODED_PW}@<rds-endpoint>:5432/airflow"
@@ -46,6 +118,41 @@ spec:
             - name: AWS_ENDPOINT_URL
               $patch: delete
 
-            # Ensure AWS region is set for IRSA-based S3 access
+            # Ensure AWS region is set for Pod Identity-based S3 access
             - name: AWS_REGION
               value: "us-east-1"
+
+            # DuckDB file path (shared between dbt run and export script)
+            - name: DUCKDB_PATH
+              value: "/tmp/rideshare.duckdb"
+
+            # Production S3 bucket names (replace <account-id> during deploy)
+            - name: BRONZE_BUCKET
+              value: "rideshare-<account-id>-bronze"
+
+            - name: SILVER_BUCKET
+              value: "rideshare-<account-id>-silver"
+
+            - name: GOLD_BUCKET
+              value: "rideshare-<account-id>-gold"
+
+          volumeMounts:
+            - name: dbt-workspace
+              mountPath: /opt/dbt
+            - name: init-scripts
+              mountPath: /opt/init-scripts
+
+      volumes:
+        # emptyDir populated by setup-dbt initContainer from the tar ConfigMap
+        - name: dbt-workspace
+          emptyDir: {}
+
+        # ConfigMap containing dbt-project.tar.gz (built from tools/dbt/)
+        - name: dbt-tar
+          configMap:
+            name: airflow-dbt-project
+
+        # ConfigMap containing export-dbt-to-s3.py and register-trino-tables.py
+        - name: init-scripts
+          configMap:
+            name: airflow-init-scripts

@@ -7,7 +7,7 @@
 
   Usage: {{ delta_source('bronze', 'bronze_trips') }}
 
-  DuckDB generates: delta_scan('s3://rideshare-bronze/bronze_trips/')
+  DuckDB generates: delta_scan('s3://rideshare-bronze/bronze_trips/')  (default bucket; BRONZE_BUCKET env var overrides)
   Spark generates:  bronze.bronze_trips
 
   For non-bronze sources, falls back to standard source() function.
@@ -19,7 +19,7 @@
 
 {% macro duckdb__delta_source(source_name, table_name) %}
   {%- if source_name == 'bronze' -%}
-    delta_scan('s3://rideshare-bronze/{{ table_name }}/')
+    delta_scan('s3://{{ env_var("BRONZE_BUCKET", "rideshare-bronze") }}/{{ table_name }}/')
   {%- else -%}
     {{ source(source_name, table_name) }}
   {%- endif -%}
