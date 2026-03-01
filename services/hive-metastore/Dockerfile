@@ -5,8 +5,10 @@ ADD https://jdbc.postgresql.org/download/postgresql-42.7.4.jar /opt/hive/lib/pos
 RUN chmod 644 /opt/hive/lib/postgresql-42.7.4.jar
 
 # Add hadoop-aws and AWS SDK to classpath for S3A filesystem support
-RUN cp /opt/hadoop/share/hadoop/tools/lib/hadoop-aws-3.3.6.jar /opt/hive/lib/ \
-    && cp /opt/hadoop/share/hadoop/tools/lib/aws-java-sdk-bundle-1.12.367.jar /opt/hive/lib/
+# AWS SDK >= 1.12.746 required for EKS Pod Identity credential endpoint
+RUN cp /opt/hadoop/share/hadoop/tools/lib/hadoop-aws-3.3.6.jar /opt/hive/lib/
+ADD https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.780/aws-java-sdk-bundle-1.12.780.jar /opt/hive/lib/aws-java-sdk-bundle-1.12.780.jar
+RUN chmod 644 /opt/hive/lib/aws-java-sdk-bundle-1.12.780.jar
 
 # Install envsubst for runtime config template substitution
 RUN apt-get update && apt-get install -y --no-install-recommends gettext-base \

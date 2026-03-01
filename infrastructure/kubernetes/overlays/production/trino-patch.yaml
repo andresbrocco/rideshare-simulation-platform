@@ -23,6 +23,7 @@ spec:
               cp /config-source/node.properties /etc/trino/node.properties
               mkdir -p /etc/trino/catalog
               cp /config-source/delta.properties.template /etc/trino/catalog/delta.properties
+              echo 'http-server.process-forwarded=true' >> /etc/trino/config.properties
           env:
             - name: MINIO_ROOT_USER
               $patch: delete

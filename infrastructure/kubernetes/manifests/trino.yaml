@@ -20,6 +20,8 @@ data:
     -XX:+HeapDumpOnOutOfMemoryError
     -XX:+ExitOnOutOfMemoryError
     -XX:ReservedCodeCacheSize=256M
+    -XX:+UnlockDiagnosticVMOptions
+    -XX:G1NumCollectionsKeepPinned=10000000
     -Djdk.attach.allowAttachSelf=true
     -Djdk.nio.maxCachedBufferSize=2000000
 
@@ -109,7 +111,7 @@ spec:
           mountPath: /etc/trino
       containers:
       - name: trino
-        image: trinodb/trino:439
+        image: trinodb/trino:451
         resources:
           limits:
             memory: "2Gi"
