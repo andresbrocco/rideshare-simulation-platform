@@ -1,9 +1,14 @@
 # Production patch: Remove MinIO dependencies from Bronze Ingestion
 # - Removes wait-for-minio initContainer (no MinIO in production)
-# - Removes S3_ENDPOINT env var (use default AWS S3 endpoint)
-# - Removes AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY (IRSA handles S3 access)
-# - Sets AWS_REGION for S3 access via IRSA
-# - Confirms BRONZE_BUCKET for explicit clarity
+# - Deletes AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY env vars so IRSA provides credentials
+# - Deletes S3_ENDPOINT env var so boto3 uses the default AWS S3 endpoint
+# - Sets AWS_DEFAULT_REGION and AWS_REGION for S3 access via IRSA
+# - Sets BRONZE_BUCKET to the production S3 bucket name
+# - Sets DELTA_BASE_PATH to the production S3 bucket path
+#
+# Pod Identity credential chain: EKS Pod Identity agent → EC2 instance profile
+# Explicit AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY env vars take top priority in
+# the boto3 credential chain and override IRSA, so they must be deleted (not set to "").
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -18,20 +23,30 @@ spec:
       containers:
         - name: bronze-ingestion
           env:
-            # Remove S3_ENDPOINT (use default AWS S3)
-            - name: S3_ENDPOINT
-              $patch: delete
-
-            # Remove MinIO credentials (IRSA handles S3 access)
+            # Delete MinIO credentials so the boto3 credential chain falls through to IRSA.
+            # Setting these to "" still overrides IRSA; they must not exist at all.
             - name: AWS_ACCESS_KEY_ID
               $patch: delete
             - name: AWS_SECRET_ACCESS_KEY
               $patch: delete
 
-            # Ensure AWS region is set for IRSA-based S3 access
+            # Delete S3_ENDPOINT so boto3 routes to the real AWS S3 service.
+            - name: S3_ENDPOINT
+              $patch: delete
+
+            # AWS_DEFAULT_REGION is the primary env var read by boto3 / AWS SDK.
+            # AWS_REGION is a secondary alias (used in Lambda contexts).
+            # Set both for maximum compatibility.
+            - name: AWS_DEFAULT_REGION
+              value: "us-east-1"
             - name: AWS_REGION
               value: "us-east-1"
 
-            # Bronze bucket (replace <account-id> with AWS account ID during deploy)
+            # Production S3 bucket for bronze layer
+            # Replace <account-id> with AWS account ID during deploy
             - name: BRONZE_BUCKET
               value: "rideshare-<account-id>-bronze"
+
+            # Delta Lake base path for the production S3 bucket
+            - name: DELTA_BASE_PATH
+              value: "s3a://rideshare-<account-id>-bronze"

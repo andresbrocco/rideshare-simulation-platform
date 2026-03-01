@@ -20,15 +20,25 @@ from deltalake import write_deltalake
 
 
 def get_storage_options() -> dict[str, str]:
-    """Build storage options dict from environment variables."""
-    return {
-        "AWS_ENDPOINT_URL": os.getenv("S3_ENDPOINT", "http://minio:9000"),
-        "AWS_ACCESS_KEY_ID": os.getenv("AWS_ACCESS_KEY_ID", "minioadmin"),
-        "AWS_SECRET_ACCESS_KEY": os.getenv("AWS_SECRET_ACCESS_KEY", "minioadmin"),
+    """Build storage options dict from environment variables.
+
+    In production (no S3_ENDPOINT set), omit AWS_ENDPOINT_URL and credentials
+    so the delta-rs rust backend uses the EC2/Pod Identity credential chain.
+    In local dev (S3_ENDPOINT set to MinIO), include the endpoint and explicit
+    minioadmin credentials.
+    """
+    opts: dict[str, str] = {
         "AWS_REGION": os.getenv("AWS_REGION", "us-east-1"),
-        "AWS_ALLOW_HTTP": "true",
         "AWS_S3_ALLOW_UNSAFE_RENAME": "true",
     }
+    endpoint = os.getenv("S3_ENDPOINT") or os.getenv("AWS_ENDPOINT_URL")
+    if endpoint:
+        # Local dev: explicit MinIO endpoint + credentials
+        opts["AWS_ENDPOINT_URL"] = endpoint
+        opts["AWS_ACCESS_KEY_ID"] = os.getenv("AWS_ACCESS_KEY_ID", "minioadmin")
+        opts["AWS_SECRET_ACCESS_KEY"] = os.getenv("AWS_SECRET_ACCESS_KEY", "minioadmin")
+        opts["AWS_ALLOW_HTTP"] = "true"
+    return opts
 
 
 def get_duckdb_path() -> str:
@@ -121,12 +131,17 @@ def main() -> int:
 
     duckdb_path = get_duckdb_path()
     storage_opts = get_storage_options()
+    silver_bucket = os.getenv("SILVER_BUCKET", "rideshare-silver")
+    gold_bucket = os.getenv("GOLD_BUCKET", "rideshare-gold")
 
     print("=" * 60)
     print("DBT to S3 Delta Export")
     print("=" * 60)
     print(f"DuckDB: {duckdb_path}")
-    print(f"S3 Endpoint: {storage_opts['AWS_ENDPOINT_URL']}")
+    endpoint = storage_opts.get("AWS_ENDPOINT_URL", "AWS (credential chain)")
+    print(f"S3 Endpoint: {endpoint}")
+    print(f"Silver bucket: {silver_bucket}")
+    print(f"Gold bucket:   {gold_bucket}")
     print()
 
     # Check if DuckDB file exists
@@ -146,7 +161,7 @@ def main() -> int:
         # Export silver layer
         if args.layer is None or args.layer == "silver":
             print("--- Silver Layer ---")
-            exported, skipped = export_layer(conn, "silver", "rideshare-silver", storage_opts)
+            exported, skipped = export_layer(conn, "silver", silver_bucket, storage_opts)
             total_exported += exported
             total_skipped += skipped
             print()
@@ -154,7 +169,7 @@ def main() -> int:
         # Export gold layer
         if args.layer is None or args.layer == "gold":
             print("--- Gold Layer ---")
-            exported, skipped = export_layer(conn, "gold", "rideshare-gold", storage_opts)
+            exported, skipped = export_layer(conn, "gold", gold_bucket, storage_opts)
             total_exported += exported
             total_skipped += skipped
             print()

@@ -163,15 +163,15 @@ def main() -> int:
 
     if args.layer == "bronze":
         tables = BRONZE_TABLES
-        bucket = "rideshare-bronze"
+        bucket = os.getenv("BRONZE_BUCKET", "rideshare-bronze")
         schema = "bronze"
     elif args.layer == "silver":
         tables = SILVER_TABLES
-        bucket = "rideshare-silver"
+        bucket = os.getenv("SILVER_BUCKET", "rideshare-silver")
         schema = "silver"
     else:
         tables = GOLD_TABLES
-        bucket = "rideshare-gold"
+        bucket = os.getenv("GOLD_BUCKET", "rideshare-gold")
         schema = "gold"
 
     print("=" * 60)

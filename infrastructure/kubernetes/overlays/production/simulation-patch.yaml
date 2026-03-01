@@ -24,15 +24,20 @@ spec:
             - name: DEPLOYMENT_ENV
               value: "production"
 
+            # Speed multiplier for production demo (8x for observable, real-time-ish pace)
+            - name: SIM_SPEED_MULTIPLIER
+              value: "8"
+
             # S3 checkpoint configuration (full save/restore support)
-            - name: CHECKPOINT_STORAGE_TYPE
+            # SimulationSettings uses env_prefix="SIM_", so all settings need that prefix
+            - name: SIM_CHECKPOINT_STORAGE_TYPE
               value: "s3"
             # Replace <account-id> with AWS account ID during deploy
-            - name: CHECKPOINT_S3_BUCKET
+            - name: SIM_CHECKPOINT_S3_BUCKET
               value: "rideshare-<account-id>-checkpoints"
-            - name: CHECKPOINT_S3_PREFIX
+            - name: SIM_CHECKPOINT_S3_PREFIX
               value: "simulation"
-            - name: RESUME_FROM_CHECKPOINT
+            - name: SIM_RESUME_FROM_CHECKPOINT
               value: "true"
 
             # Ensure AWS region is set for IRSA-based S3 access

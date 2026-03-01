@@ -1,14 +1,16 @@
-# Production patch: Override BRONZE_BUCKET for bronze-init Job
+# Production patch: Override BRONZE_BUCKET for bronze-init CronJob
 # Replace <account-id> with AWS account ID during deploy (handled by deploy.yml sed)
 apiVersion: batch/v1
-kind: Job
+kind: CronJob
 metadata:
   name: bronze-init
 spec:
-  template:
+  jobTemplate:
     spec:
-      containers:
-        - name: bronze-init
-          env:
-            - name: BRONZE_BUCKET
-              value: "rideshare-<account-id>-bronze"
+      template:
+        spec:
+          containers:
+            - name: bronze-init
+              env:
+                - name: BRONZE_BUCKET
+                  value: "rideshare-<account-id>-bronze"
