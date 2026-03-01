@@ -55,6 +55,11 @@ spec:
             secretKeyRef:
               name: app-credentials
               key: FERNET_KEY
+        - name: AIRFLOW__API_AUTH__JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: AIRFLOW_JWT_SECRET
         - name: AIRFLOW__CORE__EXECUTOR
           value: LocalExecutor
         - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
@@ -70,7 +75,7 @@ spec:
         - name: AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL
           value: "30"
         - name: AIRFLOW__CORE__EXECUTION_API_SERVER_URL
-          value: "http://airflow-webserver:8080/execution/"
+          value: "http://airflow-webserver:8082/execution/"
         - name: _AIRFLOW_DB_MIGRATE
           value: "true"
         - name: _AIRFLOW_WWW_USER_CREATE
@@ -104,12 +109,20 @@ spec:
           timeoutSeconds: 10
         volumeMounts:
         - name: dags
-          mountPath: /opt/airflow/dags
+          mountPath: /opt/airflow/dags/dbt_transformation_dag.py
+          subPath: dbt_transformation_dag.py
+        - name: dags
+          mountPath: /opt/airflow/dags/delta_maintenance_dag.py
+          subPath: delta_maintenance_dag.py
+        - name: dags
+          mountPath: /opt/airflow/dags/dlq_monitoring_dag.py
+          subPath: dlq_monitoring_dag.py
         - name: logs
           mountPath: /opt/airflow/logs
       volumes:
       - name: dags
-        emptyDir: {}
+        configMap:
+          name: airflow-dags
       - name: logs
         emptyDir: {}
 

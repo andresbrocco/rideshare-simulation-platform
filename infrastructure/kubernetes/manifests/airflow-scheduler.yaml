@@ -21,11 +21,11 @@ spec:
         - sh
         - -c
         - |
-          until nc -z airflow-webserver 8082; do
-            echo "Waiting for Airflow webserver..."
-            sleep 2
+          until wget -qO- http://airflow-webserver:8082/api/v2/monitor/health 2>/dev/null | grep -q '"status"'; do
+            echo "Waiting for Airflow API server to be healthy..."
+            sleep 5
           done
-          echo "Airflow webserver is ready"
+          echo "Airflow API server is ready"
       containers:
       - name: airflow-scheduler
         image: apache/airflow:3.1.5
@@ -49,6 +49,11 @@ spec:
             secretKeyRef:
               name: app-credentials
               key: FERNET_KEY
+        - name: AIRFLOW__API_AUTH__JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: AIRFLOW_JWT_SECRET
         - name: AIRFLOW__CORE__EXECUTOR
           value: LocalExecutor
         - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
@@ -64,7 +69,7 @@ spec:
         - name: AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL
           value: "30"
         - name: AIRFLOW__CORE__EXECUTION_API_SERVER_URL
-          value: "http://airflow-webserver:8080/execution/"
+          value: "http://airflow-webserver:8082/execution/"
         - name: DBT_SPARK_HOST
           value: spark-thrift-server
         - name: AWS_ENDPOINT_URL
@@ -89,11 +94,19 @@ spec:
           timeoutSeconds: 10
         volumeMounts:
         - name: dags
-          mountPath: /opt/airflow/dags
+          mountPath: /opt/airflow/dags/dbt_transformation_dag.py
+          subPath: dbt_transformation_dag.py
+        - name: dags
+          mountPath: /opt/airflow/dags/delta_maintenance_dag.py
+          subPath: delta_maintenance_dag.py
+        - name: dags
+          mountPath: /opt/airflow/dags/dlq_monitoring_dag.py
+          subPath: dlq_monitoring_dag.py
         - name: logs
           mountPath: /opt/airflow/logs
       volumes:
       - name: dags
-        emptyDir: {}
+        configMap:
+          name: airflow-dags
       - name: logs
         emptyDir: {}

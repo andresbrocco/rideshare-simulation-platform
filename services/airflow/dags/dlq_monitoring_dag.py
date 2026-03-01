@@ -13,6 +13,8 @@ from airflow.providers.standard.operators.python import (
 from airflow.providers.standard.operators.empty import EmptyOperator
 
 ERROR_THRESHOLD = 10
+MINIO_ENDPOINT = os.environ.get("AWS_ENDPOINT_URL")
+BRONZE_BUCKET = os.environ.get("BRONZE_BUCKET", "rideshare-bronze")
 
 DLQ_TABLES = [
     "dlq_bronze_trips",
@@ -55,26 +57,42 @@ def query_dlq_errors(**context):
         conn.load_extension("delta")
         conn.load_extension("httpfs")
 
-        access_key = os.environ.get("AWS_ACCESS_KEY_ID", "minioadmin")
-        secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY", "minioadmin")
-        conn.execute(
-            f"""
-            CREATE SECRET minio_secret (
-                TYPE S3,
-                KEY_ID '{access_key}',
-                SECRET '{secret_key}',
-                ENDPOINT 'minio:9000',
-                USE_SSL false,
-                URL_STYLE 'path'
+        if MINIO_ENDPOINT:
+            # Local dev: point DuckDB at MinIO with static credentials
+            access_key = os.environ.get("AWS_ACCESS_KEY_ID", "minioadmin")
+            secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY", "minioadmin")
+            endpoint_host = MINIO_ENDPOINT.replace("http://", "").replace("https://", "")
+            use_ssl = "false" if MINIO_ENDPOINT.startswith("http://") else "true"
+            conn.execute(
+                f"""
+                CREATE SECRET minio_secret (
+                    TYPE S3,
+                    KEY_ID '{access_key}',
+                    SECRET '{secret_key}',
+                    ENDPOINT '{endpoint_host}',
+                    USE_SSL {use_ssl},
+                    URL_STYLE 'path'
+                )
+            """
             )
-        """
-        )
+        else:
+            # Production: use IRSA/Pod Identity credential chain
+            region = os.environ.get("AWS_REGION", "us-east-1")
+            conn.execute(
+                f"""
+                CREATE SECRET aws_secret (
+                    TYPE S3,
+                    PROVIDER CREDENTIAL_CHAIN,
+                    REGION '{region}'
+                )
+            """
+            )
 
         for table in DLQ_TABLES:
             try:
                 query = f"""
                     SELECT COUNT(*) as cnt
-                    FROM delta_scan('s3://rideshare-bronze/{table}/')
+                    FROM delta_scan('s3://{BRONZE_BUCKET}/{table}/')
                     WHERE _ingested_at >= '{cutoff_time}'
                 """
                 result = conn.execute(query).fetchone()

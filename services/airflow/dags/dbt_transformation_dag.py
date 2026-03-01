@@ -17,15 +17,21 @@ SILVER_ASSET = Asset("lakehouse://silver/transformed")
 GOLD_ASSET = Asset("lakehouse://gold/transformed")
 
 # MinIO / S3 configuration for Bronze table checks
-MINIO_ENDPOINT = "http://minio:9000"
+MINIO_ENDPOINT = os.environ.get("AWS_ENDPOINT_URL")
+BRONZE_BUCKET = os.environ.get("BRONZE_BUCKET", "rideshare-bronze")
 
-STORAGE_OPTIONS = {
-    "AWS_ENDPOINT_URL": MINIO_ENDPOINT,
-    "AWS_ACCESS_KEY_ID": os.environ.get("AWS_ACCESS_KEY_ID", "minioadmin"),
-    "AWS_SECRET_ACCESS_KEY": os.environ.get("AWS_SECRET_ACCESS_KEY", "minioadmin"),
-    "AWS_ALLOW_HTTP": "true",
+STORAGE_OPTIONS: dict[str, str] = {
     "AWS_S3_ALLOW_UNSAFE_RENAME": "true",
 }
+if MINIO_ENDPOINT:
+    # Local dev: explicit MinIO credentials
+    STORAGE_OPTIONS["AWS_ACCESS_KEY_ID"] = os.environ.get("AWS_ACCESS_KEY_ID", "minioadmin")
+    STORAGE_OPTIONS["AWS_SECRET_ACCESS_KEY"] = os.environ.get("AWS_SECRET_ACCESS_KEY", "minioadmin")
+    STORAGE_OPTIONS["AWS_ENDPOINT_URL"] = MINIO_ENDPOINT
+    STORAGE_OPTIONS["AWS_ALLOW_HTTP"] = "true" if MINIO_ENDPOINT.startswith("http://") else "false"
+else:
+    # Production: use IRSA/Pod Identity credential chain
+    STORAGE_OPTIONS["AWS_REGION"] = os.environ.get("AWS_REGION", "us-east-1")
 
 # Bronze tables required for Silver layer transformations
 REQUIRED_BRONZE_TABLES = [
@@ -41,23 +47,27 @@ REQUIRED_BRONZE_TABLES = [
 
 
 def check_bronze_data_exists() -> bool:
-    """Check whether all required Bronze Delta tables exist in MinIO.
+    """Check whether all required Bronze Delta tables exist.
 
+    In local dev (AWS_ENDPOINT_URL set), pings MinIO health endpoint first.
+    In production (AWS_ENDPOINT_URL empty), skips health check and goes
+    straight to Delta table existence checks.
     Returns True to proceed with the DAG, False to skip all downstream tasks.
-    Raises on MinIO connectivity failure so Airflow retries the task.
     """
-    import urllib.request
-
     from deltalake import DeltaTable
 
-    # Verify MinIO is reachable (raise on failure so Airflow retries)
-    req = urllib.request.Request(f"{MINIO_ENDPOINT}/minio/health/live", method="GET")
-    with urllib.request.urlopen(req, timeout=5):
-        pass
-    print(f"Connected to MinIO at {MINIO_ENDPOINT}")
+    if MINIO_ENDPOINT:
+        import urllib.request
+
+        req = urllib.request.Request(f"{MINIO_ENDPOINT}/minio/health/live", method="GET")
+        with urllib.request.urlopen(req, timeout=5):
+            pass
+        print(f"Connected to MinIO at {MINIO_ENDPOINT}")
+    else:
+        print("Production mode — skipping MinIO health check")
 
     for table in REQUIRED_BRONZE_TABLES:
-        path = f"s3://rideshare-bronze/{table}/"
+        path = f"s3://{BRONZE_BUCKET}/{table}/"
         if not DeltaTable.is_deltatable(path, storage_options=STORAGE_OPTIONS):
             print(f"Bronze table missing: {table}")
             print("Skipping DAG run — Bronze data not ready yet")
@@ -97,12 +107,12 @@ with DAG(
 
     dbt_silver_run = BashOperator(
         task_id="dbt_silver_run",
-        bash_command="cd /opt/dbt && dbt run --select tag:silver --target local --profiles-dir /opt/dbt",
+        bash_command="cd /opt/dbt/dbt && dbt run --select tag:silver --target local --profiles-dir /opt/dbt",
     )
 
     dbt_silver_test = BashOperator(
         task_id="dbt_silver_test",
-        bash_command="cd /opt/dbt && dbt test --select tag:silver --target local --threads 2 --profiles-dir /opt/dbt",
+        bash_command="cd /opt/dbt/dbt && dbt test --select tag:silver --target local --threads 2 --profiles-dir /opt/dbt",
     )
 
     ge_silver_validation = BashOperator(
@@ -179,27 +189,27 @@ with DAG(
 
     dbt_seed = BashOperator(
         task_id="dbt_seed",
-        bash_command="cd /opt/dbt && dbt seed --target local --profiles-dir /opt/dbt",
+        bash_command="cd /opt/dbt/dbt && dbt seed --target local --profiles-dir /opt/dbt",
     )
 
     dbt_gold_dimensions = BashOperator(
         task_id="dbt_gold_dimensions",
-        bash_command="cd /opt/dbt && dbt run --select tag:dimensions --target local --profiles-dir /opt/dbt",
+        bash_command="cd /opt/dbt/dbt && dbt run --select tag:dimensions --target local --profiles-dir /opt/dbt",
     )
 
     dbt_gold_facts = BashOperator(
         task_id="dbt_gold_facts",
-        bash_command="cd /opt/dbt && dbt run --select tag:facts --target local --profiles-dir /opt/dbt",
+        bash_command="cd /opt/dbt/dbt && dbt run --select tag:facts --target local --profiles-dir /opt/dbt",
     )
 
     dbt_gold_aggregates = BashOperator(
         task_id="dbt_gold_aggregates",
-        bash_command="cd /opt/dbt && dbt run --select tag:aggregates --target local --profiles-dir /opt/dbt",
+        bash_command="cd /opt/dbt/dbt && dbt run --select tag:aggregates --target local --profiles-dir /opt/dbt",
     )
 
     dbt_gold_test = BashOperator(
         task_id="dbt_gold_test",
-        bash_command="cd /opt/dbt && dbt test --select tag:gold --target local --threads 2 --profiles-dir /opt/dbt",
+        bash_command="cd /opt/dbt/dbt && dbt test --select tag:gold --target local --threads 2 --profiles-dir /opt/dbt",
     )
 
     ge_gold_validation = BashOperator(

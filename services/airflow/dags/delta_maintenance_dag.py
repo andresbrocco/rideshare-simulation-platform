@@ -39,38 +39,47 @@ ALL_TABLES = BRONZE_TABLES + DLQ_TABLES
 # VACUUM retention in hours (7 days)
 VACUUM_RETENTION_HOURS = 168
 
-# MinIO storage options for delta-rs
-STORAGE_OPTIONS = {
-    "AWS_ENDPOINT_URL": "http://minio:9000",
-    "AWS_ACCESS_KEY_ID": os.environ.get("AWS_ACCESS_KEY_ID", "minioadmin"),
-    "AWS_SECRET_ACCESS_KEY": os.environ.get("AWS_SECRET_ACCESS_KEY", "minioadmin"),
-    "AWS_ALLOW_HTTP": "true",
+# S3 / MinIO configuration (read from environment for cloud portability)
+MINIO_ENDPOINT = os.environ.get("AWS_ENDPOINT_URL")
+BRONZE_BUCKET = os.environ.get("BRONZE_BUCKET", "rideshare-bronze")
+
+# S3 storage options for delta-rs
+STORAGE_OPTIONS: dict[str, str] = {
     "AWS_S3_ALLOW_UNSAFE_RENAME": "true",
 }
+if MINIO_ENDPOINT:
+    # Local dev: explicit MinIO credentials
+    STORAGE_OPTIONS["AWS_ACCESS_KEY_ID"] = os.environ.get("AWS_ACCESS_KEY_ID", "minioadmin")
+    STORAGE_OPTIONS["AWS_SECRET_ACCESS_KEY"] = os.environ.get("AWS_SECRET_ACCESS_KEY", "minioadmin")
+    STORAGE_OPTIONS["AWS_ENDPOINT_URL"] = MINIO_ENDPOINT
+    STORAGE_OPTIONS["AWS_ALLOW_HTTP"] = "true" if MINIO_ENDPOINT.startswith("http://") else "false"
+else:
+    # Production: use IRSA/Pod Identity credential chain
+    STORAGE_OPTIONS["AWS_REGION"] = os.environ.get("AWS_REGION", "us-east-1")
 
 
 def check_bronze_data_exists() -> bool:
-    """Check whether any Bronze Delta tables exist in MinIO.
+    """Check whether any Bronze Delta tables exist.
 
+    In local dev (AWS_ENDPOINT_URL set), pings MinIO health endpoint first.
+    In production (AWS_ENDPOINT_URL empty), skips health check and goes
+    straight to Delta table existence checks.
     Returns True to proceed with maintenance, False to skip all downstream tasks.
-    More lenient than the Silver DAG check — maintenance can run on partial data,
-    so returns True if ANY table exists.
-    Raises on MinIO connectivity failure so Airflow retries the task.
     """
-    import urllib.request
-
     from deltalake import DeltaTable
 
-    endpoint = STORAGE_OPTIONS["AWS_ENDPOINT_URL"]
+    if MINIO_ENDPOINT:
+        import urllib.request
 
-    # Verify MinIO is reachable (raise on failure so Airflow retries)
-    req = urllib.request.Request(f"{endpoint}/minio/health/live", method="GET")
-    with urllib.request.urlopen(req, timeout=5):
-        pass
-    print(f"Connected to MinIO at {endpoint}")
+        req = urllib.request.Request(f"{MINIO_ENDPOINT}/minio/health/live", method="GET")
+        with urllib.request.urlopen(req, timeout=5):
+            pass
+        print(f"Connected to MinIO at {MINIO_ENDPOINT}")
+    else:
+        print("Production mode — skipping MinIO health check")
 
     for table in BRONZE_TABLES:
-        path = f"s3://rideshare-bronze/{table}/"
+        path = f"s3://{BRONZE_BUCKET}/{table}/"
         if DeltaTable.is_deltatable(path, storage_options=STORAGE_OPTIONS):
             print(f"Found Bronze table: {table} — proceeding with maintenance")
             return True
@@ -94,7 +103,7 @@ def optimize_table(table_name: str, **context: Any) -> dict[str, object]:
     from deltalake import DeltaTable
 
     try:
-        dt = DeltaTable(f"s3://rideshare-bronze/{table_name}/", storage_options=STORAGE_OPTIONS)
+        dt = DeltaTable(f"s3://{BRONZE_BUCKET}/{table_name}/", storage_options=STORAGE_OPTIONS)
         metrics = dt.optimize.compact()
         return {
             "table": table_name,
@@ -124,7 +133,7 @@ def vacuum_table(
     from deltalake import DeltaTable
 
     try:
-        dt = DeltaTable(f"s3://rideshare-bronze/{table_name}/", storage_options=STORAGE_OPTIONS)
+        dt = DeltaTable(f"s3://{BRONZE_BUCKET}/{table_name}/", storage_options=STORAGE_OPTIONS)
         metrics = dt.vacuum(
             retention_hours=retention_hours, enforce_retention_duration=False, dry_run=False
         )
