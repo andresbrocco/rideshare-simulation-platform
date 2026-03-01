@@ -51,6 +51,8 @@ FROM base AS production
 
 COPY pyproject.toml pyproject.toml
 COPY src /app/src
+COPY data /app/data
+COPY schemas /app/schemas
 
 RUN uv pip install --system .
 

@@ -42,6 +42,9 @@ dependencies = [
     # and kafka-python's top-level `kafka` module shadows our local src/kafka/ package.
     "opentelemetry-instrumentation-redis==0.60b1",
     "opentelemetry-instrumentation-httpx==0.60b1",
+    # S3 checkpoint backend (required for production cloud deployments)
+    "boto3>=1.35.0",
+    "botocore>=1.35.0",
 ]
 
 [project.optional-dependencies]
@@ -60,8 +63,6 @@ dev = [
     "types-confluent-kafka>=1.0.0",
     "types-shapely>=2.0.0",
     "respx==0.21.1",
-    "botocore>=1.35.0",
-    "boto3>=1.35.0",
     "openapi-spec-validator>=0.7.0",
 ]
 

@@ -847,7 +847,7 @@ class RiderAgent(EventEmitter):
         """
         if self._osrm_client:
             try:
-                route = asyncio.run(self._osrm_client.get_route(pickup, dropoff))
+                route = self._osrm_client.get_route_sync(pickup, dropoff)
                 distance_km = route.distance_meters / 1000
                 duration_min = route.duration_seconds / 60
             except Exception:
