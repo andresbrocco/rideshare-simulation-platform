@@ -161,6 +161,83 @@ data:
               summary: "Stream processor down"
               description: "Stream processor service has been unreachable for more than 1 minute"
 
+  performance.yml: |
+    groups:
+      - name: rideshare_performance
+        interval: 4s
+        rules:
+          # --- Individual headroom components (0-1, higher = healthier) ---
+
+          - record: rideshare:performance:kafka_lag_headroom
+            expr: clamp(1 - (sum(kafka_consumergroup_lag) or vector(0)) / 18758, 0, 1)
+
+          - record: rideshare:performance:simpy_queue_headroom
+            expr: clamp(1 - (max(simulation_simpy_events) or vector(0)) / 24096, 0, 1)
+
+          - record: rideshare:performance:cpu_headroom
+            expr: >-
+              clamp(
+                2 * (1 - (sum by() (rate(container_cpu_usage_seconds_total{name=~"rideshare.*"}[1m]) * 100) or vector(0))
+                / clamp_min(max(machine_cpu_cores) * 100, 100)),
+                0, 1
+              )
+
+          - record: rideshare:performance:memory_headroom
+            expr: >-
+              clamp(
+                1 - clamp_min((max by() (container_memory_working_set_bytes{name=~"rideshare.*"}
+                  / (container_spec_memory_limit_bytes{name=~"rideshare.*"} > 0)) or vector(0)) - 0.67, 0) / 0.33,
+                0, 1
+              )
+
+          - record: rideshare:performance:consumption_ratio
+            expr: >-
+              clamp(
+                ((sum(rate(stream_processor_messages_consumed_total[1m])) or vector(0)) + 1)
+                / ((sum(rate(simulation_events_total[1m])) or vector(0)) + 1),
+                0, 1
+              )
+
+          - record: rideshare:performance:rtr_headroom
+            expr: >-
+              (
+                clamp((max(simulation_real_time_ratio) - 0.66) / 0.34, 0, 1)
+                and on() (sum(rate(simulation_events_total[2m])) > 0)
+              )
+              or vector(1)
+
+          # --- Smoothed components (16s rolling average, ~4 samples at 4s interval) ---
+
+          - record: rideshare:performance:kafka_lag_headroom:smooth
+            expr: avg_over_time(rideshare:performance:kafka_lag_headroom[16s])
+
+          - record: rideshare:performance:simpy_queue_headroom:smooth
+            expr: avg_over_time(rideshare:performance:simpy_queue_headroom[16s])
+
+          - record: rideshare:performance:cpu_headroom:smooth
+            expr: avg_over_time(rideshare:performance:cpu_headroom[16s])
+
+          - record: rideshare:performance:memory_headroom:smooth
+            expr: avg_over_time(rideshare:performance:memory_headroom[16s])
+
+          - record: rideshare:performance:consumption_ratio:smooth
+            expr: avg_over_time(rideshare:performance:consumption_ratio[16s])
+
+          - record: rideshare:performance:rtr_headroom:smooth
+            expr: avg_over_time(rideshare:performance:rtr_headroom[16s])
+
+          # --- Composite infrastructure headroom = min of all smoothed components ---
+          - record: rideshare:infrastructure:headroom
+            expr: >-
+              min by() (
+                label_replace(rideshare:performance:kafka_lag_headroom:smooth, "component", "kafka_lag", "", "")
+                or label_replace(rideshare:performance:simpy_queue_headroom:smooth, "component", "simpy_queue", "", "")
+                or label_replace(rideshare:performance:cpu_headroom:smooth, "component", "cpu", "", "")
+                or label_replace(rideshare:performance:memory_headroom:smooth, "component", "memory", "", "")
+                or label_replace(rideshare:performance:consumption_ratio:smooth, "component", "consumption", "", "")
+                or label_replace(rideshare:performance:rtr_headroom:smooth, "component", "rtr", "", "")
+              )
+
 ---
 apiVersion: apps/v1
 kind: Deployment

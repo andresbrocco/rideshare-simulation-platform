@@ -65,6 +65,19 @@ data:
           - action: labelmap
             regex: __meta_kubernetes_node_label_(.+)
 
+      # Kubernetes nodes - cAdvisor container metrics (via kubelet built-in endpoint)
+      - job_name: 'kubernetes-nodes-cadvisor'
+        kubernetes_sd_configs:
+          - role: node
+        scheme: https
+        metrics_path: /metrics/cadvisor
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+
       # kube-state-metrics (installed via Helm in Phase 06)
       - job_name: 'kube-state-metrics'
         kubernetes_sd_configs:
