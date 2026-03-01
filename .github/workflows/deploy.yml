@@ -125,6 +125,17 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rideshare-github-actions
           aws-region: us-east-1
 
+      - name: Verify Foundation State
+        working-directory: infrastructure/terraform/foundation
+        run: |
+          terraform init -backend-config="bucket=rideshare-tf-state-${{ secrets.AWS_ACCOUNT_ID }}"
+          EXIT=0
+          terraform plan -detailed-exitcode 2>&1 || EXIT=$?
+          if [ "$EXIT" -eq 2 ]; then
+            echo "::error::Foundation has unapplied changes. Run 'terraform apply' on infrastructure/terraform/foundation/ before deploying."
+            exit 1
+          fi
+
       - name: Terraform Init (Platform)
         working-directory: infrastructure/terraform/platform
         run: |
