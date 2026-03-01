@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { ControllerMode, PerformanceControllerStatus } from '../types/api';
 
-const CONTROLLER_URL = 'http://localhost:8090';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const POLL_INTERVAL = 3000; // 3 seconds
 
 interface UsePerformanceControllerReturn {
@@ -19,7 +19,11 @@ export function usePerformanceController(): UsePerformanceControllerReturn {
 
   const fetchStatus = useCallback(async (signal?: AbortSignal) => {
     try {
-      const response = await fetch(`${CONTROLLER_URL}/status`, { signal });
+      const apiKey = sessionStorage.getItem('apiKey') || '';
+      const response = await fetch(`${API_BASE}/controller/status`, {
+        headers: { 'X-API-Key': apiKey },
+        signal,
+      });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
@@ -54,9 +58,13 @@ export function usePerformanceController(): UsePerformanceControllerReturn {
 
   const setMode = useCallback(async (mode: ControllerMode) => {
     try {
-      const response = await fetch(`${CONTROLLER_URL}/controller/mode`, {
+      const apiKey = sessionStorage.getItem('apiKey') || '';
+      const response = await fetch(`${API_BASE}/controller/mode`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': apiKey,
+        },
         body: JSON.stringify({ mode }),
       });
       if (!response.ok) {

@@ -29,7 +29,7 @@ from api.models.health import (
 )
 from api.rate_limit import limiter, rate_limit_exceeded_handler
 from api.redis_subscriber import RedisSubscriber
-from api.routes import agents, metrics, puppet, simulation
+from api.routes import agents, controller, metrics, puppet, simulation
 from api.snapshots import StateSnapshotManager
 from api.websocket import manager as connection_manager
 from api.websocket import router as websocket_router
@@ -279,6 +279,7 @@ def create_app(
     app.include_router(agents.router, prefix="/agents", tags=["agents"])
     app.include_router(puppet.router, prefix="/agents", tags=["puppet"])
     app.include_router(metrics.router, prefix="/metrics", tags=["metrics"])
+    app.include_router(controller.router, prefix="/controller", tags=["controller"])
     app.include_router(websocket_router)
 
     @app.get("/health")

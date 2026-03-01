@@ -539,11 +539,28 @@ def _generate_display_name(container_name: str) -> str:
 
 @functools.cache
 def _discover_containers() -> tuple[dict[str, dict[str, str]], str | None]:
-    """Parse compose.yml to dynamically build the container configuration.
+    """Build the container configuration.
+
+    In production (DEPLOYMENT_ENV=production) the compose.yml is not available,
+    so the configuration is built from the _FALLBACK_CONTAINER_CONFIG which maps
+    the same logical service names used as Kubernetes container labels.
+
+    In local/development mode the compose.yml is parsed to discover all services
+    dynamically, with a fallback to _FALLBACK_CONTAINER_CONFIG if parsing fails.
 
     Returns a tuple of (container_config, error_message).
     error_message is None on success, or a description of the problem on failure.
     """
+    deployment_env = os.getenv("DEPLOYMENT_ENV", "local")
+
+    if deployment_env == "production":
+        # In Kubernetes, container names come from the `container` label in Prometheus.
+        # Use the fallback config as the known-services map; resource metrics are
+        # fetched by label rather than by container_name, so the keys here just drive
+        # the display list.
+        logger.info("Production deployment — using static container config")
+        return _FALLBACK_CONTAINER_CONFIG, None
+
     import yaml
 
     if not COMPOSE_FILE_PATH.exists():
@@ -598,10 +615,19 @@ def _discover_containers() -> tuple[dict[str, dict[str, str]], str | None]:
     return config, None
 
 
-def _fetch_cadvisor_machine_info() -> dict[str, Any] | None:
-    """Fetch machine info from cAdvisor with caching.
+_PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "http://prometheus:9090")
 
-    Returns dict with num_cores, memory_capacity, etc.
+
+async def _fetch_prometheus_machine_info() -> dict[str, Any] | None:
+    """Fetch machine-level CPU and memory totals from Prometheus with caching.
+
+    Queries:
+    - machine_cpu_cores          — total logical CPU cores on the host
+    - machine_memory_bytes       — total physical memory on the host
+
+    Returns a dict with keys ``num_cores`` (int) and ``memory_capacity`` (int bytes),
+    or None if Prometheus is unreachable.  Stale cache is returned when a refresh
+    fails so that a transient outage does not wipe the totals.
     """
     global _machine_info_cache, _machine_info_cache_time
 
@@ -610,109 +636,145 @@ def _fetch_cadvisor_machine_info() -> dict[str, Any] | None:
         return _machine_info_cache
 
     try:
-        with httpx.Client(timeout=3.0) as client:
-            response = client.get("http://cadvisor:8080/api/v1.3/machine")
-            if response.status_code == 200:
-                _machine_info_cache = response.json()
-                _machine_info_cache_time = now
-                return _machine_info_cache
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            cpu_resp = await client.get(
+                f"{_PROMETHEUS_URL}/api/v1/query",
+                params={"query": "machine_cpu_cores"},
+            )
+            mem_resp = await client.get(
+                f"{_PROMETHEUS_URL}/api/v1/query",
+                params={"query": "machine_memory_bytes"},
+            )
+
+        num_cores = 1
+        memory_capacity = 0
+
+        if cpu_resp.status_code == 200:
+            cpu_data = cpu_resp.json()
+            results = cpu_data.get("data", {}).get("result", [])
+            if results:
+                num_cores = int(float(results[0].get("value", [0, "1"])[1]))
+
+        if mem_resp.status_code == 200:
+            mem_data = mem_resp.json()
+            results = mem_data.get("data", {}).get("result", [])
+            if results:
+                memory_capacity = int(float(results[0].get("value", [0, "0"])[1]))
+
+        info: dict[str, Any] = {"num_cores": num_cores, "memory_capacity": memory_capacity}
+        _machine_info_cache = info
+        _machine_info_cache_time = now
+        return _machine_info_cache
+
     except Exception as e:
-        logger.debug(f"Failed to fetch cAdvisor machine info: {e}")
+        logger.debug("Failed to fetch Prometheus machine info: %s", e)
 
     return _machine_info_cache  # Return stale cache if fetch fails
 
 
-def _fetch_cadvisor_stats() -> dict[str, Any] | None:
-    """Fetch container stats from cAdvisor API.
+async def _fetch_prometheus_container_stats() -> dict[str, dict[str, float]] | None:
+    """Fetch per-container CPU and memory metrics from Prometheus.
 
-    Returns dict mapping container name to stats, or None if unavailable.
+    Label filters differ by deployment environment:
+    - local       : ``{name=~"rideshare-.*"}``       (Docker container names)
+    - production  : ``{namespace="rideshare-prod", container!="POD", container!=""}``
+
+    The function issues three instant-query requests in parallel:
+    1. ``rate(container_cpu_usage_seconds_total[1m])``  — CPU usage (fractional cores/s)
+    2. ``container_memory_working_set_bytes``           — actual memory usage (bytes)
+    3. ``container_spec_memory_limit_bytes``            — configured memory limit (bytes)
+
+    Returns a dict keyed by container name with the following sub-keys:
+        cpu_cores   float  — CPU usage expressed in fractional cores
+        memory_used float  — memory working-set in bytes
+        memory_limit float — memory limit in bytes (0 means unlimited)
+
+    Returns None if Prometheus is unreachable.
     """
-    cadvisor_url = "http://cadvisor:8080/api/v1.3/docker/"
+    import asyncio
+
+    deployment_env = os.getenv("DEPLOYMENT_ENV", "local")
+
+    if deployment_env == "production":
+        label_filter = 'namespace="rideshare-prod",container!="POD",container!=""'
+        name_label = "container"
+    else:
+        label_filter = 'name=~"rideshare-.*"'
+        name_label = "name"
+
+    cpu_query = f"rate(container_cpu_usage_seconds_total{{{label_filter}}}[1m])"
+    mem_query = f"container_memory_working_set_bytes{{{label_filter}}}"
+    limit_query = f"container_spec_memory_limit_bytes{{{label_filter}}}"
 
     try:
-        with httpx.Client(timeout=3.0) as client:
-            response = client.get(cadvisor_url)
-            if response.status_code == 200:
-                return cast(dict[str, Any], response.json())
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            cpu_task = client.get(f"{_PROMETHEUS_URL}/api/v1/query", params={"query": cpu_query})
+            mem_task = client.get(f"{_PROMETHEUS_URL}/api/v1/query", params={"query": mem_query})
+            limit_task = client.get(
+                f"{_PROMETHEUS_URL}/api/v1/query", params={"query": limit_query}
+            )
+            cpu_resp, mem_resp, limit_resp = await asyncio.gather(cpu_task, mem_task, limit_task)
+
+        stats: dict[str, dict[str, float]] = {}
+
+        def _extract(resp: httpx.Response, key: str) -> None:
+            if resp.status_code != 200:
+                return
+            for item in resp.json().get("data", {}).get("result", []):
+                container = item.get("metric", {}).get(name_label, "")
+                if not container:
+                    continue
+                value = float(item.get("value", [0, "0"])[1])
+                if container not in stats:
+                    stats[container] = {"cpu_cores": 0.0, "memory_used": 0.0, "memory_limit": 0.0}
+                stats[container][key] = value
+
+        _extract(cpu_resp, "cpu_cores")
+        _extract(mem_resp, "memory_used")
+        _extract(limit_resp, "memory_limit")
+
+        return stats if stats else None
+
     except Exception as e:
-        logger.debug(f"Failed to fetch cAdvisor stats: {e}")
+        logger.debug("Failed to fetch Prometheus container stats: %s", e)
 
     return None
 
 
-def _calculate_cpu_percent(stats: list[dict[str, Any]]) -> float:
-    """Calculate CPU percentage from cAdvisor stats.
-
-    Uses the difference between the last two stats samples.
-    Returns 0.0 if insufficient data.
-    """
-    if len(stats) < 2:
-        return 0.0
-
-    curr = stats[-1]
-    prev = stats[-2]
-
-    curr_cpu = curr.get("cpu", {}).get("usage", {}).get("total", 0)
-    prev_cpu = prev.get("cpu", {}).get("usage", {}).get("total", 0)
-
-    curr_time = curr.get("timestamp", "")
-    prev_time = prev.get("timestamp", "")
-
-    # Parse timestamps and calculate delta in nanoseconds
-    from datetime import datetime as dt
-
-    try:
-        curr_dt = dt.fromisoformat(curr_time.replace("Z", "+00:00"))
-        prev_dt = dt.fromisoformat(prev_time.replace("Z", "+00:00"))
-        time_delta_ns = (curr_dt - prev_dt).total_seconds() * 1e9
-    except Exception:
-        return 0.0
-
-    if time_delta_ns <= 0:
-        return 0.0
-
-    cpu_delta = curr_cpu - prev_cpu
-    # cAdvisor reports CPU in nanoseconds, normalize to percentage
-    cpu_percent = (cpu_delta / time_delta_ns) * 100
-
-    return max(0.0, float(cpu_percent))  # No upper clamp - can exceed 100% for multi-core
-
-
-def _parse_container_resource_metrics(
-    container_name: str, data: dict[str, Any]
+def _parse_prometheus_resource_metrics(
+    container_data: dict[str, float],
+    total_cores: int,
 ) -> tuple[float, float, float, float]:
-    """Parse container resource metrics from cAdvisor data.
+    """Parse container resource metrics from a Prometheus stats entry.
 
-    Memory limit is extracted from cAdvisor's spec.memory.limit field,
-    which reflects the actual Docker mem_limit setting from compose.yml.
+    Args:
+        container_data: Dict with keys cpu_cores, memory_used, memory_limit.
+        total_cores: Number of logical CPU cores on the host (for normalisation).
 
     Returns: (memory_used_mb, memory_limit_mb, memory_percent, cpu_percent)
+        cpu_percent is expressed as a percentage of **one** core so that the
+        caller can accumulate raw values across containers and normalise by
+        total_cores at the end — matching the previous cAdvisor behaviour.
     """
-    stats = data.get("stats", [])
-    latest = stats[-1] if stats else {}
+    memory_used_bytes = container_data.get("memory_used", 0.0)
+    memory_limit_bytes = container_data.get("memory_limit", 0.0)
+    cpu_cores = container_data.get("cpu_cores", 0.0)
 
-    # Memory metrics (working_set is the relevant metric for actual usage)
-    memory = latest.get("memory", {})
-    memory_working_set = memory.get("working_set", 0)
-    memory_used_mb = memory_working_set / (1024 * 1024)
+    memory_used_mb = memory_used_bytes / (1024 * 1024)
 
-    # Get memory limit from cAdvisor spec (actual Docker container limit)
-    spec = data.get("spec", {})
-    memory_limit_bytes = spec.get("memory", {}).get("limit", 0)
-
-    # Handle "unlimited" case: when no mem_limit is set in Docker,
-    # cAdvisor reports max uint64 or a very large value
+    # Treat 0 and unreasonably large values as "no limit"
     MAX_REASONABLE_LIMIT = 64 * 1024 * 1024 * 1024  # 64 GB
-    if memory_limit_bytes == 0 or memory_limit_bytes > MAX_REASONABLE_LIMIT:
+    if memory_limit_bytes <= 0 or memory_limit_bytes > MAX_REASONABLE_LIMIT:
         memory_limit_mb = 0.0
     else:
         memory_limit_mb = memory_limit_bytes / (1024 * 1024)
 
-    # Calculate memory percentage
     memory_percent = (memory_used_mb / memory_limit_mb * 100) if memory_limit_mb > 0 else 0.0
 
-    # CPU percentage
-    cpu_percent = _calculate_cpu_percent(stats)
+    # cpu_cores is fractional cores (e.g. 0.05 = 5% of one core).
+    # Multiply by 100 to get a "percentage of one core" value that matches what
+    # the old cAdvisor path produced.
+    cpu_percent = cpu_cores * 100.0
 
     return (
         round(memory_used_mb, 1),
@@ -722,29 +784,12 @@ def _parse_container_resource_metrics(
     )
 
 
-def _find_container_in_cadvisor(
-    container_name: str, cadvisor_data: dict[str, Any]
-) -> dict[str, Any] | None:
-    """Find a container's data in cAdvisor response by name."""
-    for key, data in cadvisor_data.items():
-        # Check if the container name is in the key or in the aliases
-        if container_name in key:
-            return cast(dict[str, Any], data)
-        aliases = data.get("aliases", [])
-        if container_name in aliases:
-            return cast(dict[str, Any], data)
-        # Check the name field
-        if data.get("name", "").endswith(container_name):
-            return cast(dict[str, Any], data)
-    return None
-
-
 @router.get("/infrastructure", response_model=InfrastructureResponse)
 @limiter.limit("120/minute")
 async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse:
     """Returns unified infrastructure metrics for all services.
 
-    Combines health check status with container resource metrics from cAdvisor.
+    Combines health check status with container resource metrics from Prometheus.
     Each service includes:
     - Health status (healthy/degraded/unhealthy)
     - Health check latency
@@ -1485,12 +1530,16 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         "rideshare-airflow-scheduler": airflow_scheduler_raw[3],
     }
 
-    # Fetch container resource metrics from cAdvisor
-    cadvisor_data = _fetch_cadvisor_stats()
-    cadvisor_available = cadvisor_data is not None
+    # Fetch container resource metrics and machine info from Prometheus concurrently.
+    # Both calls are async so we can run them in parallel with a gather.
+    import asyncio as _asyncio
 
-    # Fetch machine info for system-wide totals
-    machine_info = _fetch_cadvisor_machine_info() if cadvisor_available else None
+    prometheus_container_data, machine_info = await _asyncio.gather(
+        _fetch_prometheus_container_stats(),
+        _fetch_prometheus_machine_info(),
+    )
+    prometheus_available = prometheus_container_data is not None
+
     total_cores = machine_info.get("num_cores", 1) if machine_info else 1
     # Memory capacity in bytes - convert to MB
     memory_capacity_bytes = machine_info.get("memory_capacity", 0) if machine_info else 0
@@ -1501,6 +1550,20 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
     # Accumulators for system-wide totals
     total_cpu_raw = 0.0  # Sum of per-container CPU (raw, percentage of 1 core each)
     total_memory_used = 0.0
+
+    deployment_env = os.getenv("DEPLOYMENT_ENV", "local")
+
+    def _resolve_prometheus_key(container_name: str) -> str:
+        """Map a compose container name to the Prometheus label value.
+
+        In local mode Prometheus uses the full Docker container name (e.g.
+        ``rideshare-simulation``).  In production the ``container`` label
+        holds only the bare container name without the ``rideshare-`` prefix
+        (e.g. ``simulation``).
+        """
+        if deployment_env == "production":
+            return container_name.removeprefix("rideshare-")
+        return container_name
 
     # Build service metrics list
     SPARK_CONTAINER_NAME = "rideshare-spark-thrift-server"
@@ -1523,17 +1586,18 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         ):
             status = _determine_status(latency_ms, svc_thresholds[0], svc_thresholds[1])
 
-        # Get resource metrics from cAdvisor if available
+        # Get resource metrics from Prometheus if available
         memory_used_mb = 0.0
         memory_limit_mb = 0.0
         memory_percent = 0.0
         cpu_percent = 0.0
 
-        if cadvisor_available and cadvisor_data is not None:
-            container_data = _find_container_in_cadvisor(container_name, cadvisor_data)
-            if container_data:
+        if prometheus_available and prometheus_container_data is not None:
+            prom_key = _resolve_prometheus_key(container_name)
+            container_prom = prometheus_container_data.get(prom_key)
+            if container_prom is not None:
                 memory_used_mb, memory_limit_mb, memory_percent, cpu_percent_raw = (
-                    _parse_container_resource_metrics(container_name, container_data)
+                    _parse_prometheus_resource_metrics(container_prom, total_cores)
                 )
                 # Accumulate totals (cpu_percent_raw is per-core, memory is in MB)
                 total_cpu_raw += cpu_percent_raw
@@ -1541,7 +1605,7 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
                 # Normalize CPU for display (percentage of all cores)
                 cpu_percent = round(cpu_percent_raw / total_cores, 1) if total_cores > 0 else 0.0
             else:
-                # Container not found in cAdvisor — it's not running.
+                # Container not found in Prometheus — it's not running.
                 # Override both HEALTHY (no health endpoint) and UNHEALTHY
                 # (connection refused) to the more accurate STOPPED status.
                 if status in (ContainerStatus.HEALTHY, ContainerStatus.UNHEALTHY):
@@ -1578,7 +1642,7 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
 
     # Determine overall status — binary HEALTHY/UNHEALTHY across all services.
     # Spark thrift is optional (not deployed by default); exclude it when not running.
-    # Its health check returns UNHEALTHY (connection refused) and cAdvisor marks it
+    # Its health check returns UNHEALTHY (connection refused) and Prometheus marks it
     # STOPPED — either way it should not drag the overall status down.
     overall_statuses = [
         status
@@ -1607,7 +1671,7 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
     return InfrastructureResponse(
         services=services,
         overall_status=overall_status,
-        cadvisor_available=cadvisor_available,
+        cadvisor_available=prometheus_available,
         timestamp=time.time(),
         total_cpu_percent=round(total_cpu_percent, 1),
         total_memory_used_mb=round(total_memory_used, 1),

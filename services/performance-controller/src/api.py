@@ -13,6 +13,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from pydantic import BaseModel
 
+from .settings import get_settings
+
 if TYPE_CHECKING:
     from .controller import PerformanceController
 
@@ -66,9 +68,12 @@ class ModeRequest(BaseModel):
 
 app = FastAPI(title="Performance Controller API", version="1.0.0")
 
+_settings = get_settings()
+_cors_origins = [o.strip() for o in _settings.api.cors_origins.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -113,6 +113,17 @@ data:
         options:
           path: /etc/dashboards/operations
 
+      # Performance folder (Performance Engineering dashboard)
+      - name: 'performance'
+        orgId: 1
+        folder: 'Performance'
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 10
+        allowUiUpdates: true
+        options:
+          path: /etc/dashboards/performance
+
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -6782,6 +6793,1626 @@ data:
       "weekStart": ""
     }
 
+  rider-explorer.json: |
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": {
+              "type": "grafana",
+              "uid": "-- Grafana --"
+            },
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "description": "Individual rider deep-dive analytics from Gold and Silver layers. Select a rider from the dropdown to explore trip history, spending, ratings, cancellations, surge exposure, and GPS trails. All data queried from Delta Lake via Trino.",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "id": 1,
+          "panels": [],
+          "title": "Rider Overview",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Profile details for the selected rider from dim_riders.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "green", "value": null }]
+              },
+              "custom": { "align": "auto", "displayMode": "auto", "inspect": true }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 12, "x": 0, "y": 1 },
+          "id": 2,
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": { "show": false, "reducer": ["sum"], "fields": "" }
+          },
+          "pluginVersion": "10.0.0",
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "SELECT\n  first_name || ' ' || last_name AS name,\n  payment_method_type,\n  behavior_factor,\n  home_lat,\n  home_lon\nFROM delta.gold.dim_riders\nWHERE rider_id = '$rider_id'",
+              "refId": "A"
+            }
+          ],
+          "title": "Rider Profile",
+          "type": "table"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Total number of trips for this rider.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "blue", "value": null }]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 3, "x": 12, "y": 1 },
+          "id": 3,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "textMode": "auto"
+          },
+          "pluginVersion": "10.0.0",
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "SELECT COUNT(*) AS trips_completed\nFROM delta.gold.fact_trips ft\nJOIN delta.gold.dim_riders dr ON ft.rider_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'",
+              "refId": "A"
+            }
+          ],
+          "title": "Trips Completed",
+          "type": "stat"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Total amount spent by this rider from fact_payments.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "green", "value": null }]
+              },
+              "unit": "currencyUSD",
+              "decimals": 2
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 3, "x": 15, "y": 1 },
+          "id": 4,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "textMode": "auto"
+          },
+          "pluginVersion": "10.0.0",
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "SELECT COALESCE(SUM(total_fare), 0) AS total_spent\nFROM delta.gold.fact_payments fp\nJOIN delta.gold.dim_riders dr ON fp.rider_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'",
+              "refId": "A"
+            }
+          ],
+          "title": "Total Spent",
+          "type": "stat"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Average rating received by this rider. Thresholds: red (<3.5), yellow (3.5-4.0), green (4.0+).",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "decimals": 2,
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "yellow", "value": 3.5 },
+                  { "color": "green", "value": 4.0 }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 3, "x": 18, "y": 1 },
+          "id": 5,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "textMode": "auto"
+          },
+          "pluginVersion": "10.0.0",
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "SELECT ROUND(AVG(CAST(rating AS DOUBLE)), 2) AS avg_rating\nFROM delta.gold.fact_ratings fr\nJOIN delta.gold.dim_riders dr ON fr.ratee_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'\n  AND fr.ratee_type = 'rider'",
+              "refId": "A"
+            }
+          ],
+          "title": "Avg Rating Received",
+          "type": "stat"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Average wait time from request to match for this rider.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "decimals": 0,
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 60 },
+                  { "color": "red", "value": 120 }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 3, "x": 21, "y": 1 },
+          "id": 6,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "textMode": "auto"
+          },
+          "pluginVersion": "10.0.0",
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "SELECT ROUND(AVG(date_diff('second', requested_at, matched_at)), 0) AS avg_wait_seconds\nFROM delta.gold.fact_trips ft\nJOIN delta.gold.dim_riders dr ON ft.rider_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'\n  AND ft.matched_at IS NOT NULL",
+              "refId": "A"
+            }
+          ],
+          "title": "Avg Wait Time",
+          "type": "stat"
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+          "id": 7,
+          "panels": [],
+          "title": "Spending & Ratings",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Daily total spending by this rider from fact_payments.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "gradientMode": "none",
+                "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "scaleDistribution": { "type": "linear" },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": { "group": "A", "mode": "none" },
+                "thresholdsStyle": { "mode": "off" }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "green", "value": null }]
+              },
+              "unit": "currencyUSD"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+          "id": 8,
+          "options": {
+            "legend": {
+              "calcs": ["sum", "mean"],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "SELECT\n  CAST(dt.date_key AS TIMESTAMP) AS time,\n  SUM(fp.total_fare) AS daily_spending\nFROM delta.gold.fact_payments fp\nJOIN delta.gold.dim_riders dr ON fp.rider_key = dr.rider_key\nJOIN delta.gold.dim_time dt ON fp.time_key = dt.time_key\nWHERE dr.rider_id = '$rider_id'\nGROUP BY dt.date_key\nORDER BY time",
+              "refId": "A"
+            }
+          ],
+          "title": "Spending Over Time",
+          "type": "timeseries"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Individual rating events received by this rider over time. Each point is one rating.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Rating",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "points",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+                "lineInterpolation": "linear",
+                "lineWidth": 0,
+                "pointSize": 8,
+                "scaleDistribution": { "type": "linear" },
+                "showPoints": "always",
+                "spanNulls": false,
+                "stacking": { "group": "A", "mode": "none" },
+                "thresholdsStyle": { "mode": "off" }
+              },
+              "mappings": [],
+              "min": 0,
+              "max": 5,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "green", "value": null }]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+          "id": 9,
+          "options": {
+            "legend": {
+              "calcs": ["mean"],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": { "mode": "single", "sort": "none" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "SELECT\n  fr.rating_timestamp AS time,\n  fr.rating\nFROM delta.gold.fact_ratings fr\nJOIN delta.gold.dim_riders dr ON fr.ratee_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'\n  AND fr.ratee_type = 'rider'\nORDER BY time",
+              "refId": "A"
+            }
+          ],
+          "title": "Rating History",
+          "type": "timeseries"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Distribution of ratings received by this rider (1-5 stars).",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Count",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "bars",
+                "fillOpacity": 80,
+                "gradientMode": "none",
+                "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": { "type": "linear" },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": { "group": "A", "mode": "none" },
+                "thresholdsStyle": { "mode": "off" }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "green", "value": null }]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 6, "x": 0, "y": 14 },
+          "id": 10,
+          "options": {
+            "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": false },
+            "tooltip": { "mode": "single", "sort": "none" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "WITH buckets AS (\n  SELECT rating_val, rating_label\n  FROM UNNEST(ARRAY[1,2,3,4,5],\n              ARRAY['1 Star','2 Stars','3 Stars','4 Stars','5 Stars']) AS t(rating_val, rating_label)\n),\nrating_data AS (\n  SELECT CAST(fr.rating AS INTEGER) AS rating_val, COUNT(*) AS rating_count\n  FROM delta.gold.fact_ratings fr\n  JOIN delta.gold.dim_riders dr ON fr.ratee_key = dr.rider_key\n  WHERE dr.rider_id = '$rider_id'\n    AND fr.ratee_type = 'rider'\n  GROUP BY CAST(fr.rating AS INTEGER)\n)\nSELECT b.rating_label AS rating, COALESCE(r.rating_count, 0) AS rating_count\nFROM buckets b LEFT JOIN rating_data r ON b.rating_val = r.rating_val\nORDER BY b.rating_val",
+              "refId": "A"
+            }
+          ],
+          "title": "Ratings Received (Distribution)",
+          "type": "barchart"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Distribution of ratings given by this rider to drivers. Shows how this rider rates others.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Count",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "bars",
+                "fillOpacity": 80,
+                "gradientMode": "none",
+                "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": { "type": "linear" },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": { "group": "A", "mode": "none" },
+                "thresholdsStyle": { "mode": "off" }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "green", "value": null }]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 6, "x": 6, "y": 14 },
+          "id": 11,
+          "options": {
+            "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": false },
+            "tooltip": { "mode": "single", "sort": "none" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "WITH buckets AS (\n  SELECT rating_val, rating_label\n  FROM UNNEST(ARRAY[1,2,3,4,5],\n              ARRAY['1 Star','2 Stars','3 Stars','4 Stars','5 Stars']) AS t(rating_val, rating_label)\n),\nrating_data AS (\n  SELECT CAST(fr.rating AS INTEGER) AS rating_val, COUNT(*) AS rating_count\n  FROM delta.gold.fact_ratings fr\n  JOIN delta.gold.dim_riders dr ON fr.rater_key = dr.rider_key\n  WHERE dr.rider_id = '$rider_id'\n    AND fr.rater_type = 'rider'\n  GROUP BY CAST(fr.rating AS INTEGER)\n)\nSELECT b.rating_label AS rating, COALESCE(r.rating_count, 0) AS rating_count\nFROM buckets b LEFT JOIN rating_data r ON b.rating_val = r.rating_val\nORDER BY b.rating_val",
+              "refId": "A"
+            }
+          ],
+          "title": "Ratings Given (Distribution)",
+          "type": "barchart"
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+          "id": 12,
+          "panels": [],
+          "title": "Trip History, Cancellations & GPS",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Recent completed trips for this rider with driver name, zones, fare, surge, distance, and duration. Limited to 50 most recent.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "green", "value": null }]
+              },
+              "custom": { "align": "auto", "displayMode": "auto", "inspect": true }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "fare" },
+                "properties": [
+                  { "id": "unit", "value": "currencyUSD" },
+                  { "id": "decimals", "value": 2 }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "distance_km" },
+                "properties": [
+                  { "id": "unit", "value": "km" },
+                  { "id": "decimals", "value": 1 }
+                ]
+              }
+            ]
+          },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 23 },
+          "id": 13,
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": { "show": false, "reducer": ["sum"], "fields": "" },
+            "sortBy": [{ "desc": true, "displayName": "completed_at" }]
+          },
+          "pluginVersion": "10.0.0",
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "SELECT\n  ft.completed_at,\n  dd.first_name || ' ' || dd.last_name AS driver_name,\n  pz.name AS pickup_zone,\n  dz.name AS dropoff_zone,\n  ft.fare,\n  ft.surge_multiplier AS surge,\n  ROUND(ft.distance_km, 1) AS distance_km,\n  ROUND(ft.duration_minutes, 0) AS duration_min\nFROM delta.gold.fact_trips ft\nJOIN delta.gold.dim_riders dr ON ft.rider_key = dr.rider_key\nJOIN delta.gold.dim_drivers dd ON ft.driver_key = dd.driver_key\nLEFT JOIN delta.gold.dim_zones pz ON ft.pickup_zone_key = pz.zone_key\nLEFT JOIN delta.gold.dim_zones dz ON ft.dropoff_zone_key = dz.zone_key\nWHERE dr.rider_id = '$rider_id'\nORDER BY ft.completed_at DESC\nLIMIT 50",
+              "refId": "A"
+            }
+          ],
+          "title": "Completed Trips History",
+          "type": "table"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Recent cancelled trips for this rider with cancellation reason, stage at which cancellation occurred, pickup zone, and surge at time of request. Limited to 50 most recent.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "green", "value": null }]
+              },
+              "custom": { "align": "auto", "displayMode": "auto", "inspect": true }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 31 },
+          "id": 18,
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": { "show": false, "reducer": ["sum"], "fields": "" },
+            "sortBy": [{ "desc": true, "displayName": "cancelled_at" }]
+          },
+          "pluginVersion": "10.0.0",
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "SELECT\n  fc.cancelled_at,\n  fc.cancellation_reason,\n  fc.cancellation_stage,\n  pz.name AS pickup_zone,\n  fc.surge_multiplier AS surge\nFROM delta.gold.fact_cancellations fc\nJOIN delta.gold.dim_riders dr ON fc.rider_key = dr.rider_key\nLEFT JOIN delta.gold.dim_zones pz ON fc.pickup_zone_key = pz.zone_key\nWHERE dr.rider_id = '$rider_id'\nORDER BY fc.cancelled_at DESC\nLIMIT 50",
+              "refId": "A"
+            }
+          ],
+          "title": "Cancelled Trips History",
+          "type": "table"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Distribution of cancellation reasons for this rider.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "green", "value": null }]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 6, "x": 0, "y": 39 },
+          "id": 14,
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true,
+              "values": ["value", "percent"]
+            },
+            "pieType": "donut",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": true },
+            "tooltip": { "mode": "single", "sort": "none" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "SELECT\n  cancellation_reason,\n  COUNT(*) AS cancellation_count\nFROM delta.gold.fact_cancellations fc\nJOIN delta.gold.dim_riders dr ON fc.rider_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'\nGROUP BY cancellation_reason\nORDER BY cancellation_count DESC",
+              "refId": "A"
+            }
+          ],
+          "title": "Cancellation Reasons",
+          "type": "piechart"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Percentage of this rider's trips that had surge pricing (multiplier > 1.0).",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "decimals": 1,
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 30 },
+                  { "color": "red", "value": 60 }
+                ]
+              },
+              "unit": "percent"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 39 },
+          "id": 15,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "textMode": "auto"
+          },
+          "pluginVersion": "10.0.0",
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "SELECT\n  COALESCE(\n    ROUND(\n      100.0 * SUM(CASE WHEN ft.surge_multiplier > 1.0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0),\n      1\n    ),\n    DOUBLE '0.0'\n  ) AS surge_trip_pct\nFROM delta.gold.fact_trips ft\nJOIN delta.gold.dim_riders dr ON ft.rider_key = dr.rider_key\nWHERE dr.rider_id = '$rider_id'",
+              "refId": "A"
+            }
+          ],
+          "title": "Surge Exposure %",
+          "type": "stat"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Distribution of surge multiplier ranges across this rider's trips.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Trips",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "bars",
+                "fillOpacity": 80,
+                "gradientMode": "none",
+                "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": { "type": "linear" },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": { "group": "A", "mode": "none" },
+                "thresholdsStyle": { "mode": "off" }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "green", "value": null }]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 43 },
+          "id": 16,
+          "options": {
+            "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": false },
+            "tooltip": { "mode": "single", "sort": "none" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "WITH buckets AS (\n  SELECT range_name, range_order\n  FROM UNNEST(ARRAY['1.0x (none)','1.0-1.5x','1.5-2.0x','2.0x+'],\n              ARRAY[1,2,3,4]) AS t(range_name, range_order)\n),\nsurge_data AS (\n  SELECT\n    CASE\n      WHEN ft.surge_multiplier <= 1.0 THEN '1.0x (none)'\n      WHEN ft.surge_multiplier <= 1.5 THEN '1.0-1.5x'\n      WHEN ft.surge_multiplier <= 2.0 THEN '1.5-2.0x'\n      ELSE '2.0x+'\n    END AS surge_bucket,\n    COUNT(*) AS trip_count\n  FROM delta.gold.fact_trips ft\n  JOIN delta.gold.dim_riders dr ON ft.rider_key = dr.rider_key\n  WHERE dr.rider_id = '$rider_id'\n  GROUP BY 1\n)\nSELECT b.range_name AS surge_range, COALESCE(s.trip_count, 0) AS trip_count\nFROM buckets b LEFT JOIN surge_data s ON b.range_name = s.surge_bucket\nORDER BY b.range_order",
+              "refId": "A"
+            }
+          ],
+          "title": "Surge Distribution",
+          "type": "barchart"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "GPS ping trail for this rider from the Silver layer. Marker size by speed, color by trip state. Centered on Sao Paulo.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "#B4D5E8", "value": null },
+                  { "color": "#6BAED6", "value": 10 },
+                  { "color": "#3182BD", "value": 30 },
+                  { "color": "#08519C", "value": 50 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 39 },
+          "id": 17,
+          "options": {
+            "basemap": { "config": {}, "name": "Layer 0", "type": "default" },
+            "controls": {
+              "mouseWheelZoom": true,
+              "showAttribution": true,
+              "showDebug": false,
+              "showMeasure": false,
+              "showScale": false,
+              "showZoom": true
+            },
+            "layers": [
+              {
+                "config": {
+                  "showLegend": true,
+                  "style": {
+                    "color": { "field": "trip_state", "fixed": "dark-green" },
+                    "opacity": 0.7,
+                    "rotation": { "fixed": 0, "max": 360, "min": -360, "mode": "mod" },
+                    "size": { "field": "speed", "fixed": 5, "max": 15, "min": 3 },
+                    "symbol": { "fixed": "img/icons/marker/circle.svg", "mode": "fixed" }
+                  }
+                },
+                "location": {
+                  "latitude": "latitude",
+                  "longitude": "longitude",
+                  "mode": "coords"
+                },
+                "name": "GPS Pings",
+                "tooltip": true,
+                "type": "markers"
+              }
+            ],
+            "tooltip": { "mode": "details" },
+            "view": { "allLayers": true, "id": "coords", "lat": -23.55, "lon": -46.63, "zoom": 11 }
+          },
+          "pluginVersion": "10.0.0",
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "SELECT\n  latitude,\n  longitude,\n  speed,\n  trip_state,\n  timestamp\nFROM delta.silver.stg_gps_pings\nWHERE entity_type = 'rider'\n  AND entity_id = '$rider_id'\nORDER BY timestamp\nLIMIT 1000",
+              "refId": "A"
+            }
+          ],
+          "title": "GPS Trail",
+          "type": "geomap"
+        }
+      ],
+      "refresh": "5m",
+      "schemaVersion": 38,
+      "style": "dark",
+      "tags": ["business-intelligence", "riders", "gold"],
+      "templating": {
+        "list": [
+          {
+            "current": { "selected": false, "text": "", "value": "" },
+            "datasource": { "type": "trino-datasource", "uid": "trino" },
+            "definition": "SELECT rider_id AS __value, first_name || ' ' || last_name || ' (' || rider_id || ')' AS __text FROM delta.gold.dim_riders ORDER BY first_name",
+            "hide": 0,
+            "includeAll": false,
+            "label": "Rider",
+            "multi": false,
+            "name": "rider_id",
+            "options": [],
+            "query": "SELECT rider_id AS __value, first_name || ' ' || last_name || ' (' || rider_id || ')' AS __text FROM delta.gold.dim_riders ORDER BY first_name",
+            "refresh": 1,
+            "regex": "",
+            "skipUrlSync": false,
+            "sort": 0,
+            "type": "query"
+          }
+        ]
+      },
+      "time": {
+        "from": "now-7d",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "Rider Explorer",
+      "uid": "rider-explorer",
+      "version": 1,
+      "weekStart": ""
+    }
+
+  driver-explorer.json: |
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": {
+              "type": "grafana",
+              "uid": "-- Grafana --"
+            },
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "description": "Individual driver deep-dive analytics from Gold and Silver layers. Select a driver from the dropdown to explore trip history, earnings, ratings, offers, activity breakdown, cancellations, and GPS trails. All data queried from Delta Lake via Trino.",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "id": 1,
+          "panels": [],
+          "title": "Driver Overview",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Profile details for the selected driver from dim_drivers (SCD Type 2, current record).",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "green", "value": null }]
+              },
+              "custom": { "align": "auto", "displayMode": "auto", "inspect": true }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 12, "x": 0, "y": 1 },
+          "id": 2,
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": { "show": false, "reducer": ["sum"], "fields": "" }
+          },
+          "pluginVersion": "10.0.0",
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "SELECT\n  first_name || ' ' || last_name AS name,\n  vehicle_make || ' ' || vehicle_model || ' (' || CAST(vehicle_year AS VARCHAR) || ')' AS vehicle,\n  license_plate,\n  shift_preference,\n  home_lat,\n  home_lon\nFROM delta.gold.dim_drivers\nWHERE driver_id = '$driver_id'\n  AND current_flag = TRUE",
+              "refId": "A"
+            }
+          ],
+          "title": "Driver Profile",
+          "type": "table"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Total number of trips associated with this driver.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "blue", "value": null }]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 3, "x": 12, "y": 1 },
+          "id": 3,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "textMode": "auto"
+          },
+          "pluginVersion": "10.0.0",
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "SELECT COUNT(*) AS trips_completed\nFROM delta.gold.fact_trips ft\nJOIN delta.gold.dim_drivers dd ON ft.driver_key = dd.driver_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE",
+              "refId": "A"
+            }
+          ],
+          "title": "Trips Completed",
+          "type": "stat"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Sum of driver_payout from fact_payments for this driver.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "green", "value": null }]
+              },
+              "unit": "currencyUSD",
+              "decimals": 2
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 3, "x": 15, "y": 1 },
+          "id": 4,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "textMode": "auto"
+          },
+          "pluginVersion": "10.0.0",
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "SELECT COALESCE(SUM(driver_payout), 0) AS total_earnings\nFROM delta.gold.fact_payments fp\nJOIN delta.gold.dim_drivers dd ON fp.driver_key = dd.driver_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE",
+              "refId": "A"
+            }
+          ],
+          "title": "Total Earnings",
+          "type": "stat"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Average rating received by this driver. Thresholds: red (<3.5), yellow (3.5-4.0), green (4.0+).",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "decimals": 2,
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "yellow", "value": 3.5 },
+                  { "color": "green", "value": 4.0 }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 3, "x": 18, "y": 1 },
+          "id": 5,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "textMode": "auto"
+          },
+          "pluginVersion": "10.0.0",
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "SELECT ROUND(AVG(CAST(rating AS DOUBLE)), 2) AS avg_rating\nFROM delta.gold.fact_ratings fr\nJOIN delta.gold.dim_drivers dd ON fr.ratee_key = dd.driver_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE\n  AND fr.ratee_type = 'driver'",
+              "refId": "A"
+            }
+          ],
+          "title": "Avg Rating",
+          "type": "stat"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Average idle percentage from agg_daily_driver_performance. Idle = (online - en_route - on_trip) / online time.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "decimals": 1,
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 20 },
+                  { "color": "red", "value": 40 }
+                ]
+              },
+              "unit": "percent"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 3, "x": 21, "y": 1 },
+          "id": 6,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "textMode": "auto"
+          },
+          "pluginVersion": "10.0.0",
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "SELECT ROUND(AVG(idle_pct), 1) AS idle_pct\nFROM delta.gold.agg_daily_driver_performance adp\nJOIN delta.gold.dim_drivers dd ON adp.driver_key = dd.driver_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE",
+              "refId": "A"
+            }
+          ],
+          "title": "Idle %",
+          "type": "stat"
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+          "id": 7,
+          "panels": [],
+          "title": "Performance Trends",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Daily trips completed, total payout, and average rating from agg_daily_driver_performance. Payout on right axis (dashed).",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "gradientMode": "none",
+                "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "scaleDistribution": { "type": "linear" },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": { "group": "A", "mode": "none" },
+                "thresholdsStyle": { "mode": "off" }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "green", "value": null }]
+              },
+              "unit": "short"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "total_payout" },
+                "properties": [
+                  { "id": "custom.axisPlacement", "value": "right" },
+                  { "id": "unit", "value": "currencyUSD" },
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } }
+                ]
+              }
+            ]
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+          "id": 8,
+          "options": {
+            "legend": {
+              "calcs": ["mean", "max"],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "SELECT\n  CAST(dt.date_key AS TIMESTAMP) AS time,\n  adp.trips_completed,\n  adp.total_payout,\n  adp.avg_rating\nFROM delta.gold.agg_daily_driver_performance adp\nJOIN delta.gold.dim_drivers dd ON adp.driver_key = dd.driver_key\nJOIN delta.gold.dim_time dt ON adp.time_key = dt.time_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE\nORDER BY time",
+              "refId": "A"
+            }
+          ],
+          "title": "Daily KPI Trend",
+          "type": "timeseries"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Daily time breakdown by driver status: available, en route to pickup, and on trip. Stacked to show total online time composition.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Minutes",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 40,
+                "gradientMode": "none",
+                "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "scaleDistribution": { "type": "linear" },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": { "group": "A", "mode": "normal" },
+                "thresholdsStyle": { "mode": "off" }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "green", "value": null }]
+              },
+              "unit": "min"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+          "id": 9,
+          "options": {
+            "legend": {
+              "calcs": ["sum"],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "SELECT\n  CAST(dt.date_key AS TIMESTAMP) AS time,\n  SUM(CASE WHEN fa.status = 'available' THEN fa.duration_minutes ELSE 0 END) AS available_minutes,\n  SUM(CASE WHEN fa.status = 'en_route_pickup' THEN fa.duration_minutes ELSE 0 END) AS en_route_minutes,\n  SUM(CASE WHEN fa.status = 'on_trip' THEN fa.duration_minutes ELSE 0 END) AS on_trip_minutes\nFROM delta.gold.fact_driver_activity fa\nJOIN delta.gold.dim_drivers dd ON fa.driver_key = dd.driver_key\nJOIN delta.gold.dim_time dt ON fa.time_key = dt.time_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE\nGROUP BY dt.date_key\nORDER BY time",
+              "refId": "A"
+            }
+          ],
+          "title": "Activity Breakdown",
+          "type": "timeseries"
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+          "id": 10,
+          "panels": [],
+          "title": "Offer & Rating Analysis",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Distribution of offer outcomes (accepted, rejected, expired) for this driver.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "green", "value": null }]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 15 },
+          "id": 11,
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true,
+              "values": ["value", "percent"]
+            },
+            "pieType": "donut",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": true },
+            "tooltip": { "mode": "single", "sort": "none" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "SELECT\n  outcome,\n  COUNT(*) AS offer_count\nFROM delta.gold.fact_offers\nWHERE driver_id = '$driver_id'\nGROUP BY outcome\nORDER BY offer_count DESC",
+              "refId": "A"
+            }
+          ],
+          "title": "Offer Outcomes",
+          "type": "piechart"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Average time in seconds for this driver to respond to offers.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "decimals": 1,
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 10 },
+                  { "color": "red", "value": 20 }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 4, "x": 8, "y": 15 },
+          "id": 12,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "textMode": "auto"
+          },
+          "pluginVersion": "10.0.0",
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "SELECT ROUND(AVG(CAST(response_seconds AS DOUBLE)), 1) AS avg_response_seconds\nFROM delta.gold.fact_offers\nWHERE driver_id = '$driver_id'\n  AND response_seconds IS NOT NULL",
+              "refId": "A"
+            }
+          ],
+          "title": "Avg Response Time",
+          "type": "stat"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Daily average response time and offer count. Response time on left axis, count on right axis.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "gradientMode": "none",
+                "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "scaleDistribution": { "type": "linear" },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": { "group": "A", "mode": "none" },
+                "thresholdsStyle": { "mode": "off" }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "green", "value": null }]
+              },
+              "unit": "s"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "offer_count" },
+                "properties": [
+                  { "id": "custom.axisPlacement", "value": "right" },
+                  { "id": "unit", "value": "short" }
+                ]
+              }
+            ]
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+          "id": 13,
+          "options": {
+            "legend": {
+              "calcs": ["mean", "max"],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "SELECT\n  CAST(dt.date_key AS TIMESTAMP) AS time,\n  AVG(CAST(fo.response_seconds AS DOUBLE)) AS avg_response_seconds,\n  COUNT(*) AS offer_count\nFROM delta.gold.fact_offers fo\nJOIN delta.gold.dim_time dt ON fo.time_key = dt.time_key\nWHERE fo.driver_id = '$driver_id'\nGROUP BY dt.date_key\nORDER BY time",
+              "refId": "A"
+            }
+          ],
+          "title": "Offer Response Over Time",
+          "type": "timeseries"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Distribution of ratings received by this driver (1-5 stars). Uses UNNEST to guarantee all buckets appear.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Count",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "bars",
+                "fillOpacity": 80,
+                "gradientMode": "none",
+                "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": { "type": "linear" },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": { "group": "A", "mode": "none" },
+                "thresholdsStyle": { "mode": "off" }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "green", "value": null }]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 6, "x": 0, "y": 23 },
+          "id": 14,
+          "options": {
+            "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": false },
+            "tooltip": { "mode": "single", "sort": "none" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "WITH buckets AS (\n  SELECT rating_val, rating_label\n  FROM UNNEST(ARRAY[1,2,3,4,5],\n              ARRAY['1 Star','2 Stars','3 Stars','4 Stars','5 Stars']) AS t(rating_val, rating_label)\n),\nrating_data AS (\n  SELECT CAST(fr.rating AS INTEGER) AS rating_val, COUNT(*) AS rating_count\n  FROM delta.gold.fact_ratings fr\n  JOIN delta.gold.dim_drivers dd ON fr.ratee_key = dd.driver_key\n  WHERE dd.driver_id = '$driver_id'\n    AND dd.current_flag = TRUE\n    AND fr.ratee_type = 'driver'\n  GROUP BY CAST(fr.rating AS INTEGER)\n)\nSELECT b.rating_label AS rating, COALESCE(r.rating_count, 0) AS rating_count\nFROM buckets b LEFT JOIN rating_data r ON b.rating_val = r.rating_val\nORDER BY b.rating_val",
+              "refId": "A"
+            }
+          ],
+          "title": "Ratings Received (Distribution)",
+          "type": "barchart"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Distribution of ratings given by this driver to riders. Shows how this driver rates others.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Count",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "bars",
+                "fillOpacity": 80,
+                "gradientMode": "none",
+                "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": { "type": "linear" },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": { "group": "A", "mode": "none" },
+                "thresholdsStyle": { "mode": "off" }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "green", "value": null }]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 6, "x": 6, "y": 23 },
+          "id": 15,
+          "options": {
+            "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": false },
+            "tooltip": { "mode": "single", "sort": "none" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "WITH buckets AS (\n  SELECT rating_val, rating_label\n  FROM UNNEST(ARRAY[1,2,3,4,5],\n              ARRAY['1 Star','2 Stars','3 Stars','4 Stars','5 Stars']) AS t(rating_val, rating_label)\n),\nrating_data AS (\n  SELECT CAST(fr.rating AS INTEGER) AS rating_val, COUNT(*) AS rating_count\n  FROM delta.gold.fact_ratings fr\n  JOIN delta.gold.dim_drivers dd ON fr.rater_key = dd.driver_key\n  WHERE dd.driver_id = '$driver_id'\n    AND dd.current_flag = TRUE\n    AND fr.rater_type = 'driver'\n  GROUP BY CAST(fr.rating AS INTEGER)\n)\nSELECT b.rating_label AS rating, COALESCE(r.rating_count, 0) AS rating_count\nFROM buckets b LEFT JOIN rating_data r ON b.rating_val = r.rating_val\nORDER BY b.rating_val",
+              "refId": "A"
+            }
+          ],
+          "title": "Ratings Given (Distribution)",
+          "type": "barchart"
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 31 },
+          "id": 16,
+          "panels": [],
+          "title": "Trip History & GPS",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Recent completed trips for this driver with rider name, zones, fare, surge, distance, and duration. Limited to 50 most recent.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "green", "value": null }]
+              },
+              "custom": { "align": "auto", "displayMode": "auto", "inspect": true }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "fare" },
+                "properties": [
+                  { "id": "unit", "value": "currencyUSD" },
+                  { "id": "decimals", "value": 2 }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "distance_km" },
+                "properties": [
+                  { "id": "unit", "value": "km" },
+                  { "id": "decimals", "value": 1 }
+                ]
+              }
+            ]
+          },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 32 },
+          "id": 17,
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": { "show": false, "reducer": ["sum"], "fields": "" },
+            "sortBy": [{ "desc": true, "displayName": "completed_at" }]
+          },
+          "pluginVersion": "10.0.0",
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "SELECT\n  ft.completed_at,\n  dr.first_name || ' ' || dr.last_name AS rider_name,\n  pz.name AS pickup_zone,\n  dz.name AS dropoff_zone,\n  ft.fare,\n  ft.surge_multiplier AS surge,\n  ROUND(ft.distance_km, 1) AS distance_km,\n  ROUND(ft.duration_minutes, 0) AS duration_min\nFROM delta.gold.fact_trips ft\nJOIN delta.gold.dim_drivers dd ON ft.driver_key = dd.driver_key\nJOIN delta.gold.dim_riders dr ON ft.rider_key = dr.rider_key\nLEFT JOIN delta.gold.dim_zones pz ON ft.pickup_zone_key = pz.zone_key\nLEFT JOIN delta.gold.dim_zones dz ON ft.dropoff_zone_key = dz.zone_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE\nORDER BY ft.completed_at DESC\nLIMIT 50",
+              "refId": "A"
+            }
+          ],
+          "title": "Completed Trips History",
+          "type": "table"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "Cancelled trips involving this driver with reason, stage, and associated rider.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "green", "value": null }]
+              },
+              "custom": { "align": "auto", "displayMode": "auto", "inspect": true }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+          "id": 18,
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": { "show": false, "reducer": ["sum"], "fields": "" },
+            "sortBy": [{ "desc": true, "displayName": "cancelled_at" }]
+          },
+          "pluginVersion": "10.0.0",
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "SELECT\n  fc.cancelled_at,\n  dr.first_name || ' ' || dr.last_name AS rider_name,\n  fc.cancellation_reason,\n  fc.cancellation_stage,\n  fc.surge_multiplier AS surge\nFROM delta.gold.fact_cancellations fc\nJOIN delta.gold.dim_drivers dd ON fc.driver_key = dd.driver_key\nLEFT JOIN delta.gold.dim_riders dr ON fc.rider_key = dr.rider_key\nWHERE dd.driver_id = '$driver_id'\n  AND dd.current_flag = TRUE\nORDER BY fc.cancelled_at DESC",
+              "refId": "A"
+            }
+          ],
+          "title": "Cancelled Trips History",
+          "type": "table"
+        },
+        {
+          "datasource": { "type": "trino-datasource", "uid": "trino" },
+          "description": "GPS ping trail for this driver from the Silver layer. Marker size by speed, color by trip state. Centered on Sao Paulo.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "#B4D5E8", "value": null },
+                  { "color": "#6BAED6", "value": 10 },
+                  { "color": "#3182BD", "value": 30 },
+                  { "color": "#08519C", "value": 50 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+          "id": 19,
+          "options": {
+            "basemap": { "config": {}, "name": "Layer 0", "type": "default" },
+            "controls": {
+              "mouseWheelZoom": true,
+              "showAttribution": true,
+              "showDebug": false,
+              "showMeasure": false,
+              "showScale": false,
+              "showZoom": true
+            },
+            "layers": [
+              {
+                "config": {
+                  "showLegend": true,
+                  "style": {
+                    "color": { "field": "trip_state", "fixed": "dark-green" },
+                    "opacity": 0.7,
+                    "rotation": { "fixed": 0, "max": 360, "min": -360, "mode": "mod" },
+                    "size": { "field": "speed", "fixed": 5, "max": 15, "min": 3 },
+                    "symbol": { "fixed": "img/icons/marker/circle.svg", "mode": "fixed" }
+                  }
+                },
+                "location": {
+                  "latitude": "latitude",
+                  "longitude": "longitude",
+                  "mode": "coords"
+                },
+                "name": "GPS Pings",
+                "tooltip": true,
+                "type": "markers"
+              }
+            ],
+            "tooltip": { "mode": "details" },
+            "view": { "allLayers": true, "id": "coords", "lat": -23.55, "lon": -46.63, "zoom": 11 }
+          },
+          "pluginVersion": "10.0.0",
+          "targets": [
+            {
+              "datasource": { "type": "trino-datasource", "uid": "trino" },
+              "format": 0,
+              "rawQuery": true,
+              "rawSQL": "SELECT\n  latitude,\n  longitude,\n  speed,\n  trip_state,\n  timestamp\nFROM delta.silver.stg_gps_pings\nWHERE entity_type = 'driver'\n  AND entity_id = '$driver_id'\nORDER BY timestamp\nLIMIT 1000",
+              "refId": "A"
+            }
+          ],
+          "title": "GPS Trail",
+          "type": "geomap"
+        }
+      ],
+      "refresh": "5m",
+      "schemaVersion": 38,
+      "style": "dark",
+      "tags": ["business-intelligence", "drivers", "gold"],
+      "templating": {
+        "list": [
+          {
+            "current": { "selected": false, "text": "", "value": "" },
+            "datasource": { "type": "trino-datasource", "uid": "trino" },
+            "definition": "SELECT driver_id AS __value, first_name || ' ' || last_name || ' (' || driver_id || ')' AS __text FROM delta.gold.dim_drivers WHERE current_flag = TRUE ORDER BY first_name",
+            "hide": 0,
+            "includeAll": false,
+            "label": "Driver",
+            "multi": false,
+            "name": "driver_id",
+            "options": [],
+            "query": "SELECT driver_id AS __value, first_name || ' ' || last_name || ' (' || driver_id || ')' AS __text FROM delta.gold.dim_drivers WHERE current_flag = TRUE ORDER BY first_name",
+            "refresh": 1,
+            "regex": "",
+            "skipUrlSync": false,
+            "sort": 0,
+            "type": "query"
+          }
+        ]
+      },
+      "time": {
+        "from": "now-7d",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "Driver Explorer",
+      "uid": "driver-explorer",
+      "version": 1,
+      "weekStart": ""
+    }
+
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -7914,6 +9545,1395 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
+  name: grafana-dashboards-performance
+  labels:
+    app: grafana
+data:
+  performance-engineering.json: |
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": {
+              "type": "grafana",
+              "uid": "-- Grafana --"
+            },
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "description": "Performance engineering dashboard answering: where is the bottleneck and how close are we to saturation? Covers saturation indicators, USE metrics per container, throughput curves, real-time ratio tracking, and infrastructure headroom.",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
+          "id": 1,
+          "panels": [],
+          "title": "Saturation Indicators",
+          "type": "row"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Production rate (simulation events emitted) vs consumption rate (stream processor messages consumed). A growing gap indicates pipeline saturation.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisLabel": "events/sec",
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                }
+              },
+              "unit": "ops"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 1
+          },
+          "id": 2,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "sum(rate(simulation_events_total[$__rate_interval]))",
+              "legendFormat": "Produced (simulation)",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "rate(stream_processor_messages_consumed_total[$__rate_interval])",
+              "legendFormat": "Consumed (stream processor)",
+              "refId": "B"
+            }
+          ],
+          "title": "Throughput Differential",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Total Kafka consumer group lag across all partitions. Rising lag indicates consumers cannot keep up with producers.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisLabel": "messages",
+                "drawStyle": "line",
+                "fillOpacity": 20,
+                "gradientMode": "none",
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "line+area"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 100
+                  },
+                  {
+                    "color": "red",
+                    "value": 1000
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 4,
+            "x": 12,
+            "y": 1
+          },
+          "id": 3,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "sum(kafka_consumergroup_lag)",
+              "legendFormat": "Consumer Lag",
+              "refId": "A"
+            }
+          ],
+          "title": "Kafka Consumer Lag",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Number of pending events in the SimPy event queue. High values indicate the simulation engine is backlogged.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisLabel": "events",
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "gradientMode": "none",
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                }
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 4,
+            "x": 16,
+            "y": 1
+          },
+          "id": 4,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "simulation_simpy_events",
+              "legendFormat": "Queue Depth",
+              "refId": "A"
+            }
+          ],
+          "title": "SimPy Queue Depth",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Redis memory utilization as a percentage of the configured maximum. Approaching 100% risks evictions or OOM.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "decimals": 0,
+              "max": 100,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 70
+                  },
+                  {
+                    "color": "red",
+                    "value": 90
+                  }
+                ]
+              },
+              "unit": "percent"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 4,
+            "x": 20,
+            "y": 1
+          },
+          "id": 5,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "redis_memory_used_bytes / (redis_memory_max_bytes > 0) * 100",
+              "legendFormat": "Memory %",
+              "refId": "A"
+            }
+          ],
+          "title": "Redis Memory %",
+          "type": "stat"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 9
+          },
+          "id": 6,
+          "panels": [],
+          "title": "USE per Resource",
+          "type": "row"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "CPU usage per container as percentage of one core. Multi-core containers may exceed 100%.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisLabel": "CPU % (per core)",
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "lineInterpolation": "smooth",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                }
+              },
+              "unit": "percent"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 0,
+            "y": 10
+          },
+          "id": 7,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "rate(container_cpu_usage_seconds_total{name=~\"rideshare.*\"}[$__rate_interval]) * 100",
+              "legendFormat": "{{name}}",
+              "refId": "A"
+            }
+          ],
+          "title": "CPU % per Container",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Memory working set as a percentage of the container memory limit. Approaching 100% triggers OOM kills.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisLabel": "Memory %",
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "lineInterpolation": "smooth",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                }
+              },
+              "unit": "percent"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 8,
+            "y": 10
+          },
+          "id": 8,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "container_memory_working_set_bytes{name=~\"rideshare.*\"} / (container_spec_memory_limit_bytes{name=~\"rideshare.*\"} > 0) * 100",
+              "legendFormat": "{{name}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Memory % per Container",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Kafka container filesystem I/O rates (reads and writes). High sustained writes may indicate log segment pressure.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisLabel": "bytes/sec",
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "lineInterpolation": "smooth",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                }
+              },
+              "unit": "Bps"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 16,
+            "y": 10
+          },
+          "id": 9,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "rate(container_fs_writes_bytes_total{name=\"rideshare-kafka\"}[$__rate_interval])",
+              "legendFormat": "Writes",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "rate(container_fs_reads_bytes_total{name=\"rideshare-kafka\"}[$__rate_interval])",
+              "legendFormat": "Reads",
+              "refId": "B"
+            }
+          ],
+          "title": "Kafka Disk I/O",
+          "type": "timeseries"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 18
+          },
+          "id": 10,
+          "panels": [],
+          "title": "Throughput Curves",
+          "type": "row"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Scatter plot of throughput vs active trips. Each point represents a moment in time. Reveals whether throughput scales linearly with load or saturates at high trip counts.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisPlacement": "auto",
+                "fillOpacity": 50,
+                "pointSize": {
+                  "fixed": 5
+                },
+                "show": "points"
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Throughput (events/sec)"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "ops"
+                  },
+                  {
+                    "id": "custom.axisLabel",
+                    "value": "events/sec"
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Active Trips"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "short"
+                  },
+                  {
+                    "id": "custom.axisLabel",
+                    "value": "trips"
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 19
+          },
+          "id": 11,
+          "options": {
+            "mapping": "manual",
+            "series": [
+              {
+                "x": "Active Trips",
+                "y": "Throughput (events/sec)"
+              }
+            ],
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "sum(rate(simulation_events_total[$__rate_interval]))",
+              "legendFormat": "Throughput (events/sec)",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "simulation_trips_active",
+              "legendFormat": "Active Trips",
+              "refId": "B"
+            }
+          ],
+          "title": "Throughput vs Active Trips",
+          "transformations": [
+            {
+              "id": "seriesToColumns",
+              "options": {
+                "byField": "Time"
+              }
+            }
+          ],
+          "type": "xychart"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Rate of GPS ping events per second. This is typically the highest-volume event type and a key driver of pipeline load.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisLabel": "pings/sec",
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                }
+              },
+              "unit": "ops"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 12,
+            "y": 19
+          },
+          "id": 12,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "rate(simulation_events_total{event_type=\"gps_ping\"}[$__rate_interval])",
+              "legendFormat": "GPS Pings/sec",
+              "refId": "A"
+            }
+          ],
+          "title": "GPS Pings/sec",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "95th percentile end-to-end pipeline latency from event production to stream processor completion. Rising latency under load signals approaching saturation.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisLabel": "latency",
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "line"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 1
+                  },
+                  {
+                    "color": "red",
+                    "value": 5
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 18,
+            "y": 19
+          },
+          "id": 13,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "histogram_quantile(0.95, sum(rate(stream_processor_pipeline_latency_seconds_bucket[$__rate_interval])) by (le))",
+              "legendFormat": "p95 Latency",
+              "refId": "A"
+            }
+          ],
+          "title": "End-to-End Latency p95",
+          "type": "timeseries"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 27
+          },
+          "id": 14,
+          "panels": [],
+          "title": "Speed & Real-Time Ratio",
+          "type": "row"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Actual sim-seconds per wall-second. When RTR < Speed Multiplier, the simulation is falling behind.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisLabel": "sim-sec / wall-sec",
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "line"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.66
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 28
+          },
+          "id": 15,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "lastNotNull"
+              ],
+              "displayMode": "table",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "simulation_real_time_ratio",
+              "legendFormat": "RTR",
+              "refId": "A"
+            }
+          ],
+          "title": "Real-Time Ratio",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Configured simulation speed target. Compare with RTR to assess whether the simulation keeps up.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisLabel": "multiplier",
+                "drawStyle": "line",
+                "fillOpacity": 5,
+                "gradientMode": "none",
+                "lineInterpolation": "stepAfter",
+                "lineStyle": {
+                  "dash": [
+                    10,
+                    10
+                  ],
+                  "fill": "dash"
+                },
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                }
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 28
+          },
+          "id": 23,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "lastNotNull"
+              ],
+              "displayMode": "table",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "simulation_speed_multiplier_ratio",
+              "legendFormat": "Speed Multiplier",
+              "refId": "A"
+            }
+          ],
+          "title": "Speed Multiplier",
+          "type": "timeseries"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 36
+          },
+          "id": 17,
+          "panels": [],
+          "title": "Infrastructure Headroom",
+          "type": "row"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Composite infrastructure headroom (0-1) from Prometheus recording rules. Combines Kafka lag, SimPy queue, CPU, memory, and consumption ratio headroom into a single score. Always available when the simulation is running.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "max": 1,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 0.5
+                  },
+                  {
+                    "color": "green",
+                    "value": 0.7
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 0,
+            "y": 37
+          },
+          "id": 18,
+          "options": {
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "rideshare:infrastructure:headroom",
+              "legendFormat": "Infrastructure Headroom",
+              "refId": "A"
+            }
+          ],
+          "title": "Infrastructure Headroom",
+          "type": "gauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Individual headroom components (0-1) from Prometheus recording rules. The lowest component is the bottleneck driving the composite infrastructure headroom down.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisLabel": "headroom",
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "line"
+                }
+              },
+              "max": 1,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 0.66
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 6,
+            "y": 37
+          },
+          "id": 21,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "displayMode": "table",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "asc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "rideshare:performance:kafka_lag_headroom",
+              "legendFormat": "Kafka Consumer Lag Headroom",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "rideshare:performance:simpy_queue_headroom",
+              "legendFormat": "SimPy Event Queue Headroom",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "rideshare:performance:cpu_headroom",
+              "legendFormat": "CPU Headroom (% of host cores)",
+              "refId": "C"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "rideshare:performance:memory_headroom",
+              "legendFormat": "Memory Headroom",
+              "refId": "D"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "rideshare:performance:consumption_ratio",
+              "legendFormat": "Stream Processor / Simulation Throughput Ratio",
+              "refId": "E"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "rideshare:performance:rtr_headroom",
+              "legendFormat": "Real-Time Ratio (sim speed vs wall clock)",
+              "refId": "F"
+            }
+          ],
+          "title": "Component Breakdown",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Performance controller mode. Shows 'No data' when the controller sidecar is not deployed.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [
+                {
+                  "options": {
+                    "0": {
+                      "color": "text",
+                      "text": "OFF"
+                    }
+                  },
+                  "type": "value"
+                },
+                {
+                  "options": {
+                    "1": {
+                      "color": "green",
+                      "text": "ON"
+                    }
+                  },
+                  "type": "value"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "text",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 18,
+            "y": 37
+          },
+          "id": 22,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "controller_mode_ratio",
+              "legendFormat": "Mode",
+              "refId": "A"
+            }
+          ],
+          "title": "Controller Mode",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Current simulation speed multiplier. Reflects the active speed setting whether set manually or by the performance controller.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 1
+                  },
+                  {
+                    "color": "green",
+                    "value": 5
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 0,
+            "y": 45
+          },
+          "id": 20,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "simulation_speed_multiplier_ratio",
+              "legendFormat": "Speed Multiplier",
+              "refId": "A"
+            }
+          ],
+          "title": "Current Speed Multiplier",
+          "type": "stat"
+        }
+      ],
+      "refresh": "10s",
+      "schemaVersion": 38,
+      "style": "dark",
+      "tags": [
+        "performance",
+        "saturation",
+        "engineering"
+      ],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-30m",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "",
+      "title": "Performance Engineering",
+      "uid": "perf-engineering",
+      "version": 0
+    }
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
   name: grafana-alerting-rules
   labels:
     app: grafana
@@ -8192,6 +11212,8 @@ spec:
           mountPath: /etc/dashboards/business-intelligence
         - name: dashboards-operations
           mountPath: /etc/dashboards/operations
+        - name: dashboards-performance
+          mountPath: /etc/dashboards/performance
         - name: alerting-rules
           mountPath: /etc/grafana/provisioning/alerting
       volumes:
@@ -8213,6 +11235,9 @@ spec:
       - name: dashboards-operations
         configMap:
           name: grafana-dashboards-operations
+      - name: dashboards-performance
+        configMap:
+          name: grafana-dashboards-performance
       - name: alerting-rules
         configMap:
           name: grafana-alerting-rules

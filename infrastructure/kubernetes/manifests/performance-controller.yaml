@@ -92,6 +92,8 @@ spec:
           value: "0.0.0.0"
         - name: API_PORT
           value: "8090"
+        - name: API_CORS_ORIGINS
+          value: "https://rideshare.example.com"
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
           value: "http://otel-collector:4317"
         - name: DEPLOYMENT_ENV

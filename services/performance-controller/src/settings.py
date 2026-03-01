@@ -96,6 +96,7 @@ class APISettings(BaseSettings):
 
     host: str = "0.0.0.0"
     port: int = 8090
+    cors_origins: str = "http://localhost:3000,http://localhost:5173"
 
     model_config = SettingsConfigDict(env_prefix="API_")
 
