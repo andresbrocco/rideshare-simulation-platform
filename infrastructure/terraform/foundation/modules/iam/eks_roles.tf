@@ -243,7 +243,9 @@ resource "aws_iam_role_policy" "airflow_s3" {
           var.s3_bucket_arns.silver,
           "${var.s3_bucket_arns.silver}/*",
           var.s3_bucket_arns.gold,
-          "${var.s3_bucket_arns.gold}/*"
+          "${var.s3_bucket_arns.gold}/*",
+          var.s3_bucket_arns.logs,
+          "${var.s3_bucket_arns.logs}/*"
         ]
       }
     ]

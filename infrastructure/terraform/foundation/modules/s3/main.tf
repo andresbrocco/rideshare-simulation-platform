@@ -137,6 +137,46 @@ resource "aws_s3_bucket_public_access_block" "frontend" {
   restrict_public_buckets = true
 }
 
+# Logs Bucket (Airflow task logs)
+resource "aws_s3_bucket" "logs" {
+  bucket = "${local.bucket_prefix}-logs"
+
+  tags = {
+    Name    = "${local.bucket_prefix}-logs"
+    Purpose = "airflow-logs"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "logs" {
+  bucket = aws_s3_bucket.logs.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "logs" {
+  bucket = aws_s3_bucket.logs.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "logs" {
+  bucket = aws_s3_bucket.logs.id
+
+  rule {
+    id     = "expire-old-logs"
+    status = "Enabled"
+
+    expiration {
+      days = 30
+    }
+  }
+}
+
 # Lifecycle rule for lakehouse buckets (delete old versions after 90 days)
 resource "aws_s3_bucket_lifecycle_configuration" "lakehouse" {
   for_each = {

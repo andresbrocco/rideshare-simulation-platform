@@ -173,6 +173,19 @@ patches:
       spec:
         template:
           spec:
+            serviceAccountName: airflow-webserver
+    target:
+      kind: Deployment
+      name: airflow-webserver
+
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: placeholder
+      spec:
+        template:
+          spec:
             serviceAccountName: trino
     target:
       kind: Deployment

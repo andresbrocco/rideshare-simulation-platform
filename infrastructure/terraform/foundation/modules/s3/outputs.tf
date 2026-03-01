@@ -52,3 +52,13 @@ output "frontend_bucket_regional_domain_name" {
   description = "Regional domain name of frontend bucket"
   value       = aws_s3_bucket.frontend.bucket_regional_domain_name
 }
+
+output "logs_bucket_name" {
+  description = "Name of logs S3 bucket"
+  value       = aws_s3_bucket.logs.id
+}
+
+output "logs_bucket_arn" {
+  description = "ARN of logs S3 bucket"
+  value       = aws_s3_bucket.logs.arn
+}

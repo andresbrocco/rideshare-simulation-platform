@@ -80,6 +80,11 @@ output "frontend_bucket_name" {
   value       = module.s3.frontend_bucket_name
 }
 
+output "logs_bucket_name" {
+  description = "Logs S3 bucket name"
+  value       = module.s3.logs_bucket_name
+}
+
 # -----------------------------------------------------------------------------
 # CloudFront
 # -----------------------------------------------------------------------------

@@ -87,6 +87,7 @@ spec:
               # _PIP_ADDITIONAL_REQUIREMENTS mechanism (which only runs through
               # the official entrypoint script).
               pip install --quiet --no-cache-dir \
+                apache-airflow-providers-amazon \
                 dbt-core \
                 dbt-duckdb==1.10.0 \
                 duckdb==1.4.4 \
@@ -101,7 +102,7 @@ spec:
               # dbt_packages directory is not included in the ConfigMap tar to keep
               # it small; we install here at pod startup so the directory persists
               # in the emptyDir volume for the lifetime of the pod.
-              cd /opt/dbt/dbt && dbt deps --profiles-dir /opt/dbt && cd -
+              cd /opt/dbt && dbt deps --profiles-dir /opt/dbt && cd -
 
               # URL-encode the password so special chars don't break the conn string
               ENCODED_PW=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${AIRFLOW_POSTGRES_PASSWORD}'))")
@@ -135,6 +136,16 @@ spec:
 
             - name: GOLD_BUCKET
               value: "rideshare-<account-id>-gold"
+
+            # Remote logging to S3 (logs readable in Airflow UI and via aws s3 cp)
+            - name: AIRFLOW__LOGGING__REMOTE_LOGGING
+              value: "True"
+            - name: AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER
+              value: "s3://rideshare-<account-id>-logs/airflow"
+            - name: AIRFLOW__LOGGING__REMOTE_LOG_CONN_ID
+              value: "aws_default"
+            - name: AIRFLOW_CONN_AWS_DEFAULT
+              value: "aws://?region_name=us-east-1"
 
           volumeMounts:
             - name: dbt-workspace

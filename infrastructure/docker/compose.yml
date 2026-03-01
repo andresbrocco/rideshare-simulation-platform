@@ -446,6 +446,7 @@ services:
       mc mb local/rideshare-silver --ignore-existing &&
       mc mb local/rideshare-gold --ignore-existing &&
       mc mb local/rideshare-checkpoints --ignore-existing &&
+      mc mb local/rideshare-logs --ignore-existing &&
       echo 'MinIO buckets initialized successfully'
       "
     networks:
@@ -730,7 +731,10 @@ services:
       AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-webserver:8080/execution/'
       _AIRFLOW_DB_MIGRATE: 'true'
       _AIRFLOW_WWW_USER_CREATE: 'true'
-      _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-fab dbt-core dbt-duckdb==1.10.0 dbt-spark[PyHive] duckdb==1.4.4 deltalake==1.4.2 duckdb-engine==0.17.0 great-expectations requests prison'
+      AIRFLOW__LOGGING__REMOTE_LOGGING: 'True'
+      AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER: 's3://rideshare-logs/airflow'
+      AIRFLOW__LOGGING__REMOTE_LOG_CONN_ID: 'aws_default'
+      _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-amazon apache-airflow-providers-fab dbt-core dbt-duckdb==1.10.0 dbt-spark[PyHive] duckdb==1.4.4 deltalake==1.4.2 duckdb-engine==0.17.0 great-expectations requests prison'
     volumes:
       - ../../services/airflow/dags:/opt/airflow/dags
       - ../../services/airflow/logs:/opt/airflow/logs
@@ -754,6 +758,7 @@ services:
         export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql+psycopg2://$$POSTGRES_AIRFLOW_USER:$$POSTGRES_AIRFLOW_PASSWORD@postgres-airflow:5432/airflow"
         export _AIRFLOW_WWW_USER_USERNAME="$$AIRFLOW_ADMIN_USERNAME"
         export _AIRFLOW_WWW_USER_PASSWORD="$$AIRFLOW_ADMIN_PASSWORD"
+        export AIRFLOW_CONN_AWS_DEFAULT="aws://$$MINIO_ROOT_USER:$$MINIO_ROOT_PASSWORD@/?endpoint_url=http%3A%2F%2Fminio%3A9000&region_name=us-east-1"
         exec /usr/bin/dumb-init -- /entrypoint airflow api-server
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/v2/monitor/health', timeout=3)"]
@@ -790,7 +795,10 @@ services:
       AWS_ENDPOINT_URL: http://minio:9000
       AWS_ALLOW_HTTP: "true"
       AWS_REGION: us-east-1
-      _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-fab dbt-core dbt-duckdb==1.10.0 dbt-spark[PyHive] duckdb==1.4.4 deltalake==1.4.2 duckdb-engine==0.17.0 great-expectations requests prison'
+      AIRFLOW__LOGGING__REMOTE_LOGGING: 'True'
+      AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER: 's3://rideshare-logs/airflow'
+      AIRFLOW__LOGGING__REMOTE_LOG_CONN_ID: 'aws_default'
+      _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-amazon apache-airflow-providers-fab dbt-core dbt-duckdb==1.10.0 dbt-spark[PyHive] duckdb==1.4.4 deltalake==1.4.2 duckdb-engine==0.17.0 great-expectations requests prison'
     volumes:
       - ../../services/airflow/dags:/opt/airflow/dags
       - ../../services/airflow/logs:/opt/airflow/logs
@@ -820,6 +828,7 @@ services:
         export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql+psycopg2://$$POSTGRES_AIRFLOW_USER:$$POSTGRES_AIRFLOW_PASSWORD@postgres-airflow:5432/airflow"
         export AWS_ACCESS_KEY_ID="$$MINIO_ROOT_USER"
         export AWS_SECRET_ACCESS_KEY="$$MINIO_ROOT_PASSWORD"
+        export AIRFLOW_CONN_AWS_DEFAULT="aws://$$MINIO_ROOT_USER:$$MINIO_ROOT_PASSWORD@/?endpoint_url=http%3A%2F%2Fminio%3A9000&region_name=us-east-1"
         airflow dags reserialize && exec /usr/bin/dumb-init -- /entrypoint airflow scheduler
     healthcheck:
       test: ["CMD", "python", "-c", "import socket; s = socket.socket(); s.settimeout(3); s.connect(('localhost', 8793)); s.close()"]

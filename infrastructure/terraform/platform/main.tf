@@ -73,6 +73,13 @@ resource "aws_eks_pod_identity_association" "airflow" {
   role_arn        = data.terraform_remote_state.foundation.outputs.airflow_role_arn
 }
 
+resource "aws_eks_pod_identity_association" "airflow_webserver" {
+  cluster_name    = module.eks.cluster_name
+  namespace       = "rideshare-prod"
+  service_account = "airflow-webserver"
+  role_arn        = data.terraform_remote_state.foundation.outputs.airflow_role_arn
+}
+
 resource "aws_eks_pod_identity_association" "trino" {
   cluster_name    = module.eks.cluster_name
   namespace       = "rideshare-prod"

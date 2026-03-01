@@ -32,6 +32,8 @@ spec:
             - bash
             - -c
             - |
+              pip install --quiet --no-cache-dir apache-airflow-providers-amazon
+
               # URL-encode the password so special chars don't break the conn string
               ENCODED_PW=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${AIRFLOW_POSTGRES_PASSWORD}'))")
               export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql+psycopg2://airflow:${ENCODED_PW}@<rds-endpoint>:5432/airflow"
@@ -57,3 +59,13 @@ spec:
             # Configure base URL for subdomain routing
             - name: AIRFLOW__WEBSERVER__BASE_URL
               value: "https://airflow.ridesharing.portfolio.andresbrocco.com"
+
+            # Remote logging to S3 (logs readable in Airflow UI and via aws s3 cp)
+            - name: AIRFLOW__LOGGING__REMOTE_LOGGING
+              value: "True"
+            - name: AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER
+              value: "s3://rideshare-<account-id>-logs/airflow"
+            - name: AIRFLOW__LOGGING__REMOTE_LOG_CONN_ID
+              value: "aws_default"
+            - name: AIRFLOW_CONN_AWS_DEFAULT
+              value: "aws://?region_name=us-east-1"
