@@ -1,0 +1,344 @@
+name: Soft Reset
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type RESET to confirm data wipe (keeps infrastructure intact)'
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  soft-reset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # ── Phase 1: Guards & Setup ──────────────────────────────────────
+
+      - name: Verify confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirmation }}" != "RESET" ]; then
+            echo "::error::Confirmation must be exactly 'RESET'. Got: '${{ github.event.inputs.confirmation }}'"
+            exit 1
+          fi
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rideshare-github-actions
+          aws-region: us-east-1
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name rideshare-eks --region us-east-1
+
+      - name: Verify cluster health
+        run: |
+          echo "Checking EKS nodes..."
+          kubectl wait --for=condition=Ready nodes --all --timeout=120s
+          echo "Cluster nodes:"
+          kubectl get nodes
+
+      # ── Phase 2: Suspend ArgoCD ──────────────────────────────────────
+
+      - name: Suspend ArgoCD auto-sync
+        run: |
+          kubectl patch application rideshare-platform -n argocd \
+            --type merge -p '{"spec":{"syncPolicy":{"automated":null}}}'
+          echo "ArgoCD auto-sync suspended"
+
+      # ── Phase 3: Stop Services ───────────────────────────────────────
+
+      - name: Scale down data producers
+        run: |
+          kubectl scale deployment simulation stream-processor bronze-ingestion \
+            -n rideshare-prod --replicas=0
+
+      - name: Scale down data pipeline
+        run: |
+          kubectl scale deployment hive-metastore airflow-webserver airflow-scheduler trino \
+            -n rideshare-prod --replicas=0
+
+      - name: Wait for pods to terminate
+        run: |
+          echo "Waiting for producer pods to terminate..."
+          kubectl wait --for=delete pod \
+            -l 'app in (simulation,stream-processor,bronze-ingestion)' \
+            -n rideshare-prod --timeout=120s 2>/dev/null || true
+
+          echo "Waiting for pipeline pods to terminate..."
+          kubectl wait --for=delete pod \
+            -l 'app in (hive-metastore,airflow-webserver,airflow-scheduler,trino)' \
+            -n rideshare-prod --timeout=120s 2>/dev/null || true
+
+      # ── Phase 4: Wipe Kafka ──────────────────────────────────────────
+
+      - name: Scale Kafka to 0
+        run: kubectl scale statefulset kafka -n rideshare-prod --replicas=0
+
+      - name: Wait for Kafka pod to terminate
+        run: kubectl wait --for=delete pod/kafka-0 -n rideshare-prod --timeout=120s 2>/dev/null || true
+
+      - name: Delete Kafka PVC
+        run: |
+          kubectl delete pvc kafka-data-kafka-0 -n rideshare-prod --ignore-not-found
+          echo "Kafka PVC deleted (EBS volume released)"
+
+      - name: Scale Kafka back to 1
+        run: kubectl scale statefulset kafka -n rideshare-prod --replicas=1
+
+      - name: Wait for Kafka ready
+        run: |
+          echo "Waiting for Kafka pod (EBS provisioning ~30-60s)..."
+          kubectl wait --for=condition=ready pod/kafka-0 -n rideshare-prod --timeout=300s
+
+      - name: Delete old kafka-init Job
+        run: kubectl delete job kafka-init -n rideshare-prod --ignore-not-found
+
+      - name: Create Kafka topics
+        run: |
+          cat <<'EOF' | kubectl apply -n rideshare-prod -f -
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: kafka-init
+            labels:
+              app: kafka-init
+          spec:
+            template:
+              metadata:
+                labels:
+                  app: kafka-init
+              spec:
+                restartPolicy: OnFailure
+                initContainers:
+                - name: wait-for-kafka
+                  image: confluentinc/cp-kafka:7.5.0
+                  command:
+                  - sh
+                  - -c
+                  - |
+                    echo "Waiting for Kafka to be ready..."
+                    until kafka-broker-api-versions --bootstrap-server kafka-0.kafka:29092 2>/dev/null; do
+                      echo "Kafka not ready, waiting..."
+                      sleep 5
+                    done
+                    echo "Kafka is ready!"
+                containers:
+                - name: kafka-init
+                  image: confluentinc/cp-kafka:7.5.0
+                  command:
+                  - sh
+                  - -c
+                  - |
+                    echo 'Creating Kafka topics...'
+                    kafka-topics --bootstrap-server kafka-0.kafka:29092 --create --if-not-exists --topic trips --partitions 4 --replication-factor 1
+                    kafka-topics --bootstrap-server kafka-0.kafka:29092 --create --if-not-exists --topic gps_pings --partitions 8 --replication-factor 1
+                    kafka-topics --bootstrap-server kafka-0.kafka:29092 --create --if-not-exists --topic driver_status --partitions 2 --replication-factor 1
+                    kafka-topics --bootstrap-server kafka-0.kafka:29092 --create --if-not-exists --topic surge_updates --partitions 2 --replication-factor 1
+                    kafka-topics --bootstrap-server kafka-0.kafka:29092 --create --if-not-exists --topic ratings --partitions 2 --replication-factor 1
+                    kafka-topics --bootstrap-server kafka-0.kafka:29092 --create --if-not-exists --topic payments --partitions 2 --replication-factor 1
+                    kafka-topics --bootstrap-server kafka-0.kafka:29092 --create --if-not-exists --topic driver_profiles --partitions 1 --replication-factor 1
+                    kafka-topics --bootstrap-server kafka-0.kafka:29092 --create --if-not-exists --topic rider_profiles --partitions 1 --replication-factor 1
+                    echo 'Kafka topics created successfully'
+                    kafka-topics --bootstrap-server kafka-0.kafka:29092 --list
+          EOF
+
+      - name: Wait for kafka-init Job
+        run: kubectl wait --for=condition=complete job/kafka-init -n rideshare-prod --timeout=120s
+
+      # ── Phase 5: Wipe S3 ────────────────────────────────────────────
+
+      - name: Empty S3 lakehouse buckets
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          for BUCKET in bronze silver gold checkpoints; do
+            echo "Emptying rideshare-${ACCOUNT_ID}-${BUCKET}..."
+            aws s3 rm "s3://rideshare-${ACCOUNT_ID}-${BUCKET}" --recursive
+          done
+          echo "S3 lakehouse buckets emptied"
+
+      # ── Phase 6: Wipe RDS ───────────────────────────────────────────
+
+      - name: Drop and recreate airflow database
+        run: |
+          MASTER_PASSWORD=$(aws secretsmanager get-secret-value \
+            --secret-id rideshare/rds --query SecretString --output text | jq -r '.MASTER_PASSWORD')
+          RDS_FULL_ENDPOINT=$(aws secretsmanager get-secret-value \
+            --secret-id rideshare/rds --query SecretString --output text | jq -r '.ENDPOINT')
+          RDS_HOST="${RDS_FULL_ENDPOINT%%:*}"
+          AIRFLOW_PASSWORD=$(aws secretsmanager get-secret-value \
+            --secret-id rideshare/data-pipeline --query SecretString --output text | jq -r '.POSTGRES_AIRFLOW_PASSWORD')
+
+          echo "Resetting airflow database..."
+          echo "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'airflow' AND pid <> pg_backend_pid(); DROP DATABASE IF EXISTS airflow; CREATE DATABASE airflow;" | \
+            kubectl run rds-reset-airflow --rm -i --restart=Never --namespace=default \
+              --image=postgres:16 --env="PGPASSWORD=${MASTER_PASSWORD}" -- \
+              psql -h "${RDS_HOST}" -p 5432 -U postgres -d postgres
+
+          echo "Recreating airflow role..."
+          echo "DROP ROLE IF EXISTS airflow; CREATE ROLE airflow WITH LOGIN PASSWORD '${AIRFLOW_PASSWORD}'; GRANT ALL PRIVILEGES ON DATABASE airflow TO airflow; GRANT ALL PRIVILEGES ON SCHEMA public TO airflow;" | \
+            kubectl run rds-airflow-user --rm -i --restart=Never --namespace=default \
+              --image=postgres:16 --env="PGPASSWORD=${MASTER_PASSWORD}" -- \
+              psql -h "${RDS_HOST}" -p 5432 -U postgres -d airflow
+
+          echo "Airflow database and role recreated"
+
+      - name: Drop and recreate metastore database
+        run: |
+          MASTER_PASSWORD=$(aws secretsmanager get-secret-value \
+            --secret-id rideshare/rds --query SecretString --output text | jq -r '.MASTER_PASSWORD')
+          RDS_FULL_ENDPOINT=$(aws secretsmanager get-secret-value \
+            --secret-id rideshare/rds --query SecretString --output text | jq -r '.ENDPOINT')
+          RDS_HOST="${RDS_FULL_ENDPOINT%%:*}"
+          METASTORE_PASSWORD=$(aws secretsmanager get-secret-value \
+            --secret-id rideshare/data-pipeline --query SecretString --output text | jq -r '.POSTGRES_METASTORE_PASSWORD')
+
+          echo "Resetting metastore database..."
+          echo "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'metastore' AND pid <> pg_backend_pid(); DROP DATABASE IF EXISTS metastore; CREATE DATABASE metastore;" | \
+            kubectl run rds-reset-metastore --rm -i --restart=Never --namespace=default \
+              --image=postgres:16 --env="PGPASSWORD=${MASTER_PASSWORD}" -- \
+              psql -h "${RDS_HOST}" -p 5432 -U postgres -d postgres
+
+          echo "Recreating metastore role..."
+          echo "DROP ROLE IF EXISTS metastore; CREATE ROLE metastore WITH LOGIN PASSWORD '${METASTORE_PASSWORD}'; GRANT ALL PRIVILEGES ON DATABASE metastore TO metastore; GRANT ALL PRIVILEGES ON SCHEMA public TO metastore;" | \
+            kubectl run rds-metastore-user --rm -i --restart=Never --namespace=default \
+              --image=postgres:16 --env="PGPASSWORD=${MASTER_PASSWORD}" -- \
+              psql -h "${RDS_HOST}" -p 5432 -U postgres -d metastore
+
+          echo "Metastore database and role recreated"
+
+      # ── Phase 7: Wipe Redis ──────────────────────────────────────────
+
+      - name: Flush Redis
+        run: |
+          REDIS_PASSWORD=$(kubectl get secret app-credentials -n rideshare-prod \
+            -o jsonpath='{.data.REDIS_PASSWORD}' | base64 -d)
+          kubectl exec deploy/redis -n rideshare-prod -- \
+            redis-cli -a "$REDIS_PASSWORD" FLUSHALL
+          echo "Redis flushed"
+
+      # ── Phase 8: Reset Monitoring ────────────────────────────────────
+
+      - name: Restart monitoring pods
+        run: |
+          kubectl rollout restart deployment prometheus loki tempo grafana \
+            -n rideshare-prod
+          echo "Monitoring pods restarting (emptyDir volumes wiped)"
+
+      # ── Phase 9: Restart & Scale Up ──────────────────────────────────
+
+      - name: Restart schema-registry
+        run: |
+          kubectl rollout restart deployment schema-registry -n rideshare-prod
+          kubectl rollout status deployment schema-registry -n rideshare-prod --timeout=120s
+
+      - name: Scale up hive-metastore
+        run: |
+          kubectl scale deployment hive-metastore -n rideshare-prod --replicas=1
+          echo "Waiting for Hive Metastore (runs schematool -initSchema)..."
+          kubectl wait --for=condition=available deployment/hive-metastore \
+            -n rideshare-prod --timeout=300s
+
+      - name: Scale up trino
+        run: |
+          kubectl scale deployment trino -n rideshare-prod --replicas=1
+          kubectl wait --for=condition=available deployment/trino \
+            -n rideshare-prod --timeout=300s
+
+      - name: Scale up airflow
+        run: |
+          kubectl scale deployment airflow-webserver -n rideshare-prod --replicas=1
+          echo "Waiting for Airflow webserver (runs airflow db migrate)..."
+          kubectl wait --for=condition=available deployment/airflow-webserver \
+            -n rideshare-prod --timeout=600s
+
+          kubectl scale deployment airflow-scheduler -n rideshare-prod --replicas=1
+          kubectl wait --for=condition=available deployment/airflow-scheduler \
+            -n rideshare-prod --timeout=300s
+
+      - name: Scale up data producers
+        run: |
+          kubectl scale deployment simulation stream-processor bronze-ingestion \
+            -n rideshare-prod --replicas=1
+
+      # ── Phase 10: Health Checks ──────────────────────────────────────
+
+      - name: Wait for deployments available
+        run: |
+          echo "Waiting for simulation..."
+          kubectl wait --for=condition=available deployment/simulation \
+            -n rideshare-prod --timeout=600s
+
+          echo "Waiting for stream-processor..."
+          kubectl wait --for=condition=available deployment/stream-processor \
+            -n rideshare-prod --timeout=300s
+
+          echo "Waiting for bronze-ingestion..."
+          kubectl wait --for=condition=available deployment/bronze-ingestion \
+            -n rideshare-prod --timeout=300s
+
+          echo "All deployments available"
+
+      # ── Phase 11: Restore ArgoCD ─────────────────────────────────────
+
+      - name: Restore ArgoCD auto-sync
+        if: always()
+        run: |
+          kubectl patch application rideshare-platform -n argocd \
+            --type merge -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true,"allowEmpty":false}}}}'
+          echo "ArgoCD auto-sync restored"
+
+      - name: Trigger ArgoCD hard refresh
+        if: always()
+        run: |
+          kubectl annotate application rideshare-platform -n argocd \
+            argocd.argoproj.io/refresh=hard --overwrite
+          echo "ArgoCD hard refresh triggered"
+
+      # ── Summary ──────────────────────────────────────────────────────
+
+      - name: Reset Summary
+        if: always()
+        run: |
+          echo "================================"
+          echo "Soft Reset Complete"
+          echo "================================"
+          echo ""
+          echo "WIPED:"
+          echo "  - Kafka topics + data (PVC deleted and recreated)"
+          echo "  - S3 lakehouse (bronze, silver, gold, checkpoints)"
+          echo "  - RDS databases (airflow, metastore — schemas auto-initialized)"
+          echo "  - Redis (FLUSHALL)"
+          echo "  - Monitoring data (Prometheus, Loki, Tempo metrics/logs/traces)"
+          echo ""
+          echo "PRESERVED:"
+          echo "  - EKS Cluster + nodes"
+          echo "  - RDS Instance (databases recreated, not instance)"
+          echo "  - ALB + DNS records"
+          echo "  - ECR images"
+          echo "  - Secrets Manager credentials"
+          echo "  - S3 frontend bucket"
+          echo ""
+          echo "NEXT STEPS:"
+          echo "  Simulation must be activated manually:"
+          echo "    POST https://api.ridesharing.portfolio.andresbrocco.com/simulation/start"
+          echo "    POST https://api.ridesharing.portfolio.andresbrocco.com/agents/drivers"
+          echo "    POST https://api.ridesharing.portfolio.andresbrocco.com/agents/riders"
+          echo "  Or use the Control Panel UI."
+          echo ""
+          echo "VERIFY:"
+          echo "  kubectl get pods -n rideshare-prod"
+          echo "  kubectl get cronjob bronze-init -n rideshare-prod"
+          echo "  curl https://api.ridesharing.portfolio.andresbrocco.com/health"
+          echo ""
+          echo "PLATFORM:"
+          echo "  Control Panel:  https://control-panel.ridesharing.portfolio.andresbrocco.com"
+          echo "  API:            https://api.ridesharing.portfolio.andresbrocco.com"
+          echo "  Grafana:        https://grafana.ridesharing.portfolio.andresbrocco.com"
+          echo "  Airflow:        https://airflow.ridesharing.portfolio.andresbrocco.com"
+          echo "================================"
