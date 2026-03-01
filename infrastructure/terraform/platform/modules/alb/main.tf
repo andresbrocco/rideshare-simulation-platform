@@ -280,7 +280,7 @@ resource "helm_release" "aws_load_balancer_controller" {
   version    = "3.0.0"
   namespace  = "kube-system"
   timeout    = 600
-  wait       = false
+  wait       = true
 
   set = [
     {
@@ -303,10 +303,10 @@ resource "helm_release" "aws_load_balancer_controller" {
       name  = "serviceAccount.name"
       value = "aws-load-balancer-controller"
     },
-    {
-      name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-      value = aws_iam_role.alb_controller.arn
-    },
+    # No IRSA annotation here — credentials are injected via EKS Pod Identity.
+    # The aws_eks_pod_identity_association resource associates this ServiceAccount
+    # with the IAM role. Adding an eks.amazonaws.com/role-arn annotation would
+    # trigger IRSA (AssumeRoleWithWebIdentity), which the trust policy does not allow.
   ]
 
   depends_on = [
@@ -342,6 +342,11 @@ resource "helm_release" "external_secrets" {
       value = "true"
     },
   ]
+
+  # Wait for ALB controller webhook to be ready before creating Services
+  depends_on = [
+    helm_release.aws_load_balancer_controller
+  ]
 }
 
 # kube-state-metrics Helm chart
@@ -353,4 +358,9 @@ resource "helm_release" "kube_state_metrics" {
   namespace  = "monitoring"
 
   create_namespace = true
+
+  # Wait for ALB controller webhook to be ready before creating Services
+  depends_on = [
+    helm_release.aws_load_balancer_controller
+  ]
 }

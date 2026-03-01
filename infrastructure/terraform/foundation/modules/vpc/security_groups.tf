@@ -42,13 +42,13 @@ resource "aws_security_group" "eks_nodes" {
   description = "Security group for EKS worker nodes"
   vpc_id      = aws_vpc.main.id
 
-  # Allow inbound from ALB
+  # Allow inbound from ALB (covers both Terraform-managed and controller-managed SGs)
   ingress {
-    from_port       = 0
-    to_port         = 65535
-    protocol        = "tcp"
-    security_groups = [aws_security_group.alb.id]
-    description     = "Allow traffic from ALB"
+    from_port   = 0
+    to_port     = 65535
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+    description = "Allow TCP traffic from VPC (ALB health checks and pod traffic)"
   }
 
   # Allow node-to-node communication

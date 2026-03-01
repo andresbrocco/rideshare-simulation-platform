@@ -47,3 +47,8 @@ variable "node_disk_size" {
   type        = number
   default     = 50
 }
+
+variable "vpc_cidr" {
+  description = "VPC CIDR block for security group rules"
+  type        = string
+}

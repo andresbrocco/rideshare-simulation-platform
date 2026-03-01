@@ -16,6 +16,29 @@ resource "aws_eks_cluster" "main" {
   }
 }
 
+# Allow ALB health checks to reach pods on the EKS-managed cluster security group.
+# Nodes only get the cluster SG (not the custom eks_nodes_sg), so the ALB must be
+# allowed inbound on the cluster SG. VPC CIDR covers all ALB SGs.
+resource "aws_vpc_security_group_ingress_rule" "alb_to_cluster_sg" {
+  security_group_id = aws_eks_cluster.main.vpc_config[0].cluster_security_group_id
+
+  ip_protocol = "tcp"
+  from_port   = 0
+  to_port     = 65535
+  cidr_ipv4   = var.vpc_cidr
+  description = "Allow TCP from VPC for ALB health checks"
+}
+
+# EKS Pod Identity Agent — required for Pod Identity associations (ALB controller, etc.)
+resource "aws_eks_addon" "pod_identity_agent" {
+  cluster_name = aws_eks_cluster.main.name
+  addon_name   = "eks-pod-identity-agent"
+
+  depends_on = [
+    aws_eks_node_group.main
+  ]
+}
+
 # Launch template for EKS nodes with IMDS hop limit 2
 # checkov:skip=CKV_AWS_341:EKS pods require hop limit 2 to reach IMDS through container networking
 resource "aws_launch_template" "eks_nodes" {

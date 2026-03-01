@@ -1,18 +1,3 @@
-# Placeholder OIDC ARN used when EKS cluster hasn't been created yet.
-# Platform module will update trust policies with the real OIDC provider.
-locals {
-  oidc_provider_arn = (
-    var.eks_oidc_provider_arn != ""
-    ? var.eks_oidc_provider_arn
-    : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/placeholder"
-  )
-  oidc_issuer = (
-    var.eks_oidc_provider_url != ""
-    ? replace(var.eks_oidc_provider_url, "https://", "")
-    : "placeholder"
-  )
-}
-
 # --------------------------------------------------------------------------
 # EKS Cluster Role
 # --------------------------------------------------------------------------
@@ -109,7 +94,7 @@ resource "aws_iam_role_policy" "eks_nodes_secrets_manager" {
 }
 
 # --------------------------------------------------------------------------
-# IRSA Role: Simulation (S3 checkpoints)
+# Pod Identity Role: Simulation (S3 checkpoints)
 # --------------------------------------------------------------------------
 resource "aws_iam_role" "simulation" {
   name = "${var.project_name}-simulation"
@@ -120,14 +105,12 @@ resource "aws_iam_role" "simulation" {
       {
         Effect = "Allow"
         Principal = {
-          Federated = local.oidc_provider_arn
+          Service = "pods.eks.amazonaws.com"
         }
-        Action = "sts:AssumeRoleWithWebIdentity"
-        Condition = var.eks_oidc_provider_url != "" ? {
-          StringEquals = {
-            "${local.oidc_issuer}:sub" = "system:serviceaccount:rideshare-prod:simulation"
-          }
-        } : {}
+        Action = [
+          "sts:AssumeRole",
+          "sts:TagSession"
+        ]
       }
     ]
   })
@@ -162,7 +145,7 @@ resource "aws_iam_role_policy" "simulation_s3" {
 }
 
 # --------------------------------------------------------------------------
-# IRSA Role: Bronze Ingestion (S3 bronze)
+# Pod Identity Role: Bronze Ingestion (S3 bronze)
 # --------------------------------------------------------------------------
 resource "aws_iam_role" "bronze_ingestion" {
   name = "${var.project_name}-bronze-ingestion"
@@ -173,14 +156,12 @@ resource "aws_iam_role" "bronze_ingestion" {
       {
         Effect = "Allow"
         Principal = {
-          Federated = local.oidc_provider_arn
+          Service = "pods.eks.amazonaws.com"
         }
-        Action = "sts:AssumeRoleWithWebIdentity"
-        Condition = var.eks_oidc_provider_url != "" ? {
-          StringEquals = {
-            "${local.oidc_issuer}:sub" = "system:serviceaccount:rideshare-prod:bronze-ingestion"
-          }
-        } : {}
+        Action = [
+          "sts:AssumeRole",
+          "sts:TagSession"
+        ]
       }
     ]
   })
@@ -215,7 +196,7 @@ resource "aws_iam_role_policy" "bronze_ingestion_s3" {
 }
 
 # --------------------------------------------------------------------------
-# IRSA Role: Airflow (all lakehouse buckets)
+# Pod Identity Role: Airflow (all lakehouse buckets)
 # --------------------------------------------------------------------------
 resource "aws_iam_role" "airflow" {
   name = "${var.project_name}-airflow"
@@ -226,14 +207,12 @@ resource "aws_iam_role" "airflow" {
       {
         Effect = "Allow"
         Principal = {
-          Federated = local.oidc_provider_arn
+          Service = "pods.eks.amazonaws.com"
         }
-        Action = "sts:AssumeRoleWithWebIdentity"
-        Condition = var.eks_oidc_provider_url != "" ? {
-          StringEquals = {
-            "${local.oidc_issuer}:sub" = "system:serviceaccount:rideshare-prod:airflow-scheduler"
-          }
-        } : {}
+        Action = [
+          "sts:AssumeRole",
+          "sts:TagSession"
+        ]
       }
     ]
   })
@@ -272,7 +251,7 @@ resource "aws_iam_role_policy" "airflow_s3" {
 }
 
 # --------------------------------------------------------------------------
-# IRSA Role: Trino (read-only lakehouse)
+# Pod Identity Role: Trino (read-only lakehouse)
 # --------------------------------------------------------------------------
 resource "aws_iam_role" "trino" {
   name = "${var.project_name}-trino"
@@ -283,14 +262,12 @@ resource "aws_iam_role" "trino" {
       {
         Effect = "Allow"
         Principal = {
-          Federated = local.oidc_provider_arn
+          Service = "pods.eks.amazonaws.com"
         }
-        Action = "sts:AssumeRoleWithWebIdentity"
-        Condition = var.eks_oidc_provider_url != "" ? {
-          StringEquals = {
-            "${local.oidc_issuer}:sub" = "system:serviceaccount:rideshare-prod:trino"
-          }
-        } : {}
+        Action = [
+          "sts:AssumeRole",
+          "sts:TagSession"
+        ]
       }
     ]
   })
@@ -327,7 +304,7 @@ resource "aws_iam_role_policy" "trino_s3" {
 }
 
 # --------------------------------------------------------------------------
-# IRSA Role: Hive Metastore (read-only lakehouse)
+# Pod Identity Role: Hive Metastore (read-only lakehouse)
 # --------------------------------------------------------------------------
 resource "aws_iam_role" "hive_metastore" {
   name = "${var.project_name}-hive-metastore"
@@ -338,14 +315,12 @@ resource "aws_iam_role" "hive_metastore" {
       {
         Effect = "Allow"
         Principal = {
-          Federated = local.oidc_provider_arn
+          Service = "pods.eks.amazonaws.com"
         }
-        Action = "sts:AssumeRoleWithWebIdentity"
-        Condition = var.eks_oidc_provider_url != "" ? {
-          StringEquals = {
-            "${local.oidc_issuer}:sub" = "system:serviceaccount:rideshare-prod:hive-metastore"
-          }
-        } : {}
+        Action = [
+          "sts:AssumeRole",
+          "sts:TagSession"
+        ]
       }
     ]
   })
@@ -382,7 +357,7 @@ resource "aws_iam_role_policy" "hive_metastore_s3" {
 }
 
 # --------------------------------------------------------------------------
-# IRSA Role: External Secrets Operator (Secrets Manager read)
+# Pod Identity Role: External Secrets Operator (Secrets Manager read)
 # --------------------------------------------------------------------------
 resource "aws_iam_role" "eso" {
   name = "${var.project_name}-eso"
@@ -393,14 +368,12 @@ resource "aws_iam_role" "eso" {
       {
         Effect = "Allow"
         Principal = {
-          Federated = local.oidc_provider_arn
+          Service = "pods.eks.amazonaws.com"
         }
-        Action = "sts:AssumeRoleWithWebIdentity"
-        Condition = var.eks_oidc_provider_url != "" ? {
-          StringEquals = {
-            "${local.oidc_issuer}:sub" = "system:serviceaccount:external-secrets:external-secrets"
-          }
-        } : {}
+        Action = [
+          "sts:AssumeRole",
+          "sts:TagSession"
+        ]
       }
     ]
   })

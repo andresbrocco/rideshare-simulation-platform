@@ -7,6 +7,7 @@ module "eks" {
 
   subnet_ids      = data.terraform_remote_state.foundation.outputs.public_subnet_ids
   eks_nodes_sg_id = data.terraform_remote_state.foundation.outputs.eks_nodes_sg_id
+  vpc_cidr        = data.terraform_remote_state.foundation.outputs.vpc_cidr
 
   cluster_role_arn = data.terraform_remote_state.foundation.outputs.eks_cluster_role_arn
   node_role_arn    = data.terraform_remote_state.foundation.outputs.eks_nodes_role_arn
@@ -43,4 +44,52 @@ module "dns" {
   source = "./modules/dns"
 
   domain_name = var.domain_name
+}
+
+# --------------------------------------------------------------------------
+# EKS Pod Identity associations for workload IAM roles.
+# EKS injects AWS credentials into pods by matching (cluster, namespace,
+# service_account) to the linked IAM role — no OIDC provider or annotation
+# on the ServiceAccount is required.
+# --------------------------------------------------------------------------
+resource "aws_eks_pod_identity_association" "simulation" {
+  cluster_name    = module.eks.cluster_name
+  namespace       = "rideshare-prod"
+  service_account = "simulation"
+  role_arn        = data.terraform_remote_state.foundation.outputs.simulation_role_arn
+}
+
+resource "aws_eks_pod_identity_association" "bronze_ingestion" {
+  cluster_name    = module.eks.cluster_name
+  namespace       = "rideshare-prod"
+  service_account = "bronze-ingestion"
+  role_arn        = data.terraform_remote_state.foundation.outputs.bronze_ingestion_role_arn
+}
+
+resource "aws_eks_pod_identity_association" "airflow" {
+  cluster_name    = module.eks.cluster_name
+  namespace       = "rideshare-prod"
+  service_account = "airflow-scheduler"
+  role_arn        = data.terraform_remote_state.foundation.outputs.airflow_role_arn
+}
+
+resource "aws_eks_pod_identity_association" "trino" {
+  cluster_name    = module.eks.cluster_name
+  namespace       = "rideshare-prod"
+  service_account = "trino"
+  role_arn        = data.terraform_remote_state.foundation.outputs.trino_role_arn
+}
+
+resource "aws_eks_pod_identity_association" "hive_metastore" {
+  cluster_name    = module.eks.cluster_name
+  namespace       = "rideshare-prod"
+  service_account = "hive-metastore"
+  role_arn        = data.terraform_remote_state.foundation.outputs.hive_metastore_role_arn
+}
+
+resource "aws_eks_pod_identity_association" "eso" {
+  cluster_name    = module.eks.cluster_name
+  namespace       = "external-secrets"
+  service_account = "external-secrets"
+  role_arn        = data.terraform_remote_state.foundation.outputs.eso_role_arn
 }

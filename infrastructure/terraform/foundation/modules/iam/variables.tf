@@ -33,15 +33,3 @@ variable "s3_bucket_arns" {
     tf_state    = string
   })
 }
-
-variable "eks_oidc_provider_arn" {
-  description = "EKS OIDC provider ARN (placeholder for foundation, actual value from platform)"
-  type        = string
-  default     = ""
-}
-
-variable "eks_oidc_provider_url" {
-  description = "EKS OIDC provider URL (placeholder for foundation, actual value from platform)"
-  type        = string
-  default     = ""
-}

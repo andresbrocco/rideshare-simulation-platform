@@ -246,6 +246,7 @@ resource "aws_iam_role_policy" "github_actions_ec2" {
           "ec2:DescribeSubnets",
           "ec2:DescribeVpcs",
           "ec2:DescribeSecurityGroups",
+          "ec2:DescribeSecurityGroupRules",
           "ec2:DescribeInstances",
           "ec2:DescribeNetworkInterfaces",
           "ec2:DescribeRouteTables",
@@ -265,7 +266,11 @@ resource "aws_iam_role_policy" "github_actions_ec2" {
           "ec2:DeleteLaunchTemplate",
           "ec2:ModifyLaunchTemplate",
           "ec2:RunInstances",
-          "ec2:CreateFleet"
+          "ec2:CreateFleet",
+          "ec2:AuthorizeSecurityGroupIngress",
+          "ec2:RevokeSecurityGroupIngress",
+          "ec2:AuthorizeSecurityGroupEgress",
+          "ec2:RevokeSecurityGroupEgress"
         ]
         Resource = "*"
         Condition = {

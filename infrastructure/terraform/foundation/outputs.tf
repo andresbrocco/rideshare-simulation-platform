@@ -21,6 +21,11 @@ output "alb_sg_id" {
   value       = module.vpc.alb_sg_id
 }
 
+output "vpc_cidr" {
+  description = "VPC CIDR block for security group rules"
+  value       = module.vpc.vpc_cidr
+}
+
 output "rds_sg_id" {
   description = "RDS security group ID"
   value       = module.vpc.rds_sg_id
