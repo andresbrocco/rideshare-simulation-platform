@@ -64,6 +64,11 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
           LAMBDA_URL: ${{ vars.LAMBDA_URL }}
         run: |
+          # Simulation needs the repo-root schemas/ directory inside its build context
+          if [ "${{ matrix.service }}" = "simulation" ]; then
+            cp -r schemas services/simulation/schemas
+          fi
+
           BUILD_ARGS=(
             --file "services/${{ matrix.service }}/Dockerfile"
             --tag "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
@@ -85,6 +90,10 @@ jobs:
           fi
 
           docker buildx build "${BUILD_ARGS[@]}" "services/${{ matrix.service }}"
+
+          if [ "${{ matrix.service }}" = "simulation" ]; then
+            rm -rf services/simulation/schemas
+          fi
 
       - name: Output image URIs
         env:
@@ -168,15 +177,21 @@ jobs:
           ACM_CERT_ARN=$(aws acm list-certificates --region us-east-1 \
             --query "CertificateSummaryList[?DomainName=='ridesharing.portfolio.andresbrocco.com'].CertificateArn" \
             --output text)
+          ALB_SG_ID=$(aws ec2 describe-security-groups --region us-east-1 \
+            --filters "Name=group-name,Values=rideshare-alb-sg" \
+            --query 'SecurityGroups[0].GroupId' --output text)
 
           echo "Account ID: $ACCOUNT_ID"
           echo "RDS Endpoint: $RDS_ENDPOINT"
           echo "ACM Cert ARN: $ACM_CERT_ARN"
+          echo "ALB SG ID: $ALB_SG_ID"
 
-          if [ -z "$ACCOUNT_ID" ] || [ -z "$RDS_ENDPOINT" ] || [ -z "$ACM_CERT_ARN" ]; then
+          if [ -z "$ACCOUNT_ID" ] || [ -z "$RDS_ENDPOINT" ] || [ -z "$ACM_CERT_ARN" ] || [ -z "$ALB_SG_ID" ]; then
             echo "Error: One or more production values could not be resolved"
             exit 1
           fi
+
+          IMAGE_TAG="${{ github.sha }}"
 
           # Replace all placeholders in production overlay
           find infrastructure/kubernetes/overlays/production -name "*.yaml" \
@@ -185,9 +200,13 @@ jobs:
             -exec sed -i "s|<acm-cert-arn>|$ACM_CERT_ARN|g" {} +
           find infrastructure/kubernetes/overlays/production -name "*.yaml" \
             -exec sed -i "s|<rds-endpoint>|$RDS_ENDPOINT|g" {} +
+          find infrastructure/kubernetes/overlays/production -name "*.yaml" \
+            -exec sed -i "s|<image-tag>|$IMAGE_TAG|g" {} +
+          find infrastructure/kubernetes/overlays/production -name "*.yaml" \
+            -exec sed -i "s|<alb-sg-id>|$ALB_SG_ID|g" {} +
 
           # Verify no placeholders remain
-          REMAINING=$(grep -r '<account-id>\|<acm-cert-arn>\|<rds-endpoint>' \
+          REMAINING=$(grep -r '<account-id>\|<acm-cert-arn>\|<rds-endpoint>\|<image-tag>\|<alb-sg-id>' \
             infrastructure/kubernetes/overlays/production/ || true)
           if [ -n "$REMAINING" ]; then
             echo "Error: Unresolved placeholders remain:"
@@ -195,6 +214,13 @@ jobs:
             exit 1
           fi
           echo "All placeholders resolved successfully"
+
+      - name: Package dbt project
+        run: |
+          tar -czf infrastructure/kubernetes/overlays/production/dbt-project.tar.gz \
+            --exclude='venv' --exclude='target' --exclude='logs' \
+            --exclude='dbt_packages' --exclude='__pycache__' --exclude='.user.yml' \
+            -C tools/dbt .
 
       - name: Push Deploy Branch
         run: |
@@ -227,10 +253,12 @@ jobs:
 
           # CREATE DATABASE cannot use IF NOT EXISTS in PostgreSQL.
           # Run it and treat "already exists" (exit code 1) as success.
+          # Use PGPASSWORD env var instead of embedding password in URI to avoid
+          # percent-encoding issues with special characters (%, >, etc.).
           for DB in metastore airflow; do
             kubectl run "rds-init-${DB}" --rm -i --restart=Never --namespace=default \
-              --image=postgres:16 -- \
-              psql "postgresql://postgres:${POSTGRES_PASSWORD}@${RDS_ENDPOINT}:5432/postgres" \
+              --image=postgres:16 --env="PGPASSWORD=${POSTGRES_PASSWORD}" -- \
+              psql -h "${RDS_ENDPOINT}" -p 5432 -U postgres -d postgres \
               -c "CREATE DATABASE ${DB};" \
               && echo "${DB} database created" \
               || echo "${DB} database may already exist (expected on re-runs)"
@@ -240,8 +268,8 @@ jobs:
           METASTORE_PASSWORD=$(echo "$DATA_PIPELINE_CREDS" | jq -r '.POSTGRES_METASTORE_PASSWORD')
           echo "CREATE ROLE metastore WITH LOGIN PASSWORD '${METASTORE_PASSWORD}'; GRANT ALL PRIVILEGES ON DATABASE metastore TO metastore; GRANT ALL PRIVILEGES ON SCHEMA public TO metastore;" | \
             kubectl run rds-create-metastore-user --rm -i --restart=Never --namespace=default \
-              --image=postgres:16 -- \
-              psql "postgresql://postgres:${POSTGRES_PASSWORD}@${RDS_ENDPOINT}:5432/metastore" \
+              --image=postgres:16 --env="PGPASSWORD=${POSTGRES_PASSWORD}" -- \
+              psql -h "${RDS_ENDPOINT}" -p 5432 -U postgres -d metastore \
             && echo "Metastore user created" \
             || echo "Metastore user may already exist (expected on re-runs)"
 
@@ -249,8 +277,8 @@ jobs:
           AIRFLOW_PASSWORD=$(echo "$DATA_PIPELINE_CREDS" | jq -r '.POSTGRES_AIRFLOW_PASSWORD')
           echo "CREATE ROLE airflow WITH LOGIN PASSWORD '${AIRFLOW_PASSWORD}'; GRANT ALL PRIVILEGES ON DATABASE airflow TO airflow; GRANT ALL PRIVILEGES ON SCHEMA public TO airflow;" | \
             kubectl run rds-create-airflow-user --rm -i --restart=Never --namespace=default \
-              --image=postgres:16 -- \
-              psql "postgresql://postgres:${POSTGRES_PASSWORD}@${RDS_ENDPOINT}:5432/airflow" \
+              --image=postgres:16 --env="PGPASSWORD=${POSTGRES_PASSWORD}" -- \
+              psql -h "${RDS_ENDPOINT}" -p 5432 -U postgres -d airflow \
             && echo "Airflow user created" \
             || echo "Airflow user may already exist (expected on re-runs)"
 

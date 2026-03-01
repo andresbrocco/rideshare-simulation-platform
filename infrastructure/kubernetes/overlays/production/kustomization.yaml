@@ -22,6 +22,7 @@ resources:
   - ../../manifests/trino.yaml
   - ../../manifests/airflow-webserver.yaml
   - ../../manifests/airflow-scheduler.yaml
+  - ../../manifests/airflow-dags.yaml
 
   # Monitoring
   - ../../manifests/prometheus.yaml
@@ -38,6 +39,9 @@ resources:
 
   # IRSA ServiceAccounts (pods assume IAM roles via projected tokens)
   - serviceaccount-irsa-patches.yaml
+
+  # Prometheus RBAC (ServiceAccount + ClusterRole for Kubernetes SD)
+  - prometheus-rbac.yaml
 
   # Storage (EBS gp3 replaces local-path provisioner)
   - storageclass-ebs.yaml
@@ -56,35 +60,51 @@ resources:
 
 namespace: rideshare-prod
 
+# Generate ConfigMaps from source files so ArgoCD manages them
+configMapGenerator:
+  - name: airflow-init-scripts
+    options:
+      disableNameSuffixHash: true
+    files:
+      - export-dbt-to-s3.py=../../../scripts/export-dbt-to-s3.py
+      - register-trino-tables.py=../../../scripts/register-trino-tables.py
+
+  - name: airflow-dbt-project
+    options:
+      disableNameSuffixHash: true
+    files:
+      - dbt-project.tar.gz
+
 images:
-  # Custom service images from ECR (replace <account-id> during deploy)
+  # Custom service images from ECR (placeholders resolved during deploy)
+  # <account-id> → AWS account ID, <image-tag> → git SHA for immutable deploys
   - name: rideshare-simulation
     newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/simulation
-    newTag: latest
+    newTag: <image-tag>
   - name: rideshare-stream-processor
     newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/stream-processor
-    newTag: latest
+    newTag: <image-tag>
   - name: rideshare-performance-controller
     newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/performance-controller
-    newTag: latest
+    newTag: <image-tag>
   - name: rideshare-control-panel
     newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/control-panel
-    newTag: latest
+    newTag: <image-tag>
   - name: rideshare-bronze-ingestion
     newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/bronze-ingestion
-    newTag: latest
+    newTag: <image-tag>
   - name: rideshare-hive-metastore
     newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/hive-metastore
-    newTag: latest
+    newTag: <image-tag>
   - name: rideshare-osrm
     newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/osrm
-    newTag: latest
+    newTag: <image-tag>
   - name: otel/opentelemetry-collector-contrib
     newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/otel-collector
-    newTag: latest
+    newTag: <image-tag>
 
 patches:
-  # Override imagePullPolicy from Never (local dev) to IfNotPresent (ECR)
+  # Override imagePullPolicy from Never (local dev) to IfNotPresent (SHA tags are immutable)
   - patch: '[{"op": "replace", "path": "/spec/template/spec/containers/0/imagePullPolicy", "value": "IfNotPresent"}]'
     target:
       kind: Deployment
@@ -237,7 +257,7 @@ patches:
   # Bronze Init: Override S3 bucket name for production
   - path: bronze-init-patch.yaml
     target:
-      kind: Job
+      kind: CronJob
       name: bronze-init
 
   # Simulation: Production domain, S3 checkpoints, deployment env
@@ -252,11 +272,37 @@ patches:
       kind: Deployment
       name: grafana
 
+  # Redis: Enable authentication with password from secrets
+  - path: redis-patch.yaml
+    target:
+      kind: Deployment
+      name: redis
+
+  # Prometheus: Bind to ServiceAccount for Kubernetes SD RBAC
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: placeholder
+      spec:
+        template:
+          spec:
+            serviceAccountName: prometheus
+    target:
+      kind: Deployment
+      name: prometheus
+
   # Prometheus: Kubernetes SD, kube-state-metrics, annotation-based pod discovery
   - path: prometheus-config-patch.yaml
     target:
       kind: ConfigMap
       name: prometheus-config
+
+  # Prometheus: Production recording rules with Kubernetes label selectors
+  - path: prometheus-rules-patch.yaml
+    target:
+      kind: ConfigMap
+      name: prometheus-rules
 
   # Performance Controller: production deployment environment
   - patch: |-
