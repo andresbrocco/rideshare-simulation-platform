@@ -25,14 +25,15 @@ variable "project_name" {
 variable "s3_bucket_arns" {
   description = "Map of S3 bucket ARNs for IAM policies"
   type = object({
-    bronze      = string
-    silver      = string
-    gold        = string
-    checkpoints = string
-    frontend    = string
-    logs        = string
-    loki        = string
-    tempo       = string
-    tf_state    = string
+    bronze       = string
+    silver       = string
+    gold         = string
+    checkpoints  = string
+    build_assets = string
+    frontend     = string
+    logs         = string
+    loki         = string
+    tempo        = string
+    tf_state     = string
   })
 }

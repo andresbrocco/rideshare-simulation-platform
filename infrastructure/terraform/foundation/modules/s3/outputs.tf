@@ -82,3 +82,13 @@ output "tempo_bucket_arn" {
   description = "ARN of Tempo S3 bucket"
   value       = aws_s3_bucket.tempo.arn
 }
+
+output "build_assets_bucket_name" {
+  description = "Name of build assets S3 bucket"
+  value       = aws_s3_bucket.build_assets.id
+}
+
+output "build_assets_bucket_arn" {
+  description = "ARN of build assets S3 bucket"
+  value       = aws_s3_bucket.build_assets.arn
+}

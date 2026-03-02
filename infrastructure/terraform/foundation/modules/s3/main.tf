@@ -110,6 +110,33 @@ resource "aws_s3_bucket_public_access_block" "checkpoints" {
   restrict_public_buckets = true
 }
 
+# Build Assets Bucket (CI/CD artifacts that must survive soft resets)
+resource "aws_s3_bucket" "build_assets" {
+  bucket = "${local.bucket_prefix}-build-assets"
+
+  tags = {
+    Name    = "${local.bucket_prefix}-build-assets"
+    Purpose = "ci-build-cache"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "build_assets" {
+  bucket = aws_s3_bucket.build_assets.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "build_assets" {
+  bucket = aws_s3_bucket.build_assets.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
 # Frontend Bucket (static React SPA)
 resource "aws_s3_bucket" "frontend" {
   bucket = "${local.bucket_prefix}-frontend"

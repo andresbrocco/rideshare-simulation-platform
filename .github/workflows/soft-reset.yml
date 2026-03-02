@@ -322,6 +322,7 @@ jobs:
           echo "  - ALB + DNS records"
           echo "  - ECR images"
           echo "  - Secrets Manager credentials"
+          echo "  - S3 build-assets bucket (OSRM map data)"
           echo "  - S3 frontend bucket"
           echo ""
           echo "NEXT STEPS:"

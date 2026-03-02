@@ -429,6 +429,21 @@ resource "aws_iam_role_policy" "github_actions_s3_lakehouse" {
   })
 }
 
+# S3 Build Assets Policy (required by build-images.yml to cache OSRM map data)
+resource "aws_iam_role_policy" "github_actions_s3_build_assets" {
+  name = "s3-build-assets"
+  role = aws_iam_role.github_actions.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["s3:ListBucket", "s3:GetObject", "s3:PutObject"]
+      Resource = [var.s3_bucket_arns.build_assets, "${var.s3_bucket_arns.build_assets}/*"]
+    }]
+  })
+}
+
 # Terraform State S3 Policy (locking via S3-native .tflock file)
 resource "aws_iam_role_policy" "github_actions_terraform" {
   name = "terraform-state"

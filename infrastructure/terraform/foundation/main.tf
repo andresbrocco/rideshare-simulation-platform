@@ -167,14 +167,15 @@ module "iam" {
   github_branch = var.github_branch
 
   s3_bucket_arns = {
-    bronze      = module.s3.bronze_bucket_arn
-    silver      = module.s3.silver_bucket_arn
-    gold        = module.s3.gold_bucket_arn
-    checkpoints = module.s3.checkpoints_bucket_arn
-    frontend    = module.s3.frontend_bucket_arn
-    logs        = module.s3.logs_bucket_arn
-    loki        = module.s3.loki_bucket_arn
-    tempo       = module.s3.tempo_bucket_arn
-    tf_state    = "arn:aws:s3:::rideshare-tf-state-${data.aws_caller_identity.current.account_id}"
+    bronze       = module.s3.bronze_bucket_arn
+    silver       = module.s3.silver_bucket_arn
+    gold         = module.s3.gold_bucket_arn
+    checkpoints  = module.s3.checkpoints_bucket_arn
+    build_assets = module.s3.build_assets_bucket_arn
+    frontend     = module.s3.frontend_bucket_arn
+    logs         = module.s3.logs_bucket_arn
+    loki         = module.s3.loki_bucket_arn
+    tempo        = module.s3.tempo_bucket_arn
+    tf_state     = "arn:aws:s3:::rideshare-tf-state-${data.aws_caller_identity.current.account_id}"
   }
 }
