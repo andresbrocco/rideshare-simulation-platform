@@ -715,9 +715,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 384m
+          memory: 512m
           cpus: "1.0"
         reservations:
+          memory: 256m
           cpus: "0.1"
     profiles:
       - data-pipeline

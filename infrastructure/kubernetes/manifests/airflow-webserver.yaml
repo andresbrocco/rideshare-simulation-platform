@@ -38,9 +38,9 @@ spec:
           exec airflow api-server
         resources:
           limits:
-            memory: "384Mi"
+            memory: "512Mi"
           requests:
-            memory: "192Mi"
+            memory: "256Mi"
         ports:
         - containerPort: 8080
           name: web
