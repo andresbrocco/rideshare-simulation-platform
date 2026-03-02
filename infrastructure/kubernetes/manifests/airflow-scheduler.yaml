@@ -35,9 +35,9 @@ spec:
         - airflow dags reserialize && exec airflow scheduler
         resources:
           limits:
-            memory: "2048Mi"
+            memory: "3072Mi"
           requests:
-            memory: "512Mi"
+            memory: "1024Mi"
         env:
         - name: AIRFLOW_POSTGRES_PASSWORD
           valueFrom:
