@@ -137,6 +137,12 @@ spec:
             - name: GOLD_BUCKET
               value: "rideshare-<account-id>-gold"
 
+            # Trino connection (explicit to override K8s auto-injected TRINO_PORT)
+            - name: TRINO_HOST
+              value: "trino"
+            - name: TRINO_PORT
+              value: "8080"
+
             # Remote logging to S3 (logs readable in Airflow UI and via aws s3 cp)
             - name: AIRFLOW__LOGGING__REMOTE_LOGGING
               value: "True"

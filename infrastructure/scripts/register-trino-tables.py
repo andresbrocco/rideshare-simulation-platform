@@ -23,7 +23,10 @@ from typing import List
 import requests
 
 TRINO_HOST = os.getenv("TRINO_HOST", "trino")
-TRINO_PORT = os.getenv("TRINO_PORT", "8080")
+_raw_port = os.getenv("TRINO_PORT", "8080")
+# Kubernetes auto-injects TRINO_PORT=tcp://IP:PORT for services named "trino".
+# Extract just the numeric port if we get the full service URL.
+TRINO_PORT = _raw_port.rsplit(":", 1)[-1] if _raw_port.startswith("tcp://") else _raw_port
 TRINO_URL = f"http://{TRINO_HOST}:{TRINO_PORT}"
 
 # Silver tables created by DBT and exported via export-dbt-to-s3.py
