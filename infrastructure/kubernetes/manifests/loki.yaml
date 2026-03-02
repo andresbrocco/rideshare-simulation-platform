@@ -15,9 +15,13 @@ data:
     common:
       path_prefix: /loki
       storage:
-        filesystem:
-          chunks_directory: /loki/chunks
-          rules_directory: /loki/rules
+        s3:
+          endpoint: ${S3_ENDPOINT}
+          bucketnames: ${LOKI_S3_BUCKET}
+          access_key_id: ${AWS_ACCESS_KEY_ID}
+          secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+          insecure: true
+          s3forcepathstyle: true
       replication_factor: 1
       ring:
         instance_addr: 127.0.0.1
@@ -28,7 +32,7 @@ data:
       configs:
         - from: 2020-10-24
           store: tsdb
-          object_store: filesystem
+          object_store: s3
           schema: v13
           index:
             prefix: index_
@@ -41,7 +45,7 @@ data:
     compactor:
       working_directory: /loki/compactor
       retention_enabled: true
-      delete_request_store: filesystem
+      delete_request_store: s3
 
 ---
 apiVersion: apps/v1
@@ -60,11 +64,31 @@ spec:
       labels:
         app: loki
     spec:
+      initContainers:
+      - name: wait-for-minio
+        image: busybox:1.36
+        command: ['sh', '-c', 'until nc -z minio 9000; do echo waiting for minio; sleep 2; done']
       containers:
       - name: loki
         image: grafana/loki:3.6.5
         args:
         - -config.file=/etc/loki/local-config.yaml
+        - -config.expand-env=true
+        env:
+        - name: S3_ENDPOINT
+          value: "minio:9000"
+        - name: LOKI_S3_BUCKET
+          value: "rideshare-loki"
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: MINIO_ROOT_USER
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: MINIO_ROOT_PASSWORD
         resources:
           limits:
             memory: "512Mi"

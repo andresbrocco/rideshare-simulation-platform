@@ -359,6 +359,108 @@ resource "aws_iam_role_policy" "hive_metastore_s3" {
 }
 
 # --------------------------------------------------------------------------
+# Pod Identity Role: Loki (S3 log storage)
+# --------------------------------------------------------------------------
+resource "aws_iam_role" "loki" {
+  name = "${var.project_name}-loki"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "pods.eks.amazonaws.com"
+        }
+        Action = [
+          "sts:AssumeRole",
+          "sts:TagSession"
+        ]
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.project_name}-loki"
+  }
+}
+
+resource "aws_iam_role_policy" "loki_s3" {
+  name = "s3-loki"
+  role = aws_iam_role.loki.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          var.s3_bucket_arns.loki,
+          "${var.s3_bucket_arns.loki}/*"
+        ]
+      }
+    ]
+  })
+}
+
+# --------------------------------------------------------------------------
+# Pod Identity Role: Tempo (S3 trace storage)
+# --------------------------------------------------------------------------
+resource "aws_iam_role" "tempo" {
+  name = "${var.project_name}-tempo"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "pods.eks.amazonaws.com"
+        }
+        Action = [
+          "sts:AssumeRole",
+          "sts:TagSession"
+        ]
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.project_name}-tempo"
+  }
+}
+
+resource "aws_iam_role_policy" "tempo_s3" {
+  name = "s3-tempo"
+  role = aws_iam_role.tempo.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          var.s3_bucket_arns.tempo,
+          "${var.s3_bucket_arns.tempo}/*"
+        ]
+      }
+    ]
+  })
+}
+
+# --------------------------------------------------------------------------
 # Pod Identity Role: External Secrets Operator (Secrets Manager read)
 # --------------------------------------------------------------------------
 resource "aws_iam_role" "eso" {

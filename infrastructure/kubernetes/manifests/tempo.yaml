@@ -33,13 +33,18 @@ data:
 
     storage:
       trace:
-        backend: local
+        backend: s3
+        s3:
+          endpoint: ${S3_ENDPOINT}
+          bucket: ${TEMPO_S3_BUCKET}
+          access_key_id: ${AWS_ACCESS_KEY_ID}
+          secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+          insecure: true
+          forcepathstyle: true
         block:
           bloom_filter_false_positive: .05
         wal:
           path: /var/tempo/wal
-        local:
-          path: /var/tempo/blocks
         pool:
           max_workers: 100
           queue_depth: 10000
@@ -96,11 +101,31 @@ spec:
       labels:
         app: tempo
     spec:
+      initContainers:
+      - name: wait-for-minio
+        image: busybox:1.36
+        command: ['sh', '-c', 'until nc -z minio 9000; do echo waiting for minio; sleep 2; done']
       containers:
       - name: tempo
         image: grafana/tempo:2.10.0
         args:
         - -config.file=/etc/tempo/tempo.yaml
+        - -config.expand-env=true
+        env:
+        - name: S3_ENDPOINT
+          value: "minio:9000"
+        - name: TEMPO_S3_BUCKET
+          value: "rideshare-tempo"
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: MINIO_ROOT_USER
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: MINIO_ROOT_PASSWORD
         resources:
           limits:
             memory: "768Mi"

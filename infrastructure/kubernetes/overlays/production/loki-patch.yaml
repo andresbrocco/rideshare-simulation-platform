@@ -1,0 +1,37 @@
+# Production patch: Remove MinIO dependencies from Loki
+# - Removes wait-for-minio initContainer (no MinIO in production)
+# - Deletes AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY env vars so Pod Identity provides credentials
+# - Deletes S3_ENDPOINT and LOKI_S3_BUCKET env vars (bucket name is in the ConfigMap)
+# - Sets AWS_DEFAULT_REGION and AWS_REGION for S3 access via Pod Identity
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loki
+spec:
+  template:
+    spec:
+      initContainers:
+        - name: wait-for-minio
+          $patch: delete
+
+      containers:
+        - name: loki
+          env:
+            # Delete MinIO credentials so the credential chain falls through to Pod Identity.
+            - name: AWS_ACCESS_KEY_ID
+              $patch: delete
+            - name: AWS_SECRET_ACCESS_KEY
+              $patch: delete
+
+            # Delete MinIO-specific env vars (bucket name is in the ConfigMap).
+            - name: S3_ENDPOINT
+              $patch: delete
+            - name: LOKI_S3_BUCKET
+              $patch: delete
+
+            # AWS_DEFAULT_REGION is the primary env var read by AWS SDK.
+            # AWS_REGION is a secondary alias.
+            - name: AWS_DEFAULT_REGION
+              value: "us-east-1"
+            - name: AWS_REGION
+              value: "us-east-1"

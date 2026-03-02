@@ -402,6 +402,7 @@ services:
     mem_limit: 256m
     profiles:
       - data-pipeline
+      - monitoring
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -431,6 +432,7 @@ services:
     container_name: rideshare-minio-init
     profiles:
       - data-pipeline
+      - monitoring
     depends_on:
       secrets-init:
         condition: service_completed_successfully
@@ -447,6 +449,8 @@ services:
       mc mb local/rideshare-gold --ignore-existing &&
       mc mb local/rideshare-checkpoints --ignore-existing &&
       mc mb local/rideshare-logs --ignore-existing &&
+      mc mb local/rideshare-loki --ignore-existing &&
+      mc mb local/rideshare-tempo --ignore-existing &&
       echo 'MinIO buckets initialized successfully'
       "
     networks:
@@ -1109,10 +1113,23 @@ services:
       - monitoring
     ports:
       - "3100:3100"
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
     volumes:
       - ../../services/loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
       - loki-data:/loki
-    command: -config.file=/etc/loki/local-config.yaml
+      - secrets-volume:/secrets:ro
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -a && . /secrets/data-pipeline.env && set +a
+        export AWS_ACCESS_KEY_ID=$$MINIO_ROOT_USER
+        export AWS_SECRET_ACCESS_KEY=$$MINIO_ROOT_PASSWORD
+        export S3_ENDPOINT=minio:9000
+        export LOKI_S3_BUCKET=rideshare-loki
+        exec /usr/bin/loki -config.file=/etc/loki/local-config.yaml -config.expand-env=true
     networks:
       - rideshare-network
     healthcheck:
@@ -1134,10 +1151,23 @@ services:
     ports:
       - "3200:3200"   # Tempo HTTP (query API)
       - "4319:4317"   # OTLP gRPC (from OTel Collector)
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
     volumes:
       - ../../services/tempo/tempo-config.yaml:/etc/tempo/tempo.yaml:ro
       - tempo-data:/var/tempo
-    command: ["-config.file=/etc/tempo/tempo.yaml"]
+      - secrets-volume:/secrets:ro
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -a && . /secrets/data-pipeline.env && set +a
+        export AWS_ACCESS_KEY_ID=$$MINIO_ROOT_USER
+        export AWS_SECRET_ACCESS_KEY=$$MINIO_ROOT_PASSWORD
+        export S3_ENDPOINT=minio:9000
+        export TEMPO_S3_BUCKET=rideshare-tempo
+        exec /usr/bin/tempo -config.file=/etc/tempo/tempo.yaml -config.expand-env=true
     networks:
       - rideshare-network
     healthcheck:

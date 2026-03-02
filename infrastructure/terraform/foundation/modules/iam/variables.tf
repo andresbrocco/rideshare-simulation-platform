@@ -31,6 +31,8 @@ variable "s3_bucket_arns" {
     checkpoints = string
     frontend    = string
     logs        = string
+    loki        = string
+    tempo       = string
     tf_state    = string
   })
 }

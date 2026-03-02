@@ -28,13 +28,18 @@ compactor:
 
 storage:
   trace:
-    backend: local
+    backend: s3
+    s3:
+      endpoint: ${S3_ENDPOINT}
+      bucket: ${TEMPO_S3_BUCKET}
+      access_key_id: ${AWS_ACCESS_KEY_ID}
+      secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+      insecure: true
+      forcepathstyle: true
     block:
       bloom_filter_false_positive: .05
     wal:
       path: /var/tempo/wal
-    local:
-      path: /var/tempo/blocks
     pool:
       max_workers: 100
       queue_depth: 10000

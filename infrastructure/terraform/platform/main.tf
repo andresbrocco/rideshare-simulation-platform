@@ -94,6 +94,20 @@ resource "aws_eks_pod_identity_association" "hive_metastore" {
   role_arn        = data.terraform_remote_state.foundation.outputs.hive_metastore_role_arn
 }
 
+resource "aws_eks_pod_identity_association" "loki" {
+  cluster_name    = module.eks.cluster_name
+  namespace       = "rideshare-prod"
+  service_account = "loki"
+  role_arn        = data.terraform_remote_state.foundation.outputs.loki_role_arn
+}
+
+resource "aws_eks_pod_identity_association" "tempo" {
+  cluster_name    = module.eks.cluster_name
+  namespace       = "rideshare-prod"
+  service_account = "tempo"
+  role_arn        = data.terraform_remote_state.foundation.outputs.tempo_role_arn
+}
+
 resource "aws_eks_pod_identity_association" "eso" {
   cluster_name    = module.eks.cluster_name
   namespace       = "external-secrets"

@@ -175,6 +175,26 @@ output "hive_metastore_role_arn" {
   value       = module.iam.hive_metastore_role_arn
 }
 
+output "loki_role_arn" {
+  description = "Loki IRSA role ARN"
+  value       = module.iam.loki_role_arn
+}
+
+output "tempo_role_arn" {
+  description = "Tempo IRSA role ARN"
+  value       = module.iam.tempo_role_arn
+}
+
+output "loki_bucket_name" {
+  description = "Loki S3 bucket name"
+  value       = module.s3.loki_bucket_name
+}
+
+output "tempo_bucket_name" {
+  description = "Tempo S3 bucket name"
+  value       = module.s3.tempo_bucket_name
+}
+
 output "eso_role_arn" {
   description = "External Secrets Operator IRSA role ARN"
   value       = module.iam.eso_role_arn

@@ -1,0 +1,45 @@
+# Production patch: Loki config for AWS S3 storage via Pod Identity
+# - Uses real S3 bucket (no endpoint, no credentials, no insecure/forcepathstyle)
+# - Pod Identity injects AWS credentials automatically
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-config
+data:
+  local-config.yaml: |
+    auth_enabled: false
+
+    server:
+      http_listen_port: 3100
+      grpc_listen_port: 9096
+
+    common:
+      path_prefix: /loki
+      storage:
+        s3:
+          bucketnames: rideshare-<account-id>-loki
+          region: us-east-1
+      replication_factor: 1
+      ring:
+        instance_addr: 127.0.0.1
+        kvstore:
+          store: inmemory
+
+    schema_config:
+      configs:
+        - from: 2020-10-24
+          store: tsdb
+          object_store: s3
+          schema: v13
+          index:
+            prefix: index_
+            period: 24h
+
+    limits_config:
+      retention_period: 168h  # 7 days
+      volume_enabled: true
+
+    compactor:
+      working_directory: /loki/compactor
+      retention_enabled: true
+      delete_request_store: s3

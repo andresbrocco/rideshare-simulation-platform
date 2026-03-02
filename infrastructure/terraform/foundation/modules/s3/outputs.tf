@@ -62,3 +62,23 @@ output "logs_bucket_arn" {
   description = "ARN of logs S3 bucket"
   value       = aws_s3_bucket.logs.arn
 }
+
+output "loki_bucket_name" {
+  description = "Name of Loki S3 bucket"
+  value       = aws_s3_bucket.loki.id
+}
+
+output "loki_bucket_arn" {
+  description = "ARN of Loki S3 bucket"
+  value       = aws_s3_bucket.loki.arn
+}
+
+output "tempo_bucket_name" {
+  description = "Name of Tempo S3 bucket"
+  value       = aws_s3_bucket.tempo.id
+}
+
+output "tempo_bucket_arn" {
+  description = "ARN of Tempo S3 bucket"
+  value       = aws_s3_bucket.tempo.arn
+}

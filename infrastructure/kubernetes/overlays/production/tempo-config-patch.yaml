@@ -1,0 +1,83 @@
+# Production patch: Tempo config for AWS S3 storage via Pod Identity
+# - Uses real S3 bucket (no endpoint, no credentials, no insecure/forcepathstyle)
+# - Pod Identity injects AWS credentials automatically
+# - Environment label changed from local to production
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tempo-config
+data:
+  tempo.yaml: |
+    # Tempo configuration for rideshare-simulation-platform
+    stream_over_http_enabled: true
+
+    server:
+      http_listen_port: 3200
+
+    distributor:
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+
+    ingester:
+      trace_idle_period: 10s
+      max_block_bytes: 1_000_000
+      max_block_duration: 5m
+
+    compactor:
+      compaction:
+        compaction_window: 1h
+        max_block_bytes: 100_000_000
+        block_retention: 1h
+        compacted_block_retention: 10m
+
+    storage:
+      trace:
+        backend: s3
+        s3:
+          bucket: rideshare-<account-id>-tempo
+          region: us-east-1
+        block:
+          bloom_filter_false_positive: .05
+        wal:
+          path: /var/tempo/wal
+        pool:
+          max_workers: 100
+          queue_depth: 10000
+
+    metrics_generator:
+      processor:
+        span_metrics:
+          dimensions:
+            - http.method
+            - http.target
+            - http.status_code
+            - service.version
+        service_graphs:
+          dimensions:
+            - http.method
+            - http.target
+            - http.status_code
+            - service.version
+        local_blocks:
+          flush_to_storage: true
+      registry:
+        collection_interval: 5s
+        external_labels:
+          source: tempo
+          cluster: rideshare-simulation
+          environment: production
+      storage:
+        path: /var/tempo/generator/wal
+        remote_write:
+          - url: http://prometheus:9090/api/v1/write
+            send_exemplars: true
+      traces_storage:
+        path: /var/tempo/generator/traces
+
+    overrides:
+      defaults:
+        metrics_generator:
+          processors: [service-graphs, span-metrics, local-blocks]

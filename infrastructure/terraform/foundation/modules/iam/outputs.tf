@@ -43,6 +43,16 @@ output "hive_metastore_role_arn" {
   value       = aws_iam_role.hive_metastore.arn
 }
 
+output "loki_role_arn" {
+  description = "ARN of Loki IRSA role"
+  value       = aws_iam_role.loki.arn
+}
+
+output "tempo_role_arn" {
+  description = "ARN of Tempo IRSA role"
+  value       = aws_iam_role.tempo.arn
+}
+
 output "eso_role_arn" {
   description = "ARN of External Secrets Operator IRSA role"
   value       = aws_iam_role.eso.arn

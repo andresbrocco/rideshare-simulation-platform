@@ -334,3 +334,51 @@ patches:
     target:
       kind: Deployment
       name: performance-controller
+
+  # Loki: S3 storage config for production (no MinIO)
+  - path: loki-config-patch.yaml
+    target:
+      kind: ConfigMap
+      name: loki-config
+
+  - path: loki-patch.yaml
+    target:
+      kind: Deployment
+      name: loki
+
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: placeholder
+      spec:
+        template:
+          spec:
+            serviceAccountName: loki
+    target:
+      kind: Deployment
+      name: loki
+
+  # Tempo: S3 storage config for production (no MinIO)
+  - path: tempo-config-patch.yaml
+    target:
+      kind: ConfigMap
+      name: tempo-config
+
+  - path: tempo-patch.yaml
+    target:
+      kind: Deployment
+      name: tempo
+
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: placeholder
+      spec:
+        template:
+          spec:
+            serviceAccountName: tempo
+    target:
+      kind: Deployment
+      name: tempo
