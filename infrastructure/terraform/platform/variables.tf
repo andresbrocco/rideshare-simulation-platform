@@ -51,3 +51,9 @@ variable "rds_instance_class" {
   type        = string
   default     = "db.t4g.micro"
 }
+
+variable "deploy_user_arn" {
+  description = "IAM user ARN for local kubectl access"
+  type        = string
+  default     = "arn:aws:iam::962393283188:user/rideshare-deploy"
+}
