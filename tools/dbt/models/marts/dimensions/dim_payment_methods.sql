@@ -10,8 +10,13 @@ with rider_payment_changes as (
         payment_method_type,
         payment_method_masked,
         timestamp,
-        lag(timestamp) over (partition by rider_id, payment_method_type, payment_method_masked order by timestamp) as prev_timestamp,
-        lead(timestamp) over (partition by rider_id, payment_method_type, payment_method_masked order by timestamp) as next_timestamp
+        -- Partition by (rider_id, payment_method_type) only — treating each change in
+        -- masked card number as a new SCD record. Partitioning by masked number too
+        -- would give each card its own independent chain, causing multiple "current"
+        -- records per rider+type combination and duplicate joins in fact_payments.
+        lead(timestamp) over (
+            partition by rider_id, payment_method_type order by timestamp
+        ) as next_timestamp
     from {{ ref('stg_riders') }}
 ),
 

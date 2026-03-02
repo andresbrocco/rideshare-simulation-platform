@@ -233,8 +233,11 @@ with DAG(
     ge_generate_data_docs = BashOperator(
         task_id="ge_generate_data_docs",
         bash_command="""
-        cd /opt/great-expectations && \
-        python3 build_data_docs.py
+        if [ -d /opt/great-expectations ]; then
+            cd /opt/great-expectations && python3 build_data_docs.py
+        else
+            echo "WARNING: /opt/great-expectations not found — skipping data docs generation"
+        fi
         """,
         outlets=[GOLD_ASSET],
     )
