@@ -13,7 +13,7 @@ data:
 
   jvm.config: |
     -server
-    -Xmx1G
+    -Xmx2G
     -XX:+UseG1GC
     -XX:G1HeapRegionSize=32M
     -XX:+ExplicitGCInvokesConcurrent
@@ -114,9 +114,9 @@ spec:
         image: trinodb/trino:451
         resources:
           limits:
-            memory: "2Gi"
+            memory: "3Gi"
           requests:
-            memory: "1Gi"
+            memory: "1536Mi"
             cpu: "250m"
         ports:
         - containerPort: 8080

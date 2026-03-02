@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Distributed SQL query engine (Trino 439) that provides interactive analytical queries over Delta Lake tables in the medallion lakehouse architecture. Runs in single-node coordinator mode for local development and connects to the Hive Metastore for table metadata and MinIO for data access.
+Distributed SQL query engine (Trino 451) that provides interactive analytical queries over Delta Lake tables in the medallion lakehouse architecture. Runs in single-node coordinator mode for local development and connects to the Hive Metastore for table metadata and MinIO for data access.
 
 ## Responsibility Boundaries
 

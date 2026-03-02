@@ -159,6 +159,7 @@ spec:
           value: postgres
         - name: SERVICE_OPTS
           value: >-
+            -Xmx768m
             -Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver
             -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://postgres-metastore:5432/metastore
             -Djavax.jdo.option.ConnectionUserName=$(POSTGRES_METASTORE_USER)

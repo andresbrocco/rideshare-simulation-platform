@@ -37,7 +37,8 @@ spec:
               # Build SERVICE_OPTS from env vars at runtime to avoid:
               # 1. Kubernetes $(VAR) expansion ordering issues after Kustomize merge
               # 2. XML-special characters in passwords breaking hive-site.xml
-              export SERVICE_OPTS="-Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver \
+              export SERVICE_OPTS="-Xmx768m \
+              -Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver \
               -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://<rds-endpoint>:5432/metastore \
               -Djavax.jdo.option.ConnectionUserName=${POSTGRES_METASTORE_USER} \
               -Djavax.jdo.option.ConnectionPassword=${POSTGRES_METASTORE_PASSWORD}"

@@ -891,6 +891,7 @@ services:
       SERVICE_NAME: metastore
       DB_DRIVER: postgres
       SERVICE_OPTS: >-
+        -Xmx768m
         -Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver
         -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://postgres-metastore:5432/metastore
     depends_on:
@@ -950,7 +951,7 @@ services:
     restart: unless-stopped
 
   trino:
-    image: trinodb/trino:439
+    image: trinodb/trino:451
     container_name: rideshare-trino
     entrypoint: ["/custom-entrypoint.sh"]
     deploy:
@@ -988,7 +989,7 @@ services:
     restart: unless-stopped
 
   delta-table-init:
-    image: trinodb/trino:439
+    image: trinodb/trino:451
     container_name: rideshare-delta-table-init
     profiles:
       - data-pipeline

@@ -8,7 +8,7 @@
 
 | Property | Value |
 |----------|-------|
-| Image | `trinodb/trino:439` |
+| Image | `trinodb/trino:451` |
 | Port | `8084` (host) → `8080` (container) |
 | Profile | `data-pipeline` |
 | Health Check | `http://localhost:8084/v1/info` |
