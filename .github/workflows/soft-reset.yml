@@ -235,7 +235,7 @@ jobs:
       - name: Restart schema-registry
         run: |
           kubectl rollout restart deployment schema-registry -n rideshare-prod
-          kubectl rollout status deployment schema-registry -n rideshare-prod --timeout=120s
+          kubectl rollout status deployment schema-registry -n rideshare-prod --timeout=300s
 
       - name: Scale up hive-metastore
         run: |
