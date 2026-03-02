@@ -37,7 +37,7 @@ data:
       trace:
         backend: s3
         s3:
-          bucket: rideshare-<account-id>-tempo
+          bucket: rideshare-962393283188-tempo
           region: us-east-1
         block:
           bloom_filter_false_positive: .05

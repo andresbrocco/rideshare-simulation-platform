@@ -7,8 +7,8 @@
 # - Adds dbt-workspace, dbt-tar, and init-scripts volumes
 #
 # Replace placeholders during deploy:
-#   <rds-endpoint>  → terraform -chdir=infrastructure/terraform/platform output -raw rds_endpoint
-#   <account-id>    → aws sts get-caller-identity --query Account --output text
+#   rideshare-postgres.c8zsec64gwhw.us-east-1.rds.amazonaws.com  → terraform -chdir=infrastructure/terraform/platform output -raw rds_endpoint
+#   962393283188    → aws sts get-caller-identity --query Account --output text
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -23,7 +23,7 @@ spec:
             - sh
             - -c
             - |
-              until nc -z <rds-endpoint> 5432; do
+              until nc -z rideshare-postgres.c8zsec64gwhw.us-east-1.rds.amazonaws.com 5432; do
                 echo "Waiting for RDS PostgreSQL..."
                 sleep 2
               done
@@ -106,7 +106,7 @@ spec:
 
               # URL-encode the password so special chars don't break the conn string
               ENCODED_PW=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${AIRFLOW_POSTGRES_PASSWORD}'))")
-              export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql+psycopg2://airflow:${ENCODED_PW}@<rds-endpoint>:5432/airflow"
+              export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql+psycopg2://airflow:${ENCODED_PW}@rideshare-postgres.c8zsec64gwhw.us-east-1.rds.amazonaws.com:5432/airflow"
               airflow dags reserialize && exec airflow scheduler
           env:
             - name: AIRFLOW_POSTGRES_PASSWORD
@@ -127,21 +127,21 @@ spec:
             - name: DUCKDB_PATH
               value: "/tmp/rideshare.duckdb"
 
-            # Production S3 bucket names (replace <account-id> during deploy)
+            # Production S3 bucket names (replace 962393283188 during deploy)
             - name: BRONZE_BUCKET
-              value: "rideshare-<account-id>-bronze"
+              value: "rideshare-962393283188-bronze"
 
             - name: SILVER_BUCKET
-              value: "rideshare-<account-id>-silver"
+              value: "rideshare-962393283188-silver"
 
             - name: GOLD_BUCKET
-              value: "rideshare-<account-id>-gold"
+              value: "rideshare-962393283188-gold"
 
             # Remote logging to S3 (logs readable in Airflow UI and via aws s3 cp)
             - name: AIRFLOW__LOGGING__REMOTE_LOGGING
               value: "True"
             - name: AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER
-              value: "s3://rideshare-<account-id>-logs/airflow"
+              value: "s3://rideshare-962393283188-logs/airflow"
             - name: AIRFLOW__LOGGING__REMOTE_LOG_CONN_ID
               value: "aws_default"
             - name: AIRFLOW_CONN_AWS_DEFAULT

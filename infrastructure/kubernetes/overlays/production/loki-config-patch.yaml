@@ -17,7 +17,7 @@ data:
       path_prefix: /loki
       storage:
         s3:
-          bucketnames: rideshare-<account-id>-loki
+          bucketnames: rideshare-962393283188-loki
           region: us-east-1
       replication_factor: 1
       ring:

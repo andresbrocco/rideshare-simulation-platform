@@ -43,10 +43,10 @@ spec:
               value: "us-east-1"
 
             # Production S3 bucket for bronze layer
-            # Replace <account-id> with AWS account ID during deploy
+            # Replace 962393283188 with AWS account ID during deploy
             - name: BRONZE_BUCKET
-              value: "rideshare-<account-id>-bronze"
+              value: "rideshare-962393283188-bronze"
 
             # Delta Lake base path for the production S3 bucket
             - name: DELTA_BASE_PATH
-              value: "s3a://rideshare-<account-id>-bronze"
+              value: "s3a://rideshare-962393283188-bronze"
