@@ -1,0 +1,262 @@
+name: Build Images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'services/simulation/**'
+      - 'services/stream-processor/**'
+      - 'services/control-panel/**'
+      - 'services/bronze-ingestion/**'
+      - 'services/hive-metastore/**'
+      - 'services/performance-controller/**'
+      - 'services/osrm/**'
+      - 'services/otel-collector/**'
+      - 'schemas/**'
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: 'Which services to build'
+        required: true
+        type: choice
+        options:
+          - all
+          - simulation
+          - stream-processor
+          - control-panel
+          - bronze-ingestion
+          - hive-metastore
+          - performance-controller
+          - osrm
+          - otel-collector
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  detect-changes:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      simulation: ${{ steps.filter.outputs.simulation }}
+      stream-processor: ${{ steps.filter.outputs.stream-processor }}
+      control-panel: ${{ steps.filter.outputs.control-panel }}
+      bronze-ingestion: ${{ steps.filter.outputs.bronze-ingestion }}
+      hive-metastore: ${{ steps.filter.outputs.hive-metastore }}
+      performance-controller: ${{ steps.filter.outputs.performance-controller }}
+      osrm: ${{ steps.filter.outputs.osrm }}
+      otel-collector: ${{ steps.filter.outputs.otel-collector }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            simulation:
+              - 'services/simulation/**'
+              - 'schemas/**'
+            stream-processor:
+              - 'services/stream-processor/**'
+            control-panel:
+              - 'services/control-panel/**'
+            bronze-ingestion:
+              - 'services/bronze-ingestion/**'
+            hive-metastore:
+              - 'services/hive-metastore/**'
+            performance-controller:
+              - 'services/performance-controller/**'
+            osrm:
+              - 'services/osrm/**'
+            otel-collector:
+              - 'services/otel-collector/**'
+
+  generate-matrix:
+    needs: [detect-changes]
+    if: always()
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      has_services: ${{ steps.set-matrix.outputs.has_services }}
+    steps:
+      - name: Build service matrix
+        id: set-matrix
+        run: |
+          SERVICES='[]'
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SCOPE="${{ github.event.inputs.scope }}"
+            if [ "$SCOPE" = "all" ]; then
+              SERVICES=$(cat <<'EOF'
+          [
+            {"service":"simulation","target":"production"},
+            {"service":"stream-processor"},
+            {"service":"control-panel","target":"production"},
+            {"service":"bronze-ingestion"},
+            {"service":"hive-metastore"},
+            {"service":"performance-controller"},
+            {"service":"osrm"},
+            {"service":"otel-collector"}
+          ]
+          EOF
+              )
+            else
+              case "$SCOPE" in
+                simulation)     SERVICES='[{"service":"simulation","target":"production"}]' ;;
+                control-panel)  SERVICES='[{"service":"control-panel","target":"production"}]' ;;
+                *)              SERVICES="[{\"service\":\"$SCOPE\"}]" ;;
+              esac
+            fi
+          else
+            # Push event — build only changed services
+            ITEMS=()
+            if [ "${{ needs.detect-changes.outputs.simulation }}" = "true" ]; then
+              ITEMS+=('{"service":"simulation","target":"production"}')
+            fi
+            if [ "${{ needs.detect-changes.outputs.stream-processor }}" = "true" ]; then
+              ITEMS+=('{"service":"stream-processor"}')
+            fi
+            if [ "${{ needs.detect-changes.outputs.control-panel }}" = "true" ]; then
+              ITEMS+=('{"service":"control-panel","target":"production"}')
+            fi
+            if [ "${{ needs.detect-changes.outputs.bronze-ingestion }}" = "true" ]; then
+              ITEMS+=('{"service":"bronze-ingestion"}')
+            fi
+            if [ "${{ needs.detect-changes.outputs.hive-metastore }}" = "true" ]; then
+              ITEMS+=('{"service":"hive-metastore"}')
+            fi
+            if [ "${{ needs.detect-changes.outputs.performance-controller }}" = "true" ]; then
+              ITEMS+=('{"service":"performance-controller"}')
+            fi
+            if [ "${{ needs.detect-changes.outputs.osrm }}" = "true" ]; then
+              ITEMS+=('{"service":"osrm"}')
+            fi
+            if [ "${{ needs.detect-changes.outputs.otel-collector }}" = "true" ]; then
+              ITEMS+=('{"service":"otel-collector"}')
+            fi
+
+            if [ ${#ITEMS[@]} -gt 0 ]; then
+              SERVICES=$(printf '%s\n' "${ITEMS[@]}" | jq -s '.')
+            fi
+          fi
+
+          echo "matrix={\"include\":$SERVICES}" >> "$GITHUB_OUTPUT"
+
+          COUNT=$(echo "$SERVICES" | jq 'length')
+          if [ "$COUNT" -gt 0 ]; then
+            echo "has_services=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_services=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "Services to build ($COUNT):"
+          echo "$SERVICES" | jq .
+
+  build:
+    needs: [generate-matrix]
+    if: needs.generate-matrix.outputs.has_services == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: ${{ matrix.service == 'osrm' }}
+
+    strategy:
+      matrix: ${{ fromJSON(needs.generate-matrix.outputs.matrix) }}
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rideshare-github-actions
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Download OSRM data from S3 (or LFS fallback)
+        if: matrix.service == 'osrm'
+        env:
+          ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+        run: |
+          S3_KEY="build-assets/osrm/sao-paulo-metro.osm.pbf"
+          S3_BUCKET="rideshare-${ACCOUNT_ID}-checkpoints"
+          LOCAL_PATH="services/osrm/data/sao-paulo-metro.osm.pbf"
+
+          mkdir -p services/osrm/data
+
+          if aws s3api head-object --bucket "$S3_BUCKET" --key "$S3_KEY" 2>/dev/null; then
+            echo "Downloading OSRM data from S3 cache..."
+            aws s3 cp "s3://${S3_BUCKET}/${S3_KEY}" "$LOCAL_PATH"
+          else
+            echo "S3 cache miss — pulling from Git LFS..."
+            git lfs pull --include="services/osrm/data/sao-paulo-metro.osm.pbf"
+
+            FILE_SIZE=$(stat --printf="%s" "$LOCAL_PATH" 2>/dev/null || stat -f "%z" "$LOCAL_PATH")
+            if [ "$FILE_SIZE" -lt 1048576 ]; then
+              echo "ERROR: LFS file is too small (${FILE_SIZE} bytes) — likely a pointer file"
+              exit 1
+            fi
+
+            echo "Uploading OSRM data to S3 for future builds..."
+            aws s3 cp "$LOCAL_PATH" "s3://${S3_BUCKET}/${S3_KEY}"
+          fi
+
+          echo "OSRM data ready ($(du -h "$LOCAL_PATH" | cut -f1))"
+
+      - name: Build and push ${{ matrix.service }} image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: rideshare/${{ matrix.service }}
+          IMAGE_TAG: ${{ github.sha }}
+          LAMBDA_URL: ${{ vars.LAMBDA_URL }}
+        run: |
+          # Simulation needs the repo-root schemas/ directory inside its build context
+          if [ "${{ matrix.service }}" = "simulation" ]; then
+            cp -r schemas services/simulation/schemas
+          fi
+
+          CACHE_REPO="$ECR_REGISTRY/$ECR_REPOSITORY"
+
+          BUILD_ARGS=(
+            --file "services/${{ matrix.service }}/Dockerfile"
+            --tag "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+            --tag "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
+            --cache-from "type=registry,ref=${CACHE_REPO}:buildcache"
+            --cache-to "type=registry,ref=${CACHE_REPO}:buildcache,mode=max"
+            --push
+          )
+
+          if [ -n "${{ matrix.target }}" ]; then
+            BUILD_ARGS+=(--target "${{ matrix.target }}")
+          fi
+
+          # Control panel needs production URLs baked into the Vite bundle
+          if [ "${{ matrix.service }}" = "control-panel" ]; then
+            BUILD_ARGS+=(
+              --build-arg "VITE_API_URL=https://api.ridesharing.portfolio.andresbrocco.com"
+              --build-arg "VITE_WS_URL=wss://api.ridesharing.portfolio.andresbrocco.com/ws"
+              --build-arg "VITE_LAMBDA_URL=${LAMBDA_URL}"
+            )
+          fi
+
+          docker buildx build "${BUILD_ARGS[@]}" "services/${{ matrix.service }}"
+
+          if [ "${{ matrix.service }}" = "simulation" ]; then
+            rm -rf services/simulation/schemas
+          fi
+
+      - name: Output image URIs
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: rideshare/${{ matrix.service }}
+        run: |
+          echo "Pushed ${{ matrix.service }} images:"
+          echo "  SHA tag:    $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}"
+          echo "  Latest tag: $ECR_REGISTRY/$ECR_REPOSITORY:latest"

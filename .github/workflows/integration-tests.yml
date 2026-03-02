@@ -1,35 +1,10 @@
 name: Integration Tests
 
 on:
-  schedule:
-    - cron: '0 2 * * *'  # Daily at 2 AM UTC
   workflow_dispatch:
 
 jobs:
-  check-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      has_changes: ${{ github.event_name == 'workflow_dispatch' || steps.check.outputs.has_changes }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Check for commits in the last 24 hours
-        id: check
-        run: |
-          COMMITS=$(git log --oneline --since="24 hours ago" | wc -l)
-          echo "Commits in last 24h: $COMMITS"
-          if [ "$COMMITS" -gt 0 ]; then
-            echo "has_changes=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_changes=false" >> "$GITHUB_OUTPUT"
-          fi
-
   integration-tests:
-    needs: check-changes
-    if: needs.check-changes.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
