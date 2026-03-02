@@ -76,6 +76,12 @@ configMapGenerator:
     files:
       - dbt-project.tar.gz
 
+  - name: airflow-great-expectations
+    options:
+      disableNameSuffixHash: true
+    files:
+      - ge-project.tar.gz
+
 images:
   # Custom service images from ECR (placeholders resolved during deploy)
   # <account-id> → AWS account ID, <image-tag> → git SHA for immutable deploys

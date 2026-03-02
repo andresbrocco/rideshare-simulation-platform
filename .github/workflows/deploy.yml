@@ -150,6 +150,13 @@ jobs:
             --exclude='dbt_packages' --exclude='__pycache__' --exclude='.user.yml' \
             -C tools/dbt .
 
+      - name: Package great-expectations project
+        run: |
+          tar -czf infrastructure/kubernetes/overlays/production/ge-project.tar.gz \
+            --exclude='venv' --exclude='__pycache__' --exclude='.mypy_cache' \
+            --exclude='gx/uncommitted/validations' --exclude='gx/uncommitted/data_docs' \
+            -C tools/great-expectations .
+
       - name: Push Deploy Branch
         run: |
           git config user.name "github-actions[bot]"

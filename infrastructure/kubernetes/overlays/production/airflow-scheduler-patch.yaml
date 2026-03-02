@@ -75,6 +75,29 @@ spec:
             - name: dbt-workspace
               mountPath: /opt/dbt
 
+        # Extract the great-expectations project tar into a shared emptyDir
+        # volume at /opt/great-expectations so the scheduler container can run
+        # GE validation checkpoints and data docs generation.
+        - name: setup-great-expectations
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              echo "Extracting great-expectations project..."
+              tar -xzf /ge-tar/ge-project.tar.gz -C /opt/great-expectations
+              chown -R 50000:0 /opt/great-expectations
+              chmod -R g+rw /opt/great-expectations
+              echo "great-expectations workspace ready"
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: ge-tar
+              mountPath: /ge-tar
+            - name: ge-workspace
+              mountPath: /opt/great-expectations
+
       containers:
         - name: airflow-scheduler
           command:
@@ -156,6 +179,8 @@ spec:
           volumeMounts:
             - name: dbt-workspace
               mountPath: /opt/dbt
+            - name: ge-workspace
+              mountPath: /opt/great-expectations
             - name: init-scripts
               mountPath: /opt/init-scripts
 
@@ -168,6 +193,15 @@ spec:
         - name: dbt-tar
           configMap:
             name: airflow-dbt-project
+
+        # emptyDir populated by setup-great-expectations initContainer
+        - name: ge-workspace
+          emptyDir: {}
+
+        # ConfigMap containing ge-project.tar.gz (built from tools/great-expectations/)
+        - name: ge-tar
+          configMap:
+            name: airflow-great-expectations
 
         # ConfigMap containing export-dbt-to-s3.py and register-trino-tables.py
         - name: init-scripts
