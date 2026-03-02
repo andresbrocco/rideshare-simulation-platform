@@ -399,6 +399,36 @@ resource "aws_iam_role_policy" "github_actions_s3_frontend" {
   })
 }
 
+# S3 Lakehouse Reset Policy (required by soft-reset.yml to empty bronze/silver/gold/checkpoints)
+resource "aws_iam_role_policy" "github_actions_s3_lakehouse" {
+  name = "s3-lakehouse-reset"
+  role = aws_iam_role.github_actions.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:ListBucket",
+          "s3:GetObject",
+          "s3:DeleteObject"
+        ]
+        Resource = [
+          var.s3_bucket_arns.bronze,
+          "${var.s3_bucket_arns.bronze}/*",
+          var.s3_bucket_arns.silver,
+          "${var.s3_bucket_arns.silver}/*",
+          var.s3_bucket_arns.gold,
+          "${var.s3_bucket_arns.gold}/*",
+          var.s3_bucket_arns.checkpoints,
+          "${var.s3_bucket_arns.checkpoints}/*"
+        ]
+      }
+    ]
+  })
+}
+
 # Terraform State S3 Policy (locking via S3-native .tflock file)
 resource "aws_iam_role_policy" "github_actions_terraform" {
   name = "terraform-state"
