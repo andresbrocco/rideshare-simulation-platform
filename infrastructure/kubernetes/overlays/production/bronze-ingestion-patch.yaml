@@ -50,3 +50,9 @@ spec:
             # Delta Lake base path for the production S3 bucket
             - name: DELTA_BASE_PATH
               value: "s3a://rideshare-<account-id>-bronze"
+
+            # DLQ validation (matches Docker Compose)
+            - name: DLQ_VALIDATE_JSON
+              value: "true"
+            - name: DLQ_VALIDATE_SCHEMA
+              value: "true"

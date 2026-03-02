@@ -27,7 +27,11 @@ with_dimensions as (
         t.time_key,
         p.timestamp as payment_timestamp,
         p.fare_amount as total_fare,
-        p.payment_method_type
+        p.payment_method_type,
+        row_number() over (
+            partition by p.payment_id
+            order by pm.valid_from desc nulls last
+        ) as _dedup_rn
     from payments p
     inner join {{ ref('fact_trips') }} ft on p.trip_id = ft.trip_id
     inner join {{ ref('dim_riders') }} r on p.rider_id = r.rider_id
@@ -52,6 +56,7 @@ final as (
         total_fare - round(total_fare * 0.25, 2) as driver_payout,
         payment_method_type
     from with_dimensions
+    where _dedup_rn = 1
 )
 
 select * from final

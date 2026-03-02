@@ -43,3 +43,7 @@ spec:
             # Ensure AWS region is set for IRSA-based S3 access
             - name: AWS_REGION
               value: "us-east-1"
+
+            # Data corruption rate for pipeline resilience testing (matches Docker Compose)
+            - name: MALFORMED_EVENT_RATE
+              value: "0.05"
