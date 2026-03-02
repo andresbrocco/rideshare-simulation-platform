@@ -100,6 +100,11 @@ with DAG(
     tags=["dbt", "silver", "transformation"],
 ) as silver_dag:
 
+    register_bronze_trino_tables = BashOperator(
+        task_id="register_bronze_trino_tables",
+        bash_command="python3 /opt/init-scripts/register-trino-tables.py --layer bronze",
+    )
+
     check_bronze_freshness = ShortCircuitOperator(
         task_id="check_bronze_freshness",
         python_callable=check_bronze_data_exists,
@@ -162,7 +167,8 @@ with DAG(
 
     # Task dependencies
     (
-        check_bronze_freshness
+        register_bronze_trino_tables
+        >> check_bronze_freshness
         >> dbt_silver_run
         >> dbt_silver_test
         >> ge_silver_validation

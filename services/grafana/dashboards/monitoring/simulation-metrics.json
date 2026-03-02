@@ -1745,36 +1745,9 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum by (name) (container_memory_working_set_bytes{name=\"rideshare-simulation\"}) / 1024 / 1024",
-          "legendFormat": "Simulation",
+          "expr": "rideshare:container:memory_bytes{service=~\"simulation|stream-processor|kafka|redis\"} / 1024 / 1024",
+          "legendFormat": "{{service}}",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "sum by (name) (container_memory_working_set_bytes{name=\"rideshare-stream-processor\"}) / 1024 / 1024",
-          "legendFormat": "Stream Processor",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "sum by (name) (container_memory_working_set_bytes{name=\"rideshare-kafka\"}) / 1024 / 1024",
-          "legendFormat": "Kafka",
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "sum by (name) (container_memory_working_set_bytes{name=\"rideshare-redis\"}) / 1024 / 1024",
-          "legendFormat": "Redis",
-          "refId": "D"
         }
       ],
       "title": "Container Memory Usage",
@@ -1860,36 +1833,9 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=\"rideshare-simulation\"}[$__rate_interval])) * 100",
-          "legendFormat": "Simulation",
+          "expr": "rideshare:container:cpu_percent{service=~\"simulation|stream-processor|kafka|redis\"}",
+          "legendFormat": "{{service}}",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=\"rideshare-stream-processor\"}[$__rate_interval])) * 100",
-          "legendFormat": "Stream Processor",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=\"rideshare-kafka\"}[$__rate_interval])) * 100",
-          "legendFormat": "Kafka",
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=\"rideshare-redis\"}[$__rate_interval])) * 100",
-          "legendFormat": "Redis",
-          "refId": "D"
         }
       ],
       "title": "Container CPU Usage",

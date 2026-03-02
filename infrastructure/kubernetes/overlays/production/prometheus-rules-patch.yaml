@@ -8,6 +8,44 @@ metadata:
 data:
   performance.yml: |
     groups:
+      - name: rideshare_container_metrics
+        interval: 4s
+        rules:
+          - record: rideshare:container:memory_bytes
+            expr: >-
+              label_replace(
+                container_memory_working_set_bytes{namespace="rideshare-prod",container!="POD",container!=""},
+                "service", "$1", "container", "(.*)"
+              )
+
+          - record: rideshare:container:memory_limit_bytes
+            expr: >-
+              label_replace(
+                container_spec_memory_limit_bytes{namespace="rideshare-prod",container!="POD",container!=""},
+                "service", "$1", "container", "(.*)"
+              )
+
+          - record: rideshare:container:cpu_percent
+            expr: >-
+              label_replace(
+                rate(container_cpu_usage_seconds_total{namespace="rideshare-prod",container!="POD",container!=""}[1m]) * 100,
+                "service", "$1", "container", "(.*)"
+              )
+
+          - record: rideshare:container:fs_write_rate
+            expr: >-
+              label_replace(
+                rate(container_fs_writes_bytes_total{namespace="rideshare-prod",container!="POD",container!=""}[1m]),
+                "service", "$1", "container", "(.*)"
+              )
+
+          - record: rideshare:container:fs_read_rate
+            expr: >-
+              label_replace(
+                rate(container_fs_reads_bytes_total{namespace="rideshare-prod",container!="POD",container!=""}[1m]),
+                "service", "$1", "container", "(.*)"
+              )
+
       - name: rideshare_performance
         interval: 4s
         rules:

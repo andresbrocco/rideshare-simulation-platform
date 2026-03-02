@@ -116,15 +116,15 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Total Kafka consumer group lag across all partitions. Rising lag indicates consumers cannot keep up with producers.",
+      "description": "Kafka lag headroom (0-1, higher = healthier). Derived from recording rule that falls back to vector(0) when no Kafka exporter is present.",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
           "custom": {
             "axisCenteredZero": false,
-            "axisLabel": "messages",
+            "axisLabel": "headroom",
             "drawStyle": "line",
             "fillOpacity": 20,
             "gradientMode": "none",
@@ -141,24 +141,26 @@
               "mode": "line+area"
             }
           },
+          "max": 1,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "red",
                 "value": null
               },
               {
                 "color": "yellow",
-                "value": 100
+                "value": 0.5
               },
               {
-                "color": "red",
-                "value": 1000
+                "color": "green",
+                "value": 0.8
               }
             ]
           },
-          "unit": "short"
+          "unit": "percentunit"
         },
         "overrides": []
       },
@@ -188,12 +190,12 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(kafka_consumergroup_lag)",
-          "legendFormat": "Consumer Lag",
+          "expr": "rideshare:performance:kafka_lag_headroom",
+          "legendFormat": "Lag Headroom",
           "refId": "A"
         }
       ],
-      "title": "Kafka Consumer Lag",
+      "title": "Kafka Lag Headroom",
       "type": "timeseries"
     },
     {
@@ -323,7 +325,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "redis_memory_used_bytes / (redis_memory_max_bytes > 0) * 100",
+          "expr": "rideshare:container:memory_bytes{service=\"redis\"} / rideshare:container:memory_limit_bytes{service=\"redis\"} * 100",
           "legendFormat": "Memory %",
           "refId": "A"
         }
@@ -402,8 +404,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(container_cpu_usage_seconds_total{name=~\"rideshare.*\"}[$__rate_interval]) * 100",
-          "legendFormat": "{{name}}",
+          "expr": "rideshare:container:cpu_percent",
+          "legendFormat": "{{service}}",
           "refId": "A"
         }
       ],
@@ -468,8 +470,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "container_memory_working_set_bytes{name=~\"rideshare.*\"} / (container_spec_memory_limit_bytes{name=~\"rideshare.*\"} > 0) * 100",
-          "legendFormat": "{{name}}",
+          "expr": "rideshare:container:memory_bytes / rideshare:container:memory_limit_bytes * 100",
+          "legendFormat": "{{service}}",
           "refId": "A"
         }
       ],
@@ -534,7 +536,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(container_fs_writes_bytes_total{name=\"rideshare-kafka\"}[$__rate_interval])",
+          "expr": "rideshare:container:fs_write_rate{service=\"kafka\"}",
           "legendFormat": "Writes",
           "refId": "A"
         },
@@ -543,7 +545,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(container_fs_reads_bytes_total{name=\"rideshare-kafka\"}[$__rate_interval])",
+          "expr": "rideshare:container:fs_read_rate{service=\"kafka\"}",
           "legendFormat": "Reads",
           "refId": "B"
         }

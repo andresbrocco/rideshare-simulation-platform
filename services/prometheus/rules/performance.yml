@@ -1,4 +1,42 @@
 groups:
+  - name: rideshare_container_metrics
+    interval: 4s
+    rules:
+      - record: rideshare:container:memory_bytes
+        expr: >-
+          label_replace(
+            container_memory_working_set_bytes{name=~"rideshare-.*"},
+            "service", "$1", "name", "rideshare-(.*)"
+          )
+
+      - record: rideshare:container:memory_limit_bytes
+        expr: >-
+          label_replace(
+            container_spec_memory_limit_bytes{name=~"rideshare-.*"},
+            "service", "$1", "name", "rideshare-(.*)"
+          )
+
+      - record: rideshare:container:cpu_percent
+        expr: >-
+          label_replace(
+            rate(container_cpu_usage_seconds_total{name=~"rideshare-.*"}[1m]) * 100,
+            "service", "$1", "name", "rideshare-(.*)"
+          )
+
+      - record: rideshare:container:fs_write_rate
+        expr: >-
+          label_replace(
+            rate(container_fs_writes_bytes_total{name=~"rideshare-.*"}[1m]),
+            "service", "$1", "name", "rideshare-(.*)"
+          )
+
+      - record: rideshare:container:fs_read_rate
+        expr: >-
+          label_replace(
+            rate(container_fs_reads_bytes_total{name=~"rideshare-.*"}[1m]),
+            "service", "$1", "name", "rideshare-(.*)"
+          )
+
   - name: rideshare_performance
     interval: 4s
     rules:
