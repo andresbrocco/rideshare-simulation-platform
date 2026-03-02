@@ -38,6 +38,7 @@ data:
         backend: s3
         s3:
           bucket: rideshare-<account-id>-tempo
+          endpoint: s3.us-east-1.amazonaws.com
           region: us-east-1
         block:
           bloom_filter_false_positive: .05
