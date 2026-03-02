@@ -1,7 +1,5 @@
-import functools
 import logging
 import os
-import pathlib
 import time
 from collections.abc import Callable
 from datetime import UTC
@@ -33,6 +31,7 @@ from api.models.metrics import (
     ZoneMetrics,
 )
 from api.rate_limit import limiter
+from api.routes.service_registry import get_services_for_environment
 from metrics import get_metrics_collector
 
 logger = logging.getLogger(__name__)
@@ -457,162 +456,6 @@ def get_performance_metrics(request: Request, engine: EngineDep) -> PerformanceM
         stream_processor=stream_processor_metrics,
         timestamp=snapshot.timestamp,
     )
-
-
-COMPOSE_FILE_PATH = pathlib.Path("/app/compose.yml")
-
-# Display name overrides for containers where auto-generation is insufficient
-_DISPLAY_NAME_OVERRIDES: dict[str, str] = {
-    "rideshare-osrm": "OSRM",
-    "rideshare-minio": "MinIO",
-    "rideshare-cadvisor": "cAdvisor",
-    "rideshare-otel-collector": "OTel Collector",
-    "rideshare-bronze-ingestion": "Bronze Ingestion",
-    "rideshare-postgres-airflow": "Postgres (Airflow)",
-    "rideshare-postgres-metastore": "Postgres (Metastore)",
-    "rideshare-airflow-webserver": "Airflow Web",
-    "rideshare-localstack": "LocalStack",
-    "rideshare-openldap": "OpenLDAP",
-}
-
-# Per-service health-check thresholds: (degraded_ms, unhealthy_ms)
-_DEFAULT_THRESHOLDS: tuple[float, float] = (100, 500)
-
-_SERVICE_THRESHOLDS: dict[str, tuple[float, float]] = {
-    # Critical Real-Time Path
-    "rideshare-redis": (5, 20),
-    "rideshare-kafka": (50, 200),
-    "rideshare-stream-processor": (50, 150),
-    # Trip Matching Path
-    "rideshare-osrm": (150, 500),
-    "rideshare-schema-registry": (100, 500),
-    # Batch / Analytics Path
-    "rideshare-minio": (200, 1000),
-    "rideshare-airflow-webserver": (500, 2000),
-    "rideshare-spark-thrift-server": (500, 2000),
-    "rideshare-localstack": (200, 1000),
-    # Infrastructure / Monitoring
-    "rideshare-prometheus": (100, 500),
-    "rideshare-cadvisor": (100, 500),
-    "rideshare-grafana": (200, 1000),
-    "rideshare-control-panel": (100, 500),
-    "rideshare-otel-collector": (100, 500),
-    # Database Services
-    "rideshare-postgres-airflow": (10, 50),
-    "rideshare-postgres-metastore": (10, 50),
-    # Special
-    "rideshare-bronze-ingestion": (100, 500),
-    # Data Pipeline — query / metastore
-    "rideshare-trino": (500, 2000),
-    "rideshare-hive-metastore": (200, 1000),
-    "rideshare-openldap": (50, 200),
-    # Monitoring — log / trace backends
-    "rideshare-loki": (100, 500),
-    "rideshare-tempo": (100, 500),
-}
-
-_HEARTBEAT_THRESHOLDS: dict[str, tuple[float, float]] = {
-    "rideshare-airflow-scheduler": (30, 90),
-}
-
-# Minimal fallback used when compose.yml is missing or malformed
-_FALLBACK_CONTAINER_CONFIG: dict[str, dict[str, str]] = {
-    "rideshare-kafka": {"display_name": "Kafka"},
-    "rideshare-redis": {"display_name": "Redis"},
-    "rideshare-osrm": {"display_name": "OSRM"},
-    "rideshare-simulation": {"display_name": "Simulation"},
-    "rideshare-stream-processor": {"display_name": "Stream Processor"},
-    "rideshare-control-panel": {"display_name": "Control Panel"},
-    "rideshare-prometheus": {"display_name": "Prometheus"},
-    "rideshare-grafana": {"display_name": "Grafana"},
-}
-
-
-def _generate_display_name(container_name: str) -> str:
-    """Generate a display name from a container name.
-
-    Strips the 'rideshare-' prefix, replaces hyphens with spaces, and title-cases.
-    """
-    name = container_name.removeprefix("rideshare-")
-    return name.replace("-", " ").title()
-
-
-@functools.cache
-def _discover_containers() -> tuple[dict[str, dict[str, str]], str | None]:
-    """Build the container configuration.
-
-    In production (DEPLOYMENT_ENV=production) the compose.yml is not available,
-    so the configuration is built from the _FALLBACK_CONTAINER_CONFIG which maps
-    the same logical service names used as Kubernetes container labels.
-
-    In local/development mode the compose.yml is parsed to discover all services
-    dynamically, with a fallback to _FALLBACK_CONTAINER_CONFIG if parsing fails.
-
-    Returns a tuple of (container_config, error_message).
-    error_message is None on success, or a description of the problem on failure.
-    """
-    deployment_env = os.getenv("DEPLOYMENT_ENV", "local")
-
-    if deployment_env == "production":
-        # In Kubernetes, container names come from the `container` label in Prometheus.
-        # Use the fallback config as the known-services map; resource metrics are
-        # fetched by label rather than by container_name, so the keys here just drive
-        # the display list.
-        logger.info("Production deployment — using static container config")
-        return _FALLBACK_CONTAINER_CONFIG, None
-
-    import yaml
-
-    if not COMPOSE_FILE_PATH.exists():
-        logger.warning("compose.yml not found at %s — using fallback", COMPOSE_FILE_PATH)
-        return (
-            _FALLBACK_CONTAINER_CONFIG,
-            f"compose.yml not found at {COMPOSE_FILE_PATH} — showing fallback services",
-        )
-
-    try:
-        raw = COMPOSE_FILE_PATH.read_text(encoding="utf-8")
-        compose: dict[str, Any] = yaml.safe_load(raw)
-    except Exception as exc:
-        logger.warning("Failed to parse compose.yml: %s — using fallback", exc)
-        return (
-            _FALLBACK_CONTAINER_CONFIG,
-            f"Failed to parse compose.yml: {exc} — showing fallback services",
-        )
-
-    services_section = compose.get("services")
-    if not isinstance(services_section, dict):
-        logger.warning("compose.yml has no 'services' section — using fallback")
-        return (
-            _FALLBACK_CONTAINER_CONFIG,
-            "compose.yml has no 'services' section — showing fallback services",
-        )
-
-    config: dict[str, dict[str, str]] = {}
-    project_name = compose.get("name", "rideshare-platform")
-    # Docker Compose derives container_name from: explicit container_name > {project}-{service}-1
-    # We handle both cases.
-    for service_name, service_def in services_section.items():
-        if not isinstance(service_def, dict):
-            continue
-
-        container_name = service_def.get("container_name")
-        if container_name is None:
-            # Derive from project name + service name (Docker Compose default)
-            container_name = f"{project_name}-{service_name}-1"
-
-        # Skip init containers (one-shot setup jobs)
-        if container_name.endswith("-init"):
-            continue
-
-        # Use override or auto-generate display name
-        display_name = _DISPLAY_NAME_OVERRIDES.get(
-            container_name, _generate_display_name(container_name)
-        )
-        config[container_name] = {"display_name": display_name}
-
-    logger.info("Discovered %d containers from compose.yml", len(config))
-    return config, None
 
 
 _PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "http://prometheus:9090")
@@ -1565,18 +1408,17 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
             return container_name.removeprefix("rideshare-")
         return container_name
 
-    # Build service metrics list
-    SPARK_CONTAINER_NAME = "rideshare-spark-thrift-server"
-    container_config, discovery_error = _discover_containers()
+    # Build service metrics list from the centralized registry
+    active_services = get_services_for_environment(deployment_env)
     services = []
     final_statuses: dict[str, ContainerStatus] = {}
-    for container_name, config in container_config.items():
+    for container_name, svc_def in active_services.items():
         status, latency_ms, message = health_results.get(
             container_name, (ContainerStatus.HEALTHY, None, "No health endpoint")
         )
 
-        # Look up per-service thresholds
-        svc_thresholds = _SERVICE_THRESHOLDS.get(container_name, _DEFAULT_THRESHOLDS)
+        # Per-service thresholds from registry
+        svc_thresholds = (svc_def.threshold_degraded_ms, svc_def.threshold_unhealthy_ms)
 
         # Re-evaluate latency-based status with per-service thresholds.
         # Skip: simulation (uses RTR), scheduler (uses heartbeat age).
@@ -1614,19 +1456,19 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
 
         final_statuses[container_name] = status
 
-        # Spark thrift is optional; hide it entirely when not running.
-        if container_name == SPARK_CONTAINER_NAME and status in (
+        # Optional services: hide card entirely when not running.
+        if svc_def.optional and status in (
             ContainerStatus.STOPPED,
             ContainerStatus.UNHEALTHY,
         ):
             continue
 
         # Determine which thresholds to send to frontend
-        frontend_thresholds = _HEARTBEAT_THRESHOLDS.get(container_name, svc_thresholds)
+        frontend_thresholds = svc_def.heartbeat_thresholds or svc_thresholds
 
         services.append(
             ServiceMetrics(
-                name=str(config["display_name"]),
+                name=svc_def.display_name,
                 status=status,
                 latency_ms=latency_ms,
                 message=message,
@@ -1641,14 +1483,13 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         )
 
     # Determine overall status — binary HEALTHY/UNHEALTHY across all services.
-    # Spark thrift is optional (not deployed by default); exclude it when not running.
-    # Its health check returns UNHEALTHY (connection refused) and Prometheus marks it
-    # STOPPED — either way it should not drag the overall status down.
+    # Optional services that are stopped/unhealthy are excluded so they don't
+    # drag the overall status down.
     overall_statuses = [
         status
         for container_name, status in final_statuses.items()
         if not (
-            container_name == SPARK_CONTAINER_NAME
+            active_services[container_name].optional
             and status in (ContainerStatus.STOPPED, ContainerStatus.UNHEALTHY)
         )
     ]
@@ -1678,7 +1519,6 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         total_memory_capacity_mb=round(total_memory_capacity_mb, 1),
         total_memory_percent=round(total_memory_percent, 1),
         total_cores=total_cores,
-        discovery_error=discovery_error,
     )
 
     # NOTE: /metrics/prometheus endpoint removed.

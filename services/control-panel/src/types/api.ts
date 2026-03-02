@@ -487,5 +487,4 @@ export interface InfrastructureResponse {
   total_memory_capacity_mb: number;
   total_memory_percent: number;
   total_cores: number;
-  discovery_error?: string;
 }

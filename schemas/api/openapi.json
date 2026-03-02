@@ -3072,17 +3072,6 @@
             "type": "integer",
             "title": "Total Cores",
             "default": 1
-          },
-          "discovery_error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Discovery Error"
           }
         },
         "type": "object",

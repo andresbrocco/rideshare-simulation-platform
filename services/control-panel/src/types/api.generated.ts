@@ -1327,8 +1327,6 @@ export interface components {
        * @default 1
        */
       total_cores: number;
-      /** Discovery Error */
-      discovery_error?: string | null;
     };
     /** LatencyMetrics */
     LatencyMetrics: {

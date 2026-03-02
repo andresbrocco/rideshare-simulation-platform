@@ -206,10 +206,6 @@ export default function InfrastructurePanel({
             </div>
           )}
 
-          {data?.discovery_error && (
-            <div className={styles.warningMessage}>{data.discovery_error}</div>
-          )}
-
           {/* System Totals */}
           {data && (data.cadvisor_available || infrastructureHeadroom !== null) && (
             <div className={styles.totalsSection}>
