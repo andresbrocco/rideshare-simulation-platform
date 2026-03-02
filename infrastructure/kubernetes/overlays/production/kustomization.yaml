@@ -30,6 +30,7 @@ resources:
   - ../../manifests/loki.yaml
   - ../../manifests/tempo.yaml
   - ../../manifests/otel-collector.yaml
+  - ../../manifests/otel-collector-logs.yaml
 
   # External Secrets (syncs from AWS Secrets Manager)
   - ../../manifests/external-secrets-namespace.yaml
@@ -113,6 +114,10 @@ patches:
     target:
       kind: StatefulSet
       name: kafka
+  - patch: '[{"op": "replace", "path": "/spec/template/spec/containers/0/imagePullPolicy", "value": "IfNotPresent"}]'
+    target:
+      kind: DaemonSet
+      name: otel-collector-logs
 
   # ConfigMap patches for production environment
   - path: configmap-core-patch.yaml
@@ -382,3 +387,14 @@ patches:
     target:
       kind: Deployment
       name: tempo
+
+  # OTel Collector: Production environment for OTLP Deployment and Logs DaemonSet
+  - path: otel-collector-config-patch.yaml
+    target:
+      kind: ConfigMap
+      name: otel-collector-config
+
+  - path: otel-collector-logs-config-patch.yaml
+    target:
+      kind: ConfigMap
+      name: otel-collector-logs-config

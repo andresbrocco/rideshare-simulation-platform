@@ -1,0 +1,118 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-logs-config
+data:
+  config.yaml: |
+    receivers:
+      # Filelog receiver for CRI-format container logs on Kubernetes nodes
+      filelog:
+        include:
+          - /var/log/pods/*/*/*.log
+        exclude:
+          # Exclude own logs to prevent feedback loops
+          - /var/log/pods/*/otel-collector-logs*/*.log
+        start_at: end
+        include_file_path: true
+        operators:
+          # Parse CRI log format: <timestamp> <stream> <flags> <log>
+          - type: regex_parser
+            id: cri_parser
+            regex: '^(?P<time>[^ ]+) (?P<stream>stdout|stderr) (?P<flags>[^ ]+) (?P<log>.*)$'
+            output: extract_k8s_metadata
+            timestamp:
+              parse_from: attributes.time
+              layout: '%Y-%m-%dT%H:%M:%S.%LZ'
+          # Extract Kubernetes metadata from log file path
+          # Path format: /var/log/pods/<namespace>_<pod-name>_<pod-uid>/<container-name>/<restart-count>.log
+          - type: regex_parser
+            id: extract_k8s_metadata
+            regex: '^/var/log/pods/(?P<namespace>[^_]+)_(?P<pod_name>[^_]+)_(?P<pod_uid>[^/]+)/(?P<container_name>[^/]+)/'
+            parse_from: attributes["log.file.path"]
+            output: try_json_parse
+          # Parse structured JSON application logs
+          - type: json_parser
+            id: try_json_parse
+            parse_from: attributes.log
+            if: 'attributes.log != nil and attributes.log matches "^\\{"'
+
+    processors:
+      # Memory limiter for stability
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 180
+        spike_limit_mib: 50
+
+      # Extract log attributes for Loki labels
+      attributes/logs:
+        actions:
+          - key: level
+            from_attribute: body.level
+            action: upsert
+          - key: service
+            from_attribute: body.logger
+            action: upsert
+          - key: service_name
+            from_attribute: body.service_name
+            action: upsert
+          - key: correlation_id
+            from_attribute: body.correlation_id
+            action: upsert
+          - key: trip_id
+            from_attribute: body.trip_id
+            action: upsert
+
+      # Copy service_name attribute to service.name resource attribute
+      transform/logs:
+        log_statements:
+          - context: log
+            statements:
+              - set(resource.attributes["service.name"], attributes["service_name"]) where attributes["service_name"] != nil
+
+      # Add resource attributes
+      resource:
+        attributes:
+          - key: deployment.environment
+            value: production
+            action: upsert
+
+      # Loki resource label hints
+      resource/loki_hints:
+        attributes:
+          - key: loki.resource.labels
+            value: service.name,deployment.environment
+            action: insert
+
+      # Loki attribute label hints (K8s-native labels instead of Docker container_id)
+      attributes/loki_hints:
+        actions:
+          - key: loki.attribute.labels
+            value: level,service,service_name,container_name,namespace,pod_name
+            action: insert
+
+      # Batch for efficiency
+      batch:
+        timeout: 5s
+        send_batch_size: 1000
+
+    exporters:
+      # Loki exporter for logs
+      loki:
+        endpoint: http://loki:3100/loki/api/v1/push
+
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+    service:
+      extensions: [health_check]
+      pipelines:
+        logs:
+          receivers: [filelog]
+          processors: [memory_limiter, attributes/logs, transform/logs, resource, resource/loki_hints, attributes/loki_hints, batch]
+          exporters: [loki]
+      telemetry:
+        logs:
+          level: info
+        metrics:
+          address: 0.0.0.0:8888
