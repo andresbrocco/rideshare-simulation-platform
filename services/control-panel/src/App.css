@@ -103,30 +103,54 @@
   margin: 0;
 }
 
-.landing-login-button {
-  display: inline-block;
-  margin-top: 32px;
-  padding: 14px 40px;
-  background: var(--offline-neon);
-  color: var(--offline-cta-bg);
-  border: none;
-  border-radius: 8px;
-  font-weight: 700;
-  font-size: 1rem;
-  letter-spacing: 0.03em;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 0 24px rgba(var(--offline-neon-rgb), 0.3);
+/* Services grid */
+.landing-services {
+  text-align: center;
 }
 
-.landing-login-button:hover {
-  background: var(--offline-neon-hover);
-  box-shadow: 0 0 40px rgba(var(--offline-neon-rgb), 0.5);
+.landing-services-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.landing-service-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 20px 16px;
+  background: transparent;
+  border: 1px solid rgba(var(--offline-neon-rgb), 0.15);
+  border-radius: 10px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+.landing-service-card:hover {
+  border-color: rgba(var(--offline-neon-rgb), 0.45);
+  box-shadow: 0 0 20px rgba(var(--offline-neon-rgb), 0.12);
   transform: translateY(-2px);
 }
 
-.landing-login-button:active {
+.landing-service-card:active {
   transform: translateY(0);
+}
+
+.landing-service-name {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--offline-neon);
+}
+
+.landing-service-desc {
+  font-size: 0.72rem;
+  color: var(--offline-text-dimmest);
+  letter-spacing: 0.02em;
 }
 
 .landing-body {
@@ -156,6 +180,9 @@
 @media (max-width: 640px) {
   .landing-two-col {
     grid-template-columns: 1fr;
+  }
+  .landing-services-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
   .landing-hero {
     padding: 40px 16px 36px;

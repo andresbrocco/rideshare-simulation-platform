@@ -111,21 +111,48 @@ describe('LandingPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders login button', () => {
+  it('renders Control Panel button in services grid', () => {
     render(<LandingPage onLoginClick={mockOnLoginClick} />);
 
-    const loginButton = screen.getByRole('button', { name: /login/i });
-    expect(loginButton).toBeInTheDocument();
+    const controlPanelButton = screen.getByRole('button', { name: /control panel/i });
+    expect(controlPanelButton).toBeInTheDocument();
   });
 
-  it('calls onLoginClick when login button clicked', async () => {
+  it('calls onLoginClick when Control Panel button clicked', async () => {
     const user = userEvent.setup();
     render(<LandingPage onLoginClick={mockOnLoginClick} />);
 
-    const loginButton = screen.getByRole('button', { name: /login/i });
-    await user.click(loginButton);
+    const controlPanelButton = screen.getByRole('button', { name: /control panel/i });
+    await user.click(controlPanelButton);
 
     expect(mockOnLoginClick).toHaveBeenCalledOnce();
+  });
+
+  it('renders Explore the Platform heading', () => {
+    render(<LandingPage onLoginClick={mockOnLoginClick} />);
+
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Explore the Platform' })
+    ).toBeInTheDocument();
+  });
+
+  it('renders all external service links with correct attributes', () => {
+    render(<LandingPage onLoginClick={mockOnLoginClick} />);
+
+    const expectedServices = [
+      { name: 'Grafana', url: 'https://grafana.ridesharing.portfolio.andresbrocco.com' },
+      { name: 'Airflow', url: 'https://airflow.ridesharing.portfolio.andresbrocco.com' },
+      { name: 'Trino', url: 'https://trino.ridesharing.portfolio.andresbrocco.com' },
+      { name: 'Prometheus', url: 'https://prometheus.ridesharing.portfolio.andresbrocco.com' },
+      { name: 'Simulation API', url: 'https://api.ridesharing.portfolio.andresbrocco.com/docs' },
+    ];
+
+    for (const service of expectedServices) {
+      const link = screen.getByRole('link', { name: new RegExp(service.name) });
+      expect(link).toHaveAttribute('href', service.url);
+      expect(link).toHaveAttribute('target', '_blank');
+      expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    }
   });
 
   it('does not show Demo Offline badge', () => {

@@ -1,5 +1,33 @@
 import { TripLifecycleAnimation } from './TripLifecycleAnimation';
 
+const EXTERNAL_SERVICES = [
+  {
+    name: 'Grafana',
+    url: 'https://grafana.ridesharing.portfolio.andresbrocco.com',
+    desc: 'Observability dashboards',
+  },
+  {
+    name: 'Airflow',
+    url: 'https://airflow.ridesharing.portfolio.andresbrocco.com',
+    desc: 'Pipeline orchestration',
+  },
+  {
+    name: 'Trino',
+    url: 'https://trino.ridesharing.portfolio.andresbrocco.com',
+    desc: 'Interactive SQL engine',
+  },
+  {
+    name: 'Prometheus',
+    url: 'https://prometheus.ridesharing.portfolio.andresbrocco.com',
+    desc: 'Metrics & PromQL',
+  },
+  {
+    name: 'Simulation API',
+    url: 'https://api.ridesharing.portfolio.andresbrocco.com/docs',
+    desc: 'REST API docs (Swagger)',
+  },
+];
+
 export function LandingPage({ onLoginClick }: { onLoginClick: () => void }) {
   return (
     <div className="landing-container">
@@ -10,13 +38,6 @@ export function LandingPage({ onLoginClick }: { onLoginClick: () => void }) {
           <p className="landing-subtitle">
             Real-time Event-Driven Data Engineering &mdash; Portfolio Project
           </p>
-          <button
-            onClick={onLoginClick}
-            className="landing-login-button"
-            aria-label="Login to access control panel"
-          >
-            Login
-          </button>
         </div>
 
         <TripLifecycleAnimation />
@@ -90,6 +111,28 @@ export function LandingPage({ onLoginClick }: { onLoginClick: () => void }) {
                 <span className="pipeline-stage-label">Analytics</span>
                 <span className="pipeline-stage-desc">Trino + Grafana</span>
               </div>
+            </div>
+          </section>
+
+          <section className="landing-section landing-services">
+            <h2>Explore the Platform</h2>
+            <div className="landing-services-grid">
+              <button onClick={onLoginClick} className="landing-service-card">
+                <span className="landing-service-name">Control Panel</span>
+                <span className="landing-service-desc">Real-time simulation map</span>
+              </button>
+              {EXTERNAL_SERVICES.map((s) => (
+                <a
+                  key={s.name}
+                  href={s.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="landing-service-card"
+                >
+                  <span className="landing-service-name">{s.name}</span>
+                  <span className="landing-service-desc">{s.desc}</span>
+                </a>
+              ))}
             </div>
           </section>
 
