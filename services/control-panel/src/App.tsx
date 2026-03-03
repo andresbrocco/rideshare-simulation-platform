@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { LandingPage } from './components/LandingPage';
 import PasswordDialog from './components/PasswordDialog';
 import Map from './components/Map';
@@ -32,6 +32,20 @@ import {
   redirectToLanding,
 } from './utils/auth';
 import './App.css';
+
+const PAGE_REFRESH_INTERVAL_MS = Number(import.meta.env.VITE_PAGE_REFRESH_INTERVAL_MS ?? 600_000);
+
+function usePageRefresh(intervalMs: number) {
+  useEffect(() => {
+    if (intervalMs <= 0) return;
+
+    const id = setInterval(() => {
+      window.location.reload();
+    }, intervalMs);
+
+    return () => clearInterval(id);
+  }, [intervalMs]);
+}
 
 /**
  * Landing page mode: renders only the landing page + password dialog.
@@ -369,6 +383,8 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
 }
 
 function App() {
+  usePageRefresh(PAGE_REFRESH_INTERVAL_MS);
+
   return (
     <PerformanceProvider>
       <AppContent />
