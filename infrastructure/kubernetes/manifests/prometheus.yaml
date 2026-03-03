@@ -268,9 +268,9 @@ spec:
         - --web.enable-remote-write-receiver
         resources:
           limits:
-            memory: "512Mi"
+            memory: "768Mi"
           requests:
-            memory: "128Mi"
+            memory: "192Mi"
         ports:
         - containerPort: 9090
           name: web
