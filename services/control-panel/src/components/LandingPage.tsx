@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+import { useActiveSection } from '../hooks/useActiveSection';
 import { useCountUp } from '../hooks/useCountUp';
 import { useInView } from '../hooks/useInView';
 import { TripLifecycleAnimation } from './TripLifecycleAnimation';
@@ -87,12 +89,74 @@ function StatBar() {
   );
 }
 
+const NAV_SECTIONS = ['architecture', 'tech-stack', 'deep-dives', 'explore'] as const;
+
+const NAV_LABELS: Record<(typeof NAV_SECTIONS)[number], string> = {
+  architecture: 'Architecture',
+  'tech-stack': 'Tech Stack',
+  'deep-dives': 'Deep Dives',
+  explore: 'Explore',
+};
+
+interface SectionNavProps {
+  heroVisible: boolean;
+}
+
+function SectionNav({ heroVisible }: SectionNavProps) {
+  const activeId = useActiveSection(NAV_SECTIONS);
+
+  function handleNavClick(id: string) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'start' });
+  }
+
+  return (
+    <nav
+      className={`section-nav${heroVisible ? '' : ' section-nav--visible'}`}
+      aria-label="Page sections"
+    >
+      {NAV_SECTIONS.map((id) => (
+        <button
+          key={id}
+          className={`section-nav-btn${activeId === id ? ' section-nav-btn--active' : ''}`}
+          onClick={() => handleNavClick(id)}
+          type="button"
+        >
+          {NAV_LABELS[id]}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
 interface LandingPageProps {
   onLoginClick: () => void;
   isLocal: boolean;
 }
 
 export function LandingPage({ onLoginClick, isLocal }: LandingPageProps) {
+  const [heroVisible, setHeroVisible] = useState(true);
+
+  useEffect(() => {
+    const hero = document.getElementById('hero');
+    if (!hero) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      const entry = entries[0];
+      if (entry) {
+        setHeroVisible(entry.isIntersecting);
+      }
+    });
+
+    observer.observe(hero);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
   return (
     <div className="landing-container">
       <div className="landing-inner">
@@ -103,6 +167,8 @@ export function LandingPage({ onLoginClick, isLocal }: LandingPageProps) {
             Real-time Event-Driven Data Engineering &mdash; Portfolio Project
           </p>
         </div>
+
+        <SectionNav heroVisible={heroVisible} />
 
         <TripLifecycleAnimation />
 

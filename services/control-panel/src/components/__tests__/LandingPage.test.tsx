@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LandingPage } from '../LandingPage';
 
@@ -12,8 +12,13 @@ SVGElement.prototype.getPointAtLength = vi.fn().mockReturnValue({ x: 100, y: 40 
 
 const mockOnLoginClick = vi.fn();
 
+type IntersectionObserverCallback = (entries: IntersectionObserverEntry[]) => void;
+let observerCallbacks: IntersectionObserverCallback[] = [];
+
 beforeEach(() => {
   vi.clearAllMocks();
+  observerCallbacks = [];
+
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: vi.fn().mockImplementation((query: string) => ({
@@ -27,13 +32,17 @@ beforeEach(() => {
       dispatchEvent: vi.fn(),
     })),
   });
+
   vi.stubGlobal(
     'IntersectionObserver',
-    vi.fn().mockImplementation(() => ({
-      observe: vi.fn(),
-      unobserve: vi.fn(),
-      disconnect: vi.fn(),
-    }))
+    vi.fn().mockImplementation((callback: IntersectionObserverCallback) => {
+      observerCallbacks.push(callback);
+      return {
+        observe: vi.fn(),
+        unobserve: vi.fn(),
+        disconnect: vi.fn(),
+      };
+    })
   );
 });
 
@@ -240,5 +249,105 @@ describe('LandingPage', () => {
     render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
 
     expect(document.querySelector('.landing-inner')).not.toBeNull();
+  });
+});
+
+describe('SectionNav', () => {
+  it('test_section_nav_renders_four_buttons', () => {
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+
+    expect(screen.getByRole('button', { name: 'Architecture' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tech Stack' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Deep Dives' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Explore' })).toBeInTheDocument();
+  });
+
+  it('test_section_nav_initially_not_visible', () => {
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+
+    const nav = document.querySelector('.section-nav');
+    expect(nav).not.toBeNull();
+    expect(nav!.classList.contains('section-nav--visible')).toBe(false);
+  });
+
+  it('test_section_nav_becomes_visible_when_hero_not_intersecting', () => {
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+
+    const heroObserverCallback = observerCallbacks[observerCallbacks.length - 1];
+    expect(heroObserverCallback).toBeDefined();
+
+    act(() => {
+      heroObserverCallback([
+        {
+          isIntersecting: false,
+          target: document.createElement('div'),
+        } as IntersectionObserverEntry,
+      ]);
+    });
+
+    const nav = document.querySelector('.section-nav');
+    expect(nav).not.toBeNull();
+    expect(nav!.classList.contains('section-nav--visible')).toBe(true);
+  });
+
+  it('test_section_nav_hides_when_hero_intersecting', () => {
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+
+    const heroObserverCallback = observerCallbacks[observerCallbacks.length - 1];
+
+    act(() => {
+      heroObserverCallback([
+        {
+          isIntersecting: false,
+          target: document.createElement('div'),
+        } as IntersectionObserverEntry,
+      ]);
+    });
+
+    act(() => {
+      heroObserverCallback([
+        {
+          isIntersecting: true,
+          target: document.createElement('div'),
+        } as IntersectionObserverEntry,
+      ]);
+    });
+
+    const nav = document.querySelector('.section-nav');
+    expect(nav).not.toBeNull();
+    expect(nav!.classList.contains('section-nav--visible')).toBe(false);
+  });
+
+  it('test_section_nav_button_click_calls_scrollIntoView', async () => {
+    const user = userEvent.setup();
+
+    const exploreEl = document.createElement('section');
+    exploreEl.id = 'explore';
+    const scrollIntoViewMock = vi.fn();
+    exploreEl.scrollIntoView = scrollIntoViewMock;
+    document.body.appendChild(exploreEl);
+
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+
+    const exploreButton = screen.getByRole('button', { name: 'Explore' });
+    await user.click(exploreButton);
+
+    expect(scrollIntoViewMock).toHaveBeenCalledWith(expect.objectContaining({ block: 'start' }));
+
+    document.body.removeChild(exploreEl);
+  });
+
+  it('test_section_nav_has_focus_indicators', () => {
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+
+    const navButtons = screen
+      .getAllByRole('button')
+      .filter((btn) => btn.classList.contains('section-nav-btn'));
+
+    expect(navButtons.length).toBeGreaterThan(0);
+    for (const btn of navButtons) {
+      expect(btn).toBeVisible();
+      expect(btn.tabIndex).not.toBe(-1);
+    }
   });
 });
