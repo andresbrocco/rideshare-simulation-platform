@@ -15,7 +15,7 @@ permissions:
 jobs:
   soft-reset:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       # ── Phase 1: Guards & Setup ──────────────────────────────────────
@@ -252,26 +252,52 @@ jobs:
       - name: Scale up hive-metastore
         run: |
           kubectl scale deployment hive-metastore -n rideshare-prod --replicas=1
-          echo "Waiting for Hive Metastore (runs schematool -initSchema)..."
-          kubectl wait --for=condition=available deployment/hive-metastore \
-            -n rideshare-prod --timeout=300s
+          echo "Waiting for Hive Metastore (runs schematool -initSchema, up to 5 min)..."
+          if ! kubectl wait --for=condition=available deployment/hive-metastore \
+            -n rideshare-prod --timeout=300s; then
+            echo "::warning::hive-metastore not ready within timeout — dumping diagnostics"
+            kubectl get pods -l app=hive-metastore -n rideshare-prod -o wide
+            kubectl describe pod -l app=hive-metastore -n rideshare-prod | tail -40
+            kubectl logs -l app=hive-metastore -n rideshare-prod --all-containers --tail=30 || true
+            echo "Continuing — ArgoCD self-heal will reconcile"
+          fi
 
       - name: Scale up trino
         run: |
           kubectl scale deployment trino -n rideshare-prod --replicas=1
-          kubectl wait --for=condition=available deployment/trino \
-            -n rideshare-prod --timeout=300s
+          echo "Waiting for Trino (up to 5 min)..."
+          if ! kubectl wait --for=condition=available deployment/trino \
+            -n rideshare-prod --timeout=300s; then
+            echo "::warning::trino not ready within timeout — dumping diagnostics"
+            kubectl get pods -l app=trino -n rideshare-prod -o wide
+            kubectl describe pod -l app=trino -n rideshare-prod | tail -40
+            kubectl logs -l app=trino -n rideshare-prod --all-containers --tail=30 || true
+            echo "Continuing — ArgoCD self-heal will reconcile"
+          fi
 
       - name: Scale up airflow
         run: |
           kubectl scale deployment airflow-webserver -n rideshare-prod --replicas=1
-          echo "Waiting for Airflow webserver (runs airflow db migrate)..."
-          kubectl wait --for=condition=available deployment/airflow-webserver \
-            -n rideshare-prod --timeout=600s
+          echo "Waiting for Airflow webserver (runs airflow db migrate, up to 10 min)..."
+          if ! kubectl wait --for=condition=available deployment/airflow-webserver \
+            -n rideshare-prod --timeout=600s; then
+            echo "::warning::airflow-webserver not ready within timeout — dumping diagnostics"
+            kubectl get pods -l app=airflow-webserver -n rideshare-prod -o wide
+            kubectl describe pod -l app=airflow-webserver -n rideshare-prod | tail -40
+            kubectl logs -l app=airflow-webserver -n rideshare-prod --all-containers --tail=30 || true
+            echo "Continuing — ArgoCD self-heal will reconcile"
+          fi
 
           kubectl scale deployment airflow-scheduler -n rideshare-prod --replicas=1
-          kubectl wait --for=condition=available deployment/airflow-scheduler \
-            -n rideshare-prod --timeout=300s
+          echo "Waiting for Airflow scheduler (up to 5 min)..."
+          if ! kubectl wait --for=condition=available deployment/airflow-scheduler \
+            -n rideshare-prod --timeout=300s; then
+            echo "::warning::airflow-scheduler not ready within timeout — dumping diagnostics"
+            kubectl get pods -l app=airflow-scheduler -n rideshare-prod -o wide
+            kubectl describe pod -l app=airflow-scheduler -n rideshare-prod | tail -40
+            kubectl logs -l app=airflow-scheduler -n rideshare-prod --all-containers --tail=30 || true
+            echo "Continuing — ArgoCD self-heal will reconcile"
+          fi
 
       - name: Scale up data producers
         run: |
@@ -282,19 +308,37 @@ jobs:
 
       - name: Wait for deployments available
         run: |
+          FAILED=0
+
           echo "Waiting for simulation..."
-          kubectl wait --for=condition=available deployment/simulation \
-            -n rideshare-prod --timeout=600s
+          if ! kubectl wait --for=condition=available deployment/simulation \
+            -n rideshare-prod --timeout=600s; then
+            echo "::warning::simulation not ready within timeout"
+            kubectl get pods -l app=simulation -n rideshare-prod -o wide
+            FAILED=$((FAILED + 1))
+          fi
 
           echo "Waiting for stream-processor..."
-          kubectl wait --for=condition=available deployment/stream-processor \
-            -n rideshare-prod --timeout=300s
+          if ! kubectl wait --for=condition=available deployment/stream-processor \
+            -n rideshare-prod --timeout=300s; then
+            echo "::warning::stream-processor not ready within timeout"
+            kubectl get pods -l app=stream-processor -n rideshare-prod -o wide
+            FAILED=$((FAILED + 1))
+          fi
 
           echo "Waiting for bronze-ingestion..."
-          kubectl wait --for=condition=available deployment/bronze-ingestion \
-            -n rideshare-prod --timeout=300s
+          if ! kubectl wait --for=condition=available deployment/bronze-ingestion \
+            -n rideshare-prod --timeout=300s; then
+            echo "::warning::bronze-ingestion not ready within timeout"
+            kubectl get pods -l app=bronze-ingestion -n rideshare-prod -o wide
+            FAILED=$((FAILED + 1))
+          fi
 
-          echo "All deployments available"
+          if [ "$FAILED" -gt 0 ]; then
+            echo "::warning::$FAILED deployment(s) not yet available — ArgoCD self-heal will reconcile"
+          else
+            echo "All deployments available"
+          fi
 
       # ── Phase 11: Restore ArgoCD ─────────────────────────────────────
 
