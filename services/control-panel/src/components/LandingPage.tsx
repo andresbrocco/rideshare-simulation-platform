@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useActiveSection } from '../hooks/useActiveSection';
 import { useCountUp } from '../hooks/useCountUp';
 import { useInView } from '../hooks/useInView';
+import { ArchitectureDiagram } from './ArchitectureDiagram';
 import { TripLifecycleAnimation } from './TripLifecycleAnimation';
 
 interface ExternalService {
@@ -175,6 +176,8 @@ export function LandingPage({ onLoginClick, isLocal }: LandingPageProps) {
         <StatBar />
 
         <div className="landing-body">
+          <ArchitectureDiagram />
+
           <div className="landing-two-col">
             <section className="landing-section">
               <h2>Architecture Highlights</h2>

@@ -106,10 +106,14 @@ describe('LandingPage', () => {
   it('shows data pipeline section', () => {
     render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
 
-    expect(screen.getByRole('heading', { level: 2, name: 'Data Pipeline' })).toBeInTheDocument();
-    expect(screen.getByText('Bronze')).toBeInTheDocument();
-    expect(screen.getByText('Silver')).toBeInTheDocument();
-    expect(screen.getByText('Gold')).toBeInTheDocument();
+    const pipelineHeading = screen.getByRole('heading', { level: 2, name: 'Data Pipeline' });
+    const pipelineSection = pipelineHeading.closest('section');
+    expect(pipelineSection).not.toBeNull();
+
+    const sectionScope = within(pipelineSection!);
+    expect(sectionScope.getByText('Bronze')).toBeInTheDocument();
+    expect(sectionScope.getByText('Silver')).toBeInTheDocument();
+    expect(sectionScope.getByText('Gold')).toBeInTheDocument();
   });
 
   it('renders the trip lifecycle animation', () => {
