@@ -238,8 +238,16 @@ jobs:
           kubectl wait --for=delete pod -l app=schema-registry \
             -n rideshare-prod --timeout=120s 2>/dev/null || true
           kubectl scale deployment schema-registry -n rideshare-prod --replicas=1
-          kubectl wait --for=condition=available deployment/schema-registry \
-            -n rideshare-prod --timeout=300s
+
+          echo "Waiting for schema-registry (up to 5 min)..."
+          if ! kubectl wait --for=condition=available deployment/schema-registry \
+            -n rideshare-prod --timeout=300s; then
+            echo "::warning::schema-registry not ready within timeout — dumping diagnostics"
+            kubectl get pods -l app=schema-registry -n rideshare-prod -o wide
+            kubectl describe pod -l app=schema-registry -n rideshare-prod | tail -40
+            kubectl logs -l app=schema-registry -n rideshare-prod --all-containers --tail=30 || true
+            echo "Continuing — ArgoCD self-heal will reconcile"
+          fi
 
       - name: Scale up hive-metastore
         run: |
