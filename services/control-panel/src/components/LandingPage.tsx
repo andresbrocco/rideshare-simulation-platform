@@ -1,9 +1,330 @@
+import type { FunctionComponent, SVGProps } from 'react';
 import { useEffect, useState } from 'react';
+import {
+  SiPython,
+  SiFastapi,
+  SiPydantic,
+  SiH3,
+  SiApachekafka,
+  SiRedis,
+  SiMinio,
+  SiTrino,
+  SiApachehive,
+  SiDuckdb,
+  SiPostgresql,
+  SiApacheairflow,
+  SiReact,
+  SiTypescript,
+  SiMaplibre,
+  SiPrometheus,
+  SiGrafana,
+  SiOpentelemetry,
+} from '@icons-pack/react-simple-icons';
+import {
+  SiPythonHex,
+  SiFastapiHex,
+  SiPydanticHex,
+  SiH3Hex,
+  SiApachekafkaHex,
+  SiRedisHex,
+  SiMinioHex,
+  SiTrinoHex,
+  SiApachehiveHex,
+  SiDuckdbHex,
+  SiPostgresqlHex,
+  SiApacheairflowHex,
+  SiReactHex,
+  SiTypescriptHex,
+  SiMaplibreHex,
+  SiPrometheusHex,
+  SiGrafanaHex,
+  SiOpentelemetryHex,
+} from '@icons-pack/react-simple-icons';
+import DeltaLakeIcon from '../../public/icons/tech/delta-lake.svg?react';
+import DbtIcon from '../../public/icons/tech/dbt.svg?react';
+import GreatExpectationsIcon from '../../public/icons/tech/great-expectations.svg?react';
+import SimpyIcon from '../../public/icons/tech/simpy.svg?react';
+import LokiIcon from '../../public/icons/tech/loki.svg?react';
+import TempoIcon from '../../public/icons/tech/tempo.svg?react';
+import DeckGlIcon from '../../public/icons/tech/deck-gl.svg?react';
+import OsrmIcon from '../../public/icons/tech/osrm.svg?react';
 import { useActiveSection } from '../hooks/useActiveSection';
 import { useCountUp } from '../hooks/useCountUp';
 import { useInView } from '../hooks/useInView';
 import { ArchitectureDiagram } from './ArchitectureDiagram';
 import { TripLifecycleAnimation } from './TripLifecycleAnimation';
+
+type IconComponent = FunctionComponent<SVGProps<SVGSVGElement>>;
+
+interface TechBadge {
+  label: string;
+  icon: IconComponent;
+  iconColor: string;
+  tooltip: string;
+}
+
+interface TechGroup {
+  title: string;
+  badges: TechBadge[];
+}
+
+const SELF_HOSTED_COLOR = '#4daa6e';
+
+const TECH_GROUPS: TechGroup[] = [
+  {
+    title: 'Simulation',
+    badges: [
+      {
+        label: 'Python 3.13',
+        icon: SiPython,
+        iconColor: SiPythonHex,
+        tooltip: 'Simulation engine, pipelines, and tooling runtime',
+      },
+      {
+        label: 'SimPy',
+        icon: SimpyIcon,
+        iconColor: SELF_HOSTED_COLOR,
+        tooltip: 'Discrete-event simulation with generator-based coroutines',
+      },
+      {
+        label: 'FastAPI',
+        icon: SiFastapi,
+        iconColor: SiFastapiHex,
+        tooltip: 'REST API and WebSocket server for simulation control',
+      },
+      {
+        label: 'Pydantic',
+        icon: SiPydantic,
+        iconColor: SiPydanticHex,
+        tooltip: 'Data validation, settings, and immutable DNA models',
+      },
+      {
+        label: 'H3',
+        icon: SiH3,
+        iconColor: SiH3Hex,
+        tooltip: 'Uber H3 hexagonal geospatial indexing for O(1) driver lookups',
+      },
+      {
+        label: 'OSRM',
+        icon: OsrmIcon,
+        iconColor: SELF_HOSTED_COLOR,
+        tooltip: 'Real Sao Paulo road network routing via OpenStreetMap',
+      },
+    ],
+  },
+  {
+    title: 'Streaming',
+    badges: [
+      {
+        label: 'Apache Kafka',
+        icon: SiApachekafka,
+        iconColor: SiApachekafkaHex,
+        tooltip: 'Event backbone with 8 topics and SASL/PLAIN auth',
+      },
+      {
+        label: 'Schema Registry',
+        icon: SiApachekafka,
+        iconColor: SiApachekafkaHex,
+        tooltip: 'JSON Schema Draft 7 validation for all event contracts',
+      },
+      {
+        label: 'Redis',
+        icon: SiRedis,
+        iconColor: SiRedisHex,
+        tooltip: 'Real-time state snapshots and pub/sub fan-out',
+      },
+    ],
+  },
+  {
+    title: 'Storage',
+    badges: [
+      {
+        label: 'Delta Lake',
+        icon: DeltaLakeIcon,
+        iconColor: SELF_HOSTED_COLOR,
+        tooltip: 'ACID lakehouse tables via delta-rs (no JVM, 94% less memory)',
+      },
+      {
+        label: 'MinIO / S3',
+        icon: SiMinio,
+        iconColor: SiMinioHex,
+        tooltip: 'Object storage for Bronze, Silver, and Gold layers',
+      },
+      {
+        label: 'Apache Trino',
+        icon: SiTrino,
+        iconColor: SiTrinoHex,
+        tooltip: 'Interactive SQL engine over Delta Lake with partition pruning',
+      },
+      {
+        label: 'Hive Metastore',
+        icon: SiApachehive,
+        iconColor: SiApachehiveHex,
+        tooltip: 'Table metadata catalog for Trino discovery',
+      },
+      {
+        label: 'DuckDB',
+        icon: SiDuckdb,
+        iconColor: SiDuckdbHex,
+        tooltip: 'In-process analytics engine for DBT and Airflow DLQ queries',
+      },
+      {
+        label: 'PostgreSQL',
+        icon: SiPostgresql,
+        iconColor: SiPostgresqlHex,
+        tooltip: 'Metadata storage for Airflow and Hive Metastore',
+      },
+    ],
+  },
+  {
+    title: 'Transformation',
+    badges: [
+      {
+        label: 'dbt',
+        icon: DbtIcon,
+        iconColor: SELF_HOSTED_COLOR,
+        tooltip: 'Bronze-to-Silver-to-Gold SQL transformations with ~40 tests',
+      },
+      {
+        label: 'Apache Airflow',
+        icon: SiApacheairflow,
+        iconColor: SiApacheairflowHex,
+        tooltip: '4 DAGs orchestrating pipelines (hourly to daily)',
+      },
+      {
+        label: 'Great Expectations',
+        icon: GreatExpectationsIcon,
+        iconColor: SELF_HOSTED_COLOR,
+        tooltip: 'Data quality validation checkpoints on Silver and Gold',
+      },
+    ],
+  },
+  {
+    title: 'Frontend',
+    badges: [
+      {
+        label: 'React',
+        icon: SiReact,
+        iconColor: SiReactHex,
+        tooltip: 'UI framework (v19) for control panel and landing page',
+      },
+      {
+        label: 'TypeScript',
+        icon: SiTypescript,
+        iconColor: SiTypescriptHex,
+        tooltip: 'Type-safe frontend with OpenAPI-generated API types',
+      },
+      {
+        label: 'deck.gl',
+        icon: DeckGlIcon,
+        iconColor: SELF_HOSTED_COLOR,
+        tooltip: 'WebGL visualization of agents, routes, and heatmaps',
+      },
+      {
+        label: 'MapLibre',
+        icon: SiMaplibre,
+        iconColor: SiMaplibreHex,
+        tooltip: 'Open-source map rendering engine',
+      },
+    ],
+  },
+  {
+    title: 'Observability',
+    badges: [
+      {
+        label: 'Prometheus',
+        icon: SiPrometheus,
+        iconColor: SiPrometheusHex,
+        tooltip: 'Metrics time-series storage with 7-day retention',
+      },
+      {
+        label: 'Grafana',
+        icon: SiGrafana,
+        iconColor: SiGrafanaHex,
+        tooltip: 'Multi-datasource dashboards across 4 categories',
+      },
+      {
+        label: 'Loki',
+        icon: LokiIcon,
+        iconColor: SELF_HOSTED_COLOR,
+        tooltip: 'Log aggregation with PII masking',
+      },
+      {
+        label: 'Tempo',
+        icon: TempoIcon,
+        iconColor: SELF_HOSTED_COLOR,
+        tooltip: 'Distributed tracing with correlation IDs',
+      },
+      {
+        label: 'OpenTelemetry',
+        icon: SiOpentelemetry,
+        iconColor: SiOpentelemetryHex,
+        tooltip: 'Unified telemetry gateway (metrics, logs, traces)',
+      },
+    ],
+  },
+];
+
+const INFRA_ITEMS = [
+  'Docker',
+  'Kubernetes',
+  'Terraform',
+  'ArgoCD',
+  'GitHub Actions',
+  'AWS EKS',
+  'CloudFront',
+  'LocalStack',
+];
+
+function TechBadgeItem({ badge }: { badge: TechBadge }) {
+  const Icon = badge.icon;
+  return (
+    <span className="tech-badge" data-tooltip={badge.tooltip} tabIndex={0}>
+      <Icon
+        width={16}
+        height={16}
+        style={{ color: badge.iconColor, flexShrink: 0 }}
+        aria-hidden="true"
+      />
+      {badge.label}
+    </span>
+  );
+}
+
+function TechGroupCard({ group }: { group: TechGroup }) {
+  return (
+    <div className="tech-group-card">
+      <span className="tech-group-title">{group.title}</span>
+      <div className="tech-badge-grid">
+        {group.badges.map((badge) => (
+          <TechBadgeItem key={badge.label} badge={badge} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TechStack() {
+  return (
+    <section id="tech-stack" className="landing-section tech-stack-section">
+      <h2>Technology Stack</h2>
+      <div className="tech-group-grid">
+        {TECH_GROUPS.map((group) => (
+          <TechGroupCard key={group.title} group={group} />
+        ))}
+      </div>
+      <p className="tech-infra-footnote">
+        Also:{' '}
+        {INFRA_ITEMS.map((name, i) => (
+          <span key={name} className="tech-infra-item">
+            {name}
+            {i < INFRA_ITEMS.length - 1 ? ', ' : ''}
+          </span>
+        ))}
+      </p>
+    </section>
+  );
+}
 
 interface ExternalService {
   name: string;
@@ -177,6 +498,8 @@ export function LandingPage({ onLoginClick, isLocal }: LandingPageProps) {
 
         <div className="landing-body">
           <ArchitectureDiagram />
+
+          <TechStack />
 
           <section className="landing-section landing-services">
             <h2>Explore the Platform</h2>

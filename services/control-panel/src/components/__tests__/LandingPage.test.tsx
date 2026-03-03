@@ -202,6 +202,53 @@ describe('LandingPage', () => {
 
     expect(document.querySelector('.landing-inner')).not.toBeNull();
   });
+
+  it('tech stack section has id for sticky nav targeting', () => {
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    expect(document.getElementById('tech-stack')).not.toBeNull();
+  });
+
+  it('renders all six tech group titles', () => {
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    expect(screen.getByText('Simulation')).toBeInTheDocument();
+    expect(screen.getByText('Streaming')).toBeInTheDocument();
+    expect(screen.getByText('Storage')).toBeInTheDocument();
+    expect(screen.getByText('Transformation')).toBeInTheDocument();
+    expect(screen.getByText('Frontend')).toBeInTheDocument();
+    expect(screen.getByText('Observability')).toBeInTheDocument();
+  });
+
+  it('renders representative badges from each group', () => {
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    // Use getAllByText for labels that may also appear in SVG <title> elements
+    const badgeLabels = ['Python 3.13', 'Apache Kafka', 'Delta Lake', 'dbt', 'React', 'Prometheus'];
+    for (const label of badgeLabels) {
+      const matches = screen.getAllByText(label);
+      expect(matches.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('all tech badges have tooltip attributes', () => {
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    const badges = document.querySelectorAll('.tech-badge');
+    expect(badges.length).toBeGreaterThan(0);
+    for (const badge of badges) {
+      const tooltip = badge.getAttribute('data-tooltip');
+      expect(tooltip).toBeTruthy();
+    }
+  });
+
+  it('renders infrastructure footnote', () => {
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    expect(screen.getByText(/Also:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Docker/i)).toBeInTheDocument();
+  });
+
+  it('shows technology stack section with grouped badges', () => {
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    expect(screen.getByRole('heading', { level: 2, name: 'Technology Stack' })).toBeInTheDocument();
+    expect(screen.getByText('Python 3.13')).toBeInTheDocument();
+  });
 });
 
 describe('SectionNav', () => {
