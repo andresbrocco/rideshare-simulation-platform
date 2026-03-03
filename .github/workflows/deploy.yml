@@ -100,8 +100,6 @@ jobs:
 
       - name: Ensure all service images exist at deploy SHA
         run: |
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          REGISTRY="${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com"
           IMAGE_TAG="${{ github.sha }}"
 
           SERVICES=(simulation stream-processor control-panel bronze-ingestion hive-metastore performance-controller osrm otel-collector)
