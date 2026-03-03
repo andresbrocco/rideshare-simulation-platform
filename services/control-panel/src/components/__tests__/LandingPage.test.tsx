@@ -260,6 +260,39 @@ describe('LandingPage', () => {
   });
 });
 
+describe('Footer', () => {
+  it('test_footer_renders_deployment_note', () => {
+    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    expect(screen.getByText(/deployed on-demand for demonstrations/i)).toBeInTheDocument();
+  });
+
+  it('test_footer_renders_github_link', () => {
+    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    const link = screen.getByRole('link', { name: /View on GitHub/i });
+    expect(link).toHaveAttribute(
+      'href',
+      'https://github.com/andresbrocco/rideshare-simulation-platform'
+    );
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+
+  it('test_footer_renders_author_line', () => {
+    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    expect(screen.getByText('Built by Andres Brocco')).toBeInTheDocument();
+  });
+
+  it('test_footer_linkedin_hidden_when_url_empty', () => {
+    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    expect(screen.queryByRole('link', { name: /LinkedIn/i })).toBeNull();
+  });
+
+  it('test_footer_element_is_footer_landmark', () => {
+    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    expect(document.querySelector('footer.landing-footer')).not.toBeNull();
+  });
+});
+
 describe('SectionNav', () => {
   it('test_section_nav_renders_four_buttons', () => {
     render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);

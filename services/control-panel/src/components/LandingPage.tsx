@@ -55,6 +55,8 @@ import Zoom from 'react-medium-image-zoom';
 import { ArchitectureDiagram } from './ArchitectureDiagram';
 import { TripLifecycleAnimation } from './TripLifecycleAnimation';
 
+const LINKEDIN_URL = '';
+
 type IconComponent = FunctionComponent<SVGProps<SVGSVGElement>>;
 
 interface TechBadge {
@@ -920,20 +922,33 @@ export function LandingPage({ onLoginClick, isLocal }: LandingPageProps) {
             </div>
           </section>
 
-          <section className="landing-section landing-cta">
-            <p>
+          <footer className="landing-footer">
+            <p className="landing-footer-note">
               The platform is deployed on-demand for demonstrations and interviews to minimize cloud
               costs.
             </p>
-            <a
-              href="https://github.com/andresbrocco/rideshare-simulation-platform"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="landing-github-link"
-            >
-              View on GitHub &rarr;
-            </a>
-          </section>
+            <div className="landing-footer-actions">
+              <a
+                href="https://github.com/andresbrocco/rideshare-simulation-platform"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="landing-github-link"
+              >
+                View on GitHub &rarr;
+              </a>
+              {LINKEDIN_URL && (
+                <a
+                  href={LINKEDIN_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="landing-linkedin-link"
+                >
+                  LinkedIn &rarr;
+                </a>
+              )}
+            </div>
+            <p className="landing-footer-author">Built by Andres Brocco</p>
+          </footer>
         </div>
       </div>
     </div>
