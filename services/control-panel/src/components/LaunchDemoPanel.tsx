@@ -266,7 +266,7 @@ export default function LaunchDemoPanel({ apiKey, onApiReady }: LaunchDemoPanelP
               {launching ? 'Triggering...' : 'Launch Demo'}
             </button>
             <div className={styles.warnings}>
-              <span className={styles.warning}>Estimated cost: ~$0.65/hour</span>
+              <span className={styles.warning}>Estimated cost: ~$0.31/hour</span>
               <span className={styles.warning}>Deployment takes 10-15 minutes</span>
             </div>
           </>

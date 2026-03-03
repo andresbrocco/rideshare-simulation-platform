@@ -390,7 +390,7 @@ jobs:
           echo "Trino:        https://trino.ridesharing.portfolio.andresbrocco.com"
           echo "Prometheus:   https://prometheus.ridesharing.portfolio.andresbrocco.com"
           echo ""
-          echo "Estimated cost: ~$0.65/hour while running"
+          echo "Estimated cost: ~$0.31/hour while running"
           echo "Remember to run teardown workflow when demo is complete"
           echo "================================"
 

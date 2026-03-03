@@ -258,7 +258,7 @@ The platform can be deployed to AWS EKS for public demos. See [CLOUD-DEPLOYMENT.
 Architecture:
 
 - **Foundation** (always-on): CloudFront, S3, Route 53, ECR, Secrets Manager (~$7.50/mo)
-- **Platform** (on-demand): EKS cluster, RDS, ALB (~$0.65/hr)
+- **Platform** (on-demand): EKS cluster, RDS, ALB (~$0.31/hr)
 
 GitHub Actions workflows:
 

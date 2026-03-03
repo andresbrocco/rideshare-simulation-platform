@@ -313,7 +313,7 @@ rideshare-simulation-platform/
 The platform can be deployed to AWS for public demos. The deployment is split into two layers:
 
 - **Foundation** (always-on, ~$7.50/mo): CloudFront CDN, S3 storage, Route 53 DNS, ECR container registry, Secrets Manager, IAM roles
-- **Platform** (on-demand, ~$0.65/hr): EKS cluster, RDS PostgreSQL, Application Load Balancer
+- **Platform** (on-demand, ~$0.31/hr): EKS cluster, RDS PostgreSQL, Application Load Balancer
 
 The React frontend is always accessible at `https://ridesharing.portfolio.andresbrocco.com`. When the platform is running, each service gets its own subdomain:
 

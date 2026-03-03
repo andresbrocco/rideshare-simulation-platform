@@ -22,7 +22,7 @@
 The deployment is split into two layers:
 
 - **Foundation** (always deployed, ~$7.50/mo): Networking, DNS, CDN, storage, container registry, secrets, IAM. React frontend is always accessible as a static site.
-- **Platform** (on-demand, ~$0.65/hr): EKS cluster, worker nodes, RDS, ALB. Created for demos, destroyed afterward.
+- **Platform** (on-demand, ~$0.31/hr): EKS cluster, worker node, RDS, ALB. Created for demos, destroyed afterward.
 
 When the platform is down, the frontend detects API unreachability and displays a graceful "demo offline" state. When up, the frontend connects to the full interactive backend.
 
@@ -39,9 +39,9 @@ When the platform is down, the frontend detects API unreachability and displays 
                     └─────────────────────────────────────────────┘
 
                     ┌─────────────────────────────────────────────┐
-                    │           Platform (~$0.65/hr)              │
+                    │           Platform (~$0.31/hr)              │
                     │                                             │
-  Browser ───────── │  ALB ── EKS Cluster (3x t3.xlarge)         │
+  Browser ───────── │  ALB ── EKS Cluster (1x t3.xlarge)         │
                     │         ├── Simulation + Stream Processor   │
                     │         ├── Kafka + Redis + OSRM            │
                     │         ├── Airflow + Trino + Hive          │
@@ -311,7 +311,7 @@ open https://ridesharing.portfolio.andresbrocco.com
 
 ## Platform Deployment
 
-**Purpose:** Deploy on-demand infrastructure (~$0.65/hr): EKS cluster, RDS, ALB.
+**Purpose:** Deploy on-demand infrastructure (~$0.31/hr): EKS cluster, RDS, ALB.
 
 **Duration:** ~15-20 minutes (EKS creation: ~10 min, service startup: ~5 min)
 
@@ -489,20 +489,20 @@ aws ecr describe-repositories \
 | Resource | Hourly Cost |
 |----------|------------|
 | EKS control plane | $0.10 |
-| 3x t3.xlarge (on-demand) | $0.50 |
+| 1x t3.xlarge (on-demand) | $0.17 |
 | ALB | $0.025 |
 | RDS t4g.micro | $0.016 |
-| EBS (~100 GB gp3) | ~$0.011 |
-| **Platform Total** | **~$0.65/hr** |
+| EBS (~50 GB gp3) | ~$0.006 |
+| **Platform Total** | **~$0.31/hr** |
 
 ### Monthly Estimates by Usage
 
 | Scenario | Monthly Cost |
 |----------|-------------|
 | Foundation only (no demos) | ~$8 |
-| 1 demo/week (4 hrs each) | ~$8 + $10 = **~$18** |
-| 4 demos/week (4 hrs each) | ~$8 + $42 = **~$50** |
-| Always-on (730 hrs) | ~$8 + $475 = **~$483** |
+| 1 demo/week (4 hrs each) | ~$8 + $5 = **~$13** |
+| 4 demos/week (4 hrs each) | ~$8 + $20 = **~$28** |
+| Always-on (730 hrs) | ~$8 + $226 = **~$234** |
 
 ### Cost Optimization Tips
 
