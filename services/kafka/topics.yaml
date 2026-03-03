@@ -6,6 +6,12 @@
 #   name: <topic>
 #   partitions: <count>
 #   replication_factor: <count>
+#   config: <key>=<value>          (optional, passed as --config to kafka-topics)
+---
+name: _schemas
+partitions: 1
+replication_factor: 1
+config: cleanup.policy=compact
 ---
 name: trips
 partitions: 4

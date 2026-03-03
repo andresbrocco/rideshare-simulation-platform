@@ -98,6 +98,38 @@ jobs:
             echo "rds_endpoint=$RDS_ENDPOINT"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Ensure all service images exist at deploy SHA
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          REGISTRY="${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com"
+          IMAGE_TAG="${{ github.sha }}"
+
+          SERVICES=(simulation stream-processor control-panel bronze-ingestion hive-metastore performance-controller osrm otel-collector)
+
+          for SERVICE in "${SERVICES[@]}"; do
+            REPO="rideshare/${SERVICE}"
+            echo -n "Checking ${REPO}:${IMAGE_TAG}... "
+
+            if aws ecr describe-images --repository-name "$REPO" \
+                --image-ids imageTag="$IMAGE_TAG" &>/dev/null; then
+              echo "exists"
+            else
+              echo "missing — retagging from latest"
+              MANIFEST=$(aws ecr batch-get-image --repository-name "$REPO" \
+                --image-ids imageTag=latest \
+                --query 'images[0].imageManifest' --output text)
+
+              if [ "$MANIFEST" = "None" ] || [ -z "$MANIFEST" ]; then
+                echo "::error::No 'latest' image found for ${REPO}. Build it first."
+                exit 1
+              fi
+
+              aws ecr put-image --repository-name "$REPO" \
+                --image-tag "$IMAGE_TAG" --image-manifest "$MANIFEST" || true
+              echo "  retagged ${REPO}:latest → ${REPO}:${IMAGE_TAG}"
+            fi
+          done
+
       - name: Resolve Production Values
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
