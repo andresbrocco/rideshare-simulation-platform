@@ -106,3 +106,60 @@ export async function triggerDeploy(apiKey: string): Promise<DeployResponse> {
 export async function checkDeployStatus(apiKey: string): Promise<StatusResponse> {
   return callLambda({ action: 'status', api_key: apiKey }, isStatusResponse, 'Status service');
 }
+
+export interface SessionStatusResponse {
+  active: boolean;
+  remaining_seconds?: number;
+  deployed_at?: number;
+  deadline?: number;
+  cost_so_far?: number;
+}
+
+export interface SessionAdjustResponse {
+  success: boolean;
+  remaining_seconds: number;
+  deadline: number;
+  error?: string;
+}
+
+function isSessionStatusResponse(data: unknown): data is SessionStatusResponse {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    typeof (data as SessionStatusResponse).active === 'boolean'
+  );
+}
+
+function isSessionAdjustResponse(data: unknown): data is SessionAdjustResponse {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    typeof (data as SessionAdjustResponse).success === 'boolean' &&
+    typeof (data as SessionAdjustResponse).remaining_seconds === 'number' &&
+    typeof (data as SessionAdjustResponse).deadline === 'number'
+  );
+}
+
+export async function getSessionStatus(): Promise<SessionStatusResponse> {
+  return callLambda(
+    { action: 'session-status' },
+    isSessionStatusResponse,
+    'Session status service'
+  );
+}
+
+export async function extendSession(apiKey: string): Promise<SessionAdjustResponse> {
+  return callLambda(
+    { action: 'extend-session', api_key: apiKey },
+    isSessionAdjustResponse,
+    'Session extend service'
+  );
+}
+
+export async function shrinkSession(apiKey: string): Promise<SessionAdjustResponse> {
+  return callLambda(
+    { action: 'shrink-session', api_key: apiKey },
+    isSessionAdjustResponse,
+    'Session shrink service'
+  );
+}

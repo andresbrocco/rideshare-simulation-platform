@@ -1,5 +1,6 @@
 import json
 import os
+import time
 import urllib.request
 import urllib.error
 from typing import Any
@@ -26,6 +27,18 @@ ALLOWED_ORIGINS = [
     "http://localhost:5173",
 ]
 
+# Session management constants
+SSM_SESSION_PARAM = "/rideshare/session/deadline"
+SCHEDULER_GROUP = "default"
+SCHEDULER_NAME = "rideshare-auto-teardown"
+GITHUB_TEARDOWN_WORKFLOW = "teardown.yml"
+SESSION_STEP_MINUTES = 15
+MAX_REMAINING_SECONDS = 2 * 3600  # 2 hours
+PLATFORM_COST_PER_HOUR = 0.31
+RESCHEDULE_DELAY_SECONDS = 300  # 5 min
+
+NO_AUTH_ACTIONS = {"session-status", "auto-teardown"}
+
 
 def get_secrets_client() -> boto3.client:
     """Get Secrets Manager client configured for LocalStack or AWS."""
@@ -40,6 +53,36 @@ def get_secrets_client() -> boto3.client:
         endpoint_url = f"http://{os.environ['LOCALSTACK_HOSTNAME']}:4566"
 
     return boto3.client("secretsmanager", config=config, endpoint_url=endpoint_url)
+
+
+def get_ssm_client() -> boto3.client:
+    """Get SSM client configured for LocalStack or AWS."""
+    config = Config(
+        region_name=os.environ.get("AWS_REGION", "us-east-1"),
+        signature_version="v4",
+        retries={"max_attempts": 3, "mode": "standard"},
+    )
+
+    endpoint_url = None
+    if os.environ.get("LOCALSTACK_HOSTNAME"):
+        endpoint_url = f"http://{os.environ['LOCALSTACK_HOSTNAME']}:4566"
+
+    return boto3.client("ssm", config=config, endpoint_url=endpoint_url)
+
+
+def get_scheduler_client() -> boto3.client:
+    """Get EventBridge Scheduler client configured for LocalStack or AWS."""
+    config = Config(
+        region_name=os.environ.get("AWS_REGION", "us-east-1"),
+        signature_version="v4",
+        retries={"max_attempts": 3, "mode": "standard"},
+    )
+
+    endpoint_url = None
+    if os.environ.get("LOCALSTACK_HOSTNAME"):
+        endpoint_url = f"http://{os.environ['LOCALSTACK_HOSTNAME']}:4566"
+
+    return boto3.client("scheduler", config=config, endpoint_url=endpoint_url)
 
 
 def get_secret(secret_id: str) -> str:
@@ -96,6 +139,102 @@ def validate_api_key(provided_key: str) -> bool:
     except Exception as e:
         print(f"Error validating API key: {e}")
         return False
+
+
+def get_session() -> dict[str, Any] | None:
+    """Read session state from SSM Parameter Store.
+
+    Returns:
+        Session dict with deployed_at/deadline, or None if no active session.
+    """
+    client = get_ssm_client()
+    try:
+        response = client.get_parameter(Name=SSM_SESSION_PARAM)
+        return json.loads(response["Parameter"]["Value"])
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "ParameterNotFound":
+            return None
+        raise
+
+
+def _upsert_schedule(deadline_ts: int) -> None:
+    """Create or update the EventBridge one-time schedule for auto-teardown."""
+    client = get_scheduler_client()
+    role_arn = os.environ.get("SCHEDULER_ROLE_ARN", "")
+    target_arn = os.environ.get("SELF_FUNCTION_ARN", "")
+
+    from datetime import datetime, timezone
+
+    dt = datetime.fromtimestamp(deadline_ts, tz=timezone.utc)
+    schedule_expression = f"at({dt.strftime('%Y-%m-%dT%H:%M:%S')})"
+
+    schedule_kwargs: dict[str, Any] = {
+        "Name": SCHEDULER_NAME,
+        "GroupName": SCHEDULER_GROUP,
+        "ScheduleExpression": schedule_expression,
+        "ScheduleExpressionTimezone": "UTC",
+        "FlexibleTimeWindow": {"Mode": "OFF"},
+        "Target": {
+            "Arn": target_arn,
+            "RoleArn": role_arn,
+            "Input": json.dumps({"action": "auto-teardown"}),
+        },
+        "ActionAfterCompletion": "DELETE",
+    }
+
+    try:
+        client.update_schedule(**schedule_kwargs)
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "ResourceNotFoundException":
+            client.create_schedule(**schedule_kwargs)
+        else:
+            raise
+
+
+def create_session(deployed_at: int, deadline: int) -> None:
+    """Create a new session in SSM and schedule auto-teardown."""
+    client = get_ssm_client()
+    session_data = json.dumps({"deployed_at": deployed_at, "deadline": deadline})
+    client.put_parameter(
+        Name=SSM_SESSION_PARAM,
+        Value=session_data,
+        Type="String",
+        Overwrite=True,
+    )
+    _upsert_schedule(deadline)
+
+
+def update_session_deadline(new_deadline: int) -> None:
+    """Update session deadline in SSM and reschedule auto-teardown."""
+    session = get_session()
+    if session is None:
+        raise ValueError("No active session")
+    session["deadline"] = new_deadline
+    client = get_ssm_client()
+    client.put_parameter(
+        Name=SSM_SESSION_PARAM,
+        Value=json.dumps(session),
+        Type="String",
+        Overwrite=True,
+    )
+    _upsert_schedule(new_deadline)
+
+
+def delete_session() -> None:
+    """Delete session from SSM and remove the schedule."""
+    client = get_ssm_client()
+    try:
+        client.delete_parameter(Name=SSM_SESSION_PARAM)
+    except ClientError as e:
+        if e.response["Error"]["Code"] != "ParameterNotFound":
+            raise
+
+    scheduler = get_scheduler_client()
+    try:
+        scheduler.delete_schedule(Name=SCHEDULER_NAME, GroupName=SCHEDULER_GROUP)
+    except ClientError as e:
+        if e.response["Error"]["Code"] != "ResourceNotFoundException":
+            raise
 
 
 def github_api_request(
@@ -173,6 +312,14 @@ def handle_deploy(api_key: str) -> tuple[int, dict[str, Any]]:
 
     # GitHub returns 204 No Content on successful workflow dispatch
     if status_code == 204:
+        # Create session timer (non-fatal if this fails)
+        now = int(time.time())
+        deadline = now + (SESSION_STEP_MINUTES * 60)
+        try:
+            create_session(deployed_at=now, deadline=deadline)
+        except Exception as e:
+            print(f"Warning: Failed to create session timer: {e}")
+
         return 200, {
             "triggered": True,
             "workflow": GITHUB_WORKFLOW,
@@ -225,6 +372,141 @@ def handle_status(api_key: str) -> tuple[int, dict[str, Any]]:
     }
 
 
+def handle_session_status() -> tuple[int, dict[str, Any]]:
+    """Handle session-status action (no auth required)."""
+    try:
+        session = get_session()
+    except Exception as e:
+        print(f"Error reading session: {e}")
+        return 500, {"error": "Failed to read session state"}
+
+    if session is None:
+        return 200, {"active": False}
+
+    now = int(time.time())
+    deployed_at = session["deployed_at"]
+    deadline = session["deadline"]
+    remaining = max(0, deadline - now)
+    elapsed_hours = (now - deployed_at) / 3600.0
+    cost_so_far = round(elapsed_hours * PLATFORM_COST_PER_HOUR, 2)
+
+    return 200, {
+        "active": remaining > 0,
+        "remaining_seconds": remaining,
+        "deployed_at": deployed_at,
+        "deadline": deadline,
+        "cost_so_far": cost_so_far,
+    }
+
+
+def handle_extend_session(api_key: str) -> tuple[int, dict[str, Any]]:
+    """Handle extend-session action."""
+    if not validate_api_key(api_key):
+        return 401, {"error": "Invalid password"}
+
+    session = get_session()
+    if session is None:
+        return 404, {"error": "No active session"}
+
+    now = int(time.time())
+    remaining = session["deadline"] - now
+    step = SESSION_STEP_MINUTES * 60
+
+    if remaining + step > MAX_REMAINING_SECONDS:
+        return 400, {"error": "Cannot extend beyond 2 hours remaining"}
+
+    new_deadline = session["deadline"] + step
+    try:
+        update_session_deadline(new_deadline)
+    except Exception as e:
+        print(f"Error extending session: {e}")
+        return 500, {"error": "Failed to extend session"}
+
+    return 200, {
+        "success": True,
+        "remaining_seconds": max(0, new_deadline - now),
+        "deadline": new_deadline,
+    }
+
+
+def handle_shrink_session(api_key: str) -> tuple[int, dict[str, Any]]:
+    """Handle shrink-session action."""
+    if not validate_api_key(api_key):
+        return 401, {"error": "Invalid password"}
+
+    session = get_session()
+    if session is None:
+        return 404, {"error": "No active session"}
+
+    now = int(time.time())
+    remaining = session["deadline"] - now
+    step = SESSION_STEP_MINUTES * 60
+
+    if remaining < step:
+        return 400, {"error": "Cannot shrink below 0 minutes remaining"}
+
+    new_deadline = session["deadline"] - step
+    try:
+        update_session_deadline(new_deadline)
+    except Exception as e:
+        print(f"Error shrinking session: {e}")
+        return 500, {"error": "Failed to shrink session"}
+
+    return 200, {
+        "success": True,
+        "remaining_seconds": max(0, new_deadline - now),
+        "deadline": new_deadline,
+    }
+
+
+def handle_auto_teardown() -> tuple[int, dict[str, Any]]:
+    """Handle auto-teardown action (internal, triggered by EventBridge)."""
+    # Check if a deploy is currently in progress
+    try:
+        github_pat = get_secret(SECRET_GITHUB_PAT)
+        path = f"/repos/{GITHUB_REPO}/actions/workflows/{GITHUB_WORKFLOW}/runs?per_page=1"
+        status_code, response_data = github_api_request("GET", path, github_pat)
+
+        if status_code == 200:
+            runs = response_data.get("workflow_runs", [])
+            if runs and runs[0].get("status") == "in_progress":
+                # Deploy in progress — reschedule 5 min later
+                new_deadline = int(time.time()) + RESCHEDULE_DELAY_SECONDS
+                try:
+                    _upsert_schedule(new_deadline)
+                    session = get_session()
+                    if session is not None:
+                        update_session_deadline(new_deadline)
+                except Exception as e:
+                    print(f"Warning: Failed to reschedule: {e}")
+                return 200, {"action": "rescheduled", "reason": "deploy_in_progress"}
+    except Exception as e:
+        print(f"Warning: Failed to check deploy status: {e}")
+
+    # Trigger teardown workflow
+    try:
+        github_pat = get_secret(SECRET_GITHUB_PAT)
+        path = f"/repos/{GITHUB_REPO}/actions/workflows/{GITHUB_TEARDOWN_WORKFLOW}/dispatches"
+        body = {"ref": "main"}
+        status_code, response_data = github_api_request("POST", path, github_pat, body)
+
+        if status_code == 204:
+            print("Teardown workflow triggered successfully")
+        else:
+            print(f"Teardown trigger returned {status_code}: {response_data}")
+    except Exception as e:
+        print(f"Error triggering teardown: {e}")
+        return 500, {"error": "Failed to trigger teardown"}
+
+    # Clean up session
+    try:
+        delete_session()
+    except Exception as e:
+        print(f"Warning: Failed to delete session: {e}")
+
+    return 200, {"action": "teardown_triggered"}
+
+
 def get_cors_headers(origin: str) -> dict[str, str]:
     """Get CORS headers for response.
 
@@ -273,23 +555,39 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
 
         if not action:
             return {"error": "Missing required field: action"}
-        if not api_key:
+        if action not in NO_AUTH_ACTIONS and not api_key:
             return {"error": "Missing required field: api_key"}
 
-        handlers: dict[str, Any] = {
+        no_auth_handlers: dict[str, Any] = {
+            "session-status": handle_session_status,
+            "auto-teardown": handle_auto_teardown,
+        }
+        auth_handlers: dict[str, Any] = {
             "validate": handle_validate,
             "deploy": handle_deploy,
             "status": handle_status,
+            "extend-session": handle_extend_session,
+            "shrink-session": handle_shrink_session,
         }
-        handler = handlers.get(action)
-        if handler is None:
-            return {
-                "error": f"Unknown action: {action}",
-                "valid_actions": ["validate", "deploy", "status"],
-            }
 
-        _, response_body = handler(api_key)
-        return response_body
+        if action in no_auth_handlers:
+            _, response_body = no_auth_handlers[action]()
+            return response_body
+        if action in auth_handlers:
+            _, response_body = auth_handlers[action](api_key)
+            return response_body
+
+        return {
+            "error": f"Unknown action: {action}",
+            "valid_actions": [
+                "validate",
+                "deploy",
+                "status",
+                "session-status",
+                "extend-session",
+                "shrink-session",
+            ],
+        }
 
     # Function URL invocation: event is a full HTTP request envelope.
     # Extract origin for CORS
@@ -327,7 +625,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
             "body": json.dumps({"error": "Missing required field: action"}),
         }
 
-    if not api_key:
+    if action not in NO_AUTH_ACTIONS and not api_key:
         return {
             "statusCode": 400,
             "headers": cors_headers,
@@ -335,21 +633,35 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         }
 
     # Route to appropriate handler
-    url_handlers: dict[str, Any] = {
+    no_auth_handlers: dict[str, Any] = {
+        "session-status": handle_session_status,
+        "auto-teardown": handle_auto_teardown,
+    }
+    auth_handlers: dict[str, Any] = {
         "validate": handle_validate,
         "deploy": handle_deploy,
         "status": handle_status,
+        "extend-session": handle_extend_session,
+        "shrink-session": handle_shrink_session,
     }
 
-    url_handler = url_handlers.get(action)
-    if url_handler is None:
+    if action in no_auth_handlers:
+        status_code, response_body = no_auth_handlers[action]()
+    elif action in auth_handlers:
+        status_code, response_body = auth_handlers[action](api_key)
+    else:
         status_code = 400
         response_body = {
             "error": f"Unknown action: {action}",
-            "valid_actions": ["validate", "deploy", "status"],
+            "valid_actions": [
+                "validate",
+                "deploy",
+                "status",
+                "session-status",
+                "extend-session",
+                "shrink-session",
+            ],
         }
-    else:
-        status_code, response_body = url_handler(api_key)
 
     return {
         "statusCode": status_code,

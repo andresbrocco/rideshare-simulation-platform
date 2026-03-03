@@ -117,6 +117,35 @@ module "secrets_manager" {
 }
 
 # -----------------------------------------------------------------------------
+# EventBridge Scheduler execution role — invokes the Lambda on schedule
+# -----------------------------------------------------------------------------
+resource "aws_iam_role" "scheduler_execution" {
+  name = "rideshare-scheduler-exec"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = ["sts:AssumeRole"]
+      Effect    = "Allow"
+      Principal = { Service = "scheduler.amazonaws.com" }
+    }]
+  })
+  tags = { Project = var.project_name, Component = "scheduler" }
+}
+
+resource "aws_iam_role_policy" "scheduler_invoke_lambda" {
+  name = "rideshare-scheduler-invoke"
+  role = aws_iam_role.scheduler_execution.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["lambda:InvokeFunction"]
+      Resource = "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:rideshare-auth-deploy"
+    }]
+  })
+}
+
+# -----------------------------------------------------------------------------
 # Lambda — auth validation and deploy triggering
 # -----------------------------------------------------------------------------
 module "lambda_auth_deploy" {
@@ -129,13 +158,25 @@ module "lambda_auth_deploy" {
   timeout       = 30
   memory_size   = 256
 
-  environment_variables = {}
+  environment_variables = {
+    SCHEDULER_ROLE_ARN = aws_iam_role.scheduler_execution.arn
+    SELF_FUNCTION_ARN  = "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:rideshare-auth-deploy"
+  }
 
   # Grant read access to API key and GitHub PAT secrets
   secrets_arns = [
     module.secrets_manager.secret_arns["api_key"],
     module.secrets_manager.secret_arns["github_pat"],
   ]
+
+  ssm_parameter_arns = [
+    "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/rideshare/session/*"
+  ]
+
+  scheduler_config = {
+    schedule_arn_pattern = "arn:aws:scheduler:${var.aws_region}:${data.aws_caller_identity.current.account_id}:schedule/default/rideshare-*"
+    execution_role_arn   = aws_iam_role.scheduler_execution.arn
+  }
 
   # CORS configuration for frontend
   cors_allowed_origins = [

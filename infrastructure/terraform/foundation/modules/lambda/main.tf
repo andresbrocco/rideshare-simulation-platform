@@ -72,6 +72,44 @@ resource "aws_iam_role_policy" "lambda_secrets" {
   })
 }
 
+# IAM Policy for SSM Parameter Store
+resource "aws_iam_role_policy" "lambda_ssm" {
+  count = length(var.ssm_parameter_arns) > 0 ? 1 : 0
+  name  = "${var.function_name}-ssm"
+  role  = aws_iam_role.lambda.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["ssm:GetParameter", "ssm:PutParameter", "ssm:DeleteParameter"]
+      Resource = var.ssm_parameter_arns
+    }]
+  })
+}
+
+# IAM Policy for EventBridge Scheduler
+resource "aws_iam_role_policy" "lambda_scheduler" {
+  count = var.scheduler_config != null ? 1 : 0
+  name  = "${var.function_name}-scheduler"
+  role  = aws_iam_role.lambda.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = ["scheduler:CreateSchedule", "scheduler:UpdateSchedule",
+        "scheduler:DeleteSchedule", "scheduler:GetSchedule"]
+        Resource = var.scheduler_config.schedule_arn_pattern
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["iam:PassRole"]
+        Resource = var.scheduler_config.execution_role_arn
+      }
+    ]
+  })
+}
+
 # Package Lambda function code
 data "archive_file" "lambda" {
   type        = "zip"

@@ -6,6 +6,7 @@ import MapErrorBoundary from './components/MapErrorBoundary';
 import ControlPanel from './components/ControlPanel';
 import LayerControls from './components/LayerControls';
 import LaunchDemoPanel from './components/LaunchDemoPanel';
+import SessionTimer from './components/SessionTimer';
 import InspectorPopup, { type InspectedEntity } from './components/InspectorPopup';
 import InspectorErrorBoundary from './components/InspectorErrorBoundary';
 import AgentPlacement from './components/AgentPlacement';
@@ -66,6 +67,7 @@ function LandingApp() {
         onLoginClick={() => setShowPasswordDialog(true)}
         isLocal={getAppMode() === 'dev'}
       />
+      <SessionTimer />
       <PasswordDialog
         open={showPasswordDialog}
         onClose={() => setShowPasswordDialog(false)}
@@ -256,6 +258,7 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
   return (
     <div className={`App${!apiKey ? ' landing-mode' : ''}`}>
       <Toaster position="top-right" />
+      <SessionTimer apiKey={apiKey ?? undefined} />
       {!apiKey ? (
         <>
           <LandingPage

@@ -79,3 +79,18 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "ssm_parameter_arns" {
+  description = "ARNs of SSM parameters the function can read/write/delete"
+  type        = list(string)
+  default     = []
+}
+
+variable "scheduler_config" {
+  description = "EventBridge Scheduler permissions config"
+  type = object({
+    schedule_arn_pattern = string
+    execution_role_arn   = string
+  })
+  default = null
+}
