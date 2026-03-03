@@ -178,68 +178,6 @@ export function LandingPage({ onLoginClick, isLocal }: LandingPageProps) {
         <div className="landing-body">
           <ArchitectureDiagram />
 
-          <div className="landing-two-col">
-            <section className="landing-section">
-              <h2>Architecture Highlights</h2>
-              <ul>
-                <li>SimPy discrete-event simulation with DNA-based agent behavior</li>
-                <li>Kafka event streaming with Schema Registry validation</li>
-                <li>Medallion lakehouse (Bronze/Silver/Gold) on Delta Lake</li>
-                <li>Airflow-orchestrated DBT transformations</li>
-                <li>React + deck.gl real-time visualization</li>
-                <li>Prometheus + Grafana observability</li>
-              </ul>
-            </section>
-
-            <section className="landing-section">
-              <h2>Technology Stack</h2>
-              <div className="landing-tech-grid">
-                <span className="landing-tech-badge">Python 3.13</span>
-                <span className="landing-tech-badge">TypeScript</span>
-                <span className="landing-tech-badge">Apache Kafka</span>
-                <span className="landing-tech-badge">Delta Lake</span>
-                <span className="landing-tech-badge">Apache Trino</span>
-                <span className="landing-tech-badge">dbt</span>
-                <span className="landing-tech-badge">Great Expectations</span>
-                <span className="landing-tech-badge">SimPy</span>
-                <span className="landing-tech-badge">Kubernetes</span>
-                <span className="landing-tech-badge">ArgoCD</span>
-                <span className="landing-tech-badge">Grafana</span>
-                <span className="landing-tech-badge">Prometheus</span>
-              </div>
-            </section>
-          </div>
-
-          <section className="landing-section landing-pipeline">
-            <h2>Data Pipeline</h2>
-            <div className="pipeline-flow">
-              <div className="pipeline-stage">
-                <span className="pipeline-stage-label">Simulation</span>
-                <span className="pipeline-stage-desc">SimPy + Kafka</span>
-              </div>
-              <span className="pipeline-arrow">&rarr;</span>
-              <div className="pipeline-stage pipeline-bronze">
-                <span className="pipeline-stage-label">Bronze</span>
-                <span className="pipeline-stage-desc">Raw Events</span>
-              </div>
-              <span className="pipeline-arrow">&rarr;</span>
-              <div className="pipeline-stage pipeline-silver">
-                <span className="pipeline-stage-label">Silver</span>
-                <span className="pipeline-stage-desc">Validated</span>
-              </div>
-              <span className="pipeline-arrow">&rarr;</span>
-              <div className="pipeline-stage pipeline-gold">
-                <span className="pipeline-stage-label">Gold</span>
-                <span className="pipeline-stage-desc">Star Schema</span>
-              </div>
-              <span className="pipeline-arrow">&rarr;</span>
-              <div className="pipeline-stage pipeline-analytics">
-                <span className="pipeline-stage-label">Analytics</span>
-                <span className="pipeline-stage-desc">Trino + Grafana</span>
-              </div>
-            </div>
-          </section>
-
           <section className="landing-section landing-services">
             <h2>Explore the Platform</h2>
             <div className="landing-services-grid">

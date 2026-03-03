@@ -194,17 +194,7 @@
   white-space: pre-line;
 }
 
-.landing-two-col {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
 @media (max-width: 640px) {
-  .landing-two-col {
-    grid-template-columns: 1fr;
-  }
   .landing-services-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -281,63 +271,6 @@
   color: var(--offline-tech-badge-text);
   font-weight: 500;
   font-family: 'SFMono-Regular', 'Consolas', 'Liberation Mono', monospace;
-}
-
-/* Pipeline section */
-.landing-pipeline {
-  text-align: center;
-}
-
-.pipeline-flow {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  padding-top: 4px;
-}
-
-.pipeline-stage {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  background: rgba(var(--offline-neon-rgb), 0.04);
-  border: 1px solid rgba(var(--offline-neon-rgb), 0.12);
-  border-radius: 8px;
-  padding: 10px 18px;
-  min-width: 90px;
-}
-
-.pipeline-stage-label {
-  font-weight: 700;
-  font-size: 0.82rem;
-  color: var(--offline-neon);
-}
-
-.pipeline-stage-desc {
-  font-size: 0.68rem;
-  color: var(--offline-text-dimmest);
-  letter-spacing: 0.02em;
-}
-
-.pipeline-bronze .pipeline-stage-label {
-  color: var(--offline-bronze);
-}
-.pipeline-silver .pipeline-stage-label {
-  color: var(--offline-silver);
-}
-.pipeline-gold .pipeline-stage-label {
-  color: var(--offline-gold);
-}
-.pipeline-analytics .pipeline-stage-label {
-  color: var(--offline-neon);
-}
-
-.pipeline-arrow {
-  color: rgba(var(--offline-neon-rgb), 0.3);
-  font-size: 1.2rem;
-  line-height: 1;
 }
 
 /* CTA section */

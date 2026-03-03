@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, act } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LandingPage } from '../LandingPage';
 
@@ -58,39 +58,6 @@ describe('LandingPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows architecture highlights', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
-
-    const archHeading = screen.getByRole('heading', {
-      level: 2,
-      name: 'Architecture Highlights',
-    });
-    const archSection = archHeading.closest('section');
-    expect(archSection).not.toBeNull();
-
-    const sectionScope = within(archSection!);
-    expect(sectionScope.getByText(/SimPy discrete-event simulation/i)).toBeInTheDocument();
-    expect(sectionScope.getByText(/Kafka event streaming/i)).toBeInTheDocument();
-    expect(sectionScope.getByText(/Medallion lakehouse.*Delta Lake/i)).toBeInTheDocument();
-    expect(sectionScope.getByText(/React \+ deck\.gl/i)).toBeInTheDocument();
-  });
-
-  it('shows technology stack section', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
-
-    const techHeading = screen.getByRole('heading', {
-      level: 2,
-      name: 'Technology Stack',
-    });
-    const techSection = techHeading.closest('section');
-    expect(techSection).not.toBeNull();
-
-    const sectionScope = within(techSection!);
-    expect(sectionScope.getByText(/Python 3\.13/i)).toBeInTheDocument();
-    expect(sectionScope.getByText(/TypeScript/)).toBeInTheDocument();
-    expect(sectionScope.getByText(/Apache Kafka/)).toBeInTheDocument();
-  });
-
   it('displays GitHub link with correct attributes', () => {
     render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
 
@@ -101,19 +68,6 @@ describe('LandingPage', () => {
     );
     expect(link).toHaveAttribute('target', '_blank');
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
-  });
-
-  it('shows data pipeline section', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
-
-    const pipelineHeading = screen.getByRole('heading', { level: 2, name: 'Data Pipeline' });
-    const pipelineSection = pipelineHeading.closest('section');
-    expect(pipelineSection).not.toBeNull();
-
-    const sectionScope = within(pipelineSection!);
-    expect(sectionScope.getByText('Bronze')).toBeInTheDocument();
-    expect(sectionScope.getByText('Silver')).toBeInTheDocument();
-    expect(sectionScope.getByText('Gold')).toBeInTheDocument();
   });
 
   it('renders the trip lifecycle animation', () => {
@@ -233,12 +187,6 @@ describe('LandingPage', () => {
     expect(values).toContain('8');
     expect(values).toContain('120+');
     expect(values).toContain('4');
-  });
-
-  it('does not render the overview paragraph', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
-
-    expect(screen.queryByText(/event-driven data engineering platform/i)).toBeNull();
   });
 
   it('hero section has id attribute for scroll targeting', () => {
