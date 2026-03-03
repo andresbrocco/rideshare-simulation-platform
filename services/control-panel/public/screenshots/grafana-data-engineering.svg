@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450">
+  <rect width="800" height="450" fill="#0A0F0A"/>
+  <text
+    x="400" y="225"
+    text-anchor="middle" dominant-baseline="middle"
+    font-family="system-ui, sans-serif" font-size="18" fill="#4d7a5e"
+  >Screenshot: Grafana Data Engineering Dashboard</text>
+</svg>
