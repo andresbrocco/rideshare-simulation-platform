@@ -267,4 +267,51 @@ button:focus-visible {
     height: auto;
     opacity: 1;
   }
+
+  @media (prefers-reduced-motion: reduce) {
+    .deep-dive::details-content {
+      transition: none;
+    }
+  }
+}
+
+/* Reduced-motion overrides for remaining transitions */
+@media (prefers-reduced-motion: reduce) {
+  .deep-dive-chevron {
+    transition: none;
+  }
+
+  .tech-badge {
+    transition: none;
+  }
+
+  .landing-linkedin-link {
+    transition: none;
+  }
+}
+
+/* Deep dive screenshot mobile rules */
+@media (max-width: 640px) {
+  .deep-dive-screenshot {
+    width: 100%;
+  }
+
+  .deep-dive-summary {
+    padding: 16px;
+  }
+
+  .deep-dive-content {
+    padding: 0 16px 16px;
+  }
+}
+
+/* Architecture section horizontal scroll fallback on very narrow screens */
+@media (max-width: 480px) {
+  .architecture-section {
+    overflow-x: auto;
+  }
+
+  .architecture-section svg {
+    min-width: 480px;
+  }
 }

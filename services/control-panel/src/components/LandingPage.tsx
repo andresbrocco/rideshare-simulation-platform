@@ -460,6 +460,7 @@ function SectionNav({ heroVisible }: SectionNavProps) {
           className={`section-nav-btn${activeId === id ? ' section-nav-btn--active' : ''}`}
           onClick={() => handleNavClick(id)}
           type="button"
+          aria-current={activeId === id ? true : undefined}
         >
           {NAV_LABELS[id]}
         </button>

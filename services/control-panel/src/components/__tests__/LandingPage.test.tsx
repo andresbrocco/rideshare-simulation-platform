@@ -10,6 +10,12 @@ SVGElement.prototype.getTotalLength = vi.fn().mockReturnValue(900);
 // @ts-expect-error -- same as above
 SVGElement.prototype.getPointAtLength = vi.fn().mockReturnValue({ x: 100, y: 40 });
 
+// Mock useActiveSection so tests can control which section appears active
+const mockUseActiveSectionValue = vi.fn<[], string | null>(() => null);
+vi.mock('../../hooks/useActiveSection', () => ({
+  useActiveSection: () => mockUseActiveSectionValue(),
+}));
+
 const mockOnLoginClick = vi.fn();
 
 type IntersectionObserverCallback = (entries: IntersectionObserverEntry[]) => void;
@@ -17,6 +23,7 @@ let observerCallbacks: IntersectionObserverCallback[] = [];
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockUseActiveSectionValue.mockReturnValue(null);
   observerCallbacks = [];
 
   Object.defineProperty(window, 'matchMedia', {
@@ -390,5 +397,76 @@ describe('SectionNav', () => {
       expect(btn).toBeVisible();
       expect(btn.tabIndex).not.toBe(-1);
     }
+  });
+});
+
+describe('Responsive and Accessibility', () => {
+  it('service cards grid container exists for mobile CSS', () => {
+    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    expect(document.querySelector('.landing-services-grid')).not.toBeNull();
+  });
+
+  it('tech badges are keyboard-focusable via tabIndex', () => {
+    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    const badges = document.querySelectorAll('.tech-badge');
+    expect(badges.length).toBeGreaterThan(0);
+    for (const badge of badges) {
+      expect((badge as HTMLElement).tabIndex).toBe(0);
+    }
+  });
+
+  it('active nav button has aria-current', () => {
+    mockUseActiveSectionValue.mockReturnValue('architecture');
+    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+
+    const archButton = screen.getByRole('button', { name: /^Architecture$/i });
+    expect(archButton).toHaveAttribute('aria-current', 'true');
+  });
+
+  it('inactive nav buttons have no aria-current', () => {
+    mockUseActiveSectionValue.mockReturnValue('architecture');
+    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+
+    const techStackButton = screen.getByRole('button', { name: /^Tech Stack$/i });
+    const deepDivesButton = screen.getByRole('button', { name: /^Deep Dives$/i });
+    const exploreButton = screen.getByRole('button', { name: /^Explore$/i });
+
+    expect(techStackButton).not.toHaveAttribute('aria-current');
+    expect(deepDivesButton).not.toHaveAttribute('aria-current');
+    expect(exploreButton).not.toHaveAttribute('aria-current');
+  });
+
+  it('architecture SVG has role="img" and accessible name', () => {
+    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    const svg = screen.getByRole('img', { name: /system architecture/i });
+    expect(svg).toBeInTheDocument();
+  });
+
+  it('screenshot images use lazy loading', () => {
+    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    const screenshots = document.querySelectorAll('img.deep-dive-screenshot');
+    expect(screenshots.length).toBeGreaterThan(0);
+    for (const img of screenshots) {
+      expect(img).toHaveAttribute('loading', 'lazy');
+    }
+  });
+
+  it('screenshot images have non-empty alt text', () => {
+    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    const screenshots = document.querySelectorAll('img.deep-dive-screenshot');
+    expect(screenshots.length).toBeGreaterThan(0);
+    for (const img of screenshots) {
+      const alt = img.getAttribute('alt') ?? '';
+      expect(alt.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('all five scroll-target section IDs are present', () => {
+    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    expect(document.getElementById('hero')).not.toBeNull();
+    expect(document.getElementById('architecture')).not.toBeNull();
+    expect(document.getElementById('tech-stack')).not.toBeNull();
+    expect(document.getElementById('deep-dives')).not.toBeNull();
+    expect(document.getElementById('explore')).not.toBeNull();
   });
 });
