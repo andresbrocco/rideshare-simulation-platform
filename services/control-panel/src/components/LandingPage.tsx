@@ -1,34 +1,57 @@
 import { TripLifecycleAnimation } from './TripLifecycleAnimation';
 
-const EXTERNAL_SERVICES = [
-  {
-    name: 'Grafana',
-    url: 'https://grafana.ridesharing.portfolio.andresbrocco.com',
-    desc: 'Observability dashboards',
-  },
-  {
-    name: 'Airflow',
-    url: 'https://airflow.ridesharing.portfolio.andresbrocco.com',
-    desc: 'Pipeline orchestration',
-  },
-  {
-    name: 'Trino',
-    url: 'https://trino.ridesharing.portfolio.andresbrocco.com',
-    desc: 'Interactive SQL engine',
-  },
-  {
-    name: 'Prometheus',
-    url: 'https://prometheus.ridesharing.portfolio.andresbrocco.com',
-    desc: 'Metrics & PromQL',
-  },
-  {
-    name: 'Simulation API',
-    url: 'https://api.ridesharing.portfolio.andresbrocco.com/docs',
-    desc: 'REST API docs (Swagger)',
-  },
-];
+interface ExternalService {
+  name: string;
+  url: string;
+  desc: string;
+}
 
-export function LandingPage({ onLoginClick }: { onLoginClick: () => void }) {
+function getExternalServices(isLocal: boolean): ExternalService[] {
+  return [
+    {
+      name: 'Grafana',
+      url: isLocal
+        ? 'http://localhost:3001'
+        : 'https://grafana.ridesharing.portfolio.andresbrocco.com',
+      desc: 'Observability dashboards',
+    },
+    {
+      name: 'Airflow',
+      url: isLocal
+        ? 'http://localhost:8082'
+        : 'https://airflow.ridesharing.portfolio.andresbrocco.com',
+      desc: 'Pipeline orchestration',
+    },
+    {
+      name: 'Trino',
+      url: isLocal
+        ? 'http://localhost:8084'
+        : 'https://trino.ridesharing.portfolio.andresbrocco.com',
+      desc: 'Interactive SQL engine',
+    },
+    {
+      name: 'Prometheus',
+      url: isLocal
+        ? 'http://localhost:9090'
+        : 'https://prometheus.ridesharing.portfolio.andresbrocco.com',
+      desc: 'Metrics & PromQL',
+    },
+    {
+      name: 'Simulation API',
+      url: isLocal
+        ? 'http://localhost:8000/docs'
+        : 'https://api.ridesharing.portfolio.andresbrocco.com/docs',
+      desc: 'REST API docs (Swagger)',
+    },
+  ];
+}
+
+interface LandingPageProps {
+  onLoginClick: () => void;
+  isLocal: boolean;
+}
+
+export function LandingPage({ onLoginClick, isLocal }: LandingPageProps) {
   return (
     <div className="landing-container">
       <div className="landing-inner">
@@ -121,7 +144,7 @@ export function LandingPage({ onLoginClick }: { onLoginClick: () => void }) {
                 <span className="landing-service-name">Control Panel</span>
                 <span className="landing-service-desc">Real-time simulation map</span>
               </button>
-              {EXTERNAL_SERVICES.map((s) => (
+              {getExternalServices(isLocal).map((s) => (
                 <a
                   key={s.name}
                   href={s.url}

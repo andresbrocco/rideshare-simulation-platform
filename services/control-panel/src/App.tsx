@@ -48,7 +48,10 @@ function LandingApp() {
   return (
     <div className="App landing-mode">
       <Toaster position="top-right" />
-      <LandingPage onLoginClick={() => setShowPasswordDialog(true)} />
+      <LandingPage
+        onLoginClick={() => setShowPasswordDialog(true)}
+        isLocal={getAppMode() === 'dev'}
+      />
       <PasswordDialog
         open={showPasswordDialog}
         onClose={() => setShowPasswordDialog(false)}
@@ -241,7 +244,10 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
       <Toaster position="top-right" />
       {!apiKey ? (
         <>
-          <LandingPage onLoginClick={() => setShowPasswordDialog(true)} />
+          <LandingPage
+            onLoginClick={() => setShowPasswordDialog(true)}
+            isLocal={getAppMode() === 'dev'}
+          />
           <PasswordDialog
             open={showPasswordDialog}
             onClose={() => setShowPasswordDialog(false)}

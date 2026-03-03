@@ -31,7 +31,7 @@ beforeEach(() => {
 
 describe('LandingPage', () => {
   it('renders project title and subtitle', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} />);
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
 
     expect(
       screen.getByRole('heading', { level: 1, name: 'Rideshare Simulation Platform' })
@@ -42,13 +42,13 @@ describe('LandingPage', () => {
   });
 
   it('renders project overview description', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} />);
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
 
     expect(screen.getByText(/event-driven data engineering platform/i)).toBeInTheDocument();
   });
 
   it('shows architecture highlights', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} />);
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
 
     const archHeading = screen.getByRole('heading', {
       level: 2,
@@ -65,7 +65,7 @@ describe('LandingPage', () => {
   });
 
   it('shows technology stack section', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} />);
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
 
     const techHeading = screen.getByRole('heading', {
       level: 2,
@@ -81,7 +81,7 @@ describe('LandingPage', () => {
   });
 
   it('displays GitHub link with correct attributes', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} />);
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
 
     const link = screen.getByRole('link', { name: /View on GitHub/i });
     expect(link).toHaveAttribute(
@@ -93,7 +93,7 @@ describe('LandingPage', () => {
   });
 
   it('shows data pipeline section', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} />);
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
 
     expect(screen.getByRole('heading', { level: 2, name: 'Data Pipeline' })).toBeInTheDocument();
     expect(screen.getByText('Bronze')).toBeInTheDocument();
@@ -102,7 +102,7 @@ describe('LandingPage', () => {
   });
 
   it('renders the trip lifecycle animation', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} />);
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
 
     expect(
       screen.getByRole('img', {
@@ -112,7 +112,7 @@ describe('LandingPage', () => {
   });
 
   it('renders Control Panel button in services grid', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} />);
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
 
     const controlPanelButton = screen.getByRole('button', { name: /control panel/i });
     expect(controlPanelButton).toBeInTheDocument();
@@ -120,7 +120,7 @@ describe('LandingPage', () => {
 
   it('calls onLoginClick when Control Panel button clicked', async () => {
     const user = userEvent.setup();
-    render(<LandingPage onLoginClick={mockOnLoginClick} />);
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
 
     const controlPanelButton = screen.getByRole('button', { name: /control panel/i });
     await user.click(controlPanelButton);
@@ -129,15 +129,15 @@ describe('LandingPage', () => {
   });
 
   it('renders Explore the Platform heading', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} />);
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
 
     expect(
       screen.getByRole('heading', { level: 2, name: 'Explore the Platform' })
     ).toBeInTheDocument();
   });
 
-  it('renders all external service links with correct attributes', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} />);
+  it('renders production URLs when isLocal is false', () => {
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
 
     const expectedServices = [
       { name: 'Grafana', url: 'https://grafana.ridesharing.portfolio.andresbrocco.com' },
@@ -155,8 +155,27 @@ describe('LandingPage', () => {
     }
   });
 
+  it('renders local URLs when isLocal is true', () => {
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={true} />);
+
+    const expectedServices = [
+      { name: 'Grafana', url: 'http://localhost:3001' },
+      { name: 'Airflow', url: 'http://localhost:8082' },
+      { name: 'Trino', url: 'http://localhost:8084' },
+      { name: 'Prometheus', url: 'http://localhost:9090' },
+      { name: 'Simulation API', url: 'http://localhost:8000/docs' },
+    ];
+
+    for (const service of expectedServices) {
+      const link = screen.getByRole('link', { name: new RegExp(service.name) });
+      expect(link).toHaveAttribute('href', service.url);
+      expect(link).toHaveAttribute('target', '_blank');
+      expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    }
+  });
+
   it('does not show Demo Offline badge', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} />);
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
 
     expect(screen.queryByText(/demo offline/i)).not.toBeInTheDocument();
   });
