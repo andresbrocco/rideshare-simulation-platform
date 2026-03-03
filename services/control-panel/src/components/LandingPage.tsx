@@ -1,3 +1,5 @@
+import { useCountUp } from '../hooks/useCountUp';
+import { useInView } from '../hooks/useInView';
 import { TripLifecycleAnimation } from './TripLifecycleAnimation';
 
 interface ExternalService {
@@ -46,6 +48,45 @@ function getExternalServices(isLocal: boolean): ExternalService[] {
   ];
 }
 
+const STATS = [
+  { target: 30, suffix: '+', label: 'Services' },
+  { target: 8, suffix: '', label: 'Kafka Topics' },
+  { target: 120, suffix: '+', label: 'Tests' },
+  { target: 4, suffix: '', label: 'Grafana Dashboard\nCategories' },
+] as const;
+
+interface StatCardProps {
+  target: number;
+  suffix: string;
+  label: string;
+}
+
+function StatCard({ target, suffix, label }: StatCardProps) {
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const [ref, isInView] = useInView<HTMLDivElement>({ threshold: 0.4, triggerOnce: true });
+  const count = useCountUp({ target, start: isInView || prefersReducedMotion });
+
+  return (
+    <div ref={ref} className="stat-card">
+      <span className="stat-number">
+        {count}
+        {suffix}
+      </span>
+      <span className="stat-label">{label}</span>
+    </div>
+  );
+}
+
+function StatBar() {
+  return (
+    <div className="stat-bar">
+      {STATS.map((stat) => (
+        <StatCard key={stat.label} target={stat.target} suffix={stat.suffix} label={stat.label} />
+      ))}
+    </div>
+  );
+}
+
 interface LandingPageProps {
   onLoginClick: () => void;
   isLocal: boolean;
@@ -55,7 +96,7 @@ export function LandingPage({ onLoginClick, isLocal }: LandingPageProps) {
   return (
     <div className="landing-container">
       <div className="landing-inner">
-        <div className="landing-hero">
+        <div id="hero" className="landing-hero">
           <div className="landing-hero-glow" />
           <h1>Rideshare Simulation Platform</h1>
           <p className="landing-subtitle">
@@ -65,16 +106,9 @@ export function LandingPage({ onLoginClick, isLocal }: LandingPageProps) {
 
         <TripLifecycleAnimation />
 
-        <div className="landing-body">
-          <div className="landing-overview">
-            <p>
-              An event-driven data engineering platform combining a discrete-event simulation engine
-              with a medallion lakehouse pipeline. The system simulates a rideshare platform in
-              S&atilde;o Paulo, Brazil, generating synthetic events that flow through Bronze &rarr;
-              Silver &rarr; Gold data architecture for analytics.
-            </p>
-          </div>
+        <StatBar />
 
+        <div className="landing-body">
           <div className="landing-two-col">
             <section className="landing-section">
               <h2>Architecture Highlights</h2>

@@ -27,6 +27,14 @@ beforeEach(() => {
       dispatchEvent: vi.fn(),
     })),
   });
+  vi.stubGlobal(
+    'IntersectionObserver',
+    vi.fn().mockImplementation(() => ({
+      observe: vi.fn(),
+      unobserve: vi.fn(),
+      disconnect: vi.fn(),
+    }))
+  );
 });
 
 describe('LandingPage', () => {
@@ -39,12 +47,6 @@ describe('LandingPage', () => {
     expect(
       screen.getByText('Real-time Event-Driven Data Engineering \u2014 Portfolio Project')
     ).toBeInTheDocument();
-  });
-
-  it('renders project overview description', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
-
-    expect(screen.getByText(/event-driven data engineering platform/i)).toBeInTheDocument();
   });
 
   it('shows architecture highlights', () => {
@@ -178,5 +180,65 @@ describe('LandingPage', () => {
     render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
 
     expect(screen.queryByText(/demo offline/i)).not.toBeInTheDocument();
+  });
+
+  it('renders four stat cards with correct labels', () => {
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+
+    expect(screen.getByText('Services')).toBeInTheDocument();
+    expect(screen.getByText('Kafka Topics')).toBeInTheDocument();
+    expect(screen.getByText('Tests')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        (content) => content.includes('Grafana Dashboard') && content.includes('Categories')
+      )
+    ).toBeInTheDocument();
+
+    expect(document.querySelectorAll('.stat-card')).toHaveLength(4);
+  });
+
+  it('shows final target values immediately when prefers-reduced-motion is set', () => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: query === '(prefers-reduced-motion: reduce)',
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+
+    const statNumbers = document.querySelectorAll('.stat-number');
+    const values = Array.from(statNumbers).map((el) => el.textContent);
+    expect(values).toContain('30+');
+    expect(values).toContain('8');
+    expect(values).toContain('120+');
+    expect(values).toContain('4');
+  });
+
+  it('does not render the overview paragraph', () => {
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+
+    expect(screen.queryByText(/event-driven data engineering platform/i)).toBeNull();
+  });
+
+  it('hero section has id attribute for scroll targeting', () => {
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+
+    const hero = document.getElementById('hero');
+    expect(hero).not.toBeNull();
+    expect(hero).toContainElement(screen.getByRole('heading', { level: 1 }));
+  });
+
+  it('landing-inner CSS class is present in the DOM', () => {
+    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+
+    expect(document.querySelector('.landing-inner')).not.toBeNull();
   });
 });
