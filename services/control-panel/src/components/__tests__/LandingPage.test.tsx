@@ -210,12 +210,18 @@ describe('LandingPage', () => {
 
   it('renders all six tech group titles', () => {
     render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
-    expect(screen.getByText('Simulation')).toBeInTheDocument();
-    expect(screen.getByText('Streaming')).toBeInTheDocument();
-    expect(screen.getByText('Storage')).toBeInTheDocument();
-    expect(screen.getByText('Transformation')).toBeInTheDocument();
-    expect(screen.getByText('Frontend')).toBeInTheDocument();
-    expect(screen.getByText('Observability')).toBeInTheDocument();
+    // Use getAllByText because some labels also appear in deep-dive content
+    expect(screen.getAllByText('Simulation').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Streaming').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Storage').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Transformation').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Frontend').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Observability').length).toBeGreaterThan(0);
+    // Verify at least one match is actually a tech-group-title
+    const groupTitles = document.querySelectorAll('.tech-group-title');
+    const groupLabels = Array.from(groupTitles).map((el) => el.textContent);
+    expect(groupLabels).toContain('Simulation');
+    expect(groupLabels).toContain('Observability');
   });
 
   it('renders representative badges from each group', () => {
@@ -241,7 +247,10 @@ describe('LandingPage', () => {
   it('renders infrastructure footnote', () => {
     render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
     expect(screen.getByText(/Also:/i)).toBeInTheDocument();
-    expect(screen.getByText(/Docker/i)).toBeInTheDocument();
+    // Docker appears in both the footnote and deep-dive content — verify footnote presence
+    const footnote = document.querySelector('.tech-infra-footnote');
+    expect(footnote).not.toBeNull();
+    expect(footnote?.textContent).toMatch(/Docker/i);
   });
 
   it('shows technology stack section with grouped badges', () => {

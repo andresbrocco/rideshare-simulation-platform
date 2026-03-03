@@ -12,3 +12,10 @@ vi.setConfig({
     shouldAdvanceTime: true,
   },
 });
+
+// ResizeObserver is not implemented in jsdom — provide a no-op stub
+global.ResizeObserver = class ResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};

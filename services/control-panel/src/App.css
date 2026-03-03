@@ -141,16 +141,24 @@
   transform: translateY(0);
 }
 
+.landing-service-icon {
+  flex-shrink: 0;
+  margin-bottom: 2px;
+}
+
 .landing-service-name {
   font-weight: 700;
   font-size: 0.85rem;
   color: var(--offline-neon);
+  margin-top: 4px;
 }
 
 .landing-service-desc {
   font-size: 0.72rem;
   color: var(--offline-text-dimmest);
   letter-spacing: 0.02em;
+  text-align: center;
+  line-height: 1.45;
 }
 
 .landing-body {

@@ -51,7 +51,7 @@ import OsrmIcon from '../../public/icons/tech/osrm.svg?react';
 import { useActiveSection } from '../hooks/useActiveSection';
 import { useCountUp } from '../hooks/useCountUp';
 import { useInView } from '../hooks/useInView';
-import { Zoom } from 'react-medium-image-zoom';
+import Zoom from 'react-medium-image-zoom';
 import { ArchitectureDiagram } from './ArchitectureDiagram';
 import { TripLifecycleAnimation } from './TripLifecycleAnimation';
 
@@ -331,6 +331,8 @@ interface ExternalService {
   name: string;
   url: string;
   desc: string;
+  icon: IconComponent;
+  iconColor: string;
 }
 
 function getExternalServices(isLocal: boolean): ExternalService[] {
@@ -340,35 +342,45 @@ function getExternalServices(isLocal: boolean): ExternalService[] {
       url: isLocal
         ? 'http://localhost:3001'
         : 'https://grafana.ridesharing.portfolio.andresbrocco.com',
-      desc: 'Observability dashboards',
+      desc: 'Multi-datasource dashboards — metrics, logs, traces, and BI analytics',
+      icon: SiGrafana,
+      iconColor: `#${SiGrafanaHex}`,
     },
     {
       name: 'Airflow',
       url: isLocal
         ? 'http://localhost:8082'
         : 'https://airflow.ridesharing.portfolio.andresbrocco.com',
-      desc: 'Pipeline orchestration',
+      desc: '4 DAGs orchestrating Bronze → Silver → Gold transformations',
+      icon: SiApacheairflow,
+      iconColor: `#${SiApacheairflowHex}`,
     },
     {
       name: 'Trino',
       url: isLocal
         ? 'http://localhost:8084'
         : 'https://trino.ridesharing.portfolio.andresbrocco.com',
-      desc: 'Interactive SQL engine',
+      desc: 'Interactive SQL over Delta Lake — query the star schema live',
+      icon: SiTrino,
+      iconColor: `#${SiTrinoHex}`,
     },
     {
       name: 'Prometheus',
       url: isLocal
         ? 'http://localhost:9090'
         : 'https://prometheus.ridesharing.portfolio.andresbrocco.com',
-      desc: 'Metrics & PromQL',
+      desc: 'Raw metrics and PromQL — simulation KPIs and container resources',
+      icon: SiPrometheus,
+      iconColor: `#${SiPrometheusHex}`,
     },
     {
       name: 'Simulation API',
       url: isLocal
         ? 'http://localhost:8000/docs'
         : 'https://api.ridesharing.portfolio.andresbrocco.com/docs',
-      desc: 'REST API docs (Swagger)',
+      desc: 'FastAPI Swagger docs — start sessions, spawn agents, control speed',
+      icon: SiFastapi,
+      iconColor: `#${SiFastapiHex}`,
     },
   ];
 }
@@ -867,25 +879,44 @@ export function LandingPage({ onLoginClick, isLocal }: LandingPageProps) {
             </details>
           </section>
 
-          <section className="landing-section landing-services">
+          <section id="explore" className="landing-section landing-services">
             <h2>Explore the Platform</h2>
             <div className="landing-services-grid">
               <button onClick={onLoginClick} className="landing-service-card">
+                <SiReact
+                  width={32}
+                  height={32}
+                  className="landing-service-icon"
+                  style={{ color: `#${SiReactHex}` }}
+                  aria-hidden="true"
+                />
                 <span className="landing-service-name">Control Panel</span>
-                <span className="landing-service-desc">Real-time simulation map</span>
+                <span className="landing-service-desc">
+                  Real-time simulation map — watch drivers and riders move across São Paulo
+                </span>
               </button>
-              {getExternalServices(isLocal).map((s) => (
-                <a
-                  key={s.name}
-                  href={s.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="landing-service-card"
-                >
-                  <span className="landing-service-name">{s.name}</span>
-                  <span className="landing-service-desc">{s.desc}</span>
-                </a>
-              ))}
+              {getExternalServices(isLocal).map((s) => {
+                const Icon = s.icon;
+                return (
+                  <a
+                    key={s.name}
+                    href={s.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="landing-service-card"
+                  >
+                    <Icon
+                      width={32}
+                      height={32}
+                      className="landing-service-icon"
+                      style={{ color: s.iconColor }}
+                      aria-hidden="true"
+                    />
+                    <span className="landing-service-name">{s.name}</span>
+                    <span className="landing-service-desc">{s.desc}</span>
+                  </a>
+                );
+              })}
             </div>
           </section>
 
