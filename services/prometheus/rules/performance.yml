@@ -5,35 +5,35 @@ groups:
       - record: rideshare:container:memory_bytes
         expr: >-
           label_replace(
-            container_memory_working_set_bytes{name=~"rideshare-.*"},
+            container_memory_working_set_bytes{name=~"rideshare-.*", name!~".*-init"},
             "service", "$1", "name", "rideshare-(.*)"
           )
 
       - record: rideshare:container:memory_limit_bytes
         expr: >-
           label_replace(
-            container_spec_memory_limit_bytes{name=~"rideshare-.*"},
+            container_spec_memory_limit_bytes{name=~"rideshare-.*", name!~".*-init"},
             "service", "$1", "name", "rideshare-(.*)"
           )
 
       - record: rideshare:container:cpu_percent
         expr: >-
           label_replace(
-            rate(container_cpu_usage_seconds_total{name=~"rideshare-.*"}[1m]) * 100,
+            rate(container_cpu_usage_seconds_total{name=~"rideshare-.*", name!~".*-init"}[1m]) * 100,
             "service", "$1", "name", "rideshare-(.*)"
           )
 
       - record: rideshare:container:fs_write_rate
         expr: >-
           label_replace(
-            rate(container_fs_writes_bytes_total{name=~"rideshare-.*"}[1m]),
+            rate(container_fs_writes_bytes_total{name=~"rideshare-.*", name!~".*-init"}[1m]),
             "service", "$1", "name", "rideshare-(.*)"
           )
 
       - record: rideshare:container:fs_read_rate
         expr: >-
           label_replace(
-            rate(container_fs_reads_bytes_total{name=~"rideshare-.*"}[1m]),
+            rate(container_fs_reads_bytes_total{name=~"rideshare-.*", name!~".*-init"}[1m]),
             "service", "$1", "name", "rideshare-(.*)"
           )
 
@@ -51,7 +51,7 @@ groups:
       - record: rideshare:performance:cpu_headroom
         expr: >-
           clamp(
-            2 * (1 - (sum by() (rate(container_cpu_usage_seconds_total{name=~"rideshare.*"}[1m]) * 100) or vector(0))
+            2 * (1 - (sum by() (rate(container_cpu_usage_seconds_total{name=~"rideshare.*", name!~".*-init"}[1m]) * 100) or vector(0))
             / clamp_min(max(machine_cpu_cores) * 100, 100)),
             0, 1
           )
@@ -59,8 +59,8 @@ groups:
       - record: rideshare:performance:memory_headroom
         expr: >-
           clamp(
-            1 - clamp_min((max by() (container_memory_working_set_bytes{name=~"rideshare.*"}
-              / (container_spec_memory_limit_bytes{name=~"rideshare.*"} > 0)) or vector(0)) - 0.67, 0) / 0.33,
+            1 - clamp_min((max by() (container_memory_working_set_bytes{name=~"rideshare.*", name!~".*-init"}
+              / (container_spec_memory_limit_bytes{name=~"rideshare.*", name!~".*-init"} > 0)) or vector(0)) - 0.67, 0) / 0.33,
             0, 1
           )
 
