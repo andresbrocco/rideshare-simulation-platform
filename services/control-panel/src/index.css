@@ -143,3 +143,128 @@ button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 }
+
+/* ── Deep Dives ─────────────────────────────────────────────── */
+
+#deep-dives {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.deep-dive {
+  border-radius: 12px;
+  background: var(--offline-section-bg);
+  border: 1px solid rgba(var(--offline-neon-rgb), 0.08);
+}
+
+.deep-dive-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px 24px;
+  cursor: pointer;
+  border-radius: 12px;
+  list-style: none;
+  user-select: none;
+}
+
+/* Remove default marker in all browsers */
+.deep-dive-summary::-webkit-details-marker {
+  display: none;
+}
+
+.deep-dive-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  color: var(--offline-neon);
+  margin-top: 2px;
+}
+
+.deep-dive-header {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.deep-dive-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--offline-text);
+}
+
+.deep-dive-preview {
+  font-size: 0.8rem;
+  color: var(--offline-text-dimmest);
+  line-height: 1.5;
+}
+
+.deep-dive-chevron {
+  flex-shrink: 0;
+  font-size: 1.2rem;
+  color: var(--offline-text-dimmest);
+  margin-top: 2px;
+  display: inline-block;
+  transition: transform 250ms ease;
+}
+
+.deep-dive[open] .deep-dive-chevron {
+  transform: rotate(90deg);
+}
+
+.deep-dive-content {
+  padding: 0 24px 24px;
+}
+
+.deep-dive-content h3 {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--offline-neon);
+  margin: 16px 0 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.deep-dive-content p,
+.deep-dive-content li {
+  font-size: 0.85rem;
+  color: var(--offline-text-subtle);
+  line-height: 1.6;
+}
+
+.deep-dive-content ul {
+  margin: 4px 0 0;
+  padding-left: 20px;
+}
+
+.deep-dive-screenshot {
+  margin-top: 16px;
+  display: block;
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid rgba(var(--offline-neon-rgb), 0.1);
+}
+
+/* Progressive enhancement: smooth height animation in Chromium */
+@supports (interpolate-size: allow-keywords) {
+  .deep-dive {
+    interpolate-size: allow-keywords;
+  }
+
+  .deep-dive::details-content {
+    height: 0;
+    overflow: clip;
+    opacity: 0;
+    transition:
+      height 0.35s ease,
+      opacity 0.3s ease,
+      content-visibility 0.35s allow-discrete;
+  }
+
+  .deep-dive[open]::details-content {
+    height: auto;
+    opacity: 1;
+  }
+}

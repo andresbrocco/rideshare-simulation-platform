@@ -51,6 +51,7 @@ import OsrmIcon from '../../public/icons/tech/osrm.svg?react';
 import { useActiveSection } from '../hooks/useActiveSection';
 import { useCountUp } from '../hooks/useCountUp';
 import { useInView } from '../hooks/useInView';
+import { Zoom } from 'react-medium-image-zoom';
 import { ArchitectureDiagram } from './ArchitectureDiagram';
 import { TripLifecycleAnimation } from './TripLifecycleAnimation';
 
@@ -500,6 +501,371 @@ export function LandingPage({ onLoginClick, isLocal }: LandingPageProps) {
           <ArchitectureDiagram />
 
           <TechStack />
+
+          <section id="deep-dives" className="landing-section">
+            <h2>Deep Dives</h2>
+
+            {/* ── Deep Dive 1: Simulation Engine ────────────────────── */}
+            <details className="deep-dive">
+              <summary className="deep-dive-summary">
+                <span className="deep-dive-icon" aria-hidden="true">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    width="24"
+                    height="24"
+                  >
+                    <path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm-1-5h2v2h-2v-2zm0-8h2v6h-2V7z" />
+                  </svg>
+                </span>
+                <div className="deep-dive-header">
+                  <span className="deep-dive-title">Simulation Engine</span>
+                  <span className="deep-dive-preview">
+                    SimPy discrete-event simulation with DNA-based autonomous agents, H3 geospatial
+                    matching, and real Sao Paulo road network routing.
+                  </span>
+                </div>
+                <span className="deep-dive-chevron" aria-hidden="true">
+                  &#x203A;
+                </span>
+              </summary>
+              <div className="deep-dive-content">
+                <h3>DNA-Based Agent Behavior</h3>
+                <p>
+                  Immutable behavioral genotypes (Pydantic <code>frozen=True</code>) assigned at
+                  creation.
+                  <code>DriverDNA</code> governs acceptance rate, patience, and service quality.{' '}
+                  <code>RiderDNA</code> governs patience threshold and tipping behavior. Different
+                  DNA distributions produce emergent platform dynamics.
+                </p>
+
+                <h3>H3 Geospatial Matching</h3>
+                <p>
+                  Uber H3 hexagons at resolution&nbsp;7 (~5.2&nbsp;km) index driver locations. O(1)
+                  neighbor lookups via <code>h3.grid_ring(cell, k=1)</code>. Matching cycles run
+                  with dynamic surge pricing updated every 60 simulated seconds.
+                </p>
+
+                <h3>Real Road Network</h3>
+                <p>
+                  OSRM loaded with actual OpenStreetMap data for Sao Paulo. Routes reflect real road
+                  geometry, turn restrictions, and travel times.
+                </p>
+
+                <h3>Time Acceleration</h3>
+                <p>
+                  1x to 1024x real-time speed multiplier. Two-phase pause protocol (RUNNING &rarr;
+                  DRAINING &rarr; PAUSED) guarantees no mid-execution trips during checkpoints.
+                </p>
+
+                <h3>State Machines &amp; Thread Safety</h3>
+                <ul>
+                  <li>
+                    Enum-based states with <code>VALID_TRANSITIONS</code> enforcement. Terminal
+                    states reject further transitions.
+                  </li>
+                  <li>Events emitted on every state transition for full audit trail.</li>
+                  <li>
+                    ThreadCoordinator command queue bridges the FastAPI async thread and SimPy
+                    simulation thread safely.
+                  </li>
+                </ul>
+
+                <Zoom>
+                  <img
+                    src="/screenshots/control-panel-map.svg"
+                    alt="Control panel map view showing drivers, riders, active routes, and zone hexagons overlaid on the Sao Paulo road network"
+                    className="deep-dive-screenshot"
+                    loading="lazy"
+                  />
+                </Zoom>
+                <Zoom>
+                  <img
+                    src="/screenshots/inspector-popup.svg"
+                    alt="Agent inspector popup showing driver DNA parameters and current trip state"
+                    className="deep-dive-screenshot"
+                    loading="lazy"
+                    style={{ marginTop: '12px' }}
+                  />
+                </Zoom>
+              </div>
+            </details>
+
+            {/* ── Deep Dive 2: Medallion Data Pipeline ──────────────── */}
+            <details className="deep-dive">
+              <summary className="deep-dive-summary">
+                <span className="deep-dive-icon" aria-hidden="true">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    width="24"
+                    height="24"
+                  >
+                    <path d="M12 3C7 3 3 5.24 3 8v8c0 2.76 4 5 9 5s9-2.24 9-5V8c0-2.76-4-5-9-5zm0 2c4.42 0 7 1.79 7 3s-2.58 3-7 3-7-1.79-7-3 2.58-3 7-3zm7 11c0 1.21-2.58 3-7 3s-7-1.79-7-3v-2.23C6.61 15.69 9.2 16.5 12 16.5s5.39-.81 7-2.23V14zm0-4c0 1.21-2.58 3-7 3s-7-1.79-7-3v-2.23C6.61 11.69 9.2 12.5 12 12.5s5.39-.81 7-2.23V10z" />
+                  </svg>
+                </span>
+                <div className="deep-dive-header">
+                  <span className="deep-dive-title">Medallion Data Pipeline</span>
+                  <span className="deep-dive-preview">
+                    Bronze-Silver-Gold lakehouse on Delta Lake with dual-engine dbt transformations,
+                    anomaly detection, and ~40 SQL quality tests.
+                  </span>
+                </div>
+                <span className="deep-dive-chevron" aria-hidden="true">
+                  &#x203A;
+                </span>
+              </summary>
+              <div className="deep-dive-content">
+                <h3>Bronze Layer</h3>
+                <p>
+                  Raw JSON events plus 5 metadata columns (<code>_kafka_partition</code>,{' '}
+                  <code>_kafka_offset</code>, <code>_kafka_timestamp</code>,{' '}
+                  <code>_ingested_at</code>, <code>_ingestion_date</code>). Written via{' '}
+                  <code>delta-rs</code> Python bindings &mdash; no JVM, 256&nbsp;MB vs 4&nbsp;GB
+                  memory footprint. Dead Letter Queue routing for malformed messages.
+                </p>
+
+                <h3>Silver Layer</h3>
+                <p>
+                  JSON parsed, deduplicated (ROW_NUMBER by <code>event_id</code>), coordinates
+                  validated, timestamps standardized. Anomaly detection flags GPS outliers (outside
+                  S&atilde;o Paulo bounds), impossible speeds, and zombie drivers (online but no GPS
+                  activity). Incremental materialization with <code>_ingested_at</code> watermark.
+                </p>
+
+                <h3>Gold Layer</h3>
+                <p>
+                  Star schema with surrogate keys. SCD Type&nbsp;2 for <code>dim_drivers</code> and{' '}
+                  <code>dim_riders</code> with <code>valid_from</code>/<code>valid_to</code>/
+                  <code>current_flag</code>. Pre-computed aggregates:{' '}
+                  <code>agg_hourly_zone_demand</code>, <code>agg_daily_driver_performance</code>,{' '}
+                  <code>agg_daily_platform_revenue</code>, <code>agg_surge_history</code>.
+                </p>
+
+                <h3>Dual-Engine dbt</h3>
+                <p>
+                  dbt-duckdb for fast local development, dbt-spark for production parity.
+                  Cross-database macros (<code>json_field()</code>, <code>to_ts()</code>,{' '}
+                  <code>epoch_seconds()</code>) abstract engine differences. ~40 SQL tests including
+                  custom generic tests: <code>scd_validity</code>, <code>fee_percentage</code>,{' '}
+                  <code>fare_calculation</code>.
+                </p>
+
+                <h3>Orchestration</h3>
+                <ul>
+                  <li>
+                    Silver transformation DAG — hourly, ShortCircuitOperator skips when Bronze is
+                    empty.
+                  </li>
+                  <li>
+                    Gold transformation DAG — triggered by Silver; dimensions &rarr; facts &rarr;
+                    aggregates ordering.
+                  </li>
+                  <li>DLQ monitoring DAG — every 15&nbsp;min, DuckDB over Delta tables.</li>
+                  <li>Delta maintenance DAG — daily vacuum and compaction.</li>
+                </ul>
+
+                <Zoom>
+                  <img
+                    src="/screenshots/airflow-dag.svg"
+                    alt="Airflow DAG graph view showing the Silver and Gold transformation pipeline task dependencies"
+                    className="deep-dive-screenshot"
+                    loading="lazy"
+                  />
+                </Zoom>
+                <Zoom>
+                  <img
+                    src="/screenshots/grafana-data-engineering.svg"
+                    alt="Grafana data engineering dashboard showing Kafka consumer lag, Bronze write latency, and DLQ error rates"
+                    className="deep-dive-screenshot"
+                    loading="lazy"
+                    style={{ marginTop: '12px' }}
+                  />
+                </Zoom>
+              </div>
+            </details>
+
+            {/* ── Deep Dive 3: Observability ────────────────────────── */}
+            <details className="deep-dive">
+              <summary className="deep-dive-summary">
+                <span className="deep-dive-icon" aria-hidden="true">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    width="24"
+                    height="24"
+                  >
+                    <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z" />
+                  </svg>
+                </span>
+                <div className="deep-dive-header">
+                  <span className="deep-dive-title">Observability</span>
+                  <span className="deep-dive-preview">
+                    OpenTelemetry Collector gateway routing metrics to Prometheus, logs to Loki
+                    (with PII masking), and traces to Tempo. 4 Grafana dashboard categories.
+                  </span>
+                </div>
+                <span className="deep-dive-chevron" aria-hidden="true">
+                  &#x203A;
+                </span>
+              </summary>
+              <div className="deep-dive-content">
+                <h3>Unified Telemetry Gateway</h3>
+                <p>
+                  OpenTelemetry Collector receives all signals and routes: metrics via{' '}
+                  <code>remote_write</code> to Prometheus, logs via Loki push API, traces via OTLP
+                  gRPC to Tempo. Single configuration point for the entire telemetry pipeline.
+                </p>
+
+                <h3>Prometheus Metrics</h3>
+                <ul>
+                  <li>7-day retention. Scrapes cAdvisor for container CPU/memory.</li>
+                  <li>
+                    Custom metrics: <code>simulation_active_drivers</code>,{' '}
+                    <code>simulation_trips_completed_total</code>,{' '}
+                    <code>stream_processor_redis_publish_latency_seconds</code>, GPS aggregation
+                    ratios.
+                  </li>
+                  <li>Alert rules for resource thresholds and simulation-critical events.</li>
+                </ul>
+
+                <h3>Grafana Dashboards (4 categories, 4 datasources)</h3>
+                <ul>
+                  <li>
+                    <strong>Monitoring</strong>: Simulation overview, container metrics
+                  </li>
+                  <li>
+                    <strong>Data Engineering</strong>: Kafka consumer lag, Bronze write latency, DLQ
+                    error rates, data quality
+                  </li>
+                  <li>
+                    <strong>Business Intelligence</strong>: Zone demand heatmaps, driver
+                    performance, revenue analytics (via Trino)
+                  </li>
+                  <li>
+                    <strong>Operations</strong>: End-to-end pipeline health, Airflow DAG status
+                  </li>
+                </ul>
+
+                <h3>Distributed Tracing &amp; PII Masking</h3>
+                <p>
+                  All events carry <code>session_id</code>, <code>correlation_id</code>,{' '}
+                  <code>causation_id</code>. Trace IDs propagated in Kafka message headers. Tempo
+                  traces cross-link to Loki logs. Log filter redacts emails (<code>[EMAIL]</code>)
+                  and phone numbers (<code>[PHONE]</code>) before emission.
+                </p>
+
+                <Zoom>
+                  <img
+                    src="/screenshots/grafana-simulation.svg"
+                    alt="Grafana simulation overview dashboard showing active driver counts and trip throughput metrics"
+                    className="deep-dive-screenshot"
+                    loading="lazy"
+                  />
+                </Zoom>
+                <Zoom>
+                  <img
+                    src="/screenshots/grafana-data-engineering.svg"
+                    alt="Grafana data engineering dashboard showing Kafka consumer lag, Bronze write latency, and data quality metrics"
+                    className="deep-dive-screenshot"
+                    loading="lazy"
+                    style={{ marginTop: '12px' }}
+                  />
+                </Zoom>
+              </div>
+            </details>
+
+            {/* ── Deep Dive 4: Infrastructure & Quality ─────────────── */}
+            <details className="deep-dive">
+              <summary className="deep-dive-summary">
+                <span className="deep-dive-icon" aria-hidden="true">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    width="24"
+                    height="24"
+                  >
+                    <path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95A5.469 5.469 0 0 1 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11A2.98 2.98 0 0 1 22 15c0 1.65-1.35 3-3 3z" />
+                  </svg>
+                </span>
+                <div className="deep-dive-header">
+                  <span className="deep-dive-title">Infrastructure &amp; Quality</span>
+                  <span className="deep-dive-preview">
+                    Three-layer Terraform IaC, EKS with ArgoCD GitOps, LocalStack-to-AWS one-env-var
+                    migration, and a 4-tier test strategy across 120+ test files.
+                  </span>
+                </div>
+                <span className="deep-dive-chevron" aria-hidden="true">
+                  &#x203A;
+                </span>
+              </summary>
+              <div className="deep-dive-content">
+                <h3>Three-Layer Terraform</h3>
+                <p>
+                  Bootstrap (S3 state bucket + DynamoDB lock) &rarr; Foundation (VPC, DNS, CDN, ECR,
+                  Secrets, IAM &mdash; ~$7.50/month always-on) &rarr; Platform (EKS, RDS, ALB
+                  &mdash; ~$0.65/hour on-demand). Platform reads Foundation outputs via{' '}
+                  <code>terraform_remote_state</code>.
+                </p>
+
+                <h3>GitOps Deployment</h3>
+                <p>
+                  ArgoCD watches the <code>deploy</code> branch with <code>selfHeal: true</code>.
+                  Kustomize overlays handle local vs. production differences. Same container images
+                  in both environments. Pod Identity (not IRSA) for all workload IAM roles.
+                </p>
+
+                <h3>LocalStack-to-AWS Migration</h3>
+                <p>
+                  Complete AWS Secrets Manager compatibility via LocalStack for development. All
+                  secret groups (<code>api-key</code>, <code>core</code>, <code>data-pipeline</code>
+                  , <code>monitoring</code>) structured identically. <code>AWS_ENDPOINT_URL</code>{' '}
+                  is the only configuration change for production.
+                </p>
+
+                <h3>4-Tier Test Strategy</h3>
+                <ul>
+                  <li>
+                    <strong>Unit</strong>: pytest + Vitest with markers (
+                    <code>@pytest.mark.unit</code>, <code>@pytest.mark.slow</code>,{' '}
+                    <code>@pytest.mark.critical</code>)
+                  </li>
+                  <li>
+                    <strong>Integration</strong>: testcontainers with full Docker stack,{' '}
+                    <code>@pytest.mark.requires_profiles()</code>
+                  </li>
+                  <li>
+                    <strong>Performance</strong>: 4 scenarios (baseline, 300-agent stress, duration
+                    leak detection, speed scaling)
+                  </li>
+                  <li>
+                    <strong>Contract</strong>: OpenAPI spec compliance (fails CI on type drift),
+                    security header validation
+                  </li>
+                </ul>
+
+                <h3>Security &amp; CI/CD</h3>
+                <ul>
+                  <li>
+                    Security headers: CSP, HSTS, X-Frame-Options. Rate limiting per API key/IP.
+                  </li>
+                  <li>
+                    WebSocket sliding window (5 connections per 60s). Secrets never in{' '}
+                    <code>.env</code> files.
+                  </li>
+                  <li>
+                    GitHub Actions: <code>ci.yml</code> (lint, type-check, unit tests) and{' '}
+                    <code>integration-tests.yml</code>.
+                  </li>
+                  <li>Pre-commit hooks: black, ruff, mypy, eslint, prettier, detect-secrets.</li>
+                </ul>
+              </div>
+            </details>
+          </section>
 
           <section className="landing-section landing-services">
             <h2>Explore the Platform</h2>
