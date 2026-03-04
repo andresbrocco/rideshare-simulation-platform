@@ -199,3 +199,8 @@ output "eso_role_arn" {
   description = "External Secrets Operator IRSA role ARN"
   value       = module.iam.eso_role_arn
 }
+
+output "glue_job_role_arn" {
+  description = "Glue Job Execution role ARN (passed to Glue Interactive Sessions)"
+  value       = module.iam.glue_job_role_arn
+}

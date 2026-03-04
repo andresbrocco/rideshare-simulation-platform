@@ -57,3 +57,8 @@ output "eso_role_arn" {
   description = "ARN of External Secrets Operator IRSA role"
   value       = aws_iam_role.eso.arn
 }
+
+output "glue_job_role_arn" {
+  description = "ARN of the Glue job execution role (assumed by Glue Interactive Sessions)"
+  value       = aws_iam_role.glue_job.arn
+}

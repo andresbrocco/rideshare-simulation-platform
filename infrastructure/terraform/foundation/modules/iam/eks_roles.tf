@@ -505,3 +505,125 @@ resource "aws_iam_role_policy" "eso_secrets_manager" {
     ]
   })
 }
+
+# --------------------------------------------------------------------------
+# Glue Job Execution Role (assumed by Glue Interactive Sessions)
+# Trust: glue.amazonaws.com — NOT pods.eks.amazonaws.com
+# This role is passed to Glue sessions by the Airflow role via iam:PassRole.
+# --------------------------------------------------------------------------
+resource "aws_iam_role" "glue_job" {
+  name = "${var.project_name}-glue-job"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "glue.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.project_name}-glue-job"
+  }
+}
+
+resource "aws_iam_role_policy" "glue_job_s3" {
+  name = "s3-lakehouse"
+  role = aws_iam_role.glue_job.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "BronzeRead"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          var.s3_bucket_arns.bronze,
+          "${var.s3_bucket_arns.bronze}/*"
+        ]
+      },
+      {
+        Sid    = "SilverGoldReadWrite"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          var.s3_bucket_arns.silver,
+          "${var.s3_bucket_arns.silver}/*",
+          var.s3_bucket_arns.gold,
+          "${var.s3_bucket_arns.gold}/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "glue_job_glue_catalog" {
+  name = "glue-catalog-crud"
+  role = aws_iam_role.glue_job.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "glue:GetDatabase",
+          "glue:GetDatabases",
+          "glue:CreateDatabase",
+          "glue:GetTable",
+          "glue:GetTables",
+          "glue:CreateTable",
+          "glue:UpdateTable",
+          "glue:DeleteTable",
+          "glue:GetPartition",
+          "glue:GetPartitions",
+          "glue:CreatePartition",
+          "glue:UpdatePartition",
+          "glue:DeletePartition",
+          "glue:BatchCreatePartition",
+          "glue:BatchDeletePartition",
+          "glue:BatchGetPartition"
+        ]
+        Resource = [
+          "arn:aws:glue:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:catalog",
+          "arn:aws:glue:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:database/*",
+          "arn:aws:glue:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:table/*/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "glue_job_logs" {
+  name = "cloudwatch-logs"
+  role = aws_iam_role.glue_job.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "arn:aws:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:log-group:/aws-glue/*"
+      }
+    ]
+  })
+}
