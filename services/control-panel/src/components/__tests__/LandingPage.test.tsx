@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, act, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LandingPage } from '../LandingPage';
 
@@ -51,6 +51,10 @@ beforeEach(() => {
       };
     })
   );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe('LandingPage', () => {
@@ -264,6 +268,35 @@ describe('LandingPage', () => {
     render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
     expect(screen.getByRole('heading', { level: 2, name: 'Technology Stack' })).toBeInTheDocument();
     expect(screen.getByText('Python 3.13')).toBeInTheDocument();
+    expect(screen.getAllByText('Apache Kafka').length).toBeGreaterThan(0);
+  });
+});
+
+describe('Deep Dives section', () => {
+  it('renders four deep-dive details elements', () => {
+    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    const deepDives = document.querySelectorAll('.deep-dive');
+    expect(deepDives).toHaveLength(4);
+  });
+
+  it('renders all four deep dive titles', () => {
+    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    const deepDivesSection = document.getElementById('deep-dives');
+    expect(deepDivesSection).not.toBeNull();
+
+    const scoped = within(deepDivesSection!);
+    expect(scoped.getByText('Simulation Engine')).toBeInTheDocument();
+    expect(scoped.getByText('Medallion Data Pipeline')).toBeInTheDocument();
+    expect(scoped.getByText('Infrastructure & Quality')).toBeInTheDocument();
+    expect(scoped.getByText('Observability')).toBeInTheDocument();
+  });
+});
+
+describe('Service cards with icons', () => {
+  it('renders six service card icons', () => {
+    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    const icons = document.querySelectorAll('.landing-service-icon');
+    expect(icons).toHaveLength(6);
   });
 });
 
