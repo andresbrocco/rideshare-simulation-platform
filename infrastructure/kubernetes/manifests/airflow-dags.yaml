@@ -43,6 +43,10 @@ data:
         STORAGE_OPTIONS["AWS_REGION"] = os.environ.get("AWS_REGION", "us-east-1")
 
     DBT_RUNNER = os.environ.get("DBT_RUNNER", "duckdb")
+    # When using duckdb, DBT writes to local DuckDB files and we need explicit S3 export + Trino registration.
+    # When using glue, Glue writes directly to S3 and auto-registers in Glue Data Catalog — skip those steps.
+    NEEDS_EXPORT = DBT_RUNNER == "duckdb"
+    NEEDS_REGISTER = DBT_RUNNER == "duckdb"
 
     # Bronze tables required for Silver layer transformations
     REQUIRED_BRONZE_TABLES = [
@@ -135,15 +139,17 @@ data:
             outlets=[SILVER_ASSET],
         )
 
-        export_silver_to_s3 = BashOperator(
-            task_id="export_silver_to_s3",
-            bash_command="python3 /opt/init-scripts/export-dbt-to-s3.py --layer silver",
-        )
+        if NEEDS_EXPORT:
+            export_silver_to_s3 = BashOperator(
+                task_id="export_silver_to_s3",
+                bash_command="python3 /opt/init-scripts/export-dbt-to-s3.py --layer silver",
+            )
 
-        register_silver_trino_tables = BashOperator(
-            task_id="register_silver_trino_tables",
-            bash_command="python3 /opt/init-scripts/register-trino-tables.py --layer silver",
-        )
+        if NEEDS_REGISTER:
+            register_silver_trino_tables = BashOperator(
+                task_id="register_silver_trino_tables",
+                bash_command="python3 /opt/init-scripts/register-trino-tables.py --layer silver",
+            )
 
         def should_trigger_gold(**context) -> str:
             """Trigger Gold DAG at 2 AM, for manual runs, or when not in PROD_MODE."""
@@ -171,20 +177,27 @@ data:
 
         skip_gold_trigger = EmptyOperator(task_id="skip_gold_trigger")
 
-        # Task dependencies
-        (
-            check_bronze_freshness
-            >> dbt_silver_run
-            >> dbt_silver_test
-            >> ge_silver_validation
-            >> export_silver_to_s3
-        )
-        (
-            export_silver_to_s3
-            >> register_silver_trino_tables
-            >> check_should_trigger_gold
-            >> [trigger_gold_dag, skip_gold_trigger]
-        )
+        # Task dependencies — chain differs based on whether export/register steps are active
+        if NEEDS_EXPORT and NEEDS_REGISTER:
+            (
+                check_bronze_freshness
+                >> dbt_silver_run
+                >> dbt_silver_test
+                >> ge_silver_validation
+                >> export_silver_to_s3
+                >> register_silver_trino_tables
+                >> check_should_trigger_gold
+                >> [trigger_gold_dag, skip_gold_trigger]
+            )
+        else:
+            (
+                check_bronze_freshness
+                >> dbt_silver_run
+                >> dbt_silver_test
+                >> ge_silver_validation
+                >> check_should_trigger_gold
+                >> [trigger_gold_dag, skip_gold_trigger]
+            )
 
     # Gold DAG - Triggered by Silver DAG at 2 AM (no schedule)
     with DAG(
@@ -231,15 +244,17 @@ data:
             """,
         )
 
-        export_gold_to_s3 = BashOperator(
-            task_id="export_gold_to_s3",
-            bash_command="python3 /opt/init-scripts/export-dbt-to-s3.py --layer gold",
-        )
+        if NEEDS_EXPORT:
+            export_gold_to_s3 = BashOperator(
+                task_id="export_gold_to_s3",
+                bash_command="python3 /opt/init-scripts/export-dbt-to-s3.py --layer gold",
+            )
 
-        register_gold_trino_tables = BashOperator(
-            task_id="register_gold_trino_tables",
-            bash_command="python3 /opt/init-scripts/register-trino-tables.py --layer gold",
-        )
+        if NEEDS_REGISTER:
+            register_gold_trino_tables = BashOperator(
+                task_id="register_gold_trino_tables",
+                bash_command="python3 /opt/init-scripts/register-trino-tables.py --layer gold",
+            )
 
         ge_generate_data_docs = BashOperator(
             task_id="ge_generate_data_docs",
@@ -250,17 +265,28 @@ data:
             outlets=[GOLD_ASSET],
         )
 
-        (
-            dbt_seed
-            >> dbt_gold_dimensions
-            >> dbt_gold_facts
-            >> dbt_gold_aggregates
-            >> dbt_gold_test
-            >> ge_gold_validation
-            >> export_gold_to_s3
-            >> register_gold_trino_tables
-            >> ge_generate_data_docs
-        )
+        if NEEDS_EXPORT and NEEDS_REGISTER:
+            (
+                dbt_seed
+                >> dbt_gold_dimensions
+                >> dbt_gold_facts
+                >> dbt_gold_aggregates
+                >> dbt_gold_test
+                >> ge_gold_validation
+                >> export_gold_to_s3
+                >> register_gold_trino_tables
+                >> ge_generate_data_docs
+            )
+        else:
+            (
+                dbt_seed
+                >> dbt_gold_dimensions
+                >> dbt_gold_facts
+                >> dbt_gold_aggregates
+                >> dbt_gold_test
+                >> ge_gold_validation
+                >> ge_generate_data_docs
+            )
   dlq_monitoring_dag.py: |
     """DLQ monitoring DAG that checks error counts every 15 minutes.
 
