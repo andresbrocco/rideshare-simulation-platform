@@ -12,9 +12,11 @@ Database abstraction layer that enables DBT models to run on multiple SQL execut
 
 ## Key Concepts
 
-**Adapter Dispatch** — DBT pattern using `adapter.dispatch('macro_name', 'rideshare')` to select database-specific implementation at compile time. Each macro provides `duckdb__*`, `spark__*`, `glue__*`, and `default__*` variants.
+**Adapter Dispatch** — DBT pattern using `adapter.dispatch('macro_name', 'rideshare')` to select database-specific implementation at compile time. Each macro provides `duckdb__*`, `spark__*`, `glue__*`, and `default__*` variants. The `delta_source` macro in the parent macros directory follows the same pattern.
 
-**Engine Compatibility Matrix** — DuckDB for local development (fast iteration, default via `DBT_RUNNER=duckdb`), AWS Glue Interactive Sessions for production (via `DBT_RUNNER=glue`). All macros guarantee identical query semantics across engines.
+**Engine Compatibility Matrix** — Two supported engines: DuckDB (local development, `DBT_RUNNER=duckdb`) and AWS Glue Interactive Sessions (production, `DBT_RUNNER=glue`). All macros guarantee identical query semantics across both engines.
+
+**Inline Target Checks** — Models that cannot use adapter dispatch (e.g., array constructor syntax in `stg_gps_pings.sql`) use Jinja ternary expressions keyed on `target.type == 'duckdb'`. When `DBT_RUNNER=glue`, `target.type` is `'glue'`, so these checks fall through to the SparkSQL branch.
 
 **Format Translation** — Some macros (e.g., `format_date`) translate format strings between engine conventions (Spark's `yyyy-MM-dd` to DuckDB's `%Y-%m-%d`).
 
