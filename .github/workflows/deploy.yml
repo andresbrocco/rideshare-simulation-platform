@@ -414,19 +414,27 @@ jobs:
         working-directory: services/control-panel
         run: npm ci
 
-      - name: Build React app with production environment variables
-        working-directory: services/control-panel
-        env:
-          VITE_API_URL: https://api.ridesharing.portfolio.andresbrocco.com
-          VITE_WS_URL: wss://api.ridesharing.portfolio.andresbrocco.com/ws
-          VITE_LAMBDA_URL: ${{ vars.LAMBDA_URL }}
-        run: npm run build
-
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rideshare-github-actions
           aws-region: us-east-1
+
+      - name: Get Lambda function URL
+        id: lambda
+        run: |
+          URL=$(aws lambda get-function-url-config \
+            --function-name rideshare-auth-deploy \
+            --query 'FunctionUrl' --output text)
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Build React app with production environment variables
+        working-directory: services/control-panel
+        env:
+          VITE_API_URL: https://api.ridesharing.portfolio.andresbrocco.com
+          VITE_WS_URL: wss://api.ridesharing.portfolio.andresbrocco.com/ws
+          VITE_LAMBDA_URL: ${{ steps.lambda.outputs.url }}
+        run: npm run build
 
       - name: Sync build output to S3
         working-directory: services/control-panel

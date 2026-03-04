@@ -209,12 +209,21 @@ jobs:
 
           echo "OSRM data ready ($(du -h "$LOCAL_PATH" | cut -f1))"
 
+      - name: Get Lambda function URL
+        if: matrix.service == 'control-panel'
+        id: lambda
+        run: |
+          URL=$(aws lambda get-function-url-config \
+            --function-name rideshare-auth-deploy \
+            --query 'FunctionUrl' --output text)
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
       - name: Build and push ${{ matrix.service }} image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: rideshare/${{ matrix.service }}
           IMAGE_TAG: ${{ github.sha }}
-          LAMBDA_URL: ${{ vars.LAMBDA_URL }}
+          LAMBDA_URL: ${{ steps.lambda.outputs.url }}
         run: |
           # Simulation needs the repo-root schemas/ directory inside its build context
           if [ "${{ matrix.service }}" = "simulation" ]; then
