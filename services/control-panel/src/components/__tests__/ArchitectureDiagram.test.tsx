@@ -110,6 +110,6 @@ describe('ArchitectureDiagram', () => {
 
     const svg = container.querySelector('svg');
     expect(svg).not.toBeNull();
-    expect(svg?.getAttribute('viewBox')).toBe('0 0 800 560');
+    expect(svg?.getAttribute('viewBox')).toBe('0 -10 800 580');
   });
 });

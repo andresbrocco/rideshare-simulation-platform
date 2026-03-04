@@ -163,14 +163,10 @@ describe('LandingPage', () => {
   it('renders four stat cards with correct labels', () => {
     render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
 
-    expect(screen.getByText('Services')).toBeInTheDocument();
-    expect(screen.getByText('Kafka Topics')).toBeInTheDocument();
+    expect(screen.getByText('Technologies')).toBeInTheDocument();
     expect(screen.getByText('Tests')).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        (content) => content.includes('Grafana Dashboard') && content.includes('Categories')
-      )
-    ).toBeInTheDocument();
+    expect(screen.getByText('Grafana Dashboards')).toBeInTheDocument();
+    expect(screen.getByText('Terraform Layers')).toBeInTheDocument();
 
     expect(document.querySelectorAll('.stat-card')).toHaveLength(4);
   });
@@ -195,9 +191,9 @@ describe('LandingPage', () => {
     const statNumbers = document.querySelectorAll('.stat-number');
     const values = Array.from(statNumbers).map((el) => el.textContent);
     expect(values).toContain('30+');
-    expect(values).toContain('8');
-    expect(values).toContain('120+');
-    expect(values).toContain('4');
+    expect(values).toContain('2000+');
+    expect(values).toContain('10');
+    expect(values).toContain('3');
   });
 
   it('hero section has id attribute for scroll targeting', () => {
@@ -219,7 +215,7 @@ describe('LandingPage', () => {
     expect(document.getElementById('tech-stack')).not.toBeNull();
   });
 
-  it('renders all six tech group titles', () => {
+  it('renders all eight tech group titles', () => {
     render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
     // Use getAllByText because some labels also appear in deep-dive content
     expect(screen.getAllByText('Simulation').length).toBeGreaterThan(0);
@@ -255,13 +251,12 @@ describe('LandingPage', () => {
     }
   });
 
-  it('renders infrastructure footnote', () => {
+  it('renders DevOps and Cloud tech groups', () => {
     render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
-    expect(screen.getByText(/Also:/i)).toBeInTheDocument();
-    // Docker appears in both the footnote and deep-dive content — verify footnote presence
-    const footnote = document.querySelector('.tech-infra-footnote');
-    expect(footnote).not.toBeNull();
-    expect(footnote?.textContent).toMatch(/Docker/i);
+    const groupTitles = document.querySelectorAll('.tech-group-title');
+    const groupLabels = Array.from(groupTitles).map((el) => el.textContent);
+    expect(groupLabels).toContain('DevOps');
+    expect(groupLabels).toContain('Cloud (AWS)');
   });
 
   it('shows technology stack section with grouped badges', () => {

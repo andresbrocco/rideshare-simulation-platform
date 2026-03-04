@@ -83,6 +83,9 @@ export function TripLifecycleAnimation() {
   const pickupRouteRef = useRef<SVGPathElement>(null);
   const tripRouteRef = useRef<SVGPathElement>(null);
 
+  // Matching line ref (white blink between car and person during match)
+  const matchingLineRef = useRef<SVGLineElement>(null);
+
   // Animation state (not React state — direct DOM for 60fps)
   const rafIdRef = useRef(0);
   const reducedMotionRef = useRef(false);
@@ -289,6 +292,7 @@ export function TripLifecycleAnimation() {
 
     let groupOpacity = 1;
     let carPulse = false;
+    let matchingLineOpacity = 0;
 
     switch (phase) {
       case 'idle':
@@ -319,6 +323,8 @@ export function TripLifecycleAnimation() {
         // Pickup route appears
         pickupOpacity = progress;
         pickupOffset = pd.pickupPathLen;
+        // Blink ~3 times over the match phase (progress 0→1)
+        matchingLineOpacity = Math.sin(progress * Math.PI * 6) > 0 ? 0.85 : 0;
         break;
 
       case 'pickup_drive': {
@@ -457,6 +463,14 @@ export function TripLifecycleAnimation() {
       tripRouteRef.current.style.strokeDashoffset = `${tripOffset}`;
     }
 
+    if (matchingLineRef.current) {
+      matchingLineRef.current.setAttribute('x1', `${carX}`);
+      matchingLineRef.current.setAttribute('y1', `${carY}`);
+      matchingLineRef.current.setAttribute('x2', `${personX}`);
+      matchingLineRef.current.setAttribute('y2', `${personY}`);
+      matchingLineRef.current.style.opacity = `${matchingLineOpacity}`;
+    }
+
     if (animatedGroupRef.current) {
       animatedGroupRef.current.style.opacity = `${groupOpacity}`;
     }
@@ -571,6 +585,9 @@ export function TripLifecycleAnimation() {
             strokeLinecap="round"
             opacity="0"
           />
+
+          {/* Matching line — white blink between car and person during match */}
+          <line ref={matchingLineRef} stroke="white" strokeWidth="2" opacity="0" />
 
           {/* Car icon */}
           <g ref={carGroupRef}>

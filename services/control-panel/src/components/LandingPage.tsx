@@ -19,6 +19,10 @@ import {
   SiPrometheus,
   SiGrafana,
   SiOpentelemetry,
+  SiDocker,
+  SiKubernetes,
+  SiTerraform,
+  SiGithubactions,
 } from '@icons-pack/react-simple-icons';
 import {
   SiPythonHex,
@@ -39,6 +43,10 @@ import {
   SiPrometheusHex,
   SiGrafanaHex,
   SiOpentelemetryHex,
+  SiDockerHex,
+  SiKubernetesHex,
+  SiTerraformHex,
+  SiGithubactionsHex,
 } from '@icons-pack/react-simple-icons';
 import DeltaLakeIcon from '../../public/icons/tech/delta-lake.svg?react';
 import DbtIcon from '../../public/icons/tech/dbt.svg?react';
@@ -48,6 +56,9 @@ import LokiIcon from '../../public/icons/tech/loki.svg?react';
 import TempoIcon from '../../public/icons/tech/tempo.svg?react';
 import DeckGlIcon from '../../public/icons/tech/deck-gl.svg?react';
 import OsrmIcon from '../../public/icons/tech/osrm.svg?react';
+import ArgocdIcon from '../../public/icons/tech/argocd.svg?react';
+import AwsIcon from '../../public/icons/tech/aws.svg?react';
+import PerfControllerIcon from '../../public/icons/tech/performance-controller.svg?react';
 import { useActiveSection } from '../hooks/useActiveSection';
 import { useCountUp } from '../hooks/useCountUp';
 import { useInView } from '../hooks/useInView';
@@ -244,7 +255,7 @@ const TECH_GROUPS: TechGroup[] = [
         label: 'Grafana',
         icon: SiGrafana,
         iconColor: SiGrafanaHex,
-        tooltip: 'Multi-datasource dashboards across 4 categories',
+        tooltip: '10 dashboards across 5 categories with 4 datasources',
       },
       {
         label: 'Loki',
@@ -264,19 +275,91 @@ const TECH_GROUPS: TechGroup[] = [
         iconColor: SiOpentelemetryHex,
         tooltip: 'Unified telemetry gateway (metrics, logs, traces)',
       },
+      {
+        label: 'Perf Controller',
+        icon: PerfControllerIcon,
+        iconColor: SELF_HOSTED_COLOR,
+        tooltip:
+          'PID auto-throttle sidecar — reads infrastructure headroom from Prometheus, adjusts simulation speed',
+      },
     ],
   },
-];
-
-const INFRA_ITEMS = [
-  'Docker',
-  'Kubernetes',
-  'Terraform',
-  'ArgoCD',
-  'GitHub Actions',
-  'AWS EKS',
-  'CloudFront',
-  'LocalStack',
+  {
+    title: 'DevOps',
+    badges: [
+      {
+        label: 'Docker',
+        icon: SiDocker,
+        iconColor: SiDockerHex,
+        tooltip: 'Compose orchestration with 32 services across 4 profiles',
+      },
+      {
+        label: 'Kubernetes',
+        icon: SiKubernetes,
+        iconColor: SiKubernetesHex,
+        tooltip: 'EKS cluster with Kustomize overlays for local/prod parity',
+      },
+      {
+        label: 'Terraform',
+        icon: SiTerraform,
+        iconColor: SiTerraformHex,
+        tooltip: 'Three-layer IaC: bootstrap, foundation, platform',
+      },
+      {
+        label: 'ArgoCD',
+        icon: ArgocdIcon,
+        iconColor: SELF_HOSTED_COLOR,
+        tooltip: 'GitOps deployment watching deploy branch with self-heal',
+      },
+      {
+        label: 'GitHub Actions',
+        icon: SiGithubactions,
+        iconColor: SiGithubactionsHex,
+        tooltip: 'CI/CD: lint, type-check, unit tests, integration tests',
+      },
+    ],
+  },
+  {
+    title: 'Cloud (AWS)',
+    badges: [
+      {
+        label: 'EKS',
+        icon: AwsIcon,
+        iconColor: SELF_HOSTED_COLOR,
+        tooltip: 'Managed Kubernetes with Pod Identity for workload IAM',
+      },
+      {
+        label: 'S3',
+        icon: AwsIcon,
+        iconColor: SELF_HOSTED_COLOR,
+        tooltip: 'Object storage for Bronze, Silver, Gold layers (prod)',
+      },
+      {
+        label: 'RDS',
+        icon: AwsIcon,
+        iconColor: SELF_HOSTED_COLOR,
+        tooltip: 'Managed PostgreSQL for Airflow and Hive Metastore (prod)',
+      },
+      {
+        label: 'CloudFront',
+        icon: AwsIcon,
+        iconColor: SELF_HOSTED_COLOR,
+        tooltip: 'CDN for frontend and API distribution',
+      },
+      {
+        label: 'Lambda',
+        icon: AwsIcon,
+        iconColor: SELF_HOSTED_COLOR,
+        tooltip: 'Serverless functions for event processing',
+      },
+      {
+        label: 'Secrets Manager',
+        icon: AwsIcon,
+        iconColor: SELF_HOSTED_COLOR,
+        tooltip: 'Credential management (LocalStack locally, AWS in prod)',
+      },
+    ],
+  },
 ];
 
 function TechBadgeItem({ badge }: { badge: TechBadge }) {
@@ -316,15 +399,6 @@ function TechStack() {
           <TechGroupCard key={group.title} group={group} />
         ))}
       </div>
-      <p className="tech-infra-footnote">
-        Also:{' '}
-        {INFRA_ITEMS.map((name, i) => (
-          <span key={name} className="tech-infra-item">
-            {name}
-            {i < INFRA_ITEMS.length - 1 ? ', ' : ''}
-          </span>
-        ))}
-      </p>
     </section>
   );
 }
@@ -388,10 +462,10 @@ function getExternalServices(isLocal: boolean): ExternalService[] {
 }
 
 const STATS = [
-  { target: 30, suffix: '+', label: 'Services' },
-  { target: 8, suffix: '', label: 'Kafka Topics' },
-  { target: 120, suffix: '+', label: 'Tests' },
-  { target: 4, suffix: '', label: 'Grafana Dashboard\nCategories' },
+  { target: 30, suffix: '+', label: 'Technologies' },
+  { target: 2000, suffix: '+', label: 'Tests' },
+  { target: 10, suffix: '', label: 'Grafana Dashboards' },
+  { target: 3, suffix: '', label: 'Terraform Layers' },
 ] as const;
 
 interface StatCardProps {
@@ -720,7 +794,7 @@ export function LandingPage({ onLoginClick, isLocal }: LandingPageProps) {
                   <span className="deep-dive-title">Observability</span>
                   <span className="deep-dive-preview">
                     OpenTelemetry Collector gateway routing metrics to Prometheus, logs to Loki
-                    (with PII masking), and traces to Tempo. 4 Grafana dashboard categories.
+                    (with PII masking), and traces to Tempo. 5 Grafana dashboard categories.
                   </span>
                 </div>
                 <span className="deep-dive-chevron" aria-hidden="true">
@@ -747,7 +821,7 @@ export function LandingPage({ onLoginClick, isLocal }: LandingPageProps) {
                   <li>Alert rules for resource thresholds and simulation-critical events.</li>
                 </ul>
 
-                <h3>Grafana Dashboards (4 categories, 4 datasources)</h3>
+                <h3>Grafana Dashboards (5 categories, 4 datasources)</h3>
                 <ul>
                   <li>
                     <strong>Monitoring</strong>: Simulation overview, container metrics
@@ -763,6 +837,10 @@ export function LandingPage({ onLoginClick, isLocal }: LandingPageProps) {
                   <li>
                     <strong>Operations</strong>: End-to-end pipeline health, Airflow DAG status
                   </li>
+                  <li>
+                    <strong>Performance</strong>: Infrastructure headroom, PID controller state,
+                    auto-throttle adjustments
+                  </li>
                 </ul>
 
                 <h3>Distributed Tracing &amp; PII Masking</h3>
@@ -772,6 +850,26 @@ export function LandingPage({ onLoginClick, isLocal }: LandingPageProps) {
                   traces cross-link to Loki logs. Log filter redacts emails (<code>[EMAIL]</code>)
                   and phone numbers (<code>[PHONE]</code>) before emission.
                 </p>
+
+                <h3>Performance Engineering</h3>
+                <ul>
+                  <li>
+                    PID auto-throttle sidecar reads a composite infrastructure headroom index (0-1)
+                    from Prometheus recording rules every 5s
+                  </li>
+                  <li>
+                    6 headroom components: Kafka consumer lag, SimPy queue depth, CPU, memory,
+                    consumption ratio, real-time ratio
+                  </li>
+                  <li>
+                    Asymmetric PID gains: aggressive slowdown (k_down=1.5), gentle ramp-up
+                    (k_up=0.15) &mdash; prevents oscillation
+                  </li>
+                  <li>
+                    Dedicated Grafana dashboard with saturation indicators, USE metrics per
+                    container, throughput curves, and controller state
+                  </li>
+                </ul>
 
                 <Zoom>
                   <img
@@ -854,8 +952,8 @@ export function LandingPage({ onLoginClick, isLocal }: LandingPageProps) {
                     <code>@pytest.mark.requires_profiles()</code>
                   </li>
                   <li>
-                    <strong>Performance</strong>: 4 scenarios (baseline, 300-agent stress, duration
-                    leak detection, speed scaling)
+                    <strong>Performance</strong>: 4 scenarios (baseline, stress test, memory leak
+                    detection, speed scaling)
                   </li>
                   <li>
                     <strong>Contract</strong>: OpenAPI spec compliance (fails CI on type drift),

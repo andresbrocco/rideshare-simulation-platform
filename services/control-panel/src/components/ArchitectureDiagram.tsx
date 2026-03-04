@@ -138,6 +138,19 @@ const NODES: NodeDef[] = [
     strokeColor: 'var(--offline-gold)',
     strokeOpacity: 0.7,
   },
+
+  // Cross-path feedback loop
+  {
+    id: 'perfctrl',
+    label: 'Perf Controller',
+    subLabel: 'PID auto-throttle',
+    cx: KF_X,
+    cy: 60,
+    w: 140,
+    h: 40,
+    strokeColor: 'var(--offline-text-dimmest)',
+    strokeOpacity: 0.6,
+  },
 ];
 
 // ── Edge definitions ──────────────────────────────────────────────────────────
@@ -145,10 +158,11 @@ const NODES: NodeDef[] = [
 interface EdgeDef {
   id: string;
   d: string; // SVG path d attribute (M…L… commands)
-  path: 'realtime' | 'analytics';
+  path: 'realtime' | 'analytics' | 'feedback';
   label?: string;
   labelX?: number;
   labelY?: number;
+  dashed?: boolean;
 }
 
 // Helper: get node rect top/bottom/left/right centres
@@ -247,6 +261,26 @@ const EDGES: EdgeDef[] = [
     labelX: AN_X + 56,
     labelY: 480,
   },
+
+  // Perf Controller feedback loop (dashed)
+  {
+    id: 'e-perfctrl-sim',
+    path: 'feedback',
+    d: pathD(nodePort('perfctrl', 'left'), nodePort('sim', 'right')),
+    label: 'actuate',
+    labelX: (RT_X + KF_X) / 2,
+    labelY: 53,
+    dashed: true,
+  },
+  {
+    id: 'e-prom-perfctrl',
+    path: 'feedback',
+    d: pathD([AN_X - 80, 520], [AN_X - 80, 0], [KF_X + 70, 0], nodePort('perfctrl', 'top')),
+    label: 'headroom',
+    labelX: (AN_X - 80 + KF_X + 70) / 2,
+    labelY: -6,
+    dashed: true,
+  },
 ];
 
 // ── Particles ─────────────────────────────────────────────────────────────────
@@ -262,6 +296,7 @@ function buildParticles(): ParticleDef[] {
   const particles: ParticleDef[] = [];
 
   for (const edge of EDGES) {
+    if (edge.path === 'feedback') continue; // no particles on dashed feedback edges
     const isRT = edge.path === 'realtime';
     const dur = isRT ? '2.5s' : '4s';
     const fill = isRT ? 'var(--offline-neon)' : 'var(--offline-gold)';
@@ -328,8 +363,14 @@ function NodeRect({ node }: { node: NodeDef }) {
   );
 }
 
+function edgeColor(path: EdgeDef['path']): string {
+  if (path === 'realtime') return 'var(--offline-neon)';
+  if (path === 'analytics') return 'var(--offline-gold)';
+  return 'var(--offline-text-dimmest)';
+}
+
 function EdgeLine({ edge }: { edge: EdgeDef }) {
-  const color = edge.path === 'realtime' ? 'var(--offline-neon)' : 'var(--offline-gold)';
+  const color = edgeColor(edge.path);
 
   return (
     <g>
@@ -342,6 +383,7 @@ function EdgeLine({ edge }: { edge: EdgeDef }) {
         strokeOpacity={0.35}
         strokeLinecap="round"
         strokeLinejoin="round"
+        strokeDasharray={edge.dashed ? '6 4' : undefined}
       />
       {edge.label && edge.labelX !== undefined && edge.labelY !== undefined && (
         <text
@@ -378,7 +420,7 @@ function StaticParticles() {
   // When prefers-reduced-motion is set, render small static dots at edge midpoints
   return (
     <>
-      {EDGES.map((edge) => {
+      {EDGES.filter((e) => e.path !== 'feedback').map((edge) => {
         const isRT = edge.path === 'realtime';
         const fill = isRT ? 'var(--offline-neon)' : 'var(--offline-gold)';
         // Parse midpoint from path d attribute (average of first and last coordinate)
@@ -447,7 +489,7 @@ export function ArchitectureDiagram() {
     <section id="architecture">
       <h2>System Architecture</h2>
       <svg
-        viewBox="0 0 800 560"
+        viewBox="0 -10 800 580"
         preserveAspectRatio="xMidYMid meet"
         role="img"
         aria-label="System architecture diagram showing real-time and analytics data-flow paths"
