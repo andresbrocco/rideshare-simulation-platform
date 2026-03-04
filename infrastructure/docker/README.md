@@ -9,8 +9,7 @@
 | Profile | Services | Purpose |
 |---------|----------|---------|
 | `core` | kafka, schema-registry, redis, osrm, simulation, stream-processor, control-panel, localstack, secrets-init, kafka-init | Simulation runtime services |
-| `data-pipeline` | minio, bronze-ingestion, localstack, postgres-airflow, airflow-webserver, airflow-scheduler, postgres-metastore, hive-metastore, openldap, trino, secrets-init, minio-init | ETL, ingestion, and orchestration |
-| `spark-testing` | spark-thrift-server | Spark Thrift Server for dual-engine DBT validation (optional, use with data-pipeline) |
+| `data-pipeline` | minio, bronze-ingestion, localstack, postgres-airflow, airflow-webserver, airflow-scheduler, postgres-metastore, hive-metastore, trino, secrets-init, minio-init | ETL, ingestion, and orchestration |
 | `monitoring` | prometheus, cadvisor, grafana, otel-collector, loki, tempo | Observability stack |
 
 ### Ports
@@ -26,13 +25,11 @@
 | control-panel | 5173 | 5173 | Frontend UI |
 | minio | 9000 | 9000 | MinIO S3-compatible storage |
 | bronze-ingestion | 8086 | 8080 | Bronze layer ingestion service |
-| spark-thrift-server | 10000 | 10000 | Spark Thrift Server (optional) |
 | localstack | 4566 | 4566 | LocalStack (AWS emulation) |
 | postgres-airflow | 5432 | 5432 | PostgreSQL for Airflow metadata |
 | airflow-webserver | 8082 | 8080 | Airflow web UI |
 | postgres-metastore | 5434 | 5432 | PostgreSQL for Hive Metastore |
 | hive-metastore | 9083 | 9083 | Hive Metastore Thrift service |
-| openldap | 389 | 389 | OpenLDAP directory service |
 | trino | 8084 | 8080 | Trino query engine |
 | prometheus | 9090 | 9090 | Prometheus metrics |
 | cadvisor | 8083 | 8080 | Container metrics |

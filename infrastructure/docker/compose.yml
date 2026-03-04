@@ -3,7 +3,6 @@ name: rideshare-platform
 # Docker Compose Profiles:
 # - core: Simulation runtime services (kafka, redis, osrm, simulation, stream-processor, control-panel)
 # - data-pipeline: ETL, ingestion, and orchestration (minio, bronze-ingestion, localstack, airflow, hive-metastore, trino)
-# - spark-testing: Spark Thrift Server for dual-engine DBT validation (optional, use with data-pipeline)
 # - monitoring: Observability (prometheus, cadvisor, grafana, otel-collector, loki, tempo)
 
 services:
@@ -511,85 +510,6 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  spark-thrift-server:
-    image: apache/spark:4.0.0-python3
-    container_name: rideshare-spark-thrift-server
-    deploy:
-      resources:
-        limits:
-          memory: 3072m
-          cpus: "2.0"
-        reservations:
-          cpus: "0.25"
-    profiles:
-      - spark-testing
-    ports:
-      - "10000:10000"
-      - "4041:4040"
-    entrypoint:
-      - /bin/sh
-      - -c
-      - |
-        set -a && . /secrets/data-pipeline.env && set +a
-        exec /opt/spark/bin/spark-submit \
-          --master local[2] \
-          --driver-memory 1800m \
-          --conf spark.driver.memoryOverhead=512m \
-          --conf spark.driver.maxResultSize=512m \
-          --conf "spark.driver.extraJavaOptions=-XX:+UseG1GC -XX:MaxGCPauseMillis=50 -XX:InitiatingHeapOccupancyPercent=35 -XX:+ExplicitGCInvokesConcurrent" \
-          --class org.apache.spark.sql.hive.thriftserver.HiveThriftServer2 \
-          --name "Thrift JDBC/ODBC Server" \
-          --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension \
-          --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog \
-          --conf spark.sql.warehouse.dir=s3a://rideshare-bronze/warehouse \
-          --conf spark.hadoop.hive.metastore.uris=thrift://hive-metastore:9083 \
-          --conf spark.ui.retainedStages=100 \
-          --conf spark.ui.retainedJobs=100 \
-          --conf spark.ui.retainedDeadExecutors=10 \
-          --conf spark.sql.codegen.cache.maxEntries=100 \
-          --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000 \
-          --conf spark.hadoop.fs.s3a.access.key="$$MINIO_ROOT_USER" \
-          --conf spark.hadoop.fs.s3a.secret.key="$$MINIO_ROOT_PASSWORD" \
-          --conf spark.hadoop.fs.s3a.path.style.access=true \
-          --conf spark.hadoop.fs.s3a.connection.ssl.enabled=false \
-          --conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem \
-          --conf spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider \
-          --conf spark.hadoop.fs.s3a.threads.max=8 \
-          --conf spark.hadoop.fs.s3a.connection.pool.size=8 \
-          --conf spark.hadoop.fs.s3a.connection.establish.timeout=5000 \
-          --conf spark.hadoop.fs.s3a.connection.timeout=200000 \
-          --hiveconf hive.metastore.warehouse.dir=s3a://rideshare-bronze/warehouse \
-          --hiveconf hive.server2.thrift.port=10000 \
-          --hiveconf hive.server2.thrift.bind.host=0.0.0.0 \
-          --hiveconf hive.server2.authentication=LDAP \
-          --hiveconf hive.server2.authentication.ldap.url=ldap://openldap:389 \
-          --hiveconf hive.server2.authentication.ldap.baseDN=dc=rideshare,dc=local \
-          --hiveconf hive.server2.transport.mode=binary \
-          --hiveconf hive.server2.thrift.min.worker.threads=4 \
-          --hiveconf hive.server2.thrift.max.worker.threads=16
-    environment:
-      - PYTHONPATH=/opt
-    volumes:
-      - secrets-volume:/secrets:ro
-    depends_on:
-      openldap:
-        condition: service_healthy
-      hive-metastore:
-        condition: service_healthy
-      minio-init:
-        condition: service_completed_successfully
-      secrets-init:
-        condition: service_completed_successfully
-    networks:
-      - rideshare-network
-    healthcheck:
-      test: ["CMD-SHELL", "/opt/spark/bin/beeline -u 'jdbc:hive2://localhost:10000/default' -n admin -p admin -e 'SELECT 1' --silent=true 2>/dev/null || exit 1"]
-      interval: 15s
-      timeout: 30s
-      retries: 10
-      start_period: 90s
-    restart: unless-stopped
-
   localstack:
     image: localstack/localstack:4.12.0
     container_name: rideshare-localstack
@@ -740,7 +660,7 @@ services:
       AIRFLOW__LOGGING__REMOTE_LOGGING: 'True'
       AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER: 's3://rideshare-logs/airflow'
       AIRFLOW__LOGGING__REMOTE_LOG_CONN_ID: 'aws_default'
-      _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-amazon apache-airflow-providers-fab dbt-core dbt-duckdb==1.10.0 dbt-spark[PyHive] duckdb==1.4.4 deltalake==1.4.2 duckdb-engine==0.17.0 great-expectations requests prison'
+      _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-amazon apache-airflow-providers-fab dbt-core dbt-duckdb==1.10.0 dbt-glue==1.10.15 duckdb==1.4.4 deltalake==1.4.2 duckdb-engine==0.17.0 great-expectations requests prison'
     volumes:
       - ../../services/airflow/dags:/opt/airflow/dags
       - ../../services/airflow/logs:/opt/airflow/logs
@@ -804,7 +724,7 @@ services:
       AIRFLOW__LOGGING__REMOTE_LOGGING: 'True'
       AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER: 's3://rideshare-logs/airflow'
       AIRFLOW__LOGGING__REMOTE_LOG_CONN_ID: 'aws_default'
-      _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-amazon apache-airflow-providers-fab dbt-core dbt-duckdb==1.10.0 dbt-spark[PyHive] duckdb==1.4.4 deltalake==1.4.2 duckdb-engine==0.17.0 great-expectations requests prison'
+      _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-amazon apache-airflow-providers-fab dbt-core dbt-duckdb==1.10.0 dbt-glue==1.10.15 duckdb==1.4.4 deltalake==1.4.2 duckdb-engine==0.17.0 great-expectations requests prison'
     volumes:
       - ../../services/airflow/dags:/opt/airflow/dags
       - ../../services/airflow/logs:/opt/airflow/logs
@@ -821,9 +741,6 @@ services:
         condition: service_healthy
       airflow-webserver:
         condition: service_healthy  # Ensure DB migrations complete before reserialization
-      spark-thrift-server:
-        condition: service_healthy
-        required: false
     networks:
       - rideshare-network
     entrypoint:
@@ -913,42 +830,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 120s
-    restart: unless-stopped
-
-  openldap:
-    image: osixia/openldap:1.5.0
-    container_name: rideshare-openldap
-    mem_limit: 256m
-    profiles:
-      - data-pipeline
-    ports:
-      - "389:389"
-    environment:
-      LDAP_ORGANISATION: "Rideshare Platform"
-      LDAP_DOMAIN: "rideshare.local"
-      LDAP_TLS: "false"
-    entrypoint:
-      - /bin/sh
-      - -c
-      - |
-        set -a && . /secrets/data-pipeline.env && set +a
-        exec /container/tool/run --copy-service
-    depends_on:
-      secrets-init:
-        condition: service_completed_successfully
-    volumes:
-      - openldap-data:/var/lib/ldap
-      - openldap-config:/etc/ldap/slapd.d
-      - secrets-volume:/secrets:ro
-      - ../../services/openldap/bootstrap.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/bootstrap.ldif:ro
-    networks:
-      - rideshare-network
-    healthcheck:
-      test: ["CMD-SHELL", ". /secrets/data-pipeline.env && ldapsearch -x -H ldap://localhost:389 -b dc=rideshare,dc=local -D cn=admin,dc=rideshare,dc=local -w \"$$LDAP_ADMIN_PASSWORD\" -s base"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
     restart: unless-stopped
 
   trino:
@@ -1352,6 +1233,4 @@ volumes:
   grafana-data:
   loki-data:
   tempo-data:
-  openldap-data:
-  openldap-config:
   secrets-volume:
