@@ -1,5 +1,6 @@
-// ArchitectureDiagram — inline SVG showing the platform's dual data-flow paths.
-// Real-time path (left): Simulation → Kafka → Stream Processor → Redis → WebSocket → Frontend
+// ArchitectureDiagram — inline SVG showing the platform's three data-flow paths.
+// Observability path (left): Services →← OTel Collector → Prometheus → Perf Controller → Simulation
+// Real-time path (centre): Simulation → Kafka → Stream Processor → Redis → WebSocket → Frontend
 // Analytics path (right): Kafka → Bronze → Silver → Gold → Trino + Grafana
 // SMIL <animateMotion> particles animate along each edge, gated behind prefers-reduced-motion.
 
@@ -10,9 +11,9 @@ function prefersReducedMotion(): boolean {
 }
 
 // ── Node layout ────────────────────────────────────────────────────────────────
-// viewBox: 0 0 800 560
-// Left column (real-time): x≈130, right column (analytics): x≈620
-// Kafka hub sits in the centre: x≈375, y≈160
+// Left column (observability): x≈130
+// Centre column (real-time): x≈400, Kafka hub at y≈160
+// Right column (analytics): x≈670
 
 interface NodeDef {
   id: string;
@@ -26,12 +27,12 @@ interface NodeDef {
   strokeOpacity?: number;
 }
 
-const RT_X = 130; // real-time column centre
-const AN_X = 620; // analytics column centre
-const KF_X = 375; // kafka hub centre
+const OB_X = 130; // observability column (left)
+const RT_X = 400; // real-time column (centre)
+const AN_X = 670; // analytics column (right)
 
 const NODES: NodeDef[] = [
-  // Real-time path (left column)
+  // Real-time path (centre column)
   {
     id: 'sim',
     label: 'Simulation Engine',
@@ -46,7 +47,7 @@ const NODES: NodeDef[] = [
     id: 'kafka',
     label: 'Kafka',
     subLabel: 'Event Hub',
-    cx: KF_X,
+    cx: RT_X,
     cy: 160,
     w: 140,
     h: 46,
@@ -139,17 +140,41 @@ const NODES: NodeDef[] = [
     strokeOpacity: 0.7,
   },
 
-  // Cross-path feedback loop
+  // Cross-path feedback loop (observability column)
   {
     id: 'perfctrl',
     label: 'Perf Controller',
     subLabel: 'PID auto-throttle',
-    cx: KF_X,
+    cx: OB_X,
     cy: 60,
     w: 140,
     h: 40,
-    strokeColor: 'var(--offline-text-dimmest)',
-    strokeOpacity: 0.6,
+    strokeColor: 'var(--offline-feedback)',
+    strokeOpacity: 0.7,
+  },
+
+  // Observability path (left column)
+  {
+    id: 'otel',
+    label: 'OTel Collector',
+    subLabel: 'Metrics · Logs · Traces',
+    cx: OB_X,
+    cy: 160,
+    w: 140,
+    h: 40,
+    strokeColor: 'var(--offline-feedback)',
+    strokeOpacity: 0.5,
+  },
+  {
+    id: 'prom',
+    label: 'Prometheus',
+    subLabel: 'Recording rules',
+    cx: OB_X,
+    cy: 260,
+    w: 140,
+    h: 40,
+    strokeColor: 'var(--offline-feedback)',
+    strokeOpacity: 0.5,
   },
 ];
 
@@ -158,10 +183,11 @@ const NODES: NodeDef[] = [
 interface EdgeDef {
   id: string;
   d: string; // SVG path d attribute (M…L… commands)
-  path: 'realtime' | 'analytics' | 'feedback';
+  path: 'realtime' | 'analytics' | 'feedback' | 'scrape';
   label?: string;
   labelX?: number;
   labelY?: number;
+  labelRotate?: number;
   dashed?: boolean;
 }
 
@@ -186,21 +212,21 @@ function pathD(...coords: [number, number][]): string {
 }
 
 const EDGES: EdgeDef[] = [
-  // Real-time path
+  // Real-time path (straight vertical in centre column)
   {
     id: 'e-sim-kafka',
     path: 'realtime',
-    d: pathD(nodePort('sim', 'bottom'), [RT_X, 120], [KF_X, 120], nodePort('kafka', 'top')),
+    d: pathD(nodePort('sim', 'bottom'), nodePort('kafka', 'top')),
     label: 'events',
-    labelX: (RT_X + KF_X) / 2,
+    labelX: RT_X + 56,
     labelY: 113,
   },
   {
     id: 'e-kafka-stream',
     path: 'realtime',
-    d: pathD(nodePort('kafka', 'left'), [RT_X + 80, 160], nodePort('stream', 'top')),
+    d: pathD(nodePort('kafka', 'bottom'), nodePort('stream', 'top')),
     label: 'consume',
-    labelX: 175,
+    labelX: RT_X + 56,
     labelY: 208,
   },
   {
@@ -228,13 +254,13 @@ const EDGES: EdgeDef[] = [
     labelY: 480,
   },
 
-  // Analytics path
+  // Analytics path (branches right from Kafka)
   {
     id: 'e-kafka-bronze',
     path: 'analytics',
     d: pathD(nodePort('kafka', 'right'), [AN_X - 80, 160], nodePort('bronze', 'top')),
     label: 'ingest',
-    labelX: 540,
+    labelX: AN_X - 40,
     labelY: 208,
   },
   {
@@ -266,20 +292,54 @@ const EDGES: EdgeDef[] = [
   {
     id: 'e-perfctrl-sim',
     path: 'feedback',
-    d: pathD(nodePort('perfctrl', 'left'), nodePort('sim', 'right')),
+    d: pathD(nodePort('perfctrl', 'right'), nodePort('sim', 'left')),
     label: 'actuate',
-    labelX: (RT_X + KF_X) / 2,
+    labelX: (OB_X + RT_X) / 2,
     labelY: 53,
     dashed: true,
   },
   {
     id: 'e-prom-perfctrl',
     path: 'feedback',
-    d: pathD([AN_X - 80, 520], [AN_X - 80, 0], [KF_X + 70, 0], nodePort('perfctrl', 'top')),
-    label: 'headroom',
-    labelX: (AN_X - 80 + KF_X + 70) / 2,
-    labelY: -6,
+    d: pathD(nodePort('prom', 'left'), [20, 260], [20, 60], nodePort('perfctrl', 'left')),
+    label: 'infrastructure headroom',
+    labelX: 10,
+    labelY: 160,
+    labelRotate: -90,
     dashed: true,
+  },
+
+  // Observability: OTel Collector → Prometheus (solid, left column)
+  {
+    id: 'e-otel-prom',
+    path: 'feedback',
+    d: pathD(nodePort('otel', 'bottom'), nodePort('prom', 'top')),
+    label: 'remote write',
+    labelX: OB_X + 56,
+    labelY: 213,
+  },
+
+  // Scrape / OTLP push lines (faint background)
+  {
+    id: 'e-sim-otel',
+    path: 'scrape',
+    d: pathD(nodePort('sim', 'left'), nodePort('otel', 'right')),
+  },
+  {
+    id: 'e-stream-otel',
+    path: 'scrape',
+    d: pathD(nodePort('stream', 'left'), nodePort('otel', 'right')),
+  },
+  // Prometheus scrape lines (faint)
+  {
+    id: 'e-prom-kafka-scrape',
+    path: 'scrape',
+    d: pathD(nodePort('prom', 'right'), nodePort('kafka', 'left')),
+  },
+  {
+    id: 'e-prom-redis-scrape',
+    path: 'scrape',
+    d: pathD(nodePort('prom', 'right'), nodePort('redis', 'left')),
   },
 ];
 
@@ -290,6 +350,8 @@ interface ParticleDef {
   begin: string; // SMIL begin value (e.g. "0s", "0.8s")
   dur: string; // animation duration
   fill: string; // CSS variable
+  opacity: number;
+  boomerang?: boolean;
 }
 
 function buildParticles(): ParticleDef[] {
@@ -297,11 +359,17 @@ function buildParticles(): ParticleDef[] {
 
   for (const edge of EDGES) {
     if (edge.path === 'feedback') continue; // no particles on dashed feedback edges
+    const isScrape = edge.path === 'scrape';
     const isRT = edge.path === 'realtime';
-    const dur = isRT ? '2.5s' : '4s';
-    const fill = isRT ? 'var(--offline-neon)' : 'var(--offline-gold)';
-    const count = isRT ? 3 : 2;
-    const stagger = isRT ? 0.8 : 2;
+    const dur = isScrape ? '3s' : isRT ? '2.5s' : '4s';
+    const fill = isScrape
+      ? 'var(--offline-feedback)'
+      : isRT
+        ? 'var(--offline-neon)'
+        : 'var(--offline-gold)';
+    const count = isScrape ? 1 : isRT ? 3 : 2;
+    const stagger = isScrape ? 0 : isRT ? 0.8 : 2;
+    const opacity = isScrape ? 0.3 : 0.7;
 
     for (let i = 0; i < count; i++) {
       particles.push({
@@ -309,6 +377,8 @@ function buildParticles(): ParticleDef[] {
         begin: `${(i * stagger).toFixed(1)}s`,
         dur,
         fill,
+        opacity,
+        boomerang: isScrape && edge.id.includes('scrape'),
       });
     }
   }
@@ -366,11 +436,13 @@ function NodeRect({ node }: { node: NodeDef }) {
 function edgeColor(path: EdgeDef['path']): string {
   if (path === 'realtime') return 'var(--offline-neon)';
   if (path === 'analytics') return 'var(--offline-gold)';
-  return 'var(--offline-text-dimmest)';
+  if (path === 'scrape') return 'var(--offline-feedback)';
+  return 'var(--offline-feedback)';
 }
 
 function EdgeLine({ edge }: { edge: EdgeDef }) {
   const color = edgeColor(edge.path);
+  const isScrape = edge.path === 'scrape';
 
   return (
     <g>
@@ -379,11 +451,11 @@ function EdgeLine({ edge }: { edge: EdgeDef }) {
         d={edge.d}
         fill="none"
         stroke={color}
-        strokeWidth={1.5}
-        strokeOpacity={0.35}
+        strokeWidth={isScrape ? 1 : 1.5}
+        strokeOpacity={isScrape ? 0.12 : 0.35}
         strokeLinecap="round"
         strokeLinejoin="round"
-        strokeDasharray={edge.dashed ? '6 4' : undefined}
+        strokeDasharray={isScrape ? '3 3' : edge.dashed ? '6 4' : undefined}
       />
       {edge.label && edge.labelX !== undefined && edge.labelY !== undefined && (
         <text
@@ -391,9 +463,14 @@ function EdgeLine({ edge }: { edge: EdgeDef }) {
           y={edge.labelY}
           fontSize="9"
           fill={color}
-          fillOpacity={0.6}
+          fillOpacity={isScrape ? 0.3 : 0.6}
           letterSpacing="0.1em"
           textAnchor="middle"
+          transform={
+            edge.labelRotate
+              ? `rotate(${edge.labelRotate} ${edge.labelX} ${edge.labelY})`
+              : undefined
+          }
         >
           {edge.label.toUpperCase()}
         </text>
@@ -406,11 +483,69 @@ function Particles() {
   return (
     <>
       {PARTICLES.map((p, i) => (
-        <ellipse key={`${p.edgeId}-p${i}`} rx={4} ry={2.5} fill={p.fill} fillOpacity={0.7}>
+        <ellipse key={`${p.edgeId}-p${i}`} rx={4} ry={2.5} fill={p.fill} fillOpacity={p.opacity}>
+          <animateMotion
+            dur={p.dur}
+            begin={p.begin}
+            repeatCount="indefinite"
+            rotate="auto"
+            keyPoints={p.boomerang ? '0;1;0' : undefined}
+            keyTimes={p.boomerang ? '0;0.5;1' : undefined}
+            calcMode={p.boomerang ? 'linear' : undefined}
+          >
+            <mpath href={`#${p.edgeId}`} />
+          </animateMotion>
+          {p.boomerang && (
+            <animate
+              attributeName="fill-opacity"
+              values={`0.1;0.1;${p.opacity};${p.opacity}`}
+              keyTimes="0;0.49;0.51;1"
+              dur={p.dur}
+              begin={p.begin}
+              repeatCount="indefinite"
+            />
+          )}
+        </ellipse>
+      ))}
+    </>
+  );
+}
+
+function FeedbackParticles() {
+  const feedbackEdges = EDGES.filter((e) => e.path === 'feedback');
+  const particles: { edgeId: string; begin: string; dur: string }[] = [];
+
+  for (const edge of feedbackEdges) {
+    // 2 slower particles per feedback edge, staggered
+    for (let i = 0; i < 2; i++) {
+      particles.push({
+        edgeId: edge.id,
+        begin: `${(i * 3).toFixed(1)}s`,
+        dur: '6s',
+      });
+    }
+  }
+
+  return (
+    <>
+      {particles.map((p, i) => (
+        <polygon
+          key={`fb-${p.edgeId}-${i}`}
+          points="-4,0 0,-3 4,0 0,3"
+          fill="var(--offline-feedback)"
+          fillOpacity={0.8}
+        >
           <animateMotion dur={p.dur} begin={p.begin} repeatCount="indefinite" rotate="auto">
             <mpath href={`#${p.edgeId}`} />
           </animateMotion>
-        </ellipse>
+          <animate
+            attributeName="fill-opacity"
+            values="0.3;0.9;0.3"
+            dur="1.5s"
+            begin={p.begin}
+            repeatCount="indefinite"
+          />
+        </polygon>
       ))}
     </>
   );
@@ -420,9 +555,14 @@ function StaticParticles() {
   // When prefers-reduced-motion is set, render small static dots at edge midpoints
   return (
     <>
-      {EDGES.filter((e) => e.path !== 'feedback').map((edge) => {
-        const isRT = edge.path === 'realtime';
-        const fill = isRT ? 'var(--offline-neon)' : 'var(--offline-gold)';
+      {EDGES.filter((e) => e.path !== 'scrape').map((edge) => {
+        const fill =
+          edge.path === 'realtime'
+            ? 'var(--offline-neon)'
+            : edge.path === 'analytics'
+              ? 'var(--offline-gold)'
+              : 'var(--offline-feedback)';
+        const isFeedback = edge.path === 'feedback';
         // Parse midpoint from path d attribute (average of first and last coordinate)
         const coordPairs = edge.d.match(/[ML]([\d.]+),([\d.]+)/g)?.map((m) => {
           const parts = m.slice(1).split(',').map(Number);
@@ -433,7 +573,14 @@ function StaticParticles() {
         const mx = ((first[0] ?? 0) + (last[0] ?? 0)) / 2;
         const my = ((first[1] ?? 0) + (last[1] ?? 0)) / 2;
 
-        return (
+        return isFeedback ? (
+          <polygon
+            key={`static-${edge.id}`}
+            points={`${mx - 4},${my} ${mx},${my - 3} ${mx + 4},${my} ${mx},${my + 3}`}
+            fill={fill}
+            fillOpacity={0.5}
+          />
+        ) : (
           <ellipse
             key={`static-${edge.id}`}
             cx={mx}
@@ -459,6 +606,7 @@ function PathLabels() {
         y={22}
         textAnchor="middle"
         fontSize="10"
+        fontWeight="700"
         fill="var(--offline-neon)"
         fillOpacity={0.7}
         letterSpacing="0.1em"
@@ -467,14 +615,49 @@ function PathLabels() {
       </text>
       <text
         x={AN_X}
-        y={22}
+        y={160}
         textAnchor="middle"
         fontSize="10"
+        fontWeight="700"
         fill="var(--offline-gold)"
         fillOpacity={0.7}
         letterSpacing="0.1em"
       >
         ANALYTICS PATH
+      </text>
+      <text
+        x={OB_X}
+        y={130}
+        textAnchor="middle"
+        fontSize="10"
+        fontWeight="700"
+        fill="var(--offline-feedback)"
+        fillOpacity={0.5}
+        letterSpacing="0.1em"
+      >
+        OBSERVABILITY
+      </text>
+      <text
+        x={OB_X + 80}
+        y={164}
+        textAnchor="start"
+        fontSize="9"
+        fill="var(--offline-feedback)"
+        fillOpacity={0.3}
+        letterSpacing="0.1em"
+      >
+        OTLP
+      </text>
+      <text
+        x={OB_X + 80}
+        y={264}
+        textAnchor="start"
+        fontSize="9"
+        fill="var(--offline-feedback)"
+        fillOpacity={0.3}
+        letterSpacing="0.1em"
+      >
+        SCRAPE
       </text>
     </>
   );
@@ -498,18 +681,30 @@ export function ArchitectureDiagram() {
         {/* Column labels */}
         <PathLabels />
 
-        {/* Edges drawn first so nodes sit on top */}
-        {EDGES.map((edge) => (
+        {/* Background scrape/monitoring lines (behind everything) */}
+        {EDGES.filter((e) => e.path === 'scrape').map((edge) => (
           <EdgeLine key={edge.id} edge={edge} />
         ))}
+
+        {/* Main edges */}
+        {EDGES.filter((e) => e.path !== 'scrape').map((edge) => (
+          <EdgeLine key={edge.id} edge={edge} />
+        ))}
+
+        {/* Particles — behind nodes for smoother flow through blocks */}
+        {reducedMotion ? (
+          <StaticParticles />
+        ) : (
+          <>
+            <Particles />
+            <FeedbackParticles />
+          </>
+        )}
 
         {/* Nodes */}
         {NODES.map((node) => (
           <NodeRect key={node.id} node={node} />
         ))}
-
-        {/* Particles — SMIL animations or static midpoints */}
-        {reducedMotion ? <StaticParticles /> : <Particles />}
       </svg>
     </section>
   );
