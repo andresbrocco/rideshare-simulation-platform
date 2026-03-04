@@ -19,7 +19,11 @@ resources:
   - ../../manifests/bronze-ingestion.yaml
   - ../../manifests/bronze-init.yaml
   - ../../manifests/hive-metastore.yaml
+
+  # Trino catalog ConfigMaps (one per runner)
   - ../../manifests/trino.yaml
+  - ../../manifests/trino-glue-catalog.yaml
+
   - ../../manifests/airflow-webserver.yaml
   - ../../manifests/airflow-scheduler.yaml
   - ../../manifests/airflow-dags.yaml
@@ -247,7 +251,10 @@ patches:
       kind: ConfigMap
       name: hive-site-config
 
-  # Trino catalog: Remove MinIO S3 endpoint and static credentials
+  # Trino catalog runner selection (mutually exclusive — apply one, not both):
+  #   DBT_RUNNER=duckdb: use trino-catalog-patch.yaml (Hive Metastore thrift)
+  #   DBT_RUNNER=glue:   use trino-glue-catalog-patch.yaml (Glue Data Catalog)
+  # Current active runner: duckdb
   - path: trino-catalog-patch.yaml
     target:
       kind: ConfigMap

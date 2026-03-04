@@ -1,0 +1,40 @@
+# Glue runner patch: swap Trino config-source to trino-config-glue ConfigMap.
+# Apply this patch instead of trino-catalog-patch.yaml when DBT_RUNNER=glue.
+# WARNING: Do not apply both trino-catalog-patch.yaml and this patch simultaneously.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trino
+spec:
+  template:
+    spec:
+      initContainers:
+        - name: wait-for-hive-metastore
+          $patch: delete
+        - name: wait-for-minio
+          $patch: delete
+        - name: setup-config
+          command:
+            - sh
+            - -c
+            - |
+              cp /config-source/config.properties /etc/trino/config.properties
+              cp /config-source/jvm.config /etc/trino/jvm.config
+              cp /config-source/node.properties /etc/trino/node.properties
+              mkdir -p /etc/trino/catalog
+              cp /config-source/delta.properties.template /etc/trino/catalog/delta.properties
+              echo 'http-server.process-forwarded=true' >> /etc/trino/config.properties
+          env:
+            - name: MINIO_ROOT_USER
+              $patch: delete
+            - name: MINIO_ROOT_PASSWORD
+              $patch: delete
+      containers:
+        - name: trino
+          env:
+            - name: AWS_REGION
+              value: "us-east-1"
+      volumes:
+        - name: config-source
+          configMap:
+            name: trino-config-glue
