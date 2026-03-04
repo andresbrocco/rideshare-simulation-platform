@@ -252,6 +252,44 @@ resource "aws_iam_role_policy" "airflow_s3" {
   })
 }
 
+resource "aws_iam_role_policy" "airflow_glue_sessions" {
+  name = "glue-sessions"
+  role = aws_iam_role.airflow.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "GlueSessionManagement"
+        Effect = "Allow"
+        Action = [
+          "glue:CreateSession",
+          "glue:DeleteSession",
+          "glue:GetSession",
+          "glue:ListSessions",
+          "glue:RunStatement",
+          "glue:GetStatement",
+          "glue:ListStatements",
+          "glue:CancelStatement",
+          "glue:StopSession"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid      = "PassGlueJobRole"
+        Effect   = "Allow"
+        Action   = "iam:PassRole"
+        Resource = aws_iam_role.glue_job.arn
+        Condition = {
+          StringEquals = {
+            "iam:PassedToService" = "glue.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+}
+
 # --------------------------------------------------------------------------
 # Pod Identity Role: Trino (read-only lakehouse)
 # --------------------------------------------------------------------------
@@ -299,6 +337,34 @@ resource "aws_iam_role_policy" "trino_s3" {
           "${var.s3_bucket_arns.silver}/*",
           var.s3_bucket_arns.gold,
           "${var.s3_bucket_arns.gold}/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "trino_glue_catalog" {
+  name = "glue-catalog-read"
+  role = aws_iam_role.trino.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "glue:GetDatabase",
+          "glue:GetDatabases",
+          "glue:GetTable",
+          "glue:GetTables",
+          "glue:GetPartition",
+          "glue:GetPartitions",
+          "glue:BatchGetPartition"
+        ]
+        Resource = [
+          "arn:aws:glue:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:catalog",
+          "arn:aws:glue:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:database/*",
+          "arn:aws:glue:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:table/*/*"
         ]
       }
     ]
