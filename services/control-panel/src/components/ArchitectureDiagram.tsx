@@ -10,9 +10,9 @@ function prefersReducedMotion(): boolean {
 }
 
 // ── Node layout ────────────────────────────────────────────────────────────────
-// viewBox: 0 0 800 520
-// Left column (real-time): x≈130, right column (analytics): x≈530
-// Kafka hub sits in the centre: x≈400, y≈140
+// viewBox: 0 0 800 560
+// Left column (real-time): x≈130, right column (analytics): x≈620
+// Kafka hub sits in the centre: x≈375, y≈160
 
 interface NodeDef {
   id: string;
@@ -67,7 +67,7 @@ const NODES: NodeDef[] = [
     label: 'Redis Pub/Sub',
     subLabel: 'State cache',
     cx: RT_X,
-    cy: 355,
+    cy: 350,
     w: 160,
     h: 46,
     strokeColor: 'var(--offline-neon)',
@@ -77,7 +77,7 @@ const NODES: NodeDef[] = [
     label: 'WebSocket Server',
     subLabel: 'FastAPI',
     cx: RT_X,
-    cy: 450,
+    cy: 435,
     w: 160,
     h: 46,
     strokeColor: 'var(--offline-neon)',
@@ -87,7 +87,7 @@ const NODES: NodeDef[] = [
     label: 'React Frontend',
     subLabel: 'deck.gl',
     cx: RT_X,
-    cy: 490,
+    cy: 520,
     w: 160,
     h: 46,
     strokeColor: 'var(--offline-neon)',
@@ -110,7 +110,7 @@ const NODES: NodeDef[] = [
     label: 'Silver',
     subLabel: 'Validated + deduped',
     cx: AN_X,
-    cy: 355,
+    cy: 350,
     w: 160,
     h: 46,
     strokeColor: 'var(--offline-silver)',
@@ -121,7 +121,7 @@ const NODES: NodeDef[] = [
     label: 'Gold',
     subLabel: 'Star schema',
     cx: AN_X,
-    cy: 450,
+    cy: 435,
     w: 160,
     h: 46,
     strokeColor: 'var(--offline-gold)',
@@ -132,7 +132,7 @@ const NODES: NodeDef[] = [
     label: 'Trino + Grafana',
     subLabel: 'Query + dashboards',
     cx: AN_X,
-    cy: 490,
+    cy: 520,
     w: 160,
     h: 46,
     strokeColor: 'var(--offline-gold)',
@@ -144,7 +144,7 @@ const NODES: NodeDef[] = [
 
 interface EdgeDef {
   id: string;
-  points: string; // polyline points string
+  d: string; // SVG path d attribute (M…L… commands)
   path: 'realtime' | 'analytics';
   label?: string;
   labelX?: number;
@@ -167,8 +167,8 @@ function nodePort(id: string, port: 'top' | 'bottom' | 'left' | 'right'): [numbe
   }
 }
 
-function pts(...coords: [number, number][]): string {
-  return coords.map(([x, y]) => `${x},${y}`).join(' ');
+function pathD(...coords: [number, number][]): string {
+  return coords.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x},${y}`).join(' ');
 }
 
 const EDGES: EdgeDef[] = [
@@ -176,15 +176,15 @@ const EDGES: EdgeDef[] = [
   {
     id: 'e-sim-kafka',
     path: 'realtime',
-    points: pts(nodePort('sim', 'right'), nodePort('kafka', 'left')),
+    d: pathD(nodePort('sim', 'bottom'), [RT_X, 120], [KF_X, 120], nodePort('kafka', 'top')),
     label: 'events',
-    labelX: 255,
-    labelY: 108,
+    labelX: (RT_X + KF_X) / 2,
+    labelY: 113,
   },
   {
     id: 'e-kafka-stream',
     path: 'realtime',
-    points: pts(nodePort('kafka', 'left'), [RT_X + 80, 160], nodePort('stream', 'top')),
+    d: pathD(nodePort('kafka', 'left'), [RT_X + 80, 160], nodePort('stream', 'top')),
     label: 'consume',
     labelX: 175,
     labelY: 208,
@@ -192,33 +192,33 @@ const EDGES: EdgeDef[] = [
   {
     id: 'e-stream-redis',
     path: 'realtime',
-    points: pts(nodePort('stream', 'bottom'), nodePort('redis', 'top')),
+    d: pathD(nodePort('stream', 'bottom'), nodePort('redis', 'top')),
     label: 'fan-out',
     labelX: RT_X + 56,
-    labelY: 310,
+    labelY: 308,
   },
   {
     id: 'e-redis-ws',
     path: 'realtime',
-    points: pts(nodePort('redis', 'bottom'), nodePort('ws', 'top')),
+    d: pathD(nodePort('redis', 'bottom'), nodePort('ws', 'top')),
     label: 'push',
     labelX: RT_X + 56,
-    labelY: 405,
+    labelY: 395,
   },
   {
     id: 'e-ws-frontend',
     path: 'realtime',
-    points: pts(nodePort('ws', 'bottom'), nodePort('frontend', 'top')),
+    d: pathD(nodePort('ws', 'bottom'), nodePort('frontend', 'top')),
     label: 'WS',
     labelX: RT_X + 56,
-    labelY: 472,
+    labelY: 480,
   },
 
   // Analytics path
   {
     id: 'e-kafka-bronze',
     path: 'analytics',
-    points: pts(nodePort('kafka', 'right'), [AN_X - 80, 160], nodePort('bronze', 'top')),
+    d: pathD(nodePort('kafka', 'right'), [AN_X - 80, 160], nodePort('bronze', 'top')),
     label: 'ingest',
     labelX: 540,
     labelY: 208,
@@ -226,26 +226,26 @@ const EDGES: EdgeDef[] = [
   {
     id: 'e-bronze-silver',
     path: 'analytics',
-    points: pts(nodePort('bronze', 'bottom'), nodePort('silver', 'top')),
+    d: pathD(nodePort('bronze', 'bottom'), nodePort('silver', 'top')),
     label: 'DBT',
     labelX: AN_X + 56,
-    labelY: 310,
+    labelY: 308,
   },
   {
     id: 'e-silver-gold',
     path: 'analytics',
-    points: pts(nodePort('silver', 'bottom'), nodePort('gold', 'top')),
+    d: pathD(nodePort('silver', 'bottom'), nodePort('gold', 'top')),
     label: 'DBT',
     labelX: AN_X + 56,
-    labelY: 405,
+    labelY: 395,
   },
   {
     id: 'e-gold-trino',
     path: 'analytics',
-    points: pts(nodePort('gold', 'bottom'), nodePort('trino', 'top')),
+    d: pathD(nodePort('gold', 'bottom'), nodePort('trino', 'top')),
     label: 'query',
     labelX: AN_X + 56,
-    labelY: 472,
+    labelY: 480,
   },
 ];
 
@@ -333,9 +333,9 @@ function EdgeLine({ edge }: { edge: EdgeDef }) {
 
   return (
     <g>
-      <polyline
+      <path
         id={edge.id}
-        points={edge.points}
+        d={edge.d}
         fill="none"
         stroke={color}
         strokeWidth={1.5}
@@ -381,8 +381,11 @@ function StaticParticles() {
       {EDGES.map((edge) => {
         const isRT = edge.path === 'realtime';
         const fill = isRT ? 'var(--offline-neon)' : 'var(--offline-gold)';
-        // Parse midpoint from points string (average of first and last coordinate)
-        const coordPairs = edge.points.split(' ').map((p) => p.split(',').map(Number));
+        // Parse midpoint from path d attribute (average of first and last coordinate)
+        const coordPairs = edge.d.match(/[ML]([\d.]+),([\d.]+)/g)?.map((m) => {
+          const parts = m.slice(1).split(',').map(Number);
+          return [parts[0] ?? 0, parts[1] ?? 0];
+        }) ?? [[0, 0]];
         const first = coordPairs[0] ?? [0, 0];
         const last = coordPairs[coordPairs.length - 1] ?? [0, 0];
         const mx = ((first[0] ?? 0) + (last[0] ?? 0)) / 2;
@@ -444,7 +447,7 @@ export function ArchitectureDiagram() {
     <section id="architecture">
       <h2>System Architecture</h2>
       <svg
-        viewBox="0 0 800 520"
+        viewBox="0 0 800 560"
         preserveAspectRatio="xMidYMid meet"
         role="img"
         aria-label="System architecture diagram showing real-time and analytics data-flow paths"
