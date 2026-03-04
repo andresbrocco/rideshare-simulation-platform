@@ -18,7 +18,7 @@ The simulation service is a discrete-event simulation engine that generates real
 
 **Two-Phase Pause**: RUNNING → DRAINING → PAUSED sequence ensures graceful shutdown. DRAINING state allows in-flight trips to complete (or force-cancels after 600s timeout) before checkpointing to PAUSED state, guaranteeing clean state recovery.
 
-**Time Management**: TimeManager converts between SimPy's discrete event time (float seconds) and wall-clock datetime. Simulation speed is controlled by a multiplier (1x to 1024x) that throttles step() advancement via sleep() calls to achieve realtime pacing.
+**Time Management**: TimeManager converts between SimPy's discrete event time (float seconds) and wall-clock datetime. Simulation speed is controlled by a multiplier (0.5x to 128x) that throttles step() advancement via sleep() calls to achieve realtime pacing.
 
 **Event Flow Architecture**: Simulation publishes exclusively to Kafka (source of truth). Stream-processor service consumes Kafka topics and republishes to Redis pub/sub channels. Frontend WebSocket subscribes to Redis channels. This eliminates duplicate events that occurred when simulation published directly to both systems.
 

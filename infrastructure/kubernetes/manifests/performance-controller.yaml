@@ -71,9 +71,9 @@ spec:
         - name: CONTROLLER_POLL_INTERVAL_SECONDS
           value: "5.0"
         - name: CONTROLLER_MAX_SPEED
-          value: "32"
+          value: "128"
         - name: CONTROLLER_MIN_SPEED
-          value: "0.125"
+          value: "0.5"
         - name: CONTROLLER_TARGET
           value: "0.66"
         - name: CONTROLLER_K_UP

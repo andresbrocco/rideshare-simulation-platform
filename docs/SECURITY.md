@@ -133,7 +133,7 @@ How input is validated across services.
 
 **Settings** (`services/simulation/src/settings.py`):
 - Environment variable validation with `pydantic-settings`
-- Type coercion and constraint validation (e.g., `ge=1, le=1024` for speed multiplier)
+- Type coercion and constraint validation (e.g., `ge=0.5, le=128` for speed multiplier)
 - Credential presence validation (raises `ValueError` if missing)
 
 **Events** (`services/simulation/src/events/schemas.py`):

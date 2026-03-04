@@ -62,7 +62,7 @@ The P-term sigmoid blends between `k_down` (aggressive cut-down, default 1.5) an
 
 ## Speed Range
 
-The controller operates across floats in **[0.125, 32.0]** via the continuous proportional formula. Both `CONTROLLER_MIN_SPEED` (default `0.125`) and `CONTROLLER_MAX_SPEED` (default `32`) are configurable via environment variables.
+The controller operates across floats in **[0.5, 128.0]** via the continuous proportional formula. Both `CONTROLLER_MIN_SPEED` (default `0.5`) and `CONTROLLER_MAX_SPEED` (default `128`) are configurable via environment variables.
 
 ## Module Map
 

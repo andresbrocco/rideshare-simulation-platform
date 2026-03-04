@@ -8,7 +8,7 @@
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `SIM_SPEED_MULTIPLIER` | Simulation speed multiplier (1x to 1024x) | `1.0` | No |
+| `SIM_SPEED_MULTIPLIER` | Simulation speed multiplier (0.5x to 128x) | `1.0` | No |
 | `SIM_LOG_LEVEL` | Logging level (DEBUG, INFO, WARNING, ERROR) | `INFO` | No |
 | `SIM_CHECKPOINT_INTERVAL` | Checkpoint interval in simulated seconds | `300` | No |
 | `SIM_CHECKPOINT_STORAGE_TYPE` | Checkpoint backend: `s3` or `sqlite` | `sqlite` | No |

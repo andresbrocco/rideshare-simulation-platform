@@ -570,7 +570,7 @@ export function LandingPage({ onLoginClick, isLocal }: LandingPageProps) {
 
                 <h3>Time Acceleration</h3>
                 <p>
-                  1x to 1024x real-time speed multiplier. Two-phase pause protocol (RUNNING &rarr;
+                  0.5x to 128x real-time speed multiplier. Two-phase pause protocol (RUNNING &rarr;
                   DRAINING &rarr; PAUSED) guarantees no mid-execution trips during checkpoints.
                 </p>
 

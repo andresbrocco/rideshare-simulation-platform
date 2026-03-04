@@ -98,7 +98,7 @@ stress_spawn_interval_seconds: 3.0
 
 # Speed scaling (double multiplier each step)
 speed_scaling_step_duration_minutes: 8
-speed_scaling_max_multiplier: 1024
+speed_scaling_max_multiplier: 32
 ```
 
 **Analysis Thresholds:**
@@ -145,7 +145,7 @@ cpu_critical_percent: 85.0
 
 **Parameters:**
 - Step duration: 8 minutes per multiplier
-- Max multiplier: 1024x
+- Max multiplier: 32x
 - Agent count: half of stress test max
 
 **Threshold criteria:**

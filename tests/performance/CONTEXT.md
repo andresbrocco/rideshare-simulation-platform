@@ -18,7 +18,7 @@ Tests execute sequentially with derived parameters flowing between stages:
 
 1. **Baseline** — Measures idle resource usage with zero agents (30s)
 2. **Stress Test** — Incrementally spawns agents until CPU/memory thresholds reached, determines `max_agent_count`
-3. **Speed Scaling** — Doubles simulation speed (2x→1024x) at fixed agent count derived from stress test, finds `max_reliable_speed`
+3. **Speed Scaling** — Doubles simulation speed (2x→32x) at fixed agent count derived from stress test, finds `max_reliable_speed`
 4. **Duration/Leak Test** — 3-phase lifecycle (active→drain→cooldown) at max reliable speed, detects memory leaks and resource retention
 
 Each scenario depends on outputs from the previous (e.g., stress test determines agent count for duration test).
