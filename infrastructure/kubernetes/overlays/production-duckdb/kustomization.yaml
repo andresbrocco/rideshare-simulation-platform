@@ -1,0 +1,59 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# DBT_RUNNER=duckdb overlay: extends production base with Hive Metastore resources.
+# ArgoCD path: infrastructure/kubernetes/overlays/production-duckdb
+# Trino uses a local Hive Metastore (thrift) backed by RDS PostgreSQL.
+
+bases:
+  - ../production
+
+resources:
+  # Hive Metastore (required for dbt duckdb runner — Trino catalog uses thrift URI)
+  - ../../manifests/hive-metastore.yaml
+  - ../../manifests/postgres-metastore.yaml
+  - ../../manifests/pvc-postgres-metastore.yaml
+
+images:
+  - name: rideshare-hive-metastore
+    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/hive-metastore
+    newTag: <image-tag>
+
+patches:
+  # Hive Metastore: RDS endpoint, remove MinIO initContainer and credentials
+  - path: ../production/hive-metastore-patch.yaml
+    target:
+      kind: Deployment
+      name: hive-metastore
+
+  # Hive site config: AWS S3 via IRSA instead of MinIO endpoint and credentials
+  - path: ../production/hive-site-config-patch.yaml
+    target:
+      kind: ConfigMap
+      name: hive-site-config
+
+  # Hive Metastore: set imagePullPolicy to IfNotPresent for ECR image
+  - patch: '[{"op": "replace", "path": "/spec/template/spec/containers/0/imagePullPolicy", "value": "IfNotPresent"}]'
+    target:
+      kind: Deployment
+      labelSelector: app in (hive-metastore)
+
+  # Hive Metastore: bind to its IRSA ServiceAccount
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: placeholder
+      spec:
+        template:
+          spec:
+            serviceAccountName: hive-metastore
+    target:
+      kind: Deployment
+      name: hive-metastore
+
+  # Trino catalog: Hive Metastore thrift URI (duckdb runner)
+  - path: ../production/trino-catalog-patch.yaml
+    target:
+      kind: ConfigMap
+      name: trino-config

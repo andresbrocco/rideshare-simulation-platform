@@ -14,7 +14,10 @@ spec:
   source:
     repoURL: https://github.com/andresbrocco/rideshare-simulation-platform.git
     targetRevision: deploy
-    path: infrastructure/kubernetes/overlays/production
+    # Runner selection: change path to switch active DBT_RUNNER
+    #   DBT_RUNNER=duckdb: infrastructure/kubernetes/overlays/production-duckdb
+    #   DBT_RUNNER=glue:   infrastructure/kubernetes/overlays/production-glue
+    path: infrastructure/kubernetes/overlays/production-duckdb
 
   destination:
     server: https://kubernetes.default.svc

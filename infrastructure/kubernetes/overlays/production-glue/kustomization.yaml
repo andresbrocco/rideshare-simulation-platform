@@ -1,0 +1,53 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# DBT_RUNNER=glue overlay: extends production base without Hive Metastore.
+# ArgoCD path: infrastructure/kubernetes/overlays/production-glue
+# Trino uses Glue Data Catalog; Hive Metastore pod and RDS metastore DB are not deployed.
+
+bases:
+  - ../production
+
+patches:
+  # Trino Deployment: swap config-source to glue ConfigMap, remove hive-metastore wait
+  - path: ../production/trino-glue-catalog-patch.yaml
+    target:
+      kind: Deployment
+      name: trino
+
+  # Airflow: inject GLUE_ROLE_ARN for dbt-glue profile
+  # Replace <glue-role-arn> with Terraform output during deploy:
+  #   terraform -chdir=infrastructure/terraform/foundation output -raw glue_job_role_arn
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: placeholder
+      spec:
+        template:
+          spec:
+            containers:
+              - name: airflow-scheduler
+                env:
+                  - name: GLUE_ROLE_ARN
+                    value: "<glue-role-arn>"
+    target:
+      kind: Deployment
+      name: airflow-scheduler
+
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: placeholder
+      spec:
+        template:
+          spec:
+            containers:
+              - name: airflow-webserver
+                env:
+                  - name: GLUE_ROLE_ARN
+                    value: "<glue-role-arn>"
+    target:
+      kind: Deployment
+      name: airflow-webserver

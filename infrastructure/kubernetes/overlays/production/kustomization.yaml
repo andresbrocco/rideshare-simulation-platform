@@ -18,7 +18,6 @@ resources:
   # Data Pipeline
   - ../../manifests/bronze-ingestion.yaml
   - ../../manifests/bronze-init.yaml
-  - ../../manifests/hive-metastore.yaml
 
   # Trino catalog ConfigMaps (one per runner)
   - ../../manifests/trino.yaml
@@ -104,9 +103,6 @@ images:
   - name: rideshare-bronze-ingestion
     newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/bronze-ingestion
     newTag: <image-tag>
-  - name: rideshare-hive-metastore
-    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/hive-metastore
-    newTag: <image-tag>
   - name: rideshare-osrm
     newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/osrm
     newTag: <image-tag>
@@ -119,7 +115,7 @@ patches:
   - patch: '[{"op": "replace", "path": "/spec/template/spec/containers/0/imagePullPolicy", "value": "IfNotPresent"}]'
     target:
       kind: Deployment
-      labelSelector: app in (simulation,stream-processor,performance-controller,control-panel,bronze-ingestion,hive-metastore,osrm,otel-collector)
+      labelSelector: app in (simulation,stream-processor,performance-controller,control-panel,bronze-ingestion,osrm,otel-collector)
   - patch: '[{"op": "replace", "path": "/spec/template/spec/containers/0/imagePullPolicy", "value": "IfNotPresent"}]'
     target:
       kind: StatefulSet
@@ -206,19 +202,6 @@ patches:
       kind: Deployment
       name: trino
 
-  - patch: |-
-      apiVersion: apps/v1
-      kind: Deployment
-      metadata:
-        name: placeholder
-      spec:
-        template:
-          spec:
-            serviceAccountName: hive-metastore
-    target:
-      kind: Deployment
-      name: hive-metastore
-
   # Point ExternalSecrets to production SecretStore
   - patch: |-
       apiVersion: external-secrets.io/v1beta1
@@ -238,27 +221,6 @@ patches:
     target:
       kind: StatefulSet
       name: kafka
-
-  # Hive Metastore: RDS endpoint, remove MinIO initContainer and credentials
-  - path: hive-metastore-patch.yaml
-    target:
-      kind: Deployment
-      name: hive-metastore
-
-  # Hive site config: AWS S3 via IRSA instead of MinIO endpoint and credentials
-  - path: hive-site-config-patch.yaml
-    target:
-      kind: ConfigMap
-      name: hive-site-config
-
-  # Trino catalog runner selection (mutually exclusive — apply one, not both):
-  #   DBT_RUNNER=duckdb: use trino-catalog-patch.yaml (Hive Metastore thrift)
-  #   DBT_RUNNER=glue:   use trino-glue-catalog-patch.yaml (Glue Data Catalog)
-  # Current active runner: duckdb
-  - path: trino-catalog-patch.yaml
-    target:
-      kind: ConfigMap
-      name: trino-config
 
   # Trino deployment: Remove MinIO initContainer and credential references
   - path: trino-patch.yaml
