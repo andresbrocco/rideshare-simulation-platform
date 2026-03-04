@@ -1,6 +1,8 @@
 name: Integration Tests
 
 on:
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly on Monday at 02:00 UTC
   workflow_dispatch:
 
 jobs:
