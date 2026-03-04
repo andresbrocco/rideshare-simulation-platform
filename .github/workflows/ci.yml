@@ -58,9 +58,9 @@ jobs:
           python -m venv services/stream-processor/venv
           services/stream-processor/venv/bin/pip install --quiet -e "services/stream-processor/[dev]"
 
-          # dbt - install with pyspark and pyhive for type checking
+          # dbt - install with pyspark for type checking
           python -m venv tools/dbt/venv
-          tools/dbt/venv/bin/pip install --quiet mypy pyspark pyhive
+          tools/dbt/venv/bin/pip install --quiet mypy pyspark
 
           # airflow - install with runtime dependencies for type checking
           python -m venv services/airflow/venv

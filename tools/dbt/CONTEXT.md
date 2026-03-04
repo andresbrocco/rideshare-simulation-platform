@@ -7,7 +7,7 @@ Implements the Silver and Gold layers of a medallion lakehouse architecture (Bro
 ## Responsibility Boundaries
 
 - **Owns**: Data transformation logic (Bronze to Silver to Gold), data quality tests, incremental processing strategy, SCD Type 2 implementation, anomaly detection
-- **Delegates to**: Bronze ingestion service (Bronze layer ingestion from Kafka), Spark Thrift Server (query execution), Airflow/MWAA (orchestration scheduling), Great Expectations (additional data validation)
+- **Delegates to**: Bronze ingestion service (Bronze layer ingestion from Kafka), DuckDB/Glue (query execution), Airflow/MWAA (orchestration scheduling), Great Expectations (additional data validation)
 - **Does not handle**: Raw event ingestion from Kafka, infrastructure provisioning, stream processing, or real-time serving
 
 ## Key Concepts
@@ -34,6 +34,6 @@ Staging models use `incremental_strategy: merge` with `_ingested_at` watermark t
 
 - **JSON Parsing**: Bronze layer stores entire Kafka message as JSON string in `_raw_value`. Staging models parse using `get_json_object()` for each field.
 - **Trip State Extraction**: Trip events arrive as `trip.requested`, `trip.matched`, etc. but staging model extracts just the state portion (`requested`, `matched`) using `split()` and `try_element_at()`.
-- **Test Data Scripts**: Helper Python scripts in root directory seed Bronze tables via PyHive for local development. These are for testing DBT transformations, not production data pipelines.
+- **Test Data Scripts**: Helper Python scripts previously seeded Bronze tables via direct Spark connections for local development. These scripts have been removed as part of the Spark removal; Bronze data is now populated by the bronze-ingestion service.
 - **Schema Evolution**: `on_schema_change: fail` for staging layer ensures explicit handling of upstream schema changes rather than silent failures.
 - **File Format**: All models explicitly use `file_format='delta'` for ACID transaction support and time travel capabilities.

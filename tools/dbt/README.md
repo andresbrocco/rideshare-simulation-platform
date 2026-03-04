@@ -8,9 +8,6 @@
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `DBT_SPARK_HOST` | Spark Thrift Server hostname | `localhost` / `spark-thrift-server` | Yes |
-| `HIVE_LDAP_USERNAME` | LDAP username for Spark/Hive authentication | `admin` | Yes |
-| `HIVE_LDAP_PASSWORD` | LDAP password for Spark/Hive authentication | `admin` | Yes |
 | `DUCKDB_PATH` | DuckDB database file path (local profile) | `/tmp/rideshare.duckdb` | No |
 | `S3_ENDPOINT` | MinIO/S3 endpoint (DuckDB profile) | `minio:9000` | No |
 | `AWS_ACCESS_KEY_ID` | S3 access key (DuckDB profile) | `minioadmin` | No |
@@ -53,7 +50,7 @@
 | File | Purpose |
 |------|---------|
 | `dbt_project.yml` | Project configuration, model paths, materialization settings |
-| `profiles.yml` | Connection profiles (local DuckDB, Spark Thrift Server, AWS Glue) |
+| `profiles.yml` | Connection profiles (local DuckDB, AWS Glue) |
 | `packages.yml` | DBT package dependencies (dbt_expectations, dbt_date) |
 
 ### Database Schemas
@@ -67,14 +64,11 @@
 ### Prerequisites
 
 **Required Services (Docker):**
-- Spark Thrift Server (port 10000) — Hive-compatible query engine
-- Hive Metastore (port 9083) — Metadata catalog for Delta tables
 - MinIO (port 9000) — S3-compatible object storage for Delta Lake
-- OpenLDAP (port 389) — Authentication for Spark Thrift Server
 
 **Required Python Packages:**
 ```bash
-pip install dbt-core dbt-spark dbt-duckdb pyhive
+pip install dbt-core dbt-duckdb
 ```
 
 **Start services:**
@@ -82,10 +76,6 @@ pip install dbt-core dbt-spark dbt-duckdb pyhive
 # Core + Data Pipeline profiles
 docker compose -f infrastructure/docker/compose.yml \
   --profile core --profile data-pipeline up -d
-
-# Optional: Spark Thrift Server for dual-engine validation
-docker compose -f infrastructure/docker/compose.yml \
-  --profile spark-testing up -d
 ```
 
 ## Common Tasks
@@ -103,15 +93,10 @@ docker compose -f infrastructure/docker/compose.yml \
 ./venv/bin/dbt build
 ```
 
-### Seed Test Data and Build Pipeline
+### Build Pipeline
 
 ```bash
-# Automated pipeline with data seeding
-./venv/bin/python seed_and_build_pipeline.py
-
-# Or manually:
-./venv/bin/python setup_all_bronze_tables.py    # Create Bronze tables
-./venv/bin/python insert_test_data.py            # Insert test data
+# Bronze data is populated by the bronze-ingestion service
 ./venv/bin/dbt run --select staging              # Build Silver layer
 ./venv/bin/dbt run --select marts                # Build Gold layer
 ```
@@ -120,46 +105,24 @@ docker compose -f infrastructure/docker/compose.yml \
 
 ```bash
 # Use local DuckDB (default)
-./venv/bin/dbt run --target local
-
-# Use Spark Thrift Server
-./venv/bin/dbt run --target spark-local
+./venv/bin/dbt run --target duckdb
 
 # Use AWS Glue (production)
-./venv/bin/dbt run --target cloud
+./venv/bin/dbt run --target glue
 ```
 
 ### Clean and Rebuild
 
 ```bash
-# Drop all Silver tables
-./venv/bin/python drop_all_staging_tables.py
-
-# Recreate Bronze tables
-./venv/bin/python recreate_bronze_tables.py
-
 # Rebuild everything
 ./venv/bin/dbt clean
 ./venv/bin/dbt deps    # Re-install packages
 ./venv/bin/dbt build   # Run and test all models
 ```
 
-### Add Anomaly Test Data
-
-```bash
-# Insert data that should trigger anomaly detection models
-./venv/bin/python insert_anomaly_test_data.py
-
-# Run anomaly models
-./venv/bin/dbt run --select staging.anomalies_*
-```
-
 ### Verify Data at Each Layer
 
 ```bash
-# Check Bronze data exists
-./venv/bin/python verify_bronze_data.py
-
 # Check Silver layer
 ./venv/bin/dbt run --select staging
 ./venv/bin/dbt test --select staging
@@ -174,9 +137,7 @@ docker compose -f infrastructure/docker/compose.yml \
 | Symptom | Cause | Solution |
 |---------|-------|----------|
 | `DELTA_READ_TABLE_WITHOUT_COLUMNS` error | Bronze Delta table exists but has no data/schema | Models use `source_with_empty_guard` macro to handle this. Check Bronze ingestion service is running. |
-| `Connection refused` to port 10000 | Spark Thrift Server not running | `docker compose --profile data-pipeline up -d spark-thrift-server` |
-| `Authentication failed` | Invalid LDAP credentials | Check `HIVE_LDAP_USERNAME` and `HIVE_LDAP_PASSWORD` (default: admin/admin) |
-| `Table not found: bronze_trips` | Bronze tables not created | Run `./venv/bin/python setup_all_bronze_tables.py` |
+| `Table not found: bronze_trips` | Bronze tables not yet registered | Ensure bronze-ingestion service is running and has processed events |
 | Incremental models rebuild every time | `_ingested_at` watermark not working | Check `is_incremental()` macro and `unique_key` in model config |
 | SCD Type 2 overlapping validity periods | Bug in SCD logic | Run `./venv/bin/dbt test --select test_scd_validity` to validate |
 | Missing macros from packages | Packages not installed | Run `./venv/bin/dbt deps` to install `dbt_expectations` and `dbt_date` |
