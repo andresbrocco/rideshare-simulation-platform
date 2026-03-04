@@ -49,7 +49,6 @@ SERVICE_REGISTRY: dict[str, ServiceDefinition] = {
     ),
     "rideshare-trino": ServiceDefinition("Trino", Environment.BOTH, 500, 2000),
     "rideshare-hive-metastore": ServiceDefinition("Hive Metastore", Environment.BOTH, 200, 1000),
-    "rideshare-openldap": ServiceDefinition("OpenLDAP", Environment.BOTH, 50, 200),
     "rideshare-postgres-airflow": ServiceDefinition(
         "Postgres (Airflow)",
         Environment.BOTH,
@@ -74,13 +73,6 @@ SERVICE_REGISTRY: dict[str, ServiceDefinition] = {
         100,
         500,
         heartbeat_thresholds=(30, 90),
-    ),
-    "rideshare-spark-thrift-server": ServiceDefinition(
-        "Spark Thrift Server",
-        Environment.BOTH,
-        500,
-        2000,
-        optional=True,
     ),
     # ── Monitoring ───────────────────────────────────────────────────────
     "rideshare-prometheus": ServiceDefinition("Prometheus", Environment.BOTH, 100, 500),

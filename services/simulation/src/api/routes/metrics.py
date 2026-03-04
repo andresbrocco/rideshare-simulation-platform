@@ -821,33 +821,6 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         except Exception as e:
             return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
 
-    async def check_spark_thrift() -> tuple[ContainerStatus, float | None, str | None]:
-        """Check Spark Thrift Server health via Spark UI API."""
-        spark_url = "http://spark-thrift-server:4040/api/v1/applications"
-        try:
-            start = time.perf_counter()
-            async with httpx.AsyncClient(timeout=3.0) as client:
-                response = await client.get(spark_url)
-                latency_ms = (time.perf_counter() - start) * 1000
-                if response.status_code == 200:
-                    apps = response.json()
-                    app_count = len(apps) if isinstance(apps, list) else 0
-                    return (
-                        _determine_status(latency_ms),
-                        round(latency_ms, 2),
-                        f"{app_count} app(s)",
-                    )
-                else:
-                    return (
-                        ContainerStatus.DEGRADED,
-                        round(latency_ms, 2),
-                        f"HTTP {response.status_code}",
-                    )
-        except httpx.TimeoutException:
-            return ContainerStatus.UNHEALTHY, None, "Request timed out"
-        except Exception as e:
-            return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
-
     async def check_localstack() -> tuple[ContainerStatus, float | None, str | None]:
         """Check LocalStack health via health endpoint."""
         localstack_url = "http://localstack:4566/_localstack/health"
@@ -1066,23 +1039,6 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         except Exception as e:
             return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
 
-    async def check_openldap() -> tuple[ContainerStatus, float | None, str | None]:
-        """Check OpenLDAP health via TCP connect to LDAP port."""
-        try:
-            start = time.perf_counter()
-            _, writer = await asyncio.wait_for(
-                asyncio.open_connection("openldap", 389),
-                timeout=3.0,
-            )
-            latency_ms = (time.perf_counter() - start) * 1000
-            writer.close()
-            await writer.wait_closed()
-            return _determine_status(latency_ms), round(latency_ms, 2), "LDAP port open"
-        except TimeoutError:
-            return ContainerStatus.UNHEALTHY, None, "Connection timed out"
-        except Exception as e:
-            return ContainerStatus.UNHEALTHY, None, f"Connection failed: {str(e)[:50]}"
-
     async def check_control_panel() -> tuple[ContainerStatus, float | None, str | None]:
         """Check Control Panel health via Vite dev server."""
         control_panel_url = "http://control-panel:5173/"
@@ -1289,7 +1245,6 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         stream_processor_result,
         schema_registry_result,
         minio_result,
-        spark_thrift_result,
         localstack_result,
         prometheus_result,
         cadvisor_result,
@@ -1303,7 +1258,6 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         tempo_result,
         trino_result,
         hive_metastore_result,
-        openldap_result,
     ) = await asyncio.gather(
         check_redis(),
         check_osrm(),
@@ -1311,7 +1265,6 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         check_stream_processor(),
         check_schema_registry(),
         check_minio(),
-        check_spark_thrift(),
         check_localstack(),
         check_prometheus(),
         check_cadvisor(),
@@ -1325,7 +1278,6 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         check_tempo(),
         check_trino(),
         check_hive_metastore(),
-        check_openldap(),
     )
     # Await the Airflow combined result (ran concurrently with the gather above)
     airflow_web_result, airflow_scheduler_raw = await airflow_task
@@ -1355,7 +1307,6 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
         # Data Pipeline — query / metastore
         "rideshare-trino": trino_result,
         "rideshare-hive-metastore": hive_metastore_result,
-        "rideshare-openldap": openldap_result,
         # Quality Orchestration profile
         "rideshare-postgres-airflow": postgres_airflow_result,
         "rideshare-postgres-metastore": postgres_metastore_result,
@@ -1365,7 +1316,6 @@ async def get_infrastructure_metrics(request: Request) -> InfrastructureResponse
             airflow_scheduler_raw[1],
             airflow_scheduler_raw[2],
         ),
-        "rideshare-spark-thrift-server": spark_thrift_result,
     }
 
     # Heartbeat ages for services that report heartbeat instead of latency
