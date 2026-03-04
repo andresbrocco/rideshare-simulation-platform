@@ -58,7 +58,6 @@ kubectl apply -f minio.yaml
 kubectl apply -f minio-init.yaml
 kubectl apply -f postgres-metastore.yaml
 kubectl apply -f hive-metastore.yaml
-kubectl apply -f spark-thrift-server.yaml
 kubectl apply -f trino.yaml
 kubectl apply -f bronze-ingestion.yaml
 kubectl apply -f bronze-init.yaml

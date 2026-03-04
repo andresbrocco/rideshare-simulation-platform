@@ -17,7 +17,6 @@ declare -a MANIFESTS=(
     "minio.yaml"
     "bronze-ingestion.yaml"
     "bronze-init.yaml"
-    "spark-thrift-server.yaml"
     "localstack.yaml"
     "airflow-postgres.yaml"
     "airflow-webserver.yaml"
@@ -55,7 +54,6 @@ echo "--------------------------------------------------------------------------
 declare -a POD_LABELS=(
     "app=minio"
     "app=bronze-ingestion"
-    "app=spark-thrift-server"
     "app=localstack"
     "app=airflow-postgres"
     "app=airflow-webserver"
@@ -83,7 +81,7 @@ if [ ${TIMEOUT_COUNT} -gt 0 ]; then
     echo "Timed out: ${TIMEOUT_COUNT} pods"
     echo ""
     echo "Pod status:"
-    kubectl get pods -l 'app in (minio,bronze-ingestion,spark-thrift-server,localstack,airflow-postgres,airflow-webserver,airflow-scheduler,prometheus,grafana)'
+    kubectl get pods -l 'app in (minio,bronze-ingestion,localstack,airflow-postgres,airflow-webserver,airflow-scheduler,prometheus,grafana)'
     exit 1
 fi
 
@@ -98,7 +96,6 @@ echo "------------------------------------------"
 declare -a EXPECTED_MEMORY=(
     "minio:256Mi"
     "bronze-ingestion:512Mi"
-    "spark-thrift-server:1024Mi"
     "localstack:512Mi"
     "airflow-postgres:256Mi"
     "airflow-webserver:384Mi"
@@ -144,7 +141,6 @@ echo "------------------------------------------"
 declare -a EXPECTED_SERVICES=(
     "minio"
     "bronze-ingestion"
-    "spark-thrift-server"
     "localstack"
     "airflow-postgres"
     "airflow-webserver"
@@ -181,8 +177,7 @@ echo ""
 echo "Next steps for manual verification:"
 echo "  1. MinIO console: kubectl port-forward svc/minio 9001:9001"
 echo "  2. Bronze ingestion health: kubectl port-forward svc/bronze-ingestion 8086:8080"
-echo "  3. Spark thrift server: kubectl port-forward svc/spark-thrift-server 10000:10000"
-echo "  4. Airflow UI: kubectl port-forward svc/airflow-webserver 8082:8082"
-echo "  5. Prometheus UI: kubectl port-forward svc/prometheus 9090:9090"
-echo "  6. Grafana UI: kubectl port-forward svc/grafana 3001:3001"
+echo "  3. Airflow UI: kubectl port-forward svc/airflow-webserver 8082:8082"
+echo "  4. Prometheus UI: kubectl port-forward svc/prometheus 9090:9090"
+echo "  5. Grafana UI: kubectl port-forward svc/grafana 3001:3001"
 echo ""

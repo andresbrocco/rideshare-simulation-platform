@@ -17,7 +17,6 @@ Kubernetes resource definitions for deploying the rideshare simulation platform 
 **Service Inventory**:
 - **Core**: kafka, schema-registry, redis, osrm, simulation, stream-processor, frontend
 - **Data Pipeline**: minio, minio-init (Job), postgres-metastore, hive-metastore, trino, bronze-ingestion, bronze-init (Job), airflow-postgres, airflow-webserver, airflow-scheduler, localstack
-- **Spark Testing** (optional): spark-thrift-server (for dual-engine DBT validation)
 - **Monitoring**: prometheus, loki, tempo, otel-collector, cadvisor (DaemonSet), grafana
 
 **Gateway API**: Uses Kubernetes Gateway API (not Ingress) for HTTP routing. The `gateway.yaml` defines the entry point, while `httproute-*.yaml` files define path-based routing rules with URL rewriting.
