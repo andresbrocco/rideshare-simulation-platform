@@ -33,6 +33,8 @@ else:
     # Production: use IRSA/Pod Identity credential chain
     STORAGE_OPTIONS["AWS_REGION"] = os.environ.get("AWS_REGION", "us-east-1")
 
+DBT_RUNNER = os.environ.get("DBT_RUNNER", "duckdb")
+
 # Bronze tables required for Silver layer transformations
 REQUIRED_BRONZE_TABLES = [
     "bronze_trips",
@@ -112,12 +114,12 @@ with DAG(
 
     dbt_silver_run = BashOperator(
         task_id="dbt_silver_run",
-        bash_command="cd /opt/dbt && dbt run --select tag:silver --target local --profiles-dir /opt/dbt",
+        bash_command="cd /opt/dbt && dbt run --select tag:silver --target $DBT_RUNNER --profiles-dir /opt/dbt",
     )
 
     dbt_silver_test = BashOperator(
         task_id="dbt_silver_test",
-        bash_command="cd /opt/dbt && dbt test --select tag:silver --target local --threads 2 --profiles-dir /opt/dbt",
+        bash_command="cd /opt/dbt && dbt test --select tag:silver --target $DBT_RUNNER --threads 2 --profiles-dir /opt/dbt",
     )
 
     ge_silver_validation = BashOperator(
@@ -195,27 +197,27 @@ with DAG(
 
     dbt_seed = BashOperator(
         task_id="dbt_seed",
-        bash_command="cd /opt/dbt && dbt seed --target local --profiles-dir /opt/dbt",
+        bash_command="cd /opt/dbt && dbt seed --target $DBT_RUNNER --profiles-dir /opt/dbt",
     )
 
     dbt_gold_dimensions = BashOperator(
         task_id="dbt_gold_dimensions",
-        bash_command="cd /opt/dbt && dbt run --select tag:dimensions --target local --profiles-dir /opt/dbt",
+        bash_command="cd /opt/dbt && dbt run --select tag:dimensions --target $DBT_RUNNER --profiles-dir /opt/dbt",
     )
 
     dbt_gold_facts = BashOperator(
         task_id="dbt_gold_facts",
-        bash_command="cd /opt/dbt && dbt run --select tag:facts --target local --profiles-dir /opt/dbt",
+        bash_command="cd /opt/dbt && dbt run --select tag:facts --target $DBT_RUNNER --profiles-dir /opt/dbt",
     )
 
     dbt_gold_aggregates = BashOperator(
         task_id="dbt_gold_aggregates",
-        bash_command="cd /opt/dbt && dbt run --select tag:aggregates --target local --profiles-dir /opt/dbt",
+        bash_command="cd /opt/dbt && dbt run --select tag:aggregates --target $DBT_RUNNER --profiles-dir /opt/dbt",
     )
 
     dbt_gold_test = BashOperator(
         task_id="dbt_gold_test",
-        bash_command="cd /opt/dbt && dbt test --select tag:gold --target local --threads 2 --profiles-dir /opt/dbt",
+        bash_command="cd /opt/dbt && dbt test --select tag:gold --target $DBT_RUNNER --threads 2 --profiles-dir /opt/dbt",
     )
 
     ge_gold_validation = BashOperator(

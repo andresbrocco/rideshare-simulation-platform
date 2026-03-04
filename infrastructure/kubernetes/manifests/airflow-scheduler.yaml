@@ -70,8 +70,6 @@ spec:
           value: "30"
         - name: AIRFLOW__CORE__EXECUTION_API_SERVER_URL
           value: "http://airflow-webserver:8082/execution/"
-        - name: DBT_SPARK_HOST
-          value: spark-thrift-server
         - name: AWS_ENDPOINT_URL
           value: "http://minio:9000"
         - name: AWS_ALLOW_HTTP

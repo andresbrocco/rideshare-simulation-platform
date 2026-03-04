@@ -727,6 +727,7 @@ services:
     environment:
       PROD_MODE: ${PROD_MODE:-false}
       SILVER_SCHEDULE: ${SILVER_SCHEDULE:-10 * * * *}
+      DBT_RUNNER: ${DBT_RUNNER:-duckdb}
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
@@ -788,6 +789,7 @@ services:
     environment:
       PROD_MODE: ${PROD_MODE:-false}
       SILVER_SCHEDULE: ${SILVER_SCHEDULE:-10 * * * *}
+      DBT_RUNNER: ${DBT_RUNNER:-duckdb}
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
@@ -795,7 +797,6 @@ services:
       AIRFLOW__CORE__PARALLELISM: 8
       AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: 30
       AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-webserver:8080/execution/'
-      DBT_SPARK_HOST: spark-thrift-server
       # S3/MinIO non-secret config (credentials sourced at runtime from secrets volume)
       AWS_ENDPOINT_URL: http://minio:9000
       AWS_ALLOW_HTTP: "true"
