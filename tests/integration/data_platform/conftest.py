@@ -19,6 +19,7 @@ import boto3
 import httpx
 import pytest
 import redis
+import trino
 from confluent_kafka import Consumer, Producer
 from confluent_kafka.admin import AdminClient, NewTopic
 
@@ -354,6 +355,24 @@ def localstack_secrets_client(wait_for_services):
         aws_secret_access_key="test",
         region_name="us-east-1",
     )
+
+
+@pytest.fixture(scope="session")
+def trino_connection(wait_for_services):
+    """Trino DBAPI connection for querying Delta lakehouse tables.
+
+    Connects to Trino at localhost:8084 with the delta catalog.
+    Requires the data-pipeline Docker profile.
+    """
+    conn = trino.dbapi.connect(
+        host="localhost",
+        port=8084,
+        user="integration-test",
+        catalog="delta",
+        schema="default",
+    )
+    yield conn
+    conn.close()
 
 
 @pytest.fixture(scope="session")
