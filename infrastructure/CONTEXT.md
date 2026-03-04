@@ -8,13 +8,13 @@ Provides the deployment, orchestration, and cloud provisioning layer for the rid
 
 - **Owns**: Docker Compose multi-profile deployment, Kubernetes manifests and overlays, Terraform cloud provisioning (bootstrap → foundation → platform), secrets management infrastructure, ArgoCD GitOps configuration, Kustomize environment overlays
 - **Delegates to**: Service application logic and Dockerfiles (`services/`), data transformations (`tools/dbt/`), CI/CD workflow definitions (`.github/workflows/`)
-- **Does not handle**: Application code, business logic, container image building, LDAP authentication setup (`services/openldap/`)
+- **Does not handle**: Application code, business logic, container image building
 
 ## Key Concepts
 
 **Three-Layer Terraform Architecture** — Cloud infrastructure is provisioned in three dependent layers: (1) Bootstrap creates the S3 state bucket and DynamoDB lock table, (2) Foundation provisions VPC, Route 53, ACM, S3 data buckets, CloudFront, ECR, Secrets Manager, and IAM roles (8 modules), (3) Platform provisions EKS, RDS, ALB controller, and DNS records (4 modules). Each layer stores state in the bootstrap bucket and platform reads foundation outputs via `terraform_remote_state`.
 
-**Profile-Based Deployment** — Services are organized into logical groups (core, data-pipeline, monitoring, spark-testing) that can be deployed independently or combined. Pattern is consistent across both Docker Compose and Kubernetes, allowing selective resource allocation based on use case.
+**Profile-Based Deployment** — Services are organized into logical groups (core, data-pipeline, monitoring) that can be deployed independently or combined. Pattern is consistent across both Docker Compose and Kubernetes, allowing selective resource allocation based on use case.
 
 **Centralized Secrets Management** — All credentials stored in AWS Secrets Manager (LocalStack for development, real AWS for production). The `secrets-init` service fetches secrets and writes grouped env files (`/secrets/core.env`, `/secrets/data-pipeline.env`, `/secrets/monitoring.env`) for each profile. Changing `AWS_ENDPOINT_URL` from LocalStack to AWS is the only migration step required.
 
@@ -36,7 +36,7 @@ Provides the deployment, orchestration, and cloud provisioning layer for the rid
 
 **Kind Resource Budget** — The local Kind cluster is configured with a 10GB total memory budget. Kustomize local overlays reduce resource requests/limits to fit within this constraint.
 
-**DBT Export Bridge** — The `export-dbt-to-s3.py` script bridges DuckDB-based local transformations to S3 Delta tables for Trino querying in Grafana dashboards. This allows local development with DuckDB while maintaining production parity with Spark/Trino.
+**DBT Export Bridge** — The `export-dbt-to-s3.py` script bridges DuckDB-based local transformations to S3 Delta tables for Trino querying in Grafana dashboards. This allows local development with DuckDB while maintaining production parity with Trino.
 
 ## Related Modules
 

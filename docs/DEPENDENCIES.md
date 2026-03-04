@@ -212,7 +212,7 @@ How modules within this codebase depend on each other.
 | Package | Version | Used By | Purpose |
 |---------|---------|---------|---------|
 | dbt-duckdb | (via venv) | models/* | Local transformation engine |
-| dbt-spark | (via venv) | models/* | Spark integration for dual-engine validation |
+| dbt-glue | (via venv) | models/* | AWS Glue integration for cloud transformations |
 | dbt-utils | 1.3.0 | models/marts | Common macros |
 | dbt_expectations | 0.10.1 | models/staging | Data quality macros |
 
@@ -221,7 +221,6 @@ How modules within this codebase depend on each other.
 | Package | Version | Used By | Purpose |
 |---------|---------|---------|---------|
 | apache-airflow | 3.1.5 | dags/* | Workflow orchestration |
-| apache-airflow-providers-apache-spark | 5.0.0 | dags/* | Spark integration |
 
 #### tools/great-expectations (Python)
 
@@ -289,7 +288,6 @@ How modules within this codebase depend on each other.
 | websockets | 14.1 | WebSocket client |
 | boto3 | >=1.35.0 | AWS SDK (for LocalStack) |
 | confluent-kafka | >=2.6.0 | Kafka client |
-| PyHive | >=0.7.0 | Hive/Spark Thrift client |
 | redis | >=5.0.0 | Redis client |
 
 ## External Service Dependencies
@@ -309,7 +307,6 @@ Runtime services required for operation.
 | Hive Metastore | trino | Table metadata catalog (PostgreSQL-backed) |
 | PostgreSQL | airflow, hive-metastore | Backend database |
 | LocalStack | infrastructure/scripts | AWS Secrets Manager emulation |
-| OpenLDAP | spark-thrift-server | LDAP authentication |
 
 ### Observability Services
 
@@ -368,9 +365,9 @@ None detected.
 - **Two-Phase Pause**: RUNNING → DRAINING → PAUSED for safe checkpointing
 - **Thread Coordination**: ThreadCoordinator command queue for FastAPI ↔ SimPy communication
 - **SCD Type 2**: Profile updates tracked in DBT dimension tables
-- **Profile-Based Deployment**: Docker Compose profiles (core, data-pipeline, monitoring, spark-testing)
+- **Profile-Based Deployment**: Docker Compose profiles (core, data-pipeline, monitoring)
 - **Secrets Management**: LocalStack Secrets Manager with grouped env files per profile
-- **Multi-Engine DBT**: DuckDB (local) and Spark (validation) via cross-db macros
+- **Two-Engine DBT**: DuckDB (local/default) and AWS Glue (production) via cross-db macros and `DBT_RUNNER` env var
 
 ### Observability Stack
 
@@ -382,8 +379,8 @@ None detected.
 ### DBT Dual-Engine Validation
 
 - **Primary**: dbt-duckdb for local development and CI
-- **Secondary**: dbt-spark via Spark Thrift Server for production parity testing
-- **Profile**: `spark-testing` Docker Compose profile enables Spark Thrift Server
+- **Secondary**: dbt-glue for AWS Glue Interactive Sessions (production-scale)
+- **Switch**: `DBT_RUNNER` environment variable selects engine (`duckdb` or `glue`)
 
 ---
 

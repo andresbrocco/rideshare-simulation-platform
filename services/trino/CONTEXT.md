@@ -8,7 +8,7 @@ Distributed SQL query engine (Trino 451) that provides interactive analytical qu
 
 - **Owns**: SQL query execution, query planning and optimization, catalog connector configuration
 - **Delegates to**: Hive Metastore for table/partition metadata resolution, MinIO for data storage via S3A, Grafana for dashboard queries (via the `trino-datasource` plugin)
-- **Does not handle**: Data ingestion, schema management, data transformation (Spark/dbt), metadata persistence (Hive Metastore)
+- **Does not handle**: Data ingestion, schema management, data transformation (DBT), metadata persistence (Hive Metastore)
 
 ## Key Concepts
 

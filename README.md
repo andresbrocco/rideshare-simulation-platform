@@ -82,10 +82,7 @@ cd services/control-panel && npm run test
 | 8082 | airflow-webserver | Airflow web UI |
 | 5434 | postgres-metastore | PostgreSQL (Hive metastore) |
 | 9083 | hive-metastore | Hive metastore thrift service |
-| 389 | openldap | OpenLDAP authentication |
 | 8084 | trino | Trino query engine |
-| 10000 | spark-thrift-server | Spark Thrift Server (JDBC/ODBC) |
-| 4041 | spark-thrift-server | Spark UI |
 | 9090 | prometheus | Prometheus metrics storage |
 | 8083 | cadvisor | cAdvisor container metrics |
 | 3001 | grafana | Grafana dashboards |
@@ -263,7 +260,6 @@ rideshare-simulation-platform/
 |   |-- cadvisor/           # Container resource metrics
 |   |-- postgres/           # PostgreSQL instances
 |   |-- schema-registry/    # Confluent Schema Registry
-|   `-- openldap/           # OpenLDAP authentication for Spark Thrift Server
 |-- infrastructure/
 |   |-- docker/             # Docker Compose multi-profile orchestration
 |   |-- kubernetes/         # Kind cluster, manifests, ArgoCD, Kustomize
@@ -292,9 +288,9 @@ rideshare-simulation-platform/
 | **services/bronze-ingestion** | Kafka-to-Delta Lake ingestion with dead-letter queue handling | [README](services/bronze-ingestion/README.md) |
 | **services/control-panel** | React 19 + deck.gl real-time map visualization with puppet mode for manual agent control | [README](services/control-panel/README.md) |
 | **services/airflow** | Airflow 3.1.5 DAGs for DBT Silver/Gold transforms, DLQ monitoring, Delta maintenance | [README](services/airflow/README.md) |
-| **tools/dbt** | Medallion transformations with dual-engine support (DuckDB primary, Spark validation) | [README](tools/dbt/README.md) |
+| **tools/dbt** | Medallion transformations with dbt-duckdb (local/default) and dbt-glue (AWS Glue) | [README](tools/dbt/README.md) |
 | **tools/great-expectations** | Data quality validation for Silver and Gold layers | [README](tools/great-expectations/README.md) |
-| **infrastructure/docker** | Docker Compose with 4 profiles orchestrating 30+ services | [README](infrastructure/docker/README.md) |
+| **infrastructure/docker** | Docker Compose with 3 profiles orchestrating 30+ services | [README](infrastructure/docker/README.md) |
 | **infrastructure/kubernetes** | Kind cluster, base manifests, overlays, ArgoCD GitOps, Helm charts | [README](infrastructure/kubernetes/README.md) |
 | **services/grafana** | Multi-datasource dashboards (Prometheus, Trino, Loki, Tempo) | [README](services/grafana/README.md) |
 | **tests/performance** | Container resource measurement and performance characterization | [README](tests/performance/README.md) |
@@ -306,7 +302,6 @@ rideshare-simulation-platform/
 | **core** | kafka, redis, osrm, simulation, stream-processor, frontend | Real-time simulation runtime |
 | **data-pipeline** | minio, bronze-ingestion, localstack, airflow, hive-metastore, trino | ETL, lakehouse, orchestration |
 | **monitoring** | prometheus, cadvisor, grafana, otel-collector, loki, tempo | Observability stack |
-| **spark-testing** | spark-thrift-server, openldap | DBT dual-engine validation (optional) |
 
 ## Cloud Deployment
 

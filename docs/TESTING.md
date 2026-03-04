@@ -281,7 +281,6 @@ cd tools/dbt
 - `minio_client` - S3 client for MinIO
 - `kafka_admin` - Kafka AdminClient
 - `kafka_producer` - Kafka Producer
-- `thrift_connection` - PyHive connection to Spark Thrift Server
 - `simulation_api_client` - HTTP client for Simulation API
 - `test_context` - Unique test ID generation
 

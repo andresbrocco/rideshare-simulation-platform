@@ -2,17 +2,17 @@
 
 ## Purpose
 
-PostgreSQL 16 relational database instance storing the Hive Metastore catalog. This is one of two independent PostgreSQL instances in the platform; this one is dedicated to the Hive Metastore used by Trino and Spark to discover Delta Lake tables.
+PostgreSQL 16 relational database instance storing the Hive Metastore catalog. This is one of two independent PostgreSQL instances in the platform; this one is dedicated to the Hive Metastore used by Trino to discover Delta Lake tables.
 
 ## Responsibility Boundaries
 
 - **Owns**: Relational data persistence for Hive Metastore catalog, data integrity via ACID transactions, connection management
 - **Delegates to**: Hive Metastore for catalog operations (table/partition definitions, schema evolution)
-- **Does not handle**: Airflow metadata (separate `postgres-airflow` instance), application data (MinIO/Delta Lake), query execution (Trino/Spark), scheduling (Airflow)
+- **Does not handle**: Airflow metadata (separate `postgres-airflow` instance), application data (MinIO/Delta Lake), query execution (Trino), scheduling (Airflow)
 
 ## Key Concepts
 
-**Hive Metastore Catalog**: Stores table definitions, partition metadata, column schemas, and SerDe information. Accessed exclusively by the `hive-metastore` service via JDBC (`jdbc:postgresql://postgres-metastore:5432/metastore`).
+**Hive Metastore Catalog**: Stores table definitions, partition metadata, column schemas, and SerDe information for Trino's Delta Lake catalog. Accessed exclusively by the `hive-metastore` service via JDBC (`jdbc:postgresql://postgres-metastore:5432/metastore`).
 
 **Named Volume**: Uses `postgres-metastore-data` Docker volume for data persistence across container restarts.
 

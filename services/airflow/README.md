@@ -74,10 +74,9 @@ Airflow uses PostgreSQL (`postgres-airflow`) for metadata storage:
 - **MinIO** (S3-compatible storage for Bronze Delta tables)
 - **DuckDB 1.4.4** (querying Delta tables in DLQ monitoring)
 - **delta-rs 1.4.2** (Delta Lake operations without Spark)
-- **DBT 1.10.0** (with dbt-duckdb and dbt-spark)
+- **DBT 1.10.0** (with dbt-duckdb and dbt-glue)
 - **Great Expectations** (data validation)
 - **Trino** (SQL query engine for Silver/Gold layers)
-- **Spark Thrift Server** (optional, for dual-engine DBT validation)
 
 ## Common Tasks
 

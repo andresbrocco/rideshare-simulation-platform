@@ -1,7 +1,3 @@
-# Airflow Connection Configuration for Streaming Jobs DAG
+# Airflow Connection Configuration
 #
-# Local Spark connection (used when RIDESHARE_ENVIRONMENT=local)
-spark_default:
-  conn_type: spark
-  host: spark://spark-master
-  port: 7077
+# Connections defined here are loaded at startup via the Airflow connections import.

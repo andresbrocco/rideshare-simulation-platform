@@ -18,7 +18,7 @@ The simulation uses SimPy for discrete-event modeling with DNA-based agent behav
 | **Simulation** | SimPy 4.1.1 (discrete-event), FastAPI 0.115.6 (REST/WebSocket) |
 | **Event Streaming** | Kafka (KRaft mode, SASL auth), Confluent Schema Registry |
 | **Lakehouse** | Delta Lake 1.4.2, MinIO (S3), Trino 439, Hive Metastore |
-| **Transformations** | DBT (dbt-duckdb primary, dbt-spark validation) |
+| **Transformations** | DBT (dbt-duckdb local/production, dbt-glue AWS Glue) |
 | **Orchestration** | Apache Airflow 3.1.5 |
 | **Data Quality** | Great Expectations, DBT tests |
 | **Frontend** | React 19.2.1, deck.gl 9.2.5, MapLibre, Vite |
@@ -26,7 +26,7 @@ The simulation uses SimPy for discrete-event modeling with DNA-based agent behav
 | **Caching** | Redis 7 (state snapshots, pub/sub) |
 | **Routing** | OSRM (Sao Paulo map data) |
 | **Secrets** | LocalStack Secrets Manager (dev), AWS Secrets Manager (prod) |
-| **Deployment** | Docker Compose (4 profiles), Kubernetes with Kind |
+| **Deployment** | Docker Compose (3 profiles), Kubernetes with Kind |
 
 ## Quick Orientation
 
@@ -124,7 +124,7 @@ Key modules in this codebase:
 | **services/bronze-ingestion** | Kafka-to-Delta Lake ingestion with DLQ handling | [→](services/bronze-ingestion/CONTEXT.md) |
 | **services/control-panel** | Real-time visualization with deck.gl, WebSocket, puppet mode | [→](services/control-panel/src/components/CONTEXT.md) |
 | **services/airflow** | Pipeline orchestration for DBT transformations and DLQ monitoring | [→](services/airflow/CONTEXT.md) |
-| **tools/dbt** | Bronze → Silver → Gold transformations with dual-engine support | [→](tools/dbt/models/marts/CONTEXT.md) |
+| **tools/dbt** | Bronze → Silver → Gold transformations with dbt-duckdb (local) and dbt-glue (AWS Glue) | [→](tools/dbt/models/marts/CONTEXT.md) |
 | **tools/great-expectations** | Data quality validation for Silver and Gold layers | [→](tools/great-expectations/CONTEXT.md) |
 | **services/grafana** | Multi-datasource dashboards (Prometheus, Trino, Loki, Tempo) | [→](services/grafana/CONTEXT.md) |
 | **infrastructure** | Docker Compose profiles, Kubernetes manifests, secrets management | [→](infrastructure/CONTEXT.md) |
@@ -157,7 +157,6 @@ Key modules in this codebase:
 | **core** | kafka, redis, osrm, simulation, stream-processor, frontend | Real-time simulation runtime |
 | **data-pipeline** | minio, bronze-ingestion, localstack, airflow, hive-metastore, trino | ETL, lakehouse, orchestration |
 | **monitoring** | prometheus, cadvisor, grafana, otel-collector, loki, tempo | Observability stack |
-| **spark-testing** | spark-thrift-server, openldap | DBT dual-engine validation (optional) |
 
 ## Key Domain Concepts
 
@@ -285,6 +284,6 @@ open http://localhost:9090
 
 **Generated**: 2026-02-13
 **System Type**: Event-Driven Data Engineering Platform with Discrete-Event Simulation
-**Deployment Profiles**: 4 (core, data-pipeline, monitoring, spark-testing)
+**Deployment Profiles**: 3 (core, data-pipeline, monitoring)
 **Services**: 30+ containerized services
 **Documented Modules**: 46

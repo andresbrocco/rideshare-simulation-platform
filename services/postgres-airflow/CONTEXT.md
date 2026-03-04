@@ -8,7 +8,7 @@ PostgreSQL 16 relational database instance storing Airflow workflow metadata. Th
 
 - **Owns**: Relational data persistence for Airflow, data integrity via ACID transactions, connection management
 - **Delegates to**: Airflow for workflow metadata management (DAG runs, task instances, XCom)
-- **Does not handle**: Hive Metastore catalog (separate `postgres-metastore` instance), application data (MinIO/Delta Lake), query execution (Trino/Spark)
+- **Does not handle**: Hive Metastore catalog (separate `postgres-metastore` instance), application data (MinIO/Delta Lake), query execution (Trino)
 
 ## Key Concepts
 

@@ -27,7 +27,7 @@ GitHub Actions
 3. Set up Python 3.13
 4. Install test dependencies and DBT
 5. Build and start core + data-pipeline Docker Compose profiles
-6. Wait for services (MinIO, Kafka, Schema Registry, Redis, LocalStack, Spark Thrift Server)
+6. Wait for services (MinIO, Kafka, Schema Registry, Redis, LocalStack)
 7. Verify secrets initialization
 8. Run integration tests
 9. Collect container logs on failure
@@ -66,7 +66,6 @@ GitHub Actions
   | core | kafka, schema-registry, redis, osrm, simulation, stream-processor, frontend | Simulation runtime |
   | data-pipeline | minio, bronze-ingestion, localstack, airflow, hive-metastore, trino, postgres-airflow, postgres-metastore | ETL and lakehouse |
   | monitoring | prometheus, cadvisor, grafana, otel-collector, loki, tempo | Observability |
-  | spark-testing | spark-thrift-server, openldap | Dual-engine DBT validation |
 
 ### Build Commands
 ```bash
@@ -146,7 +145,7 @@ Kind (Kubernetes in Docker) - local development cluster
   |--------|------|---------|
   | rideshare/api-key | API_KEY | REST API authentication |
   | rideshare/core | KAFKA_SASL_USERNAME, KAFKA_SASL_PASSWORD, REDIS_PASSWORD, SCHEMA_REGISTRY_USER, SCHEMA_REGISTRY_PASSWORD | Core services (Kafka, Redis, Schema Registry) |
-  | rideshare/data-pipeline | MINIO_ROOT_USER, MINIO_ROOT_PASSWORD, POSTGRES_AIRFLOW_USER, POSTGRES_AIRFLOW_PASSWORD, POSTGRES_METASTORE_USER, POSTGRES_METASTORE_PASSWORD, FERNET_KEY, INTERNAL_API_SECRET_KEY, JWT_SECRET, API_SECRET_KEY, ADMIN_USERNAME, ADMIN_PASSWORD, HIVE_LDAP_USERNAME, HIVE_LDAP_PASSWORD, LDAP_ADMIN_PASSWORD, LDAP_CONFIG_PASSWORD | Data pipeline (MinIO, PostgreSQL, Airflow, Hive, LDAP) |
+  | rideshare/data-pipeline | MINIO_ROOT_USER, MINIO_ROOT_PASSWORD, POSTGRES_AIRFLOW_USER, POSTGRES_AIRFLOW_PASSWORD, POSTGRES_METASTORE_USER, POSTGRES_METASTORE_PASSWORD, FERNET_KEY, INTERNAL_API_SECRET_KEY, JWT_SECRET, API_SECRET_KEY, ADMIN_USERNAME, ADMIN_PASSWORD | Data pipeline (MinIO, PostgreSQL, Airflow, Hive Metastore) |
   | rideshare/monitoring | ADMIN_USER, ADMIN_PASSWORD | Monitoring (Grafana) |
 
 ### Secrets Initialization
@@ -297,7 +296,6 @@ Service URLs:
 | otel-collector | 512m | - |
 | loki | 512m | - |
 | tempo | 512m | - |
-| spark-thrift-server | 3g | - |
 
 ## Development Setup
 
@@ -400,6 +398,6 @@ kubectl logs <pod-name> -f
 **Generated**: 2026-02-13
 **Codebase**: rideshare-simulation-platform
 **CI/CD**: GitHub Actions (4 workflows)
-**Containerization**: Docker Compose (4 profiles, 30+ services)
+**Containerization**: Docker Compose (3 profiles, 30+ services)
 **Deployment**: Docker Compose (local), Kind cluster (Kubernetes testing)
 **Monitoring**: Prometheus + Grafana + Loki + Tempo via OpenTelemetry

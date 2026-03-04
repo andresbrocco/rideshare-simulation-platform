@@ -53,9 +53,9 @@ venvs:	## Create virtual environments and install Python dependencies
 	@# stream-processor - install with opentelemetry packages
 	python3 -m venv $(STREAM_DIR)/venv
 	$(STREAM_DIR)/venv/bin/pip install --quiet -e $(STREAM_DIR)/[dev]
-	@# dbt - install with pyspark and pyhive for type checking
+	@# dbt - install mypy for type checking
 	python3 -m venv $(DBT_DIR)/venv
-	$(DBT_DIR)/venv/bin/pip install --quiet mypy pyspark pyhive
+	$(DBT_DIR)/venv/bin/pip install --quiet mypy
 	@# airflow - install with runtime dependencies for type checking
 	python3 -m venv $(AIRFLOW_DIR)/venv
 	$(AIRFLOW_DIR)/venv/bin/pip install --quiet mypy types-requests duckdb apache-airflow deltalake
@@ -119,8 +119,6 @@ test-integration:	## Run integration tests (starts Docker services, polls health
 		MINIO_ENDPOINT=http://localhost:9000 \
 		KAFKA_BOOTSTRAP_SERVERS=localhost:9092 \
 		SCHEMA_REGISTRY_URL=http://localhost:8085 \
-		SPARK_THRIFT_HOST=localhost \
-		SPARK_THRIFT_PORT=10000 \
 		LOCALSTACK_ENDPOINT=http://localhost:4566 \
 		AWS_ENDPOINT_URL=http://localhost:4566 \
 		AWS_ACCESS_KEY_ID=test \

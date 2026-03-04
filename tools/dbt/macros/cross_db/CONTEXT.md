@@ -14,7 +14,7 @@ Database abstraction layer that enables DBT models to run on multiple SQL execut
 
 **Adapter Dispatch** — DBT pattern using `adapter.dispatch('macro_name', 'rideshare')` to select database-specific implementation at compile time. Each macro provides `duckdb__*`, `spark__*`, `glue__*`, and `default__*` variants.
 
-**Engine Compatibility Matrix** — DuckDB for local testing (fast iteration), Spark Thrift Server for CI validation, AWS Glue/Spark for production. All macros guarantee identical query semantics across engines.
+**Engine Compatibility Matrix** — DuckDB for local development (fast iteration, default via `DBT_RUNNER=duckdb`), AWS Glue Interactive Sessions for production (via `DBT_RUNNER=glue`). All macros guarantee identical query semantics across engines.
 
 **Format Translation** — Some macros (e.g., `format_date`) translate format strings between engine conventions (Spark's `yyyy-MM-dd` to DuckDB's `%Y-%m-%d`).
 
@@ -32,4 +32,3 @@ All macros use the `rideshare` namespace in `adapter.dispatch()` to avoid confli
 
 - **[tools/dbt/models/staging](../../models/staging/CONTEXT.md)** — Staging models that use these macros for cross-database date/time functions and JSON parsing
 - **[tools/dbt/models/marts](../../models/marts/CONTEXT.md)** — Marts models that use these macros for temporal joins and aggregations
-- **[services/openldap](../../../../services/openldap/CONTEXT.md)** — OpenLDAP provides authentication when DBT targets Spark Thrift Server in spark-testing profile

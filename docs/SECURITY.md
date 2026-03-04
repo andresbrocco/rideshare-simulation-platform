@@ -60,16 +60,7 @@ How users and services authenticate to the platform.
 - Module: `services/simulation/src/kafka/schema_registry.py`
 
 **Trino (No Auth)**:
-- Authentication: None (local development)
-- Production: LDAP via OpenLDAP service (optional `spark-testing` profile)
-
-**LDAP (Spark Thrift Server)**:
-- Service: OpenLDAP on port 389
-- User: `cn=admin,ou=users,dc=rideshare,dc=local`
-- Credentials: `LDAP_USERNAME` / `LDAP_PASSWORD`
-- Purpose: Authenticate DBT connections to Spark Thrift Server
-- Module: `services/openldap/`
-- TLS: Disabled in local development (`LDAP_TLS=false`)
+- Authentication: None (local development and production)
 
 ### Default Development Credentials
 
@@ -192,7 +183,7 @@ How secrets are handled across environments.
 |-------------|------|---------|
 | `rideshare/api-key` | API_KEY | simulation, frontend |
 | `rideshare/core` | KAFKA_SASL_USERNAME, KAFKA_SASL_PASSWORD, REDIS_PASSWORD, SCHEMA_REGISTRY_USER, SCHEMA_REGISTRY_PASSWORD | kafka, redis, simulation, stream-processor, bronze-ingestion |
-| `rideshare/data-pipeline` | MINIO_ROOT_USER, MINIO_ROOT_PASSWORD, POSTGRES_AIRFLOW_USER, POSTGRES_AIRFLOW_PASSWORD, POSTGRES_METASTORE_USER, POSTGRES_METASTORE_PASSWORD, FERNET_KEY, INTERNAL_API_SECRET_KEY, JWT_SECRET, API_SECRET_KEY, ADMIN_USERNAME, ADMIN_PASSWORD, HIVE_LDAP_USERNAME, HIVE_LDAP_PASSWORD, LDAP_ADMIN_PASSWORD, LDAP_CONFIG_PASSWORD | minio, airflow, postgres-*, hive-metastore, openldap |
+| `rideshare/data-pipeline` | MINIO_ROOT_USER, MINIO_ROOT_PASSWORD, POSTGRES_AIRFLOW_USER, POSTGRES_AIRFLOW_PASSWORD, POSTGRES_METASTORE_USER, POSTGRES_METASTORE_PASSWORD, FERNET_KEY, INTERNAL_API_SECRET_KEY, JWT_SECRET, API_SECRET_KEY, ADMIN_USERNAME, ADMIN_PASSWORD | minio, airflow, postgres-*, hive-metastore |
 | `rideshare/monitoring` | ADMIN_USER, ADMIN_PASSWORD | grafana |
 
 ### Access Pattern

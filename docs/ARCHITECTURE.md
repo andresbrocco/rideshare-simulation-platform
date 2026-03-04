@@ -87,7 +87,7 @@ The system follows a **five-layer architecture** from simulation through present
   - `delta_maintenance` (compaction and cleanup)
 - **Great Expectations**: Validation checkpoints for Silver and Gold layers with soft failure thresholds
 - **Trino**: Interactive SQL query engine with Hive Metastore catalog
-- **Dual-Engine DBT**: Primary development with dbt-duckdb, validation with dbt-spark via Thrift Server
+- **Two-Engine DBT**: dbt-duckdb for local development and production default, dbt-glue for AWS Glue Interactive Sessions (switched via `DBT_RUNNER` env var)
 
 ### 5. Presentation Layer
 
@@ -221,7 +221,6 @@ Airflow Scheduler → DAG Trigger → DBT Run → Delta Table Write → Great Ex
 | **Trino** | SQL query engine | services/grafana, tools/dbt | Port 8080 (HTTP) |
 | **Hive Metastore** | Table metadata catalog | services/trino | Port 9083 (Thrift) |
 | **LocalStack** | AWS Secrets Manager emulation | infrastructure/scripts | Port 4566 |
-| **OpenLDAP** | LDAP authentication for Spark Thrift | services/spark-thrift-server | Port 389 |
 | **Prometheus** | Metrics storage (7d retention) | services/grafana, services/otel-collector | Port 9090 |
 | **Loki** | Log aggregation | services/grafana, services/otel-collector | Port 3100 |
 | **Tempo** | Distributed tracing | services/grafana, services/otel-collector | Port 3200 |
@@ -235,7 +234,7 @@ Airflow Scheduler → DAG Trigger → DBT Run → Delta Table Write → Great Ex
 - FastAPI 0.115.6 (REST/WebSocket API)
 - confluent-kafka 2.12.2-2.13.0 (Kafka clients)
 - deltalake 1.4.2 (Delta Lake Python bindings)
-- dbt-duckdb, dbt-spark (transformation engines)
+- dbt-duckdb, dbt-glue (transformation engines)
 - deck.gl 9.2.5 (frontend visualization)
 
 **Infrastructure Images**:
@@ -255,7 +254,6 @@ Services are organized into **profile-based deployment groups** for selective re
 | **core** | simulation, frontend, kafka, redis, osrm, stream-processor | Docker: --profile core | Real-time simulation runtime |
 | **data-pipeline** | minio, bronze-ingestion, localstack, airflow, hive-metastore, trino | Docker: --profile data-pipeline | ETL, ingestion, orchestration |
 | **monitoring** | prometheus, cadvisor, grafana, otel-collector, loki, tempo | Docker: --profile monitoring | Observability stack |
-| **spark-testing** | spark-thrift-server, openldap | Docker: --profile spark-testing | DBT dual-engine validation (optional) |
 
 ### Deployment Environments
 
@@ -362,9 +360,9 @@ Provides AWS Secrets Manager API compatibility for local development without AWS
 
 DuckDB's delta and httpfs extensions allow querying Delta Lake tables directly without Spark overhead. Lightweight alternative for scheduled queries in Airflow DAGs.
 
-### Why Dual-Engine DBT (DuckDB + Spark)?
+### Why Two-Engine DBT (DuckDB + Glue)?
 
-DuckDB provides fast local development with minimal resources. Spark validation ensures production parity with distributed execution. Cross-db macros abstract engine differences.
+DuckDB provides fast local development with minimal resources. AWS Glue Interactive Sessions handle production-scale transformations using the same Spark SQL syntax. Cross-db macros abstract engine differences, and the `DBT_RUNNER` environment variable switches between engines without code changes.
 
 ### Why Manual Kafka Offset Commits?
 
@@ -406,5 +404,5 @@ Redis pub/sub provides low-latency broadcast to multiple WebSocket clients. Simu
 **Codebase**: rideshare-simulation-platform
 **System Type**: Event-Driven Data Engineering Platform
 **Total Components**: 15
-**Deployment Profiles**: 4
-**External Services**: 13
+**Deployment Profiles**: 3
+**External Services**: 12

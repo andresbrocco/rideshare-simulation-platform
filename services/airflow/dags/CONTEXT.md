@@ -8,7 +8,7 @@ Orchestrates the data pipeline transformations and quality checks for the ridesh
 
 - **Owns**: Scheduling and execution of DBT transformations, Great Expectations validations, and DLQ monitoring
 - **Delegates to**: DBT for SQL transformations (`/opt/dbt`), Great Expectations for data validation (`/opt/great-expectations`), DuckDB with delta/httpfs extensions for DLQ queries
-- **Does not handle**: Direct data processing (done by Spark Structured Streaming), schema evolution, or Kafka topic management
+- **Does not handle**: Direct data processing (done by bronze-ingestion service), schema evolution, or Kafka topic management
 
 ## Key Concepts
 

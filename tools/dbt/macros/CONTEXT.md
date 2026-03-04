@@ -7,7 +7,7 @@ Custom DBT macros that handle Delta Lake-specific edge cases and enforce medalli
 ## Responsibility Boundaries
 
 - **Owns**: Compile-time logic for safe Delta table access and schema name generation
-- **Delegates to**: DBT runtime for macro expansion, Spark for query execution
+- **Delegates to**: DBT runtime for macro expansion, DuckDB or AWS Glue for query execution
 - **Does not handle**: Model-level transformations, data quality checks, or incremental logic beyond empty table guards
 
 ## Key Concepts
@@ -22,4 +22,4 @@ Custom DBT macros that handle Delta Lake-specific edge cases and enforce medalli
 
 The `source_with_empty_guard` macro uses a UNION ALL pattern with `WHERE 1=0` to handle empty Delta tables gracefully. It always attempts to read from the Delta path in S3, but the union with typed NULL columns ensures the query succeeds even if the table has no schema yet. This is a query-execution pattern, not a compile-time check.
 
-The `generate_schema_name` macro ignores DBT's standard schema concatenation pattern (which would create `target.schema + custom_schema`) and instead uses the custom schema name directly as the database name. This is specific to dbt-spark and necessary for the medallion architecture.
+The `generate_schema_name` macro ignores DBT's standard schema concatenation pattern (which would create `target.schema + custom_schema`) and instead uses the custom schema name directly as the database name. This enforces clean medallion layer separation (bronze, silver, gold) across both dbt-duckdb and dbt-glue engines.

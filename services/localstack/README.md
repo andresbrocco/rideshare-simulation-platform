@@ -40,7 +40,7 @@ All application credentials are stored in LocalStack Secrets Manager:
 |-------------|----------|-----------|---------|
 | `rideshare/api-key` | API authentication key | 1 | `simulation`, `frontend` |
 | `rideshare/core` | Kafka, Redis, Schema Registry credentials | 5 | `kafka`, `redis`, `simulation`, `stream-processor`, `bronze-ingestion` |
-| `rideshare/data-pipeline` | MinIO, PostgreSQL, Airflow, Hive, LDAP credentials | 16 | `minio`, `airflow`, `postgres-*`, `hive-metastore`, `openldap` |
+| `rideshare/data-pipeline` | MinIO, PostgreSQL, Airflow, Hive Metastore credentials | 12 | `minio`, `airflow`, `postgres-*`, `hive-metastore` |
 | `rideshare/monitoring` | Grafana admin credentials | 2 | `grafana` |
 
 All secrets default to `admin` for username/password or format-compliant dev values for cryptographic keys.

@@ -2,12 +2,12 @@
 
 ## Purpose
 
-Apache Hive 4.0.0 Metastore service that stores table and partition metadata for Delta Lake tables in the medallion lakehouse architecture. Acts as the shared catalog that allows Trino and Spark to discover and query the same tables without duplicating schema definitions.
+Apache Hive 4.0.0 Metastore service that stores table and partition metadata for Delta Lake tables in the medallion lakehouse architecture. Acts as the catalog that allows Trino to discover and query Delta Lake tables. Only deployed when using the `duckdb` DBT runner (the default); the `glue` runner uses AWS Glue Data Catalog instead.
 
 ## Responsibility Boundaries
 
 - **Owns**: Table/partition metadata, schema evolution tracking, warehouse location mappings
-- **Delegates to**: postgres-metastore (PostgreSQL 16) for catalog persistence, MinIO for actual data storage via S3A filesystem, Trino and Spark for query execution
+- **Delegates to**: postgres-metastore (PostgreSQL 16) for catalog persistence, MinIO for actual data storage via S3A filesystem, Trino for query execution
 - **Does not handle**: Query processing, data storage, authentication, data transformation
 
 ## Key Concepts
@@ -16,7 +16,7 @@ Apache Hive 4.0.0 Metastore service that stores table and partition metadata for
 
 **S3A Filesystem**: Configured in `hive-site.xml` to connect to MinIO using path-style access (`fs.s3a.path.style.access=true`) over plain HTTP. The default warehouse directory is `s3a://rideshare-silver/warehouse/`.
 
-**Thrift Protocol**: Exposes the Hive Metastore API on port 9083 via Thrift. Trino's Delta Lake connector and Spark both connect to this endpoint to resolve table metadata.
+**Thrift Protocol**: Exposes the Hive Metastore API on port 9083 via Thrift. Trino's Delta Lake connector connects to this endpoint to resolve table metadata.
 
 **PostgreSQL Backend**: Catalog data (table definitions, partition info, schema versions) is persisted in the `metastore` database on the `postgres-metastore` service, replacing the default embedded Derby.
 

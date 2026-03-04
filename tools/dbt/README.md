@@ -181,7 +181,7 @@ bronze_surge_updates → stg_surge_updates   →  agg_surge_history
 |-------|---------|----------|
 | `source_with_empty_guard` | Prevents failure on empty Bronze tables | `macros/empty_source_guard.sql` |
 | `delta_source` | Read Delta tables from S3/MinIO | `macros/delta_source.sql` |
-| Cross-DB macros | Handle SQL dialect differences (Spark vs DuckDB) | `macros/cross_db/` |
+| Cross-DB macros | Handle SQL dialect differences (DuckDB vs Glue/Spark) | `macros/cross_db/` |
 
 ### Custom Tests
 
