@@ -272,7 +272,7 @@ open http://localhost:9090
 
 **Kafka SASL Auth**: All Kafka clients require SASL credentials. Default: `admin`/`admin`.
 
-**DBT Empty Source Guard**: Custom macro prevents Delta Lake errors when Bronze tables exist but have no data. Required for Spark compatibility.
+**DBT Empty Source Guard**: Custom macro prevents Delta Lake errors when Bronze tables exist but have no data. Required because Delta Lake raises `DELTA_READ_TABLE_WITHOUT_COLUMNS` on empty tables without schema.
 
 **Two-Phase Pause Timeout**: DRAINING state waits up to 7200 simulated seconds for active trips to complete before force-canceling.
 

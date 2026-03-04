@@ -20,7 +20,7 @@ Implements the Silver and Gold layers of a medallion lakehouse architecture (Bro
 
 ### Empty Source Guard
 
-Custom macro `source_with_empty_guard` that prevents failures when Bronze Delta tables exist but have no data or schema. Required because Spark raises `DELTA_READ_TABLE_WITHOUT_COLUMNS` exception on empty tables. All staging models must use this pattern when reading from Bronze.
+Custom macro `source_with_empty_guard` that prevents failures when Bronze Delta tables exist but have no data or schema. Required because Delta Lake raises `DELTA_READ_TABLE_WITHOUT_COLUMNS` on empty tables. All staging models must use this pattern when reading from Bronze.
 
 ### SCD Type 2
 
@@ -34,6 +34,6 @@ Staging models use `incremental_strategy: merge` with `_ingested_at` watermark t
 
 - **JSON Parsing**: Bronze layer stores entire Kafka message as JSON string in `_raw_value`. Staging models parse using `get_json_object()` for each field.
 - **Trip State Extraction**: Trip events arrive as `trip.requested`, `trip.matched`, etc. but staging model extracts just the state portion (`requested`, `matched`) using `split()` and `try_element_at()`.
-- **Test Data Scripts**: Helper Python scripts previously seeded Bronze tables via direct Spark connections for local development. These scripts have been removed as part of the Spark removal; Bronze data is now populated by the bronze-ingestion service.
+- **Test Data Scripts**: Helper Python scripts that previously seeded Bronze tables directly have been removed. Bronze data is now populated by the bronze-ingestion service consuming from Kafka.
 - **Schema Evolution**: `on_schema_change: fail` for staging layer ensures explicit handling of upstream schema changes rather than silent failures.
 - **File Format**: All models explicitly use `file_format='delta'` for ACID transaction support and time travel capabilities.

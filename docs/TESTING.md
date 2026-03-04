@@ -281,6 +281,7 @@ cd tools/dbt
 - `minio_client` - S3 client for MinIO
 - `kafka_admin` - Kafka AdminClient
 - `kafka_producer` - Kafka Producer
+- `trino_connection` - Trino DBAPI connection for querying Delta lakehouse tables
 - `simulation_api_client` - HTTP client for Simulation API
 - `test_context` - Unique test ID generation
 

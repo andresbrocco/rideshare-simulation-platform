@@ -119,7 +119,7 @@ How modules within this codebase depend on each other.
 - Implements staging models with SCD Type 2 for profile tables
 
 #### tools/dbt/macros/cross_db → dbt-core
-- Uses `adapter.dispatch()` for multi-engine support (DuckDB, Spark, Trino)
+- Uses `adapter.dispatch()` for multi-engine support (DuckDB, Glue/SparkSQL, Trino)
 - Provides `json_field()`, `to_ts()`, `epoch_seconds()`, etc.
 
 #### tools/great-expectations → tools/dbt
@@ -304,7 +304,7 @@ Runtime services required for operation.
 | OSRM | simulation | Routing calculations for Sao Paulo |
 | MinIO (S3) | bronze-ingestion, dbt, airflow | Lakehouse storage (Bronze, Silver, Gold) |
 | Trino | grafana, airflow | Interactive SQL over Delta Lake |
-| Hive Metastore | trino | Table metadata catalog (PostgreSQL-backed) |
+| Hive Metastore | trino | Table metadata catalog (PostgreSQL-backed); deployed only when `DBT_RUNNER=duckdb` |
 | PostgreSQL | airflow, hive-metastore | Backend database |
 | LocalStack | infrastructure/scripts | AWS Secrets Manager emulation |
 
@@ -323,7 +323,6 @@ Runtime services required for operation.
 
 | Image | Used In | Purpose |
 |-------|---------|---------|
-| apache/spark:4.0.0-python3 | infrastructure/docker/dockerfiles/spark-delta.Dockerfile | Spark with Delta Lake |
 | minio/minio:latest | infrastructure/docker/compose.yml | S3-compatible object storage |
 | osrm/osrm-backend:latest | infrastructure/docker/compose.yml | Routing engine |
 | redis:7-alpine | infrastructure/docker/compose.yml | Key-value store |

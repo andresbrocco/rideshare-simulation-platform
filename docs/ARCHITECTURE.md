@@ -24,7 +24,7 @@ High-level components and their responsibilities derived from CONTEXT.md files.
 | **Transformation (DBT)** | Medallion architecture transformations (Silver/Gold) | tools/dbt |
 | **Orchestration** | Airflow DAGs for pipeline scheduling and DLQ monitoring | services/airflow |
 | **Data Quality** | Great Expectations validation checkpoints | tools/great-expectations |
-| **Query Engine** | Trino SQL over Delta Lake tables | services/trino, services/hive-metastore |
+| **Query Engine** | Trino SQL over Delta Lake tables (Hive Metastore when duckdb runner, Glue Data Catalog when glue runner) | services/trino, services/hive-metastore |
 | **Observability** | Prometheus, Grafana, Loki, Tempo, OpenTelemetry | services/prometheus, services/grafana, services/otel-collector |
 | **Infrastructure** | Docker Compose and Kubernetes orchestration | infrastructure/docker, infrastructure/kubernetes |
 | **Secrets Management** | LocalStack Secrets Manager with profile-grouped credentials | infrastructure/scripts |
@@ -170,7 +170,7 @@ User Browser → REST API → ThreadCoordinator Command Queue → SimPy Engine
 #### 3. Analytical Query Path
 
 ```
-Grafana Dashboard → Trino Query → Hive Metastore (metadata) → Delta Lake (MinIO) → Result
+Grafana Dashboard → Trino Query → Hive Metastore or Glue Data Catalog (metadata) → Delta Lake (MinIO/S3) → Result
 ```
 
 **Characteristics**: Interactive SQL over lakehouse, supports time-travel queries, partition pruning.
@@ -204,7 +204,7 @@ Airflow Scheduler → DAG Trigger → DBT Run → Delta Table Write → Great Ex
 | REST API | /api/v1 | Simulation control, agent placement, metrics | X-API-Key header |
 | WebSocket | /ws | Real-time state snapshots with event filtering | Sec-WebSocket-Protocol: apikey.\<key\> |
 | Grafana | :3001 | Dashboards and alerting | Basic auth (admin/admin) |
-| Trino | :8080 | SQL queries over Delta Lake | LDAP (admin/admin) |
+| Trino | :8080 | SQL queries over Delta Lake | No auth (admin/admin) |
 | Airflow | :8081 | DAG management and monitoring | Basic auth (admin/admin) |
 | MinIO Console | :9001 | S3 bucket management | Access/secret key |
 
@@ -238,7 +238,6 @@ Airflow Scheduler → DAG Trigger → DBT Run → Delta Table Write → Great Ex
 - deck.gl 9.2.5 (frontend visualization)
 
 **Infrastructure Images**:
-- apache/spark:4.0.0-python3 (Spark with Delta Lake)
 - trinodb/trino:439 (query engine)
 - grafana/grafana:12.3.1 (dashboards)
 - prom/prometheus:v3.9.1 (metrics)
@@ -362,7 +361,7 @@ DuckDB's delta and httpfs extensions allow querying Delta Lake tables directly w
 
 ### Why Two-Engine DBT (DuckDB + Glue)?
 
-DuckDB provides fast local development with minimal resources. AWS Glue Interactive Sessions handle production-scale transformations using the same Spark SQL syntax. Cross-db macros abstract engine differences, and the `DBT_RUNNER` environment variable switches between engines without code changes.
+DuckDB provides fast local development with minimal resources. AWS Glue Interactive Sessions handle production-scale transformations using Glue's SparkSQL execution environment. Cross-db macros abstract engine differences, and the `DBT_RUNNER` environment variable switches between engines without code changes.
 
 ### Why Manual Kafka Offset Commits?
 
@@ -386,7 +385,7 @@ Redis pub/sub provides low-latency broadcast to multiple WebSocket clients. Simu
 **Cannot Scale Horizontally**:
 - Simulation Engine (single SimPy environment per instance, use multiple instances for parallel scenarios)
 - Redis (single instance, use Redis Cluster for HA)
-- Hive Metastore (single PostgreSQL backend)
+- Hive Metastore (single PostgreSQL backend; deployed only when `DBT_RUNNER=duckdb`)
 
 ### Performance Bottlenecks
 

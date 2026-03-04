@@ -7,7 +7,7 @@ This directory contains Kubernetes ConfigMaps and Secrets that centralize config
 ## Files
 
 - **configmap-core.yaml** - Core services configuration (Kafka, Redis, OSRM, Simulation, Stream Processor, OTel)
-- **configmap-data-pipeline.yaml** - Data pipeline configuration (MinIO, PostgreSQL, Spark, Hive Metastore, Trino, LocalStack)
+- **configmap-data-pipeline.yaml** - Data pipeline configuration (MinIO, PostgreSQL, Hive Metastore, Trino, LocalStack)
 - **secret-credentials.yaml** - Database passwords and service credentials
 - **secret-api-keys.yaml** - API keys and application secrets
 
@@ -91,7 +91,6 @@ envFrom:
 - PostgreSQL (Hive Metastore) connection details
 - Hive Metastore URI
 - Trino host and port
-- Spark settings
 - LocalStack AWS emulator endpoint
 
 ### App Credentials (app-credentials)

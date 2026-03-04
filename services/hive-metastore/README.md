@@ -45,7 +45,6 @@ Configuration is injected at runtime from **LocalStack Secrets Manager** via the
 
 **Downstream Clients:**
 - `trino` - Queries Delta Lake tables via Thrift connection
-- `spark-thrift-server` - Dual-engine validation for DBT models
 - `delta-table-init` - Registers Delta Lake tables via Trino
 
 ### Docker Service
@@ -88,7 +87,7 @@ Hive connects to MinIO using the S3A filesystem implementation:
 Clients connect to the metastore via Thrift protocol:
 
 - **URI:** `thrift://hive-metastore:9083`
-- **Clients:** Trino (`delta` catalog connector), Spark Thrift Server
+- **Clients:** Trino (`delta` catalog connector)
 - **No Authentication:** Open access within Docker network
 
 ## Common Tasks
@@ -241,4 +240,4 @@ docker exec -it rideshare-postgres-metastore psql -U admin -c "CREATE DATABASE m
 - [CONTEXT.md](CONTEXT.md) - Architecture details and non-obvious implementation notes
 - [services/trino/](../trino/) - Query engine that uses this metastore
 - [infrastructure/scripts/register-delta-tables.sh](../../infrastructure/scripts/register-delta-tables.sh) - Delta Lake table registration
-- [tools/dbt/](../../tools/dbt/) - DBT models using dual-engine validation (Trino + Spark Thrift Server)
+- [tools/dbt/](../../tools/dbt/) - DBT models using dual-engine validation (DuckDB + Glue)
