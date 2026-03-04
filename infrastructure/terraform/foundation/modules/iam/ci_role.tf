@@ -399,6 +399,25 @@ resource "aws_iam_role_policy" "github_actions_s3_frontend" {
   })
 }
 
+# Lambda Read Policy (required by deploy.yml and build-images.yml to fetch Lambda function URL)
+resource "aws_iam_role_policy" "github_actions_lambda" {
+  name = "lambda-read"
+  role = aws_iam_role.github_actions.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "lambda:GetFunctionUrlConfig"
+        ]
+        Resource = "arn:aws:lambda:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:function:${var.project_name}-*"
+      }
+    ]
+  })
+}
+
 # S3 Lakehouse Reset Policy (required by soft-reset.yml to empty bronze/silver/gold/checkpoints)
 resource "aws_iam_role_policy" "github_actions_s3_lakehouse" {
   name = "s3-lakehouse-reset"
