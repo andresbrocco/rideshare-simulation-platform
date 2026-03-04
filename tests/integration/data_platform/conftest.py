@@ -21,7 +21,6 @@ import pytest
 import redis
 from confluent_kafka import Consumer, Producer
 from confluent_kafka.admin import AdminClient, NewTopic
-from pyhive import hive
 
 from tests.integration.data_platform.utils.api_clients import (
     AirflowClient,
@@ -29,9 +28,7 @@ from tests.integration.data_platform.utils.api_clients import (
     PrometheusClient,
 )
 from tests.integration.data_platform.utils.credentials import fetch_all_credentials
-from tests.integration.data_platform.utils.sql_helpers import count_rows
 from tests.integration.data_platform.utils.wait_helpers import (
-    poll_until_records_present,
     wait_for_condition,
 )
 from tests.integration.data_platform.fixtures.driver_events import (
@@ -199,24 +196,12 @@ def reset_all_state(docker_compose, load_credentials):
     # 1. Stop streaming containers to release checkpoint file locks
     restart_streaming_containers(project_root, action="stop")
 
-    # 2. Drop all lakehouse tables from Hive metastore
+    # 2. Drop all lakehouse tables from the Hive metastore via Trino
     # This prevents orphaned metastore entries after we clear MinIO
-    # Spark Thrift Server is in the optional spark-testing profile and may not be running
     try:
-        thrift_conn = hive.Connection(
-            host="localhost",
-            port=10000,
-            database="default",
-            auth="LDAP",
-            username=os.environ["HIVE_LDAP_USERNAME"],
-            password=os.environ["HIVE_LDAP_PASSWORD"],
-        )
-        try:
-            drop_lakehouse_tables(thrift_conn)
-        finally:
-            thrift_conn.close()
+        drop_lakehouse_tables()
     except Exception as e:
-        print(f"[conftest] Spark Thrift Server not available, skipping table drop: {e}")
+        print(f"[conftest] Trino not available, skipping table drop: {e}")
 
     # 3. Clear all MinIO buckets (create client directly to avoid circular dependency)
     s3_client = boto3.client(
@@ -278,13 +263,6 @@ def wait_for_services(reset_all_state):
         except Exception:
             return False
 
-    def check_thrift_server_healthy():
-        try:
-            response = httpx.get("http://localhost:4041/json/", timeout=5.0, follow_redirects=True)
-            return response.status_code == 200
-        except Exception:
-            return False
-
     def check_airflow_healthy():
         try:
             # Airflow 3.x uses /api/v2, Airflow 2.x uses /api/v1
@@ -324,27 +302,6 @@ def wait_for_services(reset_all_state):
         poll_interval=2.0,
         description="Kafka/Schema Registry health",
     )
-
-    # Only wait for Spark Thrift Server if the container is running (optional spark-testing profile)
-    thrift_container_check = subprocess.run(
-        [
-            "docker",
-            "ps",
-            "--filter",
-            "name=rideshare-spark-thrift",
-            "--format",
-            "{{.Names}}",
-        ],
-        capture_output=True,
-        text=True,
-    )
-    if "rideshare-spark-thrift" in thrift_container_check.stdout:
-        wait_for_condition(
-            condition=check_thrift_server_healthy,
-            timeout_seconds=180,
-            poll_interval=5.0,
-            description="Spark Thrift Server health",
-        )
 
     # Only wait for Airflow if the container is running
     airflow_container_check = subprocess.run(
@@ -456,44 +413,6 @@ def kafka_producer(wait_for_services):
 
     # Flush any pending messages on teardown
     producer.flush()
-
-
-@pytest.fixture(scope="session")
-def thrift_connection(wait_for_services):
-    """PyHive connection to Spark Thrift Server.
-
-    Connection pool for SQL queries against Delta tables.
-    Skips tests when the Spark Thrift Server is not running
-    (optional spark-testing profile).
-    """
-    # Check if Spark Thrift Server container is running
-    result = subprocess.run(
-        [
-            "docker",
-            "ps",
-            "--filter",
-            "name=rideshare-spark-thrift",
-            "--format",
-            "{{.Names}}",
-        ],
-        capture_output=True,
-        text=True,
-    )
-    if "rideshare-spark-thrift" not in result.stdout:
-        pytest.skip("Spark Thrift Server not running (spark-testing profile not started)")
-
-    connection = hive.Connection(
-        host="localhost",
-        port=10000,
-        database="default",
-        auth="LDAP",
-        username=os.environ["HIVE_LDAP_USERNAME"],
-        password=os.environ["HIVE_LDAP_PASSWORD"],
-    )
-
-    yield connection
-
-    connection.close()
 
 
 @pytest.fixture(scope="session")
@@ -905,29 +824,6 @@ def published_events(kafka_producer, test_trip_events) -> List[Dict[str, Any]]:
     yield test_trip_events
 
 
-@pytest.fixture(scope="function")
-def wait_for_bronze_ingestion(thrift_connection, published_events):
-    """Wait until published events appear in Bronze layer.
-
-    Polls bronze.bronze_trips table with configurable timeout (default 60s).
-    Raises TimeoutError if events don't appear in time.
-    """
-    expected_count = len(published_events)
-
-    def query_bronze_count():
-        return count_rows(thrift_connection, "bronze.bronze_trips")
-
-    poll_until_records_present(
-        query_callback=query_bronze_count,
-        expected_count=expected_count,
-        timeout_seconds=60,
-        poll_interval=2.0,
-        description="bronze.bronze_trips table",
-    )
-
-    yield
-
-
 # =============================================================================
 # Session-scoped service verification fixtures (Ticket 015)
 # =============================================================================
@@ -974,80 +870,6 @@ def streaming_jobs_running(reset_all_state):
         )
 
     yield
-
-
-@pytest.fixture(scope="session")
-def bronze_tables_initialized(docker_compose, thrift_connection):
-    """Verify bronze-init container completed and ensure all layer tables exist.
-
-    Waits for container to exit with code 0 (databases created),
-    then ensures all Bronze, Silver, and Gold tables exist by creating them if necessary.
-    Session-scoped: runs once per test session.
-
-    Note: The bronze-init container only creates databases and tries to register
-    existing Delta tables. If no data has been written by streaming jobs yet,
-    the tables won't exist. This fixture ensures tables are created with proper
-    schemas so tests can run even without streaming data.
-    """
-    from tests.integration.data_platform.utils.sql_helpers import (
-        ensure_bronze_tables_exist,
-        ensure_silver_tables_exist,
-        ensure_gold_tables_exist,
-    )
-
-    container_name = "rideshare-bronze-init"
-    max_wait_seconds = 180
-    start_time = time.time()
-
-    while time.time() - start_time < max_wait_seconds:
-        # Check container status
-        result = subprocess.run(
-            ["docker", "inspect", container_name, "--format", "{{.State.ExitCode}}"],
-            capture_output=True,
-            text=True,
-        )
-
-        if result.returncode == 0:
-            exit_code = result.stdout.strip()
-            if exit_code == "0":
-                # Container exited successfully - now ensure tables exist
-                print("[conftest] bronze-init completed, ensuring all layer tables exist...")
-
-                # Ensure Bronze tables exist
-                created_bronze = ensure_bronze_tables_exist(thrift_connection)
-                if created_bronze:
-                    print(
-                        f"[conftest] Created {len(created_bronze)} Bronze tables: {created_bronze}"
-                    )
-                else:
-                    print("[conftest] All Bronze tables already exist")
-
-                # Ensure Silver tables exist
-                created_silver = ensure_silver_tables_exist(thrift_connection)
-                if created_silver:
-                    print(
-                        f"[conftest] Created {len(created_silver)} Silver tables: {created_silver}"
-                    )
-                else:
-                    print("[conftest] All Silver tables already exist")
-
-                # Ensure Gold tables exist
-                created_gold = ensure_gold_tables_exist(thrift_connection)
-                if created_gold:
-                    print(f"[conftest] Created {len(created_gold)} Gold tables: {created_gold}")
-                else:
-                    print("[conftest] All Gold tables already exist")
-
-                yield
-                return
-            elif exit_code != "":
-                # Container exited with non-zero code
-                raise RuntimeError(f"bronze-init container failed with exit code {exit_code}")
-
-        # Container still running or not found, wait and retry
-        time.sleep(5)
-
-    raise TimeoutError(f"bronze-init container did not complete within {max_wait_seconds} seconds")
 
 
 @pytest.fixture(scope="session")

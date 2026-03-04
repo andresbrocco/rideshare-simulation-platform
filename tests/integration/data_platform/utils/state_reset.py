@@ -12,8 +12,8 @@ import os
 import subprocess
 import time
 
+import trino
 from confluent_kafka.admin import AdminClient, NewTopic
-from pyhive import hive
 
 
 # Kafka topics to reset
@@ -86,30 +86,45 @@ LAKEHOUSE_TABLES = [
 ]
 
 
-def drop_lakehouse_tables(connection: hive.Connection) -> int:
-    """Drop all lakehouse tables from the Hive metastore.
+def drop_lakehouse_tables(
+    trino_host: str = "localhost",
+    trino_port: int = 8084,
+) -> int:
+    """Drop all lakehouse tables from the Hive metastore via Trino.
 
     This ensures that when MinIO buckets are cleared, there are no orphaned
     metastore entries pointing to non-existent Delta files.
 
     Args:
-        connection: PyHive Hive connection
+        trino_host: Trino coordinator hostname
+        trino_port: Trino coordinator HTTP port
 
     Returns:
         Number of tables dropped
     """
+    conn = trino.dbapi.connect(
+        host=trino_host,
+        port=trino_port,
+        user="integration-test",
+        catalog="delta",
+        schema="default",
+    )
+
     dropped = 0
-    cursor = connection.cursor()
+    cursor = conn.cursor()
 
-    for table in LAKEHOUSE_TABLES:
-        try:
-            cursor.execute(f"DROP TABLE IF EXISTS {table}")
-            dropped += 1
-        except Exception as e:
-            # Ignore errors - table might not exist
-            print(f"[state_reset] Warning: Could not drop {table}: {e}")
+    try:
+        for table in LAKEHOUSE_TABLES:
+            try:
+                cursor.execute(f"DROP TABLE IF EXISTS {table}")
+                dropped += 1
+            except Exception as e:
+                print(f"[state_reset] Warning: Could not drop {table}: {e}")
+    finally:
+        cursor.close()
+        conn.close()
 
-    print(f"[state_reset] Dropped {dropped} tables from Hive metastore")
+    print(f"[state_reset] Dropped {dropped} tables from Hive metastore via Trino")
     return dropped
 
 
@@ -157,7 +172,6 @@ def reset_kafka_topics(admin: AdminClient, timeout: float = 30.0) -> None:
         admin: Kafka AdminClient
         timeout: Timeout for each operation in seconds
     """
-    # Delete topics
     print(f"[state_reset] Deleting Kafka topics: {KAFKA_TOPICS}")
     try:
         delete_futures = admin.delete_topics(KAFKA_TOPICS)
@@ -174,7 +188,6 @@ def reset_kafka_topics(admin: AdminClient, timeout: float = 30.0) -> None:
     # Wait for deletion to propagate
     time.sleep(2)
 
-    # Recreate topics with standard configuration
     print(f"[state_reset] Recreating Kafka topics: {KAFKA_TOPICS}")
     new_topics = [NewTopic(t, num_partitions=4, replication_factor=1) for t in KAFKA_TOPICS]
     try:

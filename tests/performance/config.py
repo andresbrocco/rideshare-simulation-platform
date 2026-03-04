@@ -163,7 +163,6 @@ CONTAINER_CONFIG: dict[str, dict[str, str]] = {
         "display_name": "Hive Metastore",
         "profile": "data-pipeline",
     },
-    "rideshare-openldap": {"display_name": "OpenLDAP", "profile": "data-pipeline"},
 }
 
 # Effective CPU parallelism per container (accounts for Docker limits AND threading model)
@@ -176,7 +175,6 @@ CONTAINER_CPU_CORES: dict[str, float] = {
     "rideshare-airflow-webserver": 1.0,  # Docker limit
     "rideshare-airflow-scheduler": 1.5,  # Docker limit
     "rideshare-trino": 2.0,  # Docker limit, JVM multi-threaded
-    "rideshare-spark-thrift-server": 2.0,  # Docker limit, JVM multi-threaded
 }
 # Unlisted containers default to 1.0 core
 
