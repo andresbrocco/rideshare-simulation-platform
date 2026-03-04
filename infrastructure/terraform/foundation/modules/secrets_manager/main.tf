@@ -64,21 +64,6 @@ resource "random_password" "airflow_internal_api_secret_key" {
   special = true
 }
 
-resource "random_password" "hive_ldap_password" {
-  length  = var.password_length
-  special = true
-}
-
-resource "random_password" "ldap_admin_password" {
-  length  = var.password_length
-  special = true
-}
-
-resource "random_password" "ldap_config_password" {
-  length  = var.password_length
-  special = true
-}
-
 resource "random_password" "rds_master_password" {
   length  = var.password_length
   special = true
@@ -124,10 +109,10 @@ resource "aws_secretsmanager_secret_version" "core" {
   })
 }
 
-# Secret: rideshare/data-pipeline (merges minio + postgres-airflow + postgres-metastore + airflow + hive-thrift + ldap)
+# Secret: rideshare/data-pipeline (merges minio + postgres-airflow + postgres-metastore + airflow + hive-thrift)
 resource "aws_secretsmanager_secret" "data_pipeline" {
   name        = "${var.project_name}/data-pipeline"
-  description = "Data pipeline credentials (MinIO, PostgreSQL, Airflow, Hive, LDAP)"
+  description = "Data pipeline credentials (MinIO, PostgreSQL, Airflow)"
 
   tags = {
     Name = "${var.project_name}/data-pipeline"
@@ -150,10 +135,6 @@ resource "aws_secretsmanager_secret_version" "data_pipeline" {
     API_SECRET_KEY              = random_password.airflow_api_secret.result
     ADMIN_USERNAME              = "admin"
     ADMIN_PASSWORD              = random_password.airflow_admin_password.result
-    HIVE_LDAP_USERNAME          = "admin"
-    HIVE_LDAP_PASSWORD          = random_password.hive_ldap_password.result
-    LDAP_ADMIN_PASSWORD         = random_password.ldap_admin_password.result
-    LDAP_CONFIG_PASSWORD        = random_password.ldap_config_password.result
   })
 }
 

@@ -75,10 +75,6 @@ SECRETS: dict[str, dict[str, str]] = {
         "API_SECRET_KEY": AIRFLOW_API_SECRET_KEY,
         "ADMIN_USERNAME": "admin",
         "ADMIN_PASSWORD": "admin",
-        "HIVE_LDAP_USERNAME": "admin",
-        "HIVE_LDAP_PASSWORD": "admin",
-        "LDAP_ADMIN_PASSWORD": "admin",
-        "LDAP_CONFIG_PASSWORD": "admin",
     },
     "rideshare/monitoring": {
         "ADMIN_USER": "admin",
