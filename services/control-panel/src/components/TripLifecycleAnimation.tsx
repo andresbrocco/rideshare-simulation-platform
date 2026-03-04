@@ -86,6 +86,9 @@ export function TripLifecycleAnimation() {
   // Matching line ref (white blink between car and person during match)
   const matchingLineRef = useRef<SVGLineElement>(null);
 
+  // Pickup bullet ref (dot at pickup point, appears when driver arrives)
+  const pickupBulletRef = useRef<SVGCircleElement>(null);
+
   // Animation state (not React state — direct DOM for 60fps)
   const rafIdRef = useRef(0);
   const reducedMotionRef = useRef(false);
@@ -195,6 +198,10 @@ export function TripLifecycleAnimation() {
         `translate(${personPt.x - 12}, ${personPt.y - 12})`
       );
     }
+    if (pickupBulletRef.current) {
+      pickupBulletRef.current.setAttribute('cx', `${personPt.x}`);
+      pickupBulletRef.current.setAttribute('cy', `${personPt.y}`);
+    }
 
     // Set sub-path d attributes
     if (pendingRouteRef.current) {
@@ -247,10 +254,10 @@ export function TripLifecycleAnimation() {
       personFloodRef.current.setAttribute('flood-color', rgbString(COLOR_RIDER_COMPLETED));
     }
 
-    // Show all routes fully drawn
+    // Show trip route; pickup route faded, bullet marks pickup point
     if (pickupRouteRef.current) {
       pickupRouteRef.current.style.strokeDashoffset = '0';
-      pickupRouteRef.current.style.opacity = '1';
+      pickupRouteRef.current.style.opacity = '0';
     }
     if (tripRouteRef.current) {
       tripRouteRef.current.style.strokeDashoffset = '0';
@@ -258,6 +265,9 @@ export function TripLifecycleAnimation() {
     }
     if (pendingRouteRef.current) {
       pendingRouteRef.current.style.opacity = '0';
+    }
+    if (pickupBulletRef.current) {
+      pickupBulletRef.current.style.opacity = '1';
     }
 
     if (animatedGroupRef.current) {
@@ -293,6 +303,7 @@ export function TripLifecycleAnimation() {
     let groupOpacity = 1;
     let carPulse = false;
     let matchingLineOpacity = 0;
+    let pickupBulletOpacity = 0;
 
     switch (phase) {
       case 'idle':
@@ -323,8 +334,8 @@ export function TripLifecycleAnimation() {
         // Pickup route appears
         pickupOpacity = progress;
         pickupOffset = pd.pickupPathLen;
-        // Blink ~3 times over the match phase (progress 0→1)
-        matchingLineOpacity = Math.sin(progress * Math.PI * 6) > 0 ? 0.85 : 0;
+        // Toggle every 500ms (3 segments in 1.5s phase), matching control panel map layer
+        matchingLineOpacity = Math.floor(progress * 3) % 2 === 0 ? 0.85 : 0;
         break;
 
       case 'pickup_drive': {
@@ -350,11 +361,12 @@ export function TripLifecycleAnimation() {
         // Car at person
         carX = personPt.x;
         carY = personPt.y;
-        // Pending fades, pickup stays, trip appears
+        // Pending and pickup routes fade out together; bullet and trip route fade in
         pendingOpacity = 1 - progress;
         pendingOffset = 0;
-        pickupOpacity = 1;
+        pickupOpacity = 1 - progress;
         pickupOffset = 0;
+        pickupBulletOpacity = progress;
         tripOpacity = progress;
         tripOffset = pd.tripPathLen;
         break;
@@ -362,11 +374,11 @@ export function TripLifecycleAnimation() {
       case 'trip_drive': {
         carColor = rgbString(COLOR_DRIVER_TRIP);
         personColor = rgbString(COLOR_RIDER_STARTED);
-        // Pending gone
+        // Pending and pickup gone; bullet marks pickup point
         pendingOpacity = 0;
-        // Pickup stays
-        pickupOpacity = 1;
+        pickupOpacity = 0;
         pickupOffset = 0;
+        pickupBulletOpacity = 1;
         // Both car and person move toward flag
         tripOpacity = 1;
         const tripEased = easeInOutCubic(progress);
@@ -388,13 +400,13 @@ export function TripLifecycleAnimation() {
         carY = flagPt.y;
         personX = flagPt.x - 20;
         personY = flagPt.y;
-        // All routes visible
+        // Trip route visible; pickup route gone, bullet marks pickup
         pendingOpacity = 0;
-        pickupOpacity = 1;
+        pickupOpacity = 0;
         pickupOffset = 0;
+        pickupBulletOpacity = 1;
         tripOpacity = 1;
         tripOffset = 0;
-
         break;
 
       case 'hold':
@@ -404,8 +416,9 @@ export function TripLifecycleAnimation() {
         carY = flagPt.y;
         personX = flagPt.x - 20;
         personY = flagPt.y;
-        pickupOpacity = 1;
+        pickupOpacity = 0;
         pickupOffset = 0;
+        pickupBulletOpacity = 1;
         tripOpacity = 1;
         tripOffset = 0;
         break;
@@ -417,8 +430,9 @@ export function TripLifecycleAnimation() {
         carY = flagPt.y;
         personX = flagPt.x - 20;
         personY = flagPt.y;
-        pickupOpacity = 1;
+        pickupOpacity = 0;
         pickupOffset = 0;
+        pickupBulletOpacity = 1;
         tripOpacity = 1;
         tripOffset = 0;
         groupOpacity = 1 - easeInOutCubic(progress);
@@ -469,6 +483,10 @@ export function TripLifecycleAnimation() {
       matchingLineRef.current.setAttribute('x2', `${personX}`);
       matchingLineRef.current.setAttribute('y2', `${personY}`);
       matchingLineRef.current.style.opacity = `${matchingLineOpacity}`;
+    }
+
+    if (pickupBulletRef.current) {
+      pickupBulletRef.current.style.opacity = `${pickupBulletOpacity}`;
     }
 
     if (animatedGroupRef.current) {
@@ -583,6 +601,16 @@ export function TripLifecycleAnimation() {
             stroke={rgbString(COLOR_TRIP_ROUTE)}
             strokeWidth="3"
             strokeLinecap="round"
+            opacity="0"
+          />
+
+          {/* Pickup bullet — marks pickup point after driver arrives */}
+          <circle
+            ref={pickupBulletRef}
+            cx="0"
+            cy="0"
+            r="4"
+            fill={rgbString(COLOR_PICKUP_ROUTE)}
             opacity="0"
           />
 
