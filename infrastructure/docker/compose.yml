@@ -367,7 +367,7 @@ services:
       dockerfile: Dockerfile
       target: development
     container_name: rideshare-control-panel
-    mem_limit: 256m
+    mem_limit: 512m
     profiles:
       - core
     ports:
