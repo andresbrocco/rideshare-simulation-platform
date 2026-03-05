@@ -11,6 +11,14 @@ on:
           - deploy-all
           - deploy-platform
           - deploy-frontend
+      dbt_runner:
+        description: 'DBT runner (controls Kustomize overlay + Airflow target)'
+        required: true
+        type: choice
+        default: duckdb
+        options:
+          - duckdb
+          - glue
 
 permissions:
   id-token: write
@@ -184,9 +192,13 @@ jobs:
               -exec sed -i "s|<glue-role-arn>|$GLUE_ROLE_ARN|g" {} +
           fi
 
+          # Resolve dbt-runner placeholder in ArgoCD app manifest
+          sed -i "s|<dbt-runner>|${{ github.event.inputs.dbt_runner }}|g" \
+            infrastructure/kubernetes/argocd/app-rideshare-platform.yaml
+
           # Verify no placeholders remain
-          REMAINING=$(grep -r '<account-id>\|<acm-cert-arn>\|<rds-endpoint>\|<image-tag>\|<alb-sg-id>\|<glue-role-arn>' \
-            infrastructure/kubernetes/overlays/ infrastructure/kubernetes/components/ || true)
+          REMAINING=$(grep -r '<account-id>\|<acm-cert-arn>\|<rds-endpoint>\|<image-tag>\|<alb-sg-id>\|<glue-role-arn>\|<dbt-runner>' \
+            infrastructure/kubernetes/overlays/ infrastructure/kubernetes/components/ infrastructure/kubernetes/argocd/ || true)
           if [ -n "$REMAINING" ]; then
             echo "Error: Unresolved placeholders remain:"
             echo "$REMAINING"
@@ -213,7 +225,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -B deploy
-          git add infrastructure/kubernetes/overlays/ infrastructure/kubernetes/components/
+          git add infrastructure/kubernetes/overlays/ infrastructure/kubernetes/components/ infrastructure/kubernetes/argocd/
           git commit -m "deploy: resolve production values [skip ci]"
           git push --force origin deploy
 
@@ -402,6 +414,7 @@ jobs:
           echo "EKS Cluster: ${{ steps.tf-outputs.outputs.cluster_name }}"
           echo "Cluster Endpoint: ${{ steps.tf-outputs.outputs.cluster_endpoint }}"
           echo "ALB Hostname: ${{ steps.alb-url.outputs.alb_hostname }}"
+          echo "DBT Runner:      ${{ github.event.inputs.dbt_runner }}"
           echo ""
           echo "Landing Page:    https://ridesharing.portfolio.andresbrocco.com"
           echo "Control Panel:   https://control-panel.ridesharing.portfolio.andresbrocco.com"

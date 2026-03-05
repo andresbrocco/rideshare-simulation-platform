@@ -66,6 +66,8 @@ patches:
             containers:
               - name: airflow-scheduler
                 env:
+                  - name: DBT_RUNNER
+                    value: "glue"
                   - name: GLUE_ROLE_ARN
                     value: "<glue-role-arn>"
     target:
@@ -83,6 +85,8 @@ patches:
             containers:
               - name: airflow-webserver
                 env:
+                  - name: DBT_RUNNER
+                    value: "glue"
                   - name: GLUE_ROLE_ARN
                     value: "<glue-role-arn>"
     target:
