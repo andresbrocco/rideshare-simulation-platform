@@ -544,22 +544,32 @@ function SectionNav({ heroVisible }: SectionNavProps) {
   );
 }
 
+import type { ServiceHealthMap } from '../services/lambda';
+
+const SERVICE_NAME_TO_ID: Record<string, keyof ServiceHealthMap> = {
+  Grafana: 'grafana',
+  Airflow: 'airflow',
+  Trino: 'trino',
+  Prometheus: 'prometheus',
+  'Simulation API': 'simulation_api',
+};
+
 interface LandingPageProps {
   onLoginClick: () => void;
   isLocal: boolean;
-  servicesAvailable: boolean;
+  serviceHealth: ServiceHealthMap;
   apiKey: string | null;
   onNeedAuth: () => void;
-  onServicesChange: (up: boolean) => void;
+  onServiceHealthChange: (health: ServiceHealthMap) => void;
 }
 
 export function LandingPage({
   onLoginClick,
   isLocal,
-  servicesAvailable,
+  serviceHealth,
   apiKey,
   onNeedAuth,
-  onServicesChange,
+  onServiceHealthChange,
 }: LandingPageProps) {
   const [heroVisible, setHeroVisible] = useState(true);
 
@@ -999,14 +1009,14 @@ export function LandingPage({
               isLocal={isLocal}
               apiKey={apiKey}
               onNeedAuth={onNeedAuth}
-              onServicesChange={onServicesChange}
+              onServiceHealthChange={onServiceHealthChange}
             />
 
             <div className="landing-services-grid">
               <button
                 onClick={onLoginClick}
-                className={`landing-service-card${!servicesAvailable ? ' landing-service-card--disabled' : ''}`}
-                disabled={!servicesAvailable}
+                className={`landing-service-card${!serviceHealth.control_panel ? ' landing-service-card--disabled' : ''}`}
+                disabled={!serviceHealth.control_panel}
               >
                 <SiReact
                   width={32}
@@ -1022,8 +1032,10 @@ export function LandingPage({
               </button>
               {getExternalServices(isLocal).map((s) => {
                 const Icon = s.icon;
+                const serviceId = SERVICE_NAME_TO_ID[s.name];
+                const isUp = serviceId ? serviceHealth[serviceId] : false;
 
-                if (!servicesAvailable) {
+                if (!isUp) {
                   return (
                     <span
                       key={s.name}

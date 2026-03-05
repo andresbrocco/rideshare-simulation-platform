@@ -1,21 +1,23 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   getSessionStatus,
+  getServiceHealth,
   triggerDeploy,
   checkDeployStatus,
   activateSession,
   extendSession,
   shrinkSession,
   LambdaServiceError,
+  ALL_SERVICES_DOWN,
 } from '../services/lambda';
-import type { StatusResponse } from '../services/lambda';
+import type { StatusResponse, ServiceHealthMap } from '../services/lambda';
 import styles from './DeployPanel.module.css';
 
 interface DeployPanelProps {
   isLocal: boolean;
   apiKey: string | null;
   onNeedAuth: () => void;
-  onServicesChange: (up: boolean) => void;
+  onServiceHealthChange: (health: ServiceHealthMap) => void;
 }
 
 type PanelState = 'idle' | 'deploying' | 'active' | 'expired' | 'error';
@@ -42,11 +44,20 @@ const POLLING_CONFIG = {
 
 const GITHUB_ACTIONS_URL = 'https://github.com/andresbrocco/rideshare-simulation-platform/actions';
 
+const ALL_SERVICES_UP: ServiceHealthMap = {
+  simulation_api: true,
+  grafana: true,
+  airflow: true,
+  trino: true,
+  prometheus: true,
+  control_panel: true,
+};
+
 export default function DeployPanel({
   isLocal,
   apiKey,
   onNeedAuth,
-  onServicesChange,
+  onServiceHealthChange,
 }: DeployPanelProps) {
   const [panelState, setPanelState] = useState<PanelState>('idle');
   const [workflowStatus, setWorkflowStatus] = useState('queued');
@@ -74,6 +85,7 @@ export default function DeployPanel({
   const deployedAtRef = useRef<number | null>(null);
   const networkRetryCountRef = useRef(0);
   const pendingDeployRef = useRef(false);
+  const serviceHealthIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const apiUrl = isLocal
     ? import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -105,6 +117,10 @@ export default function DeployPanel({
     if (healthIntervalRef.current) {
       clearInterval(healthIntervalRef.current);
       healthIntervalRef.current = null;
+    }
+    if (serviceHealthIntervalRef.current) {
+      clearInterval(serviceHealthIntervalRef.current);
+      serviceHealthIntervalRef.current = null;
     }
   }, []);
 
@@ -147,6 +163,23 @@ export default function DeployPanel({
     }
   }, [apiUrl]);
 
+  // ── Per-service health polling ─────────────────────────────────
+  const pollServiceHealth = useCallback(async () => {
+    if (!mountedRef.current) return;
+    try {
+      if (isLocal) {
+        // In local dev, all services run together via Docker Compose
+        const healthy = await checkHealth();
+        onServiceHealthChange(healthy ? ALL_SERVICES_UP : ALL_SERVICES_DOWN);
+      } else {
+        const health = await getServiceHealth();
+        if (mountedRef.current) onServiceHealthChange(health);
+      }
+    } catch {
+      // Silently ignore
+    }
+  }, [isLocal, checkHealth, onServiceHealthChange]);
+
   // ── Transition to active ────────────────────────────────────────
   const transitionToActive = useCallback(
     (newDeadline: number, newDeployedAt: number | null) => {
@@ -156,9 +189,9 @@ export default function DeployPanel({
       const now = Math.floor(Date.now() / 1000);
       setRemainingSeconds(Math.max(0, newDeadline - now));
       setPanelState('active');
-      onServicesChange(true);
+      pollServiceHealth();
     },
-    [clearDeployPolling, onServicesChange]
+    [clearDeployPolling, pollServiceHealth]
   );
 
   // ── Deploy status polling ──────────────────────────────────────
@@ -233,9 +266,14 @@ export default function DeployPanel({
   const startDeployPolling = useCallback(() => {
     pollStatus();
     pollHealth();
+    pollServiceHealth();
     statusIntervalRef.current = setInterval(pollStatus, POLLING_CONFIG.STATUS_INTERVAL);
     healthIntervalRef.current = setInterval(pollHealth, POLLING_CONFIG.HEALTH_INTERVAL);
-  }, [pollStatus, pollHealth]);
+    serviceHealthIntervalRef.current = setInterval(
+      pollServiceHealth,
+      POLLING_CONFIG.HEALTH_INTERVAL
+    );
+  }, [pollStatus, pollHealth, pollServiceHealth]);
 
   // ── Client-side tick ───────────────────────────────────────────
   useEffect(() => {
@@ -258,14 +296,14 @@ export default function DeployPanel({
           setRemainingSeconds(remaining);
           if (remaining === 0 && panelState === 'active') {
             setPanelState('expired');
-            onServicesChange(false);
+            onServiceHealthChange(ALL_SERVICES_DOWN);
           }
         }
       }, POLLING_CONFIG.TICK_INTERVAL);
     }
 
     return () => clearTick();
-  }, [panelState, clearTick, onServicesChange]);
+  }, [panelState, clearTick, onServiceHealthChange]);
 
   // ── Session status polling (active state) ──────────────────────
   useEffect(() => {
@@ -285,7 +323,7 @@ export default function DeployPanel({
           }
           if (!data.active && !data.deploying) {
             setPanelState('expired');
-            onServicesChange(false);
+            onServiceHealthChange(ALL_SERVICES_DOWN);
           }
         } catch {
           // Silently ignore
@@ -296,7 +334,7 @@ export default function DeployPanel({
     }
 
     return () => clearSessionPoll();
-  }, [panelState, clearSessionPoll, onServicesChange]);
+  }, [panelState, clearSessionPoll, onServiceHealthChange]);
 
   // ── Resume state on mount ──────────────────────────────────────
   useEffect(() => {
@@ -331,7 +369,11 @@ export default function DeployPanel({
             setElapsedSeconds(now - sessionData.deployed_at);
           }
           setPanelState('active');
-          onServicesChange(true);
+          pollServiceHealth();
+          serviceHealthIntervalRef.current = setInterval(
+            pollServiceHealth,
+            POLLING_CONFIG.HEALTH_INTERVAL
+          );
           return;
         }
 

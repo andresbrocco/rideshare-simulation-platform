@@ -173,3 +173,52 @@ export async function shrinkSession(apiKey: string): Promise<SessionAdjustRespon
     'Session shrink service'
   );
 }
+
+export type ServiceId =
+  | 'simulation_api'
+  | 'grafana'
+  | 'airflow'
+  | 'trino'
+  | 'prometheus'
+  | 'control_panel';
+
+export type ServiceHealthMap = Record<ServiceId, boolean>;
+
+export const ALL_SERVICES_DOWN: ServiceHealthMap = {
+  simulation_api: false,
+  grafana: false,
+  airflow: false,
+  trino: false,
+  prometheus: false,
+  control_panel: false,
+};
+
+interface ServiceHealthResponse {
+  services: Record<string, boolean>;
+}
+
+function isServiceHealthResponse(data: unknown): data is ServiceHealthResponse {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    typeof (data as ServiceHealthResponse).services === 'object' &&
+    (data as ServiceHealthResponse).services !== null
+  );
+}
+
+export async function getServiceHealth(): Promise<ServiceHealthMap> {
+  const response = await callLambda(
+    { action: 'service-health' },
+    isServiceHealthResponse,
+    'Service health'
+  );
+  const sim = !!response.services['simulation_api'];
+  return {
+    simulation_api: sim,
+    grafana: !!response.services['grafana'],
+    airflow: !!response.services['airflow'],
+    trino: !!response.services['trino'],
+    prometheus: !!response.services['prometheus'],
+    control_panel: sim,
+  };
+}

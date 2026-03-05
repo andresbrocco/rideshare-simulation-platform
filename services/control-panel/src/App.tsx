@@ -1,5 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { LandingPage } from './components/LandingPage';
+import { ALL_SERVICES_DOWN } from './services/lambda';
+import type { ServiceHealthMap } from './services/lambda';
 import PasswordDialog from './components/PasswordDialog';
 import Map from './components/Map';
 import MapErrorBoundary from './components/MapErrorBoundary';
@@ -56,7 +58,7 @@ function usePageRefresh(intervalMs: number) {
 function LandingApp() {
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [apiKey, setApiKey] = useState<string | null>(() => getAuthCookie());
-  const [servicesAvailable, setServicesAvailable] = useState(false);
+  const [serviceHealth, setServiceHealth] = useState<ServiceHealthMap>(ALL_SERVICES_DOWN);
 
   const handleLogin = (key: string) => {
     setApiKey(key);
@@ -69,10 +71,10 @@ function LandingApp() {
       <LandingPage
         onLoginClick={() => redirectToControlPanel()}
         isLocal={getAppMode() === 'dev'}
-        servicesAvailable={servicesAvailable}
+        serviceHealth={serviceHealth}
         apiKey={apiKey}
         onNeedAuth={() => setShowPasswordDialog(true)}
-        onServicesChange={setServicesAvailable}
+        onServiceHealthChange={setServiceHealth}
       />
       <PasswordDialog
         open={showPasswordDialog}
@@ -272,10 +274,10 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
               /* Control Panel button: no-op in dev mode; auth happens via Deploy */
             }}
             isLocal={getAppMode() === 'dev'}
-            servicesAvailable={apiAvailable && !!apiKey}
+            serviceHealth={ALL_SERVICES_DOWN}
             apiKey={apiKey}
             onNeedAuth={() => setShowPasswordDialog(true)}
-            onServicesChange={() => {
+            onServiceHealthChange={() => {
               /* In dev mode, useApiHealth drives availability */
             }}
           />

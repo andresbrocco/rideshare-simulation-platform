@@ -2,6 +2,31 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LandingPage } from '../LandingPage';
+import { ALL_SERVICES_DOWN } from '../../services/lambda';
+import type { ServiceHealthMap } from '../../services/lambda';
+
+const ALL_SERVICES_UP: ServiceHealthMap = {
+  simulation_api: true,
+  grafana: true,
+  airflow: true,
+  trino: true,
+  prometheus: true,
+  control_panel: true,
+};
+
+type LandingPageProps = Parameters<typeof LandingPage>[0];
+
+function renderLandingPage(overrides: Partial<LandingPageProps> = {}) {
+  const defaults: LandingPageProps = {
+    onLoginClick: overrides.onLoginClick ?? mockOnLoginClick,
+    isLocal: overrides.isLocal ?? false,
+    serviceHealth: overrides.serviceHealth ?? ALL_SERVICES_DOWN,
+    apiKey: overrides.apiKey ?? null,
+    onNeedAuth: overrides.onNeedAuth ?? vi.fn(),
+    onServiceHealthChange: overrides.onServiceHealthChange ?? vi.fn(),
+  };
+  return render(<LandingPage {...defaults} />);
+}
 
 // jsdom doesn't implement SVG geometry methods.
 // jsdom renders <path> as SVGElement (not SVGPathElement), so patch SVGElement.prototype.
@@ -59,7 +84,7 @@ afterEach(() => {
 
 describe('LandingPage', () => {
   it('renders project title and subtitle', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    renderLandingPage();
 
     expect(
       screen.getByRole('heading', { level: 1, name: 'Rideshare Simulation Platform' })
@@ -70,7 +95,7 @@ describe('LandingPage', () => {
   });
 
   it('displays GitHub link with correct attributes', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    renderLandingPage();
 
     const link = screen.getByRole('link', { name: /View on GitHub/i });
     expect(link).toHaveAttribute(
@@ -82,7 +107,7 @@ describe('LandingPage', () => {
   });
 
   it('renders the trip lifecycle animation', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    renderLandingPage();
 
     expect(
       screen.getByRole('img', {
@@ -92,7 +117,7 @@ describe('LandingPage', () => {
   });
 
   it('renders Control Panel button in services grid', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    renderLandingPage();
 
     const controlPanelButton = screen.getByRole('button', { name: /control panel/i });
     expect(controlPanelButton).toBeInTheDocument();
@@ -100,7 +125,7 @@ describe('LandingPage', () => {
 
   it('calls onLoginClick when Control Panel button clicked', async () => {
     const user = userEvent.setup();
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    renderLandingPage({ serviceHealth: ALL_SERVICES_UP });
 
     const controlPanelButton = screen.getByRole('button', { name: /control panel/i });
     await user.click(controlPanelButton);
@@ -109,7 +134,7 @@ describe('LandingPage', () => {
   });
 
   it('renders Explore the Platform heading', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    renderLandingPage();
 
     expect(
       screen.getByRole('heading', { level: 2, name: 'Explore the Platform' })
@@ -117,7 +142,7 @@ describe('LandingPage', () => {
   });
 
   it('renders production URLs when isLocal is false', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    renderLandingPage({ serviceHealth: ALL_SERVICES_UP });
 
     const expectedServices = [
       { name: 'Grafana', url: 'https://grafana.ridesharing.portfolio.andresbrocco.com' },
@@ -136,7 +161,7 @@ describe('LandingPage', () => {
   });
 
   it('renders local URLs when isLocal is true', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={true} />);
+    renderLandingPage({ isLocal: true, serviceHealth: ALL_SERVICES_UP });
 
     const expectedServices = [
       { name: 'Grafana', url: 'http://localhost:3001' },
@@ -155,13 +180,13 @@ describe('LandingPage', () => {
   });
 
   it('does not show Demo Offline badge', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    renderLandingPage();
 
     expect(screen.queryByText(/demo offline/i)).not.toBeInTheDocument();
   });
 
   it('renders four stat cards with correct labels', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    renderLandingPage();
 
     expect(screen.getByText('Technologies')).toBeInTheDocument();
     expect(screen.getByText('Tests')).toBeInTheDocument();
@@ -186,7 +211,7 @@ describe('LandingPage', () => {
       })),
     });
 
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    renderLandingPage();
 
     const statNumbers = document.querySelectorAll('.stat-number');
     const values = Array.from(statNumbers).map((el) => el.textContent);
@@ -197,7 +222,7 @@ describe('LandingPage', () => {
   });
 
   it('hero section has id attribute for scroll targeting', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    renderLandingPage();
 
     const hero = document.getElementById('hero');
     expect(hero).not.toBeNull();
@@ -205,18 +230,18 @@ describe('LandingPage', () => {
   });
 
   it('landing-inner CSS class is present in the DOM', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    renderLandingPage();
 
     expect(document.querySelector('.landing-inner')).not.toBeNull();
   });
 
   it('tech stack section has id for sticky nav targeting', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    renderLandingPage();
     expect(document.getElementById('tech-stack')).not.toBeNull();
   });
 
   it('renders all eight tech group titles', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    renderLandingPage();
     // Use getAllByText because some labels also appear in deep-dive content
     expect(screen.getAllByText('Simulation').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Streaming').length).toBeGreaterThan(0);
@@ -232,7 +257,7 @@ describe('LandingPage', () => {
   });
 
   it('renders representative badges from each group', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    renderLandingPage();
     // Use getAllByText for labels that may also appear in SVG <title> elements
     const badgeLabels = ['Python 3.13', 'Apache Kafka', 'Delta Lake', 'dbt', 'React', 'Prometheus'];
     for (const label of badgeLabels) {
@@ -242,7 +267,7 @@ describe('LandingPage', () => {
   });
 
   it('all tech badges have tooltip attributes', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    renderLandingPage();
     const badges = document.querySelectorAll('.tech-badge');
     expect(badges.length).toBeGreaterThan(0);
     for (const badge of badges) {
@@ -252,7 +277,7 @@ describe('LandingPage', () => {
   });
 
   it('renders DevOps and Cloud tech groups', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    renderLandingPage();
     const groupTitles = document.querySelectorAll('.tech-group-title');
     const groupLabels = Array.from(groupTitles).map((el) => el.textContent);
     expect(groupLabels).toContain('DevOps');
@@ -260,7 +285,7 @@ describe('LandingPage', () => {
   });
 
   it('shows technology stack section with grouped badges', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    renderLandingPage();
     expect(screen.getByRole('heading', { level: 2, name: 'Technology Stack' })).toBeInTheDocument();
     expect(screen.getByText('Python 3.13')).toBeInTheDocument();
     expect(screen.getAllByText('Apache Kafka').length).toBeGreaterThan(0);
@@ -269,13 +294,13 @@ describe('LandingPage', () => {
 
 describe('Deep Dives section', () => {
   it('renders four deep-dive details elements', () => {
-    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    renderLandingPage({ onLoginClick: vi.fn() });
     const deepDives = document.querySelectorAll('.deep-dive');
     expect(deepDives).toHaveLength(4);
   });
 
   it('renders all four deep dive titles', () => {
-    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    renderLandingPage({ onLoginClick: vi.fn() });
     const deepDivesSection = document.getElementById('deep-dives');
     expect(deepDivesSection).not.toBeNull();
 
@@ -289,7 +314,7 @@ describe('Deep Dives section', () => {
 
 describe('Service cards with icons', () => {
   it('renders six service card icons', () => {
-    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    renderLandingPage({ onLoginClick: vi.fn() });
     const icons = document.querySelectorAll('.landing-service-icon');
     expect(icons).toHaveLength(6);
   });
@@ -297,12 +322,12 @@ describe('Service cards with icons', () => {
 
 describe('Footer', () => {
   it('test_footer_renders_deployment_note', () => {
-    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    renderLandingPage({ onLoginClick: vi.fn() });
     expect(screen.getByText(/deployed on-demand for demonstrations/i)).toBeInTheDocument();
   });
 
   it('test_footer_renders_github_link', () => {
-    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    renderLandingPage({ onLoginClick: vi.fn() });
     const link = screen.getByRole('link', { name: /View on GitHub/i });
     expect(link).toHaveAttribute(
       'href',
@@ -313,24 +338,24 @@ describe('Footer', () => {
   });
 
   it('test_footer_renders_author_line', () => {
-    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    renderLandingPage({ onLoginClick: vi.fn() });
     expect(screen.getByText('Built by Andres Brocco')).toBeInTheDocument();
   });
 
   it('test_footer_linkedin_hidden_when_url_empty', () => {
-    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    renderLandingPage({ onLoginClick: vi.fn() });
     expect(screen.queryByRole('link', { name: /LinkedIn/i })).toBeNull();
   });
 
   it('test_footer_element_is_footer_landmark', () => {
-    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    renderLandingPage({ onLoginClick: vi.fn() });
     expect(document.querySelector('footer.landing-footer')).not.toBeNull();
   });
 });
 
 describe('SectionNav', () => {
   it('test_section_nav_renders_four_buttons', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    renderLandingPage();
 
     expect(screen.getByRole('button', { name: 'Architecture' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Tech Stack' })).toBeInTheDocument();
@@ -339,7 +364,7 @@ describe('SectionNav', () => {
   });
 
   it('test_section_nav_initially_not_visible', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    renderLandingPage();
 
     const nav = document.querySelector('.section-nav');
     expect(nav).not.toBeNull();
@@ -347,7 +372,7 @@ describe('SectionNav', () => {
   });
 
   it('test_section_nav_becomes_visible_when_hero_not_intersecting', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    renderLandingPage();
 
     const heroObserverCallback = observerCallbacks[observerCallbacks.length - 1];
     expect(heroObserverCallback).toBeDefined();
@@ -367,7 +392,7 @@ describe('SectionNav', () => {
   });
 
   it('test_section_nav_hides_when_hero_intersecting', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    renderLandingPage();
 
     const heroObserverCallback = observerCallbacks[observerCallbacks.length - 1];
 
@@ -403,7 +428,7 @@ describe('SectionNav', () => {
     exploreEl.scrollIntoView = scrollIntoViewMock;
     document.body.appendChild(exploreEl);
 
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    renderLandingPage();
 
     const exploreButton = screen.getByRole('button', { name: 'Explore' });
     await user.click(exploreButton);
@@ -414,7 +439,7 @@ describe('SectionNav', () => {
   });
 
   it('test_section_nav_has_focus_indicators', () => {
-    render(<LandingPage onLoginClick={mockOnLoginClick} isLocal={false} />);
+    renderLandingPage();
 
     const navButtons = screen
       .getAllByRole('button')
@@ -430,12 +455,12 @@ describe('SectionNav', () => {
 
 describe('Responsive and Accessibility', () => {
   it('service cards grid container exists for mobile CSS', () => {
-    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    renderLandingPage({ onLoginClick: vi.fn() });
     expect(document.querySelector('.landing-services-grid')).not.toBeNull();
   });
 
   it('tech badges are keyboard-focusable via tabIndex', () => {
-    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    renderLandingPage({ onLoginClick: vi.fn() });
     const badges = document.querySelectorAll('.tech-badge');
     expect(badges.length).toBeGreaterThan(0);
     for (const badge of badges) {
@@ -445,7 +470,7 @@ describe('Responsive and Accessibility', () => {
 
   it('active nav button has aria-current', () => {
     mockUseActiveSectionValue.mockReturnValue('architecture');
-    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    renderLandingPage({ onLoginClick: vi.fn() });
 
     const archButton = screen.getByRole('button', { name: /^Architecture$/i });
     expect(archButton).toHaveAttribute('aria-current', 'true');
@@ -453,7 +478,7 @@ describe('Responsive and Accessibility', () => {
 
   it('inactive nav buttons have no aria-current', () => {
     mockUseActiveSectionValue.mockReturnValue('architecture');
-    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    renderLandingPage({ onLoginClick: vi.fn() });
 
     const techStackButton = screen.getByRole('button', { name: /^Tech Stack$/i });
     const deepDivesButton = screen.getByRole('button', { name: /^Deep Dives$/i });
@@ -465,13 +490,13 @@ describe('Responsive and Accessibility', () => {
   });
 
   it('architecture SVG has role="img" and accessible name', () => {
-    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    renderLandingPage({ onLoginClick: vi.fn() });
     const svg = screen.getByRole('img', { name: /system architecture/i });
     expect(svg).toBeInTheDocument();
   });
 
   it('screenshot images use lazy loading', () => {
-    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    renderLandingPage({ onLoginClick: vi.fn() });
     const screenshots = document.querySelectorAll('img.deep-dive-screenshot');
     expect(screenshots.length).toBeGreaterThan(0);
     for (const img of screenshots) {
@@ -480,7 +505,7 @@ describe('Responsive and Accessibility', () => {
   });
 
   it('screenshot images have non-empty alt text', () => {
-    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    renderLandingPage({ onLoginClick: vi.fn() });
     const screenshots = document.querySelectorAll('img.deep-dive-screenshot');
     expect(screenshots.length).toBeGreaterThan(0);
     for (const img of screenshots) {
@@ -490,7 +515,7 @@ describe('Responsive and Accessibility', () => {
   });
 
   it('all five scroll-target section IDs are present', () => {
-    render(<LandingPage onLoginClick={vi.fn()} isLocal={false} />);
+    renderLandingPage({ onLoginClick: vi.fn() });
     expect(document.getElementById('hero')).not.toBeNull();
     expect(document.getElementById('architecture')).not.toBeNull();
     expect(document.getElementById('tech-stack')).not.toBeNull();

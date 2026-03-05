@@ -6,6 +6,7 @@ import pytest
 from handler import (
     get_response_headers,
     handle_deploy,
+    handle_service_health,
     handle_status,
     handle_validate,
     lambda_handler,
@@ -226,3 +227,58 @@ class TestLambdaHandler:
         assert response["statusCode"] == 200
         body = json.loads(response["body"])
         assert body["status"] == "idle"
+
+    def test_service_health_no_auth(self) -> None:
+        """service-health should not require api_key."""
+        event = {
+            "requestContext": {"http": {"method": "POST"}},
+            "headers": {},
+            "body": json.dumps({"action": "service-health"}),
+        }
+
+        with patch("handler.urllib.request.urlopen"):
+            response = lambda_handler(event, None)
+
+        assert response["statusCode"] == 200
+        body = json.loads(response["body"])
+        assert "services" in body
+
+
+class TestHandleServiceHealth:
+    def test_all_healthy(self) -> None:
+        with patch("handler.urllib.request.urlopen"):
+            status, body = handle_service_health()
+
+        assert status == 200
+        for service_id in ("simulation_api", "grafana", "airflow", "trino", "prometheus"):
+            assert body["services"][service_id] is True
+
+    def test_some_unhealthy(self) -> None:
+        def fake_urlopen(req: object, timeout: float = 0) -> None:
+            url = getattr(req, "full_url", "")
+            if "grafana" in url or "trino" in url:
+                raise ConnectionError("refused")
+            from unittest.mock import MagicMock
+
+            return MagicMock()
+
+        with patch("handler.urllib.request.urlopen", side_effect=fake_urlopen):
+            status, body = handle_service_health()
+
+        assert status == 200
+        assert body["services"]["simulation_api"] is True
+        assert body["services"]["grafana"] is False
+        assert body["services"]["airflow"] is True
+        assert body["services"]["trino"] is False
+        assert body["services"]["prometheus"] is True
+
+    def test_all_down(self) -> None:
+        with patch(
+            "handler.urllib.request.urlopen",
+            side_effect=ConnectionError("refused"),
+        ):
+            status, body = handle_service_health()
+
+        assert status == 200
+        for service_id in ("simulation_api", "grafana", "airflow", "trino", "prometheus"):
+            assert body["services"][service_id] is False

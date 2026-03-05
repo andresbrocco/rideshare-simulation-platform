@@ -1,3 +1,4 @@
+import concurrent.futures
 import json
 import os
 import time
@@ -30,7 +31,16 @@ MAX_REMAINING_SECONDS = 2 * 3600  # 2 hours
 PLATFORM_COST_PER_HOUR = 0.31
 RESCHEDULE_DELAY_SECONDS = 300  # 5 min
 
-NO_AUTH_ACTIONS = {"session-status", "auto-teardown"}
+SERVICE_HEALTH_ENDPOINTS: dict[str, str] = {
+    "simulation_api": "https://api.ridesharing.portfolio.andresbrocco.com/health",
+    "grafana": "https://grafana.ridesharing.portfolio.andresbrocco.com/api/health",
+    "airflow": "https://airflow.ridesharing.portfolio.andresbrocco.com/api/v2/monitor/health",
+    "trino": "https://trino.ridesharing.portfolio.andresbrocco.com/v1/info",
+    "prometheus": "https://prometheus.ridesharing.portfolio.andresbrocco.com/-/healthy",
+}
+HEALTH_CHECK_TIMEOUT = 5  # seconds
+
+NO_AUTH_ACTIONS = {"session-status", "auto-teardown", "service-health"}
 
 
 def get_secrets_client() -> boto3.client:
@@ -575,6 +585,33 @@ def handle_auto_teardown() -> tuple[int, dict[str, Any]]:
     return 200, {"action": "teardown_triggered"}
 
 
+def _check_service(service_id: str, url: str) -> tuple[str, bool]:
+    """Check if a single service is healthy. Returns (service_id, is_healthy)."""
+    try:
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=HEALTH_CHECK_TIMEOUT):
+            return service_id, True
+    except Exception:
+        return service_id, False
+
+
+def handle_service_health() -> tuple[int, dict[str, Any]]:
+    """Check health of all platform services in parallel."""
+    results: dict[str, bool] = {}
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=len(SERVICE_HEALTH_ENDPOINTS)
+    ) as executor:
+        futures = {
+            executor.submit(_check_service, sid, url): sid
+            for sid, url in SERVICE_HEALTH_ENDPOINTS.items()
+        }
+        for future in concurrent.futures.as_completed(futures):
+            service_id, healthy = future.result()
+            results[service_id] = healthy
+
+    return 200, {"services": results}
+
+
 def get_response_headers() -> dict[str, str]:
     """Get standard response headers.
 
@@ -624,6 +661,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         no_auth_handlers: dict[str, Any] = {
             "session-status": handle_session_status,
             "auto-teardown": handle_auto_teardown,
+            "service-health": handle_service_health,
         }
         auth_handlers: dict[str, Any] = {
             "validate": handle_validate,
@@ -648,6 +686,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "deploy",
                 "status",
                 "session-status",
+                "service-health",
                 "activate-session",
                 "extend-session",
                 "shrink-session",
@@ -692,6 +731,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
     no_auth_handlers: dict[str, Any] = {
         "session-status": handle_session_status,
         "auto-teardown": handle_auto_teardown,
+        "service-health": handle_service_health,
     }
     auth_handlers: dict[str, Any] = {
         "validate": handle_validate,
@@ -715,6 +755,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "deploy",
                 "status",
                 "session-status",
+                "service-health",
                 "activate-session",
                 "extend-session",
                 "shrink-session",
