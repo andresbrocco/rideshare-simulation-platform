@@ -151,21 +151,29 @@ jobs:
 
           IMAGE_TAG="${{ github.sha }}"
 
-          # Replace all placeholders in production overlay
-          find infrastructure/kubernetes/overlays/production -name "*.yaml" \
+          # Replace all placeholders in all production overlays
+          find infrastructure/kubernetes/overlays -name "*.yaml" \
             -exec sed -i "s|<account-id>|$ACCOUNT_ID|g" {} +
-          find infrastructure/kubernetes/overlays/production -name "*.yaml" \
+          find infrastructure/kubernetes/overlays -name "*.yaml" \
             -exec sed -i "s|<acm-cert-arn>|$ACM_CERT_ARN|g" {} +
-          find infrastructure/kubernetes/overlays/production -name "*.yaml" \
+          find infrastructure/kubernetes/overlays -name "*.yaml" \
             -exec sed -i "s|<rds-endpoint>|$RDS_ENDPOINT|g" {} +
-          find infrastructure/kubernetes/overlays/production -name "*.yaml" \
+          find infrastructure/kubernetes/overlays -name "*.yaml" \
             -exec sed -i "s|<image-tag>|$IMAGE_TAG|g" {} +
-          find infrastructure/kubernetes/overlays/production -name "*.yaml" \
+          find infrastructure/kubernetes/overlays -name "*.yaml" \
             -exec sed -i "s|<alb-sg-id>|$ALB_SG_ID|g" {} +
 
+          # Resolve Glue role ARN (only exists if Glue runner is configured)
+          GLUE_ROLE_ARN=$(aws iam get-role --role-name rideshare-glue-job \
+            --query 'Role.Arn' --output text 2>/dev/null || true)
+          if [ -n "$GLUE_ROLE_ARN" ]; then
+            find infrastructure/kubernetes/overlays -name "*.yaml" \
+              -exec sed -i "s|<glue-role-arn>|$GLUE_ROLE_ARN|g" {} +
+          fi
+
           # Verify no placeholders remain
-          REMAINING=$(grep -r '<account-id>\|<acm-cert-arn>\|<rds-endpoint>\|<image-tag>\|<alb-sg-id>' \
-            infrastructure/kubernetes/overlays/production/ || true)
+          REMAINING=$(grep -r '<account-id>\|<acm-cert-arn>\|<rds-endpoint>\|<image-tag>\|<alb-sg-id>\|<glue-role-arn>' \
+            infrastructure/kubernetes/overlays/ || true)
           if [ -n "$REMAINING" ]; then
             echo "Error: Unresolved placeholders remain:"
             echo "$REMAINING"
@@ -192,7 +200,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -B deploy
-          git add infrastructure/kubernetes/overlays/production/
+          git add infrastructure/kubernetes/overlays/
           git commit -m "deploy: resolve production values [skip ci]"
           git push --force origin deploy
 
