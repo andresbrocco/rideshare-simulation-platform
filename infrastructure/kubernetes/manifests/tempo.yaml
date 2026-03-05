@@ -128,9 +128,9 @@ spec:
               key: MINIO_ROOT_PASSWORD
         resources:
           limits:
-            memory: "768Mi"
+            memory: "1536Mi"
           requests:
-            memory: "256Mi"
+            memory: "512Mi"
         ports:
         - containerPort: 3200
           name: http
@@ -140,16 +140,18 @@ spec:
           httpGet:
             path: /ready
             port: 3200
-          initialDelaySeconds: 30
-          periodSeconds: 10
+          initialDelaySeconds: 45
+          periodSeconds: 15
           timeoutSeconds: 5
+          failureThreshold: 5
         readinessProbe:
           httpGet:
             path: /ready
             port: 3200
-          initialDelaySeconds: 15
-          periodSeconds: 10
+          initialDelaySeconds: 30
+          periodSeconds: 15
           timeoutSeconds: 5
+          failureThreshold: 5
         volumeMounts:
         - name: config
           mountPath: /etc/tempo
