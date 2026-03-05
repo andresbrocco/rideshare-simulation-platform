@@ -260,7 +260,7 @@ const EDGES: EdgeDef[] = [
     path: 'analytics',
     d: pathD(nodePort('kafka', 'right'), [AN_X - 80, 160], nodePort('bronze', 'top')),
     label: 'ingest',
-    labelX: AN_X - 40,
+    labelX: AN_X + 56,
     labelY: 208,
   },
   {
