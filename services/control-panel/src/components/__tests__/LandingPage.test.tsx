@@ -339,12 +339,13 @@ describe('Footer', () => {
 
   it('test_footer_renders_author_line', () => {
     renderLandingPage({ onLoginClick: vi.fn() });
-    expect(screen.getByText('Built by Andres Brocco')).toBeInTheDocument();
+    expect(screen.getByText(/Built by Andre Sbrocco/)).toBeInTheDocument();
   });
 
-  it('test_footer_linkedin_hidden_when_url_empty', () => {
+  it('test_footer_linkedin_link_present', () => {
     renderLandingPage({ onLoginClick: vi.fn() });
-    expect(screen.queryByRole('link', { name: /LinkedIn/i })).toBeNull();
+    const link = screen.getByRole('link', { name: /LinkedIn/i });
+    expect(link).toHaveAttribute('href', 'https://www.linkedin.com/in/andresbrocco/');
   });
 
   it('test_footer_element_is_footer_landmark', () => {

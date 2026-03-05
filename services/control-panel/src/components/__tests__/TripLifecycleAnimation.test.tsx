@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { TripLifecycleAnimation } from '../TripLifecycleAnimation';
-import { resolvePhase } from '../tripLifecyclePhases';
+import { resolvePhase, TOTAL_CYCLE_DURATION } from '../tripLifecyclePhases';
 
 function mockMatchMedia(reduceMotion: boolean) {
   Object.defineProperty(window, 'matchMedia', {
@@ -126,8 +126,7 @@ describe('resolvePhase', () => {
   });
 
   it('wraps around after total cycle duration', () => {
-    // TOTAL_CYCLE_DURATION = 13.0
-    const result = resolvePhase(13.0 + 0.5);
+    const result = resolvePhase(TOTAL_CYCLE_DURATION + 0.5);
     const expected = resolvePhase(0.5);
     expect(result.phase).toBe(expected.phase);
     expect(result.progress).toBeCloseTo(expected.progress);

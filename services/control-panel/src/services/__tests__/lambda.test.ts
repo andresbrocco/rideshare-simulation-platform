@@ -117,7 +117,7 @@ describe('Lambda Service', () => {
       expect(global.fetch).toHaveBeenCalledWith(
         'https://lambda.example.com',
         expect.objectContaining({
-          body: JSON.stringify({ action: 'deploy', api_key: 'admin-key' }),
+          body: JSON.stringify({ action: 'deploy', api_key: 'admin-key', dbt_runner: 'duckdb' }),
         })
       );
     });
