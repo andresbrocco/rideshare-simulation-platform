@@ -50,53 +50,33 @@ function usePageRefresh(intervalMs: number) {
 
 /**
  * Landing page mode: renders the landing page with inline deploy panel + password dialog.
- * On successful login via Control Panel button, sets a shared cookie and redirects.
- * On auth for deploy, stores apiKey locally and stays on landing page.
+ * Auth is triggered only by the Deploy button. On successful login, stores apiKey and stays on landing.
+ * The Control Panel button redirects directly (user is already authenticated via Deploy).
  */
 function LandingApp() {
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [apiKey, setApiKey] = useState<string | null>(() => getAuthCookie());
   const [servicesAvailable, setServicesAvailable] = useState(false);
-  const [pendingDeploy, setPendingDeploy] = useState(false);
 
   const handleLogin = (key: string) => {
     setApiKey(key);
     setAuthCookie(key);
-
-    if (pendingDeploy) {
-      // User authenticated for deploy — stay on landing page
-      setPendingDeploy(false);
-    } else {
-      // User authenticated for Control Panel — redirect
-      redirectToControlPanel();
-    }
-  };
-
-  const handleNeedAuth = () => {
-    setPendingDeploy(true);
-    setShowPasswordDialog(true);
   };
 
   return (
     <div className="App landing-mode">
       <Toaster position="top-right" />
       <LandingPage
-        onLoginClick={() => {
-          setPendingDeploy(false);
-          setShowPasswordDialog(true);
-        }}
+        onLoginClick={() => redirectToControlPanel()}
         isLocal={getAppMode() === 'dev'}
         servicesAvailable={servicesAvailable}
         apiKey={apiKey}
-        onNeedAuth={handleNeedAuth}
+        onNeedAuth={() => setShowPasswordDialog(true)}
         onServicesChange={setServicesAvailable}
       />
       <PasswordDialog
         open={showPasswordDialog}
-        onClose={() => {
-          setShowPasswordDialog(false);
-          setPendingDeploy(false);
-        }}
+        onClose={() => setShowPasswordDialog(false)}
         onLogin={handleLogin}
       />
     </div>
@@ -288,9 +268,11 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
       {!apiKey ? (
         <>
           <LandingPage
-            onLoginClick={() => setShowPasswordDialog(true)}
+            onLoginClick={() => {
+              /* Control Panel button: no-op in dev mode; auth happens via Deploy */
+            }}
             isLocal={getAppMode() === 'dev'}
-            servicesAvailable={apiAvailable}
+            servicesAvailable={apiAvailable && !!apiKey}
             apiKey={apiKey}
             onNeedAuth={() => setShowPasswordDialog(true)}
             onServicesChange={() => {
