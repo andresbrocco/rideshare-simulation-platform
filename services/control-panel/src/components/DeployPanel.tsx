@@ -73,6 +73,7 @@ export default function DeployPanel({
   const deadlineRef = useRef<number | null>(null);
   const deployedAtRef = useRef<number | null>(null);
   const networkRetryCountRef = useRef(0);
+  const pendingDeployRef = useRef(false);
 
   const apiUrl = isLocal
     ? import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -334,21 +335,9 @@ export default function DeployPanel({
           return;
         }
 
-        if (
-          !sessionData.active &&
-          sessionData.deployed_at != null &&
-          sessionData.deadline != null
-        ) {
-          // Expired
-          setDeployedAt(sessionData.deployed_at);
-          setDeadline(sessionData.deadline);
-          setCostSoFar(sessionData.cost_so_far ?? null);
-          setPanelState('expired');
-          onServicesChange(false);
-          return;
-        }
-
-        // No session — idle
+        // Stale expired session or no session — show idle (fresh deploy button).
+        // Only the real-time tick (line 258) transitions to 'expired' for
+        // users who actively watched their own session count down to zero.
         setPanelState('idle');
       } catch {
         // Lambda unreachable — stay idle
@@ -366,6 +355,7 @@ export default function DeployPanel({
   // ── Deploy handler ─────────────────────────────────────────────
   const handleDeploy = async () => {
     if (!apiKey) {
+      pendingDeployRef.current = true;
       onNeedAuth();
       return;
     }
@@ -397,6 +387,15 @@ export default function DeployPanel({
       if (mountedRef.current) setLaunching(false);
     }
   };
+
+  // ── Auto-deploy after auth ────────────────────────────────────
+  useEffect(() => {
+    if (apiKey && pendingDeployRef.current && panelState === 'idle') {
+      pendingDeployRef.current = false;
+      handleDeploy();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiKey]);
 
   // ── Extend/Shrink handlers ─────────────────────────────────────
   const handleExtend = useCallback(async () => {
