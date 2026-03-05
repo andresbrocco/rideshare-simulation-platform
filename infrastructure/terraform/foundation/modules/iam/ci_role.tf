@@ -463,6 +463,21 @@ resource "aws_iam_role_policy" "github_actions_s3_build_assets" {
   })
 }
 
+# SSM Session Policy (required by teardown.yml to set tearing_down flag)
+resource "aws_iam_role_policy" "github_actions_ssm" {
+  name = "ssm-session"
+  role = aws_iam_role.github_actions.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["ssm:GetParameter", "ssm:PutParameter", "ssm:DeleteParameter"]
+      Resource = "arn:aws:ssm:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:parameter/rideshare/session/*"
+    }]
+  })
+}
+
 # Terraform State S3 Policy (locking via S3-native .tflock file)
 resource "aws_iam_role_policy" "github_actions_terraform" {
   name = "terraform-state"

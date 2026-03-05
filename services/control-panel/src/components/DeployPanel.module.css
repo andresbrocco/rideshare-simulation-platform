@@ -177,6 +177,25 @@
   text-decoration: underline;
 }
 
+/* ── Tearing-down state ───────────────────────────── */
+
+.spinnerTeardown {
+  border-top-color: var(--accent-red);
+}
+
+.teardownText {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent-red);
+}
+
+.teardownInfo {
+  font-size: 0.75rem;
+  color: var(--offline-text-dimmest);
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
 /* ── Active state ──────────────────────────────────── */
 
 .activeRow {

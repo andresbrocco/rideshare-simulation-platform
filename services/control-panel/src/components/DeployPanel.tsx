@@ -20,7 +20,7 @@ interface DeployPanelProps {
   onServiceHealthChange: (health: ServiceHealthMap) => void;
 }
 
-type PanelState = 'idle' | 'deploying' | 'active' | 'expired' | 'error';
+type PanelState = 'idle' | 'deploying' | 'active' | 'tearing-down' | 'expired' | 'error';
 
 const PROGRESS_STEPS = [
   { label: 'Triggering deployment...', activeKey: 'queued' },
@@ -281,7 +281,7 @@ export default function DeployPanel({
   useEffect(() => {
     clearTick();
 
-    if (panelState === 'deploying' || panelState === 'active') {
+    if (panelState === 'deploying' || panelState === 'active' || panelState === 'tearing-down') {
       tickRef.current = setInterval(() => {
         const now = Math.floor(Date.now() / 1000);
 
@@ -311,12 +311,33 @@ export default function DeployPanel({
   useEffect(() => {
     clearSessionPoll();
 
-    if (panelState === 'active') {
+    if (panelState === 'active' || panelState === 'tearing-down') {
       const poll = async () => {
         try {
           const data = await getSessionStatus();
           if (!mountedRef.current) return;
 
+          if (data.tearing_down) {
+            if (panelState !== 'tearing-down') {
+              setPanelState('tearing-down');
+              onServiceHealthChange(ALL_SERVICES_DOWN);
+            }
+            if (data.cost_so_far != null) {
+              setCostSoFar(data.cost_so_far);
+            }
+            return;
+          }
+
+          if (panelState === 'tearing-down') {
+            // Teardown complete — session gone
+            if (!data.active && !data.tearing_down && !data.deploying) {
+              setPanelState('idle');
+              onServiceHealthChange(ALL_SERVICES_DOWN);
+            }
+            return;
+          }
+
+          // Normal active state polling
           if (data.deadline != null) {
             setDeadline(data.deadline);
           }
@@ -328,7 +349,11 @@ export default function DeployPanel({
             onServiceHealthChange(ALL_SERVICES_DOWN);
           }
         } catch {
-          // Silently ignore
+          if (panelState === 'tearing-down') {
+            // Lambda unreachable (infra destroyed) — teardown complete
+            setPanelState('idle');
+            onServiceHealthChange(ALL_SERVICES_DOWN);
+          }
         }
       };
 
@@ -346,6 +371,17 @@ export default function DeployPanel({
       try {
         const sessionData = await getSessionStatus();
         if (cancelled || !mountedRef.current) return;
+
+        if (sessionData.tearing_down) {
+          setDeployedAt(sessionData.deployed_at ?? null);
+          setCostSoFar(sessionData.cost_so_far ?? null);
+          if (sessionData.deployed_at != null) {
+            setElapsedSeconds(Math.floor(Date.now() / 1000) - sessionData.deployed_at);
+          }
+          setPanelState('tearing-down');
+          onServiceHealthChange(ALL_SERVICES_DOWN);
+          return;
+        }
 
         if (sessionData.deploying) {
           // Deploying — session exists but no deadline
@@ -594,6 +630,24 @@ export default function DeployPanel({
               </a>
             </p>
           )}
+        </>
+      )}
+
+      {/* Tearing down */}
+      {panelState === 'tearing-down' && (
+        <>
+          <div className={styles.deployingHeader}>
+            <div className={`${styles.spinner} ${styles.spinnerTeardown}`} />
+            <span className={styles.teardownText}>Tearing down...</span>
+          </div>
+          <div className={styles.teardownInfo}>
+            Saving checkpoint and destroying infrastructure.
+          </div>
+          <div className={styles.elapsedRow}>
+            <span>Elapsed:</span>
+            <span className={styles.elapsedTime}>{formatElapsed(elapsedSeconds)}</span>
+          </div>
+          {costSoFar != null && <span className={styles.cost}>${costSoFar.toFixed(2)} spent</span>}
         </>
       )}
 

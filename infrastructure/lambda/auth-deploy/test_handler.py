@@ -5,8 +5,10 @@ import pytest
 
 from handler import (
     get_response_headers,
+    handle_auto_teardown,
     handle_deploy,
     handle_service_health,
+    handle_session_status,
     handle_status,
     handle_validate,
     lambda_handler,
@@ -295,6 +297,111 @@ class TestLambdaHandler:
         assert response["statusCode"] == 200
         body = json.loads(response["body"])
         assert "services" in body
+
+
+class TestHandleSessionStatus:
+    def test_no_session(self) -> None:
+        with patch("handler.get_session", return_value=None):
+            status, body = handle_session_status()
+        assert status == 200
+        assert body == {"active": False}
+
+    def test_deploying_session(self) -> None:
+        session = {"deployed_at": 1000000}
+        with patch("handler.get_session", return_value=session), patch("handler.time") as mock_time:
+            mock_time.time.return_value = 1000060
+            status, body = handle_session_status()
+        assert status == 200
+        assert body["deploying"] is True
+        assert body["active"] is False
+
+    def test_active_session(self) -> None:
+        session = {"deployed_at": 1000000, "deadline": 1001000}
+        with patch("handler.get_session", return_value=session), patch("handler.time") as mock_time:
+            mock_time.time.return_value = 1000500
+            status, body = handle_session_status()
+        assert status == 200
+        assert body["active"] is True
+        assert body["remaining_seconds"] == 500
+
+    def test_tearing_down_session(self) -> None:
+        session = {"deployed_at": 1000000, "deadline": 1001000, "tearing_down": True}
+        with patch("handler.get_session", return_value=session), patch("handler.time") as mock_time:
+            mock_time.time.return_value = 1000500
+            status, body = handle_session_status()
+        assert status == 200
+        assert body["tearing_down"] is True
+        assert body["active"] is False
+
+    def test_tearing_down_takes_priority(self) -> None:
+        """tearing_down without deadline still returns tearing_down (not deploying)."""
+        session = {"deployed_at": 1000000, "tearing_down": True}
+        with patch("handler.get_session", return_value=session), patch("handler.time") as mock_time:
+            mock_time.time.return_value = 1000060
+            status, body = handle_session_status()
+        assert status == 200
+        assert body["tearing_down"] is True
+        assert body.get("deploying") is False
+
+    def test_session_read_error(self) -> None:
+        with patch("handler.get_session", side_effect=RuntimeError("boom")):
+            status, body = handle_session_status()
+        assert status == 500
+        assert "error" in body
+
+
+class TestHandleAutoTeardown:
+    def test_sets_tearing_down_flag(self, mock_secrets: object, mock_github_api: object) -> None:
+        mock_github_api.side_effect = [
+            (200, {"workflow_runs": []}),  # deploy status check
+            (204, {}),  # teardown dispatch
+        ]
+        session = {"deployed_at": 1000000, "deadline": 1001000}
+        mock_ssm = patch("handler.get_ssm_client").start()
+        with (
+            patch("handler.get_session", return_value=session),
+            patch("handler.get_scheduler_client"),
+        ):
+            handle_auto_teardown()
+
+        # Verify SSM put_parameter was called with tearing_down: True
+        put_call = mock_ssm.return_value.put_parameter
+        put_call.assert_called_once()
+        written_value = json.loads(put_call.call_args[1]["Value"])
+        assert written_value["tearing_down"] is True
+        patch.stopall()
+
+    def test_does_not_delete_session(self, mock_secrets: object, mock_github_api: object) -> None:
+        mock_github_api.side_effect = [
+            (200, {"workflow_runs": []}),  # deploy status check
+            (204, {}),  # teardown dispatch
+        ]
+        session = {"deployed_at": 1000000, "deadline": 1001000}
+        with (
+            patch("handler.get_session", return_value=session),
+            patch("handler.get_ssm_client"),
+            patch("handler.get_scheduler_client"),
+            patch("handler.delete_session") as mock_delete,
+        ):
+            handle_auto_teardown()
+        mock_delete.assert_not_called()
+
+    def test_reschedules_when_deploy_in_progress(
+        self, mock_secrets: object, mock_github_api: object
+    ) -> None:
+        mock_github_api.return_value = (
+            200,
+            {"workflow_runs": [{"status": "in_progress"}]},
+        )
+        session = {"deployed_at": 1000000, "deadline": 1001000}
+        with (
+            patch("handler.get_session", return_value=session),
+            patch("handler._upsert_schedule") as mock_schedule,
+            patch("handler.update_session_deadline"),
+        ):
+            status, body = handle_auto_teardown()
+        assert body["action"] == "rescheduled"
+        mock_schedule.assert_called_once()
 
 
 class TestHandleServiceHealth:

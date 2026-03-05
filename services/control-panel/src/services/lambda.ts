@@ -117,6 +117,7 @@ export async function checkDeployStatus(apiKey: string): Promise<StatusResponse>
 export interface SessionStatusResponse {
   active: boolean;
   deploying?: boolean;
+  tearing_down?: boolean;
   remaining_seconds?: number;
   deployed_at?: number;
   deadline?: number;

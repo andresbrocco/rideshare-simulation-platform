@@ -33,6 +33,67 @@ jobs:
           terraform init \
             -backend-config="bucket=rideshare-tf-state-${{ secrets.AWS_ACCOUNT_ID }}"
 
+      - name: Graceful Simulation Shutdown
+        run: |
+          SIM_API="https://api.ridesharing.portfolio.andresbrocco.com"
+
+          # 1. Set tearing_down flag in SSM session
+          SESSION_JSON=$(aws ssm get-parameter --name "/rideshare/session/deadline" --query "Parameter.Value" --output text 2>/dev/null) || true
+          if [ -n "$SESSION_JSON" ] && [ "$SESSION_JSON" != "None" ]; then
+            UPDATED=$(echo "$SESSION_JSON" | jq -c '. + {"tearing_down": true}')
+            aws ssm put-parameter --name "/rideshare/session/deadline" --value "$UPDATED" --type String --overwrite || echo "Warning: Failed to set tearing_down flag"
+          fi
+
+          # 2. Fetch API key from Secrets Manager
+          SECRET_RAW=$(aws secretsmanager get-secret-value --secret-id "rideshare/api-key" --query "SecretString" --output text 2>/dev/null) || { echo "Warning: Could not fetch API key, skipping graceful shutdown"; exit 0; }
+          API_KEY=$(echo "$SECRET_RAW" | jq -r '.API_KEY // .' 2>/dev/null) || API_KEY="$SECRET_RAW"
+          if [ -z "$API_KEY" ]; then
+            echo "Warning: Empty API key, skipping graceful shutdown"
+            exit 0
+          fi
+
+          # 3. Check simulation status
+          SIM_STATUS=$(curl -sf --max-time 10 -H "X-API-Key: $API_KEY" "$SIM_API/simulation/status" 2>/dev/null) || { echo "Warning: Simulation API unreachable, skipping graceful shutdown"; exit 0; }
+          STATE=$(echo "$SIM_STATUS" | jq -r '.state // empty')
+          echo "Current simulation state: $STATE"
+          if [ "$STATE" != "running" ]; then
+            echo "Simulation not running (state=$STATE), skipping pause"
+            exit 0
+          fi
+
+          # 4. Pause simulation (enters DRAINING)
+          curl -sf --max-time 10 -X POST -H "X-API-Key: $API_KEY" "$SIM_API/simulation/pause" || { echo "Warning: Failed to pause simulation"; exit 0; }
+          echo "Pause requested"
+
+          # 5. Speed up if slow
+          SPEED=$(echo "$SIM_STATUS" | jq -r '.speed_multiplier // 1')
+          if [ "$(echo "$SPEED < 16" | bc -l)" = "1" ]; then
+            curl -sf --max-time 10 -X PUT -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
+              -d '{"multiplier": 16}' "$SIM_API/simulation/speed" || echo "Warning: Failed to set speed"
+          fi
+
+          # 6. Enable PID controller
+          curl -sf --max-time 10 -X PUT -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
+            -d '{"mode": "on"}' "$SIM_API/controller/mode" || echo "Warning: Failed to enable controller"
+
+          # 7. Poll until paused (5 min timeout)
+          ELAPSED=0
+          while [ $ELAPSED -lt 300 ]; do
+            sleep 10
+            ELAPSED=$((ELAPSED + 10))
+            POLL=$(curl -sf --max-time 10 -H "X-API-Key: $API_KEY" "$SIM_API/simulation/status" 2>/dev/null) || { echo "Warning: Poll failed at ${ELAPSED}s"; continue; }
+            POLL_STATE=$(echo "$POLL" | jq -r '.state // empty')
+            POLL_SPEED=$(echo "$POLL" | jq -r '.speed_multiplier // empty')
+            POLL_TRIPS=$(echo "$POLL" | jq -r '.active_trips // empty')
+            echo "  [${ELAPSED}s] state=$POLL_STATE speed=$POLL_SPEED active_trips=$POLL_TRIPS"
+            if [ "$POLL_STATE" = "paused" ] || [ "$POLL_STATE" = "stopped" ]; then
+              echo "Simulation gracefully stopped (state=$POLL_STATE)"
+              exit 0
+            fi
+          done
+          echo "Warning: Timed out waiting for simulation to pause (300s), continuing teardown"
+          exit 0
+
       - name: Delete Route 53 Wildcard Record
         run: |
           ZONE_ID=$(aws route53 list-hosted-zones-by-name \
@@ -157,3 +218,7 @@ jobs:
           echo ""
           echo "Cost reduced to foundation-only: ~$8/month"
           echo "================================"
+
+      - name: Clean up session
+        run: |
+          aws ssm delete-parameter --name "/rideshare/session/deadline" 2>/dev/null || true

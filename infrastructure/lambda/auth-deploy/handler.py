@@ -404,9 +404,21 @@ def handle_session_status() -> tuple[int, dict[str, Any]]:
     now = int(time.time())
     deployed_at = session["deployed_at"]
     deadline = session.get("deadline")
+    tearing_down = session.get("tearing_down", False)
     elapsed_seconds = now - deployed_at
     elapsed_hours = elapsed_seconds / 3600.0
     cost_so_far = round(elapsed_hours * PLATFORM_COST_PER_HOUR, 2)
+
+    # Tearing down takes priority over all other states
+    if tearing_down:
+        return 200, {
+            "active": False,
+            "deploying": False,
+            "tearing_down": True,
+            "deployed_at": deployed_at,
+            "elapsed_seconds": elapsed_seconds,
+            "cost_so_far": cost_so_far,
+        }
 
     # Session exists but countdown not yet started (deploying)
     if deadline is None:
@@ -561,6 +573,28 @@ def handle_auto_teardown() -> tuple[int, dict[str, Any]]:
     except Exception as e:
         print(f"Warning: Failed to check deploy status: {e}")
 
+    # Set tearing_down flag so frontend shows teardown status
+    try:
+        session = get_session()
+        if session is not None:
+            session["tearing_down"] = True
+            get_ssm_client().put_parameter(
+                Name=SSM_SESSION_PARAM,
+                Value=json.dumps(session),
+                Type="String",
+                Overwrite=True,
+            )
+    except Exception as e:
+        print(f"Warning: Failed to set tearing_down flag: {e}")
+
+    # Delete EventBridge schedule to prevent re-triggers
+    scheduler = get_scheduler_client()
+    try:
+        scheduler.delete_schedule(Name=SCHEDULER_NAME, GroupName=SCHEDULER_GROUP)
+    except ClientError as e:
+        if e.response["Error"]["Code"] != "ResourceNotFoundException":
+            print(f"Warning: Failed to delete schedule: {e}")
+
     # Trigger teardown workflow
     try:
         github_pat = get_secret(SECRET_GITHUB_PAT)
@@ -576,11 +610,8 @@ def handle_auto_teardown() -> tuple[int, dict[str, Any]]:
         print(f"Error triggering teardown: {e}")
         return 500, {"error": "Failed to trigger teardown"}
 
-    # Clean up session
-    try:
-        delete_session()
-    except Exception as e:
-        print(f"Warning: Failed to delete session: {e}")
+    # Do NOT delete session — teardown workflow cleanup step handles it.
+    # The SSM parameter stays with tearing_down=True so frontend shows status.
 
     return 200, {"action": "teardown_triggered"}
 
