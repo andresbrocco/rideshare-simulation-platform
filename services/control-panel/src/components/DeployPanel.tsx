@@ -86,6 +86,7 @@ export default function DeployPanel({
   const deployedAtRef = useRef<number | null>(null);
   const networkRetryCountRef = useRef(0);
   const pendingDeployRef = useRef(false);
+  const pendingActionRef = useRef<'extend' | 'shrink' | null>(null);
   const serviceHealthIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const apiUrl = isLocal
@@ -442,7 +443,11 @@ export default function DeployPanel({
 
   // ── Extend/Shrink handlers ─────────────────────────────────────
   const handleExtend = useCallback(async () => {
-    if (!apiKey) return;
+    if (!apiKey) {
+      pendingActionRef.current = 'extend';
+      onNeedAuth();
+      return;
+    }
     setExtending(true);
     setActionError(null);
     try {
@@ -454,10 +459,14 @@ export default function DeployPanel({
     } finally {
       setExtending(false);
     }
-  }, [apiKey]);
+  }, [apiKey, onNeedAuth]);
 
   const handleShrink = useCallback(async () => {
-    if (!apiKey) return;
+    if (!apiKey) {
+      pendingActionRef.current = 'shrink';
+      onNeedAuth();
+      return;
+    }
     setShrinking(true);
     setActionError(null);
     try {
@@ -469,6 +478,20 @@ export default function DeployPanel({
     } finally {
       setShrinking(false);
     }
+  }, [apiKey, onNeedAuth]);
+
+  // ── Auto-extend/shrink after auth ──────────────────────────────
+  useEffect(() => {
+    if (apiKey && pendingActionRef.current && panelState === 'active') {
+      const action = pendingActionRef.current;
+      pendingActionRef.current = null;
+      if (action === 'extend') {
+        handleExtend();
+      } else {
+        handleShrink();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiKey]);
 
   // ── Retry handler ──────────────────────────────────────────────
@@ -484,10 +507,8 @@ export default function DeployPanel({
   const activeStepIndex = PROGRESS_STEPS.findIndex((s) => s.activeKey === workflowStatus);
   const isWarning = panelState === 'active' && remainingSeconds < WARNING_THRESHOLD_SECONDS;
   const canExtend =
-    !!apiKey &&
-    panelState === 'active' &&
-    remainingSeconds + SESSION_STEP_SECONDS <= MAX_REMAINING_SECONDS;
-  const canShrink = !!apiKey && panelState === 'active' && remainingSeconds >= SESSION_STEP_SECONDS;
+    panelState === 'active' && remainingSeconds + SESSION_STEP_SECONDS <= MAX_REMAINING_SECONDS;
+  const canShrink = panelState === 'active' && remainingSeconds >= SESSION_STEP_SECONDS;
 
   const formatTime = (totalSeconds: number) => {
     const m = Math.floor(totalSeconds / 60);
