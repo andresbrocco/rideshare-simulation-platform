@@ -78,10 +78,10 @@ jobs:
           terraform import 'module.eks.aws_eks_addon.kube_proxy' 'rideshare-eks:kube-proxy' 2>&1 || true
           terraform import 'module.eks.aws_eks_addon.vpc_cni' 'rideshare-eks:vpc-cni' 2>&1 || true
 
-          # EKS access entries (may already exist from a previous partial apply)
-          GITHUB_ACTIONS_ROLE_ARN=$(aws iam get-role --role-name rideshare-github-actions --query 'Role.Arn' --output text)
-          terraform import "aws_eks_access_entry.github_actions" "rideshare-eks:${GITHUB_ACTIONS_ROLE_ARN}" 2>&1 || true
-          terraform import "aws_eks_access_policy_association.github_actions" "rideshare-eks#${GITHUB_ACTIONS_ROLE_ARN}#arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy" 2>&1 || true
+          # GitHub Actions access entry is handled by bootstrap_cluster_creator_admin_permissions.
+          # Remove from state if left over from a previous run that managed it explicitly.
+          terraform state rm 'aws_eks_access_entry.github_actions' 2>&1 || true
+          terraform state rm 'aws_eks_access_policy_association.github_actions' 2>&1 || true
 
           # Helm releases (may already exist from a previous partial apply)
           terraform import 'module.alb.helm_release.aws_load_balancer_controller' 'kube-system/aws-load-balancer-controller' 2>&1 || true

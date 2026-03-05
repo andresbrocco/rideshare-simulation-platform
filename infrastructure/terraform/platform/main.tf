@@ -1,24 +1,8 @@
 # --------------------------------------------------------------------------
-# EKS Access Entries — grant cluster admin to CI/CD role and local dev user.
-# Uses API mode (API_AND_CONFIG_MAP) so access is managed via EKS API
-# instead of the deprecated aws-auth ConfigMap.
+# EKS Access Entries — grant cluster admin to local dev user.
+# The GitHub Actions role (cluster creator) gets admin automatically via
+# bootstrap_cluster_creator_admin_permissions = true on the EKS cluster.
 # --------------------------------------------------------------------------
-resource "aws_eks_access_entry" "github_actions" {
-  cluster_name  = module.eks.cluster_name
-  principal_arn = data.terraform_remote_state.foundation.outputs.github_actions_role_arn
-  type          = "STANDARD"
-}
-
-resource "aws_eks_access_policy_association" "github_actions" {
-  cluster_name  = module.eks.cluster_name
-  principal_arn = data.terraform_remote_state.foundation.outputs.github_actions_role_arn
-  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-
-  access_scope {
-    type = "cluster"
-  }
-}
-
 resource "aws_eks_access_entry" "deploy_user" {
   cluster_name  = module.eks.cluster_name
   principal_arn = var.deploy_user_arn
