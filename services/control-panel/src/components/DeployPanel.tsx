@@ -65,6 +65,7 @@ export default function DeployPanel({
   const [networkError, setNetworkError] = useState(false);
   const [healthAttempts, setHealthAttempts] = useState(0);
   const [launching, setLaunching] = useState(false);
+  const [dbtRunner, setDbtRunner] = useState<'duckdb' | 'glue'>('duckdb');
 
   // Timer state
   const [deployedAt, setDeployedAt] = useState<number | null>(null);
@@ -404,7 +405,7 @@ export default function DeployPanel({
 
     setLaunching(true);
     try {
-      const result = await triggerDeploy(apiKey);
+      const result = await triggerDeploy(apiKey, dbtRunner);
       if (!mountedRef.current) return;
 
       if (!result.triggered) {
@@ -506,6 +507,21 @@ export default function DeployPanel({
       {/* Idle */}
       {panelState === 'idle' && (
         <>
+          <div className={styles.runnerRow}>
+            <label htmlFor="dbt-runner-select" className={styles.runnerLabel}>
+              DBT Runner
+            </label>
+            <select
+              id="dbt-runner-select"
+              className={styles.runnerSelect}
+              value={dbtRunner}
+              onChange={(e) => setDbtRunner(e.target.value as 'duckdb' | 'glue')}
+              disabled={launching}
+            >
+              <option value="duckdb">DuckDB</option>
+              <option value="glue">AWS Glue</option>
+            </select>
+          </div>
           <button className={styles.deployButton} onClick={handleDeploy} disabled={launching}>
             {launching ? 'Triggering...' : 'Deploy Platform'}
           </button>

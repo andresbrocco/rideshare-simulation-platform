@@ -46,6 +46,41 @@
   color: var(--offline-text-dimmest);
 }
 
+.runnerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.runnerLabel {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--offline-text-muted);
+}
+
+.runnerSelect {
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  border: 1px solid rgba(var(--offline-neon-rgb), 0.2);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--offline-text);
+  cursor: pointer;
+  transition: border-color 0.15s;
+  appearance: auto;
+}
+
+.runnerSelect:hover:not(:disabled) {
+  border-color: var(--offline-neon);
+}
+
+.runnerSelect:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 /* ── Deploying state ───────────────────────────────── */
 
 .deployingHeader {

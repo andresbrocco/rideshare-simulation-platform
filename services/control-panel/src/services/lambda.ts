@@ -99,8 +99,15 @@ export async function validateApiKey(apiKey: string): Promise<ValidateResponse> 
   );
 }
 
-export async function triggerDeploy(apiKey: string): Promise<DeployResponse> {
-  return callLambda({ action: 'deploy', api_key: apiKey }, isDeployResponse, 'Deployment service');
+export async function triggerDeploy(
+  apiKey: string,
+  dbtRunner: string = 'duckdb'
+): Promise<DeployResponse> {
+  return callLambda(
+    { action: 'deploy', api_key: apiKey, dbt_runner: dbtRunner },
+    isDeployResponse,
+    'Deployment service'
+  );
 }
 
 export async function checkDeployStatus(apiKey: string): Promise<StatusResponse> {

@@ -313,7 +313,7 @@ def handle_validate(api_key: str) -> tuple[int, dict[str, Any]]:
     return 401, {"valid": False, "error": "Invalid password"}
 
 
-def handle_deploy(api_key: str) -> tuple[int, dict[str, Any]]:
+def handle_deploy(api_key: str, dbt_runner: str = "duckdb") -> tuple[int, dict[str, Any]]:
     """Handle deploy action."""
     if not validate_api_key(api_key):
         return 401, {"error": "Invalid password"}
@@ -325,7 +325,7 @@ def handle_deploy(api_key: str) -> tuple[int, dict[str, Any]]:
         return 500, {"error": "Failed to retrieve GitHub credentials"}
 
     path = f"/repos/{GITHUB_REPO}/actions/workflows/{GITHUB_WORKFLOW}/dispatches"
-    body = {"ref": "main", "inputs": {"action": "deploy-all"}}
+    body = {"ref": "main", "inputs": {"action": "deploy-platform", "dbt_runner": dbt_runner}}
 
     status_code, response_data = github_api_request("POST", path, github_pat, body)
 
@@ -675,6 +675,12 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         if action in no_auth_handlers:
             _, response_body = no_auth_handlers[action]()
             return response_body
+        if action == "deploy":
+            dbt_runner = event.get("dbt_runner", "duckdb")
+            if dbt_runner not in ("duckdb", "glue"):
+                return {"error": "Invalid dbt_runner: must be 'duckdb' or 'glue'"}
+            _, response_body = handle_deploy(api_key, dbt_runner)
+            return response_body
         if action in auth_handlers:
             _, response_body = auth_handlers[action](api_key)
             return response_body
@@ -744,6 +750,15 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
 
     if action in no_auth_handlers:
         status_code, response_body = no_auth_handlers[action]()
+    elif action == "deploy":
+        dbt_runner = body.get("dbt_runner", "duckdb")
+        if dbt_runner not in ("duckdb", "glue"):
+            return {
+                "statusCode": 400,
+                "headers": response_headers,
+                "body": json.dumps({"error": "Invalid dbt_runner: must be 'duckdb' or 'glue'"}),
+            }
+        status_code, response_body = handle_deploy(api_key, dbt_runner)
     elif action in auth_handlers:
         status_code, response_body = auth_handlers[action](api_key)
     else:

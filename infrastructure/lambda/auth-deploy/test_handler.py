@@ -81,6 +81,26 @@ class TestHandleDeploy:
         assert "error" in body
         assert body["status_code"] == 422
 
+    def test_dbt_runner_forwarded(self, mock_secrets: object, mock_github_api: object) -> None:
+        mock_github_api.return_value = (204, {})
+
+        handle_deploy("test-api-key", "glue")
+
+        call_args = mock_github_api.call_args
+        dispatch_body = call_args[0][3]
+        assert dispatch_body["inputs"]["dbt_runner"] == "glue"
+
+    def test_dbt_runner_defaults_to_duckdb(
+        self, mock_secrets: object, mock_github_api: object
+    ) -> None:
+        mock_github_api.return_value = (204, {})
+
+        handle_deploy("test-api-key")
+
+        call_args = mock_github_api.call_args
+        dispatch_body = call_args[0][3]
+        assert dispatch_body["inputs"]["dbt_runner"] == "duckdb"
+
 
 class TestHandleStatus:
     def test_success(self, mock_secrets: object, mock_github_api: object) -> None:
@@ -227,6 +247,39 @@ class TestLambdaHandler:
         assert response["statusCode"] == 200
         body = json.loads(response["body"])
         assert body["status"] == "idle"
+
+    def test_deploy_with_dbt_runner(self, mock_secrets: object, mock_github_api: object) -> None:
+        mock_github_api.return_value = (204, {})
+
+        event = {
+            "requestContext": {"http": {"method": "POST"}},
+            "headers": {"Origin": "http://localhost:5173"},
+            "body": json.dumps(
+                {"action": "deploy", "api_key": "test-api-key", "dbt_runner": "glue"}
+            ),
+        }
+
+        response = lambda_handler(event, None)
+
+        assert response["statusCode"] == 200
+        call_args = mock_github_api.call_args
+        dispatch_body = call_args[0][3]
+        assert dispatch_body["inputs"]["dbt_runner"] == "glue"
+
+    def test_deploy_invalid_dbt_runner(self, mock_secrets: object) -> None:
+        event = {
+            "requestContext": {"http": {"method": "POST"}},
+            "headers": {},
+            "body": json.dumps(
+                {"action": "deploy", "api_key": "test-api-key", "dbt_runner": "spark"}
+            ),
+        }
+
+        response = lambda_handler(event, None)
+
+        assert response["statusCode"] == 400
+        body = json.loads(response["body"])
+        assert "Invalid dbt_runner" in body["error"]
 
     def test_service_health_no_auth(self) -> None:
         """service-health should not require api_key."""
