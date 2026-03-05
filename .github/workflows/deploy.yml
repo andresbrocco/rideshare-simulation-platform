@@ -37,6 +37,19 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rideshare-github-actions
           aws-region: us-east-1
 
+      - name: Sync GitHub PAT to Secrets Manager
+        env:
+          GH_DEPLOY_PAT: ${{ secrets.GH_DEPLOY_PAT }}
+        run: |
+          if [ -n "$GH_DEPLOY_PAT" ]; then
+            aws secretsmanager put-secret-value \
+              --secret-id rideshare/github-pat \
+              --secret-string "{\"GITHUB_PAT\":\"${GH_DEPLOY_PAT}\"}"
+            echo "GitHub PAT synced to Secrets Manager"
+          else
+            echo "::warning::GH_DEPLOY_PAT repo secret not set — Lambda deploy trigger will not work"
+          fi
+
       - name: Verify Foundation State
         working-directory: infrastructure/terraform/foundation
         run: |
