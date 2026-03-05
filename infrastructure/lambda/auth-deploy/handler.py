@@ -20,13 +20,6 @@ REQUEST_TIMEOUT = 10  # seconds
 SECRET_API_KEY = "rideshare/api-key"
 SECRET_GITHUB_PAT = "rideshare/github-pat"
 
-# CORS configuration
-ALLOWED_ORIGINS = [
-    "https://ridesharing.portfolio.andresbrocco.com",
-    "https://control-panel.ridesharing.portfolio.andresbrocco.com",
-    "http://localhost:5173",
-]
-
 # Session management constants
 SSM_SESSION_PARAM = "/rideshare/session/deadline"
 SCHEDULER_GROUP = "default"
@@ -507,22 +500,17 @@ def handle_auto_teardown() -> tuple[int, dict[str, Any]]:
     return 200, {"action": "teardown_triggered"}
 
 
-def get_cors_headers(origin: str) -> dict[str, str]:
-    """Get CORS headers for response.
+def get_response_headers() -> dict[str, str]:
+    """Get standard response headers.
 
-    Args:
-        origin: Origin header from request
+    CORS headers are handled by AWS Lambda Function URL configuration
+    (defined in Terraform). Adding them here would duplicate the header
+    values, which browsers reject.
 
     Returns:
-        Dict of CORS headers
+        Dict of non-CORS response headers
     """
-    allowed_origin = origin if origin in ALLOWED_ORIGINS else ALLOWED_ORIGINS[0]
-
     return {
-        "Access-Control-Allow-Origin": allowed_origin,
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, X-Requested-With",
-        "Access-Control-Max-Age": "86400",
         "Content-Type": "application/json",
     }
 
@@ -590,18 +578,9 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         }
 
     # Function URL invocation: event is a full HTTP request envelope.
-    # Extract origin for CORS
-    headers_lower = {k.lower(): v for k, v in event.get("headers", {}).items()}
-    origin = headers_lower.get("origin", ALLOWED_ORIGINS[0])
-    cors_headers = get_cors_headers(origin)
-
-    # Handle preflight OPTIONS request
-    if event.get("requestContext", {}).get("http", {}).get("method") == "OPTIONS":
-        return {
-            "statusCode": 200,
-            "headers": cors_headers,
-            "body": "",
-        }
+    # CORS is handled by AWS Lambda Function URL configuration (Terraform).
+    # Preflight OPTIONS requests are handled automatically by the Function URL.
+    response_headers = get_response_headers()
 
     # Parse request body
     try:
@@ -609,7 +588,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
     except json.JSONDecodeError:
         return {
             "statusCode": 400,
-            "headers": cors_headers,
+            "headers": response_headers,
             "body": json.dumps({"error": "Invalid JSON in request body"}),
         }
 
@@ -621,14 +600,14 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
     if not action:
         return {
             "statusCode": 400,
-            "headers": cors_headers,
+            "headers": response_headers,
             "body": json.dumps({"error": "Missing required field: action"}),
         }
 
     if action not in NO_AUTH_ACTIONS and not api_key:
         return {
             "statusCode": 400,
-            "headers": cors_headers,
+            "headers": response_headers,
             "body": json.dumps({"error": "Missing required field: api_key"}),
         }
 
@@ -665,6 +644,6 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
 
     return {
         "statusCode": status_code,
-        "headers": cors_headers,
+        "headers": response_headers,
         "body": json.dumps(response_body),
     }

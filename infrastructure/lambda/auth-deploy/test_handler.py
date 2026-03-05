@@ -4,7 +4,7 @@ from unittest.mock import patch
 import pytest
 
 from handler import (
-    get_cors_headers,
+    get_response_headers,
     handle_deploy,
     handle_status,
     handle_validate,
@@ -116,27 +116,16 @@ class TestHandleStatus:
         assert "error" in body
 
 
-class TestCorsHeaders:
-    def test_allowed_origin(self) -> None:
-        headers = get_cors_headers("https://ridesharing.portfolio.andresbrocco.com")
-        assert (
-            headers["Access-Control-Allow-Origin"]
-            == "https://ridesharing.portfolio.andresbrocco.com"
-        )
-        assert "POST" in headers["Access-Control-Allow-Methods"]
-        assert headers["Access-Control-Max-Age"] == "86400"
+class TestResponseHeaders:
+    def test_content_type(self) -> None:
+        headers = get_response_headers()
+        assert headers["Content-Type"] == "application/json"
 
-    def test_localhost_origin(self) -> None:
-        headers = get_cors_headers("http://localhost:5173")
-        assert headers["Access-Control-Allow-Origin"] == "http://localhost:5173"
-
-    def test_unknown_origin(self) -> None:
-        headers = get_cors_headers("https://evil.com")
-        # Should fallback to first allowed origin
-        assert (
-            headers["Access-Control-Allow-Origin"]
-            == "https://ridesharing.portfolio.andresbrocco.com"
-        )
+    def test_no_cors_headers(self) -> None:
+        """CORS is handled by Lambda Function URL config, not the handler."""
+        headers = get_response_headers()
+        assert "Access-Control-Allow-Origin" not in headers
+        assert "Access-Control-Allow-Methods" not in headers
 
 
 class TestLambdaHandler:
@@ -150,23 +139,10 @@ class TestLambdaHandler:
         response = lambda_handler(event, None)
 
         assert response["statusCode"] == 200
-        assert "Access-Control-Allow-Origin" in response["headers"]
+        assert response["headers"]["Content-Type"] == "application/json"
 
         body = json.loads(response["body"])
         assert body["valid"] is True
-
-    def test_options_preflight(self) -> None:
-        event = {
-            "requestContext": {"http": {"method": "OPTIONS"}},
-            "headers": {"Origin": "http://localhost:5173"},
-            "body": "",
-        }
-
-        response = lambda_handler(event, None)
-
-        assert response["statusCode"] == 200
-        assert "Access-Control-Allow-Origin" in response["headers"]
-        assert response["body"] == ""
 
     def test_invalid_json(self) -> None:
         event = {
