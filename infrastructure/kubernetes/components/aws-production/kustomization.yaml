@@ -1,43 +1,13 @@
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
 
-# Production overlay for AWS EKS
-# Uses real AWS services (S3, RDS, Secrets Manager, ALB) instead of local alternatives
+# Shared AWS production configuration (ECR images, IRSA, ExternalSecrets, ALB Ingress, monitoring).
+# Applied by overlays/production-duckdb and overlays/production-glue via `components:`.
 
 resources:
-  # Core Services
-  - ../../manifests/kafka.yaml
-  - ../../manifests/schema-registry.yaml
-  - ../../manifests/redis.yaml
-  - ../../manifests/osrm.yaml
-  - ../../manifests/simulation.yaml
-  - ../../manifests/stream-processor.yaml
-  - ../../manifests/performance-controller.yaml
-  - ../../manifests/control-panel.yaml
-
-  # Data Pipeline
-  - ../../manifests/bronze-ingestion.yaml
-  - ../../manifests/bronze-init.yaml
-
-  # Trino catalog ConfigMaps (one per runner)
-  - ../../manifests/trino.yaml
-  - ../../manifests/trino-glue-catalog.yaml
-
-  - ../../manifests/airflow-webserver.yaml
-  - ../../manifests/airflow-scheduler.yaml
-  - ../../manifests/airflow-dags.yaml
-
-  # Monitoring
-  - ../../manifests/prometheus.yaml
-  - ../../manifests/grafana.yaml
-  - ../../manifests/loki.yaml
-  - ../../manifests/tempo.yaml
-  - ../../manifests/otel-collector.yaml
-  - ../../manifests/otel-collector-logs.yaml
-
   # External Secrets (syncs from AWS Secrets Manager)
+  - secretstore-aws-patch.yaml
   - ../../manifests/external-secrets-namespace.yaml
-  - secretstore-aws-patch.yaml  # replaces base localstack-secrets SecretStore
   - ../../manifests/external-secrets-api-keys.yaml
   - ../../manifests/external-secrets-app-credentials.yaml
 
@@ -50,10 +20,6 @@ resources:
   # Storage (EBS gp3 replaces local-path provisioner)
   - storageclass-ebs.yaml
 
-  # ConfigMaps (patched below)
-  - ../../manifests/configmap-core.yaml
-  - ../../manifests/configmap-data-pipeline.yaml
-
   # ALB Ingress (per-service subdomain routing via IngressGroup)
   - ingress-api.yaml
   - ingress-grafana.yaml
@@ -61,8 +27,6 @@ resources:
   - ingress-trino.yaml
   - ingress-prometheus.yaml
   - ingress-control-panel.yaml
-
-namespace: rideshare-prod
 
 # Generate ConfigMaps from source files so ArgoCD manages them
 configMapGenerator:
@@ -214,7 +178,7 @@ patches:
     target:
       kind: ExternalSecret
 
-  # Core service manifests - Tickets 022-023
+  # Core service manifests
 
   # Kafka: EBS-backed PVC replaces emptyDir for data persistence
   - path: kafka-patch.yaml
@@ -228,7 +192,7 @@ patches:
       kind: Deployment
       name: trino
 
-  # Pipeline and monitoring manifests - Ticket 023
+  # Pipeline and monitoring manifests
 
   # Airflow: RDS connection, subpath serving, remove MinIO endpoint
   - path: airflow-webserver-patch.yaml

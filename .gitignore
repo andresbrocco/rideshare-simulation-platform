@@ -38,6 +38,7 @@ node_modules/
 *.tfstate
 *.tfstate.backup
 *.tfplan
+tfplan
 infrastructure/terraform/**/lambda_function.zip
 
 # Data

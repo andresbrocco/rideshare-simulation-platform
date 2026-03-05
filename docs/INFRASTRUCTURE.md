@@ -120,10 +120,10 @@ Kind (Kubernetes in Docker) - local development cluster
 - Sync Policy: Auto-sync with self-healing (local), manual sync (production)
 
 ### Environment Overlays
-- Base: `infrastructure/kubernetes/base/`
-- Local: `infrastructure/kubernetes/overlays/local/`
-- Production: `infrastructure/kubernetes/overlays/production/`
-- Tool: Kustomize
+- Component (shared AWS config): `infrastructure/kubernetes/components/aws-production/`
+- DuckDB runner: `infrastructure/kubernetes/overlays/production-duckdb/`
+- Glue runner: `infrastructure/kubernetes/overlays/production-glue/`
+- Tool: Kustomize (Components + Overlays)
 
 ### Ingress
 - ALB Ingress Controller with IngressGroup (production)

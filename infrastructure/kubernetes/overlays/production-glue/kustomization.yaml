@@ -1,16 +1,53 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# DBT_RUNNER=glue overlay: extends production base without Hive Metastore.
+# DBT_RUNNER=glue overlay: self-contained production target without Hive Metastore.
 # ArgoCD path: infrastructure/kubernetes/overlays/production-glue
 # Trino uses Glue Data Catalog; Hive Metastore pod and RDS metastore DB are not deployed.
 
-bases:
-  - ../production
+resources:
+  # Core Services
+  - ../../manifests/kafka.yaml
+  - ../../manifests/schema-registry.yaml
+  - ../../manifests/redis.yaml
+  - ../../manifests/osrm.yaml
+  - ../../manifests/simulation.yaml
+  - ../../manifests/stream-processor.yaml
+  - ../../manifests/performance-controller.yaml
+  - ../../manifests/control-panel.yaml
+
+  # Data Pipeline
+  - ../../manifests/bronze-ingestion.yaml
+  - ../../manifests/bronze-init.yaml
+
+  # Trino catalog ConfigMaps (one per runner)
+  - ../../manifests/trino.yaml
+  - ../../manifests/trino-glue-catalog.yaml
+
+  - ../../manifests/airflow-webserver.yaml
+  - ../../manifests/airflow-scheduler.yaml
+  - ../../manifests/airflow-dags.yaml
+
+  # Monitoring
+  - ../../manifests/prometheus.yaml
+  - ../../manifests/grafana.yaml
+  - ../../manifests/loki.yaml
+  - ../../manifests/tempo.yaml
+  - ../../manifests/otel-collector.yaml
+  - ../../manifests/otel-collector-logs.yaml
+
+  # ConfigMaps (patched by component)
+  - ../../manifests/configmap-core.yaml
+  - ../../manifests/configmap-data-pipeline.yaml
+
+components:
+  - ../../components/aws-production
+
+namespace: rideshare-prod
 
 patches:
   # Trino Deployment: swap config-source to glue ConfigMap, remove hive-metastore wait
-  - path: ../production/trino-glue-catalog-patch.yaml
+  - path: trino-glue-catalog-patch.yaml
     target:
       kind: Deployment
       name: trino

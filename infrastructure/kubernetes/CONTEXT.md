@@ -6,7 +6,7 @@ Provides Kubernetes deployment configurations and tooling for running the ridesh
 
 ## Responsibility Boundaries
 
-- **Owns**: Kubernetes manifests for all services, Kind cluster configuration, deployment lifecycle scripts, ArgoCD application definitions, environment overlays (local/production)
+- **Owns**: Kubernetes manifests for all services, Kind cluster configuration, deployment lifecycle scripts, ArgoCD application definitions, environment overlays (production-duckdb/production-glue) and shared Kustomize Components
 - **Delegates to**: Docker images (built elsewhere), service application logic, cloud-specific infrastructure (Terraform)
 - **Does not handle**: Docker image building, cloud provisioning (handled by `infrastructure/terraform/`), Docker Compose orchestration (handled by `infrastructure/docker/`)
 
@@ -16,7 +16,7 @@ Provides Kubernetes deployment configurations and tooling for running the ridesh
 
 **ArgoCD GitOps**: Continuous deployment system that monitors Git repository for manifest changes and automatically syncs cluster state. Development environment uses auto-sync with self-healing; production requires manual approval.
 
-**Kustomize Overlays**: Base manifests in `base/` directory with environment-specific patches in `overlays/local` and `overlays/production`. Overlays modify resource limits, storage backends, and service exposure methods.
+**Kustomize Overlays + Components**: Shared AWS production config lives in `components/aws-production/` as a Kustomize Component (`kind: Component`). Two self-contained overlays (`overlays/production-duckdb`, `overlays/production-glue`) reference base manifests directly and include the component for shared patches, ECR images, and IRSA bindings.
 
 **Deployment Order**: Storage resources → ConfigMaps/Secrets → Data platform services → Core simulation services → Networking (Gateway API). Order ensures dependencies are satisfied before dependent services start.
 

@@ -129,5 +129,5 @@ repos:
         entry: bash -c 'docker run --rm -v "$(pwd):/workdir" -w /workdir ghcr.io/yannh/kubeconform:latest -summary -output text -ignore-missing-schemas -schema-location default -schema-location "https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json" "$@"' --
         language: system
         files: ^infrastructure/kubernetes/.*\.yaml$
-        exclude: ^infrastructure/kubernetes/(argocd/install\.yaml|overlays/)
+        exclude: ^infrastructure/kubernetes/(argocd/install\.yaml|overlays/|components/)
         types: [yaml]

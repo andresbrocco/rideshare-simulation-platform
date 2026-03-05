@@ -35,7 +35,8 @@ kubectl exec -it <pod-name> -- /bin/bash                      # Shell into pod
 |------|---------|
 | `kind/cluster-config.yaml` | Kind cluster configuration (3 nodes: 1 control plane, 2 workers) |
 | `manifests/*.yaml` | Kubernetes manifests for all services |
-| `overlays/*/kustomization.yaml` | Kustomize overlays for different environments |
+| `components/aws-production/kustomization.yaml` | Shared AWS production config (Kustomize Component) |
+| `overlays/*/kustomization.yaml` | Self-contained production overlays (duckdb, glue) |
 | `argocd/applications/*.yaml` | ArgoCD Application definitions |
 
 ### Service Ports

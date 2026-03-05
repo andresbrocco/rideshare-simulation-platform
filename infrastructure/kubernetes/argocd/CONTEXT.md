@@ -12,7 +12,7 @@ Implements GitOps-based continuous deployment for the rideshare simulation platf
 
 ## Key Concepts
 
-**Application Resources**: ArgoCD's CRD for defining what to deploy. Each Application points to a Git repository path, specifies which manifests to include, and defines sync behavior. This module uses two Applications: `core-services` (simulation runtime) and `data-pipeline` (analytics stack).
+**Application Resources**: ArgoCD's CRD for defining what to deploy. Each Application points to a Git repository path, specifies which manifests to include, and defines sync behavior. A single Application (`rideshare-platform`) points to one of the self-contained overlays (`production-duckdb` or `production-glue`), which pull shared AWS config via a Kustomize Component.
 
 **Sync Policies**: Control how ArgoCD responds to Git changes and cluster drift. Development uses auto-sync with self-healing (changes applied immediately, manual edits reverted). Production disables auto-sync (manual approval required) but enables pruning for deleted resources.
 

@@ -22,7 +22,7 @@ Provides the deployment, orchestration, and cloud provisioning layer for the rid
 
 **GitOps with ArgoCD** — Production Kubernetes deployments use ArgoCD for declarative GitOps. ArgoCD watches the repository and applies Kustomize overlays to sync cluster state with the repository.
 
-**Kustomize Overlays** — Local (Kind) and production (EKS) overlays customize base manifests for each environment. Local overlays adjust resource limits for the Kind budget (10GB total), while production overlays configure ingress, persistent storage, and external DNS.
+**Kustomize Overlays + Components** — Two production overlays (`production-duckdb`, `production-glue`) are self-contained deployment targets that reference base manifests and pull shared AWS config from a Kustomize Component (`components/aws-production/`). The component holds ECR image references, IRSA bindings, ExternalSecret patches, ALB Ingress, and monitoring configuration.
 
 ## Non-Obvious Details
 

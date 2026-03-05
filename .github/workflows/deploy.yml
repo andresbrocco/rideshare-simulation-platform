@@ -151,29 +151,29 @@ jobs:
 
           IMAGE_TAG="${{ github.sha }}"
 
-          # Replace all placeholders in all production overlays
-          find infrastructure/kubernetes/overlays -name "*.yaml" \
+          # Replace all placeholders in overlays and components
+          find infrastructure/kubernetes/overlays infrastructure/kubernetes/components -name "*.yaml" \
             -exec sed -i "s|<account-id>|$ACCOUNT_ID|g" {} +
-          find infrastructure/kubernetes/overlays -name "*.yaml" \
+          find infrastructure/kubernetes/overlays infrastructure/kubernetes/components -name "*.yaml" \
             -exec sed -i "s|<acm-cert-arn>|$ACM_CERT_ARN|g" {} +
-          find infrastructure/kubernetes/overlays -name "*.yaml" \
+          find infrastructure/kubernetes/overlays infrastructure/kubernetes/components -name "*.yaml" \
             -exec sed -i "s|<rds-endpoint>|$RDS_ENDPOINT|g" {} +
-          find infrastructure/kubernetes/overlays -name "*.yaml" \
+          find infrastructure/kubernetes/overlays infrastructure/kubernetes/components -name "*.yaml" \
             -exec sed -i "s|<image-tag>|$IMAGE_TAG|g" {} +
-          find infrastructure/kubernetes/overlays -name "*.yaml" \
+          find infrastructure/kubernetes/overlays infrastructure/kubernetes/components -name "*.yaml" \
             -exec sed -i "s|<alb-sg-id>|$ALB_SG_ID|g" {} +
 
           # Resolve Glue role ARN (only exists if Glue runner is configured)
           GLUE_ROLE_ARN=$(aws iam get-role --role-name rideshare-glue-job \
             --query 'Role.Arn' --output text 2>/dev/null || true)
           if [ -n "$GLUE_ROLE_ARN" ]; then
-            find infrastructure/kubernetes/overlays -name "*.yaml" \
+            find infrastructure/kubernetes/overlays infrastructure/kubernetes/components -name "*.yaml" \
               -exec sed -i "s|<glue-role-arn>|$GLUE_ROLE_ARN|g" {} +
           fi
 
           # Verify no placeholders remain
           REMAINING=$(grep -r '<account-id>\|<acm-cert-arn>\|<rds-endpoint>\|<image-tag>\|<alb-sg-id>\|<glue-role-arn>' \
-            infrastructure/kubernetes/overlays/ || true)
+            infrastructure/kubernetes/overlays/ infrastructure/kubernetes/components/ || true)
           if [ -n "$REMAINING" ]; then
             echo "Error: Unresolved placeholders remain:"
             echo "$REMAINING"
@@ -183,14 +183,14 @@ jobs:
 
       - name: Package dbt project
         run: |
-          tar -czf infrastructure/kubernetes/overlays/production/dbt-project.tar.gz \
+          tar -czf infrastructure/kubernetes/components/aws-production/dbt-project.tar.gz \
             --exclude='venv' --exclude='target' --exclude='logs' \
             --exclude='dbt_packages' --exclude='__pycache__' --exclude='.user.yml' \
             -C tools/dbt .
 
       - name: Package great-expectations project
         run: |
-          tar -czf infrastructure/kubernetes/overlays/production/ge-project.tar.gz \
+          tar -czf infrastructure/kubernetes/components/aws-production/ge-project.tar.gz \
             --exclude='venv' --exclude='__pycache__' --exclude='.mypy_cache' \
             --exclude='gx/uncommitted/validations' --exclude='gx/uncommitted/data_docs' \
             -C tools/great-expectations .
@@ -200,7 +200,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -B deploy
-          git add infrastructure/kubernetes/overlays/
+          git add infrastructure/kubernetes/overlays/ infrastructure/kubernetes/components/
           git commit -m "deploy: resolve production values [skip ci]"
           git push --force origin deploy
 

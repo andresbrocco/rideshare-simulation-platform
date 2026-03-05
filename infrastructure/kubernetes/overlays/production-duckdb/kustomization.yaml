@@ -1,18 +1,54 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# DBT_RUNNER=duckdb overlay: extends production base with Hive Metastore resources.
+# DBT_RUNNER=duckdb overlay: self-contained production target with Hive Metastore.
 # ArgoCD path: infrastructure/kubernetes/overlays/production-duckdb
 # Trino uses a local Hive Metastore (thrift) backed by RDS PostgreSQL.
 
-bases:
-  - ../production
-
 resources:
+  # Core Services
+  - ../../manifests/kafka.yaml
+  - ../../manifests/schema-registry.yaml
+  - ../../manifests/redis.yaml
+  - ../../manifests/osrm.yaml
+  - ../../manifests/simulation.yaml
+  - ../../manifests/stream-processor.yaml
+  - ../../manifests/performance-controller.yaml
+  - ../../manifests/control-panel.yaml
+
+  # Data Pipeline
+  - ../../manifests/bronze-ingestion.yaml
+  - ../../manifests/bronze-init.yaml
+
+  # Trino catalog ConfigMaps (one per runner)
+  - ../../manifests/trino.yaml
+  - ../../manifests/trino-glue-catalog.yaml
+
+  - ../../manifests/airflow-webserver.yaml
+  - ../../manifests/airflow-scheduler.yaml
+  - ../../manifests/airflow-dags.yaml
+
+  # Monitoring
+  - ../../manifests/prometheus.yaml
+  - ../../manifests/grafana.yaml
+  - ../../manifests/loki.yaml
+  - ../../manifests/tempo.yaml
+  - ../../manifests/otel-collector.yaml
+  - ../../manifests/otel-collector-logs.yaml
+
+  # ConfigMaps (patched by component)
+  - ../../manifests/configmap-core.yaml
+  - ../../manifests/configmap-data-pipeline.yaml
+
   # Hive Metastore (required for dbt duckdb runner — Trino catalog uses thrift URI)
   - ../../manifests/hive-metastore.yaml
   - ../../manifests/postgres-metastore.yaml
   - ../../manifests/pvc-postgres-metastore.yaml
+
+components:
+  - ../../components/aws-production
+
+namespace: rideshare-prod
 
 images:
   - name: rideshare-hive-metastore
@@ -21,13 +57,13 @@ images:
 
 patches:
   # Hive Metastore: RDS endpoint, remove MinIO initContainer and credentials
-  - path: ../production/hive-metastore-patch.yaml
+  - path: hive-metastore-patch.yaml
     target:
       kind: Deployment
       name: hive-metastore
 
   # Hive site config: AWS S3 via IRSA instead of MinIO endpoint and credentials
-  - path: ../production/hive-site-config-patch.yaml
+  - path: hive-site-config-patch.yaml
     target:
       kind: ConfigMap
       name: hive-site-config
@@ -53,7 +89,7 @@ patches:
       name: hive-metastore
 
   # Trino catalog: Hive Metastore thrift URI (duckdb runner)
-  - path: ../production/trino-catalog-patch.yaml
+  - path: trino-catalog-patch.yaml
     target:
       kind: ConfigMap
       name: trino-config
