@@ -141,6 +141,18 @@
   transform: translateY(0);
 }
 
+.landing-service-card--disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.landing-service-card--disabled:hover {
+  border-color: rgba(var(--offline-neon-rgb), 0.15);
+  box-shadow: none;
+  transform: none;
+}
+
 .landing-service-icon {
   flex-shrink: 0;
   margin-bottom: 2px;

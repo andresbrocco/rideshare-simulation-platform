@@ -109,9 +109,11 @@ export async function checkDeployStatus(apiKey: string): Promise<StatusResponse>
 
 export interface SessionStatusResponse {
   active: boolean;
+  deploying?: boolean;
   remaining_seconds?: number;
   deployed_at?: number;
   deadline?: number;
+  elapsed_seconds?: number;
   cost_so_far?: number;
 }
 
@@ -145,6 +147,14 @@ export async function getSessionStatus(): Promise<SessionStatusResponse> {
     { action: 'session-status' },
     isSessionStatusResponse,
     'Session status service'
+  );
+}
+
+export async function activateSession(apiKey: string): Promise<SessionAdjustResponse> {
+  return callLambda(
+    { action: 'activate-session', api_key: apiKey },
+    isSessionAdjustResponse,
+    'Session activate service'
   );
 }
 

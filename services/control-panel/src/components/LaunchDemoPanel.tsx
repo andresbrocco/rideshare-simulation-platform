@@ -1,5 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { triggerDeploy, checkDeployStatus, LambdaServiceError } from '../services/lambda';
+import {
+  triggerDeploy,
+  checkDeployStatus,
+  activateSession,
+  LambdaServiceError,
+} from '../services/lambda';
 import type { StatusResponse } from '../services/lambda';
 import styles from './LaunchDemoPanel.module.css';
 
@@ -128,12 +133,18 @@ export default function LaunchDemoPanel({ apiKey, onApiReady }: LaunchDemoPanelP
 
     if (healthy) {
       clearPolling();
+      // Activate the session timer now that services are healthy
+      try {
+        await activateSession(apiKey);
+      } catch {
+        // Non-fatal — session timer may already be active
+      }
       onApiReady();
       return;
     }
 
     setHealthAttempts((prev) => prev + 1);
-  }, [checkHealth, clearPolling, onApiReady]);
+  }, [apiKey, checkHealth, clearPolling, onApiReady]);
 
   // ── Slow down health polling after too many attempts ─────────────────
   useEffect(() => {

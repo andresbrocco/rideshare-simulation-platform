@@ -197,6 +197,22 @@ def create_session(deployed_at: int, deadline: int) -> None:
     _upsert_schedule(deadline)
 
 
+def create_session_deploying(deployed_at: int) -> None:
+    """Create a deploying session in SSM without scheduling teardown.
+
+    Stores only deployed_at — no deadline. The countdown starts later
+    when the frontend calls activate-session after health check passes.
+    """
+    client = get_ssm_client()
+    session_data = json.dumps({"deployed_at": deployed_at})
+    client.put_parameter(
+        Name=SSM_SESSION_PARAM,
+        Value=session_data,
+        Type="String",
+        Overwrite=True,
+    )
+
+
 def update_session_deadline(new_deadline: int) -> None:
     """Update session deadline in SSM and reschedule auto-teardown."""
     session = get_session()
@@ -305,13 +321,12 @@ def handle_deploy(api_key: str) -> tuple[int, dict[str, Any]]:
 
     # GitHub returns 204 No Content on successful workflow dispatch
     if status_code == 204:
-        # Create session timer (non-fatal if this fails)
+        # Create deploying session (no deadline yet — countdown starts on activate)
         now = int(time.time())
-        deadline = now + (SESSION_STEP_MINUTES * 60)
         try:
-            create_session(deployed_at=now, deadline=deadline)
+            create_session_deploying(deployed_at=now)
         except Exception as e:
-            print(f"Warning: Failed to create session timer: {e}")
+            print(f"Warning: Failed to create deploying session: {e}")
 
         return 200, {
             "triggered": True,
@@ -378,17 +393,71 @@ def handle_session_status() -> tuple[int, dict[str, Any]]:
 
     now = int(time.time())
     deployed_at = session["deployed_at"]
-    deadline = session["deadline"]
-    remaining = max(0, deadline - now)
-    elapsed_hours = (now - deployed_at) / 3600.0
+    deadline = session.get("deadline")
+    elapsed_seconds = now - deployed_at
+    elapsed_hours = elapsed_seconds / 3600.0
     cost_so_far = round(elapsed_hours * PLATFORM_COST_PER_HOUR, 2)
 
+    # Session exists but countdown not yet started (deploying)
+    if deadline is None:
+        return 200, {
+            "active": False,
+            "deploying": True,
+            "deployed_at": deployed_at,
+            "elapsed_seconds": elapsed_seconds,
+            "cost_so_far": cost_so_far,
+        }
+
+    # Session has a deadline — normal countdown
+    remaining = max(0, deadline - now)
     return 200, {
         "active": remaining > 0,
+        "deploying": False,
         "remaining_seconds": remaining,
         "deployed_at": deployed_at,
         "deadline": deadline,
+        "elapsed_seconds": elapsed_seconds,
         "cost_so_far": cost_so_far,
+    }
+
+
+def handle_activate_session(api_key: str) -> tuple[int, dict[str, Any]]:
+    """Handle activate-session action.
+
+    Called by frontend when health check passes. Sets the deadline and
+    schedules auto-teardown. Idempotent — returns existing values if
+    deadline is already set.
+    """
+    if not validate_api_key(api_key):
+        return 401, {"error": "Invalid password"}
+
+    session = get_session()
+    if session is None:
+        return 404, {"error": "No active session"}
+
+    # Idempotent: if deadline already set, return existing values
+    if session.get("deadline") is not None:
+        now = int(time.time())
+        remaining = max(0, session["deadline"] - now)
+        return 200, {
+            "success": True,
+            "remaining_seconds": remaining,
+            "deadline": session["deadline"],
+        }
+
+    # Set deadline and schedule teardown
+    now = int(time.time())
+    deadline = now + (SESSION_STEP_MINUTES * 60)
+    try:
+        create_session(deployed_at=session["deployed_at"], deadline=deadline)
+    except Exception as e:
+        print(f"Error activating session: {e}")
+        return 500, {"error": "Failed to activate session"}
+
+    return 200, {
+        "success": True,
+        "remaining_seconds": SESSION_STEP_MINUTES * 60,
+        "deadline": deadline,
     }
 
 
@@ -400,6 +469,9 @@ def handle_extend_session(api_key: str) -> tuple[int, dict[str, Any]]:
     session = get_session()
     if session is None:
         return 404, {"error": "No active session"}
+
+    if session.get("deadline") is None:
+        return 400, {"error": "Session not yet activated"}
 
     now = int(time.time())
     remaining = session["deadline"] - now
@@ -430,6 +502,9 @@ def handle_shrink_session(api_key: str) -> tuple[int, dict[str, Any]]:
     session = get_session()
     if session is None:
         return 404, {"error": "No active session"}
+
+    if session.get("deadline") is None:
+        return 400, {"error": "Session not yet activated"}
 
     now = int(time.time())
     remaining = session["deadline"] - now
@@ -554,6 +629,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
             "validate": handle_validate,
             "deploy": handle_deploy,
             "status": handle_status,
+            "activate-session": handle_activate_session,
             "extend-session": handle_extend_session,
             "shrink-session": handle_shrink_session,
         }
@@ -572,6 +648,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "deploy",
                 "status",
                 "session-status",
+                "activate-session",
                 "extend-session",
                 "shrink-session",
             ],
@@ -620,6 +697,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         "validate": handle_validate,
         "deploy": handle_deploy,
         "status": handle_status,
+        "activate-session": handle_activate_session,
         "extend-session": handle_extend_session,
         "shrink-session": handle_shrink_session,
     }
@@ -637,6 +715,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "deploy",
                 "status",
                 "session-status",
+                "activate-session",
                 "extend-session",
                 "shrink-session",
             ],

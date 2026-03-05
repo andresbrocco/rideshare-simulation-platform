@@ -23,7 +23,7 @@ export const PHASES: PhaseConfig[] = [
   { phase: 'idle', duration: 1.0 },
   { phase: 'driver_online', duration: 1.0 },
   { phase: 'rider_request', duration: 1.5 },
-  { phase: 'match', duration: 1.5 },
+  { phase: 'match', duration: 2.5 },
   { phase: 'pickup_drive', duration: 2.0 },
   { phase: 'pickup', duration: 0.5 },
   { phase: 'trip_drive', duration: 2.5 },

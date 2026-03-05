@@ -334,8 +334,8 @@ export function TripLifecycleAnimation() {
         // Pickup route appears
         pickupOpacity = progress;
         pickupOffset = pd.pickupPathLen;
-        // Toggle every 500ms (3 segments in 1.5s phase), matching control panel map layer
-        matchingLineOpacity = Math.floor(progress * 3) % 2 === 0 ? 0.85 : 0;
+        // Toggle every 500ms (5 segments in 2.5s phase = 3 blinks), matching control panel map layer
+        matchingLineOpacity = Math.floor(progress * 5) % 2 === 0 ? 0.85 : 0;
         break;
 
       case 'pickup_drive': {

@@ -1,0 +1,311 @@
+.container {
+  margin-bottom: 16px;
+  padding: 20px 24px;
+  background: rgba(var(--offline-neon-rgb), 0.03);
+  border: 1px solid rgba(var(--offline-neon-rgb), 0.15);
+  border-radius: 10px;
+}
+
+/* ── Idle state ────────────────────────────────────── */
+
+.deployButton {
+  width: 100%;
+  padding: 14px 24px;
+  background: var(--brand-green);
+  color: var(--offline-bg);
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  letter-spacing: 0.02em;
+}
+
+.deployButton:hover:not(:disabled) {
+  background: var(--brand-green-hover);
+  box-shadow: 0 0 24px rgba(var(--offline-neon-rgb), 0.25);
+  transform: translateY(-1px);
+}
+
+.deployButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.warnings {
+  margin-top: 10px;
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
+
+.warning {
+  font-size: 0.72rem;
+  color: var(--offline-text-dimmest);
+}
+
+/* ── Deploying state ───────────────────────────────── */
+
+.deployingHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(var(--offline-neon-rgb), 0.15);
+  border-top-color: var(--accent-orange);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.deployingText {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--offline-neon);
+}
+
+.progressList {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+}
+
+.progressItem {
+  padding: 5px 0;
+  font-size: 0.78rem;
+  color: var(--offline-text-dimmest);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.progressItem::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(var(--offline-neon-rgb), 0.15);
+  flex-shrink: 0;
+}
+
+.progressItemActive {
+  color: var(--offline-text);
+}
+
+.progressItemActive::before {
+  background: var(--accent-orange);
+}
+
+.progressItemDone::before {
+  background: var(--brand-green);
+}
+
+.elapsedRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.75rem;
+  color: var(--offline-text-dimmest);
+  margin-top: 8px;
+}
+
+.elapsedTime {
+  font-variant-numeric: tabular-nums;
+  color: var(--offline-text-muted);
+}
+
+.timeWarning {
+  font-size: 0.72rem;
+  color: var(--accent-orange);
+  margin-top: 8px;
+}
+
+.githubLink {
+  color: var(--offline-neon);
+  text-decoration: none;
+}
+
+.githubLink:hover {
+  text-decoration: underline;
+}
+
+/* ── Active state ──────────────────────────────────── */
+
+.activeRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.countdown {
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--offline-neon);
+  min-width: 60px;
+  text-align: center;
+}
+
+.countdownWarning {
+  color: var(--accent-orange);
+}
+
+.divider {
+  width: 1px;
+  height: 28px;
+  background: rgba(var(--offline-neon-rgb), 0.15);
+  flex-shrink: 0;
+}
+
+.timerInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.cost {
+  font-size: 0.72rem;
+  color: var(--offline-text-dimmest);
+  white-space: nowrap;
+}
+
+.buttons {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.timerButton {
+  padding: 5px 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: 1px solid rgba(var(--offline-neon-rgb), 0.2);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--offline-text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.timerButton:hover:not(:disabled) {
+  border-color: var(--offline-neon);
+  color: var(--offline-neon);
+}
+
+.timerButton:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ── Expired state ─────────────────────────────────── */
+
+.expiredContainer {
+  text-align: center;
+}
+
+.expiredText {
+  font-size: 0.85rem;
+  color: var(--offline-text-dimmest);
+  margin: 0 0 12px;
+}
+
+.redeployButton {
+  padding: 10px 20px;
+  background: transparent;
+  border: 1px solid rgba(var(--offline-neon-rgb), 0.3);
+  border-radius: 6px;
+  color: var(--offline-neon);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.redeployButton:hover {
+  border-color: var(--offline-neon);
+  background: rgba(var(--offline-neon-rgb), 0.05);
+}
+
+/* ── Error state ───────────────────────────────────── */
+
+.errorContainer {
+  text-align: center;
+}
+
+.errorIcon {
+  font-size: 1.2rem;
+  margin-bottom: 6px;
+}
+
+.errorTitle {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent-red);
+  margin: 0 0 8px;
+}
+
+.errorMessage {
+  font-size: 0.75rem;
+  color: var(--offline-text-muted);
+  line-height: 1.5;
+  margin: 0 0 12px;
+  background: rgba(var(--accent-red-rgb), 0.08);
+  border: 1px solid rgba(var(--accent-red-rgb), 0.2);
+  border-radius: 6px;
+  padding: 8px 10px;
+  word-break: break-word;
+}
+
+.retryButton {
+  padding: 8px 20px;
+  background: transparent;
+  border: 1px solid rgba(var(--offline-neon-rgb), 0.3);
+  border-radius: 6px;
+  color: var(--offline-neon);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.retryButton:hover {
+  border-color: var(--offline-neon);
+  background: rgba(var(--offline-neon-rgb), 0.05);
+}
+
+/* ── Network banner ────────────────────────────────── */
+
+.networkBanner {
+  font-size: 0.72rem;
+  color: var(--accent-orange);
+  margin-bottom: 10px;
+  padding: 6px 10px;
+  background: rgba(var(--accent-orange-rgb), 0.08);
+  border: 1px solid rgba(var(--accent-orange-rgb), 0.2);
+  border-radius: 6px;
+}
+
+/* ── Action error ──────────────────────────────────── */
+
+.actionError {
+  font-size: 0.7rem;
+  color: var(--accent-red);
+  margin-top: 6px;
+  text-align: center;
+}

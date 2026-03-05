@@ -65,6 +65,7 @@ import { useInView } from '../hooks/useInView';
 import Zoom from 'react-medium-image-zoom';
 import { ArchitectureDiagram } from './ArchitectureDiagram';
 import { TripLifecycleAnimation } from './TripLifecycleAnimation';
+import DeployPanel from './DeployPanel';
 
 const LINKEDIN_URL = '';
 
@@ -546,9 +547,20 @@ function SectionNav({ heroVisible }: SectionNavProps) {
 interface LandingPageProps {
   onLoginClick: () => void;
   isLocal: boolean;
+  servicesAvailable: boolean;
+  apiKey: string | null;
+  onNeedAuth: () => void;
+  onServicesChange: (up: boolean) => void;
 }
 
-export function LandingPage({ onLoginClick, isLocal }: LandingPageProps) {
+export function LandingPage({
+  onLoginClick,
+  isLocal,
+  servicesAvailable,
+  apiKey,
+  onNeedAuth,
+  onServicesChange,
+}: LandingPageProps) {
   const [heroVisible, setHeroVisible] = useState(true);
 
   useEffect(() => {
@@ -982,8 +994,20 @@ export function LandingPage({ onLoginClick, isLocal }: LandingPageProps) {
 
           <section id="explore" className="landing-section landing-services">
             <h2>Explore the Platform</h2>
+
+            <DeployPanel
+              isLocal={isLocal}
+              apiKey={apiKey}
+              onNeedAuth={onNeedAuth}
+              onServicesChange={onServicesChange}
+            />
+
             <div className="landing-services-grid">
-              <button onClick={onLoginClick} className="landing-service-card">
+              <button
+                onClick={onLoginClick}
+                className={`landing-service-card${!servicesAvailable ? ' landing-service-card--disabled' : ''}`}
+                disabled={!servicesAvailable}
+              >
                 <SiReact
                   width={32}
                   height={32}
@@ -998,6 +1022,27 @@ export function LandingPage({ onLoginClick, isLocal }: LandingPageProps) {
               </button>
               {getExternalServices(isLocal).map((s) => {
                 const Icon = s.icon;
+
+                if (!servicesAvailable) {
+                  return (
+                    <span
+                      key={s.name}
+                      className="landing-service-card landing-service-card--disabled"
+                      aria-disabled="true"
+                    >
+                      <Icon
+                        width={32}
+                        height={32}
+                        className="landing-service-icon"
+                        style={{ color: s.iconColor }}
+                        aria-hidden="true"
+                      />
+                      <span className="landing-service-name">{s.name}</span>
+                      <span className="landing-service-desc">{s.desc}</span>
+                    </span>
+                  );
+                }
+
                 return (
                   <a
                     key={s.name}

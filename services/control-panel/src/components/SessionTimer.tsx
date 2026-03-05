@@ -23,22 +23,48 @@ export default function SessionTimer({ apiKey }: SessionTimerProps) {
   const [costSoFar, setCostSoFar] = useState<number | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [active, setActive] = useState(false);
+  const [deploying, setDeploying] = useState(false);
+  const [deployedAt, setDeployedAt] = useState<number | null>(null);
   const [extending, setExtending] = useState(false);
   const [shrinking, setShrinking] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [hasSession, setHasSession] = useState(false);
   const deadlineRef = useRef<number | null>(null);
+  const deployedAtRef = useRef<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   // Keep ref in sync with state for the tick interval
   useEffect(() => {
     deadlineRef.current = deadline;
   }, [deadline]);
 
+  // Keep refs in sync
+  useEffect(() => {
+    deployedAtRef.current = deployedAt;
+  }, [deployedAt]);
+
   // Apply server response to local state
   const applyStatus = useCallback((data: SessionStatusResponse) => {
     setActive(data.active);
+
+    // Deploying state: session exists but no deadline yet
+    if (data.deploying) {
+      setDeploying(true);
+      setDeployedAt(data.deployed_at ?? null);
+      setCostSoFar(data.cost_so_far ?? null);
+      setRemainingSeconds(0);
+      setHasSession(true);
+      if (data.deployed_at != null) {
+        setElapsedSeconds(Math.floor(Date.now() / 1000) - data.deployed_at);
+      }
+      return;
+    }
+
+    setDeploying(false);
+
     if (data.active && data.deadline != null) {
       setDeadline(data.deadline);
+      setDeployedAt(data.deployed_at ?? null);
       setCostSoFar(data.cost_so_far ?? null);
       setRemainingSeconds(Math.max(0, data.deadline - Math.floor(Date.now() / 1000)));
       setHasSession(true);
@@ -74,19 +100,30 @@ export default function SessionTimer({ apiKey }: SessionTimerProps) {
     };
   }, [applyStatus]);
 
-  // Client-side tick for smooth countdown
+  // Client-side tick for smooth countdown and elapsed time
   useEffect(() => {
-    if (!active) return;
+    if (!active && !deploying) return;
 
     const id = setInterval(() => {
-      const dl = deadlineRef.current;
-      if (dl == null) return;
       const now = Math.floor(Date.now() / 1000);
-      setRemainingSeconds(Math.max(0, dl - now));
+
+      // Update elapsed time
+      const da = deployedAtRef.current;
+      if (da != null) {
+        setElapsedSeconds(now - da);
+      }
+
+      // Update countdown (only when active, not deploying)
+      if (active) {
+        const dl = deadlineRef.current;
+        if (dl != null) {
+          setRemainingSeconds(Math.max(0, dl - now));
+        }
+      }
     }, TICK_INTERVAL_MS);
 
     return () => clearInterval(id);
-  }, [active]);
+  }, [active, deploying]);
 
   const handleExtend = useCallback(async () => {
     if (!apiKey) return;
@@ -125,7 +162,7 @@ export default function SessionTimer({ apiKey }: SessionTimerProps) {
   if (!hasSession) return null;
 
   const isWarning = active && remainingSeconds < WARNING_THRESHOLD_SECONDS;
-  const isExpired = !active && hasSession;
+  const isExpired = !active && !deploying && hasSession;
   const canExtend =
     !!apiKey && active && remainingSeconds + SESSION_STEP_SECONDS <= MAX_REMAINING_SECONDS;
   const canShrink = !!apiKey && active && remainingSeconds >= SESSION_STEP_SECONDS;
@@ -133,6 +170,10 @@ export default function SessionTimer({ apiKey }: SessionTimerProps) {
   const minutes = Math.floor(remainingSeconds / 60);
   const seconds = remainingSeconds % 60;
   const timeDisplay = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+  const elapsedMin = Math.floor(elapsedSeconds / 60);
+  const elapsedSec = elapsedSeconds % 60;
+  const elapsedDisplay = `${elapsedMin}m ${String(elapsedSec).padStart(2, '0')}s`;
 
   const containerClass = [
     styles.container,
@@ -149,6 +190,18 @@ export default function SessionTimer({ apiKey }: SessionTimerProps) {
   ]
     .filter(Boolean)
     .join(' ');
+
+  // Deploying state: show elapsed time instead of countdown
+  if (deploying) {
+    return (
+      <div className={styles.container}>
+        <div>
+          <div className={styles.countdown}>Deploying...</div>
+          <div className={styles.cost}>{elapsedDisplay} elapsed</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={containerClass}>
