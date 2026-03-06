@@ -1,4 +1,7 @@
 .container {
+  max-width: 360px;
+  margin-left: auto;
+  margin-right: auto;
   margin-bottom: 16px;
   padding: 20px 24px;
   background: rgba(var(--offline-neon-rgb), 0.03);
