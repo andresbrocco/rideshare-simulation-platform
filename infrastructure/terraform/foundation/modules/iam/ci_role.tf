@@ -411,6 +411,7 @@ resource "aws_iam_role_policy" "github_actions_lambda" {
         Effect = "Allow"
         Action = [
           "lambda:GetFunction",
+          "lambda:GetFunctionConfiguration",
           "lambda:GetFunctionUrlConfig",
           "lambda:UpdateFunctionCode"
         ]
