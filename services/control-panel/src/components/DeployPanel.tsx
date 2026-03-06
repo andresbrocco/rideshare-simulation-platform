@@ -223,10 +223,24 @@ export default function DeployPanel({
 
   // ── Health polling ─────────────────────────────────────────────
   const pollHealth = useCallback(async () => {
-    const healthy = await checkHealth();
+    let allHealthy: boolean;
+
+    if (isLocal) {
+      allHealthy = await checkHealth();
+    } else {
+      try {
+        const health = await getServiceHealth();
+        if (!mountedRef.current) return;
+        onServiceHealthChange(health);
+        allHealthy = Object.values(health).every(Boolean);
+      } catch {
+        allHealthy = false;
+      }
+    }
+
     if (!mountedRef.current) return;
 
-    if (healthy) {
+    if (allHealthy) {
       // Activate the session timer
       if (apiKey) {
         try {
@@ -250,7 +264,7 @@ export default function DeployPanel({
     }
 
     setHealthAttempts((prev) => prev + 1);
-  }, [apiKey, checkHealth, transitionToActive]);
+  }, [apiKey, isLocal, checkHealth, onServiceHealthChange, transitionToActive]);
 
   // Slow down health polling after too many attempts
   useEffect(() => {
@@ -298,14 +312,36 @@ export default function DeployPanel({
           setRemainingSeconds(remaining);
           if (remaining === 0 && panelState === 'active') {
             setPanelState('expired');
-            onServiceHealthChange(ALL_SERVICES_DOWN);
           }
         }
       }, POLLING_CONFIG.TICK_INTERVAL);
     }
 
     return () => clearTick();
-  }, [panelState, clearTick, onServiceHealthChange]);
+  }, [panelState, clearTick]);
+
+  // ── Service health polling (active/expired/tearing-down) ──────
+  useEffect(() => {
+    if (serviceHealthIntervalRef.current) {
+      clearInterval(serviceHealthIntervalRef.current);
+      serviceHealthIntervalRef.current = null;
+    }
+
+    if (panelState === 'active' || panelState === 'expired' || panelState === 'tearing-down') {
+      pollServiceHealth();
+      serviceHealthIntervalRef.current = setInterval(
+        pollServiceHealth,
+        POLLING_CONFIG.HEALTH_INTERVAL
+      );
+    }
+
+    return () => {
+      if (serviceHealthIntervalRef.current) {
+        clearInterval(serviceHealthIntervalRef.current);
+        serviceHealthIntervalRef.current = null;
+      }
+    };
+  }, [panelState, pollServiceHealth]);
 
   // ── Session status polling (active state) ──────────────────────
   useEffect(() => {
@@ -320,7 +356,6 @@ export default function DeployPanel({
           if (data.tearing_down) {
             if (panelState !== 'tearing-down') {
               setPanelState('tearing-down');
-              onServiceHealthChange(ALL_SERVICES_DOWN);
             }
             if (data.cost_so_far != null) {
               setCostSoFar(data.cost_so_far);
@@ -332,7 +367,6 @@ export default function DeployPanel({
             // Teardown complete — session gone
             if (!data.active && !data.tearing_down && !data.deploying) {
               setPanelState('idle');
-              onServiceHealthChange(ALL_SERVICES_DOWN);
             }
             return;
           }
@@ -346,13 +380,11 @@ export default function DeployPanel({
           }
           if (!data.active && !data.deploying) {
             setPanelState('expired');
-            onServiceHealthChange(ALL_SERVICES_DOWN);
           }
         } catch {
           if (panelState === 'tearing-down') {
             // Lambda unreachable (infra destroyed) — teardown complete
             setPanelState('idle');
-            onServiceHealthChange(ALL_SERVICES_DOWN);
           }
         }
       };
@@ -379,7 +411,6 @@ export default function DeployPanel({
             setElapsedSeconds(Math.floor(Date.now() / 1000) - sessionData.deployed_at);
           }
           setPanelState('tearing-down');
-          onServiceHealthChange(ALL_SERVICES_DOWN);
           return;
         }
 
@@ -407,11 +438,6 @@ export default function DeployPanel({
             setElapsedSeconds(now - sessionData.deployed_at);
           }
           setPanelState('active');
-          pollServiceHealth();
-          serviceHealthIntervalRef.current = setInterval(
-            pollServiceHealth,
-            POLLING_CONFIG.HEALTH_INTERVAL
-          );
           return;
         }
 
