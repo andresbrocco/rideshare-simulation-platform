@@ -276,6 +276,26 @@ resource "aws_iam_role_policy" "airflow_glue_sessions" {
         Resource = "*"
       },
       {
+        Sid    = "GlueCatalogAccess"
+        Effect = "Allow"
+        Action = [
+          "glue:GetDatabase",
+          "glue:GetDatabases",
+          "glue:CreateDatabase",
+          "glue:GetTable",
+          "glue:GetTables",
+          "glue:CreateTable",
+          "glue:UpdateTable",
+          "glue:DeleteTable",
+          "glue:GetPartitions",
+          "glue:CreatePartition",
+          "glue:BatchCreatePartition",
+          "glue:DeletePartition",
+          "glue:BatchDeletePartition"
+        ]
+        Resource = "*"
+      },
+      {
         Sid      = "PassGlueJobRole"
         Effect   = "Allow"
         Action   = "iam:PassRole"
