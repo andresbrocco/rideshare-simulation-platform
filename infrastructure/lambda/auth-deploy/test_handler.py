@@ -343,6 +343,62 @@ class TestHandleSessionStatus:
         assert body["tearing_down"] is True
         assert body.get("deploying") is False
 
+    def test_tearing_down_auto_clears_after_timeout(self) -> None:
+        """Stale tearing_down flag is auto-cleared after TEARDOWN_TIMEOUT_SECONDS."""
+        session = {
+            "deployed_at": 1000000,
+            "deadline": 1001000,
+            "tearing_down": True,
+            "tearing_down_at": 1001000,
+        }
+        with (
+            patch("handler.get_session", return_value=session),
+            patch("handler.time") as mock_time,
+            patch("handler.delete_session") as mock_delete,
+        ):
+            mock_time.time.return_value = 1001000 + 15 * 60 + 1  # just past timeout
+            status, body = handle_session_status()
+        assert status == 200
+        assert body == {"active": False}
+        mock_delete.assert_called_once()
+
+    def test_tearing_down_no_clear_before_timeout(self) -> None:
+        """tearing_down flag is NOT cleared before timeout expires."""
+        session = {
+            "deployed_at": 1000000,
+            "deadline": 1001000,
+            "tearing_down": True,
+            "tearing_down_at": 1001000,
+        }
+        with (
+            patch("handler.get_session", return_value=session),
+            patch("handler.time") as mock_time,
+            patch("handler.delete_session") as mock_delete,
+        ):
+            mock_time.time.return_value = 1001000 + 10 * 60  # 10 min, before timeout
+            status, body = handle_session_status()
+        assert status == 200
+        assert body["tearing_down"] is True
+        mock_delete.assert_not_called()
+
+    def test_tearing_down_auto_clears_without_timestamp(self) -> None:
+        """Stale tearing_down without tearing_down_at falls back to deadline."""
+        session = {
+            "deployed_at": 1000000,
+            "deadline": 1001000,
+            "tearing_down": True,
+        }
+        with (
+            patch("handler.get_session", return_value=session),
+            patch("handler.time") as mock_time,
+            patch("handler.delete_session") as mock_delete,
+        ):
+            mock_time.time.return_value = 1001000 + 15 * 60 + 1
+            status, body = handle_session_status()
+        assert status == 200
+        assert body == {"active": False}
+        mock_delete.assert_called_once()
+
     def test_session_read_error(self) -> None:
         with patch("handler.get_session", side_effect=RuntimeError("boom")):
             status, body = handle_session_status()
@@ -364,11 +420,12 @@ class TestHandleAutoTeardown:
         ):
             handle_auto_teardown()
 
-        # Verify SSM put_parameter was called with tearing_down: True
+        # Verify SSM put_parameter was called with tearing_down: True and timestamp
         put_call = mock_ssm.return_value.put_parameter
         put_call.assert_called_once()
         written_value = json.loads(put_call.call_args[1]["Value"])
         assert written_value["tearing_down"] is True
+        assert "tearing_down_at" in written_value
         patch.stopall()
 
     def test_does_not_delete_session(self, mock_secrets: object, mock_github_api: object) -> None:

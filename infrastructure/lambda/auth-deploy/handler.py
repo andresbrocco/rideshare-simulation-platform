@@ -30,6 +30,7 @@ SESSION_STEP_MINUTES = 15
 MAX_REMAINING_SECONDS = 2 * 3600  # 2 hours
 PLATFORM_COST_PER_HOUR = 0.31
 RESCHEDULE_DELAY_SECONDS = 300  # 5 min
+TEARDOWN_TIMEOUT_SECONDS = 15 * 60  # 15 min — auto-clear stale tearing_down flag
 
 SERVICE_HEALTH_ENDPOINTS: dict[str, str] = {
     "simulation_api": "https://api.ridesharing.portfolio.andresbrocco.com/health",
@@ -411,6 +412,12 @@ def handle_session_status() -> tuple[int, dict[str, Any]]:
 
     # Tearing down takes priority over all other states
     if tearing_down:
+        tearing_down_at = session.get("tearing_down_at", deadline or deployed_at)
+        if now - tearing_down_at > TEARDOWN_TIMEOUT_SECONDS:
+            # Stale flag — teardown workflow likely finished but cleanup failed
+            delete_session()
+            return 200, {"active": False}
+
         return 200, {
             "active": False,
             "deploying": False,
@@ -578,6 +585,7 @@ def handle_auto_teardown() -> tuple[int, dict[str, Any]]:
         session = get_session()
         if session is not None:
             session["tearing_down"] = True
+            session["tearing_down_at"] = int(time.time())
             get_ssm_client().put_parameter(
                 Name=SSM_SESSION_PARAM,
                 Value=json.dumps(session),

@@ -40,7 +40,8 @@ jobs:
           # 1. Set tearing_down flag in SSM session
           SESSION_JSON=$(aws ssm get-parameter --name "/rideshare/session/deadline" --query "Parameter.Value" --output text 2>/dev/null) || true
           if [ -n "$SESSION_JSON" ] && [ "$SESSION_JSON" != "None" ]; then
-            UPDATED=$(echo "$SESSION_JSON" | jq -c '. + {"tearing_down": true}')
+            NOW_TS=$(date +%s)
+            UPDATED=$(echo "$SESSION_JSON" | jq -c --argjson t "$NOW_TS" '. + {"tearing_down": true, "tearing_down_at": $t}')
             aws ssm put-parameter --name "/rideshare/session/deadline" --value "$UPDATED" --type String --overwrite || echo "Warning: Failed to set tearing_down flag"
           fi
 
@@ -220,5 +221,6 @@ jobs:
           echo "================================"
 
       - name: Clean up session
+        if: always()
         run: |
-          aws ssm delete-parameter --name "/rideshare/session/deadline" 2>/dev/null || true
+          aws ssm delete-parameter --name "/rideshare/session/deadline" 2>&1 || echo "Note: session parameter may already be deleted"
