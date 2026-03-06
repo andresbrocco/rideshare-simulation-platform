@@ -28,5 +28,5 @@ rideshare:
       workers: 2
       worker_type: G.1X
       glue_version: "4.0"
-      database: rideshare_silver
+      schema: rideshare_silver
       threads: 4
