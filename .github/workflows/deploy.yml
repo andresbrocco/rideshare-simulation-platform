@@ -351,41 +351,67 @@ jobs:
               > /dev/null || echo "  Warning: Failed to report $svc ready"
           }
 
+          # wait_and_mark: wait for a k8s resource, then touch a marker file.
+          # report_ready calls run sequentially after each phase to avoid
+          # read-modify-write races on the shared SSM session JSON.
+          READY_DIR=$(mktemp -d)
+          wait_and_mark() {
+            local svc="$1"; shift
+            if kubectl "$@"; then
+              touch "$READY_DIR/$svc"
+            fi
+          }
+
+          report_phase() {
+            for svc in "$@"; do
+              if [ -f "$READY_DIR/$svc" ]; then
+                report_ready "$svc"
+              else
+                echo "  ✗ $svc not ready (skipping report)"
+              fi
+            done
+          }
+
           echo "=== Phase 1: Infrastructure ==="
-          kubectl wait --for=condition=ready pod/kafka-0 -n "$NS" --timeout=300s && report_ready kafka &
-          kubectl wait --for=condition=available deployment/redis -n "$NS" --timeout=300s && report_ready redis &
-          kubectl wait --for=condition=available deployment/otel-collector -n "$NS" --timeout=300s 2>/dev/null && report_ready otel-collector &
-          kubectl wait --for=condition=available deployment/prometheus -n "$NS" --timeout=300s 2>/dev/null && report_ready prometheus &
-          kubectl wait --for=condition=available deployment/loki -n "$NS" --timeout=300s 2>/dev/null && report_ready loki &
-          kubectl wait --for=condition=available deployment/tempo -n "$NS" --timeout=300s 2>/dev/null && report_ready tempo &
-          wait
+          wait_and_mark kafka wait --for=condition=ready pod/kafka-0 -n "$NS" --timeout=300s &
+          wait_and_mark redis wait --for=condition=available deployment/redis -n "$NS" --timeout=300s &
+          wait_and_mark prometheus wait --for=condition=available deployment/prometheus -n "$NS" --timeout=300s &
+          wait_and_mark loki wait --for=condition=available deployment/loki -n "$NS" --timeout=300s &
+          wait_and_mark tempo wait --for=condition=available deployment/tempo -n "$NS" --timeout=300s &
+          kubectl wait --for=condition=available deployment/otel-collector -n "$NS" --timeout=300s 2>/dev/null &
+          wait || true
+          report_phase kafka redis prometheus loki tempo
           echo "Phase 1 complete"
 
           echo "=== Phase 2: Schema/Config ==="
-          kubectl wait --for=condition=available deployment/schema-registry -n "$NS" --timeout=300s && report_ready schema-registry &
-          wait
+          wait_and_mark schema-registry wait --for=condition=available deployment/schema-registry -n "$NS" --timeout=300s || true
+          report_phase schema-registry
           echo "Phase 2 complete"
 
           echo "=== Phase 3: Application ==="
-          kubectl wait --for=condition=available deployment/stream-processor -n "$NS" --timeout=300s && report_ready stream-processor &
-          kubectl wait --for=condition=available deployment/osrm -n "$NS" --timeout=600s && report_ready osrm &
-          kubectl wait --for=condition=available deployment/simulation -n "$NS" --timeout=600s && report_ready simulation &
-          kubectl wait --for=condition=available deployment/bronze-ingestion -n "$NS" --timeout=300s && report_ready bronze-ingestion &
-          kubectl wait --for=condition=available deployment/trino -n "$NS" --timeout=300s && report_ready trino &
-          wait
+          wait_and_mark stream-processor wait --for=condition=available deployment/stream-processor -n "$NS" --timeout=300s &
+          wait_and_mark osrm wait --for=condition=available deployment/osrm -n "$NS" --timeout=600s &
+          wait_and_mark simulation wait --for=condition=available deployment/simulation -n "$NS" --timeout=600s &
+          wait_and_mark bronze-ingestion wait --for=condition=available deployment/bronze-ingestion -n "$NS" --timeout=300s &
+          wait_and_mark trino wait --for=condition=available deployment/trino -n "$NS" --timeout=300s &
+          wait || true
+          report_phase stream-processor osrm simulation bronze-ingestion trino
           echo "Phase 3 complete"
 
           echo "=== Phase 4: Data Pipeline ==="
-          kubectl wait --for=condition=available deployment/airflow-webserver -n "$NS" --timeout=300s && report_ready airflow &
-          wait
+          wait_and_mark airflow wait --for=condition=available deployment/airflow-webserver -n "$NS" --timeout=300s || true
+          report_phase airflow
           echo "Phase 4 complete"
 
           echo "=== Phase 5: UI/Observability ==="
-          kubectl wait --for=condition=available deployment/grafana -n "$NS" --timeout=300s && report_ready grafana &
-          kubectl wait --for=condition=available deployment/performance-controller -n "$NS" --timeout=300s && report_ready performance-controller &
-          kubectl wait --for=condition=available deployment/control-panel -n "$NS" --timeout=300s && report_ready control-panel &
-          wait
+          wait_and_mark grafana wait --for=condition=available deployment/grafana -n "$NS" --timeout=300s &
+          wait_and_mark performance-controller wait --for=condition=available deployment/performance-controller -n "$NS" --timeout=300s &
+          wait_and_mark control-panel wait --for=condition=available deployment/control-panel -n "$NS" --timeout=300s &
+          wait || true
+          report_phase grafana performance-controller control-panel
           echo "Phase 5 complete"
+
+          rm -rf "$READY_DIR"
 
           echo "All services converged"
 
