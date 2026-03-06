@@ -615,8 +615,9 @@ export default function DeployPanel({
 
   // ── Derived values ─────────────────────────────────────────────
   const workflowStepIndex = WORKFLOW_STEPS.findIndex((s) => s.activeKey === workflowStatus);
-  const workflowCompleted = workflowStatus === 'completed';
+  const workflowRunning = workflowStatus === 'in_progress' || workflowStatus === 'completed';
   const readyCount = DEPLOY_SERVICES.filter((svc) => deployProgress[svc]).length;
+  const hasServiceProgress = readyCount > 0;
   const etaRemaining = Math.max(0, ESTIMATED_DEPLOY_SECONDS - elapsedSeconds);
   const teardownElapsed =
     teardownStartedAt != null ? Math.floor(Date.now() / 1000) - teardownStartedAt : elapsedSeconds;
@@ -691,9 +692,8 @@ export default function DeployPanel({
                 key={step.activeKey}
                 className={[
                   styles.segment,
-                  i < workflowStepIndex ? styles.segmentDone : '',
-                  i === workflowStepIndex ? styles.segmentActive : '',
-                  workflowCompleted ? styles.segmentDone : '',
+                  i < workflowStepIndex || hasServiceProgress ? styles.segmentDone : '',
+                  !hasServiceProgress && i === workflowStepIndex ? styles.segmentActive : '',
                 ]
                   .filter(Boolean)
                   .join(' ')}
@@ -706,7 +706,7 @@ export default function DeployPanel({
                 className={[
                   styles.segment,
                   deployProgress[svc] ? styles.segmentDone : '',
-                  workflowCompleted && !deployProgress[svc] ? styles.segmentActive : '',
+                  hasServiceProgress && !deployProgress[svc] ? styles.segmentActive : '',
                 ]
                   .filter(Boolean)
                   .join(' ')}
@@ -717,7 +717,7 @@ export default function DeployPanel({
           <ul className={styles.progressList}>
             {WORKFLOW_STEPS.map((step, i) => {
               let cls = styles.progressItem;
-              if (i < workflowStepIndex || workflowCompleted) cls += ` ${styles.progressItemDone}`;
+              if (i < workflowStepIndex || hasServiceProgress) cls += ` ${styles.progressItemDone}`;
               else if (i === workflowStepIndex) cls += ` ${styles.progressItemActive}`;
               return (
                 <li key={step.activeKey} className={cls}>
@@ -725,7 +725,7 @@ export default function DeployPanel({
                 </li>
               );
             })}
-            {workflowCompleted && (
+            {workflowRunning && (
               <li
                 className={`${styles.progressItem} ${
                   readyCount === DEPLOY_SERVICES.length
@@ -733,7 +733,8 @@ export default function DeployPanel({
                     : styles.progressItemActive
                 }`}
               >
-                Services ready: {readyCount}/{DEPLOY_SERVICES.length}
+                Starting services
+                {hasServiceProgress ? `: ${readyCount}/${DEPLOY_SERVICES.length} ready` : '...'}
               </li>
             )}
           </ul>
