@@ -332,6 +332,34 @@ class TestHandleSessionStatus:
         assert body["deploying"] is True
         assert body["active"] is False
 
+    def test_deploying_auto_clears_after_timeout(self) -> None:
+        """Stale deploying session is auto-cleared after DEPLOYING_TIMEOUT_SECONDS."""
+        session = {"deployed_at": 1000000}
+        with (
+            patch("handler.get_session", return_value=session),
+            patch("handler.time") as mock_time,
+            patch("handler.delete_session") as mock_delete,
+        ):
+            mock_time.time.return_value = 1000000 + 30 * 60 + 1  # just past 30 min timeout
+            status, body = handle_session_status()
+        assert status == 200
+        assert body == {"active": False}
+        mock_delete.assert_called_once()
+
+    def test_deploying_no_clear_before_timeout(self) -> None:
+        """Deploying session is NOT cleared before timeout expires."""
+        session = {"deployed_at": 1000000}
+        with (
+            patch("handler.get_session", return_value=session),
+            patch("handler.time") as mock_time,
+            patch("handler.delete_session") as mock_delete,
+        ):
+            mock_time.time.return_value = 1000000 + 20 * 60  # 20 min, before timeout
+            status, body = handle_session_status()
+        assert status == 200
+        assert body["deploying"] is True
+        mock_delete.assert_not_called()
+
     def test_active_session(self) -> None:
         session = {"deployed_at": 1000000, "deadline": 1001000}
         with patch("handler.get_session", return_value=session), patch("handler.time") as mock_time:

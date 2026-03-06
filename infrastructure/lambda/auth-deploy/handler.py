@@ -31,6 +31,7 @@ MAX_REMAINING_SECONDS = 2 * 3600  # 2 hours
 PLATFORM_COST_PER_HOUR = 0.31
 RESCHEDULE_DELAY_SECONDS = 300  # 5 min
 TEARDOWN_TIMEOUT_SECONDS = 15 * 60  # 15 min — auto-clear stale tearing_down flag
+DEPLOYING_TIMEOUT_SECONDS = 30 * 60  # 30 min — auto-clear stale deploying session
 
 SERVICE_HEALTH_ENDPOINTS: dict[str, str] = {
     "simulation_api": "https://api.ridesharing.portfolio.andresbrocco.com/health",
@@ -446,6 +447,11 @@ def handle_session_status() -> tuple[int, dict[str, Any]]:
 
     # Session exists but countdown not yet started (deploying)
     if deadline is None:
+        if elapsed_seconds > DEPLOYING_TIMEOUT_SECONDS:
+            # Stale deploying session — deploy likely failed or was abandoned
+            delete_session()
+            return 200, {"active": False}
+
         return 200, {
             "active": False,
             "deploying": True,
