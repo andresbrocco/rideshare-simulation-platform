@@ -13,6 +13,7 @@ const TICK_INTERVAL_MS = 1_000;
 const SESSION_STEP_SECONDS = 15 * 60;
 const MAX_REMAINING_SECONDS = 2 * 3600;
 const WARNING_THRESHOLD_SECONDS = 5 * 60;
+const COST_PER_HOUR = 0.31;
 
 interface SessionTimerProps {
   apiKey?: string;
@@ -191,13 +192,17 @@ export default function SessionTimer({ apiKey }: SessionTimerProps) {
     .filter(Boolean)
     .join(' ');
 
-  // Deploying state: show elapsed time instead of countdown
+  const estimatedCost = (elapsedSeconds / 3600) * COST_PER_HOUR;
+
+  // Deploying state: show elapsed time and estimated cost instead of countdown
   if (deploying) {
     return (
       <div className={styles.container}>
         <div>
           <div className={styles.countdown}>Deploying...</div>
-          <div className={styles.cost}>{elapsedDisplay} elapsed</div>
+          <div className={styles.cost}>
+            {elapsedDisplay} elapsed &middot; ~${estimatedCost.toFixed(2)} spent
+          </div>
         </div>
       </div>
     );
