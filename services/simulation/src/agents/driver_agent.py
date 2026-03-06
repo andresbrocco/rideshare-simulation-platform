@@ -595,6 +595,19 @@ class DriverAgent(EventEmitter):
                 self._emit_status_event(previous_status, self._status, "repositioning_failed")
                 self.record_action("repositioning_failed")
 
+    def force_stop_repositioning(self) -> None:
+        """Force-stop repositioning, resetting to available. Used during drain timeout."""
+        if self._reposition_process is not None and self._reposition_process.is_alive:
+            self._reposition_process.interrupt()
+            self._reposition_process = None
+        if self._status == "driving_closer_to_home":
+            previous_status = self._status
+            self._status = "available"
+            if self._registry_manager:
+                self._registry_manager.driver_status_changed(self._driver_id, self._status)
+            self._emit_status_event(previous_status, self._status, "repositioning_force_stopped")
+            self.record_action("repositioning_force_stopped")
+
     def on_trip_cancelled(self, trip: "Trip") -> None:
         """Handle trip cancellation notification."""
         if self._status != "offline":

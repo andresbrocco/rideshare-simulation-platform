@@ -281,6 +281,115 @@ def test_terminal_states_excluded(running_engine):
 
 @pytest.mark.unit
 @pytest.mark.slow
+def test_draining_waits_for_repositioning_drivers(fast_running_engine):
+    """Waits for repositioning drivers before transitioning to PAUSED."""
+    call_count = [0]
+
+    def mock_get_repositioning():
+        call_count[0] += 1
+        if call_count[0] <= 2:
+            driver = Mock()
+            driver.status = "driving_closer_to_home"
+            return [driver]
+        return []
+
+    with (
+        patch.object(fast_running_engine, "_get_in_flight_trips", return_value=[]),
+        patch.object(
+            fast_running_engine,
+            "_get_repositioning_drivers",
+            side_effect=mock_get_repositioning,
+        ),
+    ):
+        fast_running_engine.pause()
+        fast_running_engine.step(15)
+
+        assert fast_running_engine.state == SimulationState.PAUSED
+
+
+@pytest.mark.unit
+@pytest.mark.slow
+def test_draining_waits_for_both_trips_and_repositioning(fast_running_engine):
+    """Stays DRAINING until both trips and repositioning drivers finish."""
+    trip_call_count = [0]
+    reposition_call_count = [0]
+
+    def mock_get_trips():
+        trip_call_count[0] += 1
+        if trip_call_count[0] <= 1:
+            return [create_trip("trip1", TripState.IN_TRANSIT)]
+        return []
+
+    def mock_get_repositioning():
+        reposition_call_count[0] += 1
+        if reposition_call_count[0] <= 3:
+            driver = Mock()
+            driver.status = "driving_closer_to_home"
+            return [driver]
+        return []
+
+    with (
+        patch.object(fast_running_engine, "_get_in_flight_trips", side_effect=mock_get_trips),
+        patch.object(
+            fast_running_engine,
+            "_get_repositioning_drivers",
+            side_effect=mock_get_repositioning,
+        ),
+    ):
+        fast_running_engine.pause()
+        fast_running_engine.step(25)
+
+        assert fast_running_engine.state == SimulationState.PAUSED
+
+
+@pytest.mark.unit
+@pytest.mark.slow
+def test_drain_timeout_force_stops_repositioning(fast_running_engine):
+    """Force-stops repositioning drivers on drain timeout."""
+    mock_driver = Mock()
+    mock_driver.status = "driving_closer_to_home"
+    mock_driver.driver_id = "driver1"
+    fast_running_engine._active_drivers["driver1"] = mock_driver
+
+    with patch.object(fast_running_engine, "_get_in_flight_trips", return_value=[]):
+        fast_running_engine.pause()
+        # Step past the 7200-second timeout
+        fast_running_engine.step(7201)
+
+        mock_driver.force_stop_repositioning.assert_called_once()
+        assert fast_running_engine.state == SimulationState.PAUSED
+
+
+@pytest.mark.unit
+@pytest.mark.slow
+def test_get_repositioning_drivers_filters_correctly(running_engine):
+    """Only returns drivers with driving_closer_to_home status."""
+    available_driver = Mock()
+    available_driver.status = "available"
+
+    repositioning_driver = Mock()
+    repositioning_driver.status = "driving_closer_to_home"
+
+    on_trip_driver = Mock()
+    on_trip_driver.status = "on_trip"
+
+    offline_driver = Mock()
+    offline_driver.status = "offline"
+
+    running_engine._active_drivers = {
+        "d1": available_driver,
+        "d2": repositioning_driver,
+        "d3": on_trip_driver,
+        "d4": offline_driver,
+    }
+
+    result = running_engine._get_repositioning_drivers()
+    assert len(result) == 1
+    assert result[0] is repositioning_driver
+
+
+@pytest.mark.unit
+@pytest.mark.slow
 def test_pause_invalid_from_stopped(engine):
     """Cannot pause from STOPPED."""
     assert engine.state == SimulationState.STOPPED

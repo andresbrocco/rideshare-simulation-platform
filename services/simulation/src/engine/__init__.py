@@ -729,6 +729,19 @@ class SimulationEngine:
                 return trips
         return []
 
+    def _get_repositioning_drivers(self) -> list["DriverAgent"]:
+        """Get drivers currently repositioning toward home."""
+        return [
+            driver
+            for driver in self._active_drivers.values()
+            if driver.status == "driving_closer_to_home"
+        ]
+
+    def _force_stop_repositioning(self, drivers: list["DriverAgent"]) -> None:
+        """Force-interrupt repositioning drivers on drain timeout."""
+        for driver in drivers:
+            driver.force_stop_repositioning()
+
     def _run_drain_process(self):  # type: ignore[no-untyped-def]
         """Monitor quiescence and transition to PAUSED."""
         timeout_at = self._env.now + 7200
@@ -736,13 +749,16 @@ class SimulationEngine:
 
         while True:
             in_flight = self._get_in_flight_trips()
-            if len(in_flight) == 0:
+            repositioning = self._get_repositioning_drivers()
+
+            if len(in_flight) == 0 and len(repositioning) == 0:
                 trigger = "quiescence_achieved"
                 break
 
             if self._env.now >= timeout_at:
                 trigger = "drain_timeout"
                 self._force_cancel_trips(in_flight)
+                self._force_stop_repositioning(repositioning)
                 break
 
             yield self._env.timeout(5)
@@ -827,6 +843,7 @@ class SimulationEngine:
             "active_drivers": self.active_driver_count,
             "active_riders": self.active_rider_count,
             "in_flight_trips": len(self._get_in_flight_trips()),
+            "repositioning_drivers": len(self._get_repositioning_drivers()),
         }
 
         self._kafka_producer.produce(
