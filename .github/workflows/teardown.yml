@@ -27,6 +27,18 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rideshare-github-actions
           aws-region: us-east-1
 
+      - name: Store teardown run ID in session
+        run: |
+          SESSION_JSON=$(aws ssm get-parameter --name "/rideshare/session/deadline" \
+            --query "Parameter.Value" --output text 2>/dev/null) || true
+          if [ -n "$SESSION_JSON" ] && [ "$SESSION_JSON" != "None" ]; then
+            UPDATED=$(echo "$SESSION_JSON" | jq -c --argjson rid "${{ github.run_id }}" \
+              '. + {"teardown_run_id": $rid}')
+            aws ssm put-parameter --name "/rideshare/session/deadline" \
+              --value "$UPDATED" --type String --overwrite \
+              || echo "Warning: Failed to store run ID"
+          fi
+
       - name: Terraform Init (Platform)
         working-directory: infrastructure/terraform/platform
         run: |

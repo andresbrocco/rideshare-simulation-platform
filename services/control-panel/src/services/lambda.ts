@@ -118,11 +118,27 @@ export interface SessionStatusResponse {
   active: boolean;
   deploying?: boolean;
   tearing_down?: boolean;
+  tearing_down_at?: number;
   remaining_seconds?: number;
   deployed_at?: number;
   deadline?: number;
   elapsed_seconds?: number;
   cost_so_far?: number;
+}
+
+export interface TeardownStepInfo {
+  name: string;
+  status: 'completed' | 'in_progress' | 'pending';
+}
+
+export interface TeardownStatusResponse {
+  tearing_down: boolean;
+  run_id: number | null;
+  workflow_status: string;
+  workflow_conclusion: string | null;
+  current_step: number;
+  total_steps: number;
+  steps: TeardownStepInfo[];
 }
 
 export interface SessionAdjustResponse {
@@ -147,6 +163,25 @@ function isSessionAdjustResponse(data: unknown): data is SessionAdjustResponse {
     typeof (data as SessionAdjustResponse).success === 'boolean' &&
     typeof (data as SessionAdjustResponse).remaining_seconds === 'number' &&
     typeof (data as SessionAdjustResponse).deadline === 'number'
+  );
+}
+
+function isTeardownStatusResponse(data: unknown): data is TeardownStatusResponse {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    typeof (data as TeardownStatusResponse).tearing_down === 'boolean' &&
+    typeof (data as TeardownStatusResponse).current_step === 'number' &&
+    typeof (data as TeardownStatusResponse).total_steps === 'number' &&
+    Array.isArray((data as TeardownStatusResponse).steps)
+  );
+}
+
+export async function getTeardownStatus(): Promise<TeardownStatusResponse> {
+  return callLambda(
+    { action: 'teardown-status' },
+    isTeardownStatusResponse,
+    'Teardown status service'
   );
 }
 

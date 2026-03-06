@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   getSessionStatus,
   getServiceHealth,
+  getTeardownStatus,
   triggerDeploy,
   checkDeployStatus,
   activateSession,
@@ -30,6 +31,16 @@ const PROGRESS_STEPS = [
 ] as const;
 
 const ESTIMATED_DEPLOY_SECONDS = 720; // 12 min (midpoint of 10-15 min estimate)
+
+const TEARDOWN_STEPS = [
+  { label: 'Saving simulation checkpoint...', activeKey: 'saving_checkpoint' },
+  { label: 'Cleaning up DNS records...', activeKey: 'cleaning_dns' },
+  { label: 'Destroying infrastructure...', activeKey: 'destroying_infra' },
+  { label: 'Verifying cleanup...', activeKey: 'verifying' },
+  { label: 'Finalizing...', activeKey: 'finalizing' },
+] as const;
+
+const ESTIMATED_TEARDOWN_SECONDS = 540; // 9 min
 
 const SESSION_STEP_SECONDS = 15 * 60;
 const MAX_REMAINING_SECONDS = 2 * 3600;
@@ -78,6 +89,8 @@ export default function DeployPanel({
   const [extending, setExtending] = useState(false);
   const [shrinking, setShrinking] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [teardownStepIndex, setTeardownStepIndex] = useState(-1);
+  const [teardownStartedAt, setTeardownStartedAt] = useState<number | null>(null);
 
   const mountedRef = useRef(true);
   const statusIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -90,6 +103,7 @@ export default function DeployPanel({
   const pendingDeployRef = useRef(false);
   const pendingActionRef = useRef<'extend' | 'shrink' | null>(null);
   const serviceHealthIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const teardownPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const apiUrl = isLocal
     ? import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -357,6 +371,7 @@ export default function DeployPanel({
 
           if (data.tearing_down) {
             if (panelState !== 'tearing-down') {
+              setTeardownStartedAt(data.tearing_down_at ?? null);
               setPanelState('tearing-down');
             }
             if (data.cost_so_far != null) {
@@ -398,6 +413,41 @@ export default function DeployPanel({
     return () => clearSessionPoll();
   }, [panelState, clearSessionPoll, onServiceHealthChange]);
 
+  // ── Teardown progress polling ──────────────────────────────────
+  useEffect(() => {
+    if (teardownPollRef.current) {
+      clearInterval(teardownPollRef.current);
+      teardownPollRef.current = null;
+    }
+
+    if (panelState !== 'tearing-down') {
+      setTeardownStepIndex(-1);
+      return;
+    }
+
+    const pollTeardown = async () => {
+      try {
+        const data = await getTeardownStatus();
+        if (!mountedRef.current) return;
+        if (data.tearing_down) {
+          setTeardownStepIndex(data.current_step);
+        }
+      } catch {
+        // Silently ignore — progress bar stays at last known state
+      }
+    };
+
+    pollTeardown();
+    teardownPollRef.current = setInterval(pollTeardown, POLLING_CONFIG.STATUS_INTERVAL);
+
+    return () => {
+      if (teardownPollRef.current) {
+        clearInterval(teardownPollRef.current);
+        teardownPollRef.current = null;
+      }
+    };
+  }, [panelState]);
+
   // ── Resume state on mount ──────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
@@ -410,6 +460,7 @@ export default function DeployPanel({
         if (sessionData.tearing_down) {
           setDeployedAt(sessionData.deployed_at ?? null);
           setCostSoFar(sessionData.cost_so_far ?? null);
+          setTeardownStartedAt(sessionData.tearing_down_at ?? null);
           if (sessionData.deployed_at != null) {
             setElapsedSeconds(Math.floor(Date.now() / 1000) - sessionData.deployed_at);
           }
@@ -571,6 +622,9 @@ export default function DeployPanel({
   // ── Derived values ─────────────────────────────────────────────
   const activeStepIndex = PROGRESS_STEPS.findIndex((s) => s.activeKey === workflowStatus);
   const etaRemaining = Math.max(0, ESTIMATED_DEPLOY_SECONDS - elapsedSeconds);
+  const teardownElapsed =
+    teardownStartedAt != null ? Math.floor(Date.now() / 1000) - teardownStartedAt : elapsedSeconds;
+  const teardownEtaRemaining = Math.max(0, ESTIMATED_TEARDOWN_SECONDS - teardownElapsed);
   const isWarning = panelState === 'active' && remainingSeconds < WARNING_THRESHOLD_SECONDS;
   const canExtend =
     panelState === 'active' && remainingSeconds + SESSION_STEP_SECONDS <= MAX_REMAINING_SECONDS;
@@ -686,13 +740,46 @@ export default function DeployPanel({
       {/* Tearing down */}
       {panelState === 'tearing-down' && (
         <>
-          <div className={styles.deployingHeader}>
-            <div className={`${styles.spinner} ${styles.spinnerTeardown}`} />
-            <span className={styles.teardownText}>Tearing down...</span>
+          <div className={styles.etaRow}>
+            <div className={styles.deployingHeader}>
+              <div className={`${styles.spinner} ${styles.spinnerTeardown}`} />
+              <span className={styles.teardownText}>Tearing down...</span>
+            </div>
+            <span className={styles.etaCountdownTeardown}>
+              {teardownEtaRemaining > 0
+                ? `~${formatTime(teardownEtaRemaining)} ETA`
+                : 'Finishing up...'}
+            </span>
           </div>
-          <div className={styles.teardownInfo}>
-            Saving checkpoint and destroying infrastructure.
+
+          <div className={styles.progressBar}>
+            {TEARDOWN_STEPS.map((step, i) => (
+              <div
+                key={step.activeKey}
+                className={[
+                  styles.segment,
+                  i < teardownStepIndex ? styles.segmentDone : '',
+                  i === teardownStepIndex ? styles.segmentActiveTeardown : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+              />
+            ))}
           </div>
+
+          <ul className={styles.progressList}>
+            {TEARDOWN_STEPS.map((step, i) => {
+              let cls = styles.progressItem;
+              if (i < teardownStepIndex) cls += ` ${styles.progressItemDone}`;
+              else if (i === teardownStepIndex) cls += ` ${styles.progressItemActiveTeardown}`;
+              return (
+                <li key={step.activeKey} className={cls}>
+                  {step.label}
+                </li>
+              );
+            })}
+          </ul>
+
           <div className={styles.elapsedRow}>
             <span>Elapsed:</span>
             <span className={styles.elapsedTime}>{formatElapsed(elapsedSeconds)}</span>

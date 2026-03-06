@@ -4,12 +4,14 @@ from unittest.mock import patch
 import pytest
 
 from handler import (
+    TEARDOWN_UI_LABELS,
     get_response_headers,
     handle_auto_teardown,
     handle_deploy,
     handle_service_health,
     handle_session_status,
     handle_status,
+    handle_teardown_status,
     handle_validate,
     lambda_handler,
     validate_api_key,
@@ -298,6 +300,21 @@ class TestLambdaHandler:
         body = json.loads(response["body"])
         assert "services" in body
 
+    def test_teardown_status_no_auth(self) -> None:
+        """teardown-status should not require api_key."""
+        event = {
+            "requestContext": {"http": {"method": "POST"}},
+            "headers": {},
+            "body": json.dumps({"action": "teardown-status"}),
+        }
+
+        with patch("handler.get_session", return_value=None):
+            response = lambda_handler(event, None)
+
+        assert response["statusCode"] == 200
+        body = json.loads(response["body"])
+        assert body["tearing_down"] is False
+
 
 class TestHandleSessionStatus:
     def test_no_session(self) -> None:
@@ -380,6 +397,20 @@ class TestHandleSessionStatus:
         assert status == 200
         assert body["tearing_down"] is True
         mock_delete.assert_not_called()
+
+    def test_tearing_down_includes_tearing_down_at(self) -> None:
+        """tearing_down response includes tearing_down_at timestamp."""
+        session = {
+            "deployed_at": 1000000,
+            "deadline": 1001000,
+            "tearing_down": True,
+            "tearing_down_at": 1001050,
+        }
+        with patch("handler.get_session", return_value=session), patch("handler.time") as mock_time:
+            mock_time.time.return_value = 1001100
+            status, body = handle_session_status()
+        assert status == 200
+        assert body["tearing_down_at"] == 1001050
 
     def test_tearing_down_auto_clears_without_timestamp(self) -> None:
         """Stale tearing_down without tearing_down_at falls back to deadline."""
@@ -499,3 +530,223 @@ class TestHandleServiceHealth:
         assert status == 200
         for service_id in ("simulation_api", "grafana", "airflow", "trino", "prometheus"):
             assert body["services"][service_id] is False
+
+
+class TestHandleTeardownStatus:
+    def test_not_tearing_down(self) -> None:
+        session = {"deployed_at": 1000000, "deadline": 1001000}
+        with patch("handler.get_session", return_value=session):
+            status, body = handle_teardown_status()
+        assert status == 200
+        assert body == {"tearing_down": False}
+
+    def test_no_session(self) -> None:
+        with patch("handler.get_session", return_value=None):
+            status, body = handle_teardown_status()
+        assert status == 200
+        assert body == {"tearing_down": False}
+
+    def test_with_run_id_in_ssm(self, mock_secrets: object, mock_github_api: object) -> None:
+        """Run ID already cached in session — queries jobs API directly."""
+        session = {
+            "deployed_at": 1000000,
+            "tearing_down": True,
+            "tearing_down_at": 1001000,
+            "teardown_run_id": 99999,
+        }
+        # Mock jobs API response: steps 0-4 completed, step 5 in_progress
+        job_steps = []
+        for i in range(11):
+            if i < 5:
+                job_steps.append({"name": f"Step {i}", "status": "completed"})
+            elif i == 5:
+                job_steps.append({"name": f"Step {i}", "status": "in_progress"})
+            else:
+                job_steps.append({"name": f"Step {i}", "status": "queued"})
+
+        mock_github_api.return_value = (
+            200,
+            {
+                "jobs": [
+                    {
+                        "status": "in_progress",
+                        "conclusion": None,
+                        "steps": job_steps,
+                    }
+                ],
+            },
+        )
+
+        with patch("handler.get_session", return_value=session):
+            status, body = handle_teardown_status()
+
+        assert status == 200
+        assert body["tearing_down"] is True
+        assert body["run_id"] == 99999
+        assert body["current_step"] == 1  # DNS step (workflow step 5)
+        assert body["steps"][0]["status"] == "completed"  # checkpoint
+        assert body["steps"][1]["status"] == "in_progress"  # DNS
+        assert body["steps"][2]["status"] == "pending"  # terraform
+
+    def test_resolves_run_id_from_workflow_runs(
+        self, mock_secrets: object, mock_github_api: object
+    ) -> None:
+        """No run_id yet — queries runs API then jobs API."""
+        session = {
+            "deployed_at": 1000000,
+            "tearing_down": True,
+            "tearing_down_at": 1001000,
+        }
+
+        # First call: workflow runs query
+        runs_response = (
+            200,
+            {
+                "workflow_runs": [
+                    {
+                        "id": 77777,
+                        "created_at": "2001-09-09T01:46:40Z",  # ts=1000000
+                        "status": "in_progress",
+                    }
+                ],
+            },
+        )
+        # Second call: jobs API
+        jobs_response = (
+            200,
+            {
+                "jobs": [
+                    {
+                        "status": "in_progress",
+                        "conclusion": None,
+                        "steps": [{"name": f"Step {i}", "status": "queued"} for i in range(11)],
+                    }
+                ],
+            },
+        )
+        mock_github_api.side_effect = [runs_response, jobs_response]
+
+        mock_ssm = patch("handler.get_ssm_client").start()
+        with patch("handler.get_session", return_value=session):
+            status, body = handle_teardown_status()
+
+        assert status == 200
+        assert body["run_id"] == 77777
+        # Verify run_id was cached in SSM
+        put_call = mock_ssm.return_value.put_parameter
+        put_call.assert_called_once()
+        written_value = json.loads(put_call.call_args[1]["Value"])
+        assert written_value["teardown_run_id"] == 77777
+        patch.stopall()
+
+    def test_run_not_found(self, mock_secrets: object, mock_github_api: object) -> None:
+        """No matching run found — returns all steps pending."""
+        session = {
+            "deployed_at": 1000000,
+            "tearing_down": True,
+            "tearing_down_at": 1001000,
+        }
+        # Runs API returns empty
+        mock_github_api.return_value = (200, {"workflow_runs": []})
+
+        with patch("handler.get_session", return_value=session):
+            status, body = handle_teardown_status()
+
+        assert status == 200
+        assert body["tearing_down"] is True
+        assert body["run_id"] is None
+        assert body["current_step"] == -1
+        assert all(s["status"] == "pending" for s in body["steps"])
+
+    def test_completed_workflow(self, mock_secrets: object, mock_github_api: object) -> None:
+        """All steps completed — conclusion is success."""
+        session = {
+            "deployed_at": 1000000,
+            "tearing_down": True,
+            "tearing_down_at": 1001000,
+            "teardown_run_id": 88888,
+        }
+        mock_github_api.return_value = (
+            200,
+            {
+                "jobs": [
+                    {
+                        "status": "completed",
+                        "conclusion": "success",
+                        "steps": [{"name": f"Step {i}", "status": "completed"} for i in range(11)],
+                    }
+                ],
+            },
+        )
+
+        with patch("handler.get_session", return_value=session):
+            status, body = handle_teardown_status()
+
+        assert status == 200
+        assert body["workflow_conclusion"] == "success"
+        assert all(s["status"] == "completed" for s in body["steps"])
+        assert body["current_step"] == 4  # last step
+
+    def test_github_api_error(self, mock_secrets: object, mock_github_api: object) -> None:
+        """GitHub API fails gracefully — all steps pending."""
+        session = {
+            "deployed_at": 1000000,
+            "tearing_down": True,
+            "tearing_down_at": 1001000,
+            "teardown_run_id": 88888,
+        }
+        mock_github_api.side_effect = Exception("API down")
+
+        with patch("handler.get_session", return_value=session):
+            status, body = handle_teardown_status()
+
+        assert status == 200
+        assert body["tearing_down"] is True
+        assert body["current_step"] == -1
+        assert all(s["status"] == "pending" for s in body["steps"])
+
+    def test_step_mapping_logic(self, mock_secrets: object, mock_github_api: object) -> None:
+        """Verify TEARDOWN_STEP_RANGES mapping works correctly."""
+        session = {
+            "deployed_at": 1000000,
+            "tearing_down": True,
+            "tearing_down_at": 1001000,
+            "teardown_run_id": 11111,
+        }
+        # Steps 0-6 completed, 7 in_progress (UI step 3 = verifying)
+        job_steps = []
+        for i in range(11):
+            if i <= 6:
+                job_steps.append({"name": f"Step {i}", "status": "completed"})
+            elif i == 7:
+                job_steps.append({"name": f"Step {i}", "status": "in_progress"})
+            else:
+                job_steps.append({"name": f"Step {i}", "status": "queued"})
+
+        mock_github_api.return_value = (
+            200,
+            {
+                "jobs": [
+                    {
+                        "status": "in_progress",
+                        "conclusion": None,
+                        "steps": job_steps,
+                    }
+                ],
+            },
+        )
+
+        with patch("handler.get_session", return_value=session):
+            status, body = handle_teardown_status()
+
+        assert status == 200
+        assert body["total_steps"] == 5
+        assert len(body["steps"]) == 5
+        assert body["steps"][0]["status"] == "completed"  # Saving checkpoint (0-4)
+        assert body["steps"][1]["status"] == "completed"  # DNS (5)
+        assert body["steps"][2]["status"] == "completed"  # Terraform (6)
+        assert body["steps"][3]["status"] == "in_progress"  # Verifying (7-9)
+        assert body["steps"][4]["status"] == "pending"  # Finalizing (10)
+        assert body["current_step"] == 3
+        for step, label in zip(body["steps"], TEARDOWN_UI_LABELS):
+            assert step["name"] == label

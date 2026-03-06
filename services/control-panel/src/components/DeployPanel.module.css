@@ -248,11 +248,27 @@
   color: var(--accent-red);
 }
 
-.teardownInfo {
-  font-size: 0.75rem;
-  color: var(--offline-text-dimmest);
-  margin-bottom: 12px;
-  line-height: 1.5;
+.etaCountdownTeardown {
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-red);
+}
+
+.segmentActiveTeardown::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--accent-red);
+  animation: segmentPulse 1.5s ease-in-out infinite;
+}
+
+.progressItemActiveTeardown {
+  color: var(--offline-text);
+}
+
+.progressItemActiveTeardown::before {
+  background: var(--accent-red);
 }
 
 /* ── Active state ──────────────────────────────────── */
@@ -426,7 +442,8 @@
 /* ── Reduced motion ───────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
-  .segmentActive::after {
+  .segmentActive::after,
+  .segmentActiveTeardown::after {
     animation: none;
     opacity: 0.7;
   }

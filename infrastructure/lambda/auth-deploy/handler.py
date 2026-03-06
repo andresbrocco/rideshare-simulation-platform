@@ -41,7 +41,23 @@ SERVICE_HEALTH_ENDPOINTS: dict[str, str] = {
 }
 HEALTH_CHECK_TIMEOUT = 5  # seconds
 
-NO_AUTH_ACTIONS = {"session-status", "auto-teardown", "service-health"}
+NO_AUTH_ACTIONS = {"session-status", "auto-teardown", "service-health", "teardown-status"}
+
+TEARDOWN_STEP_RANGES = [
+    (0, 5),  # UI step 0: Saving simulation checkpoint
+    (5, 6),  # UI step 1: Cleaning up DNS
+    (6, 7),  # UI step 2: Destroying infrastructure
+    (7, 10),  # UI step 3: Verifying cleanup
+    (10, 11),  # UI step 4: Finalizing
+]
+
+TEARDOWN_UI_LABELS = [
+    "Saving simulation checkpoint...",
+    "Cleaning up DNS records...",
+    "Destroying infrastructure...",
+    "Verifying cleanup...",
+    "Finalizing...",
+]
 
 
 def get_secrets_client() -> boto3.client:
@@ -422,6 +438,7 @@ def handle_session_status() -> tuple[int, dict[str, Any]]:
             "active": False,
             "deploying": False,
             "tearing_down": True,
+            "tearing_down_at": tearing_down_at,
             "deployed_at": deployed_at,
             "elapsed_seconds": elapsed_seconds,
             "cost_so_far": cost_so_far,
@@ -448,6 +465,172 @@ def handle_session_status() -> tuple[int, dict[str, Any]]:
         "elapsed_seconds": elapsed_seconds,
         "cost_so_far": cost_so_far,
     }
+
+
+def handle_teardown_status() -> tuple[int, dict[str, Any]]:
+    """Handle teardown-status action (no auth required).
+
+    Returns step-level progress for an in-progress teardown workflow.
+    """
+    try:
+        session = get_session()
+    except Exception as e:
+        print(f"Error reading session: {e}")
+        return 200, {"tearing_down": False}
+
+    if session is None or not session.get("tearing_down", False):
+        return 200, {"tearing_down": False}
+
+    tearing_down_at = session.get("tearing_down_at")
+
+    # Resolve run ID
+    run_id = session.get("teardown_run_id")
+    github_pat: str | None = None
+
+    if run_id is None:
+        # Try to find the run from recent workflow runs
+        try:
+            github_pat = get_secret(SECRET_GITHUB_PAT)
+            path = (
+                f"/repos/{GITHUB_REPO}/actions/workflows/"
+                f"{GITHUB_TEARDOWN_WORKFLOW}/runs?per_page=3"
+            )
+            status_code, response_data = github_api_request("GET", path, github_pat)
+
+            if status_code == 200:
+                cutoff = (tearing_down_at or 0) - 60
+                for run in response_data.get("workflow_runs", []):
+                    # Parse created_at ISO timestamp
+                    from datetime import datetime
+
+                    created_at_str = run.get("created_at", "")
+                    try:
+                        created_dt = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+                        created_ts = int(created_dt.timestamp())
+                    except (ValueError, AttributeError):
+                        continue
+
+                    if created_ts >= cutoff:
+                        run_id = run["id"]
+                        # Cache run_id in SSM for future polls
+                        try:
+                            session["teardown_run_id"] = run_id
+                            get_ssm_client().put_parameter(
+                                Name=SSM_SESSION_PARAM,
+                                Value=json.dumps(session),
+                                Type="String",
+                                Overwrite=True,
+                            )
+                        except Exception as e:
+                            print(f"Warning: Failed to cache run_id: {e}")
+                        break
+        except Exception as e:
+            print(f"Warning: Failed to query teardown runs: {e}")
+
+    # Build default pending steps
+    pending_steps = [{"name": label, "status": "pending"} for label in TEARDOWN_UI_LABELS]
+
+    if run_id is None:
+        return 200, {
+            "tearing_down": True,
+            "run_id": None,
+            "workflow_status": "queued",
+            "workflow_conclusion": None,
+            "current_step": -1,
+            "total_steps": len(TEARDOWN_UI_LABELS),
+            "steps": pending_steps,
+        }
+
+    # Fetch job steps from GitHub API
+    try:
+        if github_pat is None:
+            github_pat = get_secret(SECRET_GITHUB_PAT)
+        path = f"/repos/{GITHUB_REPO}/actions/runs/{run_id}/jobs"
+        status_code, response_data = github_api_request("GET", path, github_pat)
+
+        if status_code != 200:
+            print(f"GitHub jobs API returned {status_code}: {response_data}")
+            return 200, {
+                "tearing_down": True,
+                "run_id": run_id,
+                "workflow_status": "in_progress",
+                "workflow_conclusion": None,
+                "current_step": -1,
+                "total_steps": len(TEARDOWN_UI_LABELS),
+                "steps": pending_steps,
+            }
+
+        jobs = response_data.get("jobs", [])
+        if not jobs:
+            return 200, {
+                "tearing_down": True,
+                "run_id": run_id,
+                "workflow_status": "queued",
+                "workflow_conclusion": None,
+                "current_step": -1,
+                "total_steps": len(TEARDOWN_UI_LABELS),
+                "steps": pending_steps,
+            }
+
+        job = jobs[0]
+        workflow_status = job.get("status", "queued")
+        workflow_conclusion = job.get("conclusion")
+        job_steps = job.get("steps", [])
+
+        # Map workflow steps to UI steps using TEARDOWN_STEP_RANGES
+        ui_steps: list[dict[str, str]] = []
+        current_step = -1
+
+        for ui_idx, (start, end) in enumerate(TEARDOWN_STEP_RANGES):
+            range_steps = job_steps[start:end]
+
+            if not range_steps:
+                ui_steps.append({"name": TEARDOWN_UI_LABELS[ui_idx], "status": "pending"})
+                continue
+
+            all_completed = all(s.get("status") == "completed" for s in range_steps)
+            any_in_progress = any(s.get("status") == "in_progress" for s in range_steps)
+
+            if all_completed:
+                ui_steps.append({"name": TEARDOWN_UI_LABELS[ui_idx], "status": "completed"})
+            elif any_in_progress:
+                ui_steps.append({"name": TEARDOWN_UI_LABELS[ui_idx], "status": "in_progress"})
+                current_step = ui_idx
+            else:
+                ui_steps.append({"name": TEARDOWN_UI_LABELS[ui_idx], "status": "pending"})
+
+        # If no step is in_progress but some are completed, current_step is the
+        # first non-completed step (or last step if all completed)
+        if current_step == -1:
+            for i, step in enumerate(ui_steps):
+                if step["status"] != "completed":
+                    current_step = i
+                    break
+            else:
+                # All completed
+                current_step = len(ui_steps) - 1
+
+        return 200, {
+            "tearing_down": True,
+            "run_id": run_id,
+            "workflow_status": workflow_status,
+            "workflow_conclusion": workflow_conclusion,
+            "current_step": current_step,
+            "total_steps": len(TEARDOWN_UI_LABELS),
+            "steps": ui_steps,
+        }
+
+    except Exception as e:
+        print(f"Error fetching teardown job steps: {e}")
+        return 200, {
+            "tearing_down": True,
+            "run_id": run_id,
+            "workflow_status": "in_progress",
+            "workflow_conclusion": None,
+            "current_step": -1,
+            "total_steps": len(TEARDOWN_UI_LABELS),
+            "steps": pending_steps,
+        }
 
 
 def handle_activate_session(api_key: str) -> tuple[int, dict[str, Any]]:
@@ -701,6 +884,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
             "session-status": handle_session_status,
             "auto-teardown": handle_auto_teardown,
             "service-health": handle_service_health,
+            "teardown-status": handle_teardown_status,
         }
         auth_handlers: dict[str, Any] = {
             "validate": handle_validate,
@@ -732,6 +916,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "status",
                 "session-status",
                 "service-health",
+                "teardown-status",
                 "activate-session",
                 "extend-session",
                 "shrink-session",
@@ -777,6 +962,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         "session-status": handle_session_status,
         "auto-teardown": handle_auto_teardown,
         "service-health": handle_service_health,
+        "teardown-status": handle_teardown_status,
     }
     auth_handlers: dict[str, Any] = {
         "validate": handle_validate,
@@ -810,6 +996,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "status",
                 "session-status",
                 "service-health",
+                "teardown-status",
                 "activate-session",
                 "extend-session",
                 "shrink-session",

@@ -5,6 +5,7 @@ import {
   triggerDeploy,
   checkDeployStatus,
   getSessionStatus,
+  getTeardownStatus,
   extendSession,
   shrinkSession,
   LambdaServiceError,
@@ -231,6 +232,83 @@ describe('Lambda Service', () => {
         expect(error).toBeInstanceOf(LambdaServiceError);
         expect((error as LambdaServiceError).code).toBe('NETWORK_ERROR');
         expect((error as LambdaServiceError).message).toBe('Session status service unavailable');
+      }
+    });
+  });
+
+  describe('getTeardownStatus', () => {
+    it('returns teardown progress with step data', async () => {
+      const mockResponse = {
+        tearing_down: true,
+        run_id: 12345,
+        workflow_status: 'in_progress',
+        workflow_conclusion: null,
+        current_step: 2,
+        total_steps: 5,
+        steps: [
+          { name: 'Saving simulation checkpoint...', status: 'completed' },
+          { name: 'Cleaning up DNS records...', status: 'completed' },
+          { name: 'Destroying infrastructure...', status: 'in_progress' },
+          { name: 'Verifying cleanup...', status: 'pending' },
+          { name: 'Finalizing...', status: 'pending' },
+        ],
+      };
+
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockResponse,
+      });
+
+      const result = await getTeardownStatus();
+
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('does not send api_key in payload', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          tearing_down: false,
+          run_id: null,
+          workflow_status: 'queued',
+          workflow_conclusion: null,
+          current_step: -1,
+          total_steps: 5,
+          steps: [],
+        }),
+      });
+
+      await getTeardownStatus();
+
+      const callBody = JSON.parse((global.fetch as Mock).mock.calls[0][1].body as string);
+      expect(callBody).not.toHaveProperty('api_key');
+    });
+
+    it('throws NETWORK_ERROR for fetch failures', async () => {
+      (global.fetch as Mock).mockRejectedValueOnce(new Error('Network error'));
+
+      try {
+        await getTeardownStatus();
+        expect.fail('should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(LambdaServiceError);
+        expect((error as LambdaServiceError).code).toBe('NETWORK_ERROR');
+        expect((error as LambdaServiceError).message).toBe('Teardown status service unavailable');
+      }
+    });
+
+    it('throws INVALID_RESPONSE for malformed response', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ invalid: 'structure' }),
+      });
+
+      try {
+        await getTeardownStatus();
+        expect.fail('should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(LambdaServiceError);
+        expect((error as LambdaServiceError).code).toBe('INVALID_RESPONSE');
       }
     });
   });
