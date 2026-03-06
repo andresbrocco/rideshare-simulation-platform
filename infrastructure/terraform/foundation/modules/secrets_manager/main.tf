@@ -29,9 +29,9 @@ resource "random_password" "postgres_metastore_password" {
   special = true
 }
 
-resource "random_password" "airflow_fernet_key" {
-  length  = 32
-  special = false
+# Fernet key must be 32 url-safe base64-encoded bytes (44 chars)
+resource "random_bytes" "airflow_fernet_key" {
+  length = 32
 }
 
 resource "random_password" "airflow_jwt_secret" {
@@ -129,7 +129,7 @@ resource "aws_secretsmanager_secret_version" "data_pipeline" {
     POSTGRES_AIRFLOW_PASSWORD   = random_password.postgres_airflow_password.result
     POSTGRES_METASTORE_USER     = "metastore"
     POSTGRES_METASTORE_PASSWORD = random_password.postgres_metastore_password.result
-    FERNET_KEY                  = random_password.airflow_fernet_key.result
+    FERNET_KEY                  = random_bytes.airflow_fernet_key.base64
     INTERNAL_API_SECRET_KEY     = random_password.airflow_internal_api_secret_key.result
     JWT_SECRET                  = random_password.airflow_jwt_secret.result
     API_SECRET_KEY              = random_password.airflow_api_secret.result
