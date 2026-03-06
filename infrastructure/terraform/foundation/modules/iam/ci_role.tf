@@ -399,9 +399,9 @@ resource "aws_iam_role_policy" "github_actions_s3_frontend" {
   })
 }
 
-# Lambda Read Policy (required by deploy.yml and build-images.yml to fetch Lambda function URL)
+# Lambda Deploy Policy (required by deploy-lambda.yml to update code, and deploy.yml/build-images.yml to fetch function URL)
 resource "aws_iam_role_policy" "github_actions_lambda" {
-  name = "lambda-read"
+  name = "lambda-deploy"
   role = aws_iam_role.github_actions.id
 
   policy = jsonencode({
@@ -410,7 +410,9 @@ resource "aws_iam_role_policy" "github_actions_lambda" {
       {
         Effect = "Allow"
         Action = [
-          "lambda:GetFunctionUrlConfig"
+          "lambda:GetFunction",
+          "lambda:GetFunctionUrlConfig",
+          "lambda:UpdateFunctionCode"
         ]
         Resource = "arn:aws:lambda:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:function:${var.project_name}-*"
       }

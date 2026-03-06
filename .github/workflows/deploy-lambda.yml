@@ -1,0 +1,51 @@
+name: Deploy Lambda
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infrastructure/lambda/**'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rideshare-github-actions
+          aws-region: us-east-1
+
+      - name: Create deployment package
+        run: |
+          cd infrastructure/lambda/auth-deploy
+          zip -j /tmp/lambda.zip handler.py
+
+      # Note: update-function-code causes Terraform to detect drift on next plan.
+      # This is acceptable — Terraform uses the same source directory, so the next
+      # terraform apply is a no-op if no further code changes occurred.
+      - name: Deploy function code
+        run: |
+          aws lambda update-function-code \
+            --function-name rideshare-auth-deploy \
+            --zip-file fileb:///tmp/lambda.zip
+
+      - name: Wait for stabilization
+        run: |
+          aws lambda wait function-updated \
+            --function-name rideshare-auth-deploy
+
+      - name: Verify deployment
+        run: |
+          aws lambda get-function \
+            --function-name rideshare-auth-deploy \
+            --query '{State: Configuration.State, LastModified: Configuration.LastModified, CodeSha256: Configuration.CodeSha256}' \
+            --output table
