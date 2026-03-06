@@ -29,6 +29,8 @@ const PROGRESS_STEPS = [
   { label: 'Almost ready...', activeKey: 'health_check' },
 ] as const;
 
+const ESTIMATED_DEPLOY_SECONDS = 720; // 12 min (midpoint of 10-15 min estimate)
+
 const SESSION_STEP_SECONDS = 15 * 60;
 const MAX_REMAINING_SECONDS = 2 * 3600;
 const WARNING_THRESHOLD_SECONDS = 5 * 60;
@@ -389,6 +391,7 @@ export default function DeployPanel({
         }
       };
 
+      poll();
       sessionPollRef.current = setInterval(poll, POLLING_CONFIG.SESSION_POLL_INTERVAL);
     }
 
@@ -567,6 +570,7 @@ export default function DeployPanel({
 
   // ── Derived values ─────────────────────────────────────────────
   const activeStepIndex = PROGRESS_STEPS.findIndex((s) => s.activeKey === workflowStatus);
+  const etaRemaining = Math.max(0, ESTIMATED_DEPLOY_SECONDS - elapsedSeconds);
   const isWarning = panelState === 'active' && remainingSeconds < WARNING_THRESHOLD_SECONDS;
   const canExtend =
     panelState === 'active' && remainingSeconds + SESSION_STEP_SECONDS <= MAX_REMAINING_SECONDS;
@@ -620,9 +624,29 @@ export default function DeployPanel({
         <>
           {networkError && <div className={styles.networkBanner}>Connection lost, retrying...</div>}
 
-          <div className={styles.deployingHeader}>
-            <div className={styles.spinner} />
-            <span className={styles.deployingText}>Deploying...</span>
+          <div className={styles.etaRow}>
+            <div className={styles.deployingHeader}>
+              <div className={styles.spinner} />
+              <span className={styles.deployingText}>Deploying...</span>
+            </div>
+            <span className={styles.etaCountdown}>
+              {etaRemaining > 0 ? `~${formatTime(etaRemaining)} ETA` : 'Finishing up...'}
+            </span>
+          </div>
+
+          <div className={styles.progressBar}>
+            {PROGRESS_STEPS.map((step, i) => (
+              <div
+                key={step.activeKey}
+                className={[
+                  styles.segment,
+                  i < activeStepIndex ? styles.segmentDone : '',
+                  i === activeStepIndex ? styles.segmentActive : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+              />
+            ))}
           </div>
 
           <ul className={styles.progressList}>

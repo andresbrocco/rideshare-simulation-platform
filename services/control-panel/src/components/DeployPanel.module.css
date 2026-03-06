@@ -91,7 +91,6 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 12px;
 }
 
 .spinner {
@@ -114,6 +113,62 @@
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--offline-neon);
+}
+
+/* ── ETA row ──────────────────────────────────── */
+
+.etaRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.etaCountdown {
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-orange);
+}
+
+/* ── Segmented progress bar ───────────────────── */
+
+.progressBar {
+  display: flex;
+  gap: 3px;
+  margin-bottom: 12px;
+}
+
+.segment {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(var(--offline-neon-rgb), 0.12);
+  transition: background 0.4s ease;
+  overflow: hidden;
+  position: relative;
+}
+
+.segmentDone {
+  background: var(--brand-green);
+}
+
+.segmentActive::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--accent-orange);
+  animation: segmentPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes segmentPulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 .progressList {
@@ -366,4 +421,13 @@
   color: var(--accent-red);
   margin-top: 6px;
   text-align: center;
+}
+
+/* ── Reduced motion ───────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .segmentActive::after {
+    animation: none;
+    opacity: 0.7;
+  }
 }
