@@ -48,9 +48,9 @@ spec:
               echo "Writing production profiles.yml..."
               cat > /opt/dbt/profiles.yml << 'PROFILES_EOF'
               rideshare:
-                target: local
+                target: duckdb
                 outputs:
-                  local:
+                  duckdb:
                     type: duckdb
                     path: "{{ env_var('DUCKDB_PATH', '/tmp/rideshare.duckdb') }}"
                     extensions:
@@ -62,6 +62,15 @@ spec:
                       - type: S3
                         provider: credential_chain
                         region: "{{ env_var('AWS_REGION', 'us-east-1') }}"
+                    threads: 4
+                  glue:
+                    type: glue
+                    role_arn: "{{ env_var('GLUE_ROLE_ARN') }}"
+                    region: "{{ env_var('AWS_REGION', 'sa-east-1') }}"
+                    workers: 2
+                    worker_type: G.1X
+                    glue_version: "4.0"
+                    database: rideshare_silver
                     threads: 4
               PROFILES_EOF
 
@@ -137,6 +146,10 @@ spec:
                 secretKeyRef:
                   name: app-credentials
                   key: AIRFLOW_POSTGRES_PASSWORD
+
+            # Default DBT runner (overridden to "glue" by production-glue overlay)
+            - name: DBT_RUNNER
+              value: "duckdb"
 
             # Remove MinIO endpoint override (use real AWS S3)
             - name: AWS_ENDPOINT_URL
