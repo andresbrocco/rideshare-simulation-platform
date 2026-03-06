@@ -499,7 +499,9 @@ def handle_session_status() -> tuple[int, dict[str, Any]]:
             delete_session()
             return 200, {"active": False}
 
-        # GitHub API validation: if deploy workflow is no longer running, clean up
+        # GitHub API validation: if deploy workflow failed/cancelled, clean up.
+        # A successful completion is expected — the frontend will call
+        # activate-session once deploy-progress reports all_ready.
         try:
             github_pat = get_secret(SECRET_GITHUB_PAT)
             path = f"/repos/{GITHUB_REPO}/actions/workflows/" f"{GITHUB_WORKFLOW}/runs?per_page=1"
@@ -507,8 +509,8 @@ def handle_session_status() -> tuple[int, dict[str, Any]]:
             if gh_status == 200:
                 runs = gh_data.get("workflow_runs", [])
                 if runs:
-                    latest_status = runs[0].get("status", "")
-                    if latest_status not in ("in_progress", "queued"):
+                    conclusion = runs[0].get("conclusion", "")
+                    if conclusion in ("failure", "cancelled"):
                         delete_session()
                         return 200, {"active": False}
         except Exception as e:

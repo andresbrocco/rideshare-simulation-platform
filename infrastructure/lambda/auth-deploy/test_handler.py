@@ -957,14 +957,57 @@ class TestCompleteTeardown:
 class TestSessionStatusGitHubValidation:
     """Tests for GitHub API state validation in session-status (Ticket 2)."""
 
-    def test_deploying_github_cleanup_when_workflow_done(
+    def test_deploying_github_keeps_when_workflow_succeeded(
         self, mock_secrets: object, mock_github_api: object
     ) -> None:
-        """Deploying session cleaned up when deploy workflow is completed."""
+        """Deploying session kept when deploy workflow completed successfully.
+
+        The frontend will call activate-session once deploy-progress reports all_ready.
+        """
         session = {"deployed_at": 1000000}
         mock_github_api.return_value = (
             200,
             {"workflow_runs": [{"status": "completed", "conclusion": "success"}]},
+        )
+        with (
+            patch("handler.get_session", return_value=session),
+            patch("handler.time") as mock_time,
+            patch("handler.delete_session") as mock_delete,
+        ):
+            mock_time.time.return_value = 1000060
+            status, body = handle_session_status()
+        assert status == 200
+        assert body["deploying"] is True
+        mock_delete.assert_not_called()
+
+    def test_deploying_github_cleanup_when_workflow_failed(
+        self, mock_secrets: object, mock_github_api: object
+    ) -> None:
+        """Deploying session cleaned up when deploy workflow failed."""
+        session = {"deployed_at": 1000000}
+        mock_github_api.return_value = (
+            200,
+            {"workflow_runs": [{"status": "completed", "conclusion": "failure"}]},
+        )
+        with (
+            patch("handler.get_session", return_value=session),
+            patch("handler.time") as mock_time,
+            patch("handler.delete_session") as mock_delete,
+        ):
+            mock_time.time.return_value = 1000060
+            status, body = handle_session_status()
+        assert status == 200
+        assert body == {"active": False}
+        mock_delete.assert_called_once()
+
+    def test_deploying_github_cleanup_when_workflow_cancelled(
+        self, mock_secrets: object, mock_github_api: object
+    ) -> None:
+        """Deploying session cleaned up when deploy workflow was cancelled."""
+        session = {"deployed_at": 1000000}
+        mock_github_api.return_value = (
+            200,
+            {"workflow_runs": [{"status": "completed", "conclusion": "cancelled"}]},
         )
         with (
             patch("handler.get_session", return_value=session),

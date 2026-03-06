@@ -59,6 +59,16 @@ const TEARDOWN_STEPS = [
 
 const ESTIMATED_TEARDOWN_SECONDS = 540; // 9 min
 
+// Map deploy-progress service names → ServiceHealthMap keys
+const DEPLOY_TO_HEALTH: Record<string, keyof ServiceHealthMap> = {
+  simulation: 'simulation_api',
+  grafana: 'grafana',
+  airflow: 'airflow',
+  trino: 'trino',
+  prometheus: 'prometheus',
+  'control-panel': 'control_panel',
+};
+
 const SESSION_STEP_SECONDS = 15 * 60;
 const MAX_REMAINING_SECONDS = 2 * 3600;
 const WARNING_THRESHOLD_SECONDS = 5 * 60;
@@ -289,17 +299,12 @@ export default function DeployPanel({
   const startDeployPolling = useCallback(() => {
     pollStatus();
     pollDeployProgress();
-    pollServiceHealth();
     statusIntervalRef.current = setInterval(pollStatus, POLLING_CONFIG.STATUS_INTERVAL);
     deployProgressIntervalRef.current = setInterval(
       pollDeployProgress,
       POLLING_CONFIG.HEALTH_INTERVAL
     );
-    serviceHealthIntervalRef.current = setInterval(
-      pollServiceHealth,
-      POLLING_CONFIG.HEALTH_INTERVAL
-    );
-  }, [pollStatus, pollDeployProgress, pollServiceHealth]);
+  }, [pollStatus, pollDeployProgress]);
 
   // ── Client-side tick ───────────────────────────────────────────
   useEffect(() => {
@@ -352,6 +357,19 @@ export default function DeployPanel({
       }
     };
   }, [panelState, pollServiceHealth]);
+
+  // ── Derive service health from deploy progress during deploying ─
+  useEffect(() => {
+    if (panelState !== 'deploying') return;
+
+    const health: ServiceHealthMap = { ...ALL_SERVICES_DOWN };
+    for (const [deploySvc, healthId] of Object.entries(DEPLOY_TO_HEALTH)) {
+      if (deployProgress[deploySvc]) {
+        health[healthId] = true;
+      }
+    }
+    onServiceHealthChange(health);
+  }, [panelState, deployProgress, onServiceHealthChange]);
 
   // ── Session status polling (active state) ──────────────────────
   useEffect(() => {
@@ -697,6 +715,7 @@ export default function DeployPanel({
                 ]
                   .filter(Boolean)
                   .join(' ')}
+                title={step.label}
               />
             ))}
             {/* Service segments */}
@@ -710,6 +729,7 @@ export default function DeployPanel({
                 ]
                   .filter(Boolean)
                   .join(' ')}
+                title={svc}
               />
             ))}
           </div>
@@ -772,6 +792,7 @@ export default function DeployPanel({
                 ]
                   .filter(Boolean)
                   .join(' ')}
+                title={step.label}
               />
             ))}
           </div>
