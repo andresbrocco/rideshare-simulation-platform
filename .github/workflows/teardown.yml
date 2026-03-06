@@ -27,17 +27,27 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rideshare-github-actions
           aws-region: us-east-1
 
-      - name: Store teardown run ID in session
+      - name: Get Lambda URL and API key
+        id: lambda-config
         run: |
-          SESSION_JSON=$(aws ssm get-parameter --name "/rideshare/session/deadline" \
-            --query "Parameter.Value" --output text 2>/dev/null) || true
-          if [ -n "$SESSION_JSON" ] && [ "$SESSION_JSON" != "None" ]; then
-            UPDATED=$(echo "$SESSION_JSON" | jq -c --argjson rid "${{ github.run_id }}" \
-              '. + {"teardown_run_id": $rid}')
-            aws ssm put-parameter --name "/rideshare/session/deadline" \
-              --value "$UPDATED" --type String --overwrite \
-              || echo "Warning: Failed to store run ID"
-          fi
+          URL=$(aws lambda get-function-url-config \
+            --function-name rideshare-auth-deploy \
+            --query 'FunctionUrl' --output text 2>/dev/null) || true
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+          SECRET_RAW=$(aws secretsmanager get-secret-value \
+            --secret-id "rideshare/api-key" \
+            --query "SecretString" --output text 2>/dev/null) || true
+          API_KEY=$(echo "$SECRET_RAW" | jq -r '.API_KEY // .' 2>/dev/null) || API_KEY="$SECRET_RAW"
+          echo "::add-mask::$API_KEY"
+          echo "api_key=$API_KEY" >> "$GITHUB_OUTPUT"
+
+      - name: Register teardown run ID
+        run: |
+          curl -sf -X POST "${{ steps.lambda-config.outputs.url }}" \
+            -H "Content-Type: application/json" \
+            -d '{"action":"set-teardown-run-id","api_key":"${{ steps.lambda-config.outputs.api_key }}","run_id":${{ github.run_id }}}' \
+            || echo "Warning: Failed to register run ID"
 
       - name: Terraform Init (Platform)
         working-directory: infrastructure/terraform/platform
@@ -49,15 +59,7 @@ jobs:
         run: |
           SIM_API="https://api.ridesharing.portfolio.andresbrocco.com"
 
-          # 1. Set tearing_down flag in SSM session
-          SESSION_JSON=$(aws ssm get-parameter --name "/rideshare/session/deadline" --query "Parameter.Value" --output text 2>/dev/null) || true
-          if [ -n "$SESSION_JSON" ] && [ "$SESSION_JSON" != "None" ]; then
-            NOW_TS=$(date +%s)
-            UPDATED=$(echo "$SESSION_JSON" | jq -c --argjson t "$NOW_TS" '. + {"tearing_down": true, "tearing_down_at": $t}')
-            aws ssm put-parameter --name "/rideshare/session/deadline" --value "$UPDATED" --type String --overwrite || echo "Warning: Failed to set tearing_down flag"
-          fi
-
-          # 2. Fetch API key from Secrets Manager
+          # 1. Fetch API key from Secrets Manager
           SECRET_RAW=$(aws secretsmanager get-secret-value --secret-id "rideshare/api-key" --query "SecretString" --output text 2>/dev/null) || { echo "Warning: Could not fetch API key, skipping graceful shutdown"; exit 0; }
           API_KEY=$(echo "$SECRET_RAW" | jq -r '.API_KEY // .' 2>/dev/null) || API_KEY="$SECRET_RAW"
           if [ -z "$API_KEY" ]; then
@@ -235,4 +237,16 @@ jobs:
       - name: Clean up session
         if: always()
         run: |
-          aws ssm delete-parameter --name "/rideshare/session/deadline" 2>&1 || echo "Note: session parameter may already be deleted"
+          # Primary: call Lambda to cleanly delete session + EventBridge schedule
+          LAMBDA_URL="${{ steps.lambda-config.outputs.url }}"
+          API_KEY="${{ steps.lambda-config.outputs.api_key }}"
+          if [ -n "$LAMBDA_URL" ] && [ -n "$API_KEY" ]; then
+            curl -sf -X POST "$LAMBDA_URL" \
+              -H "Content-Type: application/json" \
+              -d "{\"action\":\"complete-teardown\",\"api_key\":\"$API_KEY\"}" \
+              && echo "Session cleaned up via Lambda" \
+              || echo "Note: Lambda cleanup call failed"
+          fi
+          # Fallback: direct SSM delete in case Lambda is unreachable (infra destroyed)
+          aws ssm delete-parameter --name "/rideshare/session/deadline" 2>&1 \
+            || echo "Note: session parameter may already be deleted"

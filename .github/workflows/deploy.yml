@@ -28,7 +28,7 @@ jobs:
   deploy-platform:
     if: contains(fromJSON('["deploy-all", "deploy-platform"]'), github.event.inputs.action)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
@@ -240,6 +240,21 @@ jobs:
           echo "Waiting for EKS nodes to reach Ready state..."
           kubectl wait --for=condition=Ready nodes --all --timeout=300s
 
+      - name: Get Lambda URL and API key
+        id: lambda-config
+        run: |
+          URL=$(aws lambda get-function-url-config \
+            --function-name rideshare-auth-deploy \
+            --query 'FunctionUrl' --output text)
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+          SECRET_RAW=$(aws secretsmanager get-secret-value \
+            --secret-id "rideshare/api-key" \
+            --query "SecretString" --output text)
+          API_KEY=$(echo "$SECRET_RAW" | jq -r '.API_KEY // .' 2>/dev/null) || API_KEY="$SECRET_RAW"
+          echo "::add-mask::$API_KEY"
+          echo "api_key=$API_KEY" >> "$GITHUB_OUTPUT"
+
       - name: Create Application Databases
         run: |
           echo "Creating application databases in RDS..."
@@ -320,20 +335,59 @@ jobs:
           echo "ArgoCD application created. Syncing..."
           kubectl get applications -n argocd
 
-      - name: Health Checks
+      - name: Wait for EKS convergence
+        env:
+          LAMBDA_URL: ${{ steps.lambda-config.outputs.url }}
+          API_KEY: ${{ steps.lambda-config.outputs.api_key }}
         run: |
-          echo "Running health checks..."
+          NS="rideshare-prod"
 
-          echo "Checking pods in rideshare-prod namespace..."
-          kubectl get pods -n rideshare-prod
+          report_ready() {
+            local svc="$1"
+            echo "  ✓ $svc ready"
+            curl -s -X POST "${LAMBDA_URL}" \
+              -H "Content-Type: application/json" \
+              -d "{\"action\":\"report-deploy-progress\",\"api_key\":\"${API_KEY}\",\"service\":\"${svc}\",\"ready\":true}" \
+              > /dev/null || echo "  Warning: Failed to report $svc ready"
+          }
 
-          echo "Waiting for simulation service..."
-          kubectl wait --for=condition=available --timeout=600s \
-            deployment/simulation -n rideshare-prod || echo "Simulation not ready yet"
+          echo "=== Phase 1: Infrastructure ==="
+          kubectl wait --for=condition=ready pod/kafka-0 -n "$NS" --timeout=300s && report_ready kafka &
+          kubectl wait --for=condition=available deployment/redis -n "$NS" --timeout=300s && report_ready redis &
+          kubectl wait --for=condition=available deployment/otel-collector -n "$NS" --timeout=300s 2>/dev/null && report_ready otel-collector &
+          kubectl wait --for=condition=available deployment/prometheus -n "$NS" --timeout=300s 2>/dev/null && report_ready prometheus &
+          kubectl wait --for=condition=available deployment/loki -n "$NS" --timeout=300s 2>/dev/null && report_ready loki &
+          kubectl wait --for=condition=available deployment/tempo -n "$NS" --timeout=300s 2>/dev/null && report_ready tempo &
+          wait
+          echo "Phase 1 complete"
 
-          echo "Waiting for kafka statefulset..."
-          kubectl wait --for=condition=ready --timeout=600s \
-            pod/kafka-0 -n rideshare-prod || echo "Kafka not ready yet"
+          echo "=== Phase 2: Schema/Config ==="
+          kubectl wait --for=condition=available deployment/schema-registry -n "$NS" --timeout=300s && report_ready schema-registry &
+          wait
+          echo "Phase 2 complete"
+
+          echo "=== Phase 3: Application ==="
+          kubectl wait --for=condition=available deployment/stream-processor -n "$NS" --timeout=300s && report_ready stream-processor &
+          kubectl wait --for=condition=available deployment/osrm -n "$NS" --timeout=600s && report_ready osrm &
+          kubectl wait --for=condition=available deployment/simulation -n "$NS" --timeout=600s && report_ready simulation &
+          kubectl wait --for=condition=available deployment/bronze-ingestion -n "$NS" --timeout=300s && report_ready bronze-ingestion &
+          kubectl wait --for=condition=available deployment/trino -n "$NS" --timeout=300s && report_ready trino &
+          wait
+          echo "Phase 3 complete"
+
+          echo "=== Phase 4: Data Pipeline ==="
+          kubectl wait --for=condition=available deployment/airflow-webserver -n "$NS" --timeout=300s && report_ready airflow &
+          wait
+          echo "Phase 4 complete"
+
+          echo "=== Phase 5: UI/Observability ==="
+          kubectl wait --for=condition=available deployment/grafana -n "$NS" --timeout=300s && report_ready grafana &
+          kubectl wait --for=condition=available deployment/performance-controller -n "$NS" --timeout=300s && report_ready performance-controller &
+          kubectl wait --for=condition=available deployment/control-panel -n "$NS" --timeout=300s && report_ready control-panel &
+          wait
+          echo "Phase 5 complete"
+
+          echo "All services converged"
 
       - name: Get Load Balancer URL
         id: alb-url

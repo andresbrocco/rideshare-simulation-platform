@@ -217,6 +217,24 @@ export async function shrinkSession(apiKey: string): Promise<SessionAdjustRespon
   );
 }
 
+export interface DeployProgressResponse {
+  services: Record<string, boolean>;
+  all_ready: boolean;
+}
+
+function isDeployProgressResponse(data: unknown): data is DeployProgressResponse {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    typeof (data as DeployProgressResponse).services === 'object' &&
+    typeof (data as DeployProgressResponse).all_ready === 'boolean'
+  );
+}
+
+export async function getDeployProgress(): Promise<DeployProgressResponse> {
+  return callLambda({ action: 'get-deploy-progress' }, isDeployProgressResponse, 'Deploy progress');
+}
+
 export type ServiceId =
   | 'simulation_api'
   | 'grafana'

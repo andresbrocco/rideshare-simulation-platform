@@ -4,12 +4,17 @@ from unittest.mock import patch
 import pytest
 
 from handler import (
+    DEPLOY_PROGRESS_SERVICES,
     TEARDOWN_UI_LABELS,
     get_response_headers,
     handle_auto_teardown,
+    handle_complete_teardown,
     handle_deploy,
+    handle_get_deploy_progress,
+    handle_report_deploy_progress,
     handle_service_health,
     handle_session_status,
+    handle_set_teardown_run_id,
     handle_status,
     handle_teardown_status,
     handle_validate,
@@ -61,7 +66,8 @@ class TestHandleDeploy:
     def test_success(self, mock_secrets: object, mock_github_api: object) -> None:
         mock_github_api.return_value = (204, {})
 
-        status, body = handle_deploy("test-api-key")
+        with patch("handler.get_session", return_value=None):
+            status, body = handle_deploy("test-api-key")
         assert status == 200
         assert body["triggered"] is True
         assert body["workflow"] == "deploy.yml"
@@ -77,10 +83,19 @@ class TestHandleDeploy:
         assert status == 401
         assert "error" in body
 
+    def test_rejects_when_session_exists(self, mock_secrets: object) -> None:
+        """Reject deploy if a session already exists (prevents double-deploy race)."""
+        session = {"deployed_at": 1000000}
+        with patch("handler.get_session", return_value=session):
+            status, body = handle_deploy("test-api-key")
+        assert status == 409
+        assert "already in progress" in body["error"]
+
     def test_github_error(self, mock_secrets: object, mock_github_api: object) -> None:
         mock_github_api.return_value = (422, {"message": "Workflow not found"})
 
-        status, body = handle_deploy("test-api-key")
+        with patch("handler.get_session", return_value=None):
+            status, body = handle_deploy("test-api-key")
         assert status == 502
         assert "error" in body
         assert body["status_code"] == 422
@@ -88,7 +103,8 @@ class TestHandleDeploy:
     def test_dbt_runner_forwarded(self, mock_secrets: object, mock_github_api: object) -> None:
         mock_github_api.return_value = (204, {})
 
-        handle_deploy("test-api-key", "glue")
+        with patch("handler.get_session", return_value=None):
+            handle_deploy("test-api-key", "glue")
 
         call_args = mock_github_api.call_args
         dispatch_body = call_args[0][3]
@@ -99,7 +115,8 @@ class TestHandleDeploy:
     ) -> None:
         mock_github_api.return_value = (204, {})
 
-        handle_deploy("test-api-key")
+        with patch("handler.get_session", return_value=None):
+            handle_deploy("test-api-key")
 
         call_args = mock_github_api.call_args
         dispatch_body = call_args[0][3]
@@ -231,7 +248,8 @@ class TestLambdaHandler:
             "body": json.dumps({"action": "deploy", "api_key": "test-api-key"}),
         }
 
-        response = lambda_handler(event, None)
+        with patch("handler.get_session", return_value=None):
+            response = lambda_handler(event, None)
 
         assert response["statusCode"] == 200
         body = json.loads(response["body"])
@@ -263,7 +281,8 @@ class TestLambdaHandler:
             ),
         }
 
-        response = lambda_handler(event, None)
+        with patch("handler.get_session", return_value=None):
+            response = lambda_handler(event, None)
 
         assert response["statusCode"] == 200
         call_args = mock_github_api.call_args
@@ -325,7 +344,11 @@ class TestHandleSessionStatus:
 
     def test_deploying_session(self) -> None:
         session = {"deployed_at": 1000000}
-        with patch("handler.get_session", return_value=session), patch("handler.time") as mock_time:
+        with (
+            patch("handler.get_session", return_value=session),
+            patch("handler.time") as mock_time,
+            patch("handler.get_secret", side_effect=Exception("no creds")),
+        ):
             mock_time.time.return_value = 1000060
             status, body = handle_session_status()
         assert status == 200
@@ -353,6 +376,7 @@ class TestHandleSessionStatus:
             patch("handler.get_session", return_value=session),
             patch("handler.time") as mock_time,
             patch("handler.delete_session") as mock_delete,
+            patch("handler.get_secret", side_effect=Exception("no creds")),
         ):
             mock_time.time.return_value = 1000000 + 20 * 60  # 20 min, before timeout
             status, body = handle_session_status()
@@ -371,7 +395,11 @@ class TestHandleSessionStatus:
 
     def test_tearing_down_session(self) -> None:
         session = {"deployed_at": 1000000, "deadline": 1001000, "tearing_down": True}
-        with patch("handler.get_session", return_value=session), patch("handler.time") as mock_time:
+        with (
+            patch("handler.get_session", return_value=session),
+            patch("handler.time") as mock_time,
+            patch("handler.get_secret", side_effect=Exception("no creds")),
+        ):
             mock_time.time.return_value = 1000500
             status, body = handle_session_status()
         assert status == 200
@@ -381,7 +409,11 @@ class TestHandleSessionStatus:
     def test_tearing_down_takes_priority(self) -> None:
         """tearing_down without deadline still returns tearing_down (not deploying)."""
         session = {"deployed_at": 1000000, "tearing_down": True}
-        with patch("handler.get_session", return_value=session), patch("handler.time") as mock_time:
+        with (
+            patch("handler.get_session", return_value=session),
+            patch("handler.time") as mock_time,
+            patch("handler.get_secret", side_effect=Exception("no creds")),
+        ):
             mock_time.time.return_value = 1000060
             status, body = handle_session_status()
         assert status == 200
@@ -419,6 +451,7 @@ class TestHandleSessionStatus:
             patch("handler.get_session", return_value=session),
             patch("handler.time") as mock_time,
             patch("handler.delete_session") as mock_delete,
+            patch("handler.get_secret", side_effect=Exception("no creds")),
         ):
             mock_time.time.return_value = 1001000 + 10 * 60  # 10 min, before timeout
             status, body = handle_session_status()
@@ -434,7 +467,11 @@ class TestHandleSessionStatus:
             "tearing_down": True,
             "tearing_down_at": 1001050,
         }
-        with patch("handler.get_session", return_value=session), patch("handler.time") as mock_time:
+        with (
+            patch("handler.get_session", return_value=session),
+            patch("handler.time") as mock_time,
+            patch("handler.get_secret", side_effect=Exception("no creds")),
+        ):
             mock_time.time.return_value = 1001100
             status, body = handle_session_status()
         assert status == 200
@@ -778,3 +815,269 @@ class TestHandleTeardownStatus:
         assert body["current_step"] == 3
         for step, label in zip(body["steps"], TEARDOWN_UI_LABELS):
             assert step["name"] == label
+
+
+class TestReportDeployProgress:
+    def test_success(self, mock_secrets: object) -> None:
+        session = {"deployed_at": 1000000}
+        mock_ssm = patch("handler.get_ssm_client").start()
+        with patch("handler.get_session", return_value=session):
+            status, body = handle_report_deploy_progress("test-api-key", "kafka", True)
+        assert status == 200
+        assert body["services"]["kafka"] is True
+        assert body["all_ready"] is False
+        mock_ssm.return_value.put_parameter.assert_called_once()
+        patch.stopall()
+
+    def test_no_session(self, mock_secrets: object) -> None:
+        with patch("handler.get_session", return_value=None):
+            status, body = handle_report_deploy_progress("test-api-key", "kafka", True)
+        assert status == 404
+
+    def test_invalid_service(self, mock_secrets: object) -> None:
+        session = {"deployed_at": 1000000}
+        with patch("handler.get_session", return_value=session):
+            status, body = handle_report_deploy_progress("test-api-key", "nonexistent", True)
+        assert status == 400
+        assert "Unknown service" in body["error"]
+
+    def test_all_ready_detection(self, mock_secrets: object) -> None:
+        progress = {svc: True for svc in DEPLOY_PROGRESS_SERVICES}
+        # Remove one to set it via the handler
+        last_svc = DEPLOY_PROGRESS_SERVICES[-1]
+        del progress[last_svc]
+        session = {"deployed_at": 1000000, "deploy_progress": progress}
+        patch("handler.get_ssm_client").start()
+        with patch("handler.get_session", return_value=session):
+            status, body = handle_report_deploy_progress("test-api-key", last_svc, True)
+        assert status == 200
+        assert body["all_ready"] is True
+        patch.stopall()
+
+    def test_invalid_key(self, mock_secrets: object) -> None:
+        status, body = handle_report_deploy_progress("wrong-key", "kafka", True)
+        assert status == 401
+
+
+class TestGetDeployProgress:
+    def test_no_session(self) -> None:
+        with patch("handler.get_session", return_value=None):
+            status, body = handle_get_deploy_progress()
+        assert status == 200
+        assert body == {"services": {}, "all_ready": False}
+
+    def test_partial_progress(self) -> None:
+        session = {
+            "deployed_at": 1000000,
+            "deploy_progress": {"kafka": True, "redis": True},
+        }
+        with patch("handler.get_session", return_value=session):
+            status, body = handle_get_deploy_progress()
+        assert status == 200
+        assert body["services"]["kafka"] is True
+        assert body["services"]["redis"] is True
+        assert body["all_ready"] is False
+
+    def test_all_ready(self) -> None:
+        progress = {svc: True for svc in DEPLOY_PROGRESS_SERVICES}
+        session = {"deployed_at": 1000000, "deploy_progress": progress}
+        with patch("handler.get_session", return_value=session):
+            status, body = handle_get_deploy_progress()
+        assert status == 200
+        assert body["all_ready"] is True
+
+    def test_no_progress_field(self) -> None:
+        session = {"deployed_at": 1000000}
+        with patch("handler.get_session", return_value=session):
+            status, body = handle_get_deploy_progress()
+        assert status == 200
+        assert body == {"services": {}, "all_ready": False}
+
+
+class TestSetTeardownRunId:
+    def test_success(self, mock_secrets: object) -> None:
+        session = {"deployed_at": 1000000, "tearing_down": True}
+        mock_ssm = patch("handler.get_ssm_client").start()
+        with patch("handler.get_session", return_value=session):
+            status, body = handle_set_teardown_run_id("test-api-key", 12345)
+        assert status == 200
+        assert body["run_id"] == 12345
+        written = json.loads(mock_ssm.return_value.put_parameter.call_args[1]["Value"])
+        assert written["teardown_run_id"] == 12345
+        patch.stopall()
+
+    def test_no_session(self, mock_secrets: object) -> None:
+        with patch("handler.get_session", return_value=None):
+            status, body = handle_set_teardown_run_id("test-api-key", 12345)
+        assert status == 404
+
+    def test_idempotent(self, mock_secrets: object) -> None:
+        session = {"deployed_at": 1000000, "teardown_run_id": 11111}
+        patch("handler.get_ssm_client").start()
+        with patch("handler.get_session", return_value=session):
+            status, body = handle_set_teardown_run_id("test-api-key", 22222)
+        assert status == 200
+        assert body["run_id"] == 22222
+        patch.stopall()
+
+    def test_invalid_key(self, mock_secrets: object) -> None:
+        status, body = handle_set_teardown_run_id("wrong-key", 12345)
+        assert status == 401
+
+
+class TestCompleteTeardown:
+    def test_success(self, mock_secrets: object) -> None:
+        session = {"deployed_at": 1000000, "tearing_down": True}
+        with (
+            patch("handler.get_session", return_value=session),
+            patch("handler.delete_session") as mock_delete,
+        ):
+            status, body = handle_complete_teardown("test-api-key")
+        assert status == 200
+        assert body["success"] is True
+        mock_delete.assert_called_once()
+
+    def test_not_tearing_down(self, mock_secrets: object) -> None:
+        session = {"deployed_at": 1000000, "deadline": 1001000}
+        with patch("handler.get_session", return_value=session):
+            status, body = handle_complete_teardown("test-api-key")
+        assert status == 400
+        assert "not in tearing_down" in body["error"]
+
+    def test_no_session(self, mock_secrets: object) -> None:
+        with patch("handler.get_session", return_value=None):
+            status, body = handle_complete_teardown("test-api-key")
+        assert status == 404
+
+    def test_invalid_key(self, mock_secrets: object) -> None:
+        status, body = handle_complete_teardown("wrong-key")
+        assert status == 401
+
+
+class TestSessionStatusGitHubValidation:
+    """Tests for GitHub API state validation in session-status (Ticket 2)."""
+
+    def test_deploying_github_cleanup_when_workflow_done(
+        self, mock_secrets: object, mock_github_api: object
+    ) -> None:
+        """Deploying session cleaned up when deploy workflow is completed."""
+        session = {"deployed_at": 1000000}
+        mock_github_api.return_value = (
+            200,
+            {"workflow_runs": [{"status": "completed", "conclusion": "success"}]},
+        )
+        with (
+            patch("handler.get_session", return_value=session),
+            patch("handler.time") as mock_time,
+            patch("handler.delete_session") as mock_delete,
+        ):
+            mock_time.time.return_value = 1000060
+            status, body = handle_session_status()
+        assert status == 200
+        assert body == {"active": False}
+        mock_delete.assert_called_once()
+
+    def test_deploying_github_keeps_when_workflow_running(
+        self, mock_secrets: object, mock_github_api: object
+    ) -> None:
+        """Deploying session kept when deploy workflow is in_progress."""
+        session = {"deployed_at": 1000000}
+        mock_github_api.return_value = (
+            200,
+            {"workflow_runs": [{"status": "in_progress"}]},
+        )
+        with (
+            patch("handler.get_session", return_value=session),
+            patch("handler.time") as mock_time,
+            patch("handler.delete_session") as mock_delete,
+        ):
+            mock_time.time.return_value = 1000060
+            status, body = handle_session_status()
+        assert status == 200
+        assert body["deploying"] is True
+        mock_delete.assert_not_called()
+
+    def test_deploying_github_api_failure_failsafe(self, mock_secrets: object) -> None:
+        """GitHub API failure during deploying check -> session kept (fail-safe)."""
+        session = {"deployed_at": 1000000}
+        with (
+            patch("handler.get_session", return_value=session),
+            patch("handler.time") as mock_time,
+            patch("handler.delete_session") as mock_delete,
+            patch("handler.get_secret", side_effect=Exception("API unreachable")),
+        ):
+            mock_time.time.return_value = 1000060
+            status, body = handle_session_status()
+        assert status == 200
+        assert body["deploying"] is True
+        mock_delete.assert_not_called()
+
+    def test_tearing_down_github_cleanup_when_workflow_done(
+        self, mock_secrets: object, mock_github_api: object
+    ) -> None:
+        """Tearing down session cleaned up when teardown workflow is completed."""
+        session = {
+            "deployed_at": 1000000,
+            "deadline": 1001000,
+            "tearing_down": True,
+            "tearing_down_at": 1001000,
+        }
+        mock_github_api.return_value = (
+            200,
+            {"workflow_runs": [{"status": "completed", "conclusion": "success"}]},
+        )
+        with (
+            patch("handler.get_session", return_value=session),
+            patch("handler.time") as mock_time,
+            patch("handler.delete_session") as mock_delete,
+        ):
+            mock_time.time.return_value = 1001100
+            status, body = handle_session_status()
+        assert status == 200
+        assert body == {"active": False}
+        mock_delete.assert_called_once()
+
+    def test_tearing_down_github_keeps_when_workflow_running(
+        self, mock_secrets: object, mock_github_api: object
+    ) -> None:
+        """Tearing down session kept when teardown workflow is in_progress."""
+        session = {
+            "deployed_at": 1000000,
+            "deadline": 1001000,
+            "tearing_down": True,
+            "tearing_down_at": 1001000,
+        }
+        mock_github_api.return_value = (
+            200,
+            {"workflow_runs": [{"status": "in_progress"}]},
+        )
+        with (
+            patch("handler.get_session", return_value=session),
+            patch("handler.time") as mock_time,
+            patch("handler.delete_session") as mock_delete,
+        ):
+            mock_time.time.return_value = 1001100
+            status, body = handle_session_status()
+        assert status == 200
+        assert body["tearing_down"] is True
+        mock_delete.assert_not_called()
+
+    def test_tearing_down_github_api_failure_failsafe(self, mock_secrets: object) -> None:
+        """GitHub API failure during teardown check -> session kept (fail-safe)."""
+        session = {
+            "deployed_at": 1000000,
+            "deadline": 1001000,
+            "tearing_down": True,
+            "tearing_down_at": 1001000,
+        }
+        with (
+            patch("handler.get_session", return_value=session),
+            patch("handler.time") as mock_time,
+            patch("handler.delete_session") as mock_delete,
+            patch("handler.get_secret", side_effect=Exception("API unreachable")),
+        ):
+            mock_time.time.return_value = 1001100
+            status, body = handle_session_status()
+        assert status == 200
+        assert body["tearing_down"] is True
+        mock_delete.assert_not_called()

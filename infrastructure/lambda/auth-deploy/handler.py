@@ -33,6 +33,24 @@ RESCHEDULE_DELAY_SECONDS = 300  # 5 min
 TEARDOWN_TIMEOUT_SECONDS = 15 * 60  # 15 min — auto-clear stale tearing_down flag
 DEPLOYING_TIMEOUT_SECONDS = 30 * 60  # 30 min — auto-clear stale deploying session
 
+DEPLOY_PROGRESS_SERVICES = [
+    "kafka",
+    "redis",
+    "schema-registry",
+    "osrm",
+    "stream-processor",
+    "simulation",
+    "bronze-ingestion",
+    "airflow",
+    "trino",
+    "prometheus",
+    "grafana",
+    "loki",
+    "tempo",
+    "control-panel",
+    "performance-controller",
+]
+
 SERVICE_HEALTH_ENDPOINTS: dict[str, str] = {
     "simulation_api": "https://api.ridesharing.portfolio.andresbrocco.com/health",
     "grafana": "https://grafana.ridesharing.portfolio.andresbrocco.com/api/health",
@@ -42,7 +60,13 @@ SERVICE_HEALTH_ENDPOINTS: dict[str, str] = {
 }
 HEALTH_CHECK_TIMEOUT = 5  # seconds
 
-NO_AUTH_ACTIONS = {"session-status", "auto-teardown", "service-health", "teardown-status"}
+NO_AUTH_ACTIONS = {
+    "session-status",
+    "auto-teardown",
+    "service-health",
+    "teardown-status",
+    "get-deploy-progress",
+}
 
 TEARDOWN_STEP_RANGES = [
     (0, 5),  # UI step 0: Saving simulation checkpoint
@@ -336,6 +360,11 @@ def handle_deploy(api_key: str, dbt_runner: str = "duckdb") -> tuple[int, dict[s
     if not validate_api_key(api_key):
         return 401, {"error": "Invalid password"}
 
+    # Guard: reject if a session already exists (prevents double-deploy race)
+    existing_session = get_session()
+    if existing_session is not None:
+        return 409, {"error": "Deployment already in progress"}
+
     try:
         github_pat = get_secret(SECRET_GITHUB_PAT)
     except Exception as e:
@@ -435,6 +464,24 @@ def handle_session_status() -> tuple[int, dict[str, Any]]:
             delete_session()
             return 200, {"active": False}
 
+        # GitHub API validation: if teardown workflow is no longer running, clean up
+        try:
+            github_pat = get_secret(SECRET_GITHUB_PAT)
+            path = (
+                f"/repos/{GITHUB_REPO}/actions/workflows/"
+                f"{GITHUB_TEARDOWN_WORKFLOW}/runs?per_page=1"
+            )
+            gh_status, gh_data = github_api_request("GET", path, github_pat)
+            if gh_status == 200:
+                runs = gh_data.get("workflow_runs", [])
+                if runs:
+                    latest_status = runs[0].get("status", "")
+                    if latest_status not in ("in_progress", "queued"):
+                        delete_session()
+                        return 200, {"active": False}
+        except Exception as e:
+            print(f"Warning: GitHub API check failed for teardown: {e}")
+
         return 200, {
             "active": False,
             "deploying": False,
@@ -451,6 +498,21 @@ def handle_session_status() -> tuple[int, dict[str, Any]]:
             # Stale deploying session — deploy likely failed or was abandoned
             delete_session()
             return 200, {"active": False}
+
+        # GitHub API validation: if deploy workflow is no longer running, clean up
+        try:
+            github_pat = get_secret(SECRET_GITHUB_PAT)
+            path = f"/repos/{GITHUB_REPO}/actions/workflows/" f"{GITHUB_WORKFLOW}/runs?per_page=1"
+            gh_status, gh_data = github_api_request("GET", path, github_pat)
+            if gh_status == 200:
+                runs = gh_data.get("workflow_runs", [])
+                if runs:
+                    latest_status = runs[0].get("status", "")
+                    if latest_status not in ("in_progress", "queued"):
+                        delete_session()
+                        return 200, {"active": False}
+        except Exception as e:
+            print(f"Warning: GitHub API check failed for deploy: {e}")
 
         return 200, {
             "active": False,
@@ -840,6 +902,101 @@ def handle_service_health() -> tuple[int, dict[str, Any]]:
     return 200, {"services": results}
 
 
+def handle_report_deploy_progress(
+    api_key: str, service: str, ready: bool
+) -> tuple[int, dict[str, Any]]:
+    """Report a single service's deploy readiness.
+
+    Called by the deploy workflow as each service comes online.
+    """
+    if not validate_api_key(api_key):
+        return 401, {"error": "Invalid password"}
+
+    if service not in DEPLOY_PROGRESS_SERVICES:
+        return 400, {
+            "error": f"Unknown service: {service}",
+            "valid_services": DEPLOY_PROGRESS_SERVICES,
+        }
+
+    session = get_session()
+    if session is None:
+        return 404, {"error": "No active session"}
+
+    deploy_progress: dict[str, bool] = session.get("deploy_progress", {})
+    deploy_progress[service] = ready
+    session["deploy_progress"] = deploy_progress
+
+    client = get_ssm_client()
+    client.put_parameter(
+        Name=SSM_SESSION_PARAM,
+        Value=json.dumps(session),
+        Type="String",
+        Overwrite=True,
+    )
+
+    all_ready = all(deploy_progress.get(svc, False) for svc in DEPLOY_PROGRESS_SERVICES)
+    return 200, {
+        "services": deploy_progress,
+        "all_ready": all_ready,
+    }
+
+
+def handle_get_deploy_progress() -> tuple[int, dict[str, Any]]:
+    """Get current deploy progress (no auth required)."""
+    session = get_session()
+    if session is None:
+        return 200, {"services": {}, "all_ready": False}
+
+    deploy_progress: dict[str, bool] = session.get("deploy_progress", {})
+    if not deploy_progress:
+        return 200, {"services": {}, "all_ready": False}
+
+    all_ready = all(deploy_progress.get(svc, False) for svc in DEPLOY_PROGRESS_SERVICES)
+    return 200, {"services": deploy_progress, "all_ready": all_ready}
+
+
+def handle_set_teardown_run_id(api_key: str, run_id: int) -> tuple[int, dict[str, Any]]:
+    """Store teardown workflow run ID in session.
+
+    Called by teardown.yml instead of writing SSM directly.
+    """
+    if not validate_api_key(api_key):
+        return 401, {"error": "Invalid password"}
+
+    session = get_session()
+    if session is None:
+        return 404, {"error": "No active session"}
+
+    session["teardown_run_id"] = run_id
+    client = get_ssm_client()
+    client.put_parameter(
+        Name=SSM_SESSION_PARAM,
+        Value=json.dumps(session),
+        Type="String",
+        Overwrite=True,
+    )
+    return 200, {"success": True, "run_id": run_id}
+
+
+def handle_complete_teardown(api_key: str) -> tuple[int, dict[str, Any]]:
+    """Complete teardown by deleting the session.
+
+    Called by teardown.yml at the end instead of deleting SSM directly.
+    """
+    if not validate_api_key(api_key):
+        return 401, {"error": "Invalid password"}
+
+    session = get_session()
+    if session is None:
+        return 404, {"error": "No active session"}
+
+    if not session.get("tearing_down", False):
+        return 400, {"error": "Session is not in tearing_down state"}
+
+    delete_session()
+    return 200, {"success": True}
+
+
 def get_response_headers() -> dict[str, str]:
     """Get standard response headers.
 
@@ -891,6 +1048,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
             "auto-teardown": handle_auto_teardown,
             "service-health": handle_service_health,
             "teardown-status": handle_teardown_status,
+            "get-deploy-progress": handle_get_deploy_progress,
         }
         auth_handlers: dict[str, Any] = {
             "validate": handle_validate,
@@ -899,6 +1057,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
             "activate-session": handle_activate_session,
             "extend-session": handle_extend_session,
             "shrink-session": handle_shrink_session,
+            "complete-teardown": handle_complete_teardown,
         }
 
         if action in no_auth_handlers:
@@ -909,6 +1068,17 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
             if dbt_runner not in ("duckdb", "glue"):
                 return {"error": "Invalid dbt_runner: must be 'duckdb' or 'glue'"}
             _, response_body = handle_deploy(api_key, dbt_runner)
+            return response_body
+        if action == "report-deploy-progress":
+            service = event.get("service", "")
+            ready = event.get("ready", True)
+            _, response_body = handle_report_deploy_progress(api_key, service, ready)
+            return response_body
+        if action == "set-teardown-run-id":
+            run_id = event.get("run_id")
+            if run_id is None:
+                return {"error": "Missing required field: run_id"}
+            _, response_body = handle_set_teardown_run_id(api_key, run_id)
             return response_body
         if action in auth_handlers:
             _, response_body = auth_handlers[action](api_key)
@@ -923,9 +1093,13 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "session-status",
                 "service-health",
                 "teardown-status",
+                "get-deploy-progress",
                 "activate-session",
                 "extend-session",
                 "shrink-session",
+                "report-deploy-progress",
+                "set-teardown-run-id",
+                "complete-teardown",
             ],
         }
 
@@ -969,6 +1143,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         "auto-teardown": handle_auto_teardown,
         "service-health": handle_service_health,
         "teardown-status": handle_teardown_status,
+        "get-deploy-progress": handle_get_deploy_progress,
     }
     auth_handlers: dict[str, Any] = {
         "validate": handle_validate,
@@ -977,6 +1152,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         "activate-session": handle_activate_session,
         "extend-session": handle_extend_session,
         "shrink-session": handle_shrink_session,
+        "complete-teardown": handle_complete_teardown,
     }
 
     if action in no_auth_handlers:
@@ -990,6 +1166,19 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "body": json.dumps({"error": "Invalid dbt_runner: must be 'duckdb' or 'glue'"}),
             }
         status_code, response_body = handle_deploy(api_key, dbt_runner)
+    elif action == "report-deploy-progress":
+        service = body.get("service", "")
+        ready = body.get("ready", True)
+        status_code, response_body = handle_report_deploy_progress(api_key, service, ready)
+    elif action == "set-teardown-run-id":
+        run_id = body.get("run_id")
+        if run_id is None:
+            return {
+                "statusCode": 400,
+                "headers": response_headers,
+                "body": json.dumps({"error": "Missing required field: run_id"}),
+            }
+        status_code, response_body = handle_set_teardown_run_id(api_key, run_id)
     elif action in auth_handlers:
         status_code, response_body = auth_handlers[action](api_key)
     else:
@@ -1003,9 +1192,13 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "session-status",
                 "service-health",
                 "teardown-status",
+                "get-deploy-progress",
                 "activate-session",
                 "extend-session",
                 "shrink-session",
+                "report-deploy-progress",
+                "set-teardown-run-id",
+                "complete-teardown",
             ],
         }
 
