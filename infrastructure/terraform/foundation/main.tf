@@ -220,3 +220,27 @@ module "iam" {
     tf_state     = "arn:aws:s3:::rideshare-tf-state-${data.aws_caller_identity.current.account_id}"
   }
 }
+
+# -----------------------------------------------------------------------------
+# Glue Data Catalog
+# -----------------------------------------------------------------------------
+resource "aws_glue_catalog_database" "bronze" {
+  name        = "${var.project_name}_bronze"
+  description = "Raw ingested events — Bronze medallion layer"
+
+  tags = { Project = var.project_name, Component = "glue-catalog" }
+}
+
+resource "aws_glue_catalog_database" "silver" {
+  name        = "${var.project_name}_silver"
+  description = "Cleaned and deduplicated events — Silver medallion layer"
+
+  tags = { Project = var.project_name, Component = "glue-catalog" }
+}
+
+resource "aws_glue_catalog_database" "gold" {
+  name        = "${var.project_name}_gold"
+  description = "Star-schema aggregates for analytics — Gold medallion layer"
+
+  tags = { Project = var.project_name, Component = "glue-catalog" }
+}

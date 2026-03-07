@@ -204,3 +204,21 @@ output "glue_job_role_arn" {
   description = "Glue Job Execution role ARN (passed to Glue Interactive Sessions)"
   value       = module.iam.glue_job_role_arn
 }
+
+# -----------------------------------------------------------------------------
+# Glue Data Catalog
+# -----------------------------------------------------------------------------
+output "glue_bronze_database_name" {
+  description = "Glue Data Catalog database name for the Bronze layer"
+  value       = aws_glue_catalog_database.bronze.name
+}
+
+output "glue_silver_database_name" {
+  description = "Glue Data Catalog database name for the Silver layer"
+  value       = aws_glue_catalog_database.silver.name
+}
+
+output "glue_gold_database_name" {
+  description = "Glue Data Catalog database name for the Gold layer"
+  value       = aws_glue_catalog_database.gold.name
+}
