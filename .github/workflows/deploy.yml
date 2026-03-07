@@ -335,6 +335,36 @@ jobs:
           echo "ArgoCD application created. Syncing..."
           kubectl get applications -n argocd
 
+      - name: Wait for ArgoCD namespace creation
+        run: |
+          NS="rideshare-prod"
+          echo "Waiting for ArgoCD to create namespace '$NS'..."
+          for i in $(seq 1 60); do
+            if kubectl get namespace "$NS" &> /dev/null; then
+              echo "Namespace '$NS' exists (attempt $i)"
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "::error::Namespace '$NS' was not created after 5 minutes"
+              exit 1
+            fi
+            sleep 5
+          done
+
+          echo "Waiting for initial resources to appear in '$NS'..."
+          for i in $(seq 1 36); do
+            RESOURCE_COUNT=$(kubectl get deployments,statefulsets -n "$NS" --no-headers 2>/dev/null | wc -l)
+            if [ "$RESOURCE_COUNT" -gt 0 ]; then
+              echo "Found $RESOURCE_COUNT resources in '$NS' (attempt $i)"
+              break
+            fi
+            if [ "$i" -eq 36 ]; then
+              echo "::error::No resources appeared in '$NS' after 3 minutes"
+              exit 1
+            fi
+            sleep 5
+          done
+
       - name: Wait for EKS convergence
         env:
           LAMBDA_URL: ${{ steps.lambda-config.outputs.url }}
