@@ -7,6 +7,14 @@ on:
         description: 'Type RESET to confirm data wipe (keeps infrastructure intact)'
         required: true
         type: string
+      dbt_runner:
+        description: 'DBT runner backend (must match deploy)'
+        required: true
+        type: choice
+        options:
+          - duckdb
+          - glue
+        default: duckdb
 
 permissions:
   id-token: write
@@ -16,6 +24,8 @@ jobs:
   soft-reset:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      DBT_RUNNER: ${{ github.event.inputs.dbt_runner }}
 
     steps:
       # ── Phase 1: Guards & Setup ──────────────────────────────────────
@@ -60,7 +70,10 @@ jobs:
 
       - name: Scale down data pipeline
         run: |
-          kubectl scale deployment hive-metastore airflow-webserver airflow-scheduler trino \
+          if [ "$DBT_RUNNER" != "glue" ]; then
+            kubectl scale deployment hive-metastore -n rideshare-prod --replicas=0
+          fi
+          kubectl scale deployment airflow-webserver airflow-scheduler trino \
             -n rideshare-prod --replicas=0
 
       - name: Wait for pods to terminate
@@ -163,6 +176,26 @@ jobs:
           done
           echo "S3 lakehouse buckets emptied"
 
+      # ── Phase 5.5: Wipe Glue Catalog ─────────────────────────────
+
+      - name: Wipe Glue Catalog tables
+        if: github.event.inputs.dbt_runner == 'glue'
+        run: |
+          for DB in rideshare_bronze rideshare_silver rideshare_gold; do
+            echo "Deleting tables from ${DB}..."
+            TABLES=$(aws glue get-tables --database-name "$DB" \
+              --query 'TableList[].Name' --output text)
+            if [ -n "$TABLES" ]; then
+              for TABLE in $TABLES; do
+                aws glue delete-table --database-name "$DB" --name "$TABLE"
+                echo "  Deleted ${DB}.${TABLE}"
+              done
+            else
+              echo "  No tables found in ${DB}"
+            fi
+          done
+          echo "Glue Catalog tables deleted (databases preserved)"
+
       # ── Phase 6: Wipe RDS ───────────────────────────────────────────
 
       - name: Drop and recreate airflow database
@@ -190,6 +223,7 @@ jobs:
           echo "Airflow database and role recreated"
 
       - name: Drop and recreate metastore database
+        if: github.event.inputs.dbt_runner != 'glue'
         run: |
           MASTER_PASSWORD=$(aws secretsmanager get-secret-value \
             --secret-id rideshare/rds --query SecretString --output text | jq -r '.MASTER_PASSWORD')
@@ -251,6 +285,7 @@ jobs:
           fi
 
       - name: Scale up hive-metastore
+        if: github.event.inputs.dbt_runner != 'glue'
         run: |
           kubectl scale deployment hive-metastore -n rideshare-prod --replicas=1
           echo "Waiting for Hive Metastore (runs schematool -initSchema, up to 5 min)..."
@@ -369,7 +404,12 @@ jobs:
           echo "WIPED:"
           echo "  - Kafka topics + data (PVC deleted and recreated)"
           echo "  - S3 lakehouse (bronze, silver, gold, checkpoints)"
-          echo "  - RDS databases (airflow, metastore — schemas auto-initialized)"
+          echo "  - RDS airflow database (schema auto-initialized)"
+          if [ "$DBT_RUNNER" = "glue" ]; then
+            echo "  - Glue Catalog tables (rideshare_bronze, rideshare_silver, rideshare_gold)"
+          else
+            echo "  - RDS metastore database (schema auto-initialized by Hive Metastore)"
+          fi
           echo "  - Redis (FLUSHALL)"
           echo "  - Monitoring data (Prometheus, Loki, Tempo metrics/logs/traces)"
           echo ""
