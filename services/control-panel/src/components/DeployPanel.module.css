@@ -139,8 +139,13 @@
   margin-bottom: 12px;
 }
 
-.segment {
+.segmentWrap {
   flex: 1;
+  position: relative;
+  padding: 8px 0;
+}
+
+.segment {
   height: 4px;
   border-radius: 2px;
   background: rgba(var(--offline-neon-rgb), 0.12);
@@ -443,6 +448,35 @@
   color: var(--accent-red);
   margin-top: 6px;
   text-align: center;
+}
+
+/* ── Segment tooltips ─────────────────────────── */
+
+@media (hover: hover) {
+  .segmentWrap::before {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 2px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: 180px;
+    background: var(--offline-section-bg);
+    border: 1px solid rgba(var(--offline-neon-rgb), 0.25);
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 0.7rem;
+    color: var(--offline-text);
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 150ms ease;
+    z-index: 100;
+  }
+
+  .segmentWrap:hover::before {
+    opacity: 1;
+  }
 }
 
 /* ── Reduced motion ───────────────────────────── */

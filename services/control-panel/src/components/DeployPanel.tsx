@@ -706,31 +706,31 @@ export default function DeployPanel({
           <div className={styles.progressBar}>
             {/* Workflow steps */}
             {WORKFLOW_STEPS.map((step, i) => (
-              <div
-                key={step.activeKey}
-                className={[
-                  styles.segment,
-                  i < workflowStepIndex || hasServiceProgress ? styles.segmentDone : '',
-                  !hasServiceProgress && i === workflowStepIndex ? styles.segmentActive : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                title={step.label}
-              />
+              <div key={step.activeKey} className={styles.segmentWrap} data-tooltip={step.label}>
+                <div
+                  className={[
+                    styles.segment,
+                    i < workflowStepIndex || hasServiceProgress ? styles.segmentDone : '',
+                    !hasServiceProgress && i === workflowStepIndex ? styles.segmentActive : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                />
+              </div>
             ))}
             {/* Service segments */}
             {DEPLOY_SERVICES.map((svc) => (
-              <div
-                key={svc}
-                className={[
-                  styles.segment,
-                  deployProgress[svc] ? styles.segmentDone : '',
-                  hasServiceProgress && !deployProgress[svc] ? styles.segmentActive : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                title={svc}
-              />
+              <div key={svc} className={styles.segmentWrap} data-tooltip={svc}>
+                <div
+                  className={[
+                    styles.segment,
+                    deployProgress[svc] ? styles.segmentDone : '',
+                    hasServiceProgress && !deployProgress[svc] ? styles.segmentActive : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                />
+              </div>
             ))}
           </div>
 
@@ -783,17 +783,17 @@ export default function DeployPanel({
 
           <div className={styles.progressBar}>
             {TEARDOWN_STEPS.map((step, i) => (
-              <div
-                key={step.activeKey}
-                className={[
-                  styles.segment,
-                  i < teardownStepIndex ? styles.segmentDone : '',
-                  i === teardownStepIndex ? styles.segmentActiveTeardown : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                title={step.label}
-              />
+              <div key={step.activeKey} className={styles.segmentWrap} data-tooltip={step.label}>
+                <div
+                  className={[
+                    styles.segment,
+                    i < teardownStepIndex ? styles.segmentDone : '',
+                    i === teardownStepIndex ? styles.segmentActiveTeardown : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                />
+              </div>
             ))}
           </div>
 
