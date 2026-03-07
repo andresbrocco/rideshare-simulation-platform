@@ -348,27 +348,34 @@ def github_api_request(
 
 def handle_validate(api_key: str) -> tuple[int, dict[str, Any]]:
     """Handle validate action."""
+    print("Action: validate")
     is_valid = validate_api_key(api_key)
 
     if is_valid:
+        print("Action validate completed: 200")
         return 200, {"valid": True}
+    print("Action validate completed: 401")
     return 401, {"valid": False, "error": "Invalid password"}
 
 
 def handle_deploy(api_key: str, dbt_runner: str = "duckdb") -> tuple[int, dict[str, Any]]:
     """Handle deploy action."""
+    print("Action: deploy")
     if not validate_api_key(api_key):
+        print("Action deploy completed: 401")
         return 401, {"error": "Invalid password"}
 
     # Guard: reject if a session already exists (prevents double-deploy race)
     existing_session = get_session()
     if existing_session is not None:
+        print("Action deploy completed: 409")
         return 409, {"error": "Deployment already in progress"}
 
     try:
         github_pat = get_secret(SECRET_GITHUB_PAT)
     except Exception as e:
         print(f"Error retrieving GitHub PAT: {e}")
+        print("Action deploy completed: 500")
         return 500, {"error": "Failed to retrieve GitHub credentials"}
 
     path = f"/repos/{GITHUB_REPO}/actions/workflows/{GITHUB_WORKFLOW}/dispatches"
@@ -385,6 +392,7 @@ def handle_deploy(api_key: str, dbt_runner: str = "duckdb") -> tuple[int, dict[s
         except Exception as e:
             print(f"Warning: Failed to create deploying session: {e}")
 
+        print("Action deploy completed: 200")
         return 200, {
             "triggered": True,
             "workflow": GITHUB_WORKFLOW,
@@ -392,6 +400,7 @@ def handle_deploy(api_key: str, dbt_runner: str = "duckdb") -> tuple[int, dict[s
         }
 
     print(f"GitHub API error: {status_code} - {response_data}")
+    print("Action deploy completed: 502")
     return 502, {
         "error": "Failed to trigger deployment",
         "details": response_data.get("message", "Unknown error"),
@@ -401,13 +410,16 @@ def handle_deploy(api_key: str, dbt_runner: str = "duckdb") -> tuple[int, dict[s
 
 def handle_status(api_key: str) -> tuple[int, dict[str, Any]]:
     """Handle status action."""
+    print("Action: status")
     if not validate_api_key(api_key):
+        print("Action status completed: 401")
         return 401, {"error": "Invalid password"}
 
     try:
         github_pat = get_secret(SECRET_GITHUB_PAT)
     except Exception as e:
         print(f"Error retrieving GitHub PAT: {e}")
+        print("Action status completed: 500")
         return 500, {"error": "Failed to retrieve GitHub credentials"}
 
     path = f"/repos/{GITHUB_REPO}/actions/workflows/{GITHUB_WORKFLOW}/runs?per_page=1"
@@ -418,9 +430,11 @@ def handle_status(api_key: str) -> tuple[int, dict[str, Any]]:
         workflow_runs = response_data.get("workflow_runs", [])
 
         if not workflow_runs:
+            print("Action status completed: 200")
             return 200, {"status": "idle"}
 
         latest_run = workflow_runs[0]
+        print("Action status completed: 200")
         return 200, {
             "status": latest_run.get("status", "unknown"),
             "conclusion": latest_run.get("conclusion"),
@@ -430,6 +444,7 @@ def handle_status(api_key: str) -> tuple[int, dict[str, Any]]:
         }
 
     print(f"GitHub API error: {status_code} - {response_data}")
+    print("Action status completed: 502")
     return 502, {
         "error": "Failed to query deployment status",
         "details": response_data.get("message", "Unknown error"),
@@ -439,13 +454,16 @@ def handle_status(api_key: str) -> tuple[int, dict[str, Any]]:
 
 def handle_session_status() -> tuple[int, dict[str, Any]]:
     """Handle session-status action (no auth required)."""
+    print("Action: session-status")
     try:
         session = get_session()
     except Exception as e:
         print(f"Error reading session: {e}")
+        print("Action session-status completed: 500")
         return 500, {"error": "Failed to read session state"}
 
     if session is None:
+        print("Action session-status completed: 200")
         return 200, {"active": False}
 
     now = int(time.time())
@@ -462,6 +480,7 @@ def handle_session_status() -> tuple[int, dict[str, Any]]:
         if now - tearing_down_at > TEARDOWN_TIMEOUT_SECONDS:
             # Stale flag — teardown workflow likely finished but cleanup failed
             delete_session()
+            print("Action session-status completed: 200")
             return 200, {"active": False}
 
         # GitHub API validation: if teardown workflow is no longer running, clean up
@@ -478,10 +497,12 @@ def handle_session_status() -> tuple[int, dict[str, Any]]:
                     latest_status = runs[0].get("status", "")
                     if latest_status not in ("in_progress", "queued"):
                         delete_session()
+                        print("Action session-status completed: 200")
                         return 200, {"active": False}
         except Exception as e:
             print(f"Warning: GitHub API check failed for teardown: {e}")
 
+        print("Action session-status completed: 200")
         return 200, {
             "active": False,
             "deploying": False,
@@ -497,6 +518,7 @@ def handle_session_status() -> tuple[int, dict[str, Any]]:
         if elapsed_seconds > DEPLOYING_TIMEOUT_SECONDS:
             # Stale deploying session — deploy likely failed or was abandoned
             delete_session()
+            print("Action session-status completed: 200")
             return 200, {"active": False}
 
         # GitHub API validation: if deploy workflow failed/cancelled, clean up.
@@ -512,10 +534,12 @@ def handle_session_status() -> tuple[int, dict[str, Any]]:
                     conclusion = runs[0].get("conclusion", "")
                     if conclusion in ("failure", "cancelled"):
                         delete_session()
+                        print("Action session-status completed: 200")
                         return 200, {"active": False}
         except Exception as e:
             print(f"Warning: GitHub API check failed for deploy: {e}")
 
+        print("Action session-status completed: 200")
         return 200, {
             "active": False,
             "deploying": True,
@@ -526,6 +550,7 @@ def handle_session_status() -> tuple[int, dict[str, Any]]:
 
     # Session has a deadline — normal countdown
     remaining = max(0, deadline - now)
+    print("Action session-status completed: 200")
     return 200, {
         "active": remaining > 0,
         "deploying": False,
@@ -542,13 +567,16 @@ def handle_teardown_status() -> tuple[int, dict[str, Any]]:
 
     Returns step-level progress for an in-progress teardown workflow.
     """
+    print("Action: teardown-status")
     try:
         session = get_session()
     except Exception as e:
         print(f"Error reading session: {e}")
+        print("Action teardown-status completed: 200")
         return 200, {"tearing_down": False}
 
     if session is None or not session.get("tearing_down", False):
+        print("Action teardown-status completed: 200")
         return 200, {"tearing_down": False}
 
     tearing_down_at = session.get("tearing_down_at")
@@ -601,6 +629,7 @@ def handle_teardown_status() -> tuple[int, dict[str, Any]]:
     pending_steps = [{"name": label, "status": "pending"} for label in TEARDOWN_UI_LABELS]
 
     if run_id is None:
+        print("Action teardown-status completed: 200")
         return 200, {
             "tearing_down": True,
             "run_id": None,
@@ -620,6 +649,7 @@ def handle_teardown_status() -> tuple[int, dict[str, Any]]:
 
         if status_code != 200:
             print(f"GitHub jobs API returned {status_code}: {response_data}")
+            print("Action teardown-status completed: 200")
             return 200, {
                 "tearing_down": True,
                 "run_id": run_id,
@@ -632,6 +662,7 @@ def handle_teardown_status() -> tuple[int, dict[str, Any]]:
 
         jobs = response_data.get("jobs", [])
         if not jobs:
+            print("Action teardown-status completed: 200")
             return 200, {
                 "tearing_down": True,
                 "run_id": run_id,
@@ -680,6 +711,7 @@ def handle_teardown_status() -> tuple[int, dict[str, Any]]:
                 # All completed
                 current_step = len(ui_steps) - 1
 
+        print("Action teardown-status completed: 200")
         return 200, {
             "tearing_down": True,
             "run_id": run_id,
@@ -692,6 +724,7 @@ def handle_teardown_status() -> tuple[int, dict[str, Any]]:
 
     except Exception as e:
         print(f"Error fetching teardown job steps: {e}")
+        print("Action teardown-status completed: 200")
         return 200, {
             "tearing_down": True,
             "run_id": run_id,
@@ -710,17 +743,21 @@ def handle_activate_session(api_key: str) -> tuple[int, dict[str, Any]]:
     schedules auto-teardown. Idempotent — returns existing values if
     deadline is already set.
     """
+    print("Action: activate-session")
     if not validate_api_key(api_key):
+        print("Action activate-session completed: 401")
         return 401, {"error": "Invalid password"}
 
     session = get_session()
     if session is None:
+        print("Action activate-session completed: 404")
         return 404, {"error": "No active session"}
 
     # Idempotent: if deadline already set, return existing values
     if session.get("deadline") is not None:
         now = int(time.time())
         remaining = max(0, session["deadline"] - now)
+        print("Action activate-session completed: 200")
         return 200, {
             "success": True,
             "remaining_seconds": remaining,
@@ -734,8 +771,10 @@ def handle_activate_session(api_key: str) -> tuple[int, dict[str, Any]]:
         create_session(deployed_at=session["deployed_at"], deadline=deadline)
     except Exception as e:
         print(f"Error activating session: {e}")
+        print("Action activate-session completed: 500")
         return 500, {"error": "Failed to activate session"}
 
+    print("Action activate-session completed: 200")
     return 200, {
         "success": True,
         "remaining_seconds": SESSION_STEP_MINUTES * 60,
@@ -745,14 +784,18 @@ def handle_activate_session(api_key: str) -> tuple[int, dict[str, Any]]:
 
 def handle_extend_session(api_key: str) -> tuple[int, dict[str, Any]]:
     """Handle extend-session action."""
+    print("Action: extend-session")
     if not validate_api_key(api_key):
+        print("Action extend-session completed: 401")
         return 401, {"error": "Invalid password"}
 
     session = get_session()
     if session is None:
+        print("Action extend-session completed: 404")
         return 404, {"error": "No active session"}
 
     if session.get("deadline") is None:
+        print("Action extend-session completed: 400")
         return 400, {"error": "Session not yet activated"}
 
     now = int(time.time())
@@ -760,6 +803,7 @@ def handle_extend_session(api_key: str) -> tuple[int, dict[str, Any]]:
     step = SESSION_STEP_MINUTES * 60
 
     if remaining + step > MAX_REMAINING_SECONDS:
+        print("Action extend-session completed: 400")
         return 400, {"error": "Cannot extend beyond 2 hours remaining"}
 
     new_deadline = session["deadline"] + step
@@ -767,8 +811,10 @@ def handle_extend_session(api_key: str) -> tuple[int, dict[str, Any]]:
         update_session_deadline(new_deadline)
     except Exception as e:
         print(f"Error extending session: {e}")
+        print("Action extend-session completed: 500")
         return 500, {"error": "Failed to extend session"}
 
+    print("Action extend-session completed: 200")
     return 200, {
         "success": True,
         "remaining_seconds": max(0, new_deadline - now),
@@ -778,14 +824,18 @@ def handle_extend_session(api_key: str) -> tuple[int, dict[str, Any]]:
 
 def handle_shrink_session(api_key: str) -> tuple[int, dict[str, Any]]:
     """Handle shrink-session action."""
+    print("Action: shrink-session")
     if not validate_api_key(api_key):
+        print("Action shrink-session completed: 401")
         return 401, {"error": "Invalid password"}
 
     session = get_session()
     if session is None:
+        print("Action shrink-session completed: 404")
         return 404, {"error": "No active session"}
 
     if session.get("deadline") is None:
+        print("Action shrink-session completed: 400")
         return 400, {"error": "Session not yet activated"}
 
     now = int(time.time())
@@ -793,6 +843,7 @@ def handle_shrink_session(api_key: str) -> tuple[int, dict[str, Any]]:
     step = SESSION_STEP_MINUTES * 60
 
     if remaining < step:
+        print("Action shrink-session completed: 400")
         return 400, {"error": "Cannot shrink below 0 minutes remaining"}
 
     new_deadline = session["deadline"] - step
@@ -800,8 +851,10 @@ def handle_shrink_session(api_key: str) -> tuple[int, dict[str, Any]]:
         update_session_deadline(new_deadline)
     except Exception as e:
         print(f"Error shrinking session: {e}")
+        print("Action shrink-session completed: 500")
         return 500, {"error": "Failed to shrink session"}
 
+    print("Action shrink-session completed: 200")
     return 200, {
         "success": True,
         "remaining_seconds": max(0, new_deadline - now),
@@ -811,6 +864,7 @@ def handle_shrink_session(api_key: str) -> tuple[int, dict[str, Any]]:
 
 def handle_auto_teardown() -> tuple[int, dict[str, Any]]:
     """Handle auto-teardown action (internal, triggered by EventBridge)."""
+    print("Action: auto-teardown")
     # Check if a deploy is currently in progress
     try:
         github_pat = get_secret(SECRET_GITHUB_PAT)
@@ -829,6 +883,7 @@ def handle_auto_teardown() -> tuple[int, dict[str, Any]]:
                         update_session_deadline(new_deadline)
                 except Exception as e:
                     print(f"Warning: Failed to reschedule: {e}")
+                print("Action auto-teardown completed: 200")
                 return 200, {"action": "rescheduled", "reason": "deploy_in_progress"}
     except Exception as e:
         print(f"Warning: Failed to check deploy status: {e}")
@@ -869,11 +924,13 @@ def handle_auto_teardown() -> tuple[int, dict[str, Any]]:
             print(f"Teardown trigger returned {status_code}: {response_data}")
     except Exception as e:
         print(f"Error triggering teardown: {e}")
+        print("Action auto-teardown completed: 500")
         return 500, {"error": "Failed to trigger teardown"}
 
     # Do NOT delete session — teardown workflow cleanup step handles it.
     # The SSM parameter stays with tearing_down=True so frontend shows status.
 
+    print("Action auto-teardown completed: 200")
     return 200, {"action": "teardown_triggered"}
 
 
@@ -889,6 +946,7 @@ def _check_service(service_id: str, url: str) -> tuple[str, bool]:
 
 def handle_service_health() -> tuple[int, dict[str, Any]]:
     """Check health of all platform services in parallel."""
+    print("Action: service-health")
     results: dict[str, bool] = {}
     with concurrent.futures.ThreadPoolExecutor(
         max_workers=len(SERVICE_HEALTH_ENDPOINTS)
@@ -901,6 +959,7 @@ def handle_service_health() -> tuple[int, dict[str, Any]]:
             service_id, healthy = future.result()
             results[service_id] = healthy
 
+    print("Action service-health completed: 200")
     return 200, {"services": results}
 
 
@@ -911,10 +970,13 @@ def handle_report_deploy_progress(
 
     Called by the deploy workflow as each service comes online.
     """
+    print("Action: report-deploy-progress")
     if not validate_api_key(api_key):
+        print("Action report-deploy-progress completed: 401")
         return 401, {"error": "Invalid password"}
 
     if service not in DEPLOY_PROGRESS_SERVICES:
+        print("Action report-deploy-progress completed: 400")
         return 400, {
             "error": f"Unknown service: {service}",
             "valid_services": DEPLOY_PROGRESS_SERVICES,
@@ -922,6 +984,7 @@ def handle_report_deploy_progress(
 
     session = get_session()
     if session is None:
+        print("Action report-deploy-progress completed: 404")
         return 404, {"error": "No active session"}
 
     deploy_progress: dict[str, bool] = session.get("deploy_progress", {})
@@ -937,6 +1000,7 @@ def handle_report_deploy_progress(
     )
 
     all_ready = all(deploy_progress.get(svc, False) for svc in DEPLOY_PROGRESS_SERVICES)
+    print("Action report-deploy-progress completed: 200")
     return 200, {
         "services": deploy_progress,
         "all_ready": all_ready,
@@ -945,15 +1009,19 @@ def handle_report_deploy_progress(
 
 def handle_get_deploy_progress() -> tuple[int, dict[str, Any]]:
     """Get current deploy progress (no auth required)."""
+    print("Action: get-deploy-progress")
     session = get_session()
     if session is None:
+        print("Action get-deploy-progress completed: 200")
         return 200, {"services": {}, "all_ready": False}
 
     deploy_progress: dict[str, bool] = session.get("deploy_progress", {})
     if not deploy_progress:
+        print("Action get-deploy-progress completed: 200")
         return 200, {"services": {}, "all_ready": False}
 
     all_ready = all(deploy_progress.get(svc, False) for svc in DEPLOY_PROGRESS_SERVICES)
+    print("Action get-deploy-progress completed: 200")
     return 200, {"services": deploy_progress, "all_ready": all_ready}
 
 
@@ -962,11 +1030,14 @@ def handle_set_teardown_run_id(api_key: str, run_id: int) -> tuple[int, dict[str
 
     Called by teardown.yml instead of writing SSM directly.
     """
+    print("Action: set-teardown-run-id")
     if not validate_api_key(api_key):
+        print("Action set-teardown-run-id completed: 401")
         return 401, {"error": "Invalid password"}
 
     session = get_session()
     if session is None:
+        print("Action set-teardown-run-id completed: 404")
         return 404, {"error": "No active session"}
 
     session["teardown_run_id"] = run_id
@@ -977,6 +1048,7 @@ def handle_set_teardown_run_id(api_key: str, run_id: int) -> tuple[int, dict[str
         Type="String",
         Overwrite=True,
     )
+    print("Action set-teardown-run-id completed: 200")
     return 200, {"success": True, "run_id": run_id}
 
 
@@ -985,17 +1057,22 @@ def handle_complete_teardown(api_key: str) -> tuple[int, dict[str, Any]]:
 
     Called by teardown.yml at the end instead of deleting SSM directly.
     """
+    print("Action: complete-teardown")
     if not validate_api_key(api_key):
+        print("Action complete-teardown completed: 401")
         return 401, {"error": "Invalid password"}
 
     session = get_session()
     if session is None:
+        print("Action complete-teardown completed: 404")
         return 404, {"error": "No active session"}
 
     if not session.get("tearing_down", False):
+        print("Action complete-teardown completed: 400")
         return 400, {"error": "Session is not in tearing_down state"}
 
     delete_session()
+    print("Action complete-teardown completed: 200")
     return 200, {"success": True}
 
 
