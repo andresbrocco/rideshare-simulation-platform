@@ -145,24 +145,29 @@
   gap: 8px;
 }
 
-.progressItem::before {
+.progressList .progressItem::before {
   content: '';
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--border-color);
   flex-shrink: 0;
+  position: static;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  color: inherit;
 }
 
 .progressItemActive {
   color: var(--text-primary);
 }
 
-.progressItemActive::before {
+.progressList .progressItemActive::before {
   background: var(--accent-orange);
 }
 
-.progressItemDone::before {
+.progressList .progressItemDone::before {
   background: var(--accent-green);
 }
 

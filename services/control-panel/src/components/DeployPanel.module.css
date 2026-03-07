@@ -187,24 +187,29 @@
   list-style: none;
 }
 
-.progressItem::before {
+.progressList .progressItem::before {
   content: '';
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: rgba(var(--offline-neon-rgb), 0.15);
   flex-shrink: 0;
+  position: static;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  color: inherit;
 }
 
 .progressItemActive {
   color: var(--offline-text);
 }
 
-.progressItemActive::before {
+.progressList .progressItemActive::before {
   background: var(--accent-orange);
 }
 
-.progressItemDone::before {
+.progressList .progressItemDone::before {
   background: var(--brand-green);
 }
 
@@ -268,7 +273,7 @@
   color: var(--offline-text);
 }
 
-.progressItemActiveTeardown::before {
+.progressList .progressItemActiveTeardown::before {
   background: var(--accent-red);
 }
 
