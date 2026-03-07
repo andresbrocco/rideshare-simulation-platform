@@ -36,6 +36,7 @@ configMapGenerator:
     files:
       - export-dbt-to-s3.py=../../../scripts/export-dbt-to-s3.py
       - register-trino-tables.py=../../../scripts/register-trino-tables.py
+      - register-glue-tables.py=../../../scripts/register-glue-tables.py
 
   - name: airflow-dbt-project
     options:
