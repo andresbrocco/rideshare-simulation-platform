@@ -35,9 +35,11 @@ else:
 
 DBT_RUNNER = os.environ.get("DBT_RUNNER", "duckdb")
 # When using duckdb, DBT writes to local DuckDB files and we need explicit S3 export + Trino registration.
-# When using glue, Glue writes directly to S3 and auto-registers in Glue Data Catalog — skip those steps.
+# When using glue, Glue writes directly to S3 and silver/gold tables auto-register via dbt-glue Interactive
+# Sessions — but bronze tables (written by the ingestion service) must be registered explicitly before DBT runs.
 NEEDS_EXPORT = DBT_RUNNER == "duckdb"
 NEEDS_REGISTER = DBT_RUNNER == "duckdb"
+NEEDS_GLUE_REGISTER = DBT_RUNNER == "glue"
 
 # Bronze tables required for Silver layer transformations
 REQUIRED_BRONZE_TABLES = [
@@ -112,6 +114,12 @@ with DAG(
             bash_command="python3 /opt/init-scripts/register-trino-tables.py --layer bronze",
         )
 
+    if NEEDS_GLUE_REGISTER:
+        register_bronze_glue_tables = BashOperator(
+            task_id="register_bronze_glue_tables",
+            bash_command="python3 /opt/init-scripts/register-glue-tables.py --layer bronze",
+        )
+
     check_bronze_freshness = ShortCircuitOperator(
         task_id="check_bronze_freshness",
         python_callable=check_bronze_data_exists,
@@ -184,6 +192,16 @@ with DAG(
             >> ge_silver_validation
             >> export_silver_to_s3
             >> register_silver_trino_tables
+            >> check_should_trigger_gold
+            >> [trigger_gold_dag, skip_gold_trigger]
+        )
+    elif NEEDS_GLUE_REGISTER:
+        (
+            register_bronze_glue_tables
+            >> check_bronze_freshness
+            >> dbt_silver_run
+            >> dbt_silver_test
+            >> ge_silver_validation
             >> check_should_trigger_gold
             >> [trigger_gold_dag, skip_gold_trigger]
         )
