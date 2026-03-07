@@ -420,7 +420,7 @@ open https://ridesharing.portfolio.andresbrocco.com
 ### GitHub Actions (Recommended)
 
 ```
-GitHub Actions -> Teardown Platform from AWS -> Run workflow
+GitHub Actions -> Teardown Platform -> Run workflow
 ```
 
 **What the workflow does:**

@@ -466,7 +466,7 @@ resource "aws_iam_role_policy" "github_actions_s3_build_assets" {
   })
 }
 
-# SSM Session Policy (required by teardown.yml to set tearing_down flag)
+# SSM Session Policy (required by teardown-platform.yml to set tearing_down flag)
 resource "aws_iam_role_policy" "github_actions_ssm" {
   name = "ssm-session"
   role = aws_iam_role.github_actions.id

@@ -1,4 +1,4 @@
-name: Teardown Platform from AWS
+name: Teardown Platform
 
 on:
   workflow_dispatch:

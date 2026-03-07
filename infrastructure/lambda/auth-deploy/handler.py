@@ -25,7 +25,7 @@ SECRET_GITHUB_PAT = "rideshare/github-pat"
 SSM_SESSION_PARAM = "/rideshare/session/deadline"
 SCHEDULER_GROUP = "default"
 SCHEDULER_NAME = "rideshare-auto-teardown"
-GITHUB_TEARDOWN_WORKFLOW = "teardown.yml"
+GITHUB_TEARDOWN_WORKFLOW = "teardown-platform.yml"
 SESSION_STEP_MINUTES = 15
 MAX_REMAINING_SECONDS = 2 * 3600  # 2 hours
 PLATFORM_COST_PER_HOUR = 0.31
@@ -1028,7 +1028,7 @@ def handle_get_deploy_progress() -> tuple[int, dict[str, Any]]:
 def handle_set_teardown_run_id(api_key: str, run_id: int) -> tuple[int, dict[str, Any]]:
     """Store teardown workflow run ID in session.
 
-    Called by teardown.yml instead of writing SSM directly.
+    Called by teardown-platform.yml instead of writing SSM directly.
     """
     print("Action: set-teardown-run-id")
     if not validate_api_key(api_key):
@@ -1055,7 +1055,7 @@ def handle_set_teardown_run_id(api_key: str, run_id: int) -> tuple[int, dict[str
 def handle_complete_teardown(api_key: str) -> tuple[int, dict[str, Any]]:
     """Complete teardown by deleting the session.
 
-    Called by teardown.yml at the end instead of deleting SSM directly.
+    Called by teardown-platform.yml at the end instead of deleting SSM directly.
     """
     print("Action: complete-teardown")
     if not validate_api_key(api_key):

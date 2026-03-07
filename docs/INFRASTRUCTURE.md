@@ -264,7 +264,7 @@ GitHub Actions workflows:
 | Workflow | Purpose |
 |----------|---------|
 | `deploy.yml` | Build images, deploy platform, and/or deploy frontend (input-driven) |
-| `teardown.yml` | Destroy platform, preserve foundation |
+| `teardown-platform.yml` | Destroy platform, preserve foundation |
 
 Service URLs:
 
