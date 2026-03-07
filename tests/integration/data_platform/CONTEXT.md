@@ -2,35 +2,32 @@
 
 ## Purpose
 
-Validates end-to-end integration of the data platform across all services: the core event flow (Simulation API → Kafka → Stream Processor → Redis → WebSocket), Spark Structured Streaming for Bronze ingestion, Delta Lake storage, and DBT transformations. Tests focus on data correctness, reliability, and resilience under realistic failure scenarios.
+End-to-end integration tests that exercise the full data platform stack against live Docker containers. Tests verify event flow from the Simulation API through Kafka, Stream Processor, Redis pub/sub, WebSocket delivery, and the medallion lakehouse (Bronze → Silver → Gold via Airflow/DBT/Trino). Also includes CI/CD workflow validation and infrastructure health checks.
 
 ## Responsibility Boundaries
 
-- **Owns**: Integration test orchestration, Docker lifecycle management, test data generation, cross-service validation, core pipeline testing, and resilience testing of the complete data platform
-- **Delegates to**: Individual service health checks to service containers, schema definitions to production code in `schemas/`, DBT transformations to `tools/dbt/`, data generation logic to fixture modules
-- **Does not handle**: Unit testing of individual services, performance benchmarking, production monitoring, load testing, or vendor service validation (Airflow, Great Expectations)
+- **Owns**: Live-service integration verification, Docker lifecycle management, session-scoped state reset, credential loading from LocalStack, service readiness probing
+- **Delegates to**: `utils/state_reset.py` for MinIO/Kafka/Hive teardown logic, `utils/credentials.py` for LocalStack secret fetching, `fixtures/` modules for synthetic event generation, `utils/api_clients.py` for Airflow/Grafana/Prometheus HTTP clients
+- **Does not handle**: Unit testing, performance load testing (see `tests/performance/`), DBT-level testing (see `tools/dbt/tests/`)
 
 ## Key Concepts
 
-**Dynamic Docker Profile Management**: Tests use `@pytest.mark.requires_profiles()` markers to declare required Docker Compose profiles (core, data-pipeline). The `docker_compose` fixture introspects selected tests to determine which profiles to start, minimizing container overhead and startup time.
-
-**Test Categories**: Tests are organized into focused categories:
-- **Core Pipeline** (`core_pipeline`): Tests the real-time event flow from Simulation API through Kafka, Stream Processor, Redis pub/sub, to WebSocket clients
-- **Resilience** (`resilience`): Tests data consistency under partial failures, trip state machine integrity, and pipeline smoke tests
-- **Feature Journey** (`feature_journey`): Tests Bronze ingestion and DBT Silver transformations
-- **Data Flow** (`data_flow`): Tests data lineage and deduplication
-- **Cross-Phase** (`cross_phase`): Tests integration between MinIO + Streaming and Bronze + DBT
-
-**Correlation ID Tracing**: Tests inject unique `correlation_id` or `trip_id` values into events to enable precise data lineage tracking through Bronze/Silver transformations without interference from other concurrent tests.
-
-**Fixture Scope Strategy**: Session-scoped fixtures manage Docker containers and service clients (shared across all tests); function-scoped fixtures handle table cleanup, Kafka consumers, and Redis publishers (isolated per test). This balances test isolation with container startup cost.
+- **`requires_profiles` marker**: Tests declare which Docker Compose profiles they need (`core`, `data-pipeline`, `monitoring`). The `docker_compose` session fixture dynamically starts only the profiles required by the tests that will actually run after filtering — not all profiles unconditionally.
+- **Session-scoped state reset**: `reset_all_state` runs once per session and clears all persistent state in a specific order: (1) stop streaming containers to release checkpoint file locks, (2) drop Hive metastore tables via Trino to prevent orphaned entries after MinIO is cleared, (3) clear MinIO buckets, (4) delete and recreate Kafka topics, (5) restart streaming containers. Violating this order causes file lock errors or orphaned metastore entries pointing to non-existent Delta files.
+- **TestContext**: Each test receives a `TestContext` with a unique `test_id` (test name prefix + UUID fragment) used to generate namespaced entity IDs (trip, driver, rider, event). This enables tests to filter Trino/Kafka queries for only their own data without per-test table cleanup.
+- **Probe message pattern**: The `stream_processor_healthy` fixture uses a subscribe-before-publish pattern when verifying the Kafka → Stream Processor → Redis pipeline. The Redis subscriber is registered before the Kafka message is produced to avoid the race condition where the stream processor forwards the message before the subscriber is active.
+- **Two-phase stream processor readiness**: `stream_processor_healthy` first polls the `/health` endpoint until `kafka_connected` and `redis_connected` are both `true`, then sends an actual probe message through the full pipeline to confirm the consumer has rebalanced and is processing. Health endpoint alone is insufficient because topic deletion/recreation during `reset_all_state` disrupts consumer group assignments.
 
 ## Non-Obvious Details
 
-Tests wait for Bronze tables to be initialized by the `bronze-init` container, then explicitly create missing tables using DDL from `sql_helpers.py` if streaming jobs haven't written data yet. This ensures tests can run even when no production data exists.
+- **Fixture dependency chain**: `docker_compose` → `load_credentials` → `reset_all_state` → `wait_for_services` → service-specific fixtures. `load_credentials` is `autouse=True` and session-scoped, so it runs automatically once Docker is up and populates env vars (`API_KEY`, `MINIO_ROOT_USER`, `KAFKA_SASL_USERNAME`, etc.) for all downstream fixtures.
+- **Credentials come from LocalStack, not `.env`**: `fetch_all_credentials()` fetches the four `rideshare/*` secrets from LocalStack Secrets Manager at runtime and applies the same key transforms as `infrastructure/scripts/fetch-secrets.py`. Tests must not expect credentials pre-set in the environment.
+- **Several test files are now stubs**: `test_data_flows.py`, `test_cross_phase.py`, `test_resilience.py`, and `test_feature_journeys.py` contain only module-level markers. Their original tests were removed when Spark Thrift Server was replaced by Trino, and new Trino-based equivalents have not yet been written.
+- **`SKIP_DOCKER_TEARDOWN=1`**: Setting this env var skips container teardown after the session, useful for faster iteration when containers are slow to start.
+- **Kafka consumer uses unique group IDs per test**: The `kafka_consumer` fixture (function-scoped) generates a fresh consumer group ID each invocation (`integration-test-consumer-<uuid>`) to avoid offset conflicts between tests.
+- **Airflow version compatibility**: The `wait_for_services` fixture tries Airflow v2 (`/api/v2/monitor/health`) before falling back to v1 (`/api/v1/monitor/health`).
+- **Puppet agents for controlled trip generation**: `test_simulation_api_kafka_publishing` uses the simulation's puppet agent API (`/agents/puppet/drivers`, `/agents/puppet/riders`, `/agents/puppet/riders/{id}/request-trip`) to trigger trip events deterministically, bypassing the DNA-based probabilistic scheduling that autonomous agents use.
 
-The `clean_*_tables` fixtures truncate Delta tables by deleting S3 objects directly rather than using `DELETE FROM` SQL, as Delta tables preserve history and SQL deletes only mark rows as removed. Direct S3 deletion provides true isolation between test runs.
+## Related Modules
 
-WebSocket tests use `websockets.sync.client` with API key authentication via the `Sec-WebSocket-Protocol: apikey.<key>` subprotocol header, matching the production authentication mechanism.
-
-Schema Registry enforcement tests verify the pipeline handles malformed events gracefully—invalid events don't corrupt the system, and valid events published after invalid ones still flow correctly.
+- [infrastructure/docker](../../../infrastructure/docker/CONTEXT.md) — Dependency — Docker Compose configuration defining the complete local development environment...

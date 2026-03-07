@@ -2,30 +2,28 @@
 
 ## Purpose
 
-Provides detailed inspection panels for simulation entities (drivers, riders, zones) as draggable popups on the map. Displays real-time state, behavioral DNA, session statistics, and puppet control actions for interactive testing.
+Provides on-demand detail popups for map entities — drivers, riders, and zones. When a user clicks an entity on the deck.gl map, the relevant inspector is rendered inside a floating draggable popup, showing live state fetched from the simulation API alongside contextual action controls.
 
 ## Responsibility Boundaries
 
-- **Owns**: Entity detail rendering, puppet action buttons, inspector layout components
-- **Delegates to**: Parent components for API calls and state management, useDraggable hook for positioning
-- **Does not handle**: Data fetching (uses provided props), WebSocket subscriptions, or map interactions
+- **Owns**: Rendering of entity detail panels (`DriverInspector`, `RiderInspector`, `ZoneInspector`), the draggable popup shell (`DraggablePopupContainer`), state-aware action buttons (`DriverActionsSection`, `RiderActionsSection`), and shared layout primitives (`InspectorSection`, `InspectorRow`, `StatsGrid`)
+- **Delegates to**: Parent components for data fetching and action callbacks (inspectors are fully controlled — they receive state and emit events via props); `useDraggable` hook for drag positioning logic; formatter utilities (`formatDriverStatus`, `formatTripState`, etc.) for display text
+- **Does not handle**: Data fetching, API calls, or state management — all callbacks (`onAcceptOffer`, `onStartTrip`, etc.) are injected by the parent
 
 ## Key Concepts
 
-**Puppet vs Autonomous Agents**: Inspectors distinguish between puppet agents (user-controlled via action buttons) and autonomous agents (display "Next Action" predictions). Only puppets show interactive controls.
-
-**Behavioral DNA**: Immutable agent parameters displayed in dedicated sections (acceptance rates, patience thresholds, service quality). These are distinct from mutable profile attributes.
-
-**Action State Machine**: Driver and rider action buttons are conditionally rendered based on current state (e.g., "Accept Offer" only shown when pending_offer exists, "Start Trip" only when driver_arrived).
+- **Puppet vs autonomous duality**: Each inspector checks `state.is_puppet`. Puppet agents show a live `Actions` section (accept/reject offer, start/cancel trip, toggle online status). Autonomous agents show `PreviousActionsSection` and `NextActionsSection` instead — read-only windows into the simulation's planned and past decisions.
+- **Two-tier agent state**: The map layer uses lightweight `Driver`/`Rider` types (position, status only). Full `DriverState`/`RiderState` (DNA, statistics, active trip, pending offer) is fetched separately and passed as `state`. The inspectors handle the `state === null` / `loading` / `error` degraded states by falling back to the lightweight type for minimal display.
+- **State machine–aware action buttons**: `DriverActionsSection` reads `pending_offer`, `active_trip`, and `status` simultaneously to determine which buttons to surface. Offer accept/reject only appears when a `pending_offer` exists; "Start Trip" only appears when `active_trip.state === 'at_pickup'`; "Cancel" when status is `en_route_pickup` or `on_trip`; online/offline toggle only when idle (no offer or trip).
 
 ## Non-Obvious Details
 
-The DraggablePopupContainer restricts drag interaction to the dedicated drag handle (:::::: icon) to prevent conflicts with scrolling or button clicks within the popup content. The minimize feature collapses content while preserving the header for quick restoration.
-
-Action sections use separate components (DriverActionsSection, RiderActionsSection) to encapsulate complex conditional button logic based on trip state, preventing the main inspector components from becoming cluttered with state machine branching.
+- `DraggablePopupContainer` initialises its position from the map click coordinates (`x`, `y` props) then manages internal drag state. Dragging is only activated when the mouse-down originates on the `.dragHandle` element — clicks on buttons or content do not initiate drag.
+- The popup hardcodes `popupWidth: 320` and `popupHeight: 100` as drag boundary hints passed to `useDraggable`, not as CSS dimensions. Actual sizing is controlled by CSS.
+- Currencies are displayed as Brazilian Reais (`R$`) throughout — consistent with the São Paulo simulation locale.
+- `InspectorRow` accepts `React.ReactNode` as `value`, allowing `RiderInspector` to embed inline JSX (e.g., the driver status description next to the driver name) without a dedicated component.
+- Rating display is suppressed (`'-'`) when `rating_count === 0` to avoid showing a meaningless default value before any trips complete.
 
 ## Related Modules
 
-- **[services/simulation/src/api/routes](../../../../simulation/src/api/routes/CONTEXT.md)** — FastAPI puppet control endpoints that inspector action buttons invoke; buttons trigger commands like accept-offer or drive-to-pickup
-- **[services/simulation/src/agents](../../../../simulation/src/agents/CONTEXT.md)** — Agent DNA and state structures displayed in inspectors; DNA parameters shown in behavioral sections
-- **[src/components](../CONTEXT.md)** — Parent component layer that manages inspector popup state and provides data via props
+- [services/control-panel/src/components](../CONTEXT.md) — Reverse dependency — Provides Map, ControlPanel, InspectorPopup (+19 more)

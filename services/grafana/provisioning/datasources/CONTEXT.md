@@ -2,36 +2,36 @@
 
 ## Purpose
 
-Grafana datasource provisioning configuration defining 4 observability backends for multi-source visualization. Enables automatic datasource registration on Grafana startup without manual UI configuration.
+Grafana provisioning configuration that declares all datasources at container startup. Grafana loads this file automatically on boot, meaning datasources are never configured manually through the UI.
 
 ## Responsibility Boundaries
 
-- **Owns**: Datasource definitions for Prometheus (metrics), Trino (lakehouse queries), Loki (logs), Tempo (traces), connection URLs, plugin types, cross-datasource correlation configuration
-- **Delegates to**: Grafana server for datasource registration, underlying backends for actual data storage and query execution
-- **Does not handle**: Metrics collection, log ingestion, trace collection, dashboard definitions, alert rules
+- **Owns**: Datasource registration, UID assignment, and cross-datasource linkage configuration
+- **Delegates to**: Each backing service (Prometheus, Trino, Loki, Tempo) for the actual data
+- **Does not handle**: Dashboard definitions (managed separately under `services/grafana/dashboards/`)
 
 ## Key Concepts
 
-**Multi-Datasource Observability**: Four specialized backends serving distinct query patterns — Prometheus (time-series metrics), Trino (SQL on Delta Lake via HTTP REST), Loki (log aggregation), Tempo (distributed tracing with correlation).
+All four datasources have hardcoded UIDs (`prometheus`, `trino`, `loki`, `tempo`). These UIDs are referenced directly in dashboard JSON panel definitions — they are not template variables. Any rename or UID change breaks every dashboard that references them.
 
-**Datasource UID System**: Each datasource has a unique identifier (prometheus, trino, loki, tempo) referenced by dashboards and alert rules. UIDs must remain stable across restarts to preserve dashboard references.
+The Trino datasource type is `trino-datasource`, a third-party plugin installed at container startup via `GF_INSTALL_PLUGINS`. It communicates over Trino's HTTP REST API (port 8080), not PostgreSQL wire protocol. The `catalog: delta` setting scopes all Trino queries to the Delta Lake catalog.
 
-**Cross-Datasource Correlation**: Tempo is configured to link traces to logs (via Loki) and metrics (via Prometheus), enabling navigation from trace spans to related logs and performance metrics. Uses `tracesToLogsV2` and `tracesToMetrics` JSON configuration.
-
-**GitOps Provisioning**: File-based configuration auto-loaded by Grafana on startup. Changes require container restart. All datasources are marked `editable: false` to enforce configuration-as-code.
+Tempo is configured with cross-datasource links: traces link to Loki logs (filtered by trace ID and span ID) and to Prometheus metrics. This enables jump-to-logs and jump-to-metrics navigation directly from a trace view.
 
 ## Non-Obvious Details
 
-Trino datasource uses `trino-datasource` plugin (not PostgreSQL plugin) and communicates via HTTP REST API on port 8080, not PostgreSQL wire protocol. The plugin must be installed via Grafana's `GF_INSTALL_PLUGINS` environment variable.
-
-Prometheus is marked as default datasource (`isDefault: true`). This determines which datasource is pre-selected in dashboard query editors.
-
-Tempo's `nodeGraph` and `serviceMap` features are enabled to visualize trace topology. Service map uses Prometheus as its metrics datasource to show request rates and error percentages.
-
-All URLs use Docker Compose service names as hostnames (prometheus:9090, trino:8080, loki:3100, tempo:3200), which resolve via Docker's internal DNS.
+- All datasources are `editable: false` — changes made in the Grafana UI are not persisted and are reverted on restart. All changes must go through this file.
+- Prometheus `timeInterval: 15s` aligns with the scrape interval. Setting this too low causes misleading "no data" gaps in panels.
+- The Trino datasource does not support `format: 1` (time_series) correctly for all panel types — dashboard panels that need time series from Trino must use `format: 0` (table) and handle time parsing in the query.
 
 ## Related Modules
 
-- **[services/prometheus](../../../prometheus/CONTEXT.md)** — Metrics backend that this datasource configuration connects to; scrapes simulation and infrastructure metrics
-- **[tools/dbt/models/marts](../../../../tools/dbt/models/marts/CONTEXT.md)** — Gold layer tables accessible via Trino datasource for business intelligence queries
-- **[services/grafana](../../CONTEXT.md)** — Parent service that loads this datasource configuration during startup provisioning
+- [services/grafana](../../CONTEXT.md) — Shares Observability and Metrics domain (hardcoded datasource uids)
+- [services/grafana](../../CONTEXT.md) — Shares Grafana Dashboards and Visualization domain (hardcoded datasource uids)
+- [services/grafana/dashboards](../../dashboards/CONTEXT.md) — Shares Observability and Metrics domain (hardcoded datasource uids)
+- [services/grafana/dashboards](../../dashboards/CONTEXT.md) — Shares Grafana Dashboards and Visualization domain (hardcoded datasource uids)
+- [services/grafana/provisioning](../CONTEXT.md) — Shares Observability and Metrics domain (hardcoded datasource uids)
+- [services/grafana/provisioning](../CONTEXT.md) — Shares Grafana Dashboards and Visualization domain (hardcoded datasource uids)
+- [services/prometheus](../../../prometheus/CONTEXT.md) — Dependency — Metrics collection, alerting, and recording rule computation for the rideshare s...
+- [services/tempo](../../../tempo/CONTEXT.md) — Dependency — Distributed tracing backend storing OpenTelemetry traces and deriving span metri...
+- [services/trino](../../../trino/CONTEXT.md) — Dependency — Trino SQL query engine configuration and startup scripting for Delta Lake access...

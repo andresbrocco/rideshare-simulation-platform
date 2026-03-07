@@ -2,49 +2,35 @@
 
 ## Purpose
 
-Provides the deployment, orchestration, and cloud provisioning layer for the rideshare simulation platform. Covers Docker Compose for local development, Kubernetes (Kind and EKS) for container orchestration, Terraform for AWS infrastructure-as-code, and operational scripts for secrets management and data pipeline utilities.
+Defines and provisions all platform infrastructure for both local development (Docker Compose) and production (AWS via Terraform). It also contains operational scripts that bridge the gap between infrastructure provisioning and runtime platform state — including secret seeding, Delta table registration in Trino and Glue, and the Lambda function that gates on-demand cluster deployments.
 
 ## Responsibility Boundaries
 
-- **Owns**: Docker Compose multi-profile deployment, Kubernetes manifests and overlays, Terraform cloud provisioning (bootstrap → foundation → platform), secrets management infrastructure, ArgoCD GitOps configuration, Kustomize environment overlays
-- **Delegates to**: Service application logic and Dockerfiles (`services/`), data transformations (`tools/dbt/`), CI/CD workflow definitions (`.github/workflows/`)
-- **Does not handle**: Application code, business logic, container image building
+- **Owns**: Docker Compose configurations for local multi-service orchestration; Terraform modules for AWS resources (VPC, EKS, RDS, S3, ECR, CloudFront, Lambda, IAM, Glue catalog, Secrets Manager); Kubernetes manifests for production workloads; operational scripts for post-deploy registration and secret management; the `auth-deploy` Lambda function
+- **Delegates to**: Application services for their own runtime logic; `tools/dbt` and `services/airflow` for lakehouse transformations; CI/CD workflows (`.github/workflows`) for orchestrating Terraform apply and Kubernetes deploy sequences
+- **Does not handle**: Application-level configuration (owned by each service's `config.py` or environment); Kafka topic schema definitions (owned by `schemas/`); monitoring dashboard content (owned by `services/grafana/`)
 
 ## Key Concepts
 
-**Three-Layer Terraform Architecture** — Cloud infrastructure is provisioned in three dependent layers: (1) Bootstrap creates the S3 state bucket and DynamoDB lock table, (2) Foundation provisions VPC, Route 53, ACM, S3 data buckets, CloudFront, ECR, Secrets Manager, and IAM roles (8 modules), (3) Platform provisions EKS, RDS, ALB controller, and DNS records (4 modules). Each layer stores state in the bootstrap bucket and platform reads foundation outputs via `terraform_remote_state`.
+**Two-layer Terraform split — foundation vs. platform**: Foundation (`terraform/foundation`) provisions long-lived, cost-free-at-rest resources (VPC, S3 buckets, ECR, IAM roles, Glue catalog databases, Secrets Manager, ACM cert, CloudFront, Route 53 zone, Lambda). Platform (`terraform/platform`) provisions cost-incurring compute resources (EKS cluster and node group, RDS) that are created on deploy and destroyed on teardown. The two layers reference each other via `terraform_remote_state` — platform reads VPC subnets, security group IDs, and IAM role ARNs from foundation outputs.
 
-**Profile-Based Deployment** — Services are organized into logical groups (core, data-pipeline, monitoring) that can be deployed independently or combined. Pattern is consistent across both Docker Compose and Kubernetes, allowing selective resource allocation based on use case.
+**Bootstrap layer**: `terraform/bootstrap` is a one-time prerequisite that creates the S3 bucket used as Terraform remote state backend for both foundation and platform.
 
-**Centralized Secrets Management** — All credentials stored in AWS Secrets Manager (LocalStack for development, real AWS for production). The `secrets-init` service fetches secrets and writes grouped env files (`/secrets/core.env`, `/secrets/data-pipeline.env`, `/secrets/monitoring.env`) for each profile. Changing `AWS_ENDPOINT_URL` from LocalStack to AWS is the only migration step required.
+**EKS Pod Identity (not IRSA)**: All workload IAM roles trust `pods.eks.amazonaws.com` with `sts:AssumeRole` + `sts:TagSession`. Pod Identity associations are declared in `platform/main.tf` and matched by `(cluster, namespace, service_account)` — no OIDC annotation on the ServiceAccount is required. This is newer than IRSA and has no intermediate OIDC provider configuration.
 
-**Multi-Environment Strategy** — Same codebase deploys to Docker Compose (local development), Kubernetes with Kind (cloud parity testing), and EKS (production). Environment differences handled through Kustomize overlays and environment variables rather than separate codebases.
+**auth-deploy Lambda**: A Python 3.13 Lambda (`lambda/auth-deploy/handler.py`) that validates an API key from Secrets Manager, then triggers the GitHub Actions `deploy.yml` or `teardown-platform.yml` workflow via the GitHub API. It also manages an EventBridge Scheduler for auto-teardown and uses SSM Parameter Store (`/rideshare/session/deadline`) to track session state. The Lambda is invoked by the frontend control panel, gating on-demand cluster lifecycle from the browser.
 
-**GitOps with ArgoCD** — Production Kubernetes deployments use ArgoCD for declarative GitOps. ArgoCD watches the repository and applies Kustomize overlays to sync cluster state with the repository.
+**Secret groups**: All credentials are stored as JSON objects under `rideshare/*` in Secrets Manager. `infrastructure/scripts/seed-secrets.py` populates LocalStack for local development. Secret group names: `rideshare/api-key`, `rideshare/core`, `rideshare/data-pipeline`, `rideshare/monitoring`, `rideshare/github-pat`.
 
-**Kustomize Overlays + Components** — Two production overlays (`production-duckdb`, `production-glue`) are self-contained deployment targets that reference base manifests and pull shared AWS config from a Kustomize Component (`components/aws-production/`). The component holds ECR image references, IRSA bindings, ExternalSecret patches, ALB Ingress, and monitoring configuration.
+**Delta table registration scripts**: Delta Lake tables written to S3 by bronze-ingestion are not automatically discoverable by Trino or Glue. `register-trino-tables.py` calls `delta.system.register_table()` via the Trino REST API. `register-glue-tables.py` creates Glue catalog entries via `boto3`. Both are run post-deploy as part of the Airflow DAG or CI pipeline.
+
+**Glue Catalog databases**: Three Glue databases (`rideshare_bronze`, `rideshare_silver`, `rideshare_gold`) are created in the foundation layer and correspond to the medallion architecture tiers.
 
 ## Non-Obvious Details
 
-**Foundation → Platform Remote State Dependency** — Platform layer reads foundation outputs (subnet IDs, security group IDs, IAM role ARNs) via `data "terraform_remote_state"`. This means foundation must be applied before platform, and changes to foundation outputs require platform re-apply.
-
-**Environments/ tfvars as Canonical Variable Source** — Production variable values live in `terraform/environments/prod/foundation.tfvars` and `platform.tfvars`. The `variables.tf` defaults match prod values, so `terraform plan` works without `-var-file`, but the environments/ files are the documented source of truth.
-
-**Key Transformation Logic** — The `fetch-secrets.py` script applies service-specific key transforms at fetch time. Airflow keys in `rideshare/data-pipeline` get flattened to double-underscore format (e.g., `FERNET_KEY` → `AIRFLOW__CORE__FERNET_KEY`), and Grafana keys in `rideshare/monitoring` get the `GF_SECURITY_` prefix. Collision-prone keys (e.g., `POSTGRES_USER`) are pre-disambiguated at the source (e.g., `POSTGRES_AIRFLOW_USER`, `POSTGRES_METASTORE_USER`).
-
-**Docker vs Kubernetes Networking/Storage Parity** — Both orchestration systems use identical container images and environment variables, but differ in networking (Docker uses single bridge network with internal DNS, Kubernetes uses Gateway API for ingress) and storage (Docker uses named volumes, Kubernetes uses PersistentVolumes).
-
-**Kind Resource Budget** — The local Kind cluster is configured with a 10GB total memory budget. Kustomize local overlays reduce resource requests/limits to fit within this constraint.
-
-**DBT Export Bridge** — The `export-dbt-to-s3.py` script bridges DuckDB-based local transformations to S3 Delta tables for Trino querying in Grafana dashboards. This allows local development with DuckDB while maintaining production parity with Trino.
-
-## Related Modules
-
-- **[infrastructure/docker](docker/CONTEXT.md)** — Docker Compose multi-profile orchestration for local development
-- **[infrastructure/docker/dockerfiles](docker/dockerfiles/CONTEXT.md)** — Custom Dockerfiles for services requiring build-time configuration
-- **[infrastructure/kubernetes](kubernetes/CONTEXT.md)** — Kubernetes deployment with Kind (local) and EKS (production)
-- **[infrastructure/kubernetes/manifests](kubernetes/manifests/CONTEXT.md)** — Base Kubernetes manifests for all services
-- **[infrastructure/kubernetes/overlays](kubernetes/overlays/CONTEXT.md)** — Kustomize overlays for local vs production environments
-- **[infrastructure/kubernetes/argocd](kubernetes/argocd/CONTEXT.md)** — ArgoCD GitOps configuration for production deployments
-- **[infrastructure/kubernetes/scripts](kubernetes/scripts/CONTEXT.md)** — Kubernetes cluster management scripts
-- **[infrastructure/scripts](scripts/CONTEXT.md)** — Secrets management, data pipeline, and infrastructure automation scripts
+- The Route 53 alias record for CloudFront is declared directly in `foundation/main.tf` (not in the `route53` module) to break a circular dependency: `route53 → cloudfront → acm → route53`. The zone is created by the module; the alias record is declared after both zone and CloudFront distribution exist.
+- ACM certificates must be provisioned in `us-east-1` regardless of the deployment region, because CloudFront requires it. Foundation uses a provider alias (`aws.us_east_1`) for the `acm` module.
+- `register-trino-tables.py` defensively strips a `tcp://IP:PORT` prefix from `TRINO_PORT` because Kubernetes auto-injects the full service URL into environment variables named after services (e.g., `TRINO_PORT=tcp://10.0.0.1:8080`). Without this stripping, Trino connection URLs would be malformed.
+- DBT views (`materialized='view'`) have no physical Delta transaction log and cannot be registered as Trino Delta tables. `anomalies_gps_outliers` and `anomalies_zombie_drivers` are excluded from `SILVER_TABLES` in `register-trino-tables.py` for this reason.
+- The GitHub Actions IAM role uses OIDC web identity federation restricted to a specific branch (`refs/heads/main`). Only pushes or workflow dispatches on `main` can assume the role.
+- `seed-secrets.py` supports `OVERRIDE_<KEY>` environment variables to replace any individual secret value without editing the script, enabling CI to inject real credentials at seed time.

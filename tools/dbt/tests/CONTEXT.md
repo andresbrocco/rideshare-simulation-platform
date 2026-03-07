@@ -2,43 +2,34 @@
 
 ## Purpose
 
-Validates DBT transformation logic across the medallion architecture using singular SQL tests for dimensional model integrity, SCD Type 2 validity, and anomaly detection accuracy. Also includes Python-based manifest tests to verify documentation completeness and lineage graph correctness.
+Custom singular tests for the DBT Gold layer, validating star schema structural invariants, SCD Type 2 correctness, data quality anomaly detection logic, and documentation completeness. These tests supplement schema.yml generic tests (uniqueness, not-null, accepted values) with business-rule assertions that cannot be expressed generically.
 
 ## Responsibility Boundaries
 
-- **Owns**: Singular test queries for Gold layer validation, seed data validation patterns, manifest-based documentation tests, SCD Type 2 validity checks
-- **Delegates to**: DBT core (test execution framework), schema.yml files in models/ (generic tests like unique, not_null), dbt-expectations package (advanced statistical tests)
-- **Does not handle**: Generic test definitions (those live in schema.yml), actual data transformation logic (models/), test orchestration (Airflow)
+- **Owns**: Structural and business-rule assertions on Gold dimension tables, anomaly model correctness, and DBT project documentation integrity
+- **Delegates to**: `schema.yml` generic tests for column-level constraints (uniqueness, not-null, accepted values), Great Expectations for Bronze/Silver data quality
+- **Does not handle**: Unit testing of SQL transformation logic in isolation; pipeline orchestration or execution
 
 ## Key Concepts
 
-### Singular Tests
+**Singular tests** — DBT's file-based test format: a `.sql` file in `tests/` that returns rows on failure and zero rows on success. These differ from schema.yml `tests:` entries which are generic and reusable.
 
-SQL queries that return rows representing test failures. Tests in this directory validate cross-table business rules that cannot be expressed as generic column-level tests. Expected to return zero rows on success.
+**SCD Type 2 invariants** — `test_dim_drivers_scd_type2.sql` and `test_dim_payment_methods_scd_type2.sql` assert that exactly one current record exists per entity (`current_flag = true`) and that active records carry `valid_to = 9999-12-31`. Payment methods have a subtle nuance: `current_count = 0` is valid (the entity type was fully replaced), but `current_count > 1` is always invalid.
 
-### Seed Data Validation
+**Seed-data validation tests** — A subset of tests is tagged `seed_data_validation` and `enabled=false` by default. They require deterministic seed data with specific entity IDs (e.g., `driver_003` through `driver_008`) to exercise anomaly detection thresholds (GPS bounding box for São Paulo, impossible speed > 200 km/h, zombie driver ping gap >= 10 minutes). Run via `dbt test --select tag:seed_data_validation --vars '{"enable_seed_tests": true}'`.
 
-Tests tagged with `seed_data_validation` and `enabled=false` that require specific test entities in Bronze tables. Run explicitly with `dbt test --select tag:seed_data_validation` after seeding test data. Used to validate anomaly detection algorithms (GPS outliers, impossible speeds, zombie drivers) against known-good and known-bad test cases.
-
-### Manifest-Based Testing
-
-Python tests that parse `target/manifest.json` and `target/catalog.json` to validate meta-properties of the DBT project itself (documentation completeness, lineage relationships, column descriptions). Run with pytest, not `dbt test`.
-
-### SCD Type 2 Validation
-
-Tests that verify Slowly Changing Dimension implementation correctness by checking validity date ranges, current_flag uniqueness, and non-overlapping version windows. Critical for `dim_drivers` and `dim_payment_methods`.
+**Documentation meta-test** — `test_documentation_completeness.py` is a pytest file (not a DBT test) that reads `target/manifest.json` and `target/catalog.json` to assert all models have descriptions, key columns have descriptions, doc blocks are referenced in schema files, and the Bronze → Silver → Gold lineage chain is present in the compiled DAG. Requires `dbt compile` or `dbt docs generate` to be run first.
 
 ## Non-Obvious Details
 
-- **Disabled by Default**: Tests with `enabled=false` expect specific test entities and will fail on production data. They validate transformation logic, not production data quality.
-- **Expected Failures**: Some tests include comments like "Expected failure: Model doesn't exist yet", indicating they were written before model implementation (TDD approach).
-- **Cross-Join Pattern**: Validation tests often use `cross join` to combine multiple failure conditions into a single result set, returning rows only when any condition fails.
-- **Manifest Dependency**: Python tests require running `dbt compile` or `dbt docs generate` first to populate `target/manifest.json`.
-- **Hardcoded Paths**: Python tests contain absolute paths to manifest files specific to the developer's machine, which may need updating for different environments.
+- `test_dim_riders_current_state.sql` enforces that `dim_riders` is **not** SCD Type 2 — it is a snapshot of current state only (one row per rider), in contrast to `dim_drivers` which tracks history.
+- `test_dim_zones_complete.sql` hardcodes the expectation of exactly 96 zones, derived from the São Paulo districts in `zones.geojson`. This number must be updated if the source GeoJSON changes.
+- `test_dim_time_attributes.sql` uses hardcoded dates `2024-01-01` (Monday, `day_of_week=1`) and `2024-01-06` (Saturday, `day_of_week=6`) to verify weekday/weekend flag logic. The test assumes Monday-based weekday numbering.
+- The `test_documentation_completeness.py` file contains absolute paths to the local machine — it is not portable across environments without modification. It is a local developer-run test, not part of the CI `dbt test` invocation.
 
 ## Related Modules
 
-- **[tools/dbt/tests/generic](generic/CONTEXT.md)** — Reusable test macros that can be applied to multiple models; singular tests in this directory complement generic tests
-- **[tools/dbt/models/marts](../models/marts/CONTEXT.md)** — Gold layer dimensional models validated by SCD Type 2 and referential integrity tests
-- **[tools/dbt/models/test_data](../models/test_data/CONTEXT.md)** — Mock Bronze tables used by seed_data_validation tests to validate anomaly detection
-- **[tools/great-expectations](../../great-expectations/CONTEXT.md)** — Complementary data quality validation that runs after DBT transformations via Airflow
+- [tools/dbt/models](../models/CONTEXT.md) — Reverse dependency — Provides stg_trips, stg_gps_pings, stg_driver_status (+24 more)
+- [tools/dbt/models/marts/dimensions](../models/marts/dimensions/CONTEXT.md) — Dependency — Gold-layer dimension tables forming the dimension side of the star schema, with ...
+- [tools/dbt/models/marts/facts](../models/marts/facts/CONTEXT.md) — Dependency — Gold-layer fact tables for the rideshare star schema covering completed trips, p...
+- [tools/dbt/models/staging](../models/staging/CONTEXT.md) — Dependency — Silver layer JSON parsing, deduplication, validation filtering, and anomaly dete...

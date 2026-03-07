@@ -1,243 +1,141 @@
 # Hive Metastore
 
-> Apache Hive 4.0.0 Metastore service that stores table and partition metadata for Delta Lake tables in the medallion lakehouse architecture.
+> Table metadata catalog for Delta Lake tables, enabling Trino to query Silver and Gold lakehouse data via the `delta` connector.
 
 ## Quick Reference
 
 ### Ports
 
-| Port | Protocol | Purpose |
-|------|----------|---------|
-| 9083 | Thrift | Hive Metastore API |
+| Port | Protocol | Description |
+|------|----------|-------------|
+| 9083 | Thrift | Hive Metastore Thrift server (client URI: `thrift://hive-metastore:9083`) |
 
 ### Environment Variables
 
-Configuration is injected at runtime from **LocalStack Secrets Manager** via the `secrets-init` service. Credentials are sourced from `/secrets/data-pipeline.env`.
+Credentials are never passed as Docker environment variables directly. They are injected from `/secrets/data-pipeline.env` by the `secrets-init` sidecar at startup. The following variables must be present in that secrets file:
 
-| Variable | Purpose | Template Usage |
-|----------|---------|----------------|
-| `POSTGRES_METASTORE_USER` | PostgreSQL username for metastore backend | `hive-site.xml.template` substitution |
-| `POSTGRES_METASTORE_PASSWORD` | PostgreSQL password for metastore backend | `hive-site.xml.template` substitution |
-| `MINIO_ROOT_USER` | MinIO access key for S3A filesystem | `hive-site.xml.template` substitution |
-| `MINIO_ROOT_PASSWORD` | MinIO secret key for S3A filesystem | `hive-site.xml.template` substitution |
-| `DB_HOST` | PostgreSQL hostname | Default: `postgres-metastore` |
-| `DB_PORT` | PostgreSQL port | Default: `5432` |
+| Variable | Description |
+|----------|-------------|
+| `POSTGRES_METASTORE_USER` | PostgreSQL username for the metastore backend |
+| `POSTGRES_METASTORE_PASSWORD` | PostgreSQL password for the metastore backend |
+| `MINIO_ROOT_USER` | MinIO/S3 access key for S3A filesystem access |
+| `MINIO_ROOT_PASSWORD` | MinIO/S3 secret key for S3A filesystem access |
 
-**Local Development Defaults:**
-- All credentials use `admin` for username/password
-- Configured in `rideshare/data-pipeline` secret in LocalStack
+The following are set directly as Docker environment variables (non-secret):
+
+| Variable | Value | Description |
+|----------|-------|-------------|
+| `SERVICE_NAME` | `metastore` | Hive service mode selector |
+| `DB_DRIVER` | `postgres` | JDBC driver type |
+| `SERVICE_OPTS` | JVM flags | Heap limit (`-Xmx768m`) and JDBC connection properties |
+| `DB_HOST` | `postgres-metastore` (default) | PostgreSQL host for readiness check |
+| `DB_PORT` | `5432` (default) | PostgreSQL port for readiness check |
 
 ### Configuration Files
 
 | File | Purpose |
 |------|---------|
-| `hive-site.xml.template` | Template for Hive configuration (env vars substituted at runtime) |
-| `hive-site.xml` | Generated configuration file (created by `entrypoint-wrapper.sh`) |
-| `entrypoint-wrapper.sh` | Custom entrypoint that waits for PostgreSQL, substitutes env vars, then runs Hive |
-| `Dockerfile` | Adds PostgreSQL JDBC driver and S3A filesystem JARs to base image |
+| `hive-site.xml.template` | Canonical config with `${VAR}` placeholders — source of truth, mounted read-only into the container |
+| `hive-site.xml` | Runtime-generated output of `envsubst` on the template — not a usable config on its own |
+| `entrypoint-wrapper.sh` | Pre-flight script: loads secrets, runs `envsubst`, waits for PostgreSQL, then delegates to the upstream Hive entrypoint |
+| `Dockerfile` | Adds PostgreSQL JDBC driver, Hadoop S3A JARs, and `gettext-base` (`envsubst`) to the upstream `apache/hive:4.0.0` image |
 
-### Dependencies
+### Warehouse Location
 
-**Runtime:**
-- `postgres-metastore` (port 5432) - Catalog persistence backend
-- `minio` (port 9000) - S3-compatible storage for warehouse data
-- `secrets-init` - Injects credentials from LocalStack Secrets Manager
+Default managed table warehouse: `s3a://rideshare-silver/warehouse/`
 
-**Downstream Clients:**
-- `trino` - Queries Delta Lake tables via Thrift connection
-- `delta-table-init` - Registers Delta Lake tables via Trino
+External tables (registered by `bronze-ingestion`) point to their own S3 paths and are not subject to this default.
 
-### Docker Service
+### Docker Profile
 
-**Profile:** `data-pipeline`
+This service runs under the `data-pipeline` profile:
 
 ```bash
-# Start with data pipeline services
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
-
-# View logs
-docker compose -f infrastructure/docker/compose.yml logs -f hive-metastore
-
-# Check health
-docker compose -f infrastructure/docker/compose.yml ps hive-metastore
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d hive-metastore
 ```
-
-## Configuration Details
-
-### PostgreSQL Backend
-
-The metastore catalog is persisted in PostgreSQL instead of the default Derby database:
-
-- **Database:** `metastore` on `postgres-metastore:5432`
-- **JDBC Driver:** `postgresql-42.7.4.jar` (added via Dockerfile)
-- **Schema Initialization:** Runs automatically on first startup via Hive's `schematool -initSchema`
-
-### S3A Filesystem
-
-Hive connects to MinIO using the S3A filesystem implementation:
-
-- **Endpoint:** `http://minio:9000`
-- **Path Style Access:** Enabled (required for MinIO)
-- **SSL:** Disabled (local development)
-- **Warehouse Directory:** `s3a://rideshare-silver/warehouse/`
-- **Required JARs:** `hadoop-aws-3.3.6.jar`, `aws-java-sdk-bundle-1.12.367.jar` (copied from Hadoop tools lib)
-
-### Thrift API
-
-Clients connect to the metastore via Thrift protocol:
-
-- **URI:** `thrift://hive-metastore:9083`
-- **Clients:** Trino (`delta` catalog connector)
-- **No Authentication:** Open access within Docker network
 
 ## Common Tasks
 
-### Check Metastore Health
+### Verify the Thrift server is accepting connections
 
 ```bash
-# TCP socket test (same as health check)
-docker exec rideshare-hive-metastore bash -c 'echo > /dev/tcp/localhost/9083'
-
-# View initialization logs
-docker compose -f infrastructure/docker/compose.yml logs hive-metastore | grep -i schema
+docker exec rideshare-hive-metastore bash -c "echo > /dev/tcp/localhost/9083" && echo "Thrift port open"
 ```
 
-### Verify PostgreSQL Backend Connection
+### Check startup logs
 
 ```bash
-# Connect to metastore database
-docker exec -it rideshare-postgres-metastore psql -U admin -d metastore
-
-# List tables (should see Hive catalog tables)
-\dt
+docker logs rideshare-hive-metastore --tail 50
 ```
 
-Expected tables:
-- `TBLS` (table definitions)
-- `PARTITIONS` (partition metadata)
-- `SDS` (storage descriptors)
-- `COLUMNS_V2` (column schemas)
-
-### Verify S3A Filesystem Configuration
+### Confirm secrets were loaded and hive-site.xml was generated
 
 ```bash
-# Check hive-site.xml was generated correctly
 docker exec rideshare-hive-metastore cat /opt/hive/conf/hive-site.xml
-
-# Verify environment variables were substituted
-docker exec rideshare-hive-metastore cat /opt/hive/conf/hive-site.xml | grep -A1 "fs.s3a.access.key"
 ```
 
-### Test Thrift Connection from Trino
+The output should show real credential values, not `${POSTGRES_METASTORE_USER}` placeholders. If placeholders remain, the secrets volume was not mounted or `secrets-init` did not complete.
+
+### List registered metastore databases (from Trino)
 
 ```bash
-# Connect to Trino and list Delta Lake tables
-docker exec -it rideshare-trino trino --catalog delta --schema default
-
-# In Trino CLI:
-SHOW TABLES;
+docker exec rideshare-trino trino --execute "SHOW SCHEMAS FROM delta"
 ```
 
-### Reinitialize Metastore Schema
+### List registered tables
 
 ```bash
-# Drop metastore database
-docker exec -it rideshare-postgres-metastore psql -U admin -c "DROP DATABASE metastore;"
-docker exec -it rideshare-postgres-metastore psql -U admin -c "CREATE DATABASE metastore;"
-
-# Restart metastore (schema will reinitialize)
-docker compose -f infrastructure/docker/compose.yml restart hive-metastore
+docker exec rideshare-trino trino --execute "SHOW TABLES FROM delta.silver"
+docker exec rideshare-trino trino --execute "SHOW TABLES FROM delta.gold"
 ```
+
+### Rebuild the image after Dockerfile changes
+
+```bash
+docker compose -f infrastructure/docker/compose.yml build hive-metastore
+```
+
+## Prerequisites
+
+- `secrets-init` must complete successfully before this service starts (provides `/secrets/data-pipeline.env`)
+- `postgres-metastore` must pass its healthcheck (TCP port 5432 accepting connections)
+- `minio` must pass its healthcheck (S3A warehouse path resolution requires object storage to be reachable)
 
 ## Troubleshooting
 
-### Issue: Metastore Fails to Start with "Connection Refused" Error
+### Container exits immediately on startup
 
-**Cause:** PostgreSQL backend not ready when metastore starts.
+The upstream `apache/hive:4.0.0` entrypoint exits if PostgreSQL is unreachable. `entrypoint-wrapper.sh` mitigates this with up to 30 TCP retries (2s interval = 60s total). If the container still exits, check:
 
-**Solution:** The `entrypoint-wrapper.sh` script waits up to 60 seconds for PostgreSQL. Check if `postgres-metastore` is healthy:
+1. `postgres-metastore` health: `docker ps | grep postgres-metastore`
+2. Secrets volume: `docker exec rideshare-hive-metastore ls /secrets/`
+3. Network: `docker exec rideshare-hive-metastore bash -c "echo > /dev/tcp/postgres-metastore/5432"`
 
-```bash
-docker compose -f infrastructure/docker/compose.yml ps postgres-metastore
+### `${POSTGRES_METASTORE_USER}` appears literally in hive-site.xml
 
-# View PostgreSQL logs
-docker compose -f infrastructure/docker/compose.yml logs postgres-metastore
-```
+`envsubst` runs after sourcing `/secrets/data-pipeline.env`. If the secrets file is missing or empty, variables will not be substituted. Verify `secrets-init` completed: `docker ps -a | grep secrets-init`.
 
-### Issue: Trino Cannot Connect to Hive Metastore
+### Trino cannot connect to metastore
 
-**Symptom:** Trino catalog queries fail with `Hive metastore is not available`.
-
-**Diagnosis:**
+Confirm the Thrift port is open and the service is healthy:
 
 ```bash
-# Check Thrift port is listening
-docker exec rideshare-hive-metastore netstat -tuln | grep 9083
-
-# Test TCP connection from Trino container
-docker exec rideshare-trino bash -c 'echo > /dev/tcp/hive-metastore/9083'
+docker inspect rideshare-hive-metastore --format '{{.State.Health.Status}}'
 ```
 
-**Solution:** Restart metastore and check logs for Thrift binding errors.
+Trino's healthcheck depends on `hive-metastore` being healthy before it starts. If Trino started before the metastore was ready, restart Trino: `docker restart rideshare-trino`.
 
-### Issue: S3A Filesystem Errors (MinIO Connection Failed)
+### S3A / MinIO connection errors in logs
 
-**Symptom:** Queries fail with `NoSuchBucket` or `Connection refused` to MinIO.
+`fs.s3a.path.style.access=true` and `fs.s3a.connection.ssl.enabled=false` are required for MinIO. If deploying against AWS S3 (production), these settings must be removed or overridden — AWS requires virtual-hosted-style URLs and TLS.
 
-**Diagnosis:**
+### AWS SDK / EKS Pod Identity errors in production
 
-```bash
-# Check MinIO is healthy
-docker compose -f infrastructure/docker/compose.yml ps minio
-
-# Verify S3A configuration in hive-site.xml
-docker exec rideshare-hive-metastore cat /opt/hive/conf/hive-site.xml | grep -A2 "fs.s3a.endpoint"
-
-# Test MinIO connectivity from metastore container
-docker exec rideshare-hive-metastore curl -v http://minio:9000/minio/health/live
-```
-
-**Solution:** Ensure `minio` service is running and buckets are initialized (check `minio-init` logs).
-
-### Issue: Environment Variables Not Substituted in hive-site.xml
-
-**Symptom:** Configuration contains `${POSTGRES_METASTORE_USER}` literal strings instead of actual credentials.
-
-**Diagnosis:**
-
-```bash
-# Check if entrypoint-wrapper.sh ran successfully
-docker compose -f infrastructure/docker/compose.yml logs hive-metastore | grep "Substituting environment variables"
-
-# Verify secrets volume is mounted
-docker exec rideshare-hive-metastore cat /secrets/data-pipeline.env
-```
-
-**Solution:** Ensure `secrets-init` service completed successfully and `/secrets/data-pipeline.env` exists.
-
-### Issue: Schema Initialization Fails
-
-**Symptom:** Metastore logs show `Failed to initialize schema` errors.
-
-**Diagnosis:**
-
-```bash
-# Check PostgreSQL JDBC driver is in classpath
-docker exec rideshare-hive-metastore ls -lh /opt/hive/lib/postgresql-42.7.4.jar
-
-# Verify PostgreSQL database exists
-docker exec rideshare-postgres-metastore psql -U admin -l
-```
-
-**Solution:** Ensure `postgres-metastore` has `metastore` database created. If not, create it manually:
-
-```bash
-docker exec -it rideshare-postgres-metastore psql -U admin -c "CREATE DATABASE metastore;"
-```
+The Dockerfile pins `aws-java-sdk-bundle` to 1.12.780. Versions below 1.12.746 do not support the EKS Pod Identity credential endpoint. Do not downgrade this dependency.
 
 ## Related
 
-- [CONTEXT.md](CONTEXT.md) - Architecture details and non-obvious implementation notes
-- [services/trino/](../trino/) - Query engine that uses this metastore
-- [infrastructure/scripts/register-delta-tables.sh](../../infrastructure/scripts/register-delta-tables.sh) - Delta Lake table registration
-- [tools/dbt/](../../tools/dbt/) - DBT models using dual-engine validation (DuckDB + Glue)
+- [CONTEXT.md](CONTEXT.md) — Architecture context for this module
+- [services/trino/README.md](../trino/README.md) — Trino query engine that consumes this metastore
+- [services/postgres-metastore/README.md](../postgres-metastore/README.md) — PostgreSQL backend storing the metastore schema
+- [infrastructure/docker/README.md](../../infrastructure/docker/README.md) — Full compose file reference and profiles

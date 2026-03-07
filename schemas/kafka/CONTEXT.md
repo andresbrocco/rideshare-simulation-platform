@@ -2,26 +2,30 @@
 
 ## Purpose
 
-JSON Schema definitions for all Kafka events published by the rideshare simulation platform. These schemas are registered in Confluent Cloud Schema Registry and enforce data contracts between producers (simulation engine) and consumers (stream processors, data pipelines).
+Defines the formal JSON Schema (draft/2020-12) contracts for all Kafka event topics produced by the simulation and consumed by downstream services (stream processor, bronze ingestion). These schemas are the canonical source of truth for inter-service event contracts.
 
 ## Responsibility Boundaries
 
-- **Owns**: Event structure definitions, field validation rules, enum values for event types and status values
-- **Delegates to**: Schema Registry for version management and compatibility checks; producers/consumers for serialization/deserialization
-- **Does not handle**: Event routing logic, topic partitioning strategy, or consumer group management
+- **Owns**: Field names, types, required fields, enumerated values, and validation constraints for every event published to Kafka
+- **Delegates to**: Kafka Schema Registry for runtime enforcement; consuming services for business logic applied to validated events
+- **Does not handle**: Topic routing, partitioning strategy, or serialization format (Avro/JSON decision lives in Schema Registry config)
 
 ## Key Concepts
 
-**Event Traceability Fields**: All schemas include optional `session_id` (simulation run), `correlation_id` (primary entity, typically trip_id), and `causation_id` (triggering event) fields for distributed tracing and event sourcing patterns.
-
-**Reliability Tiers**: Events fall into two categories based on business criticality. Tier 1 (trip state changes, payments) require synchronous delivery confirmation. Tier 2 (GPS pings, driver status) use fire-and-forget with error logging.
-
-**Profile Events**: `driver_profile_event` and `rider_profile_event` support both creation and update event types (`driver.created`, `driver.updated`, `rider.created`, `rider.updated`) for SCD Type 2 dimension tracking in the data warehouse.
+- **Event envelope**: Every schema includes a shared tracing envelope — `session_id` (simulation run identifier), `correlation_id` (primary entity ID, e.g., trip_id), and `causation_id` (ID of the upstream event that triggered this one). These fields are nullable to allow events emitted outside a simulation session.
+- **Trip lifecycle events**: `trip_event.json` covers the full state machine via `event_type` enum — from `trip.requested` through terminal states (`trip.completed`, `trip.cancelled`, `trip.no_drivers_available`). Route geometry is carried inline on the event rather than fetched separately.
+- **Profile vs. state events**: Profile schemas (`driver_profile_event`, `rider_profile_event`) represent entity creation/update and carry PII fields (name, email, phone, home_location). Status/transactional schemas (`driver_status_event`, `trip_event`, `payment_event`, `rating_event`, `surge_update_event`, `gps_ping_event`) carry operational state.
+- **Offer sequencing**: `trip_event` includes `offer_sequence` (integer starting at 1), tracking how many driver offers have been sent for a given trip request before a driver accepts or the offers expire.
 
 ## Non-Obvious Details
 
-The `trip_event` schema covers 10 distinct trip states through a single event type with an enum field, rather than using separate event schemas per state. This design simplifies schema evolution while maintaining a complete audit trail of trip lifecycle transitions.
+- `behavior_factor` in `rider_profile_event` is **only present on `rider.created` events**, not on `rider.updated`. It encodes the rider agent's DNA-derived behavioral parameter and is excluded from update events because it is immutable after creation.
+- Coordinates are encoded as `[latitude, longitude]` arrays (not GeoJSON `[longitude, latitude]` order). All downstream consumers must account for this ordering.
+- `surge_update_event` encodes `previous_multiplier` and `new_multiplier` with a minimum of `1.0`, meaning baseline (no-surge) pricing is represented as `1.0`, not `0`.
+- `payment_event` expresses `platform_fee_percentage` as a decimal fraction (`0.0`–`1.0`), not a percentage integer. `driver_payout_amount` is the already-computed net payout, not derived by consumers.
+- `gps_ping_event` is entity-agnostic: `entity_type` distinguishes driver vs. rider pings on a shared topic rather than having separate topics per entity type.
+- `route` and `pickup_route` in `trip_event` store route geometry as arrays of `[lat, lon]` pairs; `route_progress_index` and `pickup_route_progress_index` allow downstream consumers to reconstruct the driver's current position along the route without re-querying OSRM.
 
-GPS ping events include `route_progress_index` and `pickup_route_progress_index` fields to enable percentage-complete calculations in real-time visualizations without requiring clients to store full route geometries.
+## Related Modules
 
-Payment events include both `platform_fee_percentage` (0.0-1.0) and `platform_fee_amount` to preserve the exact fee calculation at transaction time, protecting against rounding errors during analytics aggregations.
+- [services/simulation/tests/kafka](../../services/simulation/tests/kafka/CONTEXT.md) — Reverse dependency — Consumed by this module

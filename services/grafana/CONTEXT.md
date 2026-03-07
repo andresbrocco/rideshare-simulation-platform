@@ -2,39 +2,47 @@
 
 ## Purpose
 
-Visualization and alerting service providing multi-datasource observability for the rideshare simulation platform. Offers pre-provisioned dashboards spanning operational monitoring, data engineering, and business intelligence, with alert rules for simulation health and resource thresholds.
+Grafana serves as the unified observability frontend for the rideshare simulation platform, aggregating metrics, logs, traces, and analytical query results across four datasources. It exposes dashboards organized by data layer (Monitoring, Data Engineering, Business Intelligence, Operations, Performance) and hosts alerting rules for infrastructure and simulation health.
 
 ## Responsibility Boundaries
 
-- **Owns**: Dashboard JSON definitions across 4 categories (monitoring, data-engineering, business-intelligence, operations), datasource provisioning for 4 backends (Prometheus, Trino, Loki, Tempo), alert rule configuration, provisioning manifests
-- **Delegates to**: Prometheus for metrics storage, Trino for lakehouse queries, Loki for log aggregation, Tempo for distributed tracing
-- **Does not handle**: Metrics collection, log ingestion, trace collection, container orchestration
+- **Owns**: Dashboard definitions (JSON), datasource provisioning, alerting rule provisioning, dashboard folder organization
+- **Delegates to**: Prometheus (metrics), Loki (logs), Tempo (distributed traces), Trino (Delta Lake SQL analytics)
+- **Does not handle**: Metric collection, log shipping, trace generation, or data transformation — all data is read-only from upstream sources
 
 ## Key Concepts
 
-**GitOps Provisioning**: All configuration is file-based. Datasources, dashboards, and alert rules are auto-loaded on startup from `provisioning/` subdirectories, eliminating manual UI configuration.
+**Dashboard folders by data layer**: Dashboards are partitioned into five Grafana folders that map to the platform's layered architecture:
+- `Monitoring` — real-time simulation engine metrics (Prometheus source)
+- `Data Engineering` — Bronze/Silver pipeline health (Trino + Prometheus sources)
+- `Business Intelligence` — Gold star schema analytics (Trino source)
+- `Operations` — platform-wide operational view
+- `Performance` — performance engineering metrics
 
-**Multi-Datasource Architecture**: Four distinct datasources with specialized roles — Prometheus (metrics), Trino (Delta Lake queries via HTTP REST), Loki (logs), Tempo (traces with correlation to logs/metrics).
+**Multi-datasource fan-out**: A single dashboard may mix Prometheus panels (real-time) and Trino panels (historical/analytical). Datasource UIDs are hardcoded (`prometheus`, `trino`, `loki`, `tempo`) rather than using template variables (`${DS_*}`) — this is intentional to avoid provisioning-time resolution issues.
 
-**Dashboard Categories**: Four organizational folders — Monitoring (simulation-metrics), Data Engineering (data-ingestion, data-quality), Business Intelligence (demand-analysis, driver-performance, revenue-analytics), Operations (platform-operations).
+**Trino datasource plugin**: The `trino-datasource` plugin (installed via `GF_INSTALL_PLUGINS`) communicates via Trino's HTTP REST API (port 8080 in-container). It is not the PostgreSQL wire protocol. All Trino panels must set `"rawQuery": true` and use `"rawSQL"` (capital SQL) for the query field. The numeric format field `"format": 0` means table output; `"format": 1` means time series — string values are rejected.
 
-**Alert Groups**: Two groups — `resource_thresholds` (warning severity, memory/CPU thresholds for simulation, stream-processor, kafka) and `simulation_alerts` (critical severity, error rates, Kafka/Redis disconnections).
-
-**Datasource UID References**: Alert rules and dashboard panels reference datasources by UID (prometheus, trino, loki, tempo), which must match names in `provisioning/datasources/datasources.yml`.
+**Tempo cross-datasource linking**: Tempo is configured with `tracesToLogsV2` (linked to Loki, filtered by trace/span ID) and `tracesToMetrics` (linked to Prometheus), enabling drill-down from a trace to correlated logs and metrics.
 
 ## Non-Obvious Details
 
-Runs under Docker Compose's `monitoring` profile with 384MB memory limit. Default credentials are admin/admin. Container serves on port 3000 internally, mapped to host port 3001 to avoid conflicts.
-
-Trino datasource uses `trino-datasource` plugin (installed via `GF_INSTALL_PLUGINS` env var), NOT PostgreSQL plugin. Queries use HTTP REST API at port 8080, not PostgreSQL wire protocol. Dashboard queries must use numeric `"format": 0` (table) or `"format": 1` (time_series), not string values.
-
-Container-specific alerts use Docker Compose service name patterns (e.g., `rideshare-simulation`, `rideshare-kafka`) to filter cAdvisor metrics.
-
-Dashboard provisioning allows UI updates (`allowUiUpdates: true`) for development, with 10-second refresh interval to detect new JSON files.
+- Dashboards in `dashboards/data-engineering/` and `dashboards/business-intelligence/` currently contain `.gitkeep` placeholders alongside JSON files — the `.gitkeep` files coexist with provisioned dashboards and do not affect Grafana loading.
+- `simulation_errors_total`, `stream_processor_validation_errors_total`, and `simulation_corrupted_events_total` only appear in Prometheus after the first error event. On a healthy system these metrics are absent entirely, not zero — panels relying on them will show "No data" rather than 0.
+- `simulation_offers_pending` is an Observable Gauge (not UpDownCounter). It emits 0 when no offers are pending, so a zero reading is normal, not an absent metric.
+- Redis latency panels should source from `stream_processor_redis_publish_latency_seconds_bucket`; the metric `simulation_redis_latency_seconds_bucket` does not exist in the simulation service.
+- Alert rules use `noDataState: NoData` (not `OK`), so missing metrics during startup do not trigger false alerts.
+- The Trino catalog is set to `delta` in the datasource provisioning — all SQL queries reference tables in the `delta` catalog without needing to qualify the catalog name explicitly.
 
 ## Related Modules
 
-- **[services/grafana/provisioning/datasources](provisioning/datasources/CONTEXT.md)** — Datasource configuration that Grafana auto-loads; defines connections to Prometheus, Trino, Loki, and Tempo
-- **[services/prometheus](../prometheus/CONTEXT.md)** — Primary metrics datasource for operational monitoring dashboards; provides time-series data for alerts
-- **[tools/dbt/models/marts](../../tools/dbt/models/marts/CONTEXT.md)** — Gold layer tables queried via Trino datasource for business intelligence dashboards
-- **[infrastructure/scripts](../../infrastructure/scripts/CONTEXT.md)** — Exports DBT Gold tables to S3 that Trino queries for dashboard visualizations
+- [infrastructure/docker](../../infrastructure/docker/CONTEXT.md) — Reverse dependency — Consumed by this module
+- [services/grafana/dashboards](dashboards/CONTEXT.md) — Shares Observability and Metrics domain (hardcoded datasource uids)
+- [services/grafana/dashboards](dashboards/CONTEXT.md) — Shares Grafana Dashboards and Visualization domain (hardcoded datasource uids)
+- [services/grafana/provisioning](provisioning/CONTEXT.md) — Shares Observability and Metrics domain (hardcoded datasource uids)
+- [services/grafana/provisioning](provisioning/CONTEXT.md) — Shares Grafana Dashboards and Visualization domain (hardcoded datasource uids)
+- [services/grafana/provisioning/datasources](provisioning/datasources/CONTEXT.md) — Shares Observability and Metrics domain (hardcoded datasource uids)
+- [services/grafana/provisioning/datasources](provisioning/datasources/CONTEXT.md) — Shares Grafana Dashboards and Visualization domain (hardcoded datasource uids)
+- [services/prometheus](../prometheus/CONTEXT.md) — Dependency — Metrics collection, alerting, and recording rule computation for the rideshare s...
+- [services/tempo](../tempo/CONTEXT.md) — Dependency — Distributed tracing backend storing OpenTelemetry traces and deriving span metri...
+- [services/trino](../trino/CONTEXT.md) — Dependency — Trino SQL query engine configuration and startup scripting for Delta Lake access...

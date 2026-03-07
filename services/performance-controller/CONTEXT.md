@@ -1,95 +1,32 @@
-# Performance Controller — CONTEXT.md
+# CONTEXT.md — Performance Controller
 
 ## Purpose
 
-Independent sidecar that monitors system saturation via Prometheus recording rules and auto-throttles the simulation speed multiplier to prevent pipeline overload. Supports on/off mode toggling from the control panel.
+Autonomous feedback control service that throttles the simulation's time-acceleration speed multiplier to keep host infrastructure utilisation at a stable target level. It continuously polls a composite Prometheus recording rule (`rideshare:infrastructure:headroom`), computes a PID-adjusted speed multiplier, and actuates it via the simulation's REST API.
 
-## Architecture
+## Responsibility Boundaries
 
-- **Option B design**: Standalone service that queries Prometheus HTTP API and calls the simulation REST API
-- **No direct Kafka dependency**: Reads Kafka lag via kafka-exporter metrics in Prometheus
-- **OTel metrics export**: Pushes `controller_*` metrics via OTLP → OTel Collector → Prometheus
-- **PID control**: Sigmoid-blended asymmetric P-gain with integral and derivative terms (no discrete thresholds)
+- **Owns**: PID control loop, speed actuation decisions, infrastructure headroom observation, controller mode state (`on`/`off`)
+- **Delegates to**: Prometheus (headroom metric via recording rule), Simulation API (`PUT /simulation/speed`, `GET /simulation/status`)
+- **Does not handle**: Defining what the headroom metric means (that is Prometheus recording rule territory), agent lifecycle, or data pipeline orchestration
 
-## Control Loop
+## Key Concepts
 
-1. **Wait for Prometheus** to be reachable
-2. **Poll cycle** (every 5s): Read `rideshare:infrastructure:headroom` from Prometheus → if mode is "on": decide speed → actuate
+- **Infrastructure headroom** (`rideshare:infrastructure:headroom`): A composite Prometheus recording rule value in the range [0, 1] representing available system capacity. The PID controller treats this as its process variable with a default setpoint of `0.66`.
+- **Asymmetric PID gain**: The proportional term uses a sigmoid-blended `k_up`/`k_down` pair rather than a single gain constant. `k_down` (default 1.5) is deliberately much larger than `k_up` (default 0.15) so the controller cuts speed aggressively when headroom drops but ramps up gently when headroom recovers. All three PID terms (P, I, D) are applied multiplicatively in the exponential domain (`speed *= exp(k * error)`), not additively.
+- **Speed multiplier**: A scalar passed to SimPy's simulation clock that compresses or expands simulated time relative to wall-clock time. The valid range is `[min_speed, max_speed]` (defaults: 0.5–128.0).
+- **Manual speed snap**: When the controller is turned `off`, the current continuous speed is snapped to the nearest floor power-of-two from the set `{0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0}` to leave the simulation at a clean, human-readable rate.
+- **Anti-windup**: The error integral is clamped to `±integral_max` (default ±5.0 error-seconds) to prevent runaway accumulation when the simulation is paused or headroom is stuck at an extreme.
 
-## Infrastructure Headroom
+## Non-Obvious Details
 
-The composite index is computed by Prometheus recording rules in `services/prometheus/rules/performance.yml`, not by the controller. This means the index is always available in Grafana when the simulation is running, regardless of whether the controller sidecar is deployed.
+- The controller starts with mode `off` and must be explicitly enabled via `PUT /controller/mode {"mode": "on"}`. It always observes headroom regardless of mode but only actuates speed when mode is `on`.
+- When mode is switched `on`, the controller seeds `_current_speed` from a live `GET /simulation/status` call rather than assuming its last-known value, avoiding a sudden jump if the speed was changed externally while the controller was off.
+- The PID state (integral, previous error) is zeroed on every `off → on` transition to prevent stale accumulated error from causing an immediate overshoot.
+- The API server runs in a daemon thread (not a separate process). The main thread blocks in the control loop. SIGTERM/SIGINT set `_running = False`, which causes `run()` to exit on the next poll tick rather than mid-actuation.
+- Metrics are exported via OTLP to the OTel Collector (not via a Prometheus `/metrics` scrape endpoint). Observable Gauges use a `threading.Lock`-protected snapshot dict to hand values across from the control-loop thread to the OTel export thread safely.
+- `env_nested_delimiter="__"` in Pydantic settings means nested config is set via double-underscore env vars, e.g., `CONTROLLER__MAX_SPEED=64`.
 
-### Components (each 0-1, higher = healthier)
+## Related Modules
 
-| Rule | Threshold |
-|------|-----------|
-| `rideshare:performance:kafka_lag_headroom` | 10,000 messages |
-| `rideshare:performance:simpy_queue_headroom` | 500 events |
-| `rideshare:performance:cpu_headroom` | 85% |
-| `rideshare:performance:memory_headroom` | 85% |
-| `rideshare:performance:consumption_ratio` | consumed/produced rate |
-
-Composite: `rideshare:infrastructure:headroom` = min of all components.
-
-## Mode (on/off)
-
-- **off** (default): Controller reads and exposes the infrastructure headroom but does not actuate speed changes. The control panel speed dropdown remains functional.
-- **on**: Controller runs decide/actuate logic. The control panel shows auto-managed speed display.
-
-Mode is toggled via `PUT /controller/mode` or the "Auto" toggle in the control panel.
-
-## Throttle Logic
-
-PID controller with asymmetric proportional gain and a target setpoint (default 0.66):
-
-```
-error         = infrastructure_headroom - target
-integral     += error * dt                              # clamped to [-integral_max, +integral_max]
-derivative    = (error - previous_error) / dt           # skipped on first cycle
-
-blend         = 1 / (1 + exp(-smoothness * error))     # sigmoid 0→1
-effective_k   = k_down + (k_up - k_down) * blend       # large below target, small above
-p_factor      = exp(effective_k * error)                # asymmetric P-term
-i_factor      = exp(ki * integral)                      # steady-state correction
-d_factor      = exp(kd * derivative)                    # oscillation dampening
-
-factor        = p_factor * i_factor * d_factor
-new_speed     = clamp(current_speed * factor, min, max)
-```
-
-The P-term sigmoid blends between `k_down` (aggressive cut-down, default 1.5) and `k_up` (gentle ramp-up, default 0.15). The I-term corrects persistent steady-state error. The D-term dampens oscillation. Setting `ki=0` or `kd=0` disables that term, reducing to pure P-control.
-
-## Speed Range
-
-The controller operates across floats in **[0.5, 128.0]** via the continuous proportional formula. Both `CONTROLLER_MIN_SPEED` (default `0.5`) and `CONTROLLER_MAX_SPEED` (default `128`) are configurable via environment variables.
-
-## Module Map
-
-| File | Responsibility |
-|------|----------------|
-| `main.py` | OTel SDK init, signal handling, entrypoint |
-| `settings.py` | Pydantic settings (CONTROLLER_, PROMETHEUS_, SIMULATION_) |
-| `logging_setup.py` | Structured logging (same pattern as stream-processor) |
-| `prometheus_client.py` | HTTP client querying Prometheus instant API |
-| `controller.py` | Mode management + control loop + throttle logic |
-| `metrics_exporter.py` | OTel observable gauges + counter |
-| `api.py` | FastAPI /health, /status, PUT /controller/mode endpoints |
-
-## Exported Metrics
-
-| Metric | Type | Dashboard |
-|--------|------|-----------|
-| `controller_infrastructure_headroom` | ObservableGauge | performance-engineering.json |
-| `controller_applied_speed` | ObservableGauge | performance-engineering.json |
-| `controller_adjustments_total` | Counter | performance-engineering.json |
-| `controller_mode` | ObservableGauge | performance-engineering.json |
-| `controller_error_integral` | ObservableGauge | performance-engineering.json |
-| `controller_error_derivative` | ObservableGauge | performance-engineering.json |
-
-## Dependencies
-
-- **Prometheus** (reads recording rules via HTTP API)
-- **Simulation API** (writes speed via `PUT /simulation/speed`)
-- **OTel Collector** (pushes metrics via OTLP gRPC)
-- **Secrets** (`API_KEY` from `/secrets/core.env`)
+- [infrastructure/docker](../../infrastructure/docker/CONTEXT.md) — Reverse dependency — Consumed by this module

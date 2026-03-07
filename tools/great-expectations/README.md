@@ -1,179 +1,159 @@
 # Great Expectations
 
-> Data quality validation layer for medallion lakehouse architecture
+> Data quality validation for Silver and Gold medallion lakehouse tables using Great Expectations 1.x with DuckDB as the query engine.
 
 ## Quick Reference
 
-### Commands
-
-```bash
-# Run Silver layer validation (8 staging tables)
-./venv/bin/python3 tools/great-expectations/run_checkpoint.py silver_validation
-
-# Run Gold layer validation (5 dimensions + 5 facts + 2 aggregates)
-./venv/bin/python3 tools/great-expectations/run_checkpoint.py gold_validation
-
-# Build data docs site (static HTML from validation results)
-./venv/bin/python3 tools/great-expectations/build_data_docs.py
-```
-
-### Configuration
-
-| File | Purpose |
-|------|---------|
-| `gx/great_expectations.yml` | Main GX configuration (datasource, stores, data docs) |
-| `gx/checkpoints/silver_validation.yml` | Silver layer checkpoint (8 tables) |
-| `gx/checkpoints/gold_validation.yml` | Gold layer checkpoint (12 tables) |
-| `gx/expectations/silver/*.json` | Silver layer expectation suites |
-| `gx/expectations/gold/dimensions/*.json` | Gold dimension expectation suites |
-| `gx/expectations/gold/facts/*.json` | Gold fact expectation suites |
-| `gx/expectations/gold/aggregates/*.json` | Gold aggregate expectation suites |
-
 ### Environment Variables
 
-Great Expectations uses the parent project's environment variables for data access:
+| Variable | Default | Purpose |
+|---|---|---|
+| `DUCKDB_PATH` | `/tmp/rideshare.duckdb` | Path to dbt-materialized DuckDB file. If the file exists, GX reads from it directly instead of scanning Delta tables on S3. |
+| `S3_ENDPOINT` | `minio:9000` | S3-compatible storage endpoint (MinIO in local dev). |
+| `AWS_ACCESS_KEY_ID` | `minioadmin` | S3 access key for MinIO/AWS. |
+| `AWS_SECRET_ACCESS_KEY` | `minioadmin` | S3 secret key for MinIO/AWS. |
+| `S3_BUCKET_NAME` | — | Referenced by Airflow DAGs that invoke checkpoints. Bucket names are hard-coded in `run_checkpoint.py` as `rideshare-silver` and `rideshare-gold`. |
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DUCKDB_PATH` | Path to dbt-created DuckDB file | `/tmp/rideshare.duckdb` |
-| `S3_ENDPOINT` | MinIO S3 endpoint | `minio:9000` |
-| `AWS_ACCESS_KEY_ID` | MinIO access key | `minioadmin` |
-| `AWS_SECRET_ACCESS_KEY` | MinIO secret key | `minioadmin` |
+### Commands
+
+All commands must be run from `tools/great-expectations/`.
+
+| Command | Purpose |
+|---|---|
+| `./venv/bin/python3 run_checkpoint.py silver_validation` | Run all 8 Silver layer validations |
+| `./venv/bin/python3 run_checkpoint.py gold_validation` | Run all 12 Gold layer validations (dimensions, facts, aggregates) |
+| `./venv/bin/python3 build_data_docs.py` | Build static HTML data docs from stored validation results |
+| `./venv/bin/python3 test_connection.py` | Verify GX context and DuckDB extension setup |
+| `./venv/bin/pytest tests/` | Run expectation suite structure tests |
+
+### Configuration Files
+
+| File | Purpose |
+|---|---|
+| `gx/great_expectations.yml` | GX context: datasource (`rideshare_duckdb`), stores, data docs site |
+| `gx/checkpoints/silver_validation.yml` | Checkpoint binding 8 Silver suites to the DuckDB datasource |
+| `gx/checkpoints/gold_validation.yml` | Checkpoint binding 12 Gold suites to the DuckDB datasource |
+| `gx/uncommitted/config_variables.yml` | Instance ID and any local credential overrides (gitignored) |
 
 ### Expectation Suites
 
-| Layer | Count | Tables Validated |
-|-------|-------|-----------------|
-| **Silver** | 8 | `stg_trips`, `stg_gps_pings`, `stg_driver_status`, `stg_surge_updates`, `stg_ratings`, `stg_payments`, `stg_drivers`, `stg_riders` |
-| **Gold - Dimensions** | 5 | `dim_drivers`, `dim_riders`, `dim_zones`, `dim_time`, `dim_payment_methods` |
-| **Gold - Facts** | 5 | `fact_trips`, `fact_payments`, `fact_ratings`, `fact_cancellations`, `fact_driver_activity` |
-| **Gold - Aggregates** | 2 | `agg_hourly_zone_demand`, `agg_daily_driver_performance` |
+**Silver layer** (`gx/expectations/silver/`):
+
+| Suite | Table |
+|---|---|
+| `silver_stg_trips` | `silver.stg_trips` |
+| `silver_stg_gps_pings` | `silver.stg_gps_pings` |
+| `silver_stg_driver_status` | `silver.stg_driver_status` |
+| `silver_stg_surge_updates` | `silver.stg_surge_updates` |
+| `silver_stg_ratings` | `silver.stg_ratings` |
+| `silver_stg_payments` | `silver.stg_payments` |
+| `silver_stg_drivers` | `silver.stg_drivers` |
+| `silver_stg_riders` | `silver.stg_riders` |
+
+**Gold layer** (`gx/expectations/gold/`):
+
+| Suite | Table | Category |
+|---|---|---|
+| `gold_dim_drivers` | `gold.dim_drivers` | Dimension |
+| `gold_dim_riders` | `gold.dim_riders` | Dimension |
+| `gold_dim_zones` | `gold.dim_zones` | Dimension |
+| `gold_dim_time` | `gold.dim_time` | Dimension |
+| `gold_dim_payment_methods` | `gold.dim_payment_methods` | Dimension |
+| `gold_fact_trips` | `gold.fact_trips` | Fact |
+| `gold_fact_payments` | `gold.fact_payments` | Fact |
+| `gold_fact_ratings` | `gold.fact_ratings` | Fact |
+| `gold_fact_cancellations` | `gold.fact_cancellations` | Fact |
+| `gold_fact_driver_activity` | `gold.fact_driver_activity` | Fact |
+| `gold_agg_hourly_zone_demand` | `gold.agg_hourly_zone_demand` | Aggregate |
+| `gold_agg_daily_driver_performance` | `gold.agg_daily_driver_performance` | Aggregate |
 
 ### Prerequisites
 
-- DuckDB 1.4.4+ (with `delta` and `httpfs` extensions)
-- Great Expectations 1.x (CLI removed, using custom scripts)
-- MinIO (S3-compatible storage for Delta tables)
-- dbt (creates the DuckDB database file)
+- DuckDB `delta` and `httpfs` extensions (installed automatically by `run_checkpoint.py`)
+- MinIO running on `minio:9000` (or set `S3_ENDPOINT`) — only needed when `DUCKDB_PATH` file does not exist
+- Silver and Gold Delta tables populated in MinIO, or a dbt-generated DuckDB file at `DUCKDB_PATH`
 
 ## Common Tasks
 
-### Run Full Validation Pipeline
+### Run validations against dbt output (local dev)
+
+After dbt completes, it writes a DuckDB file. Point GX to it to skip Delta table scanning:
 
 ```bash
-# 1. Ensure dbt has created tables
-cd tools/dbt
-./venv/bin/dbt run
+cd tools/great-expectations
+DUCKDB_PATH=/path/to/rideshare.duckdb \
+  ./venv/bin/python3 run_checkpoint.py silver_validation
 
-# 2. Run Silver layer validation
-cd ../great-expectations
-./venv/bin/python3 run_checkpoint.py silver_validation
+DUCKDB_PATH=/path/to/rideshare.duckdb \
+  ./venv/bin/python3 run_checkpoint.py gold_validation
+```
 
-# 3. Run Gold layer validation
-./venv/bin/python3 run_checkpoint.py gold_validation
+### Run validations against MinIO (standalone mode)
 
-# 4. Build data docs to view results
+When `DUCKDB_PATH` does not exist, `run_checkpoint.py` creates an in-memory DuckDB and registers Delta table views from S3:
+
+```bash
+cd tools/great-expectations
+S3_ENDPOINT=localhost:9000 \
+AWS_ACCESS_KEY_ID=minioadmin \
+AWS_SECRET_ACCESS_KEY=minioadmin \
+  ./venv/bin/python3 run_checkpoint.py silver_validation
+```
+
+### Build data docs
+
+Generates HTML from stored validation results (no live data connection required):
+
+```bash
+cd tools/great-expectations
 ./venv/bin/python3 build_data_docs.py
+# Output: gx/uncommitted/data_docs/local_site/index.html
 ```
 
-### View Data Docs
+Open `gx/uncommitted/data_docs/local_site/index.html` in a browser to view results.
 
-After building data docs, open the generated HTML site:
+### Verify setup
 
 ```bash
-open gx/uncommitted/data_docs/local_site/index.html
+cd tools/great-expectations
+./venv/bin/python3 test_connection.py
 ```
 
-The data docs site shows:
-- Expectation suite definitions
-- Validation results (pass/fail for each expectation)
-- Data profiling metrics
-- Trends over time (if multiple runs)
+Expected output confirms context initialization, datasource config, and DuckDB extension loading.
 
-### Validate Against Live Delta Tables (No dbt File)
-
-If the dbt DuckDB file doesn't exist, the checkpoint script automatically creates in-memory views using `delta_scan()` to read from MinIO S3 paths:
+### Run suite structure tests
 
 ```bash
-# The script detects missing DUCKDB_PATH and creates delta_scan views
-# No additional configuration needed - it falls back to S3 Delta tables
-./venv/bin/python3 run_checkpoint.py silver_validation
+cd tools/great-expectations
+./venv/bin/pytest tests/ -v
 ```
 
-### Add New Expectation Suite
-
-1. **Create expectation suite JSON** in `gx/expectations/{layer}/{suite_name}.json`
-2. **Add validation to checkpoint** in `gx/checkpoints/{layer}_validation.yml`:
-   ```yaml
-   validations:
-     - batch_request:
-         datasource_name: rideshare_duckdb
-         data_connector_name: default_inferred_data_connector
-         data_asset_name: silver.new_table
-       expectation_suite_name: silver_new_table
-   ```
-3. **Run checkpoint** to validate the new suite
-
-### Test Connection to Data
-
-```bash
-# Verify DuckDB can access tables
-./venv/bin/python3 tools/great-expectations/test_connection.py
-```
+These tests verify suite files exist and contain required expectations (deduplication on `event_id`, range checks, enum checks). They do not require a running data stack.
 
 ## Troubleshooting
 
-| Symptom | Cause | Solution |
-|---------|-------|----------|
-| `Checkpoint file not found` | Invalid checkpoint name | Use `silver_validation` or `gold_validation` |
-| `Suite not found` | Expectation suite JSON missing | Verify file exists in `gx/expectations/{layer}/` |
-| `Table not yet populated` | No data loaded into table | Run dbt or ensure bronze ingestion has run |
-| `delta_scan error` | MinIO not running or credentials invalid | Verify MinIO container is up and env vars are correct |
-| `DuckDB connection error` | Missing delta/httpfs extensions | Script auto-installs extensions, check DuckDB version |
-| Data docs show no validations | Checkpoints not run yet | Run a checkpoint first, then rebuild data docs |
+**`No transaction log found` for a table**
 
-## How It Works
+The Delta table has not yet received data. This is expected early in a simulation run. `run_checkpoint.py` treats this as a warning and continues. The suite is still marked valid — only populated tables are row-counted.
 
-### Soft Failure Pattern
+**DuckDB extension install fails in air-gapped environment**
 
-The `run_checkpoint.py` script implements a **soft failure pattern**:
+The `delta` and `httpfs` extensions are downloaded from `extensions.duckdb.org` on first use. If the environment has no internet access, pre-download the extensions or mount them via volume. The extension version must match DuckDB `1.4.4` (see `requirements.txt`).
 
-1. Verifies expectation suite JSON files exist on disk
-2. Verifies tables are accessible via DuckDB (or skips if not populated)
-3. Reports success even if tables don't exist yet (validation deferred until data is loaded)
+**`Checkpoint file not found` error**
 
-This allows the validation suite to be checked into source control before data exists.
+`run_checkpoint.py` must be run from `tools/great-expectations/` (not the repo root). The path `gx/checkpoints/<name>.yml` is relative to the working directory.
 
-### Data Access Modes
+**Validation results not appearing in data docs**
 
-| Mode | Condition | Behavior |
-|------|-----------|----------|
-| **dbt file mode** | `DUCKDB_PATH` file exists | Connects to dbt-created database (read-only), reads materialized tables |
-| **Delta scan mode** | `DUCKDB_PATH` file missing | Creates in-memory DuckDB with `delta_scan()` views to S3 Delta tables |
+Data docs are built from `gx/uncommitted/validations/`. Run `build_data_docs.py` after each checkpoint run. The `uncommitted/` directory is gitignored — results are ephemeral per environment.
 
-Both modes use the same SQL interface, making validation logic identical.
+**GX 1.x removed the CLI**
 
-### Validation Flow
-
-```
-run_checkpoint.py
-  ├─ Configure DuckDB (delta + httpfs extensions)
-  ├─ Load checkpoint YAML
-  ├─ For each validation:
-  │   ├─ Verify expectation suite exists
-  │   ├─ Verify table is accessible (or mark pending)
-  │   └─ Report suite status
-  ├─ Store validation results (gx/uncommitted/validations/)
-  └─ Return exit code (0=success, 1=failure)
-
-build_data_docs.py
-  ├─ Load GX context
-  ├─ Render HTML from validation results
-  └─ Write to gx/uncommitted/data_docs/local_site/
-```
+`great-expectations` 1.x dropped the `great_expectations` CLI. Use `run_checkpoint.py` and `build_data_docs.py` as the CLI replacements. Do not attempt `ge run checkpoint` or similar commands.
 
 ## Related
 
-- [CONTEXT.md](CONTEXT.md) — Architecture and validation patterns
-- [../dbt/README.md](../dbt/README.md) — dbt transforms that create tables being validated
-- [../../docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) — Medallion lakehouse architecture
+- [CONTEXT.md](CONTEXT.md) — Architecture context for this module
+- [gx/CONTEXT.md](gx/CONTEXT.md) — GX project root details (store layout, datasource config, suite hierarchy)
+- [tools/dbt/README.md](../dbt/README.md) — dbt transformations that produce the Silver and Gold tables validated here

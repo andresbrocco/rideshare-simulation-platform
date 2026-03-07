@@ -1,35 +1,37 @@
-# CONTEXT.md — OpenTelemetry Collector
+# CONTEXT.md — OTel Collector
 
 ## Purpose
 
-Configuration for the OpenTelemetry Collector Contrib, the central telemetry pipeline that routes metrics, logs, and traces between application services and observability backends. All telemetry data flows through this collector before reaching Prometheus, Loki, or Tempo.
+Central observability gateway that collects, processes, and routes all three telemetry signal types (metrics, logs, traces) from the platform. Acts as the single ingestion point between application services and the backend observability stores (Prometheus, Loki, Tempo).
 
 ## Responsibility Boundaries
 
-- **Owns**: Telemetry routing (3 pipelines: metrics, logs, traces), Docker container log parsing and enrichment, Loki label management via attribute hints, collector self-metrics
-- **Delegates to**: Loki for log storage and querying, Tempo for trace storage and querying, Prometheus for metrics storage and querying, Grafana for visualization and dashboards
-- **Does not handle**: Log/trace/metric generation (done by application services via OpenTelemetry SDK), dashboards or alerting (Grafana), long-term storage configuration (each backend manages its own)
+- **Owns**: Telemetry fan-out routing, Docker log parsing, label promotion for Loki, memory protection
+- **Delegates to**: Prometheus (metric storage), Loki (log storage), Tempo (trace storage)
+- **Does not handle**: Application instrumentation, alerting rules, dashboard rendering, or log shipping from non-Docker sources
 
 ## Key Concepts
 
-**Three Pipelines**: The collector runs three independent pipelines, each with its own receivers, processors, and exporters:
+**Three independent pipelines**: Metrics, logs, and traces are processed in separate pipelines with different batching parameters. Metrics use a fast 1s batch timeout so Prometheus scrape-push latency is minimal; logs use the slower 5s/1000-record batch for throughput efficiency.
 
-| Pipeline | Receiver | Exporter | Purpose |
-|----------|----------|----------|---------|
-| metrics | OTLP (gRPC/HTTP) | Prometheus remote write | Application metrics → Prometheus |
-| logs | filelog (Docker JSON) | Loki push API | Container logs → Loki |
-| traces | OTLP (gRPC/HTTP) | OTLP gRPC | Application traces → Tempo |
+**Filelog replaces Promtail**: Docker container logs are collected directly by the OTel filelog receiver reading `/var/lib/docker/containers/*/*.log`, not via Promtail. This requires mounting the Docker socket directory into the container.
 
-**Filelog Receiver**: Reads Docker container JSON log files from `/var/lib/docker/containers/*/*-json.log`. Uses JSON operators to extract `log`, `time`, `stream`, and `attrs` fields. A `move` operator maps the extracted body to the log record body.
+**Two-phase JSON parsing for logs**: Raw Docker log files are JSON-wrapped (`{"log": "...", "time": "..."}`) around the application's own JSON log bodies. The pipeline first parses the Docker envelope (`docker_parser`), then conditionally parses the inner application JSON (`app_log_parser`) only when the `log` field starts with `{`.
 
-**Loki Label Hints**: The `loki.attribute.labels` resource attribute controls which attributes are promoted to Loki index labels. Currently promotes: `level`, `service`, `service_name`, `container_id`. Adding high-cardinality attributes here would cause Loki index explosion.
+**Loki label promotion**: Loki requires attributes to be explicitly promoted to indexed labels via hint attributes (`loki.attribute.labels`, `loki.resource.labels`). The pipeline promotes `level`, `service`, `service_name`, `container_id` as attribute labels and `service.name`, `deployment.environment` as resource labels. Attributes not listed here are stored as unindexed log metadata only.
 
-**Root User Requirement**: Runs as `user: "0:0"` to access the Docker socket (`/var/run/docker.sock`) and read container log files under `/var/lib/docker/containers/`.
+**service.name propagation**: Application logs carry `service_name` in their JSON body. The `transform/logs` processor copies this into the `resource.attributes["service.name"]` slot so Loki's resource label extraction picks it up correctly.
 
 ## Non-Obvious Details
 
-The Dockerfile copies `wget` from a busybox stage because the base `otel/opentelemetry-collector-contrib` image does not include it. Docker Compose uses `wget` for the container health check.
+- The Dockerfile copies `wget` from BusyBox into the OTel image solely to enable Docker health checks (`wget -qO- http://localhost:13133/` pattern) — the OTel contrib image has no wget binary by default.
+- The `memory_limiter` processor (180 MiB limit, 50 MiB spike allowance) must be the first processor in every pipeline to protect against OOM when ingestion spikes; ordering matters in OTel pipelines.
+- The `app_log_parser` uses a conditional (`if: 'attributes.log != nil and attributes.log matches "^\\{"'`) to avoid parse failures on non-JSON log lines (e.g., Python tracebacks or raw stdout).
+- OTel Collector self-metrics are exposed on port 8888 (internal telemetry) separately from the health check endpoint on port 13133.
+- Version pinned to `0.96.0` per project specification.
 
-The OTLP receiver listens on ports 4317 (gRPC) and 4318 (HTTP). Application services send telemetry to these ports. Tempo also receives OTLP, but on different host-mapped ports (4319) to avoid conflicts.
+## Related Modules
 
-Port 8888 exposes the collector's own internal metrics (pipeline throughput, dropped data, queue sizes). Port 13133 is the dedicated health check extension endpoint.
+- [infrastructure/docker](../../infrastructure/docker/CONTEXT.md) — Reverse dependency — Consumed by this module
+- [services/prometheus](../prometheus/CONTEXT.md) — Reverse dependency — Provides rideshare:infrastructure:headroom, rideshare:performance:*, rideshare:container:*
+- [services/tempo](../tempo/CONTEXT.md) — Reverse dependency — Consumed by this module

@@ -2,41 +2,40 @@
 
 ## Purpose
 
-React components that compose the ride-sharing simulation control panel and real-time visualization interface. Responsible for displaying live agent states, trip progress, and geospatial data on a deck.gl map, as well as providing manual control for "puppet" agents.
+Top-level UI components for the control panel application. Covers two distinct surfaces: the simulation control panel (real-time map, agent inspection, stats) and the public landing/portfolio page (architecture overview, tech stack, deploy trigger). Components at this level are composed from hooks in `../hooks`, layer definitions in `../layers`, and services in `../services`.
 
 ## Responsibility Boundaries
 
-- **Owns**: UI presentation layer, user interactions, real-time WebSocket state updates, deck.gl layer rendering, agent inspection popups
-- **Delegates to**: Custom hooks in `../hooks/` for data fetching and WebSocket management, API client in `../api/` for agent actions
-- **Does not handle**: Business logic, state management beyond UI state, data transformation beyond formatting for display
+- **Owns**: All rendered UI panels, the DeckGL+MapLibre map wrapper, the agent inspector popup, the deploy/session lifecycle panel, and the trip lifecycle animation
+- **Delegates to**: `../hooks` for all data fetching and stateful logic, `../layers` for DeckGL layer construction, `../services/lambda` for cloud deployment API calls, `./inspector` subdirectory for per-entity inspector content
+- **Does not handle**: WebSocket connection management, layer data computation, or raw API calls (all delegated to hooks)
 
 ## Key Concepts
 
-**Puppet vs Autonomous Agents**: The UI distinguishes between autonomous agents (controlled by behavioral DNA and scheduled actions) and puppet agents (manually controlled by the user through inspector actions). Puppet agents display action buttons instead of next action schedules.
+**DeployPanel state machine** — `DeployPanel.tsx` owns a six-state lifecycle: `idle → deploying → active → tearing-down → expired → error`. It runs up to five concurrent polling intervals (workflow status, deploy progress, service health, session countdown tick, teardown progress). The `pendingDeployRef` / `pendingActionRef` pattern queues a deploy or session action if the user is not yet authenticated, then re-fires after auth completes.
 
-**Inspector Popup System**: Clicking agents on the map opens draggable, minimizable popups that poll the API for up-to-date state. The popup shows DNA parameters, current trip details, session statistics, and context-sensitive action buttons for puppet control.
+**TripLifecycleAnimation direct-DOM rendering** — `TripLifecycleAnimation.tsx` bypasses React state entirely for its animation loop. All SVG element mutations happen via refs at 60fps using `requestAnimationFrame`. React state is never set during animation; the component uses `useRef` for all animated values. This is intentional to avoid re-render overhead. Phase logic is isolated in `tripLifecyclePhases.ts` as pure functions.
 
-**Layer Visibility Control**: Users can toggle visibility of different agent states (online/offline drivers, waiting/in-transit riders) and routes (pending/pickup/trip routes) independently. The LayerControls component manages a LayerVisibility state object passed to the parent.
+**Map click priority order** — `Map.tsx` handles clicks with explicit priority: (1) destination selection mode, (2) placement mode, (3) entity inspection. The click handler returns early after the first matching mode, so placement mode suppresses entity clicks entirely.
 
-**Placement Mode**: When creating puppet agents, the UI enters a placement mode with crosshair cursor and banner instructions. Map clicks in this mode spawn agents at the clicked coordinates rather than selecting entities.
+**InspectorPopup polling** — When an entity is selected, `InspectorPopup.tsx` polls the simulation API for live agent state via `useAgentState`. Polling is suspended when the popup is minimized. Home location coordinates arrive as `[lat, lon]` from the API but are swapped to `[lon, lat]` before passing to deck.gl (which expects longitude-first).
 
-**Two-Phase Pause**: The ControlPanel reflects the simulation's "draining" state during pause, indicating in-flight trips are completing before full pause.
+**LandingPage dual role** — `LandingPage.tsx` serves as both the public portfolio page and the entry point before authentication. It contains the tech stack showcase, architecture diagram embed, collapsible deep-dive sections, and the `DeployPanel` for on-demand cloud deployment. Service health badges are driven by `serviceHealth: ServiceHealthMap` passed from the parent; cards render as disabled `<span>` elements (not `<a>`) when their service is down to prevent broken navigation.
+
+**LaunchDemoPanel vs DeployPanel** — `LaunchDemoPanel.tsx` is an older, simpler deploy component (4-step progress, local health polling only). `DeployPanel.tsx` is the current implementation with full session management, cost tracking, per-service progress, and extend/shrink controls. Both coexist because `LaunchDemoPanel` may still serve a different flow path.
 
 ## Non-Obvious Details
 
-**Map Performance**: The Map component explicitly finalizes the DeckGL instance on unmount to prevent WebGL context leaks. The WebSocket updates from Redis drive incremental layer data updates.
-
-**Inspector State Polling**: The InspectorPopup uses `useAgentState` hook to poll `/api/drivers/{id}/state` or `/api/riders/{id}/state` every 2 seconds when not minimized. This ensures the displayed state stays synchronized with backend changes during manual puppet control.
-
-**Action Loading States**: Inspector action buttons (accept offer, arrive at pickup, start trip, etc.) show loading state and trigger refetch after completion to immediately reflect state changes. The `wrapAction` pattern ensures cleanup even if the component unmounts mid-action.
-
-**Destination Selection Flow**: Puppet riders can select destinations via map click. The parent sets `destinationMode={true}` on the Map component, which takes priority over placement mode and entity clicks, invoking `onDestinationSelect` callback.
-
-**Stats Aggregation**: StatsPanel receives both real-time counts from WebSocket messages and metrics from API endpoints (`/api/metrics/*`). Real-time counts take precedence for display to minimize lag.
+- `DeployPanel` derives partial service health from `deployProgress` during the `deploying` state (mapping deploy-progress service names to `ServiceHealthMap` keys via `DEPLOY_TO_HEALTH`). Real service health polling only starts after `transitionToActive`.
+- When teardown completes and Lambda becomes unreachable, `DeployPanel` treats any `catch` during session polling as a signal that teardown finished — it transitions to `idle` rather than showing an error.
+- The `wrapAction` helper in `InspectorPopup` sets a `isMountedRef` guard before calling `setActionLoading(false)` to prevent state updates on an unmounted component after async puppet actions complete.
+- `TripLifecycleAnimation` respects `prefers-reduced-motion`: if the media query matches, it renders a static completed-state frame instead of running the animation loop.
+- The `ConfirmModal` is used exclusively for the destructive reset action in `ControlPanel`; it is not a general-purpose modal.
+- `SessionTimer` is a standalone countdown component distinct from the session timer logic inside `DeployPanel`; they serve different display contexts.
 
 ## Related Modules
 
-- **[src/components/inspector](inspector/CONTEXT.md)** — Detailed entity inspection popups for drivers, riders, and zones; provides puppet control interface
-- **[src/layers](../layers/CONTEXT.md)** — deck.gl layer factory functions that these components use to render agents and routes on the map
-- **[schemas/api](../../../../schemas/api/CONTEXT.md)** — OpenAPI spec generates TypeScript types used by components for type-safe API interaction
-- **[services/stream-processor/src](../../../stream-processor/src/CONTEXT.md)** — Publishes real-time updates to Redis that components receive via WebSocket subscriptions
+- [services/control-panel/src](../CONTEXT.md) — Reverse dependency — Provides App (default), theme (PALETTE, UI, OFFLINE, STAGE_RGB, STAGE_CSS, STAGE_HEX, injectCssVars), services/lambda (validateApiKey, triggerDeploy, getSessionStatus, getServiceHealth, etc.) (+2 more)
+- [services/control-panel/src/components/inspector](inspector/CONTEXT.md) — Dependency — On-demand entity detail popups for map-selected drivers, riders, and zones
+- [services/control-panel/src/hooks](../hooks/CONTEXT.md) — Dependency — Custom React hooks encapsulating WebSocket real-time state management, REST poll...
+- [services/control-panel/src/layers](../layers/CONTEXT.md) — Dependency — deck.gl layer factories for the live simulation map, encoding trip lifecycle pha...

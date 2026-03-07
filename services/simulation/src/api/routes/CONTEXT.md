@@ -1,51 +1,36 @@
-# CONTEXT.md — API Routes
+# CONTEXT.md — Routes
 
 ## Purpose
 
-FastAPI route handlers that translate REST/WebSocket requests into simulation engine commands and queries. This layer serves as the HTTP interface for the control panel and external integrations.
+HTTP route handlers for the simulation's FastAPI application. Organizes endpoints into five distinct functional areas: simulation lifecycle control, autonomous agent management, puppet (manually-controlled) agent control, performance controller proxying, and metrics/infrastructure status aggregation.
 
 ## Responsibility Boundaries
 
-- **Owns**: HTTP request validation, response formatting, authentication enforcement, rate limiting
-- **Delegates to**: Simulation engine for state management, matching server for trip coordination, agent factory for spawning
-- **Does not handle**: Business logic (in engine/matching/agents), event publishing (in Kafka/Redis clients), state persistence (in engine/database)
+- **Owns**: Request validation, state pre-condition enforcement, response shaping, rate limiting per endpoint group
+- **Delegates to**: `engine` for simulation state transitions; `agent_factory` for agent spawning; `matching_server` for trip matching and trip state signals; `metrics_collector` for Prometheus data aggregation
+- **Does not handle**: Business logic — route handlers are thin adapters that enforce HTTP-layer constraints and delegate all domain logic to injected app-state services
 
 ## Key Concepts
 
-**Route Modules**: Three exported route groups (plus one internal module) organized by concern:
-- `simulation.py` - Lifecycle control (start/pause/resume/stop/reset), speed adjustment, status queries
-- `agents.py` - Agent creation, state inspection, control commands for autonomous agents
-- `puppet.py` - Manual control API for testing (puppet drivers/riders with step-by-step control)
-- `metrics.py` - Real-time metrics aggregation (overview, zones, trips, drivers, riders, performance, infrastructure)
+**Puppet agents** (`puppet.py`): Manually-controlled agents whose every state transition is triggered via API rather than by the SimPy process loop. Puppet drivers follow a strict sequential workflow: `go-online` → `accept-offer` → `drive-to-pickup` → `arrive-pickup` → `start-trip` → `drive-to-destination` → `complete-trip`. Each endpoint validates the expected prior status and rejects transitions from invalid states. Puppet agents coexist in the same engine as autonomous agents but are identified by `_is_puppet = True`.
 
-**Dependency Injection Pattern**: All routes use FastAPI's `Depends()` to access app state:
-- `EngineDep` - Simulation engine instance
-- `DriverRegistryDep` - Driver location/status index
-- `MatchingServerDep` - Trip matching and coordination
-- `AgentFactoryDep` - Agent spawning with queuing
+**Spawn queue** (`agents.py`): Agent creation does not spawn immediately. `POST /agents/drivers` and `POST /agents/riders` enqueue agents for continuous spawning at a controlled rate (default 2/sec for drivers, 40/sec for riders) to prevent synchronized GPS ping bursts. A `SpawnMode` query parameter switches between `immediate` (agents go active at once) and `scheduled` (agents follow their DNA shift/ride schedule).
 
-**Spawn Queuing**: Agent creation uses rate-limited queuing to prevent synchronized GPS ping bursts (drivers: 2/sec, riders: 40/sec). Clients poll `/agents/spawn-status` to monitor progress.
+**Service registry** (`service_registry.py`): A frozen dataclass catalog declaring every infrastructure service along with its display name, environment scope (`LOCAL`/`PRODUCTION`/`BOTH`), and latency health thresholds. Used by `metrics.py` to determine which services to probe for the infrastructure status card. This is the single authoritative list — adding a new service to the platform requires adding it here.
 
-**Two-Phase Pause**: The `/simulation/pause` endpoint initiates draining of in-flight trips before checkpointing, ensuring clean state recovery.
+**Metrics caching** (`metrics.py`): The `/metrics` endpoint aggregates data from Prometheus, cAdvisor, and simulation state. A 500ms module-level cache (`_metrics_cache`) prevents redundant fan-out on rapid polling from the frontend. Machine info (CPU/memory specs) uses a separate 5-minute cache since hardware characteristics are static.
 
 ## Non-Obvious Details
 
-**Metrics Caching**: The metrics module caches responses for 500ms (`CACHE_TTL`) to reduce computation overhead from high-frequency polling (120 requests/minute limit).
-
-**Rider State Derivation**: Rider metrics are computed from trip states rather than rider agent status, because matching-phase states (REQUESTED, OFFER_SENT, MATCHED) are ephemeral and transition too quickly to observe. Riders are counted as "offline" during matching.
-
-**Stream Processor Integration**: The `/performance` endpoint attempts to fetch metrics from the stream processor service but gracefully degrades if unavailable (returns `None` for `stream_processor` field).
-
-**Infrastructure Health Checks**: The `/infrastructure` endpoint combines health status checks with cAdvisor container metrics. Containers without health endpoints default to `(HEALTHY, None, "No health endpoint")` and rely on cAdvisor presence detection.
-
-**Puppet Agent Testing**: The `puppet.py` routes provide manual control over agent lifecycle for integration testing. Puppet agents emit GPS pings but take no autonomous actions—all state transitions must be triggered via API.
-
-**Global State**: `_simulation_start_wall_time` in `simulation.py` tracks uptime for status responses. Reset during `/simulation/reset`.
+- The `simulation.py` router stores `_simulation_start_wall_time` as a module-level global because FastAPI does not provide per-router state. `reset` clears it explicitly. This means wall-clock uptime resets on reset but is unaffected by pause/resume cycles.
+- `puppet.py` fare calculation duplicates the formula in `agents.py` (`request_rider_trip`): base fare 5.0 BRL + 2.5 BRL/km × surge. This inline calculation is intentional for puppet routes, since no autonomous rider DNA is driving the logic.
+- Teleporting a driver (`PUT /puppet/drivers/{id}/location`) also updates the geospatial H3 index via `matching_server._driver_index.update_driver_location` — but only if the driver is currently `available`. Teleporting an offline or en-route driver updates the agent's `_location` field without updating the spatial index.
+- `controller.py` is a pure HTTP proxy to the `performance-controller` service at port 8090. It exists so the control panel can reach the performance controller through a single authenticated API surface rather than exposing the controller port directly.
+- `service_registry.py` is not an API route file despite living in this package. It is a data module imported by `metrics.py` and has no FastAPI router.
 
 ## Related Modules
 
-- **[src/engine](../../engine/CONTEXT.md)** — Simulation engine that routes invoke via ThreadCoordinator for thread-safe command execution
-- **[src/matching](../../matching/CONTEXT.md)** — Matching server accessed by routes for trip coordination and driver registry queries
-- **[src/agents](../../agents/CONTEXT.md)** — Agent factory and DNA generators used by agent creation endpoints
-- **[schemas/api](../../../../../schemas/api/CONTEXT.md)** — OpenAPI spec generated from these routes; defines request/response contracts
-- **[services/control-panel/src/components/inspector](../../../../control-panel/src/components/inspector/CONTEXT.md)** — Frontend inspector components that invoke puppet control endpoints
+- [schemas/api](../../../../../schemas/api/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
+- [services/control-panel](../../../../control-panel/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
+- [services/control-panel/src/hooks](../../../../control-panel/src/hooks/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
+- [services/simulation/src/engine](../../engine/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)

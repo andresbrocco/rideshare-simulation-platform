@@ -1,200 +1,259 @@
 # DBT
 
-> Data transformation layer implementing medallion lakehouse architecture (Bronze → Silver → Gold) for ride-sharing analytics
+> Silver and Gold transformation layer for the rideshare medallion lakehouse, parsing Bronze Kafka event JSON into a star schema for Trino analytics.
 
 ## Quick Reference
 
 ### Environment Variables
 
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `DUCKDB_PATH` | DuckDB database file path (local profile) | `/tmp/rideshare.duckdb` | No |
-| `S3_ENDPOINT` | MinIO/S3 endpoint (DuckDB profile) | `minio:9000` | No |
-| `AWS_ACCESS_KEY_ID` | S3 access key (DuckDB profile) | `minioadmin` | No |
-| `AWS_SECRET_ACCESS_KEY` | S3 secret key (DuckDB profile) | `minioadmin` | No |
-| `AWS_REGION` | AWS region | `us-east-1` / `sa-east-1` | No |
-| `GLUE_ROLE_ARN` | AWS Glue role ARN (cloud profile) | - | Cloud only |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DBT_RUNNER` | `duckdb` | Execution target: `duckdb` (local/Airflow) or `glue` (production Spark) |
+| `DUCKDB_PATH` | `/tmp/rideshare.duckdb` | Local DuckDB file path (duckdb target only) |
+| `AWS_ACCESS_KEY_ID` | `minioadmin` | S3/MinIO access key |
+| `AWS_SECRET_ACCESS_KEY` | `minioadmin` | S3/MinIO secret key |
+| `AWS_REGION` | `us-east-1` | AWS region (or `sa-east-1` for Glue) |
+| `S3_BUCKET_NAME` | `rideshare-bronze` | Bronze S3 bucket name |
+| `S3_ENDPOINT` | `minio:9000` | S3-compatible endpoint (local dev only) |
+| `DBT_S3_PROVIDER` | `config` | DuckDB S3 auth provider (`config` or `credential_chain`) |
+| `GLUE_ROLE_ARN` | _(required for glue)_ | IAM role ARN for Glue execution |
+| `GLUE_DATABASE` | — | Hive/Glue database name for catalog registration |
+| `TRINO_HOST` | — | Trino host for post-run table registration |
+| `TRINO_PORT` | — | Trino port for post-run table registration |
+| `SILVER_SCHEDULE` | `10 * * * *` | Cron schedule for Silver DAG (Airflow env var) |
+| `PROD_MODE` | `false` | When `true`, Gold DAG only triggers at 2 AM |
 
 ### Commands
 
+All commands run from inside the `tools/dbt/` directory:
+
 ```bash
-# Run transformations
-./venv/bin/dbt run                           # Run all models
-./venv/bin/dbt run --select staging          # Run staging layer only
-./venv/bin/dbt run --select marts            # Run marts layer only
-./venv/bin/dbt run --select marts.dimensions # Run dimensions only
-./venv/bin/dbt run --select marts.facts      # Run facts only
-./venv/bin/dbt run --select marts.aggregates # Run aggregates only
+# Install packages
+cd tools/dbt && ./venv/bin/dbt deps
 
-# Test data quality
-./venv/bin/dbt test                          # Run all tests
-./venv/bin/dbt test --select staging         # Test staging layer
-./venv/bin/dbt test --select marts           # Test marts layer
+# Run Silver layer (staging models) — local DuckDB target
+cd tools/dbt && ./venv/bin/dbt run --select tag:silver --target duckdb
 
-# Build (run + test)
-./venv/bin/dbt build                         # Run and test all models
+# Run Silver layer — Glue production target
+cd tools/dbt && ./venv/bin/dbt run --select tag:silver --target glue
 
-# Seed test data (from seeds/ directory)
-./venv/bin/dbt seed                          # Load CSV seeds into database
+# Run Gold dimensions
+cd tools/dbt && ./venv/bin/dbt run --select tag:dimensions --target duckdb
 
-# Generate documentation
-./venv/bin/dbt docs generate                 # Generate docs
-./venv/bin/dbt docs serve                    # Serve docs at localhost:8080
+# Run Gold facts
+cd tools/dbt && ./venv/bin/dbt run --select tag:facts --target duckdb
 
-# Clean build artifacts
-./venv/bin/dbt clean                         # Remove target/ and dbt_packages/
+# Run Gold aggregates
+cd tools/dbt && ./venv/bin/dbt run --select tag:aggregates --target duckdb
+
+# Run all Gold models
+cd tools/dbt && ./venv/bin/dbt run --select tag:gold --target duckdb
+
+# Run tests for Silver layer
+cd tools/dbt && ./venv/bin/dbt test --select tag:silver --target duckdb --threads 2
+
+# Run tests for Gold layer
+cd tools/dbt && ./venv/bin/dbt test --select tag:gold --target duckdb --threads 2
+
+# Run all tests
+cd tools/dbt && ./venv/bin/dbt test
+
+# Load seed data (static reference tables)
+cd tools/dbt && ./venv/bin/dbt seed --target duckdb
+
+# Generate and serve docs
+cd tools/dbt && ./venv/bin/dbt docs generate && ./venv/bin/dbt docs serve
+
+# Clean compiled artifacts
+cd tools/dbt && ./venv/bin/dbt clean
 ```
 
-### Configuration
+### Configuration Files
 
 | File | Purpose |
 |------|---------|
-| `dbt_project.yml` | Project configuration, model paths, materialization settings |
-| `profiles.yml` | Connection profiles (local DuckDB, AWS Glue) |
-| `packages.yml` | DBT package dependencies (dbt_expectations, dbt_date) |
+| `dbt_project.yml` | Project config: model paths, materialization defaults, schema assignments |
+| `profiles.yml` | Connection profiles: `duckdb` (local) and `glue` (production) targets |
+| `packages.yml` | Package dependencies: `dbt_utils 1.3.0`, `dbt_expectations 0.10.1` |
+| `models/staging/sources.yml` | Bronze Delta table source declarations with S3 paths |
 
-### Database Schemas
+## Model Inventory
 
-| Schema | Layer | Materialization | Tables |
-|--------|-------|----------------|---------|
-| `bronze` | Raw | Delta (external) | Raw Kafka events with `_raw_value` JSON |
-| `silver` | Staging | Incremental (merge) | Cleaned, parsed events (`stg_trips`, `stg_drivers`, `stg_payments`, etc.) |
-| `gold` | Marts | Table | Dimensional model (facts, dimensions, aggregates) |
+### Bronze Sources
 
-### Prerequisites
+| Source Table | S3 Path | Hive Table |
+|---|---|---|
+| `bronze_trips` | `s3://rideshare-bronze/bronze_trips/` | `bronze.bronze_trips` |
+| `bronze_gps_pings` | `s3://rideshare-bronze/bronze_gps_pings/` | `bronze.bronze_gps_pings` |
+| `bronze_driver_status` | `s3://rideshare-bronze/bronze_driver_status/` | `bronze.bronze_driver_status` |
+| `bronze_surge_updates` | `s3://rideshare-bronze/bronze_surge_updates/` | `bronze.bronze_surge_updates` |
+| `bronze_ratings` | `s3://rideshare-bronze/bronze_ratings/` | `bronze.bronze_ratings` |
+| `bronze_payments` | `s3://rideshare-bronze/bronze_payments/` | `bronze.bronze_payments` |
+| `bronze_driver_profiles` | `s3://rideshare-bronze/bronze_driver_profiles/` | `bronze.bronze_driver_profiles` |
+| `bronze_rider_profiles` | `s3://rideshare-bronze/bronze_rider_profiles/` | `bronze.bronze_rider_profiles` |
 
-**Required Services (Docker):**
-- MinIO (port 9000) — S3-compatible object storage for Delta Lake
+### Silver Layer (schema: `silver`, incremental)
 
-**Required Python Packages:**
-```bash
-pip install dbt-core dbt-duckdb
-```
+| Model | Description |
+|-------|-------------|
+| `stg_trips` | Trip lifecycle events, deduplicated by `event_id` |
+| `stg_gps_pings` | GPS ping events with lat/lon bounds validation |
+| `stg_driver_status` | Driver status transitions (available, offline, en_route_pickup, on_trip, driving_closer_to_home) |
+| `stg_surge_updates` | Surge pricing update events |
+| `stg_ratings` | Rating events (starts empty until trips complete) |
+| `stg_payments` | Payment events (starts empty until trips complete) |
+| `stg_drivers` | Driver profile events |
+| `stg_riders` | Rider profile events |
+| `anomalies_gps_outliers` | GPS outlier detections — **view, not Delta table; not registered with Trino** |
+| `anomalies_zombie_drivers` | Zombie driver detections — **view, not Delta table; not registered with Trino** |
+| `anomalies_impossible_speeds` | Impossible speed detections |
+| `anomalies_all` | Unified anomaly view |
 
-**Start services:**
-```bash
-# Core + Data Pipeline profiles
-docker compose -f infrastructure/docker/compose.yml \
-  --profile core --profile data-pipeline up -d
-```
+### Gold Dimensions (schema: `gold`, table)
+
+| Model | Description |
+|-------|-------------|
+| `dim_drivers` | Driver dimension with SCD Type 2 (`valid_from`, `valid_to`, `current_flag`) |
+| `dim_riders` | Rider dimension (current state only) |
+| `dim_zones` | Geographic zones (static reference, Sao Paulo bounding box) |
+| `dim_time` | Time dimension with date attributes |
+| `dim_payment_methods` | Payment methods with SCD Type 2 |
+
+### Gold Facts (schema: `gold`, table)
+
+| Model | Description |
+|-------|-------------|
+| `fact_trips` | Completed trips with fare metrics; `distance_km` from Haversine formula |
+| `fact_payments` | Payment transactions; platform_fee = 25%, driver_payout = 75% |
+| `fact_ratings` | Individual ratings (1–5) linked to trips |
+| `fact_cancellations` | Cancelled trips with cancellation reason |
+| `fact_offers` | Driver offer attempts with outcome (accepted/rejected/expired/pending) |
+| `fact_driver_activity` | Driver status durations for idle time analysis |
+
+### Gold Aggregates (schema: `gold`, table)
+
+| Model | Description |
+|-------|-------------|
+| `agg_hourly_zone_demand` | Hourly demand/supply metrics by zone; `completion_rate` in [0, 1] |
+| `agg_daily_driver_performance` | Daily driver KPIs; `online_minutes` = total logged-in time across all statuses |
+| `agg_daily_platform_revenue` | Daily revenue with platform fee / driver payout split by zone |
+| `agg_surge_history` | Surge pricing trends over time by zone |
 
 ## Common Tasks
 
-### Run Full Pipeline from Bronze to Gold
+### Run a full Silver + Gold pipeline locally
 
 ```bash
-# Ensure Bronze data exists (populated by bronze-ingestion service)
-# or seed test data using helper scripts
+cd tools/dbt
 
-# Run full pipeline
-./venv/bin/dbt run && ./venv/bin/dbt test
+# 1. Install packages (first time or after packages.yml change)
+./venv/bin/dbt deps
 
-# Or use build for run + test
-./venv/bin/dbt build
+# 2. Load seed reference data
+./venv/bin/dbt seed --target duckdb
+
+# 3. Run Silver staging models
+./venv/bin/dbt run --select tag:silver --target duckdb
+
+# 4. Test Silver quality
+./venv/bin/dbt test --select tag:silver --target duckdb --threads 2
+
+# 5. Run Gold in dependency order
+./venv/bin/dbt run --select tag:dimensions --target duckdb
+./venv/bin/dbt run --select tag:facts --target duckdb
+./venv/bin/dbt run --select tag:aggregates --target duckdb
+
+# 6. Test Gold
+./venv/bin/dbt test --select tag:gold --target duckdb --threads 2
 ```
 
-### Build Pipeline
+### Run a single model and its tests
 
 ```bash
-# Bronze data is populated by the bronze-ingestion service
-./venv/bin/dbt run --select staging              # Build Silver layer
-./venv/bin/dbt run --select marts                # Build Gold layer
+cd tools/dbt
+
+# Run one model
+./venv/bin/dbt run --select fact_trips --target duckdb
+
+# Test one model
+./venv/bin/dbt test --select fact_trips --target duckdb
 ```
 
-### Switch Between Profiles
+### Run against the Glue production target
 
 ```bash
-# Use local DuckDB (default)
-./venv/bin/dbt run --target duckdb
+cd tools/dbt
+export GLUE_ROLE_ARN="arn:aws:iam::123456789:role/GlueRole"
+export AWS_REGION="sa-east-1"
 
-# Use AWS Glue (production)
-./venv/bin/dbt run --target glue
+./venv/bin/dbt run --select tag:silver --target glue
 ```
 
-### Clean and Rebuild
+### Inspect the local DuckDB output
 
 ```bash
-# Rebuild everything
-./venv/bin/dbt clean
-./venv/bin/dbt deps    # Re-install packages
-./venv/bin/dbt build   # Run and test all models
+# Open the DuckDB file written by a local run
+./venv/bin/python3 -c "
+import duckdb
+conn = duckdb.connect('/tmp/rideshare.duckdb')
+print(conn.execute(\"SHOW TABLES\").fetchall())
+"
 ```
 
-### Verify Data at Each Layer
+## Execution Flow (Airflow-Orchestrated)
 
-```bash
-# Check Silver layer
-./venv/bin/dbt run --select staging
-./venv/bin/dbt test --select staging
+The Airflow DAGs in `services/airflow/dags/dbt_transformation_dag.py` orchestrate dbt:
 
-# Check Gold layer
-./venv/bin/dbt run --select marts
-./venv/bin/dbt test --select marts
+```
+dbt_silver_transformation (cron: 10 * * * *)
+  └─ [register_bronze_tables]     # (duckdb) register Bronze Delta with Trino
+  └─ check_bronze_freshness       # ShortCircuit: skip if Bronze tables missing
+  └─ dbt run --select tag:silver
+  └─ dbt test --select tag:silver
+  └─ ge_silver_validation         # Great Expectations checkpoint
+  └─ [export_silver_to_s3]        # (duckdb) export DuckDB → S3 Delta
+  └─ [register_silver_trino]      # (duckdb) register Silver tables with Trino
+  └─ trigger_gold_dag             # triggers at 2 AM in PROD_MODE (always in dev)
+
+dbt_gold_transformation (triggered by silver at 2 AM)
+  └─ dbt seed
+  └─ dbt run --select tag:dimensions
+  └─ dbt run --select tag:facts
+  └─ dbt run --select tag:aggregates
+  └─ dbt test --select tag:gold
+  └─ ge_gold_validation
+  └─ [export_gold_to_s3]          # (duckdb only)
+  └─ [register_gold_trino]        # (duckdb only)
+  └─ ge_generate_data_docs
 ```
 
 ## Troubleshooting
 
-| Symptom | Cause | Solution |
-|---------|-------|----------|
-| `DELTA_READ_TABLE_WITHOUT_COLUMNS` error | Bronze Delta table exists but has no data/schema | Models use `source_with_empty_guard` macro to handle this. Check Bronze ingestion service is running. |
-| `Table not found: bronze_trips` | Bronze tables not yet registered | Ensure bronze-ingestion service is running and has processed events |
-| Incremental models rebuild every time | `_ingested_at` watermark not working | Check `is_incremental()` macro and `unique_key` in model config |
-| SCD Type 2 overlapping validity periods | Bug in SCD logic | Run `./venv/bin/dbt test --select test_scd_validity` to validate |
-| Missing macros from packages | Packages not installed | Run `./venv/bin/dbt deps` to install `dbt_expectations` and `dbt_date` |
-| `get_json_object()` returns NULL | JSON field name mismatch | Check Bronze `_raw_value` structure matches staging model parsing |
+**`DELTA_READ_TABLE_WITHOUT_COLUMNS` error on Glue**
+The `source_with_empty_guard` (also called `empty_source_guard`) macro wraps every Bronze source with a typed-null branch to prevent this. If you add a new Bronze source, ensure you use `{{ source_with_empty_guard(...) }}` rather than a bare `{{ source(...) }}`.
 
-## Data Architecture
+**`stg_ratings` or `stg_payments` returns 0 rows**
+This is expected early in a simulation run. These models only populate after trips reach `completed` state. Wait for trips to complete and rerun.
 
-### Medallion Layers
+**Anomaly models fail Trino registration**
+`anomalies_gps_outliers` and `anomalies_zombie_drivers` are materialized as `view` (not Delta tables) and have no transaction log. The `register-trino-tables.py` script skips them. Do not attempt to register them manually.
 
-```
-Bronze (External)          Silver (Staging)           Gold (Marts)
-─────────────────          ────────────────           ────────────
-bronze_trips       →  stg_trips            →  fact_trips
-bronze_drivers     →  stg_drivers          →  dim_drivers (SCD Type 2)
-bronze_riders      →  stg_riders           →  dim_riders
-bronze_payments    →  stg_payments         →  fact_payments
-bronze_ratings     →  stg_ratings          →  fact_ratings
-bronze_gps_pings   →  stg_gps_pings        →  (N/A - analysis only)
-bronze_driver_status → stg_driver_status   →  fact_driver_activity
-bronze_surge_updates → stg_surge_updates   →  agg_surge_history
-                                            →  dim_zones
-                                            →  dim_time
-                                            →  dim_payment_methods (SCD Type 2)
-                                            →  agg_daily_driver_performance
-                                            →  agg_hourly_zone_demand
-                                            →  agg_daily_platform_revenue
-```
+**SCD Type 2 temporal join returning wrong driver**
+`fact_trips` joins `dim_drivers` with `completed_at >= valid_from AND completed_at < valid_to`. If `valid_to` is null (current record), the query uses `COALESCE(valid_to, CURRENT_TIMESTAMP)`. Ensure the `scd_validity` test passes before querying.
 
-### Anomaly Detection Models
+**`agg_daily_driver_performance.online_minutes` seems too high**
+`online_minutes` is the sum of all status durations (available, offline, en_route_pickup, on_trip, driving_closer_to_home) — total logged-in wall time. It is not limited to idle time. The constraint `en_route_minutes + on_trip_minutes <= online_minutes` enforces consistency.
 
-| Model | Detects | Location |
-|-------|---------|----------|
-| `anomalies_impossible_speeds` | GPS pings showing speeds >150 km/h | `staging/` |
-| `anomalies_zombie_drivers` | Drivers receiving pings while offline | `staging/` |
-| `anomalies_gps_outliers` | GPS coordinates outside São Paulo bounds | `staging/` |
-| `anomalies_all` | Union of all anomaly tables | `staging/` |
+**DuckDB can't find the Bronze tables in MinIO**
+Check that `S3_ENDPOINT` is set to the MinIO container address (e.g., `minio:9000`) and that `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` are `minioadmin`. Verify MinIO is running and the `rideshare-bronze` bucket exists.
 
-### Custom Macros
-
-| Macro | Purpose | Location |
-|-------|---------|----------|
-| `source_with_empty_guard` | Prevents failure on empty Bronze tables | `macros/empty_source_guard.sql` |
-| `delta_source` | Read Delta tables from S3/MinIO | `macros/delta_source.sql` |
-| Cross-DB macros | Handle SQL dialect differences (DuckDB vs Glue/SparkSQL) | `macros/cross_db/` |
-
-### Custom Tests
-
-| Test | Purpose | Location |
-|------|---------|----------|
-| `test_scd_validity` | Validates SCD Type 2 non-overlapping windows | `tests/generic/test_scd_validity.sql` |
-| `test_fare_calculation` | Validates fare = base_fare + distance * rate | `tests/generic/test_fare_calculation.sql` |
-| `test_no_future_dates` | Ensures timestamps are not in future | `tests/generic/test_no_future_dates.sql` |
-| Anomaly tests | Validate anomaly detection logic | `tests/test_*_detection.sql` |
+**Glue job fails to start**
+`GLUE_ROLE_ARN` must be set and the role must have `s3:GetObject`, `s3:PutObject` on the Bronze bucket and Glue `CreateSession` permissions.
 
 ## Related
 
-- [CONTEXT.md](CONTEXT.md) — Architecture, SCD Type 2, empty source guard pattern
-- [../../docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) — Overall system architecture
-- [../great-expectations/](../great-expectations/) — Additional data quality validation
-- [../../services/airflow/](../../services/airflow/) — Orchestration for DBT runs
+- [CONTEXT.md](CONTEXT.md) — Architecture context, SCD patterns, macro dispatch
+- [macros/CONTEXT.md](macros/CONTEXT.md) — Cross-database macro implementation details
+- [services/airflow/CONTEXT.md](../../services/airflow/CONTEXT.md) — DAG scheduling and orchestration
+- [tools/great-expectations/README.md](../great-expectations/README.md) — Data quality validation checkpoints
+- [services/bronze-ingestion/README.md](../../services/bronze-ingestion/README.md) — Upstream Bronze Delta writer

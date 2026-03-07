@@ -1,206 +1,193 @@
 # infrastructure/scripts
 
-> Infrastructure bootstrap and operational scripts for secrets management, data pipeline validation, and DBT export
+> One-shot operational scripts that bootstrap secrets, register Delta tables in catalog services, export DBT output to S3, and gate pipeline stages.
 
 ## Quick Reference
 
 ### Environment Variables
 
-#### Secrets Management (seed-secrets.py, fetch-secrets.py)
-
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `AWS_ENDPOINT_URL` | LocalStack endpoint for Secrets Manager | None (uses AWS) | No |
-| `AWS_ACCESS_KEY_ID` | AWS access key | `test` (LocalStack) | Yes |
-| `AWS_SECRET_ACCESS_KEY` | AWS secret key | `test` (LocalStack) | Yes |
-| `AWS_DEFAULT_REGION` | AWS region | `us-east-1` | No |
-| `OVERRIDE_<KEY>` | Override individual secret values | None | No |
-| `SECRETS_OUTPUT_DIR` | Output directory for env files | `/secrets` | No |
-
-#### Data Pipeline (check_bronze_tables.py, export-dbt-to-s3.py)
-
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `AWS_ENDPOINT_URL` | MinIO S3 endpoint | `http://minio:9000` | No |
-| `AWS_ACCESS_KEY_ID` | MinIO access key | `minioadmin` | No |
-| `AWS_SECRET_ACCESS_KEY` | MinIO secret key | `minioadmin` | No |
-| `AWS_REGION` | AWS region | `us-east-1` | No |
-| `DUCKDB_PATH` | Path to DuckDB file | `/tmp/rideshare.duckdb` | No |
-| `S3_ENDPOINT` | S3 endpoint for DBT export | `http://minio:9000` | No |
-
-#### Trino Registration (register-delta-tables.sh)
-
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `TRINO_HOST` | Trino server hostname | `trino` | No |
-| `TRINO_PORT` | Trino server port | `8080` | No |
+| Variable | Default | Used By | Purpose |
+|---|---|---|---|
+| `AWS_ENDPOINT_URL` | _(none)_ | All scripts | LocalStack endpoint (e.g. `http://localhost:4566`). Omit to target real AWS. |
+| `AWS_ACCESS_KEY_ID` | `test` / `minioadmin` | All scripts | AWS or MinIO access key |
+| `AWS_SECRET_ACCESS_KEY` | `test` / `minioadmin` | All scripts | AWS or MinIO secret key |
+| `AWS_DEFAULT_REGION` | `us-east-1` | `seed-secrets.py`, `fetch-secrets.py`, `deploy-lambda.py` | AWS region |
+| `AWS_REGION` | `us-east-1` | `export-dbt-to-s3.py`, `register-glue-tables.py` | AWS region |
+| `SECRETS_OUTPUT_DIR` | `/secrets` | `fetch-secrets.py` | Directory where grouped `.env` files are written |
+| `TRINO_HOST` | `trino` | `register-trino-tables.py`, `register-delta-tables.sh` | Trino service hostname |
+| `TRINO_PORT` | `8080` | `register-trino-tables.py`, `register-delta-tables.sh` | Trino service port |
+| `BRONZE_BUCKET` | `rideshare-bronze` | `register-trino-tables.py`, `register-glue-tables.py` | S3/MinIO bucket for Bronze layer |
+| `SILVER_BUCKET` | `rideshare-silver` | `register-trino-tables.py`, `export-dbt-to-s3.py` | S3/MinIO bucket for Silver layer |
+| `GOLD_BUCKET` | `rideshare-gold` | `register-trino-tables.py`, `export-dbt-to-s3.py` | S3/MinIO bucket for Gold layer |
+| `S3_ENDPOINT` | _(none)_ | `export-dbt-to-s3.py` | MinIO endpoint for local dev (falls back to `AWS_ENDPOINT_URL`) |
+| `DUCKDB_PATH` | `/tmp/rideshare.duckdb` | `export-dbt-to-s3.py` | Path to DuckDB file containing DBT output tables |
+| `OVERRIDE_<KEY>` | _(none)_ | `seed-secrets.py` | Override any individual secret value (e.g. `OVERRIDE_MINIO_ROOT_USER=myminio`) |
 
 ### Commands
 
+**Seed secrets into LocalStack (run once at stack startup):**
 ```bash
-# Secrets Management
-./venv/bin/python3 infrastructure/scripts/seed-secrets.py      # Seed LocalStack with credentials
-./venv/bin/python3 infrastructure/scripts/fetch-secrets.py     # Fetch secrets to env files
-
-# Data Pipeline Validation
-./venv/bin/python3 infrastructure/scripts/check_bronze_tables.py   # Verify Bronze tables exist
-
-# DBT Export (DuckDB → MinIO Delta Lake)
-./venv/bin/python3 infrastructure/scripts/export-dbt-to-s3.py      # Export both silver and gold
-./venv/bin/python3 infrastructure/scripts/export-dbt-to-s3.py --layer silver
-./venv/bin/python3 infrastructure/scripts/export-dbt-to-s3.py --layer gold
-
-# Trino Registration (runs as Docker init container)
-bash infrastructure/scripts/register-delta-tables.sh
-# Or manually:
-docker exec rideshare-trino /bin/bash /opt/init-scripts/register-delta-tables.sh
-```
-
-### Configuration
-
-All scripts read environment variables - no configuration files required.
-
-### Prerequisites
-
-- Python 3.11+ with virtual environment (`./venv/bin/python3`)
-- boto3 (AWS SDK for Python)
-- deltalake (delta-rs Python bindings)
-- duckdb (for DBT export)
-- LocalStack running at `http://localhost:4566` (for local development)
-- MinIO running at `http://minio:9000` (for S3-compatible storage)
-- Trino running at `http://trino:8080` (for Delta table registration)
-
-## Common Tasks
-
-### Bootstrap Secrets for Local Development
-
-```bash
-# Seed all credentials into LocalStack Secrets Manager
 AWS_ENDPOINT_URL=http://localhost:4566 \
 AWS_ACCESS_KEY_ID=test \
 AWS_SECRET_ACCESS_KEY=test \
 AWS_DEFAULT_REGION=us-east-1 \
 ./venv/bin/python3 infrastructure/scripts/seed-secrets.py
+```
 
-# Fetch secrets and write to /secrets volume (runs automatically in Docker Compose)
+**Fetch secrets from Secrets Manager and write Docker Compose env files:**
+```bash
+AWS_ENDPOINT_URL=http://localhost:4566 \
+AWS_ACCESS_KEY_ID=test \
+AWS_SECRET_ACCESS_KEY=test \
+AWS_DEFAULT_REGION=us-east-1 \
 ./venv/bin/python3 infrastructure/scripts/fetch-secrets.py
+# Writes: /secrets/core.env, /secrets/data-pipeline.env, /secrets/monitoring.env
 ```
 
-### Override Default Credentials
-
+**Check Bronze layer readiness before running DBT:**
 ```bash
-# Change MinIO credentials from default admin/adminadmin
-OVERRIDE_MINIO_ROOT_USER=myminio \
-OVERRIDE_MINIO_ROOT_PASSWORD=mypassword \
-./venv/bin/python3 infrastructure/scripts/seed-secrets.py
-```
-
-### Verify Bronze Layer Before DBT Run
-
-```bash
-# Check if all Bronze tables exist (used by Airflow DAGs)
+AWS_ENDPOINT_URL=http://minio:9000 \
 ./venv/bin/python3 infrastructure/scripts/check_bronze_tables.py
-
-# Exit codes:
-#   0 - All Bronze tables exist and have data
-#   1 - One or more tables missing (skip DBT)
-#   2 - Connection error to MinIO
+# Exit 0 = ready, 1 = tables missing, 2 = cannot reach MinIO
 ```
 
-### Export DBT Tables to Trino-Queryable Delta Lake
-
+**Export DBT Silver/Gold tables from DuckDB to S3 as Delta tables:**
 ```bash
-# Export DuckDB tables to MinIO as Delta tables
+# Export both layers
 ./venv/bin/python3 infrastructure/scripts/export-dbt-to-s3.py
 
-# Export only silver layer
+# Export only silver
 ./venv/bin/python3 infrastructure/scripts/export-dbt-to-s3.py --layer silver
 
-# Register exported tables in Trino catalog
+# Export only gold
+./venv/bin/python3 infrastructure/scripts/export-dbt-to-s3.py --layer gold
+```
+
+**Register Delta tables in Trino via REST API (used inside Airflow container):**
+```bash
+./venv/bin/python3 infrastructure/scripts/register-trino-tables.py --layer bronze
+./venv/bin/python3 infrastructure/scripts/register-trino-tables.py --layer silver
+./venv/bin/python3 infrastructure/scripts/register-trino-tables.py --layer gold
+```
+
+**Register Delta tables in Trino via CLI (Docker init container):**
+```bash
+# Runs automatically as a one-shot init container.
+# To re-run manually:
+docker exec rideshare-trino /bin/bash /opt/init-scripts/register-delta-tables.sh
+```
+
+**Register Delta tables in AWS Glue Data Catalog (production path):**
+```bash
+./venv/bin/python3 infrastructure/scripts/register-glue-tables.py --layer bronze
+./venv/bin/python3 infrastructure/scripts/register-glue-tables.py --layer silver
+./venv/bin/python3 infrastructure/scripts/register-glue-tables.py --layer gold
+```
+
+**Deploy auth Lambda to LocalStack:**
+```bash
+AWS_ENDPOINT_URL=http://localhost:4566 \
+AWS_ACCESS_KEY_ID=test \
+AWS_SECRET_ACCESS_KEY=test \
+AWS_DEFAULT_REGION=us-east-1 \
+./venv/bin/python3 infrastructure/scripts/deploy-lambda.py
+```
+
+### Secret Groups
+
+These secrets are seeded by `seed-secrets.py` and fetched by `fetch-secrets.py`:
+
+| Secret Name | Keys Stored | Written To |
+|---|---|---|
+| `rideshare/api-key` | `API_KEY` | `core.env` |
+| `rideshare/core` | `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD`, `REDIS_PASSWORD`, `SCHEMA_REGISTRY_USER`, `SCHEMA_REGISTRY_PASSWORD` | `core.env` |
+| `rideshare/data-pipeline` | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `POSTGRES_AIRFLOW_*`, `POSTGRES_METASTORE_*`, Airflow crypto keys, `ADMIN_USERNAME/PASSWORD` | `data-pipeline.env` |
+| `rideshare/monitoring` | `ADMIN_USER`, `ADMIN_PASSWORD` (becomes `GF_SECURITY_*`) | `monitoring.env` |
+| `rideshare/github-pat` | `GITHUB_PAT` | _(not written to env files)_ |
+
+### Delta Table Inventory
+
+**Bronze layer** (`rideshare-bronze` bucket, `delta.bronze` schema):
+- `bronze_trips`, `bronze_gps_pings`, `bronze_driver_status`, `bronze_surge_updates`, `bronze_ratings`, `bronze_payments`, `bronze_driver_profiles`, `bronze_rider_profiles`
+- DLQ: `dlq_bronze_*` (mirrors above with `_error_message`, `_error_timestamp` columns)
+
+**Silver layer** (`rideshare-silver` bucket, `delta.silver` schema):
+- `stg_trips`, `stg_gps_pings`, `stg_driver_status`, `stg_surge_updates`, `stg_ratings`, `stg_payments`, `stg_drivers`, `stg_riders`, `anomalies_all`, `anomalies_impossible_speeds`
+- Note: `anomalies_gps_outliers` and `anomalies_zombie_drivers` are DBT views (no Delta log) — they cannot be registered.
+
+**Gold layer** (`rideshare-gold` bucket, `delta.gold` schema):
+- Facts: `fact_trips`, `fact_payments`, `fact_ratings`, `fact_cancellations`, `fact_offers`, `fact_driver_activity`
+- Dimensions: `dim_drivers`, `dim_riders`, `dim_zones`, `dim_time`, `dim_payment_methods`
+- Aggregates: `agg_hourly_zone_demand`, `agg_daily_driver_performance`, `agg_daily_platform_revenue`, `agg_surge_history`
+
+## Common Tasks
+
+### Bootstrap a fresh local stack
+
+1. Start LocalStack (part of the `core` Docker Compose profile).
+2. Seed secrets:
+   ```bash
+   AWS_ENDPOINT_URL=http://localhost:4566 AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test \
+   ./venv/bin/python3 infrastructure/scripts/seed-secrets.py
+   ```
+3. Fetch secrets to env files consumed by Docker Compose:
+   ```bash
+   AWS_ENDPOINT_URL=http://localhost:4566 AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test \
+   ./venv/bin/python3 infrastructure/scripts/fetch-secrets.py
+   ```
+
+### Re-register Trino tables after restart
+
+The `register-delta-tables.sh` script runs automatically as a Docker init container. If tables become unregistered:
+```bash
 docker compose -f infrastructure/docker/compose.yml restart delta-table-init
+```
+
+Or use the Python equivalent (works without the Trino CLI):
+```bash
+TRINO_HOST=localhost TRINO_PORT=8084 \
+./venv/bin/python3 infrastructure/scripts/register-trino-tables.py --layer bronze
+```
+
+### Force-export DBT output after a pipeline run
+
+```bash
+# Local dev (MinIO)
+S3_ENDPOINT=http://localhost:9000 \
+AWS_ACCESS_KEY_ID=admin \
+AWS_SECRET_ACCESS_KEY=adminadmin \
+./venv/bin/python3 infrastructure/scripts/export-dbt-to-s3.py
+```
+
+### Override a secret value at seed time
+
+Use `OVERRIDE_<KEY>` to inject a non-default value for any secret field:
+```bash
+OVERRIDE_API_KEY=mysecretkey \
+AWS_ENDPOINT_URL=http://localhost:4566 \
+./venv/bin/python3 infrastructure/scripts/seed-secrets.py
 ```
 
 ## Troubleshooting
 
-| Symptom | Cause | Solution |
-|---------|-------|----------|
-| `seed-secrets.py` fails with connection error | LocalStack not running | Start LocalStack: `docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d localstack` |
-| `fetch-secrets.py` returns empty secrets | Secrets not seeded yet | Run `seed-secrets.py` first |
-| `check_bronze_tables.py` exits with code 2 | MinIO not reachable | Check MinIO health: `curl http://localhost:9001/minio/health/live` |
-| `check_bronze_tables.py` exits with code 1 | Bronze tables not created yet | Start simulation and bronze-ingestion: `docker compose --profile core --profile data-pipeline up -d` |
-| `export-dbt-to-s3.py` fails with "DuckDB file not found" | DBT hasn't run yet | Run DBT first: `./venv/bin/dbt run` |
-| `register-delta-tables.sh` shows "not found" warnings | Delta tables don't exist yet | Run bronze-ingestion or DBT export first |
-| Trino tables missing after export | Tables not registered in Hive Metastore | Run `register-delta-tables.sh` or restart `delta-table-init` container |
+**`seed-secrets.py` fails with `ResourceExistsException` loop** — This should not happen; the script handles it by calling `update_secret`. If it persists, check that `AWS_ENDPOINT_URL` is pointing to the correct LocalStack instance.
 
-## Script Details
+**`fetch-secrets.py` fails with `SecretId not found`** — Run `seed-secrets.py` first. Secrets must exist before they can be fetched.
 
-### seed-secrets.py
+**`register-trino-tables.py` reports `[SKIP] ... no data in S3 yet`** — Normal for `stg_ratings` and `stg_payments` early in a run. Trips must complete before those tables populate. Re-run after DBT has processed completed trips.
 
-**Purpose**: Populate LocalStack Secrets Manager with all project credentials
-**Idempotent**: Yes - creates new secrets or updates existing ones
-**Secrets Created**:
-- `rideshare/api-key` - REST API and WebSocket authentication (1 key)
-- `rideshare/core` - Kafka, Redis, Schema Registry credentials (5 keys)
-- `rideshare/data-pipeline` - MinIO, PostgreSQL, Airflow, Hive, LDAP credentials (16 keys)
-- `rideshare/monitoring` - Grafana admin credentials (2 keys)
+**`check_bronze_tables.py` exits with code 2** — MinIO is unreachable. Ensure the `data-pipeline` Docker Compose profile is running and MinIO health endpoint responds at the configured `AWS_ENDPOINT_URL`.
 
-**Exit Codes**: 0 (success), 1 (failed to seed one or more secrets)
+**`export-dbt-to-s3.py` reports `ERROR: DuckDB file not found`** — DBT has not run yet, or `DUCKDB_PATH` is misconfigured. The default path is `/tmp/rideshare.duckdb` (inside the Airflow container).
 
-### fetch-secrets.py
+**Trino `TRINO_PORT` receives `tcp://IP:PORT` format** — Normal on Kubernetes where the auto-injected env var includes the full service URL. `register-trino-tables.py` handles this automatically by extracting the numeric port from the string.
 
-**Purpose**: Fetch secrets from Secrets Manager and write grouped env files
-**Idempotent**: Yes - overwrites env files with latest secret values
-**Output Files**:
-- `/secrets/core.env` - Simulation runtime services (API, Redis, Kafka, Schema Registry)
-- `/secrets/data-pipeline.env` - ETL, ingestion, orchestration (MinIO, Airflow, Postgres, LDAP, Hive)
-- `/secrets/monitoring.env` - Observability stack (Grafana)
-
-**Exit Codes**: 0 (success), 1 (failed to fetch or write)
-
-### check_bronze_tables.py
-
-**Purpose**: Verify all required Bronze layer Delta tables exist before DBT run
-**Idempotent**: Yes - safe to run repeatedly
-**Required Tables**: 8 Bronze tables (trips, gps_pings, driver_status, surge_updates, ratings, payments, driver_profiles, rider_profiles)
-**Exit Codes**: 0 (all tables exist), 1 (tables missing), 2 (connection error)
-
-### export-dbt-to-s3.py
-
-**Purpose**: Export DBT DuckDB tables to MinIO as Delta Lake tables for Trino queries
-**Idempotent**: Yes - overwrites existing Delta tables
-**Layers Exported**: Silver (12 tables), Gold (14 tables)
-**Exit Codes**: 0 (success), 1 (DuckDB file not found)
-
-### register-delta-tables.sh
-
-**Purpose**: Register Delta table locations in Hive Metastore via Trino
-**Idempotent**: Yes - skips already-registered tables
-**Tables Registered**: Bronze (16 tables including DLQ), Silver (12 tables), Gold (14 tables)
-**Execution**: Runs automatically as Docker init container `delta-table-init`
-**Exit Codes**: Always 0 (warnings for missing data are expected)
-
-### sync-to-cloud.py
-
-**Purpose**: Sync local MinIO data to AWS S3 for cloud deployment
-**Location**: `scripts/sync-to-cloud.py` (project root, not infrastructure/scripts)
-**Idempotent**: Yes - overwrites existing objects
-**Buckets Synced**: 4 (rideshare-bronze, rideshare-silver, rideshare-gold, rideshare-checkpoints)
-
-```bash
-# Dry run — see what would be transferred
-./venv/bin/python3 scripts/sync-to-cloud.py --account-id 123456789012 --dry-run
-
-# Sync all buckets
-./venv/bin/python3 scripts/sync-to-cloud.py --account-id 123456789012
-
-# Sync specific buckets
-./venv/bin/python3 scripts/sync-to-cloud.py --account-id 123456789012 --buckets bronze gold
-```
-
-See [docs/DATA-MIGRATION.md](../../docs/DATA-MIGRATION.md) for the complete migration guide.
+**`deploy-lambda.py` warns `AWS_ENDPOINT_URL not set — targeting real AWS Lambda`** — This is expected only in production. Always set `AWS_ENDPOINT_URL` for local development.
 
 ## Related
 
-- [CONTEXT.md](CONTEXT.md) — Architecture context and idempotency patterns
-- [../docker/compose.yml](../docker/compose.yml) — Docker Compose secrets integration
-- [../../CLAUDE.md](../../CLAUDE.md) — Project-wide secrets management overview
+- [CONTEXT.md](CONTEXT.md) — Architecture context for this scripts directory
+- [infrastructure/docker/README.md](../docker/README.md) — Docker Compose profiles and service definitions
+- [infrastructure/kubernetes/scripts/README.md](../kubernetes/scripts/README.md) — Kubernetes-specific operational scripts
+- [services/bronze-ingestion/README.md](../../services/bronze-ingestion/README.md) — Bronze ingestion service that writes tables these scripts register
+- [tools/dbt/README.md](../../tools/dbt/README.md) — DBT project whose output `export-dbt-to-s3.py` exports

@@ -1,116 +1,139 @@
-# PostgreSQL (Metastore)
+# postgres-metastore
 
-> PostgreSQL 16 instance storing the Hive Metastore catalog for Delta Lake table discovery
+> PostgreSQL 16 backing store for Hive Metastore metadata — holds table definitions, schema registry, and partition information used by Trino for Delta Lake queries.
 
 ## Quick Reference
 
-| Property | Value |
-|----------|-------|
-| Service | `postgres-metastore` |
-| Port (Host:Container) | `5434:5432` |
-| Profile | `data-pipeline` |
-| Image | `postgres:16` |
-| Memory Limit | 256MB |
+### Ports
+
+| Host Port | Container Port | Purpose |
+|-----------|---------------|---------|
+| 5434 | 5432 | PostgreSQL wire protocol |
 
 ### Environment Variables
 
-Credentials are managed via **LocalStack Secrets Manager** and injected at runtime:
+Credentials are never set as plain environment variables. They are injected at container startup from the secrets volume (`/secrets/data-pipeline.env`).
 
-| Variable | Secret Path | Purpose |
-|----------|-------------|---------|
-| `POSTGRES_METASTORE_USER` | `rideshare/data-pipeline` | Database username |
-| `POSTGRES_METASTORE_PASSWORD` | `rideshare/data-pipeline` | Database password |
+| Secret Key | Description |
+|------------|-------------|
+| `POSTGRES_METASTORE_USER` | PostgreSQL superuser name (default: `admin`) |
+| `POSTGRES_METASTORE_PASSWORD` | PostgreSQL superuser password (default: `admin`) |
 
-**Default Development Values**: `admin` / `admin`
+These keys live in the `rideshare/data-pipeline` secret group managed by LocalStack Secrets Manager. The `secrets-init` container fetches and writes them to `/secrets/data-pipeline.env` before this service starts.
 
-### Connection String
+To override defaults during local development:
 
-**JDBC** (used by Hive Metastore):
 ```bash
-jdbc:postgresql://postgres-metastore:5432/metastore
+OVERRIDE_POSTGRES_METASTORE_USER=myuser \
+OVERRIDE_POSTGRES_METASTORE_PASSWORD=mypassword \
+./venv/bin/python3 infrastructure/scripts/seed-secrets.py
 ```
 
-### Data Volume
+### Database
 
-| Volume | Data |
-|--------|------|
-| `postgres-metastore-data` | Table definitions, partitions, schemas, SerDe info |
+| Setting | Value |
+|---------|-------|
+| Database name | `metastore` |
+| Image | `postgres:16` |
+| Data volume | `postgres-metastore-data` |
+| Memory limit | 256 MB |
+
+### Docker Compose
+
+This service is part of the `data-pipeline` profile.
+
+```bash
+# Start with the full data-pipeline stack
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d postgres-metastore
+
+# Start just postgres-metastore (also starts localstack + secrets-init)
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d postgres-metastore
+```
+
+### Health Check
+
+The container uses `pg_isready` to confirm the server accepts connections:
+
+```bash
+# Check health via Docker
+docker inspect --format='{{.State.Health.Status}}' rideshare-postgres-metastore
+
+# Manual check from host
+pg_isready -h localhost -p 5434 -U admin
+```
+
+The service must be `healthy` before `hive-metastore` starts.
 
 ## Common Tasks
 
-### Start Service
+### Connect with psql
 
 ```bash
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d postgres-metastore
-```
-
-### Check Health
-
-```bash
-docker compose -f infrastructure/docker/compose.yml ps postgres-metastore
-docker compose -f infrastructure/docker/compose.yml logs postgres-metastore
-```
-
-### Connect to Database
-
-**From host**:
-```bash
+# From host (requires psql installed locally)
 psql -h localhost -p 5434 -U admin -d metastore
-# Password: admin
+
+# From inside the Docker network via another container
+docker exec -it rideshare-postgres-metastore psql -U admin -d metastore
 ```
 
-**From another container**:
-```bash
-docker compose -f infrastructure/docker/compose.yml exec hive-metastore \
-  psql postgresql://admin:admin@postgres-metastore:5432/metastore
-```
+### Inspect Hive Metastore schema
 
-### Inspect Hive Metastore Catalog
+After `hive-metastore` initializes, it auto-creates the Hive schema in this database. To inspect:
 
 ```bash
-# List tables
-psql -h localhost -p 5434 -U admin -d metastore -c "SELECT t.tbl_name, d.name as db_name FROM \"TBLS\" t JOIN \"DBS\" d ON t.db_id = d.db_id;"
-
-# Check partitions for a table
-psql -h localhost -p 5434 -U admin -d metastore -c "SELECT p.part_name FROM \"PARTITIONS\" p JOIN \"TBLS\" t ON p.tbl_id = t.tbl_id WHERE t.tbl_name = 'your_table_name';"
+docker exec -it rideshare-postgres-metastore psql -U admin -d metastore -c "\dt"
 ```
 
-### Reset Database (Development Only)
+Key tables include `TBLS`, `DBS`, `PARTITIONS`, `SDS`, and `COLUMNS_V2`.
+
+### Reset database (wipe all metadata)
 
 ```bash
-docker compose -f infrastructure/docker/compose.yml down -v
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d postgres-metastore
+# Remove the named volume to start fresh
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline down
+docker volume rm rideshare-simulation-platform_postgres-metastore-data
+docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
 ```
 
-## Prerequisites
+### Tail logs
 
-- Docker with Compose V2
-- `secrets-init` service must complete successfully (provides credentials)
+```bash
+docker logs -f rideshare-postgres-metastore
+```
 
 ## Troubleshooting
 
-### Service Won't Start
+**hive-metastore fails to start with JDBC connection errors**
+
+`postgres-metastore` was not yet healthy when `hive-metastore` launched, or the credentials in the secrets volume do not match. Verify:
 
 ```bash
-# Check secrets initialization
-docker compose -f infrastructure/docker/compose.yml logs secrets-init
+docker inspect --format='{{.State.Health.Status}}' rideshare-postgres-metastore
+# Should be "healthy"
 
-# Verify health check
-docker compose -f infrastructure/docker/compose.yml exec postgres-metastore pg_isready -U admin
+docker exec rideshare-postgres-metastore sh -c '. /secrets/data-pipeline.env && echo $POSTGRES_METASTORE_USER'
+# Should print the expected username
 ```
 
-### Hive Metastore Can't Connect
+**Container exits immediately with "password authentication failed"**
+
+The secrets volume may not have been populated before `postgres-metastore` started. Ensure `secrets-init` completed successfully:
 
 ```bash
-# Check JDBC connection in hive-metastore logs
-docker compose -f infrastructure/docker/compose.yml logs hive-metastore | grep -i "connection"
-
-# Verify metastore database exists
-psql -h localhost -p 5434 -U admin -c "\l"
+docker logs rideshare-secrets-init
 ```
+
+**`pg_isready` health check loops as "starting"**
+
+PostgreSQL is still initializing its data directory. This is normal on first boot with an empty `postgres-metastore-data` volume. Allow up to 30 seconds (`start_period` in compose).
+
+**Port 5434 already in use**
+
+Another local PostgreSQL instance (or `postgres-airflow` on port 5432 if misconfigured) is occupying the port. Check with `lsof -i :5434` and stop the conflicting process.
 
 ## Related
 
-- [CONTEXT.md](CONTEXT.md) -- Architecture and responsibility boundaries
-- [../../infrastructure/docker/compose.yml](../../infrastructure/docker/compose.yml) -- Service definition
-- [../hive-metastore/CONTEXT.md](../hive-metastore/CONTEXT.md) -- Hive Metastore catalog service
+- [services/hive-metastore/CONTEXT.md](../hive-metastore/CONTEXT.md) — Primary consumer of this database; manages Hive schema initialization
+- [services/postgres-airflow/](../postgres-airflow/) — Sibling PostgreSQL instance for Airflow metadata (port 5432)
+- [infrastructure/scripts/seed-secrets.py](../../infrastructure/scripts/seed-secrets.py) — Populates `POSTGRES_METASTORE_USER` and `POSTGRES_METASTORE_PASSWORD` in LocalStack
+- [infrastructure/docker/compose.yml](../../infrastructure/docker/compose.yml) — Full service definition (lines 764-796)

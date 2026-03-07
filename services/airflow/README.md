@@ -1,273 +1,183 @@
 # Airflow
 
-> Orchestrates data lakehouse pipeline by scheduling DBT transformations, monitoring DLQ tables, and maintaining Delta Lake files
+> Orchestrates the medallion lakehouse pipeline: hourly Silver DBT transforms, daily Gold DBT transforms, daily Delta Lake maintenance, and 15-minute DLQ error monitoring.
 
 ## Quick Reference
 
+### Ports
+
+| Port (host) | Port (container) | Service              | Description        |
+|-------------|------------------|----------------------|--------------------|
+| 8082        | 8080             | airflow-webserver    | Airflow web UI     |
+
 ### Environment Variables
 
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `POSTGRES_AIRFLOW_USER` | PostgreSQL database username | `admin` | Yes |
-| `POSTGRES_AIRFLOW_PASSWORD` | PostgreSQL database password | `admin` | Yes |
-| `AIRFLOW_ADMIN_USERNAME` | Airflow web UI admin username | `admin` | Yes |
-| `AIRFLOW_ADMIN_PASSWORD` | Airflow web UI admin password | `admin` | Yes |
-| `MINIO_ROOT_USER` | MinIO S3 access key | `admin` | Yes |
-| `MINIO_ROOT_PASSWORD` | MinIO S3 secret key | `admin` | Yes |
-| `PROD_MODE` | Enable production mode (limits Gold DAG to 2 AM only) | `false` | No |
-
-### Airflow Web UI
-
-| Component | URL | Description |
-|-----------|-----|-------------|
-| Web UI | http://localhost:8082 | DAG monitoring, task logs, manual triggers |
-| Health Check | http://localhost:8082/api/v2/monitor/health | Service health endpoint |
-
-**Default credentials:** admin/admin (configurable via `AIRFLOW_ADMIN_USERNAME`/`AIRFLOW_ADMIN_PASSWORD`)
+| Variable                   | Default              | Description                                                                 |
+|----------------------------|----------------------|-----------------------------------------------------------------------------|
+| `DBT_RUNNER`               | `duckdb`             | Controls DAG topology. `duckdb` adds S3 export + Trino registration steps; `glue` uses Glue Interactive Sessions and skips those steps. **Requires scheduler restart if changed.** |
+| `SILVER_SCHEDULE`          | `10 * * * *`         | Cron expression for the Silver DAG. Offset by 10 minutes to allow Bronze ingestion to settle. |
+| `PROD_MODE`                | `false`              | When `true`, the Silver DAG only triggers the Gold DAG on the 2 AM scheduled run. Non-prod and manual runs always trigger Gold. |
+| `AIRFLOW_ADMIN_USERNAME`   | (from secrets)       | Web UI admin username. Loaded from LocalStack Secrets Manager at runtime.   |
+| `AIRFLOW_ADMIN_PASSWORD`   | (from secrets)       | Web UI admin password. Loaded from LocalStack Secrets Manager at runtime.   |
+| `POSTGRES_AIRFLOW_USER`    | (from secrets)       | PostgreSQL metadata DB username.                                            |
+| `POSTGRES_AIRFLOW_PASSWORD`| (from secrets)       | PostgreSQL metadata DB password.                                            |
+| `AWS_ENDPOINT_URL`         | _(unset in prod)_    | MinIO endpoint for local dev (`http://minio:9000`). Absent in production — triggers IAM Pod Identity credential chain. |
+| `BRONZE_BUCKET`            | `rideshare-bronze`   | S3/MinIO bucket name that holds Bronze and DLQ Delta tables.                |
+| `AWS_REGION`               | `us-east-1`          | AWS region used in production.                                              |
 
 ### DAGs
 
-| DAG ID | Schedule | Description | Profile |
-|--------|----------|-------------|---------|
-| `dbt_silver_transformation` | `10 * * * *` (hourly at :10) | Transforms Bronze → Silver via DBT | data-pipeline |
-| `dbt_gold_transformation` | None (triggered by Silver DAG at 2 AM) | Transforms Silver → Gold (dimensions, facts, aggregates) | data-pipeline |
-| `dlq_monitoring` | `3,18,33,48 * * * *` (every 15 minutes) | Monitors DLQ tables for errors via DuckDB | data-pipeline |
-| `delta_maintenance` | `0 3 * * *` (3 AM daily) | Runs OPTIMIZE and VACUUM on Bronze Delta tables | data-pipeline |
+| DAG ID                    | Schedule            | Trigger Source       | Description                                                                 |
+|---------------------------|---------------------|----------------------|-----------------------------------------------------------------------------|
+| `dbt_silver_transformation` | `10 * * * *` (configurable via `SILVER_SCHEDULE`) | Time | Bronze freshness check → DBT Silver run/test → GE validation → (optional S3 export + Trino registration) → Gold trigger decision |
+| `dbt_gold_transformation` | `None` (no schedule) | Silver DAG at 2 AM or manual | DBT seed → dimensions → facts → aggregates → test → GE validation → (optional S3 export + Trino registration) → data docs |
+| `delta_maintenance`       | `0 3 * * *`         | Time (daily 3 AM)    | Bronze freshness check → OPTIMIZE all Bronze + DLQ tables → VACUUM all tables |
+| `dlq_monitoring`          | `3,18,33,48 * * * *` | Time (every ~15 min) | Query all DLQ Delta tables via DuckDB; alert if >10 errors in the last 15 minutes |
 
 ### Docker Services
 
-```bash
-# Start Airflow (requires data-pipeline profile)
-docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
+| Service               | Image                     | Profile        |
+|-----------------------|---------------------------|----------------|
+| `airflow-webserver`   | `apache/airflow:3.1.5`    | `data-pipeline`|
+| `airflow-scheduler`   | `apache/airflow:3.1.5`    | `data-pipeline`|
+| `postgres-airflow`    | `postgres:16`             | `data-pipeline`|
 
-# View webserver logs
-docker compose -f infrastructure/docker/compose.yml logs -f airflow-webserver
+### Installed Packages (via `_PIP_ADDITIONAL_REQUIREMENTS`)
 
-# View scheduler logs
-docker compose -f infrastructure/docker/compose.yml logs -f airflow-scheduler
-
-# Check health
-curl http://localhost:8082/api/v2/monitor/health
+```
+apache-airflow-providers-amazon
+apache-airflow-providers-fab
+dbt-core
+dbt-duckdb==1.10.0
+dbt-glue==1.10.15
+duckdb==1.4.4
+deltalake==1.4.2
+duckdb-engine==0.17.0
+great-expectations
+requests
+prison
 ```
 
-### Configuration
+### Bronze Tables Monitored
 
-| File | Purpose |
-|------|---------|
-| `dags/dbt_transformation_dag.py` | DBT Silver and Gold transformation pipelines |
-| `dags/dlq_monitoring_dag.py` | DuckDB-based DLQ error monitoring |
-| `dags/delta_maintenance_dag.py` | Delta Lake OPTIMIZE/VACUUM maintenance |
-| `config/` | Airflow configuration overrides (if needed) |
-| `plugins/` | Custom Airflow plugins (currently empty) |
+```
+bronze_trips            bronze_gps_pings         bronze_driver_status
+bronze_surge_updates    bronze_ratings           bronze_payments
+bronze_driver_profiles  bronze_rider_profiles
+```
 
-### Database Tables
-
-Airflow uses PostgreSQL (`postgres-airflow`) for metadata storage:
-
-| Database | Port | Purpose |
-|----------|------|---------|
-| `postgres-airflow:5432` | 5432 | Airflow metadata (DAG runs, task instances, variables) |
-
-### Prerequisites
-
-- **PostgreSQL 16** (`postgres-airflow` service)
-- **MinIO** (S3-compatible storage for Bronze Delta tables)
-- **DuckDB 1.4.4** (querying Delta tables in DLQ monitoring)
-- **delta-rs 1.4.2** (Delta Lake operations without Spark)
-- **DBT 1.10.0** (with dbt-duckdb and dbt-glue)
-- **Great Expectations** (data validation)
-- **Trino** (SQL query engine for Silver/Gold layers)
+DLQ tables follow the naming convention `dlq_<bronze_table_name>` (e.g., `dlq_bronze_trips`).
 
 ## Common Tasks
 
-### Access Airflow Web UI
+### Start Airflow (local dev)
 
 ```bash
-# Ensure data-pipeline services are running
 docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
-
-# Open browser
-open http://localhost:8082
-
-# Login with credentials (default: admin/admin)
-# Credentials set via AIRFLOW_ADMIN_USERNAME/AIRFLOW_ADMIN_PASSWORD env vars
 ```
 
-### Manually Trigger a DAG
+### Open the web UI
 
-```bash
-# Via Web UI: Navigate to DAG → Play button → Trigger DAG
-
-# Via CLI (inside scheduler container)
-docker exec rideshare-airflow-scheduler airflow dags trigger dbt_silver_transformation
-
-# Trigger with config
-docker exec rideshare-airflow-scheduler airflow dags trigger dbt_gold_transformation \
-  --conf '{"triggered_by": "manual", "reason": "backfill"}'
+```
+http://localhost:8082
 ```
 
-### View Task Logs
+Default credentials are managed via LocalStack Secrets Manager. The seeded admin username is `admin`.
+
+### Unpause all DAGs via the Airflow CLI
 
 ```bash
-# Via Web UI: DAG → Task Instance → Log tab
-
-# Via CLI (inside scheduler container)
-docker exec rideshare-airflow-scheduler airflow tasks logs dbt_silver_transformation dbt_silver_run 2026-02-13T10:10:00+00:00
-
-# Via Docker logs
-docker compose -f infrastructure/docker/compose.yml logs -f airflow-scheduler
+docker exec rideshare-airflow-webserver airflow dags unpause dbt_silver_transformation
+docker exec rideshare-airflow-webserver airflow dags unpause dbt_gold_transformation
+docker exec rideshare-airflow-webserver airflow dags unpause delta_maintenance
+docker exec rideshare-airflow-webserver airflow dags unpause dlq_monitoring
 ```
 
-### Check DLQ Error Counts
+### Trigger the Silver DAG manually (skipping schedule)
 
 ```bash
-# View latest DLQ monitoring task logs in Web UI
-# Or execute DLQ monitoring DAG manually:
-docker exec rideshare-airflow-scheduler airflow dags trigger dlq_monitoring
+docker exec rideshare-airflow-webserver airflow dags trigger dbt_silver_transformation
 ```
 
-### Pause/Unpause a DAG
+### Trigger the Gold DAG manually
 
 ```bash
-# Via Web UI: Toggle switch next to DAG name
-
-# Via CLI
-docker exec rideshare-airflow-scheduler airflow dags pause dbt_silver_transformation
-docker exec rideshare-airflow-scheduler airflow dags unpause dbt_silver_transformation
+docker exec rideshare-airflow-webserver airflow dags trigger dbt_gold_transformation
 ```
 
-### Backfill Historical Data
+### Switch to Glue runner
+
+Set `DBT_RUNNER=glue` in your environment before starting the stack, then restart the scheduler so Airflow re-parses the DAG topology:
 
 ```bash
-# Backfill Silver transformations for specific date range
-docker exec rideshare-airflow-scheduler airflow dags backfill \
-  dbt_silver_transformation \
-  --start-date 2026-02-01 \
-  --end-date 2026-02-10
+DBT_RUNNER=glue docker compose -f infrastructure/docker/compose.yml --profile data-pipeline up -d
 ```
 
-### Debug DAG Import Errors
+### Run a manual DLQ check
 
 ```bash
-# Check for DAG parsing errors
-docker exec rideshare-airflow-scheduler airflow dags list-import-errors
+docker exec rideshare-airflow-webserver airflow dags trigger dlq_monitoring
+```
 
-# Test DAG file syntax
-docker exec rideshare-airflow-scheduler python /opt/airflow/dags/dbt_transformation_dag.py
+### Force Delta maintenance (OPTIMIZE + VACUUM)
+
+```bash
+docker exec rideshare-airflow-webserver airflow dags trigger delta_maintenance
 ```
 
 ## Troubleshooting
 
-| Symptom | Cause | Solution |
-|---------|-------|----------|
-| DAGs not appearing in Web UI | DAG parsing error or file not in `/opt/airflow/dags` | Check `airflow dags list-import-errors` and verify volume mount |
-| `check_bronze_freshness` skips all tasks | Bronze tables don't exist yet | Expected on first deploy — DAG will proceed once bronze-ingestion populates tables |
-| DLQ monitoring shows "Could not query table" | DLQ Delta tables not created yet | Expected on first run - tables created by stream-processor after errors occur |
-| `dbt_silver_run` fails with "relation does not exist" | Bronze tables empty or missing | Ensure simulation and bronze-ingestion services are running |
-| Webserver health check fails | Database migrations incomplete or port conflict | Check `airflow-webserver` logs and ensure PostgreSQL is healthy |
-| Scheduler not picking up tasks | Scheduler not running or DAG paused | Verify `airflow-scheduler` container running and DAG toggled on in UI |
-| "Permission denied" writing to `/opt/airflow/logs` | Volume mount ownership issue | Ensure `services/airflow/logs` directory exists and is writable |
-| Delta maintenance fails with S3 auth error | MinIO credentials not loaded | Check `secrets-init` completed successfully and `data-pipeline.env` exists |
+### Silver DAG skips all tasks silently
 
-## Data Pipeline Flow
+The `check_bronze_freshness` ShortCircuitOperator returns `False` when Bronze Delta tables do not exist yet. This is normal before the simulation has produced any data. Start the simulation and wait for bronze-ingestion to write at least one file to each Bronze table before the Silver DAG will proceed.
 
-### Silver DAG (Hourly at :10)
+### DAG topology looks wrong after changing `DBT_RUNNER`
 
-```
-check_bronze_freshness
-  ↓
-dbt_silver_run (tag:silver)
-  ↓
-dbt_silver_test
-  ↓
-ge_silver_validation (Great Expectations)
-  ↓
-export_silver_to_s3
-  ↓
-check_should_trigger_gold
-  ↓
-trigger_gold_dag (if 2 AM, manual run, or not PROD_MODE)
-```
-
-### Gold DAG (Triggered at 2 AM)
-
-```
-dbt_seed (reference data)
-  ↓
-dbt_gold_dimensions (tag:dimensions)
-  ↓
-dbt_gold_facts (tag:facts)
-  ↓
-dbt_gold_aggregates (tag:aggregates)
-  ↓
-dbt_gold_test (tag:gold)
-  ↓
-ge_gold_validation
-  ↓
-export_gold_to_s3
-  ↓
-ge_generate_data_docs
-```
-
-### DLQ Monitoring (Every 15 Minutes)
-
-```
-query_dlq_errors (DuckDB queries all DLQ tables)
-  ↓
-check_threshold (ERROR_THRESHOLD = 10)
-  ↓
-send_alert (if threshold exceeded) OR no_alert
-```
-
-### Delta Maintenance (3 AM Daily)
-
-```
-start
-  ↓
-check_data_exists (ShortCircuitOperator — skips if no Bronze tables)
-  ↓
-OPTIMIZE all Bronze + DLQ tables (parallel, max 4 at a time)
-  ↓
-optimize_complete
-  ↓
-VACUUM all Bronze + DLQ tables (parallel, 7-day retention)
-  ↓
-vacuum_complete
-  ↓
-summarize (metrics aggregation)
-```
-
-## Airflow Assets
-
-DAGs use **Airflow Assets** for data lineage tracking:
-
-- `SILVER_ASSET = Asset("lakehouse://silver/transformed")` - Produced by Silver DAG
-- `GOLD_ASSET = Asset("lakehouse://gold/transformed")` - Produced by Gold DAG
-
-Assets enable automatic dependency tracking and triggering in future enhancements.
-
-## Production Mode
-
-Set `PROD_MODE=true` to restrict Gold DAG execution to 2 AM only:
+The DAG topology (number and identity of tasks) is determined at module import time. Airflow caches the parsed structure. After changing `DBT_RUNNER`, restart the scheduler container:
 
 ```bash
-# In .env or docker-compose override
-PROD_MODE=true
-
-# With PROD_MODE=false (default):
-# - Gold DAG triggers every hour after Silver completes
-# - Useful for development/testing
-
-# With PROD_MODE=true:
-# - Gold DAG triggers only at 2 AM
-# - Reduces compute load in production
+docker compose -f infrastructure/docker/compose.yml restart airflow-scheduler
 ```
+
+### Gold DAG never runs automatically in production
+
+`PROD_MODE=true` restricts the Silver → Gold trigger to the 2 AM scheduled run only. All other hourly Silver runs skip the Gold trigger. Trigger manually if you need Gold data outside of 2 AM.
+
+### GE validation failure does not fail the DAG
+
+Great Expectations checkpoints use `|| echo "WARNING" && exit 0`, so validation failures are soft — they log a warning but do not block subsequent tasks. Check Airflow logs for `WARNING: Silver/Gold validation failed` to detect silent GE failures.
+
+### DLQ alert fires but no external notification is received
+
+The `send_alert` task logs the threshold breach to Airflow task logs only. No external notification system (email, Slack, PagerDuty) is currently wired. Check the `dlq_monitoring` DAG logs in the web UI at `http://localhost:8082`.
+
+### `stg_ratings` / `stg_payments` have 0 rows
+
+These tables are populated only after trips complete. 0 rows early in a simulation run is expected. The Trino registration script skips tables where Delta transaction log is absent — no action required.
+
+### Cannot connect to MinIO from within the DAG
+
+Verify `AWS_ENDPOINT_URL=http://minio:9000` is set on the scheduler container, and that MinIO is healthy:
+
+```bash
+docker inspect rideshare-minio | grep '"Status"'
+curl http://localhost:9001/minio/health/live
+```
+
+## Configuration Files
+
+| Path                             | Description                                      |
+|----------------------------------|--------------------------------------------------|
+| `services/airflow/dags/`         | DAG source files (mounted into containers)       |
+| `services/airflow/config/connections.yaml` | Airflow connection definitions (loaded at startup) |
+| `services/airflow/plugins/`      | Custom Airflow plugins (currently empty)         |
+| `services/airflow/logs/`         | Task execution logs (mounted volume)             |
 
 ## Related
 
-- [CONTEXT.md](CONTEXT.md) - Architecture context, DAG patterns, orchestration strategy
-- [dags/CONTEXT.md](dags/CONTEXT.md) - DAG implementation details and dependencies
-- [../bronze-ingestion/README.md](../bronze-ingestion/README.md) - Upstream Kafka → Delta ingestion
-- [../../tools/dbt/README.md](../../tools/dbt/README.md) - DBT transformation logic
-- [../../tools/great-expectations/README.md](../../tools/great-expectations/README.md) - Data validation checkpoints
-- [../../docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) - Medallion architecture overview
+- [CONTEXT.md](CONTEXT.md) — Architecture context, DAG topology decisions, and non-obvious behaviors
+- [services/airflow/dags/CONTEXT.md](dags/CONTEXT.md) — DAG-level concepts: Asset lineage, DLQ querying via DuckDB
+- [tools/dbt/README.md](../../tools/dbt/README.md) — DBT project for Silver and Gold transformations
+- [tools/great-expectations/README.md](../../tools/great-expectations/README.md) — GE checkpoints used in Silver and Gold validation steps
+- [services/bronze-ingestion/README.md](../bronze-ingestion/README.md) — Writes the Bronze Delta tables that Airflow gates on
+- [infrastructure/scripts/README.md](../../infrastructure/scripts/README.md) — `register-trino-tables.py`, `export-dbt-to-s3.py`, `register-glue-tables.py` called by DAG tasks

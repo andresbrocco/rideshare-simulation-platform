@@ -1,202 +1,199 @@
 # Prometheus
 
-> Metrics collection and storage for the rideshare simulation platform
+> Metrics collection, alerting, and recording rule computation for the rideshare simulation platform.
 
 ## Quick Reference
 
 ### Ports
 
-| Port | Service | Description |
-|------|---------|-------------|
-| 9090 | Prometheus UI | Web interface and PromQL query endpoint |
+| Port | Protocol | Description |
+|------|----------|-------------|
+| 9090 | HTTP | Prometheus UI, API, and remote_write receiver |
 
-### API Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/-/healthy` | Health check endpoint |
-| GET | `/api/v1/query` | Execute PromQL queries |
-| GET | `/api/v1/query_range` | Range queries with time series data |
-| GET | `/metrics` | Prometheus self-metrics |
-| GET | `/targets` | Scrape target status |
-| GET | `/alerts` | Active alerts |
-
-```bash
-# Check health
-curl http://localhost:9090/-/healthy
-
-# Query current metric value
-curl 'http://localhost:9090/api/v1/query?query=up'
-
-# Query time series (last hour)
-curl 'http://localhost:9090/api/v1/query_range?query=simulation_agents_active&start=2026-02-13T08:00:00Z&end=2026-02-13T09:00:00Z&step=15s'
-
-# Check scrape targets
-curl http://localhost:9090/api/v1/targets
-```
-
-### Commands
-
-```bash
-# Start Prometheus (via Docker Compose)
-docker compose -f infrastructure/docker/compose.yml --profile monitoring up -d prometheus
-
-# View logs
-docker compose -f infrastructure/docker/compose.yml logs -f prometheus
-
-# Check configuration syntax
-docker exec prometheus promtool check config /etc/prometheus/prometheus.yml
-
-# Check alert rules
-docker exec prometheus promtool check rules /etc/prometheus/rules/alerts.yml
-
-# Stop service
-docker compose -f infrastructure/docker/compose.yml stop prometheus
-```
-
-### Configuration
+### Configuration Files
 
 | File | Purpose |
 |------|---------|
-| `prometheus.yml` | Main configuration: scrape targets, intervals, external labels |
-| `rules/alerts.yml` | Alert rule definitions for health monitoring |
+| `services/prometheus/prometheus.yml` | Main config — scrape targets, rule file glob, global intervals |
+| `services/prometheus/rules/alerts.yml` | Alert rules for infrastructure and simulation health |
+| `services/prometheus/rules/performance.yml` | Recording rules for composite headroom score |
 
-**Key Settings:**
-- **Scrape interval**: 15s
-- **Evaluation interval**: 15s (for alert rules)
-- **Retention**: 7 days
-- **Remote write receiver**: Enabled (receives OTLP metrics from OTel Collector)
-- **External labels**: `cluster=rideshare-simulation`, `environment=local`
+### Docker Profile
 
-### Scrape Targets
+```bash
+# Start Prometheus (requires monitoring profile)
+docker compose -f infrastructure/docker/compose.yml --profile monitoring up -d prometheus
+```
 
-| Job | Target | Interval | Purpose |
-|-----|--------|----------|---------|
-| `prometheus` | localhost:9090 | 15s | Self-monitoring |
-| `cadvisor` | cadvisor:8080 | 15s | Container metrics (CPU, memory, I/O) |
-| `otel-collector` | otel-collector:8888 | 15s | OTel Collector self-metrics |
+Image: `prom/prometheus:v2.48.1`
 
-**Note**: `simulation` and `stream-processor` metrics are **not scraped directly**. They export metrics via OTLP to the OTel Collector, which pushes them to Prometheus via remote_write.
+## Scrape Targets
 
-### Alert Rules
+| Job | Target | Interval | Notes |
+|-----|--------|----------|-------|
+| `prometheus` | `localhost:9090` | 15s | Self-monitoring |
+| `cadvisor` | `cadvisor:8080` | 4s | Container CPU/memory/fs metrics |
+| `otel-collector` | `otel-collector:8888` | 15s | OTel Collector self-metrics |
+| `kafka-exporter` | `kafka-exporter:9308` | 4s | Kafka consumer lag and broker metrics |
+| `redis-exporter` | `redis-exporter:9121` | 15s | Redis memory, connections, commands |
 
-| Alert | Threshold | Severity | Description |
-|-------|-----------|----------|-------------|
-| `PrometheusDown` | `up{job="prometheus"} == 0` for 1m | critical | Prometheus instance down |
-| `PrometheusScrapeFailure` | `up == 0` for 5m | warning | Target scrape failure |
-| `HighContainerMemoryUsage` | Memory >90% for 5m | warning | Container near memory limit |
-| `SimulationHighErrorRate` | >10 errors/sec for 2m | warning | High simulation error rate |
-| `SimulationOSRMLatencyHigh` | p95 >1s for 5m | warning | OSRM routing latency high |
-| `StreamProcessorKafkaDisconnected` | Disconnected for 1m | critical | Kafka connection lost |
-| `StreamProcessorRedisDisconnected` | Disconnected for 1m | critical | Redis connection lost |
-| `SimulationQueueBacklog` | >1000 events for 5m | warning | SimPy event queue backlog |
-
-### Prerequisites
-
-- Docker and Docker Compose
-- Port 9090 available
-- `monitoring` profile services:
-  - cadvisor (container metrics source)
-  - otel-collector (OTLP metrics receiver)
-  - grafana (visualization, optional)
+**Note:** The simulation service and stream-processor are NOT scraped directly. They push metrics via OTLP to the OTel Collector, which remote_writes into Prometheus. Use `absent_over_time` alert expressions (already configured in `alerts.yml`) to detect if those services go dark.
 
 ## Common Tasks
 
-### Query Metrics in PromQL
+### Open the Prometheus UI
+
+```
+http://localhost:9090
+```
+
+### Query the composite infrastructure headroom score
+
+```
+rideshare:infrastructure:headroom
+```
+
+Returns a 0–1 scalar. Values near 0 indicate at least one resource is saturated (Kafka lag, SimPy queue, CPU, memory, stream consumption, or real-time ratio). The performance controller uses this signal for auto-scaling decisions.
+
+### Query individual headroom components (smoothed)
+
+```promql
+rideshare:performance:kafka_lag_headroom:smooth
+rideshare:performance:simpy_queue_headroom:smooth
+rideshare:performance:cpu_headroom:smooth
+rideshare:performance:memory_headroom:smooth
+rideshare:performance:consumption_ratio:smooth
+rideshare:performance:rtr_headroom:smooth
+```
+
+### Check active alerts
+
+```
+http://localhost:9090/alerts
+```
+
+### Check scrape target health
+
+```
+http://localhost:9090/targets
+```
+
+### Reload configuration without restart
 
 ```bash
-# Active agents in simulation
-curl 'http://localhost:9090/api/v1/query?query=simulation_agents_active'
-
-# Trip completion rate (per second)
-curl 'http://localhost:9090/api/v1/query?query=rate(simulation_trips_total{status="completed"}[1m])'
-
-# Container memory usage by service
-curl 'http://localhost:9090/api/v1/query?query=container_memory_usage_bytes{name=~"simulation|stream-processor"}'
-
-# P95 OSRM latency
-curl 'http://localhost:9090/api/v1/query?query=histogram_quantile(0.95,rate(simulation_osrm_latency_seconds_bucket[5m]))'
+curl -X POST http://localhost:9090/-/reload
 ```
 
-### View Metrics in Web UI
-
-1. Open http://localhost:9090 in browser
-2. Navigate to **Status > Targets** to verify scrape health
-3. Navigate to **Alerts** to see active alerts
-4. Use the **Graph** tab for PromQL queries and visualization
-
-### Add New Alert Rule
-
-1. Edit `rules/alerts.yml`
-2. Add rule to appropriate group:
-```yaml
-- alert: MyNewAlert
-  expr: metric_name > threshold
-  for: 5m
-  labels:
-    severity: warning
-  annotations:
-    summary: "Brief description"
-    description: "Detailed description with {{ $value }}"
-```
-3. Validate syntax:
-```bash
-docker exec prometheus promtool check rules /etc/prometheus/rules/alerts.yml
-```
-4. Reload configuration:
-```bash
-docker exec prometheus kill -HUP 1
-```
-
-### Add New Scrape Target
-
-1. Edit `prometheus.yml`
-2. Add to `scrape_configs`:
-```yaml
-- job_name: 'my-service'
-  scrape_interval: 15s
-  static_configs:
-    - targets: ['service-name:port']
-      labels:
-        service: 'my-service'
-```
-3. Restart Prometheus:
-```bash
-docker compose -f infrastructure/docker/compose.yml restart prometheus
-```
-
-### Troubleshoot Missing Metrics
+### Query Kafka consumer lag via API
 
 ```bash
-# Check if target is up
-curl http://localhost:9090/api/v1/targets | jq '.data.activeTargets[] | select(.health != "up")'
-
-# Query for specific metric by name
-curl 'http://localhost:9090/api/v1/query?query={__name__=~"simulation.*"}' | jq '.data.result[].metric.__name__' | sort -u
-
-# Check OTel Collector logs (if metrics from simulation/stream-processor missing)
-docker compose -f infrastructure/docker/compose.yml logs otel-collector
-
-# Verify remote_write endpoint
-curl http://localhost:9090/api/v1/status/config | jq '.data.yaml' | grep -A5 remote_write
+curl -s 'http://localhost:9090/api/v1/query?query=sum(kafka_consumergroup_lag)' | jq .
 ```
+
+### Query per-container memory usage
+
+```bash
+curl -s 'http://localhost:9090/api/v1/query?query=rideshare:container:memory_bytes' | jq .
+```
+
+## Alert Rules
+
+### `alerts.yml` — Infrastructure and Simulation
+
+| Alert | Severity | Condition | For |
+|-------|----------|-----------|-----|
+| `PrometheusDown` | critical | `up{job="prometheus"} == 0` | 1m |
+| `PrometheusScrapeFailure` | warning | Any `up == 0` | 5m |
+| `HighContainerMemoryUsage` | warning | Container memory > 90% of limit | 5m |
+| `ContainerDown` | warning | `up{job="cadvisor"} == 0` | 2m |
+| `SimulationHighErrorRate` | warning | `simulation_errors_total` rate > 10/s | 2m |
+| `SimulationOSRMLatencyHigh` | warning | OSRM p95 latency > 1s | 5m |
+| `StreamProcessorKafkaDisconnected` | critical | `stream_processor_kafka_connected == 0` | 1m |
+| `StreamProcessorRedisDisconnected` | critical | `stream_processor_redis_connected == 0` | 1m |
+| `SimulationQueueBacklog` | warning | `simulation_simpy_events > 1000` | 5m |
+| `SimulationServiceDown` | critical | `absent_over_time(simulation_events_total[5m])` | 2m |
+| `StreamProcessorServiceDown` | critical | `absent_over_time(stream_processor_messages_consumed_total[5m])` | 2m |
+
+### `performance.yml` — Recording Rules
+
+Recording rules are evaluated at 4s interval. Naming convention: `rideshare:<layer>:<metric>[:smooth]`.
+
+| Metric | Description |
+|--------|-------------|
+| `rideshare:container:memory_bytes` | Working set memory per rideshare container |
+| `rideshare:container:memory_limit_bytes` | Configured memory limit per rideshare container |
+| `rideshare:container:cpu_percent` | CPU usage % per rideshare container (1m rate) |
+| `rideshare:container:fs_write_rate` | Filesystem write bytes/s per container |
+| `rideshare:container:fs_read_rate` | Filesystem read bytes/s per container |
+| `rideshare:performance:kafka_lag_headroom` | Raw Kafka lag headroom (ceiling: 18,758 messages) |
+| `rideshare:performance:simpy_queue_headroom` | Raw SimPy event queue headroom (ceiling: 24,096) |
+| `rideshare:performance:cpu_headroom` | Raw CPU headroom (2x amplified before clamp) |
+| `rideshare:performance:memory_headroom` | Raw memory headroom (penalty activates above 67%) |
+| `rideshare:performance:consumption_ratio` | Stream-processor consumed vs simulation produced rate |
+| `rideshare:performance:rtr_headroom` | Simulation real-time ratio headroom (1 when idle) |
+| `rideshare:performance:*:smooth` | 16s rolling average of each component above |
+| `rideshare:infrastructure:headroom` | Composite: min across all six smoothed components |
+
+## Prerequisites
+
+- Docker Compose `monitoring` profile active
+- OTel Collector running (pushes simulation and stream-processor metrics via remote_write)
+- cAdvisor running (scraped directly at 4s interval)
+- kafka-exporter running (scraped at 4s interval)
+- redis-exporter running (scraped at 15s interval)
 
 ## Troubleshooting
 
-| Symptom | Cause | Solution |
-|---------|-------|----------|
-| `prometheus` target shows "down" | Prometheus self-scrape failing | Check container health: `docker ps` |
-| `cadvisor` target unreachable | cAdvisor not running or wrong port | Start with `--profile monitoring` |
-| `otel-collector` target missing | OTel Collector not started | Start with `--profile monitoring` |
-| No `simulation_*` metrics | OTel Collector not pushing via remote_write | Check OTel Collector logs and exporters config |
-| Alert not firing | Expression syntax error or threshold not met | Test PromQL in web UI, check `promtool check rules` |
-| Config changes ignored | Configuration not reloaded | Send HUP signal: `docker exec prometheus kill -HUP 1` |
-| Old metrics still visible | 7-day retention not expired | Wait or restart with `--storage.tsdb.retention.time=1h` for testing |
+### Scrape target shows "DOWN"
+
+Check `http://localhost:9090/targets`. If an exporter is down, start its container:
+
+```bash
+docker compose -f infrastructure/docker/compose.yml --profile monitoring up -d cadvisor
+docker compose -f infrastructure/docker/compose.yml --profile monitoring up -d kafka-exporter
+docker compose -f infrastructure/docker/compose.yml --profile monitoring up -d redis-exporter
+```
+
+### Simulation or stream-processor metrics missing
+
+These services do not expose a Prometheus scrape endpoint — they push via OTLP. Check the OTel Collector logs first:
+
+```bash
+docker compose -f infrastructure/docker/compose.yml logs otel-collector
+```
+
+The `SimulationServiceDown` and `StreamProcessorServiceDown` alerts will fire after 2 minutes of absent metrics.
+
+### `rideshare:infrastructure:headroom` is 0 or missing
+
+The composite score is the `min` of all six smoothed components. Query each component individually to find the bottleneck:
+
+```promql
+rideshare:performance:kafka_lag_headroom:smooth
+rideshare:performance:cpu_headroom:smooth
+rideshare:performance:memory_headroom:smooth
+```
+
+If the simulation is not running, `rtr_headroom` falls back to `vector(1)` via `or vector(1)` — the score should not collapse to 0 on an idle cluster.
+
+### Configuration change not applied
+
+```bash
+curl -X POST http://localhost:9090/-/reload
+```
+
+If the reload fails, check that `prometheus.yml` is valid YAML and that all rule files under `services/prometheus/rules/` parse without errors.
+
+### Ceiling constants for performance thresholds
+
+The saturation ceilings in `performance.yml` are empirically derived (not configurable via env vars):
+- Kafka lag ceiling: 18,758 messages
+- SimPy queue ceiling: 24,096 events
 
 ## Related
 
-- [CONTEXT.md](CONTEXT.md) — Architecture and metrics collection patterns
-- [../grafana/README.md](../grafana/README.md) — Visualization dashboards
-- [../otel-collector/README.md](../otel-collector/README.md) — OTLP metrics receiver
-- [../cadvisor/README.md](../cadvisor/README.md) — Container metrics exporter
-- [../../docs/INFRASTRUCTURE.md](../../docs/INFRASTRUCTURE.md) — Monitoring stack overview
+- [CONTEXT.md](CONTEXT.md) — Architecture context, dual ingestion paths, headroom score design
+- [rules/CONTEXT.md](rules/CONTEXT.md) — Recording and alert rule details
+- [services/otel-collector](../otel-collector/CONTEXT.md) — Pushes application metrics via remote_write
+- [services/grafana](../grafana/CONTEXT.md) — Queries Prometheus for dashboards
+- [services/cadvisor](../cadvisor/CONTEXT.md) — Source of container CPU/memory metrics

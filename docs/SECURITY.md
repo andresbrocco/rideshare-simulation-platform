@@ -4,400 +4,271 @@
 
 ## Authentication
 
-How users and services authenticate to the platform.
+### Method
 
-### REST API Authentication
+API key authentication. A single shared API key grants full access to the simulation REST API and WebSocket. There is no user account system, RBAC, or per-user differentiation.
 
-**Method**: API key authentication via HTTP headers
+### Implementation
 
-**Implementation**:
 - Module: `services/simulation/src/api/auth.py`
-- Function: `verify_api_key()` validates `X-API-Key` header
-- Key storage: Environment variable `API_KEY` (injected from LocalStack Secrets Manager)
-- Key validation: Direct string comparison against configured key
+- Dependency: `FastAPI.Depends(verify_api_key)` applied to all protected routes
+- Key source: `API_KEY` environment variable, loaded from Secrets Manager at container startup
+- Settings class: `APISettings` in `services/simulation/src/settings.py` — fails startup if `API_KEY` is absent
 
-**Protected Endpoints**:
-- `/simulation/*` - Simulation control commands
-- `/agents/*` - Agent management and puppet mode
-- `/puppet/*` - Puppet agent controls
-- `/metrics/*` - Metrics snapshots
+### REST API
 
-**Unprotected Endpoints**:
-- `/health` - Basic health check (for container orchestration)
-- `/health/detailed` - Detailed service health with latency metrics
+- Header: `X-API-Key: <key>`
+- Validation: `verify_api_key()` in `src/api/auth.py` performs string equality check; returns HTTP 401 on mismatch, HTTP 500 if the server-side key is unconfigured
+- Unauthenticated endpoints: `GET /health`, `GET /health/detailed` (intentionally unauthenticated for infrastructure probes)
+- Auth validation endpoint: `GET /auth/validate` — used by the frontend login screen to confirm key validity
 
-**Login Validation**:
-- Endpoint: `GET /auth/validate`
-- Frontend: `services/control-panel/src/components/LoginScreen.tsx`
-- Key storage: `sessionStorage` (browser)
-- Response: 200 if valid, 401 if invalid
+### WebSocket
 
-### WebSocket Authentication
-
-**Method**: API key via WebSocket subprotocol header
-
-**Implementation**:
-- Module: `services/simulation/src/api/websocket.py`
 - Header: `Sec-WebSocket-Protocol: apikey.<key>`
-- Validation: Extracts key from protocol string, validates against `API_KEY`
-- Rejection: WebSocket close with code 1008 (policy violation)
+- Mechanism: Browsers cannot send custom HTTP headers during WebSocket upgrade; the API key is conveyed via the subprotocol header. The server echoes the subprotocol back on accept to satisfy the browser handshake.
+- Module: `services/simulation/src/api/websocket.py`
+- Rejection: `websocket.close(code=1008)` on invalid or missing key
 
-### Service-to-Service Authentication
+### Lambda (auth-deploy)
 
-**Kafka (SASL/PLAIN)**:
-- Security protocol: `SASL_PLAINTEXT` (local), `SASL_SSL` (production)
-- Credentials: `KAFKA_SASL_USERNAME` / `KAFKA_SASL_PASSWORD`
-- Module: `services/simulation/src/settings.py` (KafkaSettings)
+- Module: `infrastructure/lambda/auth-deploy/`
+- Mechanism: API key passed in the POST request body field `api_key`, validated against a secret stored in AWS Secrets Manager (`{project}/api-key`)
+- Unauthenticated actions: `session-status`, `auto-teardown`, `service-health`, `teardown-status`, `get-deploy-progress` — these are callable without an API key to support frontend polling and EventBridge-triggered teardown
 
-**Redis (AUTH)**:
-- Authentication: Password-based via `AUTH` command
-- Credential: `REDIS_PASSWORD`
-- Module: `services/simulation/src/settings.py` (RedisSettings)
+### Airflow
 
-**Schema Registry (Basic Auth)**:
-- Authentication: HTTP Basic Auth
-- Credential: `KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO` (format: `username:password`)
-- Module: `services/simulation/src/kafka/schema_registry.py`
+- Authentication: JWT auth (Airflow 3.x)
+- JWT secret stored in `{project}/data-pipeline` Secrets Manager secret under key `JWT_SECRET`
 
-**Trino (No Auth)**:
-- Authentication: None (local development and production)
+### Grafana
 
-### Default Development Credentials
-
-**All Passwords**: `admin` (username: `admin` where applicable)
-
-**API Key**: `admin`
-
-**Purpose**: Self-documenting development credentials, intentionally simple for local testing.
-
-**Production Migration**: Generate secure keys with `openssl rand -hex 32` and store in AWS Secrets Manager.
-
-## Authorization
-
-How permissions are enforced.
-
-### Model
-
-**Simple API Key Authorization**: Single shared secret grants full access to all protected endpoints. No role-based access control (RBAC) or user differentiation.
-
-### Implementation
-
-**Middleware**: FastAPI dependency injection via `Depends(verify_api_key)`
-- Applied to route handlers requiring authentication
-- Raises `HTTPException(401)` for invalid keys
-- No authorization (permission) checks beyond authentication
-
-**Rate Limiting**:
-- Module: `services/simulation/src/api/rate_limit.py`
-- Library: `slowapi`
-- Strategy: Per API key or per IP address
-- Limits: Configurable per endpoint (e.g., `@limiter.limit("10/minute")`)
-- WebSocket: Sliding window limiter (5 connections per 60 seconds per client)
-- Tracking: OpenTelemetry counter for rate limit violations
-
-### Roles
-
-None. All authenticated clients have identical permissions.
-
-## Input Validation
-
-How input is validated across services.
-
-### Primary Library
-
-**Pydantic v2.12.5**
-
-**Approach**:
-- All API request/response models use Pydantic data classes
-- Automatic validation on FastAPI route handlers
-- Settings loaded from environment variables with validation
-- DNA models validate behavioral parameters at agent creation
-
-### Validation Locations
-
-**API Layer** (`services/simulation/src/api/models/`):
-- `agents.py` - Agent creation requests
-- `simulation.py` - Simulation control commands
-- `puppet.py` - Puppet mode controls
-- `metrics.py` - Metrics snapshots
-- `health.py` - Health check responses
-
-**Settings** (`services/simulation/src/settings.py`):
-- Environment variable validation with `pydantic-settings`
-- Type coercion and constraint validation (e.g., `ge=0.5, le=128` for speed multiplier)
-- Credential presence validation (raises `ValueError` if missing)
-
-**Events** (`services/simulation/src/events/schemas.py`):
-- JSON schema validation for Kafka events
-- Schema Registry integration for distributed validation
-- Event factory validation before publishing
-
-**Agent DNA** (`services/simulation/src/agents/dna.py`):
-- Immutable behavioral parameters validated at creation
-- Constraints on acceptance rates, patience thresholds, service quality
-
-**Database Models** (`services/simulation/src/db/`):
-- SQLAlchemy ORM with type annotations
-- Foreign key constraints, unique constraints
-
-**Frontend** (TypeScript):
-- Types generated from OpenAPI schema via `openapi-typescript`
-- Runtime validation on API responses
-
-### Schema Registry Integration
-
-**Purpose**: Enforce event schema contracts across Kafka producers/consumers
-
-**Location**: `schemas/kafka/*.json`
-
-**Validation**: JSON Schema Draft 7
-
-**Module**: `services/simulation/src/kafka/schema_registry.py`
-
-**Process**:
-1. Producer fetches latest schema from registry
-2. Validates event against schema before publishing
-3. Consumer validates incoming messages
-4. Schema evolution tracked in registry
-
-## Secrets Management
-
-How secrets are handled across environments.
-
-### Storage
-
-**LocalStack Secrets Manager** (Development):
-- Endpoint: `http://localstack:4566` (Docker) or `http://localhost:4566` (local)
-- Region: `us-east-1`
-- Namespace: `rideshare/*`
-- 4 secret groups (api-key, core, data-pipeline, monitoring)
-
-**AWS Secrets Manager** (Production):
-- Same secret structure as LocalStack
-- Migration: Change `AWS_ENDPOINT_URL` from LocalStack to AWS endpoint
-- No code changes required
-
-### Secret Groups
-
-| Secret Name | Keys | Used By |
-|-------------|------|---------|
-| `rideshare/api-key` | API_KEY | simulation, frontend |
-| `rideshare/core` | KAFKA_SASL_USERNAME, KAFKA_SASL_PASSWORD, REDIS_PASSWORD, SCHEMA_REGISTRY_USER, SCHEMA_REGISTRY_PASSWORD | kafka, redis, simulation, stream-processor, bronze-ingestion |
-| `rideshare/data-pipeline` | MINIO_ROOT_USER, MINIO_ROOT_PASSWORD, POSTGRES_AIRFLOW_USER, POSTGRES_AIRFLOW_PASSWORD, POSTGRES_METASTORE_USER, POSTGRES_METASTORE_PASSWORD, FERNET_KEY, INTERNAL_API_SECRET_KEY, JWT_SECRET, API_SECRET_KEY, ADMIN_USERNAME, ADMIN_PASSWORD | minio, airflow, postgres-*, hive-metastore |
-| `rideshare/monitoring` | ADMIN_USER, ADMIN_PASSWORD | grafana |
-
-### Access Pattern
-
-**Docker Compose**:
-1. `secrets-init` service runs on startup
-2. Seeds LocalStack Secrets Manager with all credentials
-3. Fetches secrets and writes to `/secrets/` shared volume
-4. Services source credentials from `/secrets/*.env` files (core.env, data-pipeline.env, monitoring.env)
-
-**Kubernetes**:
-1. External Secrets Operator (ESO) syncs secrets from LocalStack/AWS Secrets Manager
-2. Creates Kubernetes Secrets in cluster
-3. Pods reference secrets via `secretKeyRef` in environment variables
-
-**Script**: `infrastructure/scripts/seed-secrets.py` - Idempotent seeding script
-
-**Fetch Script**: `infrastructure/scripts/fetch-secrets.py` - Retrieves secrets for local development
-
-### Security Practices
-
-**Never Logged**: Secrets are never logged or printed to stdout
-- Settings classes use `model_config` with no repr for sensitive fields
-- Log formatters do not expose environment variables
-
-**Never Committed**: `.gitignore` excludes `.env.local`, `/secrets/`, and other credential files
-
-**Validation**: Pydantic validators ensure required secrets are present at startup (raises `ValueError` if missing)
-
-**Rotation**: Airflow uses deterministic Fernet keys for local development (base64-encoded "admin-dev-fernet-key-00000000")
-
-**Override Support**: `OVERRIDE_<KEY>` environment variables allow per-secret overrides during seeding
-
-## Cryptography
-
-Cryptographic operations used in the system.
-
-### Password Hashing
-
-**None**: This is a development/portfolio platform with synthetic data. No user passwords are hashed.
-
-**Airflow Fernet Key**: Used for encrypting connection strings and variables in Airflow metadata database.
-- Algorithm: Fernet (symmetric encryption, AES-128-CBC with HMAC)
-- Key: Base64-encoded 32-byte key
-- Local development: Deterministic key (`admin-dev-fernet-key-00000000`)
-- Production: Generate with `from cryptography.fernet import Fernet; Fernet.generate_key()`
-
-### Data Encryption
-
-**None at rest**: Local development stores data unencrypted in MinIO, SQLite, PostgreSQL, Redis.
-
-**TLS in transit** (Production only):
-- Kafka: `SASL_SSL` security protocol
-- Redis: `REDIS_SSL=true` for ElastiCache
-- MinIO: HTTPS endpoint
-- LDAP: `ldaps://` with certificates (disabled in local development)
-
-### Token Generation
-
-**API Keys**: Not generated by the system. Provided externally via secrets management.
-
-**Correlation IDs**: UUID4 for distributed tracing (not cryptographic)
-
-**Session Tokens**: None. API key is used directly for each request.
-
-## Security Headers
-
-HTTP security headers applied to all responses.
-
-### Implementation
-
-**Middleware**: `services/simulation/src/api/middleware/security_headers.py`
-
-**Class**: `SecurityHeadersMiddleware` (FastAPI middleware)
-
-### Headers Applied
-
-| Header | Value | Purpose |
-|--------|-------|---------|
-| `Content-Security-Policy` | `default-src 'self'; connect-src 'self' ws: wss:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self'` | Restrict resource loading to same-origin, allow WebSockets |
-| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` | Enforce HTTPS for 1 year (only effective over HTTPS) |
-| `X-Frame-Options` | `DENY` | Prevent clickjacking by disallowing iframe embedding |
-| `X-Content-Type-Options` | `nosniff` | Prevent MIME type sniffing |
-| `Referrer-Policy` | `strict-origin-when-cross-origin` | Control referrer information leakage |
-| `Permissions-Policy` | `camera=(), microphone=(), geolocation=()` | Restrict browser feature access |
-
-### CORS Configuration
-
-**Module**: `services/simulation/src/api/app.py`
-
-**Middleware**: `CORSMiddleware` (FastAPI/Starlette)
-
-**Configuration**:
-- Allowed origins: `CORS_ORIGINS` environment variable (comma-separated)
-- Default: `http://localhost:5173,http://localhost:3000`
-- Credentials: Allowed
-- Methods: All (`["*"]`)
-- Headers: All (`["*"]`)
-
-**Purpose**: Enable frontend access from development servers
-
-## PII Handling
-
-How personally identifiable information is managed.
-
-### PII Masking
-
-**Module**: `services/simulation/src/sim_logging/filters.py`
-
-**Class**: `PIIFilter` (logging.Filter)
-
-**Patterns**:
-- Emails: `[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+` -> `[EMAIL]`
-- Phone numbers: `\d{3}[-.\s]?\d{3}[-.\s]?\d{4}` -> `[PHONE]`
-
-**Application**: Applied globally to all log handlers via `handler.addFilter(PIIFilter())`
-
-**Scope**: Masks PII in log messages before writing to stdout, files, or log aggregation services (Loki)
-
-### Synthetic Data
-
-**No Real PII**: All driver/rider data is generated using `Faker` library with Brazilian locale.
-
-**Generator**: `services/simulation/src/agents/faker_provider.py`
-
-**Data**: Names, emails, phone numbers, CPF (Brazilian tax ID) - all synthetic
-
-**Purpose**: Portfolio demonstration with no risk of exposing real user data
-
-## Known Security Considerations
-
-Security-relevant notes from codebase analysis.
-
-### Development-Only Security Model
-
-**Shared API Key**: All clients use the same API key. No user differentiation or audit trail of which client performed which action.
-
-**Default Credentials**: All services use `admin`/`admin` credentials. Acceptable for local development, insecure for production.
-
-**No TLS Locally**: HTTP, LDAP, Kafka, Redis use unencrypted protocols. Production requires TLS/SSL configuration.
-
-### Rate Limiting
-
-**REST API**: Configurable limits per endpoint (e.g., 10 requests/minute)
-- Tracked by API key (preferred) or IP address (fallback)
-- Returns 429 with `Retry-After` header
-- Metrics: OpenTelemetry counter for rate limit violations
-
-**WebSocket**: Sliding window limiter (5 connections per 60 seconds per client)
-- Closes connection with code 1008 on limit exceeded
-- No retry-after guidance
-
-### Schema Validation
-
-**Kafka Events**: JSON Schema validation via Schema Registry ensures event contracts are enforced across producers and consumers.
-
-**API Requests**: Pydantic validates all incoming requests, rejects invalid data with 422 Unprocessable Entity.
-
-**Settings**: Pydantic validates environment variables at startup, crashes service if required secrets are missing (fail-fast).
-
-### Container Security
-
-**Pre-commit Hooks**: Detect committed secrets using `detect-secrets` (configured in `.pre-commit-config.yaml`)
-
-**Secrets Baseline**: `.secrets.baseline` tracks known false positives
-
-**Docker Secrets Volume**: `/secrets/` volume is ephemeral, not persisted in Docker images
-
-### Observability Security
-
-**Metrics Exposure**: Prometheus metrics at `/metrics` endpoint (unauthenticated) expose operational data but no PII or credentials.
-
-**Log Aggregation**: Loki receives logs from all services. PII masking applied before emission.
-
-**Tracing**: OpenTelemetry traces may contain correlation IDs but no credentials or PII.
-
-### Database Security
-
-**SQLite**: Local file storage with no authentication. Acceptable for simulation checkpoints (no PII).
-
-**PostgreSQL**: Used by Airflow and Hive Metastore. Credentials injected from secrets. No encryption at rest.
-
-**Redis**: AUTH password required. Data is ephemeral (pub/sub, state snapshots). No persistence.
-
-**MinIO**: S3-compatible storage with access key / secret key authentication. Local development only.
-
-### Frontend Security
-
-**API Key Storage**: Stored in `sessionStorage` (cleared on tab close). Not persisted in `localStorage`.
-
-**No XSS Protection**: React's default JSX escaping prevents injection, but no Content-Security-Policy nonce enforcement.
-
-**WebSocket Hijacking**: Subprotocol-based authentication mitigates hijacking, but no additional CSRF tokens.
-
-### Production Readiness Gaps
-
-**Multi-Tenancy**: No support for multiple users or organizations. Single API key grants full access.
-
-**Audit Logging**: No structured audit trail of who performed which actions (correlation IDs track requests, but not users).
-
-**Secret Rotation**: No automated credential rotation. Manual secret updates required.
-
-**Certificate Management**: No certificate provisioning or renewal automation. TLS certificates must be managed externally.
-
-**Network Segmentation**: All services in single Docker network. No DMZ or segmentation by trust level.
-
-**Intrusion Detection**: No IDS/IPS. Rate limiting is the only abuse prevention mechanism.
+- Authentication: HTTP Basic auth (username/password)
+- Credentials stored in `{project}/monitoring` Secrets Manager secret
 
 ---
 
-**Generated**: 2026-02-13
-**Codebase**: rideshare-simulation-platform
-**Security Model**: Development/Portfolio (Shared API Key)
-**Secrets Management**: LocalStack Secrets Manager (local), AWS Secrets Manager (production)
-**Authentication**: API Key (REST), API Key via Subprotocol (WebSocket)
-**Validation**: Pydantic, JSON Schema (Kafka)
-**PII Protection**: Log masking (emails, phone numbers)
+## Authorization
+
+### Model
+
+No role-based access control. Authentication is binary: a request either carries the valid API key or it does not. All authenticated callers have equivalent access to all simulation endpoints.
+
+### Scope
+
+The performance controller calls `PUT /simulation/speed` using the same API key, proxied through the simulation API's `/controller/` route prefix so the frontend does not expose the performance controller port directly.
+
+### Lambda Actions
+
+The Lambda function uses a hardcoded `NO_AUTH_ACTIONS` set to allow specific actions (status polling, EventBridge teardown trigger) without credentials. All other actions require a valid API key.
+
+### IAM (Production)
+
+- All workload IAM roles use EKS Pod Identity, not IRSA
+- Trust policies target `pods.eks.amazonaws.com` with `sts:AssumeRole` and `sts:TagSession`
+- Pod Identity associations are declared in `infrastructure/terraform/platform/main.tf`
+- Secrets Manager access is scoped to `{project_name}/*` prefix (not account-wide)
+- GitHub Actions uses OIDC (not static access keys); trust is scoped to a specific org/repo/branch via `StringLike` on the `sub` claim
+- Module: `infrastructure/terraform/foundation/modules/iam/`
+
+---
+
+## Input Validation
+
+### Library
+
+Pydantic v2 (`pydantic>=2.12.5`, `pydantic-settings>=2.7.1`) for all Python services. JSON Schema (`jsonschema>=4.25.1`) for Kafka event validation.
+
+### Approach
+
+- All REST API request bodies are Pydantic models defined in `services/simulation/src/api/models/`
+- All settings classes are Pydantic `BaseSettings` subclasses with field constraints (`ge`, `le`, `Literal`) — service startup fails if required credentials or out-of-range values are provided
+- Kafka events are validated against JSON Schema Draft 2020-12 files in `schemas/kafka/` via Schema Registry at publish time; validation failure is non-fatal (logged as warning) to avoid halting the simulation
+- WebSocket input from connected clients (`websocket.receive_text()`) is not processed as commands — the WebSocket is one-way (server to client)
+
+### Locations
+
+- REST API validation: `services/simulation/src/api/models/` (Pydantic)
+- Settings validation: `services/simulation/src/settings.py` (Pydantic BaseSettings)
+- Kafka event schema: `schemas/kafka/*.json` + Schema Registry
+- Bronze ingestion DLQ: `services/bronze-ingestion/src/` validates events against `schemas/kafka/` JSON Schemas; malformed messages are routed to per-topic DLQ Delta tables rather than discarded
+
+---
+
+## Rate Limiting
+
+### Implementation
+
+- Library: `slowapi>=0.1.9` (wraps `limits` library)
+- Module: `services/simulation/src/api/rate_limit.py`
+- Key function: API key if present, falls back to client IP address
+- Exceeded response: HTTP 429 with `Retry-After` header; tracked via OTel counter `api_rate_limit_hits_total`
+
+### WebSocket
+
+- Module: `WebSocketRateLimiter` in `services/simulation/src/api/rate_limit.py`
+- Limit: 5 connections per 60-second sliding window, keyed by API key
+- Rejection: `websocket.close(code=1008)`
+
+---
+
+## Security Headers
+
+Applied to all HTTP responses by `SecurityHeadersMiddleware` in `services/simulation/src/api/middleware/security_headers.py`.
+
+| Header | Value |
+|--------|-------|
+| `Content-Security-Policy` | `default-src 'self'; connect-src 'self' ws: wss:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self'` |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` |
+| `X-Frame-Options` | `DENY` |
+| `X-Content-Type-Options` | `nosniff` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `Permissions-Policy` | `camera=(), microphone=(), geolocation=()` |
+
+### CORS
+
+- Middleware: FastAPI `CORSMiddleware`
+- Allowed origins: configured via `CORS_ORIGINS` environment variable (comma-separated); defaults to `http://localhost:5173,http://localhost:3000` for local development
+- Settings class: `CORSSettings` in `services/simulation/src/settings.py`
+
+### TLS (Production)
+
+- CloudFront enforces `TLSv1.2_2021` minimum protocol version
+- ACM certificate provisioned in `us-east-1` via `infrastructure/terraform/foundation/modules/acm/`
+- Origin Access Control (OAC) restricts S3 bucket access to CloudFront only (SigV4 signed requests)
+- Module: `infrastructure/terraform/foundation/modules/cloudfront/`
+
+---
+
+## Secrets Management
+
+### Storage
+
+| Environment | Backend |
+|-------------|---------|
+| Local development | LocalStack Secrets Manager (emulated AWS) |
+| Production | AWS Secrets Manager |
+
+Credentials are never hardcoded in `.env` files. No static AWS credentials are committed to the repository.
+
+### Bootstrap Flow (Local Development)
+
+1. `localstack` container starts
+2. `secrets-init` runs `infrastructure/scripts/seed-secrets.py` to populate secrets in LocalStack
+3. `fetch-secrets.py` reads secrets and writes grouped `.env` files to a shared Docker volume at `/secrets/`
+4. All other services mount `/secrets/` read-only and source `core.env`, `data-pipeline.env`, or `monitoring.env` in their entrypoints
+
+### Bootstrap Flow (Production)
+
+- External Secrets Operator (ESO) reads from AWS Secrets Manager and syncs to Kubernetes Secrets
+- `SecretStore` uses the EKS node IAM role (not Pod Identity) to avoid a circular dependency during cluster bootstrap
+- `ExternalSecret` CRDs: `external-secrets-api-keys.yaml`, `external-secrets-app-credentials.yaml`
+- Module: `infrastructure/kubernetes/manifests/`
+
+### Secret Groups
+
+| Secret Name | Purpose | Keys |
+|-------------|---------|------|
+| `{project}/api-key` | Simulation service API key | `API_KEY` |
+| `{project}/core` | Kafka and Redis credentials | `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD`, `REDIS_PASSWORD`, `SCHEMA_REGISTRY_USER`, `SCHEMA_REGISTRY_PASSWORD` |
+| `{project}/data-pipeline` | MinIO, PostgreSQL, Airflow internal secrets | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `POSTGRES_AIRFLOW_USER`, `POSTGRES_AIRFLOW_PASSWORD`, `POSTGRES_METASTORE_USER`, `POSTGRES_METASTORE_PASSWORD`, `FERNET_KEY`, `INTERNAL_API_SECRET_KEY`, `JWT_SECRET`, `API_SECRET_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD` |
+| `{project}/monitoring` | Grafana admin credentials | `ADMIN_USER`, `ADMIN_PASSWORD` |
+| `{project}/rds` | RDS master credentials and endpoint | `PASSWORD`, `USERNAME`, `ENDPOINT` |
+| `{project}/github-pat` | GitHub PAT for workflow dispatch | `GITHUB_PAT` |
+
+Terraform-generated production credentials: API key uses 32-character random string; all other passwords use configurable `password_length` (default 16). Module: `infrastructure/terraform/foundation/modules/secrets_manager/`.
+
+### Individual Secret Override (Dev)
+
+`seed-secrets.py` supports `OVERRIDE_<KEY>` environment variables to replace default local values (e.g., `OVERRIDE_API_KEY=mykey`) without modifying the script.
+
+### GitHub PAT
+
+The `{project}/github-pat` secret is seeded with a placeholder value on first Terraform apply. The `ignore_changes` lifecycle rule prevents Terraform from overwriting a real token set out-of-band. The real token must be set manually after initial provisioning.
+
+---
+
+## PII Handling
+
+### Masking in Logs
+
+- Module: `services/simulation/src/sim_logging/`
+- `PIIFilter` is applied at the log handler level (intercepts all records regardless of origin)
+- Email addresses are masked to `[EMAIL]`
+- Phone numbers are masked to `[PHONE]`
+- Masking applies only to `str`-type log messages; structured fields (formatted arguments, JSON objects) are not scanned
+
+### PII in Kafka Events
+
+Profile schemas (`driver_profile_event`, `rider_profile_event`) carry PII fields (name, email, phone, home_location). These are synthetic values generated by the `Faker` library for the simulation. Schema definitions are in `schemas/kafka/`.
+
+---
+
+## Kafka Security
+
+### Authentication
+
+- Protocol: SASL/PLAIN
+- Applied in both local (via LocalStack-seeded credentials) and production environments
+- Credentials: `KAFKA_SASL_USERNAME` / `KAFKA_SASL_PASSWORD` from Secrets Manager
+- Local JAAS config written dynamically at container startup via shell `printf` to `/tmp/kafka_jaas.conf`
+
+### Schema Registry
+
+- Authentication: HTTP BASIC auth (`SCHEMA_REGISTRY_AUTHENTICATION_METHOD: BASIC`)
+- Credentials from a mounted `users.properties` file injected from Secrets Manager
+- JSON Schema Draft 2020-12 enforcement for all 8 application topics
+
+---
+
+## Cryptography
+
+### No Password Hashing
+
+There is no user account system. The API key is a plain random string; comparison is done with string equality. No password hashing libraries (bcrypt, argon2, etc.) are used.
+
+### Airflow Fernet Key
+
+- Purpose: Encrypts connection passwords stored in the Airflow metadata database
+- Format: 32-byte URL-safe base64 string
+- Generated by Terraform using `random_bytes` (not `random_password`) for correct format
+- Stored in `{project}/data-pipeline` Secrets Manager secret under key `FERNET_KEY`
+
+### TLS
+
+- All production traffic served via HTTPS (CloudFront + ACM, minimum TLSv1.2_2021)
+- Simulation API HSTS header: `max-age=31536000; includeSubDomains`
+
+---
+
+## Default Credentials (Local Development)
+
+All services use simplified credentials for local development seeded by `infrastructure/scripts/seed-secrets.py`. These defaults must not be used in production.
+
+| Service | Default Value |
+|---------|--------------|
+| API key | `admin` |
+| Kafka SASL username/password | `admin` / `admin` |
+| Redis password | `admin` |
+| Schema Registry | `admin` / `admin` |
+| MinIO root user/password | `admin` / `adminadmin` |
+| PostgreSQL (Airflow) | `admin` / `admin` |
+| PostgreSQL (Metastore) | `admin` / `admin` |
+| Grafana admin | `admin` / `admin` |
+| Airflow admin | `admin` / `admin` |
+| GitHub PAT | placeholder — must be replaced |
+
+Production credentials are randomly generated by Terraform at `apply` time and stored only in AWS Secrets Manager and Terraform state.
+
+---
+
+## Known Security Considerations
+
+- **Single shared API key**: The simulation API key grants full access with no scope restrictions. All clients (Control Panel, Performance Controller, CI scripts) share the same key.
+- **`/health` is unauthenticated**: The `GET /health` and `GET /health/detailed` endpoints are intentionally unauthenticated for Kubernetes probes and load balancer health checks.
+- **Trino has no local auth**: Trino runs without authentication in local development. Production deployments are authenticated.
+- **Prometheus has no auth**: The Prometheus HTTP API (port 9090) runs without authentication in both local and production environments.
+- **Intentional data corruption**: The simulation supports `MALFORMED_EVENT_RATE` (float 0.0-1.0) that publishes additional corrupted event copies to exercise the Bronze DLQ pipeline. Disabled by default (0.0).
+- **Public-only subnets (Production)**: The production VPC uses a public-subnet-only design with no NAT gateways; all EKS nodes have public IPs but are controlled by security groups.
+- **ArgoCD `selfHeal: true`**: Manual `kubectl` changes to ArgoCD-managed resources are automatically reverted. The ArgoCD deployment watches the `deploy` branch.
+- **Session time-boxing**: The Lambda auth-deploy function enforces a session deadline with auto-teardown via EventBridge Scheduler. A deploying session older than 30 minutes is auto-deleted (assumed failed). A tearing-down session older than 15 minutes is auto-deleted (assumed stale).
+- **Frontend cookie scope**: The API key is carried in a cookie scoped to the parent domain (`ridesharing.portfolio.andresbrocco.com`) shared across the landing page and control-panel subdomains.

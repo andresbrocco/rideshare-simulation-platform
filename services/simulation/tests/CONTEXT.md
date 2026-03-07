@@ -1,40 +1,29 @@
-# CONTEXT.md — Tests
+# CONTEXT.md — Simulation Tests
 
 ## Purpose
 
-Provides test infrastructure and shared fixtures for validating the simulation service, including state machine correctness, agent behavior, API contracts, persistence, and event schemas.
+Top-level test suite for the simulation service, covering trip state machine correctness, API contract validation (including cross-service TypeScript type consistency), HTTP security header enforcement, and Pydantic settings validation. Sub-directories contain engine and Kafka-specific tests.
 
 ## Responsibility Boundaries
 
-- **Owns**: Test fixtures (conftest.py), factory patterns for DNA/agent creation (factories.py), environment setup for isolated test runs
-- **Delegates to**: Subdirectories (`agents/`, `engine/`, `api/`, `db/`, etc.) for domain-specific test implementations
-- **Does not handle**: Integration tests (located in `tests/integration/`), performance tests (separate directory), frontend tests (services/control-panel/)
+- **Owns**: All unit-level tests for the simulation service, shared fixtures and factories, the `conftest.py` global setup applied to every test in the suite
+- **Delegates to**: `tests/engine/` for SimPy engine behavior, `tests/kafka/` for producer/consumer integration
+- **Does not handle**: Integration tests requiring running Docker services (those live under `tests/integration/` at the repo root)
 
 ## Key Concepts
 
-**Test Environment Isolation**: `conftest.py` sets GPS ping intervals to 60s (from defaults) and provides test credentials for Kafka/Redis/API, ensuring tests run without external service dependencies.
-
-**Zone Validator Setup**: `setup_zone_validator` fixture auto-runs before each test to load sample zones from `fixtures/sample_zones.geojson` and resets after each test to prevent cache pollution.
-
-**DNAFactory Pattern**: `factories.py` provides seeded Faker-based DNA generation with deterministic results (seed=42). Factory methods accept `**overrides` to customize specific fields while maintaining realistic defaults.
-
-**Contract Testing**: `test_api_contract.py` validates that FastAPI application matches OpenAPI spec (`schemas/api/openapi.json`) and that TypeScript types (`services/control-panel/src/types/api.generated.ts`) stay synchronized.
-
-**Fixture Scoping**: Fixtures use default function scope for isolation. Zone validator uses `autouse=True` to automatically configure for all tests without explicit fixture injection.
+- **DNAFactory**: A seeded factory class that wraps Brazil-locale Faker providers (`vehicle_br`, `license_plate_br`, `phone_br_mobile_sp`, `payment_method_br`) to produce deterministic `DriverDNA` and `RiderDNA` objects. Coordinates in factory defaults are pinned to named zones from `fixtures/sample_zones.geojson` (BVI, PIN, SEE) — changing default coordinates can silently break zone-validator assertions.
+- **API contract tests**: `test_api_contract.py` validates the OpenAPI spec both structurally (via `openapi_spec_validator`) and behaviorally (live endpoint shape checks). It also runs `npm run generate-types` against the frontend and asserts the committed `api.generated.ts` matches the regenerated output, enforcing frontend/backend type sync across service boundaries.
+- **Zone validator fixture pattern**: `conftest.py` registers an `autouse` fixture that resets and re-points the zone loader singleton to `fixtures/sample_zones.geojson` before every test, then tears it down after. This prevents cached zone state from leaking between tests.
 
 ## Non-Obvious Details
 
-**GPS Ping Interval Override**: Tests set `GPS_PING_INTERVAL_MOVING` and `GPS_PING_INTERVAL_IDLE` to 60 seconds before imports to prevent SimPy from creating excessive events during long-running test scenarios. Production defaults would generate too many ping events for test performance.
-
-**Credential Default Pattern**: Kafka/Redis/API credentials have no application defaults (services must fail without secrets). `conftest.py` sets test-specific values via `os.environ.setdefault()` so Settings() can be constructed in tests without requiring secrets-init.
-
-**Sample Zone Coordinates**: DNAFactory uses hardcoded coordinates that fall inside zones defined in `fixtures/sample_zones.geojson` (BVI, PIN, SEE zones). Tests fail with zone validation errors if coordinates don't match fixture data.
-
-**TypeScript Type Generation Verification**: API contract tests run `npm run generate-types` to ensure committed types match OpenAPI spec, preventing drift between backend schema and frontend types.
+- **Import order in conftest.py matters**: GPS ping interval env vars (`GPS_PING_INTERVAL_MOVING`, `GPS_PING_INTERVAL_IDLE`) and credential env vars must be set via `os.environ.setdefault` **before** any agent module is imported. Moving imports above these `os.environ` calls will cause tests to run with production-default intervals (creating excessive SimPy events) or fail Settings construction entirely.
+- **Credential fields have no defaults by design**: `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD`, `KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO`, `REDIS_PASSWORD`, and `API_KEY` are intentionally required with no defaults so services fail loudly without secrets. The conftest supplies test-only values.
+- **TypeScript type drift test**: `test_typescript_types_match_openapi` invokes `npm run generate-types` at test time and compares output to the committed file. This test will fail in CI if a developer changes the OpenAPI schema without regenerating and committing `api.generated.ts`.
+- **GPS interval override**: Default GPS ping intervals produce too many SimPy events during tests. The conftest overrides them to 60 seconds, which is sufficient to verify GPS event emission without slowing down long simulation runs in tests.
 
 ## Related Modules
 
-- **[tests/engine](engine/CONTEXT.md)** — Engine-specific tests validating SimulationEngine orchestration, thread coordination, and two-phase pause
-- **[tests/kafka](kafka/CONTEXT.md)** — Kafka producer tests validating event publishing reliability tiers and graceful degradation
-- **[src/agents](../src/agents/CONTEXT.md)** — Agent modules tested via DNAFactory fixtures; tests validate agent state machines and DNA-based behavior
-- **[schemas/api](../../../schemas/api/CONTEXT.md)** — OpenAPI spec validated by contract tests to ensure backend/frontend type synchronization
+- [schemas/api](../../../schemas/api/CONTEXT.md) — Dependency — Canonical OpenAPI specification for the simulation control panel REST API
+- [services/control-panel](../../control-panel/CONTEXT.md) — Dependency — React/TypeScript SPA serving as the operator interface: real-time geospatial map...

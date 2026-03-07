@@ -1,42 +1,39 @@
-# CONTEXT.md — API
+# CONTEXT.md — schemas/api
 
 ## Purpose
 
-OpenAPI 3.1 specification for the Rideshare Simulation Control Panel REST API. Serves as the contract between the FastAPI backend and the React frontend, enabling type-safe client code generation and automated drift detection.
+Canonical OpenAPI 3.1.0 specification for the Rideshare Simulation Control Panel REST API. This file is the machine-readable contract between the simulation service and its consumers (control panel frontend, integration tests, external tooling). It is generated from the FastAPI application in `services/simulation/src/api`.
 
 ## Responsibility Boundaries
 
-- **Owns**: OpenAPI 3.1 JSON schema exported from FastAPI app, schema components for all request/response models (ControlResponse, DriverStateResponse, TripMetrics, etc.), endpoint definitions for simulation control, agent management, puppet control, metrics, and health checks
-- **Delegates to**: FastAPI for automatic schema generation from Pydantic models, openapi-typescript for TypeScript type generation, openapi-spec-validator for schema validation in CI
-- **Does not handle**: API implementation (services/simulation/src/api/), client usage (services/control-panel/), schema evolution policy (breaking changes require coordination)
+- **Owns**: The authoritative API surface definition — endpoints, request/response schemas, authentication requirements, and HTTP semantics
+- **Delegates to**: `services/simulation/src/api` for the actual implementation; `services/control-panel` for the client-side usage
+- **Does not handle**: Kafka event schemas (see `schemas/kafka`), lakehouse table schemas (see `schemas/lakehouse`), or WebSocket message formats
 
 ## Key Concepts
 
-**Contract-First Generation** — The OpenAPI spec is not written manually. It is auto-generated from FastAPI route definitions and Pydantic models using FastAPI's `app.openapi()` method. Python type hints become JSON Schema types. This ensures the spec always reflects actual backend behavior.
-
-**Dual Artifact System** — Two artifacts are generated from this spec and committed to version control:
-- TypeScript types (services/control-panel/src/types/api.generated.ts): Used by frontend for type-safe API calls
-- OpenAPI JSON (schemas/api/openapi.json): Source of truth for contract validation
-
-**Endpoint Categories** — The API surface is organized into functional areas:
-- `/simulation/*`: Lifecycle control (start, pause, resume, stop, reset, speed adjustment)
-- `/agents/drivers/{id}`, `/agents/riders/{id}`: Query agent state and DNA
-- `/agents/puppet/*`: Manual control endpoints for automated testing (go online, accept offer, drive to pickup, rate trip)
-- `/metrics/*`: Aggregated metrics (overview, zones, trips, drivers, riders, performance, infrastructure)
-- `/health`, `/auth/validate`: Operational endpoints
-
-**API Authentication** — All endpoints except `/health` require `X-API-Key` header. WebSocket connections use `Sec-WebSocket-Protocol: apikey.<key>` subprotocol for authentication.
+- **Autonomous agents**: Drivers and riders spawned in bulk via `POST /agents/drivers` and `POST /agents/riders`. These agents act independently according to their DNA behavioral parameters and simulation state.
+- **Puppet agents**: A separate agent type (`/agents/puppet/...` endpoints) that starts in `offline` status and takes no autonomous actions. All state transitions are externally triggered via API, making them suitable for deterministic testing of matching logic, geospatial behavior, and timeout scenarios.
+- **SpawnMode**: Controls whether agents go active immediately (`immediate`) or follow their DNA schedule (`scheduled`). Default differs by agent type — drivers default to `immediate`, riders default to `scheduled`.
+- **Rate-throttled spawning**: Agents are not spawned all at once; drivers spawn at ~2/sec and riders at ~40/sec to prevent synchronized GPS ping bursts. Use `GET /agents/spawn-status` to poll the queue.
+- **Two-phase pause**: `POST /simulation/pause` initiates RUNNING → DRAINING → PAUSED; it does not pause immediately. The simulation drains in-flight events before fully pausing.
+- **API tag groups**: Routes are organized into four tags — `simulation` (lifecycle control), `agents` (autonomous agent management and inspection), `puppet` (externally-controlled agent operations), and `metrics` (real-time aggregate counters).
 
 ## Non-Obvious Details
 
-The spec contains over 70 schema components but only a single file. Large schema definitions (ActiveTripInfo, DriverStateResponse, RiderStatisticsResponse) include complex nested structures that must remain synchronized with backend Pydantic models.
-
-Changes to backend models automatically update the spec when re-exported, but the developer must remember to run the export script and commit the result. CI validates that committed spec matches generated spec to prevent drift.
-
-Puppet endpoints (e.g., `/agents/puppet/drivers/{id}/drive-to-pickup`) return immediately but trigger asynchronous background actions. Clients must use WebSocket or polling to observe state changes.
+- This file is generated output — edits are overwritten when the simulation service regenerates its spec. The source of truth is `services/simulation/src/api`.
+- All endpoints require `X-API-Key` in the request header. There is no unauthenticated surface.
+- Puppet agent endpoints include test-specific actions not available on autonomous agents: teleport (`PUT .../location`), force offer timeout, force patience timeout, and manual rating override.
+- The `drive-to-pickup` and `drive-on-trip` puppet endpoints are asynchronous — they return immediately and the driver moves in the background via OSRM routing. Progress must be monitored via WebSocket or the agent state endpoint.
+- Speed multiplier is constrained to the range 0.5–128 (enforced at the API layer via `SpeedChangeRequest`).
 
 ## Related Modules
 
-- **[services/simulation/src/api/routes](../../services/simulation/src/api/routes/CONTEXT.md)** — FastAPI route implementations that generate this OpenAPI spec; changes to routes automatically update the schema
-- **[services/control-panel/src/components](../../services/control-panel/src/components/CONTEXT.md)** — Frontend components consume TypeScript types generated from this spec for type-safe API interaction
-- **[schemas](../CONTEXT.md)** — Parent schema directory; API schemas define REST contract while Kafka schemas define event contracts
+- [docs/other](../../docs/other/CONTEXT.md) — Reverse dependency — Provides API_CONTRACT.md, DOCKER_PROFILES.md, kafka_partitioning.md (+3 more)
+- [services/control-panel](../../services/control-panel/CONTEXT.md) — Reverse dependency — Provides App
+- [services/control-panel](../../services/control-panel/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
+- [services/control-panel/src/hooks](../../services/control-panel/src/hooks/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
+- [services/simulation/src/api](../../services/simulation/src/api/CONTEXT.md) — Dependency — FastAPI application layer bridging the SimPy simulation engine to HTTP control e...
+- [services/simulation/src/api/routes](../../services/simulation/src/api/routes/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
+- [services/simulation/src/engine](../../services/simulation/src/engine/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
+- [services/simulation/tests](../../services/simulation/tests/CONTEXT.md) — Reverse dependency — Provides DNAFactory, conftest fixtures: fake, dna_factory, mock_kafka_producer, mock_redis_client, mock_osrm_client, sample_driver_dna, sample_rider_dna, temp_sqlite_db, sample_zones_path

@@ -1,33 +1,29 @@
-# CONTEXT.md — Sim Logging
+# CONTEXT.md — sim_logging
 
 ## Purpose
 
-Structured logging infrastructure with JSON/human-readable formatting, PII masking, and thread-local context propagation for tracing requests across async operations.
+Provides structured, context-enriched logging for the simulation service. Handles log formatting (JSON for production, human-readable for development), PII redaction, and thread-local context propagation so that correlation fields (trip ID, driver ID, rider ID, correlation ID) are automatically attached to every log record emitted within a logical scope.
 
 ## Responsibility Boundaries
 
-- **Owns**: Log formatting (JSON/dev), PII filtering (emails/phones), thread-local context storage, correlation ID defaults
-- **Delegates to**: `src.core.correlation` for full distributed tracing context
-- **Does not handle**: Log aggregation, external logging services, or log storage
+- **Owns**: Log formatter selection, PII masking, thread-local context injection, root logger configuration, noisy third-party logger silencing
+- **Delegates to**: `src.core.correlation` for full distributed tracing context integration (see note in `DefaultCorrelationFilter`)
+- **Does not handle**: Log shipping/aggregation (Loki handles that externally), log level decisions per subsystem, distributed trace propagation
 
 ## Key Concepts
 
-**Thread-Local Context**: `LogContext` uses `threading.local()` to store fields (trip_id, driver_id, correlation_id) that automatically attach to all log records within a thread. Critical for async operations where multiple trips/requests run concurrently.
-
-**PII Masking**: `PIIFilter` redacts emails and phone numbers from log messages using regex patterns. Applied globally via handler filter, not per-logger.
-
-**Dual Formatters**: `JSONFormatter` for production (structured, parseable), `DevFormatter` for local development (human-readable). Selected at setup based on `json_output` flag.
+- **LogContext**: Thread-local key-value store. Values set within a `log_context()` or `log_trip_context()` scope are injected into every log record on that thread by `ContextFilter`. Cleared unconditionally on scope exit — there is no nesting; entering a new `log_context()` while one is active will overwrite and then clear all fields.
+- **ContextFilter vs DefaultCorrelationFilter**: Two separate filters serve different roles. `ContextFilter` injects arbitrary fields from `LogContext` storage. `DefaultCorrelationFilter` is a fallback that sets `correlation_id = "-"` only when no correlation ID is already present. For distributed tracing, `src.core.correlation.CorrelationFilter` supersedes `DefaultCorrelationFilter`.
+- **PIIFilter**: Applied at the handler level (not logger level), so it intercepts all records regardless of origin. Masks emails to `[EMAIL]` and phone numbers to `[PHONE]` using regex, but only when the message is a plain `str` — formatted arguments or structured fields are not scanned.
 
 ## Non-Obvious Details
 
-**Context Propagation**: The `log_context()` context manager temporarily replaces the global `LogRecordFactory` to inject context fields. This is why context works across all loggers without per-logger configuration.
-
-**Default Correlation ID**: `DefaultCorrelationFilter` adds `"-"` if no correlation_id exists. This is a fallback; proper correlation should use `src.core.correlation.CorrelationFilter` which integrates with the full tracing system.
-
-**Third-Party Suppression**: `setup_logging()` silences noisy libraries (confluent_kafka, urllib3) at WARNING level to prevent log pollution.
+- `log_context()` performs a full `LogContext.clear()` on exit, not a restore of prior state. Nested calls to `log_context()` are not safe — the inner scope's exit will clear fields set by the outer scope.
+- `setup_logging()` clears all existing handlers before adding its own, making it safe to call multiple times (e.g., in tests) without duplicating handlers.
+- `confluent_kafka` and `urllib3` loggers are explicitly silenced to `WARNING` inside `setup_logging()` to suppress verbose third-party output.
+- `JSONFormatter` only promotes a fixed set of fields (`trip_id`, `driver_id`, `rider_id`, `correlation_id`) to top-level JSON keys. Any other fields stored in `LogContext` are injected onto the record by `ContextFilter` but will not appear in JSON output unless the formatter is updated.
+- `log_trip_context()` defaults `correlation_id` to `trip_id` when no explicit `correlation_id` is provided, ensuring trip operations are always traceable even without a full distributed trace context.
 
 ## Related Modules
 
-- **[src/events](../events/CONTEXT.md)** — Events include correlation_id, session_id, causation_id fields that logging context propagates; enables tracing event chains through logs
-- **[src/agents](../agents/CONTEXT.md)** — Agents use log_context() to attach driver_id/rider_id to all log records during agent lifecycle operations
-- **[src/trips](../trips/CONTEXT.md)** — TripExecutor uses log_context(trip_id=...) to trace all trip execution logs back to specific trip instances
+- [services/simulation/src](../CONTEXT.md) — Reverse dependency — Provides main, SimulationRunner, Settings (+8 more)

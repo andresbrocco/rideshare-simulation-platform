@@ -1,6 +1,6 @@
-# OpenTelemetry Collector
+# OTel Collector
 
-> Central telemetry pipeline routing metrics, logs, and traces from application services to observability backends (Prometheus, Loki, Tempo).
+> Central observability gateway routing metrics to Prometheus, logs to Loki, and traces to Tempo via three independent pipelines.
 
 ## Quick Reference
 
@@ -8,352 +8,125 @@
 
 | Port | Protocol | Purpose |
 |------|----------|---------|
-| 4317 | gRPC | OTLP receiver for metrics and traces |
-| 4318 | HTTP | OTLP receiver for metrics and traces |
-| 8888 | HTTP | OTel Collector self-metrics (scraped by Prometheus) |
-| 13133 | HTTP | Health check endpoint |
+| 4317 | gRPC | OTLP receiver — metrics and traces ingestion |
+| 4318 | HTTP | OTLP receiver — metrics and traces ingestion (HTTP alternative) |
+| 8888 | HTTP | Collector self-metrics (Prometheus scrape target) |
+| 13133 | HTTP | Health check endpoint (not mapped to host) |
 
-### Environment Variables
-
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://otel-collector:4317` | OTLP endpoint for application services |
-
-### Configuration Files
+### Configuration
 
 | File | Purpose |
 |------|---------|
-| `otel-collector-config.yaml` | Pipeline configuration (receivers, processors, exporters) |
-| `Dockerfile` | Custom image with wget for health checks |
+| `otel-collector-config.yaml` | Full pipeline configuration — receivers, processors, exporters, extensions |
+
+### Docker Service
+
+```yaml
+image: otel/opentelemetry-collector-contrib:0.96.0
+profile: monitoring
+```
+
+Start with the monitoring profile:
+
+```bash
+docker compose -f infrastructure/docker/compose.yml --profile monitoring up -d otel-collector
+```
 
 ### Health Check
 
 ```bash
-# Docker health check
-curl http://localhost:13133/
+# Internal health endpoint (from within the Docker network)
+curl http://otel-collector:13133/
 
-# Check collector status
-docker compose -f infrastructure/docker/compose.yml logs otel-collector
+# From host — check the container health status
+docker inspect --format='{{.State.Health.Status}}' <container_id>
+```
 
-# Verify collector is receiving data
+### Self-Metrics
+
+```bash
+# Collector's own metrics (pipeline stats, dropped spans, etc.)
 curl http://localhost:8888/metrics
 ```
 
-### Dependencies
+## Pipelines
 
-| Service | Purpose |
-|---------|---------|
-| prometheus | Metrics backend (remote write endpoint) |
-| loki | Logs backend (push endpoint) |
-| tempo | Traces backend (OTLP endpoint) |
+Three independent pipelines process different signal types:
 
-## Telemetry Pipelines
+| Pipeline | Receiver | Batch Timeout | Exporter |
+|----------|----------|---------------|---------|
+| `metrics` | OTLP (gRPC/HTTP) | 1s | `prometheusremotewrite` → `http://prometheus:9090/api/v1/write` |
+| `logs` | `filelog` (Docker JSON logs) | 5s | `loki` → `http://loki:3100/loki/api/v1/push` |
+| `traces` | OTLP (gRPC/HTTP) | 5s | `otlp/tempo` → `tempo:4317` |
 
-### Metrics Pipeline
+## Sending Telemetry
 
-**Flow**: Application (OTLP) → OTel Collector → Prometheus (remote write)
+### From application services — metrics and traces (OTLP)
 
-**Sources**:
-- `simulation` service (OpenTelemetry SDK)
-- `stream-processor` service (OpenTelemetry SDK)
+Applications configured with `OTEL_EXPORTER_OTLP_ENDPOINT` point to the collector:
 
-**Processors**:
-- `memory_limiter` - Prevents OOM (180 MiB limit, 50 MiB spike)
-- `batch` - Batches up to 1000 metrics every 5 seconds
-- `resource` - Adds `deployment.environment=local` label
+```bash
+# gRPC (default for most SDKs)
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
 
-**Exporter**:
-- `prometheusremotewrite` to `http://prometheus:9090/api/v1/write`
+# HTTP
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+```
 
-### Logs Pipeline
+### Logs
 
-**Flow**: Docker container logs → OTel Collector → Loki
-
-**Source**:
-- `filelog` receiver reading `/var/lib/docker/containers/*/*.log`
-
-**Processors**:
-1. Parse Docker JSON log format
-2. Extract container ID from file path
-3. Parse application JSON logs (if present)
-4. Extract attributes: `level`, `service`, `service_name`, `correlation_id`, `trip_id`
-5. Transform `service_name` to `service.name` resource attribute
-6. Add Loki label hints
-
-**Exporter**:
-- `loki` to `http://loki:3100/loki/api/v1/push`
-
-**Loki Labels**:
-- Attribute labels: `level`, `service`, `service_name`, `container_id`
-- Resource labels: `service.name`, `deployment.environment`
-
-### Traces Pipeline
-
-**Flow**: Application (OTLP) → OTel Collector → Tempo
-
-**Sources**:
-- `simulation` service (OpenTelemetry SDK)
-- `stream-processor` service (OpenTelemetry SDK)
-
-**Processors**:
-- `memory_limiter` - Prevents OOM
-- `batch` - Batches traces
-- `resource` - Adds environment label
-
-**Exporter**:
-- `otlp/tempo` to `tempo:4317` (insecure gRPC)
+Logs are collected automatically. The `filelog` receiver reads `/var/lib/docker/containers/*/*.log` directly — no per-service configuration required. Application services write to stdout/stderr; Docker captures them as JSON-wrapped files that the collector parses.
 
 ## Common Tasks
 
-### Start OTel Collector
+### Verify telemetry is flowing
 
 ```bash
-# Start with monitoring profile
-docker compose -f infrastructure/docker/compose.yml --profile monitoring up -d otel-collector
+# Check collector self-metrics for pipeline throughput
+curl -s http://localhost:8888/metrics | grep otelcol_receiver_accepted
 
-# Verify health
-curl http://localhost:13133/
+# Check exporter send counts
+curl -s http://localhost:8888/metrics | grep otelcol_exporter_sent
 ```
 
-### View Self-Metrics
+### Enable debug logging for troubleshooting
+
+The `debug` exporter is defined in the config but not wired into any pipeline by default. To enable it temporarily, add it to the relevant pipeline's `exporters` list in `otel-collector-config.yaml` and restart the container:
 
 ```bash
-# OTel Collector exposes Prometheus-format metrics about itself
-curl http://localhost:8888/metrics
-
-# Key metrics:
-# - otelcol_receiver_accepted_metric_points
-# - otelcol_receiver_accepted_spans
-# - otelcol_exporter_sent_metric_points
-# - otelcol_processor_batch_batch_send_size
-```
-
-### Test OTLP Endpoint
-
-```bash
-# Verify gRPC endpoint is reachable
-grpcurl -plaintext localhost:4317 list
-
-# Check HTTP endpoint
-curl -X POST http://localhost:4318/v1/metrics \
-  -H "Content-Type: application/json" \
-  -d '{}'
-```
-
-### Debug Telemetry Flow
-
-```bash
-# Enable debug exporter (edit otel-collector-config.yaml)
-# Uncomment debug exporter in pipelines section
-
-# View debug logs
-docker compose -f infrastructure/docker/compose.yml logs -f otel-collector
-```
-
-### Adjust Memory Limits
-
-```bash
-# Edit otel-collector-config.yaml
-# Modify memory_limiter processor:
-processors:
-  memory_limiter:
-    check_interval: 1s
-    limit_mib: 256        # Increase from 180
-    spike_limit_mib: 64   # Increase from 50
-
-# Restart collector
 docker compose -f infrastructure/docker/compose.yml restart otel-collector
+```
+
+### Inspect dropped data
+
+```bash
+# Check for dropped spans, metrics, or logs due to memory pressure
+curl -s http://localhost:8888/metrics | grep otelcol_processor_dropped
+```
+
+### Tail collector logs
+
+```bash
+docker compose -f infrastructure/docker/compose.yml logs -f otel-collector
 ```
 
 ## Troubleshooting
 
-### Collector Not Starting
+**Collector exits with OOM**: The `memory_limiter` processor caps usage at 180 MiB (spike limit: 50 MiB). If upstream services burst too much telemetry, the collector drops data rather than OOM. Reduce `send_batch_size` or increase `limit_mib` in `otel-collector-config.yaml`.
 
-**Symptom**: Health check fails at startup
+**Logs not appearing in Loki**: The `filelog` receiver requires the Docker socket directory (`/var/lib/docker/containers`) to be volume-mounted into the container. Verify the compose volume mount is present. Also confirm that the service writes JSON-formatted logs — the `app_log_parser` only activates when the `log` field starts with `{`.
 
-**Causes**:
-- Invalid YAML syntax in `otel-collector-config.yaml`
-- Missing dependencies (prometheus, loki, tempo)
-- Port conflicts (4317, 4318, 8888, 13133)
+**Metrics not reaching Prometheus**: Metrics use `prometheusremotewrite` (push), not a scrape endpoint. Verify Prometheus has `--web.enable-remote-write-receiver` enabled and check `otelcol_exporter_send_failed_metric_points` in the collector's self-metrics.
 
-**Solution**:
-```bash
-# Check logs for config errors
-docker compose -f infrastructure/docker/compose.yml logs otel-collector
+**Traces not in Tempo**: Confirm the sending service sets `OTEL_EXPORTER_OTLP_ENDPOINT` to point at the collector (not directly at Tempo). Check `otelcol_exporter_sent_spans` to see if spans are leaving the collector.
 
-# Validate YAML syntax
-yamllint otel-collector-config.yaml
+**Health check failing**: The Dockerfile copies `wget` from BusyBox into the OTel image because the `otel/opentelemetry-collector-contrib` image has no wget binary by default. If the image is rebuilt without this layer, Docker health checks will fail silently.
 
-# Check port availability
-lsof -i :4317
-lsof -i :4318
-```
-
-### Metrics Not Reaching Prometheus
-
-**Symptom**: Prometheus shows no data from simulation/stream-processor
-
-**Causes**:
-- Application services not exporting OTLP metrics
-- Collector not forwarding to Prometheus remote write endpoint
-- Network connectivity issues
-
-**Solution**:
-```bash
-# Verify collector is receiving metrics
-curl http://localhost:8888/metrics | grep receiver_accepted_metric_points
-
-# Check Prometheus remote write exporter
-curl http://localhost:8888/metrics | grep exporter_sent_metric_points
-
-# Verify application services have OTEL_EXPORTER_OTLP_ENDPOINT set
-docker compose -f infrastructure/docker/compose.yml exec simulation env | grep OTEL
-```
-
-### Logs Not Reaching Loki
-
-**Symptom**: Loki shows no container logs
-
-**Causes**:
-- Docker log directory not mounted (`/var/lib/docker/containers`)
-- Loki endpoint unreachable
-- Log parsing errors
-
-**Solution**:
-```bash
-# Verify Docker logs volume mount
-docker compose -f infrastructure/docker/compose.yml config | grep -A5 otel-collector
-
-# Check filelog receiver status
-curl http://localhost:8888/metrics | grep filelog
-
-# Test Loki endpoint
-curl http://localhost:3100/ready
-```
-
-### Traces Not Reaching Tempo
-
-**Symptom**: Grafana shows no trace data
-
-**Causes**:
-- Tempo endpoint unreachable
-- Application services not exporting spans
-- OTLP exporter misconfigured
-
-**Solution**:
-```bash
-# Verify collector is receiving traces
-curl http://localhost:8888/metrics | grep receiver_accepted_spans
-
-# Check Tempo OTLP exporter
-curl http://localhost:8888/metrics | grep exporter_sent_spans
-
-# Test Tempo endpoint
-docker compose -f infrastructure/docker/compose.yml exec tempo wget -O- http://localhost:3200/ready
-```
-
-### Memory Limit Exceeded
-
-**Symptom**: Collector logs show "memory limiter" warnings
-
-**Causes**:
-- High telemetry volume
-- Memory limit too low (default 180 MiB)
-- Batch size too large
-
-**Solution**:
-```bash
-# Increase memory limit in otel-collector-config.yaml
-# Reduce batch size or timeout
-# Check current memory usage
-docker stats otel-collector --no-stream
-```
-
-### Pipeline Not Processing Data
-
-**Symptom**: Receiver metrics increase but exporter metrics don't
-
-**Causes**:
-- Processor errors (e.g., attribute extraction failures)
-- Backend unavailable
-- Configuration mismatch
-
-**Solution**:
-```bash
-# Check processor metrics
-curl http://localhost:8888/metrics | grep processor
-
-# Enable debug exporter in config
-# Add to exporters section: debug: { verbosity: detailed }
-# Add to pipelines: exporters: [..., debug]
-
-# Restart and view debug logs
-docker compose -f infrastructure/docker/compose.yml restart otel-collector
-docker compose -f infrastructure/docker/compose.yml logs -f otel-collector
-```
-
-## Application Integration
-
-### Python (OpenTelemetry SDK)
-
-```python
-from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-
-# Configure OTLP exporter
-trace.set_tracer_provider(TracerProvider())
-otlp_exporter = OTLPSpanExporter(endpoint="http://otel-collector:4317", insecure=True)
-trace.get_tracer_provider().add_span_processor(BatchSpanProcessor(otlp_exporter))
-
-# Create spans
-tracer = trace.get_tracer(__name__)
-with tracer.start_as_current_span("operation_name"):
-    # Your code here
-    pass
-```
-
-### Environment Variables for Applications
-
-```bash
-# Required for Python OpenTelemetry SDK
-OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-OTEL_EXPORTER_OTLP_PROTOCOL=grpc
-OTEL_SERVICE_NAME=my-service
-```
-
-## Architecture Notes
-
-### Collector vs. Agent Pattern
-
-This deployment uses a single **collector** instance (not agent-per-node):
-- Applications push metrics/traces via OTLP
-- Docker logs are collected from mounted volume
-- Suitable for Docker Compose (single host)
-
-For Kubernetes, consider DaemonSet agent pattern for log collection.
-
-### Processor Ordering
-
-Processor order matters:
-1. `memory_limiter` - First line of defense
-2. `batch` - Reduces export calls
-3. `resource` - Adds metadata
-4. `attributes/*` - Extracts/transforms attributes
-5. `transform/*` - Complex transformations
-
-### Label Cardinality
-
-Be careful with Loki labels:
-- High cardinality (e.g., `trip_id`) increases memory usage
-- Use structured log fields instead of labels for high-cardinality data
-- Current config uses low-cardinality labels: `level`, `service`, `container_id`
+**Loki label cardinality**: Only `level`, `service`, `service_name`, and `container_id` are promoted to indexed Loki labels. Other log attributes (e.g., `correlation_id`, `trip_id`) are stored as unindexed metadata and cannot be used in label matchers — use `|= "correlation_id=..."` log line filters instead.
 
 ## Related
 
-- [CONTEXT.md](CONTEXT.md) — Architecture context
-- [../prometheus/README.md](../prometheus/README.md) — Metrics backend
-- [../loki/README.md](../loki/README.md) — Logs backend
-- [../tempo/README.md](../tempo/README.md) — Traces backend
-- [../grafana/README.md](../grafana/README.md) — Visualization frontend
+- [CONTEXT.md](CONTEXT.md) — Architecture context: pipeline design, log parsing strategy, label promotion
+- [services/prometheus/README.md](../prometheus/README.md) — Metric storage backend
+- [services/tempo/README.md](../tempo/README.md) — Trace storage backend
+- [services/loki/README.md](../loki/README.md) — Log storage backend

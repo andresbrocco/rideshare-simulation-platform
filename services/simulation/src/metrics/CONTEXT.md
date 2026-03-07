@@ -2,36 +2,31 @@
 
 ## Purpose
 
-Dual-layer metrics system combining in-memory performance tracking with OpenTelemetry export. The `collector` module tracks event throughput, latency samples, error occurrences, and system resource usage in a rolling window. The `prometheus_exporter` module transforms these metrics into OpenTelemetry format (counters, histograms, gauges) and exports them via OTLP to the OTel Collector, which forwards to Prometheus for Grafana visualization.
+Provides two-layer observability for the simulation service: an in-process rolling-window `MetricsCollector` that accumulates raw samples, and an OpenTelemetry exporter (`prometheus_exporter.py`) that translates those samples into OTLP metrics forwarded to Prometheus via the OTel Collector.
 
 ## Responsibility Boundaries
 
-- **Owns**: Collection and aggregation of performance metrics (event counts, latency percentiles, error stats, memory/CPU usage) with configurable rolling windows (default 60 seconds); export to OpenTelemetry in Prometheus-compatible metric names
-- **Delegates to**: psutil for process-level resource metrics, OpenTelemetry SDK for OTLP export, external components for queue depth/agent count callbacks
-- **Does not handle**: Long-term persistence (metrics are ephemeral in collector), metric alerting, metric visualization, or direct Prometheus scraping (uses push model via OTel Collector)
+- **Owns**: In-process event/latency/error sample collection, rolling-window rate computation, thread-safe snapshot production, OTel instrument definitions, and delta computation for UpDownCounters
+- **Delegates to**: OTel SDK for OTLP transport; Prometheus scrape pipeline receives metrics via remote_write from the OTel Collector
+- **Does not handle**: Grafana dashboard wiring, alert rules, or any data pipeline / stream-processor metrics
 
 ## Key Concepts
 
-- **Rolling Window Tracking**: All metrics (events, latency samples, errors) use time-windowed storage with automatic cleanup to prevent unbounded memory growth
-- **Singleton Pattern**: Global metrics collector instance accessed via `get_metrics_collector()` for consistent metrics across threads
-- **Callback Registration**: Queue depth and agent counts are provided via registered callbacks rather than direct coupling to engine internals
-- **Snapshot Model**: `get_snapshot()` provides point-in-time performance data with computed statistics (percentiles, rates per second)
-- **Delta Tracking**: OpenTelemetry counters track previous values to compute deltas from cumulative inputs, enabling proper OTLP export semantics
-- **Observable Gauges**: Metrics like average fare and matching success rate use OTel observable gauges with callback-based reads from a thread-safe snapshot dictionary
+- **MetricsCollector**: Thread-safe singleton (double-checked locking via `get_metrics_collector()`) that stores time-stamped samples in `deque` structures. Rolling window defaults to 60 seconds; O(1) `popleft` cleanup keeps memory bounded. Produces `PerformanceSnapshot` on demand.
+- **PerformanceSnapshot**: A frozen point-in-time view of rates, latency percentiles (avg/p95/p99), error counts by type, queue depths (via registered callbacks), and process-level resource stats (psutil).
+- **Queue/agent count callbacks**: Components register callable lambdas with `register_queue_depth_callback` / `register_agent_count_callback` rather than pushing values directly, so the collector polls current state only at snapshot time.
 
 ## Non-Obvious Details
 
-- Latency percentiles (p95, p99) are computed from sorted samples within the rolling window, not using approximate algorithms
-- Window divisor is capped at 60 seconds (`min(self._window_seconds, 60)`) when computing rates to avoid artificially low rates during simulation startup
-- CPU percentage uses `interval=None` to avoid blocking the caller thread waiting for measurement
-- Thread count uses `threading.active_count()` from the threading module, not process-level thread count from psutil
-- The `EventType` and `ComponentType` literals define valid values for metrics recording but are not enforced at runtime (accepts any string)
-- Prometheus exporter preserves original `prometheus_client` metric names for backward compatibility with existing Grafana dashboards despite using OpenTelemetry SDK
-- UpDownCounters (drivers_online, trips_active, offers_pending, simpy_events) track deltas to reflect real-time state changes, not cumulative counts
-- Event counts are estimated from `rate * window_seconds` before computing deltas, which can lead to approximation errors during rapid rate changes
+- **Observable Gauge for `offers_pending`**: Trip offers are created and resolved within the same SimPy tick. When the OTel export interval (1 s) fires between ticks, the delta via an UpDownCounter would always be 0. An Observable Gauge is used instead so it reports the instantaneous count at each export — meaning it correctly emits 0 when no offers are pending (not a missing metric).
+- **Delta computation in `update_metrics_from_snapshot`**: OTel Counters and UpDownCounters are cumulative instruments. The exporter tracks `_previous_*` module-level state and adds only the delta each call, converting the snapshot's absolute counts into increments. This is necessary because `MetricsCollector` stores raw rolling-window samples, not cumulative totals.
+- **Event counter approximation**: Event rates from the snapshot are back-converted to estimated cumulative counts (`rate * 60`) before computing the delta. This introduces a minor approximation but avoids storing full cumulative totals separately.
+- **Metric name stability**: The OTel instrument names deliberately mirror the original `prometheus_client` names (e.g., `simulation_events_total`) to preserve Grafana dashboard compatibility across the migration to OTLP.
+- **`simulation_errors_total` / `simulation_corrupted_events_total` appear only after first occurrence**: These are counters with no default labels; Prometheus will not expose them until at least one increment is recorded. Absence in a healthy system is expected.
+- **Redis latency histogram**: The simulation emits `simulation_redis_latency_seconds` via `observe_latency`. The stream-processor has a separate `stream_processor_redis_publish_latency_seconds_bucket`. These are distinct; do not conflate them in Grafana queries.
 
 ## Related Modules
 
-- **[services/prometheus](../../../prometheus/CONTEXT.md)** — Receives metrics exported via OTel Collector; provides time-series storage for Grafana dashboards
-- **[src/engine](../engine/CONTEXT.md)** — Registers callbacks for queue depth and agent count metrics; metrics collector tracks engine performance
-- **[services/grafana](../../../grafana/CONTEXT.md)** — Visualizes metrics via Prometheus datasource; dashboards query metrics exported by this module
+- [services/simulation/src](../CONTEXT.md) — Reverse dependency — Provides main, SimulationRunner, Settings (+8 more)
+- [services/simulation/src/agents](../agents/CONTEXT.md) — Reverse dependency — Provides DriverAgent, RiderAgent, DriverDNA (+8 more)
+- [services/stream-processor/src](../../../stream-processor/src/CONTEXT.md) — Shares Observability and Metrics domain (metricscollector)

@@ -1,235 +1,212 @@
 # Grafana
 
-> Multi-datasource visualization and alerting for operational monitoring, data engineering, and business intelligence
+> Unified observability frontend aggregating metrics, logs, traces, and Delta Lake SQL analytics across four datasources, with dashboards organized by data pipeline layer.
 
 ## Quick Reference
 
+### Ports
+
+| Host Port | Container Port | Description |
+|-----------|---------------|-------------|
+| 3001 | 3000 | Grafana web UI |
+
+### Access
+
+| Detail | Value |
+|--------|-------|
+| URL | http://localhost:3001 |
+| Username | `admin` |
+| Password | `admin` |
+| Docker profile | `monitoring` |
+
 ### Environment Variables
 
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `GF_PATHS_PROVISIONING` | Path to provisioning configs | `/etc/grafana/provisioning` | Yes |
-| `GF_SERVER_ROOT_URL` | External Grafana URL | `http://localhost:3001` | Yes |
-| `GF_AUTH_ANONYMOUS_ENABLED` | Allow anonymous access | `false` | Yes |
-| `GF_INSTALL_PLUGINS` | Plugins to install on startup | `trino-datasource` | Yes |
-| `GF_SECURITY_ADMIN_USER` | Admin username | `admin` (from secrets) | Yes |
-| `GF_SECURITY_ADMIN_PASSWORD` | Admin password | `admin` (from secrets) | Yes |
-
-**Note:** Admin credentials are injected from LocalStack Secrets Manager (`rideshare/monitoring`) via the `secrets-init` service.
-
-### API Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `http://localhost:3001` | Grafana web UI |
-| GET | `http://localhost:3001/api/health` | Health check endpoint |
-| GET | `http://localhost:3001/api/dashboards/home` | Home dashboard |
-| GET | `http://localhost:3001/api/datasources` | List datasources |
-| GET | `http://localhost:3001/api/alertmanager/grafana/api/v2/alerts` | Alert list |
-
-```bash
-# Health check
-curl http://localhost:3001/api/health
-
-# List datasources (requires auth)
-curl -u admin:admin http://localhost:3001/api/datasources
-
-# API authentication
-curl -H "Authorization: Basic YWRtaW46YWRtaW4=" \
-  http://localhost:3001/api/datasources
-```
-
-### Commands
-
-```bash
-# Start Grafana with monitoring profile
-docker compose -f infrastructure/docker/compose.yml --profile monitoring up -d grafana
-
-# View logs
-docker compose -f infrastructure/docker/compose.yml logs -f grafana
-
-# Check health
-docker compose -f infrastructure/docker/compose.yml exec grafana wget -q -O- http://localhost:3000/api/health
-
-# Restart Grafana
-docker compose -f infrastructure/docker/compose.yml restart grafana
-
-# Stop Grafana
-docker compose -f infrastructure/docker/compose.yml --profile monitoring down
-```
-
-### Configuration
-
-| File | Purpose |
-|------|---------|
-| `provisioning/datasources/datasources.yml` | Datasource definitions (Prometheus, Trino, Loki, Tempo) |
-| `provisioning/dashboards/default.yml` | Dashboard provisioning config |
-| `provisioning/alerting/rules.yml` | Alert rule definitions (resource thresholds, simulation alerts) |
-| `dashboards/monitoring/simulation-metrics.json` | Real-time simulation monitoring |
-| `dashboards/monitoring/platform-operations.json` | Infrastructure and service metrics |
-| `dashboards/data-engineering/data-ingestion.json` | ETL pipeline monitoring |
-| `dashboards/data-engineering/data-quality.json` | Data quality metrics |
-| `dashboards/business-intelligence/demand-analysis.json` | Rider demand patterns |
-| `dashboards/business-intelligence/driver-performance.json` | Driver efficiency metrics |
-| `dashboards/business-intelligence/revenue-analytics.json` | Revenue and pricing analytics |
+| Variable | Description |
+|----------|-------------|
+| `GF_INSTALL_PLUGINS` | Comma-separated list of plugins to install at startup. Must include `trino-datasource` for Delta Lake SQL panels. |
 
 ### Datasources
 
-| Name | Type | URL | Purpose |
-|------|------|-----|---------|
-| **Prometheus** | `prometheus` | `http://prometheus:9090` | Real-time metrics (default) |
-| **Trino** | `trino-datasource` | `http://trino:8080` | Lakehouse queries (Delta catalog) |
-| **Loki** | `loki` | `http://loki:3100` | Log aggregation |
-| **Tempo** | `tempo` | `http://tempo:3200` | Distributed tracing |
+All four datasources are provisioned via `provisioning/datasources/datasources.yml`. UIDs are hardcoded — do not use `${DS_*}` template variables.
 
-**Tempo Integrations:**
-- Traces → Logs: Links to Loki logs by trace/span ID
-- Traces → Metrics: Links to Prometheus metrics
-- Node Graph: Visualizes service dependencies
-- Service Map: Shows service topology
+| UID | Type | Internal URL | Default |
+|-----|------|-------------|---------|
+| `prometheus` | Prometheus | `http://prometheus:9090` | Yes |
+| `trino` | trino-datasource | `http://trino:8080` | No |
+| `loki` | Loki | `http://loki:3100` | No |
+| `tempo` | Tempo | `http://tempo:3200` | No |
 
-### Dashboard Categories
+### Dashboard Folders
 
-| Category | Dashboards | Purpose |
-|----------|-----------|---------|
-| **Monitoring** | `simulation-metrics.json`, `platform-operations.json` | Real-time operational metrics |
-| **Data Engineering** | `data-ingestion.json`, `data-quality.json` | ETL pipeline health |
-| **Business Intelligence** | `demand-analysis.json`, `driver-performance.json`, `revenue-analytics.json` | Business KPIs |
-| **Operations** | `platform-operations.json` | Infrastructure monitoring |
+| Folder | Path | Datasources Used | Description |
+|--------|------|-----------------|-------------|
+| Monitoring | `dashboards/monitoring/` | Prometheus | Real-time simulation engine metrics |
+| Data Engineering | `dashboards/data-engineering/` | Trino, Prometheus | Bronze/Silver pipeline health |
+| Business Intelligence | `dashboards/business-intelligence/` | Trino | Gold star schema analytics |
+| Operations | `dashboards/operations/` | Prometheus | Platform-wide operational view |
+| Performance | `dashboards/performance/` | Prometheus | Performance engineering metrics |
+
+### Dashboards
+
+| File | Folder | Description |
+|------|--------|-------------|
+| `dashboards/monitoring/simulation-metrics.json` | Monitoring | Real-time simulation engine metrics |
+| `dashboards/data-engineering/data-ingestion.json` | Data Engineering | Bronze/Silver ingestion pipeline health |
+| `dashboards/data-engineering/data-quality.json` | Data Engineering | Data quality validation metrics |
+| `dashboards/business-intelligence/driver-performance.json` | Business Intelligence | Driver performance analytics (Gold) |
+| `dashboards/business-intelligence/driver-explorer.json` | Business Intelligence | Per-driver exploration view |
+| `dashboards/business-intelligence/rider-explorer.json` | Business Intelligence | Per-rider exploration view |
+| `dashboards/business-intelligence/demand-analysis.json` | Business Intelligence | Demand heatmap and demand trends |
+| `dashboards/business-intelligence/revenue-analytics.json` | Business Intelligence | Revenue and fare analytics |
+| `dashboards/operations/platform-operations.json` | Operations | Platform-wide container and service health |
+| `dashboards/performance/performance-engineering.json` | Performance | Load test and throughput metrics |
 
 ### Alert Rules
 
-**Resource Threshold Alerts** (interval: 1m):
-- `simulation_memory_high`: >90% memory usage for 5m (warning)
-- `stream_processor_memory_high`: >90% memory usage for 5m (warning)
-- `kafka_memory_high`: >90% memory usage for 5m (warning)
-- `container_cpu_high`: >80% CPU usage for 5m (warning)
+Defined in `provisioning/alerting/rules.yml`. All rules use `noDataState: NoData` — missing metrics during startup do not trigger false alerts.
 
-**Simulation Alerts** (interval: 1m):
-- `simulation_error_rate_high`: >10 errors/sec for 2m (warning)
-- `stream_processor_kafka_disconnected`: Connection lost for 1m (critical)
-- `stream_processor_redis_disconnected`: Connection lost for 1m (critical)
+| Rule UID | Title | Condition | Severity |
+|----------|-------|-----------|----------|
+| `simulation_memory_high` | High Simulation Memory Usage | Memory > 90% for 5 min | warning |
+| `stream_processor_memory_high` | High Stream Processor Memory Usage | Memory > 90% for 5 min | warning |
+| `kafka_memory_high` | High Kafka Memory Usage | Memory > 90% for 5 min | warning |
+| `container_cpu_high` | High Container CPU Usage | CPU > 80% for 5 min | warning |
+| `simulation_error_rate_high` | High Simulation Error Rate | `simulation_errors_total` rate > 10/s for 2 min | warning |
+| `stream_processor_kafka_disconnected` | Stream Processor Kafka Disconnected | `stream_processor_kafka_connected == 0` for 1 min | critical |
+| `stream_processor_redis_disconnected` | Stream Processor Redis Disconnected | `stream_processor_redis_connected == 0` for 1 min | critical |
 
-### Prerequisites
+### Configuration Files
 
-- **Docker Compose**: Required for LocalStack secrets injection
-- **Prometheus**: `http://prometheus:9090` (monitoring profile)
-- **Trino**: `http://trino:8080` (data-pipeline profile)
-- **Loki**: `http://loki:3100` (monitoring profile)
-- **Tempo**: `http://tempo:3200` (monitoring profile)
-- **LocalStack Secrets Manager**: For admin credentials (`rideshare/monitoring`)
+| File | Purpose |
+|------|---------|
+| `provisioning/datasources/datasources.yml` | Datasource provisioning (Prometheus, Trino, Loki, Tempo) |
+| `provisioning/dashboards/default.yml` | Dashboard folder provider configuration |
+| `provisioning/alerting/rules.yml` | Alert rule definitions |
+
+## Commands
+
+### Start Grafana
+
+```bash
+docker compose -f infrastructure/docker/compose.yml --profile monitoring up -d grafana
+```
+
+### Start full monitoring stack
+
+```bash
+docker compose -f infrastructure/docker/compose.yml --profile core --profile data-pipeline --profile monitoring up -d
+```
+
+### Reload provisioned dashboards (without restart)
+
+Grafana polls the dashboard directory every 10 seconds (`updateIntervalSeconds: 10` in `provisioning/dashboards/default.yml`). Drop an updated JSON file into the appropriate `dashboards/<folder>/` directory and it will be loaded automatically.
+
+### Access Grafana API
+
+```bash
+# List all dashboards
+curl -s -H "Authorization: Basic YWRtaW46YWRtaW4=" \
+  http://localhost:3001/api/search | jq '.[] | {title, folderTitle, uid}'
+
+# Get a specific dashboard by UID
+curl -s -H "Authorization: Basic YWRtaW46YWRtaW4=" \
+  http://localhost:3001/api/dashboards/uid/<UID> | jq .
+
+# List datasources
+curl -s -H "Authorization: Basic YWRtaW46YWRtaW4=" \
+  http://localhost:3001/api/datasources | jq '.[] | {name, uid, type}'
+
+# Test a datasource by UID
+curl -s -X POST -H "Authorization: Basic YWRtaW46YWRtaW4=" \
+  http://localhost:3001/api/datasources/uid/prometheus/health | jq .
+```
 
 ## Common Tasks
 
-### Access Grafana UI
+### Add a new dashboard
+
+1. Create or export the dashboard JSON from the Grafana UI.
+2. Place the file in the appropriate `dashboards/<folder>/` subdirectory.
+3. Grafana reloads within 10 seconds — no restart required.
+4. Commit the JSON file to version control.
+
+Dashboard authoring rules:
+- Use hardcoded datasource UIDs (`"uid": "prometheus"`, `"uid": "trino"`, `"uid": "loki"`, `"uid": "tempo"`).
+- Never use `${DS_*}` template variable syntax — it causes provisioning-time resolution failures.
+- For Trino panels: set `"rawQuery": true` and use the `"rawSQL"` field (capital SQL). Use `"format": 0` for table output, `"format": 1` for time series.
+- For Prometheus rate panels: use `$__rate_interval` for the range.
+
+### Write a Trino SQL panel
+
+```json
+{
+  "datasource": { "uid": "trino", "type": "trino-datasource" },
+  "rawQuery": true,
+  "rawSQL": "SELECT driver_id, total_trips FROM delta.gold.dim_drivers LIMIT 100",
+  "format": 0
+}
+```
+
+### Check datasource health
 
 ```bash
-# Start Grafana
-docker compose -f infrastructure/docker/compose.yml --profile monitoring up -d grafana
+# Prometheus
+curl -s -H "Authorization: Basic YWRtaW46YWRtaW4=" \
+  http://localhost:3001/api/datasources/uid/prometheus/health
 
-# Open browser
-open http://localhost:3001
+# Trino
+curl -s -H "Authorization: Basic YWRtaW46YWRtaW4=" \
+  http://localhost:3001/api/datasources/uid/trino/health
 
-# Login credentials (from LocalStack Secrets Manager)
-# Username: admin
-# Password: admin
+# Loki
+curl -s -H "Authorization: Basic YWRtaW46YWRtaW4=" \
+  http://localhost:3001/api/datasources/uid/loki/health
+
+# Tempo
+curl -s -H "Authorization: Basic YWRtaW46YWRtaW4=" \
+  http://localhost:3001/api/datasources/uid/tempo/health
 ```
 
-### Add a New Dashboard
+### Drill from trace to logs
 
-1. Create JSON file in `dashboards/{category}/` directory:
-   - `monitoring/` - Real-time operational metrics
-   - `data-engineering/` - ETL pipeline monitoring
-   - `business-intelligence/` - Business KPIs
-   - `operations/` - Infrastructure metrics
-
-2. Dashboard is auto-provisioned on Grafana startup (GitOps)
-
-3. Verify in UI:
-   - Navigate to Dashboards → Browse
-   - Check folder: `{Category Name}`
-
-### Query Trino from Grafana
-
-**Important:** Trino datasource uses HTTP REST API (not PostgreSQL wire protocol)
-
-```sql
--- Example Trino query in Grafana
-SELECT
-  DATE_TRUNC('hour', pickup_datetime) AS hour,
-  COUNT(*) AS trip_count
-FROM delta.gold.fact_trips
-WHERE pickup_datetime >= CURRENT_DATE - INTERVAL '7' DAY
-GROUP BY 1
-ORDER BY 1
-```
-
-**Panel Format:**
-- Table: `"format": 0`
-- Time Series: `"format": 1`
-
-### Add Alert Rule
-
-1. Edit `provisioning/alerting/rules.yml`
-2. Add rule under appropriate group:
-   - `resource_thresholds` - Infrastructure alerts
-   - `simulation_alerts` - Application alerts
-
-3. Restart Grafana:
-```bash
-docker compose -f infrastructure/docker/compose.yml restart grafana
-```
-
-4. Verify in UI:
-   - Navigate to Alerting → Alert rules
-   - Check folder: `Monitoring`
-
-### Test Datasource Connection
-
-```bash
-# From Grafana container
-docker compose -f infrastructure/docker/compose.yml exec grafana sh
-
-# Test Prometheus
-wget -qO- http://prometheus:9090/-/healthy
-
-# Test Trino
-wget -qO- http://trino:8080/v1/info
-
-# Test Loki
-wget -qO- http://loki:3100/ready
-
-# Test Tempo
-wget -qO- http://tempo:3200/ready
-```
-
-### Export Dashboard JSON
-
-1. Open dashboard in UI
-2. Click dashboard settings (gear icon)
-3. Click "JSON Model"
-4. Copy JSON
-5. Save to `dashboards/{category}/{name}.json`
-6. Commit to Git (GitOps)
+Tempo is configured with `tracesToLogsV2` linked to Loki filtered by `traceID` and `spanID`. In any Tempo trace view, click a span and select "Logs for this span" to pivot to Loki automatically.
 
 ## Troubleshooting
 
-| Symptom | Cause | Solution |
-|---------|-------|----------|
-| Grafana won't start | Missing admin credentials | Check `secrets-init` service completed: `docker compose -f infrastructure/docker/compose.yml logs secrets-init` |
-| Trino datasource error | Using PostgreSQL plugin | Verify `GF_INSTALL_PLUGINS: trino-datasource` and plugin type is `trino-datasource` (not `postgres`) |
-| Trino "invalid format" error | String format value | Use numeric format: `"format": 0` (table) or `"format": 1` (time_series) |
-| Dashboard not appearing | Not in provisioned path | Place JSON in `dashboards/{category}/` and restart Grafana |
-| Alert not firing | Metric name typo | Check metric exists in Prometheus: `http://localhost:9090/graph` |
-| Tempo traces not showing | No trace data | Verify OTel Collector is sending to Tempo: `http://localhost:3200/api/search` |
-| Missing Prometheus metrics | Service not started | Some metrics only appear after first increment (e.g., `simulation_errors_total`, `offers_pending`) |
-| Login fails | Wrong credentials | Use admin/admin (from LocalStack Secrets Manager). Check Auth header: `Authorization: Basic YWRtaW46YWRtaW4=` |
+### Panel shows "No data" for error metrics
+
+`simulation_errors_total`, `stream_processor_validation_errors_total`, and `simulation_corrupted_events_total` are only emitted after the first error event. On a healthy system these metrics do not exist in Prometheus at all — panels will show "No data", not zero. This is expected behaviour.
+
+### `simulation_offers_pending` shows 0
+
+This is an Observable Gauge, not an UpDownCounter. It emits 0 when no ride offers are pending. A reading of 0 means the queue is empty — not that the metric is missing.
+
+### Redis latency panel shows "No data"
+
+Use the metric `stream_processor_redis_publish_latency_seconds_bucket`. The metric `simulation_redis_latency_seconds_bucket` does not exist — the simulation service does not emit it.
+
+### Trino panels show "datasource not found" or query errors
+
+- Confirm the `trino-datasource` plugin is installed (`GF_INSTALL_PLUGINS` env var).
+- Confirm panels use `"rawQuery": true` and `"rawSQL"` (not `"sql"` or `"query"`).
+- Confirm the format field is numeric: `0` (table) or `1` (time series) — string values (`"table"`, `"time_series"`) are rejected by the plugin.
+- Confirm Trino is healthy: `curl http://localhost:8084/v1/info`.
+
+### Alert fires immediately on startup
+
+Alert rules use `noDataState: NoData`, which means missing metrics produce "No data" state — not "Alerting". If alerts fire immediately, check that the PromQL expression resolves correctly and the target metric exists.
+
+### Dashboard not loaded after dropping JSON file
+
+- Confirm the file is in the correct subdirectory matching the folder provider path in `provisioning/dashboards/default.yml`.
+- Grafana polls every 10 seconds; wait up to 10 seconds.
+- If still missing, restart Grafana: `docker compose -f infrastructure/docker/compose.yml restart grafana`.
 
 ## Related
 
-- [CONTEXT.md](CONTEXT.md) - Architecture context and dashboard organization
-- [../prometheus/README.md](../prometheus/README.md) - Metrics source
-- [../trino/README.md](../trino/README.md) - Lakehouse query engine
-- [../loki/README.md](../loki/README.md) - Log aggregation
-- [../tempo/README.md](../tempo/README.md) - Distributed tracing
-- [../../docs/INFRASTRUCTURE.md](../../docs/INFRASTRUCTURE.md) - Monitoring stack overview
+- [CONTEXT.md](CONTEXT.md) — Architecture context for this module
+- [services/prometheus](../prometheus/CONTEXT.md) — Metrics source
+- [services/loki](../loki/CONTEXT.md) — Log aggregation source
+- [services/tempo](../tempo/CONTEXT.md) — Distributed tracing source
+- [services/trino](../trino/CONTEXT.md) — Delta Lake SQL query engine
+- [infrastructure/docker](../../infrastructure/docker/CONTEXT.md) — Docker Compose service definition

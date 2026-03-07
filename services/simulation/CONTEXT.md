@@ -2,44 +2,40 @@
 
 ## Purpose
 
-The simulation service is a discrete-event simulation engine that generates realistic synthetic rideshare data. It orchestrates drivers and riders as autonomous agents interacting through a matching server, with all behavior parameterized by DNA (behavioral characteristics). The service runs alongside a FastAPI control panel in a unified process, with SimPy advancing simulation time in a background thread while the API handles real-time HTTP/WebSocket requests.
+A self-contained Python service that runs a discrete-event rideshare simulation alongside a FastAPI HTTP/WebSocket control plane in a single process. It generates all synthetic rideshare events (trip lifecycle, driver movement, payments, ratings) for Sao Paulo and publishes them downstream to Kafka and Redis. It is the sole source of truth for simulation state.
 
 ## Responsibility Boundaries
 
-- **Owns**: Agent lifecycle (drivers, riders), trip state machine execution, simulation time management, state transitions (STOPPED, RUNNING, DRAINING, PAUSED), event generation for all domain entities
-- **Delegates to**: Kafka (event publishing), Redis pub/sub (real-time frontend updates via stream-processor bridge), OSRM (route calculations), matching algorithm and surge pricing (matching server), geospatial operations (H3 indexing, zone assignment)
-- **Does not handle**: Event persistence (delegated to data platform), frontend visualization logic, schema validation (handled by schema registry), direct Redis pub/sub publishing (routed through stream-processor)
+- **Owns**: SimPy environment lifecycle, agent DNA and state machines, trip lifecycle transitions, fare calculation, surge pricing, geospatial driver matching, checkpoint persistence, Kafka event publication
+- **Delegates to**: OSRM (route geometry), Kafka Schema Registry (event contract validation), Redis (real-time state fanout to stream-processor and WebSocket clients), SQLite/S3 (checkpoint storage)
+- **Does not handle**: Consuming Kafka events (stream-processor owns that), Silver/Gold transformations (airflow/dbt own that), frontend rendering (control-panel owns that)
 
 ## Key Concepts
 
-**Agent DNA**: Immutable behavioral parameters assigned at agent creation that govern all decisions (acceptance rates, patience thresholds, service quality preferences). Distinct from profile attributes which can change via SCD Type 2 updates.
-
-**Trip State Machine**: 10-state lifecycle with validated transitions. Terminal states (COMPLETED, CANCELLED) cannot transition further. STARTED state is special - once a rider is in the vehicle, cancellation is not permitted. Offer cycles allow OFFER_SENT → OFFER_EXPIRED/REJECTED → OFFER_SENT for sequential candidate matching.
-
-**Two-Phase Pause**: RUNNING → DRAINING → PAUSED sequence ensures graceful shutdown. DRAINING state allows in-flight trips to complete (or force-cancels after 600s timeout) before checkpointing to PAUSED state, guaranteeing clean state recovery.
-
-**Time Management**: TimeManager converts between SimPy's discrete event time (float seconds) and wall-clock datetime. Simulation speed is controlled by a multiplier (0.5x to 128x) that throttles step() advancement via sleep() calls to achieve realtime pacing.
-
-**Event Flow Architecture**: Simulation publishes exclusively to Kafka (source of truth). Stream-processor service consumes Kafka topics and republishes to Redis pub/sub channels. Frontend WebSocket subscribes to Redis channels. This eliminates duplicate events that occurred when simulation published directly to both systems.
-
-**Kafka Reliability Tiers**: Tier 1 (Critical) events like trip state changes and payments use synchronous delivery confirmation. Tier 2 (High-Volume) events like GPS pings use fire-and-forget with error logging.
-
-**Thread Coordination**: SimPy runs in a background thread while FastAPI runs on the main asyncio event loop. Agent spawning and trip matching are thread-safe via queues and deferred process creation at the start of each step() call.
+- **SimPy environment**: All agent processes are SimPy generator coroutines. The engine runs in a background `SimulationRunner` thread while FastAPI occupies the main thread. The `ThreadCoordinator` command queue bridges the two threads safely.
+- **DNA**: Frozen Pydantic models encoding immutable behavioral parameters for driver and rider agents (risk tolerance, home zone, acceptance thresholds, etc.). DNA is generated once at spawn and never mutated.
+- **Simulation time vs. wall time**: SimPy maintains its own virtual clock. The `speed_multiplier` (`SIM_SPEED_MULTIPLIER`) controls how fast simulated seconds pass relative to real seconds. RTR (Real-Time Ratio) is measured over a sliding window (`SIM_RTR_WINDOW_SECONDS`).
+- **Agent modes**: Drivers and riders can be spawned in `immediate` mode (arrive in the simulation instantly) or `scheduled` mode (arrive according to configurable spawn rates). These are separate rate knobs (`SPAWN_DRIVER_*`, `SPAWN_RIDER_*`).
+- **Trip state machine**: The `TripState` enum with `VALID_TRANSITIONS` enforces the full 10-state lifecycle (REQUESTED → OFFER_SENT → DRIVER_ASSIGNED → EN_ROUTE_PICKUP → AT_PICKUP → IN_TRANSIT → COMPLETED/CANCELLED), including offer expiry and rejection cycles. Terminal states (`COMPLETED`, `CANCELLED`) reject further transitions.
+- **Arrival detection**: GPS-based using Haversine distance against `arrival_proximity_threshold_m` (default 50 m). Falls back to OSRM duration × `arrival_timeout_multiplier` (default 2×) if GPS check hasn't triggered.
+- **Surge pricing**: A SimPy process (`SurgePricingCalculator`) periodically computes per-zone demand/supply ratios and updates the active surge multiplier. The multiplier is baked into the fare at request time and does not change once a trip is created.
+- **Fare model**: Fixed formula: base fee $4.00 + $1.50/km + $0.25/min, minimum $8.00, then multiplied by the surge multiplier. Calculated once on trip request using estimated OSRM distance/duration; actual trip metrics do not revise it.
+- **Matching ranking**: Candidate drivers are scored as a weighted sum of ETA, rating, and acceptance rate. Weights must sum to 1.0 (validated at startup via `MatchingSettings`).
+- **Checkpoint**: Engine state (agents, trips, SimPy time) is serialized to SQLite locally or S3 in production. On startup, `try_restore_from_checkpoint()` is called if `SIM_RESUME_FROM_CHECKPOINT=true`.
 
 ## Non-Obvious Details
 
-The simulation uses SimPy's discrete-event paradigm where agents yield control via timeout/event objects rather than running in parallel threads. All agent behavior is defined as generator functions (run() methods) that SimPy schedules cooperatively.
+- The service runs **two threads**: the SimPy loop (`SimulationRunner`) and uvicorn (main thread). Commands from FastAPI are enqueued and consumed by the SimPy thread to avoid race conditions on shared state.
+- `kafka-python` instrumentation is **intentionally omitted** from OpenTelemetry auto-instrumentation because the `kafka` top-level module shadows the local `src/kafka/` package. Only `confluent-kafka` is used.
+- `main.py` has a **circular dependency workaround**: `MatchingServer` is constructed with `notification_dispatch=None` and `registry_manager=None`, then back-patched via attribute assignment after `AgentRegistryManager` and `NotificationDispatch` are created. This is load-bearing; order matters.
+- Settings use **Pydantic validators** that raise at startup if credentials are missing (`API_KEY`, `REDIS_PASSWORD`, Kafka SASL credentials). The service will not start without them.
+- The `KafkaSettings` validator raises on missing SASL credentials even when `security_protocol=PLAINTEXT`. In local dev the workaround is to pass dummy values for `KAFKA_SASL_USERNAME` / `KAFKA_SASL_PASSWORD` / `KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO`.
+- Port 8000 (container) maps to 8082 (host). `EXECUTION_API_SERVER_URL` in dependent services must use port 8082.
 
-Settings are loaded via Pydantic with environment variable prefixes (SIM_*, KAFKA_*, REDIS_*, OSRM_*, API_*, CORS_*). The nested delimiter is double underscore (__) for hierarchical settings.
+## Related Modules
 
-The main.py entry point performs complex dependency wiring: MatchingServer is created with placeholder dependencies, then AgentRegistryManager and NotificationDispatch are injected after creation. This circular dependency pattern is necessary because registry_manager needs matching_server reference and vice versa.
-
-Agent processes are started lazily via _start_pending_agents() at the beginning of each step() to safely handle agents spawned from the API thread while simulation is running. The _process_started flag prevents duplicate process creation.
-
-GPS ping intervals are naturally desynchronized across drivers because each driver starts its own _emit_gps_ping() process immediately upon spawn. No artificial jittering or global coordination is needed - the spawn times provide natural distribution.
-
-Surge pricing updates every 60 simulated seconds via a dedicated SimPy process that calls matching_server.update_surge_pricing(). The calculation happens in the matching module but is triggered by the engine's periodic process.
-
-Checkpoint/restore functionality supports two backends: S3 (default in Docker, using MinIO locally or AWS S3 in production) and SQLite (fallback). Both backends persist environment time, agent states, and matching server state. The S3 backend stores gzip-compressed JSON and enables local-to-cloud data migration by syncing MinIO checkpoints to AWS S3.
-
-The session_id (UUID) uniquely identifies each simulation run for distributed tracing across Kafka events. It is regenerated on reset() to distinguish separate simulation sessions in downstream analytics.
+- [infrastructure/docker](../../infrastructure/docker/CONTEXT.md) — Reverse dependency — Consumed by this module
+- [services/grafana/dashboards/monitoring](../grafana/dashboards/monitoring/CONTEXT.md) — Reverse dependency — Provides simulation-metrics.json
+- [services/grafana/dashboards/performance](../grafana/dashboards/performance/CONTEXT.md) — Shares Observability and Metrics domain (real-time ratio (rtr))
+- [services/prometheus/rules](../prometheus/rules/CONTEXT.md) — Reverse dependency — Provides rideshare:infrastructure:headroom, rideshare:performance:kafka_lag_headroom, rideshare:performance:simpy_queue_headroom (+9 more)
+- [services/simulation/src/engine](src/engine/CONTEXT.md) — Shares Observability and Metrics domain (real-time ratio (rtr))

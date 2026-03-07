@@ -1,263 +1,184 @@
 # Kubernetes Scripts
 
-> Lifecycle management scripts for local Kind cluster operations with idempotent creation, ordered deployment, and data-preserving teardown.
+> Lifecycle management scripts for the local Kind-based Kubernetes cluster — create, deploy, verify, and teardown the full platform stack.
 
 ## Quick Reference
 
 ### Environment Variables
 
 | Variable | Default | Description |
-|----------|---------|-------------|
-| `CLUSTER_NAME` | `rideshare-local` | Name of the Kind cluster |
-| `BACKUP_DIR` | `/tmp` | Directory for data backups during teardown |
+|---|---|---|
+| `CLUSTER_NAME` | `rideshare-local` | Name of the Kind cluster to create/manage/delete |
+| `BACKUP_DIR` | `/tmp` | Destination directory for `--preserve-data` backup tarballs |
 
 ### Commands
 
-#### Cluster Creation
-```bash
-# Create Kind cluster with ingress and External Secrets Operator
-bash infrastructure/kubernetes/scripts/create-cluster.sh
+All scripts are run from the repository root:
 
-# Create cluster with custom name
-CLUSTER_NAME=my-cluster bash infrastructure/kubernetes/scripts/create-cluster.sh
+```bash
+# 1. Create cluster and install External Secrets Operator
+./infrastructure/kubernetes/scripts/create-cluster.sh
+
+# 2. Deploy all platform services in correct order
+./infrastructure/kubernetes/scripts/deploy-services.sh
+
+# 3. Verify Kubernetes-level health (nodes, pods, PVCs)
+./infrastructure/kubernetes/scripts/health-check.sh
+
+# 4. Run in-cluster functional smoke tests
+./infrastructure/kubernetes/scripts/smoke-test.sh
+
+# 5. Tear down the cluster (destroys all data)
+./infrastructure/kubernetes/scripts/teardown.sh
+
+# 5b. Tear down with data preserved to /tmp (timestamped tarball)
+./infrastructure/kubernetes/scripts/teardown.sh --preserve-data
+
+# 5c. Tear down with data preserved to a custom directory
+./infrastructure/kubernetes/scripts/teardown.sh --preserve-data --backup-dir=/path/to/backup
 ```
 
-#### Service Deployment
-```bash
-# Deploy all services to existing cluster
-bash infrastructure/kubernetes/scripts/deploy-services.sh
-```
+### Script Overview
 
-Deployment order enforced by script:
-1. Storage resources (StorageClass, PVs, PVCs)
-2. ConfigMaps and Secrets
-3. Data platform services (MinIO, Spark, Airflow)
-4. Core simulation services (Kafka, Redis, OSRM, simulation, stream-processor)
-5. Networking (Gateway API resources)
-
-#### Health Validation
-```bash
-# Check cluster and pod health
-bash infrastructure/kubernetes/scripts/health-check.sh
-
-# Run smoke tests (Kafka, Redis, MinIO connectivity)
-bash infrastructure/kubernetes/scripts/smoke-test.sh
-```
-
-#### Cluster Teardown
-```bash
-# Destroy cluster without preserving data
-bash infrastructure/kubernetes/scripts/teardown.sh
-
-# Preserve data before teardown (exports PVCs to tarball)
-bash infrastructure/kubernetes/scripts/teardown.sh --preserve-data
-
-# Custom backup location
-bash infrastructure/kubernetes/scripts/teardown.sh --preserve-data --backup-dir=/path/to/backups
-```
+| Script | What it does |
+|---|---|
+| `create-cluster.sh` | Creates the Kind cluster using `infrastructure/kubernetes/kind/cluster-config.yaml`; installs ESO v0.11.0 via Helm; idempotent (exits 0 if cluster exists) |
+| `deploy-services.sh` | Applies all manifests in a strict 6-step order (see below); waits for Kafka, Redis, and MinIO pods to reach Ready state |
+| `health-check.sh` | Checks cluster connectivity, node readiness, pod counts by status (Running/Pending/Error), critical service pods (kafka, redis, minio), and PVC binding |
+| `smoke-test.sh` | Runs 5 in-cluster functional probes via `kubectl exec`: Kafka broker API, Redis PING, MinIO health endpoint, DNS resolution, and storage write |
+| `teardown.sh` | Deletes the Kind cluster; optionally backs up MinIO, Kafka, and Airflow Postgres data via `kubectl exec tar` before deletion |
 
 ### Prerequisites
 
-- **Docker Desktop** or Docker Engine (10GB+ memory recommended)
-- **Kind** - Kubernetes in Docker ([installation](https://kind.sigs.k8s.io/docs/user/quick-start/#installation))
-- **kubectl** - Kubernetes CLI ([installation](https://kubernetes.io/docs/tasks/tools/))
-- **Helm** (optional) - Required for External Secrets Operator installation ([installation](https://helm.sh/docs/intro/install/))
+| Tool | Required by |
+|---|---|
+| `kind` | `create-cluster.sh`, `teardown.sh` |
+| `kubectl` | All scripts |
+| `helm` | `create-cluster.sh` (ESO installation; skipped with warning if absent) |
 
-Check installation:
-```bash
-docker --version
-kind --version
-kubectl version --client
-helm version  # optional
-```
+### Deployment Order (deploy-services.sh)
 
-### Configuration
+The `deploy-services.sh` script applies manifests in this fixed sequence to satisfy service dependencies:
 
-All scripts resolve paths via `SCRIPT_DIR` and support execution from any working directory.
-
-**Kind Cluster Configuration**: `infrastructure/kubernetes/kind/cluster-config.yaml`
-- 1 control-plane node + 2 worker nodes
-- Port mappings: 80 (HTTP), 443 (HTTPS), 30000-30001 (NodePort)
-- Resource budget: 10GB total (1GB control plane, 4.5GB per worker)
-
-**Kubernetes Manifests**: `infrastructure/kubernetes/manifests/`
-- Base manifests for all services
-- StorageClass, PVs, PVCs for persistent storage
-- ConfigMaps and Secrets for service configuration
+| Step | Resources |
+|---|---|
+| 0 | Gateway API CRDs (from external URL) |
+| 1 | StorageClass, PersistentVolumes, PersistentVolumeClaims |
+| 2 | ConfigMaps, Secrets, ExternalSecrets store and credentials |
+| 3 | Data platform: MinIO, Hive Metastore, Trino, Bronze Ingestion, Airflow, LocalStack |
+| 3b | ExternalSecret CRDs (applied after LocalStack is live so ESO can sync) |
+| 4 | Core simulation: Kafka, Schema Registry, Redis, OSRM, Simulation, Stream Processor, Frontend |
+| 5 | Monitoring: Prometheus, Loki, Tempo, OTel Collector, cAdvisor, Grafana |
+| 6 | Gateway API networking: GatewayClass, Gateway, HTTPRoutes |
 
 ## Common Tasks
 
-### Initial Cluster Setup
+### Stand up the full platform from scratch
 
 ```bash
-# 1. Create cluster
-bash infrastructure/kubernetes/scripts/create-cluster.sh
-
-# 2. Deploy all services
-bash infrastructure/kubernetes/scripts/deploy-services.sh
-
-# 3. Verify deployment
-bash infrastructure/kubernetes/scripts/health-check.sh
-bash infrastructure/kubernetes/scripts/smoke-test.sh
+./infrastructure/kubernetes/scripts/create-cluster.sh
+./infrastructure/kubernetes/scripts/deploy-services.sh
+./infrastructure/kubernetes/scripts/health-check.sh
+./infrastructure/kubernetes/scripts/smoke-test.sh
 ```
 
-### Check Service Status
+### Use a different cluster name
 
 ```bash
-# List all pods
-kubectl get pods
-
-# Check specific service
-kubectl get pods -l app=simulation
-kubectl logs -l app=simulation -f
-
-# Check persistent volumes
-kubectl get pv
-kubectl get pvc
+CLUSTER_NAME=my-test-cluster ./infrastructure/kubernetes/scripts/create-cluster.sh
+CLUSTER_NAME=my-test-cluster ./infrastructure/kubernetes/scripts/deploy-services.sh
+CLUSTER_NAME=my-test-cluster ./infrastructure/kubernetes/scripts/teardown.sh
 ```
 
-### Access Services
+### Tear down and preserve data
 
 ```bash
-# Via Gateway API (after deployment)
-curl http://localhost/api/health
-
-# Via NodePort (direct service access)
-kubectl get svc -o wide
-
-# Port forward to specific service
-kubectl port-forward svc/simulation 8000:8000
+BACKUP_DIR=~/rideshare-backups \
+  ./infrastructure/kubernetes/scripts/teardown.sh --preserve-data --backup-dir=~/rideshare-backups
 ```
 
-### Troubleshoot Deployment Issues
+The script creates `~/rideshare-backups/rideshare-k8s-backup-<YYYYMMDD-HHMMSS>.tar.gz` containing:
+- `minio/data.tar.gz` — MinIO object store contents
+- `kafka/data.tar.gz` — Kafka log segments
+- `airflow-postgres/data.tar.gz` — Airflow Postgres data directory
+- `manifests/` — exported YAML for all resources, PVCs, and ConfigMaps
+
+### Re-apply manifests without recreating the cluster
 
 ```bash
-# Check pod events
-kubectl describe pod <pod-name>
-
-# View pod logs
-kubectl logs <pod-name>
-kubectl logs <pod-name> --previous  # previous container instance
-
-# Check node resources
-kubectl top nodes
-kubectl top pods
-
-# Verify External Secrets Operator
-kubectl get pods -n external-secrets
-kubectl logs -n external-secrets -l app.kubernetes.io/name=external-secrets
+./infrastructure/kubernetes/scripts/deploy-services.sh
 ```
 
-### Recreate Cluster
+The script is safe to re-run; most `kubectl apply` calls are idempotent. StorageClass and Gateway API resource errors are suppressed where re-application would fail due to immutable fields or CRD timing.
+
+### Install ESO manually (if Helm was absent during cluster creation)
 
 ```bash
-# Delete existing cluster
-kind delete cluster --name rideshare-local
-
-# Create fresh cluster
-bash infrastructure/kubernetes/scripts/create-cluster.sh
-bash infrastructure/kubernetes/scripts/deploy-services.sh
+helm repo add external-secrets https://charts.external-secrets.io
+helm repo update external-secrets
+helm install external-secrets external-secrets/external-secrets \
+  -n external-secrets --create-namespace \
+  --set installCRDs=true --version 0.11.0 \
+  --set 'env[0].name=AWS_ENDPOINT_URL' \
+  --set 'env[0].value=http://localstack.default.svc.cluster.local:4566'
 ```
 
 ## Troubleshooting
 
-### Cluster Creation Fails
+### `create-cluster.sh` exits immediately without creating a cluster
 
-**Symptom**: `create-cluster.sh` fails with "cluster already exists"
-
-**Solution**:
-```bash
-# Delete existing cluster first
-kind delete cluster --name rideshare-local
-
-# Then recreate
-bash infrastructure/kubernetes/scripts/create-cluster.sh
-```
-
-### Helm Not Found During ESO Installation
-
-**Symptom**: "Warning: Helm not found. Skipping ESO installation."
-
-**Solution**: ESO installation is optional for local development. To install manually:
-```bash
-# Install Helm (macOS)
-brew install helm
-
-# Install ESO
-helm repo add external-secrets https://charts.external-secrets.io
-helm install external-secrets external-secrets/external-secrets \
-  -n external-secrets --create-namespace \
-  --set installCRDs=true --version 0.11.0 \
-  --set "env[0].name=AWS_ENDPOINT_URL" \
-  --set "env[0].value=http://localstack.default.svc.cluster.local:4566"
-```
-
-### Pods Stuck in Pending State
-
-**Symptom**: Pods show `Pending` status indefinitely
-
-**Possible Causes**:
-- Insufficient node resources
-- PVC waiting for PV binding
-- Image pull issues
-
-**Diagnosis**:
-```bash
-kubectl describe pod <pod-name>
-kubectl get events --sort-by='.lastTimestamp'
-```
-
-### StorageClass "Immutable Field" Errors
-
-**Symptom**: Deployment fails with "field is immutable" error for StorageClass
-
-**Expected**: This is normal - `deploy-services.sh` suppresses these errors because Kind pre-creates a default StorageClass that may conflict. The script continues deployment successfully.
-
-### Gateway API Resources Fail to Apply
-
-**Symptom**: HTTPRoute or Gateway resources fail with "CRD not found"
-
-**Expected**: Gateway API CRDs may initialize asynchronously. The script uses `set +e` to prevent false failures. Resources will be created once CRDs are ready.
-
-**Verify**:
-```bash
-kubectl get crd | grep gateway
-kubectl get gatewayclass
-kubectl get gateway
-```
-
-### Health Check Shows Failed Pods
-
-**Symptom**: `health-check.sh` reports failed pods
-
-**Diagnosis**: Non-critical service failures are logged as warnings. Critical services (Kafka, Redis, MinIO) must pass for smoke tests to succeed.
+The cluster already exists. To recreate:
 
 ```bash
-# Check which pods failed
-kubectl get pods --field-selector=status.phase!=Running,status.phase!=Succeeded
-
-# Investigate specific pod
-kubectl describe pod <failed-pod-name>
-kubectl logs <failed-pod-name>
+kind delete cluster --name rideshare-local   # or your $CLUSTER_NAME
+./infrastructure/kubernetes/scripts/create-cluster.sh
 ```
 
-### Data Preservation During Teardown
+### ESO pods not ready after cluster creation
 
-**Symptom**: Need to save data before destroying cluster
+ESO may still be pulling images. Wait ~2 minutes and check:
 
-**Solution**:
 ```bash
-# Backup PVCs to timestamped tarball
-bash infrastructure/kubernetes/scripts/teardown.sh --preserve-data --backup-dir=/path/to/backups
-
-# Backup created at: /path/to/backups/rideshare-k8s-backup-YYYYMMDD-HHMMSS.tar.gz
+kubectl get pods -n external-secrets
 ```
+
+ExternalSecrets will not sync until LocalStack is deployed (step 3 of `deploy-services.sh`) and ESO pods are Running.
+
+### `deploy-services.sh` shows "Warning: Kafka/Redis/MinIO pod not ready yet"
+
+This is normal on first deployment — images are still being pulled. Wait a few minutes and run the health check:
+
+```bash
+./infrastructure/kubernetes/scripts/health-check.sh
+```
+
+### StorageClass "field is immutable" errors in deploy-services.sh
+
+Expected. Kind creates a default StorageClass; re-applying triggers an immutable-field error that is intentionally filtered. The script continues normally.
+
+### Gateway API "no matches for kind" errors
+
+Expected on first deployment if Gateway API CRDs (step 0) have not yet been accepted by the API server. Re-run `deploy-services.sh` after a short wait, or check CRD readiness:
+
+```bash
+kubectl get crd gatewayclasses.gateway.networking.k8s.io
+```
+
+### Smoke test DNS failures
+
+The DNS test tries `nslookup`, `getent hosts`, and `ping` in sequence. If all three fail for a service, the container image for the test pod may not include any DNS utilities — or the service itself is not running. Check:
+
+```bash
+kubectl get pods
+kubectl get services
+```
+
+### MinIO backup fails during `--preserve-data` teardown
+
+Backup failures are non-fatal (logged as warnings). The cluster is still deleted. Partial backups may exist in `$BACKUP_DIR`.
 
 ## Related
 
-- [../CONTEXT.md](../CONTEXT.md) — Kubernetes deployment architecture and patterns
-- [../manifests/](../manifests/) — Service manifests and configurations
-- [../kind/cluster-config.yaml](../kind/cluster-config.yaml) — Kind cluster specification
-- [../../docker/compose.yml](../../docker/compose.yml) — Alternative Docker Compose deployment
-
----
+- [CONTEXT.md](CONTEXT.md) — Architecture context for this scripts directory
+- [../manifests/CONTEXT.md](../manifests/CONTEXT.md) — Kubernetes manifests applied by `deploy-services.sh`
+- [../CONTEXT.md](../CONTEXT.md) — Kubernetes infrastructure overview

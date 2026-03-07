@@ -2,41 +2,37 @@
 
 ## Purpose
 
-Fact tables in the star schema that capture measurable business events from the rideshare simulation. Each fact represents a grain of transaction data (completed trips, payments, ratings, cancellations, driver activity periods) with foreign keys to dimensions and numeric measures for analysis.
+Gold-layer fact tables for the rideshare star schema. Each table models a distinct business event type: completed trips, payments, ratings, cancellations, driver status periods, and offer attempts. All fact tables are materialized as Delta tables and join against SCD Type 2 dimensions using temporal validity windows.
 
 ## Responsibility Boundaries
 
-- **Owns**: Fact table grain definition, surrogate key generation for facts, temporal joins to SCD Type 2 dimensions, measure calculations (duration, platform fees, driver payouts), deduplication of duplicate events via row_number()
-- **Delegates to**: Silver layer (stg_*) models for cleaned source events, dimension models for descriptive attributes, dbt_utils for surrogate key hashing, custom macros for epoch conversions
-- **Does not handle**: Raw event parsing (silver layer), dimension attribute management (dimensions layer), aggregation for dashboards (aggregates layer), schema design changes
+- **Owns**: Final fact rows for the Gold layer; surrogate key generation; derived metrics (distance, duration, platform fee split, response latency); `cancellation_stage` enrichment
+- **Delegates to**: `stg_*` staging models for parsing and Silver-layer deduplication; dimension tables for surrogate key lookups; the `epoch_seconds` macro for cross-DB timestamp arithmetic
+- **Does not handle**: Raw event parsing, deduplication of source events (Silver responsibility), or aggregate rollups (those live in `marts/aggregates`)
 
 ## Key Concepts
 
-**Fact Grain**: Each fact table has exactly one grain that defines what one row represents. Mixing grains breaks dimensional modeling rules. Grains in this layer: one row per completed trip, one row per payment, one row per rating, one row per cancellation, one row per driver status period.
-
-**Temporal Joins to SCD Type 2**: Fact tables join dimensions on both surrogate key AND temporal validity period. Pattern: `fact.event_timestamp >= dim.valid_from AND fact.event_timestamp < dim.valid_to`. This ensures facts reference dimension attributes as they existed at event time.
-
-**Row Number Deduplication**: Source events may arrive multiple times for same state. CTEs use `row_number() over (partition by trip_id, trip_state order by timestamp)` to deduplicate and take first occurrence.
-
-**Conditional Dimension References**: `fact_ratings` uses rater_key/ratee_key that can reference either drivers or riders based on rater_type/ratee_type. Queries must conditionally join using CASE or WHERE filters.
+- **SCD Type 2 temporal join**: `dim_drivers` and `dim_payment_methods` carry `valid_from`/`valid_to` columns. Fact tables join on `entity_id AND event_timestamp >= valid_from AND event_timestamp < valid_to` to resolve the correct dimension record at the time the event occurred.
+- **offer_sequence**: `fact_offers` is grain-per-offer-attempt (`trip_id` + `offer_sequence`). A single trip may produce multiple offer rows if earlier offers are rejected or expire. This enables funnel analysis across the offer lifecycle.
+- **cancellation_stage**: Derived field in `fact_cancellations` identifying the last non-cancelled state before a trip was cancelled (e.g., `requested`, `driver_assigned`, `in_transit`). Computed by ranking all prior trip events descending by timestamp and taking rank 1.
+- **Polymorphic rating join**: `fact_ratings` rater/ratee can be either a driver or a rider. The model uses conditional `CASE` expressions to resolve `rater_key` and `ratee_key` from whichever dimension table applies.
 
 ## Non-Obvious Details
 
-**Distance Always NULL**: `fact_trips.distance_km` is always NULL. Distance calculation from lat/lon coordinates is planned but not implemented. Duration is calculated from state timestamps using custom `epoch_seconds()` macro.
-
-**Platform Fee Split**: `fact_payments` hardcodes 25% platform fee and 75% driver payout. Driver payout is derived as `total_fare - round(total_fare * 0.25, 2)` to ensure exact sum without floating point errors. Custom test `fee_percentage` validates this split.
-
-**Nullable Driver Keys**: `fact_cancellations.driver_key` is nullable because trips can be cancelled before driver matching (cancellation_stage = 'requested'). Referential integrity tests must allow NULL.
-
-**Cancellation Stage Tracking**: `fact_cancellations` captures the last state before cancellation (requested, matched, driver_en_route, driver_arrived) to analyze when in the trip lifecycle cancellations occur. Derived via window function over trip_events where trip_state != 'cancelled'.
-
-**State Pivoting**: Trip events arrive as individual rows per state change. Fact models pivot these into single rows with columns per state timestamp (requested_at, matched_at, started_at, completed_at) using conditional aggregation with `max(case when ...)`.
-
-**Driver Activity End Boundary**: `fact_driver_activity` excludes status periods without an end time (`where status_end is not null`). The final status period for each driver remains open-ended and is excluded from analysis to avoid incomplete duration calculations.
+- `fact_trips` contains **only completed trips**. Cancelled trips are a separate fact (`fact_cancellations`). Both pivot `stg_trips` events using `pivot by trip_state`, so the split is logical, not a source-level filter that would drop data.
+- `distance_km` in `fact_trips` is computed inline via the Haversine formula from raw lat/lon coordinates. It is not sourced from OSRM or the simulation engine. The Silver layer does not pre-compute this value.
+- `fact_payments` hardcodes a 25% platform fee. `platform_fee = round(total_fare * 0.25, 2)` and `driver_payout = total_fare - platform_fee` (not `total_fare * 0.75`) to guarantee the two fields sum exactly to `total_fare` without floating-point drift. This is enforced by the `fee_percentage` generic test in `schema.yml`.
+- `fact_payments` uses a secondary `_dedup_rn` window (latest `valid_from`) to handle edge cases where `dim_payment_methods` has overlapping SCD records for the same rider + method + timestamp.
+- `fact_driver_activity` excludes the final open-ended status period (`WHERE status_end IS NOT NULL`) because duration cannot be computed without a closing timestamp. This means the most recent status for any driver is always absent from this table until superseded.
+- `fact_offers` uses a `LEFT JOIN` from `sent` to `resolved` — unresolved offers land as `outcome = 'pending'`. Schema tests enforce `outcome IN ('accepted', 'rejected', 'expired', 'pending')`.
+- `duration_minutes` and `response_seconds` use the `epoch_seconds` Jinja macro (defined in `tools/dbt/macros/cross_db/`) rather than a direct `DATEDIFF`, enabling the same SQL to run on both Trino (Delta Lake) and DuckDB.
 
 ## Related Modules
 
-- **[tools/dbt/models/staging](../../staging/CONTEXT.md)** — Staging models that provide cleaned event data for fact building
-- **[tools/dbt/models/marts/dimensions](../dimensions/CONTEXT.md)** — Dimension tables that facts join to using temporal patterns for SCD Type 2
-- **[tools/dbt/models/marts/aggregates](../aggregates/CONTEXT.md)** — Aggregate tables that roll up these facts for dashboard performance
-- **[tools/dbt/tests/generic](../../../tests/generic/CONTEXT.md)** — Custom tests (fare_calculation, fee_percentage) that validate fact business rules
+- [services/simulation/src/geo](../../../../../services/simulation/src/geo/CONTEXT.md) — Shares Geospatial Processing domain (haversine distance)
+- [tools/dbt/macros/cross_db](../../../macros/cross_db/CONTEXT.md) — Dependency — SQL dialect abstraction layer for DuckDB (local) and Spark/Glue (production) dif...
+- [tools/dbt/models/marts/aggregates](../aggregates/CONTEXT.md) — Reverse dependency — Provides agg_hourly_zone_demand, agg_daily_driver_performance, agg_daily_platform_revenue (+1 more)
+- [tools/dbt/models/marts/dimensions](../dimensions/CONTEXT.md) — Dependency — Gold-layer dimension tables forming the dimension side of the star schema, with ...
+- [tools/dbt/models/staging](../../staging/CONTEXT.md) — Dependency — Silver layer JSON parsing, deduplication, validation filtering, and anomaly dete...
+- [tools/dbt/tests](../../../tests/CONTEXT.md) — Reverse dependency — Provides test_dim_drivers_scd_type2, test_dim_payment_methods_scd_type2, test_dim_riders_current_state (+8 more)
+- [tools/dbt/tests/singular](../../../tests/singular/CONTEXT.md) — Reverse dependency — Consumed by this module

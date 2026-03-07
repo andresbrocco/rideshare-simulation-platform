@@ -2,27 +2,27 @@
 
 ## Purpose
 
-Foundation module providing cross-cutting concerns for error handling, retry logic, and distributed tracing throughout the simulation platform.
+Cross-cutting infrastructure primitives shared across the simulation service: a typed exception hierarchy, exponential-backoff retry utilities (both async and sync), and async-safe distributed tracing correlation via Python `contextvars`.
 
 ## Responsibility Boundaries
 
-- **Owns**: Exception hierarchy, retry patterns, correlation ID context management
-- **Delegates to**: Logging configuration (handled by `sim_logging/`), specific error handling decisions (handled by calling modules)
-- **Does not handle**: Business logic validation, domain-specific state management, or actual logging implementation
+- **Owns**: Exception base classes, retry orchestration logic, correlation ID propagation through Python context variables
+- **Delegates to**: Callers to choose which exception subclasses to raise; logging infrastructure to attach correlation fields via `CorrelationFilter`
+- **Does not handle**: Business logic, simulation state, Kafka or Redis concerns
 
 ## Key Concepts
 
-**Exception Classification**: Two-tier hierarchy determines retry behavior:
-- `TransientError` (and subclasses `NetworkError`, `ServiceUnavailableError`) - retryable failures
-- `PermanentError` (and subclasses `ValidationError`, `NotFoundError`, `StateError`, `ConfigurationError`) - non-retryable failures
-- `FatalError` - immediate shutdown required
+**Exception taxonomy**: The hierarchy has three recovery-intent branches under `SimulationError`:
+- `TransientError` — safe to retry (covers `NetworkError`, `ServiceUnavailableError`, `PersistenceError`)
+- `PermanentError` — retrying will not help (covers `ValidationError`, `NotFoundError`, `StateError`, `ConfigurationError`)
+- `FatalError` — requires immediate shutdown
 
-**Correlation Context**: Uses Python's `contextvars` to propagate correlation IDs (per-operation) and session IDs (per-simulation-run) across async/sync boundaries without explicit parameter passing. The `with_correlation()` context manager automatically injects IDs into all log records within its scope.
+The retry utilities (`with_retry`, `with_retry_sync`) only catch `TransientError` by default, so raising the wrong branch silently bypasses retry protection.
 
-**Retry Strategy**: Exponential backoff with configurable exception types. The `RetryConfig` defaults to retrying only `TransientError` subclasses, creating a tight coupling between exception choice and retry behavior.
+**Correlation via `contextvars`**: `current_correlation_id` and `current_session_id` are `ContextVar` instances, not thread-locals. This is intentional — `contextvars` propagate correctly across `asyncio` tasks while remaining isolated across concurrent tasks. `CorrelationFilter` attaches these values to every log record emitted within the context window, enabling log correlation without passing IDs through call chains.
 
 ## Non-Obvious Details
 
-The exception hierarchy is load-bearing for retry logic - adding a new exception type requires deciding whether it inherits from `TransientError` or `PermanentError`, which automatically determines if `with_retry()` will retry it. This design makes retry decisions declarative at the exception definition site rather than at each call site.
-
-Correlation IDs are thread-safe via `contextvars` but require explicit context manager usage (`with_correlation()`) to activate. Simply setting the context variable directly will leak across unrelated operations if not properly reset.
+- `with_retry` raises the last exception directly after exhausting attempts. The `raise last_exception` at the end of the loop is annotated `# type: ignore` because the type checker cannot narrow `last_exception` to non-`None` there — it is always set before that point given `max_attempts >= 1`, but the narrowing is not statically provable.
+- `correlation.py` is not exported from `__init__.py`. Callers must import it directly as `from src.core.correlation import with_correlation, setup_correlation_logging`.
+- `setup_correlation_logging` adds the `CorrelationFilter` to all existing handlers on the root logger at call time — handlers added after that call will not have the filter attached.

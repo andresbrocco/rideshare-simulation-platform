@@ -1,25 +1,32 @@
-# CONTEXT.md — DBT Macros
+# CONTEXT.md — Macros
 
 ## Purpose
 
-Custom DBT macros that handle Delta Lake-specific edge cases and enforce medallion architecture database naming conventions for the lakehouse data pipeline.
+Provides reusable dbt Jinja macros that abstract adapter differences (DuckDB vs Spark/Glue), handle Delta Lake edge cases during early pipeline stages, and enforce schema naming conventions for the medallion lakehouse layers.
 
 ## Responsibility Boundaries
 
-- **Owns**: Compile-time logic for safe Delta table access and schema name generation
-- **Delegates to**: DBT runtime for macro expansion, DuckDB or AWS Glue for query execution
-- **Does not handle**: Model-level transformations, data quality checks, or incremental logic beyond empty table guards
+- **Owns**: Adapter dispatch logic for cross-engine SQL compatibility, Bronze Delta table access abstraction, empty-table schema safety, schema-to-database name mapping for dbt-spark
+- **Delegates to**: `cross_db/` subdirectory for individual cross-engine SQL function implementations (date/time, JSON extraction, array access, string splitting)
+- **Does not handle**: Model business logic, incremental watermark logic (that stays in models), or Trino/query-layer concerns
 
 ## Key Concepts
 
-**Empty Source Guard** — Query-time pattern that prevents `DeltaAnalysisException` when reading Delta tables that have no columns. Uses UNION ALL with typed NULL columns and `WHERE 1=0` to maintain schema compatibility.
+**Adapter dispatch (`delta_source`)**: dbt's `adapter.dispatch()` pattern routes macro calls to adapter-specific implementations. `duckdb__delta_source` uses `delta_scan('s3://...')` to read Delta directly from S3; `spark__delta_source` and `glue__delta_source` use Hive Metastore catalog references (`bronze.table_name`). The `BRONZE_BUCKET` env var overrides the default S3 bucket for DuckDB.
 
-**Delta Source** — Generates Delta table path syntax for Bronze layer sources stored in S3 (e.g., `delta.`s3a://rideshare-bronze/bronze_trips/``). Falls back to standard `source()` function for non-bronze sources.
+**Empty Delta table guard (`source_with_empty_guard`)**: When a Bronze Delta table exists but has no rows, Spark raises `DELTA_READ_TABLE_WITHOUT_COLUMNS`. The macro uses a `UNION ALL` with a `WHERE 1=0` typed-null branch to force schema inference even on empty tables. Callers must pass an explicit `columns` dict mapping column names to Spark type strings.
 
-**Schema Name Override** — Bypasses DBT's default `target.schema` prefix to map custom schema names directly to Spark database names (e.g., `silver`, `gold`), enforcing clean lakehouse layer separation.
+**Schema name override (`generate_schema_name`)**: dbt-spark treats "schema" as the Hive database name. This macro bypasses dbt's default `<target_schema>_<custom_schema>` concatenation and returns `custom_schema_name` directly, so staging models resolve to the `silver` database and gold models to the `gold` database without environment-name prefixes.
 
 ## Non-Obvious Details
 
-The `source_with_empty_guard` macro uses a UNION ALL pattern with `WHERE 1=0` to handle empty Delta tables gracefully. It always attempts to read from the Delta path in S3, but the union with typed NULL columns ensures the query succeeds even if the table has no schema yet. This is a query-execution pattern, not a compile-time check.
+- `generate_schema_name` intentionally discards `target.schema` when a `custom_schema_name` is set. This is the opposite of dbt's default behaviour and is required for clean `silver.*` / `gold.*` table references in Trino.
+- `source_with_empty_guard` delegates Bronze path resolution to `delta_source` internally, so adapters are handled in one place; staging models should call `source_with_empty_guard` rather than `delta_source` directly.
+- `glue__delta_source` simply aliases `spark__delta_source`, reflecting that AWS Glue uses the same Hive Metastore catalog interface as local Spark.
+- The `BRONZE_BUCKET` env var is only consumed by the DuckDB adapter path; Spark/Glue resolve the bucket via the Hive Metastore and do not read this variable.
 
-The `generate_schema_name` macro ignores DBT's standard schema concatenation pattern (which would create `target.schema + custom_schema`) and instead uses the custom schema name directly as the database name. This enforces clean medallion layer separation (bronze, silver, gold) across both dbt-duckdb and dbt-glue engines.
+## Related Modules
+
+- [tools/dbt](../CONTEXT.md) — Shares DBT Transformations domain (generate_schema_name override)
+- [tools/dbt/macros/cross_db](cross_db/CONTEXT.md) — Shares DBT Transformations domain (adapter.dispatch)
+- [tools/dbt/models](../models/CONTEXT.md) — Reverse dependency — Provides stg_trips, stg_gps_pings, stg_driver_status (+24 more)

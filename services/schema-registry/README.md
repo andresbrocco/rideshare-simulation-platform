@@ -1,136 +1,158 @@
 # Schema Registry
 
-> Avro schema management service for Kafka topics - stores, validates, and enforces compatibility for message schemas
+> Confluent Schema Registry 7.5.0 — validates and stores JSON Schema definitions for all Kafka event types in the rideshare simulation platform.
 
 ## Quick Reference
 
-### Environment Variables
+### Port
 
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `KAFKA_SCHEMA_REGISTRY_URL` | Schema Registry HTTP API URL | `http://schema-registry:8081` | Yes |
-| `SCHEMA_REGISTRY_USER` | HTTP Basic Auth username (from Secrets Manager) | `admin` (dev) | Yes |
-| `SCHEMA_REGISTRY_PASSWORD` | HTTP Basic Auth password (from Secrets Manager) | `admin` (dev) | Yes |
+| Host Port | Container Port | Protocol |
+|-----------|----------------|----------|
+| 8085      | 8081           | HTTP     |
 
-### API Endpoints
+### Authentication
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/subjects` | List all schema subjects (health check) |
-| GET | `/subjects/{subject}/versions` | List versions for a subject |
-| GET | `/subjects/{subject}/versions/latest` | Get latest schema version |
-| POST | `/subjects/{subject}/versions` | Register new schema version |
-| GET | `/schemas/ids/{id}` | Get schema by global ID |
-| GET | `/config` | Get global compatibility level |
+Schema Registry requires HTTP Basic Auth for all requests. Credentials are seeded via LocalStack Secrets Manager into `/secrets/core.env` at container startup.
+
+| Secret Key              | Secret Path      | Description                          |
+|-------------------------|------------------|--------------------------------------|
+| `SCHEMA_REGISTRY_USER`  | `rideshare/core` | Basic auth username for API access   |
+| `SCHEMA_REGISTRY_PASSWORD` | `rideshare/core` | Basic auth password for API access |
+
+Default local credentials: `admin` / `admin`
+
+### Configuration Files
+
+| File | Mounted At | Purpose |
+|------|-----------|---------|
+| `services/schema-registry/jaas.conf` | `/etc/schema-registry/jaas.conf` | Jetty JAAS login config (maps `SchemaRegistry` realm to `users.properties`) |
+| `services/schema-registry/users.properties` | `/etc/schema-registry/users.properties` | HTTP Basic Auth user definitions (`admin: admin,admin`) |
+
+### Environment Variables (Docker)
+
+Set by `infrastructure/docker/compose.yml` — not overridable via `.env`:
+
+| Variable | Value | Description |
+|----------|-------|-------------|
+| `SCHEMA_REGISTRY_HOST_NAME` | `schema-registry` | Container hostname |
+| `SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS` | `kafka:29092` | Kafka bootstrap for `_schemas` topic |
+| `SCHEMA_REGISTRY_LISTENERS` | `http://0.0.0.0:8081` | HTTP listener |
+| `SCHEMA_REGISTRY_KAFKASTORE_SECURITY_PROTOCOL` | `SASL_PLAINTEXT` | Kafka auth protocol |
+| `SCHEMA_REGISTRY_KAFKASTORE_SASL_MECHANISM` | `PLAIN` | Kafka SASL mechanism |
+| `SCHEMA_REGISTRY_AUTHENTICATION_METHOD` | `BASIC` | HTTP auth method |
+| `SCHEMA_REGISTRY_AUTHENTICATION_ROLES` | `admin` | Required role for API access |
+| `SCHEMA_REGISTRY_AUTHENTICATION_REALM` | `SchemaRegistry` | JAAS realm name (must match `jaas.conf`) |
+| `SCHEMA_REGISTRY_OPTS` | `-Djava.security.auth.login.config=...` | Points JVM to JAAS config |
+| `SCHEMA_REGISTRY_HEAP_OPTS` | `-Xms128m -Xmx256m` | JVM heap bounds |
+
+`SCHEMA_REGISTRY_KAFKASTORE_SASL_JAAS_CONFIG` is injected at runtime from `/secrets/core.env` using `KAFKA_SASL_USERNAME` and `KAFKA_SASL_PASSWORD`.
+
+### Docker Compose Profiles
+
+Schema Registry starts under the `core` and `data-pipeline` profiles:
 
 ```bash
-# List all registered schemas
-curl -u admin:admin http://localhost:8085/subjects
-
-# Get latest version of trips schema
-curl -u admin:admin http://localhost:8085/subjects/trips-value/versions/latest
-
-# Get schema by ID
-curl -u admin:admin http://localhost:8085/schemas/ids/1
+docker compose -f infrastructure/docker/compose.yml --profile core up -d schema-registry
 ```
 
-### Configuration
+### Depends On
 
-| File | Purpose |
-|------|---------|
-| `jaas.conf` | JAAS authentication configuration for HTTP Basic Auth |
-| `users.properties` | User credentials file (username:password,role) |
+- `secrets-init` — must complete before container starts (provides `/secrets/core.env`)
+- `kafka-init` — Kafka topics (including `_schemas`) must exist before Schema Registry connects
 
-### Kafka Schemas
+### Health Check
 
-The platform registers 8 Avro schemas (lazy registration on first produce):
+```bash
+curl -f -u admin:admin http://localhost:8085/subjects
+```
 
-| Schema Subject | Kafka Topic | Schema Location |
-|----------------|-------------|-----------------|
-| `trips-value` | `trips` | `schemas/kafka/trip_event.json` |
-| `gps_pings-value` | `gps_pings` | `schemas/kafka/gps_ping_event.json` |
-| `driver_status-value` | `driver_status` | `schemas/kafka/driver_status_event.json` |
-| `surge_updates-value` | `surge_updates` | `schemas/kafka/surge_update_event.json` |
-| `ratings-value` | `ratings` | `schemas/kafka/rating_event.json` |
-| `payments-value` | `payments` | `schemas/kafka/payment_event.json` |
-| `driver_profiles-value` | `driver_profiles` | `schemas/kafka/driver_profile_event.json` |
-| `rider_profiles-value` | `rider_profiles` | `schemas/kafka/rider_profile_event.json` |
+The Docker health check polls this endpoint every 10s with up to 12 retries (2-minute window).
 
-### Prerequisites
-
-- Kafka broker running and healthy (`kafka:29092`)
-- LocalStack Secrets Manager seeded with credentials (`rideshare/core`)
-- JVM 11+ (included in `confluentinc/cp-schema-registry:7.5.0`)
+---
 
 ## Common Tasks
 
-### Check Service Health
+### List All Registered Subjects
 
 ```bash
-# Via Docker
-docker compose -f infrastructure/docker/compose.yml --profile core ps schema-registry
-
-# Via API (requires Basic Auth)
-curl -u admin:admin http://localhost:8085/subjects
+curl -s -u admin:admin http://localhost:8085/subjects | python3 -m json.tool
 ```
 
-### View Registered Schemas
+### Fetch Latest Schema for a Subject
 
 ```bash
-# List all subjects
-curl -u admin:admin http://localhost:8085/subjects
-
-# Get schema details
-curl -u admin:admin http://localhost:8085/subjects/trips-value/versions/latest | jq
+curl -s -u admin:admin http://localhost:8085/subjects/trip_event-value/versions/latest | python3 -m json.tool
 ```
 
-### Register Schema Manually (Testing)
+### Register a New Schema Manually
 
 ```bash
-# Register a test schema
-curl -X POST -u admin:admin \
+curl -s -X POST \
+  -u admin:admin \
   -H "Content-Type: application/vnd.schemaregistry.v1+json" \
-  --data '{"schema": "{\"type\":\"record\",\"name\":\"Test\",\"fields\":[{\"name\":\"field1\",\"type\":\"string\"}]}"}' \
-  http://localhost:8085/subjects/test-value/versions
+  -d '{"schemaType": "JSON", "schema": "{\"type\":\"object\"}"}' \
+  http://localhost:8085/subjects/my_topic-value/versions
 ```
 
-### Configure Compatibility Level
+### Check Compatibility Mode
 
 ```bash
-# Get global compatibility
-curl -u admin:admin http://localhost:8085/config
-
-# Set subject-specific compatibility (backward, forward, full, none)
-curl -X PUT -u admin:admin \
-  -H "Content-Type: application/vnd.schemaregistry.v1+json" \
-  --data '{"compatibility": "BACKWARD"}' \
-  http://localhost:8085/config/trips-value
+curl -s -u admin:admin http://localhost:8085/config | python3 -m json.tool
 ```
 
-### Debug Connection Issues
+### View All Versions of a Subject
 
 ```bash
-# Check if Schema Registry can reach Kafka
-docker compose -f infrastructure/docker/compose.yml --profile core logs schema-registry | grep -i "kafka"
-
-# Verify internal `_schemas` topic exists
-docker compose -f infrastructure/docker/compose.yml --profile core exec kafka kafka-topics --bootstrap-server localhost:9092 --list | grep _schemas
+curl -s -u admin:admin http://localhost:8085/subjects/driver_status_event-value/versions
 ```
+
+---
+
+## Registered Schemas
+
+Schemas are defined in `schemas/kafka/` and auto-registered by the simulation service at startup via `SerializerRegistry`. Eight event types are registered:
+
+| Subject (inferred `-value`) | Source File |
+|-----------------------------|-------------|
+| `driver_profile_event` | `schemas/kafka/driver_profile_event.json` |
+| `driver_status_event` | `schemas/kafka/driver_status_event.json` |
+| `gps_ping_event` | `schemas/kafka/gps_ping_event.json` |
+| `trip_event` | `schemas/kafka/trip_event.json` |
+| `payment_event` | `schemas/kafka/payment_event.json` |
+| `rating_event` | `schemas/kafka/rating_event.json` |
+| `rider_profile_event` | `schemas/kafka/rider_profile_event.json` |
+| `surge_update_event` | `schemas/kafka/surge_update_event.json` |
+
+Schemas are registered with type `JSON`. Schema files are mounted into the simulation container at `/app/schemas`.
+
+---
 
 ## Troubleshooting
 
-| Symptom | Cause | Solution |
-|---------|-------|----------|
-| `401 Unauthorized` when accessing API | Missing or incorrect Basic Auth credentials | Use `-u admin:admin` or set `KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO` in client |
-| Schemas not appearing after simulation start | Lazy registration - schemas only appear on first produce | Start simulation and send trip/GPS events, then check `/subjects` |
-| `KAFKASTORE_CONNECTION_FAILED` on startup | Kafka broker not healthy or `kafka-init` not complete | Check `kafka` service health; verify `depends_on: kafka-init` succeeded |
-| `_schemas` topic missing | Kafka broker restarted and topic lost (development) | Restart Schema Registry; it will auto-create `_schemas` topic |
-| Port 8085 connection refused from host | Schema Registry not started or health check failing | Check `docker compose ps`; review logs for JVM heap or auth config errors |
-| Clients get "Subject not found" | Schema not yet registered by producer | Ensure producer has serialized at least one message to the topic |
+**Container fails to start / unhealthy**
+
+Check that Kafka is healthy first — Schema Registry depends on `kafka-init` completing. Verify with:
+```bash
+docker compose -f infrastructure/docker/compose.yml logs schema-registry
+```
+
+**`401 Unauthorized` on API requests**
+
+Ensure you are passing `-u admin:admin` (or the correct `SCHEMA_REGISTRY_USER`/`SCHEMA_REGISTRY_PASSWORD` from `rideshare/core` secret). The `BASIC` auth method is enforced for all endpoints.
+
+**`Schema not found` errors in simulation logs**
+
+Schema registration happens during simulation startup via `SerializerRegistry.initialize()`. If Schema Registry was not healthy when the simulation container started, schemas may not be registered. Restart the simulation container after Schema Registry becomes healthy.
+
+**`_schemas` topic connection errors**
+
+Schema Registry connects to Kafka over SASL_PLAINTEXT on `kafka:29092`. If Kafka SASL credentials changed, the `SCHEMA_REGISTRY_KAFKASTORE_SASL_JAAS_CONFIG` (injected from `/secrets/core.env`) must be updated and the container restarted.
+
+---
 
 ## Related
 
-- [CONTEXT.md](CONTEXT.md) — Architecture context and design decisions
-- [../kafka/README.md](../kafka/README.md) — Kafka broker configuration
-- [../../schemas/kafka/](../../schemas/kafka/) — JSON Schema definitions for Kafka events
-- [../../docs/SECURITY.md](../../docs/SECURITY.md) — Authentication and credential management
+- [schemas/kafka/CONTEXT.md](../../schemas/kafka/CONTEXT.md) — JSON Schema definitions for all event types
+- [services/kafka/README.md](../kafka/README.md) — Kafka broker; Schema Registry depends on `kafka-init`
+- [services/simulation/src/kafka/CONTEXT.md](../simulation/src/kafka/CONTEXT.md) — Producer that registers schemas at startup
+- [services/stream-processor/CONTEXT.md](../stream-processor/CONTEXT.md) — Consumer that deserializes validated events

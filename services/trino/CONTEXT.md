@@ -2,28 +2,31 @@
 
 ## Purpose
 
-Distributed SQL query engine (Trino 451) that provides interactive analytical queries over Delta Lake tables in the medallion lakehouse architecture. Runs in single-node coordinator mode for local development and connects to the Hive Metastore for table metadata and MinIO for data access.
+Configuration and startup scripting for the Trino SQL query engine, which provides distributed SQL access to Delta Lake tables stored in MinIO. Trino is the query layer used by Grafana dashboards and Trino CLI consumers to run analytical queries over the medallion lakehouse (Bronze, Silver, Gold layers).
 
 ## Responsibility Boundaries
 
-- **Owns**: SQL query execution, query planning and optimization, catalog connector configuration
-- **Delegates to**: Hive Metastore for table/partition metadata resolution, MinIO for data storage via S3A, Grafana for dashboard queries (via the `trino-datasource` plugin)
-- **Does not handle**: Data ingestion, schema management, data transformation (DBT), metadata persistence (Hive Metastore)
+- **Owns**: Trino server configuration (`etc/`), the custom entrypoint script, and the Delta Lake catalog definition
+- **Delegates to**: Hive Metastore (table/schema metadata via Thrift at port 9083), MinIO (underlying S3-compatible object storage), `secrets-init` sidecar (credential provisioning)
+- **Does not handle**: Table registration (done by `delta-table-init` container via `register-delta-tables.sh`), data ingestion, or query routing between services
 
 ## Key Concepts
 
-**Single-Node Coordinator**: Configured with `coordinator=true` and `node-scheduler.include-coordinator=true` in `config.properties`, meaning the single Trino node acts as both coordinator and worker. Suitable for local development but not production.
-
-**Delta Lake Connector**: The `delta.properties` catalog file configures the `delta_lake` connector, enabling Trino to read Delta Lake tables directly from MinIO. Non-concurrent writes are enabled via `delta.enable-non-concurrent-writes=true`.
-
-**JVM Tuning**: Allocated 1GB heap (`-Xmx1G`) with G1GC collector, tuned for interactive query latency with a 32MB region size and 256MB reserved code cache.
-
-**Resource Limits**: Docker Compose allocates 2GB memory and 2 CPUs, with a 0.25 CPU reservation to prevent starvation of other services.
+- **Delta Lake connector**: The single catalog (`delta`) uses the `delta_lake` connector, which requires both a Hive Metastore (for schema metadata) and S3-compatible storage (MinIO) for the actual Parquet+Delta log files.
+- **`delta.register-table-procedure.enabled=true`**: Enables the `system.register_table()` stored procedure, which is how the `delta-table-init` job registers existing Delta tables that were created outside Trino (e.g., by the bronze-ingestion Spark/Delta writer).
+- **Single-node coordinator**: `coordinator=true` with `node-scheduler.include-coordinator=true` means the coordinator also acts as a worker. There are no separate worker nodes in this deployment.
 
 ## Non-Obvious Details
 
-The `trino-datasource` plugin in Grafana connects to Trino's HTTP API on port 8080 (internal container port), not a PostgreSQL wire protocol. The `format` field in Grafana dashboard JSON for Trino queries must be numeric (`0` for table, `1` for time_series), not string values.
+- **Bind-mount write workaround**: The entrypoint copies `/etc/trino` to `/tmp/trino-etc` before use. On Linux CI runners, the bind-mounted config directory may be owned by a different UID than the Trino user (UID 1000), making it non-writable. The copy sidesteps this permission issue.
+- **Credential injection at startup**: MinIO credentials are not baked into the image or compose environment. The entrypoint sources `/secrets/data-pipeline.env` (written by `secrets-init`) and uses `envsubst` (falling back to `sed`) to render `delta.properties.template` into `delta.properties` at container start. The committed `etc/catalog/delta.properties` file contains placeholder credentials (`admin`/`adminadmin`) and is a dev-time artifact — the rendered file in `/tmp/trino-etc/catalog/delta.properties` is what Trino actually reads.
+- **Memory cap**: JVM heap is set to `-Xmx1G` while the compose service has a 2 GB container memory limit, leaving headroom for off-heap buffers. Increasing the heap above 1.5 GB risks OOM kills.
+- **Port mapping**: Trino listens on container port 8080 but is exposed on host port 8084 to avoid conflicts with other services.
 
-The host port mapping is `8084:8080` to avoid conflicts with other services that use port 8080 (such as the MinIO console or Airflow).
+## Related Modules
 
-Trino depends on both `hive-metastore` and `minio` being healthy before starting. If the metastore is unreachable, Trino will start but queries against the `delta` catalog will fail.
+- [infrastructure/docker](../../infrastructure/docker/CONTEXT.md) — Reverse dependency — Consumed by this module
+- [services/grafana](../grafana/CONTEXT.md) — Reverse dependency — Provides dashboards/monitoring/simulation-metrics.json, dashboards/data-engineering/data-ingestion.json, dashboards/data-engineering/data-quality.json (+10 more)
+- [services/grafana/provisioning](../grafana/provisioning/CONTEXT.md) — Reverse dependency — Consumed by this module
+- [services/grafana/provisioning/datasources](../grafana/provisioning/datasources/CONTEXT.md) — Reverse dependency — Consumed by this module
+- [services/hive-metastore](../hive-metastore/CONTEXT.md) — Dependency — Hive Metastore service providing table metadata catalog for Delta Lake tables, c...

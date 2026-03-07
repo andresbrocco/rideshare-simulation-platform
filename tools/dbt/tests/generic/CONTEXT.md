@@ -2,39 +2,27 @@
 
 ## Purpose
 
-Reusable DBT test macros that validate domain-specific business rules and data quality constraints across multiple models. These tests extend DBT's built-in tests (unique, not_null, relationships) with custom logic for ride-sharing data validation.
+Custom dbt generic tests that encode domain-specific data quality rules for the rideshare medallion lakehouse. These tests are reusable Jinja macros that get applied to Gold-layer models via `schema.yml` declarations.
 
 ## Responsibility Boundaries
 
-- **Owns**: Domain-specific data quality test logic, validation SQL patterns, parameterized test interfaces
-- **Delegates to**: DBT test framework (execution, reporting), model schemas (test invocation via schema.yml files)
-- **Does not handle**: Test execution or scheduling (handled by DBT CLI/Airflow), result storage, or alerting
+- **Owns**: Domain-aware validation logic not covered by dbt's built-in tests (`unique`, `not_null`, `accepted_values`, `relationships`)
+- **Delegates to**: dbt test runner for execution; `schema.yml` files in each model directory for test configuration and parameterization
+- **Does not handle**: Row-level data transformation, Silver/Bronze layer validation (covered by Great Expectations)
 
 ## Key Concepts
 
-### Generic Tests vs Singular Tests
+**Generic test macros**: Each `.sql` file defines a `{% test <name>(model, ...) %}` macro. dbt resolves these by matching filenames in the `tests/generic/` directory. They return rows that represent failures — zero rows means the test passes.
 
-- **Generic tests** (this directory): Reusable parameterized tests that can be applied to any model/column by referencing them in `schema.yml` files
-- **Singular tests** (`tools/dbt/tests/*.sql`): One-off SQL queries that test specific models and cannot be reused
+**SCD Type 2 validity (`test_scd_validity`)**: Validates that slowly-changing dimension records have non-overlapping, ordered validity intervals per entity. Two checks: (1) `valid_from >= valid_to` (degenerate range), (2) interval overlap between any two records for the same entity via a self-join. Applied to `dim_drivers` and `dim_payment_methods`.
 
-### Test Macro Pattern
+**Fare math tests**: `test_fare_calculation` asserts `total_fare = base_fare * surge_multiplier` within a float tolerance. `test_fee_percentage` asserts that a fee column equals `total * expected_percentage` within tolerance. The `fact_payments` schema uses `fee_percentage` to enforce the 75/25 driver-platform split.
 
-All tests follow the `{% test test_name(model, parameters...) %}` Jinja macro pattern. Tests return rows that represent validation failures. Zero rows = test passes.
+**Anomaly threshold (`test_anomaly_threshold`)**: Table-level count gate — fails if the model contains more rows than `max_count`. Intended for anomaly detection models where a high count signals a data quality problem.
 
 ## Non-Obvious Details
 
-- **anomaly_threshold**: Validates anomaly detection models don't exceed expected counts. Used to ensure data quality checks don't generate excessive false positives.
-- **scd_validity**: Enforces non-overlapping validity windows in SCD Type 2 dimensions. Validates both that `valid_from < valid_to` and that no two records for the same entity have overlapping date ranges.
-- **fare_calculation**: Validates multiplicative fare calculations with configurable tolerance for floating-point precision. Used to verify `total_fare = base_fare * surge_multiplier`.
-- **fee_percentage**: Validates percentage-based calculations (platform fees, driver payouts) with tolerance for rounding errors. Used in `fact_payments` to ensure 25% platform fee and 75% driver payout.
-- **no_future_dates**: Prevents temporal data quality issues by ensuring timestamp columns don't contain dates beyond current time. Common validation for event ingestion pipelines.
-
-### Tolerance Parameters
-
-Both `fare_calculation` and `fee_percentage` accept a `tolerance` parameter (default: 0.01) to handle floating-point arithmetic precision issues without spurious test failures.
-
-## Related Modules
-
-- **[tools/dbt/models/marts/dimensions](../../models/marts/dimensions/CONTEXT.md)** — Dimension tables that use scd_validity test to validate SCD Type 2 implementation
-- **[tools/dbt/models/marts/facts](../../models/marts/facts/CONTEXT.md)** — Fact tables that use fare_calculation and fee_percentage tests for business rule validation
-- **[tools/dbt/tests](../CONTEXT.md)** — Singular tests that complement these generic tests for comprehensive validation coverage
+- `test_scd_validity` has a parameter named `driver_id_column` for historical reasons, but it is reused for any entity ID (e.g., `payment_method_id` in `dim_payment_methods`). The name is misleading but the logic is generic.
+- The `tolerance` parameter on fare/fee tests defaults to `0.01` (one cent in BRL), which is appropriate for currency stored as float but would need adjustment for sub-cent precision requirements.
+- `test_no_future_dates` uses `current_timestamp()` — this is DuckDB/Trino compatible but would need to be `NOW()` or `GETDATE()` on other adapters.
+- `test_fare_calculation` and `test_fee_percentage` are defined but `test_fare_calculation` does not appear in any current `schema.yml`. It exists as a reusable test but is not yet applied.

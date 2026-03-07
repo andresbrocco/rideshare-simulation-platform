@@ -1,33 +1,27 @@
-# CONTEXT.md — Schemas
+# CONTEXT.md — Lakehouse Schemas
 
 ## Purpose
 
-PySpark StructType definitions for Bronze layer tables in the medallion lakehouse. Each schema maps to a Kafka topic and defines the exact field structure used during streaming ingestion into Delta Lake.
+Defines PySpark `StructType` schemas for all Bronze Delta Lake tables and the Dead Letter Queue (DLQ) table. These schemas are the authoritative column-level contract between the bronze-ingestion service and downstream consumers (Silver transformation, Trino table registration).
 
 ## Responsibility Boundaries
 
-- **Owns**: PySpark schema definitions for 8 Bronze tables (trips, gps_pings, driver_status, surge_updates, ratings, payments, driver_profiles, rider_profiles) and DLQ table, reusable field factories for tracing and metadata columns
-- **Delegates to**: Parent module for Delta Lake configuration utilities, Kafka schemas in `schemas/kafka/` for canonical field definitions
-- **Does not handle**: Schema registration (done by ingestion jobs), runtime validation (handled by Spark), or schema evolution (managed by Delta Lake)
+- **Owns**: PySpark schema definitions for each Bronze event type and the DLQ
+- **Delegates to**: `schemas/lakehouse` (parent package exposes table-name-to-schema mappings used by registration scripts)
+- **Does not handle**: Silver or Gold schemas (those are defined via DBT models), Kafka Avro schemas (defined in `schemas/kafka/`)
 
 ## Key Concepts
 
-**Schema Factories**: Helper functions `_tracing_fields()` and `_metadata_fields()` generate standard field sets appended to every Bronze table. This ensures consistency across all schemas and centralizes field definitions.
+**Shared field groups** — Two private helpers compose into every Bronze schema:
+- `_tracing_fields()`: `session_id`, `correlation_id`, `causation_id` — distributed tracing correlation fields added by the simulation engine
+- `_metadata_fields()`: `_ingested_at`, `_kafka_partition`, `_kafka_offset` — ingestion provenance added by the bronze-ingestion service, not present in the originating Kafka event
 
-**Nullability Semantics**: Tracing fields (session_id, correlation_id, causation_id) are nullable because system-generated events like surge updates lack user request context. Metadata fields (_ingested_at, _kafka_partition, _kafka_offset) are non-nullable as they're always injected during ingestion.
+**DLQ schema** — `dlq_schema.py` defines the Dead Letter Queue table, which captures raw failed events as `original_payload` (string) alongside error metadata. It reuses the tracing and metadata field names but is structurally independent of the domain schemas.
 
-**Type Mappings**: Follows PySpark conventions: UUIDs as StringType, ISO timestamps as TimestampType, GeoJSON coordinates as ArrayType(DoubleType()), routes as nested arrays.
-
-**DLQ Schema**: Dead letter queue captures ingestion failures with error context (error_message, error_type), original payload preservation for reprocessing, and Kafka provenance metadata.
+**Nullable conventions** — Event-type-specific optional fields (e.g., `driver_id` on trip events before a driver is assigned, `cancelled_by` / `cancellation_reason`) are nullable. Core identity and timestamp fields are non-nullable. The `_metadata_fields` are always non-nullable since they are set at ingestion time.
 
 ## Non-Obvious Details
 
-The `bronze_tables.py` file defines all table schemas but only exports utility functions via `__init__.py`. Actual schema imports happen directly in consuming code (bronze-ingestion jobs) by importing specific schema variables.
-
-Tracing fields use the same structure across all events to enable distributed tracing queries in the Gold layer. The three-field pattern (session_id, correlation_id, causation_id) follows event sourcing tracing conventions where causation links commands to their triggering events.
-
-## Related Modules
-
-- **[schemas](../../CONTEXT.md)** — Parent schemas directory; this module provides PySpark implementations of schemas defined conceptually in the parent
-- **[services/bronze-ingestion](../../../services/bronze-ingestion/CONTEXT.md)** — Primary consumer of these schemas; uses them to parse Kafka events and write Delta Lake tables
-- **[services/simulation/src/events](../../../services/simulation/src/events/CONTEXT.md)** — Event factories that produce data matching these schemas; schema alignment ensures ingestion compatibility
+- The `__init__.py` currently exports only `dlq_schema`, not the domain table schemas. The domain schemas (`bronze_trips_schema`, `bronze_gps_pings_schema`, etc.) are imported directly by name from `schemas.lakehouse.schemas.bronze_tables` by the table registration script.
+- `location` and coordinate fields are `ArrayType(DoubleType())` — `[longitude, latitude]` order following GeoJSON convention. Route geometry fields are `ArrayType(ArrayType(DoubleType()))` — a list of `[lon, lat]` pairs.
+- `behavior_factor` on `bronze_rider_profiles_schema` is nullable because it is a simulation-internal DNA parameter and may not always be emitted.

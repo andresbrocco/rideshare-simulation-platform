@@ -2,37 +2,31 @@
 
 ## Purpose
 
-Pre-computed analytical aggregates that roll up fact tables by time and geography for dashboard performance. These tables power real-time analytics without requiring complex joins or expensive aggregations at query time.
+Pre-aggregated analytical models that roll up Gold-layer fact and dimension data into time-bucketed KPI tables for dashboards and BI queries. Each model materializes a specific analytical domain: zone demand, driver performance, platform revenue, and surge pricing history.
 
 ## Responsibility Boundaries
 
-- **Owns**: Time-series and geographic aggregations of fact tables (hourly zone demand, daily driver KPIs, daily revenue, surge history)
-- **Delegates to**: Fact tables for source data, dimension tables for foreign key validation
-- **Does not handle**: Real-time streaming aggregates (those come from stream-processor), single-trip analysis (use fact tables directly), ad-hoc custom aggregations
+- **Owns**: Time-bucketed aggregation logic, KPI derivation (idle percentage, completion rate, avg fare), and revenue split computation
+- **Delegates to**: `fact_trips`, `fact_payments`, `fact_ratings`, `fact_driver_activity`, `fact_cancellations`, `dim_zones`, `dim_drivers`, `dim_time` for source data; `stg_surge_updates` for raw surge events
+- **Does not handle**: Deduplication, schema validation, or SCD management (those belong to Silver/Gold fact/dimension layers)
 
 ## Key Concepts
 
-**Grain Consistency**: Each aggregate has a well-defined grain (zone+hour, driver+day, zone+day) that determines uniqueness. Mixing grains in joins requires careful consideration.
-
-**Completion Rate Alignment**: `agg_hourly_zone_demand` uses `requested_at` for both requests and completions to ensure `completed_trips <= requested_trips` within the same hour bucket. This avoids race conditions where a trip requested at 2:59pm completes at 3:01pm.
-
-**Utilization Calculation**: Driver utilization in `agg_daily_driver_performance` is `(en_route_minutes + on_trip_minutes) / online_minutes * 100`. The denominator is online time, not calendar time. Tests enforce utilization stays between 0-100%.
-
-**Revenue Consistency**: `agg_daily_platform_revenue` enforces `total_revenue = platform_fees + driver_payouts` with a custom test allowing 0.01 margin for floating point precision. The 25%/75% split is calculated in `fact_payments`, not here.
+- **`online_minutes`**: In `agg_daily_driver_performance`, this is the sum of all `fact_driver_activity` duration across every active status (available, en_route_pickup, on_trip, etc.) — it is total logged-in time, not idle-only time. This satisfies the test `en_route_minutes + on_trip_minutes <= online_minutes`.
+- **`idle_pct`**: Derived as `(online_minutes - en_route_minutes - on_trip_minutes) / online_minutes * 100`. Represents the fraction of online time the driver was neither en route nor on a trip.
+- **Completion rate alignment**: `agg_hourly_zone_demand` buckets completed trips by `requested_at` (not `completed_at`) so that completions always fall in the same hour bucket as their originating request. This guarantees `completed_trips <= requested_trips` for any given zone/hour, which is enforced by a dbt test.
+- **Revenue split integrity**: `agg_daily_platform_revenue` enforces `abs(platform_fees + driver_payouts - total_revenue) < 0.01` via a dbt expression test to catch floating-point drift in the fee split.
 
 ## Non-Obvious Details
 
-**Full Outer Join for Demand**: `agg_hourly_zone_demand` uses a full outer join between requests and completions because some hours may have only requests (no completions) or only completions (no requests in that hour). This ensures no data loss.
-
-**Surge History Uses Raw Events**: `agg_surge_history` joins to `stg_surge_updates` instead of facts because surge updates occur independently of trips. A zone can have surge changes without any trips occurring.
-
-**Wait Time Definition**: Wait time in `agg_hourly_zone_demand` is `(started_at - matched_at)`, representing the time between driver acceptance and trip start, not request-to-match time.
-
-**Coalesce Defaults**: All aggregates use `coalesce(..., 0)` for counts and sums to handle NULL values in joins. Division operations check for zero denominators explicitly to return 0.0 instead of NULL or error.
+- `agg_hourly_zone_demand` uses a `FULL OUTER JOIN` between `hourly_requests` and `hourly_completions` to preserve zone/hour combinations that have requests but no completions (and vice versa). The `coalesce(..., 1.0)` default for `avg_surge_multiplier` means hours with no completions report a neutral multiplier rather than null.
+- `agg_surge_history` aggregates from `stg_surge_updates` (a staging model, not a fact table) — it is the one aggregate that bypasses the fact layer entirely and reads directly from Silver staging.
+- `agg_daily_platform_revenue` uses an `INNER JOIN` to `fact_payments`, so trips without a payment record are excluded. This is intentional to avoid counting unpaid trips in revenue figures.
+- All models are materialized as `table` (not `view`) to support Trino Delta Lake registration.
 
 ## Related Modules
 
-- **[tools/dbt/models/marts/facts](../facts/CONTEXT.md)** — Source fact tables that aggregates roll up; fact grain determines aggregate granularity possibilities
-- **[tools/dbt/models/marts/dimensions](../dimensions/CONTEXT.md)** — Dimension tables joined for descriptive attributes in aggregates
-- **[services/grafana](../../../../services/grafana/CONTEXT.md)** — Primary consumer of aggregates via Trino datasource; dashboards query these pre-computed tables for performance
-- **[tools/great-expectations](../../../great-expectations/CONTEXT.md)** — Validates aggregate data quality including revenue consistency and utilization bounds
+- [tools/dbt/models/marts/dimensions](../dimensions/CONTEXT.md) — Dependency — Gold-layer dimension tables forming the dimension side of the star schema, with ...
+- [tools/dbt/models/marts/facts](../facts/CONTEXT.md) — Dependency — Gold-layer fact tables for the rideshare star schema covering completed trips, p...
+- [tools/dbt/models/staging](../../staging/CONTEXT.md) — Dependency — Silver layer JSON parsing, deduplication, validation filtering, and anomaly dete...
+- [tools/dbt/tests/singular](../../../tests/singular/CONTEXT.md) — Reverse dependency — Consumed by this module

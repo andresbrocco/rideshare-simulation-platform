@@ -1,416 +1,334 @@
 # TESTING.md
 
-> Testing facts for the rideshare simulation platform codebase.
+> Testing facts for this codebase.
 
 ## Test Organization
 
 ### Location
 
-Tests are distributed throughout the codebase following a **co-location pattern** with some exceptions:
+Tests are organized in two patterns: service-local test directories co-located alongside each service, and a top-level `tests/` directory for cross-service concerns.
 
-| Test Type | Location | Purpose |
-|-----------|----------|---------|
-| **Simulation Unit Tests** | `services/simulation/tests/` | Test agents, engine, API, database, Kafka, matching |
-| **Stream Processor Unit Tests** | `services/stream-processor/tests/` | Test Kafka handlers, deduplication, Redis sink |
-| **Frontend Unit Tests** | `services/control-panel/src/**/__tests__/` | Test React components, hooks, layers, utilities |
-| **Integration Tests** | `tests/integration/data_platform/` | Multi-service data pipeline validation |
-| **Performance Tests** | `tests/performance/` | Container resource measurement |
-| **Schema Tests** | `schemas/lakehouse/tests/` | Delta Lake schema validation |
-| **DBT Tests** | `tools/dbt/tests/` | Data transformation documentation tests |
+- `services/simulation/tests/` — unit and component tests for the simulation engine
+- `services/stream-processor/tests/` — unit tests for the Kafka-to-Redis processor
+- `services/bronze-ingestion/tests/` — unit tests for the bronze ingestion service
+- `services/airflow/tests/` — DAG structure and import tests
+- `services/performance-controller/tests/` — unit tests for the performance controller
+- `tests/integration/data_platform/` — full-stack integration tests requiring Docker
+- `tests/performance/` — performance measurement framework (not pytest-based)
+- `services/control-panel/src/**/__tests__/` — frontend component and hook tests
+- `tools/dbt/tests/` — DBT data quality tests (SQL) and documentation completeness (pytest)
+- `tools/great-expectations/tests/` — expectation suite structure tests
+- `schemas/lakehouse/tests/` — PySpark Delta Lake schema tests
+- `infrastructure/kubernetes/tests/` — Kubernetes smoke tests (bash scripts)
 
 ### Naming Convention
 
-**Python:**
-- Test files: `test_*.py` (e.g., `test_driver_agent.py`)
-- Test classes: `Test*` (e.g., `TestDriverAgent`)
-- Test functions: `test_*` (e.g., `test_driver_accepts_offer`)
-
-**TypeScript:**
-- Test files: `*.test.ts`, `*.test.tsx` (e.g., `useWebSocket.test.ts`)
-- Located in `__tests__/` subdirectories alongside source files
-
-**DBT:**
-- Generic tests: `tools/dbt/tests/generic/*.sql`
-- SQL tests in `schema.yml` files
-- Documentation tests: `test_documentation_completeness.py`
+Python test files use the `test_*.py` prefix. TypeScript test files use the `.test.ts` or `.test.tsx` suffix. DBT SQL tests use the `test_*.sql` prefix. Test functions follow `test_*` naming; test classes follow `Test*` naming.
 
 ### Structure
 
 ```
-services/simulation/tests/
-├── conftest.py           # Shared fixtures, zone validator setup
-├── factories.py          # DNAFactory for test data generation
-├── agents/               # Agent behavior tests (DNA, lifecycle, profiles)
-├── api/                  # FastAPI route tests (auth, control, metrics, WebSocket)
-├── db/                   # Repository tests (persistence, checkpoints)
-├── engine/               # Simulation engine tests (pause, snapshots, time)
-├── events/               # Event schema and correlation tests
-├── geo/                  # OSRM, zone assignment, GPS simulation
-├── kafka/                # Event serialization, schema registry, DLQ
-├── matching/             # Driver-rider matching, geospatial indexing
-├── redis_client/         # Redis pub/sub, snapshots
-├── trips/                # Trip executor, state transitions, ratings
-└── fixtures/             # sample_zones.geojson, test data
+tests/                              # Cross-service tests
+├── integration/
+│   └── data_platform/             # Full-stack integration tests
+│       ├── conftest.py            # Docker lifecycle + service client fixtures
+│       ├── fixtures/              # Event generators (trips, GPS, drivers, riders)
+│       ├── utils/                 # API clients, credentials, wait helpers, SQL helpers
+│       ├── test_core_pipeline.py
+│       ├── test_ci_workflow.py
+│       ├── test_feature_journeys.py
+│       ├── test_data_flows.py
+│       ├── test_cross_phase.py
+│       ├── test_foundation_integration.py
+│       └── test_resilience.py
+└── performance/                   # Performance measurement framework
+    ├── runner.py                  # CLI entry point (click + rich)
+    ├── config.py
+    ├── scenarios/                 # baseline, stress, speed_scaling, duration_leak
+    ├── collectors/                # docker_stats, prometheus, simulation_api, OOM detection
+    └── analysis/                  # statistics, visualizations, report_generator
 
-tests/integration/data_platform/
-├── conftest.py           # Docker lifecycle, service clients, fixtures
-├── fixtures/             # Event generators (trips, GPS, drivers, riders)
-├── utils/                # API clients, SQL helpers, wait helpers
-├── test_core_pipeline.py
-├── test_data_flows.py
-├── test_feature_journeys.py
-└── test_resilience.py
-
-tests/performance/
-├── runner.py             # CLI runner for scenarios
-├── config.py             # Container resource limits
-├── collectors/           # Docker stats, OOM detection, simulation API
-├── scenarios/            # baseline, stress_test, duration_leak, speed_scaling
-└── analysis/             # Report generation, statistics, visualizations
+services/simulation/tests/         # ~80 test files across 15 subdirectories
+├── conftest.py                    # Shared fixtures: dna_factory, mock_kafka_producer,
+│                                  #   mock_redis_client, mock_osrm_client, temp_sqlite_db
+├── agents/                        # Driver/rider agent lifecycle and DNA tests
+├── api/                           # FastAPI endpoint, WebSocket, auth, rate-limiting tests
+│   └── conftest.py                # FastAPI TestClient with mocked engine dependencies
+├── core/                          # Exception hierarchy and retry logic tests
+├── db/                            # Repository pattern and checkpoint backend tests
+├── engine/                        # SimulationEngine, thread coordinator, snapshot tests
+│   └── conftest.py                # fast_engine and fast_running_engine fixtures
+├── events/                        # Event schema, factory, and correlation tests
+├── geo/                           # Zone assignment, OSRM client, route cache, GPS tests
+├── kafka/                         # Producer, serializer registry, schema registry tests
+├── matching/                      # Driver registry, geospatial index, surge pricing tests
+├── metrics/                       # Prometheus metrics collector tests
+├── models/                        # Fare calculation, payment, rating model tests
+├── pubsub/                        # Redis pub/sub channel tests
+├── redis/                         # Event filter tests
+├── redis_client/                  # Publisher and snapshot tests
+├── sim_logging/                   # Log setup, formatters, filters, and context tests
+├── trips/                         # Trip executor and proximity arrival tests
+└── utils/                         # Async helper tests
 
 services/control-panel/src/
-├── components/__tests__/
-├── hooks/__tests__/
-├── layers/__tests__/
-└── utils/__tests__/
+├── components/__tests__/          # React component tests (Map, ControlPanel, LandingPage, etc.)
+├── components/inspector/__tests__/ # Inspector component tests (DriverInspector, ZoneInspector, etc.)
+├── hooks/__tests__/               # Custom hook tests (useWebSocket, useAgentState, etc.)
+├── layers/__tests__/              # deck.gl layer tests (agentLayers, zoneLayers)
+└── utils/__tests__/               # Utility tests (tripStateFormatter)
+
+tools/dbt/tests/
+├── generic/                       # Reusable generic test macros (SQL)
+└── singular/                      # Singular SQL tests for specific business rules
 ```
 
 ## Frameworks Used
 
-| Framework | Purpose | Files | Version |
-|-----------|---------|-------|---------|
-| **pytest** | Unit & integration test runner | `services/simulation/tests/**/*.py` | 9.0.2 |
-| **pytest-asyncio** | Async test support | All async tests | 1.3.0 |
-| **pytest-cov** | Coverage reporting | All Python tests | 7.0.0 |
-| **vitest** | Frontend test runner (Vite-native) | `services/control-panel/src/**/*.test.ts` | 3.2.4 |
-| **@testing-library/react** | React component testing | Frontend component tests | 16.3.1 |
-| **@testing-library/jest-dom** | DOM matchers | Frontend tests | 6.9.1 |
-| **httpx** | HTTP client for API tests | Integration tests | 0.28.1 |
-| **respx** | HTTP mocking for unit tests | Simulation tests | 0.21.1 |
-| **testcontainers** | Docker container orchestration | Integration tests | 4.0.0 |
-| **DBT** | Data transformation tests | `tools/dbt/models/**/*.yml` | Native |
-| **Great Expectations** | Data quality validation | `tools/great-expectations/gx/expectations/` | External |
+| Framework | Language | Purpose | Location |
+|-----------|----------|---------|----------|
+| pytest 9.0.2 | Python | Unit and component tests for simulation service | `services/simulation/` |
+| pytest-asyncio 1.3.0 | Python | Async test support (`asyncio_mode = "auto"`) | `services/simulation/` |
+| pytest-cov 7.0.0 | Python | Coverage reporting for simulation service | `services/simulation/` |
+| respx 0.21.1 | Python | HTTP mock for httpx-based clients | `services/simulation/` |
+| pytest (>=8.0.0) | Python | Integration tests with Docker lifecycle management | `tests/integration/` |
+| pytest-asyncio (>=0.24.0) | Python | Async integration test support | `tests/integration/` |
+| testcontainers 4.0.0 | Python | Kafka, Redis, PostgreSQL container management | `tests/integration/` |
+| pytest | Python | Stream processor unit tests | `services/stream-processor/` |
+| pytest | Python | Bronze ingestion unit tests | `services/bronze-ingestion/` |
+| pytest | Python | Airflow DAG structural tests | `services/airflow/` |
+| pytest | Python | Performance controller unit tests | `services/performance-controller/` |
+| pytest | Python | Great Expectations suite structure tests | `tools/great-expectations/` |
+| pytest + PySpark | Python | Delta Lake schema tests | `schemas/lakehouse/` |
+| Vitest 3.2.4 | TypeScript | Frontend unit and component tests | `services/control-panel/` |
+| @testing-library/react 16.3.1 | TypeScript | React component rendering and interaction | `services/control-panel/` |
+| @testing-library/user-event 14.6.1 | TypeScript | User event simulation | `services/control-panel/` |
+| @testing-library/jest-dom 6.9.1 | TypeScript | DOM assertion matchers | `services/control-panel/` |
+| jsdom 27.0.1 | TypeScript | Browser environment simulation | `services/control-panel/` |
+| dbt test | SQL | Data quality tests via `schema.yml` and custom SQL | `tools/dbt/` |
 
 ## Test Types Present
 
 ### Unit Tests
 
-**Location:** `services/simulation/tests/`, `services/stream-processor/tests/`, `services/control-panel/src/**/__tests__/`
+- Location: `services/simulation/tests/`, `services/stream-processor/tests/`, `services/bronze-ingestion/tests/`, `services/airflow/tests/`, `services/performance-controller/tests/`
+- Count: ~100 Python test files across service-local test directories
+- Coverage: Simulation engine components, agent state machines, geo/matching/Kafka/Redis modules, FastAPI endpoints, DAG structure validation
 
-**Count:** ~95 Python test files, ~18 TypeScript test files
+### Component Tests (Frontend)
 
-**Coverage:**
-- Agent behavior (DNA, lifecycle, trip execution)
-- State machines (trip state transitions, driver status)
-- Event schemas and serialization
-- Repository patterns (database access)
-- API routes and authentication
-- WebSocket connections
-- React components and hooks
-- Stream processor handlers
-
-**Markers (pytest):**
-- `@pytest.mark.unit` - Fast, isolated unit tests
-- `@pytest.mark.slow` - Slow-running tests (>1 second)
-- `@pytest.mark.critical` - Critical path tests (trip state, matching, events)
+- Location: `services/control-panel/src/**/__tests__/`
+- Count: ~20 TypeScript test files
+- Coverage: React components (Map, ControlPanel, LandingPage, Inspectors, LayerControls), custom hooks (useWebSocket, useAgentState, useSimulationLayers, useApiHealth, useDraggable), deck.gl layer factories, utility formatters
 
 ### Integration Tests
 
-**Location:** `tests/integration/data_platform/`
-
-**Count:** ~10 test files
-
-**Coverage:**
-- Core pipeline: Simulation -> Kafka -> Stream Processor -> Redis -> WebSocket
-- Data flows: Kafka -> Bronze -> Silver -> Gold
-- Feature journeys: Complete trip lifecycle through lakehouse
-- Cross-phase: DBT transformations across medallion layers
-- Resilience: Service recovery, checkpoint restoration
-
-**Markers (pytest):**
-- `@pytest.mark.requires_profiles("core", "data-pipeline")` - Docker profile requirements
-- `@pytest.mark.core_pipeline` - Core event flow tests
-- `@pytest.mark.resilience` - Recovery and fault tolerance tests
-- `@pytest.mark.feature_journey` - Feature journey tests (FJ-001 through FJ-007)
-- `@pytest.mark.data_flow` - Data flow tests (DF-001, DF-002)
+- Location: `tests/integration/data_platform/`
+- Count: 7 test files
+- Coverage: Full-stack data pipeline from Simulation API through Kafka -> Bronze -> Silver -> Gold. Tests grouped by markers: `feature_journey` (FJ-001 to FJ-007), `data_flow` (DF-001, DF-002), `cross_phase` (XP-001 to XP-005), `external_integration` (EI-001 to EI-003), `regression` (REG-001 to REG-003), `core_pipeline`, `resilience`
 
 ### Performance Tests
 
-**Location:** `tests/performance/`
+- Location: `tests/performance/`
+- Count: 4 scenario modules (`baseline`, `stress_test`, `speed_scaling`, `duration_leak`)
+- Coverage: Container resource usage (CPU, memory), OOM detection, Simulation API throughput, Prometheus metric collection under load. Run via CLI (`python -m tests.performance run`), not via pytest.
 
-**Count:** 4 scenarios
+### DBT Data Quality Tests
 
-**Coverage:**
-- Baseline scenario: Resource usage under normal load
-- Stress test: High agent count (300 drivers, 150 riders)
-- Duration leak: Long-running simulation stability
-- Speed scaling: Resource usage at different simulation speeds
+- Location: `tools/dbt/tests/`
+- Count: 13 SQL test files (5 generic macro tests, 8 singular tests), 1 pytest file
+- Coverage: SCD Type 2 validity, surrogate key uniqueness, fare calculation correctness, surge multiplier range, GPS outlier detection, zombie driver detection, dimension table completeness, platform revenue consistency
 
-**Execution:** `./venv/bin/python tests/performance/runner.py run`
+### Great Expectations Suites
 
-### Contract Tests
+- Location: `tools/great-expectations/gx/expectations/`
+- Count: 8 Silver suites, Gold dimension suites
+- Coverage: Silver staging tables (`stg_trips`, `stg_gps_pings`, `stg_driver_status`, `stg_surge_updates`, `stg_ratings`, `stg_payments`, `stg_drivers`, `stg_riders`) — deduplication on `event_id`, enum validations, range validations with `mostly` parameter for soft failures
 
-**Location:** `services/simulation/tests/test_api_contract.py`, `services/simulation/tests/test_security_headers.py`
+### Schema Tests
 
-**Coverage:**
-- OpenAPI spec compliance
-- TypeScript type generation synchronization
-- Security headers validation
+- Location: `schemas/lakehouse/tests/`
+- Count: 1 test file
+- Coverage: Delta Lake table feature verification using a local PySpark session with Delta Lake support
 
-### DBT Tests
+### Kubernetes Smoke Tests
 
-**Location:** `tools/dbt/models/**/schema.yml`, `tools/dbt/tests/generic/`
-
-**Count:** ~40 SQL tests across models
-
-**Coverage:**
-- Data quality: uniqueness, not_null, accepted_values, relationships
-- Custom tests: expect_valid_scd_lifecycle, expect_monotonic_timestamps
-- Documentation completeness tests
+- Location: `infrastructure/kubernetes/tests/`
+- Count: 7 bash scripts
+- Coverage: Core services health, config/secrets, lifecycle (deploy/teardown), persistence, ingress, ArgoCD, data platform connectivity
 
 ## Running Tests
 
-### Simulation Service Tests
+### Simulation Unit Tests
 
 ```bash
-# All tests
-./venv/bin/pytest
+cd services/simulation && ./venv/bin/pytest
+```
 
-# Single file
-./venv/bin/pytest tests/agents/test_driver_agent.py -v
+### Simulation Unit Tests with Coverage
 
-# By marker
-./venv/bin/pytest -m unit
-./venv/bin/pytest -m critical
-./venv/bin/pytest -m slow
+```bash
+cd services/simulation && ./venv/bin/pytest --cov=src --cov-report=term-missing
+```
 
-# With coverage
-./venv/bin/pytest --cov=src --cov-report=html
+### Stream Processor Unit Tests
+
+```bash
+cd services/stream-processor && ./venv/bin/pytest
 ```
 
 ### Frontend Tests
 
 ```bash
-cd services/control-panel
-
-# Run all tests
-npm run test
-
-# Run in watch mode
-npm run test -- --watch
-
-# With coverage
-npm run test -- --coverage
+cd services/control-panel && npm run test
 ```
 
-### Integration Tests
+### Integration Tests (requires Docker)
 
 ```bash
-# All integration tests (starts required Docker profiles)
 ./venv/bin/pytest tests/integration/
-
-# Specific test
-./venv/bin/pytest tests/integration/data_platform/test_core_pipeline.py -v
-
-# Skip Docker teardown for faster iteration
-SKIP_DOCKER_TEARDOWN=1 ./venv/bin/pytest tests/integration/
-
-# Specific profile requirements
-./venv/bin/pytest -m "requires_profiles('core', 'data-pipeline')"
-```
-
-### Performance Tests
-
-```bash
-# Run all scenarios
-./venv/bin/python tests/performance/runner.py run
-
-# Check service status
-./venv/bin/python tests/performance/runner.py check
-
-# Re-analyze existing results
-./venv/bin/python tests/performance/runner.py analyze <results-file>
 ```
 
 ### DBT Tests
 
 ```bash
-cd tools/dbt
-
-# Run all DBT tests
-./venv/bin/dbt test
-
-# Run tests for specific model
-./venv/bin/dbt test --select stg_trips
-
-# Run generic tests only
-./venv/bin/dbt test --select test_type:generic
-
-# Run custom tests
-./venv/bin/dbt test --select test_type:singular
+cd tools/dbt && ./venv/bin/dbt test
 ```
 
-### Schema Tests
+### Performance Tests
 
 ```bash
-# Run schema validation tests
-./venv/bin/pytest schemas/lakehouse/tests/
+./venv/bin/python -m tests.performance run
+./venv/bin/python -m tests.performance run -s baseline
+./venv/bin/python -m tests.performance run -s stress -s speed
+./venv/bin/python -m tests.performance run -s duration --agents 50 --speed 4
+```
 
-# Test Delta Lake feature detection
-./venv/bin/pytest schemas/lakehouse/tests/test_delta_features.py
+### Filter by Marker (Simulation)
+
+```bash
+cd services/simulation && ./venv/bin/pytest -m unit
+cd services/simulation && ./venv/bin/pytest -m critical
+cd services/simulation && ./venv/bin/pytest -m "not slow"
+```
+
+### Filter by Marker (Integration)
+
+```bash
+./venv/bin/pytest tests/integration/ -m feature_journey
+./venv/bin/pytest tests/integration/ -m core_pipeline
+```
+
+### Skip Docker Teardown (Integration)
+
+```bash
+SKIP_DOCKER_TEARDOWN=1 ./venv/bin/pytest tests/integration/
 ```
 
 ## Test Patterns
 
 ### Fixtures
 
-**Shared Fixtures (`services/simulation/tests/conftest.py`):**
-- `sample_zones_path` - Path to test GeoJSON zones
-- `setup_zone_validator` - Auto-configured zone validation (autouse=True)
-- `fake` - Seeded Faker instance (seed=42)
-- `dna_factory` - Factory for creating DNA objects
-- `mock_kafka_producer` - Mock Kafka producer
-- `mock_redis_client` - Mock Redis client
-- `mock_osrm_client` - Mock OSRM routing client
-- `temp_sqlite_db` - Temporary SQLite database
+**Simulation service** (`services/simulation/tests/conftest.py`):
+- `dna_factory` — `DNAFactory` with seeded Faker (seed=42) for deterministic agent DNA
+- `sample_driver_dna` / `sample_rider_dna` — pre-built DNA objects from `dna_factory`
+- `mock_kafka_producer` / `mock_redis_client` / `mock_osrm_client` — `unittest.mock.Mock` stubs
+- `temp_sqlite_db` — `tmp_path`-backed SQLite database path
+- `fake` — seeded `Faker` instance (seed=42)
+- `setup_zone_validator` — `autouse=True`; loads `tests/fixtures/sample_zones.geojson` and resets zone loader after each test
 
-**Integration Test Fixtures (`tests/integration/data_platform/conftest.py`):**
-- `docker_compose` - Docker Compose lifecycle management
-- `reset_all_state` - Clean state between test runs
-- `wait_for_services` - Health check polling
-- `minio_client` - S3 client for MinIO
-- `kafka_admin` - Kafka AdminClient
-- `kafka_producer` - Kafka Producer
-- `trino_connection` - Trino DBAPI connection for querying Delta lakehouse tables
-- `simulation_api_client` - HTTP client for Simulation API
-- `test_context` - Unique test ID generation
+**Engine tests** (`services/simulation/tests/engine/conftest.py`):
+- `fast_engine` — `SimulationEngine` with `_speed_multiplier = 60` and all dependencies mocked; avoids real-time wall-clock pacing in `step()` calls
+- `fast_running_engine` — `fast_engine` with `start()` already called (RUNNING state)
 
-**Frontend Fixtures (`services/control-panel/src/test/setup.ts`):**
-- Vitest globals enabled
-- jsdom environment configured
-- CSS module strategy: non-scoped
+**API tests** (`services/simulation/tests/api/conftest.py`):
+- `mock_engine_modules` — `autouse=True`; installs mock objects into `sys.modules["engine"]` and `sys.modules["engine.agent_factory"]` before each test, restores originals after
+- `test_client` — FastAPI `TestClient` with `mock_simulation_engine`, `mock_agent_factory`, `mock_redis_client`; constructed via `create_app()`
+- `auth_headers` — `{"X-API-Key": "test-api-key"}`
+
+**Integration tests** (`tests/integration/data_platform/conftest.py`):
+- `docker_compose` — session-scoped; dynamically reads `@pytest.mark.requires_profiles` markers from the selected test items to determine which Docker Compose profiles to start; falls back to `core` + `data-pipeline`
+- `load_credentials` — session-scoped; fetches all secrets from LocalStack Secrets Manager and sets them as environment variables
+- `reset_all_state` — session-scoped; stops streaming containers -> drops Hive tables -> clears MinIO buckets -> deletes and recreates Kafka topics -> restarts streaming containers
+- `wait_for_services` — session-scoped; polls MinIO, Kafka/Schema Registry, and Airflow health endpoints with retry
+- `stream_processor_healthy` — session-scoped; two-phase readiness: HTTP health poll (kafka_connected + redis_connected) followed by a probe message through Kafka -> Stream Processor -> Redis to confirm end-to-end pipeline
+- `trino_connection`, `kafka_admin`, `kafka_producer`, `minio_client`, `airflow_client`, `prometheus_client`, `grafana_client`, `simulation_api_client` — session-scoped service clients
+- `test_context` — function-scoped; unique `TestContext` per test for generating non-colliding IDs (`trip_id`, `driver_id`, `rider_id`)
+- `test_trip_events`, `test_gps_events`, `test_driver_events`, `test_profile_events` — function-scoped controlled event generator fixtures
+
+**Performance controller** (`services/performance-controller/tests/conftest.py`):
+- OpenTelemetry and its sub-modules are stubbed via `sys.modules` `MagicMock` before any `src.*` imports
+
+**Frontend** (`services/control-panel/src/test/setup.ts`):
+- Imports `@testing-library/jest-dom`
+- Configures `asyncUtilTimeout: 5000`
+- Enables fake timers with `shouldAdvanceTime: true`
+- Stubs `global.ResizeObserver` (not implemented in jsdom)
 
 ### Mocking
 
-**Python:**
-- `unittest.mock.Mock` for external dependencies
-- `respx` for mocking HTTP responses (httpx)
-- Fixture-based mocking (e.g., `mock_kafka_producer`)
-
-**TypeScript:**
-- Vitest's `vi.fn()` for function mocking
-- `vi.mock()` for module mocking
+- `unittest.mock.Mock`, `MagicMock`, and `AsyncMock` are used throughout Python tests
+- Kafka producer, Redis client, OSRM client, and SQLite session factory are mocked at fixture level for simulation unit tests
+- API tests mock the `engine` and `engine.agent_factory` modules directly in `sys.modules` using an `autouse=True` fixture, with per-test cleanup that restores original module references
+- Stream processor and performance controller tests stub OpenTelemetry modules to avoid import errors outside Docker
+- Frontend tests use Vitest's `vi.mock()` for WebSocket, MapLibre GL, deck.gl, and other browser APIs
+- Integration tests use real services via Docker Compose — no mocking of external dependencies
 
 ### Data Setup
 
-**DNAFactory Pattern** (`services/simulation/tests/factories.py`):
+- Simulation unit tests use seeded `Faker` (seed=42) via `DNAFactory` for deterministic agent DNA generation
+- Integration tests use controlled event generators in `tests/integration/data_platform/fixtures/` to produce structured trip lifecycle events, GPS pings, driver status transitions, and profile create/update events
+- DBT tests use seed data from `tools/dbt/seeds/test_data/` for known-value assertion testing of SQL transformations
+- Integration test credentials are loaded at session start from LocalStack Secrets Manager via the `load_credentials` fixture
+
+### Docker Profile Requirements (Integration)
+
+Integration tests declare their Docker dependency using `@pytest.mark.requires_profiles`:
+
 ```python
-# Seeded factory for deterministic test data
-dna_factory = DNAFactory(seed=42)
+@pytest.mark.requires_profiles("core", "data-pipeline")
+def test_something():
+    ...
 
-# Generate with defaults
-driver_dna = dna_factory.driver_dna()
-
-# Override specific fields
-driver_dna = dna_factory.driver_dna(
-    acceptance_rate=0.95,
-    home_location=(-23.56, -46.65)
-)
+@pytest.mark.requires_profiles("core", "data-pipeline", "monitoring")
+class TestMonitoringIntegration:
+    ...
 ```
 
-**Event Generators** (`tests/integration/data_platform/fixtures/`):
-- `generate_trip_lifecycle()` - Complete trip state sequence
-- `generate_gps_pings()` - GPS ping events for drivers
-- `generate_driver_profile_events()` - Driver profile create/update
-- `generate_rider_profile_events()` - Rider profile create/update
+Valid profiles: `core` (Kafka, Redis, OSRM, Simulation, Stream Processor, Frontend), `data-pipeline` (MinIO, Bronze Ingestion, Hive Metastore, Trino, Airflow), `monitoring` (Prometheus, Grafana, cAdvisor).
 
-**Test Context Pattern**:
-```python
-def test_something(test_context):
-    trip_id = test_context.trip_id("001")
-    driver_id = test_context.driver_id("001")
-    # Prevents cross-test contamination
-```
-
-### Environment Setup
-
-**Simulation Tests** (`services/simulation/tests/conftest.py`):
-- GPS ping intervals set to 60s (vs production defaults)
-- Test credentials for Kafka, Redis, API
-- Zone validator auto-configured with `sample_zones.geojson`
-
-**Integration Tests**:
-- Docker Compose profile management
-- Session-scoped service health checks
-- Function-scoped unique test IDs
+The `docker_compose` fixture reads only the markers from tests that will actually run (after `-k` and `-m` filters), so unused profiles are not started.
 
 ## Coverage
 
 ### Tools
 
-**Python:** pytest-cov (coverage.py wrapper)
+pytest-cov 7.0.0 is configured for the simulation service. No other service enables coverage collection by default.
 
-**TypeScript:** Vitest built-in coverage (via c8)
+### Configuration
 
-### Current Coverage
+Coverage is enabled by default via `addopts` in `services/simulation/pyproject.toml`:
 
-Coverage tracking is configured but specific percentages are not enforced in CI.
+```toml
+addopts = [
+    "--cov=src",
+    "--cov-report=term-missing",
+]
+```
 
-**Simulation Service:**
-- Configured via `pyproject.toml`: `--cov=src --cov-report=term-missing`
-- Coverage reports show per-file and line-level coverage
+### Scope
 
-**Frontend:**
-- Vitest coverage available via `npm run test -- --coverage`
+Coverage is collected over `services/simulation/src/`. The stream-processor and bronze-ingestion services list `pytest-cov` as a dev dependency but do not configure it in their `pyproject.toml`. Integration tests, frontend tests, and performance tests do not collect coverage.
 
 ### Coverage Reports
 
-**Generate HTML Report (Python):**
 ```bash
-./venv/bin/pytest --cov=src --cov-report=html
-# Opens htmlcov/index.html
+# Terminal report with missing lines (default when running simulation tests)
+cd services/simulation && ./venv/bin/pytest
+
+# HTML report
+cd services/simulation && ./venv/bin/pytest --cov-report=html
+
+# XML report (for CI)
+cd services/simulation && ./venv/bin/pytest --cov-report=xml
 ```
-
-**Terminal Report (Python):**
-```bash
-./venv/bin/pytest --cov=src --cov-report=term-missing
-```
-
-**Frontend Coverage:**
-```bash
-cd services/control-panel
-npm run test -- --coverage
-```
-
-## Test Configuration Files
-
-| File | Purpose |
-|------|---------|
-| `services/simulation/pyproject.toml` | pytest config, markers, coverage settings |
-| `pyproject.toml` (root) | Integration test config |
-| `services/control-panel/vitest.config.ts` | Vitest configuration |
-| `services/control-panel/package.json` | Test scripts, dependencies |
-| `tools/dbt/dbt_project.yml` | DBT test configuration |
-| `tools/great-expectations/great_expectations.yml` | Data quality validation config |
-
-## Key Testing Gotchas
-
-**GPS Ping Interval Override**: Simulation tests set `GPS_PING_INTERVAL_MOVING` and `GPS_PING_INTERVAL_IDLE` to 60 seconds before imports to prevent SimPy from creating excessive events. Production defaults would generate too many ping events for test performance.
-
-**Zone Coordinate Validation**: DNAFactory uses hardcoded coordinates that fall inside zones defined in `fixtures/sample_zones.geojson` (BVI, PIN, SEE zones). Tests fail with zone validation errors if coordinates don't match fixture data.
-
-**Docker Profile Dependencies**: Integration tests require Docker profiles via `@pytest.mark.requires_profiles()`. The fixture automatically starts required services and cleans up after the session.
-
-**Unique Test IDs**: Integration tests use `test_context.trip_id()`, `test_context.driver_id()` to generate unique IDs per test, preventing cross-test contamination when running in parallel or with `SKIP_DOCKER_TEARDOWN=1`.
-
-**Stream Processor Health Probe**: The `stream_processor_healthy` fixture uses a two-phase readiness check (health endpoint + probe message through Kafka -> Redis pipeline) to ensure the consumer is actually processing messages, not just reporting healthy.
-
-**API Contract Drift Prevention**: `test_api_contract.py` runs `npm run generate-types` to ensure committed TypeScript types match the OpenAPI spec, preventing drift between backend schema and frontend types.
-
----
-
-**Generated**: 2026-02-13
-**Codebase**: rideshare-simulation-platform
-**Test Frameworks**: pytest, vitest, dbt, Great Expectations
-**Test Types**: unit, integration, performance, contract
-**Estimated Test Files**: 120+

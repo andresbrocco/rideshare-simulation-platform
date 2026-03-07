@@ -1,266 +1,165 @@
 # Loki
 
-> Log aggregation backend for the rideshare simulation platform's observability stack
+> Log aggregation service that collects structured logs from all platform services, stores them in MinIO (S3-compatible), and exposes them for Grafana queries.
 
 ## Quick Reference
 
 ### Ports
 
-| Port | Protocol | Purpose |
-|------|----------|---------|
-| 3100 | HTTP | LogQL API, log ingestion endpoint |
-| 9096 | gRPC | Internal gRPC server (not exposed) |
+| Port | Protocol | Description |
+|------|----------|-------------|
+| 3100 | HTTP | Loki API and push endpoint |
+| 9096 | gRPC | Loki gRPC listener (internal) |
 
-### Configuration
+### Environment Variables
 
-| File | Purpose |
-|------|---------|
-| `loki-config.yaml` | Loki server configuration (storage, retention, indexing) |
+Loki is configured via `loki-config.yaml` with env var substitution (`-config.expand-env=true`). The following variables are injected at container startup from the secrets volume:
 
-### Docker Service
+| Variable | Source | Description |
+|----------|--------|-------------|
+| `S3_ENDPOINT` | Hardcoded in entrypoint | MinIO address (`minio:9000`) |
+| `LOKI_S3_BUCKET` | Hardcoded in entrypoint | MinIO bucket name (`rideshare-loki`) |
+| `AWS_ACCESS_KEY_ID` | `data-pipeline.env` via secrets volume | MinIO root user (used as S3 access key) |
+| `AWS_SECRET_ACCESS_KEY` | `data-pipeline.env` via secrets volume | MinIO root password (used as S3 secret key) |
+
+### Configuration File
+
+| File | Mount Path | Description |
+|------|------------|-------------|
+| `services/loki/loki-config.yaml` | `/etc/loki/local-config.yaml` | Loki server, storage, schema, and retention config |
+
+Key settings in `loki-config.yaml`:
+
+| Setting | Value | Description |
+|---------|-------|-------------|
+| `auth_enabled` | `false` | No multi-tenancy; single-tenant mode |
+| `http_listen_port` | `3100` | HTTP API port |
+| `grpc_listen_port` | `9096` | gRPC port |
+| `object_store` | `s3` (MinIO) | Chunk and index storage backend |
+| `schema` | `v13` (tsdb) | TSDB index with 24h period |
+| `retention_period` | `168h` (7 days) | Log retention window |
+| `replication_factor` | `1` | Single-node — no replication |
+
+### Commands
+
+Start Loki (requires `monitoring` profile):
 
 ```bash
-# Start Loki (part of monitoring profile)
 docker compose -f infrastructure/docker/compose.yml --profile monitoring up -d loki
-
-# View logs
-docker compose -f infrastructure/docker/compose.yml logs -f loki
-
-# Check health
-docker compose -f infrastructure/docker/compose.yml exec loki /usr/bin/loki -health
-
-# Stop Loki
-docker compose -f infrastructure/docker/compose.yml stop loki
 ```
 
-**Image**: `grafana/loki:3.6.5`
-**Container Name**: `rideshare-loki`
-**Memory Limit**: 512m
-**Health Check**: `/usr/bin/loki -health`
+Check Loki health:
 
-## Key Settings
+```bash
+curl http://localhost:3100/ready
+```
+
+Query recent logs via LogQL:
+
+```bash
+curl -G 'http://localhost:3100/loki/api/v1/query_range' \
+  --data-urlencode 'query={container="rideshare-simulation"}' \
+  --data-urlencode 'start=1h' \
+  --data-urlencode 'limit=50'
+```
+
+Push a test log entry:
+
+```bash
+curl -X POST http://localhost:3100/loki/api/v1/push \
+  -H 'Content-Type: application/json' \
+  -d '{"streams":[{"stream":{"job":"test"},"values":[["'"$(date +%s%N)"'","test log entry"]]}]}'
+```
+
+### Health Check
+
+```bash
+curl http://localhost:3100/ready
+# Expected: "ready"
+```
+
+The compose healthcheck runs `/usr/bin/loki -health` every 10s (5 retries, 30s start period). Grafana and OTel Collector depend on this check passing before starting.
 
 ### Storage
 
-- **Storage Type**: Filesystem (single-node mode)
-- **Data Location**: `/loki` (mounted as Docker volume `loki-data`)
-- **Chunks Directory**: `/loki/chunks`
-- **Rules Directory**: `/loki/rules`
-- **Compactor Directory**: `/loki/compactor`
+| Volume | Purpose |
+|--------|---------|
+| `loki-data` | Compactor working directory (`/loki/compactor`) |
+| MinIO bucket `rideshare-loki` | Chunk storage and TSDB index (S3 path-style) |
 
-### Indexing
+The `rideshare-loki` bucket is created automatically by `minio-init` before Loki starts. Loki depends on `minio-init` completing successfully.
 
-- **Schema Version**: TSDB v13 (latest recommended schema)
-- **Index Prefix**: `index_`
-- **Index Period**: 24h
-- **Store**: `tsdb`
-- **Object Store**: `filesystem`
+### Docker Image
 
-### Retention
-
-- **Retention Period**: 168h (7 days)
-- **Retention Enforcement**: Compactor-based deletion
-- **Volume Enabled**: `true`
-
-### Authentication
-
-- **Auth Enabled**: `false` (no authentication required)
-
-## API Endpoints
-
-### Log Ingestion
-
-```bash
-# Push logs (used by OTel Collector)
-curl -X POST http://localhost:3100/loki/api/v1/push \
-  -H "Content-Type: application/json" \
-  -d '{
-    "streams": [
-      {
-        "stream": {"service_name": "simulation", "level": "info"},
-        "values": [["1234567890000000000", "Log message here"]]
-      }
-    ]
-  }'
-```
-
-### LogQL Queries
-
-```bash
-# Query logs
-curl -G http://localhost:3100/loki/api/v1/query_range \
-  --data-urlencode 'query={service_name="simulation"}' \
-  --data-urlencode 'start=1h' \
-  --data-urlencode 'limit=100'
-
-# Get labels
-curl http://localhost:3100/loki/api/v1/labels
-
-# Get label values
-curl http://localhost:3100/loki/api/v1/label/service_name/values
-```
-
-### Health & Metrics
-
-```bash
-# Health check
-curl http://localhost:3100/ready
-
-# Metrics (Prometheus format)
-curl http://localhost:3100/metrics
-
-# Build info
-curl http://localhost:3100/loki/api/v1/status/buildinfo
-```
+The `Dockerfile` extends `grafana/loki:3.6.5` with a BusyBox shell (`busybox:1.37-musl`) required for the entrypoint shell script that loads secrets and sets env vars before exec-ing Loki.
 
 ## Common Tasks
 
-### Query Logs in Grafana
+### View logs for a specific service
 
-1. Navigate to Grafana: http://localhost:3001 (admin/admin)
-2. Go to Explore
-3. Select "Loki" datasource
-4. Use LogQL queries:
-   ```
-   {service_name="simulation"} |= "error"
-   {level="error"} | json
-   {container_id="rideshare-simulation"} | pattern `<_> <level> <msg>`
-   ```
+In Grafana (port 3001), open Explore, select the Loki datasource, and run:
 
-### Check Log Volume by Service
-
-```bash
-# Query log volume metrics
-curl -G http://localhost:3100/loki/api/v1/query_range \
-  --data-urlencode 'query=sum by (service_name) (count_over_time({service_name=~".+"}[1m]))' \
-  --data-urlencode 'start=1h'
+```logql
+{container="rideshare-simulation"}
 ```
 
-### Verify Retention Policy
+Or via the API:
 
 ```bash
-# Check compactor metrics for deletion operations
-curl http://localhost:3100/metrics | grep loki_compactor
-
-# Expected: loki_compactor_marked_chunks_total increases as old chunks are deleted
+curl -G 'http://localhost:3100/loki/api/v1/query_range' \
+  --data-urlencode 'query={container="rideshare-stream-processor"}' \
+  --data-urlencode 'start=30m'
 ```
 
-### Inspect Storage
+### List available log labels
 
 ```bash
-# Access container
-docker compose -f infrastructure/docker/compose.yml exec loki sh
-
-# Check storage directories
-ls -lh /loki/chunks
-ls -lh /loki/compactor
-du -sh /loki/*
+curl http://localhost:3100/loki/api/v1/labels
 ```
 
-## Integration Points
+### Check ingestion stats
 
-### Upstream (Log Producers)
+```bash
+curl http://localhost:3100/metrics | grep loki_ingester
+```
 
-**OpenTelemetry Collector** (`otel-collector:4318`)
-- Collects logs from Docker containers via filelog receiver
-- Enriches logs with labels (service_name, level, container_id)
-- Pushes to Loki at `http://loki:3100/loki/api/v1/push`
-- See: `services/otel-collector/otel-collector-config.yaml`
+### Verify MinIO connectivity
 
-### Downstream (Log Consumers)
+If Loki fails to start, check that MinIO is healthy and the `rideshare-loki` bucket exists:
 
-**Grafana** (`grafana:3000`)
-- Queries Loki via LogQL
-- Datasource: `http://loki:3100`
-- See: `services/grafana/provisioning/datasources/datasources.yml`
+```bash
+docker compose -f infrastructure/docker/compose.yml exec minio \
+  mc ls local/rideshare-loki
+```
 
 ## Troubleshooting
 
-### No Logs Appearing
-
-**Check OTel Collector is running and healthy:**
+**Loki fails healthcheck / won't start**
+Loki depends on `minio-init` completing. Check `minio-init` logs first:
 ```bash
-docker compose -f infrastructure/docker/compose.yml ps otel-collector
-docker compose -f infrastructure/docker/compose.yml logs otel-collector | grep loki
+docker compose -f infrastructure/docker/compose.yml logs minio-init
 ```
 
-**Verify Loki is receiving logs:**
+**"bucket not found" or S3 errors**
+The `rideshare-loki` bucket must exist in MinIO before Loki starts. Re-run `minio-init` or create it manually via the MinIO console at `http://localhost:9001`.
+
+**No logs appearing in Grafana**
+The OTel Collector (Docker log driver or OTLP) forwards logs to Loki at `http://loki:3100`. Confirm OTel Collector is running and healthy:
 ```bash
-curl http://localhost:3100/metrics | grep loki_distributor_lines_received_total
-# Should show increasing counter
+docker compose -f infrastructure/docker/compose.yml logs otel-collector
 ```
 
-**Check for ingestion errors:**
+**High memory usage**
+The container is memory-limited to `384m`. If Loki is OOM-killed, reduce `chunk_target_size` or increase the limit in `compose.yml`.
+
+**Secrets not injected**
+Loki reads `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD` from `/secrets/data-pipeline.env`. Confirm `secrets-init` ran successfully:
 ```bash
-curl http://localhost:3100/metrics | grep loki_discarded
+docker compose -f infrastructure/docker/compose.yml logs secrets-init
 ```
-
-### High Memory Usage
-
-**Check ingestion rate:**
-```bash
-curl http://localhost:3100/metrics | grep loki_ingester_streams_created_total
-curl http://localhost:3100/metrics | grep loki_ingester_chunks_created_total
-```
-
-**Reduce label cardinality:**
-- Review OTel Collector configuration for `loki.attribute.labels`
-- Avoid high-cardinality attributes like request IDs, user IDs as labels
-- Use structured log parsing instead (JSON, pattern extractors)
-
-### Retention Not Working
-
-**Verify compactor is running:**
-```bash
-docker compose -f infrastructure/docker/compose.yml logs loki | grep compactor
-```
-
-**Check retention configuration:**
-```bash
-docker compose -f infrastructure/docker/compose.yml exec loki cat /etc/loki/local-config.yaml | grep retention
-```
-
-**Expected:**
-- `retention_period: 168h`
-- `retention_enabled: true`
-- `volume_enabled: true`
-
-### Query Performance Issues
-
-**Limit query time range:**
-```bash
-# Bad: unbounded query
-{service_name="simulation"}
-
-# Good: time-bounded query
-{service_name="simulation"} [1h]
-```
-
-**Use label filters before line filters:**
-```bash
-# Less efficient
-{service_name=~".+"} |= "error"
-
-# More efficient
-{service_name="simulation", level="error"}
-```
-
-**Check query metrics:**
-```bash
-curl http://localhost:3100/metrics | grep loki_query
-```
-
-## Architecture Notes
-
-**Single-Node Deployment**: Loki runs in monolithic mode with all components (distributor, ingester, querier, compactor) in a single process. The ring uses `inmemory` kvstore with `replication_factor: 1`. Not suitable for production HA deployments.
-
-**Push-Based Model**: Unlike Prometheus (pull), Loki requires log shippers (OTel Collector) to push logs. Applications do not send logs directly to Loki.
-
-**Label-Oriented Indexing**: Loki indexes labels, not log content. Full-text search is performed at query time using log line filters (`|=`, `|~`). Keep label cardinality low (<100 unique label combinations per stream).
 
 ## Related
 
-- [CONTEXT.md](CONTEXT.md) — Architecture context, schema details, retention enforcement
-- [OpenTelemetry Collector](../otel-collector/README.md) — Log collection and forwarding
-- [Grafana](../grafana/README.md) — Log visualization and exploration
-- [Tempo](../tempo/README.md) — Distributed tracing backend (companion service)
+- [services/grafana/README.md](../grafana/README.md) — Grafana dashboards that query Loki
+- [services/otel-collector/README.md](../otel-collector/README.md) — OTel Collector that ships logs to Loki
+- [services/tempo/README.md](../tempo/README.md) — Distributed tracing companion service

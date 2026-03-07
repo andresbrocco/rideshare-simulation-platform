@@ -2,28 +2,27 @@
 
 ## Purpose
 
-Routing engine service for the rideshare simulation platform, providing real-time route calculation, distance estimation, and duration estimation for the Sao Paulo metropolitan area. Uses a pre-processed OpenStreetMap extract with the Multi-Level Dijkstra (MLD) algorithm to deliver fast point-to-point routing between simulation coordinates.
+Provides a self-contained road-network routing service for the Sao Paulo metropolitan area. The simulation engine queries this service to obtain realistic route geometries between pickup and dropoff points rather than computing straight-line paths.
 
 ## Responsibility Boundaries
 
-- **Owns**: Route calculation between coordinate pairs, distance/duration estimation, OSM data processing (extract/partition/customize), serving the OSRM HTTP API
-- **Delegates to**: Simulation service for making route requests, Docker for container lifecycle management, Geofabrik for source map data (fetch mode only)
-- **Does not handle**: Traffic data, real-time routing updates, map rendering, route visualization, trip business logic
+- **Owns**: Containerized OSRM backend with pre-processed Sao Paulo road data; Docker image build pipeline for the OSM extract
+- **Delegates to**: Simulation service (`src/geo`) for interpreting route responses; Geofabrik for upstream OSM source data when building from scratch
+- **Does not handle**: H3 spatial indexing, driver-to-rider matching, or any application logic — it is a pure routing HTTP server
 
 ## Key Concepts
 
-**Multi-Stage Dockerfile**: The Dockerfile supports two build modes controlled by the `OSRM_MAP_SOURCE` build argument. `local` (default) copies a pre-extracted `sao-paulo-metro.osm.pbf` from the `data/` directory for fast, reproducible builds. `fetch` downloads the full `brazil-latest.osm.pbf` from Geofabrik and uses `osmium extract` with the Sao Paulo bounding box to produce a fresh extract, which is slower but yields the latest map data.
-
-**MLD Algorithm**: OSRM is configured to use the Multi-Level Dijkstra algorithm (`--algorithm mld`) for routing. MLD offers a good balance between preprocessing time and query speed for metropolitan-scale routing.
-
-**Data Processing Pipeline**: On first startup, `osrm-init.sh` runs a three-step pipeline — `osrm-extract` (parses OSM data into OSRM format), `osrm-partition` (creates routing hierarchy), `osrm-customize` (applies edge weights). Subsequent starts skip these steps because processed data is persisted in the `osrm-data` Docker volume.
-
-**Thread Configuration**: The `OSRM_THREADS` environment variable controls how many threads `osrm-routed` uses for serving HTTP requests, defaulting to the number of available CPU cores.
+- **MLD algorithm**: The server starts with `--algorithm=mld` (Multi-Level Dijkstra), which requires the three-step processing pipeline (`osrm-extract` → `osrm-partition` → `osrm-customize`) rather than the simpler CH (Contraction Hierarchies) pipeline. MLD supports live traffic updates but is the only option here because the data is pre-built for MLD.
+- **Bounding box**: The Sao Paulo metro extract covers `-46.9233,-24.1044,-46.2664,-23.2566` (min_lon, min_lat, max_lon, max_lat), matching the simulation zone area defined in `zones.geojson`.
+- **Git LFS data file**: `data/sao-paulo-metro.osm.pbf` is a large binary tracked via Git LFS. Cloning without LFS support will produce a pointer file stub, causing the Docker build to fail at the COPY step.
 
 ## Non-Obvious Details
 
-Runs on `linux/amd64` only because the OSRM backend image does not support ARM. On Apple Silicon Macs, Docker uses Rosetta emulation, which works but is slower than native execution.
+- **Dual-source build**: The Dockerfile has a `OSRM_MAP_SOURCE` build argument (`local` or `fetch`). `local` (default) copies the pre-extracted `.osm.pbf` from Git LFS — fast and reproducible. `fetch` downloads the full Sudeste (SE Brazil) region from Geofabrik and extracts the bounding box at build time using `osmium` — slow but always uses the latest OSM data.
+- **Idempotent init**: `osrm-init.sh` writes a `.osrm-processed` marker after the three processing steps complete. On container restarts the expensive extraction is skipped, serving from already-processed files.
+- **Debian archive workaround**: The `osrm/osrm-backend:v5.25.0` base image runs Debian Stretch (EOL). The Dockerfile rewrites `/etc/apt/sources.list` to point at `archive.debian.org` so `apt-get install wget curl` can succeed. This is required for the health-check tooling in the init script.
+- **Thread tuning**: The number of routing threads defaults to `nproc` (all available cores) but can be overridden via the `OSRM_THREADS` environment variable if CPU sharing is needed in a constrained environment.
 
-First startup is slow (approximately 3 minutes) because `osrm-extract`, `osrm-partition`, and `osrm-customize` must process the full OSM data file. Subsequent starts skip this step since processed data is persisted in the `osrm-data` named volume.
+## Related Modules
 
-The Sao Paulo bounding box used for map extraction (`-46.9233,-24.1044,-46.2664,-23.2566`) matches the simulation's `zones.geojson` boundaries, ensuring all simulation coordinates fall within the routable area.
+- [infrastructure/docker](../../infrastructure/docker/CONTEXT.md) — Reverse dependency — Consumed by this module

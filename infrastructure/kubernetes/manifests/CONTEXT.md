@@ -1,48 +1,43 @@
-# CONTEXT.md — Kubernetes Manifests
+# CONTEXT.md — Manifests
 
 ## Purpose
 
-Kubernetes resource definitions for deploying the rideshare simulation platform to a local Kind cluster. Contains declarative YAML manifests for all services, infrastructure components, networking, storage, and configuration management.
+Raw Kubernetes manifests for deploying the full rideshare simulation platform to a local cluster. These manifests are applied directly (or via Kustomize overlays) and cover all application services, infrastructure dependencies, networking, storage, and secret management.
 
 ## Responsibility Boundaries
 
-- **Owns**: Kubernetes resource definitions (Deployments, StatefulSets, DaemonSets, Jobs, Services, PVCs, ConfigMaps, Secrets, Gateway/HTTPRoutes)
-- **Delegates to**: Lifecycle scripts (`infrastructure/kubernetes/scripts/`) for cluster creation, deployment orchestration, and teardown
-- **Does not handle**: Cluster provisioning (handled by Kind cluster config), runtime configuration changes (use `kubectl apply`), or cloud provider resources (handled by Terraform)
+- **Owns**: All base Kubernetes resource definitions — Deployments, Services, ConfigMaps, Secrets, PersistentVolumes, PersistentVolumeClaims, CronJobs, HTTPRoutes, GatewayClass, StorageClass, and External Secrets CRDs
+- **Delegates to**: Kustomize overlays (`infrastructure/kubernetes/overlays/`) for environment-specific patching (image tags, replica counts, resource limits)
+- **Does not handle**: Helm chart templating, ArgoCD Application definitions, Terraform-managed cloud resources, or cluster bootstrapping (those live in `infrastructure/kubernetes/argocd/` and `infrastructure/terraform/`)
 
 ## Key Concepts
 
-**Service Categories**: Manifests are organized by service name, not by resource type. Each service typically includes multiple resources (Deployment/StatefulSet + Service + optional ConfigMap/PVC).
+**Gateway API routing**: Ingress is not used. The platform uses `GatewayClass` (named `eg`, backed by Envoy Gateway) and `HTTPRoute` resources. All path-based routing strips the path prefix before forwarding — e.g., `/api/` rewrites to `/` before hitting the simulation service. Two HTTPRoute files split responsibilities: `httproute-api.yaml` handles the simulation API and frontend root, `httproute-web-services.yaml` handles Airflow, Grafana, Prometheus, and Trino UIs.
 
-**Service Inventory**:
-- **Core**: kafka, schema-registry, redis, osrm, simulation, stream-processor, frontend
-- **Data Pipeline**: minio, minio-init (Job), postgres-metastore, hive-metastore, trino, bronze-ingestion, bronze-init (Job), airflow-postgres, airflow-webserver, airflow-scheduler, localstack
-- **Monitoring**: prometheus, loki, tempo, otel-collector, cadvisor (DaemonSet), grafana
+**External Secrets integration**: `external-secrets-secretstore.yaml` defines a `SecretStore` pointing to AWS Secrets Manager. In local development the ESO controller is configured with `AWS_ENDPOINT_URL=http://localstack:4566`, so it transparently hits LocalStack instead of real AWS. The ExternalSecret CRDs (`external-secrets-api-keys.yaml`, `external-secrets-app-credentials.yaml`) are identical for local and production — only the controller endpoint changes. Switching to real AWS requires removing the endpoint override from the ESO Helm install, not changing these manifests.
 
-**Gateway API**: Uses Kubernetes Gateway API (not Ingress) for HTTP routing. The `gateway.yaml` defines the entry point, while `httproute-*.yaml` files define path-based routing rules with URL rewriting.
+**Static PersistentVolumes with node affinity**: Local storage uses `hostPath` PVs defined in `pv-static.yaml` with explicit `nodeAffinity` pinning volumes to specific nodes (`rideshare-local-worker`, `rideshare-local-worker2`). The StorageClass (`storageclass.yaml`) uses `rancher.io/local-path` provisioner with `volumeBindingMode: Immediate`. This is a local-only pattern; cloud overlays use dynamically provisioned PVCs instead.
 
-**StatefulSet vs Deployment**: Kafka and postgres-metastore use StatefulSet for stable network identity and persistent storage. Most other services use Deployments. cAdvisor uses a DaemonSet. minio-init and bronze-init use Jobs.
+**Dependency-ordered startup via initContainers**: `simulation.yaml` uses five sequential initContainers (Kafka, Schema Registry, Redis, OSRM, Stream Processor) to enforce startup ordering within the cluster. Each polls its dependency's health endpoint before proceeding. This replaces Docker Compose `depends_on` semantics in Kubernetes where native ordering is not available.
 
-**Configuration Strategy**: Two-tier configuration with ConfigMaps for non-sensitive values (`configmap-core.yaml`, `configmap-data-pipeline.yaml`) and Secrets for credentials (`secret-credentials.yaml`, `secret-api-keys.yaml`). Services load configuration via `envFrom` or individual `valueFrom` references.
-
-**Observability Stack**: OpenTelemetry Collector receives metrics and traces via OTLP from simulation and stream-processor, forwards metrics to Prometheus (remote write) and traces to Tempo. Loki handles log aggregation. Grafana provides unified dashboards with Prometheus, Loki, Tempo, and Trino datasources. In K8s, the OTel Collector runs as a Deployment (not DaemonSet) and does not collect container logs directly; metrics and traces are pushed via OTLP.
-
-**Storage Model**: Uses Kind's local-path-provisioner with `Delete` reclaim policy. PVCs are pre-created for stateful services (MinIO, PostgreSQL instances, Kafka). Critical data must be backed up before PVC deletion as volumes are automatically destroyed.
-
-**Init Containers**: Services with dependencies use init containers to wait for upstream services (e.g., simulation waits for Kafka, Redis, OSRM, Schema Registry, Stream Processor). This ensures correct startup ordering without external orchestration.
+**bronze-init as a CronJob**: `bronze-init.yaml` is a CronJob (runs every 10 minutes) rather than a one-shot Job. It registers Delta table locations in Hive Metastore via Trino using `CALL delta.system.register_table(...)`. The registration is idempotent — tables already registered are skipped. Running continuously handles the case where data arrives in S3 after the initial cluster start. The registration script is embedded as a ConfigMap shell script and executed inside a `trinodb/trino` container image.
 
 ## Non-Obvious Details
 
-**Image Pull Policy**: Uses `imagePullPolicy: Never` for custom images (simulation, stream-processor, frontend, minio, bronze-ingestion, hive-metastore) as these are built locally and loaded into Kind with `kind load docker-image`.
+- The `secret-credentials.yaml` and `secret-api-keys.yaml` files contain development-default credentials. In production these Kubernetes Secrets are replaced by ExternalSecret-synced secrets — the `secret-*.yaml` files are only applied in local environments where LocalStack is not yet bootstrapped or for initial cluster setup.
+- OSRM's liveness and readiness probes use a hardcoded São Paulo coordinate pair (`-46.6333,-23.5505`) as the health check URL. The `initialDelaySeconds` is very high (180–300s) because OSRM must load pre-processed road network data on startup.
+- `configmap-core.yaml` centralizes shared env vars but individual service manifests override specific values inline (e.g., simulation overrides `SIM_SPEED_MULTIPLIER` directly in its pod spec). The ConfigMap is not always consumed via `envFrom`; services reference individual keys.
+- `bronze-init.yaml` stores its entire registration shell script inside a ConfigMap and mounts it at `/opt/init-scripts/` — there is no separate application image for this job; it uses the stock `trinodb/trino:451` image with the `trino` CLI.
+- The `external-secrets-namespace.yaml` and `external-secrets-aws-credentials.yaml` must be applied to the `external-secrets` namespace (not `default`) — this is the namespace where the ESO controller looks for provider credentials.
 
-**Kafka Listener Configuration**: Kafka exposes three ports: 9092 (external), 29092 (internal cluster communication), 29093 (KRaft controller). Internal services connect via `kafka-0.kafka:29092`.
+## Related Modules
 
-**Headless Service Pattern**: Kafka uses a headless service (`clusterIP: None`) to enable direct pod-to-pod communication and stable DNS names for StatefulSet pods.
-
-**Gateway HTTPRoute Ordering**: HTTPRoute rules are evaluated in order. The frontend route (`/`) must be defined last as it matches all paths. More specific routes (e.g., `/api/`) must come first.
-
-**Trino Config Init Container**: Trino requires config files at specific paths (`/etc/trino/`, `/etc/trino/catalog/`). An init container copies ConfigMap data into the correct directory structure since ConfigMap mounts are flat.
-
-**OTel Collector K8s Adaptation**: The Docker Compose OTel Collector uses a `filelog` receiver to read Docker container logs from `/var/lib/docker/containers/`. In K8s, this is dropped; only OTLP-push metrics and traces are handled. Container log collection via DaemonSet would be a future enhancement.
-
-**Existing Documentation**: `README-CONFIG.md` explains ConfigMap/Secret usage patterns. `BACKUP_RESTORE.md` provides operational procedures for stateful data. Both should be verified against actual manifests as they may become outdated.
+- [infrastructure/kubernetes/argocd](../argocd/CONTEXT.md) — Dependency — ArgoCD GitOps configuration for deploying the rideshare platform to production K...
+- [infrastructure/kubernetes/components](../components/CONTEXT.md) — Reverse dependency — Provides aws-production component (kustomization.yaml)
+- [infrastructure/kubernetes/components/aws-production](../components/aws-production/CONTEXT.md) — Reverse dependency — Provides ECR image references for all custom services, ServiceAccounts for IRSA/Pod Identity workloads, SecretStore aws-secrets-manager (+4 more)
+- [infrastructure/kubernetes/overlays](../overlays/CONTEXT.md) — Dependency — Mutually exclusive Kustomize overlays that produce complete production deploymen...
+- [infrastructure/kubernetes/overlays](../overlays/CONTEXT.md) — Reverse dependency — Provides production-duckdb/kustomization.yaml, production-glue/kustomization.yaml
+- [infrastructure/kubernetes/overlays/production-duckdb](../overlays/production-duckdb/CONTEXT.md) — Reverse dependency — Consumed by this module
+- [infrastructure/kubernetes/overlays/production-glue](../overlays/production-glue/CONTEXT.md) — Reverse dependency — Consumed by this module
+- [infrastructure/kubernetes/scripts](../scripts/CONTEXT.md) — Reverse dependency — Provides create-cluster.sh, deploy-services.sh, health-check.sh (+2 more)
+- [infrastructure/kubernetes/tests](../tests/CONTEXT.md) — Reverse dependency — Consumed by this module

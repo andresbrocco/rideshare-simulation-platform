@@ -1,37 +1,44 @@
-# CONTEXT.md — Frontend
+# CONTEXT.md — Control Panel src
 
 ## Purpose
 
-React-based real-time visualization frontend for the rideshare simulation platform. Displays drivers, riders, trips, and surge pricing on an interactive map using deck.gl, consuming WebSocket updates from the stream processor.
+Root source directory for the React frontend. Contains the application entry point, top-level routing between three distinct app modes, the centralized theme system, and shared cross-cutting modules (services, utils, constants, lib). Sub-directories hold components, hooks, layers, types, and contexts.
 
 ## Responsibility Boundaries
 
-- **Owns**: Real-time map visualization, simulation control UI, agent inspection, performance metrics display
-- **Delegates to**: Backend simulation API for control operations, stream processor for real-time updates via WebSocket, OSRM for route geometry
-- **Does not handle**: Simulation logic, trip matching, route calculation, or state persistence (all backend responsibilities)
+- **Owns**: Application mode selection (landing / control-panel / dev), auth cookie handoff between subdomains, top-level state wiring, theme tokens and CSS variable injection, Lambda service client, DNA preset definitions
+- **Delegates to**: `components/` for all rendered UI, `hooks/` for state and data-fetching logic, `layers/` for deck.gl layer construction, `types/` for shared TypeScript types, `contexts/` for React context providers
+- **Does not handle**: WebSocket protocol details (delegated to `hooks/useWebSocket`), map rendering (delegated to `components/Map`), simulation API calls (delegated to `hooks/useSimulationControl`)
 
 ## Key Concepts
 
-**GPS Ping Buffering**: Accumulates high-frequency GPS updates in a 100ms window before applying them in a single React state update. Reduces re-renders by ~10x compared to immediate setState.
+**App modes** — The app serves three distinct runtime personalities, determined purely by `window.location.hostname`:
 
-**Route Split Cache**: Memoizes route calculations that split paths into completed (faded trail) and remaining (solid line) portions. Uses cache key `tripId:routeType:progressIndex` with LRU eviction at 1000 entries.
+- `landing`: served at `ridesharing.portfolio.andresbrocco.com`; shows the public landing page + deploy workflow; auth cookie is set here and carried cross-subdomain.
+- `control-panel`: served at `control-panel.ridesharing.portfolio.andresbrocco.com`; reads the cookie on mount, transfers the API key to `sessionStorage`, then immediately clears the cookie. If no auth is found, redirects back to landing using `replace()` (not `href`) to prevent back-button loops.
+- `dev`: any other hostname (localhost); polls API health via `useApiHealth` and renders the full combined UI without cookie mechanics.
 
-**Trip State Visualization**: Riders are colored by their position in the trip state machine (offline → requested → matched → driver_en_route → started → completed). Guards prevent stale GPS pings from reverting completed states.
+**Cross-subdomain auth handoff** — The cookie is set with `Domain=ridesharing.portfolio.andresbrocco.com` so it is visible on both the root domain and the `control-panel.` subdomain. The control-panel page consumes it exactly once, moves the key to `sessionStorage`, and clears the cookie. Subsequent same-tab reloads read from `sessionStorage` directly.
 
-**Agent Layers**: deck.gl IconLayer and PathLayer organized by visual priority. Agents render on top of routes, active states render above idle states. Coordinate transformation from [lat,lon] to [lon,lat] for deck.gl compatibility.
+**Theme system** — `theme.ts` is the single source of truth for all colors. It exports four layered regions: stage colors (trip lifecycle states, dual-format as hex, RGB tuples, and CSS strings for use in both deck.gl and HTML), a unified palette (neutral scale + four hue scales), a UI palette (semantic aliases for component styling), and an offline palette (landing page). `injectCssVars()` in `main.tsx` writes all palette values to `:root` as CSS custom properties before the first render, including `--var-rgb` companion variables for `rgba()` usage in CSS modules.
 
-**WebSocket Event Deduplication**: Client-side cache of event_id values (max 1000) prevents duplicate processing when Redis pub/sub delivers the same event multiple times during reconnection.
+**Lambda service client** (`services/lambda.ts`) — All public-facing production operations (API key validation, deploy trigger, teardown, session management, service health) go through a single AWS Lambda function dispatched via POST with an `action` field. This decouples the frontend from directly calling EKS services from the browser. The `callLambda` generic helper performs runtime type narrowing on responses via discriminated validator functions.
 
-**Puppet Agents**: User-created agents (via map clicks) that can be manually controlled through the inspector popup, distinct from autonomous AI agents.
+**DNA presets** — `constants/dnaPresets.ts` defines preset behavioral profiles for puppet agents (drivers and riders). DNA parameters mirror the simulation engine's agent DNA model. `PlacementMode` drives the map click-to-place flow for injecting puppet agents at arbitrary coordinates.
 
 ## Non-Obvious Details
 
-StrictMode is disabled at the root because it causes deck.gl/luma.gl WebGL initialization race conditions. Double-mounting triggers ResizeObserver before WebGL context is ready, causing "Cannot read properties of undefined (reading 'maxTextureDimension2D')" errors.
+- **StrictMode is intentionally disabled** in `main.tsx` due to a race condition between React's double-mount behavior in StrictMode and deck.gl/luma.gl WebGL device initialization. Double-mounting causes `ResizeObserver` to fire before the WebGL context is ready.
+- **`usePageRefresh`** triggers a full `window.location.reload()` on a configurable interval (`VITE_PAGE_REFRESH_INTERVAL_MS`, default 10 minutes). This is a deliberate defense against long-running WebSocket sessions accumulating stale state.
+- **`control_panel` health in `getServiceHealth`** is aliased to `simulation_api` health — if the simulation API is up, the control panel is considered healthy too (they are co-located on the same EKS deployment).
+- **Destination selection mode** — requesting a rider trip is a two-step UI flow: selecting a rider opens the inspector popup, clicking "Request Trip" enters destination selection mode (a banner renders with a cancel button), and the next map click is interpreted as the destination coordinate rather than an entity click.
+- **Zone surge data** — zones come from `useZones` (static GeoJSON), while surge multipliers come from the WebSocket stream via `useSimulationState`. They are merged in `useMemo` inside `OnlineApp` to produce `ZoneData[]` passed to the map layers.
 
-State is stored in Maps (not arrays) for O(1) lookups during high-frequency GPS ping updates. Arrays are generated via useMemo only when needed for rendering.
+## Related Modules
 
-The PerformanceContext tracks frontend metrics (FPS, WebSocket msg/sec) using requestAnimationFrame and interval timers. Refs are initialized in useEffect (not render) to avoid impure renders.
-
-WebSocket authentication uses subprotocol `apikey.<key>` format since custom headers aren't supported in browser WebSocket API.
-
-useLayoutEffect updates callback refs before useEffect connection logic runs, ensuring handlers have the latest closures when messages arrive.
+- [services/control-panel/src/components](components/CONTEXT.md) — Dependency — Top-level UI components for the simulation control panel and public portfolio la...
+- [services/control-panel/src/contexts](contexts/CONTEXT.md) — Dependency — React context provider for frontend performance metrics (WebSocket message throu...
+- [services/control-panel/src/hooks](hooks/CONTEXT.md) — Dependency — Custom React hooks encapsulating WebSocket real-time state management, REST poll...
+- [services/control-panel/src/layers](layers/CONTEXT.md) — Dependency — deck.gl layer factories for the live simulation map, encoding trip lifecycle pha...
+- [services/control-panel/src/types](types/CONTEXT.md) — Dependency — Central TypeScript type definitions for simulation domain entities, WebSocket me...
+- [services/control-panel/src/utils](utils/CONTEXT.md) — Dependency — Cross-cutting utility functions for formatting, domain-state label mapping, map ...

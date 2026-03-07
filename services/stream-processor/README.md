@@ -1,381 +1,231 @@
 # Stream Processor
 
-> Bridges Kafka event streams with Redis pub/sub for real-time frontend visualization
+> Kafka-to-Redis bridge that consumes simulation events, applies windowed GPS aggregation, deduplicates via Redis SET NX, and publishes results to Redis pub/sub for the frontend WebSocket layer.
 
 ## Quick Reference
 
+### Ports
+
+| Port | Protocol | Description |
+|------|----------|-------------|
+| 8080 | HTTP | Health check and metrics API |
+
 ### Environment Variables
+
+#### Kafka
+
+| Variable | Default | Required | Description |
+|----------|---------|----------|-------------|
+| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Yes | Comma-separated broker addresses |
+| `KAFKA_SASL_USERNAME` | — | **Yes** | SASL username (required even for PLAINTEXT; use dummy value locally) |
+| `KAFKA_SASL_PASSWORD` | — | **Yes** | SASL password (required even for PLAINTEXT; use dummy value locally) |
+| `KAFKA_CONSUMER_GROUP_ID` | `stream-processor` | No | Consumer group ID |
+| `KAFKA_SESSION_TIMEOUT_MS` | `30000` | No | Consumer session timeout in ms |
+| `KAFKA_MAX_POLL_INTERVAL_MS` | `300000` | No | Max time between polls before rebalance |
+
+#### Redis
+
+| Variable | Default | Required | Description |
+|----------|---------|----------|-------------|
+| `REDIS_HOST` | `localhost` | Yes | Redis hostname |
+| `REDIS_PORT` | `6379` | No | Redis port |
+| `REDIS_PASSWORD` | — | **Yes** | Redis password (validated at startup) |
+| `REDIS_DB` | `0` | No | Redis database index |
+
+#### Processor Tuning
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| **Kafka** | | |
-| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka broker addresses |
-| `KAFKA_SASL_USERNAME` | (required) | Kafka SASL username |
-| `KAFKA_SASL_PASSWORD` | (required) | Kafka SASL password |
-| `KAFKA_SECURITY_PROTOCOL` | `PLAINTEXT` | Security protocol (PLAINTEXT, SASL_PLAINTEXT, SASL_SSL) |
-| `KAFKA_SASL_MECHANISM` | `PLAIN` | SASL mechanism |
-| `KAFKA_GROUP_ID` | `stream-processor` | Consumer group ID |
-| `KAFKA_AUTO_OFFSET_RESET` | `latest` | Offset reset strategy (latest, earliest) |
-| `KAFKA_ENABLE_AUTO_COMMIT` | `false` | Enable auto-commit (manual commit preferred) |
-| `KAFKA_BATCH_COMMIT_SIZE` | `100` | Messages to batch before committing offsets |
-| **Redis** | | |
-| `REDIS_HOST` | `localhost` | Redis server host |
-| `REDIS_PORT` | `6379` | Redis server port |
-| `REDIS_PASSWORD` | (required) | Redis authentication password |
-| `REDIS_DB` | `0` | Redis database number |
-| **Processor** | | |
-| `PROCESSOR_WINDOW_SIZE_MS` | `100` | GPS aggregation window duration (50-5000ms) |
-| `PROCESSOR_AGGREGATION_STRATEGY` | `latest` | GPS aggregation strategy (`latest` or `sample`) |
-| `PROCESSOR_SAMPLE_RATE` | `10` | For `sample` strategy: emit every Nth message |
-| `PROCESSOR_TOPICS` | `gps_pings,trips,driver_status,surge_updates` | Kafka topics to consume |
-| `PROCESSOR_GPS_ENABLED` | `true` | Enable GPS ping processing |
-| `PROCESSOR_TRIPS_ENABLED` | `true` | Enable trip event processing |
-| `PROCESSOR_DRIVER_STATUS_ENABLED` | `true` | Enable driver status processing |
-| `PROCESSOR_SURGE_ENABLED` | `true` | Enable surge update processing |
-| `PROCESSOR_MAX_RETRIES` | `3` | Max retry attempts for Redis publish |
-| **API** | | |
-| `API_HOST` | `0.0.0.0` | HTTP API bind address |
-| `API_PORT` | `8080` | HTTP API port |
-| **Logging** | | |
-| `LOG_LEVEL` | `INFO` | Log level (DEBUG, INFO, WARNING, ERROR) |
-| `LOG_FORMAT` | | Set to `json` for JSON-formatted logs |
-| **Observability** | | |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://otel-collector:4317` | OpenTelemetry collector endpoint |
-| `DEPLOYMENT_ENV` | `local` | Deployment environment for OTel resource attributes |
+| `PROCESSOR_WINDOW_SIZE_MS` | `100` | GPS aggregation window duration (50–5000 ms) |
+| `PROCESSOR_AGGREGATION_STRATEGY` | `latest` | GPS reduction strategy: `latest` or `sample` |
+| `PROCESSOR_BATCH_SIZE` | `100` | Kafka offset commit batch size |
+| `PROCESSOR_FLUSH_INTERVAL` | `5` | Time-based offset commit interval in seconds |
+| `PROCESSOR_GPS_ENABLED` | `true` | Toggle GPS handler |
+| `PROCESSOR_TRIPS_ENABLED` | `true` | Toggle trip events handler |
+| `PROCESSOR_DRIVER_STATUS_ENABLED` | `true` | Toggle driver status handler |
+| `PROCESSOR_SURGE_ENABLED` | `true` | Toggle surge pricing handler |
+
+#### Observability
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | — | OpenTelemetry Collector endpoint for traces and metrics |
+| `OTEL_SERVICE_NAME` | — | Service name reported to OTLP |
+| `LOG_LEVEL` | `INFO` | Logging level |
+| `SCHEMA_REGISTRY_URL` | — | Confluent Schema Registry URL |
+| `DEPLOYMENT_ENV` | — | Runtime environment label (`local`, `production`) |
 
 ### API Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/health` | Health check (Kafka and Redis connectivity) |
-| `GET` | `/metrics` | Prometheus metrics (throughput, latency, aggregation ratio) |
+| `GET` | `/health` | Liveness and connection status |
+| `GET` | `/metrics` | Throughput, latency, and GPS aggregation stats |
 
-#### Examples
+**Health check:**
 
 ```bash
-# Health check
 curl http://localhost:8080/health
+```
 
-# Metrics
+Example response:
+
+```json
+{
+  "status": "healthy",
+  "kafka_connected": true,
+  "redis_connected": true,
+  "uptime_seconds": 142.3,
+  "message": "All connections active"
+}
+```
+
+Status values: `healthy` (both connections active), `degraded` (one connection lost), `unhealthy` (all connections lost).
+
+**Metrics snapshot:**
+
+```bash
 curl http://localhost:8080/metrics
 ```
 
-### Docker Service
+Example response:
 
-```yaml
-service: stream-processor
-image: custom (services/stream-processor/Dockerfile)
-ports: 8080:8080
-depends_on: kafka-init, redis
-profile: core
-```
-
-Start with Docker Compose:
-```bash
-docker compose -f infrastructure/docker/compose.yml --profile core up -d stream-processor
+```json
+{
+  "messages_consumed_total": 48201,
+  "messages_published_total": 9640,
+  "messages_consumed_per_sec": 312.4,
+  "messages_published_per_sec": 62.5,
+  "gps_aggregation_ratio": 5.0,
+  "redis_publish_latency": {"avg_ms": 1.2, "p95_ms": 3.8, "count": 9640},
+  "publish_errors": 0,
+  "publish_errors_per_sec": 0.0,
+  "kafka_connected": true,
+  "redis_connected": true,
+  "uptime_seconds": 142.3,
+  "timestamp": 1741394965.0
+}
 ```
 
 ### Kafka Topics Consumed
 
-The processor subscribes to these topics (pre-created on startup if missing):
+| Topic | Handler | Windowed | Always Enabled |
+|-------|---------|----------|----------------|
+| `gps_pings` | GPSHandler | Yes (window = `PROCESSOR_WINDOW_SIZE_MS`) | No — toggle with `PROCESSOR_GPS_ENABLED` |
+| `trips` | TripHandler | No | No — toggle with `PROCESSOR_TRIPS_ENABLED` |
+| `driver_status` | DriverStatusHandler | No | No — toggle with `PROCESSOR_DRIVER_STATUS_ENABLED` |
+| `surge_updates` | SurgeHandler | No | No — toggle with `PROCESSOR_SURGE_ENABLED` |
+| `driver_profiles` | DriverProfileHandler | No | **Yes** |
+| `rider_profiles` | RiderProfileHandler | No | **Yes** |
+| `ratings` | RatingHandler | No | **Yes** |
 
-| Topic | Handler | Redis Channel(s) | Notes |
-|-------|---------|------------------|-------|
-| `gps_pings` | Windowed (aggregated) | `driver-updates`, `rider-updates` | Routed by `entity_type` field |
-| `trips` | Pass-through | `trip-updates` | Immediate publish |
-| `driver_status` | Pass-through | `driver-updates` | Immediate publish |
-| `surge_updates` | Pass-through | `surge_updates` | Immediate publish |
-| `driver_profiles` | Pass-through | `driver-updates` | Immediate publish |
-| `rider_profiles` | Pass-through | `rider-updates` | Immediate publish |
+### Redis Pub/Sub Channels
 
-### Redis Pub/Sub Channels Published
+Events are published to Redis pub/sub channels consumed by the simulation service WebSocket layer. Deduplication keys are stored as `event:processed:<event_id>` with a 1-hour TTL using `SET NX EX`.
 
-| Channel | Event Sources | Description |
-|---------|---------------|-------------|
-| `driver-updates` | `gps_pings`, `driver_status`, `driver_profiles` | Driver location and status changes |
-| `rider-updates` | `gps_pings`, `rider_profiles` | Rider location and profile updates |
-| `trip-updates` | `trips`, `ratings` | Trip state transitions and ratings |
-| `surge_updates` | `surge_updates` | Surge pricing changes |
+### Prometheus Metrics (via OTLP)
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `stream_processor_messages_consumed_total` | Counter | Total messages consumed from Kafka |
+| `stream_processor_messages_published_total` | Counter | Total messages published to Redis |
+| `stream_processor_gps_received_total` | Counter | Total GPS pings received |
+| `stream_processor_gps_emitted_total` | Counter | Total aggregated GPS updates emitted |
+| `stream_processor_publish_errors_total` | Counter | Total Redis publish errors |
+| `stream_processor_validation_errors_total` | Counter | Validation errors labelled by `handler_type` |
+| `stream_processor_gps_aggregation_ratio` | Observable Gauge | Ratio of GPS pings received to updates emitted |
+| `stream_processor_kafka_connected` | Observable Gauge | `1` = connected, `0` = disconnected |
+| `stream_processor_redis_connected` | Observable Gauge | `1` = connected, `0` = disconnected |
+| `stream_processor_uptime_seconds` | Observable Gauge | Service uptime |
+| `stream_processor_redis_publish_latency_seconds` | Histogram | Redis publish latency |
+| `stream_processor_pipeline_latency_seconds` | Histogram | End-to-end latency from Kafka produce to Redis publish |
+
+### Prerequisites
+
+- Kafka broker reachable at `KAFKA_BOOTSTRAP_SERVERS`
+- Redis instance reachable at `REDIS_HOST:REDIS_PORT` with password set
+- `KAFKA_SASL_USERNAME` and `KAFKA_SASL_PASSWORD` must be non-empty (even for PLAINTEXT security protocol)
+- `REDIS_PASSWORD` must be non-empty — both are validated by Pydantic at startup
 
 ## Common Tasks
 
-### Start the Stream Processor
+### Check if the processor is keeping up with Kafka
 
 ```bash
-# Via Docker Compose (recommended)
-docker compose -f infrastructure/docker/compose.yml --profile core up -d stream-processor
-
-# Check logs
-docker compose -f infrastructure/docker/compose.yml logs -f stream-processor
-
-# Check health
-curl http://localhost:8080/health
+# Compare consumed vs published rates — a large gap signals backpressure or errors
+curl -s http://localhost:8080/metrics | python3 -m json.tool | grep per_sec
 ```
 
-### Run Locally (Development)
+### Measure GPS aggregation efficiency
 
 ```bash
-cd services/stream-processor
-
-# Install dependencies
-./venv/bin/pip install -r requirements.txt
-
-# Set environment variables (see .env.example or docker compose secrets-init)
-export KAFKA_BOOTSTRAP_SERVERS=localhost:9092
-export KAFKA_SASL_USERNAME=admin
-export KAFKA_SASL_PASSWORD=admin
-export REDIS_HOST=localhost
-export REDIS_PORT=6379
-export REDIS_PASSWORD=admin
-
-# Run
-./venv/bin/python -m src.main
+# gps_aggregation_ratio shows how many raw pings collapse into one emitted update
+curl -s http://localhost:8080/metrics | python3 -m json.tool | grep aggregation
 ```
 
-### Monitor Processing
+### Adjust GPS window size without rebuilding
+
+Set `PROCESSOR_WINDOW_SIZE_MS` in the environment and restart the container. Valid range is 50–5000 ms. Larger windows reduce Redis traffic but increase frontend update latency.
+
+### Disable a handler for debugging
+
+Set the relevant env var to `false` and restart:
 
 ```bash
-# Check health status
-curl http://localhost:8080/health | jq
-
-# View Prometheus metrics
-curl http://localhost:8080/metrics
-
-# Watch Redis pub/sub activity
-docker compose -f infrastructure/docker/compose.yml exec redis \
-  redis-cli -a admin MONITOR
+PROCESSOR_GPS_ENABLED=false
+PROCESSOR_SURGE_ENABLED=false
 ```
 
-### Adjust GPS Aggregation
+Note: `driver_profiles`, `rider_profiles`, and `ratings` handlers cannot be disabled.
 
-The processor aggregates GPS pings to reduce frontend message volume:
-
-**Strategy: `latest` (default)**
-- Keeps only the most recent GPS position per entity within each window
-- Best for reducing redundant location updates
+### Run the stream processor locally (Docker)
 
 ```bash
-# Set window size to 200ms
-export PROCESSOR_WINDOW_SIZE_MS=200
-export PROCESSOR_AGGREGATION_STRATEGY=latest
+docker compose -f infrastructure/docker/compose.yml --profile core up stream-processor
 ```
 
-**Strategy: `sample`**
-- Emits every Nth message per entity
-- Best for debugging or when ordering matters
+### Run tests
 
 ```bash
-# Emit 1 in every 10 messages
-export PROCESSOR_AGGREGATION_STRATEGY=sample
-export PROCESSOR_SAMPLE_RATE=10
+cd services/stream-processor && ./venv/bin/pytest
 ```
 
-### Run Tests
+### Type-check
 
 ```bash
-cd services/stream-processor
-
-# Run all tests
-./venv/bin/pytest
-
-# Run with coverage
-./venv/bin/pytest --cov=src tests/
-
-# Run specific test file
-./venv/bin/pytest tests/test_processor_commits.py -v
+cd services/stream-processor && ./venv/bin/mypy src/
 ```
-
-## Architecture
-
-### Handler Types
-
-**Pass-Through Handlers**
-- `TripHandler`, `DriverStatusHandler`, `SurgeHandler`, `DriverProfileHandler`, `RiderProfileHandler`
-- Immediately publish events to Redis without buffering
-- Used for low-volume or high-priority events
-
-**Windowed Handlers**
-- `GPSHandler`
-- Buffer events within time windows (default 100ms)
-- Apply aggregation strategy before publishing
-- Reduces message volume for high-frequency GPS pings
-
-### Event Flow
-
-```
-Kafka Topics → StreamProcessor → Handlers → Redis Pub/Sub → WebSocket → Frontend
-                     ↓
-              Deduplication
-           (Redis SET NX + TTL)
-```
-
-### Deduplication
-
-- Uses Redis `SET NX` to atomically track processed event IDs
-- TTL window: 1 hour
-- Prevents duplicate processing if Kafka redelivers messages
-- Ensures idempotency for at-least-once delivery semantics
-
-### Offset Management
-
-- Manual offset commits (auto-commit disabled)
-- Commits in batches after successful Redis publish
-- Batch size: `KAFKA_BATCH_COMMIT_SIZE` (default 100)
-- Ensures at-least-once delivery guarantees
-
-### Graceful Shutdown
-
-On `SIGTERM` or `SIGINT`:
-1. Flush windowed handler state (emit pending GPS aggregations)
-2. Commit pending Kafka offsets
-3. Close Kafka consumer and Redis connections
-4. Exit
 
 ## Troubleshooting
 
-### Health Check Failing
+**Startup fails with "Required credentials not provided: KAFKA_SASL_USERNAME"**
 
-**Symptom**: `/health` returns unhealthy status
+`KafkaSettings` validates that both `KAFKA_SASL_USERNAME` and `KAFKA_SASL_PASSWORD` are non-empty regardless of `security.protocol`. In local development, set them to any non-empty dummy values.
 
-**Causes**:
-- Kafka broker unreachable
-- Redis server unreachable
-- Consumer not assigned partitions yet (warmup period)
+**Consumer hangs after startup with no messages processed**
 
-**Fix**:
-```bash
-# Check Kafka connectivity
-docker compose -f infrastructure/docker/compose.yml logs kafka
+The processor waits up to 30 seconds for partition assignment before proceeding. If topics (`gps_pings`, `trips`, etc.) do not exist yet, the consumer will log `"Topics not available yet"` and retry. This is expected — the simulation creates topics on its first event publish.
 
-# Check Redis connectivity
-docker compose -f infrastructure/docker/compose.yml logs redis
+**Health endpoint returns `degraded` or `unhealthy`**
 
-# Verify secrets-init completed
-docker compose -f infrastructure/docker/compose.yml logs secrets-init
+- `kafka_connected: false` — the consumer's poll loop has not started or has exited. Check logs for Kafka errors.
+- `redis_connected: false` — `RedisSink.ping()` failed. Verify `REDIS_HOST`, `REDIS_PORT`, and `REDIS_PASSWORD`.
 
-# Wait for consumer warmup (polls until partition assignment)
-sleep 5 && curl http://localhost:8080/health
-```
+**High `publish_errors` count**
 
-### No Messages Being Processed
+Redis connection failures during `publish_batch`. The sink uses exponential backoff retries (up to `PROCESSOR_MAX_RETRIES`, default 3). Persistent errors indicate Redis is unreachable or the password changed.
 
-**Symptom**: Metrics show zero throughput
+**GPS aggregation ratio is 1.0 (no reduction)**
 
-**Causes**:
-- Topics don't exist yet
-- Consumer offset at end of log (no new messages)
-- Simulation service not producing events
+Either `PROCESSOR_WINDOW_SIZE_MS` is too small for the simulation's GPS emit rate, or `PROCESSOR_AGGREGATION_STRATEGY=sample` with `PROCESSOR_SAMPLE_RATE=1`. Increase window size or sample rate.
 
-**Fix**:
-```bash
-# Check topic creation
-docker compose -f infrastructure/docker/compose.yml logs stream-processor | grep "Created topic"
+**`stream_processor_validation_errors_total` appears in Prometheus**
 
-# List topics
-docker compose -f infrastructure/docker/compose.yml exec kafka \
-  kafka-topics --bootstrap-server localhost:9092 --list
-
-# Check consumer group lag
-docker compose -f infrastructure/docker/compose.yml exec kafka \
-  kafka-consumer-groups --bootstrap-server localhost:9092 \
-    --group stream-processor --describe
-
-# Verify simulation is producing
-curl http://localhost:8000/api/state | jq
-```
-
-### Frontend Not Receiving Updates
-
-**Symptom**: Frontend doesn't show real-time updates
-
-**Causes**:
-- Redis pub/sub channels not subscribed
-- WebSocket connection dropped
-- Handler disabled via env var
-
-**Fix**:
-```bash
-# Monitor Redis pub/sub
-docker compose -f infrastructure/docker/compose.yml exec redis \
-  redis-cli -a admin PSUBSCRIBE '*'
-
-# Check handler flags
-echo $PROCESSOR_GPS_ENABLED
-echo $PROCESSOR_TRIPS_ENABLED
-
-# Verify WebSocket connection
-# (Check frontend service logs)
-docker compose -f infrastructure/docker/compose.yml logs frontend
-```
-
-### High Memory Usage
-
-**Symptom**: Container memory usage grows continuously
-
-**Causes**:
-- Window size too large
-- Aggregation strategy not reducing message volume
-- Redis connection leak
-
-**Fix**:
-```bash
-# Reduce window size
-export PROCESSOR_WINDOW_SIZE_MS=50
-
-# Switch to more aggressive aggregation
-export PROCESSOR_AGGREGATION_STRATEGY=latest
-
-# Check Redis connection pool
-curl http://localhost:8080/metrics | grep redis_connections
-
-# Restart processor
-docker compose -f infrastructure/docker/compose.yml restart stream-processor
-```
-
-### Duplicate Messages in Redis
-
-**Symptom**: Same event appears multiple times in frontend
-
-**Causes**:
-- Deduplication disabled or Redis unavailable
-- Kafka redelivery after timeout
-
-**Fix**:
-```bash
-# Verify deduplication keys exist
-docker compose -f infrastructure/docker/compose.yml exec redis \
-  redis-cli -a admin KEYS 'dedup:*' | head
-
-# Check Redis latency metrics
-curl http://localhost:8080/metrics | grep redis_latency
-
-# Increase session timeout to reduce redeliveries
-export KAFKA_SESSION_TIMEOUT_MS=60000
-```
-
-## Prerequisites
-
-- **Kafka**: Broker with SASL authentication
-- **Redis**: Server with AUTH enabled
-- **Python 3.13+**: For local development
-- **Docker Compose**: For containerized deployment
-
-## Dependencies
-
-Key packages (see `requirements.txt`):
-
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `confluent-kafka` | 2.6.1 | Kafka consumer client |
-| `redis` | 5.2.1 | Redis pub/sub client |
-| `fastapi` | 0.115.6 | HTTP API framework |
-| `pydantic-settings` | 2.7.0 | Settings management |
-| `opentelemetry-*` | 1.39.1 | Distributed tracing and metrics |
+This counter only appears after the first validation error. Zero on a healthy system means no errors have occurred — this is expected and not a misconfiguration.
 
 ## Related
 
-- [CONTEXT.md](CONTEXT.md) - Architecture context and design patterns
-- [services/simulation](../simulation/README.md) - Event producer (upstream)
-- [services/control-panel](../control-panel/README.md) - WebSocket subscriber (downstream)
-- [services/kafka](../kafka/README.md) - Kafka broker configuration
-- [services/redis](../redis/README.md) - Redis server configuration
+- [CONTEXT.md](CONTEXT.md) — Architecture context: two-thread model, deduplication internals, non-obvious gotchas
+- [services/simulation/src/api](../simulation/src/api/README.md) — Upstream producer writing to Kafka topics consumed here
+- [services/grafana/dashboards/monitoring](../grafana/dashboards/monitoring/CONTEXT.md) — Grafana dashboard consuming these Prometheus metrics
+- [services/prometheus/rules](../prometheus/rules/CONTEXT.md) — Alerting rules referencing stream-processor metrics

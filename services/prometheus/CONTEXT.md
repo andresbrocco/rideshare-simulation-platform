@@ -2,34 +2,45 @@
 
 ## Purpose
 
-Metrics collection and storage service for the rideshare simulation platform. Actively scrapes metrics endpoints from all instrumented services and stores time-series data for querying by Grafana dashboards and alert evaluation.
+Metrics collection and alerting hub for the rideshare simulation platform. Prometheus scrapes infrastructure exporters, receives OTLP-pushed application metrics from the OTel Collector, evaluates alert rules, and stores the time-series data queried by Grafana dashboards.
 
 ## Responsibility Boundaries
 
-- **Owns**: Scrape target configuration, alert rule definitions, metrics retention policy, PromQL query engine
-- **Delegates to**: Grafana for visualization and alerting UI, cAdvisor for container metrics export, individual services for metrics endpoint implementation
-- **Does not handle**: Visualization (Grafana), container metrics collection (cAdvisor), application logging, distributed tracing
+- **Owns**: Scrape configuration, alert rule evaluation, recording rule computation, metric retention
+- **Delegates to**: OTel Collector (receives application metrics from simulation and stream-processor via remote_write rather than direct scrape), Grafana (visualization and dashboard queries)
+- **Does not handle**: Application-level instrumentation (each service owns its own metrics emission), log aggregation (Loki), distributed tracing (Tempo)
 
 ## Key Concepts
 
-**Scrape Targets**: Prometheus actively polls metrics endpoints every 15-30 seconds from statically-defined targets — prometheus (self), cadvisor, and otel-collector. Other services (simulation, stream-processor) push metrics via OTLP remote_write through the OTel Collector.
+**Dual ingestion paths**: Application services (simulation, stream-processor) do NOT get scraped directly. They push via OTLP to the OTel Collector, which then remote_writes into Prometheus. Infrastructure exporters (cAdvisor, kafka-exporter, redis-exporter) are scraped directly with the pull model.
 
-**Alert Rules**: Defined in `rules/alerts.yml` with two groups — Prometheus health (PrometheusDown, PrometheusScrapeFailure) and container health (HighContainerMemoryUsage, ContainerDown).
+**Composite headroom score** (`rideshare:infrastructure:headroom`): A 0–1 scalar computed as the `min` across six smoothed component headroom metrics. The minimum-of-components design means any single bottleneck drives the overall score to zero, making it suitable as a single signal for the performance controller's auto-scaling decisions. Components are:
+- `kafka_lag_headroom` — bounded by a fixed lag ceiling of 18,758 messages
+- `simpy_queue_headroom` — bounded by a SimPy event queue ceiling of 24,096
+- `cpu_headroom` — doubled (2×) before clamping to make CPU less punishing than memory
+- `memory_headroom` — activates penalty only above 67% container memory usage
+- `consumption_ratio` — stream-processor consumed rate vs simulation produced rate (+1 smoothing prevents division by zero)
+- `rtr_headroom` — real-time ratio of the simulation (falls back to 1 when simulation is idle, using `or vector(1)`)
 
-**7-Day Retention**: Metrics are retained for one week in Prometheus TSDB (`--storage.tsdb.retention.time=7d`). This trades long-term historical analysis for lower storage requirements in local development.
+**Smoothing**: All headroom components produce both a raw variant (4s interval) and a `:smooth` variant (`avg_over_time([16s])`). The composite `rideshare:infrastructure:headroom` is computed from the smoothed variants to prevent transient spikes from triggering controller reactions.
 
-**Self-Monitoring**: Prometheus scrapes its own `/metrics` endpoint via the `prometheus` job at `localhost:9090`, enabling detection of Prometheus downtime through the `PrometheusDown` alert rule.
+**cAdvisor scrape interval**: Set to 4s (vs the global 15s) because container CPU metrics require high-frequency sampling to feed the 4s recording rule interval in `performance.yml`. The `rideshare:container:*` recording rules use `label_replace` to strip the `rideshare-` prefix from container names, producing a clean `service` label.
 
 ## Non-Obvious Details
 
-Runs under Docker Compose's `monitoring` profile with 512MB memory limit. Configuration is mounted read-only from `prometheus.yml` and `rules/` directory.
-
-The `--web.enable-lifecycle` flag enables hot-reloading of configuration via `POST http://localhost:9090/-/reload` without container restart.
-
-Scrape targets reference Docker Compose service names (e.g., `cadvisor:8080`, `kafka:9092`) which resolve via the shared Docker network.
+- The `absent_over_time` alerts for simulation and stream-processor detect service-down conditions by watching for absence of metric series, not by checking an `up` gauge — this is necessary because those services do not expose a Prometheus scrape endpoint (they push via OTLP).
+- The `rtr_headroom` metric uses `and on() (sum(...) > 0) or vector(1)` to return a full-health value of 1 when the simulation is not running, preventing the composite headroom from collapsing to zero on an idle cluster.
+- Magic ceiling constants in `performance.yml` (18,758 for Kafka lag, 24,096 for SimPy queue) are empirically derived saturation thresholds, not configuration values.
+- The `rules/` subdirectory is bind-mounted into `/etc/prometheus/rules/` in the container; `prometheus.yml` references that path via the `rule_files` glob.
 
 ## Related Modules
 
-- **[services/grafana](../grafana/CONTEXT.md)** — Primary consumer of Prometheus metrics; queries time-series data for dashboard visualizations and alerting
-- **[services/grafana/provisioning/datasources](../grafana/provisioning/datasources/CONTEXT.md)** — Configures Prometheus as Grafana datasource with specific UID reference
-- **[services/simulation/src/metrics](../simulation/src/metrics/CONTEXT.md)** — Exports simulation metrics via OTel that Prometheus scrapes through OTel Collector
+- [infrastructure/docker](../../infrastructure/docker/CONTEXT.md) — Reverse dependency — Consumed by this module
+- [services/grafana](../grafana/CONTEXT.md) — Reverse dependency — Provides dashboards/monitoring/simulation-metrics.json, dashboards/data-engineering/data-ingestion.json, dashboards/data-engineering/data-quality.json (+10 more)
+- [services/grafana/dashboards/monitoring](../grafana/dashboards/monitoring/CONTEXT.md) — Reverse dependency — Provides simulation-metrics.json
+- [services/grafana/provisioning](../grafana/provisioning/CONTEXT.md) — Reverse dependency — Consumed by this module
+- [services/grafana/provisioning/datasources](../grafana/provisioning/datasources/CONTEXT.md) — Reverse dependency — Consumed by this module
+- [services/otel-collector](../otel-collector/CONTEXT.md) — Dependency — Central observability gateway routing metrics to Prometheus, logs to Loki, and t...
+- [services/prometheus/rules](rules/CONTEXT.md) — Reverse dependency — Provides rideshare:infrastructure:headroom, rideshare:performance:kafka_lag_headroom, rideshare:performance:simpy_queue_headroom (+9 more)
+- [services/tempo](../tempo/CONTEXT.md) — Reverse dependency — Consumed by this module
+- [tests/performance](../../tests/performance/CONTEXT.md) — Reverse dependency — Provides BaseScenario, ScenarioResult, BaselineScenario (+5 more)

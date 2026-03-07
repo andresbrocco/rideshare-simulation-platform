@@ -2,28 +2,28 @@
 
 ## Purpose
 
-Manages Redis integration for state snapshots, event filtering, and pub/sub publishing. State snapshots enable WebSocket clients to recover simulation state on reconnection without replaying the full simulation. RedisPublisher provides direct Redis pub/sub publishing and is actively used alongside the stream processor service.
+Provides the simulation's real-time visualization pipeline to Redis. Handles event publication to pub/sub channels for live frontend updates and maintains state snapshots that allow newly connected (or reconnected) clients to reconstruct current simulation state without replaying the full event history.
 
 ## Responsibility Boundaries
 
-- **Owns**: State snapshot storage and retrieval with TTL management, event filtering logic for visualization
-- **Delegates to**: Stream processor service (services/stream-processor/) for pub/sub publishing from Kafka
-- **Does not handle**: Kafka event consumption (handled by stream processor)
+- **Owns**: Redis pub/sub publishing, state snapshot persistence and retrieval, event filtering and transformation from internal domain events to frontend-ready channel messages
+- **Delegates to**: `pubsub.channels` for channel name constants and typed message schemas; `events.schemas` for source event types; `metrics` and `core.correlation` for observability
+- **Does not handle**: WebSocket fan-out (that is the stream processor's responsibility), Kafka publishing (handled by `src/kafka`), or event sourcing/persistence
 
 ## Key Concepts
 
-**State Snapshots**: Ephemeral cache of driver/trip/surge state stored with 30-minute TTL. Enables frontend reconnection without full simulation replay. Keys follow pattern `snapshot:{entity_type}:{entity_id}`.
-
-**EventFilter**: Determines which Kafka events should trigger Redis updates (filters out offer lifecycle noise) and transforms domain events into visualization-optimized messages.
+- **StateSnapshotManager**: Writes compacted per-entity state to Redis keys (`snapshot:drivers:<id>`, `snapshot:trips:<id>`, `snapshot:surge:<zone_id>`) with a 30-minute TTL. Consumed on WebSocket client connect to deliver full current state before live events begin streaming.
+- **EventFilter**: Acts as a gate between the internal event bus and the pub/sub layer. Determines which event types are visible to the frontend and transforms domain events to channel-specific typed messages.
+- **Channel routing**: Events are routed to one of four channels (`driver_updates`, `rider_updates`, `trip_updates`, `surge_updates`) based on event type and entity type.
 
 ## Non-Obvious Details
 
-The module contains a **RedisPublisher** class that is actively instantiated in `main.py` and passed to MatchingServer, SurgePricingCalculator, and SimulationEngine. It provides direct Redis pub/sub publishing alongside the stream processor service which consumes from Kafka and also publishes to Redis.
-
-StateSnapshotManager uses async Redis client while RedisPublisher uses sync Redis client. This reflects their different usage contexts: snapshots are accessed from async API handlers, while RedisPublisher was designed to work from SimPy processes.
+- **Sync publisher, async snapshot manager**: `RedisPublisher` uses the synchronous `redis.Redis` client intentionally — SimPy processes run in a background thread and cannot use async I/O. `StateSnapshotManager` uses `redis.asyncio` because it is called from FastAPI async route handlers. Both co-exist but are never interchangeable.
+- **Trip offer events are suppressed**: `EventFilter.should_publish` explicitly drops `trip.offer_sent`, `trip.offer_expired`, and `trip.offer_rejected` from the pub/sub feed. These are high-frequency internal matching events not meaningful to visualization consumers.
+- **GPS ping status inference**: When a `GPSPingEvent` arrives for a driver, the driver's exact status is not embedded in the event. `EventFilter.transform` infers `en_route_pickup` if a `trip_id` is present, otherwise `available`. This is a lossy approximation — drivers actively on a trip may briefly appear as `en_route_pickup` regardless of their actual sub-state.
+- **Snapshot stores only the last 10 path points**: `store_driver` trims `recent_path` to the trailing 10 entries to bound Redis memory usage per driver.
+- **`publish` is a sync wrapper**: The async `publish` method on `RedisPublisher` simply calls `publish_sync` synchronously; it exists only to satisfy async caller interfaces without actual async I/O.
 
 ## Related Modules
 
-- **[services/stream-processor/src](../../../stream-processor/src/CONTEXT.md)** — Also publishes to Redis pub/sub channels after consuming from Kafka; provides alternative event delivery path
-- **[src/agents](../agents/CONTEXT.md)** — Agents emit events that flow through Redis for frontend delivery; state snapshots cache agent positions
-- **[services/control-panel/src/components](../../../control-panel/src/components/CONTEXT.md)** — Frontend consumes Redis pub/sub messages via WebSocket for real-time visualization updates
+- [services/simulation/src](../CONTEXT.md) — Reverse dependency — Provides main, SimulationRunner, Settings (+8 more)

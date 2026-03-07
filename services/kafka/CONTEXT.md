@@ -2,36 +2,27 @@
 
 ## Purpose
 
-Configuration and topic definitions for the Apache Kafka message broker powering the rideshare simulation platform. This directory is the single source of truth for topic topology — all topics are declared in `topics.yaml` and created idempotently by `create-topics.sh` at startup.
+Defines and initializes all Kafka topics for the rideshare simulation platform. This directory is the canonical source of truth for topic configuration — partition counts, replication factors, and cleanup policies are declared here and applied on cluster startup via the `kafka-init` service.
 
 ## Responsibility Boundaries
 
-- **Owns**: Declarative topic definitions (names, partition counts, replication factors), topic creation script
-- **Delegates to**: Docker Compose for broker configuration (env vars in `infrastructure/docker/compose.yml`), Schema Registry for Avro schema management, individual services for producer/consumer logic
-- **Does not handle**: Broker runtime configuration (KRaft, listeners, retention — configured via env vars in compose.yml), message schemas (`schemas/kafka/`), application-level producer/consumer code
+- **Owns**: Topic schema (names, partitions, replication factors, per-topic config flags)
+- **Delegates to**: Confluent Schema Registry (message schema enforcement), individual services (producer/consumer logic)
+- **Does not handle**: Message serialization, consumer group configuration, or schema definitions
 
 ## Key Concepts
 
-**KRaft Mode**: The broker runs in combined broker+controller mode (Confluent Platform 7.5.0 / Kafka 3.5) without ZooKeeper. Configured via `KAFKA_PROCESS_ROLES: broker,controller` in compose.yml.
+`topics.yaml` is parsed by `create-topics.sh` using a lightweight shell YAML parser (no external dependencies). The script uses `--if-not-exists` so re-running on an already-initialized cluster is safe (idempotent).
 
-**SASL_PLAINTEXT Authentication**: All listeners use SASL PLAIN authentication. Credentials are injected from LocalStack Secrets Manager via the `secrets-init` service. The JAAS configuration is generated at startup from environment variables. Client connections (simulation, stream-processor, bronze-ingestion) must provide SASL credentials.
-
-**8 Topics / 22 Partitions**: Topics are sized by expected throughput — `gps_pings` (8 partitions) handles the highest volume, `trips` (4) handles medium volume, and low-volume topics like `driver_profiles` and `rider_profiles` use 1 partition each.
-
-**1-Hour Retention**: `KAFKA_LOG_RETENTION_HOURS: 1` keeps storage minimal for local development. Combined with `KAFKA_LOG_RETENTION_BYTES: 536870912` (512MB per partition) as a secondary cap.
-
-**Declarative Topic Creation**: `create-topics.sh` parses `topics.yaml` using POSIX shell (no `yq`/`jq` dependencies) and creates topics with `--if-not-exists` for idempotent restarts. Runs as the `kafka-init` service after the broker is healthy.
+`_schemas` is the Schema Registry's internal compacted topic, not an application topic. Its `cleanup.policy=compact` retains only the latest value per key (schema ID), which is required for Schema Registry correctness.
 
 ## Non-Obvious Details
 
-The `confluentinc/cp-kafka:7.5.0` image does not include `yq` or `jq`, so `topics.yaml` uses a flat key-value format parseable with `cut` and `case` statements.
-
-The `kafka-init` container exits after topic creation. Downstream services (`schema-registry`, `simulation`, `stream-processor`) depend on the broker's health check, not on `kafka-init` completion.
+- `gps_pings` has 8 partitions — double any other topic — because GPS telemetry is the highest-volume event stream (one ping per driver per simulation tick).
+- The shell YAML parser in `create-topics.sh` is line-by-line and only supports a single `config:` key per topic entry; multi-config topics would require a different format.
+- `KAFKA_COMMAND_CONFIG` allows injecting a properties file (e.g., for SASL/SSL auth in production environments) without modifying the script.
+- The final `create_topic` call after the loop handles the last YAML document, which has no trailing `---` separator.
 
 ## Related Modules
 
-- **[infrastructure/docker](../../infrastructure/docker/CONTEXT.md)** — Docker Compose orchestration that runs Kafka broker and kafka-init service; topic creation script integrates with compose lifecycle
-- **[schemas](../../schemas/CONTEXT.md)** — Kafka event schemas registered in Schema Registry; topic names match schema definitions
-- **[services/simulation/src/kafka](../simulation/src/kafka)** — Kafka producer that publishes events to topics defined here
-- **[services/stream-processor/src](../stream-processor/src/CONTEXT.md)** — Kafka consumer that subscribes to topics defined here for Redis routing
-- **[services/bronze-ingestion](../bronze-ingestion/CONTEXT.md)** — Kafka consumer that ingests from all 8 topics into Bronze Delta tables
+- [infrastructure/docker](../../infrastructure/docker/CONTEXT.md) — Reverse dependency — Consumed by this module

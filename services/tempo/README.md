@@ -1,269 +1,177 @@
 # Tempo
 
-> Distributed tracing backend for storing and querying traces from the rideshare simulation platform
+> Distributed tracing backend (Grafana Tempo 2.10.0) that ingests OpenTelemetry traces from the OTel Collector, stores them in S3-compatible object storage, and derives Prometheus span metrics for trace-to-metrics correlation in Grafana.
 
 ## Quick Reference
 
 ### Ports
 
-| Port | Protocol | Purpose |
-|------|----------|---------|
-| 3200 | HTTP | Tempo API (health, query, metrics) |
-| 4319 | gRPC | OTLP trace ingestion (mapped from internal 4317) |
+| Host Port | Container Port | Protocol | Description |
+|-----------|---------------|----------|-------------|
+| `3200` | `3200` | HTTP | Query API and health/ready endpoints |
+| `4319` | `4317` | gRPC | OTLP trace ingestion (from OTel Collector) |
 
-### Configuration Files
+### Environment Variables
 
-| File | Purpose |
-|------|---------|
-| `tempo-config.yaml` | Main Tempo configuration (receivers, storage, metrics generator) |
-| `Dockerfile` | Custom image with wget for health checks |
+These variables are injected at runtime from the LocalStack secrets volume (`/secrets/data-pipeline.env`). They are not set in `.env` files directly.
 
-### Health Check
+| Variable | Source | Description |
+|----------|--------|-------------|
+| `MINIO_ROOT_USER` | `data-pipeline.env` | Used as `AWS_ACCESS_KEY_ID` for S3 storage backend |
+| `MINIO_ROOT_PASSWORD` | `data-pipeline.env` | Used as `AWS_SECRET_ACCESS_KEY` for S3 storage backend |
+| `S3_ENDPOINT` | Hardcoded in compose entrypoint | MinIO endpoint — set to `minio:9000` |
+| `TEMPO_S3_BUCKET` | Hardcoded in compose entrypoint | Trace block storage bucket — set to `rideshare-tempo` |
 
-```bash
-# Check Tempo health
-curl http://localhost:3200/ready
+### Health Endpoint
 
-# Expected response: HTTP 200
+```
+GET http://localhost:3200/ready
 ```
 
-### Docker Profile
+Returns HTTP 200 when Tempo is ready to ingest and serve traces. Used by Docker health check and as a dependency gate for the OTel Collector and Grafana services.
 
-This service is part of the `monitoring` profile:
+### Commands
+
+Start Tempo (part of the `monitoring` profile):
 
 ```bash
-# Start Tempo with other monitoring services
+docker compose -f infrastructure/docker/compose.yml --profile monitoring up -d tempo
+```
+
+Start the full monitoring stack:
+
+```bash
 docker compose -f infrastructure/docker/compose.yml --profile monitoring up -d
+```
 
-# View Tempo logs
+Tail Tempo logs:
+
+```bash
 docker compose -f infrastructure/docker/compose.yml logs -f tempo
-
-# Check Tempo health from inside compose network
-docker compose -f infrastructure/docker/compose.yml exec tempo wget --no-verbose --tries=1 --spider http://localhost:3200/ready
 ```
 
-## Architecture
+### Configuration
 
-### Trace Flow
+| File | Mount Path | Description |
+|------|-----------|-------------|
+| `services/tempo/tempo-config.yaml` | `/etc/tempo/tempo.yaml` | Full Tempo configuration — receivers, storage, compaction, metrics generator |
+| `services/tempo/Dockerfile` | — | Multi-stage build adding `wget`/`sh` from `busybox` for health checks |
+
+Key configuration values in `tempo-config.yaml`:
+
+| Setting | Value | Notes |
+|---------|-------|-------|
+| HTTP listen port | `3200` | Query API |
+| OTLP gRPC endpoint | `0.0.0.0:4317` | Trace ingestion |
+| WAL path | `/var/tempo/wal` | Local write-ahead log before S3 flush |
+| Block retention | `1h` | Intentionally short for local dev |
+| Compacted block retention | `10m` | — |
+| Max block duration | `5m` | Ingester flush threshold |
+| Metrics generator WAL | `/var/tempo/generator/wal` | Derived metrics storage |
+| Prometheus remote-write URL | `http://prometheus:9090/api/v1/write` | Target for span metrics |
+| Metrics collection interval | `5s` | How often derived metrics are pushed |
+
+## Trace Flow
 
 ```
-Application Services (OpenTelemetry SDK)
-  ↓
-OTel Collector (OTLP exporter)
-  ↓ OTLP gRPC (port 4319)
-Tempo (distributor → ingester → compactor)
-  ↓ Remote Write
-Prometheus (span metrics + service graphs)
-  ↓ Query
-Grafana (TraceQL, Traces Drilldown)
+Application → OTel Collector (OTLP/gRPC :4317 internal)
+           → Tempo (OTLP/gRPC host:4319 → container:4317)
+           → WAL (/var/tempo/wal)
+           → S3 blocks (MinIO: rideshare-tempo bucket)
+           → Metrics Generator → Prometheus (remote-write)
+           → Grafana (query via port 3200)
 ```
 
-### Storage
+No application services send traces directly to Tempo. All traces are routed through the OTel Collector.
 
-**Local Storage Mode** (single-node, no external object store):
+## Derived Metrics
 
-- WAL: `/var/tempo/wal` — Write-ahead log for incoming traces
-- Blocks: `/var/tempo/blocks` — Compacted trace blocks
-- Generator WAL: `/var/tempo/generator/wal` — Metrics generator storage
-- Generator Traces: `/var/tempo/generator/traces` — Trace metadata for metrics
+The metrics generator produces three categories of Prometheus metrics from ingested traces:
 
-**Retention:**
-- Block retention: 1 hour
-- Compacted block retention: 10 minutes
+| Processor | Metrics | Dimensions |
+|-----------|---------|------------|
+| `span-metrics` | Request rate, latency histograms, error rate per operation | `http.method`, `http.target`, `http.status_code`, `service.version` |
+| `service-graphs` | Inter-service call graphs and latency | Same as above |
+| `local-blocks` | TraceQL metrics for ad-hoc queries | Raw trace blocks |
 
-### Metrics Generator
-
-Tempo generates two types of metrics from ingested traces:
-
-1. **Span Metrics** — Histograms and counters of trace spans
-   - Dimensions: `http.method`, `http.target`, `http.status_code`, `service.version`
-2. **Service Graphs** — Inter-service relationship metrics for dependency visualization
-   - Dimensions: Same as span metrics
-
-Both are pushed to Prometheus via remote write (`http://prometheus:9090/api/v1/write`).
-
-**Labels applied to generated metrics:**
-```yaml
-source: tempo
-cluster: rideshare-simulation
-environment: local
-```
-
-### Stream Over HTTP
-
-`stream_over_http_enabled: true` enables streaming trace results to Grafana, required for the **Traces Drilldown** feature.
+All derived metrics carry labels `source=tempo`, `cluster=rideshare-simulation`, `environment=local`.
 
 ## Common Tasks
 
-### Query Traces in Grafana
-
-1. Open Grafana at http://localhost:3001 (admin/admin)
-2. Navigate to **Explore** → Select **Tempo** datasource
-3. Use **TraceQL** to query traces:
-
-```traceql
-# Find traces for the simulation service with errors
-{ service.name="simulation" && status=error }
-
-# Find slow traces (>1s duration)
-{ duration > 1s }
-
-# Find traces by HTTP endpoint
-{ http.target="/api/simulation/start" }
-
-# Complex query: slow trips endpoint calls
-{ service.name="simulation" && http.target=~"/trips.*" && duration > 500ms }
-```
-
-### View Span Metrics in Prometheus
-
-Tempo pushes derived metrics to Prometheus. Query them at http://localhost:9090:
-
-```promql
-# Request rate by service
-rate(traces_spanmetrics_calls_total[5m])
-
-# Latency percentiles
-histogram_quantile(0.95, traces_spanmetrics_latency_bucket)
-
-# Error rate
-rate(traces_spanmetrics_calls_total{status_code=~"5.."}[5m])
-```
-
-### Verify Trace Ingestion
+### Query a trace by ID
 
 ```bash
-# Check Tempo is receiving traces
-curl http://localhost:3200/api/status/services
-
-# Check metrics generator status
-docker compose -f infrastructure/docker/compose.yml logs tempo | grep "metrics_generator"
-
-# Verify remote write to Prometheus
-docker compose -f infrastructure/docker/compose.yml logs tempo | grep "remote_write"
+curl http://localhost:3200/api/traces/{trace_id}
 ```
 
-### Inspect Configuration
+### Search recent traces
 
 ```bash
-# View active configuration
-docker compose -f infrastructure/docker/compose.yml exec tempo cat /etc/tempo.yaml
+curl "http://localhost:3200/api/search?limit=20&start=$(date -d '5 minutes ago' +%s)&end=$(date +%s)"
+```
 
-# Check storage paths
-docker compose -f infrastructure/docker/compose.yml exec tempo ls -lh /var/tempo/wal
-docker compose -f infrastructure/docker/compose.yml exec tempo ls -lh /var/tempo/blocks
+### List services sending traces
+
+```bash
+curl http://localhost:3200/api/services
+```
+
+### Check Tempo build info
+
+```bash
+curl http://localhost:3200/api/echo
+```
+
+### Use TraceQL to find slow spans
+
+```bash
+curl -G http://localhost:3200/api/search \
+  --data-urlencode 'q={ duration > 500ms }' \
+  --data-urlencode 'limit=10'
 ```
 
 ## Troubleshooting
 
-### Traces Not Appearing in Grafana
+**Tempo fails to start / exits immediately**
 
-**Symptoms:** Grafana shows "No traces found" when querying Tempo.
+The entrypoint sources `/secrets/data-pipeline.env` to obtain MinIO credentials. If the `secrets-init` service has not completed, this file may be absent. Confirm with:
 
-**Checks:**
-
-1. Verify OTel Collector is forwarding traces to Tempo:
-   ```bash
-   docker compose -f infrastructure/docker/compose.yml logs otel-collector | grep tempo
-   ```
-
-2. Check Tempo is receiving traces on port 4317:
-   ```bash
-   docker compose -f infrastructure/docker/compose.yml logs tempo | grep "distributor"
-   ```
-
-3. Verify Tempo health:
-   ```bash
-   curl http://localhost:3200/ready
-   curl http://localhost:3200/api/status/buildinfo
-   ```
-
-4. Check Grafana datasource configuration:
-   - URL should be `http://tempo:3200`
-   - No authentication required
-
-### Remote Write Errors to Prometheus
-
-**Symptoms:** Logs show `remote_write: error pushing metrics to Prometheus`.
-
-**Cause:** Prometheus service not running or unreachable.
-
-**Solution:**
-
-1. Verify Prometheus is running:
-   ```bash
-   curl http://localhost:9090/-/healthy
-   ```
-
-2. Check Docker network connectivity:
-   ```bash
-   docker compose -f infrastructure/docker/compose.yml exec tempo ping prometheus
-   ```
-
-3. Restart Tempo to retry connection:
-   ```bash
-   docker compose -f infrastructure/docker/compose.yml restart tempo
-   ```
-
-**Note:** Tempo will continue storing traces even if remote write fails. Only span metrics generation is affected.
-
-### High Memory Usage
-
-**Symptoms:** Tempo container using excessive memory.
-
-**Causes:**
-- Large trace volume with short compaction window
-- Metrics generator accumulating too many metrics
-
-**Tuning:**
-
-Edit `tempo-config.yaml`:
-
-```yaml
-# Reduce ingester max block size
-ingester:
-  max_block_bytes: 500_000  # Default: 1_000_000
-
-# Increase compaction window
-compactor:
-  compaction:
-    compaction_window: 2h  # Default: 1h
-
-# Reduce metrics collection interval
-metrics_generator:
-  registry:
-    collection_interval: 10s  # Default: 5s
-```
-
-Then restart Tempo:
 ```bash
-docker compose -f infrastructure/docker/compose.yml restart tempo
+docker compose -f infrastructure/docker/compose.yml logs secrets-init
 ```
 
-### Port Conflict on 4317
+Tempo depends on `minio-init` completing successfully. If MinIO has not initialized the `rideshare-tempo` bucket, Tempo will error on first block flush (not on startup). Check:
 
-**Why 4319?** The OTel Collector already uses port 4317 for its own OTLP gRPC receiver. Tempo's receiver is mapped to 4319 on the host to avoid conflict.
+```bash
+docker compose -f infrastructure/docker/compose.yml logs minio-init
+```
 
-**Internal communication:** Within Docker Compose network, OTel Collector sends traces to `tempo:4317` (internal port).
+**Health check failing (`/ready` returns non-200)**
 
-## Integration Points
+Tempo's `/ready` endpoint returns 200 only after the WAL and S3 backend are both accessible. If MinIO is unreachable or credentials are wrong, Tempo will start but remain unready. Inspect logs:
 
-### Receives Traces From
+```bash
+docker compose -f infrastructure/docker/compose.yml logs tempo
+```
 
-- **OTel Collector** (`otel-collector:4317` → `tempo:4317`) via OTLP gRPC
+**Grafana shows no traces / "Traces Drilldown" not working**
 
-### Sends Metrics To
+- Confirm `stream_over_http_enabled: true` is present in `tempo-config.yaml` — this flag is required for streaming trace results to Grafana's Traces Drilldown feature.
+- Confirm the Grafana Tempo datasource URL is `http://tempo:3200`.
+- Confirm the OTel Collector is healthy and forwarding to `tempo:4317` internally.
 
-- **Prometheus** (`prometheus:9090/api/v1/write`) via remote write
+**Prometheus not receiving span metrics**
 
-### Queried By
+Prometheus must have `--web.enable-remote-write-receiver` enabled. Without it, Tempo's metrics generator remote-write will fail silently. Check Tempo logs for `remote-write` errors. Verify the Prometheus config in `services/prometheus/` has the receiver enabled.
 
-- **Grafana** (`tempo:3200`) for trace visualization and TraceQL queries
+**S3 storage errors (forcepathstyle / insecure)**
 
-## Related Documentation
+`insecure: true` and `forcepathstyle: true` in `tempo-config.yaml` are required for MinIO/LocalStack compatibility. These flags must be removed or adjusted when deploying against real AWS S3 in production.
 
-- [CONTEXT.md](CONTEXT.md) — Architecture details for Tempo configuration
-- [services/otel-collector/](../otel-collector/) — Trace collection and forwarding
-- [services/prometheus/](../prometheus/) — Span metrics storage
-- [services/grafana/](../grafana/) — Trace visualization
-- [docs/INFRASTRUCTURE.md](../../docs/INFRASTRUCTURE.md) — Monitoring stack overview
+## Related
+
+- [CONTEXT.md](CONTEXT.md) — Architecture context, non-obvious design decisions
+- [services/otel-collector](../otel-collector/CONTEXT.md) — Sole trace ingestion point; routes OTLP spans to Tempo
+- [services/prometheus](../prometheus/CONTEXT.md) — Remote-write target for Tempo-derived span metrics
+- [services/grafana](../grafana/CONTEXT.md) — Queries Tempo for trace visualization and Traces Drilldown
+- [infrastructure/docker](../../infrastructure/docker/CONTEXT.md) — Compose service definition and volume configuration

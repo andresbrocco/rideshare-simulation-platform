@@ -1,33 +1,31 @@
-# CONTEXT.md — Bronze Ingestion
+# CONTEXT.md — bronze-ingestion/src
 
 ## Purpose
 
-Bronze ingestion consumes raw events from Kafka topics and persists them as partitioned Delta Lake tables in S3/MinIO storage. This is the first stage of the medallion architecture, capturing immutable raw data with metadata for lineage tracking.
+Implements the Bronze layer ingestion pipeline: consumes raw Kafka events across 8 topics and writes them as-is (plus provenance metadata) to partitioned Delta Lake tables on S3/MinIO. Malformed messages are routed to parallel DLQ Delta tables rather than being dropped or causing consumer stalls.
 
 ## Responsibility Boundaries
 
-- **Owns**: Kafka consumption from 8 topics (gps_pings, trips, driver_status, surge_updates, ratings, payments, driver_profiles, rider_profiles), Delta Lake table creation and writes, dead letter queue routing for malformed messages
-- **Delegates to**: MinIO/S3 for object storage, Kafka for message ordering and delivery guarantees, Schema Registry (indirectly, through stream-processor validation)
-- **Does not handle**: Schema validation (messages stored raw), data transformation (that's Silver layer), message deserialization beyond UTF-8 encoding
+- **Owns**: Kafka offset commit lifecycle, Delta table initialization, Bronze schema definition, DLQ routing logic, health state tracking
+- **Delegates to**: `deltalake` / `pyarrow` for Delta writes, `confluent_kafka` for consumer management, `jsonschema` for JSON Schema validation
+- **Does not handle**: Silver/Gold transformations, Trino registration, schema evolution, deduplication, or event parsing beyond what validation requires
 
 ## Key Concepts
 
-**Bronze Schema**: All tables share a fixed schema with metadata fields (_raw_value, _kafka_partition, _kafka_offset, _kafka_timestamp, _ingested_at, _ingestion_date). The `_raw_value` field stores the raw Kafka message payload as a string without parsing.
+**Bronze schema**: Every record stores `_raw_value` (raw UTF-8 JSON string) alongside Kafka provenance fields (`_kafka_partition`, `_kafka_offset`, `_kafka_timestamp`, `_ingested_at`) and `_ingestion_date` (string, used as the Delta partition column). The raw payload is intentionally preserved verbatim; no fields are extracted at this layer.
 
-**Dead Letter Queue (DLQ)**: Optional routing of malformed messages to topic-specific `dlq_bronze_*` tables. Validation can check UTF-8 encoding (always) and JSON structure (optional via DLQ_VALIDATE_JSON). DLQ records preserve original payload, error type, and Kafka coordinates.
+**DLQ routing**: Messages failing any validation tier are written to `dlq_bronze_{topic}` tables (same S3 bucket, separate paths) and excluded from the main Bronze write. The validation chain is: (1) UTF-8 decoding → (2) JSON parse (optional, `DLQ_VALIDATE_JSON`) → (3) JSON Schema check (optional, `DLQ_VALIDATE_SCHEMA`). Topics without a registered schema file pass through silently.
 
-**Manual Commit Control**: Auto-commit is disabled. The service only commits offsets after successful Delta writes, ensuring at-least-once delivery semantics. Messages are batched by topic with a configurable time window (default 10s).
+**Batch-flush loop**: `IngestionService` accumulates messages per topic in memory for up to `BATCH_INTERVAL_SECONDS` (default 10s), then flushes valid records to Bronze and DLQ records to their respective tables in one pass. Offsets are committed only after a successful flush — manual commit with `enable.auto.commit=False`.
+
+**Table pre-initialization**: On startup, `DeltaWriter.initialize_tables()` and `DLQWriter.initialize_tables()` create empty Delta tables (mode `"ignore"`) for all 8 topics. This ensures `_delta_log/` metadata exists immediately so downstream table-registration scripts don't fail before any messages arrive.
+
+**Lazy consumer**: `KafkaConsumer._ensure_consumer()` defers `Consumer` construction until the first `poll()` call. SASL config is only added when `security_protocol != "PLAINTEXT"`, so the same code path works for both dev (PLAINTEXT) and prod (SASL_SSL).
 
 ## Non-Obvious Details
 
-The service initializes all 8 Delta tables on startup (via `DeltaTable.create` with `mode="ignore"`), even if no messages have arrived yet. This ensures downstream checks see `_delta_log/` metadata immediately rather than waiting for the first message per topic.
-
-Storage options are conditionally applied only when `delta_base_path` starts with `s3://` or `s3a://`. Local file paths (used in tests) skip S3 configuration. The `AWS_S3_ALLOW_UNSAFE_RENAME` flag is required for MinIO compatibility with Delta Lake's atomic rename operations.
-
-Health endpoint returns 503 (unhealthy) whenever `errors > 0`, but a successful write resets the error count to zero, allowing recovery from transient failures without restart.
-
-## Related Modules
-
-- **[services/simulation/src/kafka](../../simulation/src/kafka)** — Kafka producer that publishes events consumed by this ingestion service; event structure must match Bronze schema expectations
-- **[schemas/lakehouse/schemas](../../../schemas/lakehouse/schemas/CONTEXT.md)** — Defines PySpark Bronze schemas that conceptually align with the raw storage format used here
-- **[services/airflow/dags](../../airflow/dags/CONTEXT.md)** — Queries DLQ tables created by this service to monitor ingestion health and alert on errors
+- `AWS_S3_ALLOW_UNSAFE_RENAME=true` is set unconditionally for S3 paths. This is required by `deltalake` when writing to object stores that lack atomic rename (S3, MinIO) — without it Delta commits fail.
+- The `commit()` method calls `self._consumer.commit(asynchronous=False)` regardless of whether `messages` is provided or not; the `messages` parameter branch distinction is currently a no-op. Offsets committed are the last polled positions, not per-message.
+- Health state resets `errors` to 0 on every successful write (`record_write()`), so the service can self-recover from transient S3 failures without restart.
+- DLQ records include `session_id`, `correlation_id`, and `causation_id` fields (nullable) for distributed tracing correlation, even though the ingestion service itself does not populate them — they are reserved for future enrichment.
+- `_ingestion_date` is a plain string (format `YYYY-MM-DD`), not a date type, because `deltalake`'s partition column handling with PyArrow works more reliably with string partitions than with date types across S3-compatible storage backends.

@@ -1,36 +1,42 @@
-# CONTEXT.md — DBT Models
+# CONTEXT.md — Models
 
 ## Purpose
 
-Transforms raw Kafka events from Bronze layer into a dimensional data warehouse following medallion architecture. Implements incremental ETL with data quality validation, SCD Type 2 tracking, and anomaly detection for rideshare analytics.
+Implements the Silver and Gold layers of the medallion lakehouse pipeline using dbt. Transforms raw Bronze Kafka events (stored as Delta files in MinIO/S3) into a cleaned Silver staging layer and then into a star schema Gold layer optimized for analytics via Trino SQL.
 
 ## Responsibility Boundaries
 
-- **Owns**: SQL transformation logic, incremental merge strategies, SCD Type 2 implementation, data quality tests, anomaly detection models
-- **Delegates to**: Bronze ingestion service for raw Kafka-to-Delta persistence, Great Expectations for post-transformation validation, analytics tools (Grafana) for visualization
-- **Does not handle**: Real-time streaming transformations, API serving, schema evolution in Bronze layer
+- **Owns**: All SQL transformation logic from Bronze source tables through staging, dimensions, facts, and aggregates; schema tests and data quality contracts; anomaly detection models
+- **Delegates to**: `tools/dbt/macros/` for cross-adapter SQL abstractions (`delta_source()`, `json_field()`, `to_ts()`, `epoch_seconds()`); `tools/dbt/tests/` for custom generic test implementations; `tools/dbt/seeds/` for static reference data (zones)
+- **Does not handle**: Raw data ingestion into Bronze (owned by `services/bronze-ingestion`); orchestration scheduling (owned by `services/airflow`); Great Expectations validation (owned by `tools/great-expectations`); Trino table registration (handled by `bronze-init` scripts)
 
 ## Key Concepts
 
-**Medallion Architecture**: Three-tier data refinement pattern
-- Bronze: Raw JSON from Kafka stored in Delta format with Kafka metadata
-- Silver (staging/): Parsed, deduplicated, validated events with business logic applied
-- Gold (marts/): Star schema with dimensions, facts, and aggregates for analytics
+**Staging (Silver) layer** — `models/staging/`: Incremental dbt models that parse raw JSON from the `_raw_value` column of Bronze tables, deduplicate on `event_id`, and enforce data quality rules. All staging models use `materialized='incremental'`, `unique_key='event_id'`, `incremental_strategy='merge'`, `file_format='delta'`. Watermark on `_ingested_at` drives incremental filtering.
 
-**SCD Type 2**: Slowly Changing Dimensions track historical changes via temporal validity windows. `dim_drivers` and `dim_payment_methods` use `valid_from`/`valid_to` columns with `current_flag` to capture profile changes over time. Fact tables join on temporal validity to get correct historical context.
+**Marts (Gold) layer** — `models/marts/`: Three subdirectories: `dimensions/` (SCD Type 2 and current-state dims), `facts/` (transaction and activity fact tables), `aggregates/` (pre-computed rollups for dashboard performance). All dimensions and facts use `dbt_utils.generate_surrogate_key()`.
 
-**Incremental Merge**: Staging models use `incremental_strategy='merge'` with `unique_key` on `event_id` to handle late-arriving duplicates. Watermark on `_ingested_at` ensures only new data is processed in subsequent runs.
+**SCD Type 2** — `dim_drivers` and `dim_payment_methods` track historical attribute changes using `lead(timestamp)` window functions to derive `valid_from`, `valid_to`, and `current_flag`. Surrogate key includes both natural key and `valid_from`. Custom test `scd_validity` enforces non-overlapping validity periods.
 
-**Delta Source Pattern**: Custom `delta_source()` macro reads directly from S3 paths (`s3a://rideshare-bronze/`) using Delta format syntax. `source_with_empty_guard()` macro handles empty Delta tables gracefully by unioning typed NULL columns.
+**Anomaly detection models** — Four views under `staging/` (`anomalies_gps_outliers`, `anomalies_impossible_speeds`, `anomalies_zombie_drivers`, `anomalies_all`) that flag data quality issues for monitoring. These are `materialized='view'` and are not registered as Trino Delta tables.
+
+**Cross-adapter macro dispatch** — The `delta_source()` macro dispatches between DuckDB (direct S3 Delta scan) and Spark/Glue (Hive Metastore catalog reference) so the same SQL works in both environments.
+
+**Test data models** — `models/test_data/` contains SQL fixtures that synthesize Bronze-format data for use in testing without requiring live Kafka ingestion.
 
 ## Non-Obvious Details
 
-**Deduplication Strategy**: Bronze layer may contain duplicate events due to Kafka retries. Staging models deduplicate on `event_id` keeping the record with latest `_ingested_at` timestamp using `row_number()` window function.
+- **Anomaly views cannot be registered as Trino Delta tables.** `anomalies_gps_outliers` and `anomalies_zombie_drivers` use `materialized='view'`, which produces no transaction log. The Trino registration script (`register-trino-tables.py`) skips them. Only incremental/table materializations produce registerable Delta files.
+- **`fact_trips.distance_km` is a null placeholder.** The column is defined as `cast(null as double)` — distance calculation from pickup/dropoff coordinates has not been implemented.
+- **`stg_ratings` and `stg_payments` can have zero rows** early in a simulation session because trips must reach the `completed` state before ratings and payments are emitted. Tests that check row counts will pass vacuously on empty tables.
+- **`agg_daily_driver_performance.online_minutes`** represents total logged-in time (sum of all driver statuses including `available`, `en_route_pickup`, `on_trip`, `driving_closer_to_home`) — not just idle online time. The test `en_route + on_trip <= online_minutes` depends on this definition.
+- **Fact table foreign keys resolve at Gold layer.** Staging models deliberately defer `relationships` tests to the Gold layer where dimensional surrogate keys exist. Running `dbt test --select staging` will not catch referential integrity violations.
+- **`fact_ratings` rater/ratee keys require conditional joins.** Ratings are bidirectional (drivers rate riders and riders rate drivers). `rater_key` and `ratee_key` both resolve to either `dim_drivers` or `dim_riders` depending on `rater_type`/`ratee_type`, so joins must be written conditionally.
+- **`dim_drivers` is `materialized='table'`** (not incremental) because SCD Type 2 requires full recomputation of window functions over the entire history on each run.
+- **Bronze source access is adapter-specific.** Under DuckDB the macro calls `delta_scan('s3://...')` directly; under Glue it references `bronze.{table}` via Hive Metastore. The `sources.yml` documents both access patterns in the `description` field.
 
-**Trip State Parsing**: Trip events have `event_type` like "trip.matched" but models extract lowercase state "matched" using `split()` and `try_element_at()` for backward compatibility with schema changes.
+## Related Modules
 
-**Temporal Joins**: `fact_trips` joins `dim_drivers` with temporal predicate `ct.completed_at >= dr.valid_from and ct.completed_at < dr.valid_to` to capture which vehicle the driver used at trip completion time.
-
-**Anomaly Detection**: Separate view models (`anomalies_*`) flag data quality issues without blocking pipeline execution. Examples include impossible speeds (>200 km/h calculated via Haversine formula), GPS outliers beyond Sao Paulo bounds, and zombie drivers (active status with no GPS pings).
-
-**Empty Table Handling**: Profile dimension sources may be empty at first run. `source_with_empty_guard()` macro unions real data with typed NULL columns filtered by `where 1=0` to ensure consistent schema even when Delta tables are empty.
+- [tools/dbt/macros](../macros/CONTEXT.md) — Dependency — dbt Jinja macros abstracting adapter differences, Bronze Delta table access, emp...
+- [tools/dbt/seeds](../seeds/CONTEXT.md) — Dependency — Static geographic reference data for Sao Paulo's 96 administrative districts, pr...
+- [tools/dbt/tests](../tests/CONTEXT.md) — Dependency — Custom singular tests for Gold layer star schema structural invariants, SCD Type...

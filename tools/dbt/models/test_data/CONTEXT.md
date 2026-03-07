@@ -2,34 +2,20 @@
 
 ## Purpose
 
-Mock Bronze layer tables that enable unit testing of anomaly detection models without requiring actual Kafka ingestion or S3 Bronze data. Transforms seed CSV data into Bronze-compatible views with the same schema as production Bronze tables.
+Provides mock Bronze-layer views that mirror the schema of real Bronze Delta tables, allowing DBT staging models (`stg_driver_status`, `stg_gps_pings`) to run against controlled seed data without a live Kafka pipeline or Bronze ingestion stack.
 
 ## Responsibility Boundaries
 
-- **Owns**: Schema transformation from seed CSV format (separate lat/lon columns) to Bronze format (location array), union logic combining multiple test seeds into single Bronze tables
-- **Delegates to**: DBT seed mechanism for loading CSV test data, anomaly detection models for validation logic
-- **Does not handle**: Production data ingestion, actual Bronze persistence, seed data generation (seeds are manually authored)
+- **Owns**: Schema-compatible Bronze view definitions backed by seed CSVs
+- **Delegates to**: DBT seeds (`seed_zombie_driver_test`, `seed_gps_outlier_test`, `seed_impossible_speed_test`) for actual fixture rows
+- **Does not handle**: Real event ingestion, Bronze table registration, or production data paths
 
 ## Key Concepts
 
-**Bronze Simulation Pattern**: Test models reference seed data via `ref('seed_*')` and reshape columns to match production Bronze schema. This allows staging and anomaly models to reference `ref('bronze_gps_pings')` in tests with identical behavior to production `delta_source()` queries.
-
-**Test Seed Naming**: Seeds follow pattern `seed_{scenario}_test` where scenario describes the anomaly type being validated (zombie_driver, gps_outlier, impossible_speed). Each seed contains driver/rider events that trigger specific anomaly detection rules.
-
-**Schema Adaptation**: Seed CSVs use separate `latitude` and `longitude` columns for readability, while Bronze expects `location` array. Models use `array(latitude, longitude)` to bridge this gap.
+These models exist because seeds store lat/lon as separate columns, while real Bronze tables store `location` as an array. Each model applies `array(latitude, longitude) as location` to bridge that difference, making test data structurally identical to what staging models consume in production.
 
 ## Non-Obvious Details
 
-**Union All Pattern**: `bronze_gps_pings.sql` unions three different seed tables to provide GPS events for multiple test scenarios. This allows anomaly detection tests to run against a unified mock Bronze table while keeping seed data organized by scenario.
-
-**Event ID Filtering**: `bronze_driver_status.sql` filters `seed_zombie_driver_test` by `event_id like 'evt_status%'` because the seed contains both status events and GPS events. The GPS events are extracted separately in `bronze_gps_pings.sql` using `event_id like 'evt_gps%'`.
-
-**Test Enablement**: Associated test files (`tests/test_zombie_driver_detection.sql`, etc.) are disabled by default with `enabled=false` config because they require specific seed data to be loaded. Tests are run manually during development when validating anomaly detection logic changes.
-
-**Entity Type Injection**: For zombie driver GPS events, `bronze_gps_pings.sql` hardcodes `'driver' as entity_type` because the seed schema maps `driver_id` to `entity_id` but lacks an explicit entity_type column.
-
-## Related Modules
-
-- **[tools/dbt/tests](../../tests/CONTEXT.md)** — Contains singular tests that use these mock Bronze tables to validate anomaly detection logic
-- **[tools/dbt/models/staging](../staging/CONTEXT.md)** — Staging models reference Bronze tables; test data models mock Bronze for isolated testing
-- **[services/bronze-ingestion](../../../../services/bronze-ingestion/CONTEXT.md)** — Production Bronze ingestion that these test models simulate for unit testing purposes
+- `bronze_gps_pings` unions three separate seed fixtures (`seed_gps_outlier_test`, `seed_impossible_speed_test`, `seed_zombie_driver_test`) into a single view. The zombie driver seed contains both GPS events (`evt_gps%`) and status events (`evt_status%`); a `where event_id like 'evt_gps%'` filter isolates only the GPS rows to prevent duplication.
+- Both models are `materialized='view'`. Per project convention, DBT views cannot be registered as Trino Delta tables, so these are test-only and are never registered in `register-trino-tables.py`.
+- These models shadow the names of real Bronze tables (`bronze_driver_status`, `bronze_gps_pings`). When running DBT tests with `--select test_data`, staging models transparently consume these mocks via `ref()` resolution instead of the actual Delta tables.

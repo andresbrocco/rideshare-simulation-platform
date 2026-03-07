@@ -4,4 +4,7 @@ useDefault = true
 [allowlist]
 paths = [
   '''infrastructure/kubernetes/argocd/install\.yaml''',
+  '''services/grafana/README\.md''',
+  '''services/schema-registry/README\.md''',
+  '''tests/integration/data_platform/README\.md''',
 ]

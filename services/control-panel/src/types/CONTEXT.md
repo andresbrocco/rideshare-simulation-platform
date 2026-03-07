@@ -2,32 +2,32 @@
 
 ## Purpose
 
-TypeScript type definitions for the frontend application, representing the contract between the simulation backend, WebSocket stream, and React UI. These types mirror domain concepts from the simulation engine and define the shape of real-time data updates.
+Central TypeScript type definitions for the control panel frontend, covering the full surface of the simulation domain: agent state, WebSocket message contracts, map layer visibility, REST API shapes, and system metrics.
 
 ## Responsibility Boundaries
 
-- **Owns**: TypeScript interfaces for all frontend data structures (agents, trips, metrics, WebSocket messages)
-- **Delegates to**: Backend services define the canonical data structure; frontend types mirror these
-- **Does not handle**: Data transformation logic (handled by hooks/stores) or validation (handled by backend)
+- **Owns**: All shared TypeScript interfaces and type aliases used across components, hooks, layers, and services
+- **Delegates to**: Nothing — these are pure type declarations with no runtime logic except `DEFAULT_VISIBILITY`
+- **Does not handle**: Runtime validation, data transformation, or API communication
 
 ## Key Concepts
 
-**Agent DNA**: Immutable behavioral parameters assigned at agent creation. DriverDNA includes acceptance rates, vehicle info, and shift preferences. RiderDNA includes patience thresholds, surge tolerance, and frequent destinations.
+**Two-tier rider state model**: `Rider.status` is a coarse 4-value enum (`idle | requesting | awaiting_pickup | on_trip`) used for map rendering. `Rider.trip_state` (typed as `TripStateValue`) is a finer 11-value enum that mirrors the backend state machine and is used for detailed inspection and GPS ping classification. These are not interchangeable.
 
-**Trip State vs Status**: `TripStateValue` represents granular rider visualization states (requested, offer_sent, matched, driver_en_route, etc.) while `Trip.status` is a string field for backend state. The state machine has 10 states with specific transition rules.
+**DNA vs Statistics vs State**: Each agent type has three distinct inspection shapes. `DriverDNA`/`RiderDNA` are frozen behavioral parameters (personality traits, home location, shift preference). `DriverStatistics`/`RiderStatistics` are cumulative counters. `DriverState`/`RiderState` compose all three alongside real-time operational fields (`active_trip`, `pending_offer`, `next_action`).
 
-**Route Progress Indices**: `route_progress_index` and `pickup_route_progress_index` enable efficient GPS ping updates by tracking position along pre-computed route geometry without re-sending entire polylines.
+**`api.ts` vs `api.generated.ts`**: `api.ts` is hand-maintained and holds the runtime domain model (entity shapes, metric aggregates, health responses). `api.generated.ts` is auto-generated via `openapi-typescript` from the simulation service OpenAPI spec and should not be edited manually. The generated file covers request/response schemas for all REST endpoints.
 
-**WebSocket Message Types**: Discriminated union of 8 message types (snapshot, driver_update, rider_update, trip_update, surge_update, gps_ping, simulation_status, simulation_reset) where `type` field determines the shape of `data`.
-
-**Layer Visibility**: Configuration object controlling which map layers render (driver states, rider states, route types, zone boundaries, surge heatmap). Used by deck.gl layer composition.
+**Route progress encoding**: `Trip.route` and `Trip.pickup_route` are full polyline arrays. `route_progress_index` and `pickup_route_progress_index` are integer offsets into those arrays, allowing incremental GPS ping updates to slice the rendered route efficiently without resending the entire geometry.
 
 ## Non-Obvious Details
 
-**Dual State Snapshot Definitions**: `StateSnapshot` is defined in both `websocket.ts` and `api.ts` because WebSocket messages have a different structure (`{ type, data }`) than REST API responses. Import from the appropriate file based on usage context.
+- `WebSocketMessage` in `websocket.ts` is a discriminated union on `type` — all message handlers should use exhaustive narrowing against this union, not loose string checks.
+- `GPSPing` carries `trip_state` (rider's fine-grained state) and `route_progress_index` (driver's route position) as optional fields to avoid separate update messages during active trips.
+- `LayerVisibility` in `layers.ts` includes inline comments encoding the visual convention for each route type (color and line style), since the deck.gl layer construction is the only place these colors are formally defined.
+- `is_ephemeral` and `is_puppet` flags on `DriverState`/`RiderState` distinguish simulation-managed agents from externally injected puppet agents; these affect what controls are available in the inspector UI.
+- `real_time_ratio` on `SimulationStatus` is nullable — it is `null` when the simulation has not yet completed enough steps to compute a stable ratio.
 
-**Service Health Status**: Three-level enum (`healthy`, `degraded`, `unhealthy`) applies to both individual services (Redis, Kafka, OSRM) and overall system status. Stream processor health includes additional connection flags for Kafka and Redis.
+## Related Modules
 
-**Performance Metrics Aggregation**: Latency metrics track avg/p95/p99 percentiles with sample counts. Event metrics measure throughput per second. Stream processor metrics include GPS aggregation ratio (how many GPS pings are batched before Redis publish).
-
-**Agent Inspection Types**: `DriverState` and `RiderState` provide deep inspection of agent internals including DNA, statistics, active trips, pending offers, and next scheduled action. Used by agent detail modals.
+- [services/control-panel/src](../CONTEXT.md) — Reverse dependency — Provides App (default), theme (PALETTE, UI, OFFLINE, STAGE_RGB, STAGE_CSS, STAGE_HEX, injectCssVars), services/lambda (validateApiKey, triggerDeploy, getSessionStatus, getServiceHealth, etc.) (+2 more)

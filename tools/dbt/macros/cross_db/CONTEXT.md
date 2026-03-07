@@ -1,36 +1,31 @@
-# CONTEXT.md — Cross-Database Macros
+# CONTEXT.md — Cross-DB Macros
 
 ## Purpose
 
-Database abstraction layer that enables DBT models to run on multiple SQL execution engines (DuckDB for local development, Spark/Glue for production) without code changes. Provides unified interfaces for SQL functions with different syntax across database engines.
+Provides a set of dbt macros that abstract SQL dialect differences between DuckDB (local development) and Spark/Glue (production). Models call these macros instead of engine-specific SQL functions, enabling the same model code to run correctly on both targets without branching logic in business-logic SQL.
 
 ## Responsibility Boundaries
 
-- **Owns**: Database-specific function translation, adapter dispatch logic for DuckDB/Spark/Glue
-- **Delegates to**: DBT's `adapter.dispatch()` for runtime engine detection, staging models for actual data transformation
-- **Does not handle**: Business logic, data validation, or incremental processing strategy
+- **Owns**: All SQL dialect translation for functions that differ between DuckDB and Spark
+- **Delegates to**: dbt's `adapter.dispatch` mechanism for runtime engine selection
+- **Does not handle**: Business logic, data transformations beyond type/format conversion, or catalog differences between environments
 
 ## Key Concepts
 
-**Adapter Dispatch** — DBT pattern using `adapter.dispatch('macro_name', 'rideshare')` to select database-specific implementation at compile time. Each macro provides `duckdb__*`, `spark__*`, `glue__*`, and `default__*` variants. The `delta_source` macro in the parent macros directory follows the same pattern.
-
-**Engine Compatibility Matrix** — Two supported engines: DuckDB (local development, `DBT_RUNNER=duckdb`) and AWS Glue Interactive Sessions (production, `DBT_RUNNER=glue`). All macros guarantee identical query semantics across both engines.
-
-**Inline Target Checks** — Models that cannot use adapter dispatch (e.g., array constructor syntax in `stg_gps_pings.sql`) use Jinja ternary expressions keyed on `target.type == 'duckdb'`. When `DBT_RUNNER=glue`, `target.type` is `'glue'`, so these checks fall through to the SparkSQL branch.
-
-**Format Translation** — Some macros (e.g., `format_date`) translate format strings between engine conventions (Spark's `yyyy-MM-dd` to DuckDB's `%Y-%m-%d`).
+Each macro follows the dbt dispatch pattern: a top-level macro calls `adapter.dispatch('macro_name', 'rideshare')`, which routes to the appropriate `duckdb__*`, `spark__*`, `glue__*`, or `default__*` implementation. The `glue__*` variants always delegate to `spark__*`, and `default__*` also delegates to `spark__*`, making Spark the fallback for any engine not explicitly overridden.
 
 ## Non-Obvious Details
 
-The `safe_array_element` macro uses 1-based indexing for both DuckDB and Spark to maintain consistency, even though DuckDB's `list_extract()` natively supports both 0-based and 1-based indexing.
-
-The `day_of_week` macro normalizes output to 1=Sunday standard by adding 1 to DuckDB's `dayofweek()` result (which returns 0=Sunday), matching Spark's native behavior.
-
-The `glue__*` implementations always delegate to `spark__*` variants because AWS Glue uses Spark SQL syntax.
-
-All macros use the `rideshare` namespace in `adapter.dispatch()` to avoid conflicts with external DBT packages.
+- **day_of_week indexing**: DuckDB's `dayofweek()` returns 0 for Sunday, so the macro adds `+ 1` to normalize to the Spark convention (1=Sunday, 7=Saturday). Any new consumer must use this macro rather than calling `dayofweek()` directly to avoid this off-by-one discrepancy.
+- **format_date format strings**: Callers always pass Spark-style format strings (e.g., `yyyy-MM-dd`, `EEEE`). The `duckdb__format_date` implementation translates these to `strftime` format codes at macro expansion time using Jinja `replace` filters. This means the format string argument is interpreted differently under each engine — do not pass strftime-style codes.
+- **to_ts null safety**: DuckDB uses `try_cast` (returns NULL on parse failure) while Spark uses `to_timestamp` (raises an error on invalid input). Models relying on null-safe coercion will behave differently if ever run directly on Spark without the macro.
+- **json_field path syntax**: JSONPath expressions use `$.field` syntax. DuckDB's `json_extract_string` and Spark's `get_json_object` both accept this format, but only the string-extraction variant is exposed — callers needing typed extraction must cast the result separately.
+- **safe_array_element indexing**: Both DuckDB (`list_extract`) and Spark (`try_element_at`) use 1-based array indexing in these macros. DuckDB natively supports 1-based access via `list_extract`, which is also NULL-safe on out-of-bounds access.
 
 ## Related Modules
 
-- **[tools/dbt/models/staging](../../models/staging/CONTEXT.md)** — Staging models that use these macros for cross-database date/time functions and JSON parsing
-- **[tools/dbt/models/marts](../../models/marts/CONTEXT.md)** — Marts models that use these macros for temporal joins and aggregations
+- [tools/dbt/macros](../CONTEXT.md) — Shares DBT Transformations domain (adapter.dispatch)
+- [tools/dbt/models/marts](../../models/marts/CONTEXT.md) — Reverse dependency — Provides dim_drivers, dim_riders, dim_zones (+12 more)
+- [tools/dbt/models/marts/dimensions](../../models/marts/dimensions/CONTEXT.md) — Reverse dependency — Provides dim_drivers, dim_riders, dim_zones (+2 more)
+- [tools/dbt/models/marts/facts](../../models/marts/facts/CONTEXT.md) — Reverse dependency — Provides fact_trips, fact_payments, fact_ratings (+3 more)
+- [tools/dbt/models/staging](../../models/staging/CONTEXT.md) — Reverse dependency — Provides stg_trips, stg_gps_pings, stg_driver_status (+9 more)

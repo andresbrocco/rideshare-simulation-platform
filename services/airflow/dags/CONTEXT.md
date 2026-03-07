@@ -2,56 +2,34 @@
 
 ## Purpose
 
-Orchestrates the data pipeline transformations and quality checks for the rideshare medallion lakehouse architecture. Manages the Bronze → Silver → Gold transformation lifecycle with DBT, monitors data quality with Great Expectations, and tracks errors in dead-letter queues (DLQ).
+Defines the four Airflow DAGs that orchestrate the medallion lakehouse pipeline: Silver layer transformation, Gold layer transformation, Delta Lake file maintenance, and DLQ error monitoring.
 
 ## Responsibility Boundaries
 
-- **Owns**: Scheduling and execution of DBT transformations, Great Expectations validations, and DLQ monitoring
-- **Delegates to**: DBT for SQL transformations (`/opt/dbt`), Great Expectations for data validation (`/opt/great-expectations`), DuckDB with delta/httpfs extensions for DLQ queries
-- **Does not handle**: Direct data processing (done by bronze-ingestion service), schema evolution, or Kafka topic management
+- **Owns**: DAG definitions, task ordering, scheduling cadence, Bronze readiness gating, and DAG-to-DAG chaining (Silver triggers Gold)
+- **Delegates to**: `/opt/init-scripts/` helper scripts for table registration and S3 export; `/opt/dbt` for actual DBT model execution; `/opt/great-expectations` for validation checkpoints
+- **Does not handle**: Data transformation logic (owned by DBT models in `tools/dbt`), schema validation (owned by `services/stream-processor`), or event ingestion (owned by `services/bronze-ingestion`)
 
 ## Key Concepts
 
-**Layer Transformation Schedules**
-- Silver layer runs hourly with Bronze freshness checks
-- Gold layer has `schedule=None`, triggered by Silver DAG conditionally, with dependency ordering: dimensions → facts → aggregates
-
-**DLQ Monitoring**
-- Queries 8 DLQ Delta tables every 15 minutes via DuckDB with delta and httpfs extensions
-- Uses branching logic: threshold exceeded → alert, otherwise → no-op
-- Threshold: 10 errors across all tables in 15-minute window
+- **DBT_RUNNER mode**: The environment variable `DBT_RUNNER` (`duckdb` or `glue`) controls which task variants are included in the Silver and Gold DAGs at parse time. In `duckdb` mode, S3 export (`export-dbt-to-s3.py`) and Trino registration (`register-trino-tables.py`) tasks are inserted into the chain. In `glue` mode, a Glue Catalog registration step replaces them. The task graph is structurally different between modes because the `if NEEDS_EXPORT / NEEDS_REGISTER / NEEDS_GLUE_REGISTER` branches execute at DAG parse time, not at runtime.
+- **ShortCircuitOperator for Bronze gating**: Both the Silver DAG and Delta maintenance DAG use `ShortCircuitOperator` calling `check_bronze_data_exists()`. If Bronze tables are absent (e.g., simulation hasn't produced data yet), all downstream tasks are skipped cleanly rather than failing.
+- **Silver → Gold chaining**: Gold is triggered by Silver via `TriggerDagRunOperator` with `wait_for_completion=False`. The `should_trigger_gold` branch only fires Gold at 2 AM in `PROD_MODE`; in non-prod or manual runs Gold always triggers. This prevents the Gold star schema from being rebuilt every hour unnecessarily.
+- **DLQ monitoring**: The `dlq_monitoring` DAG uses DuckDB with the `delta` and `httpfs` extensions to query DLQ Delta tables directly from MinIO/S3 without Spark. It runs at offset minutes (3,18,33,48) to avoid the top-of-hour Silver run. The error threshold is 10 events per 15-minute window.
+- **Airflow Asset lineage**: `SILVER_ASSET` and `GOLD_ASSET` are declared as `outlets` on the Great Expectations validation tasks, enabling Airflow's data lineage graph to track when each layer was last validated.
 
 ## Non-Obvious Details
 
-**Silver DAG Task Flow**
-1. Check Bronze data exists (ShortCircuitOperator — skips all downstream tasks if any Bronze table is missing)
-2. Run DBT models tagged `silver`
-3. Run DBT tests on Silver models
-4. Run Great Expectations `silver_validation` checkpoint (continues on failure with warning)
-5. Export Silver data to S3
-
-**Gold DAG Task Flow**
-1. Seed reference data (`dbt seed`)
-2. Build dimension tables (`tag:dimensions`)
-3. Build fact tables (`tag:facts`) - depends on dimensions
-4. Build aggregates (`tag:aggregates`) - depends on facts
-5. Run all Gold tests (`tag:gold`)
-6. Run Great Expectations `gold_validation` checkpoint
-7. Export Gold data to S3
-
-**DLQ Monitoring Implementation**
-- Uses DuckDB with delta and httpfs extensions to query Delta tables directly from MinIO
-- Gracefully handles missing tables (expected on first run)
-- Uses XCom to pass error counts between tasks for branching logic
-
-**Error Handling**
-- DBT DAGs retry failed tasks 2 times with 5-minute delays
-- DLQ DAG retries 2 times with 5-minute delays
-- Great Expectations failures log warnings but don't fail the DAG (`|| echo "WARNING" && exit 0`)
+- Task graph topology is determined at DAG parse time based on `DBT_RUNNER`. If `DBT_RUNNER` changes between deployments without an Airflow scheduler restart, the old topology remains cached.
+- Great Expectations validation tasks use `|| echo "WARNING: ... failed" && exit 0` to soft-fail — a GE checkpoint failure logs a warning but does not block downstream tasks or fail the DAG run.
+- Delta maintenance runs OPTIMIZE before VACUUM on all Bronze and DLQ tables. The barrier `optimize_complete` EmptyOperator ensures all OPTIMIZE tasks finish before any VACUUM starts. `max_active_tasks=4` limits parallelism to avoid overwhelming MinIO.
+- VACUUM uses `enforce_retention_duration=False` to allow retention below the Delta Lake default minimum (7 days). The configured retention is 168 hours (7 days), so this flag is defensive rather than reducing retention.
+- The DLQ table naming in `dlq_monitoring_dag.py` uses the prefix `dlq_bronze_*`, while `delta_maintenance_dag.py` derives DLQ table names as `dlq_{bronze_table_name}` — both resolve to the same names (e.g., `dlq_bronze_trips`).
+- Gold DAG has `schedule=None` — it is exclusively trigger-driven. Manually unpausing it in Airflow does not cause it to run on a schedule.
 
 ## Related Modules
 
-- **[tools/dbt/models/staging](../../../tools/dbt/models/staging/CONTEXT.md)** — Silver layer DBT models that Silver DAG executes; transforms Bronze events into clean staging tables
-- **[tools/dbt/models/marts](../../../tools/dbt/models/marts/CONTEXT.md)** — Gold layer dimensional models that Gold DAG builds; creates star schema for analytics
-- **[tools/great-expectations](../../../tools/great-expectations/CONTEXT.md)** — Validation checkpoints executed after DBT runs; ensures data quality at each layer
-- **[services/bronze-ingestion](../../bronze-ingestion/CONTEXT.md)** — Populates Bronze Delta tables that DAGs monitor and transform; DLQ tables track ingestion failures
+- [services/airflow](../CONTEXT.md) — Shares Kafka Event Streaming domain (dlq monitoring via duckdb delta extension)
+- [services/airflow](../CONTEXT.md) — Shares Airflow Orchestration domain (airflow asset lineage)
+- [services/airflow](../CONTEXT.md) — Shares Repository and Data Access Patterns domain (dlq monitoring via duckdb delta extension)
+- [services/airflow/tests](../tests/CONTEXT.md) — Reverse dependency — Consumed by this module

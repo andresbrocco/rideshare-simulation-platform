@@ -2,30 +2,29 @@
 
 ## Purpose
 
-Lifecycle management scripts for local Kind cluster operations. Provides idempotent cluster creation, ordered service deployment, comprehensive health validation, and data-preserving teardown.
+Lifecycle management scripts for the local Kind-based Kubernetes cluster. They encapsulate the ordered sequence of operations needed to stand up, verify, and tear down the full platform stack — bridging raw manifest files and operator tooling into a repeatable workflow.
 
 ## Responsibility Boundaries
 
-- **Owns**: Kind cluster lifecycle (create/destroy), manifest deployment orchestration, infrastructure health validation, PVC backup/restore
-- **Delegates to**: kubectl for Kubernetes API operations, Kind CLI for cluster management, individual manifests for service configuration
-- **Does not handle**: Service-level configuration (delegated to ConfigMaps), cloud provider operations (Terraform), application deployment (ArgoCD in production)
+- **Owns**: Cluster creation/deletion, manifest application order, health verification, smoke testing, and optional data backup before teardown
+- **Delegates to**: `kubectl` for resource management, `helm` for External Secrets Operator installation, `kind` for cluster lifecycle
+- **Does not handle**: Manifest content, image building, CI/CD orchestration, or production cluster management
 
 ## Key Concepts
 
-**Deployment Order**: Scripts enforce dependency-aware deployment: storage resources → secrets/configmaps → data platform (MinIO, Spark, Airflow) → core simulation services (Kafka, Redis, OSRM) → networking (Gateway API). This prevents initialization race conditions.
-
-**Graceful Degradation**: Non-critical failures (StorageClass immutability, Gateway API CRDs, optional service pods) are logged but don't fail the deployment. Critical services (Kafka, Redis, MinIO) must pass health checks.
-
-**Data Preservation**: Teardown script supports `--preserve-data` flag that exports PVC contents and manifests to a timestamped tarball before cluster deletion.
+- **External Secrets Operator (ESO)**: Installed via Helm during `create-cluster.sh`. The controller is pointed at `http://localstack.default.svc.cluster.local:4566` via an `AWS_ENDPOINT_URL` env var so it syncs secrets from LocalStack rather than real AWS. ExternalSecret CRDs are applied only after LocalStack is deployed (step 3b in `deploy-services.sh`), since ESO needs a live secrets backend to sync from.
+- **Deployment order**: `deploy-services.sh` applies manifests in a strict 6-step sequence: storage → ConfigMaps/Secrets → data platform services → simulation services → monitoring → Gateway API networking. Gateway API CRDs are installed separately (step 0) because they come from an external URL and may already exist.
+- **Health check vs. smoke test**: `health-check.sh` checks Kubernetes-level state (node readiness, pod counts, PVC binding). `smoke-test.sh` performs in-cluster functional probes — exec'ing into running pods to verify Kafka broker API responses, Redis PING/PONG, MinIO health endpoint, DNS resolution, and storage write access.
 
 ## Non-Obvious Details
 
-- **StorageClass Immutability**: `deploy-services.sh` suppresses "field is immutable" errors because Kind may pre-create a default StorageClass that conflicts with custom definitions.
+- StorageClass application in `deploy-services.sh` uses `set +e` and filters out "field is immutable" errors because Kind creates a default StorageClass and re-applying it raises an immutable field error that would otherwise abort the script.
+- Gateway API resources (GatewayClass, Gateway, HTTPRoutes) are applied with `set +e` and suppress "no matches for kind" errors because the CRDs installed in step 0 may not have been accepted by the API server yet.
+- `teardown.sh` accepts `--preserve-data` to exec `tar` into MinIO, Kafka, and Airflow Postgres pods before deleting the cluster. The backup is written to `BACKUP_DIR` (default `/tmp`) as a timestamped tarball that also includes exported manifests, PVC definitions, and ConfigMaps.
+- `create-cluster.sh` is idempotent — it exits 0 without error if the cluster already exists, and prints guidance to delete manually before recreating.
+- Smoke test 4 (DNS resolution) tries three fallback commands (`nslookup`, `getent hosts`, `ping`) because different container images may not have all DNS utilities installed.
 
-- **Gateway API CRDs**: Gateway API resources (GatewayClass, Gateway, HTTPRoute) may fail if CRDs aren't ready. Scripts use `set +e` and filter stderr to prevent false failures while CRDs initialize asynchronously.
+## Related Modules
 
-- **Health Check Leniency**: Unbound PVCs don't fail health checks in Kind environments because static PVs may bind asynchronously. Failed pods are logged as warnings if they're non-critical.
-
-- **Backup Mechanics**: `teardown.sh --preserve-data` uses `kubectl exec` with tar to extract data from running pods before cluster deletion. This avoids PV mount issues after teardown.
-
-- **Script Portability**: All scripts resolve `PROJECT_ROOT` via `SCRIPT_DIR` navigation to support execution from any working directory.
+- [infrastructure/kubernetes/manifests](../manifests/CONTEXT.md) — Dependency — Base Kubernetes manifests for all platform services, infrastructure dependencies...
+- [infrastructure/kubernetes/tests](../tests/CONTEXT.md) — Reverse dependency — Consumed by this module

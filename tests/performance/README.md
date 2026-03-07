@@ -1,342 +1,206 @@
-# Performance Testing Framework
+# Performance Testing
 
-> Container resource measurement and performance characterization through sequential test scenarios
+> Infrastructure capacity testing framework that runs load scenarios against the live Docker stack to measure saturation limits, memory leak behaviour, and speed multiplier ceilings.
 
 ## Quick Reference
 
-### Prerequisites
-
-- Docker Compose core profile services running
-- Prometheus and cAdvisor running (monitoring profile)
-
-Start required services:
-```bash
-docker compose -f infrastructure/docker/compose.yml --profile core --profile monitoring up -d
-```
-
 ### Commands
 
-Run all performance scenarios sequentially:
+Run from the repository root using `./venv/bin/python3`.
+
+| Command | Description |
+|---------|-------------|
+| `./venv/bin/python3 -m tests.performance run` | Full 4-scenario pipeline (baseline → stress → speed → duration) |
+| `./venv/bin/python3 -m tests.performance run -s baseline` | Baseline only |
+| `./venv/bin/python3 -m tests.performance run -s stress` | Stress test only |
+| `./venv/bin/python3 -m tests.performance run -s speed --agents 50` | Speed scaling with manual agent count |
+| `./venv/bin/python3 -m tests.performance run -s duration --agents 50 --speed 4` | Duration/leak test with explicit parameters |
+| `./venv/bin/python3 -m tests.performance run -s stress -s speed` | Stress + speed (agent count derived from stress) |
+| `./venv/bin/python3 -m tests.performance check` | Check status of required services |
+| `./venv/bin/python3 -m tests.performance analyze <file>` | Re-analyze an existing results JSON without re-running scenarios |
+
+### Prerequisites
+
+The full Docker stack must be running before any scenario executes. Each scenario (except `stress`) does its own `docker compose down -v && up -d` internally, but the stack must be reachable for `check` and `analyze`.
+
 ```bash
-./venv/bin/python tests/performance/runner.py run
+docker compose -f infrastructure/docker/compose.yml \
+  --profile core --profile data-pipeline --profile monitoring up -d
 ```
 
-Run specific scenarios:
-```bash
-# Baseline: measure idle resource usage
-./venv/bin/python -m tests.performance run -s baseline
+### `run` Subcommand Options
 
-# Stress test: find maximum sustainable agent count
-./venv/bin/python -m tests.performance run -s stress
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-s / --scenario` | all | Scenario(s) to run. Repeatable. Choices: `baseline`, `stress`, `speed`, `duration` |
+| `-a / --agents` | derived from stress | Total agent count for speed/duration (must be even) |
+| `-x / --speed` | derived from speed | Speed multiplier for duration test |
+| `--baseline-seconds` | 30 | Override baseline measurement duration |
+| `--duration-minutes` | 5 | Override duration active phase length |
+| `--cooldown-minutes` | 10 | Override cooldown phase length |
+| `--stress-max-minutes` | 30 | Cap on stress test wall time |
+| `--speed-step-minutes` | 8 | Time per speed-scaling step |
+| `--speed-max-multiplier` | 32 | Maximum speed multiplier ceiling |
+| `--stop-at-knee` | false | Stop stress at USL knee instead of running to failure |
 
-# Stress test with early stop at USL saturation knee
-./venv/bin/python -m tests.performance run -s stress --stop-at-knee
+### Scenario Pipeline
 
-# Speed scaling: test doubling speed multiplier until threshold
-./venv/bin/python -m tests.performance run -s speed
+| Order | Name | What it does |
+|-------|------|-------------|
+| 1 | `baseline` | 30s idle measurement; calibrates dynamic thresholds for downstream scenarios |
+| 2 | `stress` | Spawns agents in batches of 19 every 1s until CPU, memory, or RTR ceiling is hit. Reuses baseline containers (no restart). |
+| 3 | `speed` | Fixes agent count, doubles speed multiplier each step (2x, 4x, 8x...) until RTR collapse |
+| 4 | `duration` | 3-phase lifecycle: active (5 min) → drain → cooldown (10 min) for memory leak detection |
 
-# Duration/leak: 3-phase lifecycle test at optimal speed
-./venv/bin/python -m tests.performance run -s duration
-```
+### Service Endpoints Used
 
-Check service status:
-```bash
-./venv/bin/python tests/performance/runner.py check
-```
+| Service | Default URL | Purpose |
+|---------|------------|---------|
+| Simulation API | `http://localhost:8000` | Agent control and simulation state |
+| cAdvisor | `http://localhost:8083` | Container resource metrics |
+| Prometheus | `http://localhost:9090` | Simulation telemetry and recording rules |
 
-Re-analyze existing results:
-```bash
-./venv/bin/python tests/performance/runner.py analyze tests/performance/results/20240213_093022/results.json
-```
+### Outputs
 
-### Output Directory
+Results are written to `tests/performance/results/<YYYYMMDD_HHMMSS>/`:
 
-Results are written to `tests/performance/results/{test_id}/`:
-- `results.json` - Full test data with samples and metadata
-- `report.md` / `report.html` - Human-readable summaries
-- `charts/` - Per-scenario subdirectories with Plotly visualizations
+| File | Description |
+|------|-------------|
+| `results.json` | Raw scenario samples and metadata |
+| `summary.json` | Aggregated health, key metrics, suggested thresholds |
+| `report.md` | Markdown performance report |
+| `report.html` | HTML version of the report |
+| `charts/index.html` | Chart gallery |
+| `charts/overview/` | CPU and memory heatmaps across all containers |
+| `charts/load_scaling/` | Load-scaling bar, line, and USL curve-fit charts |
+| `charts/duration/` | Memory/CPU timeline during duration scenario |
+| `charts/reset/` | Pre/post-reset comparison charts |
 
-### Configuration
+### Stop Conditions
 
-Key configuration options in `tests/performance/config.py`:
+The `stress` and `speed` scenarios terminate when any of the following is detected:
 
-**API Settings:**
-```python
-base_url: "http://localhost:8000"
-api_key: "admin"
-timeout: 30.0
-```
+| Condition | Threshold |
+|-----------|-----------|
+| RTR collapse | RTR rolling avg drops below 0.66 (2/3 of target speed) |
+| Per-container CPU | 90% of the container's effective CPU cores |
+| Global CPU | 90% of total available Docker CPU cores |
+| Container memory | 90% of container memory limit |
+| OOM kill | Any container restart count increases |
+| Time limit | `stress_max_duration_minutes` (default 30 min) |
 
-**Docker Settings:**
-```python
-cadvisor_url: "http://localhost:8083"
-prometheus_url: "http://localhost:9090"
-compose_file: "infrastructure/docker/compose.yml"
-profiles: ["core", "data-pipeline", "monitoring"]
-```
+### Key Metrics Reported
 
-**Sampling Intervals:**
-```python
-interval_seconds: 2.0           # Normal sampling rate
-drain_interval_seconds: 4.0     # During drain phase
-cooldown_interval_seconds: 8.0  # During cooldown phase
-warmup_seconds: 10.0            # Wait before first sample
-```
-
-**Scenario Parameters:**
-```python
-# Duration test (3-phase: active → drain → cooldown)
-duration_active_minutes: 5
-duration_cooldown_minutes: 10
-duration_drain_timeout_seconds: 600
-
-# Stress test (spawn until threshold)
-stress_cpu_threshold_percent: 90.0
-stress_memory_threshold_percent: 90.0
-stress_spawn_batch_size: 10
-stress_spawn_interval_seconds: 3.0
-
-# Speed scaling (double multiplier each step)
-speed_scaling_step_duration_minutes: 8
-speed_scaling_max_multiplier: 32
-```
-
-**Analysis Thresholds:**
-```python
-# Memory thresholds
-memory_leak_mb_per_min: 1.0
-memory_warning_percent: 70.0
-memory_critical_percent: 85.0
-
-# CPU thresholds
-cpu_warning_percent: 70.0
-cpu_critical_percent: 85.0
-```
-
-## Test Scenarios
-
-### 1. Baseline
-**Purpose:** Measure idle resource usage with simulation stopped.
-
-**Duration:** 30 seconds
-
-**Metrics:**
-- Memory baseline for all containers
-- CPU baseline for all containers
-
-### 2. Stress Test
-**Purpose:** Find maximum sustainable agent count before hitting resource thresholds.
-
-**Strategy:** Spawn agents in batches until CPU ≥90% or Memory ≥90%
-
-**Parameters:**
-- Spawn batch size: 10 agents
-- Spawn interval: 3 seconds
-- Max duration: 30 minutes
-
-**Output:**
-- `drivers_queued`: Maximum agent count achieved
-- Used to derive agent count for duration test (half of stress max)
-
-### 3. Speed Scaling
-**Purpose:** Test simulation stability at increasing speed multipliers.
-
-**Strategy:** Start at 2x speed, double each step, stop when threshold hit
-
-**Parameters:**
-- Step duration: 8 minutes per multiplier
-- Max multiplier: 32x
-- Agent count: half of stress test max
-
-**Threshold criteria:**
-- Simulation cannot keep up with speed (no completed trips)
-- CPU or memory exceed limits
-- OOM event occurs
-
-**Output:**
-- `max_speed_achieved`: Highest stable multiplier
-- Used for duration test speed setting
-
-### 4. Duration/Leak Detection
-**Purpose:** 3-phase lifecycle test to detect memory leaks and long-running stability issues.
-
-**Phases:**
-1. **Active:** Run simulation at optimal speed/agent count
-2. **Drain:** Stop spawning, wait for in-flight trips to complete (max 600s)
-3. **Cooldown:** Idle simulation for 10 minutes, verify memory returns to baseline
-
-**Parameters:**
-- Active duration: 5 minutes
-- Cooldown duration: 10 minutes
-- Agent count: from stress test (half of max)
-- Speed multiplier: from speed scaling test (max stable)
-
-**Leak Detection:**
-- Memory growth rate during active phase (>1.0 MB/min triggers warning)
-- Memory reset after cooldown (should return within 10% of baseline)
+- **Max agents sustained** before stress trigger
+- **Max speed multiplier** achieved without RTR collapse
+- **Memory leak rate** (MB/min slope from duration scenario)
+- **Service health latency** (baseline p95 vs stressed p95 vs peak)
+- **Suggested Prometheus thresholds** derived from observed latencies
 
 ## Common Tasks
 
-### Run Full Test Suite
+### Run Only the Stress Test
+
 ```bash
-# Start services
-docker compose -f infrastructure/docker/compose.yml --profile core --profile monitoring up -d
-
-# Wait for services to be ready
-sleep 30
-
-# Run tests
-./venv/bin/python tests/performance/runner.py run
-
-# View results
-open tests/performance/results/$(ls -t tests/performance/results | head -1)/report.html
+./venv/bin/python3 -m tests.performance run -s stress
 ```
 
-### Customize Thresholds for a Specific Container
-```python
-# In config.py
-thresholds = ThresholdConfig(
-    container_overrides={
-        "rideshare-simulation": {
-            "memory_warning_percent": 75.0,
-            "memory_critical_percent": 90.0,
-            "cpu_warning_percent": 80.0,
-        }
-    }
-)
-```
+The stress scenario can run without baseline — stop conditions fall back to static config values.
 
-### Add a New Container to Track
-```python
-# In config.py - add to CONTAINER_CONFIG
-CONTAINER_CONFIG = {
-    "rideshare-new-service": {
-        "display_name": "New Service",
-        "profile": "core"
-    },
-    # ...
-}
+### Re-Analyze Without Re-Running
 
-# If multi-threaded, also add to CONTAINER_CPU_CORES
-CONTAINER_CPU_CORES = {
-    "rideshare-new-service": 2.0,  # 2 effective cores
-    # ...
-}
-```
-
-### Debug Why a Scenario Failed
 ```bash
-# Check service status first
-./venv/bin/python tests/performance/runner.py check
-
-# Look for OOM events in results.json
-jq '.scenarios[].oom_events' tests/performance/results/20240213_093022/results.json
-
-# Check container logs around failure time
-docker compose -f infrastructure/docker/compose.yml logs rideshare-simulation --since 5m
+./venv/bin/python3 -m tests.performance analyze \
+  tests/performance/results/20260131_061316/results.json
 ```
+
+Regenerates charts and summary JSON from a previously captured results file. Useful when tuning reporting logic.
+
+### Run a Quick Smoke Test
+
+```bash
+./venv/bin/python3 -m tests.performance run \
+  -s baseline --baseline-seconds 10
+```
+
+Completes in ~25 seconds (10s measurement + 10s warmup + settle).
+
+### Run Duration Test with Known Parameters
+
+Use this when the stress/speed pipeline has already been run and you want to re-run only the leak detection phase:
+
+```bash
+./venv/bin/python3 -m tests.performance run \
+  -s duration --agents 50 --speed 4 \
+  --duration-minutes 10 --cooldown-minutes 5
+```
+
+`--agents` must be even (split equally between drivers and riders).
+
+## Configuration
+
+Default values are defined in `tests/performance/config.py`. All settings are dataclass fields — no environment variables are read. Override at runtime via CLI flags.
+
+### Monitored Containers
+
+The framework tracks all containers in the configured Docker profiles:
+
+| Container | Profile | Effective CPU Cores |
+|-----------|---------|-------------------|
+| `rideshare-simulation` | core | 1.0 (Python GIL) |
+| `rideshare-kafka` | core | 1.5 |
+| `rideshare-redis` | core | 1.0 |
+| `rideshare-osrm` | core | 1.0 |
+| `rideshare-stream-processor` | core | 1.0 |
+| `rideshare-schema-registry` | core | 0.5 |
+| `rideshare-control-panel` | core | 1.0 |
+| `rideshare-trino` | data-pipeline | 2.0 |
+| `rideshare-airflow-webserver` | data-pipeline | 1.0 |
+| `rideshare-airflow-scheduler` | data-pipeline | 1.5 |
+| `rideshare-bronze-ingestion` | data-pipeline | 0.5 |
+| `rideshare-minio` | data-pipeline | 1.0 |
+| `rideshare-prometheus` | monitoring | 1.0 |
+| `rideshare-cadvisor` | monitoring | 1.0 |
+| `rideshare-grafana` | monitoring | 1.0 |
+
+### Sampling Intervals
+
+| Phase | Interval |
+|-------|---------|
+| Active | 2s |
+| Drain | 4s |
+| Cooldown | 8s |
+| Warmup | 10s settle before sampling begins |
 
 ## Troubleshooting
 
-### "Prometheus unavailable" error
-**Symptom:** `check` command shows Prometheus as unavailable
+**`--agents` is required when running speed or duration without stress**
 
-**Solution:**
-```bash
-# Verify monitoring profile is running
-docker compose -f infrastructure/docker/compose.yml --profile monitoring ps
+Speed and duration scenarios need an agent count. Either include `-s stress` (which derives it automatically) or pass `--agents <even number>` explicitly.
 
-# Restart Prometheus
-docker compose -f infrastructure/docker/compose.yml --profile monitoring restart prometheus
+**Stress scenario exits immediately with "No container metrics available"**
 
-# Check Prometheus logs
-docker compose -f infrastructure/docker/compose.yml logs prometheus
+The Prometheus or cAdvisor endpoint is unreachable. Run `./venv/bin/python3 -m tests.performance check` to diagnose which services are down.
 
-# Verify Prometheus is scraping targets
-curl http://localhost:9090/api/v1/targets | jq '.data.activeTargets[] | {scrapeUrl, health}'
-```
+**Duration test fails with `agent_count must be even`**
 
-### "Simulation API unavailable" error
-**Symptom:** `check` command shows Simulation API as unavailable
+The value passed to `--agents` must be divisible by 2 (agents are split equally between drivers and riders).
 
-**Solution:**
-```bash
-# Verify core profile is running
-docker compose -f infrastructure/docker/compose.yml --profile core ps
+**Results contain no `duration_leak` scenario data**
 
-# Check simulation logs
-docker compose -f infrastructure/docker/compose.yml logs simulation
+`analyze` re-runs analysis against existing JSON — if the original run did not include a `duration` scenario, the leak analysis section will be empty.
 
-# Test API manually
-curl -H "X-API-Key: admin" http://localhost:8000/api/status
-```
+**Prometheus rules not updated after run**
 
-### Stress test exits immediately without spawning agents
-**Symptom:** Stress scenario completes in <1 minute with 0 agents
+The runner attempts to patch `services/prometheus/rules/performance.yml` with empirically-derived saturation divisors after the stress/speed scenarios complete. If the file is not found at that path, the update is skipped with a warning — no data is lost.
 
-**Root cause:** Simulation may be in wrong state or API unreachable
+**USL curve fit not appearing in charts**
 
-**Solution:**
-```bash
-# Reset simulation state
-curl -X POST -H "X-API-Key: admin" http://localhost:8000/api/reset
-
-# Verify simulation is in READY state
-curl -H "X-API-Key: admin" http://localhost:8000/api/status | jq '.state'
-```
-
-### Speed scaling test stops at 2x despite low resource usage
-**Symptom:** `max_speed_achieved: 2` but CPU/memory are <50%
-
-**Root cause:** Simulation cannot generate events fast enough (event processing bottleneck)
-
-**Solution:**
-- This is expected behavior when event loop cannot keep up
-- Indicates CPU saturation in single-threaded Python code despite low overall CPU%
-- Check `threshold_hit` reason in results.json metadata
-
-### Duration test shows memory leak but cooldown phase not present
-**Symptom:** High leak rate but no cooldown samples in results
-
-**Root cause:** OOM during drain phase (trips took >600s to complete)
-
-**Solution:**
-```bash
-# Increase drain timeout
-# In config.py:
-duration_drain_timeout_seconds: 1200  # Double timeout
-
-# Or reduce agent count for duration test
-# Manually override in runner.py
-duration_agent_count = stress_drivers // 3  # Use 1/3 instead of 1/2
-```
-
-### Charts not generating after test run
-**Symptom:** `results.json` exists but `charts/` directory empty
-
-**Solution:**
-```bash
-# Re-run analysis to regenerate charts
-./venv/bin/python tests/performance/runner.py analyze tests/performance/results/20240213_093022/results.json
-
-# Check for Plotly import errors
-./venv/bin/python -c "import plotly; print(plotly.__version__)"
-```
-
-### Results show high CPU% but container has multi-core limit
-**Symptom:** CPU% exceeds 100 for containers with >1 core Docker limit
-
-**Context:** cAdvisor reports CPU as percentage of single core (200% = 2 full cores used)
-
-**Solution:** This is expected. Thresholds account for effective cores via `get_cpu_cores_for_container()`:
-```python
-# For rideshare-kafka with 1.5 cores:
-# - stress_cpu_threshold = 90.0 * 1.5 = 135%
-# - warning_percent = 70.0% (of 150% = 105%)
-```
+USL fitting requires at least 8 stress data points and R² > 0.80. Early termination (RTR collapse or OOM) before enough data points are collected will skip the USL fit.
 
 ## Related
 
-- [CONTEXT.md](CONTEXT.md) — Architecture and scenario design patterns
-- `services/simulation/README.md` — Simulation API reference
-- `infrastructure/docker/compose.yml` — Service definitions and profiles
+- [CONTEXT.md](CONTEXT.md) — Architecture context: RTR, baseline calibration, USL fitting, OOM detection
+- [scenarios/CONTEXT.md](scenarios/CONTEXT.md) — Scenario internals
+- [analysis/CONTEXT.md](analysis/CONTEXT.md) — Statistical analysis and visualization
+- [services/prometheus/rules](../../services/prometheus/rules/CONTEXT.md) — Performance recording rules updated by this framework

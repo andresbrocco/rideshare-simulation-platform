@@ -2,40 +2,43 @@
 
 ## Purpose
 
-Orchestrates the SimPy discrete-event simulation, managing the lifecycle of the simulation environment, agent processes, periodic processes (surge updates, continuous spawning), and thread-safe communication between the FastAPI main thread and the SimPy background thread.
+Orchestrates the SimPy discrete-event simulation environment: manages simulation lifecycle (start/pause/resume/reset), controls simulation time and speed, coordinates thread-safe communication between the FastAPI HTTP layer and the SimPy background thread, and handles agent registration and spawning.
 
 ## Responsibility Boundaries
 
-- **Owns**: Simulation state machine (STOPPED → RUNNING → DRAINING → PAUSED), SimPy environment lifecycle, agent process registration and execution, time management and conversions, two-phase pause with quiescence detection, checkpoint save/restore orchestration
-- **Delegates to**: MatchingServer for trip matching logic, AgentFactory for agent creation with DNA, CheckpointManager for SQLite persistence, Kafka/Redis for event publishing
-- **Does not handle**: Business logic of matching algorithms, trip execution state transitions, agent behavioral decision-making, route calculations
+- **Owns**: SimPy environment lifecycle, simulation state machine, real-time ratio (RTR) tracking, agent registration and pending-queue draining, periodic process management (surge updates, spawner loops, checkpointing), thread-safe command passing via `ThreadCoordinator`, and immutable state snapshots for cross-thread reads
+- **Delegates to**: `MatchingServer` (match requests, trip lifecycle), `AgentFactory` (agent construction and spawn-queue management), `KafkaProducer` (control events), `RedisPublisher` (real-time state fan-out), `CheckpointManager` (persistence), `SurgePricingCalculator` (zone-level surge), `OSRMClient` (route geometry)
+- **Does not handle**: Trip business logic, match scoring, Kafka schema validation, route computation, or WebSocket broadcasting
 
 ## Key Concepts
 
-**Two-Phase Pause**: Graceful pause transitions from RUNNING → DRAINING (monitor in-flight trips) → PAUSED (when quiescent or timeout). Prevents corruption by ensuring no trips are mid-execution when checkpointing.
-
-**Thread Coordination**: ThreadCoordinator provides command queue pattern with response events to safely invoke SimPy engine methods from FastAPI thread. Commands block until SimPy thread processes them during step() cycle.
-
-**Time Manager**: Converts between SimPy's unitless time (seconds elapsed) and real datetime objects. Provides helpers for business hours, day number, time-of-day calculations.
-
-**Agent Factory Reference**: Engine stores reference to AgentFactory to enable continuous spawning processes (_driver_spawner_process, _rider_spawner_process) to dynamically create agents at configured rates from spawn queues.
-
-**Session ID**: Each simulation run gets a unique UUID for distributed tracing across events published to Kafka.
+- **SimulationState / two-phase pause**: States are `STOPPED → RUNNING → DRAINING → PAUSED → RUNNING`. Pause is not instant; `_run_drain_process` waits for in-flight trips and repositioning drivers to finish before transitioning to `PAUSED`. If quiescence isn't reached within 7200 simulated seconds, trips are force-cancelled and drivers force-stopped.
+- **ThreadCoordinator**: Bridges the FastAPI asyncio main thread and the blocking SimPy background thread. FastAPI sends typed `Command` objects via a `Queue`; the SimPy step loop calls `process_pending_commands()` to drain and execute them, then signals the calling thread via `threading.Event`. All API-to-simulation interactions go through this pattern.
+- **Snapshots**: `AgentSnapshot`, `TripSnapshot`, and `SimulationSnapshot` are `frozen=True` dataclasses. They are the only safe way to transfer simulation state to the FastAPI thread without locks; the SimPy thread writes them atomically and the API thread reads them without risk of mutation.
+- **Pending-agent queue**: Agents registered mid-simulation (via `AgentFactory` or the command queue) are added to `_pending_agents`. The `step()` method drains this queue via `_start_pending_agents()` before advancing SimPy, ensuring new agents enter the event loop at the correct simulation tick.
+- **Spawn queues**: `AgentFactory` maintains four separate `deque`s (driver immediate, driver scheduled, rider immediate, rider scheduled). Four corresponding SimPy spawner processes poll these queues at configurable rates. This decouples the HTTP request to add agents from the actual SimPy process creation.
+- **Real-time ratio (RTR)**: Measures simulation speed relative to wall time, accounting for mid-run speed changes. A rolling window of `(wall_perf_counter, env.now, speed_multiplier)` triples is maintained; piecewise normalization per interval makes RTR correct across speed changes.
+- **Turbo mode (speed=100)**: Runs SimPy in sub-chunks equal to the matching retry interval instead of one large step, so deferred match retries are dispatched during the step rather than only at its end.
+- **TimeManager**: Translates between SimPy's unitless float time (seconds since epoch 0) and real `datetime` objects. All Kafka event timestamps flow through `format_timestamp()`.
 
 ## Non-Obvious Details
 
-SimulationEngine.step() calls _start_pending_agents() before advancing time to pick up agents created from the API thread while simulation is running. This enables thread-safe dynamic agent creation without race conditions.
-
-State transition validation enforces valid paths via VALID_STATE_TRANSITIONS dict. Invalid transitions raise ValueError to prevent undefined behavior.
-
-Agent processes are started immediately during continuous spawning (_spawn_single_driver, _spawn_single_rider) but bulk creation via AgentFactory defers process start until next step() cycle. This desynchronizes GPS pings naturally.
-
-Drain process timeout is 7200 simulated seconds (2 hours). If quiescence isn't achieved, all in-flight trips are force-cancelled with system metadata before transitioning to PAUSED.
-
-Snapshots module provides frozen dataclasses for immutable state transfer between threads. These are used by ThreadCoordinator command responses to avoid mutation issues.
+- `_agent_processes` uses `weakref.WeakSet` so that completed SimPy processes are garbage-collected without explicit removal.
+- `active_driver_count` and `active_rider_count` are maintained as incremental counters rather than `len(dict)` to keep reads O(1) even at large agent counts.
+- On `reset()`, a fresh `simpy.Environment()` is created and the reference is propagated into `MatchingServer._env` directly. Any component holding a reference to the old `env` will silently stop progressing — components must re-read the engine's `_env` after reset.
+- Puppet agents (`_is_puppet = True`) are created by `AgentFactory` with `immediate_online=False`; they enter `offline` state and only transition via explicit API calls. Puppet riders regenerate `frequent_destinations` based on their specified location, not the DNA's randomly generated home.
+- `create_puppet_rider` regenerates `frequent_destinations` for both direct-location and zone-based placements; `create_puppet_driver` does not (drivers do not use frequent destinations).
+- Zone centroid coordinates from GeoJSON follow `(lon, lat)` convention, but all internal coordinates are `(lat, lon)`. `_get_random_location_in_zone` unpacks centroid as `(centroid_lon, centroid_lat)` — this ordering is easy to confuse.
+- S3 checkpoint restore is implemented but SQLite restore is the primary tested path; S3 restore calls `restore_to_engine` without rebuilding agent SimPy processes, so a restored S3 simulation must still call `start()` to launch agent generators.
 
 ## Related Modules
 
-- **[src/agents](../agents/CONTEXT.md)** — Agent processes that the engine manages; engine starts and coordinates agent SimPy processes within its environment
-- **[src/matching](../matching/CONTEXT.md)** — Matching server that engine coordinates with for trip execution; engine calls start_pending_trip_executions() each step
-- **[src/api/routes](../api/routes/CONTEXT.md)** — FastAPI routes that use ThreadCoordinator to safely invoke engine commands from the web server thread
+- [schemas/api](../../../../schemas/api/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
+- [services/control-panel](../../../control-panel/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
+- [services/control-panel/src/hooks](../../../control-panel/src/hooks/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
+- [services/grafana/dashboards/performance](../../../grafana/dashboards/performance/CONTEXT.md) — Shares Observability and Metrics domain (real-time ratio (rtr))
+- [services/simulation](../../CONTEXT.md) — Shares Observability and Metrics domain (real-time ratio (rtr))
+- [services/simulation/src](../CONTEXT.md) — Reverse dependency — Provides main, SimulationRunner, Settings (+8 more)
+- [services/simulation/src/agents](../agents/CONTEXT.md) — Reverse dependency — Provides DriverAgent, RiderAgent, DriverDNA (+8 more)
+- [services/simulation/src/api/routes](../api/routes/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
+- [services/simulation/tests/e2e](../../tests/e2e/CONTEXT.md) — Reverse dependency — Consumed by this module

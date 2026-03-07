@@ -1,29 +1,28 @@
-# CONTEXT.md — Great Expectations Configuration
+# CONTEXT.md — gx
 
 ## Purpose
 
-Great Expectations data validation framework configured to validate the rideshare platform's lakehouse tables. Validates Silver staging tables and Gold layer (dimensions, facts, aggregates) against defined expectation suites.
+The Great Expectations project root for the rideshare platform. Defines the GX context configuration (datasources, stores, data docs sites) and houses all committed expectation suites for Silver and Gold medallion layers. Validation results and data docs are excluded from version control via the `uncommitted/` gitignore pattern.
 
 ## Responsibility Boundaries
 
-- **Owns**: Expectation suites for all lakehouse tables, validation checkpoints for Silver and Gold layers, DuckDB datasource configuration with S3/Delta Lake integration
-- **Delegates to**: Airflow/MWAA for validation execution scheduling, DBT for upstream data transformations
-- **Does not handle**: Data transformation logic (handled by DBT), validation result alerting (handled by orchestrator)
+- **Owns**: GX context configuration (`great_expectations.yml`), expectation suite JSON files for Silver and Gold tables, store layout definitions
+- **Delegates to**: Airflow DAGs for triggering checkpoint runs; the `tools/great-expectations/` parent for the runner script that invokes checkpoints
+- **Does not handle**: Bronze layer validation (raw ingestion is validated at the schema level by Kafka Schema Registry), checkpoint execution scheduling
 
 ## Key Concepts
 
-**Expectation Suites**: JSON files defining validation rules for each table. Located in `expectations/silver/`, `expectations/gold/dimensions/`, `expectations/gold/facts/`, `expectations/gold/aggregates/`.
-
-**Checkpoints**: YAML files grouping multiple validation batches. `silver_validation.yml` validates 8 staging tables, `gold_validation.yml` validates 5 dimensions, 5 facts, and 2 aggregates.
-
-**Datasource**: Configured as `rideshare_duckdb` using SqlAlchemyExecutionEngine with DuckDB. Connects to the dbt output file (DUCKDB_PATH) or creates in-memory delta_scan views from MinIO (S3-compatible) Delta tables. S3 settings configured at runtime in checkpoint runner scripts.
-
-**Store Backends**: Expectations stored in `expectations/`, validation results in `uncommitted/validations/`, checkpoints in `checkpoints/`. Data docs generated to `uncommitted/data_docs/local_site/`.
+- **Datasource — DuckDB in-memory**: The `rideshare_duckdb` datasource uses `SqlAlchemyExecutionEngine` with `duckdb:///:memory:`. Validation runs against data loaded into an ephemeral DuckDB instance, not directly against Delta Lake or Trino. This means the runner script is responsible for loading Parquet/Delta data into DuckDB before validation executes.
+- **Store layout — committed vs uncommitted**: `expectations/` and `checkpoints/` and `validation_definitions/` are committed. `uncommitted/validations/` and `uncommitted/data_docs/` are gitignored. This means expectation suites are version-controlled but per-run validation results are ephemeral.
+- **Expectation suite hierarchy**: Suites are organized under `expectations/silver/` and `expectations/gold/{dimensions,facts,aggregates}/`, mirroring the DBT model namespace. Suite names use the fully qualified table prefix (e.g., `silver_stg_trips`, `gold_fact_trips`).
 
 ## Non-Obvious Details
 
-Credentials are hardcoded as fallback defaults in `run_checkpoint.py` (not in `great_expectations.yml`). Production deployments must override these via environment variables or `config_variables_file_path` (points to `uncommitted/config_variables.yml`).
+- `create_temp_table: false` is set on the DuckDB execution engine. DuckDB's in-memory mode does not support temp tables the same way as other SQL engines; this prevents GX from attempting to create intermediate temp tables that would fail.
+- The `config_variables_file_path` points to `uncommitted/config_variables.yml` (gitignored). Any credentials or environment-specific overrides go there, not in `great_expectations.yml`.
+- Gold aggregates and dimensions directories have `.gitkeep` files but several suites are populated (e.g., `gold_agg_daily_driver_performance`, `gold_dim_drivers`). The `.gitkeep` pattern was retained even after suites were added, so directory presence alone does not indicate suite existence.
 
-Trip state validations enforce the simulation's 10-state trip lifecycle (REQUESTED through COMPLETED/CANCELLED). Surge multiplier validations enforce platform business rules (1.0x to 2.5x range).
+## Related Modules
 
-The `uncommitted/` directory is gitignored to prevent validation results and generated documentation from being committed to version control.
+- [tools/great-expectations](../CONTEXT.md) — Dependency — Data quality validation for Silver and Gold medallion lakehouse tables using Gre...
+- [tools/great-expectations/gx/expectations/silver](expectations/silver/CONTEXT.md) — Reverse dependency — Provides silver_stg_drivers, silver_stg_riders, silver_stg_trips (+5 more)
