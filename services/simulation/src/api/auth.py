@@ -1,4 +1,4 @@
-"""Authentication dependency for the simulation API.
+"""Authentication and authorisation dependencies for the simulation API.
 
 Provides two authentication paths:
 - Session keys (prefix ``sess_``) are looked up in Redis via :func:`api.session_store.get_session`.
@@ -6,6 +6,10 @@ Provides two authentication paths:
 
 Both paths return an :class:`AuthContext` dataclass on success, or raise
 :exc:`fastapi.HTTPException` with status 401 on failure.
+
+Role enforcement is handled by the :func:`require_admin` dependency, which
+reads the :class:`AuthContext` produced by :func:`verify_api_key` and raises
+HTTP 403 when the caller's role is not ``"admin"``.
 """
 
 from __future__ import annotations
@@ -79,3 +83,32 @@ async def verify_api_key(
 
 
 AuthContextDep = Annotated[AuthContext, Depends(verify_api_key)]
+
+
+async def require_admin(
+    auth: Annotated[AuthContext, Depends(verify_api_key)],
+) -> None:
+    """FastAPI dependency that enforces admin-only access.
+
+    Reads the :class:`AuthContext` returned by :func:`verify_api_key` and
+    raises HTTP 403 when the caller's role is not ``"admin"``.  Attach this
+    as an additional parameter on route functions that must be restricted to
+    administrators:
+
+    .. code-block:: python
+
+        @router.post("/start")
+        def start_simulation(
+            _: Annotated[None, Depends(require_admin)],
+            ...
+        ) -> ...:
+            ...
+
+    The leading underscore signals that the parameter is used only for its
+    side-effect (the role check) and carries no meaningful value.
+
+    Raises:
+        HTTPException: 403 when ``auth.role != "admin"``.
+    """
+    if auth.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")

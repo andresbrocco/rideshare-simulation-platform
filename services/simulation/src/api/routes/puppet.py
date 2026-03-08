@@ -6,7 +6,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from agents.dna import haversine_distance
-from api.auth import verify_api_key
+from api.auth import require_admin, verify_api_key
 from api.models.puppet import (
     LocationUpdateRequest,
     PuppetActionResponse,
@@ -53,6 +53,7 @@ MatchingServerDep = Annotated[Any, Depends(get_matching_server)]
 
 @router.post("/drivers", response_model=PuppetDriverCreateResponse)
 def create_puppet_driver(
+    _: Annotated[None, Depends(require_admin)],
     request: PuppetDriverWithDNARequest,
     agent_factory: AgentFactoryDep,
 ) -> PuppetDriverCreateResponse:
@@ -87,6 +88,7 @@ def create_puppet_driver(
 
 @router.post("/riders", response_model=PuppetRiderCreateResponse)
 def create_puppet_rider(
+    _: Annotated[None, Depends(require_admin)],
     request: PuppetRiderWithDNARequest,
     agent_factory: AgentFactoryDep,
 ) -> PuppetRiderCreateResponse:
@@ -124,6 +126,7 @@ def create_puppet_rider(
 
 @router.put("/drivers/{driver_id}/go-online", response_model=PuppetActionResponse)
 def puppet_driver_go_online(
+    _: Annotated[None, Depends(require_admin)],
     driver_id: str,
     engine: SimulationEngineDep,
 ) -> PuppetActionResponse:
@@ -156,6 +159,7 @@ def puppet_driver_go_online(
 
 @router.put("/drivers/{driver_id}/go-offline", response_model=PuppetActionResponse)
 def puppet_driver_go_offline(
+    _: Annotated[None, Depends(require_admin)],
     driver_id: str,
     engine: SimulationEngineDep,
 ) -> PuppetActionResponse:
@@ -194,6 +198,7 @@ def puppet_driver_go_offline(
 
 @router.post("/drivers/{driver_id}/accept-offer", response_model=PuppetActionResponse)
 def puppet_driver_accept_offer(
+    _: Annotated[None, Depends(require_admin)],
     driver_id: str,
     engine: SimulationEngineDep,
     matching_server: MatchingServerDep,
@@ -236,6 +241,7 @@ def puppet_driver_accept_offer(
 
 @router.post("/drivers/{driver_id}/reject-offer", response_model=PuppetActionResponse)
 def puppet_driver_reject_offer(
+    _: Annotated[None, Depends(require_admin)],
     driver_id: str,
     engine: SimulationEngineDep,
     matching_server: MatchingServerDep,
@@ -278,6 +284,7 @@ def puppet_driver_reject_offer(
 
 @router.post("/drivers/{driver_id}/drive-to-pickup", response_model=PuppetDriveResponse)
 def puppet_driver_drive_to_pickup(
+    _: Annotated[None, Depends(require_admin)],
     driver_id: str,
     engine: SimulationEngineDep,
     matching_server: MatchingServerDep,
@@ -330,6 +337,7 @@ def puppet_driver_drive_to_pickup(
 
 @router.post("/drivers/{driver_id}/drive-to-destination", response_model=PuppetDriveResponse)
 def puppet_driver_drive_to_destination(
+    _: Annotated[None, Depends(require_admin)],
     driver_id: str,
     engine: SimulationEngineDep,
     matching_server: MatchingServerDep,
@@ -382,6 +390,7 @@ def puppet_driver_drive_to_destination(
 
 @router.post("/drivers/{driver_id}/arrive-pickup", response_model=PuppetActionResponse)
 def puppet_driver_arrive_pickup(
+    _: Annotated[None, Depends(require_admin)],
     driver_id: str,
     engine: SimulationEngineDep,
     matching_server: MatchingServerDep,
@@ -419,6 +428,7 @@ def puppet_driver_arrive_pickup(
 
 @router.post("/drivers/{driver_id}/start-trip", response_model=PuppetActionResponse)
 def puppet_driver_start_trip(
+    _: Annotated[None, Depends(require_admin)],
     driver_id: str,
     engine: SimulationEngineDep,
     matching_server: MatchingServerDep,
@@ -455,6 +465,7 @@ def puppet_driver_start_trip(
 
 @router.post("/drivers/{driver_id}/complete-trip", response_model=PuppetActionResponse)
 def puppet_driver_complete_trip(
+    _: Annotated[None, Depends(require_admin)],
     driver_id: str,
     engine: SimulationEngineDep,
     matching_server: MatchingServerDep,
@@ -492,6 +503,7 @@ def puppet_driver_complete_trip(
 
 @router.post("/drivers/{driver_id}/cancel-trip", response_model=PuppetActionResponse)
 def puppet_driver_cancel_trip(
+    _: Annotated[None, Depends(require_admin)],
     driver_id: str,
     engine: SimulationEngineDep,
     matching_server: MatchingServerDep,
@@ -537,6 +549,7 @@ def puppet_driver_cancel_trip(
 
 @router.post("/riders/{rider_id}/request-trip", response_model=PuppetTripRequestResponse)
 async def puppet_rider_request_trip(
+    _: Annotated[None, Depends(require_admin)],
     rider_id: str,
     body: PuppetTripRequestBody,
     engine: SimulationEngineDep,
@@ -620,6 +633,7 @@ async def puppet_rider_request_trip(
 
 @router.post("/riders/{rider_id}/cancel-trip", response_model=PuppetActionResponse)
 def puppet_rider_cancel_trip(
+    _: Annotated[None, Depends(require_admin)],
     rider_id: str,
     engine: SimulationEngineDep,
     matching_server: MatchingServerDep,
@@ -663,6 +677,7 @@ def puppet_rider_cancel_trip(
 
 @router.put("/drivers/{driver_id}/rating", response_model=PuppetActionResponse)
 def update_driver_rating(
+    _: Annotated[None, Depends(require_admin)],
     driver_id: str,
     body: RatingUpdateRequest,
     engine: SimulationEngineDep,
@@ -692,6 +707,7 @@ def update_driver_rating(
 
 @router.put("/riders/{rider_id}/rating", response_model=PuppetActionResponse)
 def update_rider_rating(
+    _: Annotated[None, Depends(require_admin)],
     rider_id: str,
     body: RatingUpdateRequest,
     engine: SimulationEngineDep,
@@ -721,6 +737,7 @@ def update_rider_rating(
 
 @router.put("/drivers/{driver_id}/location", response_model=PuppetActionResponse)
 def teleport_driver(
+    _: Annotated[None, Depends(require_admin)],
     driver_id: str,
     body: LocationUpdateRequest,
     engine: SimulationEngineDep,
@@ -761,6 +778,7 @@ def teleport_driver(
 
 @router.put("/riders/{rider_id}/location", response_model=PuppetActionResponse)
 def teleport_rider(
+    _: Annotated[None, Depends(require_admin)],
     rider_id: str,
     body: LocationUpdateRequest,
     engine: SimulationEngineDep,
@@ -796,6 +814,7 @@ def teleport_rider(
 
 @router.post("/drivers/{driver_id}/force-offer-timeout", response_model=PuppetActionResponse)
 def force_driver_offer_timeout(
+    _: Annotated[None, Depends(require_admin)],
     driver_id: str,
     engine: SimulationEngineDep,
     matching_server: MatchingServerDep,
@@ -833,6 +852,7 @@ def force_driver_offer_timeout(
 
 @router.post("/riders/{rider_id}/force-patience-timeout", response_model=PuppetActionResponse)
 def force_rider_patience_timeout(
+    _: Annotated[None, Depends(require_admin)],
     rider_id: str,
     engine: SimulationEngineDep,
     matching_server: MatchingServerDep,

@@ -4,7 +4,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 
-from api.auth import verify_api_key
+from api.auth import require_admin, verify_api_key
 from api.models.simulation import (
     ControlResponse,
     SimulationStatusResponse,
@@ -32,7 +32,11 @@ DriverRegistryDep = Annotated[Any, Depends(get_driver_registry)]
 
 @router.post("/start", response_model=ControlResponse)
 @limiter.limit("10/minute")
-def start_simulation(request: Request, engine: EngineDep) -> ControlResponse:
+def start_simulation(
+    request: Request,
+    _: Annotated[None, Depends(require_admin)],
+    engine: EngineDep,
+) -> ControlResponse:
     """Start the simulation."""
     if engine.state.value == "running":
         raise HTTPException(status_code=400, detail="Simulation already running")
@@ -46,7 +50,11 @@ def start_simulation(request: Request, engine: EngineDep) -> ControlResponse:
 
 @router.post("/pause", response_model=ControlResponse)
 @limiter.limit("10/minute")
-def pause_simulation(request: Request, engine: EngineDep) -> ControlResponse:
+def pause_simulation(
+    request: Request,
+    _: Annotated[None, Depends(require_admin)],
+    engine: EngineDep,
+) -> ControlResponse:
     """Initiate two-phase pause (draining then paused)."""
     if engine.state.value != "running":
         raise HTTPException(status_code=400, detail="Simulation not running")
@@ -57,7 +65,11 @@ def pause_simulation(request: Request, engine: EngineDep) -> ControlResponse:
 
 @router.post("/resume", response_model=ControlResponse)
 @limiter.limit("10/minute")
-def resume_simulation(request: Request, engine: EngineDep) -> ControlResponse:
+def resume_simulation(
+    request: Request,
+    _: Annotated[None, Depends(require_admin)],
+    engine: EngineDep,
+) -> ControlResponse:
     """Resume from paused state."""
     if engine.state.value != "paused":
         raise HTTPException(status_code=400, detail="Simulation not paused")
@@ -68,7 +80,11 @@ def resume_simulation(request: Request, engine: EngineDep) -> ControlResponse:
 
 @router.post("/stop", response_model=ControlResponse)
 @limiter.limit("10/minute")
-def stop_simulation(request: Request, engine: EngineDep) -> ControlResponse:
+def stop_simulation(
+    request: Request,
+    _: Annotated[None, Depends(require_admin)],
+    engine: EngineDep,
+) -> ControlResponse:
     """Stop the simulation."""
     if engine.state.value == "stopped":
         raise HTTPException(status_code=400, detail="Simulation already stopped")
@@ -85,7 +101,10 @@ async def _broadcast_reset(connection_manager: Any) -> None:
 @router.post("/reset", response_model=ControlResponse)
 @limiter.limit("10/minute")
 def reset_simulation(
-    request: Request, engine: EngineDep, background_tasks: BackgroundTasks
+    request: Request,
+    _: Annotated[None, Depends(require_admin)],
+    engine: EngineDep,
+    background_tasks: BackgroundTasks,
 ) -> ControlResponse:
     """Reset simulation to initial state, clearing all data."""
     # Call engine reset (handles most clearing including database)
@@ -115,7 +134,10 @@ def reset_simulation(
 @router.put("/speed", response_model=SpeedChangeResponse)
 @limiter.limit("10/minute")
 def change_speed(
-    request: Request, body: SpeedChangeRequest, engine: EngineDep
+    request: Request,
+    _: Annotated[None, Depends(require_admin)],
+    body: SpeedChangeRequest,
+    engine: EngineDep,
 ) -> SpeedChangeResponse:
     """Change simulation speed multiplier (must be between 0.5 and 128)."""
     if body.multiplier < 0.5:

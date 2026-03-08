@@ -2,7 +2,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
-from api.auth import verify_api_key
+from api.auth import require_admin, verify_api_key
 from api.models.agents import (
     ActionHistoryEntryResponse,
     ActiveTripInfo,
@@ -101,6 +101,7 @@ def compute_action_history_response(agent: Any, engine: Any) -> list[ActionHisto
 @limiter.limit("120/minute")
 def create_drivers(
     request: Request,
+    _: Annotated[None, Depends(require_admin)],
     body: DriverCreateRequest,
     agent_factory: AgentFactoryDep,
     mode: Annotated[
@@ -141,6 +142,7 @@ def create_drivers(
 @limiter.limit("120/minute")
 def create_riders(
     request: Request,
+    _: Annotated[None, Depends(require_admin)],
     body: RiderCreateRequest,
     agent_factory: AgentFactoryDep,
     mode: Annotated[
@@ -403,6 +405,7 @@ def get_rider_state(
 @limiter.limit("30/minute")
 def toggle_driver_status(
     request: Request,
+    _: Annotated[None, Depends(require_admin)],
     driver_id: str,
     body: DriverStatusToggleRequest,
     engine: SimulationEngineDep,

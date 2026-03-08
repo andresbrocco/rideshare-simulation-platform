@@ -1,12 +1,12 @@
 """Proxy routes for the performance controller service."""
 
 import logging
-from typing import Any
+from typing import Annotated, Any
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 
-from api.auth import verify_api_key
+from api.auth import require_admin, verify_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,10 @@ async def get_controller_status() -> Any:
 
 
 @router.put("/mode")
-async def set_controller_mode(body: dict[str, Any]) -> Any:
+async def set_controller_mode(
+    _: Annotated[None, Depends(require_admin)],
+    body: dict[str, Any],
+) -> Any:
     """Proxy PUT /controller/mode to the performance controller."""
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
