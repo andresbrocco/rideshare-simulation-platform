@@ -23,30 +23,19 @@ import {
   SiKubernetes,
   SiTerraform,
   SiGithubactions,
+  SiArgo,
 } from '@icons-pack/react-simple-icons';
 import {
-  SiPythonHex,
   SiFastapiHex,
-  SiPydanticHex,
-  SiH3Hex,
-  SiApachekafkaHex,
   SiRedisHex,
-  SiMinioHex,
-  SiTrinoHex,
   SiApachehiveHex,
   SiDuckdbHex,
-  SiPostgresqlHex,
-  SiApacheairflowHex,
   SiReactHex,
-  SiTypescriptHex,
-  SiMaplibreHex,
   SiPrometheusHex,
   SiGrafanaHex,
-  SiOpentelemetryHex,
   SiDockerHex,
-  SiKubernetesHex,
-  SiTerraformHex,
   SiGithubactionsHex,
+  SiArgoHex,
 } from '@icons-pack/react-simple-icons';
 import DeltaLakeIcon from '../../public/icons/tech/delta-lake.svg?react';
 import DbtIcon from '../../public/icons/tech/dbt.svg?react';
@@ -56,9 +45,14 @@ import LokiIcon from '../../public/icons/tech/loki.svg?react';
 import TempoIcon from '../../public/icons/tech/tempo.svg?react';
 import DeckGlIcon from '../../public/icons/tech/deck-gl.svg?react';
 import OsrmIcon from '../../public/icons/tech/osrm.svg?react';
-import ArgocdIcon from '../../public/icons/tech/argocd.svg?react';
-import AwsIcon from '../../public/icons/tech/aws.svg?react';
+import SchemaRegistryIcon from '../../public/icons/tech/schema-registry.svg?react';
 import PerfControllerIcon from '../../public/icons/tech/performance-controller.svg?react';
+import AwsEksIcon from '../../public/icons/tech/aws-eks.svg?react';
+import AwsS3Icon from '../../public/icons/tech/aws-s3.svg?react';
+import AwsRdsIcon from '../../public/icons/tech/aws-rds.svg?react';
+import AwsCloudfrontIcon from '../../public/icons/tech/aws-cloudfront.svg?react';
+import AwsLambdaIcon from '../../public/icons/tech/aws-lambda.svg?react';
+import AwsSecretsManagerIcon from '../../public/icons/tech/aws-secrets-manager.svg?react';
 import { useActiveSection } from '../hooks/useActiveSection';
 import { useCountUp } from '../hooks/useCountUp';
 import { useInView } from '../hooks/useInView';
@@ -85,6 +79,28 @@ interface TechGroup {
 
 const SELF_HOSTED_COLOR = '#4daa6e';
 
+// Brand-color overrides for dark-background contrast (min 4.5:1 vs #131716)
+const KAFKA_COLOR = '#888485'; // from #231F20 (1.1:1)
+const OPENTELEMETRY_COLOR = '#F5A800'; // OTel secondary gold, from #000000 (1.2:1)
+const H3_COLOR = '#4B82E8'; // from #1E54B7 (2.6:1)
+const TERRAFORM_COLOR = '#A06CD8'; // from #844FBA (3.3:1)
+const MINIO_COLOR = '#E04060'; // from #C72E49 (3.4:1)
+const MAPLIBRE_COLOR = '#5088D0'; // from #396CB2 (3.4:1)
+const POSTGRESQL_COLOR = '#5A85F0'; // from #4169E1 (3.7:1)
+const PYTHON_COLOR = '#4A90CC'; // from #3776AB (3.7:1)
+const KUBERNETES_COLOR = '#4A85F0'; // from #326CE5 (3.8:1)
+const TRINO_COLOR = '#F020B8'; // from #DD00A1 (4.0:1)
+const TYPESCRIPT_COLOR = '#4A92E0'; // from #3178C6 (4.0:1)
+const PYDANTIC_COLOR = '#F03070'; // from #E92063 (4.2:1)
+const AIRFLOW_COLOR = '#2098FF'; // from #017CEE (4.4:1)
+
+// AWS Architecture Icon category colors (lightened for 4.5:1 contrast)
+const AWS_COMPUTE_COLOR = '#FF9900';
+const AWS_STORAGE_COLOR = '#57A834';
+const AWS_DATABASE_COLOR = '#527FFF';
+const AWS_NETWORK_COLOR = '#A166FF'; // from #8C4FFF
+const AWS_SECURITY_COLOR = '#F04060'; // from #DD344C
+
 const TECH_GROUPS: TechGroup[] = [
   {
     title: 'Simulation',
@@ -92,7 +108,7 @@ const TECH_GROUPS: TechGroup[] = [
       {
         label: 'Python 3.13',
         icon: SiPython,
-        iconColor: SiPythonHex,
+        iconColor: PYTHON_COLOR,
         tooltip: 'Simulation engine, pipelines, and tooling runtime',
       },
       {
@@ -110,13 +126,13 @@ const TECH_GROUPS: TechGroup[] = [
       {
         label: 'Pydantic',
         icon: SiPydantic,
-        iconColor: SiPydanticHex,
+        iconColor: PYDANTIC_COLOR,
         tooltip: 'Data validation, settings, and immutable DNA models',
       },
       {
         label: 'H3',
         icon: SiH3,
-        iconColor: SiH3Hex,
+        iconColor: H3_COLOR,
         tooltip: 'Uber H3 hexagonal geospatial indexing for O(1) driver lookups',
       },
       {
@@ -133,13 +149,13 @@ const TECH_GROUPS: TechGroup[] = [
       {
         label: 'Apache Kafka',
         icon: SiApachekafka,
-        iconColor: SiApachekafkaHex,
+        iconColor: KAFKA_COLOR,
         tooltip: 'Event backbone with 8 topics and SASL/PLAIN auth',
       },
       {
         label: 'Schema Registry',
-        icon: SiApachekafka,
-        iconColor: SiApachekafkaHex,
+        icon: SchemaRegistryIcon,
+        iconColor: KAFKA_COLOR,
         tooltip: 'JSON Schema Draft 7 validation for all event contracts',
       },
       {
@@ -162,13 +178,13 @@ const TECH_GROUPS: TechGroup[] = [
       {
         label: 'MinIO / S3',
         icon: SiMinio,
-        iconColor: SiMinioHex,
+        iconColor: MINIO_COLOR,
         tooltip: 'Object storage for Bronze, Silver, and Gold layers',
       },
       {
         label: 'Apache Trino',
         icon: SiTrino,
-        iconColor: SiTrinoHex,
+        iconColor: TRINO_COLOR,
         tooltip: 'Interactive SQL engine over Delta Lake with partition pruning',
       },
       {
@@ -186,7 +202,7 @@ const TECH_GROUPS: TechGroup[] = [
       {
         label: 'PostgreSQL',
         icon: SiPostgresql,
-        iconColor: SiPostgresqlHex,
+        iconColor: POSTGRESQL_COLOR,
         tooltip: 'Metadata storage for Airflow and Hive Metastore',
       },
     ],
@@ -203,7 +219,7 @@ const TECH_GROUPS: TechGroup[] = [
       {
         label: 'Apache Airflow',
         icon: SiApacheairflow,
-        iconColor: SiApacheairflowHex,
+        iconColor: AIRFLOW_COLOR,
         tooltip: '4 DAGs orchestrating pipelines (hourly to daily)',
       },
       {
@@ -226,7 +242,7 @@ const TECH_GROUPS: TechGroup[] = [
       {
         label: 'TypeScript',
         icon: SiTypescript,
-        iconColor: SiTypescriptHex,
+        iconColor: TYPESCRIPT_COLOR,
         tooltip: 'Type-safe frontend with OpenAPI-generated API types',
       },
       {
@@ -238,7 +254,7 @@ const TECH_GROUPS: TechGroup[] = [
       {
         label: 'MapLibre',
         icon: SiMaplibre,
-        iconColor: SiMaplibreHex,
+        iconColor: MAPLIBRE_COLOR,
         tooltip: 'Open-source map rendering engine',
       },
     ],
@@ -273,7 +289,7 @@ const TECH_GROUPS: TechGroup[] = [
       {
         label: 'OpenTelemetry',
         icon: SiOpentelemetry,
-        iconColor: SiOpentelemetryHex,
+        iconColor: OPENTELEMETRY_COLOR,
         tooltip: 'Unified telemetry gateway (metrics, logs, traces)',
       },
       {
@@ -297,19 +313,19 @@ const TECH_GROUPS: TechGroup[] = [
       {
         label: 'Kubernetes',
         icon: SiKubernetes,
-        iconColor: SiKubernetesHex,
+        iconColor: KUBERNETES_COLOR,
         tooltip: 'EKS cluster with Kustomize overlays for local/prod parity',
       },
       {
         label: 'Terraform',
         icon: SiTerraform,
-        iconColor: SiTerraformHex,
+        iconColor: TERRAFORM_COLOR,
         tooltip: 'Three-layer IaC: bootstrap, foundation, platform',
       },
       {
         label: 'ArgoCD',
-        icon: ArgocdIcon,
-        iconColor: SELF_HOSTED_COLOR,
+        icon: SiArgo,
+        iconColor: SiArgoHex,
         tooltip: 'GitOps deployment watching deploy branch with self-heal',
       },
       {
@@ -325,38 +341,38 @@ const TECH_GROUPS: TechGroup[] = [
     badges: [
       {
         label: 'EKS',
-        icon: AwsIcon,
-        iconColor: SELF_HOSTED_COLOR,
+        icon: AwsEksIcon,
+        iconColor: AWS_COMPUTE_COLOR,
         tooltip: 'Managed Kubernetes with Pod Identity for workload IAM',
       },
       {
         label: 'S3',
-        icon: AwsIcon,
-        iconColor: SELF_HOSTED_COLOR,
+        icon: AwsS3Icon,
+        iconColor: AWS_STORAGE_COLOR,
         tooltip: 'Object storage for Bronze, Silver, Gold layers (prod)',
       },
       {
         label: 'RDS',
-        icon: AwsIcon,
-        iconColor: SELF_HOSTED_COLOR,
+        icon: AwsRdsIcon,
+        iconColor: AWS_DATABASE_COLOR,
         tooltip: 'Managed PostgreSQL for Airflow and Hive Metastore (prod)',
       },
       {
         label: 'CloudFront',
-        icon: AwsIcon,
-        iconColor: SELF_HOSTED_COLOR,
+        icon: AwsCloudfrontIcon,
+        iconColor: AWS_NETWORK_COLOR,
         tooltip: 'CDN for frontend and API distribution',
       },
       {
         label: 'Lambda',
-        icon: AwsIcon,
-        iconColor: SELF_HOSTED_COLOR,
+        icon: AwsLambdaIcon,
+        iconColor: AWS_COMPUTE_COLOR,
         tooltip: 'Serverless functions for event processing',
       },
       {
         label: 'Secrets Manager',
-        icon: AwsIcon,
-        iconColor: SELF_HOSTED_COLOR,
+        icon: AwsSecretsManagerIcon,
+        iconColor: AWS_SECURITY_COLOR,
         tooltip: 'Credential management (LocalStack locally, AWS in prod)',
       },
     ],
@@ -430,7 +446,7 @@ function getExternalServices(isLocal: boolean): ExternalService[] {
         : 'https://airflow.ridesharing.portfolio.andresbrocco.com',
       desc: '4 DAGs orchestrating Bronze → Silver → Gold transformations',
       icon: SiApacheairflow,
-      iconColor: `#${SiApacheairflowHex}`,
+      iconColor: AIRFLOW_COLOR,
     },
     {
       name: 'Trino',
@@ -439,7 +455,7 @@ function getExternalServices(isLocal: boolean): ExternalService[] {
         : 'https://trino.ridesharing.portfolio.andresbrocco.com',
       desc: 'Interactive SQL over Delta Lake — query the star schema live',
       icon: SiTrino,
-      iconColor: `#${SiTrinoHex}`,
+      iconColor: TRINO_COLOR,
     },
     {
       name: 'Prometheus',
