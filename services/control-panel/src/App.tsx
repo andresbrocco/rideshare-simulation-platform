@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { LandingPage } from './components/LandingPage';
 import { ALL_SERVICES_DOWN } from './services/lambda';
 import type { ServiceHealthMap } from './services/lambda';
-import PasswordDialog from './components/PasswordDialog';
+import LoginDialog from './components/LoginDialog';
 import Map from './components/Map';
 import MapErrorBoundary from './components/MapErrorBoundary';
 import ControlPanel from './components/ControlPanel';
@@ -28,12 +28,16 @@ import { DEFAULT_VISIBILITY, type LayerVisibility } from './types/layers';
 import type { PlacementMode } from './constants/dnaPresets';
 import {
   getAppMode,
+  getApiKey,
+  storeSession,
+  clearSession,
   setAuthCookie,
   getAuthCookie,
   clearAuthCookie,
   redirectToControlPanel,
   redirectToLanding,
 } from './utils/auth';
+import { useSessionExpiry } from './hooks/useSessionExpiry';
 import './App.css';
 
 const PAGE_REFRESH_INTERVAL_MS = Number(import.meta.env.VITE_PAGE_REFRESH_INTERVAL_MS ?? 600_000);
@@ -56,7 +60,7 @@ function usePageRefresh(intervalMs: number) {
  * The Control Panel button redirects directly (user is already authenticated via Deploy).
  */
 function LandingApp() {
-  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [apiKey, setApiKey] = useState<string | null>(() => getAuthCookie());
   const [serviceHealth, setServiceHealth] = useState<ServiceHealthMap>(ALL_SERVICES_DOWN);
 
@@ -73,12 +77,12 @@ function LandingApp() {
         isLocal={getAppMode() === 'dev'}
         serviceHealth={serviceHealth}
         apiKey={apiKey}
-        onNeedAuth={() => setShowPasswordDialog(true)}
+        onNeedAuth={() => setShowLoginDialog(true)}
         onServiceHealthChange={setServiceHealth}
       />
-      <PasswordDialog
-        open={showPasswordDialog}
-        onClose={() => setShowPasswordDialog(false)}
+      <LoginDialog
+        open={showLoginDialog}
+        onClose={() => setShowLoginDialog(false)}
         onLogin={handleLogin}
       />
     </div>
@@ -93,13 +97,16 @@ function LandingApp() {
 function ControlPanelApp() {
   const [apiKey] = useState<string | null>(() => {
     // Check sessionStorage first (returning user in same tab)
-    const stored = sessionStorage.getItem('apiKey');
+    const stored = getApiKey();
     if (stored) return stored;
 
     // Check cookie (fresh redirect from landing page)
     const cookieKey = getAuthCookie();
     if (cookieKey) {
-      sessionStorage.setItem('apiKey', cookieKey);
+      // Migrate the cookie into session storage using storeSession.
+      // Role and email are not available at this hand-off point, so we
+      // store placeholder values that will be refreshed on next login.
+      storeSession(cookieKey, '', '');
       clearAuthCookie();
       return cookieKey;
     }
@@ -135,11 +142,18 @@ function AppContent() {
 }
 
 function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
-  const [apiKey, setApiKey] = useState<string | null>(() => {
-    return sessionStorage.getItem('apiKey');
-  });
+  const [apiKey, setApiKey] = useState<string | null>(() => getApiKey());
 
-  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
+
+  // When apiClient detects a 401, clear state and show login
+  useSessionExpiry(
+    useCallback(() => {
+      clearSession();
+      setApiKey(null);
+      setShowLoginDialog(true);
+    }, [])
+  );
   const [layerVisibility, setLayerVisibility] = useState<LayerVisibility>(DEFAULT_VISIBILITY);
   const [inspectedEntity, setInspectedEntity] = useState<InspectedEntity>(null);
   const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
@@ -247,7 +261,6 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
 
   const handleLogin = (key: string) => {
     setApiKey(key);
-    sessionStorage.setItem('apiKey', key);
   };
 
   const handleEntityClick = (entity: InspectedEntity, x: number, y: number) => {
@@ -276,14 +289,14 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
             isLocal={getAppMode() === 'dev'}
             serviceHealth={ALL_SERVICES_DOWN}
             apiKey={apiKey}
-            onNeedAuth={() => setShowPasswordDialog(true)}
+            onNeedAuth={() => setShowLoginDialog(true)}
             onServiceHealthChange={() => {
               /* In dev mode, useApiHealth drives availability */
             }}
           />
-          <PasswordDialog
-            open={showPasswordDialog}
-            onClose={() => setShowPasswordDialog(false)}
+          <LoginDialog
+            open={showLoginDialog}
+            onClose={() => setShowLoginDialog(false)}
             onLogin={handleLogin}
           />
         </>
