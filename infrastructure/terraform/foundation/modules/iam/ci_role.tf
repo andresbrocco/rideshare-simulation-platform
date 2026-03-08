@@ -481,6 +481,32 @@ resource "aws_iam_role_policy" "github_actions_ssm" {
   })
 }
 
+# Glue Catalog Policy (deploy health check + soft-reset table cleanup)
+resource "aws_iam_role_policy" "github_actions_glue" {
+  name = "glue-catalog"
+  role = aws_iam_role.github_actions.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "glue:GetDatabase",
+          "glue:GetDatabases",
+          "glue:GetTables",
+          "glue:DeleteTable"
+        ]
+        Resource = [
+          "arn:aws:glue:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:catalog",
+          "arn:aws:glue:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:database/rideshare_*",
+          "arn:aws:glue:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:table/rideshare_*/*"
+        ]
+      }
+    ]
+  })
+}
+
 # Terraform State S3 Policy (locking via S3-native .tflock file)
 resource "aws_iam_role_policy" "github_actions_terraform" {
   name = "terraform-state"

@@ -42,6 +42,7 @@ DEPLOY_PROGRESS_SERVICES = [
     "simulation",
     "bronze-ingestion",
     "airflow",
+    "glue-catalog",
     "trino",
     "prometheus",
     "grafana",

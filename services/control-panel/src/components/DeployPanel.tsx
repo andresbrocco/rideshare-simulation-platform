@@ -38,6 +38,7 @@ const DEPLOY_SERVICES = [
   'simulation',
   'bronze-ingestion',
   'airflow',
+  'glue-catalog',
   'trino',
   'prometheus',
   'grafana',

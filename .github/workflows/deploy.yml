@@ -402,6 +402,11 @@ jobs:
             done
           }
 
+          # When dbt_runner is not glue, auto-report glue-catalog as ready immediately
+          if [ "${{ github.event.inputs.dbt_runner }}" != "glue" ]; then
+            report_ready "glue-catalog"
+          fi
+
           echo "=== Phase 1: Infrastructure ==="
           wait_and_mark kafka wait --for=condition=ready pod/kafka-0 -n "$NS" --timeout=300s &
           wait_and_mark redis wait --for=condition=available deployment/redis -n "$NS" --timeout=300s &
@@ -432,6 +437,23 @@ jobs:
           wait_and_mark airflow wait --for=condition=available deployment/airflow-webserver -n "$NS" --timeout=300s || true
           report_phase airflow
           echo "Phase 4 complete"
+
+          echo "=== Phase 4.5: Glue Catalog ==="
+          if [ "${{ github.event.inputs.dbt_runner }}" = "glue" ]; then
+            GLUE_OK=true
+            for DB in rideshare_bronze rideshare_silver rideshare_gold; do
+              if ! aws glue get-database --name "$DB" > /dev/null 2>&1; then
+                echo "  Warning: Glue database $DB not accessible"
+                GLUE_OK=false
+              fi
+            done
+            if [ "$GLUE_OK" = "true" ]; then
+              report_ready "glue-catalog"
+            else
+              echo "  glue-catalog not ready (skipping report)"
+            fi
+          fi
+          echo "Phase 4.5 complete"
 
           echo "=== Phase 5: UI/Observability ==="
           wait_and_mark grafana wait --for=condition=available deployment/grafana -n "$NS" --timeout=300s &
