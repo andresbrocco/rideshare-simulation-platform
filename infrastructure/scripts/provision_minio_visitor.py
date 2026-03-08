@@ -24,7 +24,14 @@ from minio.error import MinioAdminException
 # ---------------------------------------------------------------------------
 
 _POLICY_NAME = "visitor-readonly"
-_POLICY_FILE = Path(__file__).parent.parent / "policies" / "minio-visitor-readonly.json"
+
+# Primary location: infrastructure/policies/minio-visitor-readonly.json
+# (relative to this file when running from the scripts/ directory).
+# Fallback: same directory as this file, for Lambda deployments where the
+# policy document is bundled alongside the module.
+_POLICY_FILE_CANONICAL = Path(__file__).parent.parent / "policies" / "minio-visitor-readonly.json"
+_POLICY_FILE_COLOCATED = Path(__file__).parent / "minio-visitor-readonly.json"
+_POLICY_FILE = _POLICY_FILE_CANONICAL if _POLICY_FILE_CANONICAL.exists() else _POLICY_FILE_COLOCATED
 
 
 # ---------------------------------------------------------------------------

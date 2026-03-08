@@ -1,3 +1,4 @@
+import base64
 import concurrent.futures
 import json
 import os
@@ -1077,6 +1078,402 @@ def handle_complete_teardown(api_key: str) -> tuple[int, dict[str, Any]]:
     return 200, {"success": True}
 
 
+# ---------------------------------------------------------------------------
+# Multi-service visitor provisioning
+# ---------------------------------------------------------------------------
+
+# Secret key used to retrieve the Grafana admin password for provisioning.
+SECRET_GRAFANA_ADMIN_PASSWORD = "rideshare/grafana-admin-password"
+
+# Secrets Manager key where the Trino bcrypt hash is persisted so that a
+# Trino container restart can pick it up via the password.db entrypoint script.
+SECRET_TRINO_VISITOR_PASSWORD_HASH = "rideshare/trino-visitor-password-hash"
+
+
+def _get_provisioning_scripts_dir() -> str:
+    """Return the directory containing the provisioning module scripts.
+
+    In the Lambda deployment package, the provisioning scripts are bundled
+    alongside handler.py, so ``__file__``'s directory is used directly.  A
+    ``PROVISIONING_SCRIPTS_DIR`` environment variable can override this for
+    local development.
+
+    Returns:
+        Absolute path to the directory containing provision_*.py scripts.
+    """
+    override = os.environ.get("PROVISIONING_SCRIPTS_DIR")
+    if override:
+        return override
+    # Co-located with handler.py inside the Lambda zip.
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def _load_module(module_name: str, scripts_dir: str) -> Any:
+    """Load a provisioning module by file name from *scripts_dir*.
+
+    Args:
+        module_name: Base file name without extension, e.g.
+            ``"provision_grafana_viewer"``.
+        scripts_dir: Directory that contains the module file.
+
+    Returns:
+        The loaded module object.
+
+    Raises:
+        ImportError: If the module file cannot be found or loaded.
+    """
+    import importlib.util
+
+    module_path = os.path.join(scripts_dir, f"{module_name}.py")
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load {module_name} from {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _provision_grafana(
+    email: str,
+    password: str,
+    name: str,
+    scripts_dir: str,
+) -> dict[str, Any]:
+    """Provision a Grafana viewer account using environment-configured settings.
+
+    Reads ``GRAFANA_URL`` and ``GRAFANA_ADMIN_PASSWORD`` (falling back to
+    Secrets Manager for the password) from the environment.
+
+    Args:
+        email: Visitor email address.
+        password: Visitor plaintext password.
+        name: Visitor display name.
+        scripts_dir: Directory containing provision_grafana_viewer.py.
+
+    Returns:
+        Result dict from :func:`provision_grafana_viewer.provision_viewer`.
+    """
+    grafana_url = os.environ.get("GRAFANA_URL", "http://localhost:3001")
+    admin_password = os.environ.get("GRAFANA_ADMIN_PASSWORD")
+    if not admin_password:
+        try:
+            admin_password = get_secret(SECRET_GRAFANA_ADMIN_PASSWORD)
+        except Exception:
+            admin_password = "admin"
+
+    credentials = base64.b64encode(f"admin:{admin_password}".encode()).decode()
+    admin_auth_header = f"Basic {credentials}"
+
+    module = _load_module("provision_grafana_viewer", scripts_dir)
+    result: dict[str, Any] = module.provision_viewer(
+        email=email,
+        password=password,
+        name=name,
+        grafana_url=grafana_url,
+        admin_auth_header=admin_auth_header,
+    )
+    return result
+
+
+def _provision_airflow(
+    email: str,
+    password: str,
+    name: str,
+    scripts_dir: str,
+) -> dict[str, Any]:
+    """Provision an Airflow viewer account using environment-configured settings.
+
+    Reads ``AIRFLOW_URL``, ``AIRFLOW_ADMIN_USER``, and
+    ``AIRFLOW_ADMIN_PASSWORD`` from the environment.
+
+    Args:
+        email: Visitor email address.
+        password: Visitor plaintext password.
+        name: Visitor display name.
+        scripts_dir: Directory containing provision_airflow_viewer.py.
+
+    Returns:
+        Result dict from :func:`provision_airflow_viewer.provision_viewer`.
+    """
+    airflow_url = os.environ.get("AIRFLOW_URL", "http://localhost:8082")
+    admin_user = os.environ.get("AIRFLOW_ADMIN_USER", "admin")
+    admin_password = os.environ.get("AIRFLOW_ADMIN_PASSWORD", "admin")
+
+    # Split display name into first / last for Airflow's user model.
+    parts = name.strip().split(" ", 1)
+    first_name = parts[0] if parts else email
+    last_name = parts[1] if len(parts) > 1 else ""
+
+    module = _load_module("provision_airflow_viewer", scripts_dir)
+    result: dict[str, Any] = module.provision_viewer(
+        email=email,
+        password=password,
+        first_name=first_name,
+        last_name=last_name,
+        airflow_url=airflow_url,
+        admin_user=admin_user,
+        admin_password=admin_password,
+    )
+    return result
+
+
+def _provision_minio(
+    email: str,
+    password: str,
+    scripts_dir: str,
+) -> dict[str, Any]:
+    """Provision a MinIO visitor account using environment-configured settings.
+
+    Reads ``MINIO_ENDPOINT``, ``MINIO_ACCESS_KEY``, and ``MINIO_SECRET_KEY``
+    from the environment.
+
+    Args:
+        email: Visitor email address (used as MinIO access key).
+        password: Visitor plaintext password (used as MinIO secret key).
+        scripts_dir: Directory containing provision_minio_visitor.py.
+
+    Returns:
+        Result dict from :func:`provision_minio_visitor.provision_visitor`.
+    """
+    endpoint = os.environ.get("MINIO_ENDPOINT", "localhost:9000")
+    access_key = os.environ.get("MINIO_ACCESS_KEY", "admin")
+    secret_key = os.environ.get("MINIO_SECRET_KEY", "adminadmin")
+
+    module = _load_module("provision_minio_visitor", scripts_dir)
+    result: dict[str, Any] = module.provision_visitor(
+        email=email,
+        password=password,
+        endpoint=endpoint,
+        access_key=access_key,
+        secret_key=secret_key,
+    )
+    return result
+
+
+def _provision_trino(email: str, password: str) -> dict[str, Any]:
+    """Generate a bcrypt hash of the visitor password and store it in Secrets Manager.
+
+    Trino reads the hashed password from Secrets Manager during container
+    start-up via the entrypoint script that regenerates ``password.db``.
+    The container must be manually restarted after this call for the new
+    credentials to take effect.
+
+    Args:
+        email: Visitor email address (stored alongside the hash for reference).
+        password: Visitor plaintext password to hash.
+
+    Returns:
+        Dict with ``"status": "stored"`` and ``"email"`` on success.
+    """
+    import bcrypt
+
+    hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+    # Persist the hash so the Trino container can pick it up on restart.
+    client = get_secrets_client()
+    secret_value = json.dumps({"email": email, "hash": hashed})
+    try:
+        client.put_secret_value(
+            SecretId=SECRET_TRINO_VISITOR_PASSWORD_HASH,
+            SecretString=secret_value,
+        )
+    except ClientError as exc:
+        error_code = exc.response["Error"]["Code"]
+        if error_code == "ResourceNotFoundException":
+            client.create_secret(
+                Name=SECRET_TRINO_VISITOR_PASSWORD_HASH,
+                SecretString=secret_value,
+            )
+        else:
+            raise
+
+    return {"status": "stored", "email": email}
+
+
+def _provision_simulation_api(email: str, password: str, name: str) -> dict[str, Any]:
+    """Register the visitor in the simulation API user store.
+
+    Calls ``POST /auth/register`` on the simulation API using the admin API
+    key from Secrets Manager.  The endpoint is idempotent — re-registering
+    an existing email updates the password.
+
+    Args:
+        email: Visitor email address.
+        password: Visitor plaintext password.
+        name: Visitor display name (passed in the request body).
+
+    Returns:
+        The JSON response body from the simulation API register endpoint.
+    """
+    simulation_url = os.environ.get("SIMULATION_API_URL", "http://localhost:8000")
+    admin_api_key = get_secret(SECRET_API_KEY)
+
+    payload = {"email": email, "password": password, "name": name}
+    body = json.dumps(payload).encode()
+    req = urllib.request.Request(
+        url=f"{simulation_url}/auth/register",
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "X-API-Key": admin_api_key,
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
+        response_data: dict[str, Any] = json.loads(resp.read())
+        return response_data
+
+
+def _provision_visitor(
+    email: str,
+    password: str,
+    name: str,
+) -> dict[str, Any]:
+    """Orchestrate visitor account creation across all platform services.
+
+    Calls each service's provisioning module in sequence.  Failures are
+    caught, logged, and collected per-service rather than halting the whole
+    operation — partial success is reported in the summary.
+
+    Services provisioned:
+    - Grafana (viewer role)
+    - Airflow (Viewer role)
+    - MinIO (visitor-readonly policy)
+    - Trino (bcrypt hash stored in Secrets Manager; restart required)
+    - Simulation API (viewer account in user store)
+
+    Args:
+        email: Visitor email address.
+        password: Visitor plaintext password.
+        name: Visitor display name.
+
+    Returns:
+        Dict with ``"successes"`` and ``"failures"`` lists.  Each success
+        entry is ``{"service": str, "result": dict}`` and each failure entry
+        is ``{"service": str, "error": str}``.
+    """
+    scripts_dir = _get_provisioning_scripts_dir()
+    successes: list[dict[str, Any]] = []
+    failures: list[dict[str, Any]] = []
+
+    # Grafana
+    try:
+        result = _provision_grafana(email, password, name, scripts_dir)
+        successes.append({"service": "grafana", "result": result})
+        print(f"Grafana provisioning succeeded: {result}")
+    except Exception as exc:
+        failures.append({"service": "grafana", "error": str(exc)})
+        print(f"Grafana provisioning failed: {exc}")
+
+    # Airflow
+    try:
+        result = _provision_airflow(email, password, name, scripts_dir)
+        successes.append({"service": "airflow", "result": result})
+        print(f"Airflow provisioning succeeded: {result}")
+    except Exception as exc:
+        failures.append({"service": "airflow", "error": str(exc)})
+        print(f"Airflow provisioning failed: {exc}")
+
+    # MinIO
+    try:
+        result = _provision_minio(email, password, scripts_dir)
+        successes.append({"service": "minio", "result": result})
+        print(f"MinIO provisioning succeeded: {result}")
+    except Exception as exc:
+        failures.append({"service": "minio", "error": str(exc)})
+        print(f"MinIO provisioning failed: {exc}")
+
+    # Trino (stores bcrypt hash; manual container restart required)
+    try:
+        result = _provision_trino(email, password)
+        successes.append({"service": "trino", "result": result})
+        print(f"Trino provisioning succeeded: {result}")
+    except Exception as exc:
+        failures.append({"service": "trino", "error": str(exc)})
+        print(f"Trino provisioning failed: {exc}")
+
+    # Simulation API
+    try:
+        result = _provision_simulation_api(email, password, name)
+        successes.append({"service": "simulation_api", "result": result})
+        print(f"Simulation API provisioning succeeded: {result}")
+    except Exception as exc:
+        failures.append({"service": "simulation_api", "error": str(exc)})
+        print(f"Simulation API provisioning failed: {exc}")
+
+    return {"successes": successes, "failures": failures}
+
+
+def handle_provision_visitor(
+    api_key: str,
+    email: str,
+    password: str,
+    name: str,
+) -> tuple[int, dict[str, Any]]:
+    """Handle provision-visitor action.
+
+    Provisions a visitor account across all platform services: Grafana,
+    Airflow, MinIO, Trino, and the Simulation API.  Requires admin API key
+    authentication.  Partial failures are included in the response body
+    rather than causing the whole request to fail.
+
+    Args:
+        api_key: Admin API key for authentication.
+        email: Visitor email address.
+        password: Visitor plaintext password (min 8 characters).
+        name: Visitor display name.
+
+    Returns:
+        Tuple of (HTTP status code, response body dict).  Status 200 when at
+        least one service was provisioned successfully; 207 when some services
+        failed; 500 if all services failed.
+    """
+    print("Action: provision-visitor")
+
+    if not validate_api_key(api_key):
+        print("Action provision-visitor completed: 401")
+        return 401, {"error": "Invalid password"}
+
+    if not email or not password or not name:
+        print("Action provision-visitor completed: 400")
+        return 400, {"error": "Missing required fields: email, password, name"}
+
+    if len(password) < 8:
+        print("Action provision-visitor completed: 400")
+        return 400, {"error": "Password must be at least 8 characters"}
+
+    result = _provision_visitor(email, password, name)
+    successes = result["successes"]
+    failures = result["failures"]
+
+    if not successes:
+        print("Action provision-visitor completed: 500")
+        return 500, {
+            "error": "All service provisioning steps failed",
+            "successes": successes,
+            "failures": failures,
+        }
+
+    if failures:
+        print(
+            f"Action provision-visitor completed: 207 ({len(successes)} ok, {len(failures)} failed)"
+        )
+        return 207, {
+            "email": email,
+            "successes": successes,
+            "failures": failures,
+            "note": "Trino requires a container restart to apply the new password hash.",
+        }
+
+    print("Action provision-visitor completed: 200")
+    return 200, {
+        "email": email,
+        "successes": successes,
+        "failures": failures,
+        "note": "Trino requires a container restart to apply the new password hash.",
+    }
+
+
 def get_response_headers() -> dict[str, str]:
     """Get standard response headers.
 
@@ -1160,6 +1557,14 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 return {"error": "Missing required field: run_id"}
             _, response_body = handle_set_teardown_run_id(api_key, run_id)
             return response_body
+        if action == "provision-visitor":
+            visitor_email = event.get("email", "")
+            visitor_password = event.get("password", "")
+            visitor_name = event.get("name", "")
+            _, response_body = handle_provision_visitor(
+                api_key or "", visitor_email, visitor_password, visitor_name
+            )
+            return response_body
         if action in auth_handlers:
             _, response_body = auth_handlers[action](api_key)
             return response_body
@@ -1180,6 +1585,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "report-deploy-progress",
                 "set-teardown-run-id",
                 "complete-teardown",
+                "provision-visitor",
             ],
         }
 
@@ -1259,6 +1665,13 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "body": json.dumps({"error": "Missing required field: run_id"}),
             }
         status_code, response_body = handle_set_teardown_run_id(api_key, run_id)
+    elif action == "provision-visitor":
+        visitor_email = body.get("email", "")
+        visitor_password = body.get("password", "")
+        visitor_name = body.get("name", "")
+        status_code, response_body = handle_provision_visitor(
+            api_key, visitor_email, visitor_password, visitor_name
+        )
     elif action in auth_handlers:
         status_code, response_body = auth_handlers[action](api_key)
     else:
@@ -1279,6 +1692,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "report-deploy-progress",
                 "set-teardown-run-id",
                 "complete-teardown",
+                "provision-visitor",
             ],
         }
 

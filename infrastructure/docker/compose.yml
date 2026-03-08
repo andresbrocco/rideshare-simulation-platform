@@ -580,16 +580,26 @@ services:
     volumes:
       - ../../infrastructure/scripts/deploy-lambda.py:/app/deploy-lambda.py:ro
       - ../../infrastructure/lambda/auth-deploy/handler.py:/app/lambda/handler.py:ro
+      - ../../infrastructure/scripts/provision_grafana_viewer.py:/app/lambda/provision_grafana_viewer.py:ro
+      - ../../infrastructure/scripts/provision_airflow_viewer.py:/app/lambda/provision_airflow_viewer.py:ro
+      - ../../infrastructure/scripts/provision_minio_visitor.py:/app/lambda/provision_minio_visitor.py:ro
+      - ../../infrastructure/policies/minio-visitor-readonly.json:/app/lambda/minio-visitor-readonly.json:ro
     environment:
       - AWS_ENDPOINT_URL=http://localstack:4566
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
       - AWS_DEFAULT_REGION=us-east-1
+      # Provisioning service endpoints (Lambda provision-visitor action)
+      - GRAFANA_URL=http://grafana:3000
+      - AIRFLOW_URL=http://airflow-webserver:8080
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=admin
+      - SIMULATION_API_URL=http://simulation:8000
     depends_on:
       secrets-init:
         condition: service_completed_successfully
     command: >
-      sh -c "pip install boto3 &&
+      sh -c "pip install boto3 minio &&
              python /app/deploy-lambda.py"
     networks:
       - rideshare-network
