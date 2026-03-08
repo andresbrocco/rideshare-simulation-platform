@@ -57,9 +57,14 @@ def mock_engine_modules():
 
 @pytest.fixture
 def mock_redis_client():
-    """Mock Redis client for API tests."""
+    """Mock Redis client for API tests.
+
+    hgetall returns an empty dict by default so session key lookups fail
+    unless a test explicitly overrides the return value.
+    """
     client = AsyncMock()
     client.close = AsyncMock()
+    client.hgetall = AsyncMock(return_value={})
     return client
 
 
@@ -86,6 +91,8 @@ def mock_matching_server():
             "offers_expired": 0,
         }
     )
+    server.get_active_trips = Mock(return_value=[])
+    server._surge_calculator = None
     return server
 
 
@@ -98,8 +105,8 @@ def mock_simulation_engine(mock_matching_server):
     engine.speed_multiplier = 1
     engine.active_driver_count = 0
     engine.active_rider_count = 0
-    engine._active_drivers = []
-    engine._active_riders = []
+    engine._active_drivers = {}
+    engine._active_riders = {}
     engine._get_in_flight_trips = Mock(return_value=[])
     engine._matching_server = mock_matching_server
     engine.start = Mock()
@@ -109,6 +116,9 @@ def mock_simulation_engine(mock_matching_server):
     engine.set_speed = Mock()
     engine.reset = Mock()
     engine.real_time_ratio = Mock(return_value=1.0)
+    engine.current_time = Mock(return_value=None)
+    engine._env = Mock()
+    engine._env.now = 0.0
     return engine
 
 

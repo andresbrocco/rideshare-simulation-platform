@@ -4,6 +4,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from fastapi.websockets import WebSocketState
 
 from api.rate_limit import ws_limiter
+from api.session_store import get_session
 from settings import get_settings
 
 router = APIRouter()
@@ -34,6 +35,23 @@ def extract_api_key(websocket: WebSocket) -> str | None:
     return api_key
 
 
+async def _is_valid_key(api_key: str, websocket: WebSocket) -> bool:
+    """Validate an API key against the static admin key or a Redis session.
+
+    Returns True if the key is valid, False otherwise.
+    """
+    settings = get_settings()
+
+    if api_key.startswith("sess_"):
+        # Session key path — look up in Redis
+        redis_client = websocket.app.state.redis_client
+        session = await get_session(api_key, redis_client)
+        return session is not None
+
+    # Static admin key path
+    return api_key == settings.api.key
+
+
 class ConnectionManager:
     """Manages WebSocket connections for real-time updates."""
 
@@ -62,9 +80,8 @@ manager = ConnectionManager()
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
     api_key, subprotocol = extract_api_key_and_protocol(websocket)
-    settings = get_settings()
 
-    if not api_key or api_key != settings.api.key:
+    if not api_key or not await _is_valid_key(api_key, websocket):
         await websocket.close(code=1008)
         return
 

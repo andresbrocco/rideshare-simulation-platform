@@ -8,7 +8,7 @@ import logging
 import time
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 import httpx
 from fastapi import Depends, FastAPI
@@ -20,7 +20,7 @@ from slowapi.errors import RateLimitExceeded
 if TYPE_CHECKING:
     from redis.asyncio import Redis
 
-from api.auth import verify_api_key
+from api.auth import AuthContext, verify_api_key
 from api.middleware.security_headers import SecurityHeadersMiddleware
 from api.models.health import (
     DetailedHealthResponse,
@@ -261,6 +261,9 @@ def create_app(
     app.state.zone_loader = zone_loader
     app.state.matching_server = matching_server
     app.state.connection_manager = connection_manager
+    # Initialise snapshot_manager eagerly so the WebSocket endpoint can use it
+    # before the lifespan context has started (e.g. during tests).
+    app.state.snapshot_manager = StateSnapshotManager(redis_client)
 
     settings = get_settings()
     origins = settings.cors.origins.split(",")
@@ -289,7 +292,7 @@ def create_app(
 
     @app.get("/auth/validate")
     async def validate_api_key_endpoint(
-        _: str = Depends(verify_api_key),
+        _: Annotated[AuthContext, Depends(verify_api_key)],
     ) -> dict[str, str]:
         """Validate API key for login.
 
