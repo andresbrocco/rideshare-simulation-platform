@@ -8,10 +8,10 @@ import logging
 import time
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Annotated, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import httpx
-from fastapi import Depends, FastAPI
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
@@ -20,7 +20,6 @@ from slowapi.errors import RateLimitExceeded
 if TYPE_CHECKING:
     from redis.asyncio import Redis
 
-from api.auth import AuthContext, verify_api_key
 from api.middleware.security_headers import SecurityHeadersMiddleware
 from api.models.health import (
     DetailedHealthResponse,
@@ -29,7 +28,7 @@ from api.models.health import (
 )
 from api.rate_limit import limiter, rate_limit_exceeded_handler
 from api.redis_subscriber import RedisSubscriber
-from api.routes import agents, controller, metrics, puppet, simulation
+from api.routes import agents, auth, controller, metrics, puppet, simulation
 from api.snapshots import StateSnapshotManager
 from api.websocket import manager as connection_manager
 from api.websocket import router as websocket_router
@@ -278,6 +277,7 @@ def create_app(
 
     app.add_middleware(SecurityHeadersMiddleware)
 
+    app.include_router(auth.router, prefix="/auth", tags=["auth"])
     app.include_router(simulation.router, prefix="/simulation", tags=["simulation"])
     app.include_router(agents.router, prefix="/agents", tags=["agents"])
     app.include_router(puppet.router, prefix="/agents", tags=["puppet"])
@@ -289,18 +289,6 @@ def create_app(
     async def health_check() -> dict[str, str]:
         """Health check endpoint for monitoring (unauthenticated for infrastructure)."""
         return {"status": "healthy"}
-
-    @app.get("/auth/validate")
-    async def validate_api_key_endpoint(
-        _: Annotated[AuthContext, Depends(verify_api_key)],
-    ) -> dict[str, str]:
-        """Validate API key for login.
-
-        This endpoint requires a valid API key and returns 200 if valid.
-        Used by the frontend login screen to validate credentials.
-        Returns 401 if the API key is invalid.
-        """
-        return {"status": "authenticated"}
 
     def _determine_status(
         latency_ms: float | None,
