@@ -38,6 +38,7 @@ addopts = [
     "--maxfail=5",
 ]
 markers = [
+    "unit: Fast unit tests with no external dependencies",
     "integration: Integration tests (slower, external dependencies)",
     "feature_journey: Feature journey tests (FJ-001 through FJ-007)",
     "data_flow: Data flow tests (DF-001, DF-002)",

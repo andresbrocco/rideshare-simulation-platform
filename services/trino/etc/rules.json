@@ -1,0 +1,24 @@
+{
+  "catalogs": [
+    {
+      "user": "admin",
+      "catalog": ".*",
+      "allow": "all"
+    },
+    {
+      "user": ".*",
+      "catalog": "system",
+      "allow": "none"
+    },
+    {
+      "user": ".*",
+      "catalog": "delta",
+      "allow": "read-only"
+    },
+    {
+      "user": ".*",
+      "catalog": ".*",
+      "allow": "read-only"
+    }
+  ]
+}
