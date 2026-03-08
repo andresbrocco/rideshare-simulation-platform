@@ -4,6 +4,7 @@ import styles from './Inspector.module.css';
 interface DriverActionsSectionProps {
   state: DriverState;
   actionLoading: boolean;
+  isAdmin: boolean;
   onAcceptOffer: () => void;
   onRejectOffer: () => void;
   onStartTrip: () => void;
@@ -14,6 +15,7 @@ interface DriverActionsSectionProps {
 export function DriverActionsSection({
   state,
   actionLoading,
+  isAdmin,
   onAcceptOffer,
   onRejectOffer,
   onStartTrip,
@@ -21,6 +23,7 @@ export function DriverActionsSection({
   onToggleStatus,
 }: DriverActionsSectionProps) {
   const { active_trip, pending_offer, status } = state;
+  const adminTitle = isAdmin ? undefined : 'Admin only';
 
   return (
     <>
@@ -35,12 +38,16 @@ export function DriverActionsSection({
               <button
                 className={`${styles.actionButton} ${styles.successButton}`}
                 onClick={onAcceptOffer}
+                disabled={!isAdmin}
+                title={adminTitle}
               >
                 Accept Offer
               </button>
               <button
                 className={`${styles.actionButton} ${styles.dangerButton}`}
                 onClick={onRejectOffer}
+                disabled={!isAdmin}
+                title={adminTitle}
               >
                 Reject Offer
               </button>
@@ -55,7 +62,8 @@ export function DriverActionsSection({
             <button
               className={`${styles.actionButton} ${styles.successButton}`}
               onClick={onStartTrip}
-              disabled={actionLoading}
+              disabled={actionLoading || !isAdmin}
+              title={adminTitle}
             >
               {actionLoading ? 'Loading...' : 'Start Trip'}
             </button>
@@ -65,7 +73,8 @@ export function DriverActionsSection({
             <button
               className={`${styles.actionButton} ${styles.dangerButton}`}
               onClick={onCancelTrip}
-              disabled={actionLoading}
+              disabled={actionLoading || !isAdmin}
+              title={adminTitle}
             >
               {actionLoading ? 'Loading...' : 'Cancel Trip'}
             </button>
@@ -74,7 +83,12 @@ export function DriverActionsSection({
       )}
 
       {!active_trip && !pending_offer && (
-        <button className={styles.actionButton} onClick={onToggleStatus} disabled={actionLoading}>
+        <button
+          className={styles.actionButton}
+          onClick={onToggleStatus}
+          disabled={actionLoading || !isAdmin}
+          title={adminTitle}
+        >
           {actionLoading ? 'Loading...' : status === 'available' ? 'Go Offline' : 'Go Online'}
         </button>
       )}

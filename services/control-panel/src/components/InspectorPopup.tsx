@@ -16,6 +16,7 @@ interface InspectorPopupProps {
   x: number;
   y: number;
   onClose: () => void;
+  isAdmin?: boolean;
   onToggleDriverStatus?: (driverId: string, goOnline: boolean) => Promise<void>;
   onRequestRiderTrip?: (riderId: string, riderName: string) => void;
   onAcceptOffer?: (driverId: string) => Promise<boolean>;
@@ -31,6 +32,7 @@ export default function InspectorPopup({
   x,
   y,
   onClose,
+  isAdmin = false,
   onToggleDriverStatus,
   onRequestRiderTrip,
   onAcceptOffer,
@@ -225,6 +227,7 @@ export default function InspectorPopup({
           loading={loading}
           error={error}
           actionLoading={actionLoading}
+          isAdmin={isAdmin}
           onRefetch={refetch}
           onAcceptOffer={handleAcceptOffer}
           onRejectOffer={handleRejectOffer}

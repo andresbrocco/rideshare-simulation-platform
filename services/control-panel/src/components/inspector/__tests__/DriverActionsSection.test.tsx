@@ -74,7 +74,12 @@ describe('DriverActionsSection', () => {
     };
 
     render(
-      <DriverActionsSection state={stateWithOffer} actionLoading={false} {...defaultHandlers} />
+      <DriverActionsSection
+        state={stateWithOffer}
+        actionLoading={false}
+        isAdmin={true}
+        {...defaultHandlers}
+      />
     );
 
     expect(screen.getByRole('button', { name: /accept offer/i })).toBeInTheDocument();
@@ -99,6 +104,7 @@ describe('DriverActionsSection', () => {
       <DriverActionsSection
         state={stateWithOffer}
         actionLoading={false}
+        isAdmin={true}
         {...defaultHandlers}
         onAcceptOffer={onAcceptOffer}
       />
@@ -126,6 +132,7 @@ describe('DriverActionsSection', () => {
       <DriverActionsSection
         state={stateWithOffer}
         actionLoading={false}
+        isAdmin={true}
         {...defaultHandlers}
         onRejectOffer={onRejectOffer}
       />
@@ -153,7 +160,12 @@ describe('DriverActionsSection', () => {
     };
 
     render(
-      <DriverActionsSection state={stateArrived} actionLoading={false} {...defaultHandlers} />
+      <DriverActionsSection
+        state={stateArrived}
+        actionLoading={false}
+        isAdmin={true}
+        {...defaultHandlers}
+      />
     );
 
     expect(screen.getByRole('button', { name: /start trip/i })).toBeInTheDocument();
@@ -177,7 +189,12 @@ describe('DriverActionsSection', () => {
     };
 
     render(
-      <DriverActionsSection state={stateInTransit} actionLoading={false} {...defaultHandlers} />
+      <DriverActionsSection
+        state={stateInTransit}
+        actionLoading={false}
+        isAdmin={true}
+        {...defaultHandlers}
+      />
     );
 
     expect(screen.getByRole('button', { name: /cancel trip/i })).toBeInTheDocument();
@@ -201,7 +218,12 @@ describe('DriverActionsSection', () => {
     };
 
     render(
-      <DriverActionsSection state={stateWithTrip} actionLoading={false} {...defaultHandlers} />
+      <DriverActionsSection
+        state={stateWithTrip}
+        actionLoading={false}
+        isAdmin={true}
+        {...defaultHandlers}
+      />
     );
 
     expect(screen.getByRole('button', { name: /cancel trip/i })).toBeInTheDocument();
@@ -209,7 +231,12 @@ describe('DriverActionsSection', () => {
 
   it('shows go offline button when driver is available with no trip', () => {
     render(
-      <DriverActionsSection state={baseDriverState} actionLoading={false} {...defaultHandlers} />
+      <DriverActionsSection
+        state={baseDriverState}
+        actionLoading={false}
+        isAdmin={true}
+        {...defaultHandlers}
+      />
     );
 
     expect(screen.getByRole('button', { name: /go offline/i })).toBeInTheDocument();
@@ -222,7 +249,12 @@ describe('DriverActionsSection', () => {
     };
 
     render(
-      <DriverActionsSection state={offlineState} actionLoading={false} {...defaultHandlers} />
+      <DriverActionsSection
+        state={offlineState}
+        actionLoading={false}
+        isAdmin={true}
+        {...defaultHandlers}
+      />
     );
 
     expect(screen.getByRole('button', { name: /go online/i })).toBeInTheDocument();
@@ -240,9 +272,141 @@ describe('DriverActionsSection', () => {
     };
 
     render(
-      <DriverActionsSection state={stateWithOffer} actionLoading={true} {...defaultHandlers} />
+      <DriverActionsSection
+        state={stateWithOffer}
+        actionLoading={true}
+        isAdmin={true}
+        {...defaultHandlers}
+      />
     );
 
     expect(screen.getByRole('button', { name: /loading/i })).toBeDisabled();
+  });
+
+  it('viewer: Accept Offer button is disabled with Admin only title', () => {
+    const stateWithOffer: DriverState = {
+      ...baseDriverState,
+      pending_offer: {
+        trip_id: 'trip-123',
+        surge_multiplier: 1.5,
+        rider_rating: 4.8,
+        eta_seconds: 120,
+      },
+    };
+
+    render(
+      <DriverActionsSection
+        state={stateWithOffer}
+        actionLoading={false}
+        isAdmin={false}
+        {...defaultHandlers}
+      />
+    );
+
+    const acceptBtn = screen.getByRole('button', { name: /accept offer/i });
+    expect(acceptBtn).toBeDisabled();
+    expect(acceptBtn).toHaveAttribute('title', 'Admin only');
+  });
+
+  it('viewer: Reject Offer button is disabled with Admin only title', () => {
+    const stateWithOffer: DriverState = {
+      ...baseDriverState,
+      pending_offer: {
+        trip_id: 'trip-123',
+        surge_multiplier: 1.5,
+        rider_rating: 4.8,
+        eta_seconds: 120,
+      },
+    };
+
+    render(
+      <DriverActionsSection
+        state={stateWithOffer}
+        actionLoading={false}
+        isAdmin={false}
+        {...defaultHandlers}
+      />
+    );
+
+    const rejectBtn = screen.getByRole('button', { name: /reject offer/i });
+    expect(rejectBtn).toBeDisabled();
+    expect(rejectBtn).toHaveAttribute('title', 'Admin only');
+  });
+
+  it('viewer: online/offline toggle button is disabled with Admin only title', () => {
+    render(
+      <DriverActionsSection
+        state={baseDriverState}
+        actionLoading={false}
+        isAdmin={false}
+        {...defaultHandlers}
+      />
+    );
+
+    const toggleBtn = screen.getByRole('button', { name: /go offline/i });
+    expect(toggleBtn).toBeDisabled();
+    expect(toggleBtn).toHaveAttribute('title', 'Admin only');
+  });
+
+  it('viewer: Start Trip button is disabled with Admin only title', () => {
+    const stateArrived: DriverState = {
+      ...baseDriverState,
+      status: 'en_route_pickup',
+      active_trip: {
+        trip_id: 'trip-456',
+        state: 'at_pickup',
+        rider_id: 'rider-789',
+        driver_id: 'driver-123',
+        counterpart_name: 'Ana Santos',
+        pickup_location: [-23.55, -46.63],
+        dropoff_location: [-23.56, -46.64],
+        surge_multiplier: 1.0,
+        fare: 35.0,
+      },
+    };
+
+    render(
+      <DriverActionsSection
+        state={stateArrived}
+        actionLoading={false}
+        isAdmin={false}
+        {...defaultHandlers}
+      />
+    );
+
+    const startBtn = screen.getByRole('button', { name: /start trip/i });
+    expect(startBtn).toBeDisabled();
+    expect(startBtn).toHaveAttribute('title', 'Admin only');
+  });
+
+  it('viewer: Cancel Trip button is disabled with Admin only title', () => {
+    const stateInTransit: DriverState = {
+      ...baseDriverState,
+      status: 'on_trip',
+      active_trip: {
+        trip_id: 'trip-456',
+        state: 'in_transit',
+        rider_id: 'rider-789',
+        driver_id: 'driver-123',
+        counterpart_name: 'Ana Santos',
+        pickup_location: [-23.55, -46.63],
+        dropoff_location: [-23.56, -46.64],
+        surge_multiplier: 1.0,
+        fare: 35.0,
+      },
+    };
+
+    render(
+      <DriverActionsSection
+        state={stateInTransit}
+        actionLoading={false}
+        isAdmin={false}
+        {...defaultHandlers}
+      />
+    );
+
+    const cancelBtn = screen.getByRole('button', { name: /cancel trip/i });
+    expect(cancelBtn).toBeDisabled();
+    expect(cancelBtn).toHaveAttribute('title', 'Admin only');
   });
 });

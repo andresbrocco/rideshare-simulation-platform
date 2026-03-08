@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ControlPanel from '../ControlPanel';
@@ -72,32 +72,46 @@ vi.mock('../../hooks/usePerformanceController', () => ({
   }),
 }));
 
-describe('ControlPanel', () => {
-  const mockStatus: SimulationStatus = {
-    state: 'stopped',
-    speed_multiplier: 1,
-    current_time: '2024-08-25T10:30:00Z',
-    drivers_total: 50,
-    drivers_offline: 10,
-    drivers_available: 30,
-    drivers_en_route_pickup: 5,
-    drivers_on_trip: 5,
-    drivers_driving_closer_to_home: 0,
-    riders_total: 20,
-    riders_idle: 5,
-    riders_requesting: 10,
-    riders_awaiting_pickup: 0,
-    riders_on_trip: 5,
-    active_trips_count: 10,
-    uptime_seconds: 3600,
-    real_time_ratio: null,
-  };
+// useRole is controlled by sessionStorage in tests
+const mockStatus: SimulationStatus = {
+  state: 'stopped',
+  speed_multiplier: 1,
+  current_time: '2024-08-25T10:30:00Z',
+  drivers_total: 50,
+  drivers_offline: 10,
+  drivers_available: 30,
+  drivers_en_route_pickup: 5,
+  drivers_on_trip: 5,
+  drivers_driving_closer_to_home: 0,
+  riders_total: 20,
+  riders_idle: 5,
+  riders_requesting: 10,
+  riders_awaiting_pickup: 0,
+  riders_on_trip: 5,
+  active_trips_count: 10,
+  uptime_seconds: 3600,
+  real_time_ratio: null,
+};
 
+function setRole(role: 'admin' | 'viewer' | null) {
+  sessionStorage.clear();
+  if (role !== null) {
+    sessionStorage.setItem('role', role);
+  }
+}
+
+describe('ControlPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    sessionStorage.clear();
   });
 
   it('test_renders_control_buttons', () => {
+    setRole('admin');
     render(<ControlPanel status={mockStatus} />);
 
     expect(screen.getByRole('button', { name: /play/i })).toBeInTheDocument();
@@ -106,6 +120,7 @@ describe('ControlPanel', () => {
   });
 
   it('test_play_button_calls_api', async () => {
+    setRole('admin');
     const user = userEvent.setup();
 
     render(<ControlPanel status={mockStatus} />);
@@ -117,6 +132,7 @@ describe('ControlPanel', () => {
   });
 
   it('test_pause_button_calls_api', async () => {
+    setRole('admin');
     const user = userEvent.setup();
     const runningStatus = { ...mockStatus, state: 'running' as const };
 
@@ -129,6 +145,7 @@ describe('ControlPanel', () => {
   });
 
   it('test_reset_button_calls_api', async () => {
+    setRole('admin');
     const user = userEvent.setup();
 
     render(<ControlPanel status={mockStatus} />);
@@ -144,6 +161,7 @@ describe('ControlPanel', () => {
   });
 
   it('test_speed_selector_changes', async () => {
+    setRole('admin');
     const user = userEvent.setup();
 
     render(<ControlPanel status={mockStatus} />);
@@ -155,6 +173,7 @@ describe('ControlPanel', () => {
   });
 
   it('test_speed_selector_changes_fractional', async () => {
+    setRole('admin');
     const user = userEvent.setup();
     render(<ControlPanel status={mockStatus} />);
     const speedSelect = screen.getByLabelText(/speed/i);
@@ -163,6 +182,7 @@ describe('ControlPanel', () => {
   });
 
   it('test_speed_selector_values', () => {
+    setRole('admin');
     render(<ControlPanel status={mockStatus} />);
 
     const speedSelect = screen.getByLabelText(/speed/i) as HTMLSelectElement;
@@ -180,6 +200,7 @@ describe('ControlPanel', () => {
   });
 
   it('autonomous_agent_creation_drivers', async () => {
+    setRole('admin');
     const user = userEvent.setup();
 
     render(<ControlPanel status={mockStatus} />);
@@ -197,6 +218,7 @@ describe('ControlPanel', () => {
   });
 
   it('autonomous_agent_creation_riders', async () => {
+    setRole('admin');
     const user = userEvent.setup();
 
     render(<ControlPanel status={mockStatus} />);
@@ -214,6 +236,7 @@ describe('ControlPanel', () => {
   });
 
   it('test_displays_status_indicator', () => {
+    setRole('admin');
     const runningStatus = { ...mockStatus, state: 'running' as const };
     render(<ControlPanel status={runningStatus} />);
 
@@ -221,12 +244,14 @@ describe('ControlPanel', () => {
   });
 
   it('test_displays_simulation_time', () => {
+    setRole('admin');
     render(<ControlPanel status={mockStatus} />);
 
     expect(screen.getByText(/8\/25\/2024/)).toBeInTheDocument();
   });
 
   it('test_displays_statistics', () => {
+    setRole('admin');
     render(<ControlPanel status={mockStatus} />);
 
     // Check that the Statistics section header exists
@@ -234,6 +259,7 @@ describe('ControlPanel', () => {
   });
 
   it('test_disables_play_when_running', () => {
+    setRole('admin');
     const runningStatus = { ...mockStatus, state: 'running' as const };
     render(<ControlPanel status={runningStatus} />);
 
@@ -242,9 +268,137 @@ describe('ControlPanel', () => {
   });
 
   it('test_disables_pause_when_stopped', () => {
+    setRole('admin');
     render(<ControlPanel status={mockStatus} />);
 
     const pauseButton = screen.getByRole('button', { name: /pause/i });
     expect(pauseButton).toBeDisabled();
+  });
+});
+
+describe('ControlPanel — viewer role gating', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setRole('viewer');
+  });
+
+  afterEach(() => {
+    sessionStorage.clear();
+  });
+
+  it('viewer: Play button is disabled with Admin only title', () => {
+    render(<ControlPanel status={mockStatus} />);
+    const btn = screen.getByRole('button', { name: /play/i });
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute('title', 'Admin only');
+  });
+
+  it('viewer: Pause button is disabled with Admin only title', () => {
+    render(<ControlPanel status={mockStatus} />);
+    const btn = screen.getByRole('button', { name: /pause/i });
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute('title', 'Admin only');
+  });
+
+  it('viewer: Reset button is disabled with Admin only title', () => {
+    render(<ControlPanel status={mockStatus} />);
+    const btn = screen.getByRole('button', { name: /reset/i });
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute('title', 'Admin only');
+  });
+
+  it('viewer: speed select is disabled with Admin only title', () => {
+    render(<ControlPanel status={mockStatus} />);
+    const select = screen.getByLabelText(/speed/i);
+    expect(select).toBeDisabled();
+    expect(select).toHaveAttribute('title', 'Admin only');
+  });
+
+  it('viewer: driver count input is disabled', () => {
+    render(<ControlPanel status={mockStatus} />);
+    const input = screen.getByLabelText(/drivers/i);
+    expect(input).toBeDisabled();
+  });
+
+  it('viewer: rider count input is disabled', () => {
+    render(<ControlPanel status={mockStatus} />);
+    const input = screen.getByLabelText(/riders/i);
+    expect(input).toBeDisabled();
+  });
+
+  it('viewer: Add Drivers button is disabled with Admin only title', () => {
+    render(<ControlPanel status={mockStatus} />);
+    const addButtons = screen.getAllByRole('button', { name: /^add$/i });
+    expect(addButtons[0]).toBeDisabled();
+    expect(addButtons[0]).toHaveAttribute('title', 'Admin only');
+  });
+
+  it('viewer: Add Riders button is disabled with Admin only title', () => {
+    render(<ControlPanel status={mockStatus} />);
+    const addButtons = screen.getAllByRole('button', { name: /^add$/i });
+    expect(addButtons[1]).toBeDisabled();
+    expect(addButtons[1]).toHaveAttribute('title', 'Admin only');
+  });
+
+  it('viewer: puppet agent buttons are disabled with Admin only title', () => {
+    const mockOnStartPlacement = vi.fn();
+    render(<ControlPanel status={mockStatus} onStartPlacement={mockOnStartPlacement} />);
+    const puppetDriverBtn = screen.getByRole('button', { name: /add puppet driver/i });
+    const puppetRiderBtn = screen.getByRole('button', { name: /add puppet rider/i });
+    expect(puppetDriverBtn).toBeDisabled();
+    expect(puppetDriverBtn).toHaveAttribute('title', 'Admin only');
+    expect(puppetRiderBtn).toBeDisabled();
+    expect(puppetRiderBtn).toHaveAttribute('title', 'Admin only');
+  });
+
+  it('viewer: stats panel remains visible', () => {
+    render(<ControlPanel status={mockStatus} />);
+    expect(screen.getByText('Statistics')).toBeInTheDocument();
+  });
+
+  it('viewer: status badge remains visible', () => {
+    render(<ControlPanel status={mockStatus} />);
+    expect(screen.getByText('stopped')).toBeInTheDocument();
+  });
+
+  it('viewer: time display remains visible', () => {
+    render(<ControlPanel status={mockStatus} />);
+    expect(screen.getByText(/8\/25\/2024/)).toBeInTheDocument();
+  });
+});
+
+describe('ControlPanel — admin role (controls enabled)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setRole('admin');
+  });
+
+  afterEach(() => {
+    sessionStorage.clear();
+  });
+
+  it('admin: Play button is enabled (when stopped)', () => {
+    render(<ControlPanel status={mockStatus} />);
+    const btn = screen.getByRole('button', { name: /play/i });
+    expect(btn).not.toBeDisabled();
+    expect(btn).not.toHaveAttribute('title', 'Admin only');
+  });
+
+  it('admin: speed select is enabled', () => {
+    render(<ControlPanel status={mockStatus} />);
+    const select = screen.getByLabelText(/speed/i);
+    expect(select).not.toBeDisabled();
+  });
+
+  it('admin: Add Drivers button is enabled', () => {
+    render(<ControlPanel status={mockStatus} />);
+    const addButtons = screen.getAllByRole('button', { name: /^add$/i });
+    expect(addButtons[0]).not.toBeDisabled();
+  });
+
+  it('admin: Add Riders button is enabled', () => {
+    render(<ControlPanel status={mockStatus} />);
+    const addButtons = screen.getAllByRole('button', { name: /^add$/i });
+    expect(addButtons[1]).not.toBeDisabled();
   });
 });

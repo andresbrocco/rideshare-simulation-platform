@@ -5,6 +5,7 @@ import { useInfrastructure } from '../hooks/useInfrastructure';
 import { usePerformanceMetrics } from '../hooks/usePerformanceMetrics';
 import { usePerformanceContext } from '../hooks/usePerformanceContext';
 import { usePerformanceController } from '../hooks/usePerformanceController';
+import { useRole } from '../hooks/useRole';
 import StatsPanel from './StatsPanel';
 import InfrastructurePanel from './InfrastructurePanel';
 import PerformancePanel from './PerformancePanel';
@@ -37,6 +38,9 @@ export default function ControlPanel({
   const [driverMode, setDriverMode] = useState<SpawnMode>('immediate');
   const [riderMode, setRiderMode] = useState<SpawnMode>('immediate');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  const role = useRole();
+  const isAdmin = role === 'admin';
 
   const {
     startSimulation,
@@ -134,25 +138,47 @@ export default function ControlPanel({
         <h3>Controls</h3>
         <div className={styles.buttonGroup}>
           {status.state === 'paused' ? (
-            <Tooltip text="Resume the paused simulation">
-              <button onClick={resumeSimulation} className={styles.button}>
+            <Tooltip text={isAdmin ? 'Resume the paused simulation' : 'Admin only'}>
+              <button
+                onClick={resumeSimulation}
+                disabled={!isAdmin}
+                title={isAdmin ? undefined : 'Admin only'}
+                className={styles.button}
+              >
                 Resume
               </button>
             </Tooltip>
           ) : (
-            <Tooltip text="Start the simulation">
-              <button onClick={startSimulation} disabled={isRunning} className={styles.button}>
+            <Tooltip text={isAdmin ? 'Start the simulation' : 'Admin only'}>
+              <button
+                onClick={startSimulation}
+                disabled={isRunning || !isAdmin}
+                title={isAdmin ? undefined : 'Admin only'}
+                className={styles.button}
+              >
                 Play
               </button>
             </Tooltip>
           )}
-          <Tooltip text="Pause simulation (in-flight trips complete first)">
-            <button onClick={pauseSimulation} disabled={!isRunning} className={styles.button}>
+          <Tooltip
+            text={isAdmin ? 'Pause simulation (in-flight trips complete first)' : 'Admin only'}
+          >
+            <button
+              onClick={pauseSimulation}
+              disabled={!isRunning || !isAdmin}
+              title={isAdmin ? undefined : 'Admin only'}
+              className={styles.button}
+            >
               Pause
             </button>
           </Tooltip>
-          <Tooltip text="Stop and reset to initial state">
-            <button onClick={() => setShowResetConfirm(true)} className={styles.button}>
+          <Tooltip text={isAdmin ? 'Stop and reset to initial state' : 'Admin only'}>
+            <button
+              onClick={() => setShowResetConfirm(true)}
+              disabled={!isAdmin}
+              title={isAdmin ? undefined : 'Admin only'}
+              className={styles.button}
+            >
               Reset
             </button>
           </Tooltip>
@@ -165,13 +191,21 @@ export default function ControlPanel({
             Speed:
           </label>
           {controllerStatus !== null && (
-            <Tooltip text={'Control simulation speed to work\nnear the performance limits'}>
+            <Tooltip
+              text={
+                isAdmin
+                  ? 'Control simulation speed to work\nnear the performance limits'
+                  : 'Admin only'
+              }
+            >
               <label className={styles.toggleLabel}>
                 <input
                   type="checkbox"
                   className={styles.toggleInput}
                   checked={controllerStatus.mode === 'on'}
                   onChange={(e) => setControllerMode(e.target.checked ? 'on' : 'off')}
+                  disabled={!isAdmin}
+                  title={isAdmin ? undefined : 'Admin only'}
                 />
                 <span className={styles.toggleSwitch} />
                 <span className={styles.toggleText}>Auto</span>
@@ -187,11 +221,13 @@ export default function ControlPanel({
             <span className={styles.autoSpeedManaged}>Managed by performance controller</span>
           </div>
         ) : (
-          <Tooltip text="Control simulation time speed (1x = real-time)">
+          <Tooltip text={isAdmin ? 'Control simulation time speed (1x = real-time)' : 'Admin only'}>
             <select
               id="speed-select"
               value={status.speed_multiplier}
               onChange={handleSpeedChange}
+              disabled={!isAdmin}
+              title={isAdmin ? undefined : 'Admin only'}
               className={styles.select}
             >
               <option value="0.5">½x</option>
@@ -222,20 +258,35 @@ export default function ControlPanel({
             onBlur={() => setDriverCount((v) => Math.max(1, v))}
             min="1"
             max="100"
+            disabled={!isAdmin}
+            title={isAdmin ? undefined : 'Admin only'}
             className={styles.input}
           />
-          <Tooltip text="Immediate: go online immediately. Scheduled: follow shift schedule from DNA.">
+          <Tooltip
+            text={
+              isAdmin
+                ? 'Immediate: go online immediately. Scheduled: follow shift schedule from DNA.'
+                : 'Admin only'
+            }
+          >
             <select
               id="driver-mode"
               value={driverMode}
               onChange={(e) => setDriverMode(e.target.value as SpawnMode)}
+              disabled={!isAdmin}
+              title={isAdmin ? undefined : 'Admin only'}
               className={styles.select}
             >
               <option value="immediate">Immediate</option>
               <option value="scheduled">Scheduled</option>
             </select>
           </Tooltip>
-          <button onClick={handleAddDrivers} className={styles.button}>
+          <button
+            onClick={handleAddDrivers}
+            disabled={!isAdmin}
+            title={isAdmin ? undefined : 'Admin only'}
+            className={styles.button}
+          >
             Add
           </button>
         </div>
@@ -251,20 +302,35 @@ export default function ControlPanel({
             onBlur={() => setRiderCount((v) => Math.max(1, v))}
             min="1"
             max="2000"
+            disabled={!isAdmin}
+            title={isAdmin ? undefined : 'Admin only'}
             className={styles.input}
           />
-          <Tooltip text="Immediate: request trip now. Scheduled: follow ride frequency from DNA.">
+          <Tooltip
+            text={
+              isAdmin
+                ? 'Immediate: request trip now. Scheduled: follow ride frequency from DNA.'
+                : 'Admin only'
+            }
+          >
             <select
               id="rider-mode"
               value={riderMode}
               onChange={(e) => setRiderMode(e.target.value as SpawnMode)}
+              disabled={!isAdmin}
+              title={isAdmin ? undefined : 'Admin only'}
               className={styles.select}
             >
               <option value="immediate">Immediate</option>
               <option value="scheduled">Scheduled</option>
             </select>
           </Tooltip>
-          <button onClick={handleAddRiders} className={styles.button}>
+          <button
+            onClick={handleAddRiders}
+            disabled={!isAdmin}
+            title={isAdmin ? undefined : 'Admin only'}
+            className={styles.button}
+          >
             Add
           </button>
         </div>
@@ -274,16 +340,27 @@ export default function ControlPanel({
         <div className={styles.section}>
           <h3>Add Puppet Agent</h3>
           <div className={styles.puppetButtons}>
-            <Tooltip text="Create a puppet driver that you control manually">
+            <Tooltip
+              text={isAdmin ? 'Create a puppet driver that you control manually' : 'Admin only'}
+            >
               <button
                 className={styles.button}
                 onClick={() => onStartPlacement({ type: 'driver' })}
+                disabled={!isAdmin}
+                title={isAdmin ? undefined : 'Admin only'}
               >
                 Add Puppet Driver
               </button>
             </Tooltip>
-            <Tooltip text="Create a puppet rider that you control manually">
-              <button className={styles.button} onClick={() => onStartPlacement({ type: 'rider' })}>
+            <Tooltip
+              text={isAdmin ? 'Create a puppet rider that you control manually' : 'Admin only'}
+            >
+              <button
+                className={styles.button}
+                onClick={() => onStartPlacement({ type: 'rider' })}
+                disabled={!isAdmin}
+                title={isAdmin ? undefined : 'Admin only'}
+              >
                 Add Puppet Rider
               </button>
             </Tooltip>

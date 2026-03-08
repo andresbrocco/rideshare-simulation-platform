@@ -16,6 +16,7 @@ interface DriverInspectorProps {
   loading: boolean;
   error: string | null;
   actionLoading?: boolean;
+  isAdmin?: boolean;
   onRefetch: () => void;
   onAcceptOffer?: () => void;
   onRejectOffer?: () => void;
@@ -30,6 +31,7 @@ export function DriverInspector({
   loading,
   error,
   actionLoading = false,
+  isAdmin = false,
   onAcceptOffer,
   onRejectOffer,
   onStartTrip,
@@ -165,6 +167,7 @@ export function DriverInspector({
           <DriverActionsSection
             state={state}
             actionLoading={actionLoading}
+            isAdmin={isAdmin}
             onAcceptOffer={onAcceptOffer || (() => {})}
             onRejectOffer={onRejectOffer || (() => {})}
             onStartTrip={onStartTrip || (() => {})}
