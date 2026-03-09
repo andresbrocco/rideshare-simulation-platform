@@ -1754,9 +1754,12 @@ def handle_provision_visitor(
         print("Action provision-visitor completed: 401")
         return 401, {"error": "Invalid password"}
 
-    if not email or not name:
+    if not email:
         print("Action provision-visitor completed: 400")
-        return 400, {"error": "Missing required fields: email, name"}
+        return 400, {"error": "Missing required field: email"}
+
+    if not name:
+        name = email.split("@")[0]
 
     # Generate a password when the caller omits one; validate explicit passwords.
     if not password:
