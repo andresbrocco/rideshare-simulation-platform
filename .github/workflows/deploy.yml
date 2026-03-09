@@ -88,11 +88,15 @@ jobs:
           terraform import 'module.rds.aws_db_subnet_group.main' 'rideshare-rds-subnet-group' 2>&1 || true
           terraform import 'module.rds.aws_db_instance.main' 'rideshare-postgres' 2>&1 || true
 
+          # EKS node group (may already exist from a previous partial apply)
+          terraform import 'module.eks.aws_eks_node_group.main' 'rideshare-eks:rideshare-node-group' 2>&1 || true
+
           # EKS addons (may already exist from a previous partial apply)
-          terraform import 'module.eks.aws_eks_addon.ebs_csi' 'rideshare-eks:aws-ebs-csi-driver' 2>&1 || true
-          terraform import 'module.eks.aws_eks_addon.coredns' 'rideshare-eks:coredns' 2>&1 || true
-          terraform import 'module.eks.aws_eks_addon.kube_proxy' 'rideshare-eks:kube-proxy' 2>&1 || true
           terraform import 'module.eks.aws_eks_addon.vpc_cni' 'rideshare-eks:vpc-cni' 2>&1 || true
+          terraform import 'module.eks.aws_eks_addon.kube_proxy' 'rideshare-eks:kube-proxy' 2>&1 || true
+          terraform import 'module.eks.aws_eks_addon.coredns' 'rideshare-eks:coredns' 2>&1 || true
+          terraform import 'module.eks.aws_eks_addon.ebs_csi' 'rideshare-eks:aws-ebs-csi-driver' 2>&1 || true
+          terraform import 'module.eks.aws_eks_addon.pod_identity_agent' 'rideshare-eks:eks-pod-identity-agent' 2>&1 || true
 
           # GitHub Actions access entry is handled by bootstrap_cluster_creator_admin_permissions.
           # Remove from state if left over from a previous run that managed it explicitly.
