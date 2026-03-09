@@ -153,6 +153,25 @@ resource "aws_iam_role_policy" "lambda_ses" {
   })
 }
 
+# IAM Policy for KMS encrypt/decrypt (visitor password encryption)
+resource "aws_iam_role_policy" "lambda_kms" {
+  count = var.kms_key_arn != "" ? 1 : 0
+
+  name = "${var.function_name}-kms"
+  role = aws_iam_role.lambda.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["kms:Encrypt", "kms:Decrypt", "kms:GenerateDataKey"]
+        Resource = var.kms_key_arn
+      }
+    ]
+  })
+}
+
 # Package Lambda function code
 data "archive_file" "lambda" {
   type        = "zip"

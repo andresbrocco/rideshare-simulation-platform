@@ -164,17 +164,87 @@ def _store_visitor_dynamodb(
     else:
         services_attr = {"L": []}
 
+    # Attempt KMS encryption of the plaintext password so it can be recovered
+    # after platform redeploy.  KMS may not be available in dev/LocalStack —
+    # failure is logged but does not abort the DynamoDB write.
+    item: dict[str, Any] = {
+        "email": {"S": email},
+        "consent_timestamp": {"S": consent_timestamp},
+        "provisioned_services": services_attr,
+        "password_hash": {"S": password_hash},
+        "created_at": {"S": created_at},
+    }
+
+    try:
+        encrypted_password = _encrypt_password(password)
+        item["encrypted_password"] = {"S": encrypted_password}
+    except Exception as kms_exc:
+        print(
+            f"KMS password encryption failed (non-fatal, encrypted_password not stored): {kms_exc}"
+        )
+
     client = _get_dynamodb_client()
-    client.put_item(
-        TableName=table_name,
-        Item={
-            "email": {"S": email},
-            "consent_timestamp": {"S": consent_timestamp},
-            "provisioned_services": services_attr,
-            "password_hash": {"S": password_hash},
-            "created_at": {"S": created_at},
-        },
+    client.put_item(TableName=table_name, Item=item)
+
+
+def _get_kms_client() -> boto3.client:
+    """Get KMS client configured for LocalStack or AWS."""
+    config = Config(
+        region_name=os.environ.get("AWS_REGION", "us-east-1"),
+        signature_version="v4",
+        retries={"max_attempts": 3, "mode": "standard"},
     )
+
+    endpoint_url = None
+    if os.environ.get("LOCALSTACK_HOSTNAME"):
+        endpoint_url = f"http://{os.environ['LOCALSTACK_HOSTNAME']}:4566"
+
+    return boto3.client("kms", config=config, endpoint_url=endpoint_url)
+
+
+def _encrypt_password(plaintext: str) -> str:
+    """Encrypt a plaintext password using KMS and return base64-encoded ciphertext.
+
+    The KMS key ARN is read from the ``KMS_VISITOR_PASSWORD_KEY`` environment
+    variable.  If the variable is unset, an ``EnvironmentError`` is raised so
+    callers can decide whether to treat the failure as fatal.
+
+    Args:
+        plaintext: The plaintext password to encrypt.
+
+    Returns:
+        Base64-encoded KMS ciphertext blob (safe to store in DynamoDB).
+
+    Raises:
+        EnvironmentError: If ``KMS_VISITOR_PASSWORD_KEY`` is not configured.
+        ClientError: If KMS encrypt call fails.
+    """
+    key_arn = os.environ.get("KMS_VISITOR_PASSWORD_KEY", "")
+    if not key_arn:
+        raise EnvironmentError("KMS_VISITOR_PASSWORD_KEY environment variable is not set")
+
+    client = _get_kms_client()
+    response = client.encrypt(KeyId=key_arn, Plaintext=plaintext.encode())
+    return base64.b64encode(response["CiphertextBlob"]).decode()
+
+
+def _decrypt_password(ciphertext_b64: str) -> str:
+    """Decrypt a base64-encoded KMS ciphertext and return the plaintext password.
+
+    Args:
+        ciphertext_b64: Base64-encoded KMS ciphertext blob as stored in DynamoDB.
+
+    Returns:
+        Plaintext password string.
+
+    Raises:
+        ClientError: If KMS decrypt call fails.
+        Exception: For any other decryption error.
+    """
+    ciphertext = base64.b64decode(ciphertext_b64)
+    client = _get_kms_client()
+    response = client.decrypt(CiphertextBlob=ciphertext)
+    return response["Plaintext"].decode()
 
 
 def _get_ses_client() -> boto3.client:
@@ -1662,6 +1732,118 @@ def handle_provision_visitor(
     }
 
 
+def handle_reprovision_visitors(api_key: str) -> tuple[int, dict[str, Any]]:
+    """Re-provision all visitor accounts after platform redeploy.
+
+    Scans the DynamoDB visitors table, decrypts each visitor's stored
+    password, and calls :func:`_provision_visitor` to recreate ephemeral
+    service accounts in Grafana, Airflow, MinIO, Trino, and the Simulation
+    API.  Requires admin API key authentication.
+
+    The action is idempotent — all individual provisioners use create-or-
+    update semantics, so re-running against a live platform is safe.
+
+    Response codes:
+    - 200: All visitors provisioned successfully (or table was empty).
+    - 207: At least one visitor failed provisioning.
+    - 401: Invalid API key.
+
+    Args:
+        api_key: Admin API key for authentication.
+
+    Returns:
+        Tuple of (HTTP status code, response body dict).
+    """
+    print("Action: reprovision-visitors")
+
+    if not validate_api_key(api_key):
+        print("Action reprovision-visitors completed: 401")
+        return 401, {"error": "Invalid password"}
+
+    table_name = os.environ.get("VISITOR_TABLE_NAME", "rideshare-visitors")
+    dynamo = _get_dynamodb_client()
+
+    visitors: list[dict[str, Any]] = []
+
+    # Paginate through the full visitors table
+    scan_kwargs: dict[str, Any] = {"TableName": table_name}
+    while True:
+        response = dynamo.scan(**scan_kwargs)
+        visitors.extend(response.get("Items", []))
+        last_key = response.get("LastEvaluatedKey")
+        if last_key is None:
+            break
+        scan_kwargs["ExclusiveStartKey"] = last_key
+
+    if not visitors:
+        print("Action reprovision-visitors completed: 200 (no visitors)")
+        return 200, {"provisioned": 0, "failed": 0, "results": []}
+
+    successes: list[dict[str, Any]] = []
+    failures: list[dict[str, Any]] = []
+
+    for record in visitors:
+        email_attr = record.get("email", {})
+        email = email_attr.get("S", "") if isinstance(email_attr, dict) else str(email_attr)
+
+        # name field may be absent on older records — fall back to email prefix
+        name_attr = record.get("name", {})
+        name = name_attr.get("S", email) if isinstance(name_attr, dict) else str(name_attr)
+        if not name:
+            name = email
+
+        encrypted_password_attr = record.get("encrypted_password")
+        if not encrypted_password_attr:
+            reason = "no encrypted_password field — skipping"
+            print(f"  Skipping {email}: {reason}")
+            failures.append({"email": email, "error": reason})
+            continue
+
+        ciphertext_b64 = (
+            encrypted_password_attr.get("S", "")
+            if isinstance(encrypted_password_attr, dict)
+            else str(encrypted_password_attr)
+        )
+
+        try:
+            plaintext_password = _decrypt_password(ciphertext_b64)
+        except Exception as dec_exc:
+            reason = f"KMS decrypt failed: {dec_exc}"
+            print(f"  Skipping {email}: {reason}")
+            failures.append({"email": email, "error": reason})
+            continue
+
+        try:
+            result = _provision_visitor(email, plaintext_password, name)
+            visitor_failures = result.get("failures", [])
+            if visitor_failures:
+                failures.append(
+                    {
+                        "email": email,
+                        "error": f"{len(visitor_failures)} service(s) failed",
+                        "details": visitor_failures,
+                    }
+                )
+            else:
+                successes.append({"email": email, "services": result.get("successes", [])})
+        except Exception as prov_exc:
+            print(f"  Provisioning error for {email}: {prov_exc}")
+            failures.append({"email": email, "error": str(prov_exc)})
+
+    total = len(visitors)
+    status_code = 207 if failures else 200
+    print(
+        f"Action reprovision-visitors completed: {status_code} "
+        f"({len(successes)}/{total} succeeded)"
+    )
+    return status_code, {
+        "provisioned": len(successes),
+        "failed": len(failures),
+        "results": successes,
+        "failures": failures,
+    }
+
+
 def get_response_headers() -> dict[str, str]:
     """Get standard response headers.
 
@@ -1723,6 +1905,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
             "extend-session": handle_extend_session,
             "shrink-session": handle_shrink_session,
             "complete-teardown": handle_complete_teardown,
+            "reprovision-visitors": handle_reprovision_visitors,
         }
 
         if action in no_auth_handlers:
@@ -1774,6 +1957,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "set-teardown-run-id",
                 "complete-teardown",
                 "provision-visitor",
+                "reprovision-visitors",
             ],
         }
 
@@ -1827,6 +2011,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         "extend-session": handle_extend_session,
         "shrink-session": handle_shrink_session,
         "complete-teardown": handle_complete_teardown,
+        "reprovision-visitors": handle_reprovision_visitors,
     }
 
     if action in no_auth_handlers:
@@ -1881,6 +2066,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "set-teardown-run-id",
                 "complete-teardown",
                 "provision-visitor",
+                "reprovision-visitors",
             ],
         }
 

@@ -159,8 +159,9 @@ module "lambda_auth_deploy" {
   memory_size   = 256
 
   environment_variables = {
-    SCHEDULER_ROLE_ARN = aws_iam_role.scheduler_execution.arn
-    SELF_FUNCTION_ARN  = "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:rideshare-auth-deploy"
+    SCHEDULER_ROLE_ARN       = aws_iam_role.scheduler_execution.arn
+    SELF_FUNCTION_ARN        = "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:rideshare-auth-deploy"
+    KMS_VISITOR_PASSWORD_KEY = aws_kms_key.visitors.arn
   }
 
   # Grant read access to API key and GitHub PAT secrets
@@ -190,6 +191,7 @@ module "lambda_auth_deploy" {
 
   dynamodb_table_arn = aws_dynamodb_table.visitors.arn
   ses_identity_arn   = aws_ses_domain_identity.main.arn
+  kms_key_arn        = aws_kms_key.visitors.arn
 
   log_retention_days = 14
 
@@ -270,6 +272,11 @@ resource "aws_kms_key" "visitors" {
   })
 
   tags = { Project = var.project_name, Component = "visitor-provisioning" }
+}
+
+resource "aws_kms_alias" "visitors" {
+  name          = "alias/rideshare-visitor-passwords"
+  target_key_id = aws_kms_key.visitors.key_id
 }
 
 # -----------------------------------------------------------------------------

@@ -31,6 +31,8 @@ import bcrypt
 from handler import (
     SERVICE_LOGIN_URLS,
     _build_welcome_email,
+    _decrypt_password,
+    _encrypt_password,
     _provision_airflow,
     _provision_grafana,
     _provision_minio,
@@ -39,6 +41,7 @@ from handler import (
     _provision_visitor,
     _send_welcome_email,
     handle_provision_visitor,
+    handle_reprovision_visitors,
 )
 
 
@@ -744,3 +747,282 @@ class TestSesWelcomeEmail:
 
         assert status == 200
         assert body["email_sent"] is False
+
+
+# ---------------------------------------------------------------------------
+# KMS encrypt/decrypt helpers
+# ---------------------------------------------------------------------------
+
+
+class TestKmsHelpers:
+    @pytest.mark.unit
+    def test_encrypt_raises_without_key_arn(self) -> None:
+        """_encrypt_password raises EnvironmentError when KMS_VISITOR_PASSWORD_KEY is unset."""
+        with patch.dict("os.environ", {}, clear=True):
+            # Remove the KMS key var if present
+            import os as _os
+
+            env = {k: v for k, v in _os.environ.items() if k != "KMS_VISITOR_PASSWORD_KEY"}
+            with patch.dict("os.environ", env, clear=True):
+                with pytest.raises(EnvironmentError, match="KMS_VISITOR_PASSWORD_KEY"):
+                    _encrypt_password(_PASSWORD)
+
+    @pytest.mark.unit
+    def test_encrypt_calls_kms_encrypt(self) -> None:
+        """_encrypt_password calls kms.encrypt with the configured key ARN."""
+        ciphertext_blob = b"fake-ciphertext-bytes"
+        mock_client = MagicMock()
+        mock_client.encrypt.return_value = {"CiphertextBlob": ciphertext_blob}
+
+        with (
+            patch("handler._get_kms_client", return_value=mock_client),
+            patch.dict(
+                "os.environ", {"KMS_VISITOR_PASSWORD_KEY": "arn:aws:kms:us-east-1:123:key/abc"}
+            ),
+        ):
+            result = _encrypt_password(_PASSWORD)
+
+        mock_client.encrypt.assert_called_once_with(
+            KeyId="arn:aws:kms:us-east-1:123:key/abc",
+            Plaintext=_PASSWORD.encode(),
+        )
+        import base64 as _b64
+
+        assert result == _b64.b64encode(ciphertext_blob).decode()
+
+    @pytest.mark.unit
+    def test_decrypt_calls_kms_decrypt(self) -> None:
+        """_decrypt_password calls kms.decrypt and returns decoded plaintext."""
+        import base64 as _b64
+
+        ciphertext_blob = b"fake-ciphertext-bytes"
+        ciphertext_b64 = _b64.b64encode(ciphertext_blob).decode()
+
+        mock_client = MagicMock()
+        mock_client.decrypt.return_value = {"Plaintext": _PASSWORD.encode()}
+
+        with patch("handler._get_kms_client", return_value=mock_client):
+            result = _decrypt_password(ciphertext_b64)
+
+        mock_client.decrypt.assert_called_once_with(CiphertextBlob=ciphertext_blob)
+        assert result == _PASSWORD
+
+    @pytest.mark.unit
+    def test_encrypt_decrypt_roundtrip(self) -> None:
+        """Encrypting and then decrypting a password via mocked KMS returns the original."""
+
+        # Simulate KMS: encrypt pads the input, decrypt returns it back
+        stored_plaintext: list[bytes] = []
+
+        def fake_encrypt(KeyId: str, Plaintext: bytes) -> dict[str, bytes]:
+            # "Encrypt" by base64-encoding the payload (not real encryption, just a stub)
+            stored_plaintext.append(Plaintext)
+            return {"CiphertextBlob": Plaintext}  # identity cipher for testing
+
+        def fake_decrypt(CiphertextBlob: bytes) -> dict[str, bytes]:
+            return {"Plaintext": CiphertextBlob}
+
+        mock_client = MagicMock()
+        mock_client.encrypt.side_effect = fake_encrypt
+        mock_client.decrypt.side_effect = fake_decrypt
+
+        with (
+            patch("handler._get_kms_client", return_value=mock_client),
+            patch.dict(
+                "os.environ", {"KMS_VISITOR_PASSWORD_KEY": "arn:aws:kms:us-east-1:123:key/test"}
+            ),
+        ):
+            ciphertext_b64 = _encrypt_password(_PASSWORD)
+            recovered = _decrypt_password(ciphertext_b64)
+
+        assert recovered == _PASSWORD
+
+
+# ---------------------------------------------------------------------------
+# handle_reprovision_visitors
+# ---------------------------------------------------------------------------
+
+
+def _make_dynamo_item(
+    email: str,
+    name: str = "Test Visitor",
+    encrypted_password: str | None = "dGVzdA==",
+) -> dict[str, Any]:
+    """Build a DynamoDB attribute map for a visitor record."""
+    item: dict[str, Any] = {
+        "email": {"S": email},
+        "name": {"S": name},
+        "password_hash": {"S": "$2b$12$fakehash"},
+        "created_at": {"S": "2024-01-01T00:00:00+00:00"},
+        "provisioned_services": {"SS": ["grafana", "airflow"]},
+    }
+    if encrypted_password is not None:
+        item["encrypted_password"] = {"S": encrypted_password}
+    return item
+
+
+_FULL_REPROVISION_RESULT: dict[str, Any] = {
+    "successes": [
+        {"service": "grafana", "result": {"status": "created", "user_id": 42}},
+        {"service": "airflow", "result": {"status": "created", "username": _EMAIL}},
+        {"service": "minio", "result": {"status": "created", "email": _EMAIL}},
+        {"service": "trino", "result": {"status": "stored", "email": _EMAIL}},
+        {
+            "service": "simulation_api",
+            "result": {"email": _EMAIL, "role": "viewer", "status": "created"},
+        },
+    ],
+    "failures": [],
+}
+
+
+class TestReprovisioning:
+    @pytest.mark.unit
+    def test_reprovision_requires_auth(self, mock_secrets: object) -> None:
+        """handle_reprovision_visitors returns 401 for an invalid API key."""
+        status, body = handle_reprovision_visitors("wrong-key")
+        assert status == 401
+        assert "error" in body
+
+    @pytest.mark.unit
+    def test_reprovision_returns_200_when_no_visitors(self, mock_secrets: object) -> None:
+        """handle_reprovision_visitors returns 200 with empty result when table has no items."""
+        mock_dynamo = MagicMock()
+        mock_dynamo.scan.return_value = {"Items": []}
+
+        with patch("handler._get_dynamodb_client", return_value=mock_dynamo):
+            status, body = handle_reprovision_visitors(_API_KEY)
+
+        assert status == 200
+        assert body["provisioned"] == 0
+        assert body["failed"] == 0
+        assert body["results"] == []
+
+    @pytest.mark.unit
+    def test_reprovision_scans_and_calls_provision_visitor(self, mock_secrets: object) -> None:
+        """handle_reprovision_visitors decrypts each password and calls _provision_visitor."""
+        item = _make_dynamo_item(_EMAIL, encrypted_password="dGVzdA==")
+        mock_dynamo = MagicMock()
+        mock_dynamo.scan.return_value = {"Items": [item]}
+
+        with (
+            patch("handler._get_dynamodb_client", return_value=mock_dynamo),
+            patch("handler._decrypt_password", return_value=_PASSWORD),
+            patch("handler._provision_visitor", return_value=_FULL_REPROVISION_RESULT) as mock_pv,
+        ):
+            status, body = handle_reprovision_visitors(_API_KEY)
+
+        assert status == 200
+        assert body["provisioned"] == 1
+        assert body["failed"] == 0
+        mock_pv.assert_called_once_with(_EMAIL, _PASSWORD, "Test Visitor")
+
+    @pytest.mark.unit
+    def test_reprovision_skips_record_missing_encrypted_password(
+        self, mock_secrets: object
+    ) -> None:
+        """Records without encrypted_password are added to failures, not raised."""
+        item = _make_dynamo_item(_EMAIL, encrypted_password=None)
+        mock_dynamo = MagicMock()
+        mock_dynamo.scan.return_value = {"Items": [item]}
+
+        with patch("handler._get_dynamodb_client", return_value=mock_dynamo):
+            status, body = handle_reprovision_visitors(_API_KEY)
+
+        assert status == 207
+        assert body["provisioned"] == 0
+        assert body["failed"] == 1
+        assert "no encrypted_password" in body["failures"][0]["error"]
+
+    @pytest.mark.unit
+    def test_reprovision_continues_after_kms_decrypt_failure(self, mock_secrets: object) -> None:
+        """A KMS decrypt failure for one record does not abort processing of others."""
+        from botocore.exceptions import ClientError
+
+        item_bad = _make_dynamo_item("bad@example.com", encrypted_password="corrupted==")
+        item_good = _make_dynamo_item(_EMAIL, encrypted_password="dGVzdA==")
+
+        mock_dynamo = MagicMock()
+        mock_dynamo.scan.return_value = {"Items": [item_bad, item_good]}
+
+        def decrypt_side_effect(ciphertext_b64: str) -> str:
+            if ciphertext_b64 == "corrupted==":
+                raise ClientError(
+                    {"Error": {"Code": "InvalidCiphertextException", "Message": "bad ciphertext"}},
+                    "Decrypt",
+                )
+            return _PASSWORD
+
+        with (
+            patch("handler._get_dynamodb_client", return_value=mock_dynamo),
+            patch("handler._decrypt_password", side_effect=decrypt_side_effect),
+            patch("handler._provision_visitor", return_value=_FULL_REPROVISION_RESULT),
+        ):
+            status, body = handle_reprovision_visitors(_API_KEY)
+
+        # One succeeded, one failed — partial success → 207
+        assert status == 207
+        assert body["provisioned"] == 1
+        assert body["failed"] == 1
+        assert "bad@example.com" == body["failures"][0]["email"]
+
+    @pytest.mark.unit
+    def test_reprovision_handles_pagination(self, mock_secrets: object) -> None:
+        """handle_reprovision_visitors follows LastEvaluatedKey for multi-page scans."""
+        item_page1 = _make_dynamo_item("page1@example.com", encrypted_password="ZmFrZQ==")
+        item_page2 = _make_dynamo_item("page2@example.com", encrypted_password="ZmFrZQ==")
+
+        page1_response = {
+            "Items": [item_page1],
+            "LastEvaluatedKey": {"email": {"S": "page1@example.com"}},
+        }
+        page2_response = {"Items": [item_page2]}
+
+        mock_dynamo = MagicMock()
+        mock_dynamo.scan.side_effect = [page1_response, page2_response]
+
+        with (
+            patch("handler._get_dynamodb_client", return_value=mock_dynamo),
+            patch("handler._decrypt_password", return_value=_PASSWORD),
+            patch("handler._provision_visitor", return_value=_FULL_REPROVISION_RESULT),
+        ):
+            status, body = handle_reprovision_visitors(_API_KEY)
+
+        assert status == 200
+        assert body["provisioned"] == 2
+        assert mock_dynamo.scan.call_count == 2
+
+        # Second call must include ExclusiveStartKey
+        second_call_kwargs = mock_dynamo.scan.call_args_list[1].kwargs
+        assert "ExclusiveStartKey" in second_call_kwargs
+
+    @pytest.mark.unit
+    def test_reprovision_207_when_some_visitors_fail(self, mock_secrets: object) -> None:
+        """handle_reprovision_visitors returns 207 when at least one visitor fails provisioning."""
+        item_good = _make_dynamo_item(_EMAIL, encrypted_password="ZmFrZQ==")
+        item_bad = _make_dynamo_item("other@example.com", encrypted_password="ZmFrZQ==")
+
+        mock_dynamo = MagicMock()
+        mock_dynamo.scan.return_value = {"Items": [item_good, item_bad]}
+
+        partial_result = {
+            "successes": [{"service": "grafana", "result": {"status": "created"}}],
+            "failures": [{"service": "airflow", "error": "timeout"}],
+        }
+
+        def provision_side_effect(email: str, password: str, name: str) -> dict[str, Any]:
+            if email == _EMAIL:
+                return _FULL_REPROVISION_RESULT
+            return partial_result
+
+        with (
+            patch("handler._get_dynamodb_client", return_value=mock_dynamo),
+            patch("handler._decrypt_password", return_value=_PASSWORD),
+            patch("handler._provision_visitor", side_effect=provision_side_effect),
+        ):
+            status, body = handle_reprovision_visitors(_API_KEY)
+
+        assert status == 207
+        # The fully-successful visitor goes to results; the partial one goes to failures
+        assert body["provisioned"] == 1
+        assert body["failed"] == 1

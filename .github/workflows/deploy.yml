@@ -467,6 +467,32 @@ jobs:
 
           echo "All services converged"
 
+      - name: Re-provision visitor accounts
+        env:
+          LAMBDA_URL: ${{ steps.lambda-config.outputs.url }}
+          API_KEY: ${{ steps.lambda-config.outputs.api_key }}
+        run: |
+          echo "Re-provisioning visitor accounts from DynamoDB..."
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${LAMBDA_URL}" \
+            -H "Content-Type: application/json" \
+            -d "{\"action\":\"reprovision-visitors\",\"api_key\":\"${API_KEY}\"}")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+
+          echo "Re-provisioning response: ${HTTP_CODE}"
+          echo "${BODY}" | jq . 2>/dev/null || echo "${BODY}"
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            PROVISIONED=$(echo "$BODY" | jq -r '.provisioned // 0' 2>/dev/null || echo "0")
+            echo "Re-provisioned ${PROVISIONED} visitor account(s)"
+          elif [ "$HTTP_CODE" = "207" ]; then
+            FAILED=$(echo "$BODY" | jq -r '.failed // 0' 2>/dev/null || echo "unknown")
+            echo "::warning::Re-provisioning completed with ${FAILED} failure(s) — some visitor accounts may need manual re-provisioning"
+          else
+            echo "::warning::Re-provisioning returned HTTP ${HTTP_CODE} — visitor accounts may need manual re-provisioning after deploy"
+          fi
+
       - name: Get Load Balancer URL
         id: alb-url
         run: |

@@ -106,3 +106,9 @@ variable "ses_identity_arn" {
   type        = string
   default     = ""
 }
+
+variable "kms_key_arn" {
+  description = "ARN of KMS key the function may use for Encrypt/Decrypt. Leave empty to skip policy."
+  type        = string
+  default     = ""
+}
