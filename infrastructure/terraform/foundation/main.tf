@@ -162,6 +162,7 @@ module "lambda_auth_deploy" {
     SCHEDULER_ROLE_ARN       = aws_iam_role.scheduler_execution.arn
     SELF_FUNCTION_ARN        = "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:rideshare-auth-deploy"
     KMS_VISITOR_PASSWORD_KEY = aws_kms_key.visitors.arn
+    SES_REPLY_TO_ADDRESS     = var.owner_reply_to_email
   }
 
   # Grant read access to API key and GitHub PAT secrets

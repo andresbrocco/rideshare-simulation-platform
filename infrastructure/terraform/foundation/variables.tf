@@ -57,3 +57,9 @@ variable "enable_dns_delegation" {
   type        = bool
   default     = true
 }
+
+variable "owner_reply_to_email" {
+  description = "Personal email address for welcome email Reply-To header."
+  type        = string
+  sensitive   = true
+}

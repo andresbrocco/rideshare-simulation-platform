@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import urllib.error
 import urllib.request
 from typing import Any
@@ -721,6 +722,46 @@ class TestSesWelcomeEmail:
         _, text_body, _ = _build_welcome_email(_EMAIL, _NAME, _PASSWORD)
         for url in SERVICE_LOGIN_URLS.values():
             assert url in text_body
+
+    @pytest.mark.unit
+    def test_send_welcome_email_includes_reply_to_when_env_set(self) -> None:
+        """_send_welcome_email passes ReplyToAddresses when SES_REPLY_TO_ADDRESS is set."""
+        mock_client = MagicMock()
+        with (
+            patch("handler._get_ses_client", return_value=mock_client),
+            patch.dict(os.environ, {"SES_REPLY_TO_ADDRESS": "owner@example.com"}),
+        ):
+            _send_welcome_email(_EMAIL, _NAME, _PASSWORD)
+
+        call_kwargs = mock_client.send_email.call_args.kwargs
+        assert call_kwargs["ReplyToAddresses"] == ["owner@example.com"]
+
+    @pytest.mark.unit
+    def test_send_welcome_email_omits_reply_to_when_env_unset(self) -> None:
+        """_send_welcome_email omits ReplyToAddresses when SES_REPLY_TO_ADDRESS is not set."""
+        mock_client = MagicMock()
+        env_without_reply_to = {k: v for k, v in os.environ.items() if k != "SES_REPLY_TO_ADDRESS"}
+        with (
+            patch("handler._get_ses_client", return_value=mock_client),
+            patch.dict(os.environ, env_without_reply_to, clear=True),
+        ):
+            _send_welcome_email(_EMAIL, _NAME, _PASSWORD)
+
+        call_kwargs = mock_client.send_email.call_args.kwargs
+        assert "ReplyToAddresses" not in call_kwargs
+
+    @pytest.mark.unit
+    def test_welcome_email_subject_contains_visitor_name(self) -> None:
+        """_build_welcome_email includes the visitor name in the subject."""
+        subject, _, _ = _build_welcome_email(_EMAIL, _NAME, _PASSWORD)
+        assert _NAME in subject
+
+    @pytest.mark.unit
+    def test_welcome_email_encourages_reply(self) -> None:
+        """_build_welcome_email body contains explicit invitation to reply."""
+        _, text_body, html_body = _build_welcome_email(_EMAIL, _NAME, _PASSWORD)
+        assert "reply" in text_body.lower()
+        assert "reply" in html_body.lower()
 
     @pytest.mark.unit
     def test_email_sent_flag_true_in_200_response(self, mock_secrets: object) -> None:

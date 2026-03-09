@@ -40,6 +40,7 @@ DEPLOYING_TIMEOUT_SECONDS = 30 * 60  # 30 min — auto-clear stale deploying ses
 # SES welcome email
 SES_FROM_ADDRESS_ENV = "SES_FROM_ADDRESS"
 SES_FROM_ADDRESS_DEFAULT = "noreply@ridesharing.portfolio.andresbrocco.com"
+SES_REPLY_TO_ADDRESS_ENV = "SES_REPLY_TO_ADDRESS"
 
 SERVICE_LOGIN_URLS: dict[str, str] = {
     "Grafana": "https://grafana.ridesharing.portfolio.andresbrocco.com",
@@ -268,7 +269,7 @@ def _build_welcome_email(email: str, name: str, password: str) -> tuple[str, str
     Returns:
         Tuple of (subject, text_body, html_body).
     """
-    subject = "Welcome to the Rideshare Simulation Platform"
+    subject = f"Hey {name} — your access to my rideshare platform"
 
     service_lines_text = "\n".join(f"  - {svc}: {url}" for svc, url in SERVICE_LOGIN_URLS.items())
     service_lines_html = "\n".join(
@@ -277,29 +278,36 @@ def _build_welcome_email(email: str, name: str, password: str) -> tuple[str, str
     )
 
     text_body = (
-        f"Hello {name},\n\n"
-        f"Your visitor account has been provisioned.\n\n"
-        f"Email: {email}\n"
-        f"Password: {password}\n\n"
-        f"You can access the following services:\n"
+        f"Hey {name},\n\n"
+        f"Thanks for checking out my portfolio — really glad you're here.\n\n"
+        f"I'm Andres, a data engineer based in Berlin. "
+        f"I built this rideshare simulation platform to demonstrate event-driven "
+        f"pipelines, a medallion lakehouse, and real-time analytics in one live system.\n\n"
+        f"Here are your credentials:\n\n"
+        f"  Email:    {email}\n"
+        f"  Password: {password}\n\n"
+        f"You can log in to any of the following services with those credentials:\n"
         f"{service_lines_text}\n\n"
-        f"This is a portfolio demo environment. "
-        f"Your session may expire after a period of inactivity.\n\n"
-        f"Best regards,\n"
-        f"Rideshare Simulation Platform"
+        f"If you have questions or just want to chat about the architecture, "
+        f"hit reply — it goes straight to my inbox.\n\n"
+        f"Cheers,\n"
+        f"Andres"
     )
 
     html_body = (
-        f"<h2>Welcome to the Rideshare Simulation Platform</h2>"
-        f"<p>Hello {name},</p>"
-        f"<p>Your visitor account has been provisioned.</p>"
+        f"<p>Hey {name},</p>"
+        f"<p>Thanks for checking out my portfolio — really glad you're here.</p>"
+        f"<p>I'm Andres, a data engineer based in Berlin. "
+        f"I built this rideshare simulation platform to demonstrate event-driven "
+        f"pipelines, a medallion lakehouse, and real-time analytics in one live system.</p>"
+        f"<p>Here are your credentials:</p>"
         f"<p><strong>Email:</strong> {email}<br>"
         f"<strong>Password:</strong> {password}</p>"
-        f"<p>You can access the following services:</p>"
+        f"<p>You can log in to any of the following services with those credentials:</p>"
         f"<ul>\n{service_lines_html}\n</ul>"
-        f"<p><em>This is a portfolio demo environment. "
-        f"Your session may expire after a period of inactivity.</em></p>"
-        f"<p>Best regards,<br>Rideshare Simulation Platform</p>"
+        f"<p>If you have questions or just want to chat about the architecture, "
+        f"hit reply — it goes straight to my inbox.</p>"
+        f"<p>Cheers,<br>Andres</p>"
     )
 
     return subject, text_body, html_body
@@ -311,20 +319,24 @@ def _send_welcome_email(email: str, name: str, password: str) -> bool:
     Email failures are non-fatal — returns False on error without raising.
     """
     from_address = os.environ.get(SES_FROM_ADDRESS_ENV, SES_FROM_ADDRESS_DEFAULT)
+    reply_to = os.environ.get(SES_REPLY_TO_ADDRESS_ENV)
     subject, text_body, html_body = _build_welcome_email(email, name, password)
     client = _get_ses_client()
     try:
-        client.send_email(
-            Source=from_address,
-            Destination={"ToAddresses": [email]},
-            Message={
+        send_kwargs: dict[str, object] = {
+            "Source": from_address,
+            "Destination": {"ToAddresses": [email]},
+            "Message": {
                 "Subject": {"Data": subject, "Charset": "UTF-8"},
                 "Body": {
                     "Text": {"Data": text_body, "Charset": "UTF-8"},
                     "Html": {"Data": html_body, "Charset": "UTF-8"},
                 },
             },
-        )
+        }
+        if reply_to:
+            send_kwargs["ReplyToAddresses"] = [reply_to]
+        client.send_email(**send_kwargs)
         print(f"Welcome email sent to {email}")
         return True
     except Exception as exc:
