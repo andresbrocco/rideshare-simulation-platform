@@ -967,6 +967,7 @@ services:
       GF_SERVER_ROOT_URL: http://localhost:3001
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_INSTALL_PLUGINS: trino-datasource
+      GF_AUDIT_ENABLED: "true"
     entrypoint:
       - /bin/sh
       - -c
