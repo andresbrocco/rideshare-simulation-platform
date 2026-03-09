@@ -165,10 +165,12 @@ module "lambda_auth_deploy" {
     SES_REPLY_TO_ADDRESS     = var.owner_reply_to_email
   }
 
-  # Grant read access to API key and GitHub PAT secrets
+  # Grant read access to API key, GitHub PAT, monitoring, and data pipeline secrets
   secrets_arns = [
     module.secrets_manager.secret_arns["api_key"],
     module.secrets_manager.secret_arns["github_pat"],
+    module.secrets_manager.secret_arns["monitoring"],
+    module.secrets_manager.secret_arns["data_pipeline"],
   ]
 
   ssm_parameter_arns = [

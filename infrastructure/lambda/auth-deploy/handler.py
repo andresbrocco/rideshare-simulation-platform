@@ -1396,7 +1396,8 @@ def handle_complete_teardown(api_key: str) -> tuple[int, dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 # Secret key used to retrieve the Grafana admin password for provisioning.
-SECRET_GRAFANA_ADMIN_PASSWORD = "rideshare/grafana-admin-password"
+# The rideshare/monitoring secret is JSON-encoded and contains ADMIN_PASSWORD.
+SECRET_GRAFANA_ADMIN_PASSWORD = "rideshare/monitoring"
 
 # Secrets Manager key where the Trino PBKDF2 password hash is persisted so
 # that a Trino container restart can pick it up via the password.db entrypoint script.
@@ -1502,7 +1503,11 @@ def _provision_grafana(
     admin_password = os.environ.get("GRAFANA_ADMIN_PASSWORD")
     if not admin_password:
         try:
-            admin_password = get_secret(SECRET_GRAFANA_ADMIN_PASSWORD)
+            secret_value = get_secret(SECRET_GRAFANA_ADMIN_PASSWORD)
+            # rideshare/monitoring is a JSON-encoded secret containing
+            # ADMIN_USER and ADMIN_PASSWORD fields.
+            secret_data: dict[str, str] = json.loads(secret_value)
+            admin_password = secret_data["ADMIN_PASSWORD"]
         except Exception:
             admin_password = "admin"
 
