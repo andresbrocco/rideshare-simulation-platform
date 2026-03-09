@@ -37,6 +37,7 @@ resource "aws_vpc_security_group_ingress_rule" "alb_to_cluster_sg" {
 }
 
 # EKS Pod Identity Agent — required for Pod Identity associations (ALB controller, etc.)
+# Needs nodes to schedule DaemonSet pods, so depends on node group.
 resource "aws_eks_addon" "pod_identity_agent" {
   cluster_name = aws_eks_cluster.main.name
   addon_name   = "eks-pod-identity-agent"
@@ -100,7 +101,9 @@ resource "aws_eks_node_group" "main" {
   }
 
   depends_on = [
-    aws_eks_cluster.main
+    aws_eks_cluster.main,
+    aws_eks_addon.vpc_cni,
+    aws_eks_addon.kube_proxy,
   ]
 }
 
