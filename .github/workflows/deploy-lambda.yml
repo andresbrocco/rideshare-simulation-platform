@@ -62,14 +62,15 @@ jobs:
             fi
           }
 
-          verify_absent() {
+          verify_absent_at_root() {
             local pattern="$1"
-            if unzip -l /tmp/lambda.zip | grep -qE "${pattern}"; then
-              echo "UNEXPECTED match for pattern '${pattern}' — package may contain unwanted files"
-              unzip -l /tmp/lambda.zip | grep -E "${pattern}"
+            # Only check root-level files (no slashes in path), not files inside dependency packages
+            if unzip -l /tmp/lambda.zip | awk '{print $NF}' | grep -vF '/' | grep -qE "${pattern}"; then
+              echo "UNEXPECTED root-level match for pattern '${pattern}'"
+              unzip -l /tmp/lambda.zip | awk '{print $NF}' | grep -vF '/' | grep -E "${pattern}"
               exit 1
             else
-              echo "OK (absent): ${pattern}"
+              echo "OK (absent at root): ${pattern}"
             fi
           }
 
@@ -91,8 +92,8 @@ jobs:
           # verify_minio_policy_present
           verify_present minio-visitor-readonly.json
 
-          # verify_no_test_files
-          verify_absent "test_.*\.py"
+          # verify_no_test_files at zip root (dependency packages like PyCryptodome have their own test files)
+          verify_absent_at_root "test_.*\.py"
 
           # verify_no_nested_paths — source files must be at zip root, not under auth-deploy/
           if unzip -l /tmp/lambda.zip | awk '{print $NF}' | grep -qE '^auth-deploy/'; then
