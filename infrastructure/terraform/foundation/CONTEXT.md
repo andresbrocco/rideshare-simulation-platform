@@ -6,7 +6,7 @@ Provisions all AWS infrastructure that must exist before the EKS cluster is crea
 
 ## Responsibility Boundaries
 
-- **Owns**: VPC, subnets, security groups, Route 53 hosted zone, ACM certificate, S3 buckets (bronze/silver/gold/checkpoints/frontend/logs/loki/tempo/build_assets), ECR repositories, IAM roles for EKS/CI/workloads, Secrets Manager secrets, Glue catalog databases (bronze/silver/gold), EventBridge Scheduler role, Lambda `rideshare-auth-deploy`, Glue catalog databases for the medallion layers, and SES domain identity with DKIM/SPF/DMARC DNS records
+- **Owns**: VPC, subnets, security groups, Route 53 hosted zone, ACM certificate, S3 buckets (bronze/silver/gold/checkpoints/frontend/logs/loki/tempo/build_assets), ECR repositories, IAM roles for EKS/CI/workloads, Secrets Manager secrets, Glue catalog databases (bronze/silver/gold), EventBridge Scheduler role, Lambda `rideshare-auth-deploy`, Glue catalog databases for the medallion layers, SES domain identity with DKIM/SPF/DMARC DNS records, and SES production access provisioner
 - **Delegates to**: `infrastructure/terraform/platform` for EKS cluster, node groups, ALB, RDS, and DNS records pointing at the cluster
 - **Does not handle**: Kubernetes manifests, application deployments, or runtime configuration
 
@@ -26,6 +26,7 @@ Provisions all AWS infrastructure that must exist before the EKS cluster is crea
 - `enable_dns_delegation = false` is the safe default when running in an account where the parent zone does not exist. Setting it to `true` without the parent zone present causes a data source lookup failure at plan time.
 - The EventBridge Scheduler execution role (`rideshare-scheduler-exec`) and its invoke policy are declared inline in `main.tf` rather than in the IAM module because they are tightly coupled to the specific Lambda ARN and needed before the Lambda module call.
 - IAM workload roles (simulation, bronze-ingestion, airflow, trino, hive-metastore, loki, tempo, ESO, Glue) are created here without OIDC trust conditions — they use Pod Identity trust (`pods.eks.amazonaws.com`) configured in the platform layer.
+- SES production access (`terraform_data.ses_production_access`) uses a `local-exec` provisioner instead of a native Terraform resource because the `aws_sesv2_account_details` resource doesn't exist. The `input = domain` trick ensures the provisioner only re-runs when the SES domain changes. The API call is idempotent — re-running on an already-production account is a no-op.
 
 ## Related Modules
 

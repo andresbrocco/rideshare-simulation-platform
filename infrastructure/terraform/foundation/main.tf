@@ -358,3 +358,29 @@ resource "aws_route53_record" "ses_dmarc" {
   ttl     = 600
   records = ["v=DMARC1; p=none; rua=mailto:dmarc@${var.domain_name}"]
 }
+
+# -----------------------------------------------------------------------------
+# SES — production access (exits sandbox mode)
+# -----------------------------------------------------------------------------
+resource "terraform_data" "ses_production_access" {
+  depends_on = [
+    aws_route53_record.ses_dkim,
+    aws_route53_record.ses_spf,
+    aws_route53_record.ses_dmarc,
+    aws_route53_record.ses_verification,
+  ]
+
+  input = aws_ses_domain_identity.main.domain
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      aws sesv2 put-account-details \
+        --production-access-enabled \
+        --mail-type TRANSACTIONAL \
+        --website-url "https://${var.domain_name}" \
+        --use-case-description "Transactional welcome emails with login credentials for portfolio visitors." \
+        --contact-language EN \
+        --region ${var.aws_region}
+    EOT
+  }
+}
