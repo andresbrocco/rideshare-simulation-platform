@@ -20,6 +20,7 @@ from slowapi.errors import RateLimitExceeded
 if TYPE_CHECKING:
     from redis.asyncio import Redis
 
+from api.middleware.request_logger import RequestLoggerMiddleware
 from api.middleware.security_headers import SecurityHeadersMiddleware
 from api.models.health import (
     DetailedHealthResponse,
@@ -276,6 +277,7 @@ def create_app(
     )
 
     app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(RequestLoggerMiddleware)
 
     app.include_router(auth.router, prefix="/auth", tags=["auth"])
     app.include_router(simulation.router, prefix="/simulation", tags=["simulation"])
