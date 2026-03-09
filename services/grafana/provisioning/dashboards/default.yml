@@ -55,3 +55,14 @@ providers:
     allowUiUpdates: true
     options:
       path: /etc/dashboards/operations
+
+  # Admin folder (visitor activity dashboard — restricted to org admins)
+  - name: 'admin'
+    orgId: 1
+    folder: 'Admin'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/dashboards/admin
