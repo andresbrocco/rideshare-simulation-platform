@@ -300,8 +300,9 @@ jobs:
       - name: Generate Trino admin password hash
         run: |
           pip install bcrypt --quiet
-          export TRINO_ADMIN_PW=$(aws secretsmanager get-secret-value \
+          TRINO_ADMIN_PW=$(aws secretsmanager get-secret-value \
             --secret-id rideshare/data-pipeline --query SecretString --output text | jq -r '.ADMIN_PASSWORD')
+          export TRINO_ADMIN_PW
           ADMIN_HASH=$(python3 -c "
           import bcrypt, os
           pw = os.environ['TRINO_ADMIN_PW']
