@@ -24,9 +24,8 @@ import pytest
 
 # Paths resolved from this test file's location.
 # test_grafana_provisioning.py lives at infrastructure/lambda/auth-deploy/
-# Repository root is four levels up: auth-deploy -> lambda -> infrastructure -> repo-root
-_REPO_ROOT = __import__("pathlib").Path(__file__).parent.parent.parent.parent
-_PROVISION_MODULE_PATH = _REPO_ROOT / "infrastructure" / "scripts" / "provision_grafana_viewer.py"
+# The canonical provisioning script is co-located in the same directory.
+_PROVISION_MODULE_PATH = __import__("pathlib").Path(__file__).parent / "provision_grafana_viewer.py"
 
 # Module name used when registering in sys.modules via importlib.
 _MODULE_NAME = "provision_grafana_viewer"
