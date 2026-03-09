@@ -94,3 +94,15 @@ variable "scheduler_config" {
   })
   default = null
 }
+
+variable "dynamodb_table_arn" {
+  description = "ARN of DynamoDB table the function needs read/write access to. Leave empty to skip policy."
+  type        = string
+  default     = ""
+}
+
+variable "ses_identity_arn" {
+  description = "ARN of SES domain identity the function may send email from. Leave empty to skip policy."
+  type        = string
+  default     = ""
+}

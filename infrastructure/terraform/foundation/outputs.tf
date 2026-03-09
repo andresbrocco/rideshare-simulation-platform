@@ -222,3 +222,24 @@ output "glue_gold_database_name" {
   description = "Glue Data Catalog database name for the Gold layer"
   value       = aws_glue_catalog_database.gold.name
 }
+
+# -----------------------------------------------------------------------------
+# DynamoDB
+# -----------------------------------------------------------------------------
+output "visitors_table_arn" {
+  description = "ARN of the DynamoDB visitors table"
+  value       = aws_dynamodb_table.visitors.arn
+}
+
+output "visitors_table_name" {
+  description = "Name of the DynamoDB visitors table"
+  value       = aws_dynamodb_table.visitors.name
+}
+
+# -----------------------------------------------------------------------------
+# SES
+# -----------------------------------------------------------------------------
+output "ses_domain_identity_arn" {
+  description = "ARN of the SES domain identity"
+  value       = aws_ses_domain_identity.main.arn
+}

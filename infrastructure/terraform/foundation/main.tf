@@ -188,6 +188,9 @@ module "lambda_auth_deploy" {
   cors_allowed_headers = ["Content-Type", "X-Requested-With"]
   cors_max_age         = 86400
 
+  dynamodb_table_arn = aws_dynamodb_table.visitors.arn
+  ses_identity_arn   = aws_ses_domain_identity.main.arn
+
   log_retention_days = 14
 
   tags = {
@@ -243,4 +246,68 @@ resource "aws_glue_catalog_database" "gold" {
   description = "Star-schema aggregates for analytics — Gold medallion layer"
 
   tags = { Project = var.project_name, Component = "glue-catalog" }
+}
+
+# -----------------------------------------------------------------------------
+# KMS — encryption key for visitor data at rest
+# -----------------------------------------------------------------------------
+resource "aws_kms_key" "visitors" {
+  description             = "CMK for ${var.project_name} visitor provisioning data"
+  deletion_window_in_days = 7
+  enable_key_rotation     = true
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "AllowRootFullAccess"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root" }
+        Action    = "kms:*"
+        Resource  = "*"
+      }
+    ]
+  })
+
+  tags = { Project = var.project_name, Component = "visitor-provisioning" }
+}
+
+# -----------------------------------------------------------------------------
+# DynamoDB — visitor provisioning records (persist across platform deploys)
+# -----------------------------------------------------------------------------
+resource "aws_dynamodb_table" "visitors" {
+  name         = "${var.project_name}-visitors"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "email"
+
+  attribute {
+    name = "email"
+    type = "S"
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  server_side_encryption {
+    enabled     = true
+    kms_key_arn = aws_kms_key.visitors.arn
+  }
+
+  tags = { Project = var.project_name, Component = "visitor-provisioning" }
+}
+
+# -----------------------------------------------------------------------------
+# SES — domain identity for sending welcome emails
+# -----------------------------------------------------------------------------
+resource "aws_ses_domain_identity" "main" {
+  domain = var.domain_name
+}
+
+resource "aws_route53_record" "ses_verification" {
+  zone_id = module.route53.zone_id
+  name    = "_amazonses.${var.domain_name}"
+  type    = "TXT"
+  ttl     = 600
+  records = [aws_ses_domain_identity.main.verification_token]
 }
