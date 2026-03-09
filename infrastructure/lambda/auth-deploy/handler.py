@@ -37,6 +37,18 @@ RESCHEDULE_DELAY_SECONDS = 300  # 5 min
 TEARDOWN_TIMEOUT_SECONDS = 15 * 60  # 15 min — auto-clear stale tearing_down flag
 DEPLOYING_TIMEOUT_SECONDS = 30 * 60  # 30 min — auto-clear stale deploying session
 
+# SES welcome email
+SES_FROM_ADDRESS_ENV = "SES_FROM_ADDRESS"
+SES_FROM_ADDRESS_DEFAULT = "noreply@ridesharing.portfolio.andresbrocco.com"
+
+SERVICE_LOGIN_URLS: dict[str, str] = {
+    "Grafana": "https://grafana.ridesharing.portfolio.andresbrocco.com",
+    "Airflow": "https://airflow.ridesharing.portfolio.andresbrocco.com",
+    "Trino": "https://trino.ridesharing.portfolio.andresbrocco.com/ui",
+    "MinIO": "https://minio.ridesharing.portfolio.andresbrocco.com",
+    "Simulation API": "https://api.ridesharing.portfolio.andresbrocco.com/docs",
+}
+
 DEPLOY_PROGRESS_SERVICES = [
     "kafka",
     "redis",
@@ -163,6 +175,91 @@ def _store_visitor_dynamodb(
             "created_at": {"S": created_at},
         },
     )
+
+
+def _get_ses_client() -> boto3.client:
+    """Get SES client configured for LocalStack or AWS."""
+    config = Config(
+        region_name=os.environ.get("AWS_REGION", "us-east-1"),
+        signature_version="v4",
+        retries={"max_attempts": 3, "mode": "standard"},
+    )
+
+    endpoint_url = None
+    if os.environ.get("LOCALSTACK_HOSTNAME"):
+        endpoint_url = f"http://{os.environ['LOCALSTACK_HOSTNAME']}:4566"
+
+    return boto3.client("ses", config=config, endpoint_url=endpoint_url)
+
+
+def _build_welcome_email(email: str, name: str, password: str) -> tuple[str, str, str]:
+    """Build welcome email content with credentials and service URLs.
+
+    Returns:
+        Tuple of (subject, text_body, html_body).
+    """
+    subject = "Welcome to the Rideshare Simulation Platform"
+
+    service_lines_text = "\n".join(f"  - {svc}: {url}" for svc, url in SERVICE_LOGIN_URLS.items())
+    service_lines_html = "\n".join(
+        f'<li><strong>{svc}</strong>: <a href="{url}">{url}</a></li>'
+        for svc, url in SERVICE_LOGIN_URLS.items()
+    )
+
+    text_body = (
+        f"Hello {name},\n\n"
+        f"Your visitor account has been provisioned.\n\n"
+        f"Email: {email}\n"
+        f"Password: {password}\n\n"
+        f"You can access the following services:\n"
+        f"{service_lines_text}\n\n"
+        f"This is a portfolio demo environment. "
+        f"Your session may expire after a period of inactivity.\n\n"
+        f"Best regards,\n"
+        f"Rideshare Simulation Platform"
+    )
+
+    html_body = (
+        f"<h2>Welcome to the Rideshare Simulation Platform</h2>"
+        f"<p>Hello {name},</p>"
+        f"<p>Your visitor account has been provisioned.</p>"
+        f"<p><strong>Email:</strong> {email}<br>"
+        f"<strong>Password:</strong> {password}</p>"
+        f"<p>You can access the following services:</p>"
+        f"<ul>\n{service_lines_html}\n</ul>"
+        f"<p><em>This is a portfolio demo environment. "
+        f"Your session may expire after a period of inactivity.</em></p>"
+        f"<p>Best regards,<br>Rideshare Simulation Platform</p>"
+    )
+
+    return subject, text_body, html_body
+
+
+def _send_welcome_email(email: str, name: str, password: str) -> bool:
+    """Send welcome email via SES with credentials and service URLs.
+
+    Email failures are non-fatal — returns False on error without raising.
+    """
+    from_address = os.environ.get(SES_FROM_ADDRESS_ENV, SES_FROM_ADDRESS_DEFAULT)
+    subject, text_body, html_body = _build_welcome_email(email, name, password)
+    client = _get_ses_client()
+    try:
+        client.send_email(
+            Source=from_address,
+            Destination={"ToAddresses": [email]},
+            Message={
+                "Subject": {"Data": subject, "Charset": "UTF-8"},
+                "Body": {
+                    "Text": {"Data": text_body, "Charset": "UTF-8"},
+                    "Html": {"Data": html_body, "Charset": "UTF-8"},
+                },
+            },
+        )
+        print(f"Welcome email sent to {email}")
+        return True
+    except Exception as exc:
+        print(f"Welcome email failed (non-fatal): {exc}")
+        return False
 
 
 def get_ssm_client() -> boto3.client:
@@ -1531,6 +1628,8 @@ def handle_provision_visitor(
     except Exception as exc:
         print(f"DynamoDB visitor record storage failed (non-fatal): {exc}")
 
+    email_sent = _send_welcome_email(email, name, effective_password)
+
     if not successes:
         print("Action provision-visitor completed: 500")
         return 500, {
@@ -1548,6 +1647,7 @@ def handle_provision_visitor(
             "password": effective_password,
             "successes": successes,
             "failures": failures,
+            "email_sent": email_sent,
             "note": "Trino requires a container restart to apply the new password hash.",
         }
 
@@ -1557,6 +1657,7 @@ def handle_provision_visitor(
         "password": effective_password,
         "successes": successes,
         "failures": failures,
+        "email_sent": email_sent,
         "note": "Trino requires a container restart to apply the new password hash.",
     }
 

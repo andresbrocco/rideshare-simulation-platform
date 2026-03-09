@@ -29,12 +29,15 @@ import pytest
 import bcrypt
 
 from handler import (
+    SERVICE_LOGIN_URLS,
+    _build_welcome_email,
     _provision_airflow,
     _provision_grafana,
     _provision_minio,
     _provision_simulation_api,
     _provision_trino,
     _provision_visitor,
+    _send_welcome_email,
     handle_provision_visitor,
 )
 
@@ -67,10 +70,11 @@ def mock_secrets():
 
 @pytest.fixture()
 def mock_provision_visitor():
-    """Mock _provision_visitor to return a full-success result and skip DynamoDB."""
+    """Mock _provision_visitor to return a full-success result and skip DynamoDB/email."""
     with (
         patch("handler._provision_visitor") as mock_pv,
         patch("handler._store_visitor_dynamodb"),
+        patch("handler._send_welcome_email", return_value=True),
     ):
         mock_pv.return_value = {
             "successes": [
@@ -175,6 +179,7 @@ class TestHandleProvisionVisitorResponseCodes:
         with (
             patch("handler._provision_visitor", return_value=partial_result),
             patch("handler._store_visitor_dynamodb"),
+            patch("handler._send_welcome_email", return_value=True),
         ):
             status, body = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, _NAME)
 
@@ -198,6 +203,7 @@ class TestHandleProvisionVisitorResponseCodes:
         with (
             patch("handler._provision_visitor", return_value=all_failed),
             patch("handler._store_visitor_dynamodb"),
+            patch("handler._send_welcome_email", return_value=False),
         ):
             status, body = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, _NAME)
 
@@ -540,6 +546,7 @@ class TestPasswordGeneration:
         with (
             patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
             patch("handler._store_visitor_dynamodb"),
+            patch("handler._send_welcome_email", return_value=True),
         ):
             status, body = handle_provision_visitor(_API_KEY, _EMAIL, None, _NAME)
 
@@ -553,6 +560,7 @@ class TestPasswordGeneration:
         with (
             patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
             patch("handler._store_visitor_dynamodb"),
+            patch("handler._send_welcome_email", return_value=True),
         ):
             status, body = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, _NAME)
 
@@ -565,6 +573,7 @@ class TestPasswordGeneration:
         with (
             patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
             patch("handler._store_visitor_dynamodb"),
+            patch("handler._send_welcome_email", return_value=True),
         ):
             _, body1 = handle_provision_visitor(_API_KEY, _EMAIL, None, _NAME)
             _, body2 = handle_provision_visitor(_API_KEY, _EMAIL, None, _NAME)
@@ -593,6 +602,7 @@ class TestDynamoDBStorage:
         with (
             patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
             patch("handler._get_dynamodb_client", return_value=mock_dynamo_client),
+            patch("handler._send_welcome_email", return_value=True),
         ):
             status, body = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, _NAME)
 
@@ -616,6 +626,7 @@ class TestDynamoDBStorage:
         with (
             patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
             patch("handler._get_dynamodb_client", return_value=mock_dynamo_client),
+            patch("handler._send_welcome_email", return_value=True),
         ):
             status, body = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, _NAME)
 
@@ -641,6 +652,7 @@ class TestDynamoDBStorage:
         with (
             patch("handler._provision_visitor", return_value=partial_result),
             patch("handler._get_dynamodb_client", return_value=mock_dynamo_client),
+            patch("handler._send_welcome_email", return_value=True),
         ):
             status, body = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, _NAME)
 
@@ -649,3 +661,86 @@ class TestDynamoDBStorage:
         item = call_kwargs["Item"]
         # Only grafana succeeded — it must be the sole entry in provisioned_services.
         assert item["provisioned_services"]["SS"] == ["grafana"]
+
+
+# ---------------------------------------------------------------------------
+# SES welcome email
+# ---------------------------------------------------------------------------
+
+
+class TestSesWelcomeEmail:
+    @pytest.mark.unit
+    def test_send_welcome_email_calls_ses_send_email(self) -> None:
+        """_send_welcome_email calls ses.send_email with the correct destination."""
+        mock_client = MagicMock()
+        with patch("handler._get_ses_client", return_value=mock_client):
+            _send_welcome_email(_EMAIL, _NAME, _PASSWORD)
+
+        mock_client.send_email.assert_called_once()
+        call_kwargs = mock_client.send_email.call_args.kwargs
+        assert call_kwargs["Destination"]["ToAddresses"] == [_EMAIL]
+        assert "ridesharing.portfolio.andresbrocco.com" in call_kwargs["Source"]
+
+    @pytest.mark.unit
+    def test_send_welcome_email_returns_true_on_success(self) -> None:
+        """_send_welcome_email returns True when SES succeeds."""
+        mock_client = MagicMock()
+        with patch("handler._get_ses_client", return_value=mock_client):
+            result = _send_welcome_email(_EMAIL, _NAME, _PASSWORD)
+
+        assert result is True
+
+    @pytest.mark.unit
+    def test_send_welcome_email_returns_false_on_ses_error(self) -> None:
+        """_send_welcome_email returns False on SES error without raising."""
+        from botocore.exceptions import ClientError
+
+        mock_client = MagicMock()
+        mock_client.send_email.side_effect = ClientError(
+            {"Error": {"Code": "MessageRejected", "Message": "Email rejected"}},
+            "SendEmail",
+        )
+        with patch("handler._get_ses_client", return_value=mock_client):
+            result = _send_welcome_email(_EMAIL, _NAME, _PASSWORD)
+
+        assert result is False
+
+    @pytest.mark.unit
+    def test_welcome_email_contains_password(self) -> None:
+        """_build_welcome_email includes the password in both text and HTML bodies."""
+        _, text_body, html_body = _build_welcome_email(_EMAIL, _NAME, _PASSWORD)
+        assert _PASSWORD in text_body
+        assert _PASSWORD in html_body
+
+    @pytest.mark.unit
+    def test_welcome_email_contains_all_service_urls(self) -> None:
+        """_build_welcome_email includes every service URL in the text body."""
+        _, text_body, _ = _build_welcome_email(_EMAIL, _NAME, _PASSWORD)
+        for url in SERVICE_LOGIN_URLS.values():
+            assert url in text_body
+
+    @pytest.mark.unit
+    def test_email_sent_flag_true_in_200_response(self, mock_secrets: object) -> None:
+        """200 response includes email_sent=True when email succeeds."""
+        with (
+            patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
+            patch("handler._store_visitor_dynamodb"),
+            patch("handler._send_welcome_email", return_value=True),
+        ):
+            status, body = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, _NAME)
+
+        assert status == 200
+        assert body["email_sent"] is True
+
+    @pytest.mark.unit
+    def test_email_sent_flag_false_does_not_change_status(self, mock_secrets: object) -> None:
+        """200 response still returns 200 with email_sent=False when email fails."""
+        with (
+            patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
+            patch("handler._store_visitor_dynamodb"),
+            patch("handler._send_welcome_email", return_value=False),
+        ):
+            status, body = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, _NAME)
+
+        assert status == 200
+        assert body["email_sent"] is False
