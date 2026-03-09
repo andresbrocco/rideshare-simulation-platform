@@ -10,6 +10,52 @@ data:
     node-scheduler.include-coordinator=true
     http-server.http.port=8080
     discovery.uri=http://localhost:8080
+    http-server.authentication.type=PASSWORD
+    event-listener.config-files=/etc/trino/event-listener.properties
+
+  password-authenticator.properties: |
+    password-authenticator.name=file
+    file.password-file=/etc/trino/password.db
+    file.refresh-period=5s
+
+  access-control.properties: |
+    access-control.name=file
+    security.config-file=/etc/trino/rules.json
+    security.refresh-period=60s
+
+  password.db.template: |
+    admin:${TRINO_ADMIN_PASSWORD_HASH}
+    visitor:${TRINO_VISITOR_PASSWORD_HASH}
+
+  rules.json: |
+    {
+      "catalogs": [
+        {
+          "user": "admin",
+          "catalog": ".*",
+          "allow": "all"
+        },
+        {
+          "user": ".*",
+          "catalog": "system",
+          "allow": "none"
+        },
+        {
+          "user": ".*",
+          "catalog": "delta",
+          "allow": "read-only"
+        },
+        {
+          "user": ".*",
+          "catalog": ".*",
+          "allow": "read-only"
+        }
+      ]
+    }
+
+  event-listener.properties: |
+    event-listener.name=query-event-listener
+    query-event-listener.log-completed-queries=true
 
   jvm.config: |
     -server
@@ -88,11 +134,20 @@ spec:
           cp /config-source/config.properties /etc/trino/config.properties
           cp /config-source/jvm.config /etc/trino/jvm.config
           cp /config-source/node.properties /etc/trino/node.properties
+          cp /config-source/password-authenticator.properties /etc/trino/password-authenticator.properties
+          cp /config-source/access-control.properties /etc/trino/access-control.properties
+          cp /config-source/rules.json /etc/trino/rules.json
+          cp /config-source/event-listener.properties /etc/trino/event-listener.properties
           mkdir -p /etc/trino/catalog
           sed \
             -e "s|\${MINIO_ROOT_USER}|${MINIO_ROOT_USER}|g" \
             -e "s|\${MINIO_ROOT_PASSWORD}|${MINIO_ROOT_PASSWORD}|g" \
             /config-source/delta.properties.template > /etc/trino/catalog/delta.properties
+          sed \
+            -e "s|\${TRINO_ADMIN_PASSWORD_HASH}|${TRINO_ADMIN_PASSWORD_HASH}|g" \
+            -e "s|\${TRINO_VISITOR_PASSWORD_HASH}|${TRINO_VISITOR_PASSWORD_HASH}|g" \
+            /config-source/password.db.template > /etc/trino/password.db
+          chmod 600 /etc/trino/password.db
         env:
         - name: MINIO_ROOT_USER
           valueFrom:
@@ -104,6 +159,16 @@ spec:
             secretKeyRef:
               name: app-credentials
               key: MINIO_ROOT_PASSWORD
+        - name: TRINO_ADMIN_PASSWORD_HASH
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: TRINO_ADMIN_PASSWORD_HASH
+        - name: TRINO_VISITOR_PASSWORD_HASH
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: TRINO_VISITOR_PASSWORD_HASH
         volumeMounts:
         - name: config-source
           mountPath: /config-source

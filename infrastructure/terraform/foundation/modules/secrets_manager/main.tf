@@ -198,3 +198,49 @@ resource "aws_secretsmanager_secret_version" "rds" {
     ENDPOINT        = ""
   })
 }
+
+# Secret: rideshare/trino-admin-password-hash
+# Populated by the deploy workflow (bcrypt hash of admin password)
+resource "aws_secretsmanager_secret" "trino_admin_password_hash" {
+  name        = "${var.project_name}/trino-admin-password-hash"
+  description = "Bcrypt hash of the Trino admin password"
+
+  tags = {
+    Name = "${var.project_name}/trino-admin-password-hash"
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "trino_admin_password_hash" {
+  secret_id = aws_secretsmanager_secret.trino_admin_password_hash.id
+
+  secret_string = jsonencode({
+    hash = "placeholder-set-by-deploy-workflow"
+  })
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
+}
+
+# Secret: rideshare/trino-visitor-password-hash
+# Populated by the provisioning Lambda when a visitor registers
+resource "aws_secretsmanager_secret" "trino_visitor_password_hash" {
+  name        = "${var.project_name}/trino-visitor-password-hash"
+  description = "Bcrypt hash of the Trino visitor password"
+
+  tags = {
+    Name = "${var.project_name}/trino-visitor-password-hash"
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "trino_visitor_password_hash" {
+  secret_id = aws_secretsmanager_secret.trino_visitor_password_hash.id
+
+  secret_string = jsonencode({
+    hash = "placeholder-set-by-lambda"
+  })
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
+}

@@ -29,6 +29,7 @@ import logging
 import os
 import sys
 
+import bcrypt
 import boto3
 from botocore.exceptions import ClientError
 from mypy_boto3_secretsmanager import SecretsManagerClient
@@ -82,6 +83,12 @@ SECRETS: dict[str, dict[str, str]] = {
     },
     "rideshare/github-pat": {
         "GITHUB_PAT": "ghp_localstack_placeholder_token_DO_NOT_USE_IN_PRODUCTION",
+    },
+    "rideshare/trino-admin-password-hash": {
+        "hash": bcrypt.hashpw(b"admin", bcrypt.gensalt()).decode(),
+    },
+    "rideshare/trino-visitor-password-hash": {
+        "hash": bcrypt.hashpw(b"admin", bcrypt.gensalt()).decode(),
     },
 }
 

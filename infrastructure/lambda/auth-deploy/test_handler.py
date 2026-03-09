@@ -10,6 +10,7 @@ from handler import (
     handle_auto_teardown,
     handle_complete_teardown,
     handle_deploy,
+    handle_ensure_session,
     handle_get_deploy_progress,
     handle_report_deploy_progress,
     handle_service_health,
@@ -333,6 +334,101 @@ class TestLambdaHandler:
         assert response["statusCode"] == 200
         body = json.loads(response["body"])
         assert body["tearing_down"] is False
+
+    def test_ensure_session_action(self, mock_secrets: object) -> None:
+        event = {
+            "requestContext": {"http": {"method": "POST"}},
+            "headers": {},
+            "body": json.dumps({"action": "ensure-session", "api_key": "test-api-key"}),
+        }
+
+        with (
+            patch("handler.get_session", return_value=None),
+            patch("handler.create_session"),
+        ):
+            response = lambda_handler(event, None)
+
+        assert response["statusCode"] == 200
+        body = json.loads(response["body"])
+        assert body["success"] is True
+        assert body["created"] is True
+
+
+class TestHandleEnsureSession:
+    def test_invalid_key(self, mock_secrets: object) -> None:
+        status, body = handle_ensure_session("wrong-key")
+        assert status == 401
+        assert "Invalid password" in body["error"]
+
+    def test_no_session_creates_new(self, mock_secrets: object) -> None:
+        with (
+            patch("handler.get_session", return_value=None),
+            patch("handler.create_session") as mock_create,
+        ):
+            status, body = handle_ensure_session("test-api-key")
+
+        assert status == 200
+        assert body["success"] is True
+        assert body["created"] is True
+        assert body["remaining_seconds"] == 15 * 60
+        mock_create.assert_called_once()
+        call_kwargs = mock_create.call_args
+        assert call_kwargs[1]["deployed_at"] == call_kwargs[1]["deadline"] - 15 * 60
+
+    def test_deploying_session_activates(self, mock_secrets: object) -> None:
+        deploying_session = {"deployed_at": 1000000}
+        with (
+            patch("handler.get_session", return_value=deploying_session),
+            patch("handler.create_session") as mock_create,
+        ):
+            status, body = handle_ensure_session("test-api-key")
+
+        assert status == 200
+        assert body["success"] is True
+        assert body["created"] is False
+        assert body["remaining_seconds"] == 15 * 60
+        mock_create.assert_called_once()
+        # Preserves original deployed_at
+        call_kwargs = mock_create.call_args
+        assert call_kwargs[1]["deployed_at"] == 1000000
+
+    def test_already_activated_idempotent(self, mock_secrets: object) -> None:
+        import time as time_mod
+
+        now = int(time_mod.time())
+        active_session = {"deployed_at": now - 300, "deadline": now + 600}
+        with (
+            patch("handler.get_session", return_value=active_session),
+            patch("handler.create_session") as mock_create,
+        ):
+            status, body = handle_ensure_session("test-api-key")
+
+        assert status == 200
+        assert body["success"] is True
+        assert body["created"] is False
+        assert body["deadline"] == active_session["deadline"]
+        mock_create.assert_not_called()
+
+    def test_create_session_failure(self, mock_secrets: object) -> None:
+        with (
+            patch("handler.get_session", return_value=None),
+            patch("handler.create_session", side_effect=Exception("SSM error")),
+        ):
+            status, body = handle_ensure_session("test-api-key")
+
+        assert status == 500
+        assert "Failed to create session" in body["error"]
+
+    def test_activate_deploying_failure(self, mock_secrets: object) -> None:
+        deploying_session = {"deployed_at": 1000000}
+        with (
+            patch("handler.get_session", return_value=deploying_session),
+            patch("handler.create_session", side_effect=Exception("Schedule error")),
+        ):
+            status, body = handle_ensure_session("test-api-key")
+
+        assert status == 500
+        assert "Failed to activate deploying session" in body["error"]
 
 
 class TestHandleSessionStatus:

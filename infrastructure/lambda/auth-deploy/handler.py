@@ -1026,6 +1026,78 @@ def handle_activate_session(api_key: str) -> tuple[int, dict[str, Any]]:
     }
 
 
+def handle_ensure_session(api_key: str) -> tuple[int, dict[str, Any]]:
+    """Handle ensure-session action.
+
+    Called by the deploy workflow after EKS convergence to guarantee
+    auto-teardown is always scheduled, regardless of how the deploy
+    was triggered. Three cases:
+
+    1. No session exists (gh CLI path): Create full session with
+       deployed_at=now, deadline=now+SESSION_STEP_MINUTES*60, and
+       EventBridge schedule.
+    2. Deploying session exists, no deadline (landing page, frontend
+       hasn't called activate yet): Activate it — set deadline and
+       schedule. Preserves original deployed_at.
+    3. Session with deadline already set (landing page, frontend
+       already activated): Idempotent — return existing deadline.
+    """
+    print("Action: ensure-session")
+    if not validate_api_key(api_key):
+        print("Action ensure-session completed: 401")
+        return 401, {"error": "Invalid password"}
+
+    session = get_session()
+    now = int(time.time())
+    deadline_seconds = SESSION_STEP_MINUTES * 60
+
+    # Case 3: Session with deadline already set — idempotent
+    if session is not None and session.get("deadline") is not None:
+        remaining = max(0, session["deadline"] - now)
+        print("Action ensure-session completed: 200 (already activated)")
+        return 200, {
+            "success": True,
+            "remaining_seconds": remaining,
+            "deadline": session["deadline"],
+            "created": False,
+        }
+
+    # Case 2: Deploying session exists without deadline — activate it
+    if session is not None:
+        deadline = now + deadline_seconds
+        try:
+            create_session(deployed_at=session["deployed_at"], deadline=deadline)
+        except Exception as e:
+            print(f"Error activating deploying session: {e}")
+            print("Action ensure-session completed: 500")
+            return 500, {"error": "Failed to activate deploying session"}
+
+        print("Action ensure-session completed: 200 (activated deploying)")
+        return 200, {
+            "success": True,
+            "remaining_seconds": deadline_seconds,
+            "deadline": deadline,
+            "created": False,
+        }
+
+    # Case 1: No session exists — create full session
+    deadline = now + deadline_seconds
+    try:
+        create_session(deployed_at=now, deadline=deadline)
+    except Exception as e:
+        print(f"Error creating session: {e}")
+        print("Action ensure-session completed: 500")
+        return 500, {"error": "Failed to create session"}
+
+    print("Action ensure-session completed: 200 (created new)")
+    return 200, {
+        "success": True,
+        "remaining_seconds": deadline_seconds,
+        "deadline": deadline,
+        "created": True,
+    }
+
+
 def handle_extend_session(api_key: str) -> tuple[int, dict[str, Any]]:
     """Handle extend-session action."""
     print("Action: extend-session")
@@ -1914,6 +1986,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
             "deploy": handle_deploy,
             "status": handle_status,
             "activate-session": handle_activate_session,
+            "ensure-session": handle_ensure_session,
             "extend-session": handle_extend_session,
             "shrink-session": handle_shrink_session,
             "complete-teardown": handle_complete_teardown,
@@ -1963,6 +2036,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "teardown-status",
                 "get-deploy-progress",
                 "activate-session",
+                "ensure-session",
                 "extend-session",
                 "shrink-session",
                 "report-deploy-progress",
@@ -2020,6 +2094,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         "deploy": handle_deploy,
         "status": handle_status,
         "activate-session": handle_activate_session,
+        "ensure-session": handle_ensure_session,
         "extend-session": handle_extend_session,
         "shrink-session": handle_shrink_session,
         "complete-teardown": handle_complete_teardown,
@@ -2072,6 +2147,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "teardown-status",
                 "get-deploy-progress",
                 "activate-session",
+                "ensure-session",
                 "extend-session",
                 "shrink-session",
                 "report-deploy-progress",

@@ -564,7 +564,7 @@ services:
       localstack:
         condition: service_healthy
     command: >
-      sh -c "pip install boto3 mypy-boto3-secretsmanager &&
+      sh -c "pip install boto3 mypy-boto3-secretsmanager bcrypt &&
              python /app/seed-secrets.py &&
              python /app/fetch-secrets.py"
     networks:

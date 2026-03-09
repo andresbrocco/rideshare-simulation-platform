@@ -124,6 +124,17 @@ data:
         options:
           path: /etc/dashboards/performance
 
+      # Admin folder (Visitor Activity dashboard)
+      - name: 'admin'
+        orgId: 1
+        folder: 'Admin'
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 10
+        allowUiUpdates: true
+        options:
+          path: /etc/dashboards/admin
+
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -10882,6 +10893,366 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
+  name: grafana-dashboards-admin
+  labels:
+    app: grafana
+data:
+  visitor-activity.json: |
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": {
+              "type": "grafana",
+              "uid": "-- Grafana --"
+            },
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "description": "Admin-only unified visitor activity view. Aggregates per-service access timestamps across Airflow, Grafana, Simulation API, Trino, and MinIO. Shows most recent login/request per visitor for each platform service.",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
+          "id": null,
+          "panels": [],
+          "title": "Service Login History",
+          "type": "row"
+        },
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "airflow-postgres"
+          },
+          "description": "Airflow login records from the ab_user table. Shows each user's login count and most recent login timestamp. Requires the airflow-postgres datasource (provisioned in ticket 004).",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": false
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 1
+          },
+          "id": null,
+          "options": {
+            "cellHeight": "sm",
+            "footer": {
+              "countRows": false,
+              "fields": "",
+              "reducer": ["sum"],
+              "show": false
+            },
+            "showHeader": true
+          },
+          "pluginVersion": "10.0.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "postgres",
+                "uid": "airflow-postgres"
+              },
+              "format": "table",
+              "rawQuery": true,
+              "rawSql": "SELECT username, last_login, login_count FROM ab_user ORDER BY last_login DESC",
+              "refId": "A"
+            }
+          ],
+          "title": "Airflow Last Login",
+          "type": "table"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "description": "Grafana audit log events from Loki. Shows user login and dashboard access events captured via GF_AUDIT_ENABLED=true (ticket 001). Newest entries at top.",
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 1
+          },
+          "id": null,
+          "options": {
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": false,
+            "showCommonLabels": false,
+            "showLabels": false,
+            "showTime": true,
+            "sortOrder": "Descending",
+            "wrapLogMessage": false
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "expr": "{container=\"rideshare-grafana\"} |= \"action=\" | json",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Grafana Last Login",
+          "type": "logs"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 9
+          },
+          "id": null,
+          "panels": [],
+          "title": "API & Query Access",
+          "type": "row"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "description": "Simulation API HTTP request logs captured by RequestLoggerMiddleware (ticket 005). Shows method, path, status code, and client IP for each incoming request. Newest entries at top.",
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 10
+          },
+          "id": null,
+          "options": {
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": false,
+            "showCommonLabels": false,
+            "showLabels": false,
+            "showTime": true,
+            "sortOrder": "Descending",
+            "wrapLogMessage": false
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "expr": "{container=\"rideshare-simulation\"} |= \"request_log\" | json",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Simulation API Last Request",
+          "type": "logs"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "description": "Trino query completion events from the event listener plugin (ticket 002). Shows QueryCompletedEvent entries including query text, user, and execution time. Newest entries at top.",
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 10
+          },
+          "id": null,
+          "options": {
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": false,
+            "showCommonLabels": false,
+            "showLabels": false,
+            "showTime": true,
+            "sortOrder": "Descending",
+            "wrapLogMessage": false
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "expr": "{container=\"rideshare-trino\"} |= \"QueryCompletedEvent\" | json",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Trino Last Query",
+          "type": "logs"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 18
+          },
+          "id": null,
+          "panels": [],
+          "title": "Storage & Cross-Service Activity",
+          "type": "row"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "description": "MinIO audit log events from Loki. Captures S3-compatible object storage access (GET, PUT, DELETE) once MINIO_AUDIT_CONSOLE_ENABLE=on is set (ticket 003). Newest entries at top.",
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 19
+          },
+          "id": null,
+          "options": {
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": false,
+            "showCommonLabels": false,
+            "showLabels": false,
+            "showTime": true,
+            "sortOrder": "Descending",
+            "wrapLogMessage": false
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "expr": "{container=\"rideshare-minio\"} |= \"audit\" | json",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "MinIO Last Access",
+          "type": "logs"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "description": "Combined activity stream from all monitored services (Grafana, Simulation API, Trino, MinIO). Provides a unified chronological view of all visitor actions across the platform. Newest entries at top.",
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 19
+          },
+          "id": null,
+          "options": {
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": false,
+            "showCommonLabels": true,
+            "showLabels": true,
+            "showTime": true,
+            "sortOrder": "Descending",
+            "wrapLogMessage": false
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "expr": "{container=~\"rideshare-grafana|rideshare-simulation|rideshare-trino|rideshare-minio\"} | json",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Cross-Service Activity Stream",
+          "type": "logs"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 38,
+      "tags": ["admin", "visitor-activity", "audit"],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-24h",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "Visitor Activity",
+      "uid": "visitor-activity",
+      "version": 1
+    }
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
   name: grafana-alerting-rules
   labels:
     app: grafana
@@ -11162,6 +11533,8 @@ spec:
           mountPath: /etc/dashboards/operations
         - name: dashboards-performance
           mountPath: /etc/dashboards/performance
+        - name: dashboards-admin
+          mountPath: /etc/dashboards/admin
         - name: alerting-rules
           mountPath: /etc/grafana/provisioning/alerting
       volumes:
@@ -11186,6 +11559,9 @@ spec:
       - name: dashboards-performance
         configMap:
           name: grafana-dashboards-performance
+      - name: dashboards-admin
+        configMap:
+          name: grafana-dashboards-admin
       - name: alerting-rules
         configMap:
           name: grafana-alerting-rules
