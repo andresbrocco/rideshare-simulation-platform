@@ -117,7 +117,9 @@ export default function VisitorAccessForm() {
             disabled={formState === 'loading'}
           />
           <label htmlFor="visitor-consent" className={styles.consentLabel}>
-            I understand this is a portfolio demo and credentials are temporary
+            I understand that by submitting this form I will receive a welcome email with temporary
+            credentials, my address will be stored for usage tracking, it will not be shared with
+            third parties, and I can request deletion by replying to that email.
           </label>
         </div>
         <button

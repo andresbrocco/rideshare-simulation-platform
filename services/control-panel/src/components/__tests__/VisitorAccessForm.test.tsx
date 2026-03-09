@@ -28,7 +28,7 @@ describe('VisitorAccessForm', () => {
       render(<VisitorAccessForm />);
 
       await user.type(screen.getByLabelText(/email address/i), 'not-an-email');
-      await user.click(screen.getByLabelText(/i understand/i));
+      await user.click(screen.getByLabelText(/i understand that by submitting/i));
 
       expect(screen.getByRole('button', { name: /request access/i })).toBeDisabled();
     });
@@ -47,7 +47,7 @@ describe('VisitorAccessForm', () => {
       render(<VisitorAccessForm />);
 
       await user.type(screen.getByLabelText(/email address/i), 'test@example.com');
-      await user.click(screen.getByLabelText(/i understand/i));
+      await user.click(screen.getByLabelText(/i understand that by submitting/i));
 
       expect(screen.getByRole('button', { name: /request access/i })).toBeEnabled();
     });
@@ -65,7 +65,7 @@ describe('VisitorAccessForm', () => {
       render(<VisitorAccessForm />);
 
       await user.type(screen.getByLabelText(/email address/i), 'visitor@example.com');
-      await user.click(screen.getByLabelText(/i understand/i));
+      await user.click(screen.getByLabelText(/i understand that by submitting/i));
       await user.click(screen.getByRole('button', { name: /request access/i }));
 
       await waitFor(() => {
@@ -85,13 +85,13 @@ describe('VisitorAccessForm', () => {
       render(<VisitorAccessForm />);
 
       await user.type(screen.getByLabelText(/email address/i), 'visitor@example.com');
-      await user.click(screen.getByLabelText(/i understand/i));
+      await user.click(screen.getByLabelText(/i understand that by submitting/i));
       await user.click(screen.getByRole('button', { name: /request access/i }));
 
       expect(screen.getByRole('button', { name: /sending/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /sending/i })).toBeDisabled();
       expect(screen.getByLabelText(/email address/i)).toBeDisabled();
-      expect(screen.getByLabelText(/i understand/i)).toBeDisabled();
+      expect(screen.getByLabelText(/i understand that by submitting/i)).toBeDisabled();
 
       resolve!({ provisioned: true, email_sent: true, failures: [] });
     });
@@ -109,7 +109,7 @@ describe('VisitorAccessForm', () => {
       render(<VisitorAccessForm />);
 
       await user.type(screen.getByLabelText(/email address/i), 'user@example.com');
-      await user.click(screen.getByLabelText(/i understand/i));
+      await user.click(screen.getByLabelText(/i understand that by submitting/i));
       await user.click(screen.getByRole('button', { name: /request access/i }));
 
       await waitFor(() => {
@@ -128,7 +128,7 @@ describe('VisitorAccessForm', () => {
       render(<VisitorAccessForm />);
 
       await user.type(screen.getByLabelText(/email address/i), 'myname@example.com');
-      await user.click(screen.getByLabelText(/i understand/i));
+      await user.click(screen.getByLabelText(/i understand that by submitting/i));
       await user.click(screen.getByRole('button', { name: /request access/i }));
 
       await waitFor(() => {
@@ -147,7 +147,7 @@ describe('VisitorAccessForm', () => {
       render(<VisitorAccessForm />);
 
       await user.type(screen.getByLabelText(/email address/i), 'user@example.com');
-      await user.click(screen.getByLabelText(/i understand/i));
+      await user.click(screen.getByLabelText(/i understand that by submitting/i));
       await user.click(screen.getByRole('button', { name: /request access/i }));
 
       await waitFor(() => {
@@ -171,7 +171,7 @@ describe('VisitorAccessForm', () => {
       render(<VisitorAccessForm />);
 
       await user.type(screen.getByLabelText(/email address/i), 'user@example.com');
-      await user.click(screen.getByLabelText(/i understand/i));
+      await user.click(screen.getByLabelText(/i understand that by submitting/i));
       await user.click(screen.getByRole('button', { name: /request access/i }));
 
       await waitFor(() => {
@@ -190,12 +190,49 @@ describe('VisitorAccessForm', () => {
       render(<VisitorAccessForm />);
 
       await user.type(screen.getByLabelText(/email address/i), 'user@example.com');
-      await user.click(screen.getByLabelText(/i understand/i));
+      await user.click(screen.getByLabelText(/i understand that by submitting/i));
       await user.click(screen.getByRole('button', { name: /request access/i }));
 
       await waitFor(() => {
         expect(screen.getByText(/email delivery failed/i)).toBeInTheDocument();
       });
+    });
+  });
+
+  describe('consent disclosure completeness', () => {
+    it('renders all four required disclosure points in the consent label', () => {
+      render(<VisitorAccessForm />);
+      // Query the label element directly by its text content
+      const consentLabel = screen.getByText(/i understand that by submitting/i);
+      expect(consentLabel).toBeInTheDocument();
+      const text = consentLabel.textContent ?? '';
+      // welcome email with credentials
+      expect(text).toMatch(/welcome email/i);
+      // address stored for usage tracking
+      expect(text).toMatch(/stored for usage tracking/i);
+      // no third-party sharing
+      expect(text).toMatch(/not be shared with third part/i);
+      // deletion by reply
+      expect(text).toMatch(/request deletion by replying/i);
+    });
+
+    it('submit button is disabled when consent is not checked', async () => {
+      const user = userEvent.setup();
+      render(<VisitorAccessForm />);
+
+      await user.type(screen.getByLabelText(/email address/i), 'test@example.com');
+
+      expect(screen.getByRole('button', { name: /request access/i })).toBeDisabled();
+    });
+
+    it('submit button is enabled once consent is checked and email is valid', async () => {
+      const user = userEvent.setup();
+      render(<VisitorAccessForm />);
+
+      await user.type(screen.getByLabelText(/email address/i), 'test@example.com');
+      await user.click(screen.getByLabelText(/i understand that by submitting/i));
+
+      expect(screen.getByRole('button', { name: /request access/i })).toBeEnabled();
     });
   });
 
@@ -209,7 +246,7 @@ describe('VisitorAccessForm', () => {
       render(<VisitorAccessForm />);
 
       await user.type(screen.getByLabelText(/email address/i), 'user@example.com');
-      await user.click(screen.getByLabelText(/i understand/i));
+      await user.click(screen.getByLabelText(/i understand that by submitting/i));
       await user.click(screen.getByRole('button', { name: /request access/i }));
 
       await waitFor(() => {
@@ -229,7 +266,7 @@ describe('VisitorAccessForm', () => {
       render(<VisitorAccessForm />);
 
       await user.type(screen.getByLabelText(/email address/i), 'user@example.com');
-      await user.click(screen.getByLabelText(/i understand/i));
+      await user.click(screen.getByLabelText(/i understand that by submitting/i));
       await user.click(screen.getByRole('button', { name: /request access/i }));
 
       await waitFor(() => {
@@ -246,7 +283,7 @@ describe('VisitorAccessForm', () => {
       render(<VisitorAccessForm />);
 
       await user.type(screen.getByLabelText(/email address/i), 'user@example.com');
-      await user.click(screen.getByLabelText(/i understand/i));
+      await user.click(screen.getByLabelText(/i understand that by submitting/i));
       await user.click(screen.getByRole('button', { name: /request access/i }));
 
       await waitFor(() => {
