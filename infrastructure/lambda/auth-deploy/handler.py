@@ -142,19 +142,17 @@ def _store_visitor_dynamodb(
 ) -> None:
     """Store visitor record in DynamoDB after successful provisioning.
 
-    Writes email, consent timestamp, provisioned service list, bcrypt password
+    Writes email, consent timestamp, provisioned service list, PBKDF2 password
     hash, and created-at timestamp.  DynamoDB failures are logged but do not
     roll back any already-completed service provisioning.
 
     Args:
         email: Visitor email address (partition key).
-        password: Visitor plaintext password — stored as a bcrypt hash only.
+        password: Visitor plaintext password — stored as a PBKDF2-SHA256 hash only.
         provisioned_services: Names of services that were provisioned successfully.
         consent_timestamp: ISO-8601 timestamp of visitor consent, supplied by the caller.
     """
-    import bcrypt
-
-    password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    password_hash = _hash_password_pbkdf2(password)
     created_at = datetime.now(timezone.utc).isoformat()
     table_name = os.environ.get("VISITOR_TABLE_NAME", "rideshare-visitors")
 
@@ -1400,9 +1398,41 @@ def handle_complete_teardown(api_key: str) -> tuple[int, dict[str, Any]]:
 # Secret key used to retrieve the Grafana admin password for provisioning.
 SECRET_GRAFANA_ADMIN_PASSWORD = "rideshare/grafana-admin-password"
 
-# Secrets Manager key where the Trino bcrypt hash is persisted so that a
-# Trino container restart can pick it up via the password.db entrypoint script.
+# Secrets Manager key where the Trino PBKDF2 password hash is persisted so
+# that a Trino container restart can pick it up via the password.db entrypoint script.
 SECRET_TRINO_VISITOR_PASSWORD_HASH = "rideshare/trino-visitor-password-hash"
+
+
+def _hash_password_pbkdf2(password: str) -> str:
+    """Hash a plaintext password with PBKDF2-SHA256 for Trino's file authenticator.
+
+    Produces a hash string in the format accepted by Trino's ``password-file``
+    authenticator (``password-authenticator.name=file``).  The output format is:
+
+        ``{iterations}:{hex_salt}:{hex_hash}``
+
+    where *iterations* is the PBKDF2 iteration count, *hex_salt* is the
+    16-byte random salt encoded as lowercase hex, and *hex_hash* is the
+    32-byte derived key encoded as lowercase hex.
+
+    This is a pure-Python implementation using only standard-library modules
+    (``hashlib``, ``os``), eliminating the native C dependency on a third-party
+    hashing library that cannot be deployed in Lambda without platform-specific
+    compilation.
+
+    Args:
+        password: Plaintext password to hash.
+
+    Returns:
+        Hash string suitable for direct insertion into Trino's ``password.db``
+        file after the ``username:`` prefix.
+    """
+    import hashlib
+
+    iterations = 65536
+    salt = os.urandom(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, iterations)
+    return f"{iterations}:{salt.hex()}:{digest.hex()}"
 
 
 def _get_provisioning_scripts_dir() -> str:
@@ -1566,7 +1596,7 @@ def _provision_minio(
 
 
 def _provision_trino(email: str, password: str) -> dict[str, Any]:
-    """Generate a bcrypt hash of the visitor password and store it in Secrets Manager.
+    """Hash the visitor password with PBKDF2-SHA256 and store it in Secrets Manager.
 
     Trino reads the hashed password from Secrets Manager during container
     start-up via the entrypoint script that regenerates ``password.db``.
@@ -1580,9 +1610,7 @@ def _provision_trino(email: str, password: str) -> dict[str, Any]:
     Returns:
         Dict with ``"status": "stored"`` and ``"email"`` on success.
     """
-    import bcrypt
-
-    hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    hashed = _hash_password_pbkdf2(password)
 
     # Persist the hash so the Trino container can pick it up on restart.
     client = get_secrets_client()
@@ -1654,7 +1682,7 @@ def _provision_visitor(
     - Grafana (viewer role)
     - Airflow (Viewer role)
     - MinIO (visitor-readonly policy)
-    - Trino (bcrypt hash stored in Secrets Manager; restart required)
+    - Trino (PBKDF2 hash stored in Secrets Manager; restart required)
     - Simulation API (viewer account in user store)
 
     Args:
@@ -1698,7 +1726,7 @@ def _provision_visitor(
         failures.append({"service": "minio", "error": str(exc)})
         print(f"MinIO provisioning failed: {exc}")
 
-    # Trino (stores bcrypt hash; manual container restart required)
+    # Trino (stores PBKDF2 hash; manual container restart required)
     try:
         result = _provision_trino(email, password)
         successes.append({"service": "trino", "result": result})
