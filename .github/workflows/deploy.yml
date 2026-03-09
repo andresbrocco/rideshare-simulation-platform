@@ -60,10 +60,12 @@ jobs:
 
       - name: Verify Foundation State
         working-directory: infrastructure/terraform/foundation
+        env:
+          TF_VAR_owner_reply_to_email: ${{ secrets.OWNER_REPLY_TO_EMAIL }}
         run: |
-          terraform init -backend-config="bucket=rideshare-tf-state-${{ secrets.AWS_ACCOUNT_ID }}"
+          terraform init -input=false -backend-config="bucket=rideshare-tf-state-${{ secrets.AWS_ACCOUNT_ID }}"
           EXIT=0
-          terraform plan -detailed-exitcode 2>&1 || EXIT=$?
+          terraform plan -input=false -detailed-exitcode 2>&1 || EXIT=$?
           if [ "$EXIT" -eq 2 ]; then
             echo "::error::Foundation has unapplied changes. Run 'terraform apply' on infrastructure/terraform/foundation/ before deploying."
             exit 1
@@ -72,7 +74,7 @@ jobs:
       - name: Terraform Init (Platform)
         working-directory: infrastructure/terraform/platform
         run: |
-          terraform init \
+          terraform init -input=false \
             -backend-config="bucket=rideshare-tf-state-${{ secrets.AWS_ACCOUNT_ID }}"
 
       - name: Reconcile Terraform State
@@ -100,7 +102,7 @@ jobs:
 
       - name: Terraform Plan (Platform)
         working-directory: infrastructure/terraform/platform
-        run: terraform plan -out=tfplan
+        run: terraform plan -input=false -out=tfplan
 
       - name: Terraform Apply (Platform)
         working-directory: infrastructure/terraform/platform
