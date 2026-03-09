@@ -1760,10 +1760,11 @@ def handle_provision_visitor(
     in the response body rather than causing the whole request to fail.
 
     When ``password`` is ``None`` or an empty string, a secure random password
-    is generated automatically via :func:`secrets.token_urlsafe`.  The plain-
-    text password (generated or supplied) is always returned in the response
-    body under the ``"password"`` key so that downstream steps (e.g. welcome
-    email) can forward it to the visitor.
+    is generated automatically via :func:`secrets.token_urlsafe`.  Credentials
+    are delivered exclusively via the SES welcome email — they are never
+    included in the HTTP response body.  If the welcome email cannot be sent,
+    the entire provisioning request fails with HTTP 500 so the visitor can
+    retry rather than being left without credentials.
 
     Args:
         email: Visitor email address.
@@ -1773,7 +1774,8 @@ def handle_provision_visitor(
 
     Returns:
         Tuple of (HTTP status code, response body dict).  Status 200 when all
-        services succeed; 207 when some services fail; 500 if all fail.
+        services succeed and email is sent; 207 when some services fail but
+        email is sent; 500 if all services fail or the welcome email fails.
     """
     print("Action: provision-visitor")
 
@@ -1808,8 +1810,6 @@ def handle_provision_visitor(
     except Exception as exc:
         print(f"DynamoDB visitor record storage failed (non-fatal): {exc}")
 
-    email_sent = _send_welcome_email(email, name, effective_password)
-
     if not successes:
         print("Action provision-visitor completed: 500")
         return 500, {
@@ -1818,26 +1818,29 @@ def handle_provision_visitor(
             "failures": failures,
         }
 
+    email_sent = _send_welcome_email(email, name, effective_password)
+    if not email_sent:
+        print("Action provision-visitor completed: 500 (email delivery failed)")
+        return 500, {
+            "error": "Welcome email could not be delivered. Please retry.",
+        }
+
     if failures:
         print(
             f"Action provision-visitor completed: 207 ({len(successes)} ok, {len(failures)} failed)"
         )
         return 207, {
             "email": email,
-            "password": effective_password,
             "successes": successes,
             "failures": failures,
-            "email_sent": email_sent,
             "note": "Trino requires a container restart to apply the new password hash.",
         }
 
     print("Action provision-visitor completed: 200")
     return 200, {
         "email": email,
-        "password": effective_password,
         "successes": successes,
         "failures": failures,
-        "email_sent": email_sent,
         "note": "Trino requires a container restart to apply the new password hash.",
     }
 

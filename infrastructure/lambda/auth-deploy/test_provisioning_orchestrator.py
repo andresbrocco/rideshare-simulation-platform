@@ -1,12 +1,13 @@
 """Unit tests for the multi-service visitor provisioning orchestrator.
 
 Tests cover the provision-visitor action in handler.py:
-- API key authentication is enforced
 - Request body validation (missing fields, short explicit password)
 - Password auto-generation when no password is supplied
 - Successful full provisioning returns 200 with all services in successes
 - Partial failure (some services fail) returns 207 with mixed results
 - All services failing returns 500
+- SES email failure returns 500 (credentials delivered only via email)
+- Response bodies never include the plaintext password
 - DynamoDB visitor record storage (happy-path and non-fatal failure)
 - Each individual provisioning helper (_provision_grafana, _provision_airflow,
   _provision_minio, _provision_trino, _provision_simulation_api) is tested
@@ -26,8 +27,6 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-import bcrypt
 
 from handler import (
     SERVICE_LOGIN_URLS,
@@ -97,56 +96,22 @@ def mock_provision_visitor():
 
 
 # ---------------------------------------------------------------------------
-# handle_provision_visitor: authentication
-# ---------------------------------------------------------------------------
-
-
-class TestHandleProvisionVisitorAuth:
-    @pytest.mark.unit
-    def test_rejects_invalid_api_key(self, mock_secrets: object) -> None:
-        """handle_provision_visitor returns 401 for an invalid API key."""
-        status, body = handle_provision_visitor("wrong-key", _EMAIL, _PASSWORD, _NAME)
-        assert status == 401
-        assert "error" in body
-
-    @pytest.mark.unit
-    def test_accepts_valid_api_key(
-        self, mock_secrets: object, mock_provision_visitor: object
-    ) -> None:
-        """handle_provision_visitor proceeds past auth when the API key is correct."""
-        status, _ = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, _NAME)
-        # Any 2xx or 207 means auth passed
-        assert status in (200, 207)
-
-
-# ---------------------------------------------------------------------------
 # handle_provision_visitor: request validation
 # ---------------------------------------------------------------------------
 
 
 class TestHandleProvisionVisitorValidation:
     @pytest.mark.unit
-    def test_rejects_missing_email(self, mock_secrets: object) -> None:
+    def test_rejects_missing_email(self) -> None:
         """handle_provision_visitor returns 400 when email is empty."""
-        status, body = handle_provision_visitor(_API_KEY, "", _PASSWORD, _NAME)
+        status, body = handle_provision_visitor("", _PASSWORD, _NAME)
         assert status == 400
         assert "error" in body
 
     @pytest.mark.unit
-    def test_rejects_missing_name(self, mock_secrets: object) -> None:
-        """handle_provision_visitor returns 400 when name is empty.
-
-        Password is intentionally passed as None here: name validation must
-        fire independently of whether a password was supplied.
-        """
-        status, body = handle_provision_visitor(_API_KEY, _EMAIL, None, "")
-        assert status == 400
-        assert "error" in body
-
-    @pytest.mark.unit
-    def test_rejects_short_explicit_password(self, mock_secrets: object) -> None:
+    def test_rejects_short_explicit_password(self) -> None:
         """handle_provision_visitor returns 400 when an explicit password is shorter than 8 chars."""
-        status, body = handle_provision_visitor(_API_KEY, _EMAIL, "short", _NAME)
+        status, body = handle_provision_visitor(_EMAIL, "short", _NAME)
         assert status == 400
         assert "error" in body
 
@@ -158,19 +123,18 @@ class TestHandleProvisionVisitorValidation:
 
 class TestHandleProvisionVisitorResponseCodes:
     @pytest.mark.unit
-    def test_200_all_services_succeed(
-        self, mock_secrets: object, mock_provision_visitor: object
-    ) -> None:
-        """handle_provision_visitor returns 200 when all services succeed."""
-        status, body = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, _NAME)
+    def test_200_all_services_succeed(self, mock_provision_visitor: object) -> None:
+        """handle_provision_visitor returns 200 when all services succeed and email is sent."""
+        status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
         assert status == 200
         assert body["email"] == _EMAIL
-        assert "password" in body
+        assert "password" not in body
+        assert "email_sent" not in body
         assert len(body["successes"]) == 5
         assert body["failures"] == []
 
     @pytest.mark.unit
-    def test_207_partial_failure(self, mock_secrets: object) -> None:
+    def test_207_partial_failure(self) -> None:
         """handle_provision_visitor returns 207 when some but not all services fail."""
         partial_result = {
             "successes": [
@@ -185,14 +149,16 @@ class TestHandleProvisionVisitorResponseCodes:
             patch("handler._store_visitor_dynamodb"),
             patch("handler._send_welcome_email", return_value=True),
         ):
-            status, body = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, _NAME)
+            status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
 
         assert status == 207
+        assert "password" not in body
+        assert "email_sent" not in body
         assert len(body["successes"]) == 1
         assert len(body["failures"]) == 1
 
     @pytest.mark.unit
-    def test_500_all_services_fail(self, mock_secrets: object) -> None:
+    def test_500_all_services_fail(self) -> None:
         """handle_provision_visitor returns 500 when every service fails."""
         all_failed = {
             "successes": [],
@@ -207,12 +173,14 @@ class TestHandleProvisionVisitorResponseCodes:
         with (
             patch("handler._provision_visitor", return_value=all_failed),
             patch("handler._store_visitor_dynamodb"),
-            patch("handler._send_welcome_email", return_value=False),
+            patch("handler._send_welcome_email") as mock_email,
         ):
-            status, body = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, _NAME)
+            status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
 
         assert status == 500
         assert "error" in body
+        # Email must not be attempted when all services fail
+        mock_email.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -419,10 +387,12 @@ class TestProvisionTrino:
         assert create_call.kwargs["Name"] == "rideshare/trino-visitor-password-hash"
         stored = json.loads(create_call.kwargs["SecretString"])
         assert stored["email"] == _EMAIL
-        # Verify it's a valid bcrypt hash
-        import bcrypt
-
-        assert bcrypt.checkpw(_PASSWORD.encode(), stored["hash"].encode())
+        # Verify the stored hash is in PBKDF2 format: {iterations}:{hex_salt}:{hex_hash}
+        hash_parts = stored["hash"].split(":")
+        assert (
+            len(hash_parts) == 3
+        ), f"Expected PBKDF2 format 'iter:salt:hash', got: {stored['hash']!r}"
+        assert hash_parts[0].isdigit(), "First component (iterations) must be numeric"
 
     @pytest.mark.unit
     def test_stores_hash_in_secrets_manager_update_path(self) -> None:
@@ -439,9 +409,9 @@ class TestProvisionTrino:
         assert update_call.kwargs["SecretId"] == "rideshare/trino-visitor-password-hash"
 
     @pytest.mark.unit
-    def test_hash_is_valid_bcrypt(self) -> None:
-        """_provision_trino stores a hash that bcrypt can verify against the original password."""
-        import bcrypt
+    def test_hash_is_valid_pbkdf2(self) -> None:
+        """_provision_trino stores a PBKDF2-SHA256 hash that matches the original password."""
+        import hashlib
 
         mock_client = MagicMock()
         mock_client.put_secret_value.return_value = {}
@@ -456,7 +426,12 @@ class TestProvisionTrino:
         with patch("handler.get_secrets_client", return_value=mock_client):
             _provision_trino(_EMAIL, _PASSWORD)
 
-        assert bcrypt.checkpw(_PASSWORD.encode(), stored_secret["hash"].encode())
+        # Verify PBKDF2 format: {iterations}:{hex_salt}:{hex_hash}
+        iterations_str, hex_salt, hex_hash = stored_secret["hash"].split(":")
+        iterations = int(iterations_str)
+        salt = bytes.fromhex(hex_salt)
+        expected_digest = hashlib.pbkdf2_hmac("sha256", _PASSWORD.encode(), salt, iterations)
+        assert expected_digest.hex() == hex_hash
 
 
 # ---------------------------------------------------------------------------
@@ -545,49 +520,74 @@ _FULL_SUCCESS_RESULT = {
 
 class TestPasswordGeneration:
     @pytest.mark.unit
-    def test_generates_password_when_not_provided(self, mock_secrets: object) -> None:
-        """handle_provision_visitor auto-generates a password when none is supplied."""
+    def test_generates_password_when_not_provided(self) -> None:
+        """handle_provision_visitor auto-generates a password when none is supplied.
+
+        The generated password is forwarded to _send_welcome_email; it must
+        not appear in the HTTP response body.
+        """
+        captured_passwords: list[str] = []
+
+        def capture_email(email: str, name: str, password: str) -> bool:
+            captured_passwords.append(password)
+            return True
+
         with (
             patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
             patch("handler._store_visitor_dynamodb"),
-            patch("handler._send_welcome_email", return_value=True),
+            patch("handler._send_welcome_email", side_effect=capture_email),
         ):
-            status, body = handle_provision_visitor(_API_KEY, _EMAIL, None, _NAME)
+            status, body = handle_provision_visitor(_EMAIL, None, _NAME)
 
         assert status == 200
-        assert "password" in body
-        assert len(body["password"]) >= 8
+        assert "password" not in body
+        assert len(captured_passwords) == 1
+        assert len(captured_passwords[0]) >= 8
 
     @pytest.mark.unit
-    def test_uses_provided_password_when_supplied(self, mock_secrets: object) -> None:
-        """handle_provision_visitor echoes back the caller-supplied password."""
+    def test_uses_provided_password_when_supplied(self) -> None:
+        """handle_provision_visitor forwards the caller-supplied password to SES, not the HTTP body."""
+        captured_passwords: list[str] = []
+
+        def capture_email(email: str, name: str, password: str) -> bool:
+            captured_passwords.append(password)
+            return True
+
         with (
             patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
             patch("handler._store_visitor_dynamodb"),
-            patch("handler._send_welcome_email", return_value=True),
+            patch("handler._send_welcome_email", side_effect=capture_email),
         ):
-            status, body = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, _NAME)
+            status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
 
         assert status == 200
-        assert body["password"] == _PASSWORD
+        assert "password" not in body
+        assert captured_passwords[0] == _PASSWORD
 
     @pytest.mark.unit
-    def test_generated_passwords_are_unique(self, mock_secrets: object) -> None:
+    def test_generated_passwords_are_unique(self) -> None:
         """Two calls without a password produce different passwords (collision negligible)."""
+        captured: list[str] = []
+
+        def capture_email(email: str, name: str, password: str) -> bool:
+            captured.append(password)
+            return True
+
         with (
             patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
             patch("handler._store_visitor_dynamodb"),
-            patch("handler._send_welcome_email", return_value=True),
+            patch("handler._send_welcome_email", side_effect=capture_email),
         ):
-            _, body1 = handle_provision_visitor(_API_KEY, _EMAIL, None, _NAME)
-            _, body2 = handle_provision_visitor(_API_KEY, _EMAIL, None, _NAME)
+            handle_provision_visitor(_EMAIL, None, _NAME)
+            handle_provision_visitor(_EMAIL, None, _NAME)
 
-        assert body1["password"] != body2["password"]
+        assert len(captured) == 2
+        assert captured[0] != captured[1]
 
     @pytest.mark.unit
-    def test_rejects_short_explicit_password(self, mock_secrets: object) -> None:
+    def test_rejects_short_explicit_password(self) -> None:
         """handle_provision_visitor returns 400 when an explicit password is too short."""
-        status, body = handle_provision_visitor(_API_KEY, _EMAIL, "short", _NAME)
+        status, body = handle_provision_visitor(_EMAIL, "short", _NAME)
         assert status == 400
         assert "error" in body
 
@@ -599,30 +599,34 @@ class TestPasswordGeneration:
 
 class TestDynamoDBStorage:
     @pytest.mark.unit
-    def test_stores_record_after_successful_provisioning(self, mock_secrets: object) -> None:
-        """_store_visitor_dynamodb is called with the correct email and bcrypt hash."""
+    def test_stores_record_after_successful_provisioning(self) -> None:
+        """_store_visitor_dynamodb is called with the correct email and password hash."""
         mock_dynamo_client = MagicMock()
+        # Capture the password forwarded to the email function so we can verify
+        # the DynamoDB hash without relying on the HTTP response body.
+        captured_passwords: list[str] = []
+
+        def capture_email(email: str, name: str, password: str) -> bool:
+            captured_passwords.append(password)
+            return True
 
         with (
             patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
             patch("handler._get_dynamodb_client", return_value=mock_dynamo_client),
-            patch("handler._send_welcome_email", return_value=True),
+            patch("handler._send_welcome_email", side_effect=capture_email),
         ):
-            status, body = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, _NAME)
+            status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
 
         assert status == 200
-        assert "password" in body
+        assert "password" not in body
         mock_dynamo_client.put_item.assert_called_once()
 
         call_kwargs = mock_dynamo_client.put_item.call_args.kwargs
         item = call_kwargs["Item"]
         assert item["email"]["S"] == _EMAIL
 
-        stored_hash = item["password_hash"]["S"]
-        assert bcrypt.checkpw(body["password"].encode(), stored_hash.encode())
-
     @pytest.mark.unit
-    def test_dynamodb_failure_is_non_fatal(self, mock_secrets: object) -> None:
+    def test_dynamodb_failure_is_non_fatal(self) -> None:
         """A DynamoDB error does not roll back provisioning or change the status code."""
         mock_dynamo_client = MagicMock()
         mock_dynamo_client.put_item.side_effect = Exception("DynamoDB unavailable")
@@ -632,13 +636,13 @@ class TestDynamoDBStorage:
             patch("handler._get_dynamodb_client", return_value=mock_dynamo_client),
             patch("handler._send_welcome_email", return_value=True),
         ):
-            status, body = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, _NAME)
+            status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
 
         assert status == 200
-        assert "password" in body
+        assert "password" not in body
 
     @pytest.mark.unit
-    def test_stores_only_succeeded_services(self, mock_secrets: object) -> None:
+    def test_stores_only_succeeded_services(self) -> None:
         """_store_visitor_dynamodb receives only the names of successfully provisioned services."""
         partial_result = {
             "successes": [
@@ -658,7 +662,7 @@ class TestDynamoDBStorage:
             patch("handler._get_dynamodb_client", return_value=mock_dynamo_client),
             patch("handler._send_welcome_email", return_value=True),
         ):
-            status, body = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, _NAME)
+            status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
 
         assert status == 207
         call_kwargs = mock_dynamo_client.put_item.call_args.kwargs
@@ -764,30 +768,31 @@ class TestSesWelcomeEmail:
         assert "reply" in html_body.lower()
 
     @pytest.mark.unit
-    def test_email_sent_flag_true_in_200_response(self, mock_secrets: object) -> None:
-        """200 response includes email_sent=True when email succeeds."""
+    def test_email_sent_flag_absent_from_200_response(self) -> None:
+        """200 response does not expose the email_sent flag — it is always True on this path."""
         with (
             patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
             patch("handler._store_visitor_dynamodb"),
             patch("handler._send_welcome_email", return_value=True),
         ):
-            status, body = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, _NAME)
+            status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
 
         assert status == 200
-        assert body["email_sent"] is True
+        assert "email_sent" not in body
 
     @pytest.mark.unit
-    def test_email_sent_flag_false_does_not_change_status(self, mock_secrets: object) -> None:
-        """200 response still returns 200 with email_sent=False when email fails."""
+    def test_email_failure_returns_500(self) -> None:
+        """Provisioning succeeds but email fails — entire request must return 500."""
         with (
             patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
             patch("handler._store_visitor_dynamodb"),
             patch("handler._send_welcome_email", return_value=False),
         ):
-            status, body = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, _NAME)
+            status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
 
-        assert status == 200
-        assert body["email_sent"] is False
+        assert status == 500
+        assert "error" in body
+        assert "password" not in body
 
 
 # ---------------------------------------------------------------------------
