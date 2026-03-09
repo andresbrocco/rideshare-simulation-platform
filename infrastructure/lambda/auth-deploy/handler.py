@@ -2,9 +2,12 @@ import base64
 import concurrent.futures
 import json
 import os
+import secrets
 import time
 import urllib.request
 import urllib.error
+from datetime import timezone
+from datetime import datetime
 from typing import Any
 
 import boto3
@@ -100,6 +103,66 @@ def get_secrets_client() -> boto3.client:
         endpoint_url = f"http://{os.environ['LOCALSTACK_HOSTNAME']}:4566"
 
     return boto3.client("secretsmanager", config=config, endpoint_url=endpoint_url)
+
+
+def _get_dynamodb_client() -> boto3.client:
+    """Get DynamoDB client configured for LocalStack or AWS."""
+    config = Config(
+        region_name=os.environ.get("AWS_REGION", "us-east-1"),
+        signature_version="v4",
+        retries={"max_attempts": 3, "mode": "standard"},
+    )
+
+    endpoint_url = None
+    if os.environ.get("LOCALSTACK_HOSTNAME"):
+        endpoint_url = f"http://{os.environ['LOCALSTACK_HOSTNAME']}:4566"
+
+    return boto3.client("dynamodb", config=config, endpoint_url=endpoint_url)
+
+
+def _store_visitor_dynamodb(
+    email: str,
+    password: str,
+    provisioned_services: list[str],
+    consent_timestamp: str,
+) -> None:
+    """Store visitor record in DynamoDB after successful provisioning.
+
+    Writes email, consent timestamp, provisioned service list, bcrypt password
+    hash, and created-at timestamp.  DynamoDB failures are logged but do not
+    roll back any already-completed service provisioning.
+
+    Args:
+        email: Visitor email address (partition key).
+        password: Visitor plaintext password — stored as a bcrypt hash only.
+        provisioned_services: Names of services that were provisioned successfully.
+        consent_timestamp: ISO-8601 timestamp of visitor consent, supplied by the caller.
+    """
+    import bcrypt
+
+    password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    created_at = datetime.now(timezone.utc).isoformat()
+    table_name = os.environ.get("VISITOR_TABLE_NAME", "rideshare-visitors")
+
+    # DynamoDB String Set (SS) requires at least one element; fall back to an
+    # empty List (L) when no services were provisioned.
+    services_attr: dict[str, Any]
+    if provisioned_services:
+        services_attr = {"SS": provisioned_services}
+    else:
+        services_attr = {"L": []}
+
+    client = _get_dynamodb_client()
+    client.put_item(
+        TableName=table_name,
+        Item={
+            "email": {"S": email},
+            "consent_timestamp": {"S": consent_timestamp},
+            "provisioned_services": services_attr,
+            "password_hash": {"S": password_hash},
+            "created_at": {"S": created_at},
+        },
+    )
 
 
 def get_ssm_client() -> boto3.client:
@@ -1407,7 +1470,7 @@ def _provision_visitor(
 def handle_provision_visitor(
     api_key: str,
     email: str,
-    password: str,
+    password: str | None,
     name: str,
 ) -> tuple[int, dict[str, Any]]:
     """Handle provision-visitor action.
@@ -1417,16 +1480,22 @@ def handle_provision_visitor(
     authentication.  Partial failures are included in the response body
     rather than causing the whole request to fail.
 
+    When ``password`` is ``None`` or an empty string, a secure random password
+    is generated automatically via :func:`secrets.token_urlsafe`.  The plain-
+    text password (generated or supplied) is always returned in the response
+    body under the ``"password"`` key so that downstream steps (e.g. welcome
+    email) can forward it to the visitor.
+
     Args:
         api_key: Admin API key for authentication.
         email: Visitor email address.
-        password: Visitor plaintext password (min 8 characters).
+        password: Visitor plaintext password (min 8 characters), or ``None``
+            to have one generated automatically.
         name: Visitor display name.
 
     Returns:
-        Tuple of (HTTP status code, response body dict).  Status 200 when at
-        least one service was provisioned successfully; 207 when some services
-        failed; 500 if all services failed.
+        Tuple of (HTTP status code, response body dict).  Status 200 when all
+        services succeed; 207 when some services fail; 500 if all fail.
     """
     print("Action: provision-visitor")
 
@@ -1434,17 +1503,33 @@ def handle_provision_visitor(
         print("Action provision-visitor completed: 401")
         return 401, {"error": "Invalid password"}
 
-    if not email or not password or not name:
+    if not email or not name:
         print("Action provision-visitor completed: 400")
-        return 400, {"error": "Missing required fields: email, password, name"}
+        return 400, {"error": "Missing required fields: email, name"}
 
-    if len(password) < 8:
-        print("Action provision-visitor completed: 400")
-        return 400, {"error": "Password must be at least 8 characters"}
+    # Generate a password when the caller omits one; validate explicit passwords.
+    if not password:
+        effective_password = secrets.token_urlsafe(16)
+    else:
+        if len(password) < 8:
+            print("Action provision-visitor completed: 400")
+            return 400, {"error": "Password must be at least 8 characters"}
+        effective_password = password
 
-    result = _provision_visitor(email, password, name)
+    consent_timestamp = datetime.now(timezone.utc).isoformat()
+
+    result = _provision_visitor(email, effective_password, name)
     successes = result["successes"]
     failures = result["failures"]
+
+    succeeded_service_names = [s["service"] for s in successes]
+
+    try:
+        _store_visitor_dynamodb(
+            email, effective_password, succeeded_service_names, consent_timestamp
+        )
+    except Exception as exc:
+        print(f"DynamoDB visitor record storage failed (non-fatal): {exc}")
 
     if not successes:
         print("Action provision-visitor completed: 500")
@@ -1460,6 +1545,7 @@ def handle_provision_visitor(
         )
         return 207, {
             "email": email,
+            "password": effective_password,
             "successes": successes,
             "failures": failures,
             "note": "Trino requires a container restart to apply the new password hash.",
@@ -1468,6 +1554,7 @@ def handle_provision_visitor(
     print("Action provision-visitor completed: 200")
     return 200, {
         "email": email,
+        "password": effective_password,
         "successes": successes,
         "failures": failures,
         "note": "Trino requires a container restart to apply the new password hash.",
@@ -1559,7 +1646,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
             return response_body
         if action == "provision-visitor":
             visitor_email = event.get("email", "")
-            visitor_password = event.get("password", "")
+            visitor_password = event.get("password") or None
             visitor_name = event.get("name", "")
             _, response_body = handle_provision_visitor(
                 api_key or "", visitor_email, visitor_password, visitor_name
@@ -1667,7 +1754,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         status_code, response_body = handle_set_teardown_run_id(api_key, run_id)
     elif action == "provision-visitor":
         visitor_email = body.get("email", "")
-        visitor_password = body.get("password", "")
+        visitor_password = body.get("password") or None
         visitor_name = body.get("name", "")
         status_code, response_body = handle_provision_visitor(
             api_key, visitor_email, visitor_password, visitor_name

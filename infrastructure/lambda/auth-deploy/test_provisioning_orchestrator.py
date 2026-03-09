@@ -2,10 +2,12 @@
 
 Tests cover the provision-visitor action in handler.py:
 - API key authentication is enforced
-- Request body validation (missing fields, short password)
+- Request body validation (missing fields, short explicit password)
+- Password auto-generation when no password is supplied
 - Successful full provisioning returns 200 with all services in successes
 - Partial failure (some services fail) returns 207 with mixed results
 - All services failing returns 500
+- DynamoDB visitor record storage (happy-path and non-fatal failure)
 - Each individual provisioning helper (_provision_grafana, _provision_airflow,
   _provision_minio, _provision_trino, _provision_simulation_api) is tested
   for both happy-path and error propagation
@@ -23,6 +25,8 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+import bcrypt
 
 from handler import (
     _provision_airflow,
@@ -63,9 +67,12 @@ def mock_secrets():
 
 @pytest.fixture()
 def mock_provision_visitor():
-    """Mock _provision_visitor to return a full-success result."""
-    with patch("handler._provision_visitor") as mock:
-        mock.return_value = {
+    """Mock _provision_visitor to return a full-success result and skip DynamoDB."""
+    with (
+        patch("handler._provision_visitor") as mock_pv,
+        patch("handler._store_visitor_dynamodb"),
+    ):
+        mock_pv.return_value = {
             "successes": [
                 {"service": "grafana", "result": {"status": "created", "user_id": 42}},
                 {"service": "airflow", "result": {"status": "created", "username": _EMAIL}},
@@ -78,7 +85,7 @@ def mock_provision_visitor():
             ],
             "failures": [],
         }
-        yield mock
+        yield mock_pv
 
 
 # ---------------------------------------------------------------------------
@@ -118,22 +125,19 @@ class TestHandleProvisionVisitorValidation:
         assert "error" in body
 
     @pytest.mark.unit
-    def test_rejects_missing_password(self, mock_secrets: object) -> None:
-        """handle_provision_visitor returns 400 when password is empty."""
-        status, body = handle_provision_visitor(_API_KEY, _EMAIL, "", _NAME)
-        assert status == 400
-        assert "error" in body
-
-    @pytest.mark.unit
     def test_rejects_missing_name(self, mock_secrets: object) -> None:
-        """handle_provision_visitor returns 400 when name is empty."""
-        status, body = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, "")
+        """handle_provision_visitor returns 400 when name is empty.
+
+        Password is intentionally passed as None here: name validation must
+        fire independently of whether a password was supplied.
+        """
+        status, body = handle_provision_visitor(_API_KEY, _EMAIL, None, "")
         assert status == 400
         assert "error" in body
 
     @pytest.mark.unit
-    def test_rejects_short_password(self, mock_secrets: object) -> None:
-        """handle_provision_visitor returns 400 when password is shorter than 8 chars."""
+    def test_rejects_short_explicit_password(self, mock_secrets: object) -> None:
+        """handle_provision_visitor returns 400 when an explicit password is shorter than 8 chars."""
         status, body = handle_provision_visitor(_API_KEY, _EMAIL, "short", _NAME)
         assert status == 400
         assert "error" in body
@@ -153,6 +157,7 @@ class TestHandleProvisionVisitorResponseCodes:
         status, body = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, _NAME)
         assert status == 200
         assert body["email"] == _EMAIL
+        assert "password" in body
         assert len(body["successes"]) == 5
         assert body["failures"] == []
 
@@ -167,7 +172,10 @@ class TestHandleProvisionVisitorResponseCodes:
                 {"service": "airflow", "error": "Connection refused"},
             ],
         }
-        with patch("handler._provision_visitor", return_value=partial_result):
+        with (
+            patch("handler._provision_visitor", return_value=partial_result),
+            patch("handler._store_visitor_dynamodb"),
+        ):
             status, body = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, _NAME)
 
         assert status == 207
@@ -187,7 +195,10 @@ class TestHandleProvisionVisitorResponseCodes:
                 {"service": "simulation_api", "error": "timeout"},
             ],
         }
-        with patch("handler._provision_visitor", return_value=all_failed):
+        with (
+            patch("handler._provision_visitor", return_value=all_failed),
+            patch("handler._store_visitor_dynamodb"),
+        ):
             status, body = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, _NAME)
 
         assert status == 500
@@ -500,3 +511,141 @@ class TestProvisionSimulationApi:
                 _provision_simulation_api(_EMAIL, _PASSWORD, _NAME)
 
         assert exc_info.value.code == 503
+
+
+# ---------------------------------------------------------------------------
+# Password generation
+# ---------------------------------------------------------------------------
+
+
+_FULL_SUCCESS_RESULT = {
+    "successes": [
+        {"service": "grafana", "result": {"status": "created", "user_id": 42}},
+        {"service": "airflow", "result": {"status": "created", "username": _EMAIL}},
+        {"service": "minio", "result": {"status": "created", "email": _EMAIL}},
+        {"service": "trino", "result": {"status": "stored", "email": _EMAIL}},
+        {
+            "service": "simulation_api",
+            "result": {"email": _EMAIL, "role": "viewer", "status": "created"},
+        },
+    ],
+    "failures": [],
+}
+
+
+class TestPasswordGeneration:
+    @pytest.mark.unit
+    def test_generates_password_when_not_provided(self, mock_secrets: object) -> None:
+        """handle_provision_visitor auto-generates a password when none is supplied."""
+        with (
+            patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
+            patch("handler._store_visitor_dynamodb"),
+        ):
+            status, body = handle_provision_visitor(_API_KEY, _EMAIL, None, _NAME)
+
+        assert status == 200
+        assert "password" in body
+        assert len(body["password"]) >= 8
+
+    @pytest.mark.unit
+    def test_uses_provided_password_when_supplied(self, mock_secrets: object) -> None:
+        """handle_provision_visitor echoes back the caller-supplied password."""
+        with (
+            patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
+            patch("handler._store_visitor_dynamodb"),
+        ):
+            status, body = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, _NAME)
+
+        assert status == 200
+        assert body["password"] == _PASSWORD
+
+    @pytest.mark.unit
+    def test_generated_passwords_are_unique(self, mock_secrets: object) -> None:
+        """Two calls without a password produce different passwords (collision negligible)."""
+        with (
+            patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
+            patch("handler._store_visitor_dynamodb"),
+        ):
+            _, body1 = handle_provision_visitor(_API_KEY, _EMAIL, None, _NAME)
+            _, body2 = handle_provision_visitor(_API_KEY, _EMAIL, None, _NAME)
+
+        assert body1["password"] != body2["password"]
+
+    @pytest.mark.unit
+    def test_rejects_short_explicit_password(self, mock_secrets: object) -> None:
+        """handle_provision_visitor returns 400 when an explicit password is too short."""
+        status, body = handle_provision_visitor(_API_KEY, _EMAIL, "short", _NAME)
+        assert status == 400
+        assert "error" in body
+
+
+# ---------------------------------------------------------------------------
+# DynamoDB storage
+# ---------------------------------------------------------------------------
+
+
+class TestDynamoDBStorage:
+    @pytest.mark.unit
+    def test_stores_record_after_successful_provisioning(self, mock_secrets: object) -> None:
+        """_store_visitor_dynamodb is called with the correct email and bcrypt hash."""
+        mock_dynamo_client = MagicMock()
+
+        with (
+            patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
+            patch("handler._get_dynamodb_client", return_value=mock_dynamo_client),
+        ):
+            status, body = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, _NAME)
+
+        assert status == 200
+        assert "password" in body
+        mock_dynamo_client.put_item.assert_called_once()
+
+        call_kwargs = mock_dynamo_client.put_item.call_args.kwargs
+        item = call_kwargs["Item"]
+        assert item["email"]["S"] == _EMAIL
+
+        stored_hash = item["password_hash"]["S"]
+        assert bcrypt.checkpw(body["password"].encode(), stored_hash.encode())
+
+    @pytest.mark.unit
+    def test_dynamodb_failure_is_non_fatal(self, mock_secrets: object) -> None:
+        """A DynamoDB error does not roll back provisioning or change the status code."""
+        mock_dynamo_client = MagicMock()
+        mock_dynamo_client.put_item.side_effect = Exception("DynamoDB unavailable")
+
+        with (
+            patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
+            patch("handler._get_dynamodb_client", return_value=mock_dynamo_client),
+        ):
+            status, body = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, _NAME)
+
+        assert status == 200
+        assert "password" in body
+
+    @pytest.mark.unit
+    def test_stores_only_succeeded_services(self, mock_secrets: object) -> None:
+        """_store_visitor_dynamodb receives only the names of successfully provisioned services."""
+        partial_result = {
+            "successes": [
+                {"service": "grafana", "result": {"status": "created", "user_id": 1}},
+            ],
+            "failures": [
+                {"service": "airflow", "error": "Connection refused"},
+                {"service": "minio", "error": "timeout"},
+                {"service": "trino", "error": "timeout"},
+                {"service": "simulation_api", "error": "timeout"},
+            ],
+        }
+        mock_dynamo_client = MagicMock()
+
+        with (
+            patch("handler._provision_visitor", return_value=partial_result),
+            patch("handler._get_dynamodb_client", return_value=mock_dynamo_client),
+        ):
+            status, body = handle_provision_visitor(_API_KEY, _EMAIL, _PASSWORD, _NAME)
+
+        assert status == 207
+        call_kwargs = mock_dynamo_client.put_item.call_args.kwargs
+        item = call_kwargs["Item"]
+        # Only grafana succeeded — it must be the sole entry in provisioned_services.
+        assert item["provisioned_services"]["SS"] == ["grafana"]
