@@ -318,3 +318,42 @@ resource "aws_route53_record" "ses_verification" {
   ttl     = 600
   records = [aws_ses_domain_identity.main.verification_token]
 }
+
+# -----------------------------------------------------------------------------
+# SES — DKIM signing (REQ-001)
+# -----------------------------------------------------------------------------
+resource "aws_ses_domain_dkim" "main" {
+  domain = aws_ses_domain_identity.main.domain
+}
+
+resource "aws_route53_record" "ses_dkim" {
+  count = 3
+
+  zone_id = module.route53.zone_id
+  name    = "${aws_ses_domain_dkim.main.dkim_tokens[count.index]}._domainkey.${var.domain_name}"
+  type    = "CNAME"
+  ttl     = 600
+  records = ["${aws_ses_domain_dkim.main.dkim_tokens[count.index]}.dkim.amazonses.com"]
+}
+
+# -----------------------------------------------------------------------------
+# SES — SPF authorisation (REQ-002)
+# -----------------------------------------------------------------------------
+resource "aws_route53_record" "ses_spf" {
+  zone_id = module.route53.zone_id
+  name    = var.domain_name
+  type    = "TXT"
+  ttl     = 600
+  records = ["v=spf1 include:amazonses.com ~all"]
+}
+
+# -----------------------------------------------------------------------------
+# SES — DMARC policy (REQ-003)
+# -----------------------------------------------------------------------------
+resource "aws_route53_record" "ses_dmarc" {
+  zone_id = module.route53.zone_id
+  name    = "_dmarc.${var.domain_name}"
+  type    = "TXT"
+  ttl     = 600
+  records = ["v=DMARC1; p=none; rua=mailto:dmarc@${var.domain_name}"]
+}
