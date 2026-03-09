@@ -53,3 +53,18 @@ datasources:
         enabled: true
       serviceMap:
         datasourceUid: prometheus
+
+  # Airflow metadata DB — queries ab_user.last_login for visitor activity dashboard
+  - name: Airflow Postgres
+    uid: airflow-postgres
+    type: postgres
+    access: proxy
+    url: postgres-airflow:5432
+    database: airflow
+    isDefault: false
+    editable: false
+    jsonData:
+      sslmode: disable
+    secureJsonData:
+      password: ${POSTGRES_AIRFLOW_PASSWORD}
+    user: ${POSTGRES_AIRFLOW_USER}

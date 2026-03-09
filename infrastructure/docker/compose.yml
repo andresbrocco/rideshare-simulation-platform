@@ -975,6 +975,9 @@ services:
       - -c
       - |
         set -a && . /secrets/monitoring.env && set +a
+        if [ -f /secrets/data-pipeline.env ]; then
+          set -a && . /secrets/data-pipeline.env && set +a
+        fi
         exec /run.sh
     volumes:
       - ../../services/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
