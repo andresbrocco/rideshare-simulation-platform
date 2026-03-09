@@ -300,6 +300,17 @@ jobs:
       - name: Generate Trino admin password hash
         run: |
           pip install bcrypt --quiet
+
+          # Ensure the Trino secrets exist (created outside Terraform)
+          for SECRET in rideshare/trino-admin-password-hash rideshare/trino-visitor-password-hash; do
+            if ! aws secretsmanager describe-secret --secret-id "$SECRET" > /dev/null 2>&1; then
+              aws secretsmanager create-secret --name "$SECRET" \
+                --secret-string '{"hash":"placeholder"}' \
+                --description "Trino password hash (auto-created by deploy)"
+              echo "Created $SECRET"
+            fi
+          done
+
           TRINO_ADMIN_PW=$(aws secretsmanager get-secret-value \
             --secret-id rideshare/data-pipeline --query SecretString --output text | jq -r '.ADMIN_PASSWORD')
           export TRINO_ADMIN_PW
