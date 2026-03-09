@@ -6,7 +6,7 @@ Provisions all AWS infrastructure that must exist before the EKS cluster is crea
 
 ## Responsibility Boundaries
 
-- **Owns**: VPC, subnets, security groups, Route 53 hosted zone, ACM certificate, S3 buckets (bronze/silver/gold/checkpoints/frontend/logs/loki/tempo/build_assets), ECR repositories, IAM roles for EKS/CI/workloads, Secrets Manager secrets, Glue catalog databases (bronze/silver/gold), EventBridge Scheduler role, Lambda `rideshare-auth-deploy`, and Glue catalog databases for the medallion layers
+- **Owns**: VPC, subnets, security groups, Route 53 hosted zone, ACM certificate, S3 buckets (bronze/silver/gold/checkpoints/frontend/logs/loki/tempo/build_assets), ECR repositories, IAM roles for EKS/CI/workloads, Secrets Manager secrets, Glue catalog databases (bronze/silver/gold), EventBridge Scheduler role, Lambda `rideshare-auth-deploy`, Glue catalog databases for the medallion layers, and SES domain identity with DKIM/SPF/DMARC DNS records
 - **Delegates to**: `infrastructure/terraform/platform` for EKS cluster, node groups, ALB, RDS, and DNS records pointing at the cluster
 - **Does not handle**: Kubernetes manifests, application deployments, or runtime configuration
 
