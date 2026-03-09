@@ -408,6 +408,8 @@ services:
     depends_on:
       secrets-init:
         condition: service_completed_successfully
+    environment:
+      MINIO_AUDIT_CONSOLE_ENABLE: "on"
     entrypoint:
       - /bin/sh
       - -c
