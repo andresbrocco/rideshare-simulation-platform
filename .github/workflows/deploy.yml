@@ -82,6 +82,11 @@ jobs:
         run: |
           echo "Importing orphaned resources into Terraform state (safe to fail)..."
 
+          # Core resources (may already exist from a previous partial apply)
+          terraform import 'module.eks.aws_eks_cluster.main' 'rideshare-eks' 2>&1 || true
+          terraform import 'module.alb.aws_iam_role.alb_controller' 'aws-load-balancer-controller' 2>&1 || true
+          terraform import 'module.rds.aws_db_subnet_group.main' 'rideshare-rds-subnet-group' 2>&1 || true
+
           # EKS addons (may already exist from a previous partial apply)
           terraform import 'module.eks.aws_eks_addon.ebs_csi' 'rideshare-eks:aws-ebs-csi-driver' 2>&1 || true
           terraform import 'module.eks.aws_eks_addon.coredns' 'rideshare-eks:coredns' 2>&1 || true
