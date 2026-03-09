@@ -217,6 +217,59 @@ export async function shrinkSession(apiKey: string): Promise<SessionAdjustRespon
   );
 }
 
+export interface ProvisionVisitorResponse {
+  provisioned: boolean;
+  email_sent: boolean;
+  failures: string[];
+}
+
+function isProvisionVisitorResponse(data: unknown): data is ProvisionVisitorResponse {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    typeof (data as ProvisionVisitorResponse).provisioned === 'boolean' &&
+    typeof (data as ProvisionVisitorResponse).email_sent === 'boolean' &&
+    Array.isArray((data as ProvisionVisitorResponse).failures)
+  );
+}
+
+export async function provisionVisitor(email: string): Promise<ProvisionVisitorResponse> {
+  const lambdaUrl = getLambdaUrl();
+
+  if (!lambdaUrl) {
+    throw new LambdaServiceError('Lambda URL not configured', 'INVALID_RESPONSE');
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(lambdaUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'provision-visitor', email }),
+    });
+  } catch {
+    throw new LambdaServiceError('Visitor provisioning service unavailable', 'NETWORK_ERROR');
+  }
+
+  // 207 Multi-Status = partial success — treat as success at application level
+  if (!response.ok && response.status !== 207) {
+    throw new LambdaServiceError(`Lambda returned ${response.status}`, 'LAMBDA_ERROR');
+  }
+
+  let data: unknown;
+  try {
+    data = await response.json();
+  } catch {
+    throw new LambdaServiceError('Invalid response format from Lambda', 'INVALID_RESPONSE');
+  }
+
+  if (!isProvisionVisitorResponse(data)) {
+    throw new LambdaServiceError('Invalid response format from Lambda', 'INVALID_RESPONSE');
+  }
+
+  return data;
+}
+
 export interface DeployProgressResponse {
   services: Record<string, boolean>;
   all_ready: boolean;

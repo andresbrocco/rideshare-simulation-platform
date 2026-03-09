@@ -60,6 +60,7 @@ import Zoom from 'react-medium-image-zoom';
 import { ArchitectureDiagram } from './ArchitectureDiagram';
 import { TripLifecycleAnimation } from './TripLifecycleAnimation';
 import DeployPanel from './DeployPanel';
+import VisitorAccessForm from './VisitorAccessForm';
 
 const LINKEDIN_URL = 'https://www.linkedin.com/in/andresbrocco/';
 
@@ -1020,6 +1021,8 @@ export function LandingPage({
 
           <section id="explore" className="landing-section landing-services">
             <h2>Explore the Platform</h2>
+
+            <VisitorAccessForm />
 
             <DeployPanel
               isLocal={isLocal}

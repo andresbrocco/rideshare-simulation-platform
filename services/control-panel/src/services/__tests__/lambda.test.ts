@@ -8,6 +8,7 @@ import {
   getTeardownStatus,
   extendSession,
   shrinkSession,
+  provisionVisitor,
   LambdaServiceError,
 } from '../lambda';
 
@@ -365,6 +366,98 @@ describe('Lambda Service', () => {
         expect(error).toBeInstanceOf(LambdaServiceError);
         expect((error as LambdaServiceError).code).toBe('LAMBDA_ERROR');
       }
+    });
+  });
+
+  describe('provisionVisitor', () => {
+    it('sends correct payload with action and email', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ provisioned: true, email_sent: true, failures: [] }),
+      });
+
+      await provisionVisitor('visitor@example.com');
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://lambda.example.com',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ action: 'provision-visitor', email: 'visitor@example.com' }),
+        })
+      );
+    });
+
+    it('returns a typed ProvisionVisitorResponse on success', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ provisioned: true, email_sent: true, failures: [] }),
+      });
+
+      const result = await provisionVisitor('visitor@example.com');
+
+      expect(result).toEqual({ provisioned: true, email_sent: true, failures: [] });
+    });
+
+    it('throws LAMBDA_ERROR on HTTP 500', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+      });
+
+      try {
+        await provisionVisitor('visitor@example.com');
+        expect.fail('should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(LambdaServiceError);
+        expect((error as LambdaServiceError).code).toBe('LAMBDA_ERROR');
+      }
+    });
+
+    it('throws NETWORK_ERROR on fetch failure', async () => {
+      (global.fetch as Mock).mockRejectedValueOnce(new Error('Connection refused'));
+
+      try {
+        await provisionVisitor('visitor@example.com');
+        expect.fail('should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(LambdaServiceError);
+        expect((error as LambdaServiceError).code).toBe('NETWORK_ERROR');
+      }
+    });
+
+    it('resolves successfully on HTTP 207 (partial failure)', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 207,
+        json: async () => ({
+          provisioned: true,
+          email_sent: true,
+          failures: ['grafana_user'],
+        }),
+      });
+
+      const result = await provisionVisitor('visitor@example.com');
+
+      expect(result).toEqual({
+        provisioned: true,
+        email_sent: true,
+        failures: ['grafana_user'],
+      });
+    });
+
+    it('does not send a name field in the payload', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ provisioned: true, email_sent: true, failures: [] }),
+      });
+
+      await provisionVisitor('visitor@example.com');
+
+      const callBody = JSON.parse((global.fetch as Mock).mock.calls[0][1].body as string);
+      expect(callBody).not.toHaveProperty('name');
     });
   });
 
