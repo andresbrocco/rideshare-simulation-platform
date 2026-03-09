@@ -84,6 +84,7 @@ NO_AUTH_ACTIONS = {
     "service-health",
     "teardown-status",
     "get-deploy-progress",
+    "provision-visitor",
 }
 
 TEARDOWN_STEP_RANGES = [
@@ -1719,7 +1720,6 @@ def _provision_visitor(
 
 
 def handle_provision_visitor(
-    api_key: str,
     email: str,
     password: str | None,
     name: str,
@@ -1727,9 +1727,9 @@ def handle_provision_visitor(
     """Handle provision-visitor action.
 
     Provisions a visitor account across all platform services: Grafana,
-    Airflow, MinIO, Trino, and the Simulation API.  Requires admin API key
-    authentication.  Partial failures are included in the response body
-    rather than causing the whole request to fail.
+    Airflow, MinIO, Trino, and the Simulation API.  No API key required —
+    this is a public self-service endpoint.  Partial failures are included
+    in the response body rather than causing the whole request to fail.
 
     When ``password`` is ``None`` or an empty string, a secure random password
     is generated automatically via :func:`secrets.token_urlsafe`.  The plain-
@@ -1738,7 +1738,6 @@ def handle_provision_visitor(
     email) can forward it to the visitor.
 
     Args:
-        api_key: Admin API key for authentication.
         email: Visitor email address.
         password: Visitor plaintext password (min 8 characters), or ``None``
             to have one generated automatically.
@@ -1749,10 +1748,6 @@ def handle_provision_visitor(
         services succeed; 207 when some services fail; 500 if all fail.
     """
     print("Action: provision-visitor")
-
-    if not validate_api_key(api_key):
-        print("Action provision-visitor completed: 401")
-        return 401, {"error": "Invalid password"}
 
     if not email:
         print("Action provision-visitor completed: 400")
@@ -2021,7 +2016,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
             visitor_password = event.get("password") or None
             visitor_name = event.get("name", "")
             _, response_body = handle_provision_visitor(
-                api_key or "", visitor_email, visitor_password, visitor_name
+                visitor_email, visitor_password, visitor_name
             )
             return response_body
         if action in auth_handlers:
@@ -2133,7 +2128,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         visitor_password = body.get("password") or None
         visitor_name = body.get("name", "")
         status_code, response_body = handle_provision_visitor(
-            api_key, visitor_email, visitor_password, visitor_name
+            visitor_email, visitor_password, visitor_name
         )
     elif action in auth_handlers:
         status_code, response_body = auth_handlers[action](api_key)
