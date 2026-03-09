@@ -24,10 +24,86 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rideshare-github-actions
           aws-region: us-east-1
 
-      - name: Create deployment package
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        working-directory: infrastructure/lambda/auth-deploy
         run: |
-          cd infrastructure/lambda/auth-deploy
-          zip -j /tmp/lambda.zip handler.py
+          pip install -r requirements.txt --target ./package --quiet
+
+      - name: Create deployment package
+        working-directory: infrastructure/lambda/auth-deploy
+        run: |
+          # Bundle installed dependencies at the zip root so Lambda can import them
+          # from /var/task/. We cd into ./package so zip paths are relative to it
+          # (e.g. boto3/__init__.py, not package/boto3/__init__.py).
+          cd ./package && zip -r /tmp/lambda.zip . && cd ..
+
+          # Add source files from the auth-deploy directory: .py files (excluding tests)
+          # and .json files — no subdirectories, matching Terraform's archive_file behavior
+          find . -maxdepth 1 -name "*.py" ! -name "test_*.py" -exec zip -j /tmp/lambda.zip {} +
+          find . -maxdepth 1 -name "*.json" -exec zip -j /tmp/lambda.zip {} +
+
+      - name: Verify package contents
+        run: |
+          echo "=== Package contents ==="
+          unzip -l /tmp/lambda.zip
+
+          verify_present() {
+            local file="$1"
+            if unzip -l /tmp/lambda.zip | grep -q "  ${file}$"; then
+              echo "OK: ${file}"
+            else
+              echo "MISSING: ${file}"
+              exit 1
+            fi
+          }
+
+          verify_absent() {
+            local pattern="$1"
+            if unzip -l /tmp/lambda.zip | grep -qE "${pattern}"; then
+              echo "UNEXPECTED match for pattern '${pattern}' — package may contain unwanted files"
+              unzip -l /tmp/lambda.zip | grep -E "${pattern}"
+              exit 1
+            else
+              echo "OK (absent): ${pattern}"
+            fi
+          }
+
+          # verify_handler_present
+          verify_present handler.py
+
+          # verify_grafana_provisioner_present
+          verify_present provision_grafana_viewer.py
+
+          # verify_airflow_provisioner_present
+          verify_present provision_airflow_viewer.py
+
+          # verify_minio_provisioner_present
+          verify_present provision_minio_visitor.py
+
+          # verify_simulation_api_provisioner_present
+          verify_present provision_simulation_api_viewer.py
+
+          # verify_minio_policy_present
+          verify_present minio-visitor-readonly.json
+
+          # verify_no_test_files
+          verify_absent "test_.*\.py"
+
+          # verify_no_nested_paths — source files must be at zip root, not under auth-deploy/
+          if unzip -l /tmp/lambda.zip | awk '{print $NF}' | grep -qE '^auth-deploy/'; then
+            echo "UNEXPECTED: source files are nested under auth-deploy/"
+            unzip -l /tmp/lambda.zip | awk '{print $NF}' | grep -E '^auth-deploy/'
+            exit 1
+          else
+            echo "OK (no auth-deploy/ nesting)"
+          fi
+
+          echo "=== All verification checks passed ==="
 
       # Note: update-function-code causes Terraform to detect drift on next plan.
       # This is acceptable — Terraform uses the same source directory, so the next
