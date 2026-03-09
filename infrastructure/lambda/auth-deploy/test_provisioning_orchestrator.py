@@ -442,12 +442,28 @@ class TestProvisionTrino:
 class TestProvisionSimulationApi:
     @pytest.mark.unit
     def test_calls_post_auth_register(self, mock_secrets: object) -> None:
-        """_provision_simulation_api sends POST /auth/register with the correct payload."""
-        response_body = {"email": _EMAIL, "role": "viewer", "status": "created"}
-        encoded = json.dumps(response_body).encode()
+        """_provision_simulation_api sends POST /auth/register with the correct payload.
 
+        Now delegates to the provision_simulation_api_viewer module via _load_module.
+        We load that module directly so we can patch its urlopen and verify the
+        outbound HTTP request is formed correctly.
+        """
+        import importlib.util
+        import types
+        from pathlib import Path
+
+        module_path = Path(__file__).parent / "provision_simulation_api_viewer.py"
+        spec = importlib.util.spec_from_file_location(
+            "provision_simulation_api_viewer", module_path
+        )
+        assert spec is not None and spec.loader is not None
+        provision_module: types.ModuleType = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(provision_module)
+
+        response_body = {"email": _EMAIL, "role": "viewer", "status": "created"}
         mock_resp = MagicMock()
-        mock_resp.read.return_value = encoded
+        mock_resp.read.return_value = json.dumps(response_body).encode()
+        mock_resp.status = 201
         mock_resp.__enter__ = lambda s: s
         mock_resp.__exit__ = MagicMock(return_value=False)
 
@@ -457,11 +473,18 @@ class TestProvisionSimulationApi:
             captured_requests.append(req)
             return mock_resp
 
+        import handler as handler_module
+
         with (
-            patch("handler.urllib.request.urlopen", side_effect=urlopen_side_effect),
+            patch.object(handler_module, "_load_module", return_value=provision_module),
+            patch.object(
+                provision_module.urllib.request,
+                "urlopen",
+                side_effect=urlopen_side_effect,
+            ),
             patch.dict("os.environ", {"SIMULATION_API_URL": "http://simulation:8000"}),
         ):
-            result = _provision_simulation_api(_EMAIL, _PASSWORD, _NAME)
+            result = _provision_simulation_api(_EMAIL, _PASSWORD, _NAME, _SCRIPTS_DIR)
 
         assert result["email"] == _EMAIL
         assert result["role"] == "viewer"
@@ -478,10 +501,29 @@ class TestProvisionSimulationApi:
 
     @pytest.mark.unit
     def test_propagates_http_errors(self, mock_secrets: object) -> None:
-        """_provision_simulation_api lets HTTP errors bubble up for the orchestrator."""
+        """_provision_simulation_api lets HTTP errors bubble up for the orchestrator.
+
+        Now delegates to the provision_simulation_api_viewer module via _load_module.
+        """
+        import importlib.util
+        import types
+        from pathlib import Path
+
+        module_path = Path(__file__).parent / "provision_simulation_api_viewer.py"
+        spec = importlib.util.spec_from_file_location(
+            "provision_simulation_api_viewer", module_path
+        )
+        assert spec is not None and spec.loader is not None
+        provision_module: types.ModuleType = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(provision_module)
+
+        import handler as handler_module
+
         with (
-            patch(
-                "handler.urllib.request.urlopen",
+            patch.object(handler_module, "_load_module", return_value=provision_module),
+            patch.object(
+                provision_module.urllib.request,
+                "urlopen",
                 side_effect=urllib.error.HTTPError(
                     url="http://simulation:8000/auth/register",
                     code=503,
@@ -493,7 +535,7 @@ class TestProvisionSimulationApi:
             patch.dict("os.environ", {"SIMULATION_API_URL": "http://simulation:8000"}),
         ):
             with pytest.raises(urllib.error.HTTPError) as exc_info:
-                _provision_simulation_api(_EMAIL, _PASSWORD, _NAME)
+                _provision_simulation_api(_EMAIL, _PASSWORD, _NAME, _SCRIPTS_DIR)
 
         assert exc_info.value.code == 503
 

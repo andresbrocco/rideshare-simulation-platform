@@ -1638,38 +1638,42 @@ def _provision_trino(email: str, password: str) -> dict[str, Any]:
     return {"status": "stored", "email": email}
 
 
-def _provision_simulation_api(email: str, password: str, name: str) -> dict[str, Any]:
+def _provision_simulation_api(
+    email: str,
+    password: str,
+    name: str,
+    scripts_dir: str,
+) -> dict[str, Any]:
     """Register the visitor in the simulation API user store.
 
-    Calls ``POST /auth/register`` on the simulation API using the admin API
-    key from Secrets Manager.  The endpoint is idempotent — re-registering
-    an existing email updates the password.
+    Delegates to the ``provision_simulation_api_viewer`` module loaded from
+    *scripts_dir* via :func:`_load_module`.  The endpoint is idempotent —
+    re-registering an existing email updates the password.
 
     Args:
         email: Visitor email address.
         password: Visitor plaintext password.
         name: Visitor display name (passed in the request body).
+        scripts_dir: Directory containing ``provision_simulation_api_viewer.py``.
 
     Returns:
-        The JSON response body from the simulation API register endpoint.
+        The result dict from ``provision_viewer``, including a ``"status"``
+        key (``"created"`` or ``"updated"``) and additional API response fields.
     """
-    simulation_url = os.environ.get("SIMULATION_API_URL", "http://localhost:8000")
+    simulation_url = os.environ.get(
+        "SIMULATION_API_URL",
+        "https://api.ridesharing.portfolio.andresbrocco.com",
+    )
     admin_api_key = get_secret(SECRET_API_KEY)
 
-    payload = {"email": email, "password": password, "name": name}
-    body = json.dumps(payload).encode()
-    req = urllib.request.Request(
-        url=f"{simulation_url}/auth/register",
-        data=body,
-        headers={
-            "Content-Type": "application/json",
-            "X-API-Key": admin_api_key,
-        },
-        method="POST",
+    module = _load_module("provision_simulation_api_viewer", scripts_dir)
+    return module.provision_viewer(  # type: ignore[no-any-return]
+        email=email,
+        password=password,
+        name=name,
+        simulation_url=simulation_url,
+        admin_api_key=admin_api_key,
     )
-    with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
-        response_data: dict[str, Any] = json.loads(resp.read())
-        return response_data
 
 
 def _provision_visitor(
@@ -1742,7 +1746,7 @@ def _provision_visitor(
 
     # Simulation API
     try:
-        result = _provision_simulation_api(email, password, name)
+        result = _provision_simulation_api(email, password, name, scripts_dir)
         successes.append({"service": "simulation_api", "result": result})
         print(f"Simulation API provisioning succeeded: {result}")
     except Exception as exc:
