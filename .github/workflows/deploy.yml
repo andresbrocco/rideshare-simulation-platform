@@ -204,8 +204,8 @@ jobs:
           sed -i "s|<dbt-runner>|${{ github.event.inputs.dbt_runner }}|g" \
             infrastructure/kubernetes/argocd/app-rideshare-platform.yaml
 
-          # Verify no placeholders remain
-          REMAINING=$(grep -r '<account-id>\|<acm-cert-arn>\|<rds-endpoint>\|<image-tag>\|<alb-sg-id>\|<glue-role-arn>\|<dbt-runner>' \
+          # Verify no placeholders remain in deployment files (skip documentation)
+          REMAINING=$(grep -r --include='*.yaml' '<account-id>\|<acm-cert-arn>\|<rds-endpoint>\|<image-tag>\|<alb-sg-id>\|<glue-role-arn>\|<dbt-runner>' \
             infrastructure/kubernetes/overlays/ infrastructure/kubernetes/components/ infrastructure/kubernetes/argocd/ || true)
           if [ -n "$REMAINING" ]; then
             echo "Error: Unresolved placeholders remain:"
