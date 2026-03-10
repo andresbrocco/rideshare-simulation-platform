@@ -87,6 +87,7 @@ NO_AUTH_ACTIONS = {
     "teardown-status",
     "get-deploy-progress",
     "provision-visitor",
+    "visitor-login",
     "extend-session",
     "shrink-session",
 }
@@ -611,6 +612,58 @@ def handle_validate(api_key: str) -> tuple[int, dict[str, Any]]:
         return 200, {"valid": True}
     print("Action validate completed: 401")
     return 401, {"valid": False, "error": "Invalid password"}
+
+
+def handle_visitor_login(email: str, password: str) -> tuple[int, dict[str, Any]]:
+    """Handle visitor-login action.
+
+    Verifies visitor credentials against the PBKDF2 hash stored in DynamoDB
+    during provisioning.  On success returns the admin API key so the visitor
+    can trigger a deployment.
+
+    Args:
+        email: Visitor email address.
+        password: Plaintext password to verify.
+
+    Returns:
+        Tuple of (status_code, response_body).
+    """
+    print("Action: visitor-login")
+
+    if not email or not password:
+        print("Action visitor-login completed: 400")
+        return 400, {"error": "Missing required fields: email and password"}
+
+    table_name = os.environ.get("VISITOR_TABLE_NAME", "rideshare-visitors")
+    client = _get_dynamodb_client()
+
+    try:
+        result = client.get_item(
+            TableName=table_name,
+            Key={"email": {"S": email}},
+        )
+    except ClientError as exc:
+        print(f"Action visitor-login completed: 500 (DynamoDB error: {exc})")
+        return 500, {"error": "Internal error verifying credentials"}
+
+    item = result.get("Item")
+    if not item:
+        print("Action visitor-login completed: 401 (email not found)")
+        return 401, {"error": "Invalid email or password"}
+
+    stored_hash = item.get("password_hash", {}).get("S", "")
+    if not _verify_password_pbkdf2(password, stored_hash):
+        print("Action visitor-login completed: 401 (password mismatch)")
+        return 401, {"error": "Invalid email or password"}
+
+    try:
+        api_key = get_secret(SECRET_API_KEY)
+    except ClientError as exc:
+        print(f"Action visitor-login completed: 500 (secret retrieval error: {exc})")
+        return 500, {"error": "Internal error retrieving credentials"}
+
+    print("Action visitor-login completed: 200")
+    return 200, {"api_key": api_key, "role": "viewer", "email": email}
 
 
 def handle_deploy(api_key: str, dbt_runner: str = "duckdb") -> tuple[int, dict[str, Any]]:
@@ -1447,6 +1500,40 @@ def _hash_password_pbkdf2(password: str) -> str:
     return f"{iterations}:{salt.hex()}:{digest.hex()}"
 
 
+def _verify_password_pbkdf2(password: str, stored_hash: str) -> bool:
+    """Verify a plaintext password against a PBKDF2-SHA256 hash.
+
+    The stored hash must be in the format produced by ``_hash_password_pbkdf2``:
+    ``{iterations}:{hex_salt}:{hex_hash}``.
+
+    Uses ``hmac.compare_digest`` for constant-time comparison to prevent
+    timing attacks.
+
+    Args:
+        password: Plaintext password to verify.
+        stored_hash: Hash string in ``iterations:hex_salt:hex_hash`` format.
+
+    Returns:
+        ``True`` if the password matches, ``False`` otherwise (including
+        malformed hash strings).
+    """
+    import hashlib
+    import hmac
+
+    try:
+        parts = stored_hash.split(":")
+        if len(parts) != 3:
+            return False
+        iterations = int(parts[0])
+        salt = bytes.fromhex(parts[1])
+        expected_hash = bytes.fromhex(parts[2])
+    except (ValueError, IndexError):
+        return False
+
+    derived = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, iterations)
+    return hmac.compare_digest(derived, expected_hash)
+
+
 def _get_provisioning_scripts_dir() -> str:
     """Return the directory containing the provisioning module scripts.
 
@@ -2092,6 +2179,11 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 visitor_email, visitor_password, visitor_name
             )
             return response_body
+        if action == "visitor-login":
+            status_code, response_body = handle_visitor_login(
+                event.get("email", ""), event.get("password", "")
+            )
+            return response_body
         if action in auth_handlers:
             _, response_body = auth_handlers[action](api_key)
             return response_body
@@ -2114,6 +2206,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "set-teardown-run-id",
                 "complete-teardown",
                 "provision-visitor",
+                "visitor-login",
                 "reprovision-visitors",
             ],
         }
@@ -2203,6 +2296,10 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         status_code, response_body = handle_provision_visitor(
             visitor_email, visitor_password, visitor_name
         )
+    elif action == "visitor-login":
+        status_code, response_body = handle_visitor_login(
+            body.get("email", ""), body.get("password", "")
+        )
     elif action in auth_handlers:
         status_code, response_body = auth_handlers[action](api_key)
     else:
@@ -2225,6 +2322,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "set-teardown-run-id",
                 "complete-teardown",
                 "provision-visitor",
+                "visitor-login",
                 "reprovision-visitors",
             ],
         }

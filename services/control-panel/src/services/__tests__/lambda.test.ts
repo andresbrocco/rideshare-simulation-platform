@@ -9,6 +9,7 @@ import {
   extendSession,
   shrinkSession,
   provisionVisitor,
+  visitorLogin,
   LambdaServiceError,
 } from '../lambda';
 
@@ -506,6 +507,92 @@ describe('Lambda Service', () => {
       } catch (error) {
         expect(error).toBeInstanceOf(LambdaServiceError);
         expect((error as LambdaServiceError).code).toBe('LAMBDA_ERROR');
+      }
+    });
+  });
+
+  describe('visitorLogin', () => {
+    it('sends correct payload with action, email, and password', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ api_key: 'test-key', role: 'viewer', email: 'user@example.com' }),
+      });
+
+      await visitorLogin('user@example.com', 'secret123');
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://lambda.example.com',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'visitor-login',
+            email: 'user@example.com',
+            password: 'secret123',
+          }),
+        })
+      );
+    });
+
+    it('returns typed response on 200', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ api_key: 'test-key', role: 'viewer', email: 'user@example.com' }),
+      });
+
+      const result = await visitorLogin('user@example.com', 'secret123');
+
+      expect(result).toEqual({
+        api_key: 'test-key',
+        role: 'viewer',
+        email: 'user@example.com',
+      });
+    });
+
+    it('throws LAMBDA_ERROR on 401 with invalid credentials message', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ error: 'Invalid email or password' }),
+      });
+
+      try {
+        await visitorLogin('user@example.com', 'wrong-password');
+        expect.fail('should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(LambdaServiceError);
+        expect((error as LambdaServiceError).code).toBe('LAMBDA_ERROR');
+        expect((error as LambdaServiceError).message).toBe('Invalid email or password');
+      }
+    });
+
+    it('throws LAMBDA_ERROR on 500', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => ({ error: 'Internal error' }),
+      });
+
+      try {
+        await visitorLogin('user@example.com', 'password');
+        expect.fail('should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(LambdaServiceError);
+        expect((error as LambdaServiceError).code).toBe('LAMBDA_ERROR');
+      }
+    });
+
+    it('throws NETWORK_ERROR on fetch failure', async () => {
+      (global.fetch as Mock).mockRejectedValueOnce(new Error('Connection refused'));
+
+      try {
+        await visitorLogin('user@example.com', 'password');
+        expect.fail('should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(LambdaServiceError);
+        expect((error as LambdaServiceError).code).toBe('NETWORK_ERROR');
+        expect((error as LambdaServiceError).message).toBe('Authentication service unavailable');
       }
     });
   });

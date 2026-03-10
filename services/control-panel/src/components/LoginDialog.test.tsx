@@ -3,6 +3,19 @@ import type { Mock } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import LoginDialog from './LoginDialog';
+import { visitorLogin, LambdaServiceError } from '../services/lambda';
+
+vi.mock('../services/lambda', () => ({
+  visitorLogin: vi.fn(),
+  LambdaServiceError: class LambdaServiceError extends Error {
+    readonly code: string;
+    constructor(message: string, code: string) {
+      super(message);
+      this.name = 'LambdaServiceError';
+      this.code = code;
+    }
+  },
+}));
 
 const VALID_EMAIL = 'operator@rideshare.com';
 const VALID_PASSWORD = 'secret123';
@@ -262,6 +275,73 @@ describe('LoginDialog', () => {
 
     await waitFor(() => {
       expect(mockOnClose).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('Lambda authentication (VITE_LAMBDA_URL set)', () => {
+    beforeEach(() => {
+      vi.stubEnv('VITE_LAMBDA_URL', 'https://lambda.example.com');
+    });
+
+    it('successful login via Lambda calls storeSession and onLogin', async () => {
+      const user = userEvent.setup();
+      (visitorLogin as Mock).mockResolvedValueOnce({
+        api_key: 'lambda-key-123',
+        role: 'viewer',
+        email: VALID_EMAIL,
+      });
+
+      render(<LoginDialog open={true} onClose={mockOnClose} onLogin={mockOnLogin} />);
+
+      await user.type(screen.getByLabelText('Email'), VALID_EMAIL);
+      await user.type(screen.getByLabelText('Password'), VALID_PASSWORD);
+      await user.click(screen.getByRole('button', { name: /sign in/i }));
+
+      await waitFor(() => {
+        expect(visitorLogin).toHaveBeenCalledWith(VALID_EMAIL, VALID_PASSWORD);
+        expect(Storage.prototype.setItem).toHaveBeenCalledWith('apiKey', 'lambda-key-123');
+        expect(mockOnLogin).toHaveBeenCalledWith('lambda-key-123');
+        expect(mockOnClose).toHaveBeenCalled();
+      });
+
+      // Should not call fetch (no Simulation API fallback)
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('invalid credentials shows error from Lambda', async () => {
+      const user = userEvent.setup();
+      (visitorLogin as Mock).mockRejectedValueOnce(
+        new LambdaServiceError('Invalid email or password', 'LAMBDA_ERROR')
+      );
+
+      render(<LoginDialog open={true} onClose={mockOnClose} onLogin={mockOnLogin} />);
+
+      await user.type(screen.getByLabelText('Email'), VALID_EMAIL);
+      await user.type(screen.getByLabelText('Password'), 'wrong-password');
+      await user.click(screen.getByRole('button', { name: /sign in/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText('Invalid email or password')).toBeInTheDocument();
+      });
+      expect(mockOnLogin).not.toHaveBeenCalled();
+    });
+
+    it('network error shows connection error', async () => {
+      const user = userEvent.setup();
+      (visitorLogin as Mock).mockRejectedValueOnce(
+        new LambdaServiceError('Authentication service unavailable', 'NETWORK_ERROR')
+      );
+
+      render(<LoginDialog open={true} onClose={mockOnClose} onLogin={mockOnLogin} />);
+
+      await user.type(screen.getByLabelText('Email'), VALID_EMAIL);
+      await user.type(screen.getByLabelText('Password'), VALID_PASSWORD);
+      await user.click(screen.getByRole('button', { name: /sign in/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText(/unable to connect/i)).toBeInTheDocument();
+      });
+      expect(mockOnLogin).not.toHaveBeenCalled();
     });
   });
 });

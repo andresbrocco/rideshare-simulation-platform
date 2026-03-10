@@ -33,6 +33,7 @@ from handler import (
     _build_welcome_email,
     _decrypt_password,
     _encrypt_password,
+    _hash_password_pbkdf2,
     _provision_airflow,
     _provision_grafana,
     _provision_minio,
@@ -40,8 +41,10 @@ from handler import (
     _provision_trino,
     _provision_visitor,
     _send_welcome_email,
+    _verify_password_pbkdf2,
     handle_provision_visitor,
     handle_reprovision_visitors,
+    handle_visitor_login,
 )
 
 
@@ -1130,3 +1133,134 @@ class TestReprovisioning:
         # The fully-successful visitor goes to results; the partial one goes to failures
         assert body["provisioned"] == 1
         assert body["failed"] == 1
+
+
+# ---------------------------------------------------------------------------
+# _verify_password_pbkdf2 / _hash_password_pbkdf2
+# ---------------------------------------------------------------------------
+
+
+class TestVerifyPasswordPbkdf2:
+    """Tests for _verify_password_pbkdf2."""
+
+    @pytest.mark.unit
+    def test_correct_password_returns_true(self) -> None:
+        """Hashing then verifying the same password returns True."""
+        hashed = _hash_password_pbkdf2("my-secret-password")
+        assert _verify_password_pbkdf2("my-secret-password", hashed) is True
+
+    @pytest.mark.unit
+    def test_wrong_password_returns_false(self) -> None:
+        """Verifying a different password returns False."""
+        hashed = _hash_password_pbkdf2("correct-password")
+        assert _verify_password_pbkdf2("wrong-password", hashed) is False
+
+    @pytest.mark.unit
+    def test_malformed_hash_returns_false(self) -> None:
+        """A garbage string returns False instead of raising."""
+        assert _verify_password_pbkdf2("anything", "not-a-valid-hash") is False
+
+    @pytest.mark.unit
+    def test_empty_hash_returns_false(self) -> None:
+        """An empty stored hash returns False."""
+        assert _verify_password_pbkdf2("anything", "") is False
+
+
+# ---------------------------------------------------------------------------
+# handle_visitor_login
+# ---------------------------------------------------------------------------
+
+
+class TestVisitorLogin:
+    """Tests for handle_visitor_login."""
+
+    @pytest.mark.unit
+    def test_missing_email_returns_400(self) -> None:
+        """Empty email returns 400."""
+        status, body = handle_visitor_login("", "some-password")
+        assert status == 400
+        assert "email" in body["error"].lower() or "missing" in body["error"].lower()
+
+    @pytest.mark.unit
+    def test_missing_password_returns_400(self) -> None:
+        """Empty password returns 400."""
+        status, body = handle_visitor_login("user@example.com", "")
+        assert status == 400
+        assert "password" in body["error"].lower() or "missing" in body["error"].lower()
+
+    @pytest.mark.unit
+    def test_email_not_found_returns_401(self) -> None:
+        """DynamoDB get_item returns no Item → 401."""
+        mock_dynamo = MagicMock()
+        mock_dynamo.get_item.return_value = {}
+
+        with patch("handler._get_dynamodb_client", return_value=mock_dynamo):
+            status, body = handle_visitor_login("missing@example.com", "password")
+
+        assert status == 401
+        assert body["error"] == "Invalid email or password"
+
+    @pytest.mark.unit
+    def test_wrong_password_returns_401(self) -> None:
+        """Valid email but wrong password → 401."""
+        stored_hash = _hash_password_pbkdf2("correct-password")
+        mock_dynamo = MagicMock()
+        mock_dynamo.get_item.return_value = {
+            "Item": {
+                "email": {"S": "user@example.com"},
+                "password_hash": {"S": stored_hash},
+            }
+        }
+
+        with patch("handler._get_dynamodb_client", return_value=mock_dynamo):
+            status, body = handle_visitor_login("user@example.com", "wrong-password")
+
+        assert status == 401
+        assert body["error"] == "Invalid email or password"
+
+    @pytest.mark.unit
+    def test_success_returns_api_key_and_viewer_role(self) -> None:
+        """Valid credentials → 200 with api_key, role='viewer', email."""
+        stored_hash = _hash_password_pbkdf2("correct-password")
+        mock_dynamo = MagicMock()
+        mock_dynamo.get_item.return_value = {
+            "Item": {
+                "email": {"S": "user@example.com"},
+                "password_hash": {"S": stored_hash},
+            }
+        }
+
+        with (
+            patch("handler._get_dynamodb_client", return_value=mock_dynamo),
+            patch("handler.get_secret", return_value="admin-api-key"),
+        ):
+            status, body = handle_visitor_login("user@example.com", "correct-password")
+
+        assert status == 200
+        assert body["api_key"] == "admin-api-key"
+        assert body["role"] == "viewer"
+        assert body["email"] == "user@example.com"
+
+    @pytest.mark.unit
+    def test_error_messages_identical(self) -> None:
+        """Wrong email and wrong password return the same error message (no enumeration)."""
+        stored_hash = _hash_password_pbkdf2("correct-password")
+
+        mock_dynamo_miss = MagicMock()
+        mock_dynamo_miss.get_item.return_value = {}
+
+        mock_dynamo_hit = MagicMock()
+        mock_dynamo_hit.get_item.return_value = {
+            "Item": {
+                "email": {"S": "user@example.com"},
+                "password_hash": {"S": stored_hash},
+            }
+        }
+
+        with patch("handler._get_dynamodb_client", return_value=mock_dynamo_miss):
+            _, body_miss = handle_visitor_login("missing@example.com", "password")
+
+        with patch("handler._get_dynamodb_client", return_value=mock_dynamo_hit):
+            _, body_wrong = handle_visitor_login("user@example.com", "wrong-password")
+
+        assert body_miss["error"] == body_wrong["error"]

@@ -269,6 +269,62 @@ export async function provisionVisitor(email: string): Promise<ProvisionVisitorR
   return data;
 }
 
+export interface VisitorLoginResponse {
+  api_key: string;
+  role: string;
+  email: string;
+}
+
+function isVisitorLoginResponse(data: unknown): data is VisitorLoginResponse {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    typeof (data as VisitorLoginResponse).api_key === 'string' &&
+    typeof (data as VisitorLoginResponse).role === 'string' &&
+    typeof (data as VisitorLoginResponse).email === 'string'
+  );
+}
+
+export async function visitorLogin(email: string, password: string): Promise<VisitorLoginResponse> {
+  const lambdaUrl = getLambdaUrl();
+
+  if (!lambdaUrl) {
+    throw new LambdaServiceError('Lambda URL not configured', 'INVALID_RESPONSE');
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(lambdaUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'visitor-login', email, password }),
+    });
+  } catch {
+    throw new LambdaServiceError('Authentication service unavailable', 'NETWORK_ERROR');
+  }
+
+  if (response.status === 401) {
+    throw new LambdaServiceError('Invalid email or password', 'LAMBDA_ERROR');
+  }
+
+  if (!response.ok) {
+    throw new LambdaServiceError(`Lambda returned ${response.status}`, 'LAMBDA_ERROR');
+  }
+
+  let data: unknown;
+  try {
+    data = await response.json();
+  } catch {
+    throw new LambdaServiceError('Invalid response format from Lambda', 'INVALID_RESPONSE');
+  }
+
+  if (!isVisitorLoginResponse(data)) {
+    throw new LambdaServiceError('Invalid response format from Lambda', 'INVALID_RESPONSE');
+  }
+
+  return data;
+}
+
 export interface DeployProgressResponse {
   services: Record<string, boolean>;
   all_ready: boolean;

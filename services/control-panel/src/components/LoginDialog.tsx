@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { storeSession } from '../utils/auth';
+import { visitorLogin, LambdaServiceError } from '../services/lambda';
 
 interface LoginDialogProps {
   open: boolean;
@@ -97,34 +98,53 @@ export default function LoginDialog({ open, onClose, onLogin }: LoginDialogProps
     setError(null);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
+      const lambdaUrl = import.meta.env.VITE_LAMBDA_URL;
 
-      if (response.status === 401) {
-        setError('Invalid email or password');
-        return;
+      if (lambdaUrl) {
+        // Lambda authentication (always available, even when simulation is offline)
+        const result = await visitorLogin(email, password);
+        storeSession(result.api_key, result.role, result.email);
+        onLogin(result.api_key);
+        onClose();
+      } else {
+        // Local dev fallback: authenticate against Simulation API directly
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+
+        if (response.status === 401) {
+          setError('Invalid email or password');
+          return;
+        }
+
+        if (!response.ok) {
+          setError('Unable to connect to authentication service');
+          return;
+        }
+
+        const data: unknown = await response.json();
+
+        if (!isLoginSuccessResponse(data)) {
+          setError('Unable to connect to authentication service');
+          return;
+        }
+
+        storeSession(data.api_key, data.role, data.email);
+        onLogin(data.api_key);
+        onClose();
       }
-
-      if (!response.ok) {
+    } catch (err) {
+      if (err instanceof LambdaServiceError) {
+        if (err.code === 'LAMBDA_ERROR') {
+          setError(err.message);
+        } else {
+          setError('Unable to connect to authentication service');
+        }
+      } else {
         setError('Unable to connect to authentication service');
-        return;
       }
-
-      const data: unknown = await response.json();
-
-      if (!isLoginSuccessResponse(data)) {
-        setError('Unable to connect to authentication service');
-        return;
-      }
-
-      storeSession(data.api_key, data.role, data.email);
-      onLogin(data.api_key);
-      onClose();
-    } catch {
-      setError('Unable to connect to authentication service');
     } finally {
       setIsLoading(false);
     }
