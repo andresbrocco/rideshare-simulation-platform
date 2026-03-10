@@ -163,6 +163,7 @@ module "lambda_auth_deploy" {
     SELF_FUNCTION_ARN        = "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:rideshare-auth-deploy"
     KMS_VISITOR_PASSWORD_KEY = aws_kms_key.visitors.arn
     SES_REPLY_TO_ADDRESS     = var.owner_reply_to_email
+    SES_FROM_NAME            = "Andre Sbrocco"
   }
 
   # Grant read access to API key, GitHub PAT, monitoring, and data pipeline secrets

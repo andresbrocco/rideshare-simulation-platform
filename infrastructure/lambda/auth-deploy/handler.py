@@ -40,6 +40,8 @@ DEPLOYING_TIMEOUT_SECONDS = 30 * 60  # 30 min — auto-clear stale deploying ses
 # SES welcome email
 SES_FROM_ADDRESS_ENV = "SES_FROM_ADDRESS"
 SES_FROM_ADDRESS_DEFAULT = "noreply@ridesharing.portfolio.andresbrocco.com"
+SES_FROM_NAME_ENV = "SES_FROM_NAME"
+SES_FROM_NAME_DEFAULT = "Rideshare Platform"
 SES_REPLY_TO_ADDRESS_ENV = "SES_REPLY_TO_ADDRESS"
 
 SERVICE_LOGIN_URLS: dict[str, str] = {
@@ -85,6 +87,8 @@ NO_AUTH_ACTIONS = {
     "teardown-status",
     "get-deploy-progress",
     "provision-visitor",
+    "extend-session",
+    "shrink-session",
 }
 
 TEARDOWN_STEP_RANGES = [
@@ -318,12 +322,14 @@ def _send_welcome_email(email: str, name: str, password: str) -> bool:
     Email failures are non-fatal — returns False on error without raising.
     """
     from_address = os.environ.get(SES_FROM_ADDRESS_ENV, SES_FROM_ADDRESS_DEFAULT)
+    from_name = os.environ.get(SES_FROM_NAME_ENV, SES_FROM_NAME_DEFAULT)
+    source = f"{from_name} <{from_address}>"
     reply_to = os.environ.get(SES_REPLY_TO_ADDRESS_ENV)
     subject, text_body, html_body = _build_welcome_email(email, name, password)
     client = _get_ses_client()
     try:
         send_kwargs: dict[str, object] = {
-            "Source": from_address,
+            "Source": source,
             "Destination": {"ToAddresses": [email]},
             "Message": {
                 "Subject": {"Data": subject, "Charset": "UTF-8"},
@@ -1097,12 +1103,9 @@ def handle_ensure_session(api_key: str) -> tuple[int, dict[str, Any]]:
     }
 
 
-def handle_extend_session(api_key: str) -> tuple[int, dict[str, Any]]:
+def handle_extend_session() -> tuple[int, dict[str, Any]]:
     """Handle extend-session action."""
     print("Action: extend-session")
-    if not validate_api_key(api_key):
-        print("Action extend-session completed: 401")
-        return 401, {"error": "Invalid password"}
 
     session = get_session()
     if session is None:
@@ -1137,12 +1140,9 @@ def handle_extend_session(api_key: str) -> tuple[int, dict[str, Any]]:
     }
 
 
-def handle_shrink_session(api_key: str) -> tuple[int, dict[str, Any]]:
+def handle_shrink_session() -> tuple[int, dict[str, Any]]:
     """Handle shrink-session action."""
     print("Action: shrink-session")
-    if not validate_api_key(api_key):
-        print("Action shrink-session completed: 401")
-        return 401, {"error": "Invalid password"}
 
     session = get_session()
     if session is None:
@@ -1834,22 +1834,28 @@ def handle_provision_visitor(
             "error": "Welcome email could not be delivered. Please retry.",
         }
 
+    failure_strings = [f["service"] + ": " + f.get("error", "unknown") for f in failures]
+
     if failures:
         print(
             f"Action provision-visitor completed: 207 ({len(successes)} ok, {len(failures)} failed)"
         )
         return 207, {
+            "provisioned": True,
+            "email_sent": True,
             "email": email,
             "successes": successes,
-            "failures": failures,
+            "failures": failure_strings,
             "note": "Trino requires a container restart to apply the new password hash.",
         }
 
     print("Action provision-visitor completed: 200")
     return 200, {
+        "provisioned": True,
+        "email_sent": True,
         "email": email,
         "successes": successes,
-        "failures": failures,
+        "failures": failure_strings,
         "note": "Trino requires a container restart to apply the new password hash.",
     }
 
@@ -2018,6 +2024,8 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
             "service-health": handle_service_health,
             "teardown-status": handle_teardown_status,
             "get-deploy-progress": handle_get_deploy_progress,
+            "extend-session": handle_extend_session,
+            "shrink-session": handle_shrink_session,
         }
         auth_handlers: dict[str, Any] = {
             "validate": handle_validate,
@@ -2025,8 +2033,6 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
             "status": handle_status,
             "activate-session": handle_activate_session,
             "ensure-session": handle_ensure_session,
-            "extend-session": handle_extend_session,
-            "shrink-session": handle_shrink_session,
             "complete-teardown": handle_complete_teardown,
             "reprovision-visitors": handle_reprovision_visitors,
         }
@@ -2126,6 +2132,8 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         "service-health": handle_service_health,
         "teardown-status": handle_teardown_status,
         "get-deploy-progress": handle_get_deploy_progress,
+        "extend-session": handle_extend_session,
+        "shrink-session": handle_shrink_session,
     }
     auth_handlers: dict[str, Any] = {
         "validate": handle_validate,
@@ -2133,8 +2141,6 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         "status": handle_status,
         "activate-session": handle_activate_session,
         "ensure-session": handle_ensure_session,
-        "extend-session": handle_extend_session,
-        "shrink-session": handle_shrink_session,
         "complete-teardown": handle_complete_teardown,
         "reprovision-visitors": handle_reprovision_visitors,
     }
