@@ -58,6 +58,15 @@ jobs:
             echo "::warning::GH_DEPLOY_PAT repo secret not set — Lambda deploy trigger will not work"
           fi
 
+      - name: Install Lambda Python dependencies
+        run: |
+          pip install -r infrastructure/lambda/auth-deploy/requirements.txt \
+            -t infrastructure/lambda/auth-deploy/ \
+            --platform manylinux2014_x86_64 \
+            --only-binary=:all: \
+            --python-version 3.13 \
+            --quiet
+
       - name: Verify Foundation State
         working-directory: infrastructure/terraform/foundation
         env:

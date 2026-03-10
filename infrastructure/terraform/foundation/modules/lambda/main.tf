@@ -112,7 +112,7 @@ resource "aws_iam_role_policy" "lambda_scheduler" {
 
 # IAM Policy for DynamoDB visitor table
 resource "aws_iam_role_policy" "lambda_dynamodb" {
-  count = var.dynamodb_table_arn != "" ? 1 : 0
+  count = var.enable_dynamodb_policy ? 1 : 0
 
   name = "${var.function_name}-dynamodb"
   role = aws_iam_role.lambda.id
@@ -136,7 +136,7 @@ resource "aws_iam_role_policy" "lambda_dynamodb" {
 
 # IAM Policy for SES email sending
 resource "aws_iam_role_policy" "lambda_ses" {
-  count = var.ses_identity_arn != "" ? 1 : 0
+  count = var.enable_ses_policy ? 1 : 0
 
   name = "${var.function_name}-ses"
   role = aws_iam_role.lambda.id
@@ -153,9 +153,33 @@ resource "aws_iam_role_policy" "lambda_ses" {
   })
 }
 
+# IAM Policy for writable Secrets Manager secrets (PutSecretValue, CreateSecret)
+resource "aws_iam_role_policy" "lambda_writable_secrets" {
+  count = length(var.writable_secrets_arns) > 0 ? 1 : 0
+
+  name = "${var.function_name}-writable-secrets"
+  role = aws_iam_role.lambda.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:PutSecretValue",
+          "secretsmanager:CreateSecret",
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret"
+        ]
+        Resource = var.writable_secrets_arns
+      }
+    ]
+  })
+}
+
 # IAM Policy for KMS encrypt/decrypt (visitor password encryption)
 resource "aws_iam_role_policy" "lambda_kms" {
-  count = var.kms_key_arn != "" ? 1 : 0
+  count = var.enable_kms_policy ? 1 : 0
 
   name = "${var.function_name}-kms"
   role = aws_iam_role.lambda.id

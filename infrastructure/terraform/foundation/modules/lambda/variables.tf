@@ -101,14 +101,38 @@ variable "dynamodb_table_arn" {
   default     = ""
 }
 
+variable "enable_dynamodb_policy" {
+  description = "Whether to create the DynamoDB IAM policy. Use this instead of relying on dynamodb_table_arn emptiness checks to avoid plan-time unknown value issues."
+  type        = bool
+  default     = false
+}
+
 variable "ses_identity_arn" {
   description = "ARN of SES domain identity the function may send email from. Leave empty to skip policy."
   type        = string
   default     = ""
 }
 
+variable "enable_ses_policy" {
+  description = "Whether to create the SES IAM policy."
+  type        = bool
+  default     = false
+}
+
 variable "kms_key_arn" {
   description = "ARN of KMS key the function may use for Encrypt/Decrypt. Leave empty to skip policy."
   type        = string
   default     = ""
+}
+
+variable "enable_kms_policy" {
+  description = "Whether to create the KMS IAM policy."
+  type        = bool
+  default     = false
+}
+
+variable "writable_secrets_arns" {
+  description = "ARNs of Secrets Manager secrets the function needs write access to (PutSecretValue, CreateSecret)"
+  type        = list(string)
+  default     = []
 }

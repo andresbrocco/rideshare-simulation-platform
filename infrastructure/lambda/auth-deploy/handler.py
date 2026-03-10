@@ -1403,6 +1403,11 @@ SECRET_GRAFANA_ADMIN_PASSWORD = "rideshare/monitoring"
 # that a Trino container restart can pick it up via the password.db entrypoint script.
 SECRET_TRINO_VISITOR_PASSWORD_HASH = "rideshare/trino-visitor-password-hash"
 
+# Secret key used to retrieve Airflow and MinIO credentials for provisioning.
+# The rideshare/data-pipeline secret is JSON-encoded and contains
+# ADMIN_PASSWORD, MINIO_ROOT_USER, MINIO_ROOT_PASSWORD among others.
+SECRET_DATA_PIPELINE = "rideshare/data-pipeline"
+
 
 def _hash_password_pbkdf2(password: str) -> str:
     """Hash a plaintext password with PBKDF2-SHA256 for Trino's file authenticator.
@@ -1547,7 +1552,14 @@ def _provision_airflow(
     """
     airflow_url = os.environ.get("AIRFLOW_URL", "http://localhost:8082")
     admin_user = os.environ.get("AIRFLOW_ADMIN_USER", "admin")
-    admin_password = os.environ.get("AIRFLOW_ADMIN_PASSWORD", "admin")
+    admin_password = os.environ.get("AIRFLOW_ADMIN_PASSWORD")
+    if not admin_password:
+        try:
+            secret_value = get_secret(SECRET_DATA_PIPELINE)
+            secret_data: dict[str, str] = json.loads(secret_value)
+            admin_password = secret_data["ADMIN_PASSWORD"]
+        except Exception:
+            admin_password = "admin"
 
     # Split display name into first / last for Airflow's user model.
     parts = name.strip().split(" ", 1)
@@ -1586,8 +1598,17 @@ def _provision_minio(
         Result dict from :func:`provision_minio_visitor.provision_visitor`.
     """
     endpoint = os.environ.get("MINIO_ENDPOINT", "localhost:9000")
-    access_key = os.environ.get("MINIO_ACCESS_KEY", "admin")
-    secret_key = os.environ.get("MINIO_SECRET_KEY", "adminadmin")
+    access_key = os.environ.get("MINIO_ACCESS_KEY")
+    secret_key = os.environ.get("MINIO_SECRET_KEY")
+    if not access_key or not secret_key:
+        try:
+            secret_value = get_secret(SECRET_DATA_PIPELINE)
+            secret_data_minio: dict[str, str] = json.loads(secret_value)
+            access_key = access_key or secret_data_minio["MINIO_ROOT_USER"]
+            secret_key = secret_key or secret_data_minio["MINIO_ROOT_PASSWORD"]
+        except Exception:
+            access_key = access_key or "admin"
+            secret_key = secret_key or "adminadmin"
 
     module = _load_module("provision_minio_visitor", scripts_dir)
     result: dict[str, Any] = module.provision_visitor(

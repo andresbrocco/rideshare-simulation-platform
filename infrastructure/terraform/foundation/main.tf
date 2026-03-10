@@ -155,7 +155,7 @@ module "lambda_auth_deploy" {
   source_dir    = "${path.root}/../../lambda/auth-deploy"
   handler       = "handler.lambda_handler"
   runtime       = "python3.13"
-  timeout       = 30
+  timeout       = 60
   memory_size   = 256
 
   environment_variables = {
@@ -164,6 +164,11 @@ module "lambda_auth_deploy" {
     KMS_VISITOR_PASSWORD_KEY = aws_kms_key.visitors.arn
     SES_REPLY_TO_ADDRESS     = var.owner_reply_to_email
     SES_FROM_NAME            = "Andre Sbrocco"
+    SES_FROM_ADDRESS         = "noreply@${var.domain_name}"
+    VISITOR_TABLE_NAME       = aws_dynamodb_table.visitors.name
+    GRAFANA_URL              = "https://grafana.${var.domain_name}"
+    AIRFLOW_URL              = "https://airflow.${var.domain_name}"
+    SIMULATION_API_URL       = "https://api.${var.domain_name}"
   }
 
   # Grant read access to API key, GitHub PAT, monitoring, and data pipeline secrets
@@ -172,6 +177,11 @@ module "lambda_auth_deploy" {
     module.secrets_manager.secret_arns["github_pat"],
     module.secrets_manager.secret_arns["monitoring"],
     module.secrets_manager.secret_arns["data_pipeline"],
+  ]
+
+  # Grant write access for Trino visitor password hash storage
+  writable_secrets_arns = [
+    "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:rideshare/trino-visitor-password-hash-*",
   ]
 
   ssm_parameter_arns = [
@@ -193,9 +203,12 @@ module "lambda_auth_deploy" {
   cors_allowed_headers = ["Content-Type", "X-Requested-With"]
   cors_max_age         = 86400
 
-  dynamodb_table_arn = aws_dynamodb_table.visitors.arn
-  ses_identity_arn   = aws_ses_domain_identity.main.arn
-  kms_key_arn        = aws_kms_key.visitors.arn
+  dynamodb_table_arn     = aws_dynamodb_table.visitors.arn
+  enable_dynamodb_policy = true
+  ses_identity_arn       = aws_ses_domain_identity.main.arn
+  enable_ses_policy      = true
+  kms_key_arn            = aws_kms_key.visitors.arn
+  enable_kms_policy      = true
 
   log_retention_days = 14
 

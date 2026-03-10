@@ -147,12 +147,8 @@ class TestSuccessResponseHasNoPassword:
         assert "password" not in body
 
     @pytest.mark.unit
-    def test_provision_visitor_success_response_has_no_email_sent_flag(self) -> None:
-        """HTTP 200 response body must not include the internal email_sent flag.
-
-        The flag is always True on the 200 path — exposing it adds no value
-        and leaks implementation detail.
-        """
+    def test_provision_visitor_success_response_includes_email_sent_flag(self) -> None:
+        """HTTP 200 response body includes email_sent for consistent shape."""
         with (
             patch("handler._provision_visitor", return_value=_FULL_SUCCESS),
             patch("handler._store_visitor_dynamodb"),
@@ -161,7 +157,7 @@ class TestSuccessResponseHasNoPassword:
             status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
 
         assert status == 200
-        assert "email_sent" not in body
+        assert body["email_sent"] is True
 
     @pytest.mark.unit
     def test_provision_visitor_partial_failure_response_has_no_password(self) -> None:
@@ -177,8 +173,8 @@ class TestSuccessResponseHasNoPassword:
         assert "password" not in body
 
     @pytest.mark.unit
-    def test_provision_visitor_partial_failure_response_has_no_email_sent_flag(self) -> None:
-        """HTTP 207 response body must not include the internal email_sent flag."""
+    def test_provision_visitor_partial_failure_response_includes_email_sent_flag(self) -> None:
+        """HTTP 207 response body includes email_sent for consistent shape."""
         with (
             patch("handler._provision_visitor", return_value=_PARTIAL_SUCCESS),
             patch("handler._store_visitor_dynamodb"),
@@ -187,7 +183,7 @@ class TestSuccessResponseHasNoPassword:
             status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
 
         assert status == 207
-        assert "email_sent" not in body
+        assert body["email_sent"] is True
 
 
 # ---------------------------------------------------------------------------

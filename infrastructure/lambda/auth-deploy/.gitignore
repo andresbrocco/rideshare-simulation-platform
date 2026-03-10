@@ -1,0 +1,14 @@
+# Pip-installed dependencies (installed before Terraform packaging)
+# These are platform-specific (linux/x86_64) for Lambda runtime
+*.dist-info/
+argon2/
+_argon2_cffi_bindings*
+Crypto/
+certifi/
+cffi/
+_cffi_backend*
+minio/
+pycparser/
+typing_extensions.py
+urllib3/
+bin/
