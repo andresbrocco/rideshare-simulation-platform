@@ -291,6 +291,9 @@ def _build_welcome_email(email: str, name: str, password: str) -> tuple[str, str
         f"  Password: {password}\n\n"
         f"You can log in to any of the following services with those credentials:\n"
         f"{service_lines_text}\n\n"
+        f"Note: These credentials activate once the platform is deployed. "
+        f'After clicking "Deploy" on the landing page, services typically start '
+        f"within 10-15 minutes. You'll be able to log in as soon as deployment completes.\n\n"
         f"If you have questions or just want to chat about the architecture, "
         f"hit reply — it goes straight to my inbox.\n\n"
         f"Cheers,\n"
@@ -308,6 +311,9 @@ def _build_welcome_email(email: str, name: str, password: str) -> tuple[str, str
         f"<strong>Password:</strong> {password}</p>"
         f"<p>You can log in to any of the following services with those credentials:</p>"
         f"<ul>\n{service_lines_html}\n</ul>"
+        f"<p><strong>Note:</strong> These credentials activate once the platform is deployed. "
+        f'After clicking "Deploy" on the landing page, services typically start '
+        f"within 10-15 minutes. You'll be able to log in as soon as deployment completes.</p>"
         f"<p>If you have questions or just want to chat about the architecture, "
         f"hit reply — it goes straight to my inbox.</p>"
         f"<p>Cheers,<br>Andres</p>"
@@ -1701,14 +1707,22 @@ def _provision_visitor(
     email: str,
     password: str,
     name: str,
+    durable_only: bool = False,
 ) -> dict[str, Any]:
-    """Orchestrate visitor account creation across all platform services.
+    """Orchestrate visitor account creation across platform services.
 
     Calls each service's provisioning module in sequence.  Failures are
     caught, logged, and collected per-service rather than halting the whole
     operation — partial success is reported in the summary.
 
-    Services provisioned:
+    When ``durable_only`` is True, only Trino provisioning (Secrets Manager
+    storage) is attempted — the remaining services require a running platform
+    and are skipped.  This mode is used by ``handle_provision_visitor`` for
+    pre-deploy credential storage.  The full set of services is provisioned
+    when ``durable_only`` is False, which is used by
+    ``handle_reprovision_visitors`` after the platform is deployed.
+
+    Services provisioned (when ``durable_only=False``):
     - Grafana (viewer role)
     - Airflow (Viewer role)
     - MinIO (visitor-readonly policy)
@@ -1719,6 +1733,9 @@ def _provision_visitor(
         email: Visitor email address.
         password: Visitor plaintext password.
         name: Visitor display name.
+        durable_only: When True, only provision services that write to
+            durable storage (Secrets Manager) and skip those requiring a
+            running platform.
 
     Returns:
         Dict with ``"successes"`` and ``"failures"`` lists.  Each success
@@ -1729,32 +1746,33 @@ def _provision_visitor(
     successes: list[dict[str, Any]] = []
     failures: list[dict[str, Any]] = []
 
-    # Grafana
-    try:
-        result = _provision_grafana(email, password, name, scripts_dir)
-        successes.append({"service": "grafana", "result": result})
-        print(f"Grafana provisioning succeeded: {result}")
-    except Exception as exc:
-        failures.append({"service": "grafana", "error": str(exc)})
-        print(f"Grafana provisioning failed: {exc}")
+    if not durable_only:
+        # Grafana
+        try:
+            result = _provision_grafana(email, password, name, scripts_dir)
+            successes.append({"service": "grafana", "result": result})
+            print(f"Grafana provisioning succeeded: {result}")
+        except Exception as exc:
+            failures.append({"service": "grafana", "error": str(exc)})
+            print(f"Grafana provisioning failed: {exc}")
 
-    # Airflow
-    try:
-        result = _provision_airflow(email, password, name, scripts_dir)
-        successes.append({"service": "airflow", "result": result})
-        print(f"Airflow provisioning succeeded: {result}")
-    except Exception as exc:
-        failures.append({"service": "airflow", "error": str(exc)})
-        print(f"Airflow provisioning failed: {exc}")
+        # Airflow
+        try:
+            result = _provision_airflow(email, password, name, scripts_dir)
+            successes.append({"service": "airflow", "result": result})
+            print(f"Airflow provisioning succeeded: {result}")
+        except Exception as exc:
+            failures.append({"service": "airflow", "error": str(exc)})
+            print(f"Airflow provisioning failed: {exc}")
 
-    # MinIO
-    try:
-        result = _provision_minio(email, password, scripts_dir)
-        successes.append({"service": "minio", "result": result})
-        print(f"MinIO provisioning succeeded: {result}")
-    except Exception as exc:
-        failures.append({"service": "minio", "error": str(exc)})
-        print(f"MinIO provisioning failed: {exc}")
+        # MinIO
+        try:
+            result = _provision_minio(email, password, scripts_dir)
+            successes.append({"service": "minio", "result": result})
+            print(f"MinIO provisioning succeeded: {result}")
+        except Exception as exc:
+            failures.append({"service": "minio", "error": str(exc)})
+            print(f"MinIO provisioning failed: {exc}")
 
     # Trino (stores PBKDF2 hash; manual container restart required)
     try:
@@ -1765,14 +1783,15 @@ def _provision_visitor(
         failures.append({"service": "trino", "error": str(exc)})
         print(f"Trino provisioning failed: {exc}")
 
-    # Simulation API
-    try:
-        result = _provision_simulation_api(email, password, name, scripts_dir)
-        successes.append({"service": "simulation_api", "result": result})
-        print(f"Simulation API provisioning succeeded: {result}")
-    except Exception as exc:
-        failures.append({"service": "simulation_api", "error": str(exc)})
-        print(f"Simulation API provisioning failed: {exc}")
+    if not durable_only:
+        # Simulation API
+        try:
+            result = _provision_simulation_api(email, password, name, scripts_dir)
+            successes.append({"service": "simulation_api", "result": result})
+            print(f"Simulation API provisioning succeeded: {result}")
+        except Exception as exc:
+            failures.append({"service": "simulation_api", "error": str(exc)})
+            print(f"Simulation API provisioning failed: {exc}")
 
     return {"successes": successes, "failures": failures}
 
@@ -1782,12 +1801,14 @@ def handle_provision_visitor(
     password: str | None,
     name: str,
 ) -> tuple[int, dict[str, Any]]:
-    """Handle provision-visitor action.
+    """Handle provision-visitor action (Phase 1: durable-only).
 
-    Provisions a visitor account across all platform services: Grafana,
-    Airflow, MinIO, Trino, and the Simulation API.  No API key required —
-    this is a public self-service endpoint.  Partial failures are included
-    in the response body rather than causing the whole request to fail.
+    Stores visitor credentials durably (Trino hash in Secrets Manager,
+    record in DynamoDB) and sends a welcome email.  Service accounts in
+    Grafana, Airflow, MinIO, and the Simulation API are **not** created
+    here — they require a running platform and are provisioned later by
+    ``handle_reprovision_visitors`` (Phase 2, called from the deploy
+    workflow).
 
     When ``password`` is ``None`` or an empty string, a secure random password
     is generated automatically via :func:`secrets.token_urlsafe`.  Credentials
@@ -1803,9 +1824,9 @@ def handle_provision_visitor(
         name: Visitor display name.
 
     Returns:
-        Tuple of (HTTP status code, response body dict).  Status 200 when all
-        services succeed and email is sent; 207 when some services fail but
-        email is sent; 500 if all services fail or the welcome email fails.
+        Tuple of (HTTP status code, response body dict).  Status 200 when
+        credential storage and email succeed; 500 if storage fails or
+        the welcome email fails.
     """
     print("Action: provision-visitor")
 
@@ -1827,15 +1848,13 @@ def handle_provision_visitor(
 
     consent_timestamp = datetime.now(timezone.utc).isoformat()
 
-    result = _provision_visitor(email, effective_password, name)
+    result = _provision_visitor(email, effective_password, name, durable_only=True)
     successes = result["successes"]
     failures = result["failures"]
 
-    succeeded_service_names = [s["service"] for s in successes]
-
     try:
         _store_visitor_dynamodb(
-            email, effective_password, succeeded_service_names, consent_timestamp
+            email, effective_password, ["trino"] if successes else [], consent_timestamp
         )
     except Exception as exc:
         print(f"DynamoDB visitor record storage failed (non-fatal): {exc}")
@@ -1845,8 +1864,7 @@ def handle_provision_visitor(
         return 500, {
             "provisioned": False,
             "email_sent": False,
-            "error": "All service provisioning steps failed",
-            "successes": successes,
+            "error": "Credential storage failed",
             "failures": [f["service"] + ": " + f.get("error", "unknown") for f in failures],
         }
 
@@ -1860,29 +1878,12 @@ def handle_provision_visitor(
             "failures": [],
         }
 
-    failure_strings = [f["service"] + ": " + f.get("error", "unknown") for f in failures]
-
-    if failures:
-        print(
-            f"Action provision-visitor completed: 207 ({len(successes)} ok, {len(failures)} failed)"
-        )
-        return 207, {
-            "provisioned": True,
-            "email_sent": True,
-            "email": email,
-            "successes": successes,
-            "failures": failure_strings,
-            "note": "Trino requires a container restart to apply the new password hash.",
-        }
-
     print("Action provision-visitor completed: 200")
     return 200, {
         "provisioned": True,
         "email_sent": True,
         "email": email,
-        "successes": successes,
-        "failures": failure_strings,
-        "note": "Trino requires a container restart to apply the new password hash.",
+        "failures": [],
     }
 
 

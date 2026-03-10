@@ -10,7 +10,6 @@ type FormState = 'idle' | 'loading' | 'success' | 'error';
 
 interface SuccessData {
   email: string;
-  hasFailures: boolean;
   emailSent: boolean;
 }
 
@@ -33,7 +32,6 @@ export default function VisitorAccessForm() {
       const result: ProvisionVisitorResponse = await provisionVisitor(email);
       setSuccessData({
         email,
-        hasFailures: result.failures.length > 0,
         emailSent: result.email_sent,
       });
       setFormState('success');
@@ -63,11 +61,10 @@ export default function VisitorAccessForm() {
             Email delivery failed — check your spam folder or contact the author directly.
           </p>
         )}
-        {successData.hasFailures && (
-          <p className={styles.noteMessage}>
-            Some services encountered issues during provisioning. Core access was still granted.
-          </p>
-        )}
+        <p className={styles.noteMessage}>
+          Your credentials will activate once the platform is deployed. Click &quot;Deploy&quot;
+          below to get started.
+        </p>
       </div>
     );
   }

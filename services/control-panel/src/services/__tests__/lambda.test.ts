@@ -427,7 +427,7 @@ describe('Lambda Service', () => {
       }
     });
 
-    it('resolves successfully on HTTP 207 (partial failure)', async () => {
+    it('throws LAMBDA_ERROR on HTTP 207', async () => {
       (global.fetch as Mock).mockResolvedValueOnce({
         ok: false,
         status: 207,
@@ -438,13 +438,7 @@ describe('Lambda Service', () => {
         }),
       });
 
-      const result = await provisionVisitor('visitor@example.com');
-
-      expect(result).toEqual({
-        provisioned: true,
-        email_sent: true,
-        failures: ['grafana_user'],
-      });
+      await expect(provisionVisitor('visitor@example.com')).rejects.toThrow('Lambda returned 207');
     });
 
     it('does not send a name field in the payload', async () => {

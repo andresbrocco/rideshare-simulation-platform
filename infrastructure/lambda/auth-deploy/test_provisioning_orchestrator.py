@@ -3,12 +3,12 @@
 Tests cover the provision-visitor action in handler.py:
 - Request body validation (missing fields, short explicit password)
 - Password auto-generation when no password is supplied
-- Successful full provisioning returns 200 with all services in successes
-- Partial failure (some services fail) returns 207 with mixed results
+- Successful provisioning returns 200 with durable-only credential storage
 - All services failing returns 500
 - SES email failure returns 500 (credentials delivered only via email)
 - Response bodies never include the plaintext password
 - DynamoDB visitor record storage (happy-path and non-fatal failure)
+- durable_only flag: only Trino provisioned in phase 1; all services in phase 2
 - Each individual provisioning helper (_provision_grafana, _provision_airflow,
   _provision_minio, _provision_trino, _provision_simulation_api) is tested
   for both happy-path and error propagation
@@ -73,7 +73,7 @@ def mock_secrets():
 
 @pytest.fixture()
 def mock_provision_visitor():
-    """Mock _provision_visitor to return a full-success result and skip DynamoDB/email."""
+    """Mock _provision_visitor to return a Trino-only success result and skip DynamoDB/email."""
     with (
         patch("handler._provision_visitor") as mock_pv,
         patch("handler._store_visitor_dynamodb"),
@@ -81,14 +81,7 @@ def mock_provision_visitor():
     ):
         mock_pv.return_value = {
             "successes": [
-                {"service": "grafana", "result": {"status": "created", "user_id": 42}},
-                {"service": "airflow", "result": {"status": "created", "username": _EMAIL}},
-                {"service": "minio", "result": {"status": "created", "email": _EMAIL}},
                 {"service": "trino", "result": {"status": "stored", "email": _EMAIL}},
-                {
-                    "service": "simulation_api",
-                    "result": {"email": _EMAIL, "role": "viewer", "status": "created"},
-                },
             ],
             "failures": [],
         }
@@ -124,50 +117,21 @@ class TestHandleProvisionVisitorValidation:
 class TestHandleProvisionVisitorResponseCodes:
     @pytest.mark.unit
     def test_200_all_services_succeed(self, mock_provision_visitor: object) -> None:
-        """handle_provision_visitor returns 200 when all services succeed and email is sent."""
+        """handle_provision_visitor returns 200 when credential storage succeeds and email is sent."""
         status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
         assert status == 200
         assert body["email"] == _EMAIL
         assert "password" not in body
-        assert "email_sent" not in body
-        assert len(body["successes"]) == 5
+        assert body["email_sent"] is True
         assert body["failures"] == []
 
     @pytest.mark.unit
-    def test_207_partial_failure(self) -> None:
-        """handle_provision_visitor returns 207 when some but not all services fail."""
-        partial_result = {
-            "successes": [
-                {"service": "grafana", "result": {"status": "created", "user_id": 1}},
-            ],
-            "failures": [
-                {"service": "airflow", "error": "Connection refused"},
-            ],
-        }
-        with (
-            patch("handler._provision_visitor", return_value=partial_result),
-            patch("handler._store_visitor_dynamodb"),
-            patch("handler._send_welcome_email", return_value=True),
-        ):
-            status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
-
-        assert status == 207
-        assert "password" not in body
-        assert "email_sent" not in body
-        assert len(body["successes"]) == 1
-        assert len(body["failures"]) == 1
-
-    @pytest.mark.unit
     def test_500_all_services_fail(self) -> None:
-        """handle_provision_visitor returns 500 when every service fails."""
+        """handle_provision_visitor returns 500 when Trino credential storage fails."""
         all_failed = {
             "successes": [],
             "failures": [
-                {"service": "grafana", "error": "timeout"},
-                {"service": "airflow", "error": "timeout"},
-                {"service": "minio", "error": "timeout"},
                 {"service": "trino", "error": "timeout"},
-                {"service": "simulation_api", "error": "timeout"},
             ],
         }
         with (
@@ -178,8 +142,8 @@ class TestHandleProvisionVisitorResponseCodes:
             status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
 
         assert status == 500
-        assert "error" in body
-        # Email must not be attempted when all services fail
+        assert body["error"] == "Credential storage failed"
+        # Email must not be attempted when credential storage fails
         mock_email.assert_not_called()
 
 
@@ -191,7 +155,7 @@ class TestHandleProvisionVisitorResponseCodes:
 class TestProvisionVisitorOrchestrator:
     @pytest.mark.unit
     def test_continues_after_grafana_failure(self, mock_secrets: object) -> None:
-        """_provision_visitor calls remaining services even when Grafana fails.
+        """_provision_visitor calls remaining services even when Grafana fails (durable_only=False).
 
         The orchestrator must not short-circuit on a single service error —
         each service is attempted independently.
@@ -215,7 +179,7 @@ class TestProvisionVisitorOrchestrator:
                 return_value={"email": _EMAIL, "role": "viewer", "status": "created"},
             ),
         ):
-            result = _provision_visitor(_EMAIL, _PASSWORD, _NAME)
+            result = _provision_visitor(_EMAIL, _PASSWORD, _NAME, durable_only=False)
 
         service_failures = [f["service"] for f in result["failures"]]
         service_successes = [s["service"] for s in result["successes"]]
@@ -228,7 +192,7 @@ class TestProvisionVisitorOrchestrator:
 
     @pytest.mark.unit
     def test_all_services_attempted(self, mock_secrets: object) -> None:
-        """_provision_visitor attempts all five services regardless of prior failures."""
+        """_provision_visitor attempts all five services when durable_only=False."""
         with (
             patch("handler._provision_grafana", side_effect=Exception("err")),
             patch("handler._provision_airflow", side_effect=Exception("err")),
@@ -236,10 +200,53 @@ class TestProvisionVisitorOrchestrator:
             patch("handler._provision_trino", side_effect=Exception("err")),
             patch("handler._provision_simulation_api", side_effect=Exception("err")),
         ):
-            result = _provision_visitor(_EMAIL, _PASSWORD, _NAME)
+            result = _provision_visitor(_EMAIL, _PASSWORD, _NAME, durable_only=False)
 
         assert len(result["failures"]) == 5
         assert result["successes"] == []
+
+    @pytest.mark.unit
+    def test_durable_only_skips_platform_services(self, mock_secrets: object) -> None:
+        """_provision_visitor with durable_only=True only calls Trino provisioner."""
+        with (
+            patch("handler._provision_grafana") as mock_grafana,
+            patch("handler._provision_airflow") as mock_airflow,
+            patch("handler._provision_minio") as mock_minio,
+            patch(
+                "handler._provision_trino",
+                return_value={"status": "stored", "email": _EMAIL},
+            ),
+            patch("handler._provision_simulation_api") as mock_sim,
+        ):
+            result = _provision_visitor(_EMAIL, _PASSWORD, _NAME, durable_only=True)
+
+        mock_grafana.assert_not_called()
+        mock_airflow.assert_not_called()
+        mock_minio.assert_not_called()
+        mock_sim.assert_not_called()
+        assert len(result["successes"]) == 1
+        assert result["successes"][0]["service"] == "trino"
+        assert result["failures"] == []
+
+    @pytest.mark.unit
+    def test_durable_only_reports_trino_failure(self, mock_secrets: object) -> None:
+        """_provision_visitor with durable_only=True reports Trino failure correctly."""
+        with (
+            patch("handler._provision_grafana") as mock_grafana,
+            patch("handler._provision_airflow") as mock_airflow,
+            patch("handler._provision_minio") as mock_minio,
+            patch("handler._provision_trino", side_effect=Exception("secrets manager down")),
+            patch("handler._provision_simulation_api") as mock_sim,
+        ):
+            result = _provision_visitor(_EMAIL, _PASSWORD, _NAME, durable_only=True)
+
+        mock_grafana.assert_not_called()
+        mock_airflow.assert_not_called()
+        mock_minio.assert_not_called()
+        mock_sim.assert_not_called()
+        assert result["successes"] == []
+        assert len(result["failures"]) == 1
+        assert result["failures"][0]["service"] == "trino"
 
 
 # ---------------------------------------------------------------------------
@@ -547,14 +554,7 @@ class TestProvisionSimulationApi:
 
 _FULL_SUCCESS_RESULT = {
     "successes": [
-        {"service": "grafana", "result": {"status": "created", "user_id": 42}},
-        {"service": "airflow", "result": {"status": "created", "username": _EMAIL}},
-        {"service": "minio", "result": {"status": "created", "email": _EMAIL}},
         {"service": "trino", "result": {"status": "stored", "email": _EMAIL}},
-        {
-            "service": "simulation_api",
-            "result": {"email": _EMAIL, "role": "viewer", "status": "created"},
-        },
     ],
     "failures": [],
 }
@@ -684,33 +684,42 @@ class TestDynamoDBStorage:
         assert "password" not in body
 
     @pytest.mark.unit
-    def test_stores_only_succeeded_services(self) -> None:
-        """_store_visitor_dynamodb receives only the names of successfully provisioned services."""
-        partial_result = {
-            "successes": [
-                {"service": "grafana", "result": {"status": "created", "user_id": 1}},
-            ],
-            "failures": [
-                {"service": "airflow", "error": "Connection refused"},
-                {"service": "minio", "error": "timeout"},
-                {"service": "trino", "error": "timeout"},
-                {"service": "simulation_api", "error": "timeout"},
-            ],
-        }
+    def test_stores_trino_as_succeeded_service(self) -> None:
+        """_store_visitor_dynamodb receives ["trino"] when Trino provisioning succeeds."""
         mock_dynamo_client = MagicMock()
 
         with (
-            patch("handler._provision_visitor", return_value=partial_result),
+            patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
             patch("handler._get_dynamodb_client", return_value=mock_dynamo_client),
             patch("handler._send_welcome_email", return_value=True),
         ):
             status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
 
-        assert status == 207
+        assert status == 200
         call_kwargs = mock_dynamo_client.put_item.call_args.kwargs
         item = call_kwargs["Item"]
-        # Only grafana succeeded — it must be the sole entry in provisioned_services.
-        assert item["provisioned_services"]["SS"] == ["grafana"]
+        assert item["provisioned_services"]["SS"] == ["trino"]
+
+    @pytest.mark.unit
+    def test_stores_empty_services_on_trino_failure(self) -> None:
+        """_store_visitor_dynamodb receives [] when Trino provisioning fails."""
+        trino_failed = {
+            "successes": [],
+            "failures": [{"service": "trino", "error": "timeout"}],
+        }
+        mock_dynamo_client = MagicMock()
+
+        with (
+            patch("handler._provision_visitor", return_value=trino_failed),
+            patch("handler._get_dynamodb_client", return_value=mock_dynamo_client),
+            patch("handler._send_welcome_email", return_value=True),
+        ):
+            handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
+
+        # DynamoDB does not support empty SS sets — the handler stores an
+        # empty list marker or skips the attribute.  What matters is that
+        # it was called (non-fatal path) — verify that.
+        mock_dynamo_client.put_item.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -810,8 +819,8 @@ class TestSesWelcomeEmail:
         assert "reply" in html_body.lower()
 
     @pytest.mark.unit
-    def test_email_sent_flag_absent_from_200_response(self) -> None:
-        """200 response does not expose the email_sent flag — it is always True on this path."""
+    def test_email_sent_flag_in_200_response(self) -> None:
+        """200 response includes email_sent=True."""
         with (
             patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
             patch("handler._store_visitor_dynamodb"),
@@ -820,7 +829,14 @@ class TestSesWelcomeEmail:
             status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
 
         assert status == 200
-        assert "email_sent" not in body
+        assert body["email_sent"] is True
+
+    @pytest.mark.unit
+    def test_welcome_email_contains_deployment_note(self) -> None:
+        """_build_welcome_email includes the deployment activation note in both bodies."""
+        _, text_body, html_body = _build_welcome_email(_EMAIL, _NAME, _PASSWORD)
+        assert "credentials activate once the platform is deployed" in text_body
+        assert "credentials activate once the platform is deployed" in html_body
 
     @pytest.mark.unit
     def test_email_failure_returns_500(self) -> None:

@@ -159,13 +159,13 @@ describe('VisitorAccessForm', () => {
     });
   });
 
-  describe('partial failure state (207)', () => {
-    it('shows partial failure note when failures array is non-empty', async () => {
+  describe('success notes', () => {
+    it('shows deployment guidance note on success', async () => {
       const user = userEvent.setup();
       vi.mocked(lambdaService.provisionVisitor).mockResolvedValueOnce({
         provisioned: true,
         email_sent: true,
-        failures: ['grafana_user'],
+        failures: [],
       });
 
       render(<VisitorAccessForm />);
@@ -175,7 +175,9 @@ describe('VisitorAccessForm', () => {
       await user.click(screen.getByRole('button', { name: /request access/i }));
 
       await waitFor(() => {
-        expect(screen.getByText(/some services encountered issues/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/your credentials will activate once the platform is deployed/i)
+        ).toBeInTheDocument();
       });
     });
 

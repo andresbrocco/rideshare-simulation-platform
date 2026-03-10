@@ -251,8 +251,7 @@ export async function provisionVisitor(email: string): Promise<ProvisionVisitorR
     throw new LambdaServiceError('Visitor provisioning service unavailable', 'NETWORK_ERROR');
   }
 
-  // 207 Multi-Status = partial success — treat as success at application level
-  if (!response.ok && response.status !== 207) {
+  if (!response.ok) {
     throw new LambdaServiceError(`Lambda returned ${response.status}`, 'LAMBDA_ERROR');
   }
 
