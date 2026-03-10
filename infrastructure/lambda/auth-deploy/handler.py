@@ -1822,16 +1822,21 @@ def handle_provision_visitor(
     if not successes:
         print("Action provision-visitor completed: 500")
         return 500, {
+            "provisioned": False,
+            "email_sent": False,
             "error": "All service provisioning steps failed",
             "successes": successes,
-            "failures": failures,
+            "failures": [f["service"] + ": " + f.get("error", "unknown") for f in failures],
         }
 
     email_sent = _send_welcome_email(email, name, effective_password)
     if not email_sent:
         print("Action provision-visitor completed: 500 (email delivery failed)")
         return 500, {
+            "provisioned": True,
+            "email_sent": False,
             "error": "Welcome email could not be delivered. Please retry.",
+            "failures": [],
         }
 
     failure_strings = [f["service"] + ": " + f.get("error", "unknown") for f in failures]
