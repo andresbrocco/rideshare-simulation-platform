@@ -114,6 +114,7 @@ module "secrets_manager" {
   source = "./modules/secrets_manager"
 
   project_name = var.project_name
+  admin_email  = var.admin_email
 }
 
 # -----------------------------------------------------------------------------
@@ -177,6 +178,7 @@ module "lambda_auth_deploy" {
     module.secrets_manager.secret_arns["github_pat"],
     module.secrets_manager.secret_arns["monitoring"],
     module.secrets_manager.secret_arns["data_pipeline"],
+    module.secrets_manager.secret_arns["admin_user"],
   ]
 
   # Grant write access for Trino visitor password hash storage

@@ -63,3 +63,9 @@ variable "owner_reply_to_email" {
   type        = string
   sensitive   = true
 }
+
+variable "admin_email" {
+  description = "Admin user email address for control panel login"
+  type        = string
+  sensitive   = true
+}

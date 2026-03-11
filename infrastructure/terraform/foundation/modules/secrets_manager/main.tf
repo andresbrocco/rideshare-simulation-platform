@@ -199,6 +199,30 @@ resource "aws_secretsmanager_secret_version" "rds" {
   })
 }
 
+# Secret: rideshare/admin-user
+resource "random_password" "admin_user_password" {
+  length  = var.password_length
+  special = true
+}
+
+resource "aws_secretsmanager_secret" "admin_user" {
+  name        = "${var.project_name}/admin-user"
+  description = "Admin user credentials for control panel login"
+
+  tags = {
+    Name = "${var.project_name}/admin-user"
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "admin_user" {
+  secret_id = aws_secretsmanager_secret.admin_user.id
+
+  secret_string = jsonencode({
+    EMAIL    = var.admin_email
+    PASSWORD = random_password.admin_user_password.result
+  })
+}
+
 # Note: rideshare/trino-admin-password-hash and rideshare/trino-visitor-password-hash
 # are managed outside Terraform. The admin hash is created by the deploy workflow
 # and the visitor hash is created by the provisioning Lambda on first visitor signup.

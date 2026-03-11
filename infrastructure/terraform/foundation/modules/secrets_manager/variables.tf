@@ -9,3 +9,8 @@ variable "password_length" {
   type        = number
   default     = 16
 }
+
+variable "admin_email" {
+  description = "Admin user email address for control panel login"
+  type        = string
+}

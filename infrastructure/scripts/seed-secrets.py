@@ -81,6 +81,10 @@ SECRETS: dict[str, dict[str, str]] = {
         "ADMIN_USER": "admin",
         "ADMIN_PASSWORD": "admin",
     },
+    "rideshare/admin-user": {
+        "EMAIL": "admin@rideshare.local",
+        "PASSWORD": "admin",
+    },
     "rideshare/github-pat": {
         "GITHUB_PAT": "ghp_localstack_placeholder_token_DO_NOT_USE_IN_PRODUCTION",
     },

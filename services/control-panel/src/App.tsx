@@ -18,6 +18,7 @@ import { useSimulationLayers } from './hooks/useSimulationLayers';
 import { useSimulationControl } from './hooks/useSimulationControl';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useZones } from './hooks/useZones';
+import { useRole } from './hooks/useRole';
 import { Toaster } from './lib/toast.ts';
 import { PerformanceProvider } from './contexts/PerformanceContext';
 import { usePerformanceContext } from './hooks/usePerformanceContext';
@@ -26,16 +27,7 @@ import type { WebSocketMessage } from './types/websocket';
 import type { ZoneData } from './types/api';
 import { DEFAULT_VISIBILITY, type LayerVisibility } from './types/layers';
 import type { PlacementMode } from './constants/dnaPresets';
-import {
-  getAppMode,
-  getApiKey,
-  storeSession,
-  clearSession,
-  setAuthCookie,
-  getAuthCookie,
-  clearAuthCookie,
-  redirectToLanding,
-} from './utils/auth';
+import { getAppMode, getApiKey, clearSession } from './utils/auth';
 import { useSessionExpiry } from './hooks/useSessionExpiry';
 import './App.css';
 
@@ -60,13 +52,8 @@ function usePageRefresh(intervalMs: number) {
  */
 function LandingApp() {
   const [showLoginDialog, setShowLoginDialog] = useState(false);
-  const [apiKey, setApiKey] = useState<string | null>(() => getAuthCookie());
+  const [apiKey, setApiKey] = useState<string | null>(null);
   const [serviceHealth, setServiceHealth] = useState<ServiceHealthMap>(ALL_SERVICES_DOWN);
-
-  const handleLogin = (key: string) => {
-    setApiKey(key);
-    setAuthCookie(key);
-  };
 
   return (
     <div className="App landing-mode">
@@ -81,41 +68,41 @@ function LandingApp() {
       <LoginDialog
         open={showLoginDialog}
         onClose={() => setShowLoginDialog(false)}
-        onLogin={handleLogin}
+        onLogin={setApiKey}
       />
     </div>
   );
 }
 
 /**
- * Control panel mode: checks for auth cookie on mount, transfers to sessionStorage,
- * clears the cookie, then renders the full control panel.
- * Redirects to landing page if no auth is found.
+ * Control panel mode: standalone login via LoginDialog.
+ * Shows a non-dismissible login dialog when unauthenticated.
  */
 function ControlPanelApp() {
-  const [apiKey] = useState<string | null>(() => {
-    // Check sessionStorage first (returning user in same tab)
-    const stored = getApiKey();
-    if (stored) return stored;
+  const [apiKey, setApiKey] = useState<string | null>(() => getApiKey());
 
-    // Check cookie (fresh redirect from landing page)
-    const cookieKey = getAuthCookie();
-    if (cookieKey) {
-      // Migrate the cookie into session storage using storeSession.
-      // Role and email are not available at this hand-off point, so we
-      // store placeholder values that will be refreshed on next login.
-      storeSession(cookieKey, '', '');
-      clearAuthCookie();
-      return cookieKey;
-    }
+  useSessionExpiry(
+    useCallback(() => {
+      clearSession();
+      setApiKey(null);
+    }, [])
+  );
 
-    // No auth found — redirect back to landing
-    redirectToLanding();
-    return null;
-  });
-
-  // While redirect is happening, render nothing
-  if (!apiKey) return null;
+  // No auth — show login dialog (always open, login is required)
+  if (!apiKey) {
+    return (
+      <div className="App landing-mode">
+        <Toaster position="top-right" />
+        <LoginDialog
+          open={true}
+          onClose={() => {
+            /* login required — cannot dismiss */
+          }}
+          onLogin={setApiKey}
+        />
+      </div>
+    );
+  }
 
   return <OnlineApp apiAvailable={true} />;
 }
@@ -177,6 +164,7 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
   } = useSimulationState();
 
   const { zones } = useZones();
+  const isAdmin = useRole() === 'admin';
 
   const { recordWsMessage } = usePerformanceContext();
 
@@ -374,6 +362,7 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
                 x={popupPosition.x}
                 y={popupPosition.y}
                 onClose={handleClosePopup}
+                isAdmin={isAdmin}
                 onToggleDriverStatus={toggleDriverStatus}
                 onRequestRiderTrip={handleRequestRiderTrip}
                 // Puppet driver actions

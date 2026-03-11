@@ -1,5 +1,6 @@
 import base64
 import concurrent.futures
+import hmac
 import json
 import os
 import secrets
@@ -24,6 +25,7 @@ REQUEST_TIMEOUT = 10  # seconds
 # Secret keys
 SECRET_API_KEY = "rideshare/api-key"
 SECRET_GITHUB_PAT = "rideshare/github-pat"
+SECRET_ADMIN_USER = "rideshare/admin-user"
 
 # Session management constants
 SSM_SESSION_PARAM = "/rideshare/session/deadline"
@@ -425,6 +427,31 @@ def get_secret(secret_id: str) -> str:
         raise
 
 
+def get_secret_json(secret_id: str) -> dict[str, str]:
+    """Retrieve and parse a JSON secret from Secrets Manager.
+
+    Args:
+        secret_id: Secret name or ARN.
+
+    Returns:
+        Parsed JSON dict.
+
+    Raises:
+        ClientError: If secret cannot be retrieved.
+        ValueError: If secret is not valid JSON dict.
+    """
+    client = get_secrets_client()
+    response = client.get_secret_value(SecretId=secret_id)
+
+    if "SecretString" not in response:
+        raise ValueError(f"Secret {secret_id} is not a string secret")
+
+    parsed = json.loads(response["SecretString"])
+    if not isinstance(parsed, dict):
+        raise ValueError(f"Secret {secret_id} is not a JSON object")
+    return parsed
+
+
 def validate_api_key(provided_key: str) -> bool:
     """Validate provided API key against stored secret.
 
@@ -633,6 +660,18 @@ def handle_visitor_login(email: str, password: str) -> tuple[int, dict[str, Any]
     if not email or not password:
         print("Action visitor-login completed: 400")
         return 400, {"error": "Missing required fields: email and password"}
+
+    # Check admin credentials first (falls through to visitor flow on any failure)
+    try:
+        admin_secret = get_secret_json(SECRET_ADMIN_USER)
+        admin_email = admin_secret.get("EMAIL", "")
+        admin_password = admin_secret.get("PASSWORD", "")
+        if email == admin_email and hmac.compare_digest(password, admin_password):
+            api_key = get_secret(SECRET_API_KEY)
+            print("Action visitor-login completed: 200 (admin)")
+            return 200, {"api_key": api_key, "role": "admin", "email": email}
+    except Exception as exc:
+        print(f"Admin check skipped: {exc}")
 
     table_name = os.environ.get("VISITOR_TABLE_NAME", "rideshare-visitors")
     client = _get_dynamodb_client()

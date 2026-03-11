@@ -2,9 +2,6 @@ export type AppMode = 'landing' | 'control-panel' | 'dev';
 
 const LANDING_HOSTNAME = 'ridesharing.portfolio.andresbrocco.com';
 const CONTROL_PANEL_HOSTNAME = 'control-panel.ridesharing.portfolio.andresbrocco.com';
-const COOKIE_DOMAIN = LANDING_HOSTNAME;
-const COOKIE_NAME = 'apiKey';
-const COOKIE_MAX_AGE = 86400; // 24 hours
 
 // Session storage keys for the authenticated session
 const SESSION_KEY_API_KEY = 'apiKey';
@@ -55,42 +52,4 @@ export function clearSession(): void {
   sessionStorage.removeItem(SESSION_KEY_API_KEY);
   sessionStorage.removeItem(SESSION_KEY_ROLE);
   sessionStorage.removeItem(SESSION_KEY_EMAIL);
-}
-
-// --- Auth cookie helpers (used for cross-subdomain hand-off) ---
-
-export function setAuthCookie(apiKey: string): void {
-  document.cookie = [
-    `${COOKIE_NAME}=${encodeURIComponent(apiKey)}`,
-    `Domain=${COOKIE_DOMAIN}`,
-    'Path=/',
-    'Secure',
-    'SameSite=Lax',
-    `Max-Age=${COOKIE_MAX_AGE}`,
-  ].join('; ');
-}
-
-export function getAuthCookie(): string | null {
-  const match = document.cookie.split('; ').find((row) => row.startsWith(`${COOKIE_NAME}=`));
-
-  if (!match) return null;
-
-  const value = decodeURIComponent(match.split('=')[1]);
-  return value || null;
-}
-
-export function clearAuthCookie(): void {
-  document.cookie = [
-    `${COOKIE_NAME}=`,
-    `Domain=${COOKIE_DOMAIN}`,
-    'Path=/',
-    'Secure',
-    'SameSite=Lax',
-    'Max-Age=0',
-  ].join('; ');
-}
-
-export function redirectToLanding(): void {
-  // Use replace() to avoid back-button loop
-  window.location.replace(`https://${LANDING_HOSTNAME}`);
 }
