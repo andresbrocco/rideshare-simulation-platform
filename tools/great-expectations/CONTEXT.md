@@ -27,10 +27,4 @@ Data quality validation layer for the medallion lakehouse. Runs expectation suit
 
 ## Related Modules
 
-- [services/airflow](../../services/airflow/CONTEXT.md) — Reverse dependency — Provides dbt_silver_transformation (DAG), dbt_gold_transformation (DAG), delta_maintenance (DAG) (+1 more)
-- [tools](../CONTEXT.md) — Reverse dependency — Consumed by this module
-- [tools/dbt](../dbt/CONTEXT.md) — Dependency — Silver and Gold transformation layer for the rideshare medallion lakehouse, pars...
-- [tools/great-expectations/gx](gx/CONTEXT.md) — Reverse dependency — Provides great_expectations.yml, expectations/silver/*, expectations/gold/dimensions/* (+2 more)
-- [tools/great-expectations/gx/expectations](gx/expectations/CONTEXT.md) — Shares Data Quality and Validation domain (expectation suite)
-- [tools/great-expectations/gx/expectations/gold](gx/expectations/gold/CONTEXT.md) — Shares Data Quality and Validation domain (expectation suite)
-- [tools/great-expectations/gx/expectations/gold/dimensions](gx/expectations/gold/dimensions/CONTEXT.md) — Reverse dependency — Provides gold_dim_drivers, gold_dim_riders, gold_dim_zones (+2 more)
+- [services/simulation](../../services/simulation/CONTEXT.md) — Shares Checkpointing & State Persistence domain (checkpoint)

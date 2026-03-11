@@ -7,7 +7,7 @@ Top-level source package for the simulation service. Contains the application en
 ## Responsibility Boundaries
 
 - **Owns**: Application bootstrap and dependency wiring; domain models shared across subsystems (`Trip`, `FareBreakdown`, `Payment`, `Rating`); the unified Pydantic settings tree
-- **Delegates to**: Sub-packages for all subsystem logic (`engine`, `agents`, `matching`, `geo`, `api`, `db`, `kafka`, `redis_client`, `sim_logging`, `metrics`)
+- **Delegates to**: Sub-packages for all subsystem logic (`engine`, `agents`, `matching`, `geo`, `api`, `db`, `kafka`, `redis_client`, `sim_logging`, `metrics`, `api.middleware`)
 - **Does not handle**: Individual agent behavior, Kafka serialization, geospatial indexing, or HTTP route definitions — each lives in its own sub-package
 
 ## Key Concepts
@@ -30,7 +30,7 @@ Top-level source package for the simulation service. Contains the application en
 ## Related Modules
 
 - [services/simulation/src/agents](agents/CONTEXT.md) — Dependency — SimPy agent lifecycle, DNA behavioral models, and Kafka event emission for drive...
-- [services/simulation/src/api](api/CONTEXT.md) — Dependency — FastAPI application layer bridging the SimPy simulation engine to HTTP control e...
+- [services/simulation/src/api](api/CONTEXT.md) — Dependency — FastAPI application layer bridging the SimPy simulation engine to HTTP control endpoints, WebSocket streaming, session lifecycle, bcrypt user store, and role-based access control...
 - [services/simulation/src/db](db/CONTEXT.md) — Dependency — SQLite ORM schema and pluggable checkpoint system for saving and restoring full ...
 - [services/simulation/src/engine](engine/CONTEXT.md) — Dependency — SimPy simulation environment orchestration, lifecycle state machine, and thread-...
 - [services/simulation/src/geo](geo/CONTEXT.md) — Dependency — Geospatial computation and routing services for the simulation engine

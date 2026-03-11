@@ -22,6 +22,16 @@
 | `S3_ENDPOINT` | _(none)_ | `export-dbt-to-s3.py` | MinIO endpoint for local dev (falls back to `AWS_ENDPOINT_URL`) |
 | `DUCKDB_PATH` | `/tmp/rideshare.duckdb` | `export-dbt-to-s3.py` | Path to DuckDB file containing DBT output tables |
 | `OVERRIDE_<KEY>` | _(none)_ | `seed-secrets.py` | Override any individual secret value (e.g. `OVERRIDE_MINIO_ROOT_USER=myminio`) |
+| `GRAFANA_URL` | `http://localhost:3001` | `provision_visitor_cli.py` | Base Grafana URL |
+| `GRAFANA_ADMIN_PASSWORD` | `admin` | `provision_visitor_cli.py` | Grafana admin password |
+| `AIRFLOW_URL` | `http://localhost:8082` | `provision_visitor_cli.py` | Base Airflow URL |
+| `AIRFLOW_ADMIN_USER` | `admin` | `provision_visitor_cli.py` | Airflow admin username |
+| `AIRFLOW_ADMIN_PASSWORD` | `admin` | `provision_visitor_cli.py` | Airflow admin password |
+| `MINIO_ENDPOINT` | `localhost:9000` | `provision_visitor_cli.py` | MinIO host:port (no scheme) |
+| `MINIO_ACCESS_KEY` | `admin` | `provision_visitor_cli.py` | MinIO admin access key |
+| `MINIO_SECRET_KEY` | `adminadmin` | `provision_visitor_cli.py` | MinIO admin secret key |
+| `SIMULATION_API_URL` | `http://localhost:8000` | `provision_visitor_cli.py` | Simulation API base URL |
+| `SIMULATION_API_KEY` | _(from Secrets Manager)_ | `provision_visitor_cli.py` | Admin API key; bypasses LocalStack lookup when set |
 
 ### Commands
 
@@ -84,6 +94,38 @@ docker exec rideshare-trino /bin/bash /opt/init-scripts/register-delta-tables.sh
 ./venv/bin/python3 infrastructure/scripts/register-glue-tables.py --layer gold
 ```
 
+**Provision a visitor account across all platform services:**
+```bash
+# Local Docker Compose (all defaults apply):
+./venv/bin/python3 infrastructure/scripts/provision_visitor_cli.py \
+    --email visitor@example.com \
+    --password "Str0ngP@ssword!" \
+    --name "Jane Visitor"
+
+# With explicit service URLs (production):
+GRAFANA_URL=https://grafana.example.com \
+AIRFLOW_URL=https://airflow.example.com \
+MINIO_ENDPOINT=s3.example.com \
+SIMULATION_API_URL=https://api.example.com \
+./venv/bin/python3 infrastructure/scripts/provision_visitor_cli.py \
+    --email visitor@example.com \
+    --password "Str0ngP@ssword!" \
+    --name "Jane Visitor"
+
+# Note: After provisioning, restart Trino to apply the new password hash:
+docker compose -f infrastructure/docker/compose.yml restart trino
+```
+
+**Generate a bcrypt password hash for Trino's FILE authenticator:**
+```bash
+# Pass password as argument:
+./venv/bin/python3 infrastructure/scripts/generate_trino_password_hash.py "mypassword"
+
+# Interactive prompt (avoids password in shell history):
+./venv/bin/python3 infrastructure/scripts/generate_trino_password_hash.py
+# Output: $2b$10$... (paste into password.db as: username:<hash>)
+```
+
 **Deploy auth Lambda to LocalStack:**
 ```bash
 AWS_ENDPOINT_URL=http://localhost:4566 \
@@ -104,6 +146,8 @@ These secrets are seeded by `seed-secrets.py` and fetched by `fetch-secrets.py`:
 | `rideshare/data-pipeline` | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `POSTGRES_AIRFLOW_*`, `POSTGRES_METASTORE_*`, Airflow crypto keys, `ADMIN_USERNAME/PASSWORD` | `data-pipeline.env` |
 | `rideshare/monitoring` | `ADMIN_USER`, `ADMIN_PASSWORD` (becomes `GF_SECURITY_*`) | `monitoring.env` |
 | `rideshare/github-pat` | `GITHUB_PAT` | _(not written to env files)_ |
+| `rideshare/trino-admin-password-hash` | `hash` (bcrypt) | _(used by Trino container to build password.db)_ |
+| `rideshare/trino-visitor-password-hash` | `hash` (bcrypt) | _(used by Trino container to build password.db)_ |
 
 ### Delta Table Inventory
 
@@ -183,6 +227,10 @@ AWS_ENDPOINT_URL=http://localhost:4566 \
 **Trino `TRINO_PORT` receives `tcp://IP:PORT` format** — Normal on Kubernetes where the auto-injected env var includes the full service URL. `register-trino-tables.py` handles this automatically by extracting the numeric port from the string.
 
 **`deploy-lambda.py` warns `AWS_ENDPOINT_URL not set — targeting real AWS Lambda`** — This is expected only in production. Always set `AWS_ENDPOINT_URL` for local development.
+
+**`provision_visitor_cli.py` Trino credentials not accepted after provisioning** — Trino reads `password.db` only at startup. After visitor provisioning updates the hash secrets, restart Trino: `docker compose -f infrastructure/docker/compose.yml restart trino`.
+
+**`provision_minio_visitor.py` raises `MinioAdminException` with policy error** — The `visitor-readonly` policy document must be present at `infrastructure/policies/minio-visitor-readonly.json`. If running from a Lambda deployment, the JSON file must be bundled alongside `provision_minio_visitor.py`.
 
 ## Related
 

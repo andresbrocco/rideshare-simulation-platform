@@ -16,6 +16,7 @@ Provisions the runtime infrastructure layer on top of the foundation layer. This
 - **EKS Pod Identity (not IRSA)**: All workload IAM role bindings use `aws_eks_pod_identity_association` resources, which rely on the `eks-pod-identity-agent` addon rather than OIDC/IRSA annotations on ServiceAccounts. Adding an `eks.amazonaws.com/role-arn` annotation to a ServiceAccount would trigger IRSA instead and fail because the trust policy only allows `pods.eks.amazonaws.com`.
 - **ALB controller credential constraint**: The ALB controller Helm chart must not receive an IRSA role-ARN annotation; its credentials come exclusively from Pod Identity. This is noted in an inline comment in `alb/main.tf`.
 - **IMDS hop limit 2**: The EKS node launch template sets `http_put_response_hop_limit = 2` to allow pods inside containers to reach IMDS and receive Pod Identity credentials. The Checkov rule `CKV_AWS_341` is intentionally skipped for this reason.
+- **Add-on bootstrap order (two-phase)**: EKS add-ons are installed in two deliberate phases to prevent a deadlock. Phase 1 installs `vpc-cni` and `kube-proxy` directly against the control plane (no `depends_on`) before any nodes exist. Phase 2 boots the node group only after Phase 1 completes, then `coredns`, `aws-ebs-csi-driver`, and `eks-pod-identity-agent` wait on the node group. The cluster is configured with `bootstrap_self_managed_addons = false`, which suppresses EKS auto-installation and makes this explicit ordering critical. Without it, nodes stay `NotReady` (no CNI) and the apply deadlocks.
 
 ## Non-Obvious Details
 
@@ -28,13 +29,6 @@ Provisions the runtime infrastructure layer on top of the foundation layer. This
 
 ## Related Modules
 
-- [infrastructure/kubernetes/components](../../kubernetes/components/CONTEXT.md) — Reverse dependency — Provides aws-production component (kustomization.yaml)
-- [infrastructure/kubernetes/components](../../kubernetes/components/CONTEXT.md) — Shares AWS IAM and Security domain (eks pod identity)
-- [infrastructure/kubernetes/components/aws-production](../../kubernetes/components/aws-production/CONTEXT.md) — Shares AWS IAM and Security domain (eks pod identity)
-- [infrastructure/terraform/environments](../environments/CONTEXT.md) — Reverse dependency — Consumed by this module
-- [infrastructure/terraform/foundation](../foundation/CONTEXT.md) — Dependency — Provisions long-lived AWS infrastructure that must exist before the EKS cluster ...
-- [infrastructure/terraform/foundation](../foundation/CONTEXT.md) — Shares Terraform Infrastructure as Code domain (two-layer terraform split (foundation vs platform))
-- [infrastructure/terraform/foundation/modules/iam](../foundation/modules/iam/CONTEXT.md) — Shares AWS IAM and Security domain (eks pod identity)
-- [infrastructure/terraform/platform/modules/alb](modules/alb/CONTEXT.md) — Shares AWS IAM and Security domain (eks pod identity)
-- [infrastructure/terraform/platform/modules/eks](modules/eks/CONTEXT.md) — Shares AWS IAM and Security domain (imds hop limit)
-- [infrastructure/terraform/platform/modules/eks](modules/eks/CONTEXT.md) — Shares EKS Cluster Configuration domain (imds hop limit)
+- [infrastructure/terraform/foundation](../foundation/CONTEXT.md) — Shares Terraform & Infrastructure as Code domain (two-layer terraform split)
+- [infrastructure/terraform/platform/modules](modules/CONTEXT.md) — Shares Terraform & Infrastructure as Code domain (add-on bootstrap order (two-phase))
+- [infrastructure/terraform/platform/modules](modules/CONTEXT.md) — Shares CI/CD & Deployment Pipeline domain (add-on bootstrap order (two-phase))

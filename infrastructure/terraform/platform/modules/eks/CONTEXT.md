@@ -22,11 +22,8 @@ Provisions a production-grade EKS cluster, its managed node group, and all EKS-m
 - **IMDS hop limit of 2**: The launch template sets `http_put_response_hop_limit = 2` (not the IMDSv2-hardened default of 1) because containers inside pods need two network hops to reach the instance metadata service. A Checkov rule (`CKV_AWS_341`) is explicitly skipped with this justification.
 - **EBS CSI driver uses node role, not Pod Identity**: The `aws-ebs-csi-driver` add-on inherits permissions from the node IAM role (`AmazonEBSCSIDriverPolicy` attached in foundation) rather than using a Pod Identity association. This is intentional: the Pod Identity webhook may not be available during the first `terraform apply`, and node-role permissions are sufficient for this add-on's access pattern.
 - **Authentication mode `API_AND_CONFIG_MAP`**: The cluster uses both the EKS Access API and the legacy `aws-auth` ConfigMap. This allows bootstrap-creator admin access (needed for CI/CD) while remaining compatible with tools that still rely on the ConfigMap.
-- **Add-on bootstrap order**: All four add-ons depend on `aws_eks_node_group.main`, and the Pod Identity agent add-on additionally depends on the node group being ready before it is installed. This ordering prevents add-on activation before worker nodes exist.
+- **Add-on bootstrap order (two-phase)**: Add-ons are installed in a deliberate two-phase sequence to avoid a deadlock. Phase 1 — `vpc-cni` and `kube-proxy` have no `depends_on` and install directly against the control plane before any nodes exist. Phase 2 — the node group declares `depends_on = [aws_eks_addon.vpc_cni, aws_eks_addon.kube_proxy]` so nodes only boot once networking is ready. `coredns`, `aws-ebs-csi-driver`, and `eks-pod-identity-agent` all `depends_on` the node group, ensuring pods can be scheduled. Without phase 1, nodes would stay `NotReady` (no CNI) and the node group would never reach `ACTIVE`, deadlocking the apply. The cluster is configured with `bootstrap_self_managed_addons = false` which suppresses EKS from auto-installing any self-managed addon variants — making the ordering critical.
 
 ## Related Modules
 
-- [infrastructure/terraform/foundation/modules](../../../foundation/modules/CONTEXT.md) — Shares AWS IAM and Security domain (pod identity)
-- [infrastructure/terraform/platform](../../CONTEXT.md) — Shares AWS IAM and Security domain (imds hop limit)
-- [infrastructure/terraform/platform](../../CONTEXT.md) — Shares EKS Cluster Configuration domain (imds hop limit)
-- [infrastructure/terraform/platform/modules](../CONTEXT.md) — Shares AWS IAM and Security domain (irsa, pod identity)
+- [infrastructure/terraform/platform/modules](../CONTEXT.md) — Shares Authentication & Authorization domain (pod identity vs irsa)

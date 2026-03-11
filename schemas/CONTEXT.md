@@ -27,4 +27,4 @@ Cross-cutting schema contracts for the entire platform. This directory is the si
 
 ## Related Modules
 
-- [services](../services/CONTEXT.md) — Reverse dependency — Consumed by this module
+- [schemas/lakehouse](lakehouse/CONTEXT.md) — Shares Kafka & Event Streaming domain (dlq schema)

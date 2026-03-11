@@ -6,7 +6,7 @@
 
 ### Method
 
-API key authentication. A single shared API key grants full access to the simulation REST API and WebSocket. There is no user account system, RBAC, or per-user differentiation.
+API key authentication with two tiers. A static shared admin key grants full access to the simulation REST API and WebSocket. Visitor accounts authenticate via email/password (`POST /auth/login`) and receive short-lived `sess_`-prefixed session keys with `viewer` role (read-only). The Lambda auth-deploy function uses a separate admin API key stored in AWS Secrets Manager for deploy/teardown operations.
 
 ### Implementation
 
@@ -18,14 +18,22 @@ API key authentication. A single shared API key grants full access to the simula
 ### REST API
 
 - Header: `X-API-Key: <key>`
-- Validation: `verify_api_key()` in `src/api/auth.py` performs string equality check; returns HTTP 401 on mismatch, HTTP 500 if the server-side key is unconfigured
+- Validation: `verify_api_key()` in `src/api/auth.py` accepts two key forms:
+  1. Keys prefixed `sess_` — looked up in Redis via `session_store.get_session`; carry `role` and `email` from the stored session record
+  2. All other keys — compared against the static admin key from settings; receive `role="admin"`
+- Returns `AuthContext` (frozen dataclass with `role` and `email`) rather than a raw string; downstream dependencies receive this for RBAC decisions
+- HTTP 401 on invalid key; HTTP 500 if the server-side key is unconfigured
 - Unauthenticated endpoints: `GET /health`, `GET /health/detailed` (intentionally unauthenticated for infrastructure probes)
-- Auth validation endpoint: `GET /auth/validate` — used by the frontend login screen to confirm key validity
+- Auth endpoints:
+  - `POST /auth/login` — validates email/password against the in-memory `UserStore` (bcrypt), creates a Redis session via `session_store`, returns `{api_key, role, email}`; rate-limited to 10/minute
+  - `POST /auth/register` — admin-gated; provisions new `viewer`-role accounts (or updates passwords on existing accounts); rate-limited to 20/minute; called by the Lambda visitor provisioning orchestrator
+  - `GET /auth/validate` — tests a key without side effects
 
 ### WebSocket
 
 - Header: `Sec-WebSocket-Protocol: apikey.<key>`
 - Mechanism: Browsers cannot send custom HTTP headers during WebSocket upgrade; the API key is conveyed via the subprotocol header. The server echoes the subprotocol back on accept to satisfy the browser handshake.
+- Both static admin keys and `sess_`-prefixed session keys are accepted via `_is_valid_key`
 - Module: `services/simulation/src/api/websocket.py`
 - Rejection: `websocket.close(code=1008)` on invalid or missing key
 
@@ -33,7 +41,7 @@ API key authentication. A single shared API key grants full access to the simula
 
 - Module: `infrastructure/lambda/auth-deploy/`
 - Mechanism: API key passed in the POST request body field `api_key`, validated against a secret stored in AWS Secrets Manager (`{project}/api-key`)
-- Unauthenticated actions: `session-status`, `auto-teardown`, `service-health`, `teardown-status`, `get-deploy-progress` — these are callable without an API key to support frontend polling and EventBridge-triggered teardown
+- Unauthenticated actions (`NO_AUTH_ACTIONS`): `session-status`, `auto-teardown`, `service-health`, `teardown-status`, `get-deploy-progress`, `provision-visitor`, `extend-session`, `shrink-session` — callable without an API key to support frontend polling, EventBridge-triggered teardown, visitor self-registration, and session timer adjustments from the control panel
 
 ### Airflow
 
@@ -51,15 +59,18 @@ API key authentication. A single shared API key grants full access to the simula
 
 ### Model
 
-No role-based access control. Authentication is binary: a request either carries the valid API key or it does not. All authenticated callers have equivalent access to all simulation endpoints.
+Two roles exist: `admin` and `viewer`. Role is carried in the `AuthContext` returned by `verify_api_key`.
+
+- **`admin`**: the static admin key always resolves to this role. Full access to all endpoints.
+- **`viewer`**: session keys provisioned via `POST /auth/login` for visitor accounts carry `role="viewer"`. Read-only access — mutation endpoints (start/pause/resume/stop/reset simulation, set speed, create agents, puppet transitions, register users) are guarded by `require_admin` (`Depends(require_admin)`) which raises HTTP 403 when `role != "admin"`.
 
 ### Scope
 
-The performance controller calls `PUT /simulation/speed` using the same API key, proxied through the simulation API's `/controller/` route prefix so the frontend does not expose the performance controller port directly.
+The performance controller calls `PUT /simulation/speed` using the same admin API key, proxied through the simulation API's `/controller/` route prefix so the frontend does not expose the performance controller port directly.
 
 ### Lambda Actions
 
-The Lambda function uses a hardcoded `NO_AUTH_ACTIONS` set to allow specific actions (status polling, EventBridge teardown trigger) without credentials. All other actions require a valid API key.
+The Lambda function uses a hardcoded `NO_AUTH_ACTIONS` set (see Authentication → Lambda section) to allow unauthenticated access. All other actions require a valid API key.
 
 ### IAM (Production)
 
@@ -113,7 +124,7 @@ Pydantic v2 (`pydantic>=2.12.5`, `pydantic-settings>=2.7.1`) for all Python serv
 
 ## Security Headers
 
-Applied to all HTTP responses by `SecurityHeadersMiddleware` in `services/simulation/src/api/middleware/security_headers.py`.
+Applied to all HTTP responses by `SecurityHeadersMiddleware` in `services/simulation/src/api/middleware/`. A second middleware (`RequestLoggerMiddleware`) also runs on all requests and emits structured access log entries under logger `api.access` — see Audit Logging section below.
 
 | Header | Value |
 |--------|-------|
@@ -123,6 +134,17 @@ Applied to all HTTP responses by `SecurityHeadersMiddleware` in `services/simula
 | `X-Content-Type-Options` | `nosniff` |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` |
 | `Permissions-Policy` | `camera=(), microphone=(), geolocation=()` |
+
+### Access Log Identity Resolution
+
+`RequestLoggerMiddleware` resolves caller identity for structured HTTP audit logs:
+
+- `X-API-Key` header with `sess_` prefix: Redis lookup via `session_store.get_session` to retrieve email and role
+- Static admin key: resolves to `("admin", "admin")`
+- Any other value or lookup failure: resolves to `("anonymous", "anonymous")`
+- Health check paths (`/health`, `/health/detailed`) are skipped to suppress probe noise
+- Identity resolution is best-effort; exceptions are swallowed at DEBUG level so logging never fails a request
+- Log fields: `user_identity`, `user_role`, `method`, `path`, `status_code`, `duration_ms` (emitted as top-level JSON keys by `JSONFormatter`)
 
 ### CORS
 
@@ -174,12 +196,28 @@ Credentials are never hardcoded in `.env` files. No static AWS credentials are c
 | `{project}/monitoring` | Grafana admin credentials | `ADMIN_USER`, `ADMIN_PASSWORD` |
 | `{project}/rds` | RDS master credentials and endpoint | `PASSWORD`, `USERNAME`, `ENDPOINT` |
 | `{project}/github-pat` | GitHub PAT for workflow dispatch | `GITHUB_PAT` |
+| `{project}/trino-admin-password-hash` | Bcrypt hash for Trino `admin` account | (plain string) — created by deploy workflow, not Terraform |
+| `{project}/trino-visitor-password-hash` | Bcrypt hash for Trino `visitor` account | (plain string) — created on demand by Lambda visitor provisioning |
 
 Terraform-generated production credentials: API key uses 32-character random string; all other passwords use configurable `password_length` (default 16). Module: `infrastructure/terraform/foundation/modules/secrets_manager/`.
+
+The two Trino password-hash secrets are not managed by Terraform. Do not attempt to import or manage them in Terraform state.
+
+### Visitor Credential Storage (Lambda)
+
+Visitor records stored in the DynamoDB `rideshare-visitors` table contain:
+- Email (partition key), display name, consent timestamp
+- PBKDF2 password hash — written to `{project}/trino-visitor-password-hash` in Secrets Manager for the Trino FILE authenticator
+- KMS-encrypted plaintext password — enables the Lambda to decrypt and replay the password after platform deploy without ever storing it in plaintext; KMS key ARN is in `infrastructure/terraform/foundation/`
+- List of provisioned services — used by Phase 2 (`reprovision-visitors`) to determine which service accounts to (re)create
+
+If SES email delivery fails after DynamoDB write and Trino hash storage succeed, the visitor record is still durable and `reprovision-visitors` will recreate service accounts after the next deploy.
 
 ### Individual Secret Override (Dev)
 
 `seed-secrets.py` supports `OVERRIDE_<KEY>` environment variables to replace default local values (e.g., `OVERRIDE_API_KEY=mykey`) without modifying the script.
+
+`seed-secrets.py` also generates bcrypt hashes at seed time for `rideshare/trino-admin-password-hash` and `rideshare/trino-visitor-password-hash` using the `bcrypt` Python library (cost factor 10, `$2b$` format). Trino's FILE authenticator accepts both `$2b$` and `$2y$` variants.
 
 ### GitHub PAT
 
@@ -222,9 +260,12 @@ Profile schemas (`driver_profile_event`, `rider_profile_event`) carry PII fields
 
 ## Cryptography
 
-### No Password Hashing
+### Password Hashing
 
-There is no user account system. The API key is a plain random string; comparison is done with string equality. No password hashing libraries (bcrypt, argon2, etc.) are used.
+- **Simulation API user accounts**: Visitor passwords are hashed using `bcrypt` and stored in the in-memory `UserStore` (`services/simulation/src/api/user_store.py`). The bcrypt hash is used for `POST /auth/login` credential verification. The static admin API key is not password-hashed — comparison is done with string equality.
+- **Trino FILE authenticator**: Bcrypt hashes (cost factor 10) are stored in `password.db` (rendered from `password.db.template` at container startup). Two accounts: `admin` and `visitor`. Hashes are sourced from Secrets Manager (`{project}/trino-admin-password-hash`, `{project}/trino-visitor-password-hash`) and substituted by the `setup-config` initContainer or the Trino entrypoint script.
+- **Visitor PBKDF2 hash**: `provision-visitor` (Lambda Phase 1) derives a PBKDF2 hash of the visitor password and stores it as the Trino password hash in Secrets Manager. The bcrypt-equivalent is generated separately for the Trino FILE authenticator.
+- **KMS envelope encryption**: Visitor plaintext passwords are encrypted with a KMS key before storage in DynamoDB. `Encrypt`/`Decrypt`/`GenerateDataKey` permissions are granted to the Lambda execution role.
 
 ### Airflow Fernet Key
 
@@ -261,14 +302,48 @@ Production credentials are randomly generated by Terraform at `apply` time and s
 
 ---
 
+## Audit Logging
+
+### Simulation API Access Logs
+
+`RequestLoggerMiddleware` emits one structured log record per request under logger `api.access`. Fields promoted to top-level JSON keys by `JSONFormatter`: `method`, `path`, `status_code`, `duration_ms`, `user_identity`, `user_role`. Logs are shipped to Loki via the OTel Collector.
+
+### Grafana Audit Events
+
+- Enabled via `GF_AUDIT_ENABLED=true` on the Grafana container
+- Audit events appear in the Grafana container log stream and are queryable in Loki (`{container="rideshare-grafana"} |= "action="`)
+- If `GF_AUDIT_ENABLED` is absent, the Loki panel in the visitor-activity dashboard returns no results silently
+
+### Trino Query Audit
+
+- `event-listener.properties` configures the `query-event-listener` plugin
+- Completed queries are logged to Trino's standard log output (`QueryCompletedEvent`) and collected by Loki
+- In-flight queries are not captured; only completed queries appear in the audit trail
+
+### MinIO Audit Events
+
+- Enabled via `MINIO_AUDIT_CONSOLE_ENABLE=on` on the MinIO container
+- Audit events are collected by Loki under the MinIO container label
+- If this flag is absent, the MinIO panel in the visitor-activity dashboard returns no results silently
+
+### Admin Visitor Activity Dashboard
+
+An admin-only Grafana dashboard (`services/grafana/dashboards/admin/visitor-activity.json`) aggregates per-service last-access timestamps across Airflow (via `airflow-postgres` Postgres datasource querying `ab_user`), Grafana (Loki), Simulation API (Loki + `api.access`), Trino (Loki + `QueryCompletedEvent`), and MinIO (Loki). Dashboard is provisioned into the `Admin` folder in Grafana (not visible to viewer-role users).
+
+---
+
 ## Known Security Considerations
 
-- **Single shared API key**: The simulation API key grants full access with no scope restrictions. All clients (Control Panel, Performance Controller, CI scripts) share the same key.
 - **`/health` is unauthenticated**: The `GET /health` and `GET /health/detailed` endpoints are intentionally unauthenticated for Kubernetes probes and load balancer health checks.
-- **Trino has no local auth**: Trino runs without authentication in local development. Production deployments are authenticated.
+- **Trino FILE-based auth (both local and production)**: Trino uses `http-server.authentication.type=PASSWORD` with the `file` authenticator in all environments. Two accounts are defined: `admin` (full access via `rules.json`) and `visitor` (read-only on the `delta` catalog; no access to `system`). The `rules.json` ACL is evaluated in order — the `system` deny rule must appear before the read-only catch-all or it would be shadowed. Password hashes reload every 5 seconds; access control rules reload every 60 seconds, so a brief gap exists between a rules change and enforcement.
 - **Prometheus has no auth**: The Prometheus HTTP API (port 9090) runs without authentication in both local and production environments.
 - **Intentional data corruption**: The simulation supports `MALFORMED_EVENT_RATE` (float 0.0-1.0) that publishes additional corrupted event copies to exercise the Bronze DLQ pipeline. Disabled by default (0.0).
 - **Public-only subnets (Production)**: The production VPC uses a public-subnet-only design with no NAT gateways; all EKS nodes have public IPs but are controlled by security groups.
 - **ArgoCD `selfHeal: true`**: Manual `kubectl` changes to ArgoCD-managed resources are automatically reverted. The ArgoCD deployment watches the `deploy` branch.
 - **Session time-boxing**: The Lambda auth-deploy function enforces a session deadline with auto-teardown via EventBridge Scheduler. A deploying session older than 30 minutes is auto-deleted (assumed failed). A tearing-down session older than 15 minutes is auto-deleted (assumed stale).
-- **Frontend cookie scope**: The API key is carried in a cookie scoped to the parent domain (`ridesharing.portfolio.andresbrocco.com`) shared across the landing page and control-panel subdomains.
+- **Frontend cookie scope**: The admin API key is carried in a cookie scoped to the parent domain (`ridesharing.portfolio.andresbrocco.com`) shared across the landing page and control-panel subdomains. The control-panel page consumes the cookie exactly once on mount, migrates the key into `sessionStorage`, and then clears the cookie. Visitor accounts do not use the cookie path — they authenticate via `POST /auth/login` and store the session key in `sessionStorage` directly.
+- **Session-based viewer keys**: Session keys returned by `POST /auth/login` carry a `sess_` prefix and are persisted as Redis hashes at `session:{api_key}` with TTL-based auto-eviction. Explicit invalidation is provided by `delete_session`. The static admin key bypasses Redis entirely and is never stored in the session store.
+- **`LoginDialog` replaces raw API key entry for visitors**: The frontend `LoginDialog` calls `POST /auth/login` with `{email, password}` and receives a session key. Visitors never interact with the raw simulation API key.
+- **Single shared API key**: The simulation API admin key grants full access with no scope restrictions. All admin callers (Control Panel admin mode, Performance Controller, CI scripts) share the same key. Viewer-role visitors receive scoped session keys.
+- **Trino password changes require container restart**: `password.db` is generated at container startup from the template. Although Trino's FILE authenticator has `file.refresh-period=5s`, visitor password changes from provisioning require the container to restart to re-run the template substitution that writes `password.db`.
+- **IMDS hop limit of 2 on EKS nodes**: The EKS launch template sets `http_put_response_hop_limit = 2` (not the IMDSv2-hardened default of 1) to allow containers inside pods to reach the instance metadata service. Checkov rule `CKV_AWS_341` is explicitly skipped with this justification.

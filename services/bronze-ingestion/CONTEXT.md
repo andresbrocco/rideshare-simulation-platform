@@ -28,5 +28,5 @@ Consumes all simulation event topics from Kafka and persists them as raw, unmodi
 
 ## Related Modules
 
-- [infrastructure/docker](../../infrastructure/docker/CONTEXT.md) — Reverse dependency — Consumed by this module
-- [services/airflow](../airflow/CONTEXT.md) — Reverse dependency — Provides dbt_silver_transformation (DAG), dbt_gold_transformation (DAG), delta_maintenance (DAG) (+1 more)
+- [services/grafana/dashboards/data-engineering](../grafana/dashboards/data-engineering/CONTEXT.md) — Shares Kafka & Event Streaming domain (dlq (dead letter queue))
+- [services/grafana/dashboards/data-engineering](../grafana/dashboards/data-engineering/CONTEXT.md) — Shares Stream Processor & Event Pipeline domain (dlq (dead letter queue))

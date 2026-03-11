@@ -23,12 +23,16 @@ Defines all AWS IAM roles and policies required to run the rideshare platform: C
 - **Airflow needs `iam:PassRole`**: The `airflow_glue_sessions` policy includes a `PassGlueJobRole` statement with a condition `iam:PassedToService = glue.amazonaws.com`. Without this, Airflow cannot start Glue Interactive Sessions even if it has all other Glue permissions.
 - **GitHub Actions branch scoping**: The OIDC trust condition uses `StringLike` on the `sub` claim, allowing only the configured branch (default `main`) to assume the CI role. Feature branches cannot assume it without changing the variable.
 - **Terraform state locking**: The `github_actions_terraform` policy grants S3 CRUD on the `tf_state` bucket. Locking is done via S3-native `.tflock` files (not DynamoDB).
+- **GitHub Actions Glue Catalog access**: The `github_actions_glue` policy grants `glue:GetDatabase`, `glue:GetDatabases`, `glue:GetTables`, and `glue:DeleteTable` scoped to `rideshare_*` databases and tables. This supports two CI workflows: the deploy health check (reads catalog to verify tables are registered) and `soft-reset.yml` (deletes Glue table entries as part of lakehouse cleanup). This is distinct from the Airflow `airflow_glue_sessions` policy — the CI role operates on the catalog directly, not via Glue Interactive Sessions.
 
 ## Related Modules
 
-- [infrastructure/kubernetes/components](../../../../kubernetes/components/CONTEXT.md) — Shares AWS IAM and Security domain (eks pod identity)
-- [infrastructure/kubernetes/components/aws-production](../../../../kubernetes/components/aws-production/CONTEXT.md) — Shares AWS IAM and Security domain (eks pod identity)
-- [infrastructure/terraform/foundation/modules](../CONTEXT.md) — Shares AWS IAM and Security domain (github oidc)
-- [infrastructure/terraform/foundation/modules](../CONTEXT.md) — Shares CI/CD and GitHub Actions domain (github oidc)
-- [infrastructure/terraform/platform](../../../platform/CONTEXT.md) — Shares AWS IAM and Security domain (eks pod identity)
-- [infrastructure/terraform/platform/modules/alb](../../../platform/modules/alb/CONTEXT.md) — Shares AWS IAM and Security domain (eks pod identity)
+- [infrastructure/kubernetes/components](../../../../kubernetes/components/CONTEXT.md) — Shares Authentication & Authorization domain (eks pod identity)
+- [infrastructure/kubernetes/components](../../../../kubernetes/components/CONTEXT.md) — Shares AWS Infrastructure & IAM domain (eks pod identity)
+- [infrastructure/kubernetes/components/aws-production](../../../../kubernetes/components/aws-production/CONTEXT.md) — Shares Authentication & Authorization domain (eks pod identity)
+- [infrastructure/kubernetes/components/aws-production](../../../../kubernetes/components/aws-production/CONTEXT.md) — Shares AWS Infrastructure & IAM domain (eks pod identity)
+- [infrastructure/terraform/foundation/modules](../CONTEXT.md) — Shares Authentication & Authorization domain (github oidc)
+- [infrastructure/terraform/foundation/modules](../CONTEXT.md) — Shares AWS Infrastructure & IAM domain (github oidc)
+- [infrastructure/terraform/foundation/modules](../CONTEXT.md) — Shares CI/CD & Deployment Pipeline domain (github oidc)
+- [infrastructure/terraform/platform/modules/alb](../../../platform/modules/alb/CONTEXT.md) — Shares Authentication & Authorization domain (eks pod identity)
+- [infrastructure/terraform/platform/modules/alb](../../../platform/modules/alb/CONTEXT.md) — Shares AWS Infrastructure & IAM domain (eks pod identity)

@@ -30,4 +30,4 @@ End-to-end integration tests that exercise the full data platform stack against 
 
 ## Related Modules
 
-- [infrastructure/docker](../../../infrastructure/docker/CONTEXT.md) — Dependency — Docker Compose configuration defining the complete local development environment...
+- [tests/integration/data_platform/utils](utils/CONTEXT.md) — Shares Testing Patterns & Fixtures domain (testcontext)

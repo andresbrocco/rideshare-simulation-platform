@@ -23,8 +23,9 @@ Deploys the AWS Load Balancer Controller into the EKS cluster via Helm, provisio
 
 ## Related Modules
 
-- [infrastructure/kubernetes/components](../../../../kubernetes/components/CONTEXT.md) — Shares AWS IAM and Security domain (eks pod identity)
-- [infrastructure/kubernetes/components/aws-production](../../../../kubernetes/components/aws-production/CONTEXT.md) — Shares AWS IAM and Security domain (eks pod identity)
-- [infrastructure/terraform/foundation/modules/iam](../../../foundation/modules/iam/CONTEXT.md) — Shares AWS IAM and Security domain (eks pod identity)
-- [infrastructure/terraform/platform](../../CONTEXT.md) — Shares AWS IAM and Security domain (eks pod identity)
-- [infrastructure/terraform/platform/modules](../CONTEXT.md) — Shares Kubernetes and ArgoCD Deployment domain (aws load balancer controller)
+- [infrastructure/kubernetes/components](../../../../kubernetes/components/CONTEXT.md) — Shares Authentication & Authorization domain (eks pod identity)
+- [infrastructure/kubernetes/components](../../../../kubernetes/components/CONTEXT.md) — Shares AWS Infrastructure & IAM domain (eks pod identity)
+- [infrastructure/kubernetes/components/aws-production](../../../../kubernetes/components/aws-production/CONTEXT.md) — Shares Authentication & Authorization domain (eks pod identity)
+- [infrastructure/kubernetes/components/aws-production](../../../../kubernetes/components/aws-production/CONTEXT.md) — Shares AWS Infrastructure & IAM domain (eks pod identity)
+- [infrastructure/terraform/foundation/modules/iam](../../../foundation/modules/iam/CONTEXT.md) — Shares Authentication & Authorization domain (eks pod identity)
+- [infrastructure/terraform/foundation/modules/iam](../../../foundation/modules/iam/CONTEXT.md) — Shares AWS Infrastructure & IAM domain (eks pod identity)

@@ -12,13 +12,13 @@ Declares Grafana's runtime configuration as code: datasource connections, dashbo
 
 ## Key Concepts
 
-**Datasource UIDs**: All datasources are assigned hardcoded UIDs (`prometheus`, `trino`, `loki`, `tempo`). Dashboard JSON files reference these UIDs directly — using template variables like `${DS_PROMETHEUS}` is intentionally avoided. This means UIDs must never be changed without updating all dashboard files.
+**Datasource UIDs**: All datasources are assigned hardcoded UIDs (`prometheus`, `trino`, `loki`, `tempo`, `airflow-postgres`). Dashboard JSON files reference these UIDs directly — using template variables like `${DS_PROMETHEUS}` is intentionally avoided. This means UIDs must never be changed without updating all dashboard files.
 
 **Trino datasource type**: Uses `trino-datasource` plugin (not a PostgreSQL-compatible plugin). This plugin communicates via Trino's HTTP REST API (port 8080 inside the network), not the PostgreSQL wire protocol. The catalog is set to `delta`.
 
 **Tempo cross-datasource linking**: Tempo is configured with `tracesToLogsV2` pointing to Loki (by UID) and `tracesToMetrics` pointing to Prometheus. This enables trace-to-log and trace-to-metric correlation within the Grafana UI.
 
-**Dashboard providers**: `dashboards/default.yml` maps five named folders to filesystem paths under `/etc/dashboards/`. Grafana polls each path every 10 seconds for JSON changes. `allowUiUpdates: true` permits in-browser edits (they persist in the container until restart but are not written back to disk).
+**Dashboard providers**: `dashboards/default.yml` maps six named folders to filesystem paths under `/etc/dashboards/` (monitoring, data-engineering, business-intelligence, performance, operations, admin). Grafana polls each path every 10 seconds for JSON changes. `allowUiUpdates: true` permits in-browser edits (they persist in the container until restart but are not written back to disk). The `admin` folder at `/etc/dashboards/admin` holds dashboards restricted to org admins, such as the visitor activity dashboard.
 
 ## Non-Obvious Details
 
@@ -26,6 +26,7 @@ Declares Grafana's runtime configuration as code: datasource connections, dashbo
 - Alert `execErrState: Alerting` means a Prometheus query error triggers the alert rather than silencing it — chosen to avoid hiding connectivity failures.
 - The `alerting/rules.yml` folder assignment (`folder: Monitoring`) is separate from the dashboard folder providers; it controls where Grafana stores the alert rule in its UI, not a filesystem path.
 - Prometheus datasource `timeInterval: 15s` matches the scrape interval configured in `services/prometheus/prometheus.yml`. Mismatching these causes incorrect rate calculations in PromQL.
+- The `airflow-postgres` datasource uses the standard PostgreSQL datasource type (not `trino-datasource`) and connects to `postgres-airflow:5432`. Unlike the other four UIDs which are single lowercase words, its UID is the hyphenated string `airflow-postgres`. Credentials are injected via `POSTGRES_AIRFLOW_USER` / `POSTGRES_AIRFLOW_PASSWORD` env vars with `sslmode: disable` — internal service, no TLS configured.
 
 ## Related Modules
 

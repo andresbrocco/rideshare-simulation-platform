@@ -29,8 +29,11 @@ Single Grafana dashboard (`performance-engineering.json`) purpose-built for bott
 
 ## Related Modules
 
-- [services/performance-controller/src](../../../performance-controller/src/CONTEXT.md) — Shares Observability and Metrics domain (infrastructure headroom)
-- [services/simulation](../../../simulation/CONTEXT.md) — Shares Observability and Metrics domain (real-time ratio (rtr))
-- [services/simulation/src/engine](../../../simulation/src/engine/CONTEXT.md) — Shares Observability and Metrics domain (real-time ratio (rtr))
-- [services/simulation/src/puppet](../../../simulation/src/puppet/CONTEXT.md) — Shares SimPy Discrete-Event Simulation domain (speed multiplier)
-- [services/simulation/src/puppet](../../../simulation/src/puppet/CONTEXT.md) — Shares Time and Simulation Speed domain (speed multiplier)
+- [services/performance-controller](../../../performance-controller/CONTEXT.md) — Shares SimPy Simulation Engine domain (speed multiplier)
+- [services/performance-controller](../../../performance-controller/CONTEXT.md) — Shares PID Control & Adaptive Systems domain (infrastructure headroom)
+- [services/performance-controller](../../../performance-controller/CONTEXT.md) — Shares Performance & Scalability domain (infrastructure headroom)
+- [services/performance-controller/src](../../../performance-controller/src/CONTEXT.md) — Shares PID Control & Adaptive Systems domain (infrastructure headroom)
+- [services/performance-controller/src](../../../performance-controller/src/CONTEXT.md) — Shares Performance & Scalability domain (infrastructure headroom)
+- [services/simulation/src/engine](../../../simulation/src/engine/CONTEXT.md) — Shares Pricing & Surge domain (real-time ratio (rtr))
+- [services/simulation/tests/e2e](../../../simulation/tests/e2e/CONTEXT.md) — Shares SimPy Simulation Engine domain (speed multiplier)
+- [services/simulation/tests/engine](../../../simulation/tests/engine/CONTEXT.md) — Shares Pricing & Surge domain (real-time ratio (rtr))

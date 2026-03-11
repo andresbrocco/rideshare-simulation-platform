@@ -15,6 +15,7 @@ Reusable Terraform modules for the runtime platform layer: EKS cluster provision
 - **Pod Identity vs IRSA**: All workload IAM roles use EKS Pod Identity (`pods.eks.amazonaws.com` trust principal with `sts:AssumeRole` + `sts:TagSession`). The ALB controller is wired via `aws_eks_pod_identity_association` rather than an IRSA annotation on the ServiceAccount — adding `eks.amazonaws.com/role-arn` would trigger IRSA (`AssumeRoleWithWebIdentity`), which the Pod Identity trust policy does not allow.
 - **EBS CSI driver IAM exception**: The EBS CSI add-on uses node role permissions (policy attached in foundation) rather than Pod Identity, because the Pod Identity webhook may not yet be available when the cluster is first created.
 - **IMDS hop limit**: The node launch template sets `http_put_response_hop_limit = 2`. EKS pods need hop limit 2 to reach the Instance Metadata Service through container networking. Checkov rule `CKV_AWS_341` is explicitly skipped for this reason.
+- **Add-on bootstrap order (two-phase)**: EKS add-ons are installed in two deliberate phases to prevent a deadlock. Phase 1 installs `vpc-cni` and `kube-proxy` directly against the control plane (no `depends_on`) before any nodes exist. Phase 2 boots the node group only after Phase 1 completes (`depends_on` those add-ons), then `coredns`, `aws-ebs-csi-driver`, and `eks-pod-identity-agent` wait on the node group. Without this ordering, nodes stay `NotReady` (no CNI) and the apply deadlocks. `bootstrap_self_managed_addons = false` suppresses EKS auto-installation, making explicit ordering critical.
 
 ## Non-Obvious Details
 
@@ -27,7 +28,6 @@ Reusable Terraform modules for the runtime platform layer: EKS cluster provision
 
 ## Related Modules
 
-- [infrastructure/terraform/foundation](../../foundation/CONTEXT.md) — Dependency — Provisions long-lived AWS infrastructure that must exist before the EKS cluster ...
-- [infrastructure/terraform/foundation/modules](../../foundation/modules/CONTEXT.md) — Shares AWS IAM and Security domain (pod identity)
-- [infrastructure/terraform/platform/modules/alb](alb/CONTEXT.md) — Shares Kubernetes and ArgoCD Deployment domain (aws load balancer controller)
-- [infrastructure/terraform/platform/modules/eks](eks/CONTEXT.md) — Shares AWS IAM and Security domain (irsa, pod identity)
+- [infrastructure/terraform/platform](../CONTEXT.md) — Shares Terraform & Infrastructure as Code domain (add-on bootstrap order (two-phase))
+- [infrastructure/terraform/platform](../CONTEXT.md) — Shares CI/CD & Deployment Pipeline domain (add-on bootstrap order (two-phase))
+- [infrastructure/terraform/platform/modules/eks](eks/CONTEXT.md) — Shares Authentication & Authorization domain (pod identity vs irsa)

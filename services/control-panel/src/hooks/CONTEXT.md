@@ -6,8 +6,8 @@ Custom React hooks that encapsulate all data-fetching, real-time state managemen
 
 ## Responsibility Boundaries
 
-- **Owns**: WebSocket connection lifecycle, GPS ping buffering, simulation entity state (drivers, riders, trips, surge), REST polling for metrics and infrastructure, deck.gl layer assembly, puppet agent control API calls
-- **Delegates to**: `../layers/agentLayers` and `../layers/zoneLayers` for layer construction; `../contexts/performanceContextDef` for frontend FPS/WS-rate tracking; `../lib/toast` for user feedback
+- **Owns**: WebSocket connection lifecycle, GPS ping buffering, simulation entity state (drivers, riders, trips, surge), REST polling for metrics and infrastructure, deck.gl layer assembly, puppet agent control API calls, role resolution from session storage (`useRole`), session expiry event handling (`useSessionExpiry`)
+- **Delegates to**: `../layers/agentLayers` and `../layers/zoneLayers` for layer construction; `../contexts/performanceContextDef` for frontend FPS/WS-rate tracking; `../lib/toast` for user feedback; `../utils/auth` (`getSessionRole`) for raw role string retrieval from `sessionStorage`
 - **Does not handle**: Rendering, API authentication configuration (API key is read from `sessionStorage` at call time), WebSocket URL construction
 
 ## Key Concepts
@@ -19,6 +19,8 @@ Custom React hooks that encapsulate all data-fetching, real-time state managemen
 - **Puppet agents**: `useSimulationControl` exposes a second tier of API calls (`/agents/puppet/*`) for manually controlled agents — accept/reject offers, teleport, force timeouts. These are distinct from the bulk spawn endpoints.
 - **Performance split**: Backend simulation metrics (`/metrics/performance`) are fetched via `usePerformanceMetrics` at 1Hz. Frontend metrics (WS messages/sec, render FPS) are tracked separately via `PerformanceContext` and accessed through `usePerformanceContext`.
 - **Layer ordering**: `useSimulationLayers` pushes deck.gl layers in a deliberate order — zones → heatmap → route trails → agents — so that click-pick priority favors agents (last-pushed = highest pick priority in deck.gl).
+- **Role resolution**: `useRole` reads the authenticated user's role (`'admin' | 'viewer'`) from `sessionStorage` via `getSessionRole()`. It returns `null` when no session exists or when the stored value is not a recognized role string. The returned `Role` type is a union exported from the hook module.
+- **Session expiry event**: `useSessionExpiry` registers a `window` listener for the synthetic `'session:expired'` CustomEvent. `apiClient` dispatches this event whenever it receives a 401 response, decoupling the HTTP layer from UI auth state. Consumers pass an `onExpired` callback to clear local auth state and show the login dialog.
 
 ## Non-Obvious Details
 
@@ -28,12 +30,12 @@ Custom React hooks that encapsulate all data-fetching, real-time state managemen
 - `usePerformanceController` silently returns `null` when the performance controller sidecar is unreachable, rather than surfacing an error. Components should treat `null` as "profile not enabled."
 - `useZones` fetches from `/zones.geojson` (a static file served by the frontend build), not from the simulation API. Zone boundary data is load-once, not polled.
 - API key is read from `sessionStorage` at the moment each request is made, not stored in hook state. This means the key is always current if the user updates it without unmounting the hook.
+- `useRole` is not reactive state — it re-evaluates on every render of the consuming component rather than subscribing to `sessionStorage` changes. Role changes are picked up only when the parent re-renders (e.g., after a login/logout cycle). Any unrecognized or empty role string is silently coerced to `null`.
+- `useSessionExpiry` wraps `onExpired` in a stable arrow function inside `useEffect`. Because `onExpired` is in the dependency array, callers should memoize it (e.g., with `useCallback`) to prevent the listener from being torn down and re-registered on every render.
 
 ## Related Modules
 
-- [schemas/api](../../../../schemas/api/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
-- [services/control-panel](../../CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
-- [services/control-panel/src](../CONTEXT.md) — Reverse dependency — Provides App (default), theme (PALETTE, UI, OFFLINE, STAGE_RGB, STAGE_CSS, STAGE_HEX, injectCssVars), services/lambda (validateApiKey, triggerDeploy, getSessionStatus, getServiceHealth, etc.) (+2 more)
-- [services/control-panel/src/components](../components/CONTEXT.md) — Reverse dependency — Provides Map, ControlPanel, InspectorPopup (+19 more)
-- [services/simulation/src/api/routes](../../../simulation/src/api/routes/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
-- [services/simulation/src/engine](../../../simulation/src/engine/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
+- [schemas/api](../../../../schemas/api/CONTEXT.md) — Shares Agent Behavior & DNA domain (puppet agents)
+- [services/control-panel](../../CONTEXT.md) — Shares Agent Behavior & DNA domain (puppet agents)
+- [services/control-panel](../../CONTEXT.md) — Shares React Frontend Architecture domain (session expiry event)
+- [services/control-panel](../../CONTEXT.md) — Shares Frontend State Management domain (session expiry event)

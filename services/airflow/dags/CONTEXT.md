@@ -29,7 +29,6 @@ Defines the four Airflow DAGs that orchestrate the medallion lakehouse pipeline:
 
 ## Related Modules
 
-- [services/airflow](../CONTEXT.md) — Shares Kafka Event Streaming domain (dlq monitoring via duckdb delta extension)
 - [services/airflow](../CONTEXT.md) — Shares Airflow Orchestration domain (airflow asset lineage)
-- [services/airflow](../CONTEXT.md) — Shares Repository and Data Access Patterns domain (dlq monitoring via duckdb delta extension)
-- [services/airflow/tests](../tests/CONTEXT.md) — Reverse dependency — Consumed by this module
+- [services/airflow](../CONTEXT.md) — Shares Kafka & Event Streaming domain (dlq monitoring)
+- [services/airflow](../CONTEXT.md) — Shares Stream Processor & Event Pipeline domain (dlq monitoring)

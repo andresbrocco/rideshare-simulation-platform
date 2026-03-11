@@ -26,5 +26,4 @@ Shared infrastructure for the `data_platform` integration test suite. Provides t
 
 ## Related Modules
 
-- [tests](../../../CONTEXT.md) — Shares Testing Infrastructure and Fixtures domain (testcontext)
-- [tests/integration](../../CONTEXT.md) — Reverse dependency — Provides docker_compose, load_credentials, reset_all_state (+7 more)
+- [tests/integration/data_platform](../CONTEXT.md) — Shares Testing Patterns & Fixtures domain (testcontext)

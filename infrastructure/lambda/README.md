@@ -12,6 +12,9 @@
 | `LOCALSTACK_HOSTNAME` | No | Set in local dev to route SDK calls to `http://{LOCALSTACK_HOSTNAME}:4566` instead of AWS |
 | `SCHEDULER_ROLE_ARN` | Yes (prod) | IAM role ARN that EventBridge Scheduler uses to invoke this Lambda |
 | `SELF_FUNCTION_ARN` | Yes (prod) | This Lambda's own ARN — used as the EventBridge Scheduler target for auto-teardown |
+| `VISITORS_TABLE_NAME` | Yes (prod) | DynamoDB table name for durable visitor records (default: `rideshare-visitors`) |
+| `VISITOR_KMS_KEY_ID` | Yes (prod) | KMS key ID used to encrypt/decrypt visitor plaintext passwords in DynamoDB |
+| `SES_SENDER_EMAIL` | Yes (prod) | Verified SES sender address for visitor welcome emails |
 
 ### Secrets (AWS Secrets Manager)
 
@@ -19,6 +22,8 @@
 |---|---|---|
 | `rideshare/api-key` | `API_KEY` | Shared API key validated on all authenticated actions |
 | `rideshare/github-pat` | `GITHUB_PAT` | GitHub Personal Access Token used for workflow dispatch and status polling |
+| `rideshare/monitoring` | `ADMIN_PASSWORD` | Grafana admin password used by visitor provisioning sub-module |
+| `rideshare/data-pipeline` | `AIRFLOW_ADMIN_PASSWORD`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` | Airflow and MinIO admin credentials used by visitor provisioning sub-modules |
 
 ### SSM Parameter Store
 
@@ -39,6 +44,9 @@ All requests are JSON with an `action` field. Via Function URL, POST with `Conte
 | `get-deploy-progress` | Returns per-service readiness map and `all_ready` flag |
 | `teardown-status` | Returns step-level teardown progress from GitHub Actions |
 | `auto-teardown` | Internal — invoked by EventBridge Scheduler when deadline expires |
+| `provision-visitor` | Registers a visitor: stores Trino hash + KMS-encrypted password in DynamoDB, sends welcome email via SES (Phase 1 of two-phase provisioning) |
+| `extend-session` | Adds 15 minutes to the current deadline (max 2 hours remaining) |
+| `shrink-session` | Removes 15 minutes from the current deadline (min 0 minutes remaining) |
 
 #### Authenticated actions (require `api_key`)
 
@@ -48,8 +56,7 @@ All requests are JSON with an `action` field. Via Function URL, POST with `Conte
 | `deploy` | `dbt_runner` (`"duckdb"` or `"glue"`, default `"duckdb"`) | Dispatches deploy.yml workflow; creates a deploying session |
 | `status` | — | Returns latest deploy workflow run status from GitHub |
 | `activate-session` | — | Sets the first deadline (called by frontend after health checks pass); idempotent |
-| `extend-session` | — | Adds 15 minutes to the current deadline (max 2 hours remaining) |
-| `shrink-session` | — | Removes 15 minutes from the current deadline (min 0 minutes remaining) |
+| `reprovision-visitors` | — | Phase 2 of visitor provisioning — scans DynamoDB, decrypts passwords, creates ephemeral accounts in Grafana/Airflow/MinIO/Simulation API |
 | `report-deploy-progress` | `service` (string), `ready` (bool) | Marks a service as ready in the SSM session; called by the deploy workflow |
 | `set-teardown-run-id` | `run_id` (int) | Caches the teardown workflow run ID in the session for progress polling |
 | `complete-teardown` | — | Deletes the session; called by teardown workflow at completion |
@@ -125,9 +132,10 @@ curl -s -X POST "$LAMBDA_FUNCTION_URL" \
 ### Extend session by 15 minutes
 
 ```bash
+# No api_key required — extend-session is unauthenticated
 curl -s -X POST "$LAMBDA_FUNCTION_URL" \
   -H "Content-Type: application/json" \
-  -d '{"action":"extend-session","api_key":"<your-api-key>"}' | jq .
+  -d '{"action":"extend-session"}' | jq .
 ```
 
 ### Run unit tests
@@ -172,7 +180,7 @@ The stale `tearing_down` flag is auto-cleared by the next `session-status` call 
 The handler detects the in-progress deploy workflow and reschedules auto-teardown 5 minutes later. The session deadline is also updated in SSM so the frontend countdown remains accurate.
 
 **`extend-session` returns 400 "Cannot extend beyond 2 hours remaining"**
-The maximum allowed remaining time is 2 hours. Reduce current remaining time first by calling `shrink-session`, or wait for natural time to elapse.
+The maximum allowed remaining time is 2 hours. Reduce current remaining time first by calling `shrink-session` (also unauthenticated), or wait for natural time to elapse.
 
 **Function URL returns duplicate CORS headers**
 CORS headers are intentionally absent from `get_response_headers()` in the handler code — they are injected solely by the Lambda Function URL configuration in Terraform. If duplicate headers appear, check that a middleware layer is not also adding CORS headers.

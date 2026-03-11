@@ -28,5 +28,5 @@ Shell-command-based end-to-end test routines that verify simulation checkpoint b
 
 ## Related Modules
 
-- [infrastructure/docker](../../../../infrastructure/docker/CONTEXT.md) — Dependency — Docker Compose configuration defining the complete local development environment...
-- [services/simulation/src/engine](../../src/engine/CONTEXT.md) — Dependency — SimPy simulation environment orchestration, lifecycle state machine, and thread-...
+- [services/grafana/dashboards/performance](../../../grafana/dashboards/performance/CONTEXT.md) — Shares SimPy Simulation Engine domain (speed multiplier)
+- [services/performance-controller](../../../performance-controller/CONTEXT.md) — Shares SimPy Simulation Engine domain (speed multiplier)

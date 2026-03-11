@@ -26,4 +26,4 @@ Provides the simulation's real-time visualization pipeline to Redis. Handles eve
 
 ## Related Modules
 
-- [services/simulation/src](../CONTEXT.md) — Reverse dependency — Provides main, SimulationRunner, Settings (+8 more)
+- [services/simulation/src/api](../api/CONTEXT.md) — Shares Checkpointing & State Persistence domain (statesnapshotmanager)

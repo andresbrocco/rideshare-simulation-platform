@@ -26,6 +26,7 @@ Kustomize overlays that produce two mutually exclusive production deployment tar
 - The `trino-glue-catalog-patch.yaml` in `production-glue` also deletes the `wait-for-hive-metastore` and `wait-for-minio` initContainers from the Trino Deployment. Applying both the duckdb and glue Trino patches simultaneously would produce conflicting catalog configurations and must be avoided.
 - Airflow Deployments in `production-glue` receive `DBT_RUNNER=glue` and `GLUE_ROLE_ARN` env vars injected inline as strategic merge patches. The `<glue-role-arn>` value comes from `terraform -chdir=infrastructure/terraform/foundation output -raw glue_job_role_arn`.
 - `delta.register-table-procedure.enabled=true` is set in the duckdb overlay's Trino catalog patch, enabling the `register_table` stored procedure used by the bronze-init job to register Delta tables at runtime.
+- Both overlays inherit Trino FILE-based authentication and the Grafana Admin dashboard folder directly from the base manifests — no overlay-specific patches are needed for either feature. Trino's `password.db` is generated at startup by the `setup-config` initContainer using bcrypt hashes sourced from AWS Secrets Manager (synced via ESO). The Grafana Admin folder is provisioned from the `grafana-dashboards-admin` ConfigMap and contains the `visitor-activity.json` operator dashboard.
 
 ## Related Modules
 

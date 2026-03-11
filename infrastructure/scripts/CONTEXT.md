@@ -6,13 +6,14 @@ One-shot operational scripts that bootstrap, bridge, and gate the data platform 
 
 ## Responsibility Boundaries
 
-- **Owns**: Secrets seeding and fetching, Delta table catalog registration (Trino and Glue), DuckDB-to-S3 export, Bronze readiness gating, Lambda function deployment to LocalStack
-- **Delegates to**: AWS Secrets Manager / LocalStack for secret storage, Trino REST API and Glue API for catalog operations, delta-rs (`deltalake` Python package) for Delta table I/O
+- **Owns**: Secrets seeding and fetching, Delta table catalog registration (Trino and Glue), DuckDB-to-S3 export, Bronze readiness gating, Lambda function deployment to LocalStack, visitor account provisioning across all platform services (Grafana, Airflow, MinIO, Trino, Simulation API), Trino FILE authenticator password hash generation
+- **Delegates to**: AWS Secrets Manager / LocalStack for secret storage, Trino REST API and Glue API for catalog operations, delta-rs (`deltalake` Python package) for Delta table I/O, Airflow REST API (`/api/v1/users`) for user management, Grafana Admin API (`/api/admin/users`) for user management, MinIO Python SDK (`minio.MinioAdmin`) for user and policy management
 - **Does not handle**: Data transformation, schema evolution, or ongoing service operations — each script is a bounded one-shot action
 
 ## Key Concepts
 
-- **Secrets bootstrap flow**: `seed-secrets.py` populates four `rideshare/*` secret groups in Secrets Manager (LocalStack dev or real AWS). `fetch-secrets.py` reads those groups and writes grouped `.env` files (`core.env`, `data-pipeline.env`, `monitoring.env`) consumed by Docker Compose profiles. Airflow and Grafana keys are remapped during fetch (e.g., `FERNET_KEY` → `AIRFLOW__CORE__FERNET_KEY`, `ADMIN_USER` → `GF_SECURITY_ADMIN_USER`).
+- **Secrets bootstrap flow**: `seed-secrets.py` populates `rideshare/*` secret groups in Secrets Manager (LocalStack dev or real AWS). `fetch-secrets.py` reads those groups and writes grouped `.env` files (`core.env`, `data-pipeline.env`, `monitoring.env`) consumed by Docker Compose profiles. Airflow and Grafana keys are remapped during fetch (e.g., `FERNET_KEY` → `AIRFLOW__CORE__FERNET_KEY`, `ADMIN_USER` → `GF_SECURITY_ADMIN_USER`). `seed-secrets.py` also generates bcrypt hashes at seed time for `rideshare/trino-admin-password-hash` and `rideshare/trino-visitor-password-hash` using the `bcrypt` library.
+- **Visitor provisioning**: `provision_visitor_cli.py` orchestrates multi-service visitor account creation via the same `_provision_visitor` logic as the Lambda handler. It delegates to three sub-modules: `provision_grafana_viewer.py` (HTTP 412 = update), `provision_airflow_viewer.py` (HTTP 409 = update), and `provision_minio_visitor.py` (MinIO Admin SDK). All provisioners are idempotent. Trino credentials are handled via bcrypt hash update in Secrets Manager (not direct service calls) and require a container restart to take effect.
 - **Dual-path table registration**: Delta tables written by `bronze-ingestion` (delta-rs) and DBT exports are not auto-discovered by query engines. Two registration scripts exist for different runtimes: `register-delta-tables.sh` (uses Trino CLI, runs in Docker init container) and `register-trino-tables.py` (uses Trino REST API, runs from Airflow which lacks the CLI). `register-glue-tables.py` handles AWS Glue Data Catalog for the production path using dbt-glue Interactive Sessions.
 - **DuckDB-to-Delta bridge**: `export-dbt-to-s3.py` reads Silver/Gold DBT output from a DuckDB file and writes it to S3 as Delta tables via delta-rs. This step is required before Trino can query those tables. Empty tables are skipped to avoid creating empty Delta logs.
 - **Bronze readiness gate**: `check_bronze_tables.py` is called by Airflow before DBT Silver transformations. It exits 1 (skip DBT run) if any of the 8 required Bronze Delta tables are absent from MinIO, and exits 2 on connectivity failure. Uses `DeltaTable.is_deltatable()` for fast existence checking without scanning data.
@@ -25,9 +26,12 @@ One-shot operational scripts that bootstrap, bridge, and gate the data platform 
 - `export-dbt-to-s3.py` uses `AWS_S3_ALLOW_UNSAFE_RENAME=true` in storage options — required by delta-rs for S3-compatible stores that lack atomic rename (MinIO and S3 itself). Without this flag, Delta writes fail on commit.
 - `seed-secrets.py` supports per-key override via `OVERRIDE_<KEY>` environment variables, allowing CI or deployment scripts to inject production values without editing the defaults.
 - `deploy-lambda.py` uses a dummy IAM role ARN (`arn:aws:iam::000000000000:role/lambda-role`) because LocalStack accepts any syntactically valid ARN and does not enforce role trust policies.
+- `provision_minio_visitor.py` loads the `visitor-readonly` policy from `infrastructure/policies/minio-visitor-readonly.json` at canonical path and falls back to a co-located copy for Lambda deployments. The policy scope is `rideshare-gold` bucket only (read-only).
+- `provision_visitor_cli.py` monkey-patches `handler.get_secret` when `SIMULATION_API_KEY` is set in the environment, bypassing LocalStack for that one secret so the CLI can run without a live LocalStack instance.
+- `generate_trino_password_hash.py` produces `$2b$10$...` prefixed hashes (Python bcrypt library default). Trino's FILE authenticator accepts both `$2b$` and `$2y$` variants, but `$2y$` is the canonical Trino format. The cost factor is 10, exceeding Trino's minimum of 8.
+- Trino password changes from visitor provisioning require a container restart — Trino reads `password.db` only at startup, not dynamically.
 
 ## Related Modules
 
-- [infrastructure/docker](../docker/CONTEXT.md) — Reverse dependency — Consumed by this module
-- [infrastructure/kubernetes/components](../kubernetes/components/CONTEXT.md) — Reverse dependency — Provides aws-production component (kustomization.yaml)
-- [infrastructure/kubernetes/components/aws-production](../kubernetes/components/aws-production/CONTEXT.md) — Reverse dependency — Provides ECR image references for all custom services, ServiceAccounts for IRSA/Pod Identity workloads, SecretStore aws-secrets-manager (+4 more)
+- [infrastructure/terraform/foundation](../terraform/foundation/CONTEXT.md) — Shares Authentication & Authorization domain (visitor provisioning)
+- [services/control-panel](../../services/control-panel/CONTEXT.md) — Shares Authentication & Authorization domain (visitor provisioning)

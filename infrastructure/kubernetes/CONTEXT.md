@@ -24,6 +24,10 @@ Both overlays apply `components/aws-production/` which patches all manifests for
 
 **bronze-init CronJob** runs every 10 minutes and calls `CALL delta.system.register_table(...)` via Trino CLI to register Bronze Delta tables. It is idempotent and tolerant of missing data (tables without S3 objects are skipped as warnings). This is needed because Delta tables written by bronze-ingestion don't auto-register in Hive Metastore or Glue.
 
+**Trino FILE-based authentication and access control**: Trino uses `http-server.authentication.type=PASSWORD` with a `file` password authenticator. The `password.db` file is generated at pod startup by the `setup-config` initContainer, which uses `sed` to substitute `TRINO_ADMIN_PASSWORD_HASH` and `TRINO_VISITOR_PASSWORD_HASH` (bcrypt hashes) into a `password.db.template`. Access control is enforced via `rules.json`: the `admin` user gets full catalog access; all other users get read-only access to the `delta` catalog with no access to the `system` catalog. The two password hash values are managed as ExternalSecrets (paths `rideshare/trino-admin-password-hash` and `rideshare/trino-visitor-password-hash`) and injected into `app-credentials` by ESO.
+
+**Grafana Admin dashboard folder**: A dedicated `Admin` folder is provisioned in Grafana (path `/etc/dashboards/admin`) for operator-only dashboards. The `grafana-dashboards-admin` ConfigMap contains `visitor-activity.json`, which aggregates per-service access timestamps from Airflow login history (via the `airflow-postgres` PostgreSQL datasource) and cross-service audit events from Loki.
+
 **Static PVs for local Kind**: `pv-static.yaml` binds hostPath volumes to specific Kind worker nodes (`rideshare-local-worker`, `rideshare-local-worker2`) using `nodeAffinity`. These are not used in production (EBS StorageClass is applied by the `aws-production` component instead).
 
 ## Non-Obvious Details
@@ -34,6 +38,8 @@ Both overlays apply `components/aws-production/` which patches all manifests for
 - StorageClass application uses `set +e` / grep filtering for the "field is immutable" error because Kind ships a default `standard` StorageClass that conflicts with the manifest on re-apply.
 - The `aws-production` component patches replicas to `ignoreDifferences` for Deployments and StatefulSets, but ArgoCD's automated prune will still remove resources deleted from Git.
 - Kafka headless service DNS (`kafka-0.kafka:29092`) is hardcoded across multiple init containers and env vars rather than read from ConfigMap.
+- Trino's `password.db` is **never** stored directly in a ConfigMap because it contains bcrypt password hashes. It is written to a shared `emptyDir` volume by the `setup-config` initContainer at pod startup. Storing it in a ConfigMap would expose the hashes in plaintext to anyone with `kubectl get configmap` access.
+- The Grafana `visitor-activity.json` dashboard references the `airflow-postgres` datasource by UID (`airflow-postgres`). If that datasource is not provisioned, Airflow login panels will fail silently with "Data source not found." The datasource must connect to the `airflow-postgres` Service on port 5432.
 
 ## Related Modules
 

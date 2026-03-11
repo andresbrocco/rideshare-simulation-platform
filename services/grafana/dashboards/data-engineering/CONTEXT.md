@@ -23,3 +23,8 @@ Grafana dashboards for data engineering observability across two medallion layer
 - The duplicate rate panel uses `COUNT(*) - COUNT(DISTINCT event_id)` rather than a self-join, so it measures event-level deduplication, not trip-level. This is intentional for detecting Kafka at-least-once redelivery.
 - Stream processing error panels in `data-quality.json` mix datasources within the same dashboard: Trino for historical SQL-based quality metrics, Prometheus for real-time stream processor counters. The "Corrupted Events Injected" panel tracks intentional fault injection from the simulation's DataCorruptor component — a non-zero value is expected during chaos testing scenarios.
 - Ingestion date partitioning (`_ingestion_date`) is used in Bronze WHERE clauses for partition pruning efficiency; `_ingested_at` (timestamp) is used in Silver queries where the table is not partitioned by date.
+
+## Related Modules
+
+- [services/bronze-ingestion](../../../bronze-ingestion/CONTEXT.md) — Shares Kafka & Event Streaming domain (dlq (dead letter queue))
+- [services/bronze-ingestion](../../../bronze-ingestion/CONTEXT.md) — Shares Stream Processor & Event Pipeline domain (dlq (dead letter queue))

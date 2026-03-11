@@ -25,7 +25,7 @@ The platform is a multi-service architecture deployed as containerized services 
 | Geospatial | H3 spatial indexing, OSRM routing, Shapely |
 | Observability | Prometheus, Grafana, Loki, Tempo, OTel Collector 0.96.0 |
 | Infrastructure | Docker Compose, Kubernetes, Terraform 1.14.3, ArgoCD |
-| Cloud | AWS (EKS, RDS, S3, ECR, Lambda, Glue, Secrets Manager, CloudFront) |
+| Cloud | AWS (EKS, RDS, S3, ECR, Lambda, Glue, Secrets Manager, DynamoDB, KMS, SES, CloudFront) |
 | Testing | pytest, Vitest, dbt test, Great Expectations |
 
 ## Quick Orientation
@@ -34,13 +34,13 @@ The platform is a multi-service architecture deployed as containerized services 
 
 | Entry | Path | Purpose |
 |-------|------|---------|
-| Simulation | `services/simulation/src/main.py` | SimPy engine + FastAPI API (port 8000) |
+| Simulation | `services/simulation/src/main.py` | SimPy engine + FastAPI API (port 8000/container, 8082/host) |
 | Stream Processor | `services/stream-processor/src/main.py` | Kafka-to-Redis bridge (health port 8080) |
 | Bronze Ingestion | `services/bronze-ingestion/src/main.py` | Kafka-to-Delta writer (health port 8080) |
 | Performance Controller | `services/performance-controller/src/main.py` | PID speed controller |
 | Control Panel | `services/control-panel/src/main.tsx` | React SPA (port 5173) |
 | Airflow DAGs | `services/airflow/dags/` | Silver/Gold transforms, maintenance, DLQ monitoring |
-| Lambda auth-deploy | `infrastructure/lambda/auth-deploy/handler.py` | Deploy/teardown lifecycle control |
+| Lambda auth-deploy | `infrastructure/lambda/auth-deploy/handler.py` | Deploy/teardown lifecycle control and visitor self-registration (two-phase provisioning via DynamoDB, KMS, SES); also handles `visitor-login` for pre-deploy authentication |
 | OpenAPI Spec | `schemas/api/openapi.json` | Simulation REST API contract |
 
 ### Getting Started
@@ -96,10 +96,10 @@ cd tools/dbt && ./venv/bin/dbt test
 
 | Module | Purpose | CONTEXT.md |
 |--------|---------|------------|
-| `services/simulation` | SimPy discrete-event simulation engine with FastAPI control plane; sole source of all synthetic events | [->](services/simulation/CONTEXT.md) |
+| `services/simulation` | SimPy discrete-event simulation engine with FastAPI control plane; sole source of all synthetic events; includes bcrypt-hashed in-memory user store, Redis-backed session store, and role-based access control (`POST /auth/login`, `POST /auth/register`) | [->](services/simulation/CONTEXT.md) |
 | `services/stream-processor` | Kafka-to-Redis bridge with windowed GPS aggregation and deduplication | [->](services/stream-processor/CONTEXT.md) |
 | `services/bronze-ingestion` | Kafka-to-Bronze Delta Lake ingestion with DLQ routing | [->](services/bronze-ingestion/CONTEXT.md) |
-| `services/control-panel` | React/TypeScript SPA with deck.gl geospatial map and simulation controls | [->](services/control-panel/CONTEXT.md) |
+| `services/control-panel` | React/TypeScript SPA with deck.gl geospatial map, simulation controls, visitor provisioning form (`VisitorAccessForm`), credential-based login dialog (`LoginDialog`), and role-based access control | [->](services/control-panel/CONTEXT.md) |
 | `services/airflow` | Airflow DAG orchestration for medallion pipeline (Silver, Gold, DLQ, maintenance) | [->](services/airflow/CONTEXT.md) |
 | `services/performance-controller` | Closed-loop PID controller throttling simulation speed via Prometheus headroom | [->](services/performance-controller/CONTEXT.md) |
 
@@ -108,11 +108,11 @@ cd tools/dbt && ./venv/bin/dbt test
 | Module | Purpose | CONTEXT.md |
 |--------|---------|------------|
 | `services/kafka` | Kafka topic registry and cluster init | [->](services/kafka/CONTEXT.md) |
-| `services/grafana` | Dashboards across 5 categories (monitoring, data-eng, BI, operations, performance) | [->](services/grafana/CONTEXT.md) |
+| `services/grafana` | Dashboards across 6 folders (monitoring, data-engineering, business-intelligence, operations, performance, admin); `airflow-postgres` datasource for visitor activity auditing | [->](services/grafana/CONTEXT.md) |
 | `services/prometheus` | Metrics collection and recording rules including composite headroom score | [->](services/prometheus/CONTEXT.md) |
 | `services/osrm` | Road-network routing for Sao Paulo | [->](services/osrm/CONTEXT.md) |
 | `services/otel-collector` | Central telemetry gateway (metrics, logs, traces) | [->](services/otel-collector/CONTEXT.md) |
-| `services/trino` | SQL query engine over Delta Lake layers | [->](services/trino/CONTEXT.md) |
+| `services/trino` | SQL query engine over Delta Lake layers; FILE-based password auth with two-user model (`admin`/`visitor`); `etc/` holds all server configuration files | [->](services/trino/CONTEXT.md) |
 | `services/hive-metastore` | Delta table metadata catalog for Trino | [->](services/hive-metastore/CONTEXT.md) |
 
 ### Data Transformation Tools
@@ -134,11 +134,13 @@ cd tools/dbt && ./venv/bin/dbt test
 
 | Module | Purpose | CONTEXT.md |
 |--------|---------|------------|
+| `.github/workflows` | CI/CD lifecycle: static gates, ECR image builds, EKS deploy/teardown, soft-reset, GitOps via ArgoCD | [->](.github/workflows/CONTEXT.md) |
 | `infrastructure/docker` | Docker Compose with 4 composable profiles for local dev | [->](infrastructure/docker/CONTEXT.md) |
 | `infrastructure/kubernetes` | K8s manifests, Kustomize overlays, ArgoCD GitOps | [->](infrastructure/kubernetes/CONTEXT.md) |
 | `infrastructure/terraform` | Three-layer AWS provisioning (bootstrap, foundation, platform) | [->](infrastructure/terraform/CONTEXT.md) |
-| `infrastructure/lambda` | auth-deploy Lambda for deploy/teardown lifecycle | [->](infrastructure/lambda/CONTEXT.md) |
-| `infrastructure/scripts` | Operational scripts: secrets, table registration, export | [->](infrastructure/scripts/CONTEXT.md) |
+| `infrastructure/lambda` | auth-deploy Lambda for deploy/teardown lifecycle, visitor self-registration (two-phase: DynamoDB durable records + post-deploy service account creation via Grafana, Airflow, MinIO, Simulation API), and `visitor-login` pre-deploy authentication | [->](infrastructure/lambda/CONTEXT.md) |
+| `infrastructure/scripts` | Operational scripts: secrets seeding, Delta table registration, DuckDB-to-S3 export, visitor account provisioning, Trino password hash generation | [->](infrastructure/scripts/CONTEXT.md) |
+| `infrastructure/policies` | IAM-compatible policy documents (e.g., `minio-visitor-readonly.json`) shared between Lambda deployments and operational scripts | — |
 
 ### Tests
 
@@ -172,7 +174,7 @@ DBT `profiles.yml` defines `duckdb` and `glue` targets. Cross-database SQL diffe
 
 ### Foundation/Platform Terraform Split
 
-AWS infrastructure splits into persistent `foundation` (VPC, S3, IAM, DNS, Lambda -- cost-free at rest) and ephemeral `platform` (EKS, RDS -- created on deploy, destroyed on teardown). The platform can be destroyed between demo sessions for cost control (~$0.31/hr running, ~$8/mo foundation-only).
+AWS infrastructure splits into persistent `foundation` (VPC, S3, IAM, DNS, Lambda, DynamoDB, KMS CMK `rideshare-visitor-passwords`, SES domain identity -- cost-free at rest) and ephemeral `platform` (EKS, RDS -- created on deploy, destroyed on teardown). The platform can be destroyed between demo sessions for cost control (~$0.31/hr running, ~$8/mo foundation-only). The auth-deploy Lambda bridges these tiers: `visitor-login` validates existing visitor credentials against the Lambda before deploy; Phase 1 (`provision-visitor`) writes durable DynamoDB records and sends a welcome email before the platform exists; Phase 2 (`reprovision-visitors`) runs after deploy to create ephemeral Grafana/Airflow/MinIO/Simulation API accounts using the stored (KMS-encrypted) credentials.
 
 ## Key Conventions
 
@@ -188,7 +190,8 @@ AWS infrastructure splits into persistent `foundation` (VPC, S3, IAM, DNS, Lambd
 - **Agent DNA**: Frozen Pydantic models (`frozen=True`); mutations emit new Kafka events for SCD Type 2
 - **Geospatial**: H3 resolution 9 for spatial indexing; `(lat, lon)` order except GeoJSON `[lon, lat]`
 - **Kafka schema validation**: Non-fatal (logged as warning) to avoid halting the simulation
-- **API auth**: `X-API-Key` header (REST), `Sec-WebSocket-Protocol: apikey.<key>` (WebSocket)
+- **API auth**: `X-API-Key` header (REST), `Sec-WebSocket-Protocol: apikey.<key>` (WebSocket); session keys (`sess_` prefix) are issued by `POST /auth/login` and carry role/email from Redis; static admin key bypasses Redis entirely
+- **Roles**: Two roles — `admin` (full mutation access) and `viewer` (read-only); enforced via `require_admin` FastAPI dependency; provisioned by Lambda `reprovision-visitors` via `POST /auth/register`
 - **Default credentials (dev)**: All services use `admin`/`admin`; API key is `admin`
 
 ## Gotchas and Non-Obvious Details
@@ -208,6 +211,10 @@ AWS infrastructure splits into persistent `foundation` (VPC, S3, IAM, DNS, Lambd
 - **Delta table registration is manual**: Tables written by bronze-ingestion are not auto-discoverable by Trino. Registration scripts must run (via Airflow DAG or init container CronJob every 10 min).
 - **Secrets volume mount**: All services source credentials from `/secrets/*.env` written by `secrets-init`. The `secrets-init` container must complete before other services start.
 - **RDS password restrictions**: Must use only `!#&*-_=+` special characters (no `%`, `>`, `[` -- they break URI/psql parsing).
-- **Grafana dashboard conventions**: Hardcode datasource UIDs (`"uid": "prometheus"` / `"uid": "trino"`), never use template variables. Trino targets need `"rawQuery": true` and field name `rawSQL` (capital SQL).
+- **Grafana dashboard conventions**: Hardcode datasource UIDs (`"uid": "prometheus"` / `"uid": "trino"` / `"uid": "airflow-postgres"`), never use template variables. Trino targets need `"rawQuery": true` and field name `rawSQL` (capital SQL). Sixth dashboard folder `admin/` holds operator-only visitor activity dashboards.
 - **Pod Identity (not IRSA)**: All production workload IAM roles trust `pods.eks.amazonaws.com`. Pod Identity associations in `infrastructure/terraform/platform/main.tf`.
 - **Production domain**: `*.ridesharing.portfolio.andresbrocco.com` (not `rideshare`).
+- **Session-based auth vs static key**: Keys prefixed `sess_` trigger Redis lookups via `session_store.get_session`; all other keys compare against the static admin key. Never store the raw admin key in the browser — the frontend uses session keys from `POST /auth/login` for visitor sessions.
+- **`LoginDialog` replaces `PasswordDialog`**: The control panel login dialog now posts `{ email, password }` to `POST /auth/login` and stores `{ api_key, role, email }` in `sessionStorage` via `storeSession()`. The old raw-API-key flow via `PasswordDialog` is superseded.
+- **Trino `etc/` two-path layout**: Static config files (`config.properties`, `jvm.config`, `rules.json`, `event-listener.properties`) are bind-mounted into `/etc/trino/`; credential files (`password.db`) are rendered at startup from `password.db.template` into `/tmp/trino-etc/`. The `password-authenticator.properties` and `access-control.properties` reference `/tmp/trino-etc/` — do not edit the template paths.
+- **CI/CD workflows are now documented**: `.github/workflows/CONTEXT.md` describes the full lifecycle — `build-images.yml`, `deploy.yml`, `teardown-platform.yml`, `soft-reset.yml`, and `deploy-lambda.yml`. The `deploy` branch is a materialized artifact (resolved placeholders force-pushed with `[skip ci]`); `main` always retains placeholder tokens.

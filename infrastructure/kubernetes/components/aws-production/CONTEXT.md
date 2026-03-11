@@ -27,13 +27,9 @@ A Kustomize `Component` (not an overlay) that bundles all AWS-specific productio
 
 ## Related Modules
 
-- [infrastructure/kubernetes/components](../CONTEXT.md) — Shares Kubernetes and ArgoCD Deployment domain (alb ingressgroup)
-- [infrastructure/kubernetes/components](../CONTEXT.md) — Shares AWS IAM and Security domain (eks pod identity)
-- [infrastructure/kubernetes/manifests](../../manifests/CONTEXT.md) — Dependency — Base Kubernetes manifests for all platform services, infrastructure dependencies...
-- [infrastructure/kubernetes/overlays](../../overlays/CONTEXT.md) — Reverse dependency — Provides production-duckdb/kustomization.yaml, production-glue/kustomization.yaml
-- [infrastructure/kubernetes/overlays/production-duckdb](../../overlays/production-duckdb/CONTEXT.md) — Reverse dependency — Consumed by this module
-- [infrastructure/kubernetes/overlays/production-glue](../../overlays/production-glue/CONTEXT.md) — Reverse dependency — Consumed by this module
-- [infrastructure/scripts](../../../scripts/CONTEXT.md) — Dependency — One-shot operational scripts that bootstrap secrets, register Delta tables in ca...
-- [infrastructure/terraform/foundation/modules/iam](../../../terraform/foundation/modules/iam/CONTEXT.md) — Shares AWS IAM and Security domain (eks pod identity)
-- [infrastructure/terraform/platform](../../../terraform/platform/CONTEXT.md) — Shares AWS IAM and Security domain (eks pod identity)
-- [infrastructure/terraform/platform/modules/alb](../../../terraform/platform/modules/alb/CONTEXT.md) — Shares AWS IAM and Security domain (eks pod identity)
+- [infrastructure/kubernetes/components](../CONTEXT.md) — Shares Authentication & Authorization domain (eks pod identity)
+- [infrastructure/kubernetes/components](../CONTEXT.md) — Shares AWS Infrastructure & IAM domain (eks pod identity)
+- [infrastructure/terraform/foundation/modules/iam](../../../terraform/foundation/modules/iam/CONTEXT.md) — Shares Authentication & Authorization domain (eks pod identity)
+- [infrastructure/terraform/foundation/modules/iam](../../../terraform/foundation/modules/iam/CONTEXT.md) — Shares AWS Infrastructure & IAM domain (eks pod identity)
+- [infrastructure/terraform/platform/modules/alb](../../../terraform/platform/modules/alb/CONTEXT.md) — Shares Authentication & Authorization domain (eks pod identity)
+- [infrastructure/terraform/platform/modules/alb](../../../terraform/platform/modules/alb/CONTEXT.md) — Shares AWS Infrastructure & IAM domain (eks pod identity)

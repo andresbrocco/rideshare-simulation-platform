@@ -6,15 +6,19 @@ React/TypeScript single-page application that serves as the operator interface f
 
 ## Responsibility Boundaries
 
-- **Owns**: All UI rendering, WebSocket message consumption, deck.gl layer composition, agent placement interactions, auth cookie handoff between landing and control-panel pages, and the Vite dev-server proxy configuration.
-- **Delegates to**: `services/simulation` REST/WebSocket API for simulation state and control commands; a Lambda function (`VITE_LAMBDA_URL`) for deploy/teardown orchestration.
+- **Owns**: All UI rendering, WebSocket message consumption, deck.gl layer composition, agent placement interactions, auth cookie handoff between landing and control-panel pages, the visitor email consent form (`VisitorAccessForm`), the login dialog (`LoginDialog`), and the Vite dev-server proxy configuration.
+- **Delegates to**: `services/simulation` REST/WebSocket API for simulation state and control commands; a Lambda function (`VITE_LAMBDA_URL`) for deploy/teardown orchestration, visitor provisioning (`provisionVisitor`), and auth key validation; `src/hooks/useRole` for role resolution; `src/hooks/useSessionExpiry` for 401-triggered session expiry handling.
 - **Does not handle**: Business logic, event production, data persistence, or WebSocket message generation — it is a pure consumer.
 
 ## Key Concepts
 
 - **Tri-modal app (`AppContent`)**: The application runs in one of three modes determined at startup by `getAppMode()`: `landing` (standalone portfolio page served from a separate route or subdomain), `control-panel` (the operator view, expects auth cookie injected by the landing page), and `dev` (combined local development mode that polls API health and renders both). Each mode is its own root component (`LandingApp`, `ControlPanelApp`, `DevApp`).
-- **Auth cookie handoff**: Because landing and control-panel are served as separate "pages" (different paths or origins), auth cannot cross as React state. When the user authenticates on the landing page the API key is written to a short-lived cookie via `setAuthCookie`. `ControlPanelApp` reads the cookie on mount, copies it to `sessionStorage`, then clears the cookie — preventing the key from persisting in browser storage after the session.
+- **Auth cookie handoff**: Because landing and control-panel are served as separate "pages" (different paths or origins), auth cannot cross as React state. When the user authenticates on the landing page the API key is written to a short-lived cookie via `setAuthCookie`. `ControlPanelApp` reads the cookie on mount, calls `storeSession()` to migrate the key into `sessionStorage` (with placeholder role/email), and clears the cookie via `clearAuthCookie()`. Subsequent same-tab reloads read from `sessionStorage` via `getApiKey()` directly.
 - **Puppet agents**: The UI can inject "puppet" drivers and riders (agents under direct operator control rather than autonomous simulation DNA). Puppet agents expose manual action buttons in the inspector (accept/reject offer, start trip, cancel trip) that fire REST commands.
+- **Role-based access control**: `ControlPanel.tsx` reads the current role via `useRole()` and derives `isAdmin = role === 'admin'`. All simulation controls and puppet agent actions are disabled for non-admin users and show `'Admin only'` tooltips. The `isAdmin` flag is forwarded to `InspectorPopup` and ultimately to `DriverActionsSection`.
+- **Visitor provisioning**: The `VisitorAccessForm` component (embedded in `LandingPage`) collects visitor email and consent, then calls `provisionVisitor(email)` from `src/services/lambda`. The Lambda action creates credentials and sends a confirmation email; the form handles partial-success (HTTP 207) by independently checking `provisioned` and `emailSent` fields.
+- **`LoginDialog` replaces `PasswordDialog`**: The credential dialog was renamed and its auth flow updated. `LoginDialog.tsx` posts `{ email, password }` to `POST /auth/login`, receives `{ api_key, role, email }`, and persists the full session via `storeSession()`. The old `PasswordDialog` accepted a raw API key and validated it against Lambda directly.
+- **Session expiry event**: `useSessionExpiry` in `OnlineApp` listens for a `'session:expired'` custom DOM event dispatched by `apiFetch` on any 401 response, calling `clearSession()` and showing `LoginDialog`. This keeps 401 handling decoupled from individual request sites.
 - **Destination selection mode**: Requesting a trip for a rider is a two-step interaction: clicking "Request Trip" in the inspector popup enters destination-selection mode (the cursor changes, a banner appears), then a map click sends the trip request with the tapped coordinates. This state lives in `App` rather than in a hook to keep map click handling centralized.
 - **`PerformanceContext`**: Wraps the entire app and tracks WebSocket message throughput and rendering frame rates. Used by performance monitoring panels; its provider must be the outermost wrapper so all hooks can consume it without prop-drilling.
 - **Theme system**: `theme.ts` is the single source of truth for every color. It exposes three representations of each color: hex strings (for CSS), RGB tuples (for deck.gl `getColor` callbacks which require `[r, g, b]`), and CSS `rgb()` strings (for inline SVG/HTML). `injectCssVars()` bakes all values into CSS custom properties on `:root` before the first React render.
@@ -30,10 +34,9 @@ React/TypeScript single-page application that serves as the operator interface f
 
 ## Related Modules
 
-- [infrastructure/docker](../../infrastructure/docker/CONTEXT.md) — Reverse dependency — Consumed by this module
-- [schemas/api](../../schemas/api/CONTEXT.md) — Dependency — Canonical OpenAPI specification for the simulation control panel REST API
-- [schemas/api](../../schemas/api/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
-- [services/control-panel/src/hooks](src/hooks/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
-- [services/simulation/src/api/routes](../simulation/src/api/routes/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
-- [services/simulation/src/engine](../simulation/src/engine/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
-- [services/simulation/tests](../simulation/tests/CONTEXT.md) — Reverse dependency — Provides DNAFactory, conftest fixtures: fake, dna_factory, mock_kafka_producer, mock_redis_client, mock_osrm_client, sample_driver_dna, sample_rider_dna, temp_sqlite_db, sample_zones_path
+- [infrastructure/scripts](../../infrastructure/scripts/CONTEXT.md) — Shares Authentication & Authorization domain (visitor provisioning)
+- [infrastructure/terraform/foundation](../../infrastructure/terraform/foundation/CONTEXT.md) — Shares Authentication & Authorization domain (visitor provisioning)
+- [schemas/api](../../schemas/api/CONTEXT.md) — Shares Agent Behavior & DNA domain (puppet agents)
+- [services/control-panel/src/hooks](src/hooks/CONTEXT.md) — Shares Agent Behavior & DNA domain (puppet agents)
+- [services/control-panel/src/hooks](src/hooks/CONTEXT.md) — Shares React Frontend Architecture domain (session expiry event)
+- [services/control-panel/src/hooks](src/hooks/CONTEXT.md) — Shares Frontend State Management domain (session expiry event)

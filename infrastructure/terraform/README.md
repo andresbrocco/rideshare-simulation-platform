@@ -68,9 +68,12 @@
 | ACM Certificate | `*.ridesharing.portfolio.andresbrocco.com` (us-east-1) |
 | CloudFront | Frontend SPA distribution |
 | Route 53 Zone | `ridesharing.portfolio.andresbrocco.com` |
-| Secrets Manager | `rideshare/api-key`, `rideshare/rds`, `rideshare/data-pipeline`, `rideshare/github-pat` |
+| Secrets Manager | `rideshare/api-key`, `rideshare/rds`, `rideshare/data-pipeline`, `rideshare/github-pat` (plus two Lambda-managed hash secrets — not in Terraform state) |
 | Glue Databases | `rideshare_bronze`, `rideshare_silver`, `rideshare_gold` |
 | Lambda | `rideshare-auth-deploy` |
+| KMS CMK | `rideshare-visitor-passwords` (automatic key rotation enabled) |
+| DynamoDB | `rideshare-visitors` (PAY_PER_REQUEST, KMS SSE, PITR enabled) |
+| SES | Domain identity for `ridesharing.portfolio.andresbrocco.com` with DKIM/SPF/DMARC DNS records |
 | IAM Roles | GitHub Actions OIDC, EKS cluster/node, per-workload Pod Identity roles |
 
 #### Platform (ephemeral — destroyed between demo sessions)

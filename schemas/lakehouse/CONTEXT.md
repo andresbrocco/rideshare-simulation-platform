@@ -23,3 +23,7 @@ Standalone Python package providing PySpark schema definitions and Delta Lake co
 - The `enable_delta_features.py` script hardcodes the eight `s3a://rideshare-bronze/...` table paths. It is a one-time migration tool, not invoked at runtime.
 - Auto-Compact and Optimized Writes are enabled together under `delta.autoOptimize.*` properties — they are distinct from running a manual `OPTIMIZE` command.
 - Date-based partitioning on `_ingestion_date` (derived from `_ingested_at`) is documented in `DELTA_FEATURES.md` as a Bronze table convention but is applied during ingestion, not enforced by this package's schema definitions.
+
+## Related Modules
+
+- [schemas](../CONTEXT.md) — Shares Kafka & Event Streaming domain (dlq schema)

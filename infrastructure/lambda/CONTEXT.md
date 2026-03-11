@@ -6,8 +6,8 @@ AWS Lambda functions that serve as the serverless control plane for portfolio pl
 
 ## Responsibility Boundaries
 
-- **Owns**: API key validation, session lifecycle (deploying → active → tearing_down → gone), EventBridge auto-teardown scheduling, GitHub Actions workflow dispatch and status polling, deploy progress aggregation, service health checks
-- **Delegates to**: GitHub Actions workflows (actual Terraform deploy/teardown), SSM Parameter Store (session state persistence), EventBridge Scheduler (auto-teardown timing), AWS Secrets Manager (credentials)
+- **Owns**: API key validation, session lifecycle (deploying → active → tearing_down → gone), EventBridge auto-teardown scheduling, GitHub Actions workflow dispatch and status polling, deploy progress aggregation, service health checks, visitor account provisioning (two-phase), visitor credential storage (DynamoDB + KMS), welcome email dispatch (SES)
+- **Delegates to**: GitHub Actions workflows (actual Terraform deploy/teardown), SSM Parameter Store (session state persistence), EventBridge Scheduler (auto-teardown timing), AWS Secrets Manager (credentials), DynamoDB (durable visitor records), KMS (visitor password encryption), SES (welcome emails), Grafana/Airflow/MinIO/Simulation API/Trino (ephemeral service account creation via provisioning sub-modules)
 - **Does not handle**: Infrastructure provisioning, Kubernetes operations, application-level health beyond HTTP endpoint reachability
 
 ## Key Concepts
@@ -24,11 +24,13 @@ AWS Lambda functions that serve as the serverless control plane for portfolio pl
 
 **Dual invocation modes**: The handler supports two event formats — Function URL (HTTP envelope with `body` as JSON string, returns `statusCode`/`headers`/`body`) and direct invocation (action fields at the top level, returns the business response dict directly). Direct invocation is used by LocalStack during local development.
 
+**Two-phase visitor provisioning**: `provision-visitor` (Phase 1) is invoked directly from the visitor form before the platform is deployed. It stores Trino credentials durably (PBKDF2 hash in Secrets Manager, KMS-encrypted password in DynamoDB) and sends the welcome email via SES. Phase 2 (`reprovision-visitors`, authenticated) is called by the deploy workflow after all services are healthy — it scans DynamoDB, decrypts each password, and creates ephemeral accounts in Grafana, Airflow, MinIO, and the Simulation API via co-located provisioning sub-modules.
+
 ## Non-Obvious Details
 
 - CORS headers are intentionally absent from the Lambda response — they are injected by the Lambda Function URL configuration in Terraform. Adding them in code would duplicate headers and cause browser rejections.
 - `SESSION_STEP_MINUTES = 15`: sessions extend and shrink in fixed 15-minute increments; the maximum remaining time is capped at 2 hours. Shrinking to exactly 0 is allowed; shrinking below 0 is rejected.
 - Cost tracking uses a hardcoded `PLATFORM_COST_PER_HOUR = 0.31` (1x t3.xlarge). The `cost_so_far` field is computed on every `session-status` call from `elapsed_seconds`, not stored in SSM.
 - Teardown step-to-UI-label mapping uses `TEARDOWN_STEP_RANGES` to group raw GitHub Actions job steps (by index) into five labelled UI steps. The teardown run ID is cached in the SSM session after the first GitHub API lookup to reduce redundant calls.
-- The `auto-teardown`, `session-status`, `service-health`, `teardown-status`, and `get-deploy-progress` actions require no API key — they are publicly readable so the frontend can poll without exposing credentials.
+- The `auto-teardown`, `session-status`, `service-health`, `teardown-status`, `get-deploy-progress`, `provision-visitor`, `extend-session`, and `shrink-session` actions require no API key. The first five are publicly readable for frontend polling; `provision-visitor` enables visitor self-registration before deploy; `extend-session` and `shrink-session` are unauthenticated so the frontend can adjust the session timer without storing the admin API key in the browser.
 - Service health checks run in parallel via `ThreadPoolExecutor` against hardcoded production HTTPS endpoints. These checks are frontend-facing (confirming all services are up post-deploy) and are separate from Kubernetes liveness probes.

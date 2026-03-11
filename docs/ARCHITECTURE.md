@@ -97,11 +97,17 @@ Feedback:       Performance Controller (PID speed adjustment via Prometheus head
 | OTel Collector | v0.96.0 | Central telemetry gateway routing metrics, logs, and traces to backends | -- |
 | cAdvisor | Standard | Container CPU/memory metrics scraped by Prometheus | 8081 |
 
+### CI/CD
+
+| Component | Technology | Responsibility |
+|-----------|-----------|----------------|
+| GitHub Actions workflows | YAML, AWS CLI, kubectl, Terraform | CI quality gates, Docker image builds to ECR, EKS platform provisioning, GitOps deploy via ArgoCD, cost-driven teardown, soft-reset data wipe |
+
 ### Serverless
 
 | Component | Technology | Responsibility |
 |-----------|-----------|----------------|
-| auth-deploy Lambda | Python 3.13, boto3 | Platform lifecycle control: API key auth, GitHub Actions workflow dispatch, session time-boxing with auto-teardown |
+| auth-deploy Lambda | Python 3.13, boto3 | Platform lifecycle control: API key auth, GitHub Actions workflow dispatch, session time-boxing with auto-teardown, two-phase visitor provisioning (DynamoDB + KMS + SES), ephemeral service account creation via Grafana/Airflow/MinIO/Simulation API |
 
 ## Layer Structure
 
@@ -118,6 +124,9 @@ Key subsystems within the simulation:
 - **Geo**: OSRM routing, GPS interpolation, zone assignment (96 Sao Paulo districts), traffic modeling
 - **Trips**: End-to-end trip lifecycle coroutines (pickup drive, rider wait, transit, completion/cancellation)
 - **Events**: Canonical Pydantic schemas with distributed tracing (session_id, correlation_id, causation_id)
+- **API auth**: Dual authentication paths -- static admin key (bypasses Redis, always `role="admin"`) and `sess_`-prefixed session keys (looked up in Redis via `session_store`, carry `role`/`email` from `SessionData`). `AuthContext` frozen dataclass propagates role downstream. `require_admin` dependency guards all mutation endpoints; read-only endpoints accept any valid key including viewer keys.
+- **API middleware**: `SecurityHeadersMiddleware` (CSP, HSTS, X-Frame-Options, X-Content-Type-Options) and `RequestLoggerMiddleware` (structured access log with identity resolution from Redis session store, skipping health check paths)
+- **UserStore**: In-memory bcrypt-hashed credential store populated at startup provisioning. `POST /auth/register` provisions `viewer` accounts; `POST /auth/login` issues `sess_` session keys. Enables role-based access for visitors alongside the static admin key.
 
 ### Layer 2 -- Event Streaming
 
@@ -157,16 +166,17 @@ Gold layer star schema includes:
 
 ### Layer 5 -- Visualization and Analytics
 
-**Grafana** provides five dashboard categories across four datasources:
+**Grafana** provides five dashboard categories across five datasources (Prometheus, Trino, Loki, Tempo, `airflow-postgres`):
 - Monitoring (Prometheus) -- real-time simulation engine health
 - Data Engineering (Trino + Prometheus) -- Bronze ingestion and Silver pipeline health
 - Business Intelligence (Trino) -- Gold layer analytics (driver/rider KPIs, revenue, demand)
 - Operations (Prometheus + Trino) -- unified live and historical platform state
 - Performance (Prometheus/cAdvisor) -- USE-methodology saturation and bottleneck analysis
+- Admin (Airflow Postgres + Loki) -- visitor activity dashboard aggregating per-service access timestamps for operators
 
-**Control Panel** provides real-time geospatial visualization via deck.gl with WebSocket-driven map updates, agent inspection popups, and simulation lifecycle controls.
+**Control Panel** provides real-time geospatial visualization via deck.gl with WebSocket-driven map updates, agent inspection popups, and simulation lifecycle controls. The SPA serves three runtime modes (landing page, control-panel, dev) determined by hostname. Authentication uses a cross-subdomain cookie handoff from the landing page to the control-panel subdomain, after which the session key is stored in `sessionStorage`. Role-based UI hides admin-only controls from `viewer` role users. The `VisitorAccessForm` allows unauthenticated users to request access credentials (calls `provision-visitor` Lambda action). `LoginDialog` authenticates via `POST /auth/login` against the simulation API using email and password.
 
-**Trino** provides SQL access to all Delta Lake layers (Bronze, Silver, Gold) via the Hive Metastore catalog.
+**Trino** provides SQL access to all Delta Lake layers (Bronze, Silver, Gold) via the Hive Metastore catalog. FILE-based password authentication defines two accounts: `admin` (full access) and `visitor` (read-only on `delta` catalog, blocked from `system` catalog). Hashes are injected at container startup via environment variables and rendered from `password.db.template`; `file.refresh-period=5s` allows rotation without restart. Query audit events are captured via a query event listener plugin.
 
 ## Data Flow
 
@@ -269,6 +279,9 @@ The composite headroom metric combines: Kafka consumer lag, SimPy event queue de
 | Driver matching | RiderAgent -> MatchingServer (H3 spatial index, composite score) -> OfferTimeoutManager -> DriverAgent | In-process matching with DNA-based accept/reject decisions |
 | Medallion pipeline | Bronze Delta -> Airflow -> DBT Silver (incremental) -> DBT Gold (full refresh) -> Trino -> Grafana | Hourly Silver, daily Gold, 15-min DLQ monitoring |
 | Deploy lifecycle | Control Panel -> Lambda auth-deploy -> GitHub Actions -> Terraform + ArgoCD -> EKS | On-demand cluster provisioning with session time-boxing |
+| Visitor provisioning (Phase 1) | Visitor form -> Control Panel -> Lambda `provision-visitor` -> DynamoDB (record) + KMS (encrypted password) + Secrets Manager (Trino hash) + SES (welcome email) | Pre-deploy durable visitor record creation |
+| Visitor provisioning (Phase 2) | GitHub Actions deploy workflow -> Lambda `reprovision-visitors` -> DynamoDB scan -> Grafana API + Airflow REST + MinIO Admin SDK + Simulation `POST /auth/register` | Post-deploy ephemeral service account creation for stored visitors |
+| Frontend auth | Control Panel landing page -> `POST /auth/login` -> Simulation API (bcrypt verify + Redis session) -> session key -> sessionStorage | Email+password login yielding role-scoped API access |
 
 ## Communication Patterns
 
@@ -290,10 +303,12 @@ State snapshots are maintained as Redis keys with 30-minute TTL for client recon
 ### REST API (FastAPI)
 
 The simulation exposes a REST API (authenticated via `X-API-Key` header) for:
-- Lifecycle control: start, pause, resume, stop, reset
-- Agent management: spawn drivers/riders (immediate or scheduled mode), puppet agent control
-- Metrics: rolling-window statistics
-- Speed control: `PUT /simulation/speed` (used by Performance Controller)
+- Lifecycle control: start, pause, resume, stop, reset (admin only)
+- Agent management: spawn drivers/riders (immediate or scheduled mode), puppet agent control (admin only)
+- Metrics: rolling-window statistics (any valid key)
+- Speed control: `PUT /simulation/speed` (used by Performance Controller, admin only)
+- Authentication: `POST /auth/login` (email+password → session key + role + email), `POST /auth/register` (admin-gated, provisions viewer accounts), `GET /auth/validate`
+- Performance controller proxy: `GET|PUT /controller/*` (proxies to performance-controller service at port 8090)
 
 ### WebSocket
 
@@ -301,6 +316,8 @@ The simulation API serves WebSocket connections (authenticated via `Sec-WebSocke
 1. Deliver a full state snapshot on connect
 2. Stream real-time entity delta events from Redis pub/sub
 3. Push simulation status summaries every second
+
+Both static admin keys and `sess_`-prefixed session keys (viewer or admin) are accepted for WebSocket authentication. A sliding-window rate limiter allows 5 connections per 60 seconds per key.
 
 ### Inter-Service HTTP
 
@@ -314,7 +331,18 @@ The simulation API serves WebSocket connections (authenticated via `Sec-WebSocke
 | Grafana | Trino | HTTP | SQL queries over Delta Lake |
 | Grafana | Loki | HTTP | LogQL queries |
 | Grafana | Tempo | HTTP/gRPC | TraceQL queries |
-| Control Panel | Lambda | HTTP | Deploy/teardown lifecycle |
+| Grafana | Airflow PostgreSQL | TCP | Visitor activity login history queries |
+| Control Panel | Lambda | HTTP | Deploy/teardown lifecycle, visitor provisioning |
+| Control Panel | Simulation API | HTTP | `POST /auth/login` for email+password auth |
+| Lambda auth-deploy | Grafana API | HTTP | Visitor account provisioning (post-deploy) |
+| Lambda auth-deploy | Airflow REST API | HTTP | Visitor account provisioning (post-deploy) |
+| Lambda auth-deploy | MinIO Admin SDK | HTTP | Visitor account provisioning (post-deploy) |
+| Lambda auth-deploy | Simulation API | HTTP | Visitor account provisioning (`POST /auth/register`) |
+| Lambda auth-deploy | SES | AWS SDK | Welcome email to new visitors |
+| Lambda auth-deploy | DynamoDB | AWS SDK | Durable visitor record storage (KMS-encrypted) |
+| Infrastructure scripts | Grafana API | HTTP | Visitor provisioning via CLI |
+| Infrastructure scripts | Airflow REST API | HTTP | Visitor provisioning via CLI |
+| Infrastructure scripts | MinIO Admin SDK | HTTP | Visitor provisioning via CLI |
 
 ### Telemetry (OTLP)
 
@@ -331,14 +359,14 @@ Tempo generates derived metrics (service-graphs, span-metrics) and remote-writes
 
 | API | Protocol | Auth | Purpose |
 |-----|----------|------|---------|
-| Simulation REST | HTTP (port 8000) | `X-API-Key` header | Lifecycle control, agent management, metrics |
+| Simulation REST | HTTP (port 8000) | `X-API-Key` header (static admin or `sess_` session key) | Lifecycle control, agent management, metrics, auth endpoints |
 | Simulation WebSocket | WS (port 8000) | `Sec-WebSocket-Protocol: apikey.<key>` | Real-time state streaming |
 | Grafana | HTTP (port 3001) | Basic auth (admin/admin) | Dashboard access |
 | Airflow | HTTP (port 8082) | JWT auth (Airflow 3.x) | DAG management |
-| Trino | HTTP (port 8084) | None (local), authenticated (production) | SQL queries |
+| Trino | HTTP (port 8084) | FILE auth (admin/visitor accounts, bcrypt hashes) | SQL queries |
 | Prometheus | HTTP (port 9090) | None | PromQL queries, remote-write ingestion |
-| Lambda Function URL | HTTP | API key in request body | Deploy/teardown lifecycle |
-| Control Panel | HTTP (port 5173) | Cookie-based auth handoff | Operator SPA |
+| Lambda Function URL | HTTP | API key in request body (some actions unauthenticated) | Deploy/teardown lifecycle, visitor self-registration |
+| Control Panel | HTTP (port 5173) | Cookie-based auth handoff from landing page | Operator SPA |
 
 ### Kafka Topics
 
@@ -363,9 +391,12 @@ Tempo generates derived metrics (service-graphs, span-metrics) and remote-writes
 | PostgreSQL | Airflow metadata DB; Hive Metastore backend | Airflow, Hive Metastore |
 | AWS Secrets Manager | Credential storage (production) | All services via External Secrets Operator |
 | AWS Glue Data Catalog | Table metadata catalog (production-glue variant) | Trino, DBT |
-| GitHub Actions API | Workflow dispatch for deploy/teardown | Lambda auth-deploy |
+| GitHub Actions API | Workflow dispatch for deploy/teardown | Lambda auth-deploy, GitHub Actions workflows |
 | AWS EventBridge Scheduler | Auto-teardown timer | Lambda auth-deploy |
 | AWS SSM Parameter Store | Session state tracking | Lambda auth-deploy |
+| AWS DynamoDB | Durable visitor records (`rideshare-visitors` table, KMS SSE, PITR) | Lambda auth-deploy |
+| AWS KMS | Visitor password encryption (`rideshare-visitor-passwords` CMK) | Lambda auth-deploy |
+| AWS SES | Welcome email dispatch to new visitors | Lambda auth-deploy |
 
 ## Schema Contracts
 
@@ -394,7 +425,9 @@ Four composable profiles partition the stack:
 
 Services that appear in multiple profiles: `localstack` and `secrets-init` (all profiles, for secrets); `minio` and `minio-init` (`data-pipeline` and `monitoring`, for storage).
 
-**Secrets bootstrap sequence**: `localstack` starts first, then `secrets-init` seeds LocalStack Secrets Manager and writes credential files to a shared Docker volume. All other services mount this volume read-only at `/secrets/` and source environment-specific `.env` files in their entrypoints.
+**Secrets bootstrap sequence**: `localstack` starts first, then `secrets-init` seeds LocalStack Secrets Manager and writes credential files to a shared Docker volume. All other services mount this volume read-only at `/secrets/` and source environment-specific `.env` files in their entrypoints. `secrets-init` also generates bcrypt hashes for Trino's `password.db` at seed time.
+
+**`lambda-init`**: Deploys the auth-deploy Lambda to LocalStack and injects visitor-provisioning sub-modules (`provision_grafana_viewer.py`, `provision_airflow_viewer.py`, `provision_minio_visitor.py`) and the MinIO IAM policy file into the Lambda package. Sets service endpoint environment variables so the Lambda can call local services at runtime.
 
 ### Production (AWS EKS via Terraform + ArgoCD)
 
@@ -409,7 +442,9 @@ foundation (long-lived, cost-free at rest)
     |
     | VPC, S3 buckets, ECR, IAM roles, Route 53,
     | ACM, CloudFront, Secrets Manager, Glue catalog,
-    | Lambda auth-deploy
+    | Lambda auth-deploy, DynamoDB (rideshare-visitors),
+    | KMS CMK (rideshare-visitor-passwords), SES domain identity,
+    | EventBridge Scheduler role
     |
     v
 platform (ephemeral, created on deploy, destroyed on teardown)
@@ -429,11 +464,17 @@ Kubernetes workloads
 - `production-duckdb`: Deploys Hive Metastore backed by RDS PostgreSQL as the Trino catalog; DBT runs via DuckDB
 - `production-glue`: Uses AWS Glue Data Catalog instead of Hive Metastore; DBT runs via Glue Interactive Sessions
 
-**IAM model**: All workload IAM roles use EKS Pod Identity (not IRSA). Trust policies target `pods.eks.amazonaws.com` with `sts:AssumeRole` + `sts:TagSession`. Pod Identity associations are declared in the Terraform platform layer.
+**IAM model**: All workload IAM roles use EKS Pod Identity (not IRSA). Trust policies target `pods.eks.amazonaws.com` with `sts:AssumeRole` + `sts:TagSession`. Pod Identity associations are declared in the Terraform platform layer. The ESO controller uses the EC2 node instance role (not Pod Identity) because the Pod Identity webhook may not be available during initial cluster bootstrap.
+
+**EKS add-on bootstrap**: Add-ons are installed in two phases to prevent a deadlock. Phase 1 installs `vpc-cni` and `kube-proxy` directly against the control plane before any nodes exist. Phase 2 installs `coredns`, `aws-ebs-csi-driver`, and `eks-pod-identity-agent` after the node group is `ACTIVE`. The node group itself depends on Phase 1 add-ons. Node group size is fixed (`desired=min=max=node_count`); no cluster autoscaler is deployed.
+
+**Kubernetes ingress**: The production cluster uses Gateway API (`GatewayClass` named `eg`, backed by Envoy Gateway) with `HTTPRoute` resources for path-based routing. All path prefixes are stripped before forwarding to services. Two HTTPRoute files split responsibilities: API/frontend routing and web-service UIs (Airflow, Grafana, Prometheus, Trino).
 
 **Frontend delivery**: React SPA is deployed to S3 and served via CloudFront CDN with Origin Access Control.
 
-**On-demand lifecycle**: The Lambda auth-deploy function validates API keys, dispatches GitHub Actions workflows for deploy/teardown, and manages session time-boxing with auto-teardown via EventBridge Scheduler.
+**On-demand lifecycle**: The Lambda auth-deploy function validates API keys, dispatches GitHub Actions workflows for deploy/teardown, manages session time-boxing with auto-teardown via EventBridge Scheduler, and orchestrates two-phase visitor provisioning. The `deploy` branch is a materialized artifact where GitHub Actions resolves runtime placeholders (account ID, ACM cert ARN, RDS endpoint, image tags) before force-pushing with `[skip ci]` for ArgoCD to reconcile.
+
+**CI/CD workflows**: GitHub Actions workflows cover: `build-images` (selective ECR pushes via path-filter matrix), `deploy` (Terraform platform apply + phased K8s convergence reporting to Lambda), `teardown-platform` (graceful simulation drain + Terraform destroy), and `soft-reset` (Kafka PVC recreate, S3 lakehouse wipe, RDS drop+recreate, Redis FLUSHALL, with temporary ArgoCD auto-sync suspension).
 
 ### Deployment Units
 
@@ -480,3 +521,15 @@ All credentials are sourced from Secrets Manager (LocalStack in dev, AWS in prod
 ### Intentional Data Corruption
 
 The simulation supports configurable corruption injection (`MALFORMED_EVENT_RATE`) that publishes additional corrupted copies of events alongside clean ones. This exercises the Bronze ingestion DLQ pipeline and validates end-to-end data quality handling.
+
+### Two-Phase Visitor Provisioning
+
+Visitor self-registration is split into two phases to decouple the public form from the ephemeral EKS platform. Phase 1 (`provision-visitor`) runs before any infrastructure exists: it stores a durable DynamoDB record with a KMS-encrypted password, writes the Trino bcrypt hash to Secrets Manager, and sends a welcome email via SES. Phase 2 (`reprovision-visitors`) is called by the deploy workflow after all services are healthy: it scans DynamoDB, decrypts each password, and creates ephemeral accounts in Grafana, Airflow, MinIO, and the Simulation API. This design means visitors can register at any time regardless of whether the platform is running.
+
+### Role-Based Access Control
+
+The simulation API enforces two roles: `admin` (full mutation access) and `viewer` (read-only). The static API key always yields `admin`. Email+password login via `POST /auth/login` issues a `sess_`-prefixed Redis-backed session key carrying the stored role. The Control Panel hides all mutation controls when the session role is `viewer`, matching server-side enforcement. Trino mirrors this split with two FILE-based accounts (`admin` and `visitor`) enforced via access control `rules.json`.
+
+### `deploy` Branch as Materialized Artifact
+
+The `main` branch contains placeholder tokens (`<account-id>`, `<acm-cert-arn>`, `<rds-endpoint>`, `<image-tag>`). The CI deploy workflow resolves these at runtime and force-pushes the resolved files to a separate `deploy` branch with `[skip ci]`. ArgoCD watches only the `deploy` branch with `selfHeal: true`. This pattern keeps infrastructure secrets and runtime values out of the main branch while giving ArgoCD a stable, fully-resolved manifest to reconcile.

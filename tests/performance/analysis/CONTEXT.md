@@ -26,5 +26,4 @@ Post-processing pipeline for performance test results. Consumes raw time-series 
 
 ## Related Modules
 
-- [tests/performance](../CONTEXT.md) — Shares PID Controller and Performance Tuning domain (baseline calibration)
-- [tests/performance/scenarios](../scenarios/CONTEXT.md) — Reverse dependency — Provides BaseScenario, ScenarioResult, BaselineScenario (+8 more)
+- [tests/performance](../CONTEXT.md) — Shares Data Quality & Validation domain (baseline calibration)

@@ -300,6 +300,12 @@ cd tools/great-expectations && ./venv/bin/python3 run_checkpoint.py gold_validat
 
 # Register tables in Glue catalog (production)
 ./venv/bin/python3 infrastructure/scripts/register-glue-tables.py
+
+# Provision a visitor account across all platform services (Grafana, Airflow, MinIO, Trino, Simulation API)
+./venv/bin/python3 infrastructure/scripts/provision_visitor_cli.py --email visitor@example.com
+
+# Generate a Trino FILE authenticator bcrypt password hash
+./venv/bin/python3 infrastructure/scripts/generate_trino_password_hash.py
 ```
 
 ## API Overview
@@ -308,6 +314,9 @@ The simulation service exposes a REST API on port 8000 with API key authenticati
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| `POST` | `/auth/login` | Authenticate with email + password, receive session key |
+| `POST` | `/auth/register` | Provision a visitor account (admin only) |
+| `GET` | `/auth/validate` | Validate a key without side effects |
 | `POST` | `/simulation/start` | Start the simulation engine |
 | `POST` | `/simulation/pause` | Pause (two-phase: RUNNING -> DRAINING -> PAUSED) |
 | `POST` | `/simulation/resume` | Resume a paused simulation |
@@ -320,6 +329,8 @@ The simulation service exposes a REST API on port 8000 with API key authenticati
 | `GET` | `/health/detailed` | Detailed health with dependency status |
 | `WS` | `/ws` | Real-time WebSocket feed |
 
+Authentication: static admin key via `X-API-Key: admin`, or session key (`sess_` prefix) obtained from `POST /auth/login`. WebSocket uses `Sec-WebSocket-Protocol: apikey.<key>`. All mutation endpoints require admin role; read-only endpoints accept viewer keys.
+
 Default API key for local development: `admin`
 
 For the full API reference including puppet agent control, metrics endpoints, and rate limits, see [services/simulation/README.md](services/simulation/README.md).
@@ -328,6 +339,8 @@ For the full API reference including puppet agent control, metrics endpoints, an
 
 ```
 rideshare-simulation-platform/
+├── .github/
+│   └── workflows/               # CI/CD: deploy, teardown, soft-reset, build-images, deploy-lambda
 ├── services/
 │   ├── simulation/              # SimPy engine + FastAPI API (sole event source)
 │   ├── stream-processor/        # Kafka-to-Redis bridge with GPS aggregation
@@ -336,7 +349,7 @@ rideshare-simulation-platform/
 │   ├── airflow/                 # DAG orchestration (Silver, Gold, DLQ, maintenance)
 │   ├── performance-controller/  # PID speed controller via Prometheus headroom
 │   ├── kafka/                   # Kafka topic registry and cluster init
-│   ├── grafana/                 # 5 dashboard categories across 4 datasources
+│   ├── grafana/                 # 5 dashboard categories across 5 datasources (incl. admin folder)
 │   ├── prometheus/              # Metrics collection and recording rules
 │   ├── osrm/                    # Sao Paulo road-network routing
 │   ├── otel-collector/          # Central telemetry gateway
@@ -353,8 +366,9 @@ rideshare-simulation-platform/
 │   ├── docker/                  # Docker Compose with 4 composable profiles
 │   ├── kubernetes/              # K8s manifests, Kustomize overlays, ArgoCD
 │   ├── terraform/               # Three-layer AWS provisioning
-│   ├── lambda/                  # auth-deploy Lambda for lifecycle control
-│   └── scripts/                 # Secrets, table registration, export scripts
+│   ├── lambda/                  # auth-deploy Lambda: lifecycle control + two-phase visitor provisioning (DynamoDB, KMS, SES)
+│   ├── policies/                # IAM policy files (e.g., MinIO visitor read-only policy)
+│   └── scripts/                 # Secrets, table registration, export, visitor provisioning scripts
 ├── tests/
 │   ├── integration/             # Full-stack integration tests
 │   └── performance/             # Container resource load tests with USL fitting
@@ -390,12 +404,15 @@ Each service and tool directory contains its own README with ports, env vars, co
 - [tools/great-expectations/README.md](tools/great-expectations/README.md) -- Data quality validation
 - [schemas/README.md](schemas/README.md) -- Cross-service schema contracts
 
+**CI/CD:**
+- [.github/workflows/README.md](.github/workflows/README.md) -- CI/CD workflows: deploy, teardown, soft-reset, build-images, deploy-lambda
+
 **Infrastructure:**
 - [infrastructure/docker/README.md](infrastructure/docker/README.md) -- Docker Compose configuration
 - [infrastructure/kubernetes/README.md](infrastructure/kubernetes/README.md) -- Kubernetes manifests and overlays
 - [infrastructure/terraform/README.md](infrastructure/terraform/README.md) -- Terraform provisioning
-- [infrastructure/lambda/README.md](infrastructure/lambda/README.md) -- Lambda auth-deploy
-- [infrastructure/scripts/README.md](infrastructure/scripts/README.md) -- Operational scripts
+- [infrastructure/lambda/README.md](infrastructure/lambda/README.md) -- Lambda auth-deploy (deploy/teardown lifecycle + two-phase visitor provisioning)
+- [infrastructure/scripts/README.md](infrastructure/scripts/README.md) -- Operational scripts (secrets, table registration, visitor provisioning)
 
 **Testing:**
 - [tests/performance/README.md](tests/performance/README.md) -- Performance test scenarios
@@ -444,7 +461,7 @@ Each service and tool directory contains its own README with ports, env vars, co
 | Geospatial | H3 spatial indexing, OSRM routing, Shapely |
 | Observability | Prometheus, Grafana, Loki, Tempo, OTel Collector 0.96.0 |
 | Infrastructure | Docker Compose, Kubernetes, Terraform 1.14.3, ArgoCD |
-| Cloud | AWS (EKS, RDS, S3, ECR, Lambda, Glue, Secrets Manager, CloudFront) |
+| Cloud | AWS (EKS, RDS, S3, ECR, Lambda, Glue, Secrets Manager, DynamoDB, KMS, SES, CloudFront) |
 | Testing | pytest, Vitest, dbt test, Great Expectations |
 
 ## Documentation
@@ -467,5 +484,5 @@ Each service and tool directory contains its own README with ports, env vars, co
 - **AWS CLI**: Always use `--profile rideshare` for AWS commands.
 - **Import style**: Use `from src.module import X` (not relative imports).
 - **Secrets**: All credentials come from Secrets Manager. Never hardcode credentials in `.env` files.
-- **API auth**: `X-API-Key` header for REST, `Sec-WebSocket-Protocol: apikey.<key>` for WebSocket.
+- **API auth**: `X-API-Key` header for REST (static admin key or `sess_`-prefixed session key from `POST /auth/login`), `Sec-WebSocket-Protocol: apikey.<key>` for WebSocket. Mutation endpoints require admin role; read-only endpoints accept viewer keys.
 - **Default credentials (dev)**: All services use `admin`/`admin`. API key is `admin`.

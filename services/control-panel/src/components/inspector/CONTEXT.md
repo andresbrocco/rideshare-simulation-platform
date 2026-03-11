@@ -15,6 +15,7 @@ Provides on-demand detail popups for map entities — drivers, riders, and zones
 - **Puppet vs autonomous duality**: Each inspector checks `state.is_puppet`. Puppet agents show a live `Actions` section (accept/reject offer, start/cancel trip, toggle online status). Autonomous agents show `PreviousActionsSection` and `NextActionsSection` instead — read-only windows into the simulation's planned and past decisions.
 - **Two-tier agent state**: The map layer uses lightweight `Driver`/`Rider` types (position, status only). Full `DriverState`/`RiderState` (DNA, statistics, active trip, pending offer) is fetched separately and passed as `state`. The inspectors handle the `state === null` / `loading` / `error` degraded states by falling back to the lightweight type for minimal display.
 - **State machine–aware action buttons**: `DriverActionsSection` reads `pending_offer`, `active_trip`, and `status` simultaneously to determine which buttons to surface. Offer accept/reject only appears when a `pending_offer` exists; "Start Trip" only appears when `active_trip.state === 'at_pickup'`; "Cancel" when status is `en_route_pickup` or `on_trip`; online/offline toggle only when idle (no offer or trip).
+- **Admin-gated actions**: All action buttons in `DriverActionsSection` are disabled when `isAdmin` is `false`, rendering with `title="Admin only"`. `DriverInspector` accepts `isAdmin?: boolean` (default `false`) and passes it through to `DriverActionsSection`. This prevents read-only visitors from triggering state mutations on puppet drivers.
 
 ## Non-Obvious Details
 

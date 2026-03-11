@@ -56,13 +56,15 @@ Structured logging with thread-local context injection and PII masking. Two form
 
 - `LogContext` — thread-local key-value store; values injected by `ContextFilter` into every log record on that thread
 - `log_context()` / `log_trip_context()` — context managers that populate `LogContext` for a scope; clears all fields unconditionally on exit (nesting is not safe)
-- `PIIFilter` — applied at handler level; masks emails and phone numbers via regex on plain-string messages only
+- `PIIFilter` — applied at handler level; masks emails and phone numbers via regex on plain-string messages only; only operates on plain `str` messages, not formatted arguments or structured fields
 - `DefaultCorrelationFilter` — fallback that sets `correlation_id="-"` when none is present
 - `CorrelationFilter` (from `src.core.correlation`) — attaches `correlation_id` and `session_id` from `contextvars` for distributed tracing
+- `RequestLoggerMiddleware` — HTTP access logging middleware that resolves user identity from the `X-API-Key` header (session lookup for `sess_` keys, static for admin key, `anonymous` fallback) and emits structured access logs under logger `api.access`. Promotes HTTP audit fields (`method`, `path`, `status_code`, `duration_ms`, `user_identity`, `user_role`) to top-level JSON keys via `JSONFormatter`. Health check paths (`/health`, `/health/detailed`) are skipped to avoid probe log noise. Identity resolution happens after `call_next` returns (post-response).
 
 ### Locations
 
 - `services/simulation/src/sim_logging/` — all logging infrastructure
+- `services/simulation/src/api/middleware/` — `SecurityHeadersMiddleware` and `RequestLoggerMiddleware`
 - `services/simulation/src/core/correlation.py` — `ContextVar`-based distributed tracing context
 - All simulation modules — acquire loggers via `logging.getLogger(__name__)`
 
@@ -113,21 +115,41 @@ Two distinct authentication mechanisms for the two protocols the simulation API 
 
 The `/health` endpoint is intentionally unauthenticated for infrastructure probes (Kubernetes, load balancers).
 
-For the production Lambda auth-deploy function, the API key is passed in the POST request body as an `api_key` field. Certain actions (`session-status`, `service-health`, `auto-teardown`, `get-deploy-progress`) are listed in `NO_AUTH_ACTIONS` and bypass key validation to enable frontend polling and EventBridge auto-teardown without credentials.
+**Dual key types**: `verify_api_key` accepts two key formats. Keys prefixed `sess_` are looked up in Redis via `session_store.get_session` and carry `role`/`email` from the stored `SessionData`. All other keys are compared against the static admin key from settings and receive `role="admin"`. This enables provisioned visitor accounts (role `"viewer"`) to authenticate alongside the static admin key without altering existing integrations.
+
+**AuthContext**: An immutable frozen dataclass (`role`, `email`) returned by `verify_api_key`. Downstream route dependencies receive this instead of a raw string key. The `require_admin` dependency chains off `verify_api_key` and raises HTTP 403 when `role != "admin"`.
+
+**Credential-based login**: `POST /auth/login` validates email/password against `user_store`, creates a Redis session via `session_store.create_session`, and returns a short-lived `api_key` alongside `role` and `email`. The frontend `LoginDialog` posts `{ email, password }`, receives `{ api_key, role, email }`, and persists the full session via `storeSession()`. Session keys carry a `sess_` prefix and are stored in Redis at `session:<key>` with TTL-based auto-eviction (default 24h).
+
+For the production Lambda auth-deploy function, the API key is passed in the POST request body as an `api_key` field. Certain actions (`session-status`, `service-health`, `auto-teardown`, `get-deploy-progress`, `provision-visitor`, `extend-session`, `shrink-session`) are listed in `NO_AUTH_ACTIONS` and bypass key validation to enable frontend polling, EventBridge auto-teardown, and visitor self-registration without credentials.
 
 ### Authorization
 
-Single shared API key grants full access to all simulation operations. There is no RBAC or per-endpoint permission differentiation.
+Two roles exist — `admin` and `viewer`. All mutation endpoints (start/pause/resume/stop/reset simulation, set speed, create agents, toggle driver status, all puppet state transitions, set controller mode, register users) require the `require_admin` FastAPI dependency. Read-only endpoints accept any valid API key including viewer keys. Admin accounts are never created through the `POST /auth/register` endpoint — that endpoint is hardcoded to the `viewer` role and is called by the Lambda `provision-visitor` orchestrator.
+
+In the frontend, `useRole()` reads the authenticated role from `sessionStorage` via `getSessionRole()`. All simulation controls and puppet agent actions are disabled for non-admin users and show `'Admin only'` tooltips.
+
+### User Store and Session Store
+
+`user_store.py` holds an in-memory registry keyed by email with bcrypt-hashed passwords (prefix `$2b$`). It is write-only at startup (provisioning); concurrent async reads are safe. Plaintext passwords are never retained after hashing.
+
+`session_store.py` persists session keys as Redis hashes at `session:{api_key}` with a TTL. `delete_session` provides explicit invalidation for logout. `get_session` skips the Redis round-trip entirely for keys without the `sess_` prefix.
 
 ### Rate Limiting
 
-`slowapi` middleware applies per-API-key rate limiting (fallback to IP). A separate `WebSocketRateLimiter` enforces a sliding-window limit of 5 WebSocket connections per 60 seconds per API key.
+`slowapi` middleware applies per-API-key rate limiting (fallback to IP). A separate `WebSocketRateLimiter` enforces a sliding-window limit of 5 WebSocket connections per 60 seconds per API key. `POST /auth/login` is rate-limited to 10/minute (stricter than other endpoints) to mitigate brute-force attacks. `POST /auth/register` is limited to 20/minute since it is called programmatically by the provisioning Lambda.
 
 ### Locations
 
-- `services/simulation/src/api/auth.py` — `verify_api_key` FastAPI dependency
+- `services/simulation/src/api/auth.py` — `verify_api_key` FastAPI dependency, `AuthContext` dataclass, `require_admin`
 - `services/simulation/src/api/websocket.py` — WebSocket subprotocol auth
 - `services/simulation/src/api/rate_limit.py` — rate limiting middleware and WebSocket limiter
+- `services/simulation/src/api/user_store.py` — bcrypt-hashed in-memory credential store
+- `services/simulation/src/api/session_store.py` — Redis-backed session key persistence
+- `services/simulation/src/api/routes/auth.py` — `POST /auth/login`, `GET /auth/validate`, `POST /auth/register`
+- `services/control-panel/src/components/LoginDialog.tsx` — credential-based frontend login
+- `services/control-panel/src/hooks/useRole.ts` — role resolution from `sessionStorage`
+- `services/control-panel/src/utils/auth.ts` — `storeSession`, `clearSession`, `getApiKey`, `getSessionRole`
 - `infrastructure/lambda/auth-deploy/` — Lambda-level API key validation and `NO_AUTH_ACTIONS`
 
 ---
@@ -411,6 +433,20 @@ Credential environment variables (`KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD`, 
 
 `test_api_contract.py` validates the OpenAPI spec structurally and runs `npm run generate-types` against the frontend, asserting the committed `api.generated.ts` matches regenerated output. This enforces frontend/backend type sync across service boundaries.
 
+### API Layer Test Isolation Patterns
+
+The API test suite uses several isolation techniques specific to the simulation's module structure:
+
+**Engine module mocking via `sys.modules`**: The `mock_engine_modules` fixture is `autouse=True` and patches `sys.modules["engine"]` directly before each test to prevent the heavyweight SimPy engine from importing. After each test it restores original module references and clears `api.*` entries so the next test reimports cleanly.
+
+**Rate limiter state isolation**: Because `slowapi` stores counters on the `Limiter` instance (a module-level singleton), a second `autouse=True` fixture in `test_rate_limiting.py` purges all `api.*` module entries from `sys.modules` before and after each test to prevent rate limit counts bleeding across tests.
+
+**Role-based access control testing**: `test_role_enforcement.py` uses `app.dependency_overrides[verify_api_key]` to inject a fixed `AuthContext` (role `viewer` or `admin`) without touching Redis. All `api.*` module entries are cleared from `sys.modules` before building each app to ensure a pristine import.
+
+**Session key authentication**: Keys with a `sess_` prefix bypass the static key check and trigger a Redis hash lookup at `session:<key>`. The `mock_redis_client` fixture defaults `hgetall` to return `{}` so session lookups fail unless a test explicitly overrides the return value.
+
+**UserStore singleton reset**: `test_user_store.py` resets the module-level singleton via `user_store_module._user_store = None` in an `autouse` fixture to prevent cross-test state pollution.
+
 ### Frontend Tests
 
 Vitest with `@testing-library/react` for component testing. `jsdom` provides the DOM environment.
@@ -423,6 +459,7 @@ Vitest with `@testing-library/react` for component testing. `jsdom` provides the
 
 - `services/simulation/tests/conftest.py` — global fixture setup and credential injection
 - `services/simulation/tests/factories.py` — `DNAFactory`
+- `services/simulation/tests/api/` — FastAPI endpoint contract, role enforcement, session/user store, rate limiting tests
 - `tests/integration/data_platform/` — full-stack integration tests against live Docker containers
 - `tests/performance/` — container resource load tests with USL model fitting and Plotly report generation
 - `tools/dbt/tests/` — DBT test definitions
@@ -435,13 +472,16 @@ Vitest with `@testing-library/react` for component testing. `jsdom` provides the
 
 Application components in the simulation service are constructed with `None` placeholders and patched after all objects exist (`deferred wiring`). For example, `matching_server._notification_dispatch`, `matching_server._registry_manager`, and `engine._agent_factory` are set in `main.py` after all objects are instantiated. This breaks circular construction dependencies but means components are not fully functional until `main()` completes all wiring steps.
 
-FastAPI dependency injection (`Depends(...)`) is used for authentication (`verify_api_key`) and for accessing `app.state.engine` from route handlers.
+FastAPI dependency injection (`Depends(...)`) is used for authentication (`verify_api_key`, `require_admin`) and for accessing `app.state.engine` from route handlers. `app.state.engine` and `app.state.simulation_engine` point at the same object — the duplicate key exists for backward compatibility after a rename.
+
+Middleware is registered at app creation time. Two middleware classes are applied to every request: `SecurityHeadersMiddleware` (CSP, HSTS, X-Frame-Options, X-Content-Type-Options) and `RequestLoggerMiddleware` (structured access logging with post-response identity resolution). WebSocket requests are not processed by `RequestLoggerMiddleware`.
 
 ### Locations
 
 - `services/simulation/src/main.py` — application bootstrap and deferred wiring
 - `services/simulation/src/api/app.py` — FastAPI application setup with lifespan and middleware
-- `services/simulation/src/api/routes/` — route handlers using `Depends(verify_api_key)`
+- `services/simulation/src/api/middleware/` — `SecurityHeadersMiddleware` and `RequestLoggerMiddleware`
+- `services/simulation/src/api/routes/` — route handlers using `Depends(verify_api_key)` and `Depends(require_admin)`
 
 ---
 
@@ -451,13 +491,78 @@ FastAPI dependency injection (`Depends(...)`) is used for authentication (`verif
 
 All credentials are sourced from Secrets Manager (LocalStack in dev, AWS Secrets Manager in production). No credentials are hardcoded in `.env` files.
 
-In local development: `localstack` starts first; `secrets-init` seeds LocalStack Secrets Manager and writes credential files to a shared Docker volume. All other services mount this volume read-only at `/secrets/` and source environment-specific `.env` files in their entrypoints.
+In local development: `localstack` starts first; `secrets-init` seeds LocalStack Secrets Manager and writes credential files to a shared Docker volume. All other services mount this volume read-only at `/secrets/` and source environment-specific `.env` files in their entrypoints. `seed-secrets.py` also generates bcrypt hashes at seed time for `rideshare/trino-admin-password-hash` and `rideshare/trino-visitor-password-hash` using the `bcrypt` library (requires `bcrypt` installed in the `secrets-init` container alongside `boto3`).
 
 In production: External Secrets Operator bridges AWS Secrets Manager to Kubernetes Secrets. The `SecretStore` YAML is identical between dev and prod; only the ESO controller's endpoint env var differs (pointing at LocalStack vs. real AWS). All workload IAM roles use EKS Pod Identity (`pods.eks.amazonaws.com` trust) rather than IRSA.
 
+**Visitor credential flow (two-phase)**: When a visitor registers via `provision-visitor` (Phase 1, pre-deploy), the Lambda:
+1. Stores a PBKDF2 password hash in Secrets Manager at `rideshare/trino-visitor-password-hash-*` for Trino FILE authentication.
+2. Encrypts the plaintext password with a KMS CMK (`rideshare-visitor-passwords`) and stores the ciphertext in DynamoDB (`rideshare-visitors` table, keyed on email hash).
+3. Sends a SES welcome email.
+
+Phase 2 (`reprovision-visitors`, post-deploy): scans DynamoDB, decrypts each KMS ciphertext, and creates ephemeral accounts in Grafana, Airflow, MinIO, and the Simulation API via co-located provisioning sub-modules. If SES delivery fails after DynamoDB write succeeds, the response is `{"provisioned": true, "email_sent": false}` with HTTP 500 — the visitor record is durable and Phase 2 will still succeed.
+
+**Trino FILE-based passwords**: Trino uses a `password.db` file generated at pod/container startup by substituting `TRINO_ADMIN_PASSWORD_HASH` and `TRINO_VISITOR_PASSWORD_HASH` (bcrypt hashes, `$2b$10$` prefix) into `password.db.template` via `sed`/`envsubst`. The file is written with `chmod 600` to a shared `emptyDir` volume and never stored in a ConfigMap or Git. Password changes require a container restart — Trino reads `password.db` only at startup (`file.refresh-period=5s` applies to in-process polling after startup).
+
 ### Locations
 
-- `infrastructure/scripts/` — `seed-secrets.py` (LocalStack seeding), `fetch-secrets.py` (credential retrieval)
+- `infrastructure/scripts/` — `seed-secrets.py` (LocalStack seeding with bcrypt hash generation), `fetch-secrets.py` (credential retrieval), `generate_trino_password_hash.py`
+- `infrastructure/scripts/provision_visitor_cli.py` — CLI orchestration of multi-service visitor provisioning
 - `infrastructure/kubernetes/` — External Secrets Operator `SecretStore` and `ExternalSecret` manifests
 - `infrastructure/terraform/foundation/modules/secrets_manager/` — Terraform module for AWS Secrets Manager resources
-- `infrastructure/lambda/auth-deploy/` — `get_secret()` helper normalizing plain-string and JSON-encoded secrets
+- `infrastructure/terraform/foundation/` — KMS CMK `rideshare-visitor-passwords`, DynamoDB `rideshare-visitors` table
+- `infrastructure/lambda/auth-deploy/` — `get_secret()` helper normalizing plain-string and JSON-encoded secrets; two-phase visitor provisioning sub-modules
+- `services/trino/etc/` — `password.db.template`, `rules.json`, `password-authenticator.properties`
+
+---
+
+## CI/CD Workflow Patterns
+
+### Pattern
+
+The GitHub Actions CI/CD pipeline uses several non-obvious patterns to manage infrastructure lifecycle and deployment correctness.
+
+**`deploy` branch as materialized artifact**: The deploy workflow resolves runtime placeholders (`<account-id>`, `<acm-cert-arn>`, `<rds-endpoint>`, `<image-tag>`, `<alb-sg-id>`) directly into Kubernetes YAML files, then force-pushes the resolved files to the `deploy` branch with `[skip ci]`. ArgoCD watches the `deploy` branch with `selfHeal: true`. The `main` branch always retains placeholder tokens. Any unresolved placeholder in the `deploy` branch would cause ArgoCD to apply broken manifests.
+
+**Phased convergence reporting**: The "Wait for EKS convergence" step waits for services in dependency order across five phases (infrastructure → schema → application → data-pipeline → UI). Each service reports readiness via `report-deploy-progress` to the Lambda, which stores it in the SSM session JSON. A marker-file pattern (`wait_and_mark` / `report_phase`) avoids read-modify-write races when multiple services are waited in parallel. `all_ready` becomes true when all 15 services have `ready: true`.
+
+**State reconciliation before apply**: The deploy workflow runs `terraform import` for every known EKS resource before planning. This handles orphaned state from previous partial applies without requiring manual intervention.
+
+**OSRM data sourcing**: The `build-images` workflow sources the Sao Paulo OSM `.pbf` file from an S3 build-assets bucket first (fast cache hit), falling back to Git LFS on miss and uploading to S3 for future builds. A size check guards against accidentally bundling an LFS pointer file.
+
+**Lambda dependency packaging**: The deploy workflow installs Lambda dependencies with `--platform manylinux2014_x86_64 --only-binary=:all:` to produce a Linux-compatible package on the macOS/ubuntu runner before bundling and deploying. The `update-function-code` call causes Terraform to detect source-hash drift on the next plan — accepted as a no-op if no source changes occurred.
+
+**Simulation build context**: The simulation service's Docker build context does not include `schemas/` by default (it lives at repo root). The CI step temporarily copies `schemas/` into `services/simulation/schemas` before the build and removes it after.
+
+**Soft reset vs. teardown**: `teardown-platform` destroys EKS, RDS, and ALB but preserves S3 data and ECR images. `soft-reset` keeps all infrastructure intact but wipes all runtime state: Kafka (PVC delete+recreate), S3 lakehouse buckets, RDS databases (drop+recreate), Redis (FLUSHALL), and monitoring emptyDir volumes. The soft-reset temporarily suspends ArgoCD auto-sync to prevent it from fighting scale-down operations.
+
+### Locations
+
+- `.github/workflows/` — CI gate, build-images, deploy, teardown-platform, soft-reset, deploy-lambda workflows
+- `infrastructure/terraform/` — state reconciliation and backend configuration
+- `infrastructure/kubernetes/` — ArgoCD application definition and manifest templates
+
+---
+
+## Grafana Dashboard Conventions
+
+### Pattern
+
+All Grafana dashboards follow strict conventions to ensure provisioning-time correctness and maintainability.
+
+**Hardcoded datasource UIDs**: Datasource UIDs (`prometheus`, `trino`, `loki`, `tempo`, `airflow-postgres`) are hardcoded directly in dashboard JSON. Template variable references like `${DS_PROMETHEUS}` are intentionally avoided — any UID change breaks every dashboard that references it.
+
+**Trino panel requirements**: All Trino panels must set `"rawQuery": true` and use `"rawSQL"` (capital SQL) for the query field. The format field uses numeric values: `"format": 0` for table output, `"format": 1` for time series. String values are rejected by the plugin.
+
+**Dashboard IDs**: The `id` field is always `null` — Grafana assigns IDs at provisioning time. IDs must never be committed.
+
+**Admin dashboard folder**: A dedicated `Admin` Grafana folder (path `/etc/dashboards/admin`) holds operator-only dashboards. The `visitor-activity.json` dashboard aggregates per-service access timestamps from Airflow login history (via the `airflow-postgres` PostgreSQL datasource) and cross-service audit events from Loki. The `airflow-postgres` datasource must be provisioned and connected to `postgres-airflow:5432` before Grafana starts — absent datasource causes Airflow panels to fail silently.
+
+**Error metrics absence**: `simulation_errors_total`, `stream_processor_validation_errors_total`, and `simulation_corrupted_events_total` only appear in Prometheus after the first error. On a healthy system these metrics are absent entirely — panels relying on them show "No data" rather than 0. Alert rules use `noDataState: NoData` to avoid false alerts from absent-but-normal metrics.
+
+### Locations
+
+- `services/grafana/dashboards/` — six dashboard categories (monitoring, data-engineering, business-intelligence, performance, operations, admin)
+- `services/grafana/provisioning/datasources/datasources.yml` — hardcoded UIDs and datasource configuration
+- `services/grafana/provisioning/dashboards/` — folder-to-path provider mappings
+- `services/grafana/dashboards/admin/visitor-activity.json` — operator visitor activity audit dashboard

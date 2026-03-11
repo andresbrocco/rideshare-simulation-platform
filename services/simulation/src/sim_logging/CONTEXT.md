@@ -21,7 +21,7 @@ Provides structured, context-enriched logging for the simulation service. Handle
 - `log_context()` performs a full `LogContext.clear()` on exit, not a restore of prior state. Nested calls to `log_context()` are not safe — the inner scope's exit will clear fields set by the outer scope.
 - `setup_logging()` clears all existing handlers before adding its own, making it safe to call multiple times (e.g., in tests) without duplicating handlers.
 - `confluent_kafka` and `urllib3` loggers are explicitly silenced to `WARNING` inside `setup_logging()` to suppress verbose third-party output.
-- `JSONFormatter` only promotes a fixed set of fields (`trip_id`, `driver_id`, `rider_id`, `correlation_id`) to top-level JSON keys. Any other fields stored in `LogContext` are injected onto the record by `ContextFilter` but will not appear in JSON output unless the formatter is updated.
+- `JSONFormatter` promotes two fixed sets of fields to top-level JSON keys: domain context fields (`trip_id`, `driver_id`, `rider_id`, `correlation_id`) and HTTP audit fields (`method`, `path`, `status_code`, `duration_ms`, `user_identity`, `user_role`). The HTTP audit fields are populated by `RequestLoggerMiddleware` (in `src.api.middleware`) for per-request structured audit logging. Any other fields stored in `LogContext` are injected onto the record by `ContextFilter` but will not appear in JSON output unless the formatter is updated.
 - `log_trip_context()` defaults `correlation_id` to `trip_id` when no explicit `correlation_id` is provided, ensuring trip operations are always traceable even without a full distributed trace context.
 
 ## Related Modules

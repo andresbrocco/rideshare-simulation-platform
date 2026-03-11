@@ -31,11 +31,8 @@ A self-contained Python service that runs a discrete-event rideshare simulation 
 - Settings use **Pydantic validators** that raise at startup if credentials are missing (`API_KEY`, `REDIS_PASSWORD`, Kafka SASL credentials). The service will not start without them.
 - The `KafkaSettings` validator raises on missing SASL credentials even when `security_protocol=PLAINTEXT`. In local dev the workaround is to pass dummy values for `KAFKA_SASL_USERNAME` / `KAFKA_SASL_PASSWORD` / `KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO`.
 - Port 8000 (container) maps to 8082 (host). `EXECUTION_API_SERVER_URL` in dependent services must use port 8082.
+- An in-memory **user store** (`src/api/user_store.py`) provides a secondary credential layer on top of the shared API key. Passwords are stored exclusively as `bcrypt` hashes (`bcrypt==5.0.0`); plaintext is never retained. The store is populated at startup (provisioning phase) and treated as read-only thereafter, so no thread-locking is required.
 
 ## Related Modules
 
-- [infrastructure/docker](../../infrastructure/docker/CONTEXT.md) — Reverse dependency — Consumed by this module
-- [services/grafana/dashboards/monitoring](../grafana/dashboards/monitoring/CONTEXT.md) — Reverse dependency — Provides simulation-metrics.json
-- [services/grafana/dashboards/performance](../grafana/dashboards/performance/CONTEXT.md) — Shares Observability and Metrics domain (real-time ratio (rtr))
-- [services/prometheus/rules](../prometheus/rules/CONTEXT.md) — Reverse dependency — Provides rideshare:infrastructure:headroom, rideshare:performance:kafka_lag_headroom, rideshare:performance:simpy_queue_headroom (+9 more)
-- [services/simulation/src/engine](src/engine/CONTEXT.md) — Shares Observability and Metrics domain (real-time ratio (rtr))
+- [tools/great-expectations](../../tools/great-expectations/CONTEXT.md) — Shares Checkpointing & State Persistence domain (checkpoint)

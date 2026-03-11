@@ -33,8 +33,4 @@ Infrastructure capacity testing framework for the rideshare platform. Runs contr
 
 ## Related Modules
 
-- [infrastructure/docker](../../infrastructure/docker/CONTEXT.md) — Dependency — Docker Compose configuration defining the complete local development environment...
-- [services/prometheus](../../services/prometheus/CONTEXT.md) — Dependency — Metrics collection, alerting, and recording rule computation for the rideshare s...
-- [services/prometheus/rules](../../services/prometheus/rules/CONTEXT.md) — Dependency — Prometheus alerting rules and precomputed performance recording rules, including...
-- [tests/performance/analysis](analysis/CONTEXT.md) — Shares PID Controller and Performance Tuning domain (baseline calibration)
-- [tests/performance/scenarios](scenarios/CONTEXT.md) — Shares Observability and Metrics domain (rtr (real-time ratio))
+- [tests/performance/analysis](analysis/CONTEXT.md) — Shares Data Quality & Validation domain (baseline calibration)

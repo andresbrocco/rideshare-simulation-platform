@@ -6,8 +6,8 @@ Top-level UI components for the control panel application. Covers two distinct s
 
 ## Responsibility Boundaries
 
-- **Owns**: All rendered UI panels, the DeckGL+MapLibre map wrapper, the agent inspector popup, the deploy/session lifecycle panel, and the trip lifecycle animation
-- **Delegates to**: `../hooks` for all data fetching and stateful logic, `../layers` for DeckGL layer construction, `../services/lambda` for cloud deployment API calls, `./inspector` subdirectory for per-entity inspector content
+- **Owns**: All rendered UI panels, the DeckGL+MapLibre map wrapper, the agent inspector popup, the deploy/session lifecycle panel, the trip lifecycle animation, the visitor email consent form, and the login dialog
+- **Delegates to**: `../hooks` for all data fetching and stateful logic, `../hooks/useRole` for role resolution, `../layers` for DeckGL layer construction, `../services/lambda` for cloud deployment API calls and visitor provisioning, `./inspector` subdirectory for per-entity inspector content
 - **Does not handle**: WebSocket connection management, layer data computation, or raw API calls (all delegated to hooks)
 
 ## Key Concepts
@@ -20,13 +20,20 @@ Top-level UI components for the control panel application. Covers two distinct s
 
 **InspectorPopup polling** — When an entity is selected, `InspectorPopup.tsx` polls the simulation API for live agent state via `useAgentState`. Polling is suspended when the popup is minimized. Home location coordinates arrive as `[lat, lon]` from the API but are swapped to `[lon, lat]` before passing to deck.gl (which expects longitude-first).
 
-**LandingPage dual role** — `LandingPage.tsx` serves as both the public portfolio page and the entry point before authentication. It contains the tech stack showcase, architecture diagram embed, collapsible deep-dive sections, and the `DeployPanel` for on-demand cloud deployment. Service health badges are driven by `serviceHealth: ServiceHealthMap` passed from the parent; cards render as disabled `<span>` elements (not `<a>`) when their service is down to prevent broken navigation.
+**Role-based access control** — `ControlPanel.tsx` reads the current role via `useRole()` and derives `isAdmin = role === 'admin'`. All simulation controls (play/pause/resume/reset, speed, add drivers/riders, puppet agent placement) are disabled for non-admin users and show `'Admin only'` tooltips. The `isAdmin` value is also forwarded to `InspectorPopup`, which passes it down to `DriverInspector`.
+
+**LandingPage dual role** — `LandingPage.tsx` serves as both the public portfolio page and the entry point before authentication. It contains the tech stack showcase, architecture diagram embed, collapsible deep-dive sections, `VisitorAccessForm` for credential request, and the `DeployPanel` for on-demand cloud deployment. Service health badges are driven by `serviceHealth: ServiceHealthMap` passed from the parent; cards render as disabled `<span>` elements (not `<a>`) when their service is down to prevent broken navigation.
+
+**VisitorAccessForm consent flow** — `VisitorAccessForm.tsx` is an email consent form embedded in `LandingPage` for the non-deployed (public portfolio) context. It validates email format client-side, requires an explicit consent checkbox, and calls `provisionVisitor(email)` from `../services/lambda`. It has four internal states: `idle → loading → success | error`. The success state surfaces whether the confirmation email was actually delivered (`emailSent`), showing a fallback note if delivery failed.
+
+**LoginDialog email+password flow** — `LoginDialog.tsx` (replaces the former `PasswordDialog`) handles credential-based login by posting `{ email, password }` to `POST /auth/login`. On success, `storeSession(api_key, role, email)` writes the session to `sessionStorage`; the role is later read by `useRole`. The dialog includes a focus trap, Escape-to-close, and resets state on each open. The old `PasswordDialog.tsx` still exists in the directory but is superseded.
 
 **LaunchDemoPanel vs DeployPanel** — `LaunchDemoPanel.tsx` is an older, simpler deploy component (4-step progress, local health polling only). `DeployPanel.tsx` is the current implementation with full session management, cost tracking, per-service progress, and extend/shrink controls. Both coexist because `LaunchDemoPanel` may still serve a different flow path.
 
 ## Non-Obvious Details
 
-- `DeployPanel` derives partial service health from `deployProgress` during the `deploying` state (mapping deploy-progress service names to `ServiceHealthMap` keys via `DEPLOY_TO_HEALTH`). Real service health polling only starts after `transitionToActive`.
+- `DeployPanel` derives partial service health from `deployProgress` during the `deploying` state (mapping deploy-progress service names to `ServiceHealthMap` keys via `DEPLOY_TO_HEALTH`). Real service health polling only starts after `transitionToActive`. The `DEPLOY_SERVICES` list now includes `glue-catalog`, bringing the service segment count to 16.
+- `useRole()` reads from `sessionStorage` synchronously on every render — it has no subscription mechanism. Role changes only propagate when a parent re-render occurs (e.g., after `onLogin` triggers a state update in `App`).
 - When teardown completes and Lambda becomes unreachable, `DeployPanel` treats any `catch` during session polling as a signal that teardown finished — it transitions to `idle` rather than showing an error.
 - The `wrapAction` helper in `InspectorPopup` sets a `isMountedRef` guard before calling `setActionLoading(false)` to prevent state updates on an unmounted component after async puppet actions complete.
 - `TripLifecycleAnimation` respects `prefers-reduced-motion`: if the media query matches, it renders a static completed-state frame instead of running the animation loop.

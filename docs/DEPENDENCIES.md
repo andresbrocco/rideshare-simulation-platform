@@ -14,18 +14,19 @@ How modules within this codebase depend on each other.
 | `services/stream-processor` | Kafka-to-Redis bridge with windowed GPS aggregation and deduplication | control-panel (WebSocket), services/grafana/dashboards/monitoring |
 | `services/bronze-ingestion` | Kafka-to-Bronze Delta Lake ingestion pipeline with DLQ routing | services/airflow, tools/dbt, tools/great-expectations |
 | `services/airflow` | Airflow DAG orchestration for medallion pipeline (Silver, Gold, DLQ, maintenance) | tools/dbt, tools/great-expectations |
-| `services/control-panel` | React/TypeScript SPA operator interface with real-time geospatial map | infrastructure/lambda/auth-deploy |
+| `services/control-panel` | React/TypeScript SPA operator interface with real-time geospatial map | infrastructure/lambda/auth-deploy, services/simulation (login via `POST /auth/login`) |
 | `services/performance-controller` | Closed-loop PID controller that adjusts simulation speed via infrastructure headroom | services/simulation, services/prometheus |
 | `schemas/kafka` | JSON Schema contracts for all Kafka event topics | services/simulation/src/kafka, services/bronze-ingestion/src |
 | `schemas/lakehouse` | PySpark StructType schema definitions for Bronze Delta Lake tables | services/bronze-ingestion/src |
 | `schemas/api` | OpenAPI specification for the simulation REST/WebSocket API | services/control-panel, services/simulation/tests |
 | `tools/dbt` | Silver and Gold medallion layer transformations | services/airflow, tools/great-expectations |
 | `tools/great-expectations` | Data quality validation for Silver and Gold tables | services/airflow |
-| `infrastructure/scripts` | Operational scripts: secrets bootstrap, Delta table registration, Glue table registration | services/airflow/dags |
-| `infrastructure/lambda/auth-deploy` | Serverless control-plane Lambda for deploy/teardown lifecycle and session management | services/control-panel/src/services, infrastructure/terraform/foundation |
+| `infrastructure/scripts` | Operational scripts: secrets bootstrap, Delta table registration, Glue table registration, visitor account provisioning (Grafana/Airflow/MinIO/Trino/Simulation API), Trino password hash generation | services/airflow/dags |
+| `infrastructure/lambda/auth-deploy` | Serverless control-plane Lambda for deploy/teardown lifecycle, visitor self-registration (two-phase: DynamoDB durable records + KMS-encrypted credentials + SES welcome email + post-deploy service account creation via Grafana, Airflow, MinIO, Simulation API) | services/control-panel/src/services, infrastructure/terraform/foundation |
 | `infrastructure/docker` | Docker Compose local dev environment (four composable profiles) | all services |
 | `infrastructure/kubernetes` | Kubernetes manifests, Kustomize overlays, ArgoCD GitOps for production | infrastructure/terraform |
 | `infrastructure/terraform` | AWS production infrastructure (EKS, RDS, S3, ECR, Lambda, Glue, IAM) | infrastructure/kubernetes, infrastructure/lambda/auth-deploy |
+| `.github/workflows` | CI/CD: static quality gates, selective ECR image builds, EKS platform deploy, ArgoCD GitOps reconciliation, cost-driven teardown, soft-reset | infrastructure/terraform, infrastructure/kubernetes, infrastructure/lambda/auth-deploy |
 
 ### Simulation Internal Modules
 
@@ -44,9 +45,10 @@ How modules within this codebase depend on each other.
 | `src/db/repositories` | SQLAlchemy-backed persistence for drivers, riders, trips, route cache | src/db, src/agents |
 | `src/metrics` | Rolling-window metrics collection and OpenTelemetry export | src/engine, src/agents, src/geo, src/redis_client, src/api |
 | `src/sim_logging` | Structured logging with PII masking and thread-local context injection | all simulation modules |
-| `src/api` | FastAPI application layer: HTTP endpoints and WebSocket streaming | src/engine, src/metrics |
-| `src/api/routes` | Route handlers for lifecycle control, agent management, puppet control, metrics | src/api |
+| `src/api` | FastAPI application layer: HTTP endpoints, WebSocket streaming, dual-auth (static admin key + Redis-backed session keys), role-based access control (`require_admin`), bcrypt user store, session lifecycle | src/engine, src/metrics |
+| `src/api/routes` | Route handlers for lifecycle control, agent management, puppet control, metrics, and auth (login/register/validate) | src/api |
 | `src/api/models` | Pydantic request/response schemas for REST API contract | src/api/routes |
+| `src/api/middleware` | Security response headers and structured access logging with identity resolution (session key lookup for per-request audit log) | src/api |
 | `src/puppet` | API-controlled driver route traversal using background threads | src/matching, src/engine |
 
 ### Control Panel Internal Modules
@@ -54,13 +56,13 @@ How modules within this codebase depend on each other.
 | Module | Purpose | Depended On By |
 |--------|---------|----------------|
 | `src/types` | Central TypeScript type definitions for domain entities and WebSocket contracts | src/hooks, src/layers, src/components, src/utils |
-| `src/hooks` | Custom React hooks for WebSocket state, REST polling, and deck.gl layer assembly | src/components |
+| `src/hooks` | Custom React hooks for WebSocket state, REST polling, deck.gl layer assembly, role resolution (`useRole`), and session expiry handling (`useSessionExpiry`) | src/components |
 | `src/layers` | deck.gl layer factories encoding trip lifecycle phases | src/hooks |
-| `src/components` | Top-level UI components (Map, ControlPanel, DeployPanel, InspectorPopup) | src/App |
+| `src/components` | Top-level UI components (Map, ControlPanel, DeployPanel, InspectorPopup, LandingPage, LoginDialog, VisitorAccessForm) | src/App |
 | `src/components/inspector` | Entity detail popups for drivers, riders, zones | src/components |
 | `src/contexts` | React context for frontend performance metrics | src/hooks |
-| `src/services` | Lambda HTTP client for deploy/teardown lifecycle operations | src/components, src/hooks |
-| `src/utils` | Formatting, color utilities, auth cookie helpers, structured browser logging | src/hooks, src/components, src/layers |
+| `src/services` | Lambda HTTP client for deploy/teardown lifecycle, visitor provisioning (`provisionVisitor` with HTTP 207 partial-success handling) | src/components, src/hooks |
+| `src/utils` | Formatting, color utilities, full session management (`storeSession`/`clearSession`/`getSessionRole`/`getSessionEmail`/`getApiKey`), cross-subdomain cookie hand-off, authenticated fetch wrapper (`apiFetch` with `session:expired` dispatch), structured browser logging | src/hooks, src/components, src/layers |
 
 ### DBT Internal Model Dependencies
 
@@ -128,6 +130,11 @@ bootstrap  ──>  foundation  ──>  platform
 
 [services/control-panel] ──> [infrastructure/lambda/auth-deploy] (via VITE_LAMBDA_URL)
                         ──> [services/simulation] REST+WebSocket API (via VITE_API_URL)
+                        ──> [services/simulation] POST /auth/login (email+password → session key with role)
+
+[.github/workflows] ──> [infrastructure/terraform] (deploy/teardown/soft-reset)
+                   ──> [infrastructure/kubernetes] (ArgoCD GitOps via deploy branch)
+                   ──> [infrastructure/lambda/auth-deploy] (visitor session management, deploy progress reporting)
 ```
 
 ### Key Dependency Details
@@ -177,6 +184,15 @@ bootstrap  ──>  foundation  ──>  platform
 #### services/control-panel → schemas/api
 - `generate-types` script (`openapi-typescript`) generates `src/types/api.generated.ts` from `schemas/api/openapi.json`
 
+#### services/control-panel → services/simulation (auth)
+- `LoginDialog` calls `POST /auth/login` with `{email, password}`, receives `{api_key, role, email}`, and persists the session via `storeSession()` in `src/utils/auth.ts`
+- Session keys carry a `sess_` prefix and are validated by the simulation API against Redis via `session_store`
+- The `session:expired` custom DOM event is dispatched by `apiFetch` on any 401 response, decoupling the HTTP layer from React auth state
+
+#### infrastructure/lambda/auth-deploy → DynamoDB / KMS / SES
+- Phase 1 `provision-visitor`: writes a durable visitor record to the `rideshare-visitors` DynamoDB table (keyed by email hash), encrypts the plaintext password with the `rideshare-visitor-passwords` KMS CMK, stores the PBKDF2 hash in Secrets Manager (`rideshare/trino-visitor-password-hash-*`), and sends a welcome email via SES
+- Phase 2 `reprovision-visitors`: scans DynamoDB, decrypts each password with KMS, and creates ephemeral accounts in Grafana, Airflow, MinIO, and the Simulation API
+
 ---
 
 ## External Dependencies
@@ -214,6 +230,7 @@ bootstrap  ──>  foundation  ──>  platform
 | opentelemetry-instrumentation-httpx | 0.60b1 | httpx auto-instrumentation |
 | cachetools | >=5.0.0 | LRU caching utilities |
 | authlib | >=1.0.0 | Auth utilities |
+| bcrypt | 5.0.0 | Bcrypt password hashing for visitor user store |
 | asyncpg | >=0.30.0 | Async PostgreSQL driver |
 | Faker | >=28.0.0 | Synthetic data generation for agent DNA |
 | PyYAML | >=6.0 | YAML parsing for topics config |
@@ -386,8 +403,11 @@ bootstrap  ──>  foundation  ──>  platform
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| boto3 | >=1.34.0 | AWS SDK: Secrets Manager, SSM, EventBridge Scheduler |
+| boto3 | >=1.34.0 | AWS SDK: Secrets Manager, SSM, EventBridge Scheduler, DynamoDB, KMS, SES |
 | botocore | >=1.34.0 | AWS SDK core |
+| bcrypt | (runtime) | Bcrypt hash verification for visitor credential lookup |
+| minio | (runtime) | MinIO Admin SDK for visitor MinIO account provisioning |
+| requests | (runtime) | HTTP client for Grafana Admin API and Airflow API provisioning calls |
 
 ---
 
@@ -427,7 +447,7 @@ The following infrastructure services are consumed as Docker images and are not 
 | Trino | Standard + trino-datasource plugin | SQL query engine over Delta Lake |
 | PostgreSQL | Standard | Airflow metadata DB; Hive Metastore backend (production) |
 | OSRM | Custom build (Sao Paulo map data) | Road-network routing engine |
-| Grafana | Standard + trino-datasource plugin | Observability and analytics dashboards |
+| Grafana | Standard + trino-datasource plugin | Observability and analytics dashboards; datasources: Prometheus, Trino (delta catalog), Loki, Tempo, Airflow Postgres (visitor activity) |
 | Prometheus | Standard | Metrics collection and alerting |
 | Loki | Standard | Log aggregation |
 | Tempo | Standard | Distributed trace storage |
@@ -448,3 +468,5 @@ None detected.
 - `services/bronze-ingestion/requirements.txt` similarly includes `pytest>=7.0.0` in the runtime requirements file.
 - The `schemas/lakehouse` package declares no runtime dependencies in its `pyproject.toml`; `pyspark` and `delta-spark` are implicit environment dependencies injected by the Airflow or Glue execution context.
 - `services/stream-processor` maintains two redundant dependency files (`pyproject.toml` and `requirements.txt`) with differing version pins for the same packages (e.g., `confluent-kafka` listed as `>=2.6.0` in pyproject.toml and `==2.6.1` in requirements.txt).
+- `infrastructure/lambda/auth-deploy` runtime dependencies (`bcrypt`, `minio`, `requests`) are not versioned in `requirements.txt` — they are installed by CI at deploy time via `--platform manylinux2014_x86_64 --only-binary=:all:`. Version drift is a latent risk.
+- `services/trino/etc/catalog/delta.properties` contains placeholder credentials (`admin`/`adminadmin`) and is a dev-time artifact; the authoritative rendered file lives at `/tmp/trino-etc/catalog/delta.properties` (produced by the entrypoint at runtime). Do not read the committed file as a source of truth for production credentials.

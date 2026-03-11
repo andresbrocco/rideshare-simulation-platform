@@ -33,12 +33,6 @@ Orchestrates the SimPy discrete-event simulation environment: manages simulation
 
 ## Related Modules
 
-- [schemas/api](../../../../schemas/api/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
-- [services/control-panel](../../../control-panel/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
-- [services/control-panel/src/hooks](../../../control-panel/src/hooks/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
-- [services/grafana/dashboards/performance](../../../grafana/dashboards/performance/CONTEXT.md) — Shares Observability and Metrics domain (real-time ratio (rtr))
-- [services/simulation](../../CONTEXT.md) — Shares Observability and Metrics domain (real-time ratio (rtr))
-- [services/simulation/src](../CONTEXT.md) — Reverse dependency — Provides main, SimulationRunner, Settings (+8 more)
-- [services/simulation/src/agents](../agents/CONTEXT.md) — Reverse dependency — Provides DriverAgent, RiderAgent, DriverDNA (+8 more)
-- [services/simulation/src/api/routes](../api/routes/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
-- [services/simulation/tests/e2e](../../tests/e2e/CONTEXT.md) — Reverse dependency — Consumed by this module
+- [services/grafana/dashboards/performance](../../../grafana/dashboards/performance/CONTEXT.md) — Shares Pricing & Surge domain (real-time ratio (rtr))
+- [services/simulation/tests/engine](../../tests/engine/CONTEXT.md) — Shares SimPy Simulation Engine domain (threadcoordinator)
+- [services/simulation/tests/engine](../../tests/engine/CONTEXT.md) — Shares Pricing & Surge domain (real-time ratio (rtr))

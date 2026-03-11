@@ -29,11 +29,7 @@ Canonical OpenAPI 3.1.0 specification for the Rideshare Simulation Control Panel
 
 ## Related Modules
 
-- [docs/other](../../docs/other/CONTEXT.md) — Reverse dependency — Provides API_CONTRACT.md, DOCKER_PROFILES.md, kafka_partitioning.md (+3 more)
-- [services/control-panel](../../services/control-panel/CONTEXT.md) — Reverse dependency — Provides App
-- [services/control-panel](../../services/control-panel/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
-- [services/control-panel/src/hooks](../../services/control-panel/src/hooks/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
-- [services/simulation/src/api](../../services/simulation/src/api/CONTEXT.md) — Dependency — FastAPI application layer bridging the SimPy simulation engine to HTTP control e...
-- [services/simulation/src/api/routes](../../services/simulation/src/api/routes/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
-- [services/simulation/src/engine](../../services/simulation/src/engine/CONTEXT.md) — Shares Agent Architecture and DNA domain (puppet agents)
-- [services/simulation/tests](../../services/simulation/tests/CONTEXT.md) — Reverse dependency — Provides DNAFactory, conftest fixtures: fake, dna_factory, mock_kafka_producer, mock_redis_client, mock_osrm_client, sample_driver_dna, sample_rider_dna, temp_sqlite_db, sample_zones_path
+- [services/control-panel](../../services/control-panel/CONTEXT.md) — Shares Agent Behavior & DNA domain (puppet agents)
+- [services/control-panel/src/hooks](../../services/control-panel/src/hooks/CONTEXT.md) — Shares Agent Behavior & DNA domain (puppet agents)
+- [services/simulation/tests/engine](../../services/simulation/tests/engine/CONTEXT.md) — Shares SimPy Simulation Engine domain (two-phase pause)
+- [services/simulation/tests/engine](../../services/simulation/tests/engine/CONTEXT.md) — Shares Unified Process & Time Management domain (two-phase pause)

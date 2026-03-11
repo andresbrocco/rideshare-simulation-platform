@@ -7,7 +7,7 @@ Top-level test suite for the simulation service, covering trip state machine cor
 ## Responsibility Boundaries
 
 - **Owns**: All unit-level tests for the simulation service, shared fixtures and factories, the `conftest.py` global setup applied to every test in the suite
-- **Delegates to**: `tests/engine/` for SimPy engine behavior, `tests/kafka/` for producer/consumer integration
+- **Delegates to**: `tests/engine/` for SimPy engine behavior, `tests/kafka/` for producer/consumer integration, `tests/api/` for FastAPI endpoint contracts, role enforcement, session lifecycle, user store, and rate limiting
 - **Does not handle**: Integration tests requiring running Docker services (those live under `tests/integration/` at the repo root)
 
 ## Key Concepts
@@ -22,6 +22,9 @@ Top-level test suite for the simulation service, covering trip state machine cor
 - **Credential fields have no defaults by design**: `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD`, `KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO`, `REDIS_PASSWORD`, and `API_KEY` are intentionally required with no defaults so services fail loudly without secrets. The conftest supplies test-only values.
 - **TypeScript type drift test**: `test_typescript_types_match_openapi` invokes `npm run generate-types` at test time and compares output to the committed file. This test will fail in CI if a developer changes the OpenAPI schema without regenerating and committing `api.generated.ts`.
 - **GPS interval override**: Default GPS ping intervals produce too many SimPy events during tests. The conftest overrides them to 60 seconds, which is sufficient to verify GPS event emission without slowing down long simulation runs in tests.
+- **Session-based auth tests** (`tests/api/`): Keys with a `sess_` prefix are tested via a `mock_redis_client` that defaults `hgetall` to `{}` so session lookups fail unless a test explicitly sets a return value. The `SessionData` Pydantic model (`api.session_store`) carries `api_key`, `email`, `role`, and `expires_at`.
+- **Role-based access control tests** (`tests/api/`): `test_role_enforcement.py` injects a fixed `AuthContext` (role `viewer` or `admin`) via `app.dependency_overrides[verify_api_key]`. Viewer role receives HTTP 403 on simulation control, agent creation, puppet actions, and controller mode endpoints.
+- **UserStore tests** (`tests/api/`): Passwords stored as bcrypt hashes (`$2b$` prefix). The singleton is reset via `user_store_module._user_store = None` in an `autouse` fixture to prevent cross-test state leakage.
 
 ## Related Modules
 

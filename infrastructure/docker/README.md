@@ -115,8 +115,18 @@ docker compose -f infrastructure/docker/compose.yml logs -f stream-processor
 All credentials are injected at container startup via a shared `secrets-volume`. The bootstrap sequence is:
 
 1. `localstack` starts and passes its healthcheck.
-2. `secrets-init` runs `seed-secrets.py` (writes secrets to LocalStack Secrets Manager) then `fetch-secrets.py` (writes `/secrets/core.env`, `/secrets/data-pipeline.env`, `/secrets/monitoring.env` to the shared volume).
+2. `secrets-init` runs `seed-secrets.py` (writes secrets to LocalStack Secrets Manager) then `fetch-secrets.py` (writes `/secrets/core.env`, `/secrets/data-pipeline.env`, `/secrets/monitoring.env` to the shared volume). `bcrypt` is installed alongside boto3 so that `seed-secrets.py` can hash visitor passwords before storing them.
 3. Every downstream service mounts `secrets-volume:/secrets:ro` and sources the relevant `.env` file in its `entrypoint`.
+
+`lambda-init` deploys the auth Lambda and bundles three visitor-provisioning modules (`provision_grafana_viewer.py`, `provision_airflow_viewer.py`, `provision_minio_visitor.py`) plus a MinIO IAM policy file (`minio-visitor-readonly.json`). It exposes the following environment variables to the deployed Lambda at runtime:
+
+| Variable | Value | Description |
+|----------|-------|-------------|
+| `GRAFANA_URL` | `http://grafana:3000` | Grafana internal endpoint for viewer provisioning |
+| `AIRFLOW_URL` | `http://airflow-webserver:8080` | Airflow internal endpoint for viewer provisioning |
+| `MINIO_ENDPOINT` | `minio:9000` | MinIO S3 endpoint for visitor bucket access |
+| `MINIO_ACCESS_KEY` | `admin` | MinIO admin key used during provisioning |
+| `SIMULATION_API_URL` | `http://simulation:8000` | Simulation API endpoint used by the Lambda |
 
 No secrets should be hardcoded in `.env` files or the compose configuration.
 

@@ -30,4 +30,7 @@ Implementation of an autonomous closed-loop PID controller that reads a composit
 
 ## Related Modules
 
-- [services/grafana/dashboards/performance](../../grafana/dashboards/performance/CONTEXT.md) — Shares Observability and Metrics domain (infrastructure headroom)
+- [services/grafana/dashboards/performance](../../grafana/dashboards/performance/CONTEXT.md) — Shares PID Control & Adaptive Systems domain (infrastructure headroom)
+- [services/grafana/dashboards/performance](../../grafana/dashboards/performance/CONTEXT.md) — Shares Performance & Scalability domain (infrastructure headroom)
+- [services/performance-controller](../CONTEXT.md) — Shares PID Control & Adaptive Systems domain (anti-windup, infrastructure headroom)
+- [services/performance-controller](../CONTEXT.md) — Shares Performance & Scalability domain (infrastructure headroom)

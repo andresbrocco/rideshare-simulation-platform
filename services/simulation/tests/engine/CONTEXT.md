@@ -25,3 +25,11 @@ Unit tests for the simulation engine subsystem, covering the orchestrator lifecy
 - `test_resume_restarts_processes` asserts `resumed_process_count == initial_process_count * 2` — resume re-registers all agent processes into the WeakSet, doubling the count before dead references are collected.
 - The shutdown handler test (`TestCheckpointOnShutdown`) cannot import the real closure from `main.py` (it is defined inline during startup), so it reconstructs the same logic from mocks. The test verifies call order: `runner_stop → checkpoint → engine_stop → flush`.
 - Spawn queue deque tests verify O(1) `popleft` semantics: each deque entry is a batch count (integer), and `dequeue_*` methods decrement that count internally, returning `True` per agent until exhausted. Zero-count entries are discarded.
+
+## Related Modules
+
+- [schemas/api](../../../../schemas/api/CONTEXT.md) — Shares SimPy Simulation Engine domain (two-phase pause)
+- [schemas/api](../../../../schemas/api/CONTEXT.md) — Shares Unified Process & Time Management domain (two-phase pause)
+- [services/grafana/dashboards/performance](../../../grafana/dashboards/performance/CONTEXT.md) — Shares Pricing & Surge domain (real-time ratio (rtr))
+- [services/simulation/src/engine](../../src/engine/CONTEXT.md) — Shares SimPy Simulation Engine domain (threadcoordinator)
+- [services/simulation/src/engine](../../src/engine/CONTEXT.md) — Shares Pricing & Surge domain (real-time ratio (rtr))

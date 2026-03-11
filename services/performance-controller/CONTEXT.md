@@ -29,4 +29,9 @@ Autonomous feedback control service that throttles the simulation's time-acceler
 
 ## Related Modules
 
-- [infrastructure/docker](../../infrastructure/docker/CONTEXT.md) — Reverse dependency — Consumed by this module
+- [services/grafana/dashboards/performance](../grafana/dashboards/performance/CONTEXT.md) — Shares SimPy Simulation Engine domain (speed multiplier)
+- [services/grafana/dashboards/performance](../grafana/dashboards/performance/CONTEXT.md) — Shares PID Control & Adaptive Systems domain (infrastructure headroom)
+- [services/grafana/dashboards/performance](../grafana/dashboards/performance/CONTEXT.md) — Shares Performance & Scalability domain (infrastructure headroom)
+- [services/performance-controller/src](src/CONTEXT.md) — Shares PID Control & Adaptive Systems domain (anti-windup, infrastructure headroom)
+- [services/performance-controller/src](src/CONTEXT.md) — Shares Performance & Scalability domain (infrastructure headroom)
+- [services/simulation/tests/e2e](../simulation/tests/e2e/CONTEXT.md) — Shares SimPy Simulation Engine domain (speed multiplier)

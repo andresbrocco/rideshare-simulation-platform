@@ -6,7 +6,7 @@ Provisions all AWS infrastructure that must exist before the EKS cluster is crea
 
 ## Responsibility Boundaries
 
-- **Owns**: VPC, subnets, security groups, Route 53 hosted zone, ACM certificate, S3 buckets (bronze/silver/gold/checkpoints/frontend/logs/loki/tempo/build_assets), ECR repositories, IAM roles for EKS/CI/workloads, Secrets Manager secrets, Glue catalog databases (bronze/silver/gold), EventBridge Scheduler role, Lambda `rideshare-auth-deploy`, Glue catalog databases for the medallion layers, SES domain identity with DKIM/SPF/DMARC DNS records, and SES production access provisioner
+- **Owns**: VPC, subnets, security groups, Route 53 hosted zone, ACM certificate, S3 buckets (bronze/silver/gold/checkpoints/frontend/logs/loki/tempo/build_assets), ECR repositories, IAM roles for EKS/CI/workloads, Secrets Manager secrets, Glue catalog databases (bronze/silver/gold), EventBridge Scheduler role, Lambda `rideshare-auth-deploy`, Glue catalog databases for the medallion layers, KMS CMK `rideshare-visitor-passwords` (with automatic key rotation), DynamoDB table `rideshare-visitors` (PAY_PER_REQUEST, email hash key, PITR, KMS SSE), SES domain identity with DKIM/SPF/DMARC DNS records, and SES production access provisioner
 - **Delegates to**: `infrastructure/terraform/platform` for EKS cluster, node groups, ALB, RDS, and DNS records pointing at the cluster
 - **Does not handle**: Kubernetes manifests, application deployments, or runtime configuration
 
@@ -17,7 +17,8 @@ Provisions all AWS infrastructure that must exist before the EKS cluster is crea
 - **ACM must be us-east-1**: CloudFront requires certificates in `us-east-1` regardless of the project region. A dedicated `aws.us_east_1` provider alias is defined in `versions.tf` and explicitly passed to the `acm` module.
 - **S3 bucket naming**: Buckets include the AWS account ID suffix (`account_suffix = data.aws_caller_identity.current.account_id`) to guarantee global uniqueness without hardcoding account numbers.
 - **Backend init pattern**: The S3 state backend omits the `bucket` argument; it is supplied at `terraform init` time via `-backend-config="bucket=rideshare-tf-state-<ACCOUNT_ID>"` to avoid hardcoding account-specific values in source.
-- **Lambda auth-deploy**: A Python 3.13 Lambda that validates API keys and triggers GitHub Actions deploys via EventBridge Scheduler. It is provisioned here (not in platform) because it must survive platform teardowns and expose a stable Function URL to the frontend.
+- **Lambda auth-deploy**: A Python 3.13 Lambda that validates API keys, triggers GitHub Actions deploys via EventBridge Scheduler, and handles visitor provisioning (welcome email dispatch, credential creation). Timeout is 60 s (increased from 30 s to accommodate SES + DynamoDB write round-trips). It is provisioned here (not in platform) because it must survive platform teardowns and expose a stable Function URL to the frontend.
+- **Visitor provisioning**: When a visitor submits the access-request form, the Lambda creates a record in DynamoDB (`rideshare-visitors`, keyed on email hash), generates a scoped Trino password, encrypts it with the KMS CMK, stores the hash in Secrets Manager (`rideshare/trino-visitor-password-hash-*`), and sends a welcome email via SES. The Lambda holds write access to that single secret path via `writable_secrets_arns`; all other secrets are read-only.
 - **Glue catalog databases**: Three Glue databases (bronze/silver/gold) are declared at the root level (not in a separate module) because they are thin `aws_glue_catalog_database` resources with no associated jobs or crawlers — they serve as the schema registry target for DBT/Trino in production.
 
 ## Non-Obvious Details
@@ -27,12 +28,11 @@ Provisions all AWS infrastructure that must exist before the EKS cluster is crea
 - The EventBridge Scheduler execution role (`rideshare-scheduler-exec`) and its invoke policy are declared inline in `main.tf` rather than in the IAM module because they are tightly coupled to the specific Lambda ARN and needed before the Lambda module call.
 - IAM workload roles (simulation, bronze-ingestion, airflow, trino, hive-metastore, loki, tempo, ESO, Glue) are created here without OIDC trust conditions — they use Pod Identity trust (`pods.eks.amazonaws.com`) configured in the platform layer.
 - SES production access (`terraform_data.ses_production_access`) uses a `local-exec` provisioner instead of a native Terraform resource because the `aws_sesv2_account_details` resource doesn't exist. The `input = domain` trick ensures the provisioner only re-runs when the SES domain changes. The API call is idempotent — re-running on an already-production account is a no-op.
+- The Lambda's `writable_secrets_arns` grants `secretsmanager:PutSecretValue` on the wildcard path `rideshare/trino-visitor-password-hash-*`. This path does not map to a Terraform-managed secret — the Lambda creates it dynamically on first visitor provisioning. The wildcard suffix accounts for the ARN random suffix AWS appends to secret names.
+- `owner_reply_to_email` is declared `sensitive = true` in variables.tf and is passed directly into the Lambda environment as `SES_REPLY_TO_ADDRESS`. It must be set at plan/apply time (no default) and will not appear in Terraform plan output.
 
 ## Related Modules
 
-- [infrastructure/lambda/auth-deploy](../../lambda/auth-deploy/CONTEXT.md) — Dependency — Control-plane Lambda for platform deploy/teardown lifecycle: API key auth, GitHu...
-- [infrastructure/terraform](../CONTEXT.md) — Shares CloudFront and DNS domain (acm us-east-1 provider alias)
-- [infrastructure/terraform/environments](../environments/CONTEXT.md) — Reverse dependency — Consumed by this module
-- [infrastructure/terraform/platform](../platform/CONTEXT.md) — Reverse dependency — Provides cluster_name, cluster_endpoint, cluster_ca_data (+6 more)
-- [infrastructure/terraform/platform](../platform/CONTEXT.md) — Shares Terraform Infrastructure as Code domain (two-layer terraform split (foundation vs platform))
-- [infrastructure/terraform/platform/modules](../platform/modules/CONTEXT.md) — Reverse dependency — Provides cluster_id, cluster_name, cluster_endpoint (+7 more)
+- [infrastructure/scripts](../../scripts/CONTEXT.md) — Shares Authentication & Authorization domain (visitor provisioning)
+- [infrastructure/terraform/platform](../platform/CONTEXT.md) — Shares Terraform & Infrastructure as Code domain (two-layer terraform split)
+- [services/control-panel](../../../services/control-panel/CONTEXT.md) — Shares Authentication & Authorization domain (visitor provisioning)

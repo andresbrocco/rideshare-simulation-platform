@@ -28,12 +28,6 @@ Orchestrates the medallion lakehouse pipeline via three Airflow DAGs: Bronze-to-
 
 ## Related Modules
 
-- [infrastructure/docker](../../infrastructure/docker/CONTEXT.md) — Reverse dependency — Consumed by this module
-- [infrastructure/kubernetes](../../infrastructure/kubernetes/CONTEXT.md) — Dependency — Kubernetes deployment configuration supporting local Kind and AWS EKS, including...
-- [services/airflow/dags](dags/CONTEXT.md) — Shares Kafka Event Streaming domain (dlq monitoring via duckdb delta extension)
 - [services/airflow/dags](dags/CONTEXT.md) — Shares Airflow Orchestration domain (airflow asset lineage)
-- [services/airflow/dags](dags/CONTEXT.md) — Shares Repository and Data Access Patterns domain (dlq monitoring via duckdb delta extension)
-- [services/bronze-ingestion](../bronze-ingestion/CONTEXT.md) — Dependency — Kafka-to-Bronze Delta Lake ingestion service — consumes all simulation event top...
-- [tools](../../tools/CONTEXT.md) — Reverse dependency — Consumed by this module
-- [tools/dbt](../../tools/dbt/CONTEXT.md) — Dependency — Silver and Gold transformation layer for the rideshare medallion lakehouse, pars...
-- [tools/great-expectations](../../tools/great-expectations/CONTEXT.md) — Dependency — Data quality validation for Silver and Gold medallion lakehouse tables using Gre...
+- [services/airflow/dags](dags/CONTEXT.md) — Shares Kafka & Event Streaming domain (dlq monitoring)
+- [services/airflow/dags](dags/CONTEXT.md) — Shares Stream Processor & Event Pipeline domain (dlq monitoring)

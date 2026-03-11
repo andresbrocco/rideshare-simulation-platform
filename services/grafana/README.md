@@ -1,6 +1,6 @@
 # Grafana
 
-> Unified observability frontend aggregating metrics, logs, traces, and Delta Lake SQL analytics across four datasources, with dashboards organized by data pipeline layer.
+> Unified observability frontend aggregating metrics, logs, traces, Delta Lake SQL analytics, and operator audit data across five datasources, with dashboards organized by data pipeline layer.
 
 ## Quick Reference
 
@@ -27,7 +27,7 @@
 
 ### Datasources
 
-All four datasources are provisioned via `provisioning/datasources/datasources.yml`. UIDs are hardcoded — do not use `${DS_*}` template variables.
+All five datasources are provisioned via `provisioning/datasources/datasources.yml`. UIDs are hardcoded — do not use `${DS_*}` template variables.
 
 | UID | Type | Internal URL | Default |
 |-----|------|-------------|---------|
@@ -35,6 +35,7 @@ All four datasources are provisioned via `provisioning/datasources/datasources.y
 | `trino` | trino-datasource | `http://trino:8080` | No |
 | `loki` | Loki | `http://loki:3100` | No |
 | `tempo` | Tempo | `http://tempo:3200` | No |
+| `airflow-postgres` | PostgreSQL | `http://airflow-postgres:5432` | No |
 
 ### Dashboard Folders
 
@@ -45,6 +46,7 @@ All four datasources are provisioned via `provisioning/datasources/datasources.y
 | Business Intelligence | `dashboards/business-intelligence/` | Trino | Gold star schema analytics |
 | Operations | `dashboards/operations/` | Prometheus | Platform-wide operational view |
 | Performance | `dashboards/performance/` | Prometheus | Performance engineering metrics |
+| Admin | `dashboards/admin/` | airflow-postgres, Loki | Operator-only visitor activity auditing |
 
 ### Dashboards
 
@@ -60,6 +62,7 @@ All four datasources are provisioned via `provisioning/datasources/datasources.y
 | `dashboards/business-intelligence/revenue-analytics.json` | Business Intelligence | Revenue and fare analytics |
 | `dashboards/operations/platform-operations.json` | Operations | Platform-wide container and service health |
 | `dashboards/performance/performance-engineering.json` | Performance | Load test and throughput metrics |
+| `dashboards/admin/visitor-activity.json` | Admin | Visitor login and session activity audit |
 
 ### Alert Rules
 
@@ -79,7 +82,7 @@ Defined in `provisioning/alerting/rules.yml`. All rules use `noDataState: NoData
 
 | File | Purpose |
 |------|---------|
-| `provisioning/datasources/datasources.yml` | Datasource provisioning (Prometheus, Trino, Loki, Tempo) |
+| `provisioning/datasources/datasources.yml` | Datasource provisioning (Prometheus, Trino, Loki, Tempo, airflow-postgres) |
 | `provisioning/dashboards/default.yml` | Dashboard folder provider configuration |
 | `provisioning/alerting/rules.yml` | Alert rule definitions |
 
@@ -131,7 +134,7 @@ curl -s -X POST -H "Authorization: Basic YWRtaW46YWRtaW4=" \
 4. Commit the JSON file to version control.
 
 Dashboard authoring rules:
-- Use hardcoded datasource UIDs (`"uid": "prometheus"`, `"uid": "trino"`, `"uid": "loki"`, `"uid": "tempo"`).
+- Use hardcoded datasource UIDs (`"uid": "prometheus"`, `"uid": "trino"`, `"uid": "loki"`, `"uid": "tempo"`, `"uid": "airflow-postgres"`).
 - Never use `${DS_*}` template variable syntax — it causes provisioning-time resolution failures.
 - For Trino panels: set `"rawQuery": true` and use the `"rawSQL"` field (capital SQL). Use `"format": 0` for table output, `"format": 1` for time series.
 - For Prometheus rate panels: use `$__rate_interval` for the range.
@@ -165,6 +168,10 @@ curl -s -H "Authorization: Basic YWRtaW46YWRtaW4=" \
 # Tempo
 curl -s -H "Authorization: Basic YWRtaW46YWRtaW4=" \
   http://localhost:3001/api/datasources/uid/tempo/health
+
+# Airflow Postgres
+curl -s -H "Authorization: Basic YWRtaW46YWRtaW4=" \
+  http://localhost:3001/api/datasources/uid/airflow-postgres/health
 ```
 
 ### Drill from trace to logs

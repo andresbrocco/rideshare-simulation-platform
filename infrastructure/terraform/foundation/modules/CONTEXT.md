@@ -6,7 +6,7 @@ Reusable Terraform modules that provision the AWS account-level and network-leve
 
 ## Responsibility Boundaries
 
-- **Owns**: VPC topology and security groups, all S3 buckets, IAM roles and their policies for every workload and CI, ACM certificate provisioning, CloudFront distribution for the React SPA, ECR repositories, Secrets Manager secrets with generated credentials, Lambda function wrapper
+- **Owns**: VPC topology and security groups, all S3 buckets, IAM roles and their policies for every workload and CI, ACM certificate provisioning, CloudFront distribution for the React SPA, ECR repositories, Secrets Manager secrets with generated credentials, Lambda function wrapper with conditional IAM policies for Secrets Manager (read-only and writable), SSM Parameter Store, EventBridge Scheduler, DynamoDB, SES, and KMS
 - **Delegates to**: `infrastructure/terraform/platform` for EKS cluster, node groups, RDS, and ALB; `infrastructure/terraform/bootstrap` for the S3 Terraform state backend itself
 - **Does not handle**: Kubernetes resources, ArgoCD, application configuration, or environment-specific overrides
 
@@ -16,6 +16,7 @@ Reusable Terraform modules that provision the AWS account-level and network-leve
 - **GitHub OIDC**: The CI/CD role (`github-actions`) uses OIDC web identity federation, not static keys. Trust is scoped to a specific repository and branch via `token.actions.githubusercontent.com:sub` condition.
 - **Glue job role split**: The `glue-job` role trusts `glue.amazonaws.com`, not Pod Identity. The `airflow` Pod Identity role holds `iam:PassRole` permission to delegate sessions to it. This two-role pattern is required because Glue Interactive Sessions are Glue-service-side, not pod-side.
 - **Secret grouping**: Secrets are bundled by service group (`core`, `data-pipeline`, `monitoring`, `rds`) rather than one secret per service. This reduces External Secrets Operator `SecretStore` round-trips and keeps related credentials co-located.
+- **Lambda-managed secrets (outside Terraform state)**: Two Trino password-hash secrets are created at runtime, not by Terraform: `{project}/trino-admin-password-hash` is written by the deploy workflow, and `{project}/trino-visitor-password-hash` is written on demand by the provisioning Lambda. These are intentionally absent from Terraform state — do not import or manage them here.
 
 ## Non-Obvious Details
 
@@ -29,7 +30,6 @@ Reusable Terraform modules that provision the AWS account-level and network-leve
 
 ## Related Modules
 
-- [infrastructure/terraform/foundation/modules/iam](iam/CONTEXT.md) — Shares AWS IAM and Security domain (github oidc)
-- [infrastructure/terraform/foundation/modules/iam](iam/CONTEXT.md) — Shares CI/CD and GitHub Actions domain (github oidc)
-- [infrastructure/terraform/platform/modules](../../platform/modules/CONTEXT.md) — Shares AWS IAM and Security domain (pod identity)
-- [infrastructure/terraform/platform/modules/eks](../../platform/modules/eks/CONTEXT.md) — Shares AWS IAM and Security domain (pod identity)
+- [infrastructure/terraform/foundation/modules/iam](iam/CONTEXT.md) — Shares Authentication & Authorization domain (github oidc)
+- [infrastructure/terraform/foundation/modules/iam](iam/CONTEXT.md) — Shares AWS Infrastructure & IAM domain (github oidc)
+- [infrastructure/terraform/foundation/modules/iam](iam/CONTEXT.md) — Shares CI/CD & Deployment Pipeline domain (github oidc)

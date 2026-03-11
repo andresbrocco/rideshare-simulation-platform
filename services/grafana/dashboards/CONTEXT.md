@@ -12,12 +12,13 @@ Grafana dashboard definitions (JSON) organized by audience and concern. Each das
 
 ## Key Concepts
 
-**Categorical layout** — Dashboards are split into five subdirectories reflecting different audiences:
+**Categorical layout** — Dashboards are split into six subdirectories reflecting different audiences:
 - `monitoring/` — Real-time simulation engine health (Prometheus)
 - `operations/` — Unified live + historical platform state (Prometheus + Trino)
 - `data-engineering/` — Bronze ingestion pipeline and Silver data quality (Trino + Prometheus)
 - `business-intelligence/` — Gold layer analytics: driver/rider KPIs, revenue, demand (Trino)
 - `performance/` — USE-methodology saturation and bottleneck analysis (cAdvisor via Prometheus)
+- `admin/` — Operator-only dashboards for visitor activity auditing (airflow-postgres + Loki)
 
 **Dual-datasource pattern** — Some dashboards (`platform-operations.json`) mix Prometheus panels (real-time) and Trino panels (historical Gold/Bronze) in the same dashboard. Panels reference datasources by hardcoded UID strings (`"uid": "prometheus"` and `"uid": "trino"`), not by Grafana template variables.
 
@@ -29,6 +30,7 @@ Grafana dashboard definitions (JSON) organized by audience and concern. Each das
 - `data-engineering/data-quality.json` similarly still contains `${DS_PROMETHEUS}` references mixed with hardcoded UIDs.
 - The `id` field is set to `null` in all dashboards — Grafana assigns IDs at import time, so IDs should never be committed.
 - `.gitkeep` files exist in `data-engineering/`, `business-intelligence/`, and `operations/` subdirectories, indicating these were intentionally created as empty placeholders before dashboards were added.
+- `admin/visitor-activity.json` requires the `airflow-postgres` datasource (uid: `airflow-postgres`) to be provisioned before Grafana starts. The Airflow login panel silently fails with "Data source not found" if the datasource is absent — there is no visible error in the panel itself.
 
 ## Related Modules
 
