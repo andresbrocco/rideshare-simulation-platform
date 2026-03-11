@@ -6,6 +6,151 @@
     "version": "1.0.0"
   },
   "paths": {
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Login",
+        "description": "Authenticate with email and password to obtain a session API key.",
+        "operationId": "login_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Register User",
+        "description": "Register or update a user account.  Admin API key required.\n\nCreates a new user with the ``viewer`` role, or updates an existing\naccount's password if the email is already registered.  Callers are\nresponsible for setting ``role`` \u2014 currently only ``viewer`` accounts\ncan be provisioned through this endpoint, keeping provisioned visitors\nisolated from the admin account.\n\nThis endpoint is called by the multi-service provisioning orchestrator\n(Lambda ``provision-visitor`` action) to register new visitor credentials\nin the simulation API user store.",
+        "operationId": "register_user_auth_register_post",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/validate": {
+      "get": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Validate Api Key Endpoint",
+        "description": "Validate API key for login.\n\nThis endpoint requires a valid API key and returns 200 if valid.\nUsed by the frontend login screen to validate credentials.\nReturns 401 if the API key is invalid.",
+        "operationId": "validate_api_key_endpoint_auth_validate_get",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Validate Api Key Endpoint Auth Validate Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/simulation/start": {
       "post": {
         "tags": [
@@ -2076,7 +2221,7 @@
           "metrics"
         ],
         "summary": "Get Infrastructure Metrics",
-        "description": "Returns unified infrastructure metrics for all services.\n\nCombines health check status with container resource metrics from cAdvisor.\nEach service includes:\n- Health status (healthy/degraded/unhealthy)\n- Health check latency\n- Memory usage and limit\n- CPU usage percentage",
+        "description": "Returns unified infrastructure metrics for all services.\n\nCombines health check status with container resource metrics from Prometheus.\nEach service includes:\n- Health status (healthy/degraded/unhealthy)\n- Health check latency\n- Memory usage and limit\n- CPU usage percentage",
         "operationId": "get_infrastructure_metrics_metrics_infrastructure_get",
         "parameters": [
           {
@@ -2113,34 +2258,14 @@
         }
       }
     },
-    "/health": {
+    "/controller/status": {
       "get": {
-        "summary": "Health Check",
-        "description": "Health check endpoint for monitoring (unauthenticated for infrastructure).",
-        "operationId": "health_check_health_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "type": "object",
-                  "title": "Response Health Check Health Get"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/auth/validate": {
-      "get": {
-        "summary": "Validate Api Key Endpoint",
-        "description": "Validate API key for login.\n\nThis endpoint requires a valid API key and returns 200 if valid.\nUsed by the frontend login screen to validate credentials.\nReturns 401 if the API key is invalid.",
-        "operationId": "validate_api_key_endpoint_auth_validate_get",
+        "tags": [
+          "controller"
+        ],
+        "summary": "Get Controller Status",
+        "description": "Proxy GET /status to the performance controller.",
+        "operationId": "get_controller_status_controller_status_get",
         "parameters": [
           {
             "name": "x-api-key",
@@ -2158,11 +2283,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "title": "Response Validate Api Key Endpoint Auth Validate Get"
+                  "title": "Response Get Controller Status Controller Status Get"
                 }
               }
             }
@@ -2173,6 +2294,84 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/controller/mode": {
+      "put": {
+        "tags": [
+          "controller"
+        ],
+        "summary": "Set Controller Mode",
+        "description": "Proxy PUT /controller/mode to the performance controller.",
+        "operationId": "set_controller_mode_controller_mode_put",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Set Controller Mode Controller Mode Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health Check",
+        "description": "Health check endpoint for monitoring (unauthenticated for infrastructure).",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Check Health Get"
                 }
               }
             }
@@ -3173,6 +3372,53 @@
         "title": "LocationUpdateRequest",
         "description": "Request to teleport an agent to a new location."
       },
+      "LoginRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "LoginRequest"
+      },
+      "LoginResponse": {
+        "properties": {
+          "api_key": {
+            "type": "string",
+            "title": "Api Key"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "viewer"
+            ],
+            "title": "Role"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "api_key",
+          "role",
+          "email"
+        ],
+        "title": "LoginResponse"
+      },
       "MemoryMetrics": {
         "properties": {
           "rss_mb": {
@@ -3711,6 +3957,63 @@
         ],
         "title": "RatingUpdateRequest",
         "description": "Request to update an agent's rating."
+      },
+      "RegisterRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "title": "Password"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password",
+          "name"
+        ],
+        "title": "RegisterRequest"
+      },
+      "RegisterResponse": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "viewer"
+            ],
+            "title": "Role"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "created",
+              "updated"
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "role",
+          "status"
+        ],
+        "title": "RegisterResponse"
       },
       "ResourceMetrics": {
         "properties": {

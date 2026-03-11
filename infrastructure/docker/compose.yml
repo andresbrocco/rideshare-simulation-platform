@@ -1093,6 +1093,7 @@ services:
       - "4317:4317"   # OTLP gRPC receiver
       - "4318:4318"   # OTLP HTTP receiver
       - "8888:8888"   # Collector metrics
+      - "13133:13133" # Health check extension
     volumes:
       - ../../services/otel-collector/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro

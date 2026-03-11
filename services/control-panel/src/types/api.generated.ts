@@ -4,6 +4,80 @@
  */
 
 export interface paths {
+  '/auth/login': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Login
+     * @description Authenticate with email and password to obtain a session API key.
+     */
+    post: operations['login_auth_login_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/auth/register': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Register User
+     * @description Register or update a user account.  Admin API key required.
+     *
+     *     Creates a new user with the ``viewer`` role, or updates an existing
+     *     account's password if the email is already registered.  Callers are
+     *     responsible for setting ``role`` — currently only ``viewer`` accounts
+     *     can be provisioned through this endpoint, keeping provisioned visitors
+     *     isolated from the admin account.
+     *
+     *     This endpoint is called by the multi-service provisioning orchestrator
+     *     (Lambda ``provision-visitor`` action) to register new visitor credentials
+     *     in the simulation API user store.
+     */
+    post: operations['register_user_auth_register_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/auth/validate': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Validate Api Key Endpoint
+     * @description Validate API key for login.
+     *
+     *     This endpoint requires a valid API key and returns 200 if valid.
+     *     Used by the frontend login screen to validate credentials.
+     *     Returns 401 if the API key is invalid.
+     */
+    get: operations['validate_api_key_endpoint_auth_validate_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/simulation/start': {
     parameters: {
       query?: never;
@@ -919,7 +993,7 @@ export interface paths {
      * Get Infrastructure Metrics
      * @description Returns unified infrastructure metrics for all services.
      *
-     *     Combines health check status with container resource metrics from cAdvisor.
+     *     Combines health check status with container resource metrics from Prometheus.
      *     Each service includes:
      *     - Health status (healthy/degraded/unhealthy)
      *     - Health check latency
@@ -928,6 +1002,46 @@ export interface paths {
      */
     get: operations['get_infrastructure_metrics_metrics_infrastructure_get'];
     put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/controller/status': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Controller Status
+     * @description Proxy GET /status to the performance controller.
+     */
+    get: operations['get_controller_status_controller_status_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/controller/mode': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Set Controller Mode
+     * @description Proxy PUT /controller/mode to the performance controller.
+     */
+    put: operations['set_controller_mode_controller_mode_put'];
     post?: never;
     delete?: never;
     options?: never;
@@ -947,30 +1061,6 @@ export interface paths {
      * @description Health check endpoint for monitoring (unauthenticated for infrastructure).
      */
     get: operations['health_check_health_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/auth/validate': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /**
-     * Validate Api Key Endpoint
-     * @description Validate API key for login.
-     *
-     *     This endpoint requires a valid API key and returns 200 if valid.
-     *     Used by the frontend login screen to validate credentials.
-     *     Returns 401 if the API key is invalid.
-     */
-    get: operations['validate_api_key_endpoint_auth_validate_get'];
     put?: never;
     post?: never;
     delete?: never;
@@ -1356,6 +1446,25 @@ export interface components {
        */
       location: [number, number];
     };
+    /** LoginRequest */
+    LoginRequest: {
+      /** Email */
+      email: string;
+      /** Password */
+      password: string;
+    };
+    /** LoginResponse */
+    LoginResponse: {
+      /** Api Key */
+      api_key: string;
+      /**
+       * Role
+       * @enum {string}
+       */
+      role: 'admin' | 'viewer';
+      /** Email */
+      email: string;
+    };
     /** MemoryMetrics */
     MemoryMetrics: {
       /** Rss Mb */
@@ -1580,6 +1689,30 @@ export interface components {
        * @description New rating (1.0-5.0)
        */
       rating: number;
+    };
+    /** RegisterRequest */
+    RegisterRequest: {
+      /** Email */
+      email: string;
+      /** Password */
+      password: string;
+      /** Name */
+      name: string;
+    };
+    /** RegisterResponse */
+    RegisterResponse: {
+      /** Email */
+      email: string;
+      /**
+       * Role
+       * @enum {string}
+       */
+      role: 'admin' | 'viewer';
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: 'created' | 'updated';
     };
     /** ResourceMetrics */
     ResourceMetrics: {
@@ -2046,6 +2179,107 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  login_auth_login_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['LoginRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['LoginResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  register_user_auth_register_post: {
+    parameters: {
+      query?: never;
+      header: {
+        'x-api-key': string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RegisterRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['RegisterResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  validate_api_key_endpoint_auth_validate_get: {
+    parameters: {
+      query?: never;
+      header: {
+        'x-api-key': string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            [key: string]: string;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
   start_simulation_simulation_start_post: {
     parameters: {
       query?: never;
@@ -3415,6 +3649,74 @@ export interface operations {
       };
     };
   };
+  get_controller_status_controller_status_get: {
+    parameters: {
+      query?: never;
+      header: {
+        'x-api-key': string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  set_controller_mode_controller_mode_put: {
+    parameters: {
+      query?: never;
+      header: {
+        'x-api-key': string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          [key: string]: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
   health_check_health_get: {
     parameters: {
       query?: never;
@@ -3433,39 +3735,6 @@ export interface operations {
           'application/json': {
             [key: string]: string;
           };
-        };
-      };
-    };
-  };
-  validate_api_key_endpoint_auth_validate_get: {
-    parameters: {
-      query?: never;
-      header: {
-        'x-api-key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            [key: string]: string;
-          };
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
         };
       };
     };

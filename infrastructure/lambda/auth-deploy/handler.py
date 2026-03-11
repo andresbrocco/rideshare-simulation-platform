@@ -1965,12 +1965,14 @@ def handle_provision_visitor(
             "failures": [],
         }
 
-    print("Action provision-visitor completed: 200")
-    return 200, {
+    has_failures = bool(failures)
+    status_code = 207 if has_failures else 200
+    print(f"Action provision-visitor completed: {status_code}")
+    return status_code, {
         "provisioned": True,
         "email_sent": True,
         "email": email,
-        "failures": [],
+        "failures": [f["service"] + ": " + f.get("error", "unknown") for f in failures],
     }
 
 
