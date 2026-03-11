@@ -71,6 +71,7 @@ jobs:
         working-directory: infrastructure/terraform/foundation
         env:
           TF_VAR_owner_reply_to_email: ${{ secrets.OWNER_REPLY_TO_EMAIL }}
+          TF_VAR_admin_email: ${{ secrets.ADMIN_EMAIL }}
         run: |
           terraform init -input=false -backend-config="bucket=rideshare-tf-state-${{ secrets.AWS_ACCOUNT_ID }}"
           EXIT=0
