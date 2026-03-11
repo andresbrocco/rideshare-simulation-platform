@@ -478,6 +478,17 @@ jobs:
           wait_and_mark bronze-ingestion wait --for=condition=available deployment/bronze-ingestion -n "$NS" --timeout=300s &
           wait_and_mark trino wait --for=condition=available deployment/trino -n "$NS" --timeout=300s &
           wait || true
+
+          # Verify Trino is not crash-looping before reporting ready
+          TRINO_POD=$(kubectl get pods -n "$NS" -l app=trino -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+          if [ -n "$TRINO_POD" ]; then
+            RESTARTS=$(kubectl get pod "$TRINO_POD" -n "$NS" -o jsonpath='{.status.containerStatuses[0].restartCount}' 2>/dev/null)
+            if [ "${RESTARTS:-0}" -gt 0 ]; then
+              echo "::warning::Trino has ${RESTARTS} restart(s) — removing from ready set"
+              rm -f "$READY_DIR/trino"
+            fi
+          fi
+
           report_phase stream-processor osrm simulation bronze-ingestion trino
           echo "Phase 3 complete"
 

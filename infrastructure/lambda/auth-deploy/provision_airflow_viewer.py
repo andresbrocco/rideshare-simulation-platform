@@ -3,7 +3,7 @@
 Creates or updates an Airflow user account with the built-in FAB ``Viewer``
 role. Works against any Airflow instance reachable via HTTP — local Docker
 Compose (port 8082) and the production EKS deployment use the same stable
-REST API surface at ``/api/v1/users``.
+REST API surface at ``/auth/fab/v1/users``.
 
 The provisioner is idempotent: a 409 response from the create endpoint means
 the user already exists, in which case the account is updated via PATCH with
@@ -139,7 +139,7 @@ def _create_or_update_user(
     }
     body = json.dumps(payload).encode()
     req = urllib.request.Request(
-        url=f"{airflow_url}/api/v1/users",
+        url=f"{airflow_url}/auth/fab/v1/users",
         data=body,
         headers=headers,
         method="POST",
@@ -195,7 +195,7 @@ def _update_user(
     }
     body = json.dumps(payload).encode()
     req = urllib.request.Request(
-        url=f"{airflow_url}/api/v1/users/{username}",
+        url=f"{airflow_url}/auth/fab/v1/users/{username}",
         data=body,
         headers=headers,
         method="PATCH",

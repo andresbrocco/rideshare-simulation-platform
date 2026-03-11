@@ -91,6 +91,8 @@ spec:
           value: "$(AIRFLOW_ADMIN_PASSWORD)"
         - name: _PIP_ADDITIONAL_REQUIREMENTS
           value: apache-airflow-providers-fab dbt-core dbt-duckdb==1.10.0 dbt-glue==1.10.15 duckdb==1.4.4 deltalake==1.4.2 duckdb-engine==0.17.0 great-expectations requests prison
+        - name: AIRFLOW__FAB__AUTH_BACKENDS
+          value: "airflow.providers.fab.auth_manager.api.auth.backend.basic_auth,airflow.providers.fab.auth_manager.api.auth.backend.session"
         livenessProbe:
           httpGet:
             path: /api/v2/monitor/health

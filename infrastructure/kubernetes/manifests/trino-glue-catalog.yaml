@@ -10,6 +10,8 @@ data:
     node-scheduler.include-coordinator=true
     http-server.http.port=8080
     discovery.uri=http://localhost:8080
+    http-server.authentication.type=PASSWORD
+    event-listener.config-files=/etc/trino/event-listener.properties
 
   jvm.config: |
     -server
@@ -38,3 +40,47 @@ data:
     hive.s3.region=us-east-1
     delta.enable-non-concurrent-writes=true
     delta.register-table-procedure.enabled=true
+
+  password-authenticator.properties: |
+    password-authenticator.name=file
+    file.password-file=/etc/trino/password.db
+    file.refresh-period=5s
+
+  access-control.properties: |
+    access-control.name=file
+    security.config-file=/etc/trino/rules.json
+    security.refresh-period=60s
+
+  password.db.template: |
+    admin:${TRINO_ADMIN_PASSWORD_HASH}
+    visitor:${TRINO_VISITOR_PASSWORD_HASH}
+
+  rules.json: |
+    {
+      "catalogs": [
+        {
+          "user": "admin",
+          "catalog": ".*",
+          "allow": "all"
+        },
+        {
+          "user": ".*",
+          "catalog": "system",
+          "allow": "none"
+        },
+        {
+          "user": ".*",
+          "catalog": "delta",
+          "allow": "read-only"
+        },
+        {
+          "user": ".*",
+          "catalog": ".*",
+          "allow": "read-only"
+        }
+      ]
+    }
+
+  event-listener.properties: |
+    event-listener.name=query-event-listener
+    query-event-listener.log-completed-queries=true

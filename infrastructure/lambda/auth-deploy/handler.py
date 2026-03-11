@@ -1852,14 +1852,18 @@ def _provision_visitor(
             failures.append({"service": "airflow", "error": str(exc)})
             print(f"Airflow provisioning failed: {exc}")
 
-        # MinIO
-        try:
-            result = _provision_minio(email, password, scripts_dir)
-            successes.append({"service": "minio", "result": result})
-            print(f"MinIO provisioning succeeded: {result}")
-        except Exception as exc:
-            failures.append({"service": "minio", "error": str(exc)})
-            print(f"MinIO provisioning failed: {exc}")
+        # MinIO (skip when endpoint not configured, e.g. production)
+        minio_endpoint = os.environ.get("MINIO_ENDPOINT")
+        if minio_endpoint:
+            try:
+                result = _provision_minio(email, password, scripts_dir)
+                successes.append({"service": "minio", "result": result})
+                print(f"MinIO provisioning succeeded: {result}")
+            except Exception as exc:
+                failures.append({"service": "minio", "error": str(exc)})
+                print(f"MinIO provisioning failed: {exc}")
+        else:
+            print("MinIO provisioning skipped (MINIO_ENDPOINT not set)")
 
     # Trino (stores PBKDF2 hash; manual container restart required)
     try:

@@ -169,7 +169,6 @@ module "lambda_auth_deploy" {
     GRAFANA_URL              = "https://grafana.${var.domain_name}"
     AIRFLOW_URL              = "https://airflow.${var.domain_name}"
     SIMULATION_API_URL       = "https://api.${var.domain_name}"
-    MINIO_ENDPOINT           = "minio.${var.domain_name}"
   }
 
   # Grant read access to API key, GitHub PAT, monitoring, and data pipeline secrets
