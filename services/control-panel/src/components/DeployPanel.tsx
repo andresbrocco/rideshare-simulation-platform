@@ -13,6 +13,7 @@ import {
   ALL_SERVICES_DOWN,
 } from '../services/lambda';
 import type { StatusResponse, ServiceHealthMap } from '../services/lambda';
+import { useDeployNotification } from '../hooks/useDeployNotification';
 import styles from './DeployPanel.module.css';
 
 interface DeployPanelProps {
@@ -98,6 +99,14 @@ export default function DeployPanel({
   onNeedAuth,
   onServiceHealthChange,
 }: DeployPanelProps) {
+  const {
+    enabled: notifyEnabled,
+    toggle: toggleNotify,
+    permission: notifyPermission,
+    notifySuccess,
+    notifyError,
+  } = useDeployNotification();
+
   const [panelState, setPanelState] = useState<PanelState>('idle');
   const [workflowStatus, setWorkflowStatus] = useState('queued');
   const [errorMessage, setErrorMessage] = useState('');
@@ -461,6 +470,21 @@ export default function DeployPanel({
     };
   }, [panelState]);
 
+  // ── Deploy-complete notification ───────────────────────────────
+  const prevPanelStateRef = useRef<PanelState>('idle');
+
+  useEffect(() => {
+    const prev = prevPanelStateRef.current;
+    prevPanelStateRef.current = panelState;
+
+    if (prev === 'deploying' && panelState === 'active') {
+      notifySuccess();
+    }
+    if (prev === 'deploying' && panelState === 'error') {
+      notifyError(errorMessage);
+    }
+  }, [panelState, notifySuccess, notifyError, errorMessage]);
+
   // ── Resume state on mount ──────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
@@ -764,6 +788,20 @@ export default function DeployPanel({
             <span>Elapsed:</span>
             <span className={styles.elapsedTime}>{formatElapsed(elapsedSeconds)}</span>
           </div>
+
+          <label className={styles.notifyLabel}>
+            <input
+              type="checkbox"
+              className={styles.notifyCheckbox}
+              checked={notifyEnabled}
+              onChange={toggleNotify}
+            />
+            <span className={styles.notifySwitch} />
+            <span className={styles.notifyText}>Notify me when done</span>
+            {notifyPermission === 'denied' && notifyEnabled && (
+              <span className={styles.notifyHint}>(sound only)</span>
+            )}
+          </label>
         </>
       )}
 
