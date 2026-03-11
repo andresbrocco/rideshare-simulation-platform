@@ -86,7 +86,7 @@ export default function VisitorAccessForm() {
     <div className={styles.container}>
       <h3 className={styles.formTitle}>Request Visitor Access</h3>
       <p className={styles.formDescription}>
-        Enter your email to receive temporary credentials and explore the live platform.
+        Enter your email to receive credentials and explore the live platform.
       </p>
       <form onSubmit={handleSubmit} noValidate>
         <div className={styles.fieldGroup}>
