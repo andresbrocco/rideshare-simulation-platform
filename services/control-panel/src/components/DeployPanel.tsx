@@ -48,7 +48,7 @@ const DEPLOY_SERVICES = [
   'performance-controller',
 ] as const;
 
-const ESTIMATED_DEPLOY_SECONDS = 900; // 15 min (full convergence)
+const ESTIMATED_DEPLOY_SECONDS = 1200; // 20 min (full convergence)
 
 const TEARDOWN_STEPS = [
   { label: 'Saving simulation checkpoint...', activeKey: 'saving_checkpoint' },
@@ -684,7 +684,7 @@ export default function DeployPanel({
           </button>
           <div className={styles.warnings}>
             <span className={styles.warning}>~$0.31/hour</span>
-            <span className={styles.warning}>10-15 min deploy time</span>
+            <span className={styles.warning}>~20 min deploy time</span>
           </div>
         </>
       )}

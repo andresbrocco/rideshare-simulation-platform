@@ -294,7 +294,7 @@ def _build_welcome_email(email: str, name: str, password: str) -> tuple[str, str
         f"{service_lines_text}\n\n"
         f"Note: These credentials activate once the platform is deployed. "
         f'After clicking "Deploy" on the landing page, services typically start '
-        f"within 10-15 minutes. You'll be able to log in as soon as deployment completes.\n\n"
+        f"within about 20 minutes. You'll be able to log in as soon as deployment completes.\n\n"
         f"If you have questions or just want to chat about the architecture, "
         f"hit reply — it goes straight to my inbox.\n\n"
         f"Cheers,\n"
@@ -314,7 +314,7 @@ def _build_welcome_email(email: str, name: str, password: str) -> tuple[str, str
         f"<ul>\n{service_lines_html}\n</ul>"
         f"<p><strong>Note:</strong> These credentials activate once the platform is deployed. "
         f'After clicking "Deploy" on the landing page, services typically start '
-        f"within 10-15 minutes. You'll be able to log in as soon as deployment completes.</p>"
+        f"within about 20 minutes. You'll be able to log in as soon as deployment completes.</p>"
         f"<p>If you have questions or just want to chat about the architecture, "
         f"hit reply — it goes straight to my inbox.</p>"
         f"<p>Cheers,<br>Andres</p>"
@@ -1076,7 +1076,7 @@ def handle_activate_session(api_key: str) -> tuple[int, dict[str, Any]]:
     now = int(time.time())
     deadline = now + (SESSION_STEP_MINUTES * 60)
     try:
-        create_session(deployed_at=session["deployed_at"], deadline=deadline)
+        update_session_deadline(deadline)
     except Exception as e:
         print(f"Error activating session: {e}")
         print("Action activate-session completed: 500")
@@ -1130,7 +1130,7 @@ def handle_ensure_session(api_key: str) -> tuple[int, dict[str, Any]]:
     if session is not None:
         deadline = now + deadline_seconds
         try:
-            create_session(deployed_at=session["deployed_at"], deadline=deadline)
+            update_session_deadline(deadline)
         except Exception as e:
             print(f"Error activating deploying session: {e}")
             print("Action ensure-session completed: 500")

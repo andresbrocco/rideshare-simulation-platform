@@ -379,7 +379,7 @@ class TestHandleEnsureSession:
         deploying_session = {"deployed_at": 1000000}
         with (
             patch("handler.get_session", return_value=deploying_session),
-            patch("handler.create_session") as mock_create,
+            patch("handler.update_session_deadline") as mock_update,
         ):
             status, body = handle_ensure_session("test-api-key")
 
@@ -387,10 +387,10 @@ class TestHandleEnsureSession:
         assert body["success"] is True
         assert body["created"] is False
         assert body["remaining_seconds"] == 15 * 60
-        mock_create.assert_called_once()
-        # Preserves original deployed_at
-        call_kwargs = mock_create.call_args
-        assert call_kwargs[1]["deployed_at"] == 1000000
+        mock_update.assert_called_once()
+        # Deadline should be now + 15 minutes
+        actual_deadline = mock_update.call_args[0][0]
+        assert body["deadline"] == actual_deadline
 
     def test_already_activated_idempotent(self, mock_secrets: object) -> None:
         import time as time_mod
@@ -423,7 +423,7 @@ class TestHandleEnsureSession:
         deploying_session = {"deployed_at": 1000000}
         with (
             patch("handler.get_session", return_value=deploying_session),
-            patch("handler.create_session", side_effect=Exception("Schedule error")),
+            patch("handler.update_session_deadline", side_effect=Exception("Schedule error")),
         ):
             status, body = handle_ensure_session("test-api-key")
 
