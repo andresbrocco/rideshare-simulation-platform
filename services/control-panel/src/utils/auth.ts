@@ -90,10 +90,6 @@ export function clearAuthCookie(): void {
   ].join('; ');
 }
 
-export function redirectToControlPanel(): void {
-  window.location.href = `https://${CONTROL_PANEL_HOSTNAME}`;
-}
-
 export function redirectToLanding(): void {
   // Use replace() to avoid back-button loop
   window.location.replace(`https://${LANDING_HOSTNAME}`);

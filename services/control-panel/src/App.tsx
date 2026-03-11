@@ -34,7 +34,6 @@ import {
   setAuthCookie,
   getAuthCookie,
   clearAuthCookie,
-  redirectToControlPanel,
   redirectToLanding,
 } from './utils/auth';
 import { useSessionExpiry } from './hooks/useSessionExpiry';
@@ -73,7 +72,6 @@ function LandingApp() {
     <div className="App landing-mode">
       <Toaster position="top-right" />
       <LandingPage
-        onLoginClick={() => redirectToControlPanel()}
         isLocal={getAppMode() === 'dev'}
         serviceHealth={serviceHealth}
         apiKey={apiKey}
@@ -283,9 +281,6 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
       {!apiKey ? (
         <>
           <LandingPage
-            onLoginClick={() => {
-              /* Control Panel button: no-op in dev mode; auth happens via Deploy */
-            }}
             isLocal={getAppMode() === 'dev'}
             serviceHealth={ALL_SERVICES_DOWN}
             apiKey={apiKey}

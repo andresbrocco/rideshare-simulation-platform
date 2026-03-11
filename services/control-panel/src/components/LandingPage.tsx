@@ -432,6 +432,15 @@ interface ExternalService {
 function getExternalServices(isLocal: boolean): ExternalService[] {
   return [
     {
+      name: 'Control Panel',
+      url: isLocal
+        ? 'http://localhost:5173'
+        : 'https://control-panel.ridesharing.portfolio.andresbrocco.com',
+      desc: 'Real-time simulation map — watch drivers and riders move across São Paulo',
+      icon: SiReact,
+      iconColor: `#${SiReactHex}`,
+    },
+    {
       name: 'Grafana',
       url: isLocal
         ? 'http://localhost:3001'
@@ -564,6 +573,7 @@ function SectionNav({ heroVisible }: SectionNavProps) {
 import type { ServiceHealthMap } from '../services/lambda';
 
 const SERVICE_NAME_TO_ID: Record<string, keyof ServiceHealthMap> = {
+  'Control Panel': 'control_panel',
   Grafana: 'grafana',
   Airflow: 'airflow',
   Trino: 'trino',
@@ -572,7 +582,6 @@ const SERVICE_NAME_TO_ID: Record<string, keyof ServiceHealthMap> = {
 };
 
 interface LandingPageProps {
-  onLoginClick: () => void;
   isLocal: boolean;
   serviceHealth: ServiceHealthMap;
   apiKey: string | null;
@@ -581,7 +590,6 @@ interface LandingPageProps {
 }
 
 export function LandingPage({
-  onLoginClick,
   isLocal,
   serviceHealth,
   apiKey,
@@ -1032,23 +1040,6 @@ export function LandingPage({
             />
 
             <div className="landing-services-grid">
-              <button
-                onClick={onLoginClick}
-                className={`landing-service-card${!serviceHealth.control_panel ? ' landing-service-card--disabled' : ''}`}
-                disabled={!serviceHealth.control_panel}
-              >
-                <SiReact
-                  width={32}
-                  height={32}
-                  className="landing-service-icon"
-                  style={{ color: `#${SiReactHex}` }}
-                  aria-hidden="true"
-                />
-                <span className="landing-service-name">Control Panel</span>
-                <span className="landing-service-desc">
-                  Real-time simulation map — watch drivers and riders move across São Paulo
-                </span>
-              </button>
               {getExternalServices(isLocal).map((s) => {
                 const Icon = s.icon;
                 const serviceId = SERVICE_NAME_TO_ID[s.name];

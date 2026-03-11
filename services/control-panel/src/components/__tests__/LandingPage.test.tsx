@@ -18,7 +18,6 @@ type LandingPageProps = Parameters<typeof LandingPage>[0];
 
 function renderLandingPage(overrides: Partial<LandingPageProps> = {}) {
   const defaults: LandingPageProps = {
-    onLoginClick: overrides.onLoginClick ?? mockOnLoginClick,
     isLocal: overrides.isLocal ?? false,
     serviceHealth: overrides.serviceHealth ?? ALL_SERVICES_DOWN,
     apiKey: overrides.apiKey ?? null,
@@ -40,8 +39,6 @@ const mockUseActiveSectionValue = vi.fn<[], string | null>(() => null);
 vi.mock('../../hooks/useActiveSection', () => ({
   useActiveSection: () => mockUseActiveSectionValue(),
 }));
-
-const mockOnLoginClick = vi.fn();
 
 type IntersectionObserverCallback = (entries: IntersectionObserverEntry[]) => void;
 let observerCallbacks: IntersectionObserverCallback[] = [];
@@ -116,21 +113,17 @@ describe('LandingPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders Control Panel button in services grid', () => {
-    renderLandingPage();
-
-    const controlPanelButton = screen.getByRole('button', { name: /control panel/i });
-    expect(controlPanelButton).toBeInTheDocument();
-  });
-
-  it('calls onLoginClick when Control Panel button clicked', async () => {
-    const user = userEvent.setup();
+  it('renders Control Panel link in services grid', () => {
     renderLandingPage({ serviceHealth: ALL_SERVICES_UP });
 
-    const controlPanelButton = screen.getByRole('button', { name: /control panel/i });
-    await user.click(controlPanelButton);
-
-    expect(mockOnLoginClick).toHaveBeenCalledOnce();
+    const controlPanelLink = screen.getByRole('link', { name: /control panel/i });
+    expect(controlPanelLink).toBeInTheDocument();
+    expect(controlPanelLink).toHaveAttribute(
+      'href',
+      'https://control-panel.ridesharing.portfolio.andresbrocco.com'
+    );
+    expect(controlPanelLink).toHaveAttribute('target', '_blank');
+    expect(controlPanelLink).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
   it('renders Explore the Platform heading', () => {
@@ -294,13 +287,13 @@ describe('LandingPage', () => {
 
 describe('Deep Dives section', () => {
   it('renders four deep-dive details elements', () => {
-    renderLandingPage({ onLoginClick: vi.fn() });
+    renderLandingPage();
     const deepDives = document.querySelectorAll('.deep-dive');
     expect(deepDives).toHaveLength(4);
   });
 
   it('renders all four deep dive titles', () => {
-    renderLandingPage({ onLoginClick: vi.fn() });
+    renderLandingPage();
     const deepDivesSection = document.getElementById('deep-dives');
     expect(deepDivesSection).not.toBeNull();
 
@@ -314,7 +307,7 @@ describe('Deep Dives section', () => {
 
 describe('Service cards with icons', () => {
   it('renders six service card icons', () => {
-    renderLandingPage({ onLoginClick: vi.fn() });
+    renderLandingPage();
     const icons = document.querySelectorAll('.landing-service-icon');
     expect(icons).toHaveLength(6);
   });
@@ -322,12 +315,12 @@ describe('Service cards with icons', () => {
 
 describe('Footer', () => {
   it('test_footer_renders_deployment_note', () => {
-    renderLandingPage({ onLoginClick: vi.fn() });
+    renderLandingPage();
     expect(screen.getByText(/deployed on-demand for demonstrations/i)).toBeInTheDocument();
   });
 
   it('test_footer_renders_github_link', () => {
-    renderLandingPage({ onLoginClick: vi.fn() });
+    renderLandingPage();
     const link = screen.getByRole('link', { name: /View on GitHub/i });
     expect(link).toHaveAttribute(
       'href',
@@ -338,18 +331,18 @@ describe('Footer', () => {
   });
 
   it('test_footer_renders_author_line', () => {
-    renderLandingPage({ onLoginClick: vi.fn() });
+    renderLandingPage();
     expect(screen.getByText(/Built by Andre Sbrocco/)).toBeInTheDocument();
   });
 
   it('test_footer_linkedin_link_present', () => {
-    renderLandingPage({ onLoginClick: vi.fn() });
+    renderLandingPage();
     const link = screen.getByRole('link', { name: /LinkedIn/i });
     expect(link).toHaveAttribute('href', 'https://www.linkedin.com/in/andresbrocco/');
   });
 
   it('test_footer_element_is_footer_landmark', () => {
-    renderLandingPage({ onLoginClick: vi.fn() });
+    renderLandingPage();
     expect(document.querySelector('footer.landing-footer')).not.toBeNull();
   });
 });
@@ -456,12 +449,12 @@ describe('SectionNav', () => {
 
 describe('Responsive and Accessibility', () => {
   it('service cards grid container exists for mobile CSS', () => {
-    renderLandingPage({ onLoginClick: vi.fn() });
+    renderLandingPage();
     expect(document.querySelector('.landing-services-grid')).not.toBeNull();
   });
 
   it('tech badges are keyboard-focusable via tabIndex', () => {
-    renderLandingPage({ onLoginClick: vi.fn() });
+    renderLandingPage();
     const badges = document.querySelectorAll('.tech-badge');
     expect(badges.length).toBeGreaterThan(0);
     for (const badge of badges) {
@@ -471,7 +464,7 @@ describe('Responsive and Accessibility', () => {
 
   it('active nav button has aria-current', () => {
     mockUseActiveSectionValue.mockReturnValue('architecture');
-    renderLandingPage({ onLoginClick: vi.fn() });
+    renderLandingPage();
 
     const archButton = screen.getByRole('button', { name: /^Architecture$/i });
     expect(archButton).toHaveAttribute('aria-current', 'true');
@@ -479,7 +472,7 @@ describe('Responsive and Accessibility', () => {
 
   it('inactive nav buttons have no aria-current', () => {
     mockUseActiveSectionValue.mockReturnValue('architecture');
-    renderLandingPage({ onLoginClick: vi.fn() });
+    renderLandingPage();
 
     const techStackButton = screen.getByRole('button', { name: /^Tech Stack$/i });
     const deepDivesButton = screen.getByRole('button', { name: /^Deep Dives$/i });
@@ -491,13 +484,13 @@ describe('Responsive and Accessibility', () => {
   });
 
   it('architecture SVG has role="img" and accessible name', () => {
-    renderLandingPage({ onLoginClick: vi.fn() });
+    renderLandingPage();
     const svg = screen.getByRole('img', { name: /system architecture/i });
     expect(svg).toBeInTheDocument();
   });
 
   it('screenshot images use lazy loading', () => {
-    renderLandingPage({ onLoginClick: vi.fn() });
+    renderLandingPage();
     const screenshots = document.querySelectorAll('img.deep-dive-screenshot');
     expect(screenshots.length).toBeGreaterThan(0);
     for (const img of screenshots) {
@@ -506,7 +499,7 @@ describe('Responsive and Accessibility', () => {
   });
 
   it('screenshot images have non-empty alt text', () => {
-    renderLandingPage({ onLoginClick: vi.fn() });
+    renderLandingPage();
     const screenshots = document.querySelectorAll('img.deep-dive-screenshot');
     expect(screenshots.length).toBeGreaterThan(0);
     for (const img of screenshots) {
@@ -516,7 +509,7 @@ describe('Responsive and Accessibility', () => {
   });
 
   it('all five scroll-target section IDs are present', () => {
-    renderLandingPage({ onLoginClick: vi.fn() });
+    renderLandingPage();
     expect(document.getElementById('hero')).not.toBeNull();
     expect(document.getElementById('architecture')).not.toBeNull();
     expect(document.getElementById('tech-stack')).not.toBeNull();
