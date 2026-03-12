@@ -132,7 +132,11 @@ jobs:
       - name: Install ai-chat dependencies
         working-directory: infrastructure/lambda/ai-chat
         run: |
-          pip install -r requirements-anthropic.txt --target ./package --quiet
+          pip install \
+            -r requirements-anthropic.txt \
+            -r requirements-openai.txt \
+            -r requirements-google.txt \
+            --target ./package --quiet
 
       - name: Create ai-chat deployment package
         working-directory: infrastructure/lambda/ai-chat
@@ -170,6 +174,10 @@ jobs:
           verify_present llm_adapter.py
           verify_present _secrets.py
           verify_present providers/anthropic.py
+          verify_present providers/openai.py
+          verify_present providers/google.py
+          verify_present providers/deepseek.py
+          verify_present providers/mock.py
           verify_present providers/__init__.py
           verify_present docs/AI-CHAT-CONTEXT.md
 
