@@ -92,3 +92,13 @@ output "build_assets_bucket_arn" {
   description = "ARN of build assets S3 bucket"
   value       = aws_s3_bucket.build_assets.arn
 }
+
+output "ai_chat_bucket_name" {
+  description = "Name of AI chat S3 bucket"
+  value       = aws_s3_bucket.ai_chat.id
+}
+
+output "ai_chat_bucket_arn" {
+  description = "ARN of AI chat S3 bucket"
+  value       = aws_s3_bucket.ai_chat.arn
+}

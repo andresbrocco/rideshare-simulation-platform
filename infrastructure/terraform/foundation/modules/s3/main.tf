@@ -284,6 +284,63 @@ resource "aws_s3_bucket_lifecycle_configuration" "tempo" {
   }
 }
 
+# AI Chat Bucket (session context, analytics, budget counters)
+resource "aws_s3_bucket" "ai_chat" {
+  bucket = "${local.bucket_prefix}-ai-chat"
+
+  tags = {
+    Name    = "${local.bucket_prefix}-ai-chat"
+    Purpose = "ai-chat"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "ai_chat" {
+  bucket = aws_s3_bucket.ai_chat.id
+
+  versioning_configuration {
+    status = var.enable_versioning ? "Enabled" : "Disabled"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "ai_chat" {
+  bucket = aws_s3_bucket.ai_chat.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "ai_chat" {
+  bucket = aws_s3_bucket.ai_chat.id
+
+  rule {
+    id     = "expire-sessions"
+    status = "Enabled"
+
+    filter {
+      prefix = "sessions/"
+    }
+
+    expiration {
+      days = 1
+    }
+  }
+
+  rule {
+    id     = "expire-budget"
+    status = "Enabled"
+
+    filter {
+      prefix = "budget/"
+    }
+
+    expiration {
+      days = 7
+    }
+  }
+}
+
 # Lifecycle rule for lakehouse buckets (delete old versions after 90 days)
 resource "aws_s3_bucket_lifecycle_configuration" "lakehouse" {
   for_each = {
