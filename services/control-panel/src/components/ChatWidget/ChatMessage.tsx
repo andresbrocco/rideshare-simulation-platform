@@ -2,6 +2,7 @@ export interface ChatMessageData {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  isCtaMessage?: boolean;
 }
 
 interface ChatMessageProps {

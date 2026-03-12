@@ -34,6 +34,33 @@ function setupSuccessfulChat(sessionId = 'session-123', responseText = 'Hello fr
   mockSendChatMessage.mockResolvedValue({ response: responseText, turn_number: 1 });
 }
 
+/**
+ * Arrange the widget at a specific turn count without UI interaction.
+ * Sends `turnsToSend` messages, each returning turn_number = its index + 1.
+ * Returns the userEvent instance so the caller can continue interacting.
+ */
+async function setupWidgetAtTurn(turnsToSend: number) {
+  mockCreateChatSession.mockResolvedValue({ session_id: 'session-cta' });
+  for (let t = 1; t <= turnsToSend; t++) {
+    mockSendChatMessage.mockResolvedValueOnce({ response: `Response ${t}`, turn_number: t });
+  }
+
+  const user = userEvent.setup();
+  render(<ChatWidget visitorEmail={null} />);
+  await user.click(screen.getByRole('button', { name: /open chat/i }));
+
+  for (let t = 1; t <= turnsToSend; t++) {
+    const textarea = screen.getByRole('textbox');
+    await user.type(textarea, `Message ${t}`);
+    await user.click(screen.getByRole('button', { name: /send/i }));
+    await waitFor(() => {
+      expect(screen.getByText(`Response ${t}`)).toBeInTheDocument();
+    });
+  }
+
+  return user;
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -252,6 +279,150 @@ describe('ChatWidget', () => {
 
     await waitFor(() => {
       expect(textarea.value).toBe('');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // CTA tests
+  // -------------------------------------------------------------------------
+
+  describe('post-turn-5 engagement CTA', () => {
+    const CTA_TEXT =
+      "I see you're enjoying this. Do you want to book a video call with my creator, Andre Sbrocco? Drop him an e-mail!";
+
+    it('test_cta_fires_after_turn_5_response', async () => {
+      await setupWidgetAtTurn(5);
+
+      await waitFor(() => {
+        expect(screen.getByText(CTA_TEXT)).toBeInTheDocument();
+      });
+      expect(screen.getByTestId('cta-buttons')).toBeInTheDocument();
+    });
+
+    it('test_cta_message_appears_as_assistant_bubble', async () => {
+      await setupWidgetAtTurn(5);
+
+      await waitFor(() => {
+        const ctaBubble = screen.getByText(CTA_TEXT);
+        // The message is wrapped in the standard assistant bubble structure
+        expect(ctaBubble.closest('.chat-message--assistant')).toBeInTheDocument();
+      });
+    });
+
+    it('test_cta_does_not_fire_before_turn_5', async () => {
+      await setupWidgetAtTurn(4);
+
+      expect(screen.queryByText(CTA_TEXT)).not.toBeInTheDocument();
+      expect(screen.queryByTestId('cta-buttons')).not.toBeInTheDocument();
+      // Normal input should still be visible
+      expect(screen.getByRole('textbox')).toBeInTheDocument();
+    });
+
+    it('test_normal_input_hidden_when_cta_shown', async () => {
+      await setupWidgetAtTurn(5);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('cta-buttons')).toBeInTheDocument();
+      });
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    });
+
+    it('test_continue_chatting_restores_input', async () => {
+      const user = await setupWidgetAtTurn(5);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('cta-buttons')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByTestId('cta-continue-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByRole('textbox')).toBeInTheDocument();
+      });
+      expect(screen.queryByTestId('cta-buttons')).not.toBeInTheDocument();
+    });
+
+    it('test_email_andre_restores_input', async () => {
+      const user = await setupWidgetAtTurn(5);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('cta-buttons')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByTestId('cta-email-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByRole('textbox')).toBeInTheDocument();
+      });
+      expect(screen.queryByTestId('cta-buttons')).not.toBeInTheDocument();
+    });
+
+    it('test_cta_fires_exactly_once_per_session', async () => {
+      // Reach turn 5 — CTA fires
+      mockCreateChatSession.mockResolvedValue({ session_id: 'session-cta' });
+      for (let t = 1; t <= 5; t++) {
+        mockSendChatMessage.mockResolvedValueOnce({ response: `Response ${t}`, turn_number: t });
+      }
+      // Turn 6 response
+      mockSendChatMessage.mockResolvedValueOnce({ response: 'Response 6', turn_number: 6 });
+
+      const user = userEvent.setup();
+      render(<ChatWidget visitorEmail={null} />);
+      await user.click(screen.getByRole('button', { name: /open chat/i }));
+
+      // Send 5 messages to trigger CTA
+      for (let t = 1; t <= 5; t++) {
+        const textarea = screen.getByRole('textbox');
+        await user.type(textarea, `Message ${t}`);
+        await user.click(screen.getByRole('button', { name: /send/i }));
+        await waitFor(() => {
+          expect(screen.getByText(`Response ${t}`)).toBeInTheDocument();
+        });
+      }
+
+      await waitFor(() => {
+        expect(screen.getByTestId('cta-buttons')).toBeInTheDocument();
+      });
+
+      // Dismiss CTA via "Continue chatting"
+      await user.click(screen.getByTestId('cta-continue-btn'));
+      await waitFor(() => {
+        expect(screen.getByRole('textbox')).toBeInTheDocument();
+      });
+
+      // Send a 6th message
+      const textarea = screen.getByRole('textbox');
+      await user.type(textarea, 'Message 6');
+      await user.click(screen.getByRole('button', { name: /send/i }));
+      await waitFor(() => {
+        expect(screen.getByText('Response 6')).toBeInTheDocument();
+      });
+
+      // CTA must not reappear
+      const ctaMessages = screen.queryAllByText(CTA_TEXT);
+      expect(ctaMessages).toHaveLength(1); // original CTA still in message history
+      expect(screen.queryByTestId('cta-buttons')).not.toBeInTheDocument();
+    });
+
+    it('test_cta_does_not_appear_at_turn_6', async () => {
+      // Return turn_number 6 directly (simulate a late join or cached count)
+      mockCreateChatSession.mockResolvedValue({ session_id: 'session-cta' });
+      mockSendChatMessage.mockResolvedValueOnce({ response: 'Response 6', turn_number: 6 });
+
+      const user = userEvent.setup();
+      render(<ChatWidget visitorEmail={null} />);
+      await user.click(screen.getByRole('button', { name: /open chat/i }));
+
+      const textarea = screen.getByRole('textbox');
+      await user.type(textarea, 'Hello');
+      await user.click(screen.getByRole('button', { name: /send/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText('Response 6')).toBeInTheDocument();
+      });
+
+      expect(screen.queryByText(CTA_TEXT)).not.toBeInTheDocument();
+      expect(screen.queryByTestId('cta-buttons')).not.toBeInTheDocument();
     });
   });
 });

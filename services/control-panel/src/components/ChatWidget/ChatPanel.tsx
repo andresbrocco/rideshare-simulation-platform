@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { ChatMessageData } from './ChatMessage';
 import { ChatMessage } from './ChatMessage';
+import { CtaButtons } from './CtaButtons';
 
 const STARTER_QUESTIONS = [
   'What is the architecture of this platform?',
@@ -17,6 +18,8 @@ interface ChatPanelProps {
   onInputChange: (value: string) => void;
   onSend: (message: string) => void;
   onClose: () => void;
+  showCta: boolean;
+  onCtaDismissed: () => void;
 }
 
 export function ChatPanel({
@@ -27,6 +30,8 @@ export function ChatPanel({
   onInputChange,
   onSend,
   onClose,
+  showCta,
+  onCtaDismissed,
 }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -108,40 +113,44 @@ export function ChatPanel({
         </div>
       )}
 
-      <div className="chat-panel-input-area">
-        <textarea
-          className="chat-input"
-          value={inputValue}
-          onChange={(e) => onInputChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask a question..."
-          rows={2}
-          disabled={isLoading}
-          aria-label="Message input"
-        />
-        <button
-          type="button"
-          className="chat-send-btn"
-          aria-label="Send"
-          disabled={isLoading || !inputValue.trim()}
-          onClick={() => {
-            if (!isLoading && inputValue.trim()) {
-              onSend(inputValue.trim());
-            }
-          }}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            width="18"
-            height="18"
-            aria-hidden="true"
+      {showCta ? (
+        <CtaButtons onCtaDismissed={onCtaDismissed} />
+      ) : (
+        <div className="chat-panel-input-area">
+          <textarea
+            className="chat-input"
+            value={inputValue}
+            onChange={(e) => onInputChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask a question..."
+            rows={2}
+            disabled={isLoading}
+            aria-label="Message input"
+          />
+          <button
+            type="button"
+            className="chat-send-btn"
+            aria-label="Send"
+            disabled={isLoading || !inputValue.trim()}
+            onClick={() => {
+              if (!isLoading && inputValue.trim()) {
+                onSend(inputValue.trim());
+              }
+            }}
           >
-            <path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z" />
-          </svg>
-        </button>
-      </div>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              width="18"
+              height="18"
+              aria-hidden="true"
+            >
+              <path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z" />
+            </svg>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

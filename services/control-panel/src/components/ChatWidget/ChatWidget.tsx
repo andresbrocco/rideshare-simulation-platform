@@ -21,6 +21,14 @@ function getErrorMessage(err: ChatServiceError): string {
 }
 
 // ---------------------------------------------------------------------------
+// CTA configuration
+// ---------------------------------------------------------------------------
+
+const CTA_TURN = 5;
+const CTA_MESSAGE_CONTENT =
+  "I see you're enjoying this. Do you want to book a video call with my creator, Andre Sbrocco? Drop him an e-mail!";
+
+// ---------------------------------------------------------------------------
 // ChatWidget component
 // ---------------------------------------------------------------------------
 
@@ -35,6 +43,8 @@ export function ChatWidget({ visitorEmail }: ChatWidgetProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState('');
+  const [ctaShown, setCtaShown] = useState(false);
+  const [showCta, setShowCta] = useState(false);
 
   function generateId(): string {
     return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -89,7 +99,19 @@ export function ChatWidget({ visitorEmail }: ChatWidgetProps) {
         content: messageResponse.response,
       };
 
-      setMessages((prev) => [...prev, assistantMessage]);
+      if (messageResponse.turn_number === CTA_TURN && !ctaShown) {
+        const ctaMessage: ChatMessageData = {
+          id: generateId(),
+          role: 'assistant',
+          content: CTA_MESSAGE_CONTENT,
+          isCtaMessage: true,
+        };
+        setMessages((prev) => [...prev, assistantMessage, ctaMessage]);
+        setCtaShown(true);
+        setShowCta(true);
+      } else {
+        setMessages((prev) => [...prev, assistantMessage]);
+      }
     } catch (err) {
       if (err instanceof ChatServiceError) {
         setError(getErrorMessage(err));
@@ -112,6 +134,8 @@ export function ChatWidget({ visitorEmail }: ChatWidgetProps) {
           onInputChange={setInputValue}
           onSend={handleSend}
           onClose={() => setIsOpen(false)}
+          showCta={showCta}
+          onCtaDismissed={() => setShowCta(false)}
         />
       ) : (
         <ChatButton onClick={() => setIsOpen(true)} />
