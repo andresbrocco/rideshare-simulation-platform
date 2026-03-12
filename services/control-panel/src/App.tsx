@@ -27,7 +27,7 @@ import type { WebSocketMessage } from './types/websocket';
 import type { ZoneData } from './types/api';
 import { DEFAULT_VISIBILITY, type LayerVisibility } from './types/layers';
 import type { PlacementMode } from './constants/dnaPresets';
-import { getAppMode, getApiKey, clearSession } from './utils/auth';
+import { getAppMode, getApiKey, clearSession, isLocalEnvironment } from './utils/auth';
 import { useSessionExpiry } from './hooks/useSessionExpiry';
 import './App.css';
 
@@ -59,7 +59,7 @@ function LandingApp() {
     <div className="App landing-mode">
       <Toaster position="top-right" />
       <LandingPage
-        isLocal={getAppMode() === 'dev'}
+        isLocal={isLocalEnvironment()}
         serviceHealth={serviceHealth}
         apiKey={apiKey}
         onNeedAuth={() => setShowLoginDialog(true)}
@@ -269,7 +269,7 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
       {!apiKey ? (
         <>
           <LandingPage
-            isLocal={getAppMode() === 'dev'}
+            isLocal={isLocalEnvironment()}
             serviceHealth={ALL_SERVICES_DOWN}
             apiKey={apiKey}
             onNeedAuth={() => setShowLoginDialog(true)}

@@ -2,6 +2,8 @@ export type AppMode = 'landing' | 'control-panel' | 'dev';
 
 const LANDING_HOSTNAME = 'ridesharing.portfolio.andresbrocco.com';
 const CONTROL_PANEL_HOSTNAME = 'control-panel.ridesharing.portfolio.andresbrocco.com';
+const LOCAL_LANDING_HOSTNAME = 'landing.local';
+const LOCAL_CONTROL_PANEL_HOSTNAME = 'control-panel.local';
 
 // Session storage keys for the authenticated session
 const SESSION_KEY_API_KEY = 'apiKey';
@@ -11,13 +13,18 @@ const SESSION_KEY_EMAIL = 'email';
 export function getAppMode(): AppMode {
   const hostname = window.location.hostname;
 
-  if (hostname === CONTROL_PANEL_HOSTNAME) {
+  if (hostname === CONTROL_PANEL_HOSTNAME || hostname === LOCAL_CONTROL_PANEL_HOSTNAME) {
     return 'control-panel';
   }
-  if (hostname === LANDING_HOSTNAME) {
+  if (hostname === LANDING_HOSTNAME || hostname === LOCAL_LANDING_HOSTNAME) {
     return 'landing';
   }
   return 'dev';
+}
+
+export function isLocalEnvironment(): boolean {
+  const hostname = window.location.hostname;
+  return hostname === 'localhost' || hostname.endsWith('.local');
 }
 
 // --- Session storage helpers ---
