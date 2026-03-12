@@ -11,6 +11,7 @@ data:
     http-server.http.port=8080
     discovery.uri=http://localhost:8080
     http-server.authentication.type=PASSWORD
+    internal-communication.shared-secret=dev-local-shared-secret-000000000000
     event-listener.config-files=/etc/trino/event-listener.properties
 
   password-authenticator.properties: |

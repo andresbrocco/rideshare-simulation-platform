@@ -33,6 +33,8 @@ spec:
                 /config-source/password.db.template > /etc/trino/password.db
               chmod 600 /etc/trino/password.db
               echo 'http-server.process-forwarded=true' >> /etc/trino/config.properties
+              SHARED_SECRET=$(cat /proc/sys/kernel/random/uuid | tr -d '-')
+              sed -i "s|internal-communication.shared-secret=.*|internal-communication.shared-secret=${SHARED_SECRET}|" /etc/trino/config.properties
           env:
             - name: MINIO_ROOT_USER
               $patch: delete
