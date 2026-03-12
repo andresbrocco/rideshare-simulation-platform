@@ -1,0 +1,147 @@
+import { useEffect, useRef } from 'react';
+import type { ChatMessageData } from './ChatMessage';
+import { ChatMessage } from './ChatMessage';
+
+const STARTER_QUESTIONS = [
+  'What is the architecture of this platform?',
+  'How does the simulation engine work?',
+  'What technologies are used?',
+  'How does data flow through the system?',
+] as const;
+
+interface ChatPanelProps {
+  messages: ChatMessageData[];
+  isLoading: boolean;
+  error: string | null;
+  inputValue: string;
+  onInputChange: (value: string) => void;
+  onSend: (message: string) => void;
+  onClose: () => void;
+}
+
+export function ChatPanel({
+  messages,
+  isLoading,
+  error,
+  inputValue,
+  onInputChange,
+  onSend,
+  onClose,
+}: ChatPanelProps) {
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = messagesEndRef.current;
+    if (el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, isLoading]);
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (!isLoading && inputValue.trim()) {
+        onSend(inputValue.trim());
+      }
+    }
+  }
+
+  const showStarterQuestions = messages.length === 0 && !isLoading;
+
+  return (
+    <div className="chat-panel">
+      <div className="chat-panel-header">
+        <span className="chat-panel-title">Ask about this project</span>
+        <button
+          type="button"
+          className="chat-panel-close"
+          aria-label="Close chat"
+          onClick={onClose}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            width="18"
+            height="18"
+            aria-hidden="true"
+          >
+            <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+          </svg>
+        </button>
+      </div>
+
+      <div className="chat-panel-messages" role="log" aria-live="polite">
+        {messages.map((message) => (
+          <ChatMessage key={message.id} message={message} />
+        ))}
+        {isLoading && (
+          <div className="chat-message chat-message--assistant" data-testid="typing-indicator">
+            <div className="chat-message-bubble chat-typing-indicator">
+              <span />
+              <span />
+              <span />
+            </div>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {error && (
+        <div className="chat-error" role="alert">
+          {error}
+        </div>
+      )}
+
+      {showStarterQuestions && (
+        <div className="chat-starter-questions">
+          {STARTER_QUESTIONS.map((question) => (
+            <button
+              key={question}
+              type="button"
+              className="chat-starter-btn"
+              onClick={() => onSend(question)}
+            >
+              {question}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="chat-panel-input-area">
+        <textarea
+          className="chat-input"
+          value={inputValue}
+          onChange={(e) => onInputChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Ask a question..."
+          rows={2}
+          disabled={isLoading}
+          aria-label="Message input"
+        />
+        <button
+          type="button"
+          className="chat-send-btn"
+          aria-label="Send"
+          disabled={isLoading || !inputValue.trim()}
+          onClick={() => {
+            if (!isLoading && inputValue.trim()) {
+              onSend(inputValue.trim());
+            }
+          }}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            width="18"
+            height="18"
+            aria-hidden="true"
+          >
+            <path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}

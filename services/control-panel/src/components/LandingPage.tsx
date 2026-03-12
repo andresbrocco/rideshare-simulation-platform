@@ -570,6 +570,7 @@ function SectionNav({ heroVisible }: SectionNavProps) {
   );
 }
 
+import { ChatWidget } from './ChatWidget';
 import type { ServiceHealthMap } from '../services/lambda';
 
 const SERVICE_NAME_TO_ID: Record<string, keyof ServiceHealthMap> = {
@@ -618,6 +619,7 @@ export function LandingPage({
 
   return (
     <div className="landing-container">
+      <ChatWidget visitorEmail={null} />
       <div className="landing-inner">
         <div id="hero" className="landing-hero">
           <div className="landing-hero-glow" />
