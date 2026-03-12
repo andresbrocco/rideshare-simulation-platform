@@ -154,3 +154,9 @@ variable "reserved_concurrent_executions" {
   type        = number
   default     = -1
 }
+
+variable "archive_exclude_patterns" {
+  description = "Glob patterns relative to source_dir to exclude from the deployment zip (e.g. venv/**, tests/**)."
+  type        = list(string)
+  default     = []
+}

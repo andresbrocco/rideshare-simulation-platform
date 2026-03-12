@@ -159,6 +159,8 @@ module "lambda_auth_deploy" {
   timeout       = 60
   memory_size   = 256
 
+  archive_exclude_patterns = ["venv/**", "package/**", "__pycache__/**", ".mypy_cache/**", "tests/**", "test_*.py"]
+
   environment_variables = {
     SCHEDULER_ROLE_ARN       = aws_iam_role.scheduler_execution.arn
     SELF_FUNCTION_ARN        = "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:rideshare-auth-deploy"
@@ -233,7 +235,7 @@ module "lambda_ai_chat" {
   timeout       = 30
   memory_size   = 256
 
-  reserved_concurrent_executions = 5
+  archive_exclude_patterns = ["venv/**", "package/**", "__pycache__/**", ".mypy_cache/**", "tests/**", "test_*.py", "conftest.py"]
 
   environment_variables = {
     LLM_PROVIDER     = "anthropic"

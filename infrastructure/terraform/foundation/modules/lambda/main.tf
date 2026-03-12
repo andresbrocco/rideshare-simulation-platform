@@ -225,6 +225,10 @@ data "archive_file" "lambda" {
   type        = "zip"
   source_dir  = var.source_dir
   output_path = "${path.module}/lambda_function.zip"
+  excludes = toset(flatten([
+    for pattern in var.archive_exclude_patterns :
+    fileset(var.source_dir, pattern)
+  ]))
 }
 
 # Lambda Function
