@@ -8,6 +8,7 @@ output "secret_arns" {
     github_pat    = aws_secretsmanager_secret.github_pat.arn
     rds           = aws_secretsmanager_secret.rds.arn
     admin_user    = aws_secretsmanager_secret.admin_user.arn
+    llm_api_key   = aws_secretsmanager_secret.llm_api_key.arn
   }
 }
 
@@ -21,6 +22,7 @@ output "secret_names" {
     github_pat    = aws_secretsmanager_secret.github_pat.name
     rds           = aws_secretsmanager_secret.rds.name
     admin_user    = aws_secretsmanager_secret.admin_user.name
+    llm_api_key   = aws_secretsmanager_secret.llm_api_key.name
   }
 }
 

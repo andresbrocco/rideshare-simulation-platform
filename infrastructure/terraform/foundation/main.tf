@@ -221,6 +221,51 @@ module "lambda_auth_deploy" {
 }
 
 # -----------------------------------------------------------------------------
+# Lambda — AI chat assistant
+# -----------------------------------------------------------------------------
+module "lambda_ai_chat" {
+  source = "./modules/lambda"
+
+  function_name = "rideshare-ai-chat"
+  source_dir    = "${path.root}/../../lambda/ai-chat"
+  handler       = "handler.lambda_handler"
+  runtime       = "python3.13"
+  timeout       = 30
+  memory_size   = 256
+
+  reserved_concurrent_executions = 5
+
+  environment_variables = {
+    LLM_PROVIDER     = "anthropic"
+    LLM_MODEL        = "claude-sonnet-4-20250514"
+    DAILY_BUDGET_USD = "5.00"
+    AI_CHAT_BUCKET   = module.s3.ai_chat_bucket_name
+  }
+
+  secrets_arns = [
+    module.secrets_manager.secret_arns["llm_api_key"],
+  ]
+
+  s3_bucket_arns   = [module.s3.ai_chat_bucket_arn]
+  enable_s3_policy = true
+
+  cors_allowed_origins = [
+    "https://ridesharing.portfolio.andresbrocco.com",
+    "http://localhost:5173",
+  ]
+  cors_allowed_methods = ["POST"]
+  cors_allowed_headers = ["Content-Type", "X-Requested-With"]
+  cors_max_age         = 86400
+
+  log_retention_days = 14
+
+  tags = {
+    Project   = var.project_name
+    Component = "ai-chat"
+  }
+}
+
+# -----------------------------------------------------------------------------
 # IAM
 # -----------------------------------------------------------------------------
 module "iam" {

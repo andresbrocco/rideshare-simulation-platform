@@ -119,6 +119,16 @@ output "lambda_auth_deploy_function_name" {
   value       = module.lambda_auth_deploy.function_name
 }
 
+output "lambda_ai_chat_url" {
+  description = "URL of the Lambda ai-chat function"
+  value       = module.lambda_ai_chat.function_url
+}
+
+output "lambda_ai_chat_function_name" {
+  description = "Name of the Lambda ai-chat function"
+  value       = module.lambda_ai_chat.function_name
+}
+
 # -----------------------------------------------------------------------------
 # Secrets Manager
 # -----------------------------------------------------------------------------
