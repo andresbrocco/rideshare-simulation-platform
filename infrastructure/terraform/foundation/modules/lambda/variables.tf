@@ -136,3 +136,21 @@ variable "writable_secrets_arns" {
   type        = list(string)
   default     = []
 }
+
+variable "s3_bucket_arns" {
+  description = "ARNs of S3 buckets the function needs read/write access to. Leave empty to skip policy."
+  type        = list(string)
+  default     = []
+}
+
+variable "enable_s3_policy" {
+  description = "Whether to create the S3 IAM policy. Use this instead of relying on s3_bucket_arns emptiness to avoid plan-time unknown value issues."
+  type        = bool
+  default     = false
+}
+
+variable "reserved_concurrent_executions" {
+  description = "Reserved concurrent executions for the Lambda function. -1 means unreserved (account default)."
+  type        = number
+  default     = -1
+}

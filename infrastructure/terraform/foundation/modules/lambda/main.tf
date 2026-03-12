@@ -177,6 +177,30 @@ resource "aws_iam_role_policy" "lambda_writable_secrets" {
   })
 }
 
+# IAM Policy for S3 bucket access
+resource "aws_iam_role_policy" "lambda_s3" {
+  count = var.enable_s3_policy ? 1 : 0
+
+  name = "${var.function_name}-s3"
+  role = aws_iam_role.lambda.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+        Resource = [for arn in var.s3_bucket_arns : "${arn}/*"]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket"]
+        Resource = var.s3_bucket_arns
+      }
+    ]
+  })
+}
+
 # IAM Policy for KMS encrypt/decrypt (visitor password encryption)
 resource "aws_iam_role_policy" "lambda_kms" {
   count = var.enable_kms_policy ? 1 : 0
@@ -205,14 +229,15 @@ data "archive_file" "lambda" {
 
 # Lambda Function
 resource "aws_lambda_function" "function" {
-  filename         = data.archive_file.lambda.output_path
-  function_name    = var.function_name
-  role             = aws_iam_role.lambda.arn
-  handler          = var.handler
-  source_code_hash = data.archive_file.lambda.output_base64sha256
-  runtime          = var.runtime
-  timeout          = var.timeout
-  memory_size      = var.memory_size
+  filename                       = data.archive_file.lambda.output_path
+  function_name                  = var.function_name
+  role                           = aws_iam_role.lambda.arn
+  handler                        = var.handler
+  source_code_hash               = data.archive_file.lambda.output_base64sha256
+  runtime                        = var.runtime
+  timeout                        = var.timeout
+  memory_size                    = var.memory_size
+  reserved_concurrent_executions = var.reserved_concurrent_executions
 
   environment {
     variables = var.environment_variables
