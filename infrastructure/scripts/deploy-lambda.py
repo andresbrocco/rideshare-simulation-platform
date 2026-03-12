@@ -22,7 +22,9 @@ import dataclasses
 import io
 import logging
 import os
+import subprocess
 import sys
+import tempfile
 import zipfile
 from typing import TYPE_CHECKING
 
@@ -52,6 +54,8 @@ class FunctionConfig:
     source_dir: str | None = None
     extra_files: dict[str, str] = dataclasses.field(default_factory=dict)
     environment: dict[str, str] = dataclasses.field(default_factory=dict)
+    requirements_files: list[str] = dataclasses.field(default_factory=list)
+    timeout: int = 3
 
 
 FUNCTIONS: list[FunctionConfig] = [
@@ -69,6 +73,12 @@ FUNCTIONS: list[FunctionConfig] = [
             "DAILY_BUDGET_USD": "5.00",
             "AI_CHAT_BUCKET": "rideshare-ai-chat",
         },
+        requirements_files=[
+            "/app/lambda-ai-chat/requirements-anthropic.txt",
+            "/app/lambda-ai-chat/requirements-openai.txt",
+            "/app/lambda-ai-chat/requirements-google.txt",
+        ],
+        timeout=60,
     ),
 ]
 
@@ -96,10 +106,45 @@ def create_clients() -> tuple[LambdaClient, S3Client]:
     return lambda_client, s3_client
 
 
+def _install_requirements(requirements_files: list[str], target_dir: str) -> None:
+    """Pip-install requirements into target_dir for Lambda bundling.
+
+    Uses --platform and --only-binary to fetch x86_64 Linux wheels
+    matching the Lambda runtime, regardless of the build host's architecture.
+    """
+    for req_file in requirements_files:
+        if not os.path.exists(req_file):
+            logger.warning("Requirements file not found: %s", req_file)
+            continue
+        logger.info("  Installing deps from %s", os.path.basename(req_file))
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "--quiet",
+                "--target",
+                target_dir,
+                "--platform",
+                "manylinux2014_x86_64",
+                "--implementation",
+                "cp",
+                "--python-version",
+                "3.13",
+                "--only-binary=:all:",
+                "-r",
+                req_file,
+            ],
+            check=True,
+        )
+
+
 def create_zip(
     handler_path: str,
     source_dir: str | None = None,
     extra_files: dict[str, str] | None = None,
+    requirements_files: list[str] | None = None,
 ) -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -127,6 +172,24 @@ def create_zip(
                 zf.write(src_path, arc_name)
             else:
                 logger.warning("Extra file not found: %s", src_path)
+        # Bundle pip dependencies into the zip
+        if requirements_files:
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                _install_requirements(requirements_files, tmp_dir)
+                for root, _dirs, files in os.walk(tmp_dir):
+                    # Skip dist-info, __pycache__, and bin directories
+                    rel_root = os.path.relpath(root, tmp_dir)
+                    if any(
+                        part.endswith(".dist-info") or part in ("__pycache__", "bin")
+                        for part in rel_root.split(os.sep)
+                    ):
+                        continue
+                    for f in files:
+                        if f.endswith((".pyc", ".pyi")):
+                            continue
+                        full_path = os.path.join(root, f)
+                        arc_name = os.path.relpath(full_path, tmp_dir)
+                        zf.write(full_path, arc_name)
     return buffer.getvalue()
 
 
@@ -160,6 +223,7 @@ def deploy_function(
                 Handler=HANDLER,
                 Code={"ZipFile": zip_bytes},
                 Environment=environment,
+                Timeout=config.timeout,
             )
         else:
             lambda_client.create_function(
@@ -168,6 +232,7 @@ def deploy_function(
                 Role=ROLE,
                 Handler=HANDLER,
                 Code={"ZipFile": zip_bytes},
+                Timeout=config.timeout,
             )
         logger.info("[CREATED] %s", config.name)
     except ClientError as e:
@@ -203,7 +268,12 @@ def main() -> int:
                 config.name,
             )
             continue
-        zip_bytes = create_zip(config.handler_path, config.source_dir, config.extra_files)
+        zip_bytes = create_zip(
+            config.handler_path,
+            config.source_dir,
+            config.extra_files,
+            config.requirements_files,
+        )
         deploy_function(lambda_client, config, zip_bytes)
 
     logger.info("Done.")

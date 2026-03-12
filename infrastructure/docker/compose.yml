@@ -553,7 +553,7 @@ services:
       - performance
     volumes:
       - secrets-volume:/secrets
-      - ../../infrastructure/scripts/seed-secrets.py:/app/seed-secrets.py:ro
+      - ../../infrastructure/scripts:/app/scripts:ro
       - ../../infrastructure/scripts/fetch-secrets.py:/app/fetch-secrets.py:ro
     environment:
       - AWS_ENDPOINT_URL=http://localstack:4566
@@ -565,14 +565,14 @@ services:
         condition: service_healthy
     command: >
       sh -c "pip install boto3 mypy-boto3-secretsmanager bcrypt &&
-             python /app/seed-secrets.py &&
+             python /app/scripts/seed-secrets.py &&
              python /app/fetch-secrets.py"
     networks:
       - rideshare-network
     restart: "no"
 
   lambda-init:
-    image: python:3.12-slim
+    image: python:3.13-slim
     container_name: rideshare-lambda-init
     profiles:
       - core
@@ -580,7 +580,7 @@ services:
       - monitoring
       - performance
     volumes:
-      - ../../infrastructure/scripts/deploy-lambda.py:/app/deploy-lambda.py:ro
+      - ../../infrastructure/scripts:/app/scripts:ro
       - ../../infrastructure/lambda/auth-deploy/handler.py:/app/lambda/handler.py:ro
       - ../../infrastructure/lambda/ai-chat:/app/lambda-ai-chat:ro
       - ../../infrastructure/scripts/provision_grafana_viewer.py:/app/lambda/provision_grafana_viewer.py:ro
@@ -603,7 +603,8 @@ services:
         condition: service_completed_successfully
     command: >
       sh -c "pip install boto3 minio &&
-             python /app/deploy-lambda.py"
+             if [ -f /app/scripts/.env.secrets ]; then export $(grep -v '^#' /app/scripts/.env.secrets | xargs); fi &&
+             python /app/scripts/deploy-lambda.py"
     networks:
       - rideshare-network
     restart: "no"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Seed LocalStack Secrets Manager with 4 consolidated credential groups.
+"""Seed LocalStack Secrets Manager with consolidated credential groups.
 
 Populates rideshare/* secrets in AWS Secrets Manager (LocalStack or real AWS).
 Each secret group is a JSON object with credential key-value pairs. The script
@@ -18,6 +18,9 @@ Environment:
     OVERRIDE_<KEY>      - Override any individual secret value
                           (e.g., OVERRIDE_MINIO_ROOT_USER=myminioadmin)
 
+    Overrides can also be placed in infrastructure/scripts/.env.secrets (one
+    VAR=VALUE per line).  The file is gitignored and loaded automatically.
+
 Exit codes:
     0 - All secrets seeded successfully
     1 - One or more secrets failed to seed
@@ -27,6 +30,7 @@ import base64
 import json
 import logging
 import os
+import pathlib
 import sys
 
 import bcrypt
@@ -103,6 +107,30 @@ SECRETS: dict[str, dict[str, str]] = {
 }
 
 
+def load_env_secrets() -> None:
+    """Load overrides from .env.secrets file if it exists.
+
+    The file is expected next to this script at infrastructure/scripts/.env.secrets.
+    Each line should be VAR=VALUE (blank lines and #-comments are skipped).
+    Values are loaded into os.environ so apply_overrides() picks them up.
+    """
+    env_file = pathlib.Path(__file__).parent / ".env.secrets"
+    if not env_file.exists():
+        return
+
+    count = 0
+    for line in env_file.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        key, _, value = line.partition("=")
+        if key and value:
+            os.environ[key] = value
+            count += 1
+
+    logger.info("Loaded %d overrides from %s", count, env_file.name)
+
+
 def apply_overrides(secrets: dict[str, dict[str, str]]) -> dict[str, dict[str, str]]:
     """Apply environment variable overrides to secret values.
 
@@ -116,6 +144,14 @@ def apply_overrides(secrets: dict[str, dict[str, str]]) -> dict[str, dict[str, s
         for key in fields:
             override_var = f"OVERRIDE_{key}"
             override_value = os.environ.get(override_var)
+            # Also check uppercase variant so OVERRIDE_ANTHROPIC works for
+            # lowercase field names like "anthropic".
+            if override_value is None:
+                override_var_upper = f"OVERRIDE_{key.upper()}"
+                if override_var_upper != override_var:
+                    override_value = os.environ.get(override_var_upper)
+                    if override_value is not None:
+                        override_var = override_var_upper
             if override_value is not None:
                 logger.info(
                     "  Override applied: %s in %s (from %s)",
@@ -184,6 +220,7 @@ def main() -> int:
     logger.info("Secrets Seed Script")
     logger.info("=" * 60)
 
+    load_env_secrets()
     secrets = apply_overrides(SECRETS)
     client = create_secretsmanager_client()
 
