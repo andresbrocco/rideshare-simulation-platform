@@ -4,6 +4,7 @@ import type { ChatServiceErrorCode } from '../../services/chat';
 import { ChatButton } from './ChatButton';
 import { ChatPanel } from './ChatPanel';
 import type { ChatMessageData } from './ChatMessage';
+import './ChatWidget.css';
 
 // ---------------------------------------------------------------------------
 // Error message mapping

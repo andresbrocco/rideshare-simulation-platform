@@ -16,19 +16,23 @@ Environment:
     AWS_DEFAULT_REGION  - AWS region (default: us-east-1)
 """
 
+from __future__ import annotations
+
 import dataclasses
 import io
 import logging
 import os
 import sys
 import zipfile
+from typing import TYPE_CHECKING
 
 import boto3
 from botocore.exceptions import ClientError
-from mypy_boto3_lambda import LambdaClient
-from mypy_boto3_lambda.literals import RuntimeType
-from mypy_boto3_lambda.type_defs import EnvironmentTypeDef
-from mypy_boto3_s3 import S3Client
+
+if TYPE_CHECKING:
+    from mypy_boto3_lambda import LambdaClient
+    from mypy_boto3_lambda.type_defs import EnvironmentTypeDef
+    from mypy_boto3_s3 import S3Client
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,7 +41,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 ROLE = "arn:aws:iam::000000000000:role/lambda-role"
-RUNTIME: RuntimeType = "python3.13"
+RUNTIME: str = "python3.13"
 HANDLER = "handler.lambda_handler"
 
 
@@ -45,6 +49,8 @@ HANDLER = "handler.lambda_handler"
 class FunctionConfig:
     name: str
     handler_path: str
+    source_dir: str | None = None
+    extra_files: dict[str, str] = dataclasses.field(default_factory=dict)
     environment: dict[str, str] = dataclasses.field(default_factory=dict)
 
 
@@ -56,6 +62,10 @@ FUNCTIONS: list[FunctionConfig] = [
     FunctionConfig(
         name="ai-chat",
         handler_path="/app/lambda-ai-chat/handler.py",
+        source_dir="/app/lambda-ai-chat",
+        extra_files={
+            "/app/ai-chat-docs/AI-CHAT-CONTEXT.md": "docs/AI-CHAT-CONTEXT.md",
+        },
         environment={
             "LLM_PROVIDER": "mock",
             "LLM_MODEL": "",
@@ -89,10 +99,37 @@ def create_clients() -> tuple[LambdaClient, S3Client]:
     return lambda_client, s3_client
 
 
-def create_zip(handler_path: str) -> bytes:
+def create_zip(
+    handler_path: str,
+    source_dir: str | None = None,
+    extra_files: dict[str, str] | None = None,
+) -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.write(handler_path, "handler.py")
+        if source_dir is None:
+            zf.write(handler_path, "handler.py")
+        else:
+            for root, _dirs, files in os.walk(source_dir):
+                # Skip venv, __pycache__, tests, and hidden directories
+                rel_root = os.path.relpath(root, source_dir)
+                if any(
+                    part in ("venv", "__pycache__", ".git", ".pytest_cache")
+                    for part in rel_root.split(os.sep)
+                ):
+                    continue
+                for f in files:
+                    if not f.endswith((".py", ".md")):
+                        continue
+                    if f.startswith("conftest") or f.startswith("test_"):
+                        continue
+                    full_path = os.path.join(root, f)
+                    arc_name = os.path.relpath(full_path, source_dir)
+                    zf.write(full_path, arc_name)
+        for src_path, arc_name in (extra_files or {}).items():
+            if os.path.exists(src_path):
+                zf.write(src_path, arc_name)
+            else:
+                logger.warning("Extra file not found: %s", src_path)
     return buffer.getvalue()
 
 
@@ -169,7 +206,7 @@ def main() -> int:
                 config.name,
             )
             continue
-        zip_bytes = create_zip(config.handler_path)
+        zip_bytes = create_zip(config.handler_path, config.source_dir, config.extra_files)
         deploy_function(lambda_client, config, zip_bytes)
 
     logger.info("Done.")
