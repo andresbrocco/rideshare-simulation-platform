@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Deploy auth-deploy Lambda function to LocalStack.
+"""Deploy Lambda functions to LocalStack.
 
-Packages handler.py into a zip and creates (or updates) the Lambda function.
+Deploys both auth-deploy and ai-chat Lambda functions.
 Idempotent: creates on first run, updates function code on subsequent runs.
 
 Usage:
@@ -16,6 +16,7 @@ Environment:
     AWS_DEFAULT_REGION  - AWS region (default: us-east-1)
 """
 
+import dataclasses
 import io
 import logging
 import os
@@ -24,6 +25,10 @@ import zipfile
 
 import boto3
 from botocore.exceptions import ClientError
+from mypy_boto3_lambda import LambdaClient
+from mypy_boto3_lambda.literals import RuntimeType
+from mypy_boto3_lambda.type_defs import EnvironmentTypeDef
+from mypy_boto3_s3 import S3Client
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,84 +36,144 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-FUNCTION_NAME = "auth-deploy"
-HANDLER = "handler.lambda_handler"
-RUNTIME = "python3.13"
-# LocalStack accepts any syntactically valid ARN for the execution role.
 ROLE = "arn:aws:iam::000000000000:role/lambda-role"
-HANDLER_PATH = "/app/lambda/handler.py"
+RUNTIME: RuntimeType = "python3.13"
+HANDLER = "handler.lambda_handler"
 
 
-def create_lambda_client() -> boto3.client:
-    """Create a boto3 Lambda client pointed at LocalStack."""
+@dataclasses.dataclass
+class FunctionConfig:
+    name: str
+    handler_path: str
+    environment: dict[str, str] = dataclasses.field(default_factory=dict)
+
+
+FUNCTIONS: list[FunctionConfig] = [
+    FunctionConfig(
+        name="auth-deploy",
+        handler_path="/app/lambda/handler.py",
+    ),
+    FunctionConfig(
+        name="ai-chat",
+        handler_path="/app/lambda-ai-chat/handler.py",
+        environment={
+            "LLM_PROVIDER": "mock",
+            "LLM_MODEL": "",
+            "DAILY_BUDGET_USD": "5.00",
+            "AI_CHAT_BUCKET": "rideshare-ai-chat",
+        },
+    ),
+]
+
+AI_CHAT_BUCKET = "rideshare-ai-chat"
+
+
+def create_clients() -> tuple[LambdaClient, S3Client]:
     endpoint_url = os.environ.get("AWS_ENDPOINT_URL")
     region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
-
     if endpoint_url:
         logger.info("Using endpoint: %s (region: %s)", endpoint_url, region)
     else:
-        logger.warning("AWS_ENDPOINT_URL not set — targeting real AWS Lambda")
+        logger.warning("AWS_ENDPOINT_URL not set — targeting real AWS")
 
-    return boto3.client(
+    lambda_client: LambdaClient = boto3.client(
         "lambda",
         region_name=region,
         endpoint_url=endpoint_url,
     )
+    s3_client: S3Client = boto3.client(
+        "s3",
+        region_name=region,
+        endpoint_url=endpoint_url,
+    )
+    return lambda_client, s3_client
 
 
 def create_zip(handler_path: str) -> bytes:
-    """Package handler.py into an in-memory zip."""
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.write(handler_path, "handler.py")
     return buffer.getvalue()
 
 
-def deploy(client: boto3.client, zip_bytes: bytes) -> None:
-    """Create or update the Lambda function."""
+def ensure_s3_bucket(s3_client: S3Client, bucket_name: str) -> None:
     try:
-        client.create_function(
-            FunctionName=FUNCTION_NAME,
-            Runtime=RUNTIME,
-            Role=ROLE,
-            Handler=HANDLER,
-            Code={"ZipFile": zip_bytes},
-        )
-        logger.info("[CREATED] %s", FUNCTION_NAME)
+        s3_client.create_bucket(Bucket=bucket_name)
+        logger.info("[CREATED] S3 bucket: %s", bucket_name)
     except ClientError as e:
-        if e.response["Error"]["Code"] in ("ResourceConflictException", "ResourceInUseException"):
-            client.update_function_code(
-                FunctionName=FUNCTION_NAME,
+        code = e.response["Error"]["Code"]
+        if code in ("BucketAlreadyExists", "BucketAlreadyOwnedByYou"):
+            logger.info("[EXISTS] S3 bucket: %s", bucket_name)
+        else:
+            raise
+
+
+def deploy_function(
+    lambda_client: LambdaClient,
+    config: FunctionConfig,
+    zip_bytes: bytes,
+) -> None:
+    environment: EnvironmentTypeDef | None = (
+        {"Variables": config.environment} if config.environment else None
+    )
+
+    try:
+        if environment:
+            lambda_client.create_function(
+                FunctionName=config.name,
+                Runtime=RUNTIME,
+                Role=ROLE,
+                Handler=HANDLER,
+                Code={"ZipFile": zip_bytes},
+                Environment=environment,
+            )
+        else:
+            lambda_client.create_function(
+                FunctionName=config.name,
+                Runtime=RUNTIME,
+                Role=ROLE,
+                Handler=HANDLER,
+                Code={"ZipFile": zip_bytes},
+            )
+        logger.info("[CREATED] %s", config.name)
+    except ClientError as e:
+        if e.response["Error"]["Code"] in (
+            "ResourceConflictException",
+            "ResourceInUseException",
+        ):
+            lambda_client.update_function_code(
+                FunctionName=config.name,
                 ZipFile=zip_bytes,
             )
-            logger.info("[UPDATED] %s", FUNCTION_NAME)
+            logger.info("[UPDATED] %s", config.name)
         else:
             raise
 
 
 def main() -> int:
-    """Package and deploy the Lambda function.
-
-    Returns:
-        Exit code: 0 on success, 1 on failure.
-    """
     logger.info("=" * 60)
     logger.info("Lambda Deploy Script")
     logger.info("=" * 60)
 
-    if not os.path.exists(HANDLER_PATH):
-        logger.error("Handler not found at %s", HANDLER_PATH)
-        return 1
+    lambda_client, s3_client = create_clients()
 
-    try:
-        client = create_lambda_client()
-        zip_bytes = create_zip(HANDLER_PATH)
-        deploy(client, zip_bytes)
-        logger.info("Done.")
-        return 0
-    except Exception:
-        logger.exception("Deployment failed")
-        return 1
+    # Create S3 buckets needed by Lambda functions
+    ensure_s3_bucket(s3_client, AI_CHAT_BUCKET)
+
+    # Deploy each function
+    for config in FUNCTIONS:
+        if not os.path.exists(config.handler_path):
+            logger.error(
+                "Handler not found at %s — skipping %s",
+                config.handler_path,
+                config.name,
+            )
+            continue
+        zip_bytes = create_zip(config.handler_path)
+        deploy_function(lambda_client, config, zip_bytes)
+
+    logger.info("Done.")
+    return 0
 
 
 if __name__ == "__main__":
