@@ -12,7 +12,6 @@ data:
     discovery.uri=http://localhost:8080
     http-server.authentication.type=PASSWORD
     internal-communication.shared-secret=dev-local-shared-secret-000000000000
-    event-listener.config-files=/etc/trino/event-listener.properties
 
   password-authenticator.properties: |
     password-authenticator.name=file
@@ -54,9 +53,6 @@ data:
       ]
     }
 
-  event-listener.properties: |
-    event-listener.name=query-event-listener
-    query-event-listener.log-completed-queries=true
 
   jvm.config: |
     -server
@@ -138,7 +134,6 @@ spec:
           cp /config-source/password-authenticator.properties /etc/trino/password-authenticator.properties
           cp /config-source/access-control.properties /etc/trino/access-control.properties
           cp /config-source/rules.json /etc/trino/rules.json
-          cp /config-source/event-listener.properties /etc/trino/event-listener.properties
           mkdir -p /etc/trino/catalog
           sed \
             -e "s|\${MINIO_ROOT_USER}|${MINIO_ROOT_USER}|g" \
