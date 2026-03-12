@@ -202,6 +202,9 @@
   font-size: 0.87rem;
   line-height: 1.55;
   word-break: break-word;
+}
+
+.chat-message--user .chat-message-bubble {
   white-space: pre-wrap;
 }
 
@@ -489,6 +492,95 @@
 .chat-cta-btn:focus-visible {
   outline: 2px solid var(--offline-neon);
   outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Markdown styles for assistant messages
+   -------------------------------------------------------------------------- */
+
+.chat-message--assistant .chat-message-bubble p {
+  margin: 0 0 0.5em;
+}
+
+.chat-message--assistant .chat-message-bubble p:last-child {
+  margin-bottom: 0;
+}
+
+.chat-message--assistant .chat-message-bubble strong {
+  color: var(--text-emphasis, #f5f7f6);
+}
+
+.chat-message--assistant .chat-message-bubble code {
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 0.82em;
+  background: rgba(var(--offline-neon-rgb), 0.06);
+  border: 1px solid rgba(var(--offline-neon-rgb), 0.1);
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+}
+
+.chat-message--assistant .chat-message-bubble pre {
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 6px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  margin: 0.5em 0;
+}
+
+.chat-message--assistant .chat-message-bubble pre:last-child {
+  margin-bottom: 0;
+}
+
+.chat-message--assistant .chat-message-bubble pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.82em;
+}
+
+.chat-message--assistant .chat-message-bubble ul,
+.chat-message--assistant .chat-message-bubble ol {
+  margin: 0.4em 0;
+  padding-left: 1.3em;
+}
+
+.chat-message--assistant .chat-message-bubble li {
+  margin-bottom: 0.2em;
+}
+
+.chat-message--assistant .chat-message-bubble a {
+  color: var(--offline-neon);
+  text-decoration: none;
+}
+
+.chat-message--assistant .chat-message-bubble a:hover {
+  text-decoration: underline;
+}
+
+.chat-message--assistant .chat-message-bubble blockquote {
+  border-left: 3px solid rgba(var(--offline-neon-rgb), 0.3);
+  padding-left: 0.8em;
+  margin: 0.4em 0;
+  opacity: 0.85;
+}
+
+.chat-message--assistant .chat-message-bubble table {
+  border-collapse: collapse;
+  margin: 0.5em 0;
+  width: 100%;
+  font-size: 0.85em;
+}
+
+.chat-message--assistant .chat-message-bubble th,
+.chat-message--assistant .chat-message-bubble td {
+  border: 1px solid rgba(var(--offline-neon-rgb), 0.15);
+  padding: 4px 8px;
+  text-align: left;
+}
+
+.chat-message--assistant .chat-message-bubble th {
+  background: rgba(var(--offline-neon-rgb), 0.06);
+  font-weight: 600;
 }
 
 /* --------------------------------------------------------------------------

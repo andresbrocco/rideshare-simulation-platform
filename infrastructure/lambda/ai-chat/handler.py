@@ -55,6 +55,11 @@ try:
 except ImportError:
     llm_adapter = types.ModuleType("llm_adapter")
 
+try:
+    import prompt_config
+except ImportError:
+    prompt_config = types.ModuleType("prompt_config")
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -102,7 +107,8 @@ def _build_system_prompt() -> str:
 
     docs_path = pathlib.Path(__file__).parent / "docs" / DOCS_FILENAME
     docs_content = docs_path.read_text(encoding="utf-8")
-    _SYSTEM_PROMPT = f"<documentation>\n{docs_content}\n</documentation>"
+    prefix = getattr(prompt_config, "PROMPT_PREFIX", "")
+    _SYSTEM_PROMPT = f"{prefix}\n<documentation>\n{docs_content}\n</documentation>"
     return _SYSTEM_PROMPT
 
 

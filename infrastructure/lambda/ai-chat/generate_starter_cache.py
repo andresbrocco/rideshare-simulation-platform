@@ -46,6 +46,7 @@ from typing import Any
 import boto3
 
 from llm_adapter import get_provider
+from prompt_config import PROMPT_PREFIX
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -117,7 +118,7 @@ def _build_system_prompt(docs_content: str) -> str:
     Returns:
         System prompt string ready for the LLM provider.
     """
-    return f"<documentation>\n{docs_content}\n</documentation>"
+    return f"{PROMPT_PREFIX}\n<documentation>\n{docs_content}\n</documentation>"
 
 
 def _generate_responses(system_prompt: str, provider_name: str, model: str) -> dict[str, str]:
