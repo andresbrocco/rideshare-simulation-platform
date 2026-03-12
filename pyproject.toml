@@ -64,3 +64,9 @@ disallow_untyped_defs = true
 check_untyped_defs = true
 warn_redundant_casts = true
 warn_unused_ignores = true
+
+# ai-chat Lambda stub modules — not present in test environment by design.
+# The handler imports these with try/except ImportError so tests can patch them.
+[[tool.mypy.overrides]]
+module = ["session", "analytics", "budget", "starter_cache", "llm_adapter"]
+ignore_missing_imports = true

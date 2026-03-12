@@ -109,6 +109,13 @@ repos:
         files: ^schemas/lakehouse/(schemas|config|scripts)/.*\.py$
         pass_filenames: false
 
+      - id: mypy-ai-chat
+        name: mypy (ai-chat)
+        entry: bash -c 'cd infrastructure/lambda/ai-chat && ./venv/bin/mypy *.py'
+        language: system
+        files: ^infrastructure/lambda/ai-chat/.*\.py$
+        pass_filenames: false
+
       - id: frontend-lint-staged
         name: lint-staged (frontend)
         entry: bash -c 'cd services/control-panel && npx lint-staged'
