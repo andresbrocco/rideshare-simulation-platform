@@ -88,6 +88,12 @@ SECRETS: dict[str, dict[str, str]] = {
     "rideshare/github-pat": {
         "GITHUB_PAT": "ghp_localstack_placeholder_token_DO_NOT_USE_IN_PRODUCTION",
     },
+    "rideshare/llm-api-keys": {
+        "anthropic": "",
+        "openai": "",
+        "google": "",
+        "deepseek": "",
+    },
     "rideshare/trino-admin-password-hash": {
         "hash": bcrypt.hashpw(b"admin", bcrypt.gensalt()).decode(),
     },

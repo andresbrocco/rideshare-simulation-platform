@@ -2,6 +2,8 @@ import type {
   ChatErrorCode,
   ChatErrorResponse,
   CreateChatSessionResponse,
+  ListProvidersResponse,
+  ProviderInfo,
   SendChatMessageResponse,
 } from '../types/chat';
 
@@ -47,6 +49,21 @@ function isSendChatMessageResponse(data: unknown): data is SendChatMessageRespon
     data !== null &&
     typeof (data as SendChatMessageResponse).response === 'string' &&
     typeof (data as SendChatMessageResponse).turn_number === 'number'
+  );
+}
+
+function isListProvidersResponse(data: unknown): data is ListProvidersResponse {
+  if (typeof data !== 'object' || data === null) return false;
+  const obj = data as ListProvidersResponse;
+  return (
+    Array.isArray(obj.providers) &&
+    obj.providers.every(
+      (p: unknown) =>
+        typeof p === 'object' &&
+        p !== null &&
+        typeof (p as ProviderInfo).name === 'string' &&
+        typeof (p as ProviderInfo).default === 'boolean'
+    )
   );
 }
 
@@ -129,11 +146,25 @@ export async function createChatSession(visitorEmail?: string): Promise<CreateCh
 
 export async function sendChatMessage(
   sessionId: string,
-  message: string
+  message: string,
+  provider?: string
 ): Promise<SendChatMessageResponse> {
+  const payload: Record<string, unknown> = {
+    action: 'send-chat-message',
+    session_id: sessionId,
+    message,
+  };
+  if (provider) {
+    payload.provider = provider;
+  }
+
+  return callChatLambda(payload, isSendChatMessageResponse, 'Chat message service');
+}
+
+export async function listProviders(): Promise<ListProvidersResponse> {
   return callChatLambda(
-    { action: 'send-chat-message', session_id: sessionId, message },
-    isSendChatMessageResponse,
-    'Chat message service'
+    { action: 'list-providers' },
+    isListProvidersResponse,
+    'List providers service'
   );
 }

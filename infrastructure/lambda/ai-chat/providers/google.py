@@ -7,8 +7,6 @@ conversation message, which is the native pattern for Gemini models.
 The ``cached`` flag is set when ``usage_metadata.cached_content_token_count > 0``.
 """
 
-import os
-
 from google import genai
 from google.genai import types
 
@@ -22,8 +20,7 @@ class Provider(LLMProvider):
     """Google Gemini provider using the google-genai SDK.
 
     Args:
-        model: Gemini model identifier.  Defaults to ``gemini-2.5-flash`` when
-            the ``LLM_MODEL`` environment variable is not set.
+        model: Gemini model identifier.  Defaults to ``gemini-2.5-flash``.
     """
 
     def __init__(self, model: str = "") -> None:
@@ -47,8 +44,8 @@ class Provider(LLMProvider):
         Returns:
             LLMResponse with the assistant's reply and token counts.
         """
-        model = self._model or os.environ.get("LLM_MODEL", _DEFAULT_MODEL)
-        client = genai.Client(api_key=get_llm_api_key())
+        model = self._model or _DEFAULT_MODEL
+        client = genai.Client(api_key=get_llm_api_key("google"))
 
         genai_messages = [
             types.Content(

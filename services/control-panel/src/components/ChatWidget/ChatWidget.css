@@ -102,7 +102,7 @@
 .chat-panel-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   padding: 14px 16px;
   border-bottom: 1px solid rgba(var(--offline-neon-rgb), 0.1);
   background: rgba(var(--offline-neon-rgb), 0.03);
@@ -110,6 +110,7 @@
 }
 
 .chat-panel-title {
+  flex: 1;
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--offline-neon);
@@ -144,6 +145,44 @@
 .chat-panel-close:focus-visible {
   outline: 2px solid var(--offline-neon);
   outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Provider dropdown
+   -------------------------------------------------------------------------- */
+
+.chat-provider-select {
+  appearance: none;
+  background: var(--offline-bg);
+  border: 1px solid rgba(var(--offline-neon-rgb), 0.18);
+  border-radius: 6px;
+  color: var(--offline-text-subtle);
+  font-family: inherit;
+  font-size: 0.75rem;
+  padding: 4px 24px 4px 8px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2300ff88' opacity='0.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+
+.chat-provider-select:focus {
+  outline: none;
+  border-color: rgba(var(--offline-neon-rgb), 0.5);
+  box-shadow: 0 0 0 2px rgba(var(--offline-neon-rgb), 0.1);
+}
+
+.chat-provider-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.chat-provider-label {
+  font-size: 0.75rem;
+  color: var(--offline-text-dimmest);
 }
 
 /* --------------------------------------------------------------------------

@@ -225,18 +225,15 @@ class TestLogTurnCachedResponse:
         assert record["cached"] is True
 
     def test_log_turn_non_cached_model_name(self) -> None:
-        """Non-cached responses use the LLM_MODEL env var as the model field."""
+        """Non-cached responses use the provider parameter as the model field."""
         mock_client = MagicMock()
         mock_client.put_object.return_value = {}
-        import os
 
-        with (
-            patch("analytics._get_s3_client", return_value=mock_client),
-            patch.dict(os.environ, {"LLM_MODEL": "claude-sonnet-4-20250514"}),
-        ):
-            analytics.log_turn(**_default_kwargs(from_cache=False))
+        with patch("analytics._get_s3_client", return_value=mock_client):
+            analytics.log_turn(**_default_kwargs(from_cache=False), provider="anthropic")
 
         call_kwargs = mock_client.put_object.call_args.kwargs
         record = json.loads(call_kwargs["Body"].strip())
-        assert record["model"] == "claude-sonnet-4-20250514"
+        assert record["model"] == "anthropic"
+        assert record["provider"] == "anthropic"
         assert record["cached"] is False

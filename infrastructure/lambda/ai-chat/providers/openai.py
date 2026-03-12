@@ -6,8 +6,6 @@ that exceed 1,024 tokens automatically — no special configuration is required.
 The ``cached`` flag is set when ``usage.prompt_tokens_details.cached_tokens > 0``.
 """
 
-import os
-
 import openai
 from openai.types.chat import ChatCompletionMessageParam
 
@@ -21,8 +19,7 @@ class Provider(LLMProvider):
     """OpenAI provider with automatic prompt caching.
 
     Args:
-        model: OpenAI model identifier.  Defaults to ``gpt-4.1-mini`` when
-            the ``LLM_MODEL`` environment variable is not set.
+        model: OpenAI model identifier.  Defaults to ``gpt-4.1-mini``.
     """
 
     def __init__(self, model: str = "") -> None:
@@ -45,8 +42,8 @@ class Provider(LLMProvider):
         Returns:
             LLMResponse with the assistant's reply and token counts.
         """
-        model = self._model or os.environ.get("LLM_MODEL", _DEFAULT_MODEL)
-        client = openai.OpenAI(api_key=get_llm_api_key())
+        model = self._model or _DEFAULT_MODEL
+        client = openai.OpenAI(api_key=get_llm_api_key("openai"))
 
         all_messages: list[ChatCompletionMessageParam] = [
             {"role": "system", "content": system_prompt},

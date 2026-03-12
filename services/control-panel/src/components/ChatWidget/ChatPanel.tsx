@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react';
+import type { ProviderInfo } from '../../types/chat';
 import type { ChatMessageData } from './ChatMessage';
 import { ChatMessage } from './ChatMessage';
 import { CtaButtons } from './CtaButtons';
+import { ProviderDropdown } from './ProviderDropdown';
 
 const STARTER_QUESTIONS = [
   'What is the architecture of this platform?',
@@ -20,6 +22,9 @@ interface ChatPanelProps {
   onClose: () => void;
   showCta: boolean;
   onCtaDismissed: () => void;
+  providers: ProviderInfo[];
+  selectedProvider: string;
+  onProviderChange: (provider: string) => void;
 }
 
 export function ChatPanel({
@@ -32,6 +37,9 @@ export function ChatPanel({
   onClose,
   showCta,
   onCtaDismissed,
+  providers,
+  selectedProvider,
+  onProviderChange,
 }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -57,6 +65,14 @@ export function ChatPanel({
     <div className="chat-panel">
       <div className="chat-panel-header">
         <span className="chat-panel-title">Ask about this project</span>
+        {providers.length > 0 && (
+          <ProviderDropdown
+            providers={providers}
+            selectedProvider={selectedProvider}
+            onProviderChange={onProviderChange}
+            disabled={isLoading}
+          />
+        )}
         <button
           type="button"
           className="chat-panel-close"

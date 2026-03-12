@@ -237,13 +237,13 @@ module "lambda_ai_chat" {
 
   environment_variables = {
     LLM_PROVIDER     = "anthropic"
-    LLM_MODEL        = "claude-sonnet-4-20250514"
     DAILY_BUDGET_USD = "5.00"
     AI_CHAT_BUCKET   = module.s3.ai_chat_bucket_name
   }
 
   secrets_arns = [
     module.secrets_manager.secret_arns["llm_api_key"],
+    module.secrets_manager.secret_arns["llm_api_keys"],
   ]
 
   s3_bucket_arns   = [module.s3.ai_chat_bucket_arn]

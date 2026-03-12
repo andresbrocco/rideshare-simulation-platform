@@ -52,6 +52,7 @@ def log_turn(
     output_tokens: int,
     cost_usd: float,
     from_cache: bool,
+    provider: str = "",
     has_visitor_email: bool = False,
 ) -> None:
     """Write a single conversation turn as a JSONL record to S3.
@@ -74,6 +75,7 @@ def log_turn(
         output_tokens: Output tokens generated (0 for cached responses).
         cost_usd: Estimated cost in USD (0.0 for cached responses).
         from_cache: True when the response came from the starter cache.
+        provider: LLM provider name (e.g. "anthropic", "openai").
         has_visitor_email: True when the session has a visitor email on file.
     """
     try:
@@ -81,7 +83,7 @@ def log_turn(
         year = timestamp[:4]
         month = timestamp[5:7]
 
-        model = "cache" if from_cache else os.environ.get("LLM_MODEL", "unknown")
+        model = "cache" if from_cache else provider
 
         record: dict[str, Any] = {
             "timestamp": timestamp,
@@ -93,6 +95,7 @@ def log_turn(
             "output_tokens": output_tokens,
             "cost_usd": cost_usd,
             "model": model,
+            "provider": provider,
             "cached": from_cache,
             "has_visitor_email": has_visitor_email,
         }

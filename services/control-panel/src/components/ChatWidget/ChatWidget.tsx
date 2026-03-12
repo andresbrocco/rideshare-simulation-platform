@@ -1,6 +1,12 @@
-import { useState } from 'react';
-import { createChatSession, sendChatMessage, ChatServiceError } from '../../services/chat';
+import { useState, useEffect } from 'react';
+import {
+  createChatSession,
+  sendChatMessage,
+  listProviders,
+  ChatServiceError,
+} from '../../services/chat';
 import type { ChatServiceErrorCode } from '../../services/chat';
+import type { ProviderInfo } from '../../types/chat';
 import { ChatButton } from './ChatButton';
 import { ChatPanel } from './ChatPanel';
 import type { ChatMessageData } from './ChatMessage';
@@ -46,6 +52,22 @@ export function ChatWidget({ visitorEmail }: ChatWidgetProps) {
   const [inputValue, setInputValue] = useState('');
   const [ctaShown, setCtaShown] = useState(false);
   const [showCta, setShowCta] = useState(false);
+  const [providers, setProviders] = useState<ProviderInfo[]>([]);
+  const [selectedProvider, setSelectedProvider] = useState('');
+
+  useEffect(() => {
+    if (isOpen && providers.length === 0) {
+      listProviders()
+        .then((resp) => {
+          setProviders(resp.providers);
+          const defaultProvider = resp.providers.find((p) => p.default);
+          setSelectedProvider(defaultProvider?.name ?? resp.providers[0]?.name ?? '');
+        })
+        .catch(() => {
+          // Graceful degradation: no dropdown, provider omitted from requests
+        });
+    }
+  }, [isOpen, providers.length]);
 
   function generateId(): string {
     return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -77,7 +99,11 @@ export function ChatWidget({ visitorEmail }: ChatWidgetProps) {
 
       let messageResponse;
       try {
-        messageResponse = await sendChatMessage(activeSessionId, text);
+        messageResponse = await sendChatMessage(
+          activeSessionId,
+          text,
+          selectedProvider || undefined
+        );
       } catch (sendErr) {
         if (
           sendErr instanceof ChatServiceError &&
@@ -88,7 +114,11 @@ export function ChatWidget({ visitorEmail }: ChatWidgetProps) {
           activeSessionId = retrySession.session_id;
           setSessionId(activeSessionId);
           // If retry also throws, propagate to outer catch
-          messageResponse = await sendChatMessage(activeSessionId, text);
+          messageResponse = await sendChatMessage(
+            activeSessionId,
+            text,
+            selectedProvider || undefined
+          );
         } else {
           throw sendErr;
         }
@@ -137,6 +167,9 @@ export function ChatWidget({ visitorEmail }: ChatWidgetProps) {
           onClose={() => setIsOpen(false)}
           showCta={showCta}
           onCtaDismissed={() => setShowCta(false)}
+          providers={providers}
+          selectedProvider={selectedProvider}
+          onProviderChange={setSelectedProvider}
         />
       ) : (
         <ChatButton onClick={() => setIsOpen(true)} />

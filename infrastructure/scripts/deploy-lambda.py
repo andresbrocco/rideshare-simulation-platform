@@ -67,8 +67,7 @@ FUNCTIONS: list[FunctionConfig] = [
             "/app/ai-chat-docs/AI-CHAT-CONTEXT.md": "docs/AI-CHAT-CONTEXT.md",
         },
         environment={
-            "LLM_PROVIDER": "mock",
-            "LLM_MODEL": "",
+            "LLM_PROVIDER": os.environ.get("LLM_PROVIDER", "mock"),
             "DAILY_BUDGET_USD": "5.00",
             "AI_CHAT_BUCKET": "rideshare-ai-chat",
         },

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Mock } from 'vitest';
-import { createChatSession, sendChatMessage, ChatServiceError } from '../chat';
+import { createChatSession, sendChatMessage, listProviders, ChatServiceError } from '../chat';
 
 describe('Chat Service', () => {
   beforeEach(() => {
@@ -112,6 +112,91 @@ describe('Chat Service', () => {
         expect((error as ChatServiceError).code).toBe('INVALID_SESSION');
         expect((error as ChatServiceError).message).toBe('Session not found or expired.');
       }
+    });
+  });
+
+  describe('listProviders', () => {
+    it('returns provider list on success', async () => {
+      const providersPayload = {
+        providers: [
+          { name: 'anthropic', default: true },
+          { name: 'openai', default: false },
+        ],
+      };
+
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => providersPayload,
+      });
+
+      const result = await listProviders();
+
+      expect(result).toEqual(providersPayload);
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://chat-lambda.example.com',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ action: 'list-providers' }),
+        })
+      );
+    });
+
+    it('throws NETWORK_ERROR on fetch failure', async () => {
+      (global.fetch as Mock).mockRejectedValueOnce(new Error('Connection refused'));
+
+      try {
+        await listProviders();
+        expect.fail('should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ChatServiceError);
+        expect((error as ChatServiceError).code).toBe('NETWORK_ERROR');
+        expect((error as ChatServiceError).message).toBe('List providers service unavailable');
+      }
+    });
+  });
+
+  describe('sendChatMessage with provider', () => {
+    it('includes provider in request body when provided', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ response: 'Hello!', turn_number: 1 }),
+      });
+
+      await sendChatMessage('session-abc', 'Hello', 'openai');
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://chat-lambda.example.com',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'send-chat-message',
+            session_id: 'session-abc',
+            message: 'Hello',
+            provider: 'openai',
+          }),
+        })
+      );
+    });
+
+    it('omits provider from request body when not provided', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ response: 'Hello!', turn_number: 1 }),
+      });
+
+      await sendChatMessage('session-abc', 'Hello');
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://chat-lambda.example.com',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'send-chat-message',
+            session_id: 'session-abc',
+            message: 'Hello',
+          }),
+        })
+      );
     });
   });
 

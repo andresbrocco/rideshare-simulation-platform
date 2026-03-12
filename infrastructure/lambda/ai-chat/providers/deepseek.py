@@ -8,8 +8,6 @@ non-standard extension to the OpenAI response schema).  The ``cached`` flag
 is set when that field is greater than zero.
 """
 
-import os
-
 import openai
 from openai.types.chat import ChatCompletionMessageParam
 
@@ -24,8 +22,7 @@ class Provider(LLMProvider):
     """DeepSeek provider using the OpenAI SDK with a custom base URL.
 
     Args:
-        model: DeepSeek model identifier.  Defaults to ``deepseek-chat`` when
-            the ``LLM_MODEL`` environment variable is not set.
+        model: DeepSeek model identifier.  Defaults to ``deepseek-chat``.
     """
 
     def __init__(self, model: str = "") -> None:
@@ -50,9 +47,9 @@ class Provider(LLMProvider):
         Returns:
             LLMResponse with the assistant's reply and token counts.
         """
-        model = self._model or os.environ.get("LLM_MODEL", _DEFAULT_MODEL)
+        model = self._model or _DEFAULT_MODEL
         client = openai.OpenAI(
-            api_key=get_llm_api_key(),
+            api_key=get_llm_api_key("deepseek"),
             base_url=_BASE_URL,
         )
 

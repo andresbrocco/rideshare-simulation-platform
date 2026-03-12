@@ -8,8 +8,6 @@ reduce input token cost by roughly 90%.
 The ``cached`` flag is set when ``usage.cache_read_input_tokens > 0``.
 """
 
-import os
-
 import anthropic
 from anthropic.types import MessageParam, TextBlock
 
@@ -23,8 +21,7 @@ class Provider(LLMProvider):
     """Anthropic Claude provider with prompt caching.
 
     Args:
-        model: Anthropic model identifier.  Defaults to ``claude-sonnet-4-20250514``
-            when the ``LLM_MODEL`` environment variable is not set.
+        model: Anthropic model identifier.  Defaults to ``claude-sonnet-4-20250514``.
     """
 
     def __init__(self, model: str = "") -> None:
@@ -47,8 +44,8 @@ class Provider(LLMProvider):
         Returns:
             LLMResponse with the assistant's reply and token counts.
         """
-        model = self._model or os.environ.get("LLM_MODEL", _DEFAULT_MODEL)
-        client = anthropic.Anthropic(api_key=get_llm_api_key())
+        model = self._model or _DEFAULT_MODEL
+        client = anthropic.Anthropic(api_key=get_llm_api_key("anthropic"))
 
         # Cast to the SDK's typed param list so mypy is satisfied.
         typed_messages: list[MessageParam] = [

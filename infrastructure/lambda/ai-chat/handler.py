@@ -60,6 +60,11 @@ try:
 except ImportError:
     prompt_config = types.ModuleType("prompt_config")
 
+try:
+    import _secrets
+except ImportError:
+    _secrets = types.ModuleType("_secrets")
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -166,27 +171,47 @@ def _error_response(status_code: int, error_code: str, message: str) -> dict[str
 # ---------------------------------------------------------------------------
 
 
-def _estimate_cost(input_tokens: int, output_tokens: int) -> float:
+_PRICING: dict[str, tuple[float, float]] = {
+    "anthropic": (3.0, 15.0),
+    "openai": (0.40, 1.60),
+    "google": (0.15, 0.60),
+    "deepseek": (0.27, 1.10),
+}
+
+
+def _estimate_cost(provider: str, input_tokens: int, output_tokens: int) -> float:
     """Estimate LLM call cost in USD from token counts.
 
-    Uses a placeholder formula based on typical Anthropic pricing.
+    Uses per-provider pricing (input $/M, output $/M).
 
     Args:
+        provider: LLM provider name for pricing lookup.
         input_tokens: Number of input/prompt tokens consumed.
         output_tokens: Number of output/completion tokens generated.
 
     Returns:
         Estimated cost in USD.
     """
-    # Placeholder pricing: $3/M input, $15/M output (Claude 3.5 Sonnet approximate)
-    input_cost = input_tokens * 3.0 / 1_000_000
-    output_cost = output_tokens * 15.0 / 1_000_000
+    input_rate, output_rate = _PRICING.get(provider, (3.0, 15.0))
+    input_cost = input_tokens * input_rate / 1_000_000
+    output_cost = output_tokens * output_rate / 1_000_000
     return input_cost + output_cost
 
 
 # ---------------------------------------------------------------------------
 # Action handlers
 # ---------------------------------------------------------------------------
+
+
+def _handle_list_providers() -> dict[str, Any]:
+    """Handle the list-providers action.
+
+    Returns:
+        Dict with a ``providers`` list, each entry having ``name`` and ``default`` fields.
+    """
+    available = _secrets.get_available_providers()
+    default = os.environ.get("LLM_PROVIDER", "anthropic")
+    return {"providers": [{"name": p, "default": p == default} for p in available if p != "mock"]}
 
 
 def _handle_create_chat_session(body: dict[str, Any]) -> dict[str, Any]:
@@ -229,7 +254,19 @@ def _handle_send_chat_message(body: dict[str, Any]) -> tuple[int, dict[str, Any]
     bucket = os.environ.get("AI_CHAT_BUCKET", "")
     daily_budget = float(os.environ.get("DAILY_BUDGET_USD", "5.00"))
     llm_provider_name = os.environ.get("LLM_PROVIDER", "anthropic")
-    llm_model = os.environ.get("LLM_MODEL", "unknown")
+
+    # Resolve provider: request body overrides env var default
+    requested_provider: str = body.get("provider", "")
+    if requested_provider:
+        available = _secrets.get_available_providers()
+        if requested_provider not in available:
+            return 400, {
+                "error": "INVALID_PROVIDER",
+                "message": f"Provider '{requested_provider}' is not available.",
+            }
+        resolved_provider = requested_provider
+    else:
+        resolved_provider = llm_provider_name
 
     # 1. Validate message
     if not message or not message.strip():
@@ -268,8 +305,11 @@ def _handle_send_chat_message(body: dict[str, Any]) -> tuple[int, dict[str, Any]
     new_turn_number = turn_number + 1
     response_text: str
 
-    # 5. Check starter cache
-    cached_response: str | None = starter_cache.get_cached_response(message=message)
+    # 5. Check starter cache (only for default provider)
+    default_provider = os.environ.get("LLM_PROVIDER", "anthropic")
+    cached_response: str | None = None
+    if resolved_provider == default_provider:
+        cached_response = starter_cache.get_cached_response(message=message)
     if cached_response is not None:
         response_text = cached_response
         input_tokens = 0
@@ -280,7 +320,7 @@ def _handle_send_chat_message(body: dict[str, Any]) -> tuple[int, dict[str, Any]
         # 6. Call LLM with system prompt
         try:
             system_prompt = _build_system_prompt()
-            provider = llm_adapter.get_provider(provider=llm_provider_name, model=llm_model)
+            provider = llm_adapter.get_provider(provider=resolved_provider, model="")
             messages = list(session_data.get("messages", []))
             messages.append({"role": "user", "content": message})
             llm_resp = provider.complete(system_prompt=system_prompt, messages=messages)
@@ -294,7 +334,7 @@ def _handle_send_chat_message(body: dict[str, Any]) -> tuple[int, dict[str, Any]
         response_text = llm_resp.text
         input_tokens = llm_resp.input_tokens
         output_tokens = llm_resp.output_tokens
-        cost = _estimate_cost(input_tokens, output_tokens)
+        cost = _estimate_cost(resolved_provider, input_tokens, output_tokens)
         llm_was_called = True
 
     # 7. Update session
@@ -317,12 +357,14 @@ def _handle_send_chat_message(body: dict[str, Any]) -> tuple[int, dict[str, Any]
         output_tokens=output_tokens if llm_was_called else 0,
         cost_usd=cost if llm_was_called else 0.0,
         from_cache=not llm_was_called,
+        provider=resolved_provider,
     )
 
     # 9. Return response
     return 200, {
         "response": response_text,
         "turn_number": new_turn_number,
+        "provider": resolved_provider,
     }
 
 
@@ -365,6 +407,9 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
             status_code, body = _handle_send_chat_message(event)
             return body
 
+        if action == "list-providers":
+            return _handle_list_providers()
+
         # Unknown action — return error dict (no HTTP envelope)
         return {"error": "UNKNOWN_ACTION", "message": f"Unknown action: '{action}'"}
 
@@ -387,6 +432,10 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         if action_str == "send-chat-message":
             status_code, response_body = _handle_send_chat_message(body)
             return _http_response(status_code, response_body)
+
+        if action_str == "list-providers":
+            result = _handle_list_providers()
+            return _http_response(200, result)
 
         return _error_response(400, "UNKNOWN_ACTION", f"Unknown action: '{action_str}'")
 

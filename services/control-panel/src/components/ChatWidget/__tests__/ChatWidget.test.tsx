@@ -12,6 +12,7 @@ import { ChatServiceError } from '../../../services/chat';
 vi.mock('../../../services/chat', () => ({
   createChatSession: vi.fn(),
   sendChatMessage: vi.fn(),
+  listProviders: vi.fn().mockResolvedValue({ providers: [] }),
   ChatServiceError: class ChatServiceError extends Error {
     code: string;
     constructor(message: string, code: string) {
@@ -24,6 +25,7 @@ vi.mock('../../../services/chat', () => ({
 
 const mockCreateChatSession = vi.mocked(chatService.createChatSession);
 const mockSendChatMessage = vi.mocked(chatService.sendChatMessage);
+const mockListProviders = vi.mocked(chatService.listProviders);
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -136,7 +138,8 @@ describe('ChatWidget', () => {
       expect(mockCreateChatSession).toHaveBeenCalledOnce();
       expect(mockSendChatMessage).toHaveBeenCalledWith(
         'session-123',
-        'What is the architecture of this platform?'
+        'What is the architecture of this platform?',
+        undefined
       );
     });
   });
@@ -423,6 +426,116 @@ describe('ChatWidget', () => {
 
       expect(screen.queryByText(CTA_TEXT)).not.toBeInTheDocument();
       expect(screen.queryByTestId('cta-buttons')).not.toBeInTheDocument();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Provider dropdown tests
+  // -------------------------------------------------------------------------
+
+  describe('provider dropdown', () => {
+    const TWO_PROVIDERS = {
+      providers: [
+        { name: 'anthropic', default: true },
+        { name: 'openai', default: false },
+      ],
+    };
+
+    it('test_provider_dropdown_appears_after_opening_panel', async () => {
+      mockListProviders.mockResolvedValueOnce(TWO_PROVIDERS);
+
+      const user = userEvent.setup();
+      render(<ChatWidget visitorEmail={null} />);
+      await user.click(screen.getByRole('button', { name: /open chat/i }));
+
+      await waitFor(() => {
+        expect(screen.getByRole('combobox', { name: /select llm provider/i })).toBeInTheDocument();
+      });
+
+      // Should have 2 options
+      const select = screen.getByRole('combobox', { name: /select llm provider/i });
+      const options = select.querySelectorAll('option');
+      expect(options).toHaveLength(2);
+    });
+
+    it('test_dropdown_disabled_while_loading', async () => {
+      mockListProviders.mockResolvedValueOnce(TWO_PROVIDERS);
+      // Keep createChatSession pending so loading stays true
+      mockCreateChatSession.mockImplementation(() => new Promise<{ session_id: string }>(() => {}));
+
+      const user = userEvent.setup();
+      render(<ChatWidget visitorEmail={null} />);
+      await user.click(screen.getByRole('button', { name: /open chat/i }));
+
+      // Wait for providers to load
+      await waitFor(() => {
+        expect(screen.getByRole('combobox', { name: /select llm provider/i })).toBeInTheDocument();
+      });
+
+      // Send a message to trigger loading state
+      const textarea = screen.getByRole('textbox');
+      await user.type(textarea, 'Hello');
+      await user.click(screen.getByRole('button', { name: /send/i }));
+
+      // Dropdown should be disabled while loading
+      const select = screen.getByRole('combobox', { name: /select llm provider/i });
+      expect(select).toBeDisabled();
+    });
+
+    it('test_selected_provider_passed_to_sendChatMessage', async () => {
+      mockListProviders.mockResolvedValueOnce(TWO_PROVIDERS);
+      mockCreateChatSession.mockResolvedValueOnce({ session_id: 'session-prov' });
+      mockSendChatMessage.mockResolvedValueOnce({ response: 'From OpenAI', turn_number: 1 });
+
+      const user = userEvent.setup();
+      render(<ChatWidget visitorEmail={null} />);
+      await user.click(screen.getByRole('button', { name: /open chat/i }));
+
+      // Wait for providers to load
+      await waitFor(() => {
+        expect(screen.getByRole('combobox', { name: /select llm provider/i })).toBeInTheDocument();
+      });
+
+      // Select the non-default provider
+      const select = screen.getByRole('combobox', { name: /select llm provider/i });
+      await user.selectOptions(select, 'openai');
+
+      // Send a message
+      const textarea = screen.getByRole('textbox');
+      await user.type(textarea, 'Hello');
+      await user.click(screen.getByRole('button', { name: /send/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText('From OpenAI')).toBeInTheDocument();
+      });
+
+      expect(mockSendChatMessage).toHaveBeenCalledWith('session-prov', 'Hello', 'openai');
+    });
+
+    it('test_widget_works_gracefully_when_listProviders_fails', async () => {
+      mockListProviders.mockRejectedValueOnce(new Error('Service unavailable'));
+      setupSuccessfulChat();
+
+      const user = userEvent.setup();
+      render(<ChatWidget visitorEmail={null} />);
+      await user.click(screen.getByRole('button', { name: /open chat/i }));
+
+      // No dropdown should appear
+      await waitFor(() => {
+        expect(screen.getByRole('log')).toBeInTheDocument();
+      });
+      expect(
+        screen.queryByRole('combobox', { name: /select llm provider/i })
+      ).not.toBeInTheDocument();
+
+      // Widget should still work for sending messages
+      const textarea = screen.getByRole('textbox');
+      await user.type(textarea, 'Hello');
+      await user.click(screen.getByRole('button', { name: /send/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText('Hello from assistant')).toBeInTheDocument();
+      });
     });
   });
 });

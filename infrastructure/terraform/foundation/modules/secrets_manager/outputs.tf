@@ -9,6 +9,7 @@ output "secret_arns" {
     rds           = aws_secretsmanager_secret.rds.arn
     admin_user    = aws_secretsmanager_secret.admin_user.arn
     llm_api_key   = aws_secretsmanager_secret.llm_api_key.arn
+    llm_api_keys  = aws_secretsmanager_secret.llm_api_keys.arn
   }
 }
 
@@ -23,6 +24,7 @@ output "secret_names" {
     rds           = aws_secretsmanager_secret.rds.name
     admin_user    = aws_secretsmanager_secret.admin_user.name
     llm_api_key   = aws_secretsmanager_secret.llm_api_key.name
+    llm_api_keys  = aws_secretsmanager_secret.llm_api_keys.name
   }
 }
 

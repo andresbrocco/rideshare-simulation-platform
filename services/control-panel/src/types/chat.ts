@@ -26,6 +26,16 @@ export interface CreateChatSessionResponse {
 export interface SendChatMessageResponse {
   response: string;
   turn_number: number;
+  provider?: string;
+}
+
+export interface ProviderInfo {
+  name: string;
+  default: boolean;
+}
+
+export interface ListProvidersResponse {
+  providers: ProviderInfo[];
 }
 
 // ---------------------------------------------------------------------------
@@ -38,6 +48,7 @@ export type ChatErrorCode =
   | 'TURN_LIMIT_EXCEEDED'
   | 'INVALID_SESSION'
   | 'BUDGET_EXCEEDED'
+  | 'INVALID_PROVIDER'
   | 'LLM_ERROR'
   | 'UNKNOWN_ACTION'
   | 'INTERNAL_ERROR';

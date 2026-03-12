@@ -245,6 +245,31 @@ resource "aws_secretsmanager_secret_version" "llm_api_key" {
   }
 }
 
+# Secret: rideshare/llm-api-keys (multi-provider)
+resource "aws_secretsmanager_secret" "llm_api_keys" {
+  name        = "${var.project_name}/llm-api-keys"
+  description = "LLM provider API keys for ai-chat Lambda (multi-provider)"
+
+  tags = {
+    Name = "${var.project_name}/llm-api-keys"
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "llm_api_keys" {
+  secret_id = aws_secretsmanager_secret.llm_api_keys.id
+
+  secret_string = jsonencode({
+    anthropic = ""
+    openai    = ""
+    google    = ""
+    deepseek  = ""
+  })
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
+}
+
 # Note: rideshare/trino-admin-password-hash and rideshare/trino-visitor-password-hash
 # are managed outside Terraform. The admin hash is created by the deploy workflow
 # and the visitor hash is created by the provisioning Lambda on first visitor signup.

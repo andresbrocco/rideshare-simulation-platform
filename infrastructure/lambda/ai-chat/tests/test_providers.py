@@ -555,29 +555,30 @@ class TestAllProvidersReturnLLMResponse:
 
 
 class TestSecretsManagerCaching:
-    """Verify get_llm_api_key() caches the key after the first Secrets Manager call."""
+    """Verify get_llm_api_key() caches the keys after the first Secrets Manager call."""
 
     def test_secrets_manager_called_only_once(self) -> None:
         """Multiple calls to get_llm_api_key() hit Secrets Manager only once."""
         import _secrets
 
         # Reset the module-level cache to simulate a fresh container
-        original = _secrets._LLM_API_KEY
-        _secrets._LLM_API_KEY = None
+        original = _secrets._LLM_API_KEYS
+        _secrets._LLM_API_KEYS = None
 
         mock_sm_client = MagicMock()
         mock_sm_client.get_secret_value.return_value = {
-            "SecretString": '{"LLM_API_KEY": "cached-key-value"}'
+            "SecretString": '{"anthropic": "cached-key-value", "openai": "other-key"}'
         }
 
         with patch("_secrets.boto3.client", return_value=mock_sm_client):
-            key1 = _secrets.get_llm_api_key()
-            key2 = _secrets.get_llm_api_key()
-            key3 = _secrets.get_llm_api_key()
+            key1 = _secrets.get_llm_api_key("anthropic")
+            key2 = _secrets.get_llm_api_key("anthropic")
+            key3 = _secrets.get_llm_api_key("openai")
 
-        assert key1 == key2 == key3 == "cached-key-value"
+        assert key1 == key2 == "cached-key-value"
+        assert key3 == "other-key"
         # Secrets Manager should only have been called once
         assert mock_sm_client.get_secret_value.call_count == 1
 
         # Restore original state
-        _secrets._LLM_API_KEY = original
+        _secrets._LLM_API_KEYS = original
