@@ -1092,10 +1092,6 @@ export function LandingPage({
           </section>
 
           <footer className="landing-footer">
-            <p className="landing-footer-note">
-              The platform is deployed on-demand for demonstrations and interviews to minimize cloud
-              costs.
-            </p>
             <div className="landing-footer-actions">
               <a
                 href="https://github.com/andresbrocco/rideshare-simulation-platform"

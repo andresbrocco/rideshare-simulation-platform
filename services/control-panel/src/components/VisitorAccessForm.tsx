@@ -16,12 +16,11 @@ interface SuccessData {
 export default function VisitorAccessForm() {
   const [formState, setFormState] = useState<FormState>('idle');
   const [email, setEmail] = useState('');
-  const [consent, setConsent] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successData, setSuccessData] = useState<SuccessData | null>(null);
 
   const emailValid = EMAIL_REGEX.test(email);
-  const canSubmit = emailValid && consent;
+  const canSubmit = emailValid;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -84,15 +83,12 @@ export default function VisitorAccessForm() {
 
   return (
     <div className={styles.container}>
-      <h3 className={styles.formTitle}>Request Visitor Access</h3>
+      <h3 className={styles.formTitle}>Get your visitor access (free)</h3>
       <p className={styles.formDescription}>
-        Enter your email to receive credentials and explore the live platform.
+        Receive your credentials and explore the live platform.
       </p>
       <form onSubmit={handleSubmit} noValidate>
         <div className={styles.fieldGroup}>
-          <label htmlFor="visitor-email" className={styles.label}>
-            Email address
-          </label>
           <input
             id="visitor-email"
             type="email"
@@ -102,22 +98,8 @@ export default function VisitorAccessForm() {
             placeholder="you@example.com"
             disabled={formState === 'loading'}
             autoComplete="email"
+            aria-label="Email address"
           />
-        </div>
-        <div className={styles.consentRow}>
-          <input
-            id="visitor-consent"
-            type="checkbox"
-            className={styles.checkbox}
-            checked={consent}
-            onChange={(e) => setConsent(e.target.checked)}
-            disabled={formState === 'loading'}
-          />
-          <label htmlFor="visitor-consent" className={styles.consentLabel}>
-            I understand that by submitting this form I will receive a welcome email with temporary
-            credentials, my address will be stored for usage tracking, it will not be shared with
-            third parties, and I can request deletion by replying to that email.
-          </label>
         </div>
         <button
           type="submit"
@@ -126,6 +108,10 @@ export default function VisitorAccessForm() {
         >
           {formState === 'loading' ? 'Sending...' : 'Request Access'}
         </button>
+        <p className={styles.consentNote}>
+          By submitting, you'll receive credentials via email. Your address is stored for usage
+          tracking, never shared, and deletable on request.
+        </p>
       </form>
     </div>
   );

@@ -314,11 +314,6 @@ describe('Service cards with icons', () => {
 });
 
 describe('Footer', () => {
-  it('test_footer_renders_deployment_note', () => {
-    renderLandingPage();
-    expect(screen.getByText(/deployed on-demand for demonstrations/i)).toBeInTheDocument();
-  });
-
   it('test_footer_renders_github_link', () => {
     renderLandingPage();
     const link = screen.getByRole('link', { name: /View on GitHub/i });

@@ -27,14 +27,7 @@
 .fieldGroup {
   display: flex;
   flex-direction: column;
-  gap: 6px;
   margin-bottom: 12px;
-}
-
-.label {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--offline-text-muted);
 }
 
 .input {
@@ -61,32 +54,6 @@
   cursor: not-allowed;
 }
 
-.consentRow {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin-bottom: 14px;
-}
-
-.checkbox {
-  margin-top: 2px;
-  flex-shrink: 0;
-  cursor: pointer;
-  accent-color: var(--brand-green);
-}
-
-.checkbox:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.consentLabel {
-  font-size: 0.75rem;
-  color: var(--offline-text-muted);
-  line-height: 1.45;
-  cursor: pointer;
-}
-
 .submitButton {
   width: 100%;
   padding: 12px 24px;
@@ -111,6 +78,14 @@
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
+}
+
+.consentNote {
+  font-size: 0.72rem;
+  color: var(--offline-text-dimmest);
+  line-height: 1.45;
+  margin: 10px 0 0;
+  text-align: center;
 }
 
 /* ── Success state ─────────────────────────────────── */
