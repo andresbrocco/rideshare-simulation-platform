@@ -1032,14 +1032,15 @@ export function LandingPage({
           <section id="explore" className="landing-section landing-services">
             <h2>Explore the Platform</h2>
 
-            <VisitorAccessForm />
-
-            <DeployPanel
-              isLocal={isLocal}
-              apiKey={apiKey}
-              onNeedAuth={onNeedAuth}
-              onServiceHealthChange={onServiceHealthChange}
-            />
+            <div className="landing-explore-row">
+              <VisitorAccessForm />
+              <DeployPanel
+                isLocal={isLocal}
+                apiKey={apiKey}
+                onNeedAuth={onNeedAuth}
+                onServiceHealthChange={onServiceHealthChange}
+              />
+            </div>
 
             <div className="landing-services-grid">
               {getExternalServices(isLocal).map((s) => {
