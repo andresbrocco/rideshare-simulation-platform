@@ -52,8 +52,13 @@ function usePageRefresh(intervalMs: number) {
  */
 function LandingApp() {
   const [showLoginDialog, setShowLoginDialog] = useState(false);
-  const [apiKey, setApiKey] = useState<string | null>(null);
+  const [apiKey, setApiKey] = useState<string | null>(() => getApiKey());
   const [serviceHealth, setServiceHealth] = useState<ServiceHealthMap>(ALL_SERVICES_DOWN);
+
+  const handleSignOut = useCallback(() => {
+    clearSession();
+    setApiKey(null);
+  }, []);
 
   return (
     <div className="App landing-mode">
@@ -64,6 +69,7 @@ function LandingApp() {
         apiKey={apiKey}
         onNeedAuth={() => setShowLoginDialog(true)}
         onServiceHealthChange={setServiceHealth}
+        onSignOut={handleSignOut}
       />
       <LoginDialog
         open={showLoginDialog}
@@ -131,13 +137,17 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
 
   const [showLoginDialog, setShowLoginDialog] = useState(false);
 
+  const handleSignOut = useCallback(() => {
+    clearSession();
+    setApiKey(null);
+  }, []);
+
   // When apiClient detects a 401, clear state and show login
   useSessionExpiry(
     useCallback(() => {
-      clearSession();
-      setApiKey(null);
+      handleSignOut();
       setShowLoginDialog(true);
-    }, [])
+    }, [handleSignOut])
   );
   const [layerVisibility, setLayerVisibility] = useState<LayerVisibility>(DEFAULT_VISIBILITY);
   const [inspectedEntity, setInspectedEntity] = useState<InspectedEntity>(null);
@@ -276,6 +286,7 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
             onServiceHealthChange={() => {
               /* In dev mode, useApiHealth drives availability */
             }}
+            onSignOut={handleSignOut}
           />
           <LoginDialog
             open={showLoginDialog}

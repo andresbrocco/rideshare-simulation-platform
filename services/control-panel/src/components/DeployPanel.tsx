@@ -21,6 +21,7 @@ interface DeployPanelProps {
   apiKey: string | null;
   onNeedAuth: () => void;
   onServiceHealthChange: (health: ServiceHealthMap) => void;
+  onSessionUpdate?: (data: { panelState: string; remainingSeconds: number }) => void;
 }
 
 type PanelState = 'idle' | 'deploying' | 'active' | 'tearing-down' | 'expired' | 'error';
@@ -98,6 +99,7 @@ export default function DeployPanel({
   apiKey,
   onNeedAuth,
   onServiceHealthChange,
+  onSessionUpdate,
 }: DeployPanelProps) {
   const {
     enabled: notifyEnabled,
@@ -152,6 +154,11 @@ export default function DeployPanel({
   useEffect(() => {
     deployedAtRef.current = deployedAt;
   }, [deployedAt]);
+
+  // Bubble session state to parent
+  useEffect(() => {
+    onSessionUpdate?.({ panelState, remainingSeconds });
+  }, [panelState, remainingSeconds, onSessionUpdate]);
 
   // Cleanup on unmount
   useEffect(() => {

@@ -60,7 +60,9 @@ import Zoom from 'react-medium-image-zoom';
 import { ArchitectureDiagram } from './ArchitectureDiagram';
 import { TripLifecycleAnimation } from './TripLifecycleAnimation';
 import DeployPanel from './DeployPanel';
-import VisitorAccessForm from './VisitorAccessForm';
+import VisitorAccessDialog from './VisitorAccessDialog';
+import { getSessionEmail } from '../utils/auth';
+import { useRole } from '../hooks/useRole';
 
 const LINKEDIN_URL = 'https://www.linkedin.com/in/andresbrocco/';
 
@@ -538,9 +540,25 @@ const NAV_LABELS: Record<(typeof NAV_SECTIONS)[number], string> = {
 
 interface SectionNavProps {
   heroVisible: boolean;
+  apiKey: string | null;
+  email: string | null;
+  role: 'admin' | 'viewer' | null;
+  onSignIn: () => void;
+  onSignOut: () => void;
+  onGetAccess: () => void;
+  sessionCountdown: string | null;
 }
 
-function SectionNav({ heroVisible }: SectionNavProps) {
+function SectionNav({
+  heroVisible,
+  apiKey,
+  email,
+  role,
+  onSignIn,
+  onSignOut,
+  onGetAccess,
+  sessionCountdown,
+}: SectionNavProps) {
   const activeId = useActiveSection(NAV_SECTIONS);
 
   function handleNavClick(id: string) {
@@ -550,22 +568,55 @@ function SectionNav({ heroVisible }: SectionNavProps) {
     el.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'start' });
   }
 
+  const isAuthenticated = apiKey !== null;
+
   return (
     <nav
       className={`section-nav${heroVisible ? '' : ' section-nav--visible'}`}
       aria-label="Page sections"
     >
-      {NAV_SECTIONS.map((id) => (
-        <button
-          key={id}
-          className={`section-nav-btn${activeId === id ? ' section-nav-btn--active' : ''}`}
-          onClick={() => handleNavClick(id)}
-          type="button"
-          aria-current={activeId === id ? true : undefined}
-        >
-          {NAV_LABELS[id]}
-        </button>
-      ))}
+      <div className="section-nav-left">
+        {NAV_SECTIONS.map((id) => (
+          <button
+            key={id}
+            className={`section-nav-btn${activeId === id ? ' section-nav-btn--active' : ''}`}
+            onClick={() => handleNavClick(id)}
+            type="button"
+            aria-current={activeId === id ? true : undefined}
+          >
+            {NAV_LABELS[id]}
+          </button>
+        ))}
+      </div>
+      <div className="section-nav-right">
+        {isAuthenticated ? (
+          <>
+            {sessionCountdown && <span className="section-nav-timer">{sessionCountdown}</span>}
+            {email && (
+              <span className="section-nav-email" title={email}>
+                {email}
+              </span>
+            )}
+            {role && <span className="section-nav-role-badge">{role}</span>}
+            <button type="button" className="section-nav-auth-btn" onClick={onSignOut}>
+              Sign Out
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="section-nav-auth-btn section-nav-auth-btn--primary"
+              onClick={onGetAccess}
+            >
+              Get Access
+            </button>
+            <button type="button" className="section-nav-auth-btn" onClick={onSignIn}>
+              Sign In
+            </button>
+          </>
+        )}
+      </div>
     </nav>
   );
 }
@@ -588,6 +639,13 @@ interface LandingPageProps {
   apiKey: string | null;
   onNeedAuth: () => void;
   onServiceHealthChange: (health: ServiceHealthMap) => void;
+  onSignOut: () => void;
+}
+
+function formatCountdown(totalSeconds: number): string {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
 export function LandingPage({
@@ -596,8 +654,20 @@ export function LandingPage({
   apiKey,
   onNeedAuth,
   onServiceHealthChange,
+  onSignOut,
 }: LandingPageProps) {
   const [heroVisible, setHeroVisible] = useState(true);
+  const [showAccessDialog, setShowAccessDialog] = useState(false);
+  const [sessionInfo, setSessionInfo] = useState<{
+    panelState: string;
+    remainingSeconds: number;
+  } | null>(null);
+
+  const email = getSessionEmail();
+  const role = useRole();
+
+  const sessionCountdown =
+    sessionInfo?.panelState === 'active' ? formatCountdown(sessionInfo.remainingSeconds) : null;
 
   useEffect(() => {
     const hero = document.getElementById('hero');
@@ -629,7 +699,16 @@ export function LandingPage({
           </p>
         </div>
 
-        <SectionNav heroVisible={heroVisible} />
+        <SectionNav
+          heroVisible={heroVisible}
+          apiKey={apiKey}
+          email={email}
+          role={role}
+          onSignIn={onNeedAuth}
+          onSignOut={onSignOut}
+          onGetAccess={() => setShowAccessDialog(true)}
+          sessionCountdown={sessionCountdown}
+        />
 
         <TripLifecycleAnimation />
 
@@ -1032,13 +1111,13 @@ export function LandingPage({
           <section id="explore" className="landing-section landing-services">
             <h2>Explore the Platform</h2>
 
-            <div className="landing-explore-row">
-              <VisitorAccessForm />
+            <div className="landing-deploy-wrapper">
               <DeployPanel
                 isLocal={isLocal}
                 apiKey={apiKey}
                 onNeedAuth={onNeedAuth}
                 onServiceHealthChange={onServiceHealthChange}
+                onSessionUpdate={setSessionInfo}
               />
             </div>
 
@@ -1132,6 +1211,7 @@ export function LandingPage({
           </footer>
         </div>
       </div>
+      <VisitorAccessDialog open={showAccessDialog} onClose={() => setShowAccessDialog(false)} />
     </div>
   );
 }
