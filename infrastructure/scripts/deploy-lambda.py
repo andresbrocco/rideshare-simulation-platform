@@ -63,9 +63,7 @@ FUNCTIONS: list[FunctionConfig] = [
         name="ai-chat",
         handler_path="/app/lambda-ai-chat/handler.py",
         source_dir="/app/lambda-ai-chat",
-        extra_files={
-            "/app/ai-chat-docs/AI-CHAT-CONTEXT.md": "docs/AI-CHAT-CONTEXT.md",
-        },
+        extra_files={},
         environment={
             "LLM_PROVIDER": os.environ.get("LLM_PROVIDER", "mock"),
             "DAILY_BUDGET_USD": "5.00",

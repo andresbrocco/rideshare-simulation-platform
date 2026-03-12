@@ -583,7 +583,6 @@ services:
       - ../../infrastructure/scripts/deploy-lambda.py:/app/deploy-lambda.py:ro
       - ../../infrastructure/lambda/auth-deploy/handler.py:/app/lambda/handler.py:ro
       - ../../infrastructure/lambda/ai-chat:/app/lambda-ai-chat:ro
-      - ../../docs/AI-CHAT-CONTEXT.md:/app/ai-chat-docs/AI-CHAT-CONTEXT.md:ro
       - ../../infrastructure/scripts/provision_grafana_viewer.py:/app/lambda/provision_grafana_viewer.py:ro
       - ../../infrastructure/scripts/provision_airflow_viewer.py:/app/lambda/provision_airflow_viewer.py:ro
       - ../../infrastructure/scripts/provision_minio_visitor.py:/app/lambda/provision_minio_visitor.py:ro

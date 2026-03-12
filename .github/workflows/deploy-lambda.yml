@@ -126,3 +126,85 @@ jobs:
             --function-name rideshare-auth-deploy \
             --query '{State: Configuration.State, LastModified: Configuration.LastModified, CodeSha256: Configuration.CodeSha256}' \
             --output table
+
+      # ── ai-chat Lambda ──────────────────────────────────────────────
+
+      - name: Install ai-chat dependencies
+        working-directory: infrastructure/lambda/ai-chat
+        run: |
+          pip install -r requirements-anthropic.txt --target ./package --quiet
+
+      - name: Create ai-chat deployment package
+        working-directory: infrastructure/lambda/ai-chat
+        run: |
+          # Bundle installed dependencies at the zip root
+          cd ./package && zip -r /tmp/lambda-ai-chat.zip . && cd ..
+
+          # Add root-level .py files (excluding tests and conftest)
+          find . -maxdepth 1 -name "*.py" ! -name "test_*.py" ! -name "conftest.py" \
+            -exec zip -j /tmp/lambda-ai-chat.zip {} +
+
+          # Add providers/ subdirectory preserving structure
+          find ./providers -name "*.py" -exec zip /tmp/lambda-ai-chat.zip {} +
+
+          # Add docs/ subdirectory preserving structure
+          find ./docs -name "*.md" -exec zip /tmp/lambda-ai-chat.zip {} +
+
+      - name: Verify ai-chat package contents
+        run: |
+          echo "=== ai-chat package contents ==="
+          unzip -l /tmp/lambda-ai-chat.zip
+
+          verify_present() {
+            local file="$1"
+            if unzip -l /tmp/lambda-ai-chat.zip | grep -q "  ${file}$"; then
+              echo "OK: ${file}"
+            else
+              echo "MISSING: ${file}"
+              exit 1
+            fi
+          }
+
+          verify_present handler.py
+          verify_present session.py
+          verify_present llm_adapter.py
+          verify_present _secrets.py
+          verify_present providers/anthropic.py
+          verify_present providers/__init__.py
+          verify_present docs/AI-CHAT-CONTEXT.md
+
+          # No test files at root
+          if unzip -l /tmp/lambda-ai-chat.zip | awk '{print $NF}' | grep -vF '/' | grep -qE "test_.*\.py"; then
+            echo "UNEXPECTED root-level test files"
+            exit 1
+          else
+            echo "OK (no test files at root)"
+          fi
+
+          # No tests/ directory
+          if unzip -l /tmp/lambda-ai-chat.zip | awk '{print $NF}' | grep -qE '^tests/'; then
+            echo "UNEXPECTED: tests/ directory included"
+            exit 1
+          else
+            echo "OK (no tests/ directory)"
+          fi
+
+          echo "=== All ai-chat verification checks passed ==="
+
+      - name: Deploy ai-chat function code
+        run: |
+          aws lambda update-function-code \
+            --function-name rideshare-ai-chat \
+            --zip-file fileb:///tmp/lambda-ai-chat.zip
+
+      - name: Wait for ai-chat stabilization
+        run: |
+          aws lambda wait function-updated \
+            --function-name rideshare-ai-chat
+
+      - name: Verify ai-chat deployment
+        run: |
+          aws lambda get-function \
+            --function-name rideshare-ai-chat \
+            --query '{State: Configuration.State, LastModified: Configuration.LastModified, CodeSha256: Configuration.CodeSha256}' \
+            --output table

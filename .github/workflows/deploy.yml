@@ -707,12 +707,21 @@ jobs:
             --query 'FunctionUrl' --output text)
           echo "url=$URL" >> "$GITHUB_OUTPUT"
 
+      - name: Get Chat Lambda function URL
+        id: chat-lambda
+        run: |
+          URL=$(aws lambda get-function-url-config \
+            --function-name rideshare-ai-chat \
+            --query 'FunctionUrl' --output text)
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
       - name: Build React app with production environment variables
         working-directory: services/control-panel
         env:
           VITE_API_URL: https://api.ridesharing.portfolio.andresbrocco.com
           VITE_WS_URL: wss://api.ridesharing.portfolio.andresbrocco.com/ws
           VITE_LAMBDA_URL: ${{ steps.lambda.outputs.url }}
+          VITE_CHAT_LAMBDA_URL: ${{ steps.chat-lambda.outputs.url }}
         run: npm run build
 
       - name: Sync build output to S3
