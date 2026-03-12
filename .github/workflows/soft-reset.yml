@@ -63,30 +63,41 @@ jobs:
 
       # ── Phase 3: Stop Services ───────────────────────────────────────
 
-      - name: Scale down data producers
+      - name: Scale down all application services
         run: |
+          echo "=== Scaling down producers ==="
           kubectl scale deployment simulation stream-processor bronze-ingestion \
             -n rideshare-prod --replicas=0
 
-      - name: Scale down data pipeline
-        run: |
+          echo "=== Scaling down pipeline ==="
           if [ "$DBT_RUNNER" != "glue" ]; then
             kubectl scale deployment hive-metastore -n rideshare-prod --replicas=0
           fi
           kubectl scale deployment airflow-webserver airflow-scheduler trino \
             -n rideshare-prod --replicas=0
 
+          echo "=== Scaling down Redis ==="
+          kubectl scale deployment redis -n rideshare-prod --replicas=0
+
+          echo "=== Scaling down monitoring ==="
+          kubectl scale deployment prometheus loki tempo grafana otel-collector \
+            -n rideshare-prod --replicas=0
+
       - name: Wait for pods to terminate
         run: |
-          echo "Waiting for producer pods to terminate..."
-          kubectl wait --for=delete pod \
-            -l 'app in (simulation,stream-processor,bronze-ingestion)' \
-            -n rideshare-prod --timeout=120s 2>/dev/null || true
-
-          echo "Waiting for pipeline pods to terminate..."
-          kubectl wait --for=delete pod \
-            -l 'app in (hive-metastore,airflow-webserver,airflow-scheduler,trino)' \
-            -n rideshare-prod --timeout=120s 2>/dev/null || true
+          for LABEL in simulation stream-processor bronze-ingestion \
+                       hive-metastore airflow-webserver airflow-scheduler trino \
+                       redis prometheus loki tempo grafana otel-collector; do
+            if kubectl get pods -l "app=${LABEL}" -n rideshare-prod --no-headers 2>/dev/null | grep -q .; then
+              echo "Waiting for ${LABEL} pods to terminate..."
+              kubectl wait --for=delete pod -l "app=${LABEL}" \
+                -n rideshare-prod --timeout=120s 2>/dev/null \
+                || echo "::warning::${LABEL} pods did not terminate within 120s"
+            else
+              echo "${LABEL}: no pods found (already down)"
+            fi
+          done
+          echo "All application pods terminated or confirmed absent"
 
       # ── Phase 4: Wipe Kafka ──────────────────────────────────────────
 
@@ -94,7 +105,14 @@ jobs:
         run: kubectl scale statefulset kafka -n rideshare-prod --replicas=0
 
       - name: Wait for Kafka pod to terminate
-        run: kubectl wait --for=delete pod/kafka-0 -n rideshare-prod --timeout=120s 2>/dev/null || true
+        run: |
+          if kubectl get pod kafka-0 -n rideshare-prod --no-headers 2>/dev/null | grep -q .; then
+            echo "Waiting for kafka-0 to terminate..."
+            kubectl wait --for=delete pod/kafka-0 -n rideshare-prod --timeout=120s 2>/dev/null \
+              || echo "::warning::kafka-0 did not terminate within 120s"
+          else
+            echo "kafka-0 already absent"
+          fi
 
       - name: Delete Kafka PVC
         run: |
@@ -249,23 +267,52 @@ jobs:
 
       # ── Phase 7: Wipe Redis ──────────────────────────────────────────
 
-      - name: Flush Redis
+      - name: Redis data wiped (emptyDir)
         run: |
-          REDIS_PASSWORD=$(kubectl get secret app-credentials -n rideshare-prod \
-            -o jsonpath='{.data.REDIS_PASSWORD}' | base64 -d)
-          kubectl exec deploy/redis -n rideshare-prod -- \
-            redis-cli -a "$REDIS_PASSWORD" FLUSHALL
-          echo "Redis flushed"
+          echo "Redis uses emptyDir volume — data was destroyed when pod terminated in Phase 3"
+          echo "Fresh Redis will start with empty dataset in Phase 9"
 
       # ── Phase 8: Reset Monitoring ────────────────────────────────────
 
-      - name: Restart monitoring pods
+      - name: Monitoring data wiped (emptyDir)
         run: |
-          kubectl rollout restart deployment prometheus loki tempo grafana \
-            -n rideshare-prod
-          echo "Monitoring pods restarting (emptyDir volumes wiped)"
+          echo "All monitoring services use emptyDir volumes — data destroyed on scale-down:"
+          echo "  - Prometheus (/prometheus) — TSDB wiped"
+          echo "  - Loki (/loki) — local cache wiped (S3 backend retained)"
+          echo "  - Tempo (/var/tempo) — WAL wiped (S3 backend retained)"
+          echo "  - Grafana — dashboards restored from ConfigMaps on startup"
+          echo "  - OTel Collector — stateless, no persistent data"
+          echo "Fresh monitoring pods will start in Phase 9"
 
       # ── Phase 9: Restart & Scale Up ──────────────────────────────────
+
+      - name: Scale up monitoring
+        run: |
+          for SVC in prometheus loki tempo grafana; do
+            echo "Scaling up ${SVC}..."
+            kubectl scale deployment "${SVC}" -n rideshare-prod --replicas=1
+            echo "Waiting for ${SVC} (up to 3 min)..."
+            if ! kubectl wait --for=condition=available "deployment/${SVC}" \
+              -n rideshare-prod --timeout=180s; then
+              echo "::warning::${SVC} not ready within timeout — dumping diagnostics"
+              kubectl get pods -l "app=${SVC}" -n rideshare-prod -o wide
+              kubectl describe pod -l "app=${SVC}" -n rideshare-prod | tail -40
+              kubectl logs -l "app=${SVC}" -n rideshare-prod --all-containers --tail=30 || true
+              echo "Continuing — will be reconciled"
+            fi
+          done
+
+          echo "Scaling up otel-collector..."
+          kubectl scale deployment otel-collector -n rideshare-prod --replicas=1
+          echo "Waiting for otel-collector (up to 3 min)..."
+          if ! kubectl wait --for=condition=available deployment/otel-collector \
+            -n rideshare-prod --timeout=180s; then
+            echo "::warning::otel-collector not ready within timeout — dumping diagnostics"
+            kubectl get pods -l app=otel-collector -n rideshare-prod -o wide
+            kubectl describe pod -l app=otel-collector -n rideshare-prod | tail -40
+            kubectl logs -l app=otel-collector -n rideshare-prod --all-containers --tail=30 || true
+            echo "Continuing — will be reconciled"
+          fi
 
       - name: Restart schema-registry
         run: |
@@ -281,6 +328,19 @@ jobs:
             kubectl get pods -l app=schema-registry -n rideshare-prod -o wide
             kubectl describe pod -l app=schema-registry -n rideshare-prod | tail -40
             kubectl logs -l app=schema-registry -n rideshare-prod --all-containers --tail=30 || true
+            echo "Continuing — ArgoCD self-heal will reconcile"
+          fi
+
+      - name: Scale up Redis
+        run: |
+          kubectl scale deployment redis -n rideshare-prod --replicas=1
+          echo "Waiting for Redis (up to 2 min)..."
+          if ! kubectl wait --for=condition=available deployment/redis \
+            -n rideshare-prod --timeout=120s; then
+            echo "::warning::redis not ready within timeout — dumping diagnostics"
+            kubectl get pods -l app=redis -n rideshare-prod -o wide
+            kubectl describe pod -l app=redis -n rideshare-prod | tail -40
+            kubectl logs -l app=redis -n rideshare-prod --all-containers --tail=30 || true
             echo "Continuing — ArgoCD self-heal will reconcile"
           fi
 
@@ -346,6 +406,26 @@ jobs:
         run: |
           FAILED=0
 
+          echo "=== Checking monitoring ==="
+          for SVC in prometheus loki tempo grafana otel-collector; do
+            echo "Checking ${SVC}..."
+            if ! kubectl wait --for=condition=available "deployment/${SVC}" \
+              -n rideshare-prod --timeout=60s; then
+              echo "::warning::${SVC} not ready within timeout"
+              kubectl get pods -l "app=${SVC}" -n rideshare-prod -o wide
+              FAILED=$((FAILED + 1))
+            fi
+          done
+
+          echo "=== Checking Redis ==="
+          if ! kubectl wait --for=condition=available deployment/redis \
+            -n rideshare-prod --timeout=60s; then
+            echo "::warning::redis not ready within timeout"
+            kubectl get pods -l app=redis -n rideshare-prod -o wide
+            FAILED=$((FAILED + 1))
+          fi
+
+          echo "=== Checking producers ==="
           echo "Waiting for simulation..."
           if ! kubectl wait --for=condition=available deployment/simulation \
             -n rideshare-prod --timeout=600s; then
@@ -410,7 +490,7 @@ jobs:
           else
             echo "  - RDS metastore database (schema auto-initialized by Hive Metastore)"
           fi
-          echo "  - Redis (FLUSHALL)"
+          echo "  - Redis (emptyDir volume destroyed on scale-down)"
           echo "  - Monitoring data (Prometheus, Loki, Tempo metrics/logs/traces)"
           echo ""
           echo "PRESERVED:"
