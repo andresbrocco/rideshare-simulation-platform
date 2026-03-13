@@ -3,7 +3,8 @@
 
 Bronze Delta Lake tables written to S3 by bronze-ingestion are not
 automatically registered in Glue. This script creates the catalog entries
-so that dbt-glue Interactive Sessions can reference them as bronze.<table>.
+so that dbt-glue Interactive Sessions can reference them as
+rideshare_bronze.<table> (prefix controlled by GLUE_DATABASE_PREFIX).
 
 Usage:
     python3 register-glue-tables.py --layer bronze
@@ -19,6 +20,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+GLUE_DATABASE_PREFIX = os.getenv("GLUE_DATABASE_PREFIX", "rideshare")
 BRONZE_BUCKET = os.getenv("BRONZE_BUCKET", "rideshare-bronze")
 SILVER_BUCKET = os.getenv("SILVER_BUCKET", "rideshare-silver")
 GOLD_BUCKET = os.getenv("GOLD_BUCKET", "rideshare-gold")
@@ -49,6 +51,22 @@ GOLD_TABLES: list[str] = []
 
 glue_client = boto3.client("glue", region_name=AWS_REGION)
 s3_client = boto3.client("s3", region_name=AWS_REGION)
+
+
+def ensure_database_exists(database: str) -> None:
+    """Create the Glue database if it does not already exist.
+
+    Provides self-healing if databases are ever deleted outside Terraform.
+    AlreadyExistsException is treated as success (idempotent).
+    """
+    try:
+        glue_client.create_database(DatabaseInput={"Name": database})
+        print(f"  [OK] Database '{database}' created")
+    except ClientError as exc:
+        if exc.response["Error"]["Code"] == "AlreadyExistsException":
+            print(f"  [OK] Database '{database}' already exists")
+            return
+        raise
 
 
 def _has_delta_log(bucket: str, table_name: str) -> bool:
@@ -147,15 +165,15 @@ def main() -> int:
     if args.layer == "bronze":
         tables = BRONZE_TABLES
         bucket = BRONZE_BUCKET
-        database = "bronze"
+        database = f"{GLUE_DATABASE_PREFIX}_{args.layer}"
     elif args.layer == "silver":
         tables = SILVER_TABLES
         bucket = SILVER_BUCKET
-        database = "silver"
+        database = f"{GLUE_DATABASE_PREFIX}_{args.layer}"
     else:
         tables = GOLD_TABLES
         bucket = GOLD_BUCKET
-        database = "gold"
+        database = f"{GLUE_DATABASE_PREFIX}_{args.layer}"
 
     print("=" * 60)
     print(f"Glue Delta Table Registration ({args.layer})")
@@ -164,6 +182,9 @@ def main() -> int:
     print(f"Database: {database}")
     print(f"Bucket:   {bucket}")
     print(f"Tables:   {len(tables)}")
+    print()
+
+    ensure_database_exists(database)
     print()
 
     registered = 0

@@ -13,7 +13,11 @@
 
 {% macro generate_schema_name(custom_schema_name, node) -%}
     {%- if custom_schema_name is not none -%}
-        {{ custom_schema_name | trim }}
+        {%- if target.type == 'glue' -%}
+            rideshare_{{ custom_schema_name | trim }}
+        {%- else -%}
+            {{ custom_schema_name | trim }}
+        {%- endif -%}
     {%- else -%}
         {{ target.schema }}
     {%- endif -%}

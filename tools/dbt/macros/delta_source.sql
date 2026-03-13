@@ -34,7 +34,11 @@
 {% endmacro %}
 
 {% macro glue__delta_source(source_name, table_name) %}
-  {{ spark__delta_source(source_name, table_name) }}
+  {%- if source_name == 'bronze' -%}
+    rideshare_bronze.{{ table_name }}
+  {%- else -%}
+    {{ source(source_name, table_name) }}
+  {%- endif -%}
 {% endmacro %}
 
 {% macro default__delta_source(source_name, table_name) %}

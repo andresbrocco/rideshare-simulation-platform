@@ -20,13 +20,24 @@ from botocore.exceptions import ClientError
 SCRIPT_PATH = Path(__file__).parent.parent / "register-glue-tables.py"
 
 
-def _load_module() -> types.ModuleType:
-    """Import register-glue-tables.py as a fresh module for each test."""
-    spec = importlib.util.spec_from_file_location("register_glue_tables", SCRIPT_PATH)
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)  # type: ignore[union-attr]
+def _load_module(env_overrides: dict[str, str] | None = None) -> types.ModuleType:
+    """Import register-glue-tables.py as a fresh module for each test.
+
+    Optional *env_overrides* dict patches ``os.getenv`` so module-level
+    constants (like ``GLUE_DATABASE_PREFIX``) pick up the override.
+    """
+    env_patch = patch.dict("os.environ", env_overrides) if env_overrides else None
+    if env_patch:
+        env_patch.start()
+    try:
+        spec = importlib.util.spec_from_file_location("register_glue_tables", SCRIPT_PATH)
+        assert spec is not None
+        assert spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)  # type: ignore[union-attr]
+    finally:
+        if env_patch:
+            env_patch.stop()
     return module
 
 
@@ -54,6 +65,8 @@ class TestRegisterGlueTables(unittest.TestCase):
         mock_s3.head_object.return_value = {}
         # create_table succeeds by default
         mock_glue.create_table.return_value = {}
+        # create_database succeeds by default
+        mock_glue.create_database.return_value = {}
         return mock_glue, mock_s3
 
     def _patch_clients(
@@ -80,12 +93,12 @@ class TestRegisterGlueTables(unittest.TestCase):
 
         with self._patch_clients(mock_glue, mock_s3):
             mod = _load_module()
-            result = mod.register_table("bronze_trips", "rideshare-bronze", "bronze")
+            result = mod.register_table("bronze_trips", "rideshare-bronze", "rideshare_bronze")
 
         self.assertTrue(result)
         mock_glue.create_table.assert_called_once()
         call_kwargs = mock_glue.create_table.call_args.kwargs
-        self.assertEqual(call_kwargs["DatabaseName"], "bronze")
+        self.assertEqual(call_kwargs["DatabaseName"], "rideshare_bronze")
         self.assertEqual(call_kwargs["TableInput"]["Name"], "bronze_trips")
 
     # ------------------------------------------------------------------
@@ -99,7 +112,7 @@ class TestRegisterGlueTables(unittest.TestCase):
 
         with self._patch_clients(mock_glue, mock_s3):
             mod = _load_module()
-            result = mod.register_table("bronze_trips", "rideshare-bronze", "bronze")
+            result = mod.register_table("bronze_trips", "rideshare-bronze", "rideshare_bronze")
 
         self.assertFalse(result)
         mock_glue.create_table.assert_called_once()
@@ -115,7 +128,7 @@ class TestRegisterGlueTables(unittest.TestCase):
 
         with self._patch_clients(mock_glue, mock_s3):
             mod = _load_module()
-            result = mod.register_table("bronze_trips", "rideshare-bronze", "bronze")
+            result = mod.register_table("bronze_trips", "rideshare-bronze", "rideshare_bronze")
 
         self.assertFalse(result)
         mock_glue.create_table.assert_not_called()
@@ -132,7 +145,7 @@ class TestRegisterGlueTables(unittest.TestCase):
         with self._patch_clients(mock_glue, mock_s3):
             mod = _load_module()
             with self.assertRaises(ClientError) as ctx:
-                mod.register_table("bronze_trips", "rideshare-bronze", "bronze")
+                mod.register_table("bronze_trips", "rideshare-bronze", "rideshare_bronze")
 
         self.assertEqual(ctx.exception.response["Error"]["Code"], "AccessDeniedException")
 
@@ -146,7 +159,7 @@ class TestRegisterGlueTables(unittest.TestCase):
 
         with self._patch_clients(mock_glue, mock_s3):
             mod = _load_module()
-            result = mod.register_table("dlq_bronze_trips", "rideshare-bronze", "bronze")
+            result = mod.register_table("dlq_bronze_trips", "rideshare-bronze", "rideshare_bronze")
 
         self.assertTrue(result)
         call_kwargs = mock_glue.create_table.call_args.kwargs
@@ -158,10 +171,11 @@ class TestRegisterGlueTables(unittest.TestCase):
         # Standard tables must NOT have DLQ columns
         mock_glue.reset_mock()
         mock_s3.head_object.return_value = {}
+        mock_glue.create_table.return_value = {}
 
         with self._patch_clients(mock_glue, mock_s3):
             mod2 = _load_module()
-            mod2.register_table("bronze_trips", "rideshare-bronze", "bronze")
+            mod2.register_table("bronze_trips", "rideshare-bronze", "rideshare_bronze")
 
         call_kwargs2 = mock_glue.create_table.call_args.kwargs
         columns2 = call_kwargs2["TableInput"]["StorageDescriptor"]["Columns"]
@@ -170,17 +184,16 @@ class TestRegisterGlueTables(unittest.TestCase):
         self.assertNotIn("_error_timestamp", standard_names)
 
     # ------------------------------------------------------------------
-    # 6. layer_routing
+    # 6. layer_routing (uses main → ensure_database_exists + register)
     # ------------------------------------------------------------------
 
     def test_layer_routing(self) -> None:
-        """main() with --layer bronze should iterate over all 16 bronze tables."""
+        """main() with --layer bronze should use rideshare_bronze database."""
         mock_glue, mock_s3 = self._make_clients()
 
         with self._patch_clients(mock_glue, mock_s3):
             mod = _load_module()
 
-            # Simulate argv
             import sys as _sys
 
             original_argv = _sys.argv
@@ -193,6 +206,86 @@ class TestRegisterGlueTables(unittest.TestCase):
         self.assertEqual(code, 0)
         # 16 tables = 8 bronze + 8 DLQ
         self.assertEqual(mock_glue.create_table.call_count, 16)
+        # ensure_database_exists called with prefixed name
+        mock_glue.create_database.assert_called_once_with(
+            DatabaseInput={"Name": "rideshare_bronze"}
+        )
+
+    # ------------------------------------------------------------------
+    # 7. ensure_database_creates_new
+    # ------------------------------------------------------------------
+
+    def test_ensure_database_creates_new(self) -> None:
+        """ensure_database_exists should call create_database for a new database."""
+        mock_glue, mock_s3 = self._make_clients()
+
+        with self._patch_clients(mock_glue, mock_s3):
+            mod = _load_module()
+            mod.ensure_database_exists("rideshare_bronze")
+
+        mock_glue.create_database.assert_called_once_with(
+            DatabaseInput={"Name": "rideshare_bronze"}
+        )
+
+    # ------------------------------------------------------------------
+    # 8. ensure_database_already_exists
+    # ------------------------------------------------------------------
+
+    def test_ensure_database_already_exists(self) -> None:
+        """AlreadyExistsException from create_database should be handled gracefully."""
+        mock_glue, mock_s3 = self._make_clients()
+        mock_glue.create_database.side_effect = _client_error("AlreadyExistsException")
+
+        with self._patch_clients(mock_glue, mock_s3):
+            mod = _load_module()
+            # Should not raise
+            mod.ensure_database_exists("rideshare_bronze")
+
+        mock_glue.create_database.assert_called_once()
+
+    # ------------------------------------------------------------------
+    # 9. ensure_database_unexpected_error
+    # ------------------------------------------------------------------
+
+    def test_ensure_database_unexpected_error(self) -> None:
+        """Unexpected errors from create_database should propagate."""
+        mock_glue, mock_s3 = self._make_clients()
+        mock_glue.create_database.side_effect = _client_error("AccessDeniedException")
+
+        with self._patch_clients(mock_glue, mock_s3):
+            mod = _load_module()
+            with self.assertRaises(ClientError) as ctx:
+                mod.ensure_database_exists("rideshare_bronze")
+
+        self.assertEqual(ctx.exception.response["Error"]["Code"], "AccessDeniedException")
+
+    # ------------------------------------------------------------------
+    # 10. custom_prefix_via_env_var
+    # ------------------------------------------------------------------
+
+    def test_custom_prefix_via_env_var(self) -> None:
+        """GLUE_DATABASE_PREFIX env var should override the default 'rideshare' prefix."""
+        mock_glue, mock_s3 = self._make_clients()
+
+        with self._patch_clients(mock_glue, mock_s3):
+            mod = _load_module(env_overrides={"GLUE_DATABASE_PREFIX": "myproject"})
+
+            import sys as _sys
+
+            original_argv = _sys.argv
+            try:
+                _sys.argv = ["register-glue-tables.py", "--layer", "bronze"]
+                code = mod.main()
+            finally:
+                _sys.argv = original_argv
+
+        self.assertEqual(code, 0)
+        mock_glue.create_database.assert_called_once_with(
+            DatabaseInput={"Name": "myproject_bronze"}
+        )
+        # All 16 create_table calls should use the custom database name
+        for call in mock_glue.create_table.call_args_list:
+            self.assertEqual(call.kwargs["DatabaseName"], "myproject_bronze")
 
 
 if __name__ == "__main__":
