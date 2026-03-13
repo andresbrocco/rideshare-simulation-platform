@@ -95,16 +95,6 @@
   gap: 10px;
 }
 
-.spinner {
-  width: 18px;
-  height: 18px;
-  border: 2px solid rgba(var(--offline-neon-rgb), 0.15);
-  border-top-color: var(--accent-orange);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  flex-shrink: 0;
-}
-
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -213,7 +203,12 @@
 }
 
 .progressList .progressItemActive::before {
-  background: var(--accent-orange);
+  width: 10px;
+  height: 10px;
+  background: transparent;
+  border: 1.5px solid rgba(var(--offline-neon-rgb), 0.15);
+  border-top-color: var(--accent-orange);
+  animation: spin 0.8s linear infinite;
 }
 
 .progressList .progressItemDone::before {
@@ -251,10 +246,6 @@
 
 /* ── Tearing-down state ───────────────────────────── */
 
-.spinnerTeardown {
-  border-top-color: var(--accent-red);
-}
-
 .teardownText {
   font-size: 0.85rem;
   font-weight: 600;
@@ -281,7 +272,12 @@
 }
 
 .progressList .progressItemActiveTeardown::before {
-  background: var(--accent-red);
+  width: 10px;
+  height: 10px;
+  background: transparent;
+  border: 1.5px solid rgba(var(--offline-neon-rgb), 0.15);
+  border-top-color: var(--accent-red);
+  animation: spin 0.8s linear infinite;
 }
 
 /* ── Active state ──────────────────────────────────── */
@@ -557,5 +553,10 @@
   .segmentActiveTeardown::after {
     animation: none;
     opacity: 0.7;
+  }
+
+  .progressList .progressItemActive::before,
+  .progressList .progressItemActiveTeardown::before {
+    animation: none;
   }
 }

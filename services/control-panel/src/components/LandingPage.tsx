@@ -609,7 +609,7 @@ function SectionNav({
               className="section-nav-auth-btn section-nav-auth-btn--primary"
               onClick={onGetAccess}
             >
-              Get Access
+              Get Access for Free
             </button>
             <button type="button" className="section-nav-auth-btn" onClick={onSignIn}>
               Sign In

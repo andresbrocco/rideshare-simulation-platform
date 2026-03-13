@@ -22,6 +22,7 @@
    -------------------------------------------------------------------------- */
 
 .chat-fab {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -59,6 +60,28 @@
 .chat-fab:focus-visible {
   outline: 2px solid var(--offline-neon);
   outline-offset: 3px;
+}
+
+/* AI sparkle badge */
+.chat-fab-sparkle {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  animation: sparkle-glow 2s ease-in-out infinite;
+}
+
+@keyframes sparkle-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 3px rgba(var(--offline-neon-rgb), 0.4));
+  }
+  50% {
+    filter: drop-shadow(0 0 8px rgba(var(--offline-neon-rgb), 0.9));
+  }
 }
 
 /* --------------------------------------------------------------------------
@@ -665,5 +688,10 @@
   .chat-typing-indicator span {
     animation: none;
     opacity: 0.6;
+  }
+
+  .chat-fab-sparkle {
+    animation: none;
+    filter: drop-shadow(0 0 4px rgba(var(--offline-neon-rgb), 0.5));
   }
 }

@@ -727,7 +727,6 @@ export default function DeployPanel({
 
           <div className={styles.etaRow}>
             <div className={styles.deployingHeader}>
-              <div className={styles.spinner} />
               <span className={styles.deployingText}>Deploying...</span>
             </div>
             <span className={styles.etaCountdown}>
@@ -817,7 +816,6 @@ export default function DeployPanel({
         <>
           <div className={styles.etaRow}>
             <div className={styles.deployingHeader}>
-              <div className={`${styles.spinner} ${styles.spinnerTeardown}`} />
               <span className={styles.teardownText}>Tearing down...</span>
             </div>
             <span className={styles.etaCountdownTeardown}>
