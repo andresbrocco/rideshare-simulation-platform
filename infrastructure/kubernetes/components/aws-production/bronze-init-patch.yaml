@@ -1,5 +1,5 @@
 # Production patch: Override BRONZE_BUCKET for bronze-init CronJob
-# Replace <account-id> with AWS account ID during deploy (handled by deploy.yml sed)
+# Replace 962393283188 with AWS account ID during deploy (handled by deploy.yml sed)
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -13,4 +13,4 @@ spec:
             - name: bronze-init
               env:
                 - name: BRONZE_BUCKET
-                  value: "rideshare-<account-id>-bronze"
+                  value: "rideshare-962393283188-bronze"
