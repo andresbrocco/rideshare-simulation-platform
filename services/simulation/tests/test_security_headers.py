@@ -211,3 +211,24 @@ def test_security_headers_on_multiple_endpoints(test_client: TestClient) -> None
         assert "Content-Security-Policy" in response.headers
         assert "X-Frame-Options" in response.headers
         assert "X-Content-Type-Options" in response.headers
+
+
+def test_docs_path_has_relaxed_csp(test_client: TestClient) -> None:
+    """Verify /docs gets a relaxed CSP that allows Swagger UI CDN resources."""
+    response = test_client.get("/docs")
+
+    assert response.status_code == 200
+    csp = response.headers["Content-Security-Policy"]
+    assert "https://cdn.jsdelivr.net" in csp
+    assert "https://fastapi.tiangolo.com" in csp
+    assert "'unsafe-inline'" in csp
+
+
+def test_non_docs_path_keeps_strict_csp(test_client: TestClient) -> None:
+    """Verify non-docs paths keep the strict CSP without CDN allowances."""
+    response = test_client.get("/health")
+
+    assert response.status_code == 200
+    csp = response.headers["Content-Security-Policy"]
+    assert "cdn.jsdelivr.net" not in csp
+    assert "fastapi.tiangolo.com" not in csp
