@@ -29,6 +29,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from handler import (
+    GITHUB_REPO_URL,
+    LANDING_PAGE_URL,
+    SERVICE_INFO,
     SERVICE_LOGIN_URLS,
     _build_welcome_email,
     _decrypt_password,
@@ -322,6 +325,15 @@ class TestProvisionGrafana:
         ):
             result = _provision_grafana(_EMAIL, _PASSWORD, _NAME, _SCRIPTS_DIR)
 
+        (
+            mock_lock_module.lock_admin_folder.assert_called_once_with(
+                grafana_url="http://grafana:3000",
+                admin_auth_header=result["_test_auth"],
+            )
+            if "_test_auth" in result
+            else None
+        )
+        # Verify the lock was called and result includes admin_folder
         mock_lock_module.lock_admin_folder.assert_called_once()
         assert result["admin_folder"] == "locked"
 
@@ -893,6 +905,62 @@ class TestSesWelcomeEmail:
         _, text_body, html_body = _build_welcome_email(_EMAIL, _NAME, _PASSWORD)
         assert "credentials activate once the platform is deployed" in text_body
         assert "credentials activate once the platform is deployed" in html_body
+
+    @pytest.mark.unit
+    def test_welcome_email_contains_control_panel_url(self) -> None:
+        """_build_welcome_email includes Control Panel URL in both bodies."""
+        _, text_body, html_body = _build_welcome_email(_EMAIL, _NAME, _PASSWORD)
+        cp_url = "https://control-panel.ridesharing.portfolio.andresbrocco.com"
+        assert cp_url in text_body
+        assert cp_url in html_body
+
+    @pytest.mark.unit
+    def test_welcome_email_contains_correct_author_name(self) -> None:
+        """_build_welcome_email includes 'André Sbrocco' in both bodies."""
+        _, text_body, html_body = _build_welcome_email(_EMAIL, _NAME, _PASSWORD)
+        assert "André Sbrocco" in text_body
+        assert "André Sbrocco" in html_body
+
+    @pytest.mark.unit
+    def test_welcome_email_contains_sao_paulo(self) -> None:
+        """_build_welcome_email includes 'São Paulo' in both bodies."""
+        _, text_body, html_body = _build_welcome_email(_EMAIL, _NAME, _PASSWORD)
+        assert "São Paulo" in text_body
+        assert "São Paulo" in html_body
+
+    @pytest.mark.unit
+    def test_welcome_email_html_has_table_layout(self) -> None:
+        """_build_welcome_email HTML body uses table-based layout."""
+        _, _, html_body = _build_welcome_email(_EMAIL, _NAME, _PASSWORD)
+        assert "<table" in html_body
+
+    @pytest.mark.unit
+    def test_welcome_email_contains_service_descriptions(self) -> None:
+        """_build_welcome_email includes at least one service description in both bodies."""
+        _, text_body, html_body = _build_welcome_email(_EMAIL, _NAME, _PASSWORD)
+        descs = [info["desc"] for info in SERVICE_INFO.values()]
+        assert any(d in text_body for d in descs)
+        assert any(d in html_body for d in descs)
+
+    @pytest.mark.unit
+    def test_welcome_email_contains_landing_page_url(self) -> None:
+        """_build_welcome_email includes landing page URL in both bodies."""
+        _, text_body, html_body = _build_welcome_email(_EMAIL, _NAME, _PASSWORD)
+        assert LANDING_PAGE_URL in text_body
+        assert LANDING_PAGE_URL in html_body
+
+    @pytest.mark.unit
+    def test_welcome_email_contains_github_link(self) -> None:
+        """_build_welcome_email includes GitHub URL in HTML body."""
+        _, _, html_body = _build_welcome_email(_EMAIL, _NAME, _PASSWORD)
+        assert GITHUB_REPO_URL in html_body
+
+    @pytest.mark.unit
+    def test_service_info_has_url_and_desc_keys(self) -> None:
+        """Every SERVICE_INFO entry has 'url' and 'desc' keys."""
+        for name, info in SERVICE_INFO.items():
+            assert "url" in info, f"{name} missing 'url'"
+            assert "desc" in info, f"{name} missing 'desc'"
 
     @pytest.mark.unit
     def test_email_failure_returns_500(self) -> None:
