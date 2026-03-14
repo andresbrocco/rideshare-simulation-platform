@@ -143,6 +143,7 @@ spec:
             -e "s|\${TRINO_ADMIN_PASSWORD_HASH}|${TRINO_ADMIN_PASSWORD_HASH}|g" \
             -e "s|\${TRINO_VISITOR_PASSWORD_HASH}|${TRINO_VISITOR_PASSWORD_HASH}|g" \
             /config-source/password.db.template > /etc/trino/password.db
+          chown 1000:1000 /etc/trino/password.db
           chmod 600 /etc/trino/password.db
         env:
         - name: MINIO_ROOT_USER

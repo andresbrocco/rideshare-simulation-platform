@@ -38,6 +38,7 @@ else
 fi
 
 chmod 600 "$TRINO_ETC/password.db"
+chown 1000:1000 "$TRINO_ETC/password.db" 2>/dev/null || true
 echo "Trino: password.db generated successfully"
 
 # Start Trino with writable config directory
