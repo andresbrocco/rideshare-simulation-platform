@@ -70,6 +70,8 @@ patches:
                     value: "glue"
                   - name: GLUE_ROLE_ARN
                     value: "<glue-role-arn>"
+                  - name: GLUE_DATA_LOCATION
+                    value: "s3://rideshare-<account-id>-silver"
     target:
       kind: Deployment
       name: airflow-scheduler
@@ -89,6 +91,8 @@ patches:
                     value: "glue"
                   - name: GLUE_ROLE_ARN
                     value: "<glue-role-arn>"
+                  - name: GLUE_DATA_LOCATION
+                    value: "s3://rideshare-<account-id>-silver"
     target:
       kind: Deployment
       name: airflow-webserver

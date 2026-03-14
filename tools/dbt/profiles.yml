@@ -30,3 +30,6 @@ rideshare:
       glue_version: "4.0"
       schema: rideshare_silver
       threads: 4
+      datalake_formats: delta
+      conf: "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog"
+      location: "{{ env_var('GLUE_DATA_LOCATION') }}"
