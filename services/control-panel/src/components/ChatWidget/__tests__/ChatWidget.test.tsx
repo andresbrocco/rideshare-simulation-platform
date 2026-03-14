@@ -111,11 +111,33 @@ describe('ChatWidget', () => {
 
     await user.click(screen.getByRole('button', { name: /open chat/i }));
 
-    // All 4 starter questions should be visible
-    expect(screen.getByText('What is the architecture of this platform?')).toBeInTheDocument();
-    expect(screen.getByText('How does the simulation engine work?')).toBeInTheDocument();
-    expect(screen.getByText('What technologies are used?')).toBeInTheDocument();
-    expect(screen.getByText('How does data flow through the system?')).toBeInTheDocument();
+    // All 6 starter questions should be visible
+    expect(
+      screen.getByText(
+        'How does deduplication work across the three layers (Stream Processor, Silver, Gold)?'
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'How do the same DBT models run against both DuckDB locally and Glue in production?'
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "What's the difference between the DBT data quality tests and the Great Expectations suites?"
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('What happens to analytics if a Kafka consumer group falls behind?')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('How does the Bronze DLQ pipeline detect and route malformed events?')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "How does visitor provisioning work when the platform isn't even running yet?"
+      )
+    ).toBeInTheDocument();
   });
 
   it('test_starter_question_click_sends_message', async () => {
@@ -125,12 +147,18 @@ describe('ChatWidget', () => {
 
     await user.click(screen.getByRole('button', { name: /open chat/i }));
 
-    const starterBtn = screen.getByText('What is the architecture of this platform?');
+    const starterBtn = screen.getByText(
+      'How does deduplication work across the three layers (Stream Processor, Silver, Gold)?'
+    );
     await user.click(starterBtn);
 
     // The user message should appear in the conversation
     await waitFor(() => {
-      expect(screen.getByText('What is the architecture of this platform?')).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          'How does deduplication work across the three layers (Stream Processor, Silver, Gold)?'
+        )
+      ).toBeInTheDocument();
     });
 
     // Starter questions should be gone once messages exist
@@ -138,7 +166,7 @@ describe('ChatWidget', () => {
       expect(mockCreateChatSession).toHaveBeenCalledOnce();
       expect(mockSendChatMessage).toHaveBeenCalledWith(
         'session-123',
-        'What is the architecture of this platform?',
+        'How does deduplication work across the three layers (Stream Processor, Silver, Gold)?',
         undefined
       );
     });

@@ -63,7 +63,9 @@ class Provider(LLMProvider):
                 all_messages.append({"role": "user", "content": m["content"]})
             else:
                 all_messages.append({"role": "assistant", "content": m["content"]})
-        response = client.chat.completions.create(model=model, messages=all_messages)
+        response = client.chat.completions.create(
+            model=model, messages=all_messages, max_tokens=900
+        )
 
         usage = response.usage
         # DeepSeek extends OpenAI's usage schema with prompt_cache_hit_tokens

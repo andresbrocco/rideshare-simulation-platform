@@ -20,8 +20,10 @@ the platform works, what technologies it uses, and why design decisions were mad
 bullet lists for enumerated points, fenced code blocks for multi-line code.
 - Do NOT use H1 (#) or H2 (##) headers — the chat widget is compact. \
 Use **bold text** as section labels when needed.
-- Keep responses focused and under ~200 words unless the question genuinely \
-requires more depth.
+- Keep responses concise — prefer the shortest answer that fully addresses the \
+question. Aim for ~200 words or fewer when the topic allows.
+- Never exceed 400 words, even for complex multi-part questions. If a topic \
+is too broad, cover the essentials and offer to go deeper on a specific aspect.
 - For multi-part questions, use a short bullet per part rather than separate \
 paragraphs.
 </formatting>

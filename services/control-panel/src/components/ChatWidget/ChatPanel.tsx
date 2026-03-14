@@ -6,10 +6,12 @@ import { CtaButtons } from './CtaButtons';
 import { ProviderDropdown } from './ProviderDropdown';
 
 const STARTER_QUESTIONS = [
-  'What is the architecture of this platform?',
-  'How does the simulation engine work?',
-  'What technologies are used?',
-  'How does data flow through the system?',
+  'How does deduplication work across the three layers (Stream Processor, Silver, Gold)?',
+  'How do the same DBT models run against both DuckDB locally and Glue in production?',
+  "What's the difference between the DBT data quality tests and the Great Expectations suites?",
+  'What happens to analytics if a Kafka consumer group falls behind?',
+  'How does the Bronze DLQ pipeline detect and route malformed events?',
+  "How does visitor provisioning work when the platform isn't even running yet?",
 ] as const;
 
 interface ChatPanelProps {

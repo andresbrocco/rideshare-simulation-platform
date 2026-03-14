@@ -1,13 +1,13 @@
 """CLI script: generate and upload the starter question response cache.
 
 Run this script manually after deploying the Lambda to pre-generate cached
-answers for the four starter questions shown in the frontend chat UI.
+answers for the six starter questions shown in the frontend chat UI.
 
 The script:
 1. Reads ``docs/AI-CHAT-CONTEXT.md`` (adjacent to this script) and computes
    its SHA-256 hash.
 2. Builds the system prompt used by the Lambda handler.
-3. Calls the configured LLM provider for each of the four starter questions.
+3. Calls the configured LLM provider for each of the six starter questions.
 4. Writes the result to S3 as ``cache/starter-responses.json``.
 
 Configuration is via environment variables so the same script works against
@@ -67,10 +67,12 @@ DOCS_FILENAME = "AI-CHAT-CONTEXT.md"
 CACHE_S3_KEY = "cache/starter-responses.json"
 
 STARTER_QUESTIONS: list[str] = [
-    "What is the architecture of this platform?",
-    "How does the simulation engine work?",
-    "What technologies are used?",
-    "How does data flow through the system?",
+    "How does deduplication work across the three layers (Stream Processor, Silver, Gold)?",
+    "How do the same DBT models run against both DuckDB locally and Glue in production?",
+    "What's the difference between the DBT data quality tests and the Great Expectations suites?",
+    "What happens to analytics if a Kafka consumer group falls behind?",
+    "How does the Bronze DLQ pipeline detect and route malformed events?",
+    "How does visitor provisioning work when the platform isn't even running yet?",
 ]
 
 # ---------------------------------------------------------------------------

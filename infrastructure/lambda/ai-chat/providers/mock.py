@@ -1,6 +1,6 @@
 """Mock LLM provider for local development and CI testing.
 
-Returns pre-written responses for the four starter questions shown in the
+Returns pre-written responses for the six starter questions shown in the
 frontend chat UI.  All other questions receive a generic fallback.
 
 This module uses only Python stdlib — no external packages required.
@@ -13,7 +13,7 @@ Usage::
     p = Provider()
     response = p.complete(
         system_prompt="...",
-        messages=[{"role": "user", "content": "What is the architecture?"}],
+        messages=[{"role": "user", "content": "How does deduplication work..."}],
     )
     print(response.text)   # returns a detailed mock answer
     print(response.cached) # True for starter questions
@@ -26,78 +26,75 @@ from llm_adapter import LLMProvider, LLMResponse
 # ---------------------------------------------------------------------------
 
 _STARTER_RESPONSES: dict[str, str] = {
-    "What is the architecture of this platform?": (
-        "This platform is a five-layer event-driven data engineering system built to simulate "
-        "a rideshare service in São Paulo, Brazil.\n\n"
-        "1. **Simulation layer** — A SimPy discrete-event simulation drives synthetic "
-        "driver and rider agents with DNA-based behavioural profiles. Geospatial matching "
-        "uses Uber's H3 hexagonal grid at resolution 7, giving O(1) driver lookups within "
-        "any cell.\n\n"
-        "2. **Streaming layer** — Events are published to Apache Kafka. A stream processor "
-        "fans out real-time state to Redis, which feeds WebSocket connections to the "
-        "frontend map.\n\n"
-        "3. **Medallion lakehouse** — Raw events land in a Bronze Delta Lake table, are "
-        "cleaned into Silver, and aggregated into a Gold star schema. All tables live on "
-        "MinIO (local) or S3 (production).\n\n"
-        "4. **Orchestration & quality** — Apache Airflow schedules daily DBT "
-        "transformations. Great Expectations validates data quality at each layer.\n\n"
-        "5. **Observability** — Prometheus scrapes metrics from every service. Grafana "
-        "dashboards visualise simulation throughput, pipeline health, and data quality. "
-        "Loki aggregates structured JSON logs."
+    "How does deduplication work across the three layers (Stream Processor, Silver, Gold)?": (
+        "Each layer uses a different strategy matched to its processing model:\n\n"
+        "- **Stream Processor** — Redis `SET NX` with 1-hour TTL on `event_id`. "
+        "First-seen events are processed; Kafka at-least-once redeliveries are "
+        "silently dropped.\n\n"
+        "- **Silver** — DBT `unique_key: 'event_id'` generates `MERGE` (Spark) or "
+        "`INSERT OR REPLACE` (DuckDB), handling redeliveries and Bronze reprocessing.\n\n"
+        "- **Gold** — Full-refresh materialization rebuilds daily from Silver, so "
+        "duplicate accumulation is impossible by construction.\n\n"
+        "**Bronze** does not deduplicate — it stores raw Kafka payloads verbatim "
+        "to preserve full fidelity for reprocessing."
     ),
-    "How does the simulation engine work?": (
-        "The simulation engine is built on **SimPy**, a Python discrete-event simulation "
-        "framework.\n\n"
-        "Each driver and rider is modelled as a SimPy generator process. The simulation "
-        "clock advances in virtual time; no wall-clock sleeping is involved.\n\n"
-        "**Agent DNA** — Every agent has an immutable `DNA` Pydantic model (frozen=True) "
-        "that encodes personality traits: patience, tip propensity, cancellation tendency, "
-        "and preferred operating zones. DNA is generated procedurally at agent spawn time.\n\n"
-        "**Trip lifecycle** — A rider sends a ride request; the engine finds the nearest "
-        "available driver within the same or adjacent H3 cell; the driver transitions "
-        "through states (`available → en_route_pickup → on_trip → available`). Each state "
-        "transition emits a Kafka event.\n\n"
-        "**Control plane** — A FastAPI REST API (separate thread) lets the frontend pause, "
-        "resume, and tune the simulation. A `ThreadCoordinator` command queue bridges the "
-        "API thread and the SimPy event loop safely.\n\n"
-        "**Scale** — The default configuration spawns 50 drivers and 200 riders. At 10× "
-        "speed-up the engine generates roughly 2,000–4,000 Kafka events per simulated hour."
+    "How do the same DBT models run against both DuckDB locally and Glue in production?": (
+        "The key mechanism is `adapter.dispatch()` — model SQL calls generic macros "
+        "like `extract_json_field()`, and the active adapter selects the right "
+        "implementation.\n\n"
+        "- **DuckDB macros** emit `json_extract_string()` and `delta_scan()` to read "
+        "Delta tables directly (no JVM required).\n"
+        "- **Glue macros** emit `get_json_object()` and read via Spark Delta connector "
+        "with Hive Metastore.\n\n"
+        "Incremental upserts also differ: DuckDB uses `INSERT OR REPLACE`, Glue uses "
+        "`MERGE INTO` — same semantics, each database's native syntax.\n\n"
+        "Profile configuration (`profiles.yml`) switches the active adapter. The model "
+        "SQL stays clean of dialect branches."
     ),
-    "What technologies are used?": (
-        "Here is a breakdown of the key technologies in the stack:\n\n"
-        "| Layer | Technology |\n"
-        "|-------|------------|\n"
-        "| Simulation | Python 3.13, SimPy, H3, Haversine, OSRM |\n"
-        "| Streaming | Apache Kafka, Schema Registry, Confluent Python client |\n"
-        "| Storage | Delta Lake (delta-rs), MinIO / S3, Redis |\n"
-        "| Transformation | DBT (dbt-core + dbt-trino), Apache Trino |\n"
-        "| Orchestration | Apache Airflow 2.x |\n"
-        "| Data quality | Great Expectations |\n"
-        "| Backend APIs | FastAPI (simulation), AWS Lambda (ai-chat) |\n"
-        "| Frontend | React 18, TypeScript, deck.gl (map), Zustand |\n"
-        "| Observability | Prometheus, Grafana, Loki, OpenTelemetry |\n"
-        "| Infrastructure | Docker Compose (local), Terraform + EKS (production) |\n"
-        "| LLM | Anthropic Claude (production), Mock (CI / dev) |\n\n"
-        "Everything runs locally via Docker Compose with a single `docker compose up` command. "
-        "Production runs on AWS EKS with ArgoCD GitOps continuous delivery."
+    "What's the difference between the DBT data quality tests and the Great Expectations suites?": (
+        "They validate different concerns at different pipeline stages:\n\n"
+        "**DBT tests** run on the **Gold layer** (daily) and check business logic: "
+        "SCD Type 2 correctness (no overlapping date ranges), fare calculation accuracy "
+        "(`base_fare × distance × surge = total_fare`), and referential integrity "
+        "(`fact_trips.driver_sk` → `dim_drivers`). Hard failures block downstream.\n\n"
+        "**Great Expectations** runs on the **Silver layer** (hourly) and checks data "
+        "quality: GPS coordinate bounds (`mostly=0.99` for noise tolerance), enum "
+        "validation against state machine values, and event ID uniqueness. Soft failures "
+        "with statistical tolerance.\n\n"
+        "Pipeline order: Silver DBT → GX Validation → Gold DBT → DBT Tests."
     ),
-    "How does data flow through the system?": (
-        "Data follows two parallel paths from the simulation to the consumer:\n\n"
-        "**Real-time path** (for the live map):\n"
-        "Simulation → Kafka topic → Stream Processor → Redis pub/sub → "
-        "WebSocket server → React frontend\n\n"
-        "Latency is typically under 100 ms end-to-end.\n\n"
-        "**Analytics path** (for dashboards and SQL queries):\n"
-        "Simulation → Kafka → Bronze ingestion job → Delta Lake (raw) → "
-        "Airflow-scheduled DBT → Silver (cleaned) → Gold (star schema) → "
-        "Trino SQL engine → Grafana / Superset\n\n"
-        "**Event envelope** — Every Kafka message contains correlation fields "
-        "(`session_id`, `correlation_id`, `causation_id`) so events can be joined "
-        "across services in Trino without a separate event-ID lookup.\n\n"
-        "**Deduplication** — The Silver layer deduplicates by event UUID using a "
-        "MERGE INTO operation on the Delta table, making the pipeline idempotent.\n\n"
-        "**Retention** — Bronze data is kept for 90 days. Gold aggregates are retained "
-        "indefinitely for portfolio analysis."
+    "What happens to analytics if a Kafka consumer group falls behind?": (
+        "The **Performance Controller** (PID-based) monitors Kafka consumer lag from "
+        "Prometheus and throttles simulation speed to prevent lag from accumulating.\n\n"
+        "If Bronze Ingestion does fall behind:\n"
+        "- 7-day Kafka retention provides a recovery window\n"
+        "- Existing Bronze/Silver/Gold data remains queryable — only freshness degrades\n"
+        "- On recovery, Bronze resumes from its last committed offset; Delta Lake's "
+        "append-only design prevents corruption during catch-up\n"
+        "- Great Expectations validates post-recovery batches\n\n"
+        "Stream Processor lag only affects real-time map positions, not analytics."
+    ),
+    "How does the Bronze DLQ pipeline detect and route malformed events?": (
+        "Three validation layers with different routing:\n\n"
+        "1. **Schema Registry** (at producer) — events failing JSON Schema validation "
+        "are logged as warnings and never published to Kafka.\n\n"
+        "2. **Consumer deserialization** (at Bronze Ingestion) — messages failing UTF-8 "
+        "decode or JSON parse are routed to per-topic DLQ Delta tables "
+        "(e.g. `bronze_trips_dlq`) with error type, message, and Kafka provenance.\n\n"
+        "3. **Configurable injection** — the simulation can inject corrupted event copies "
+        "at a configurable rate (default 2%) for end-to-end DLQ testing.\n\n"
+        "An Airflow DAG checks DLQ tables every 15 minutes and alerts on error rate spikes."
+    ),
+    "How does visitor provisioning work when the platform isn't even running yet?": (
+        "A two-phase design decouples registration from platform availability:\n\n"
+        "**Phase 1** (`provision-visitor`) runs with zero platform dependencies — only "
+        "Foundation-layer resources (Lambda, DynamoDB, KMS, Secrets Manager, SES). It "
+        "stores the visitor record with a KMS-encrypted password, writes a bcrypt hash "
+        "to Secrets Manager for Trino, and sends a welcome email.\n\n"
+        "**Phase 2** (`reprovision-visitors`) runs after all 15 platform services report "
+        "healthy. It scans DynamoDB, decrypts passwords via KMS, and creates accounts in "
+        "Grafana, Airflow, MinIO, and the Simulation API.\n\n"
+        "On teardown and redeploy, Phase 2 runs again — visitors keep the same credentials."
     ),
 }
 
@@ -105,8 +102,9 @@ _FALLBACK_RESPONSE = (
     "That's a great question! While I'm running in mock mode and can't answer arbitrary "
     "questions with full detail, I can tell you that this platform covers simulation, "
     "streaming, lakehouse architecture, orchestration, and observability.\n\n"
-    "Try one of the starter questions to get a detailed answer about the architecture, "
-    "simulation engine, technology stack, or data flow."
+    "Try one of the starter questions to get a detailed answer about deduplication, "
+    "dual-target DBT, data quality testing, consumer lag handling, DLQ routing, "
+    "or visitor provisioning."
 )
 
 # ---------------------------------------------------------------------------
@@ -117,7 +115,7 @@ _FALLBACK_RESPONSE = (
 class Provider(LLMProvider):
     """Mock LLM provider with zero external dependencies.
 
-    Returns pre-written answers for the four starter questions.  All other
+    Returns pre-written answers for the six starter questions.  All other
     inputs receive a generic fallback response.  Token counts are always 0.
 
     Args:
@@ -135,7 +133,7 @@ class Provider(LLMProvider):
         """Return a mock response based on the last user message.
 
         Scans ``messages`` from the end to find the most recent ``"user"`` role
-        message.  If that message matches one of the four starter questions
+        message.  If that message matches one of the six starter questions
         exactly, returns the corresponding pre-written answer with
         ``cached=True``.  Otherwise returns the generic fallback with
         ``cached=False``.

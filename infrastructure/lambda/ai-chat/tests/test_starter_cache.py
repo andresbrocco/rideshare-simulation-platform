@@ -48,10 +48,12 @@ def _sample_cache_payload(
     """Return a minimal valid cache JSON payload."""
     if responses is None:
         responses = {
-            "What is the architecture of this platform?": "This platform uses a five-layer architecture...",
-            "How does the simulation engine work?": "The simulation uses SimPy discrete-event...",
-            "What technologies are used?": "The platform uses Python, Kafka, Delta Lake...",
-            "How does data flow through the system?": "Data flows from the simulation via Kafka...",
+            "How does deduplication work across the three layers (Stream Processor, Silver, Gold)?": "Each layer uses a different strategy...",
+            "How do the same DBT models run against both DuckDB locally and Glue in production?": "The key mechanism is adapter.dispatch()...",
+            "What's the difference between the DBT data quality tests and the Great Expectations suites?": "They validate different concerns...",
+            "What happens to analytics if a Kafka consumer group falls behind?": "The Performance Controller monitors lag...",
+            "How does the Bronze DLQ pipeline detect and route malformed events?": "Three validation layers with different routing...",
+            "How does visitor provisioning work when the platform isn't even running yet?": "A two-phase design decouples registration...",
         }
     return {
         "generated_at": "2026-03-12T00:00:00+00:00",
@@ -82,26 +84,32 @@ class TestGetCachedResponse:
     def test_get_cached_response_returns_response_for_exact_match(self) -> None:
         """get_cached_response returns the stored text for an exact question match."""
         starter_cache._CACHE = _sample_cache_payload()
-        question = "What is the architecture of this platform?"
+        question = (
+            "How does deduplication work across the three layers (Stream Processor, Silver, Gold)?"
+        )
         result = starter_cache.get_cached_response(question)
-        assert result == "This platform uses a five-layer architecture..."
+        assert result == "Each layer uses a different strategy..."
 
     def test_get_cached_response_returns_none_for_partial_match(self) -> None:
         """get_cached_response returns None when the question is a substring match only."""
         starter_cache._CACHE = _sample_cache_payload()
-        result = starter_cache.get_cached_response("architecture of this platform")
+        result = starter_cache.get_cached_response("deduplication work across the three layers")
         assert result is None
 
     def test_get_cached_response_returns_none_for_case_sensitive_variation(self) -> None:
         """get_cached_response returns None for a differently-cased version of the question."""
         starter_cache._CACHE = _sample_cache_payload()
-        result = starter_cache.get_cached_response("what is the architecture of this platform?")
+        result = starter_cache.get_cached_response(
+            "how does deduplication work across the three layers (stream processor, silver, gold)?"
+        )
         assert result is None
 
     def test_get_cached_response_returns_none_when_cache_not_loaded(self) -> None:
         """get_cached_response returns None when _CACHE is None (cache not yet loaded)."""
         assert starter_cache._CACHE is None
-        result = starter_cache.get_cached_response("What is the architecture of this platform?")
+        result = starter_cache.get_cached_response(
+            "How does deduplication work across the three layers (Stream Processor, Silver, Gold)?"
+        )
         assert result is None
 
     def test_get_cached_response_returns_none_for_unknown_question(self) -> None:
@@ -128,7 +136,10 @@ class TestLoadCache:
         assert result is not None
         assert starter_cache._CACHE is not None
         assert starter_cache._CACHE["docs_hash"] == "sha256:abcdef1234567890"
-        assert "What is the architecture of this platform?" in starter_cache._CACHE["responses"]
+        assert (
+            "How does deduplication work across the three layers (Stream Processor, Silver, Gold)?"
+            in starter_cache._CACHE["responses"]
+        )
 
     def test_load_cache_returns_payload_on_success(self) -> None:
         """load_cache returns the parsed cache dict when S3 read succeeds."""

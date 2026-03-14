@@ -55,7 +55,7 @@ class Provider(LLMProvider):
 
         response = client.messages.create(
             model=model,
-            max_tokens=1500,
+            max_tokens=900,
             system=[
                 {
                     "type": "text",

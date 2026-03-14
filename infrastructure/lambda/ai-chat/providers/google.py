@@ -58,7 +58,10 @@ class Provider(LLMProvider):
         response = client.models.generate_content(
             model=model,
             contents=genai_messages,
-            config=types.GenerateContentConfig(system_instruction=system_prompt),
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                max_output_tokens=900,
+            ),
         )
 
         usage = response.usage_metadata

@@ -228,7 +228,7 @@ class TestSendMessageHappyPaths:
             {
                 "action": "send-chat-message",
                 "session_id": "valid-session",
-                "message": "What is the architecture of this platform?",
+                "message": "How does deduplication work across the three layers (Stream Processor, Silver, Gold)?",
             }
         )
         with (
