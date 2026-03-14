@@ -107,6 +107,8 @@ export default function DeployPanel({
     permission: notifyPermission,
     notifySuccess,
     notifyError,
+    markDeployStarted,
+    checkPendingNotification,
   } = useDeployNotification();
 
   const [panelState, setPanelState] = useState<PanelState>('idle');
@@ -502,6 +504,7 @@ export default function DeployPanel({
         if (cancelled || !mountedRef.current) return;
 
         if (sessionData.tearing_down) {
+          sessionStorage.removeItem('deploy-was-in-progress');
           setDeployedAt(sessionData.deployed_at ?? null);
           setCostSoFar(sessionData.cost_so_far ?? null);
           setTeardownStartedAt(sessionData.tearing_down_at ?? null);
@@ -520,6 +523,7 @@ export default function DeployPanel({
             setElapsedSeconds(Math.floor(Date.now() / 1000) - sessionData.deployed_at);
           }
           setPanelState('deploying');
+          markDeployStarted();
           // Start polling for deploy status + health
           startDeployPolling();
           return;
@@ -536,12 +540,14 @@ export default function DeployPanel({
             setElapsedSeconds(now - sessionData.deployed_at);
           }
           setPanelState('active');
+          checkPendingNotification('success');
           return;
         }
 
         // Stale expired session or no session — show idle (fresh deploy button).
         // Only the real-time tick (line 258) transitions to 'expired' for
         // users who actively watched their own session count down to zero.
+        checkPendingNotification('error', 'Deployment did not complete');
         setPanelState('idle');
       } catch {
         // Lambda unreachable — stay idle
@@ -579,6 +585,7 @@ export default function DeployPanel({
       setDeployedAt(now);
       setElapsedSeconds(0);
       setPanelState('deploying');
+      markDeployStarted();
       setWorkflowStatus('queued');
       setDeployProgress({});
       startDeployPolling();

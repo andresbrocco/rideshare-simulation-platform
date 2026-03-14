@@ -8,9 +8,12 @@ interface UseDeployNotificationReturn {
   permission: NotifyPermission;
   notifySuccess: () => void;
   notifyError: (message: string) => void;
+  markDeployStarted: () => void;
+  checkPendingNotification: (outcome: 'success' | 'error', errorMessage?: string) => void;
 }
 
 const STORAGE_KEY = 'deploy-notify-enabled';
+const DEPLOYING_FLAG_KEY = 'deploy-was-in-progress';
 
 function getInitialPermission(): NotifyPermission {
   if (typeof Notification === 'undefined') return 'unsupported';
@@ -120,6 +123,7 @@ export function useDeployNotification(): UseDeployNotificationReturn {
     if (enabled) {
       setEnabled(false);
       sessionStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(DEPLOYING_FLAG_KEY);
       return;
     }
 
@@ -158,6 +162,7 @@ export function useDeployNotification(): UseDeployNotificationReturn {
 
     setEnabled(false);
     sessionStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(DEPLOYING_FLAG_KEY);
   }, [enabled, permission]);
 
   const notifyError = useCallback(
@@ -176,9 +181,37 @@ export function useDeployNotification(): UseDeployNotificationReturn {
 
       setEnabled(false);
       sessionStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(DEPLOYING_FLAG_KEY);
     },
     [enabled, permission]
   );
 
-  return { enabled, toggle, permission, notifySuccess, notifyError };
+  const markDeployStarted = useCallback(() => {
+    sessionStorage.setItem(DEPLOYING_FLAG_KEY, 'true');
+  }, []);
+
+  const checkPendingNotification = useCallback(
+    (outcome: 'success' | 'error', errorMessage?: string) => {
+      const wasDeploying = sessionStorage.getItem(DEPLOYING_FLAG_KEY) === 'true';
+      if (!wasDeploying) return;
+      sessionStorage.removeItem(DEPLOYING_FLAG_KEY);
+      if (!enabled) return;
+      if (outcome === 'success') {
+        notifySuccess();
+      } else {
+        notifyError(errorMessage ?? 'Deployment failed');
+      }
+    },
+    [enabled, notifySuccess, notifyError]
+  );
+
+  return {
+    enabled,
+    toggle,
+    permission,
+    notifySuccess,
+    notifyError,
+    markDeployStarted,
+    checkPendingNotification,
+  };
 }
