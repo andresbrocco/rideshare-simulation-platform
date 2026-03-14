@@ -181,6 +181,7 @@ class TestProvisionVisitorOrchestrator:
                 "handler._provision_simulation_api",
                 return_value={"email": _EMAIL, "role": "viewer", "status": "created"},
             ),
+            patch.dict("os.environ", {"MINIO_ENDPOINT": "minio:9000"}),
         ):
             result = _provision_visitor(_EMAIL, _PASSWORD, _NAME, durable_only=False)
 
@@ -202,6 +203,7 @@ class TestProvisionVisitorOrchestrator:
             patch("handler._provision_minio", side_effect=Exception("err")),
             patch("handler._provision_trino", side_effect=Exception("err")),
             patch("handler._provision_simulation_api", side_effect=Exception("err")),
+            patch.dict("os.environ", {"MINIO_ENDPOINT": "minio:9000"}),
         ):
             result = _provision_visitor(_EMAIL, _PASSWORD, _NAME, durable_only=False)
 
@@ -261,11 +263,21 @@ class TestProvisionGrafana:
     @pytest.mark.unit
     def test_calls_provision_viewer_with_correct_args(self) -> None:
         """_provision_grafana passes the correct arguments to provision_viewer."""
-        mock_module = MagicMock()
-        mock_module.provision_viewer.return_value = {"status": "created", "user_id": 10}
+        mock_viewer_module = MagicMock()
+        mock_viewer_module.provision_viewer.return_value = {"status": "created", "user_id": 10}
+        mock_lock_module = MagicMock()
+        mock_lock_module.lock_admin_folder.return_value = {
+            "status": "locked",
+            "folder_uid": "admin",
+        }
+
+        def _mock_load(name: str, _dir: str) -> MagicMock:
+            if name == "provision_grafana_viewer":
+                return mock_viewer_module
+            return mock_lock_module
 
         with (
-            patch("handler._load_module", return_value=mock_module),
+            patch("handler._load_module", side_effect=_mock_load),
             patch.dict(
                 "os.environ",
                 {
@@ -277,24 +289,65 @@ class TestProvisionGrafana:
             result = _provision_grafana(_EMAIL, _PASSWORD, _NAME, _SCRIPTS_DIR)
 
         assert result["status"] == "created"
-        mock_module.provision_viewer.assert_called_once()
-        call_kwargs = mock_module.provision_viewer.call_args
+        mock_viewer_module.provision_viewer.assert_called_once()
+        call_kwargs = mock_viewer_module.provision_viewer.call_args
         assert call_kwargs.kwargs["email"] == _EMAIL
         assert call_kwargs.kwargs["grafana_url"] == "http://grafana:3000"
 
     @pytest.mark.unit
+    def test_locks_admin_folder_after_provisioning(self) -> None:
+        """_provision_grafana calls lock_admin_folder and includes status in result."""
+        mock_viewer_module = MagicMock()
+        mock_viewer_module.provision_viewer.return_value = {"status": "created", "user_id": 10}
+        mock_lock_module = MagicMock()
+        mock_lock_module.lock_admin_folder.return_value = {
+            "status": "locked",
+            "folder_uid": "admin",
+        }
+
+        def _mock_load(name: str, _dir: str) -> MagicMock:
+            if name == "provision_grafana_viewer":
+                return mock_viewer_module
+            return mock_lock_module
+
+        with (
+            patch("handler._load_module", side_effect=_mock_load),
+            patch.dict(
+                "os.environ",
+                {
+                    "GRAFANA_URL": "http://grafana:3000",
+                    "GRAFANA_ADMIN_PASSWORD": "adminpass",
+                },
+            ),
+        ):
+            result = _provision_grafana(_EMAIL, _PASSWORD, _NAME, _SCRIPTS_DIR)
+
+        mock_lock_module.lock_admin_folder.assert_called_once()
+        assert result["admin_folder"] == "locked"
+
+    @pytest.mark.unit
     def test_propagates_exceptions(self) -> None:
         """_provision_grafana lets exceptions bubble up for the orchestrator to catch."""
-        mock_module = MagicMock()
-        mock_module.provision_viewer.side_effect = urllib.error.HTTPError(
+        mock_viewer_module = MagicMock()
+        mock_viewer_module.provision_viewer.side_effect = urllib.error.HTTPError(
             url="http://grafana:3000",
             code=500,
             msg="Internal Error",
             hdrs=None,
             fp=io.BytesIO(b"error"),  # type: ignore[arg-type]
         )
+        mock_lock_module = MagicMock()
+        mock_lock_module.lock_admin_folder.return_value = {
+            "status": "locked",
+            "folder_uid": "admin",
+        }
 
-        with patch("handler._load_module", return_value=mock_module):
+        def _mock_load(name: str, _dir: str) -> MagicMock:
+            if name == "provision_grafana_viewer":
+                return mock_viewer_module
+            return mock_lock_module
+
+        with patch("handler._load_module", side_effect=_mock_load):
             with pytest.raises(urllib.error.HTTPError):
                 _provision_grafana(_EMAIL, _PASSWORD, _NAME, _SCRIPTS_DIR)
 

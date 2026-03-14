@@ -1949,6 +1949,14 @@ def _provision_grafana(
         grafana_url=grafana_url,
         admin_auth_header=admin_auth_header,
     )
+
+    lock_module = _load_module("lock_grafana_admin_folder", scripts_dir)
+    lock_result: dict[str, Any] = lock_module.lock_admin_folder(
+        grafana_url=grafana_url,
+        admin_auth_header=admin_auth_header,
+    )
+    result["admin_folder"] = lock_result["status"]
+
     return result
 
 

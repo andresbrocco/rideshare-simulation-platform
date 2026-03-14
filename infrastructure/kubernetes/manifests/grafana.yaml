@@ -128,6 +128,7 @@ data:
       - name: 'admin'
         orgId: 1
         folder: 'Admin'
+        folderUid: 'admin'
         type: file
         disableDeletion: false
         updateIntervalSeconds: 10
