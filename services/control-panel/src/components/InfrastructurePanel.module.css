@@ -65,13 +65,6 @@
   color: var(--text-primary);
 }
 
-.overallIndicator {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-}
-
 .content {
   animation: fadeIn 0.2s ease-in;
 }
@@ -162,34 +155,6 @@
   font-size: 12px;
   font-weight: 600;
   color: var(--text-primary);
-}
-
-.statusIndicator {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  display: inline-block;
-}
-
-/* Status Colors */
-.statusHealthy,
-.overallHealthy {
-  background-color: var(--accent-green);
-  box-shadow: 0 0 6px var(--accent-green);
-}
-
-.statusUnhealthy,
-.overallUnhealthy {
-  background-color: var(--accent-red);
-  box-shadow: 0 0 6px var(--accent-red);
-}
-
-.statusStopped,
-.overallStopped,
-.statusUnknown,
-.overallUnknown {
-  background-color: var(--disabled-bg);
-  box-shadow: 0 0 6px var(--disabled-bg);
 }
 
 /* Metric Row */

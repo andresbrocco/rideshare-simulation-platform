@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { InfrastructureResponse, ServiceMetrics, ContainerStatus } from '../types/api';
+import type { InfrastructureResponse, ServiceMetrics } from '../types/api';
 import Tooltip from './Tooltip';
 import styles from './InfrastructurePanel.module.css';
 
@@ -23,19 +23,6 @@ function formatLatency(latency_ms: number | null): string {
   if (latency_ms === null) return '-';
   if (latency_ms < 1) return '<1 ms';
   return `${Math.round(latency_ms)} ms`;
-}
-
-function getStatusClass(status: ContainerStatus): string {
-  switch (status) {
-    case 'healthy':
-    case 'degraded':
-      return styles.statusHealthy; // green — service is responding
-    case 'unhealthy':
-    case 'stopped':
-      return styles.statusUnhealthy; // red — service is unreachable
-    default:
-      return styles.statusUnknown;
-  }
 }
 
 function formatHeartbeatAge(seconds: number | null): string {
@@ -71,7 +58,6 @@ function ServiceCard({
     <div className={styles.serviceCard}>
       <div className={styles.cardHeader}>
         <span className={styles.serviceName}>{service.name}</span>
-        <span className={`${styles.statusIndicator} ${getStatusClass(service.status)}`} />
       </div>
 
       {simulationRealTimeRatio !== undefined ? (
@@ -155,11 +141,6 @@ export default function InfrastructurePanel({
 }: InfrastructurePanelProps) {
   const [collapsed, setCollapsed] = useState(false);
 
-  const getOverallStatusClass = (status: ContainerStatus | undefined) => {
-    if (status === 'healthy') return styles.overallHealthy;
-    return styles.overallUnhealthy;
-  };
-
   const showResources = data?.cadvisor_available ?? false;
 
   return (
@@ -167,11 +148,6 @@ export default function InfrastructurePanel({
       <div className={styles.header}>
         <div className={styles.titleRow}>
           <h3 className={styles.title}>Infrastructure</h3>
-          {data && (
-            <span
-              className={`${styles.overallIndicator} ${getOverallStatusClass(data.overall_status)}`}
-            />
-          )}
         </div>
         <div className={styles.headerActions}>
           <Tooltip text="Refresh infrastructure metrics">
