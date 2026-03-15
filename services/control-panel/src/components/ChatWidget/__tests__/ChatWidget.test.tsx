@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ChatWidget } from '../ChatWidget';
 import * as chatService from '../../../services/chat';
@@ -477,11 +477,13 @@ describe('ChatWidget', () => {
       await user.click(screen.getByRole('button', { name: /open chat/i }));
 
       await waitFor(() => {
-        expect(screen.getByRole('combobox', { name: /select llm provider/i })).toBeInTheDocument();
+        expect(
+          screen.getByRole('combobox', { name: /select llm provider/i, hidden: true })
+        ).toBeInTheDocument();
       });
 
-      // Should have 2 options
-      const select = screen.getByRole('combobox', { name: /select llm provider/i });
+      // Should have 2 options (dropdown is in DOM but hidden from view)
+      const select = screen.getByRole('combobox', { name: /select llm provider/i, hidden: true });
       const options = select.querySelectorAll('option');
       expect(options).toHaveLength(2);
     });
@@ -497,7 +499,9 @@ describe('ChatWidget', () => {
 
       // Wait for providers to load
       await waitFor(() => {
-        expect(screen.getByRole('combobox', { name: /select llm provider/i })).toBeInTheDocument();
+        expect(
+          screen.getByRole('combobox', { name: /select llm provider/i, hidden: true })
+        ).toBeInTheDocument();
       });
 
       // Send a message to trigger loading state
@@ -505,8 +509,8 @@ describe('ChatWidget', () => {
       await user.type(textarea, 'Hello');
       await user.click(screen.getByRole('button', { name: /send/i }));
 
-      // Dropdown should be disabled while loading
-      const select = screen.getByRole('combobox', { name: /select llm provider/i });
+      // Dropdown should be disabled while loading (mechanism preserved even though hidden)
+      const select = screen.getByRole('combobox', { name: /select llm provider/i, hidden: true });
       expect(select).toBeDisabled();
     });
 
@@ -521,12 +525,14 @@ describe('ChatWidget', () => {
 
       // Wait for providers to load
       await waitFor(() => {
-        expect(screen.getByRole('combobox', { name: /select llm provider/i })).toBeInTheDocument();
+        expect(
+          screen.getByRole('combobox', { name: /select llm provider/i, hidden: true })
+        ).toBeInTheDocument();
       });
 
-      // Select the non-default provider
-      const select = screen.getByRole('combobox', { name: /select llm provider/i });
-      await user.selectOptions(select, 'openai');
+      // Change the provider via the hidden select (mechanism is preserved even though not visible)
+      const select = screen.getByRole('combobox', { name: /select llm provider/i, hidden: true });
+      fireEvent.change(select, { target: { value: 'openai' } });
 
       // Send a message
       const textarea = screen.getByRole('textbox');

@@ -67,14 +67,16 @@ export function ChatPanel({
     <div className="chat-panel">
       <div className="chat-panel-header">
         <span className="chat-panel-title">Ask about this project</span>
-        {providers.length > 0 && (
-          <ProviderDropdown
-            providers={providers}
-            selectedProvider={selectedProvider}
-            onProviderChange={onProviderChange}
-            disabled={isLoading}
-          />
-        )}
+        <div style={{ display: 'none' }}>
+          {providers.length > 0 && (
+            <ProviderDropdown
+              providers={providers}
+              selectedProvider={selectedProvider}
+              onProviderChange={onProviderChange}
+              disabled={isLoading}
+            />
+          )}
+        </div>
         <button
           type="button"
           className="chat-panel-close"

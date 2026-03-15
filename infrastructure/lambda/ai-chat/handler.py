@@ -210,7 +210,7 @@ def _handle_list_providers() -> dict[str, Any]:
         Dict with a ``providers`` list, each entry having ``name`` and ``default`` fields.
     """
     available = _secrets.get_available_providers()
-    default = os.environ.get("LLM_PROVIDER", "anthropic")
+    default = os.environ.get("LLM_PROVIDER", "google")
     return {"providers": [{"name": p, "default": p == default} for p in available if p != "mock"]}
 
 
@@ -253,7 +253,7 @@ def _handle_send_chat_message(body: dict[str, Any]) -> tuple[int, dict[str, Any]
     session_id: str = body.get("session_id", "")
     bucket = os.environ.get("AI_CHAT_BUCKET", "")
     daily_budget = float(os.environ.get("DAILY_BUDGET_USD", "5.00"))
-    llm_provider_name = os.environ.get("LLM_PROVIDER", "anthropic")
+    llm_provider_name = os.environ.get("LLM_PROVIDER", "google")
 
     # Resolve provider: request body overrides env var default
     requested_provider: str = body.get("provider", "")

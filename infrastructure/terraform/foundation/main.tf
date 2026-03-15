@@ -238,7 +238,7 @@ module "lambda_ai_chat" {
   archive_exclude_patterns = ["venv/**", "package/**", "__pycache__/**", ".mypy_cache/**", "tests/**", "test_*.py", "conftest.py"]
 
   environment_variables = {
-    LLM_PROVIDER     = "anthropic"
+    LLM_PROVIDER     = "google"
     DAILY_BUDGET_USD = "5.00"
     AI_CHAT_BUCKET   = module.s3.ai_chat_bucket_name
   }
