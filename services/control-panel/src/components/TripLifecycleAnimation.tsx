@@ -58,6 +58,60 @@ const PERSON_FRAC = 0.45;
 const FLAG_FRAC = 0.93;
 
 // ============================================================================
+// Responsive sizing
+// ============================================================================
+
+interface Sizes {
+  carSize: number;
+  carOffset: number;
+  personSize: number;
+  personOffset: number;
+  flagSize: number;
+  flagOffset: number;
+  personTrailing: number;
+  roadStrokeWidth: number;
+  routeStrokeWidth: number;
+  matchingStrokeWidth: number;
+  pendingMaskStrokeWidth: number;
+  bulletRadius: number;
+  pendingDash: string;
+}
+
+function getSizes(mobile: boolean): Sizes {
+  return mobile
+    ? {
+        carSize: 68,
+        carOffset: 34,
+        personSize: 60,
+        personOffset: 30,
+        flagSize: 60,
+        flagOffset: 30,
+        personTrailing: 48,
+        roadStrokeWidth: 14,
+        routeStrokeWidth: 8,
+        matchingStrokeWidth: 5,
+        pendingMaskStrokeWidth: 12,
+        bulletRadius: 10,
+        pendingDash: '20 14',
+      }
+    : {
+        carSize: 34,
+        carOffset: 17,
+        personSize: 30,
+        personOffset: 15,
+        flagSize: 30,
+        flagOffset: 15,
+        personTrailing: 24,
+        roadStrokeWidth: 7,
+        routeStrokeWidth: 4,
+        matchingStrokeWidth: 2.5,
+        pendingMaskStrokeWidth: 6,
+        bulletRadius: 5,
+        pendingDash: '10 7',
+      };
+}
+
+// ============================================================================
 // Component
 // ============================================================================
 
@@ -92,6 +146,7 @@ export function TripLifecycleAnimation() {
   // Animation state (not React state — direct DOM for 60fps)
   const rafIdRef = useRef(0);
   const reducedMotionRef = useRef(false);
+  const isMobileRef = useRef(false);
 
   // Cached path data computed on mount
   const pathDataRef = useRef<{
@@ -174,12 +229,68 @@ export function TripLifecycleAnimation() {
       pendingPathLen,
     };
 
+    // Mobile sizing
+    const mobileMql = window.matchMedia('(max-width: 640px)');
+    isMobileRef.current = mobileMql.matches;
+
+    function applyInitialSizes() {
+      const s = getSizes(isMobileRef.current);
+
+      // Apply stroke widths
+      if (roadPathRef.current) {
+        roadPathRef.current.setAttribute('stroke-width', `${s.roadStrokeWidth}`);
+      }
+      if (pendingRouteRef.current) {
+        pendingRouteRef.current.setAttribute('stroke-width', `${s.routeStrokeWidth}`);
+        pendingRouteRef.current.setAttribute('stroke-dasharray', s.pendingDash);
+      }
+      if (pendingMaskRef.current) {
+        pendingMaskRef.current.setAttribute('stroke-width', `${s.pendingMaskStrokeWidth}`);
+      }
+      if (pickupRouteRef.current) {
+        pickupRouteRef.current.setAttribute('stroke-width', `${s.routeStrokeWidth}`);
+      }
+      if (tripRouteRef.current) {
+        tripRouteRef.current.setAttribute('stroke-width', `${s.routeStrokeWidth}`);
+      }
+      if (matchingLineRef.current) {
+        matchingLineRef.current.setAttribute('stroke-width', `${s.matchingStrokeWidth}`);
+      }
+      if (pickupBulletRef.current) {
+        pickupBulletRef.current.setAttribute('r', `${s.bulletRadius}`);
+      }
+
+      // Apply icon sizes
+      if (carGroupRef.current) {
+        const img = carGroupRef.current.querySelector('image');
+        if (img) {
+          img.setAttribute('width', `${s.carSize}`);
+          img.setAttribute('height', `${s.carSize}`);
+        }
+      }
+      if (personGroupRef.current) {
+        const img = personGroupRef.current.querySelector('image');
+        if (img) {
+          img.setAttribute('width', `${s.personSize}`);
+          img.setAttribute('height', `${s.personSize}`);
+        }
+      }
+      if (flagGroupRef.current) {
+        const img = flagGroupRef.current.querySelector('image');
+        if (img) {
+          img.setAttribute('width', `${s.flagSize}`);
+          img.setAttribute('height', `${s.flagSize}`);
+        }
+      }
+    }
+
     // Position flag icon at destination
     const flagPt = roadEl.getPointAtLength(flagLen);
     if (flagGroupRef.current) {
+      const s = getSizes(isMobileRef.current);
       flagGroupRef.current.setAttribute(
         'transform',
-        `translate(${flagPt.x - 12}, ${flagPt.y - 12})`
+        `translate(${flagPt.x - s.flagOffset}, ${flagPt.y - s.flagOffset})`
       );
     }
 
@@ -187,15 +298,17 @@ export function TripLifecycleAnimation() {
     const carStartPt = roadEl.getPointAtLength(carStartLen);
     const personPt = roadEl.getPointAtLength(personLen);
     if (carGroupRef.current) {
+      const s = getSizes(isMobileRef.current);
       carGroupRef.current.setAttribute(
         'transform',
-        `translate(${carStartPt.x - 14}, ${carStartPt.y - 14})`
+        `translate(${carStartPt.x - s.carOffset}, ${carStartPt.y - s.carOffset})`
       );
     }
     if (personGroupRef.current) {
+      const s = getSizes(isMobileRef.current);
       personGroupRef.current.setAttribute(
         'transform',
-        `translate(${personPt.x - 12}, ${personPt.y - 12})`
+        `translate(${personPt.x - s.personOffset}, ${personPt.y - s.personOffset})`
       );
     }
     if (pickupBulletRef.current) {
@@ -222,6 +335,18 @@ export function TripLifecycleAnimation() {
       tripRouteRef.current.style.strokeDasharray = `${tripPathLen}`;
       tripRouteRef.current.style.strokeDashoffset = `${tripPathLen}`;
     }
+
+    applyInitialSizes();
+
+    function handleMobileChange(e: MediaQueryListEvent) {
+      isMobileRef.current = e.matches;
+      applyInitialSizes();
+    }
+    mobileMql.addEventListener('change', handleMobileChange);
+
+    return () => {
+      mobileMql.removeEventListener('change', handleMobileChange);
+    };
   }, [sampleSubPath, computeSubPathLength]);
 
   function renderStaticCompleted() {
@@ -231,18 +356,20 @@ export function TripLifecycleAnimation() {
     const roadEl = roadPathRef.current;
     if (!roadEl) return;
 
+    const s = getSizes(isMobileRef.current);
+
     // Position car and person at flag
     const flagPt = roadEl.getPointAtLength(pd.flagLen);
     if (carGroupRef.current) {
       carGroupRef.current.setAttribute(
         'transform',
-        `translate(${flagPt.x - 14}, ${flagPt.y - 14})`
+        `translate(${flagPt.x - s.carOffset}, ${flagPt.y - s.carOffset})`
       );
     }
     if (personGroupRef.current) {
       personGroupRef.current.setAttribute(
         'transform',
-        `translate(${flagPt.x - 12 - 20}, ${flagPt.y - 12})`
+        `translate(${flagPt.x - s.personOffset - s.personTrailing}, ${flagPt.y - s.personOffset})`
       );
     }
 
@@ -279,6 +406,8 @@ export function TripLifecycleAnimation() {
     const pd = pathDataRef.current;
     const roadEl = roadPathRef.current;
     if (!pd || !roadEl) return;
+
+    const s = getSizes(isMobileRef.current);
 
     // Default positions
     const carStartPt = roadEl.getPointAtLength(pd.carStartLen);
@@ -387,7 +516,7 @@ export function TripLifecycleAnimation() {
         const tripPt = roadEl.getPointAtLength(tripLen);
         carX = tripPt.x;
         carY = tripPt.y;
-        personX = tripPt.x - 20;
+        personX = tripPt.x - s.personTrailing;
         personY = tripPt.y;
         break;
       }
@@ -398,7 +527,7 @@ export function TripLifecycleAnimation() {
         // Car at flag
         carX = flagPt.x;
         carY = flagPt.y;
-        personX = flagPt.x - 20;
+        personX = flagPt.x - s.personTrailing;
         personY = flagPt.y;
         // Trip route visible; pickup route gone, bullet marks pickup
         pendingOpacity = 0;
@@ -414,7 +543,7 @@ export function TripLifecycleAnimation() {
         personColor = rgbString(COLOR_RIDER_COMPLETED);
         carX = flagPt.x;
         carY = flagPt.y;
-        personX = flagPt.x - 20;
+        personX = flagPt.x - s.personTrailing;
         personY = flagPt.y;
         pickupOpacity = 0;
         pickupOffset = 0;
@@ -428,7 +557,7 @@ export function TripLifecycleAnimation() {
         personColor = rgbString(COLOR_RIDER_COMPLETED);
         carX = flagPt.x;
         carY = flagPt.y;
-        personX = flagPt.x - 20;
+        personX = flagPt.x - s.personTrailing;
         personY = flagPt.y;
         pickupOpacity = 0;
         pickupOffset = 0;
@@ -441,7 +570,10 @@ export function TripLifecycleAnimation() {
 
     // Apply to DOM
     if (carGroupRef.current) {
-      carGroupRef.current.setAttribute('transform', `translate(${carX - 14}, ${carY - 14})`);
+      carGroupRef.current.setAttribute(
+        'transform',
+        `translate(${carX - s.carOffset}, ${carY - s.carOffset})`
+      );
       if (carPulse) {
         carGroupRef.current.style.animation = 'iconPulse 0.6s ease-in-out infinite';
       } else {
@@ -451,7 +583,7 @@ export function TripLifecycleAnimation() {
     if (personGroupRef.current) {
       personGroupRef.current.setAttribute(
         'transform',
-        `translate(${personX - 12}, ${personY - 12})`
+        `translate(${personX - s.personOffset}, ${personY - s.personOffset})`
       );
     }
 

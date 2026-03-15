@@ -3,11 +3,16 @@ import { render, screen } from '@testing-library/react';
 import { TripLifecycleAnimation } from '../TripLifecycleAnimation';
 import { resolvePhase, TOTAL_CYCLE_DURATION } from '../tripLifecyclePhases';
 
-function mockMatchMedia(reduceMotion: boolean) {
+function mockMatchMedia(reduceMotion: boolean, isMobile: boolean = false) {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: vi.fn().mockImplementation((query: string) => ({
-      matches: query === '(prefers-reduced-motion: reduce)' ? reduceMotion : false,
+      matches:
+        query === '(prefers-reduced-motion: reduce)'
+          ? reduceMotion
+          : query === '(max-width: 640px)'
+            ? isMobile
+            : false,
       media: query,
       onchange: null,
       addListener: vi.fn(),
@@ -103,6 +108,15 @@ describe('TripLifecycleAnimation', () => {
 
     expect(rafSpy).not.toHaveBeenCalled();
     rafSpy.mockRestore();
+  });
+
+  it('applies mobile icon sizes when viewport is narrow', () => {
+    mockMatchMedia(false, true);
+    const { container } = render(<TripLifecycleAnimation />);
+
+    const carImage = container.querySelector('image[href="/icons/car.png"]');
+    expect(carImage).toHaveAttribute('width', '48');
+    expect(carImage).toHaveAttribute('height', '48');
   });
 });
 

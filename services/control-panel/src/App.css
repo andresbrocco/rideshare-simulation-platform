@@ -355,52 +355,60 @@
   outline: none;
 }
 
+/* Tooltip structure — always present, hidden by default */
+.tech-badge::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 240px;
+  width: max-content;
+  background: var(--offline-section-bg);
+  border: 1px solid rgba(var(--offline-neon-rgb), 0.25);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 0.72rem;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-weight: 400;
+  color: var(--offline-text);
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease;
+  z-index: 100;
+}
+
+.tech-badge::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: rgba(var(--offline-neon-rgb), 0.25);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease;
+  z-index: 101;
+}
+
+/* Hover trigger — hover-capable devices only */
 @media (hover: hover) {
-  .tech-badge::after {
-    content: attr(data-tooltip);
-    position: absolute;
-    bottom: calc(100% + 8px);
-    left: 50%;
-    transform: translateX(-50%);
-    max-width: 240px;
-    width: max-content;
-    background: var(--offline-section-bg);
-    border: 1px solid rgba(var(--offline-neon-rgb), 0.25);
-    border-radius: 6px;
-    padding: 7px 10px;
-    font-size: 0.72rem;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    font-weight: 400;
-    color: var(--offline-text);
-    letter-spacing: 0;
-    text-transform: none;
-    white-space: normal;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 150ms ease;
-    z-index: 100;
-  }
-
-  .tech-badge::before {
-    content: '';
-    position: absolute;
-    bottom: calc(100% + 2px);
-    left: 50%;
-    transform: translateX(-50%);
-    border: 5px solid transparent;
-    border-top-color: rgba(var(--offline-neon-rgb), 0.25);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 150ms ease;
-    z-index: 101;
-  }
-
   .tech-badge:hover::after,
   .tech-badge:focus-visible::after,
   .tech-badge:hover::before,
   .tech-badge:focus-visible::before {
     opacity: 1;
   }
+}
+
+/* Click-toggle trigger — all devices */
+.tech-badge--active::after,
+.tech-badge--active::before {
+  opacity: 1;
 }
 
 @media (max-width: 900px) {

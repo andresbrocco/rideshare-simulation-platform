@@ -506,3 +506,61 @@ describe('Responsive and Accessibility', () => {
     expect(document.getElementById('explore')).not.toBeNull();
   });
 });
+
+describe('Tech badge tooltip toggle', () => {
+  it('clicking a tech badge adds tech-badge--active class', async () => {
+    const user = userEvent.setup();
+    renderLandingPage();
+
+    const badges = document.querySelectorAll('.tech-badge');
+    expect(badges.length).toBeGreaterThan(0);
+
+    await user.click(badges[0] as HTMLElement);
+
+    expect(badges[0]).toHaveClass('tech-badge--active');
+  });
+
+  it('clicking the same badge again removes active class', async () => {
+    const user = userEvent.setup();
+    renderLandingPage();
+
+    const badges = document.querySelectorAll('.tech-badge');
+    const firstBadge = badges[0] as HTMLElement;
+
+    await user.click(firstBadge);
+    expect(firstBadge).toHaveClass('tech-badge--active');
+
+    await user.click(firstBadge);
+    expect(firstBadge).not.toHaveClass('tech-badge--active');
+  });
+
+  it('clicking a different badge switches active to the new one', async () => {
+    const user = userEvent.setup();
+    renderLandingPage();
+
+    const badges = document.querySelectorAll('.tech-badge');
+    const firstBadge = badges[0] as HTMLElement;
+    const secondBadge = badges[1] as HTMLElement;
+
+    await user.click(firstBadge);
+    expect(firstBadge).toHaveClass('tech-badge--active');
+
+    await user.click(secondBadge);
+    expect(firstBadge).not.toHaveClass('tech-badge--active');
+    expect(secondBadge).toHaveClass('tech-badge--active');
+  });
+
+  it('clicking outside dismisses active tooltip', async () => {
+    const user = userEvent.setup();
+    renderLandingPage();
+
+    const badges = document.querySelectorAll('.tech-badge');
+    const firstBadge = badges[0] as HTMLElement;
+
+    await user.click(firstBadge);
+    expect(firstBadge).toHaveClass('tech-badge--active');
+
+    await user.click(document.body);
+    expect(firstBadge).not.toHaveClass('tech-badge--active');
+  });
+});

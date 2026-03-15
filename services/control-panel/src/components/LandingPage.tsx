@@ -1,5 +1,5 @@
 import type { FunctionComponent, SVGProps } from 'react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   SiPython,
   SiFastapi,
@@ -382,10 +382,27 @@ const TECH_GROUPS: TechGroup[] = [
   },
 ];
 
-function TechBadgeItem({ badge }: { badge: TechBadge }) {
+function TechBadgeItem({
+  badge,
+  isActive,
+  onToggle,
+}: {
+  badge: TechBadge;
+  isActive: boolean;
+  onToggle: (label: string | null) => void;
+}) {
   const Icon = badge.icon;
   return (
-    <span className="tech-badge" data-tooltip={badge.tooltip} tabIndex={0}>
+    <span
+      className={`tech-badge${isActive ? ' tech-badge--active' : ''}`}
+      data-tooltip={badge.tooltip}
+      tabIndex={0}
+      role="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle(isActive ? null : badge.label);
+      }}
+    >
       <Icon
         width={16}
         height={16}
@@ -397,13 +414,26 @@ function TechBadgeItem({ badge }: { badge: TechBadge }) {
   );
 }
 
-function TechGroupCard({ group }: { group: TechGroup }) {
+function TechGroupCard({
+  group,
+  activeBadge,
+  onBadgeClick,
+}: {
+  group: TechGroup;
+  activeBadge: string | null;
+  onBadgeClick: (label: string | null) => void;
+}) {
   return (
     <div className="tech-group-card">
       <span className="tech-group-title">{group.title}</span>
       <div className="tech-badge-grid">
         {group.badges.map((badge) => (
-          <TechBadgeItem key={badge.label} badge={badge} />
+          <TechBadgeItem
+            key={badge.label}
+            badge={badge}
+            isActive={activeBadge === badge.label}
+            onToggle={onBadgeClick}
+          />
         ))}
       </div>
     </div>
@@ -411,12 +441,34 @@ function TechGroupCard({ group }: { group: TechGroup }) {
 }
 
 function TechStack() {
+  const [activeBadge, setActiveBadge] = useState<string | null>(null);
+
+  const handleBadgeClick = useCallback((label: string | null) => {
+    setActiveBadge(label);
+  }, []);
+
+  useEffect(() => {
+    if (activeBadge === null) return;
+    function handleClickOutside() {
+      setActiveBadge(null);
+    }
+    document.addEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [activeBadge]);
+
   return (
     <section id="tech-stack" className="landing-section tech-stack-section">
       <h2>Technology Stack</h2>
       <div className="tech-group-grid">
         {TECH_GROUPS.map((group) => (
-          <TechGroupCard key={group.title} group={group} />
+          <TechGroupCard
+            key={group.title}
+            group={group}
+            activeBadge={activeBadge}
+            onBadgeClick={handleBadgeClick}
+          />
         ))}
       </div>
     </section>
@@ -703,7 +755,7 @@ export function LandingPage({
                     width="24"
                     height="24"
                   >
-                    <path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm-1-5h2v2h-2v-2zm0-8h2v6h-2V7z" />
+                    <path d="M19.14 12.94a7.07 7.07 0 0 0 0-1.88l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.04 7.04 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54a7.04 7.04 0 0 0-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58a7.07 7.07 0 0 0 0 1.88l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.04.7 1.62.94l.36 2.54c.05.24.26.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54a7.04 7.04 0 0 0 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.03-1.58zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" />
                   </svg>
                 </span>
                 <div className="deep-dive-header">
