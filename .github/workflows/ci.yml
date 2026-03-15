@@ -76,9 +76,9 @@ jobs:
           schemas/lakehouse/venv/bin/pip install --quiet mypy pyspark delta-spark
 
           # ai-chat - install with boto3 type stubs for mypy
-          python -m venv infrastructure/lambda/ai-chat/venv
-          infrastructure/lambda/ai-chat/venv/bin/pip install --quiet mypy "boto3-stubs[essential]"
-          infrastructure/lambda/ai-chat/venv/bin/pip install --quiet -r infrastructure/lambda/ai-chat/requirements.txt
+          python -m venv services/ai-chat/venv
+          services/ai-chat/venv/bin/pip install --quiet mypy "boto3-stubs[essential]"
+          services/ai-chat/venv/bin/pip install --quiet -r services/ai-chat/requirements.txt
 
       - name: Install frontend dependencies
         run: npm ci

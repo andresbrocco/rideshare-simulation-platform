@@ -14,9 +14,9 @@ from typing import cast
 import pytest
 
 # Resolve paths relative to the repository root from the test file's location.
-# test_trino_config.py lives at infrastructure/lambda/auth-deploy/
-# Repository root is four levels up: auth-deploy -> lambda -> infrastructure -> repo-root
-_REPO_ROOT = Path(__file__).parent.parent.parent.parent
+# test_trino_config.py lives at services/auth-deploy/
+# Repository root is three levels up: auth-deploy -> services -> repo-root
+_REPO_ROOT = Path(__file__).parent.parent.parent
 _TRINO_ETC = _REPO_ROOT / "services" / "trino" / "etc"
 _RULES_JSON = _TRINO_ETC / "rules.json"
 _PASSWORD_DB_TEMPLATE = _TRINO_ETC / "password.db.template"

@@ -348,6 +348,8 @@ rideshare-simulation-platform/
 │   ├── control-panel/           # React/deck.gl geospatial frontend
 │   ├── airflow/                 # DAG orchestration (Silver, Gold, DLQ, maintenance)
 │   ├── performance-controller/  # PID speed controller via Prometheus headroom
+│   ├── auth-deploy/             # Lambda: deploy/teardown lifecycle + two-phase visitor provisioning
+│   ├── ai-chat/                 # AI chat assistant service
 │   ├── kafka/                   # Kafka topic registry and cluster init
 │   ├── grafana/                 # 5 dashboard categories across 5 datasources (incl. admin folder)
 │   ├── prometheus/              # Metrics collection and recording rules
@@ -366,7 +368,6 @@ rideshare-simulation-platform/
 │   ├── docker/                  # Docker Compose with 4 composable profiles
 │   ├── kubernetes/              # K8s manifests, Kustomize overlays, ArgoCD
 │   ├── terraform/               # Three-layer AWS provisioning
-│   ├── lambda/                  # auth-deploy Lambda: lifecycle control + two-phase visitor provisioning (DynamoDB, KMS, SES)
 │   ├── policies/                # IAM policy files (e.g., MinIO visitor read-only policy)
 │   └── scripts/                 # Secrets, table registration, export, visitor provisioning scripts
 ├── tests/
@@ -390,6 +391,8 @@ Each service and tool directory contains its own README with ports, env vars, co
 - [services/control-panel/README.md](services/control-panel/README.md) -- React/deck.gl frontend
 - [services/airflow/README.md](services/airflow/README.md) -- Airflow DAG orchestration
 - [services/performance-controller/README.md](services/performance-controller/README.md) -- PID speed controller
+- [services/auth-deploy/README.md](services/auth-deploy/README.md) -- Lambda auth-deploy (deploy/teardown lifecycle + two-phase visitor provisioning)
+- [services/ai-chat/README.md](services/ai-chat/README.md) -- AI chat assistant service
 
 **Infrastructure Services:**
 - [services/kafka/README.md](services/kafka/README.md) -- Kafka cluster
@@ -411,7 +414,6 @@ Each service and tool directory contains its own README with ports, env vars, co
 - [infrastructure/docker/README.md](infrastructure/docker/README.md) -- Docker Compose configuration
 - [infrastructure/kubernetes/README.md](infrastructure/kubernetes/README.md) -- Kubernetes manifests and overlays
 - [infrastructure/terraform/README.md](infrastructure/terraform/README.md) -- Terraform provisioning
-- [infrastructure/lambda/README.md](infrastructure/lambda/README.md) -- Lambda auth-deploy (deploy/teardown lifecycle + two-phase visitor provisioning)
 - [infrastructure/scripts/README.md](infrastructure/scripts/README.md) -- Operational scripts (secrets, table registration, visitor provisioning)
 
 **Testing:**

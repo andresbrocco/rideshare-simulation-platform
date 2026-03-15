@@ -82,5 +82,5 @@ The Lambda zip must be rebuilt and redeployed — the policy JSON is bundled at 
 
 ## Related
 
-- [infrastructure/lambda/auth-deploy/README.md](../lambda/auth-deploy/README.md) — Lambda that calls `provision_visitor()`
+- [services/auth-deploy/README.md](../../services/auth-deploy/README.md) — Lambda that calls `provision_visitor()`
 - [infrastructure/scripts/provision_minio_visitor.py](../scripts/provision_minio_visitor.py) — Standalone script version for local dev

@@ -153,7 +153,7 @@ module "lambda_auth_deploy" {
   source = "./modules/lambda"
 
   function_name = "rideshare-auth-deploy"
-  source_dir    = "${path.root}/../../lambda/auth-deploy"
+  source_dir    = "${path.root}/../../../services/auth-deploy"
   handler       = "handler.lambda_handler"
   runtime       = "python3.13"
   timeout       = 60
@@ -229,7 +229,7 @@ module "lambda_ai_chat" {
   source = "./modules/lambda"
 
   function_name = "rideshare-ai-chat"
-  source_dir    = "${path.root}/../../lambda/ai-chat"
+  source_dir    = "${path.root}/../../../services/ai-chat"
   handler       = "handler.lambda_handler"
   runtime       = "python3.13"
   timeout       = 30

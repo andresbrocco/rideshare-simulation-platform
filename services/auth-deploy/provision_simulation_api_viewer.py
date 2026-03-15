@@ -9,7 +9,7 @@ Uses only Python stdlib (urllib) to keep the Lambda deployment package lean,
 consistent with handler.py and the other provisioning modules in this
 directory.
 
-**Canonical location**: ``infrastructure/lambda/auth-deploy/provision_simulation_api_viewer.py``
+**Canonical location**: ``services/auth-deploy/provision_simulation_api_viewer.py``
 """
 
 from __future__ import annotations

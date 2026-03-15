@@ -13,7 +13,7 @@ Tests are organized in two patterns: service-local test directories co-located a
 - `services/bronze-ingestion/tests/` — unit tests for the bronze ingestion service
 - `services/airflow/tests/` — DAG structure and import tests
 - `services/performance-controller/tests/` — unit tests for the performance controller
-- `infrastructure/lambda/auth-deploy/tests/` — unit tests for the auth-deploy Lambda handler
+- `services/auth-deploy/tests/` — unit tests for the auth-deploy Lambda handler
 - `tests/integration/data_platform/` — full-stack integration tests requiring Docker
 - `tests/performance/` — performance measurement framework (not pytest-based)
 - `services/control-panel/src/**/__tests__/` — frontend component, hook, and service tests
@@ -49,7 +49,7 @@ tests/                              # Cross-service tests
     ├── collectors/                # docker_stats, prometheus, simulation_api, OOM detection
     └── analysis/                  # statistics, visualizations, report_generator
 
-infrastructure/lambda/auth-deploy/tests/
+services/auth-deploy/tests/
 └── test_handler.py                # pytest unit tests for provision-visitor: email failure,
                                    #   credential hiding, partial-success 207, and validation paths
                                    #   (pure unit tests — no AWS credentials or running services required)
@@ -113,7 +113,7 @@ tools/dbt/tests/
 | Framework | Language | Purpose | Location |
 |-----------|----------|---------|----------|
 | pytest 9.0.2 | Python | Unit and component tests for simulation service | `services/simulation/` |
-| pytest 9.0.2 | Python | Unit tests for the auth-deploy Lambda handler | `infrastructure/lambda/auth-deploy/` |
+| pytest 9.0.2 | Python | Unit tests for the auth-deploy Lambda handler | `services/auth-deploy/` |
 | pytest-asyncio 1.3.0 | Python | Async test support (`asyncio_mode = "auto"`) | `services/simulation/` |
 | pytest-cov 7.0.0 | Python | Coverage reporting for simulation service | `services/simulation/` |
 | respx 0.21.1 | Python | HTTP mock for httpx-based clients | `services/simulation/` |
@@ -137,7 +137,7 @@ tools/dbt/tests/
 
 ### Unit Tests
 
-- Location: `services/simulation/tests/`, `services/stream-processor/tests/`, `services/bronze-ingestion/tests/`, `services/airflow/tests/`, `services/performance-controller/tests/`, `infrastructure/lambda/auth-deploy/tests/`
+- Location: `services/simulation/tests/`, `services/stream-processor/tests/`, `services/bronze-ingestion/tests/`, `services/airflow/tests/`, `services/performance-controller/tests/`, `services/auth-deploy/tests/`
 - Count: ~100 Python test files across service-local test directories
 - Coverage: Simulation engine components, agent state machines, geo/matching/Kafka/Redis modules, FastAPI endpoints (auth, roles, sessions, rate limiting, WebSocket), DAG structure validation, Lambda visitor provisioning (email failure, credential hiding, partial-success 207 responses)
 
@@ -206,7 +206,7 @@ cd services/stream-processor && ./venv/bin/pytest
 ### Lambda Handler Unit Tests
 
 ```bash
-cd infrastructure/lambda/auth-deploy && ./venv/bin/pytest tests/
+cd services/auth-deploy && ./venv/bin/pytest tests/
 ```
 
 ### Frontend Tests

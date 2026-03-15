@@ -11,7 +11,7 @@ lookup endpoint and the org role is (re-)applied.
 Uses only Python stdlib (urllib) to keep the Lambda deployment package lean,
 consistent with handler.py in the same directory.
 
-**Canonical location**: ``infrastructure/lambda/auth-deploy/provision_grafana_viewer.py``
+**Canonical location**: ``services/auth-deploy/provision_grafana_viewer.py``
 
 The file at ``infrastructure/scripts/provision_grafana_viewer.py`` is a copy kept
 for reference and ad-hoc local use. The Lambda handler loads this file via

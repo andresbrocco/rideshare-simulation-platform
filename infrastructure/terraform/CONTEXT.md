@@ -7,7 +7,7 @@ Provisions all AWS production infrastructure for the rideshare platform using a 
 ## Responsibility Boundaries
 
 - **Owns**: AWS resource lifecycle (VPC, EKS, RDS, S3 buckets, IAM roles, ACM certs, CloudFront, ECR, Glue catalog databases, KMS CMK, DynamoDB table, Lambda function, Secrets Manager secrets, SES domain identity, Route 53 zones and records)
-- **Delegates to**: `infrastructure/kubernetes` for what runs on EKS; `infrastructure/lambda/auth-deploy` for the Lambda source code that this module packages and deploys
+- **Delegates to**: `infrastructure/kubernetes` for what runs on EKS; `services/auth-deploy` for the Lambda source code that this module packages and deploys
 - **Does not handle**: Kubernetes manifests, Helm releases (those are in `infrastructure/kubernetes`), Docker image builds, or application configuration
 
 ## Key Concepts
@@ -38,5 +38,5 @@ Provisions all AWS production infrastructure for the rideshare platform using a 
 
 ## Related Modules
 
-- [infrastructure/lambda/auth-deploy](../lambda/auth-deploy/CONTEXT.md) — Dependency — Control-plane Lambda for platform deploy/teardown lifecycle: API key auth, GitHu...
+- [services/auth-deploy](../../services/auth-deploy/CONTEXT.md) — Dependency — Control-plane Lambda for platform deploy/teardown lifecycle: API key auth, GitHu...
 - [infrastructure/terraform/foundation](foundation/CONTEXT.md) — Shares CloudFront and DNS domain (acm us-east-1 provider alias)

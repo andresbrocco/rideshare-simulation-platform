@@ -4,7 +4,8 @@ on:
   push:
     branches: [main]
     paths:
-      - 'infrastructure/lambda/**'
+      - 'services/auth-deploy/**'
+      - 'services/ai-chat/**'
   workflow_dispatch:
 
 permissions:
@@ -30,12 +31,12 @@ jobs:
           python-version: '3.13'
 
       - name: Install dependencies
-        working-directory: infrastructure/lambda/auth-deploy
+        working-directory: services/auth-deploy
         run: |
           pip install -r requirements.txt --target ./package --quiet
 
       - name: Create deployment package
-        working-directory: infrastructure/lambda/auth-deploy
+        working-directory: services/auth-deploy
         run: |
           # Bundle installed dependencies at the zip root so Lambda can import them
           # from /var/task/. We cd into ./package so zip paths are relative to it
@@ -130,7 +131,7 @@ jobs:
       # ── ai-chat Lambda ──────────────────────────────────────────────
 
       - name: Install ai-chat dependencies
-        working-directory: infrastructure/lambda/ai-chat
+        working-directory: services/ai-chat
         run: |
           pip install \
             -r requirements-anthropic.txt \
@@ -139,7 +140,7 @@ jobs:
             --target ./package --quiet
 
       - name: Create ai-chat deployment package
-        working-directory: infrastructure/lambda/ai-chat
+        working-directory: services/ai-chat
         run: |
           # Bundle installed dependencies at the zip root
           cd ./package && zip -r /tmp/lambda-ai-chat.zip . && cd ..

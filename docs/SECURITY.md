@@ -39,7 +39,7 @@ API key authentication with two tiers. A static shared admin key grants full acc
 
 ### Lambda (auth-deploy)
 
-- Module: `infrastructure/lambda/auth-deploy/`
+- Module: `services/auth-deploy/`
 - Mechanism: API key passed in the POST request body field `api_key`, validated against a secret stored in AWS Secrets Manager (`{project}/api-key`)
 - Unauthenticated actions (`NO_AUTH_ACTIONS`): `session-status`, `auto-teardown`, `service-health`, `teardown-status`, `get-deploy-progress`, `provision-visitor`, `extend-session`, `shrink-session` — callable without an API key to support frontend polling, EventBridge-triggered teardown, visitor self-registration, and session timer adjustments from the control panel
 

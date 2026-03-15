@@ -33,7 +33,7 @@ import pytest
 # Module loading helpers
 # ---------------------------------------------------------------------------
 
-# Paths resolved from this test file's location (infrastructure/lambda/auth-deploy/).
+# Paths resolved from this test file's location (services/auth-deploy/).
 _PROVISION_MODULE_PATH = Path(__file__).parent / "provision_simulation_api_viewer.py"
 _MODULE_NAME = "provision_simulation_api_viewer"
 

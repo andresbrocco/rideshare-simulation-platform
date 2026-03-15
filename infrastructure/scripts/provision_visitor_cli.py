@@ -60,7 +60,7 @@ _SCRIPTS_DIR = Path(__file__).parent
 os.environ.setdefault("PROVISIONING_SCRIPTS_DIR", str(_SCRIPTS_DIR))
 
 # handler.py lives inside the Lambda package directory.
-sys.path.insert(0, str(_REPO_ROOT / "infrastructure" / "lambda" / "auth-deploy"))
+sys.path.insert(0, str(_REPO_ROOT / "services" / "auth-deploy"))
 
 # The provisioning modules themselves live in the same directory as this script.
 sys.path.insert(0, str(_SCRIPTS_DIR))

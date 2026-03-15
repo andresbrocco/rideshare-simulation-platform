@@ -14,7 +14,7 @@ How modules within this codebase depend on each other.
 | `services/stream-processor` | Kafka-to-Redis bridge with windowed GPS aggregation and deduplication | control-panel (WebSocket), services/grafana/dashboards/monitoring |
 | `services/bronze-ingestion` | Kafka-to-Bronze Delta Lake ingestion pipeline with DLQ routing | services/airflow, tools/dbt, tools/great-expectations |
 | `services/airflow` | Airflow DAG orchestration for medallion pipeline (Silver, Gold, DLQ, maintenance) | tools/dbt, tools/great-expectations |
-| `services/control-panel` | React/TypeScript SPA operator interface with real-time geospatial map | infrastructure/lambda/auth-deploy, services/simulation (login via `POST /auth/login`) |
+| `services/control-panel` | React/TypeScript SPA operator interface with real-time geospatial map | services/auth-deploy, services/simulation (login via `POST /auth/login`) |
 | `services/performance-controller` | Closed-loop PID controller that adjusts simulation speed via infrastructure headroom | services/simulation, services/prometheus |
 | `schemas/kafka` | JSON Schema contracts for all Kafka event topics | services/simulation/src/kafka, services/bronze-ingestion/src |
 | `schemas/lakehouse` | PySpark StructType schema definitions for Bronze Delta Lake tables | services/bronze-ingestion/src |
@@ -22,11 +22,11 @@ How modules within this codebase depend on each other.
 | `tools/dbt` | Silver and Gold medallion layer transformations | services/airflow, tools/great-expectations |
 | `tools/great-expectations` | Data quality validation for Silver and Gold tables | services/airflow |
 | `infrastructure/scripts` | Operational scripts: secrets bootstrap, Delta table registration, Glue table registration, visitor account provisioning (Grafana/Airflow/MinIO/Trino/Simulation API), Trino password hash generation | services/airflow/dags |
-| `infrastructure/lambda/auth-deploy` | Serverless control-plane Lambda for deploy/teardown lifecycle, visitor self-registration (two-phase: DynamoDB durable records + KMS-encrypted credentials + SES welcome email + post-deploy service account creation via Grafana, Airflow, MinIO, Simulation API) | services/control-panel/src/services, infrastructure/terraform/foundation |
+| `services/auth-deploy` | Serverless control-plane Lambda for deploy/teardown lifecycle, visitor self-registration (two-phase: DynamoDB durable records + KMS-encrypted credentials + SES welcome email + post-deploy service account creation via Grafana, Airflow, MinIO, Simulation API) | services/control-panel/src/services, infrastructure/terraform/foundation |
 | `infrastructure/docker` | Docker Compose local dev environment (four composable profiles) | all services |
 | `infrastructure/kubernetes` | Kubernetes manifests, Kustomize overlays, ArgoCD GitOps for production | infrastructure/terraform |
-| `infrastructure/terraform` | AWS production infrastructure (EKS, RDS, S3, ECR, Lambda, Glue, IAM) | infrastructure/kubernetes, infrastructure/lambda/auth-deploy |
-| `.github/workflows` | CI/CD: static quality gates, selective ECR image builds, EKS platform deploy, ArgoCD GitOps reconciliation, cost-driven teardown, soft-reset | infrastructure/terraform, infrastructure/kubernetes, infrastructure/lambda/auth-deploy |
+| `infrastructure/terraform` | AWS production infrastructure (EKS, RDS, S3, ECR, Lambda, Glue, IAM) | infrastructure/kubernetes, services/auth-deploy |
+| `.github/workflows` | CI/CD: static quality gates, selective ECR image builds, EKS platform deploy, ArgoCD GitOps reconciliation, cost-driven teardown, soft-reset | infrastructure/terraform, infrastructure/kubernetes, services/auth-deploy |
 
 ### Simulation Internal Modules
 
@@ -120,7 +120,7 @@ bootstrap  ──>  foundation  ──>  platform
         └──> [infrastructure/terraform/foundation]
                     │
                     ├──> VPC, EKS IAM, S3 buckets, ECR, ACM, CloudFront, Route53
-                    ├──> [infrastructure/lambda/auth-deploy]
+                    ├──> [services/auth-deploy]
                     └──> [infrastructure/terraform/platform]
                                     └──> EKS cluster, RDS, ALB controller, Pod Identity
 
@@ -128,13 +128,13 @@ bootstrap  ──>  foundation  ──>  platform
         ├──> overlays/production-duckdb ──> components/aws-production ──> manifests/
         └──> overlays/production-glue   ──> components/aws-production ──> manifests/
 
-[services/control-panel] ──> [infrastructure/lambda/auth-deploy] (via VITE_LAMBDA_URL)
+[services/control-panel] ──> [services/auth-deploy] (via VITE_LAMBDA_URL)
                         ──> [services/simulation] REST+WebSocket API (via VITE_API_URL)
                         ──> [services/simulation] POST /auth/login (email+password → session key with role)
 
 [.github/workflows] ──> [infrastructure/terraform] (deploy/teardown/soft-reset)
                    ──> [infrastructure/kubernetes] (ArgoCD GitOps via deploy branch)
-                   ──> [infrastructure/lambda/auth-deploy] (visitor session management, deploy progress reporting)
+                   ──> [services/auth-deploy] (visitor session management, deploy progress reporting)
 ```
 
 ### Key Dependency Details
@@ -178,7 +178,7 @@ bootstrap  ──>  foundation  ──>  platform
 #### services/grafana → services/trino
 - Business-intelligence and data-engineering dashboards query Silver/Gold Delta tables via trino-datasource plugin
 
-#### infrastructure/lambda/auth-deploy → GitHub Actions API
+#### services/auth-deploy → GitHub Actions API
 - `handle_deploy` and `handle_teardown` dispatch workflow_dispatch events to GitHub Actions REST API
 
 #### services/control-panel → schemas/api
@@ -189,7 +189,7 @@ bootstrap  ──>  foundation  ──>  platform
 - Session keys carry a `sess_` prefix and are validated by the simulation API against Redis via `session_store`
 - The `session:expired` custom DOM event is dispatched by `apiFetch` on any 401 response, decoupling the HTTP layer from React auth state
 
-#### infrastructure/lambda/auth-deploy → DynamoDB / KMS / SES
+#### services/auth-deploy → DynamoDB / KMS / SES
 - Phase 1 `provision-visitor`: writes a durable visitor record to the `rideshare-visitors` DynamoDB table (keyed by email hash), encrypts the plaintext password with the `rideshare-visitor-passwords` KMS CMK, stores the PBKDF2 hash in Secrets Manager (`rideshare/trino-visitor-password-hash-*`), and sends a welcome email via SES
 - Phase 2 `reprovision-visitors`: scans DynamoDB, decrypts each password with KMS, and creates ephemeral accounts in Grafana, Airflow, MinIO, and the Simulation API
 
@@ -399,7 +399,7 @@ bootstrap  ──>  foundation  ──>  platform
 
 ---
 
-### infrastructure/lambda/auth-deploy (Python, requirements.txt)
+### services/auth-deploy (Python, requirements.txt)
 
 | Package | Version | Purpose |
 |---------|---------|---------|
@@ -468,5 +468,5 @@ None detected.
 - `services/bronze-ingestion/requirements.txt` similarly includes `pytest>=7.0.0` in the runtime requirements file.
 - The `schemas/lakehouse` package declares no runtime dependencies in its `pyproject.toml`; `pyspark` and `delta-spark` are implicit environment dependencies injected by the Airflow or Glue execution context.
 - `services/stream-processor` maintains two redundant dependency files (`pyproject.toml` and `requirements.txt`) with differing version pins for the same packages (e.g., `confluent-kafka` listed as `>=2.6.0` in pyproject.toml and `==2.6.1` in requirements.txt).
-- `infrastructure/lambda/auth-deploy` runtime dependencies (`bcrypt`, `minio`, `requests`) are not versioned in `requirements.txt` — they are installed by CI at deploy time via `--platform manylinux2014_x86_64 --only-binary=:all:`. Version drift is a latent risk.
+- `services/auth-deploy` runtime dependencies (`bcrypt`, `minio`, `requests`) are not versioned in `requirements.txt` — they are installed by CI at deploy time via `--platform manylinux2014_x86_64 --only-binary=:all:`. Version drift is a latent risk.
 - `services/trino/etc/catalog/delta.properties` contains placeholder credentials (`admin`/`adminadmin`) and is a dev-time artifact; the authoritative rendered file lives at `/tmp/trino-etc/catalog/delta.properties` (produced by the entrypoint at runtime). Do not read the committed file as a source of truth for production credentials.

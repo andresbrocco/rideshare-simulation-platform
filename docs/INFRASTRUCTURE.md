@@ -17,7 +17,7 @@ GitHub Actions. Eight workflow files in `.github/workflows/`.
 | `deploy.yml` | `workflow_dispatch` | Provision EKS platform via Terraform, push `deploy` branch, install ArgoCD, wait for phased convergence (5 phases, 15 services), report readiness to Lambda |
 | `teardown-platform.yml` | `workflow_dispatch` | Graceful simulation shutdown (drain to 16× speed, poll up to 5 min), delete Route 53 record, `terraform destroy` on platform layer |
 | `soft-reset.yml` | `workflow_dispatch` | Wipe Kafka, S3 lakehouse, RDS databases, Redis, monitoring data — suspends ArgoCD auto-sync during reset, then restores; keeps EKS cluster intact |
-| `deploy-lambda.yml` | push to `main` (`infrastructure/lambda/**`), `workflow_dispatch` | Package and deploy `rideshare-auth-deploy` Lambda function code (Linux-compatible wheels via `--platform manylinux2014_x86_64`) |
+| `deploy-lambda.yml` | push to `main` (`services/auth-deploy/**`, `services/ai-chat/**`), `workflow_dispatch` | Package and deploy `rideshare-auth-deploy` Lambda function code (Linux-compatible wheels via `--platform manylinux2014_x86_64`) |
 | `integration-tests.yml` | `schedule` (weekly Monday 02:00 UTC), `workflow_dispatch` | Spin up Docker Compose, run `tests/integration/`, upload results |
 | `visitor-login.yml` | `workflow_dispatch` | Visitor authentication workflow for pre-deploy Lambda validation |
 

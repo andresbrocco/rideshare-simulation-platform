@@ -111,9 +111,9 @@ repos:
 
       - id: mypy-ai-chat
         name: mypy (ai-chat)
-        entry: bash -c 'cd infrastructure/lambda/ai-chat && ./venv/bin/mypy *.py'
+        entry: bash -c 'cd services/ai-chat && ./venv/bin/mypy *.py'
         language: system
-        files: ^infrastructure/lambda/ai-chat/.*\.py$
+        files: ^services/ai-chat/.*\.py$
         pass_filenames: false
 
       - id: frontend-lint-staged

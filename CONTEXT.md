@@ -40,7 +40,7 @@ The platform is a multi-service architecture deployed as containerized services 
 | Performance Controller | `services/performance-controller/src/main.py` | PID speed controller |
 | Control Panel | `services/control-panel/src/main.tsx` | React SPA (port 5173) |
 | Airflow DAGs | `services/airflow/dags/` | Silver/Gold transforms, maintenance, DLQ monitoring |
-| Lambda auth-deploy | `infrastructure/lambda/auth-deploy/handler.py` | Deploy/teardown lifecycle control and visitor self-registration (two-phase provisioning via DynamoDB, KMS, SES); also handles `visitor-login` for pre-deploy authentication |
+| Lambda auth-deploy | `services/auth-deploy/handler.py` | Deploy/teardown lifecycle control and visitor self-registration (two-phase provisioning via DynamoDB, KMS, SES); also handles `visitor-login` for pre-deploy authentication |
 | OpenAPI Spec | `schemas/api/openapi.json` | Simulation REST API contract |
 
 ### Getting Started
@@ -102,6 +102,8 @@ cd tools/dbt && ./venv/bin/dbt test
 | `services/control-panel` | React/TypeScript SPA with deck.gl geospatial map, simulation controls, visitor provisioning form (`VisitorAccessForm`), credential-based login dialog (`LoginDialog`), and role-based access control | [->](services/control-panel/CONTEXT.md) |
 | `services/airflow` | Airflow DAG orchestration for medallion pipeline (Silver, Gold, DLQ, maintenance) | [->](services/airflow/CONTEXT.md) |
 | `services/performance-controller` | Closed-loop PID controller throttling simulation speed via Prometheus headroom | [->](services/performance-controller/CONTEXT.md) |
+| `services/auth-deploy` | Python 3.13 Lambda: deploy/teardown lifecycle control, two-phase visitor provisioning (DynamoDB, KMS, SES), and `visitor-login` pre-deploy authentication | [->](services/auth-deploy/CONTEXT.md) |
+| `services/ai-chat` | AI chat assistant service for the platform | [->](services/ai-chat/CONTEXT.md) |
 
 ### Services (Infrastructure)
 
@@ -138,7 +140,6 @@ cd tools/dbt && ./venv/bin/dbt test
 | `infrastructure/docker` | Docker Compose with 4 composable profiles for local dev | [->](infrastructure/docker/CONTEXT.md) |
 | `infrastructure/kubernetes` | K8s manifests, Kustomize overlays, ArgoCD GitOps | [->](infrastructure/kubernetes/CONTEXT.md) |
 | `infrastructure/terraform` | Three-layer AWS provisioning (bootstrap, foundation, platform) | [->](infrastructure/terraform/CONTEXT.md) |
-| `infrastructure/lambda` | auth-deploy Lambda for deploy/teardown lifecycle, visitor self-registration (two-phase: DynamoDB durable records + post-deploy service account creation via Grafana, Airflow, MinIO, Simulation API), and `visitor-login` pre-deploy authentication | [->](infrastructure/lambda/CONTEXT.md) |
 | `infrastructure/scripts` | Operational scripts: secrets seeding, Delta table registration, DuckDB-to-S3 export, visitor account provisioning, Trino password hash generation | [->](infrastructure/scripts/CONTEXT.md) |
 | `infrastructure/policies` | IAM-compatible policy documents (e.g., `minio-visitor-readonly.json`) shared between Lambda deployments and operational scripts | — |
 

@@ -60,8 +60,8 @@ jobs:
 
       - name: Install Lambda Python dependencies
         run: |
-          pip install -r infrastructure/lambda/auth-deploy/requirements.txt \
-            -t infrastructure/lambda/auth-deploy/ \
+          pip install -r services/auth-deploy/requirements.txt \
+            -t services/auth-deploy/ \
             --platform manylinux2014_x86_64 \
             --only-binary=:all: \
             --python-version 3.13 \

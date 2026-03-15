@@ -11,7 +11,7 @@
 | `ci.yml` | CI | Push/PR to `main` | Lint, type-check, unit tests, frontend build, API contract validation |
 | `build-images.yml` | Build Images | Push to `main` (path-filtered) or `workflow_dispatch` | Build and push Docker images to ECR |
 | `deploy.yml` | Deploy | `workflow_dispatch` | Full platform deploy to EKS + optional frontend to S3/CloudFront |
-| `deploy-lambda.yml` | Deploy Lambda | Push to `main` (`infrastructure/lambda/**`) or `workflow_dispatch` | Package and deploy `rideshare-auth-deploy` Lambda |
+| `deploy-lambda.yml` | Deploy Lambda | Push to `main` (`services/auth-deploy/**`, `services/ai-chat/**`) or `workflow_dispatch` | Package and deploy `rideshare-auth-deploy` Lambda |
 | `integration-tests.yml` | Integration Tests | Weekly (Monday 02:00 UTC) or `workflow_dispatch` | Full-stack integration tests with Docker Compose |
 | `soft-reset.yml` | Soft Reset | `workflow_dispatch` | Wipe all runtime data without destroying infrastructure |
 | `teardown-platform.yml` | Teardown Platform | `workflow_dispatch` | Destroy EKS platform (preserves foundation resources) |
@@ -155,7 +155,7 @@ Estimated cost at foundation-only state: ~$8/month.
 
 ### Deploy Lambda only
 
-Push changes to `infrastructure/lambda/**` on `main`, or run the `Deploy Lambda` workflow manually. The workflow packages dependencies flat at the zip root (not nested under `auth-deploy/`) so Lambda imports work correctly.
+Push changes to `services/auth-deploy/**` or `services/ai-chat/**` on `main`, or run the `Deploy Lambda` workflow manually. The workflow packages dependencies flat at the zip root (not nested under `auth-deploy/`) so Lambda imports work correctly.
 
 ---
 
@@ -259,5 +259,5 @@ The `deploy.yml` job will print a warning but continue. The Lambda-triggered aut
 - [CONTEXT.md](../../CONTEXT.md) — Project architecture overview
 - [README.md](../../README.md) — Root quick-start, all local commands, ports
 - [infrastructure/terraform/README.md](../../infrastructure/terraform/README.md) — Terraform modules reference (if present)
-- [infrastructure/lambda/auth-deploy/](../../infrastructure/lambda/auth-deploy/) — Lambda source for visitor provisioning and auto-teardown
+- [services/auth-deploy/](../../services/auth-deploy/) — Lambda source for visitor provisioning and auto-teardown
 - [docs/INFRASTRUCTURE.md](../../docs/INFRASTRUCTURE.md) — Docker, Kubernetes, CI/CD architecture

@@ -150,7 +150,7 @@ In the frontend, `useRole()` reads the authenticated role from `sessionStorage` 
 - `services/control-panel/src/components/LoginDialog.tsx` — credential-based frontend login
 - `services/control-panel/src/hooks/useRole.ts` — role resolution from `sessionStorage`
 - `services/control-panel/src/utils/auth.ts` — `storeSession`, `clearSession`, `getApiKey`, `getSessionRole`
-- `infrastructure/lambda/auth-deploy/` — Lambda-level API key validation and `NO_AUTH_ACTIONS`
+- `services/auth-deploy/` — Lambda-level API key validation and `NO_AUTH_ACTIONS`
 
 ---
 
@@ -511,7 +511,7 @@ Phase 2 (`reprovision-visitors`, post-deploy): scans DynamoDB, decrypts each KMS
 - `infrastructure/kubernetes/` — External Secrets Operator `SecretStore` and `ExternalSecret` manifests
 - `infrastructure/terraform/foundation/modules/secrets_manager/` — Terraform module for AWS Secrets Manager resources
 - `infrastructure/terraform/foundation/` — KMS CMK `rideshare-visitor-passwords`, DynamoDB `rideshare-visitors` table
-- `infrastructure/lambda/auth-deploy/` — `get_secret()` helper normalizing plain-string and JSON-encoded secrets; two-phase visitor provisioning sub-modules
+- `services/auth-deploy/` — `get_secret()` helper normalizing plain-string and JSON-encoded secrets; two-phase visitor provisioning sub-modules
 - `services/trino/etc/` — `password.db.template`, `rules.json`, `password-authenticator.properties`
 
 ---

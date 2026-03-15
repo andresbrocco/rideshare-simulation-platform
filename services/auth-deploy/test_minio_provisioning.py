@@ -20,9 +20,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 # Paths resolved from this test file's location.
-# test_minio_provisioning.py lives at infrastructure/lambda/auth-deploy/
-# Repository root is four levels up: auth-deploy -> lambda -> infrastructure -> repo-root
-_REPO_ROOT = Path(__file__).parent.parent.parent.parent
+# test_minio_provisioning.py lives at services/auth-deploy/
+# Repository root is three levels up: auth-deploy -> services -> repo-root
+_REPO_ROOT = Path(__file__).parent.parent.parent
 _POLICY_FILE = _REPO_ROOT / "infrastructure" / "policies" / "minio-visitor-readonly.json"
 _PROVISION_MODULE_PATH = Path(__file__).parent / "provision_minio_visitor.py"
 

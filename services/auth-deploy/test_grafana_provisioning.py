@@ -23,7 +23,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 # Paths resolved from this test file's location.
-# test_grafana_provisioning.py lives at infrastructure/lambda/auth-deploy/
+# test_grafana_provisioning.py lives at services/auth-deploy/
 # The canonical provisioning script is co-located in the same directory.
 _PROVISION_MODULE_PATH = __import__("pathlib").Path(__file__).parent / "provision_grafana_viewer.py"
 

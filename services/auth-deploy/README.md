@@ -225,7 +225,7 @@ curl -s -X POST "$LAMBDA_URL" \
 ### Run unit tests
 
 ```bash
-cd infrastructure/lambda/auth-deploy
+cd services/auth-deploy
 ../../venv/bin/python3 -m pytest test_handler.py -v
 ```
 
