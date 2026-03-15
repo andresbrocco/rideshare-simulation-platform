@@ -443,15 +443,6 @@ function getExternalServices(isLocal: boolean): ExternalService[] {
       iconColor: `#${SiReactHex}`,
     },
     {
-      name: 'Grafana',
-      url: isLocal
-        ? 'http://localhost:3001'
-        : 'https://grafana.ridesharing.portfolio.andresbrocco.com',
-      desc: 'Multi-datasource dashboards — metrics, logs, traces, and BI analytics',
-      icon: SiGrafana,
-      iconColor: `#${SiGrafanaHex}`,
-    },
-    {
       name: 'Airflow',
       url: isLocal
         ? 'http://localhost:8082'
@@ -461,31 +452,13 @@ function getExternalServices(isLocal: boolean): ExternalService[] {
       iconColor: AIRFLOW_COLOR,
     },
     {
-      name: 'Trino',
+      name: 'Grafana',
       url: isLocal
-        ? 'http://localhost:8084'
-        : 'https://trino.ridesharing.portfolio.andresbrocco.com',
-      desc: 'Interactive SQL over Delta Lake — query the star schema live',
-      icon: SiTrino,
-      iconColor: TRINO_COLOR,
-    },
-    {
-      name: 'Prometheus',
-      url: isLocal
-        ? 'http://localhost:9090'
-        : 'https://prometheus.ridesharing.portfolio.andresbrocco.com',
-      desc: 'Raw metrics and PromQL — simulation KPIs and container resources',
-      icon: SiPrometheus,
-      iconColor: `#${SiPrometheusHex}`,
-    },
-    {
-      name: 'Simulation API',
-      url: isLocal
-        ? 'http://localhost:8000/docs'
-        : 'https://api.ridesharing.portfolio.andresbrocco.com/docs',
-      desc: 'FastAPI Swagger docs — start sessions, spawn agents, control speed',
-      icon: SiFastapi,
-      iconColor: `#${SiFastapiHex}`,
+        ? 'http://localhost:3001'
+        : 'https://grafana.ridesharing.portfolio.andresbrocco.com',
+      desc: 'Multi-datasource dashboards — metrics, logs, traces, and BI analytics',
+      icon: SiGrafana,
+      iconColor: `#${SiGrafanaHex}`,
     },
   ];
 }
@@ -626,11 +599,8 @@ import type { ServiceHealthMap } from '../services/lambda';
 
 const SERVICE_NAME_TO_ID: Record<string, keyof ServiceHealthMap> = {
   'Control Panel': 'control_panel',
-  Grafana: 'grafana',
   Airflow: 'airflow',
-  Trino: 'trino',
-  Prometheus: 'prometheus',
-  'Simulation API': 'simulation_api',
+  Grafana: 'grafana',
 };
 
 interface LandingPageProps {

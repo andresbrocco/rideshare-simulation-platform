@@ -138,11 +138,8 @@ describe('LandingPage', () => {
     renderLandingPage({ serviceHealth: ALL_SERVICES_UP });
 
     const expectedServices = [
-      { name: 'Grafana', url: 'https://grafana.ridesharing.portfolio.andresbrocco.com' },
       { name: 'Airflow', url: 'https://airflow.ridesharing.portfolio.andresbrocco.com' },
-      { name: 'Trino', url: 'https://trino.ridesharing.portfolio.andresbrocco.com' },
-      { name: 'Prometheus', url: 'https://prometheus.ridesharing.portfolio.andresbrocco.com' },
-      { name: 'Simulation API', url: 'https://api.ridesharing.portfolio.andresbrocco.com/docs' },
+      { name: 'Grafana', url: 'https://grafana.ridesharing.portfolio.andresbrocco.com' },
     ];
 
     for (const service of expectedServices) {
@@ -157,11 +154,8 @@ describe('LandingPage', () => {
     renderLandingPage({ isLocal: true, serviceHealth: ALL_SERVICES_UP });
 
     const expectedServices = [
-      { name: 'Grafana', url: 'http://localhost:3001' },
       { name: 'Airflow', url: 'http://localhost:8082' },
-      { name: 'Trino', url: 'http://localhost:8084' },
-      { name: 'Prometheus', url: 'http://localhost:9090' },
-      { name: 'Simulation API', url: 'http://localhost:8000/docs' },
+      { name: 'Grafana', url: 'http://localhost:3001' },
     ];
 
     for (const service of expectedServices) {
@@ -309,7 +303,7 @@ describe('Service cards with icons', () => {
   it('renders six service card icons', () => {
     renderLandingPage();
     const icons = document.querySelectorAll('.landing-service-icon');
-    expect(icons).toHaveLength(6);
+    expect(icons).toHaveLength(3);
   });
 });
 

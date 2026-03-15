@@ -51,25 +51,13 @@ SERVICE_INFO: dict[str, dict[str, str]] = {
         "url": "https://control-panel.ridesharing.portfolio.andresbrocco.com",
         "desc": "Real-time simulation map — watch drivers and riders move across São Paulo",
     },
-    "Grafana": {
-        "url": "https://grafana.ridesharing.portfolio.andresbrocco.com",
-        "desc": "Multi-datasource dashboards — metrics, logs, traces, and BI analytics",
-    },
     "Airflow": {
         "url": "https://airflow.ridesharing.portfolio.andresbrocco.com",
         "desc": "4 DAGs orchestrating Bronze → Silver → Gold transformations",
     },
-    "Trino": {
-        "url": "https://trino.ridesharing.portfolio.andresbrocco.com/ui",
-        "desc": "Interactive SQL over Delta Lake — query the star schema live",
-    },
-    "MinIO": {
-        "url": "https://minio.ridesharing.portfolio.andresbrocco.com",
-        "desc": "S3-compatible object storage — browse the raw lakehouse files",
-    },
-    "Simulation API": {
-        "url": "https://api.ridesharing.portfolio.andresbrocco.com/docs",
-        "desc": "FastAPI Swagger docs — start sessions, spawn agents, control speed",
+    "Grafana": {
+        "url": "https://grafana.ridesharing.portfolio.andresbrocco.com",
+        "desc": "Multi-datasource dashboards — metrics, logs, traces, and BI analytics",
     },
 }
 
