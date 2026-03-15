@@ -115,8 +115,8 @@ describe('TripLifecycleAnimation', () => {
     const { container } = render(<TripLifecycleAnimation />);
 
     const carImage = container.querySelector('image[href="/icons/car.png"]');
-    expect(carImage).toHaveAttribute('width', '48');
-    expect(carImage).toHaveAttribute('height', '48');
+    expect(carImage).toHaveAttribute('width', '68');
+    expect(carImage).toHaveAttribute('height', '68');
   });
 });
 

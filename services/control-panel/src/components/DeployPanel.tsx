@@ -788,7 +788,9 @@ export default function DeployPanel({
                 className={`${styles.progressItem} ${
                   readyCount === DEPLOY_SERVICES.length
                     ? styles.progressItemDone
-                    : styles.progressItemActive
+                    : hasServiceProgress || workflowStatus === 'completed'
+                      ? styles.progressItemActive
+                      : ''
                 }`}
               >
                 Starting services
