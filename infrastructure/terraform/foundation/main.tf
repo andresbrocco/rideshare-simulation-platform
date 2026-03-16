@@ -296,22 +296,25 @@ module "iam" {
 # Glue Data Catalog
 # -----------------------------------------------------------------------------
 resource "aws_glue_catalog_database" "bronze" {
-  name        = "${var.project_name}_bronze"
-  description = "Raw ingested events — Bronze medallion layer"
+  name         = "${var.project_name}_bronze"
+  description  = "Raw ingested events — Bronze medallion layer"
+  location_uri = "s3://${module.s3.bronze_bucket_name}/"
 
   tags = { Project = var.project_name, Component = "glue-catalog" }
 }
 
 resource "aws_glue_catalog_database" "silver" {
-  name        = "${var.project_name}_silver"
-  description = "Cleaned and deduplicated events — Silver medallion layer"
+  name         = "${var.project_name}_silver"
+  description  = "Cleaned and deduplicated events — Silver medallion layer"
+  location_uri = "s3://${module.s3.silver_bucket_name}/"
 
   tags = { Project = var.project_name, Component = "glue-catalog" }
 }
 
 resource "aws_glue_catalog_database" "gold" {
-  name        = "${var.project_name}_gold"
-  description = "Star-schema aggregates for analytics — Gold medallion layer"
+  name         = "${var.project_name}_gold"
+  description  = "Star-schema aggregates for analytics — Gold medallion layer"
+  location_uri = "s3://${module.s3.gold_bucket_name}/"
 
   tags = { Project = var.project_name, Component = "glue-catalog" }
 }
