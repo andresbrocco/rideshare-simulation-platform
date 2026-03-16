@@ -138,7 +138,7 @@ describe('LandingPage', () => {
     renderLandingPage({ serviceHealth: ALL_SERVICES_UP });
 
     const expectedServices = [
-      { name: 'Airflow', url: 'https://airflow.ridesharing.portfolio.andresbrocco.com' },
+      { name: 'Airflow', url: 'https://airflow.ridesharing.portfolio.andresbrocco.com/login' },
       { name: 'Grafana', url: 'https://grafana.ridesharing.portfolio.andresbrocco.com' },
     ];
 
@@ -154,7 +154,7 @@ describe('LandingPage', () => {
     renderLandingPage({ isLocal: true, serviceHealth: ALL_SERVICES_UP });
 
     const expectedServices = [
-      { name: 'Airflow', url: 'http://localhost:8082' },
+      { name: 'Airflow', url: 'http://localhost:8082/login' },
       { name: 'Grafana', url: 'http://localhost:3001' },
     ];
 
