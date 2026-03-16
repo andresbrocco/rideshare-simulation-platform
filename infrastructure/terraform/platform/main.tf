@@ -60,6 +60,32 @@ module "alb" {
   aws_region   = var.aws_region
 }
 
+# --------------------------------------------------------------------------
+# Phase 2 EKS Add-ons — CoreDNS and EBS CSI require running nodes and must
+# wait for the ALB controller to be ready.  The ALB controller installs a
+# cluster-wide mutating webhook; if these addons are created before the
+# webhook endpoints are ready, the API server rejects their Service objects.
+# --------------------------------------------------------------------------
+resource "aws_eks_addon" "coredns" {
+  cluster_name = module.eks.cluster_name
+  addon_name   = "coredns"
+
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  depends_on = [module.alb]
+}
+
+resource "aws_eks_addon" "ebs_csi" {
+  cluster_name = module.eks.cluster_name
+  addon_name   = "aws-ebs-csi-driver"
+
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  depends_on = [module.alb]
+}
+
 # DNS Module
 module "dns" {
   source = "./modules/dns"
