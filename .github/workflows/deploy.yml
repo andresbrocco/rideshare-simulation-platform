@@ -120,6 +120,25 @@ jobs:
 
           echo "State reconciliation complete."
 
+      - name: Clean Up Orphaned EBS Volumes
+        run: |
+          echo "Cleaning up orphaned EBS volumes from previous deployments..."
+          ORPHANED=$(aws ec2 describe-volumes \
+            --filters "Name=status,Values=available" \
+                      "Name=tag:kubernetes.io/cluster/rideshare-eks,Values=owned" \
+            --query 'Volumes[*].VolumeId' --output text)
+
+          if [ -z "$ORPHANED" ]; then
+            echo "No orphaned volumes found"
+          else
+            COUNT=0
+            for VOL_ID in $ORPHANED; do
+              aws ec2 delete-volume --volume-id "$VOL_ID" && COUNT=$((COUNT + 1)) \
+                || echo "Warning: Failed to delete $VOL_ID"
+            done
+            echo "Deleted $COUNT orphaned EBS volume(s)"
+          fi
+
       - name: Terraform Plan (Platform)
         working-directory: infrastructure/terraform/platform
         run: terraform plan -input=false -out=tfplan

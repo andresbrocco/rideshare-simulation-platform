@@ -45,7 +45,7 @@ variable "node_count" {
 variable "node_disk_size" {
   description = "EBS volume size per node (GB)"
   type        = number
-  default     = 50
+  default     = 30
 }
 
 variable "vpc_cidr" {
