@@ -92,6 +92,11 @@ export function playErrorTone(ctx: AudioContext | null): void {
   osc2.stop(now + 0.35);
 }
 
+export function wasPendingDeploy(): boolean {
+  if (typeof sessionStorage === 'undefined') return false;
+  return sessionStorage.getItem(DEPLOYING_FLAG_KEY) === 'true';
+}
+
 export function useDeployNotification(): UseDeployNotificationReturn {
   const [permission, setPermission] = useState<NotifyPermission>(getInitialPermission);
   const [enabled, setEnabled] = useState<boolean>(() => {

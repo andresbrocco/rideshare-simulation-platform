@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useDeployNotification, playSuccessChime, playErrorTone } from '../useDeployNotification';
+import {
+  useDeployNotification,
+  playSuccessChime,
+  playErrorTone,
+  wasPendingDeploy,
+} from '../useDeployNotification';
 
 describe('useDeployNotification', () => {
   beforeEach(() => {
@@ -288,6 +293,23 @@ describe('useDeployNotification', () => {
       });
       expect(result.current.enabled).toBe(false);
       expect(sessionStorage.getItem('deploy-was-in-progress')).toBeNull();
+    });
+  });
+
+  describe('wasPendingDeploy', () => {
+    it('returns false when no flag is set', () => {
+      expect(wasPendingDeploy()).toBe(false);
+    });
+
+    it('returns true when flag is set', () => {
+      sessionStorage.setItem('deploy-was-in-progress', 'true');
+      expect(wasPendingDeploy()).toBe(true);
+    });
+
+    it('does not clear the flag (read-only)', () => {
+      sessionStorage.setItem('deploy-was-in-progress', 'true');
+      wasPendingDeploy();
+      expect(sessionStorage.getItem('deploy-was-in-progress')).toBe('true');
     });
   });
 });

@@ -17,6 +17,7 @@ import {
   useDeployNotification,
   playSuccessChime,
   playErrorTone,
+  wasPendingDeploy,
 } from '../hooks/useDeployNotification';
 import { showToast } from '../lib/toast';
 import styles from './DeployPanel.module.css';
@@ -149,6 +150,9 @@ export default function DeployPanel({
   const serviceHealthIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const teardownPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const pendingNotificationRef = useRef<
+    { type: 'success' } | { type: 'error'; message: string } | null
+  >(null);
 
   const apiUrl = isLocal
     ? import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -495,16 +499,47 @@ export default function DeployPanel({
     prevPanelStateRef.current = panelState;
 
     if (prev === 'deploying' && panelState === 'active') {
-      showToast.success('Deploy complete — all services are ready');
-      playSuccessChime(audioCtxRef.current);
       notifySuccess();
+      if (document.hidden) {
+        pendingNotificationRef.current = { type: 'success' };
+      } else {
+        showToast.success('Deploy complete — all services are ready');
+        playSuccessChime(audioCtxRef.current);
+      }
     }
     if (prev === 'deploying' && panelState === 'error') {
-      showToast.error(errorMessage || 'Deployment failed');
-      playErrorTone(audioCtxRef.current);
       notifyError(errorMessage);
+      if (document.hidden) {
+        pendingNotificationRef.current = {
+          type: 'error',
+          message: errorMessage || 'Deployment failed',
+        };
+      } else {
+        showToast.error(errorMessage || 'Deployment failed');
+        playErrorTone(audioCtxRef.current);
+      }
     }
   }, [panelState, notifySuccess, notifyError, errorMessage]);
+
+  // ── Drain pending notification when tab becomes visible ────────
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) return;
+      const pending = pendingNotificationRef.current;
+      if (!pending) return;
+      pendingNotificationRef.current = null;
+      if (pending.type === 'success') {
+        showToast.success('Deploy complete — all services are ready');
+        playSuccessChime(audioCtxRef.current);
+      } else {
+        showToast.error(pending.message);
+        playErrorTone(audioCtxRef.current);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
 
   // ── Resume state on mount ──────────────────────────────────────
   useEffect(() => {
@@ -543,6 +578,7 @@ export default function DeployPanel({
 
         if (sessionData.active && sessionData.deadline != null) {
           // Active session
+          const hadPendingDeploy = wasPendingDeploy();
           setDeployedAt(sessionData.deployed_at ?? null);
           setDeadline(sessionData.deadline);
           setCostSoFar(sessionData.cost_so_far ?? null);
@@ -553,6 +589,10 @@ export default function DeployPanel({
           }
           setPanelState('active');
           checkPendingNotification('success');
+          if (hadPendingDeploy) {
+            showToast.success('Deploy complete — all services are ready');
+            playSuccessChime(audioCtxRef.current);
+          }
           return;
         }
 
