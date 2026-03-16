@@ -17,7 +17,6 @@ import {
   useDeployNotification,
   playSuccessChime,
   playErrorTone,
-  wasPendingDeploy,
 } from '../hooks/useDeployNotification';
 import { showToast } from '../lib/toast';
 import styles from './DeployPanel.module.css';
@@ -578,7 +577,6 @@ export default function DeployPanel({
 
         if (sessionData.active && sessionData.deadline != null) {
           // Active session
-          const hadPendingDeploy = wasPendingDeploy();
           setDeployedAt(sessionData.deployed_at ?? null);
           setDeadline(sessionData.deadline);
           setCostSoFar(sessionData.cost_so_far ?? null);
@@ -588,7 +586,7 @@ export default function DeployPanel({
             setElapsedSeconds(now - sessionData.deployed_at);
           }
           setPanelState('active');
-          checkPendingNotification('success');
+          const hadPendingDeploy = checkPendingNotification('success');
           if (hadPendingDeploy) {
             showToast.success('Deploy complete — all services are ready');
             playSuccessChime(audioCtxRef.current);
@@ -874,8 +872,10 @@ export default function DeployPanel({
             />
             <span className={styles.notifySwitch} />
             <span className={styles.notifyText}>Notify me when done</span>
-            {notifyPermission === 'denied' && notifyEnabled && (
-              <span className={styles.notifyHint}>(blocked by browser)</span>
+            {notifyPermission === 'denied' && (
+              <span className={styles.notifyHint}>
+                {notifyEnabled ? 'sound only — notifications blocked' : 'notifications blocked'}
+              </span>
             )}
           </label>
         </>

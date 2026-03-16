@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 type NotifyPermission = 'default' | 'granted' | 'denied' | 'unsupported';
 
@@ -9,7 +9,7 @@ interface UseDeployNotificationReturn {
   notifySuccess: () => void;
   notifyError: (message: string) => void;
   markDeployStarted: () => void;
-  checkPendingNotification: (outcome: 'success' | 'error', errorMessage?: string) => void;
+  checkPendingNotification: (outcome: 'success' | 'error', errorMessage?: string) => boolean;
 }
 
 const STORAGE_KEY = 'deploy-notify-enabled';
@@ -92,9 +92,10 @@ export function playErrorTone(ctx: AudioContext | null): void {
   osc2.stop(now + 0.35);
 }
 
-export function wasPendingDeploy(): boolean {
-  if (typeof sessionStorage === 'undefined') return false;
-  return sessionStorage.getItem(DEPLOYING_FLAG_KEY) === 'true';
+function toNotifyPermission(state: PermissionState): NotifyPermission {
+  if (state === 'granted') return 'granted';
+  if (state === 'denied') return 'denied';
+  return 'default'; // 'prompt' → 'default'
 }
 
 export function useDeployNotification(): UseDeployNotificationReturn {
@@ -106,6 +107,12 @@ export function useDeployNotification(): UseDeployNotificationReturn {
     // Only restore if permission was already granted (or sound-only)
     return getInitialPermission() !== 'unsupported';
   });
+
+  const resetState = useCallback(() => {
+    setEnabled(false);
+    sessionStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(DEPLOYING_FLAG_KEY);
+  }, []);
 
   const toggle = useCallback(async () => {
     if (enabled) {
@@ -130,7 +137,7 @@ export function useDeployNotification(): UseDeployNotificationReturn {
   const notifySuccess = useCallback(() => {
     if (!enabled) return;
 
-    if (permission === 'granted') {
+    if (permission === 'granted' && document.hidden) {
       new Notification('Deploy Complete', {
         body: 'All services are ready. Your platform is live.',
         icon: '/favicon.svg',
@@ -138,16 +145,14 @@ export function useDeployNotification(): UseDeployNotificationReturn {
       });
     }
 
-    setEnabled(false);
-    sessionStorage.removeItem(STORAGE_KEY);
-    sessionStorage.removeItem(DEPLOYING_FLAG_KEY);
-  }, [enabled, permission]);
+    resetState();
+  }, [enabled, permission, resetState]);
 
   const notifyError = useCallback(
     (message: string) => {
       if (!enabled) return;
 
-      if (permission === 'granted') {
+      if (permission === 'granted' && document.hidden) {
         new Notification('Deployment Failed', {
           body: message,
           icon: '/favicon.svg',
@@ -155,11 +160,9 @@ export function useDeployNotification(): UseDeployNotificationReturn {
         });
       }
 
-      setEnabled(false);
-      sessionStorage.removeItem(STORAGE_KEY);
-      sessionStorage.removeItem(DEPLOYING_FLAG_KEY);
+      resetState();
     },
-    [enabled, permission]
+    [enabled, permission, resetState]
   );
 
   const markDeployStarted = useCallback(() => {
@@ -167,19 +170,42 @@ export function useDeployNotification(): UseDeployNotificationReturn {
   }, []);
 
   const checkPendingNotification = useCallback(
-    (outcome: 'success' | 'error', errorMessage?: string) => {
+    (outcome: 'success' | 'error', errorMessage?: string): boolean => {
       const wasDeploying = sessionStorage.getItem(DEPLOYING_FLAG_KEY) === 'true';
-      if (!wasDeploying) return;
+      if (!wasDeploying) return false;
       sessionStorage.removeItem(DEPLOYING_FLAG_KEY);
-      if (!enabled) return;
+      if (!enabled) return true;
       if (outcome === 'success') {
         notifySuccess();
       } else {
         notifyError(errorMessage ?? 'Deployment failed');
       }
+      return true;
     },
     [enabled, notifySuccess, notifyError]
   );
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.permissions) return;
+
+    let permStatus: PermissionStatus | null = null;
+    const handleChange = () => {
+      if (permStatus) setPermission(toNotifyPermission(permStatus.state));
+    };
+
+    navigator.permissions
+      .query({ name: 'notifications' })
+      .then((status) => {
+        permStatus = status;
+        setPermission(toNotifyPermission(status.state));
+        status.addEventListener('change', handleChange);
+      })
+      .catch(() => {});
+
+    return () => {
+      permStatus?.removeEventListener('change', handleChange);
+    };
+  }, []);
 
   return {
     enabled,

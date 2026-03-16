@@ -1,11 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import {
-  useDeployNotification,
-  playSuccessChime,
-  playErrorTone,
-  wasPendingDeploy,
-} from '../useDeployNotification';
+import { useDeployNotification, playSuccessChime, playErrorTone } from '../useDeployNotification';
 
 describe('useDeployNotification', () => {
   beforeEach(() => {
@@ -80,6 +75,7 @@ describe('useDeployNotification', () => {
 
   it('notifySuccess creates OS notification and resets enabled', async () => {
     Object.defineProperty(Notification, 'permission', { value: 'granted', configurable: true });
+    Object.defineProperty(document, 'hidden', { value: true, configurable: true });
 
     const { result } = renderHook(() => useDeployNotification());
 
@@ -99,6 +95,8 @@ describe('useDeployNotification', () => {
     });
     expect(result.current.enabled).toBe(false);
     expect(sessionStorage.getItem('deploy-notify-enabled')).toBeNull();
+
+    Object.defineProperty(document, 'hidden', { value: false, configurable: true });
   });
 
   it('notifySuccess does nothing when disabled', () => {
@@ -113,6 +111,7 @@ describe('useDeployNotification', () => {
 
   it('notifyError creates OS notification with error message', async () => {
     Object.defineProperty(Notification, 'permission', { value: 'granted', configurable: true });
+    Object.defineProperty(document, 'hidden', { value: true, configurable: true });
 
     const { result } = renderHook(() => useDeployNotification());
 
@@ -130,6 +129,8 @@ describe('useDeployNotification', () => {
       tag: 'deploy-failed',
     });
     expect(result.current.enabled).toBe(false);
+
+    Object.defineProperty(document, 'hidden', { value: false, configurable: true });
   });
 
   it('restores enabled from sessionStorage on mount', async () => {
@@ -170,6 +171,7 @@ describe('useDeployNotification', () => {
 
     it('checkPendingNotification fires success when flag and enabled are both set', async () => {
       Object.defineProperty(Notification, 'permission', { value: 'granted', configurable: true });
+      Object.defineProperty(document, 'hidden', { value: true, configurable: true });
 
       const { result } = renderHook(() => useDeployNotification());
 
@@ -182,17 +184,22 @@ describe('useDeployNotification', () => {
         result.current.markDeployStarted();
       });
 
+      let returned: boolean = false;
       act(() => {
-        result.current.checkPendingNotification('success');
+        returned = result.current.checkPendingNotification('success');
       });
 
+      expect(returned).toBe(true);
       expect(Notification).toHaveBeenCalledWith('Deploy Complete', expect.anything());
       expect(result.current.enabled).toBe(false);
       expect(sessionStorage.getItem('deploy-was-in-progress')).toBeNull();
+
+      Object.defineProperty(document, 'hidden', { value: false, configurable: true });
     });
 
     it('checkPendingNotification fires error with message', async () => {
       Object.defineProperty(Notification, 'permission', { value: 'granted', configurable: true });
+      Object.defineProperty(document, 'hidden', { value: true, configurable: true });
 
       const { result } = renderHook(() => useDeployNotification());
 
@@ -204,19 +211,23 @@ describe('useDeployNotification', () => {
         result.current.markDeployStarted();
       });
 
+      let returned: boolean = false;
       act(() => {
-        result.current.checkPendingNotification('error', 'Deployment did not complete');
+        returned = result.current.checkPendingNotification('error', 'Deployment did not complete');
       });
 
+      expect(returned).toBe(true);
       expect(Notification).toHaveBeenCalledWith('Deployment Failed', {
         body: 'Deployment did not complete',
         icon: '/favicon.svg',
         tag: 'deploy-failed',
       });
       expect(result.current.enabled).toBe(false);
+
+      Object.defineProperty(document, 'hidden', { value: false, configurable: true });
     });
 
-    it('checkPendingNotification no-ops when flag is absent', async () => {
+    it('checkPendingNotification returns false when flag is absent', async () => {
       Object.defineProperty(Notification, 'permission', { value: 'granted', configurable: true });
 
       const { result } = renderHook(() => useDeployNotification());
@@ -226,10 +237,12 @@ describe('useDeployNotification', () => {
       });
       expect(result.current.enabled).toBe(true);
 
+      let returned: boolean = true;
       act(() => {
-        result.current.checkPendingNotification('success');
+        returned = result.current.checkPendingNotification('success');
       });
 
+      expect(returned).toBe(false);
       // Notification should NOT have been called for deploy complete
       expect(Notification).not.toHaveBeenCalledWith('Deploy Complete', expect.anything());
       // enabled should remain true (not consumed)
@@ -242,10 +255,12 @@ describe('useDeployNotification', () => {
 
       const { result: result2 } = renderHook(() => useDeployNotification());
 
+      let returned: boolean = false;
       act(() => {
-        result2.current.checkPendingNotification('success');
+        returned = result2.current.checkPendingNotification('success');
       });
 
+      expect(returned).toBe(true);
       // Flag should be cleared
       expect(sessionStorage.getItem('deploy-was-in-progress')).toBeNull();
       // But no notification fired
@@ -256,6 +271,7 @@ describe('useDeployNotification', () => {
 
     it('notifySuccess clears the deploying flag to prevent double-fire', async () => {
       Object.defineProperty(Notification, 'permission', { value: 'granted', configurable: true });
+      Object.defineProperty(document, 'hidden', { value: true, configurable: true });
 
       const { result } = renderHook(() => useDeployNotification());
 
@@ -273,6 +289,8 @@ describe('useDeployNotification', () => {
       });
 
       expect(sessionStorage.getItem('deploy-was-in-progress')).toBeNull();
+
+      Object.defineProperty(document, 'hidden', { value: false, configurable: true });
     });
 
     it('toggle off clears the deploying flag', async () => {
@@ -296,20 +314,69 @@ describe('useDeployNotification', () => {
     });
   });
 
-  describe('wasPendingDeploy', () => {
-    it('returns false when no flag is set', () => {
-      expect(wasPendingDeploy()).toBe(false);
+  it('notifySuccess skips OS notification when tab is visible', async () => {
+    Object.defineProperty(Notification, 'permission', { value: 'granted', configurable: true });
+    Object.defineProperty(document, 'hidden', { value: false, configurable: true });
+
+    const { result } = renderHook(() => useDeployNotification());
+
+    await act(async () => {
+      await result.current.toggle();
+    });
+    expect(result.current.enabled).toBe(true);
+
+    act(() => {
+      result.current.notifySuccess();
     });
 
-    it('returns true when flag is set', () => {
-      sessionStorage.setItem('deploy-was-in-progress', 'true');
-      expect(wasPendingDeploy()).toBe(true);
+    // OS notification should NOT fire when tab is visible
+    expect(Notification).not.toHaveBeenCalledWith('Deploy Complete', expect.anything());
+    // But state should still reset
+    expect(result.current.enabled).toBe(false);
+    expect(sessionStorage.getItem('deploy-notify-enabled')).toBeNull();
+    expect(sessionStorage.getItem('deploy-was-in-progress')).toBeNull();
+  });
+
+  it('permission state updates live when browser settings change', async () => {
+    Object.defineProperty(Notification, 'permission', { value: 'granted', configurable: true });
+
+    let changeHandler: (() => void) | null = null;
+    const mockStatus = {
+      state: 'granted' as PermissionState,
+      addEventListener: vi.fn((_event: string, handler: () => void) => {
+        changeHandler = handler;
+      }),
+      removeEventListener: vi.fn(),
+    };
+
+    const originalPermissions = navigator.permissions;
+    Object.defineProperty(navigator, 'permissions', {
+      value: {
+        query: vi.fn(() => Promise.resolve(mockStatus)),
+      },
+      configurable: true,
     });
 
-    it('does not clear the flag (read-only)', () => {
-      sessionStorage.setItem('deploy-was-in-progress', 'true');
-      wasPendingDeploy();
-      expect(sessionStorage.getItem('deploy-was-in-progress')).toBe('true');
+    const { result } = renderHook(() => useDeployNotification());
+
+    // Let the permissions.query promise resolve
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    expect(result.current.permission).toBe('granted');
+
+    // Simulate browser settings change to denied
+    mockStatus.state = 'denied';
+    act(() => {
+      changeHandler?.();
+    });
+
+    expect(result.current.permission).toBe('denied');
+
+    Object.defineProperty(navigator, 'permissions', {
+      value: originalPermissions,
+      configurable: true,
     });
   });
 });
