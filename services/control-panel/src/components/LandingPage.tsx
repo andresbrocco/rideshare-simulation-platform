@@ -516,6 +516,7 @@ interface ExternalService {
   desc: string;
   icon: IconComponent;
   iconColor: string;
+  iconStyle?: React.CSSProperties;
 }
 
 function getExternalServices(isLocal: boolean): ExternalService[] {
@@ -537,6 +538,7 @@ function getExternalServices(isLocal: boolean): ExternalService[] {
       desc: '4 DAGs orchestrating Bronze → Silver → Gold transformations',
       icon: SiApacheairflow,
       iconColor: AIRFLOW_COLOR,
+      iconStyle: { stroke: 'currentColor', strokeWidth: 0.6 },
     },
     {
       name: 'Grafana',
@@ -1289,7 +1291,7 @@ export function LandingPage({
                         width={32}
                         height={32}
                         className="landing-service-icon"
-                        style={{ color: s.iconColor }}
+                        style={{ color: s.iconColor, ...s.iconStyle }}
                         aria-hidden="true"
                       />
                       <span className="landing-service-name">{s.name}</span>
@@ -1310,7 +1312,7 @@ export function LandingPage({
                       width={32}
                       height={32}
                       className="landing-service-icon"
-                      style={{ color: s.iconColor }}
+                      style={{ color: s.iconColor, ...s.iconStyle }}
                       aria-hidden="true"
                     />
                     <span className="landing-service-name">{s.name}</span>
