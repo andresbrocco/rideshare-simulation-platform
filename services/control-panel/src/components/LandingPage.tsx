@@ -66,6 +66,41 @@ import { useRole } from '../hooks/useRole';
 
 const LINKEDIN_URL = 'https://www.linkedin.com/in/andresbrocco/';
 
+const SliderIcon: FunctionComponent<SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" {...props}>
+    <line
+      x1="25"
+      y1="15"
+      x2="25"
+      y2="85"
+      stroke="currentColor"
+      strokeWidth="4"
+      strokeLinecap="round"
+    />
+    <line
+      x1="50"
+      y1="15"
+      x2="50"
+      y2="85"
+      stroke="currentColor"
+      strokeWidth="4"
+      strokeLinecap="round"
+    />
+    <line
+      x1="75"
+      y1="15"
+      x2="75"
+      y2="85"
+      stroke="currentColor"
+      strokeWidth="4"
+      strokeLinecap="round"
+    />
+    <rect x="17" y="55" width="16" height="12" rx="2" fill="currentColor" />
+    <rect x="42" y="30" width="16" height="12" rx="2" fill="currentColor" />
+    <rect x="67" y="45" width="16" height="12" rx="2" fill="currentColor" />
+  </svg>
+);
+
 type IconComponent = FunctionComponent<SVGProps<SVGSVGElement>>;
 
 interface TechBadge {
@@ -491,8 +526,8 @@ function getExternalServices(isLocal: boolean): ExternalService[] {
         ? 'http://localhost:5173'
         : 'https://control-panel.ridesharing.portfolio.andresbrocco.com',
       desc: 'Real-time simulation map — watch drivers and riders move across São Paulo',
-      icon: SiReact,
-      iconColor: `#${SiReactHex}`,
+      icon: SliderIcon,
+      iconColor: '#00FF88',
     },
     {
       name: 'Airflow',
