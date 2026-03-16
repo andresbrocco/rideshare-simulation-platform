@@ -27,7 +27,13 @@ import type { WebSocketMessage } from './types/websocket';
 import type { ZoneData } from './types/api';
 import { DEFAULT_VISIBILITY, type LayerVisibility } from './types/layers';
 import type { PlacementMode } from './constants/dnaPresets';
-import { getAppMode, getApiKey, clearSession, isLocalEnvironment } from './utils/auth';
+import {
+  type AppMode,
+  getAppMode,
+  getApiKey,
+  clearSession,
+  isLocalEnvironment,
+} from './utils/auth';
 import { useSessionExpiry } from './hooks/useSessionExpiry';
 import './App.css';
 
@@ -124,8 +130,25 @@ function DevApp() {
   return <OnlineApp apiAvailable={available} />;
 }
 
+function useFavicon(mode: AppMode) {
+  useEffect(() => {
+    if (mode !== 'landing') return;
+    const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    if (!link) return;
+    const originalHref = link.href;
+    const originalType = link.type;
+    link.href = '/icons/car-green.png';
+    link.type = 'image/png';
+    return () => {
+      link.href = originalHref;
+      link.type = originalType;
+    };
+  }, [mode]);
+}
+
 function AppContent() {
   const mode = getAppMode();
+  useFavicon(mode);
 
   if (mode === 'landing') return <LandingApp />;
   if (mode === 'control-panel') return <ControlPanelApp />;
