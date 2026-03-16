@@ -17,7 +17,10 @@ resource "aws_iam_role" "github_actions" {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
           }
           StringLike = {
-            "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/${var.github_branch}"
+            "token.actions.githubusercontent.com:sub" = [
+              "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/${var.github_branch}",
+              "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/deploy"
+            ]
           }
         }
       }
@@ -255,7 +258,8 @@ resource "aws_iam_role_policy" "github_actions_ec2" {
           "ec2:DescribeInternetGateways",
           "ec2:DescribeAvailabilityZones",
           "ec2:DescribeLaunchTemplates",
-          "ec2:DescribeLaunchTemplateVersions"
+          "ec2:DescribeLaunchTemplateVersions",
+          "ec2:DescribeVolumes"
         ]
         Resource = "*"
       },
@@ -272,7 +276,8 @@ resource "aws_iam_role_policy" "github_actions_ec2" {
           "ec2:AuthorizeSecurityGroupIngress",
           "ec2:RevokeSecurityGroupIngress",
           "ec2:AuthorizeSecurityGroupEgress",
-          "ec2:RevokeSecurityGroupEgress"
+          "ec2:RevokeSecurityGroupEgress",
+          "ec2:DeleteVolume"
         ]
         Resource = "*"
         Condition = {
