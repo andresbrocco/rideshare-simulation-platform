@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 
 type NotifyPermission = 'default' | 'granted' | 'denied' | 'unsupported';
 
@@ -26,7 +26,7 @@ function prefersReducedMotion(): boolean {
   );
 }
 
-function playSuccessChime(ctx: AudioContext | null): void {
+export function playSuccessChime(ctx: AudioContext | null): void {
   if (!ctx || prefersReducedMotion()) return;
   if (ctx.state === 'suspended') ctx.resume();
 
@@ -59,7 +59,7 @@ function playSuccessChime(ctx: AudioContext | null): void {
   osc2.stop(now + 0.32);
 }
 
-function playErrorTone(ctx: AudioContext | null): void {
+export function playErrorTone(ctx: AudioContext | null): void {
   if (!ctx || prefersReducedMotion()) return;
   if (ctx.state === 'suspended') ctx.resume();
 
@@ -102,23 +102,6 @@ export function useDeployNotification(): UseDeployNotificationReturn {
     return getInitialPermission() !== 'unsupported';
   });
 
-  const audioCtxRef = useRef<AudioContext | null>(null);
-
-  // Eagerly create AudioContext on restore if enabled
-  useEffect(() => {
-    if (enabled && !audioCtxRef.current && typeof AudioContext !== 'undefined') {
-      audioCtxRef.current = new AudioContext();
-    }
-  }, [enabled]);
-
-  // Cleanup AudioContext on unmount
-  useEffect(() => {
-    return () => {
-      audioCtxRef.current?.close();
-      audioCtxRef.current = null;
-    };
-  }, []);
-
   const toggle = useCallback(async () => {
     if (enabled) {
       setEnabled(false);
@@ -133,14 +116,6 @@ export function useDeployNotification(): UseDeployNotificationReturn {
       const result = await Notification.requestPermission();
       currentPermission = result as NotifyPermission;
       setPermission(currentPermission);
-    }
-
-    // Create AudioContext on user gesture
-    if (!audioCtxRef.current && typeof AudioContext !== 'undefined') {
-      audioCtxRef.current = new AudioContext();
-    }
-    if (audioCtxRef.current?.state === 'suspended') {
-      audioCtxRef.current.resume();
     }
 
     setEnabled(true);
@@ -158,8 +133,6 @@ export function useDeployNotification(): UseDeployNotificationReturn {
       });
     }
 
-    playSuccessChime(audioCtxRef.current);
-
     setEnabled(false);
     sessionStorage.removeItem(STORAGE_KEY);
     sessionStorage.removeItem(DEPLOYING_FLAG_KEY);
@@ -176,8 +149,6 @@ export function useDeployNotification(): UseDeployNotificationReturn {
           tag: 'deploy-failed',
         });
       }
-
-      playErrorTone(audioCtxRef.current);
 
       setEnabled(false);
       sessionStorage.removeItem(STORAGE_KEY);

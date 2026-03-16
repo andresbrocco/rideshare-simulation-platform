@@ -1,48 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useDeployNotification } from '../useDeployNotification';
-
-// Mock AudioContext
-function createMockAudioContext() {
-  const mockOscillator = {
-    type: 'sine' as OscillatorType,
-    frequency: { value: 0 },
-    connect: vi.fn(),
-    start: vi.fn(),
-    stop: vi.fn(),
-  };
-
-  const mockGain = {
-    gain: {
-      value: 0,
-      setValueAtTime: vi.fn(),
-      linearRampToValueAtTime: vi.fn(),
-      exponentialRampToValueAtTime: vi.fn(),
-    },
-    connect: vi.fn(),
-  };
-
-  return {
-    instance: {
-      currentTime: 0,
-      state: 'running' as AudioContextState,
-      destination: {} as AudioDestinationNode,
-      createOscillator: vi.fn(() => mockOscillator),
-      createGain: vi.fn(() => mockGain),
-      resume: vi.fn(() => Promise.resolve()),
-      close: vi.fn(() => Promise.resolve()),
-    },
-    oscillator: mockOscillator,
-    gain: mockGain,
-  };
-}
+import { useDeployNotification, playSuccessChime, playErrorTone } from '../useDeployNotification';
 
 describe('useDeployNotification', () => {
-  let mockAudioCtx: ReturnType<typeof createMockAudioContext>;
-
   beforeEach(() => {
-    mockAudioCtx = createMockAudioContext();
-
     // Mock Notification API
     const MockNotification = vi.fn() as unknown as typeof Notification;
     Object.defineProperty(MockNotification, 'permission', {
@@ -54,21 +15,6 @@ describe('useDeployNotification', () => {
       MockNotification as unknown as { requestPermission: () => Promise<NotificationPermission> }
     ).requestPermission = vi.fn(() => Promise.resolve('granted' as NotificationPermission));
     global.Notification = MockNotification;
-
-    // Mock AudioContext
-    global.AudioContext = vi.fn(() => mockAudioCtx.instance) as unknown as typeof AudioContext;
-
-    // Mock matchMedia (no reduced motion by default)
-    global.matchMedia = vi.fn((query: string) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }));
 
     sessionStorage.clear();
   });
@@ -181,53 +127,6 @@ describe('useDeployNotification', () => {
     expect(result.current.enabled).toBe(false);
   });
 
-  it('plays sound on notifySuccess via AudioContext', async () => {
-    Object.defineProperty(Notification, 'permission', { value: 'granted', configurable: true });
-
-    const { result } = renderHook(() => useDeployNotification());
-
-    await act(async () => {
-      await result.current.toggle();
-    });
-
-    act(() => {
-      result.current.notifySuccess();
-    });
-
-    expect(mockAudioCtx.instance.createOscillator).toHaveBeenCalled();
-    expect(mockAudioCtx.oscillator.start).toHaveBeenCalled();
-  });
-
-  it('skips sound when prefers-reduced-motion is active', async () => {
-    Object.defineProperty(Notification, 'permission', { value: 'granted', configurable: true });
-
-    global.matchMedia = vi.fn((query: string) => ({
-      matches: query === '(prefers-reduced-motion: reduce)',
-      media: query,
-      onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }));
-
-    const { result } = renderHook(() => useDeployNotification());
-
-    await act(async () => {
-      await result.current.toggle();
-    });
-
-    act(() => {
-      result.current.notifySuccess();
-    });
-
-    // OS notification still fires
-    expect(Notification).toHaveBeenCalledWith('Deploy Complete', expect.anything());
-    // But no oscillator was created (sound skipped)
-    expect(mockAudioCtx.instance.createOscillator).not.toHaveBeenCalled();
-  });
-
   it('restores enabled from sessionStorage on mount', async () => {
     Object.defineProperty(Notification, 'permission', { value: 'granted', configurable: true });
     sessionStorage.setItem('deploy-notify-enabled', 'true');
@@ -251,18 +150,6 @@ describe('useDeployNotification', () => {
     expect(result.current.permission).toBe('unsupported');
 
     global.Notification = originalNotification;
-  });
-
-  it('closes AudioContext on unmount', async () => {
-    const { result, unmount } = renderHook(() => useDeployNotification());
-
-    await act(async () => {
-      await result.current.toggle();
-    });
-
-    unmount();
-
-    expect(mockAudioCtx.instance.close).toHaveBeenCalled();
   });
 
   describe('cross-reload deploy notification', () => {
@@ -402,5 +289,45 @@ describe('useDeployNotification', () => {
       expect(result.current.enabled).toBe(false);
       expect(sessionStorage.getItem('deploy-was-in-progress')).toBeNull();
     });
+  });
+});
+
+describe('playSuccessChime / playErrorTone', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('does nothing when ctx is null', () => {
+    // Should not throw
+    playSuccessChime(null);
+    playErrorTone(null);
+  });
+
+  it('skips audio when prefers-reduced-motion is active', () => {
+    global.matchMedia = vi.fn((query: string) => ({
+      matches: query === '(prefers-reduced-motion: reduce)',
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+
+    const mockCtx = {
+      currentTime: 0,
+      state: 'running' as AudioContextState,
+      destination: {} as AudioDestinationNode,
+      createOscillator: vi.fn(),
+      createGain: vi.fn(),
+      resume: vi.fn(),
+      close: vi.fn(),
+    } as unknown as AudioContext;
+
+    playSuccessChime(mockCtx);
+    playErrorTone(mockCtx);
+
+    expect(mockCtx.createOscillator).not.toHaveBeenCalled();
   });
 });

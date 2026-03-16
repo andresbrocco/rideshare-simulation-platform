@@ -13,7 +13,12 @@ import {
   ALL_SERVICES_DOWN,
 } from '../services/lambda';
 import type { StatusResponse, ServiceHealthMap } from '../services/lambda';
-import { useDeployNotification } from '../hooks/useDeployNotification';
+import {
+  useDeployNotification,
+  playSuccessChime,
+  playErrorTone,
+} from '../hooks/useDeployNotification';
+import { showToast } from '../lib/toast';
 import styles from './DeployPanel.module.css';
 
 interface DeployPanelProps {
@@ -143,6 +148,7 @@ export default function DeployPanel({
   const pendingActionRef = useRef<'extend' | 'shrink' | null>(null);
   const serviceHealthIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const teardownPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
 
   const apiUrl = isLocal
     ? import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -167,6 +173,8 @@ export default function DeployPanel({
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      audioCtxRef.current?.close();
+      audioCtxRef.current = null;
     };
   }, []);
 
@@ -487,9 +495,13 @@ export default function DeployPanel({
     prevPanelStateRef.current = panelState;
 
     if (prev === 'deploying' && panelState === 'active') {
+      showToast.success('Deploy complete — all services are ready');
+      playSuccessChime(audioCtxRef.current);
       notifySuccess();
     }
     if (prev === 'deploying' && panelState === 'error') {
+      showToast.error(errorMessage || 'Deployment failed');
+      playErrorTone(audioCtxRef.current);
       notifyError(errorMessage);
     }
   }, [panelState, notifySuccess, notifyError, errorMessage]);
@@ -568,6 +580,10 @@ export default function DeployPanel({
       pendingDeployRef.current = true;
       onNeedAuth();
       return;
+    }
+
+    if (!audioCtxRef.current && typeof AudioContext !== 'undefined') {
+      audioCtxRef.current = new AudioContext();
     }
 
     setLaunching(true);
@@ -809,12 +825,17 @@ export default function DeployPanel({
               type="checkbox"
               className={styles.notifyCheckbox}
               checked={notifyEnabled}
-              onChange={toggleNotify}
+              onChange={() => {
+                if (!audioCtxRef.current && typeof AudioContext !== 'undefined') {
+                  audioCtxRef.current = new AudioContext();
+                }
+                toggleNotify();
+              }}
             />
             <span className={styles.notifySwitch} />
             <span className={styles.notifyText}>Notify me when done</span>
             {notifyPermission === 'denied' && notifyEnabled && (
-              <span className={styles.notifyHint}>(sound only)</span>
+              <span className={styles.notifyHint}>(blocked by browser)</span>
             )}
           </label>
         </>

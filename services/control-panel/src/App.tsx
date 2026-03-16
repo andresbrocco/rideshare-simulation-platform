@@ -133,6 +133,8 @@ function AppContent() {
 }
 
 function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
+  usePageRefresh(PAGE_REFRESH_INTERVAL_MS);
+
   const [apiKey, setApiKey] = useState<string | null>(() => getApiKey());
 
   const [showLoginDialog, setShowLoginDialog] = useState(false);
@@ -410,8 +412,6 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
 }
 
 function App() {
-  usePageRefresh(PAGE_REFRESH_INTERVAL_MS);
-
   return (
     <PerformanceProvider>
       <AppContent />
