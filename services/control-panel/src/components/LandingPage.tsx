@@ -1,5 +1,5 @@
 import type { FunctionComponent, SVGProps } from 'react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   SiPython,
   SiFastapi,
@@ -595,6 +595,35 @@ function SectionNav({
 
   const isAuthenticated = apiKey !== null;
 
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
+  const avatarRef = useRef<HTMLButtonElement>(null);
+
+  const toggleProfile = useCallback(() => {
+    setProfileOpen((prev) => !prev);
+  }, []);
+
+  useEffect(() => {
+    if (!profileOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setProfileOpen(false);
+      }
+    }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setProfileOpen(false);
+        avatarRef.current?.focus();
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [profileOpen]);
+
   return (
     <nav
       className={`section-nav${heroVisible ? '' : ' section-nav--visible'}`}
@@ -613,7 +642,7 @@ function SectionNav({
           </button>
         ))}
       </div>
-      <div className="section-nav-right">
+      <div className="section-nav-right section-nav-right--desktop">
         {isAuthenticated ? (
           <>
             {sessionCountdown && <span className="section-nav-timer">{sessionCountdown}</span>}
@@ -640,6 +669,59 @@ function SectionNav({
               Sign In
             </button>
           </>
+        )}
+      </div>
+      <div className="section-nav-right section-nav-right--mobile" ref={profileRef}>
+        <button
+          type="button"
+          className={`section-nav-avatar${isAuthenticated ? ' section-nav-avatar--authed' : ''}`}
+          onClick={toggleProfile}
+          ref={avatarRef}
+          aria-expanded={profileOpen}
+          aria-haspopup="true"
+          aria-label={isAuthenticated ? 'Account menu' : 'Sign in menu'}
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <circle cx="10" cy="7" r="3.5" stroke="currentColor" strokeWidth="1.5" />
+            <path
+              d="M3 17.5c0-3.5 3.1-6 7-6s7 2.5 7 6"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
+          {isAuthenticated && <span className="section-nav-avatar-dot" />}
+        </button>
+        {profileOpen && (
+          <div className="section-nav-dropdown" role="menu">
+            {isAuthenticated ? (
+              <>
+                {sessionCountdown && <span className="section-nav-timer">{sessionCountdown}</span>}
+                {email && (
+                  <span className="section-nav-email" title={email}>
+                    {email}
+                  </span>
+                )}
+                {role && <span className="section-nav-role-badge">{role}</span>}
+                <button type="button" className="section-nav-auth-btn" onClick={onSignOut}>
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="section-nav-auth-btn section-nav-auth-btn--primary"
+                  onClick={onGetAccess}
+                >
+                  Get Access for Free
+                </button>
+                <button type="button" className="section-nav-auth-btn" onClick={onSignIn}>
+                  Sign In
+                </button>
+              </>
+            )}
+          </div>
         )}
       </div>
     </nav>

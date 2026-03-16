@@ -434,6 +434,63 @@ describe('SectionNav', () => {
       expect(btn.tabIndex).not.toBe(-1);
     }
   });
+
+  it('test_avatar_button_renders_with_correct_aria', () => {
+    renderLandingPage();
+    const avatar = document.querySelector('.section-nav-avatar');
+    expect(avatar).not.toBeNull();
+    expect(avatar).toHaveAttribute('aria-haspopup', 'true');
+    expect(avatar).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('test_avatar_click_opens_dropdown', async () => {
+    const user = userEvent.setup();
+    renderLandingPage();
+    const avatar = document.querySelector('.section-nav-avatar') as HTMLElement;
+    await user.click(avatar);
+    expect(document.querySelector('.section-nav-dropdown')).not.toBeNull();
+    expect(avatar).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('test_click_outside_closes_dropdown', async () => {
+    const user = userEvent.setup();
+    renderLandingPage();
+    const avatar = document.querySelector('.section-nav-avatar') as HTMLElement;
+    await user.click(avatar);
+    expect(document.querySelector('.section-nav-dropdown')).not.toBeNull();
+
+    await act(async () => {
+      document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    });
+    expect(document.querySelector('.section-nav-dropdown')).toBeNull();
+  });
+
+  it('test_escape_closes_dropdown', async () => {
+    const user = userEvent.setup();
+    renderLandingPage();
+    const avatar = document.querySelector('.section-nav-avatar') as HTMLElement;
+    await user.click(avatar);
+    expect(document.querySelector('.section-nav-dropdown')).not.toBeNull();
+
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(document.querySelector('.section-nav-dropdown')).toBeNull();
+  });
+
+  it('test_avatar_dot_present_when_authenticated', () => {
+    renderLandingPage({ apiKey: 'test-key' });
+    const dots = document.querySelectorAll('.section-nav-avatar-dot');
+    expect(dots.length).toBeGreaterThan(0);
+  });
+
+  it('test_avatar_dot_absent_when_unauthenticated', () => {
+    renderLandingPage({ apiKey: null });
+    const mobileDots = document.querySelectorAll(
+      '.section-nav-right--mobile .section-nav-avatar-dot'
+    );
+    expect(mobileDots.length).toBe(0);
+  });
 });
 
 describe('Responsive and Accessibility', () => {
