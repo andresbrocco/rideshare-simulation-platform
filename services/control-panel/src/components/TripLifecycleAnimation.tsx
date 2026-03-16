@@ -662,7 +662,7 @@ export function TripLifecycleAnimation() {
       <svg
         ref={svgRef}
         className={styles.svg}
-        viewBox="0 0 960 80"
+        viewBox="0 -35 960 150"
         preserveAspectRatio="xMidYMid meet"
         role="img"
         aria-label="Animated trip lifecycle: a driver picks up a rider and drives to the destination"
