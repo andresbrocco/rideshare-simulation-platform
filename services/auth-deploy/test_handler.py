@@ -1063,7 +1063,15 @@ class TestSessionStatusGitHubValidation:
         session = {"deployed_at": 1000000}
         mock_github_api.return_value = (
             200,
-            {"workflow_runs": [{"status": "completed", "conclusion": "success"}]},
+            {
+                "workflow_runs": [
+                    {
+                        "status": "completed",
+                        "conclusion": "success",
+                        "created_at": "2001-09-09T01:46:40Z",
+                    }
+                ]
+            },
         )
         with (
             patch("handler.get_session", return_value=session),
@@ -1083,7 +1091,15 @@ class TestSessionStatusGitHubValidation:
         session = {"deployed_at": 1000000}
         mock_github_api.return_value = (
             200,
-            {"workflow_runs": [{"status": "completed", "conclusion": "failure"}]},
+            {
+                "workflow_runs": [
+                    {
+                        "status": "completed",
+                        "conclusion": "failure",
+                        "created_at": "2001-09-09T01:46:40Z",
+                    }
+                ]
+            },
         )
         with (
             patch("handler.get_session", return_value=session),
@@ -1103,7 +1119,15 @@ class TestSessionStatusGitHubValidation:
         session = {"deployed_at": 1000000}
         mock_github_api.return_value = (
             200,
-            {"workflow_runs": [{"status": "completed", "conclusion": "cancelled"}]},
+            {
+                "workflow_runs": [
+                    {
+                        "status": "completed",
+                        "conclusion": "cancelled",
+                        "created_at": "2001-09-09T01:46:40Z",
+                    }
+                ]
+            },
         )
         with (
             patch("handler.get_session", return_value=session),
@@ -1123,7 +1147,7 @@ class TestSessionStatusGitHubValidation:
         session = {"deployed_at": 1000000}
         mock_github_api.return_value = (
             200,
-            {"workflow_runs": [{"status": "in_progress"}]},
+            {"workflow_runs": [{"status": "in_progress", "created_at": "2001-09-09T01:46:40Z"}]},
         )
         with (
             patch("handler.get_session", return_value=session),

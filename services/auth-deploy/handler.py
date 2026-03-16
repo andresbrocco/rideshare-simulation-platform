@@ -838,6 +838,7 @@ def handle_deploy(api_key: str, dbt_runner: str = "duckdb") -> tuple[int, dict[s
     # Guard: reject if a session already exists (prevents double-deploy race)
     existing_session = get_session()
     if existing_session is not None:
+        print(f"Existing session found: {existing_session}")
         print("Action deploy completed: 409")
         return 409, {"error": "Deployment already in progress"}
 
@@ -933,9 +934,10 @@ def handle_session_status() -> tuple[int, dict[str, Any]]:
         return 500, {"error": "Failed to read session state"}
 
     if session is None:
-        print("Action session-status completed: 200")
+        print("Action session-status completed: 200 (no session)")
         return 200, {"active": False}
 
+    print(f"Session found: {session}")
     now = int(time.time())
     deployed_at = session["deployed_at"]
     deadline = session.get("deadline")
@@ -947,8 +949,13 @@ def handle_session_status() -> tuple[int, dict[str, Any]]:
     # Tearing down takes priority over all other states
     if tearing_down:
         tearing_down_at = session.get("tearing_down_at", deadline or deployed_at)
-        if now - tearing_down_at > TEARDOWN_TIMEOUT_SECONDS:
+        teardown_elapsed = now - tearing_down_at
+        if teardown_elapsed > TEARDOWN_TIMEOUT_SECONDS:
             # Stale flag — teardown workflow likely finished but cleanup failed
+            print(
+                f"Stale tearing_down session detected: tearing_down_at={tearing_down_at}, "
+                f"elapsed={teardown_elapsed}s > timeout={TEARDOWN_TIMEOUT_SECONDS}s — clearing"
+            )
             delete_session()
             print("Action session-status completed: 200")
             return 200, {"active": False}
@@ -965,7 +972,9 @@ def handle_session_status() -> tuple[int, dict[str, Any]]:
                 runs = gh_data.get("workflow_runs", [])
                 if runs:
                     latest_status = runs[0].get("status", "")
+                    print(f"Teardown workflow latest run: status={latest_status}")
                     if latest_status not in ("in_progress", "queued"):
+                        print("Teardown workflow no longer running — clearing session")
                         delete_session()
                         print("Action session-status completed: 200")
                         return 200, {"active": False}
@@ -987,6 +996,10 @@ def handle_session_status() -> tuple[int, dict[str, Any]]:
     if deadline is None:
         if elapsed_seconds > DEPLOYING_TIMEOUT_SECONDS:
             # Stale deploying session — deploy likely failed or was abandoned
+            print(
+                f"Stale deploying session detected: deployed_at={deployed_at}, "
+                f"elapsed={elapsed_seconds}s > timeout={DEPLOYING_TIMEOUT_SECONDS}s — clearing"
+            )
             delete_session()
             print("Action session-status completed: 200")
             return 200, {"active": False}
@@ -994,18 +1007,40 @@ def handle_session_status() -> tuple[int, dict[str, Any]]:
         # GitHub API validation: if deploy workflow failed/cancelled, clean up.
         # A successful completion is expected — the frontend will call
         # activate-session once deploy-progress reports all_ready.
+        # We fetch recent runs and match by created_at near deployed_at to avoid
+        # confusing deploy-frontend runs with the deploy-platform we triggered.
         try:
             github_pat = get_secret(SECRET_GITHUB_PAT)
-            path = f"/repos/{GITHUB_REPO}/actions/workflows/" f"{GITHUB_WORKFLOW}/runs?per_page=1"
+            path = f"/repos/{GITHUB_REPO}/actions/workflows/{GITHUB_WORKFLOW}/runs?per_page=5"
             gh_status, gh_data = github_api_request("GET", path, github_pat)
             if gh_status == 200:
-                runs = gh_data.get("workflow_runs", [])
-                if runs:
-                    conclusion = runs[0].get("conclusion", "")
+                from datetime import datetime
+
+                cutoff = deployed_at - 60  # 1 min before session creation
+                for run in gh_data.get("workflow_runs", []):
+                    created_at_str = run.get("created_at", "")
+                    try:
+                        created_dt = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+                        created_ts = int(created_dt.timestamp())
+                    except (ValueError, AttributeError):
+                        continue
+                    if created_ts < cutoff:
+                        break  # older than session — stop searching
+                    # Check if this run has a deploy-platform job (not deploy-frontend)
+                    conclusion = run.get("conclusion", "")
+                    status = run.get("status", "")
+                    display_title = run.get("display_title", "")
+                    print(
+                        f"Deploy workflow run: status={status}, conclusion={conclusion}, "
+                        f"title={display_title}, created={created_at_str}"
+                    )
                     if conclusion in ("failure", "cancelled"):
+                        print("Deploy workflow failed/cancelled — clearing deploying session")
                         delete_session()
                         print("Action session-status completed: 200")
                         return 200, {"active": False}
+                    if status in ("in_progress", "queued"):
+                        break  # found our running deploy — stop
         except Exception as e:
             print(f"Warning: GitHub API check failed for deploy: {e}")
 
