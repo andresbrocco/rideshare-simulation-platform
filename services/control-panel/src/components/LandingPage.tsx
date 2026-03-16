@@ -609,6 +609,26 @@ interface SectionNavProps {
   sessionCountdown: string | null;
 }
 
+function ScrollingEmail({ email }: { email: string }) {
+  const outerRef = useRef<HTMLSpanElement>(null);
+  const innerRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    const outer = outerRef.current;
+    const inner = innerRef.current;
+    if (!outer || !inner) return;
+    const overflow = inner.scrollWidth - outer.clientWidth;
+    inner.style.setProperty('--email-scroll-distance', overflow > 0 ? `-${overflow}px` : '0px');
+    inner.style.animationPlayState = overflow > 0 ? 'running' : 'paused';
+  }, [email]);
+
+  return (
+    <span className="section-nav-email" title={email} ref={outerRef}>
+      <span ref={innerRef}>{email}</span>
+    </span>
+  );
+}
+
 function SectionNav({
   heroVisible,
   apiKey,
@@ -681,11 +701,7 @@ function SectionNav({
         {isAuthenticated ? (
           <>
             {sessionCountdown && <span className="section-nav-timer">{sessionCountdown}</span>}
-            {email && (
-              <span className="section-nav-email" title={email}>
-                {email}
-              </span>
-            )}
+            {email && <ScrollingEmail email={email} />}
             {role && <span className="section-nav-role-badge">{role}</span>}
             <button type="button" className="section-nav-auth-btn" onClick={onSignOut}>
               Sign Out
@@ -732,11 +748,7 @@ function SectionNav({
             {isAuthenticated ? (
               <>
                 {sessionCountdown && <span className="section-nav-timer">{sessionCountdown}</span>}
-                {email && (
-                  <span className="section-nav-email" title={email}>
-                    {email}
-                  </span>
-                )}
+                {email && <ScrollingEmail email={email} />}
                 {role && <span className="section-nav-role-badge">{role}</span>}
                 <button type="button" className="section-nav-auth-btn" onClick={onSignOut}>
                   Sign Out
