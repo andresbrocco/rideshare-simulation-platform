@@ -61,8 +61,8 @@ export default function VisitorAccessForm() {
           </p>
         )}
         <p className={styles.noteMessage}>
-          Your credentials will activate once the platform is deployed. Click &quot;Deploy&quot;
-          below to get started.
+          Your accounts are active now. If the platform is offline, click &quot;Deploy&quot; below
+          to get started.
         </p>
       </div>
     );

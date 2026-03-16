@@ -166,9 +166,7 @@ describe('VisitorAccessForm', () => {
       await user.click(screen.getByRole('button', { name: /request access/i }));
 
       await waitFor(() => {
-        expect(
-          screen.getByText(/your credentials will activate once the platform is deployed/i)
-        ).toBeInTheDocument();
+        expect(screen.getByText(/your accounts are active now/i)).toBeInTheDocument();
       });
     });
 

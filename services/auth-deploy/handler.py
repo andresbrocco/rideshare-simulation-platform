@@ -314,8 +314,8 @@ def _build_welcome_email(email: str, name: str, password: str) -> tuple[str, str
         f"  2. Check Grafana dashboards — Kafka throughput, driver utilization,\n"
         f"     pipeline health\n"
         f"  3. Run SQL in Trino against the Gold star schema\n\n"
-        f"Note: These credentials activate once the platform is deployed. "
-        f'After clicking "Deploy" on the landing page, services typically start '
+        f"Note: Your accounts are active now. If the platform is currently "
+        f'offline, hit "Deploy" on the landing page — services typically start '
         f"within about 20 minutes.\n\n"
         f"If you have questions or just want to chat about the architecture, "
         f"hit reply — it goes straight to my inbox.\n\n"
@@ -420,8 +420,8 @@ def _build_welcome_email(email: str, name: str, password: str) -> tuple[str, str
         f'<table width="100%" bgcolor="#1a1d1c" cellpadding="0" cellspacing="0" '
         f'style="border-left:4px solid #00ff88;border-radius:4px;">'
         f'<tr><td style="padding:12px 16px;font-family:{font};font-size:13px;color:#c5cac8;">'
-        f"<strong>Note:</strong> These credentials activate once the platform is deployed. "
-        f'After clicking "Deploy" on the landing page, services typically start '
+        f"<strong>Note:</strong> Your accounts are active now. If the platform is currently "
+        f'offline, hit "Deploy" on the landing page — services typically start '
         f"within about 20 minutes."
         f"</td></tr></table></td></tr>"
         # Reply invitation
@@ -2062,14 +2062,15 @@ def handle_provision_visitor(
     password: str | None,
     name: str,
 ) -> tuple[int, dict[str, Any]]:
-    """Handle provision-visitor action (Phase 1: durable-only).
+    """Handle provision-visitor action (immediate provisioning).
 
-    Stores visitor credentials durably (Trino hash in Secrets Manager,
-    record in DynamoDB) and sends a welcome email.  Service accounts in
-    Grafana, Airflow, MinIO, and the Simulation API are **not** created
-    here — they require a running platform and are provisioned later by
-    ``handle_reprovision_visitors`` (Phase 2, called from the deploy
-    workflow).
+    Provisions visitor accounts across all services — Trino (durable hash
+    in Secrets Manager), Grafana, Airflow, MinIO, and Simulation API —
+    then stores the record in DynamoDB and sends a welcome email.
+
+    Only Trino failure is considered critical (it's the durable credential
+    store).  Grafana, Airflow, and Simulation API failures are non-fatal;
+    ``handle_reprovision_visitors`` catches them on the next deploy.
 
     When ``password`` is ``None`` or an empty string, a secure random password
     is generated automatically via :func:`secrets.token_urlsafe`.  Credentials
@@ -2086,8 +2087,8 @@ def handle_provision_visitor(
 
     Returns:
         Tuple of (HTTP status code, response body dict).  Status 200 when
-        credential storage and email succeed; 500 if storage fails or
-        the welcome email fails.
+        all services and email succeed; 207 when non-critical services
+        fail; 500 if Trino fails or the welcome email fails.
     """
     print("Action: provision-visitor")
 
@@ -2109,18 +2110,19 @@ def handle_provision_visitor(
 
     consent_timestamp = datetime.now(timezone.utc).isoformat()
 
-    result = _provision_visitor(email, effective_password, name, durable_only=True)
+    result = _provision_visitor(email, effective_password, name, durable_only=False)
     successes = result["successes"]
     failures = result["failures"]
 
     try:
         _store_visitor_dynamodb(
-            email, effective_password, ["trino"] if successes else [], consent_timestamp
+            email, effective_password, [s["service"] for s in successes], consent_timestamp
         )
     except Exception as exc:
         print(f"DynamoDB visitor record storage failed (non-fatal): {exc}")
 
-    if not successes:
+    trino_failed = any(f["service"] == "trino" for f in failures)
+    if trino_failed:
         print("Action provision-visitor completed: 500")
         return 500, {
             "provisioned": False,

@@ -156,7 +156,7 @@ module "lambda_auth_deploy" {
   source_dir    = "${path.root}/../../../services/auth-deploy"
   handler       = "handler.lambda_handler"
   runtime       = "python3.13"
-  timeout       = 60
+  timeout       = 120
   memory_size   = 256
 
   archive_exclude_patterns = ["venv/**", "package/**", "__pycache__/**", ".mypy_cache/**", "tests/**", "test_*.py"]
