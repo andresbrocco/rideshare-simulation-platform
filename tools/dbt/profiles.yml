@@ -31,5 +31,5 @@ rideshare:
       schema: rideshare_silver
       threads: 4
       datalake_formats: delta
-      conf: "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog"
+      conf: "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog --conf spark.sql.legacy.allowNonEmptyLocationInCTAS=true"
       location: "{{ env_var('GLUE_DATA_LOCATION') }}"
