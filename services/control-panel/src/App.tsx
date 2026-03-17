@@ -7,6 +7,7 @@ import Map from './components/Map';
 import MapErrorBoundary from './components/MapErrorBoundary';
 import ControlPanel from './components/ControlPanel';
 import LayerControls from './components/LayerControls';
+import { UserNav } from './components/UserNav';
 import LaunchDemoPanel from './components/LaunchDemoPanel';
 import SessionTimer from './components/SessionTimer';
 import InspectorPopup, { type InspectedEntity } from './components/InspectorPopup';
@@ -31,6 +32,7 @@ import {
   type AppMode,
   getAppMode,
   getApiKey,
+  getSessionEmail,
   clearSession,
   isLocalEnvironment,
 } from './utils/auth';
@@ -132,17 +134,15 @@ function DevApp() {
 
 function useFavicon(mode: AppMode) {
   useEffect(() => {
-    if (mode !== 'landing') return;
     const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
     if (!link) return;
-    const originalHref = link.href;
-    const originalType = link.type;
-    link.href = '/icons/car-green.png';
-    link.type = 'image/png';
-    return () => {
-      link.href = originalHref;
-      link.type = originalType;
-    };
+    if (mode === 'landing') {
+      link.href = '/icons/car-green.png';
+      link.type = 'image/png';
+    } else {
+      link.href = '/favicon.svg';
+      link.type = 'image/svg+xml';
+    }
   }, [mode]);
 }
 
@@ -199,7 +199,14 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
   } = useSimulationState();
 
   const { zones } = useZones();
-  const isAdmin = useRole() === 'admin';
+  const role = useRole();
+  const isAdmin = role === 'admin';
+  const sessionEmail = getSessionEmail();
+  const mode = getAppMode();
+  const landingUrl =
+    mode === 'control-panel'
+      ? `https://${window.location.hostname.replace('control-panel.', '')}`
+      : undefined;
 
   const { recordWsMessage } = usePerformanceContext();
 
@@ -324,6 +331,12 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
           <MapErrorBoundary>
             <Map onZoomChange={setZoom} />
           </MapErrorBoundary>
+          <UserNav
+            email={sessionEmail}
+            role={role}
+            onSignOut={handleSignOut}
+            landingUrl={landingUrl}
+          />
           <LayerControls visibility={layerVisibility} onChange={setLayerVisibility} />
           <LaunchDemoPanel
             apiKey={apiKey}
@@ -391,6 +404,12 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
             />
           )}
           <LayerControls visibility={layerVisibility} onChange={setLayerVisibility} />
+          <UserNav
+            email={sessionEmail}
+            role={role}
+            onSignOut={handleSignOut}
+            landingUrl={landingUrl}
+          />
           {inspectedEntity && (
             <InspectorErrorBoundary onDismiss={handleClosePopup}>
               <InspectorPopup
