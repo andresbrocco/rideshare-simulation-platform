@@ -5,6 +5,7 @@ import pytest
 
 from handler import (
     DEPLOY_PROGRESS_SERVICES,
+    SIMULATION_START_DEFAULTS,
     TEARDOWN_UI_LABELS,
     get_response_headers,
     handle_auto_teardown,
@@ -16,6 +17,7 @@ from handler import (
     handle_service_health,
     handle_session_status,
     handle_set_teardown_run_id,
+    handle_start_simulation,
     handle_status,
     handle_teardown_status,
     handle_validate,
@@ -1246,3 +1248,121 @@ class TestSessionStatusGitHubValidation:
         assert status == 200
         assert body["tearing_down"] is True
         mock_delete.assert_not_called()
+
+
+class TestHandleStartSimulation:
+    def test_invalid_key(self, mock_secrets: object) -> None:
+        status, body = handle_start_simulation("wrong-key")
+        assert status == 401
+        assert "error" in body
+
+    def test_start_success(self, mock_secrets: object) -> None:
+        with patch("handler._simulation_api_request") as mock_api:
+            mock_api.return_value = (200, {"status": "ok"})
+            status, body = handle_start_simulation("test-api-key")
+        assert status == 200
+        assert body["simulation_started"] is True
+        assert body["success"] is True
+        for key in SIMULATION_START_DEFAULTS:
+            assert key in body["agents"]
+            assert body["agents"][key]["status"] == "ok"
+
+    def test_already_running(self, mock_secrets: object) -> None:
+        with patch("handler._simulation_api_request") as mock_api:
+            mock_api.side_effect = [
+                (400, {"message": "Simulation is already running"}),
+                (200, {}),  # immediate_drivers
+                (200, {}),  # immediate_riders
+                (200, {}),  # scheduled_drivers batch 1
+                (200, {}),  # scheduled_drivers batch 2
+                (200, {}),  # scheduled_riders
+            ]
+            status, body = handle_start_simulation("test-api-key")
+        assert status == 200
+        assert body["simulation_started"] is True
+
+    def test_start_failure(self, mock_secrets: object) -> None:
+        with patch("handler._simulation_api_request") as mock_api:
+            mock_api.side_effect = [
+                (500, {"message": "Internal Server Error"}),
+                (200, {}),  # immediate_drivers
+                (200, {}),  # immediate_riders
+                (200, {}),  # scheduled_drivers batch 1
+                (200, {}),  # scheduled_drivers batch 2
+                (200, {}),  # scheduled_riders
+            ]
+            status, body = handle_start_simulation("test-api-key")
+        assert status == 502
+        assert body["simulation_started"] is False
+        assert body["success"] is False
+
+    def test_partial_agent_failure(self, mock_secrets: object) -> None:
+        with patch("handler._simulation_api_request") as mock_api:
+            mock_api.side_effect = [
+                (200, {}),  # start
+                (200, {}),  # immediate_drivers
+                (500, {"message": "fail"}),  # immediate_riders fails
+                (200, {}),  # scheduled_drivers batch 1
+                (200, {}),  # scheduled_drivers batch 2
+                (200, {}),  # scheduled_riders
+            ]
+            status, body = handle_start_simulation("test-api-key")
+        assert status == 200
+        assert body["agents"]["immediate_drivers"]["status"] == "ok"
+        assert body["agents"]["immediate_riders"]["status"] == "error"
+        assert body["agents"]["scheduled_drivers"]["status"] == "ok"
+
+    def test_driver_batching(self, mock_secrets: object) -> None:
+        with patch("handler._simulation_api_request") as mock_api:
+            mock_api.return_value = (200, {})
+            handle_start_simulation("test-api-key", {"scheduled_drivers": 150})
+        # Find the scheduled driver calls: /agents/drivers?mode=scheduled
+        driver_calls = [
+            c
+            for c in mock_api.call_args_list
+            if len(c.args) >= 2 and "drivers?mode=scheduled" in str(c.args[1])
+        ]
+        assert len(driver_calls) == 2
+        assert driver_calls[0].args[3] == {"count": 100}
+        assert driver_calls[1].args[3] == {"count": 50}
+
+    def test_custom_counts(self, mock_secrets: object) -> None:
+        with patch("handler._simulation_api_request") as mock_api:
+            mock_api.return_value = (200, {})
+            status, body = handle_start_simulation(
+                "test-api-key", {"immediate_drivers": 10, "immediate_riders": 5}
+            )
+        assert status == 200
+        assert body["agents"]["immediate_drivers"]["queued"] == 10
+        assert body["agents"]["immediate_riders"]["queued"] == 5
+        # Remaining categories use defaults
+        assert body["agents"]["scheduled_drivers"]["queued"] == 150
+        assert body["agents"]["scheduled_riders"]["queued"] == 1950
+
+    def test_default_counts(self, mock_secrets: object) -> None:
+        with patch("handler._simulation_api_request") as mock_api:
+            mock_api.return_value = (200, {})
+            status, body = handle_start_simulation("test-api-key")
+        assert status == 200
+        for key, default_count in SIMULATION_START_DEFAULTS.items():
+            assert body["agents"][key]["queued"] == default_count
+
+    def test_routing_direct_invocation(self, mock_secrets: object) -> None:
+        with patch("handler._simulation_api_request") as mock_api:
+            mock_api.return_value = (200, {})
+            result = lambda_handler({"action": "start-simulation", "api_key": "test-api-key"}, {})
+        assert result["simulation_started"] is True
+
+    def test_routing_function_url(self, mock_secrets: object) -> None:
+        with patch("handler._simulation_api_request") as mock_api:
+            mock_api.return_value = (200, {})
+            result = lambda_handler(
+                {
+                    "body": json.dumps({"action": "start-simulation", "api_key": "test-api-key"}),
+                    "requestContext": {},
+                },
+                {},
+            )
+        assert result["statusCode"] == 200
+        body = json.loads(result["body"])
+        assert body["simulation_started"] is True

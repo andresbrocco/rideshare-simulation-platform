@@ -39,6 +39,14 @@ RESCHEDULE_DELAY_SECONDS = 300  # 5 min
 TEARDOWN_TIMEOUT_SECONDS = 15 * 60  # 15 min — auto-clear stale tearing_down flag
 DEPLOYING_TIMEOUT_SECONDS = 30 * 60  # 30 min — auto-clear stale deploying session
 
+SIMULATION_START_DEFAULTS: dict[str, int] = {
+    "immediate_drivers": 50,
+    "immediate_riders": 50,
+    "scheduled_drivers": 150,
+    "scheduled_riders": 1950,
+}
+SIMULATION_API_TIMEOUT = 20  # seconds per request
+
 # SES welcome email
 SES_FROM_ADDRESS_ENV = "SES_FROM_ADDRESS"
 SES_FROM_ADDRESS_DEFAULT = "noreply@ridesharing.portfolio.andresbrocco.com"
@@ -750,6 +758,59 @@ def github_api_request(
     except Exception as e:
         print(f"Unexpected error calling GitHub API: {e}")
         return 500, {"message": "Internal error calling GitHub API", "error": str(e)}
+
+
+def _simulation_api_request(
+    method: str,
+    path: str,
+    api_key: str,
+    body: dict[str, Any] | None = None,
+    timeout: int = SIMULATION_API_TIMEOUT,
+) -> tuple[int, dict[str, Any]]:
+    """Make authenticated request to the Simulation API.
+
+    Args:
+        method: HTTP method (GET, POST)
+        path: API path (e.g., "/simulation/start")
+        api_key: Simulation API key (X-API-Key header)
+        body: Request body for POST requests
+        timeout: Request timeout in seconds
+
+    Returns:
+        Tuple of (status_code, response_data)
+    """
+    base_url = os.environ.get(
+        "SIMULATION_API_URL", "https://api.ridesharing.portfolio.andresbrocco.com"
+    )
+    url = f"{base_url}{path}"
+    headers = {
+        "X-API-Key": api_key,
+        "Content-Type": "application/json",
+    }
+
+    data = None
+    if body is not None:
+        data = json.dumps(body).encode("utf-8")
+
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            response_body = response.read().decode("utf-8")
+            return response.status, json.loads(response_body) if response_body else {}
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8")
+        try:
+            error_data = json.loads(error_body)
+        except json.JSONDecodeError:
+            error_data = {"message": error_body}
+        return e.code, error_data
+    except urllib.error.URLError as e:
+        print(f"URL error calling Simulation API: {e}")
+        return 502, {"message": "Failed to connect to Simulation API", "error": str(e)}
+    except Exception as e:
+        print(f"Unexpected error calling Simulation API: {e}")
+        return 500, {"message": "Internal error calling Simulation API", "error": str(e)}
 
 
 def handle_validate(api_key: str) -> tuple[int, dict[str, Any]]:
@@ -2245,6 +2306,108 @@ def handle_reprovision_visitors(api_key: str) -> tuple[int, dict[str, Any]]:
     }
 
 
+def handle_start_simulation(
+    api_key: str, agent_counts: dict[str, int] | None = None
+) -> tuple[int, dict[str, Any]]:
+    """Handle start-simulation action.
+
+    Validates the caller, starts the simulation engine, then spawns agents
+    according to the resolved counts (defaults merged with any overrides).
+
+    Args:
+        api_key: Caller's API key for authorization
+        agent_counts: Optional overrides for any of the four agent count keys
+
+    Returns:
+        Tuple of (status_code, response_data)
+    """
+    print("Action: start-simulation")
+    if not validate_api_key(api_key):
+        print("Action start-simulation completed: 401")
+        return 401, {"error": "Invalid API key"}
+
+    counts = {**SIMULATION_START_DEFAULTS, **(agent_counts or {})}
+    print(f"  Resolved agent counts: {counts}")
+
+    admin_key = get_secret(SECRET_API_KEY)
+
+    # Start the simulation engine
+    sim_status, sim_body = _simulation_api_request("POST", "/simulation/start", admin_key, {})
+    message = sim_body.get("message", "") if isinstance(sim_body, dict) else ""
+    if sim_status == 200:
+        simulation_started = True
+        print("  Simulation started successfully")
+    elif sim_status == 400 and "already running" in message.lower():
+        simulation_started = True
+        print("  Simulation already running — treating as success")
+    else:
+        simulation_started = False
+        print(f"  Failed to start simulation: {sim_status} {sim_body}")
+
+    # Spawn agent categories in order
+    categories = [
+        ("immediate_drivers", "driver", "immediate"),
+        ("immediate_riders", "rider", "immediate"),
+        ("scheduled_drivers", "driver", "scheduled"),
+        ("scheduled_riders", "rider", "scheduled"),
+    ]
+    agents: dict[str, dict[str, Any]] = {}
+    for category_key, agent_type, mode in categories:
+        count = counts[category_key]
+        endpoint = "drivers" if agent_type == "driver" else "riders"
+        max_per_request = 100 if agent_type == "driver" else 2000
+        total_queued = 0
+        category_error: str | None = None
+
+        remaining = count
+        while remaining > 0:
+            batch_size = min(remaining, max_per_request)
+            batch_status, batch_body = _simulation_api_request(
+                "POST",
+                f"/agents/{endpoint}?mode={mode}",
+                admin_key,
+                {"count": batch_size},
+            )
+            if batch_status not in (200, 201, 202):
+                batch_message = (
+                    batch_body.get("message", str(batch_body))
+                    if isinstance(batch_body, dict)
+                    else str(batch_body)
+                )
+                category_error = f"HTTP {batch_status}: {batch_message}"
+                print(f"  Error spawning {category_key}: {category_error}")
+                break
+            total_queued += batch_size
+            remaining -= batch_size
+
+        if category_error is not None:
+            agents[category_key] = {
+                "status": "error",
+                "queued": total_queued,
+                "error": category_error,
+            }
+        else:
+            agents[category_key] = {"status": "ok", "queued": total_queued}
+        print(f"  {category_key}: {agents[category_key]}")
+
+    if not simulation_started:
+        error_msg = f"HTTP {sim_status}: {message}" if message else f"HTTP {sim_status}"
+        print("Action start-simulation completed: 502")
+        return 502, {
+            "simulation_started": False,
+            "error": error_msg,
+            "agents": agents,
+            "success": False,
+        }
+
+    print("Action start-simulation completed: 200")
+    return 200, {
+        "simulation_started": True,
+        "agents": agents,
+        "success": True,
+    }
+
+
 def get_response_headers() -> dict[str, str]:
     """Get standard response headers.
 
@@ -2343,6 +2506,14 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 event.get("email", ""), event.get("password", "")
             )
             return response_body
+        if action == "start-simulation":
+            agent_counts_override: dict[str, int] = {}
+            for key in SIMULATION_START_DEFAULTS:
+                val = event.get(key)
+                if val is not None:
+                    agent_counts_override[key] = int(val)
+            _, response_body = handle_start_simulation(api_key, agent_counts_override or None)
+            return response_body
         if action in auth_handlers:
             _, response_body = auth_handlers[action](api_key)
             return response_body
@@ -2367,6 +2538,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "provision-visitor",
                 "visitor-login",
                 "reprovision-visitors",
+                "start-simulation",
             ],
         }
 
@@ -2459,6 +2631,13 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         status_code, response_body = handle_visitor_login(
             body.get("email", ""), body.get("password", "")
         )
+    elif action == "start-simulation":
+        agent_counts_override: dict[str, int] = {}
+        for key in SIMULATION_START_DEFAULTS:
+            val = body.get(key)
+            if val is not None:
+                agent_counts_override[key] = int(val)
+        status_code, response_body = handle_start_simulation(api_key, agent_counts_override or None)
     elif action in auth_handlers:
         status_code, response_body = auth_handlers[action](api_key)
     else:
@@ -2483,6 +2662,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "provision-visitor",
                 "visitor-login",
                 "reprovision-visitors",
+                "start-simulation",
             ],
         }
 

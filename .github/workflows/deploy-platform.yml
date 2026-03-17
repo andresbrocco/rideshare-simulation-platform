@@ -563,6 +563,28 @@ jobs:
             echo "::warning::Re-provisioning returned HTTP ${HTTP_CODE} — visitor accounts may need manual re-provisioning after deploy"
           fi
 
+      - name: Start simulation and spawn agents
+        env:
+          LAMBDA_URL: ${{ steps.lambda-config.outputs.url }}
+          API_KEY: ${{ steps.lambda-config.outputs.api_key }}
+        run: |
+          echo "Starting simulation and spawning agents..."
+          RESPONSE=$(curl -sf -w "\n%{http_code}" -X POST "${LAMBDA_URL}" \
+            -H "Content-Type: application/json" \
+            --max-time 130 \
+            -d "{\"action\":\"start-simulation\",\"api_key\":\"${API_KEY}\"}")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "Simulation started successfully"
+            echo "${BODY}" | jq . 2>/dev/null || echo "${BODY}"
+          else
+            echo "::warning::Start simulation returned HTTP ${HTTP_CODE} — simulation may need manual start"
+            echo "${BODY}"
+          fi
+
       - name: Get Load Balancer URL
         id: alb-url
         run: |
