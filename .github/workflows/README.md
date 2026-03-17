@@ -9,9 +9,9 @@
 | File | Name | Trigger | Purpose |
 |------|------|---------|---------|
 | `ci.yml` | CI | Push/PR to `main` | Lint, type-check, unit tests, frontend build, API contract validation |
-| `build-images.yml` | Build Images | Push to `main` (path-filtered) or `workflow_dispatch` | Build and push Docker images to ECR |
+| `build-images.yml` | Build Images | After CI passes on `main` (path-filtered) or `workflow_dispatch` | Build and push Docker images to ECR |
 | `deploy-platform.yml` | Deploy Platform | `workflow_dispatch` | Full platform deploy to EKS via Terraform + ArgoCD |
-| `deploy-landing-page.yml` | Deploy Landing Page | Push to `main` (`services/control-panel/**`) or `workflow_dispatch` | Build React app, sync to S3, invalidate CloudFront |
+| `deploy-landing-page.yml` | Deploy Landing Page | After CI passes on `main` (`services/control-panel/**`) or `workflow_dispatch` | Build React app, sync to S3, invalidate CloudFront |
 | `deploy-lambda-auth.yml` | Deploy Lambda Auth | Push to `main` (`services/auth-deploy/**`) or `workflow_dispatch` | Package and deploy `rideshare-auth-deploy` Lambda |
 | `deploy-lambda-chat.yml` | Deploy Lambda Chat | Push to `main` (`services/ai-chat/**`) or `workflow_dispatch` | Package and deploy `rideshare-ai-chat` Lambda |
 | `integration-tests.yml` | Integration Tests | Weekly (Monday 02:00 UTC) or `workflow_dispatch` | Full-stack integration tests with Docker Compose |

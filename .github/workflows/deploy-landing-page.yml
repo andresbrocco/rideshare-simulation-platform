@@ -1,10 +1,10 @@
 name: Deploy Landing Page
 
 on:
-  push:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
     branches: [main]
-    paths:
-      - 'services/control-panel/**'
   workflow_dispatch:
 
 permissions:
@@ -12,13 +12,38 @@ permissions:
   contents: read
 
 jobs:
+  detect-changes:
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      control-panel: ${{ steps.filter.outputs.control-panel }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 2
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            control-panel:
+              - 'services/control-panel/**'
+
   deploy-landing-page:
+    needs: [detect-changes]
+    if: >-
+      always() && (
+        github.event_name == 'workflow_dispatch' ||
+        (github.event.workflow_run.conclusion == 'success' && needs.detect-changes.outputs.control-panel == 'true')
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
