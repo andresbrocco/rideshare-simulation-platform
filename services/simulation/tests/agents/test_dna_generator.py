@@ -213,10 +213,10 @@ def test_rider_behavior_factor_range():
 
 @pytest.mark.unit
 def test_rider_avg_rides_per_week_range():
-    """Test avg_rides_per_week is in realistic range [1, 15]."""
+    """Test avg_rides_per_week is in realistic range [7, 28]."""
     for _ in range(100):
         dna = generate_rider_dna()
-        assert 1 <= dna.avg_rides_per_week <= 15
+        assert 7 <= dna.avg_rides_per_week <= 28
 
 
 @pytest.mark.unit

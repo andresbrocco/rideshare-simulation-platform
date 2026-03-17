@@ -78,8 +78,8 @@ def generate_driver_dna(faker: Faker | None = None) -> DriverDNA:
         list(shift_weights.keys()), weights=list(shift_weights.values()), k=1
     )[0]
 
-    avg_hours_per_day = random.randint(4, 12)
-    avg_days_per_week = random.randint(3, 7)
+    avg_hours_per_day = random.randint(8, 16)
+    avg_days_per_week = random.randint(5, 7)
 
     # Vehicle info from Faker
     vehicle = fake.vehicle_br()
@@ -211,7 +211,7 @@ def generate_rider_dna(faker: Faker | None = None) -> RiderDNA:
 
     patience_threshold = random.randint(120, 300)
     max_surge_multiplier = random.uniform(1.5, 3.0)
-    avg_rides_per_week = random.randint(1, 15)
+    avg_rides_per_week = random.randint(7, 28)
 
     # Generate 2-5 frequent destinations
     num_destinations = random.randint(2, 5)
