@@ -370,10 +370,10 @@ class TestHandleEnsureSession:
         assert status == 200
         assert body["success"] is True
         assert body["created"] is True
-        assert body["remaining_seconds"] == 15 * 60
+        assert body["remaining_seconds"] == 45 * 60
         mock_create.assert_called_once()
         call_kwargs = mock_create.call_args
-        assert call_kwargs[1]["deployed_at"] == call_kwargs[1]["deadline"] - 15 * 60
+        assert call_kwargs[1]["deployed_at"] == call_kwargs[1]["deadline"] - 45 * 60
 
     def test_deploying_session_activates(self, mock_secrets: object) -> None:
         deploying_session = {"deployed_at": 1000000}
@@ -386,28 +386,30 @@ class TestHandleEnsureSession:
         assert status == 200
         assert body["success"] is True
         assert body["created"] is False
-        assert body["remaining_seconds"] == 15 * 60
+        assert body["remaining_seconds"] == 45 * 60
         mock_update.assert_called_once()
-        # Deadline should be now + 15 minutes
+        # Deadline should be now + 45 minutes
         actual_deadline = mock_update.call_args[0][0]
         assert body["deadline"] == actual_deadline
 
-    def test_already_activated_idempotent(self, mock_secrets: object) -> None:
+    def test_already_activated_resets_deadline(self, mock_secrets: object) -> None:
         import time as time_mod
 
         now = int(time_mod.time())
         active_session = {"deployed_at": now - 300, "deadline": now + 600}
         with (
             patch("handler.get_session", return_value=active_session),
-            patch("handler.create_session") as mock_create,
+            patch("handler.update_session_deadline") as mock_update,
         ):
             status, body = handle_ensure_session("test-api-key")
 
         assert status == 200
         assert body["success"] is True
         assert body["created"] is False
-        assert body["deadline"] == active_session["deadline"]
-        mock_create.assert_not_called()
+        assert body["remaining_seconds"] == 45 * 60
+        mock_update.assert_called_once()
+        actual_deadline = mock_update.call_args[0][0]
+        assert body["deadline"] == actual_deadline
 
     def test_create_session_failure(self, mock_secrets: object) -> None:
         with (
@@ -529,7 +531,7 @@ class TestHandleSessionStatus:
             patch("handler.time") as mock_time,
             patch("handler.delete_session") as mock_delete,
         ):
-            mock_time.time.return_value = 1001000 + 15 * 60 + 1  # just past timeout
+            mock_time.time.return_value = 1001000 + 45 * 60 + 1  # just past timeout
             status, body = handle_session_status()
         assert status == 200
         assert body == {"active": False}
@@ -585,7 +587,7 @@ class TestHandleSessionStatus:
             patch("handler.time") as mock_time,
             patch("handler.delete_session") as mock_delete,
         ):
-            mock_time.time.return_value = 1001000 + 15 * 60 + 1
+            mock_time.time.return_value = 1001000 + 45 * 60 + 1
             status, body = handle_session_status()
         assert status == 200
         assert body == {"active": False}

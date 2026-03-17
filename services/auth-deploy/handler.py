@@ -32,7 +32,7 @@ SSM_SESSION_PARAM = "/rideshare/session/deadline"
 SCHEDULER_GROUP = "default"
 SCHEDULER_NAME = "rideshare-auto-teardown"
 GITHUB_TEARDOWN_WORKFLOW = "teardown-platform.yml"
-SESSION_STEP_MINUTES = 15
+SESSION_STEP_MINUTES = 45
 MAX_REMAINING_SECONDS = 2 * 3600  # 2 hours
 PLATFORM_COST_PER_HOUR = 0.31
 RESCHEDULE_DELAY_SECONDS = 300  # 5 min
@@ -1312,14 +1312,22 @@ def handle_ensure_session(api_key: str) -> tuple[int, dict[str, Any]]:
     now = int(time.time())
     deadline_seconds = SESSION_STEP_MINUTES * 60
 
-    # Case 3: Session with deadline already set — idempotent
+    # Case 3: Session with deadline already set — reset deadline to now + window.
+    # A re-deploy must always get a fresh auto-teardown window; the old
+    # deadline may be seconds from expiry if the platform was re-deployed.
     if session is not None and session.get("deadline") is not None:
-        remaining = max(0, session["deadline"] - now)
-        print("Action ensure-session completed: 200 (already activated)")
+        deadline = now + deadline_seconds
+        try:
+            update_session_deadline(deadline)
+        except Exception as e:
+            print(f"Error resetting session deadline: {e}")
+            print("Action ensure-session completed: 500")
+            return 500, {"error": "Failed to reset session deadline"}
+        print("Action ensure-session completed: 200 (deadline reset)")
         return 200, {
             "success": True,
-            "remaining_seconds": remaining,
-            "deadline": session["deadline"],
+            "remaining_seconds": deadline_seconds,
+            "deadline": deadline,
             "created": False,
         }
 
