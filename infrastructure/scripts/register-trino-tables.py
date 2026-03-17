@@ -28,6 +28,8 @@ _raw_port = os.getenv("TRINO_PORT", "8080")
 # Extract just the numeric port if we get the full service URL.
 TRINO_PORT = _raw_port.rsplit(":", 1)[-1] if _raw_port.startswith("tcp://") else _raw_port
 TRINO_URL = f"http://{TRINO_HOST}:{TRINO_PORT}"
+TRINO_USER = os.getenv("TRINO_USER", "admin")
+TRINO_PASSWORD = os.getenv("TRINO_PASSWORD") or os.getenv("AIRFLOW_ADMIN_PASSWORD", "")
 
 # Silver tables created by DBT and exported via export-dbt-to-s3.py
 # NOTE: anomalies_gps_outliers and anomalies_zombie_drivers are DBT views
@@ -92,25 +94,33 @@ def execute_trino_sql(sql: str, schema: str = "default") -> List[List[str]]:
     Returns the result rows as a list of lists. Raises on failure.
     """
     headers = {
-        "X-Trino-User": "airflow",
+        "X-Trino-User": TRINO_USER,
         "X-Trino-Catalog": "delta",
         "X-Trino-Schema": schema,
+        # Trino PASSWORD auth requires HTTPS. In-cluster requests are HTTP,
+        # but Trino trusts X-Forwarded-Proto when process-forwarded=true.
+        "X-Forwarded-Proto": "https",
     }
+    auth = (TRINO_USER, TRINO_PASSWORD) if TRINO_PASSWORD else None
 
     resp = requests.post(
         f"{TRINO_URL}/v1/statement",
         data=sql,
         headers=headers,
+        auth=auth,
         timeout=30,
     )
     resp.raise_for_status()
     result = resp.json()
 
-    # Poll nextUri until the query completes
+    # Poll nextUri until the query completes.
+    # Trino generates HTTPS nextUri URLs because of X-Forwarded-Proto,
+    # but the actual in-cluster endpoint is HTTP — rewrite the scheme.
     rows: List[List[str]] = []
     while "nextUri" in result:
         time.sleep(0.3)
-        resp = requests.get(result["nextUri"], headers=headers, timeout=30)
+        next_url = result["nextUri"].replace("https://", "http://", 1)
+        resp = requests.get(next_url, headers=headers, auth=auth, timeout=30)
         resp.raise_for_status()
         result = resp.json()
 
@@ -210,6 +220,14 @@ def main() -> int:
             # doesn't block downstream work.
             if "No transaction log found" in exc_str:
                 print(f"  [SKIP] {table_name} - no data in S3 yet (will register on next run)")
+                skipped += 1
+            elif "Table already exists" in exc_str:
+                print(f"  [SKIP] {table_name} - already registered (concurrent registration)")
+                skipped += 1
+            elif "SocketTimeoutException" in exc_str or "Read timed out" in exc_str:
+                print(
+                    f"  [WARN] {table_name} - Hive Metastore timeout (transient, will retry on next run)"
+                )
                 skipped += 1
             else:
                 print(f"  [WARN] {table_name} - {exc}")

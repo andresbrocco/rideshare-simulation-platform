@@ -8,9 +8,9 @@ Tests cover the provision-visitor action in handler.py:
 - SES email failure returns 500 (credentials delivered only via email)
 - Response bodies never include the plaintext password
 - DynamoDB visitor record storage (happy-path and non-fatal failure)
-- durable_only flag: only Trino provisioned in phase 1; all services in phase 2
+- durable_only flag: no services provisioned (Trino was removed)
 - Each individual provisioning helper (_provision_grafana, _provision_airflow,
-  _provision_minio, _provision_trino, _provision_simulation_api) is tested
+  _provision_minio, _provision_simulation_api) is tested
   for both happy-path and error propagation
 
 These are pure unit tests — no running services are required.
@@ -41,7 +41,6 @@ from handler import (
     _provision_grafana,
     _provision_minio,
     _provision_simulation_api,
-    _provision_trino,
     _provision_visitor,
     _send_welcome_email,
     _verify_password_pbkdf2,
@@ -79,7 +78,7 @@ def mock_secrets():
 
 @pytest.fixture()
 def mock_provision_visitor():
-    """Mock _provision_visitor to return a Trino-only success result and skip DynamoDB/email."""
+    """Mock _provision_visitor to return a grafana success result and skip DynamoDB/email."""
     with (
         patch("handler._provision_visitor") as mock_pv,
         patch("handler._store_visitor_dynamodb"),
@@ -87,7 +86,7 @@ def mock_provision_visitor():
     ):
         mock_pv.return_value = {
             "successes": [
-                {"service": "trino", "result": {"status": "stored", "email": _EMAIL}},
+                {"service": "grafana", "result": {"status": "created", "user_id": 1}},
             ],
             "failures": [],
         }
@@ -133,11 +132,14 @@ class TestHandleProvisionVisitorResponseCodes:
 
     @pytest.mark.unit
     def test_500_all_services_fail(self) -> None:
-        """handle_provision_visitor returns 500 when Trino credential storage fails."""
+        """handle_provision_visitor returns 500 when all services fail."""
         all_failed = {
             "successes": [],
             "failures": [
-                {"service": "trino", "error": "timeout"},
+                {"service": "grafana", "error": "timeout"},
+                {"service": "airflow", "error": "timeout"},
+                {"service": "minio", "error": "timeout"},
+                {"service": "simulation_api", "error": "timeout"},
             ],
         }
         with (
@@ -148,8 +150,8 @@ class TestHandleProvisionVisitorResponseCodes:
             status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
 
         assert status == 500
-        assert body["error"] == "Credential storage failed"
-        # Email must not be attempted when credential storage fails
+        assert body["error"] == "All service provisioning failed"
+        # Email must not be attempted when all services fail
         mock_email.assert_not_called()
 
 
@@ -177,10 +179,6 @@ class TestProvisionVisitorOrchestrator:
                 return_value={"status": "created", "email": _EMAIL},
             ),
             patch(
-                "handler._provision_trino",
-                return_value={"status": "stored", "email": _EMAIL},
-            ),
-            patch(
                 "handler._provision_simulation_api",
                 return_value={"email": _EMAIL, "role": "viewer", "status": "created"},
             ),
@@ -194,56 +192,30 @@ class TestProvisionVisitorOrchestrator:
         assert "grafana" in service_failures
         assert "airflow" in service_successes
         assert "minio" in service_successes
-        assert "trino" in service_successes
         assert "simulation_api" in service_successes
 
     @pytest.mark.unit
     def test_all_services_attempted(self, mock_secrets: object) -> None:
-        """_provision_visitor attempts all five services when durable_only=False."""
+        """_provision_visitor attempts all four services when durable_only=False."""
         with (
             patch("handler._provision_grafana", side_effect=Exception("err")),
             patch("handler._provision_airflow", side_effect=Exception("err")),
             patch("handler._provision_minio", side_effect=Exception("err")),
-            patch("handler._provision_trino", side_effect=Exception("err")),
             patch("handler._provision_simulation_api", side_effect=Exception("err")),
             patch.dict("os.environ", {"MINIO_ENDPOINT": "minio:9000"}),
         ):
             result = _provision_visitor(_EMAIL, _PASSWORD, _NAME, durable_only=False)
 
-        assert len(result["failures"]) == 5
+        assert len(result["failures"]) == 4
         assert result["successes"] == []
 
     @pytest.mark.unit
     def test_durable_only_skips_platform_services(self, mock_secrets: object) -> None:
-        """_provision_visitor with durable_only=True only calls Trino provisioner."""
+        """_provision_visitor with durable_only=True calls no provisioners."""
         with (
             patch("handler._provision_grafana") as mock_grafana,
             patch("handler._provision_airflow") as mock_airflow,
             patch("handler._provision_minio") as mock_minio,
-            patch(
-                "handler._provision_trino",
-                return_value={"status": "stored", "email": _EMAIL},
-            ),
-            patch("handler._provision_simulation_api") as mock_sim,
-        ):
-            result = _provision_visitor(_EMAIL, _PASSWORD, _NAME, durable_only=True)
-
-        mock_grafana.assert_not_called()
-        mock_airflow.assert_not_called()
-        mock_minio.assert_not_called()
-        mock_sim.assert_not_called()
-        assert len(result["successes"]) == 1
-        assert result["successes"][0]["service"] == "trino"
-        assert result["failures"] == []
-
-    @pytest.mark.unit
-    def test_durable_only_reports_trino_failure(self, mock_secrets: object) -> None:
-        """_provision_visitor with durable_only=True reports Trino failure correctly."""
-        with (
-            patch("handler._provision_grafana") as mock_grafana,
-            patch("handler._provision_airflow") as mock_airflow,
-            patch("handler._provision_minio") as mock_minio,
-            patch("handler._provision_trino", side_effect=Exception("secrets manager down")),
             patch("handler._provision_simulation_api") as mock_sim,
         ):
             result = _provision_visitor(_EMAIL, _PASSWORD, _NAME, durable_only=True)
@@ -253,8 +225,24 @@ class TestProvisionVisitorOrchestrator:
         mock_minio.assert_not_called()
         mock_sim.assert_not_called()
         assert result["successes"] == []
-        assert len(result["failures"]) == 1
-        assert result["failures"][0]["service"] == "trino"
+        assert result["failures"] == []
+
+    @pytest.mark.unit
+    def test_durable_only_returns_empty_result(self, mock_secrets: object) -> None:
+        """_provision_visitor with durable_only=True returns empty successes and failures."""
+        with (
+            patch("handler._provision_grafana") as mock_grafana,
+            patch("handler._provision_airflow") as mock_airflow,
+            patch("handler._provision_minio") as mock_minio,
+            patch("handler._provision_simulation_api") as mock_sim,
+        ):
+            result = _provision_visitor(_EMAIL, _PASSWORD, _NAME, durable_only=True)
+
+        mock_grafana.assert_not_called()
+        mock_airflow.assert_not_called()
+        mock_minio.assert_not_called()
+        mock_sim.assert_not_called()
+        assert result == {"successes": [], "failures": []}
 
 
 # ---------------------------------------------------------------------------
@@ -435,81 +423,6 @@ class TestProvisionMinio:
 
 
 # ---------------------------------------------------------------------------
-# _provision_trino
-# ---------------------------------------------------------------------------
-
-
-class TestProvisionTrino:
-    @pytest.mark.unit
-    def test_stores_hash_in_secrets_manager_create_path(self) -> None:
-        """_provision_trino creates the secret when it does not yet exist."""
-        mock_client = MagicMock()
-        from botocore.exceptions import ClientError
-
-        mock_client.put_secret_value.side_effect = ClientError(
-            {"Error": {"Code": "ResourceNotFoundException", "Message": "not found"}},
-            "PutSecretValue",
-        )
-        mock_client.create_secret.return_value = {}
-
-        with patch("handler.get_secrets_client", return_value=mock_client):
-            result = _provision_trino(_EMAIL, _PASSWORD)
-
-        assert result["status"] == "stored"
-        assert result["email"] == _EMAIL
-        mock_client.create_secret.assert_called_once()
-        create_call = mock_client.create_secret.call_args
-        assert create_call.kwargs["Name"] == "rideshare/trino-visitor-password-hash"
-        stored = json.loads(create_call.kwargs["SecretString"])
-        assert stored["email"] == _EMAIL
-        # Verify the stored hash is in PBKDF2 format: {iterations}:{hex_salt}:{hex_hash}
-        hash_parts = stored["hash"].split(":")
-        assert (
-            len(hash_parts) == 3
-        ), f"Expected PBKDF2 format 'iter:salt:hash', got: {stored['hash']!r}"
-        assert hash_parts[0].isdigit(), "First component (iterations) must be numeric"
-
-    @pytest.mark.unit
-    def test_stores_hash_in_secrets_manager_update_path(self) -> None:
-        """_provision_trino updates the secret when it already exists."""
-        mock_client = MagicMock()
-        mock_client.put_secret_value.return_value = {}
-
-        with patch("handler.get_secrets_client", return_value=mock_client):
-            result = _provision_trino(_EMAIL, _PASSWORD)
-
-        assert result["status"] == "stored"
-        mock_client.put_secret_value.assert_called_once()
-        update_call = mock_client.put_secret_value.call_args
-        assert update_call.kwargs["SecretId"] == "rideshare/trino-visitor-password-hash"
-
-    @pytest.mark.unit
-    def test_hash_is_valid_pbkdf2(self) -> None:
-        """_provision_trino stores a PBKDF2-SHA256 hash that matches the original password."""
-        import hashlib
-
-        mock_client = MagicMock()
-        mock_client.put_secret_value.return_value = {}
-        stored_secret: dict[str, str] = {}
-
-        def capture_put(SecretId: str, SecretString: str) -> dict[str, str]:
-            stored_secret.update(json.loads(SecretString))
-            return {}
-
-        mock_client.put_secret_value.side_effect = capture_put
-
-        with patch("handler.get_secrets_client", return_value=mock_client):
-            _provision_trino(_EMAIL, _PASSWORD)
-
-        # Verify PBKDF2 format: {iterations}:{hex_salt}:{hex_hash}
-        iterations_str, hex_salt, hex_hash = stored_secret["hash"].split(":")
-        iterations = int(iterations_str)
-        salt = bytes.fromhex(hex_salt)
-        expected_digest = hashlib.pbkdf2_hmac("sha256", _PASSWORD.encode(), salt, iterations)
-        assert expected_digest.hex() == hex_hash
-
-
-# ---------------------------------------------------------------------------
 # _provision_simulation_api
 # ---------------------------------------------------------------------------
 
@@ -622,7 +535,7 @@ class TestProvisionSimulationApi:
 
 _FULL_SUCCESS_RESULT = {
     "successes": [
-        {"service": "trino", "result": {"status": "stored", "email": _EMAIL}},
+        {"service": "grafana", "result": {"status": "created", "user_id": 1}},
     ],
     "failures": [],
 }
@@ -752,8 +665,8 @@ class TestDynamoDBStorage:
         assert "password" not in body
 
     @pytest.mark.unit
-    def test_stores_trino_as_succeeded_service(self) -> None:
-        """_store_visitor_dynamodb receives ["trino"] when Trino provisioning succeeds."""
+    def test_stores_grafana_as_succeeded_service(self) -> None:
+        """_store_visitor_dynamodb receives ["grafana"] when grafana provisioning succeeds."""
         mock_dynamo_client = MagicMock()
 
         with (
@@ -766,19 +679,24 @@ class TestDynamoDBStorage:
         assert status == 200
         call_kwargs = mock_dynamo_client.put_item.call_args.kwargs
         item = call_kwargs["Item"]
-        assert item["provisioned_services"]["SS"] == ["trino"]
+        assert item["provisioned_services"]["SS"] == ["grafana"]
 
     @pytest.mark.unit
-    def test_stores_empty_services_on_trino_failure(self) -> None:
-        """_store_visitor_dynamodb receives [] when Trino provisioning fails."""
-        trino_failed = {
+    def test_stores_empty_services_on_all_failure(self) -> None:
+        """_store_visitor_dynamodb is called even when all services fail."""
+        all_failed = {
             "successes": [],
-            "failures": [{"service": "trino", "error": "timeout"}],
+            "failures": [
+                {"service": "grafana", "error": "timeout"},
+                {"service": "airflow", "error": "timeout"},
+                {"service": "minio", "error": "timeout"},
+                {"service": "simulation_api", "error": "timeout"},
+            ],
         }
         mock_dynamo_client = MagicMock()
 
         with (
-            patch("handler._provision_visitor", return_value=trino_failed),
+            patch("handler._provision_visitor", return_value=all_failed),
             patch("handler._get_dynamodb_client", return_value=mock_dynamo_client),
             patch("handler._send_welcome_email", return_value=True),
         ):
@@ -901,10 +819,10 @@ class TestSesWelcomeEmail:
 
     @pytest.mark.unit
     def test_welcome_email_contains_deployment_note(self) -> None:
-        """_build_welcome_email includes the deployment activation note in both bodies."""
+        """_build_welcome_email includes an offline/deploy note in both bodies."""
         _, text_body, html_body = _build_welcome_email(_EMAIL, _NAME, _PASSWORD)
-        assert "credentials activate once the platform is deployed" in text_body
-        assert "credentials activate once the platform is deployed" in html_body
+        assert "Deploy" in text_body
+        assert "Deploy" in html_body
 
     @pytest.mark.unit
     def test_welcome_email_contains_control_panel_url(self) -> None:
@@ -1094,7 +1012,6 @@ _FULL_REPROVISION_RESULT: dict[str, Any] = {
         {"service": "grafana", "result": {"status": "created", "user_id": 42}},
         {"service": "airflow", "result": {"status": "created", "username": _EMAIL}},
         {"service": "minio", "result": {"status": "created", "email": _EMAIL}},
-        {"service": "trino", "result": {"status": "stored", "email": _EMAIL}},
         {
             "service": "simulation_api",
             "result": {"email": _EMAIL, "role": "viewer", "status": "created"},

@@ -83,7 +83,7 @@ terraform -chdir=infrastructure/terraform/platform output -raw rds_endpoint
 - IRSA (IAM Roles for Service Accounts) or Pod Identity associations configured for `hive-metastore`, `trino`, and `airflow` service accounts
 - `aws-production` Kustomize component available at `infrastructure/kubernetes/components/aws-production`
 - All placeholder tokens (`<rds-endpoint>`, `<account-id>`, `<image-tag>`, `<glue-role-arn>`) substituted before applying
-- AWS Secrets Manager paths `rideshare/trino-admin-password-hash` and `rideshare/trino-visitor-password-hash` populated — required by both overlays for Trino FILE-based authentication (hashes are synced into the `app-credentials` Kubernetes Secret via ESO and expanded into `password.db` at startup by the `setup-config` initContainer)
+- `ADMIN_PASSWORD` available in the `app-credentials` Kubernetes Secret (synced from the `data-pipeline` secret via ESO) — required by both overlays for Trino FILE-based authentication (the admin bcrypt hash is computed at pod startup by the `setup-config` initContainer via `htpasswd`)
 - Grafana `airflow-postgres` datasource (uid: `airflow-postgres`) provisioned — required by the `visitor-activity.json` dashboard in the inherited Grafana Admin folder; without it, Airflow login panels in that dashboard will fail silently
 
 ## Common Tasks

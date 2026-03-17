@@ -25,7 +25,7 @@ fi
 
 echo "Trino: delta.properties generated successfully"
 
-# Render password.db from template (requires TRINO_ADMIN_PASSWORD_HASH and TRINO_VISITOR_PASSWORD_HASH)
+# Render password.db from template (requires TRINO_ADMIN_PASSWORD_HASH)
 echo "Trino: Rendering password.db from template"
 
 if command -v envsubst > /dev/null 2>&1; then
@@ -33,7 +33,6 @@ if command -v envsubst > /dev/null 2>&1; then
 else
   sed \
     -e "s|\${TRINO_ADMIN_PASSWORD_HASH}|${TRINO_ADMIN_PASSWORD_HASH}|g" \
-    -e "s|\${TRINO_VISITOR_PASSWORD_HASH}|${TRINO_VISITOR_PASSWORD_HASH}|g" \
     "$TRINO_ETC/password.db.template" > "$TRINO_ETC/password.db"
 fi
 

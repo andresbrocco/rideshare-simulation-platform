@@ -1655,10 +1655,6 @@ def handle_complete_teardown(api_key: str) -> tuple[int, dict[str, Any]]:
 # The rideshare/monitoring secret is JSON-encoded and contains ADMIN_PASSWORD.
 SECRET_GRAFANA_ADMIN_PASSWORD = "rideshare/monitoring"
 
-# Secrets Manager key where the Trino PBKDF2 password hash is persisted so
-# that a Trino container restart can pick it up via the password.db entrypoint script.
-SECRET_TRINO_VISITOR_PASSWORD_HASH = "rideshare/trino-visitor-password-hash"
-
 # Secret key used to retrieve Airflow and MinIO credentials for provisioning.
 # The rideshare/data-pipeline secret is JSON-encoded and contains
 # ADMIN_PASSWORD, MINIO_ROOT_USER, MINIO_ROOT_PASSWORD among others.
@@ -1919,44 +1915,6 @@ def _provision_minio(
     return result
 
 
-def _provision_trino(email: str, password: str) -> dict[str, Any]:
-    """Hash the visitor password with PBKDF2-SHA256 and store it in Secrets Manager.
-
-    Trino reads the hashed password from Secrets Manager during container
-    start-up via the entrypoint script that regenerates ``password.db``.
-    The container must be manually restarted after this call for the new
-    credentials to take effect.
-
-    Args:
-        email: Visitor email address (stored alongside the hash for reference).
-        password: Visitor plaintext password to hash.
-
-    Returns:
-        Dict with ``"status": "stored"`` and ``"email"`` on success.
-    """
-    hashed = _hash_password_pbkdf2(password)
-
-    # Persist the hash so the Trino container can pick it up on restart.
-    client = get_secrets_client()
-    secret_value = json.dumps({"email": email, "hash": hashed})
-    try:
-        client.put_secret_value(
-            SecretId=SECRET_TRINO_VISITOR_PASSWORD_HASH,
-            SecretString=secret_value,
-        )
-    except ClientError as exc:
-        error_code = exc.response["Error"]["Code"]
-        if error_code == "ResourceNotFoundException":
-            client.create_secret(
-                Name=SECRET_TRINO_VISITOR_PASSWORD_HASH,
-                SecretString=secret_value,
-            )
-        else:
-            raise
-
-    return {"status": "stored", "email": email}
-
-
 def _provision_simulation_api(
     email: str,
     password: str,
@@ -2007,27 +1965,20 @@ def _provision_visitor(
     caught, logged, and collected per-service rather than halting the whole
     operation — partial success is reported in the summary.
 
-    When ``durable_only`` is True, only Trino provisioning (Secrets Manager
-    storage) is attempted — the remaining services require a running platform
-    and are skipped.  This mode is used by ``handle_provision_visitor`` for
-    pre-deploy credential storage.  The full set of services is provisioned
-    when ``durable_only`` is False, which is used by
-    ``handle_reprovision_visitors`` after the platform is deployed.
+    When ``durable_only`` is True, no services are provisioned (previously
+    Trino was provisioned in this mode, but it has been removed).
 
     Services provisioned (when ``durable_only=False``):
     - Grafana (viewer role)
     - Airflow (Viewer role)
     - MinIO (visitor-readonly policy)
-    - Trino (PBKDF2 hash stored in Secrets Manager; restart required)
     - Simulation API (viewer account in user store)
 
     Args:
         email: Visitor email address.
         password: Visitor plaintext password.
         name: Visitor display name.
-        durable_only: When True, only provision services that write to
-            durable storage (Secrets Manager) and skip those requiring a
-            running platform.
+        durable_only: When True, skip all service provisioning.
 
     Returns:
         Dict with ``"successes"`` and ``"failures"`` lists.  Each success
@@ -2070,15 +2021,6 @@ def _provision_visitor(
         else:
             print("MinIO provisioning skipped (MINIO_ENDPOINT not set)")
 
-    # Trino (stores PBKDF2 hash; manual container restart required)
-    try:
-        result = _provision_trino(email, password)
-        successes.append({"service": "trino", "result": result})
-        print(f"Trino provisioning succeeded: {result}")
-    except Exception as exc:
-        failures.append({"service": "trino", "error": str(exc)})
-        print(f"Trino provisioning failed: {exc}")
-
     if not durable_only:
         # Simulation API
         try:
@@ -2099,13 +2041,9 @@ def handle_provision_visitor(
 ) -> tuple[int, dict[str, Any]]:
     """Handle provision-visitor action (immediate provisioning).
 
-    Provisions visitor accounts across all services — Trino (durable hash
-    in Secrets Manager), Grafana, Airflow, MinIO, and Simulation API —
-    then stores the record in DynamoDB and sends a welcome email.
-
-    Only Trino failure is considered critical (it's the durable credential
-    store).  Grafana, Airflow, and Simulation API failures are non-fatal;
-    ``handle_reprovision_visitors`` catches them on the next deploy.
+    Provisions visitor accounts across all services — Grafana, Airflow,
+    MinIO, and Simulation API — then stores the record in DynamoDB and
+    sends a welcome email.
 
     When ``password`` is ``None`` or an empty string, a secure random password
     is generated automatically via :func:`secrets.token_urlsafe`.  Credentials
@@ -2122,8 +2060,8 @@ def handle_provision_visitor(
 
     Returns:
         Tuple of (HTTP status code, response body dict).  Status 200 when
-        all services and email succeed; 207 when non-critical services
-        fail; 500 if Trino fails or the welcome email fails.
+        all services and email succeed; 207 when some services fail; 500 if
+        all services fail or the welcome email fails.
     """
     print("Action: provision-visitor")
 
@@ -2156,13 +2094,13 @@ def handle_provision_visitor(
     except Exception as exc:
         print(f"DynamoDB visitor record storage failed (non-fatal): {exc}")
 
-    trino_failed = any(f["service"] == "trino" for f in failures)
-    if trino_failed:
+    all_failed = not successes and failures
+    if all_failed:
         print("Action provision-visitor completed: 500")
         return 500, {
             "provisioned": False,
             "email_sent": False,
-            "error": "Credential storage failed",
+            "error": "All service provisioning failed",
             "failures": [f["service"] + ": " + f.get("error", "unknown") for f in failures],
         }
 
@@ -2192,8 +2130,8 @@ def handle_reprovision_visitors(api_key: str) -> tuple[int, dict[str, Any]]:
 
     Scans the DynamoDB visitors table, decrypts each visitor's stored
     password, and calls :func:`_provision_visitor` to recreate ephemeral
-    service accounts in Grafana, Airflow, MinIO, Trino, and the Simulation
-    API.  Requires admin API key authentication.
+    service accounts in Grafana, Airflow, MinIO, and the Simulation API.
+    Requires admin API key authentication.
 
     The action is idempotent — all individual provisioners use create-or-
     update semantics, so re-running against a live platform is safe.

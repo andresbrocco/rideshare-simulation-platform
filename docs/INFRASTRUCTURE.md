@@ -99,7 +99,7 @@ Four named profiles partition the stack:
 ### Notable Compose Service Behaviors
 
 - **`lambda-init`**: In addition to deploying the auth Lambda, mounts three visitor-provisioning modules (`provision_grafana_viewer.py`, `provision_airflow_viewer.py`, `provision_minio_visitor.py`) and a MinIO policy file (`minio-visitor-readonly.json`) into the Lambda package path. Injects service endpoint environment variables (`GRAFANA_URL`, `AIRFLOW_URL`, `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `SIMULATION_API_URL`) so the deployed Lambda can call those services at runtime.
-- **`secrets-init`**: Now installs `bcrypt` alongside `boto3` so `seed-secrets.py` can generate `$2b$10$...` hashed Trino passwords at seed time.
+- **`secrets-init`**: Installs `bcrypt` alongside `boto3` so Trino's entrypoint can compute the admin password hash at container startup.
 - **Simulation**: The entrypoint conditionally sources `/secrets/data-pipeline.env` before sourcing MinIO credentials — allows the simulation to start under `core`-only profile without MinIO.
 - **Grafana**: Also conditionally sources `/secrets/data-pipeline.env` (same pattern as simulation) to access Trino connection details without requiring the `data-pipeline` profile.
 
@@ -141,10 +141,6 @@ All credentials are sourced from Secrets Manager, not from static `.env` files.
 | `rideshare/data-pipeline` | `/secrets/data-pipeline.env` | `MINIO_ROOT_*`, `POSTGRES_*`, `AIRFLOW__*`, `FERNET_KEY` |
 | `rideshare/monitoring` | `/secrets/monitoring.env` | `GF_SECURITY_ADMIN_USER`, `GF_SECURITY_ADMIN_PASSWORD` |
 | `rideshare/github-pat` | (Secrets Manager only) | `GITHUB_PAT` used by Lambda |
-| `rideshare/trino-admin-password-hash` | (Secrets Manager only; not Terraform-managed) | bcrypt hash of Trino `admin` password; created by deploy workflow |
-| `rideshare/trino-visitor-password-hash-*` | (Secrets Manager only; not Terraform-managed) | PBKDF2 hash of each visitor's Trino password; created dynamically by auth-deploy Lambda on `provision-visitor` |
-
-`seed-secrets.py` requires the `bcrypt` library (installed in `secrets-init` alongside `boto3`) to generate `$2b$10$...` prefixed hashes for the two Trino hash secrets at seed time.
 
 ### Production Secret Management
 
@@ -374,12 +370,10 @@ Ingress is not used. The platform uses `GatewayClass` (named `eg`, backed by Env
 
 ### Kubernetes Trino: Password File Bootstrap
 
-In Kubernetes, the Trino pod runs a `setup-config` initContainer that:
-1. Reads `TRINO_ADMIN_PASSWORD_HASH` and `TRINO_VISITOR_PASSWORD_HASH` from the `app-credentials` Kubernetes Secret (synced from Secrets Manager by ESO)
-2. Renders `password.db.template` → `/tmp/trino-etc/password.db` with `chmod 600`
+In Kubernetes, the Trino pod runs a `setup-config` initContainer (image: `httpd:2.4-alpine`) that:
+1. Reads `ADMIN_PASSWORD` from the `app-credentials` Kubernetes Secret (synced from the `data-pipeline` secret by ESO)
+2. Computes the bcrypt hash via `htpasswd` and writes `password.db` to `/tmp/trino-etc/` with `chmod 600`
 3. Renders `delta.properties.template` → `/tmp/trino-etc/catalog/delta.properties` with MinIO credentials
-
-The `app-credentials` Secret is populated by ESO from two Secrets Manager paths (`rideshare/trino-admin-password-hash` and `rideshare/trino-visitor-password-hash`). These two secrets are **not** managed by Terraform — they are created by the deploy workflow and the visitor provisioning Lambda respectively.
 
 ### Grafana Admin Dashboard
 
@@ -438,7 +432,7 @@ DNS: wildcard Route 53 ALIAS record `*.ridesharing.portfolio.andresbrocco.com` p
 - Manages auto-teardown via EventBridge one-time schedule
 - Aggregates per-service deploy readiness from the deploy workflow's progress reports (15 services)
 - Cost tracking: hardcoded `$0.31/hour` (1x t3.xlarge); computed from elapsed session time
-- **Two-phase visitor provisioning**: Phase 1 (`provision-visitor`, unauthenticated) stores durable visitor credentials in DynamoDB (KMS-encrypted plaintext password) and a PBKDF2 Trino password hash in Secrets Manager, then sends a SES welcome email — all before the platform is deployed. Phase 2 (`reprovision-visitors`, authenticated) is called by the deploy workflow post-deploy; it scans DynamoDB, decrypts passwords via KMS, and creates ephemeral service accounts in Grafana, Airflow, MinIO, and the Simulation API.
+- **Two-phase visitor provisioning**: Phase 1 (`provision-visitor`, unauthenticated) stores durable visitor credentials in DynamoDB (KMS-encrypted plaintext password), then sends a SES welcome email — all before the platform is deployed. Phase 2 (`reprovision-visitors`, authenticated) is called by the deploy workflow post-deploy; it scans DynamoDB, decrypts passwords via KMS, and creates ephemeral service accounts in Grafana, Airflow, MinIO, and the Simulation API.
 
 Session lifecycle: `deploying` → `active` (after frontend calls `activate-session`) → `tearing_down` → `gone`.
 
@@ -476,16 +470,13 @@ Note: DBT views (`anomalies_gps_outliers`, `anomalies_zombie_drivers`) have no `
 
 ### Trino Authentication and Access Control
 
-Trino uses FILE-based password authentication (`http-server.authentication.type=PASSWORD`). Two accounts are defined:
+Trino uses FILE-based password authentication (`http-server.authentication.type=PASSWORD`). Only the `admin` account is defined:
 
 | Account | Role | Access |
 |---------|------|--------|
 | `admin` | Full | All catalogs |
-| `visitor` | Read-only | `delta` catalog only; `system` catalog blocked |
 
-Password hashes (`TRINO_ADMIN_PASSWORD_HASH`, `TRINO_VISITOR_PASSWORD_HASH`) are injected as environment variables at container startup. The entrypoint copies `/etc/trino` to `/tmp/trino-etc/` (writability workaround), then renders `password.db.template` → `password.db` via `envsubst`/`sed` with `chmod 600`. The `file.refresh-period=5s` setting allows hash rotation without a restart; access control rules reload every 60s.
-
-`rules.json` ordering is load-bearing: the `admin` full-access rule appears first, then the `system` deny for all users, then the `delta` read-only grant, then a catch-all read-only fallback.
+The admin bcrypt hash is computed at container startup from the `ADMIN_PASSWORD` in the `data-pipeline` secret (via `bcrypt` in Docker dev, via `htpasswd` in K8s). The entrypoint copies `/etc/trino` to `/tmp/trino-etc/` (writability workaround), then writes `password.db` with `chmod 600`. Access control rules reload every 60s.
 
 ### Visitor Account Provisioning
 
@@ -496,10 +487,6 @@ Password hashes (`TRINO_ADMIN_PASSWORD_HASH`, `TRINO_VISITOR_PASSWORD_HASH`) are
 | `provision_grafana_viewer.py` | Grafana | Admin API (`/api/admin/users`); HTTP 412 = update |
 | `provision_airflow_viewer.py` | Airflow | REST API (`/api/v1/users`); HTTP 409 = update |
 | `provision_minio_visitor.py` | MinIO | MinIO Admin SDK; policy from `infrastructure/policies/minio-visitor-readonly.json` (read-only on `rideshare-gold` bucket) |
-
-Trino credentials are handled via bcrypt hash update in Secrets Manager (not direct service calls) and require a Trino container restart to take effect.
-
-`generate_trino_password_hash.py` produces `$2b$10$...` prefixed hashes (Python bcrypt, cost factor 10). Trino's FILE authenticator accepts both `$2b$` and `$2y$` variants.
 
 ### Airflow DAGs
 

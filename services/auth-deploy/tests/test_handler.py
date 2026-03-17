@@ -36,7 +36,6 @@ _FULL_SUCCESS = {
         {"service": "grafana", "result": {"status": "created", "user_id": 1}},
         {"service": "airflow", "result": {"status": "created", "username": _EMAIL}},
         {"service": "minio", "result": {"status": "created", "email": _EMAIL}},
-        {"service": "trino", "result": {"status": "stored", "email": _EMAIL}},
         {
             "service": "simulation_api",
             "result": {"email": _EMAIL, "role": "viewer", "status": "created"},
@@ -47,7 +46,6 @@ _FULL_SUCCESS = {
 
 _PARTIAL_SUCCESS = {
     "successes": [
-        {"service": "trino", "result": {"status": "stored", "email": _EMAIL}},
         {"service": "grafana", "result": {"status": "created", "user_id": 1}},
     ],
     "failures": [
@@ -63,7 +61,6 @@ _ALL_FAILED = {
         {"service": "grafana", "error": "timeout"},
         {"service": "airflow", "error": "timeout"},
         {"service": "minio", "error": "timeout"},
-        {"service": "trino", "error": "timeout"},
         {"service": "simulation_api", "error": "timeout"},
     ],
 }
@@ -246,67 +243,3 @@ class TestValidationPathsUnaffected:
         assert status == 400
         assert "error" in body
         assert "password" not in body
-
-
-# ---------------------------------------------------------------------------
-# Trino failure is the only critical failure
-# ---------------------------------------------------------------------------
-
-
-class TestTrinoFailureIsCritical:
-    """Trino is the durable credential store — its failure is always fatal."""
-
-    _TRINO_FAILED = {
-        "successes": [
-            {"service": "grafana", "result": {"status": "created", "user_id": 1}},
-            {"service": "airflow", "result": {"status": "created", "username": _EMAIL}},
-            {
-                "service": "simulation_api",
-                "result": {"email": _EMAIL, "role": "viewer", "status": "created"},
-            },
-        ],
-        "failures": [
-            {"service": "trino", "error": "Secrets Manager timeout"},
-            {"service": "minio", "error": "timeout"},
-        ],
-    }
-
-    _TRINO_OK_OTHERS_FAILED = {
-        "successes": [
-            {"service": "trino", "result": {"status": "stored", "email": _EMAIL}},
-        ],
-        "failures": [
-            {"service": "grafana", "error": "Connection refused"},
-            {"service": "airflow", "error": "Connection refused"},
-            {"service": "minio", "error": "timeout"},
-            {"service": "simulation_api", "error": "timeout"},
-        ],
-    }
-
-    @pytest.mark.unit
-    def test_trino_failure_returns_500(self) -> None:
-        """When Trino fails, return 500 even if other services succeeded."""
-        with (
-            patch("handler._provision_visitor", return_value=self._TRINO_FAILED),
-            patch("handler._store_visitor_dynamodb"),
-            patch("handler._send_welcome_email") as mock_email,
-        ):
-            status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
-
-        assert status == 500
-        assert body["provisioned"] is False
-        mock_email.assert_not_called()
-
-    @pytest.mark.unit
-    def test_non_trino_failures_still_return_success(self) -> None:
-        """When only non-critical services fail but Trino succeeds, return 207."""
-        with (
-            patch("handler._provision_visitor", return_value=self._TRINO_OK_OTHERS_FAILED),
-            patch("handler._store_visitor_dynamodb"),
-            patch("handler._send_welcome_email", return_value=True),
-        ):
-            status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
-
-        assert status == 207
-        assert body["provisioned"] is True
-        assert body["email_sent"] is True

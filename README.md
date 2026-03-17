@@ -301,11 +301,8 @@ cd tools/great-expectations && ./venv/bin/python3 run_checkpoint.py gold_validat
 # Register tables in Glue catalog (production)
 ./venv/bin/python3 infrastructure/scripts/register-glue-tables.py
 
-# Provision a visitor account across all platform services (Grafana, Airflow, MinIO, Trino, Simulation API)
+# Provision a visitor account across all platform services (Grafana, Airflow, MinIO, Simulation API)
 ./venv/bin/python3 infrastructure/scripts/provision_visitor_cli.py --email visitor@example.com
-
-# Generate a Trino FILE authenticator bcrypt password hash
-./venv/bin/python3 infrastructure/scripts/generate_trino_password_hash.py
 ```
 
 ## API Overview

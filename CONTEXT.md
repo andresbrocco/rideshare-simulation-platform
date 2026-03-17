@@ -114,7 +114,7 @@ cd tools/dbt && ./venv/bin/dbt test
 | `services/prometheus` | Metrics collection and recording rules including composite headroom score | [->](services/prometheus/CONTEXT.md) |
 | `services/osrm` | Road-network routing for Sao Paulo | [->](services/osrm/CONTEXT.md) |
 | `services/otel-collector` | Central telemetry gateway (metrics, logs, traces) | [->](services/otel-collector/CONTEXT.md) |
-| `services/trino` | SQL query engine over Delta Lake layers; FILE-based password auth with two-user model (`admin`/`visitor`); `etc/` holds all server configuration files | [->](services/trino/CONTEXT.md) |
+| `services/trino` | SQL query engine over Delta Lake layers; FILE-based password auth with admin-only account; `etc/` holds all server configuration files | [->](services/trino/CONTEXT.md) |
 | `services/hive-metastore` | Delta table metadata catalog for Trino | [->](services/hive-metastore/CONTEXT.md) |
 
 ### Data Transformation Tools
@@ -140,7 +140,7 @@ cd tools/dbt && ./venv/bin/dbt test
 | `infrastructure/docker` | Docker Compose with 4 composable profiles for local dev | [->](infrastructure/docker/CONTEXT.md) |
 | `infrastructure/kubernetes` | K8s manifests, Kustomize overlays, ArgoCD GitOps | [->](infrastructure/kubernetes/CONTEXT.md) |
 | `infrastructure/terraform` | Three-layer AWS provisioning (bootstrap, foundation, platform) | [->](infrastructure/terraform/CONTEXT.md) |
-| `infrastructure/scripts` | Operational scripts: secrets seeding, Delta table registration, DuckDB-to-S3 export, visitor account provisioning, Trino password hash generation | [->](infrastructure/scripts/CONTEXT.md) |
+| `infrastructure/scripts` | Operational scripts: secrets seeding, Delta table registration, DuckDB-to-S3 export, visitor account provisioning | [->](infrastructure/scripts/CONTEXT.md) |
 | `infrastructure/policies` | IAM-compatible policy documents (e.g., `minio-visitor-readonly.json`) shared between Lambda deployments and operational scripts | — |
 
 ### Tests

@@ -4,7 +4,7 @@ Validates:
 - Output format is parseable by Trino's file-based password authenticator
 - Deterministic output for a known input with a fixed salt (regression guard)
 - Salt randomness: two calls produce different hashes
-- bcrypt is not referenced anywhere in _store_visitor_dynamodb or _provision_trino
+- bcrypt is not referenced anywhere in _store_visitor_dynamodb
 
 These tests are pure unit tests — no running services required.
 """
@@ -127,16 +127,6 @@ def test_store_visitor_dynamodb_no_bcrypt_import() -> None:
     source = inspect.getsource(handler._store_visitor_dynamodb)
     assert "bcrypt" not in source, (
         "_store_visitor_dynamodb still references 'bcrypt' in its source code. "
-        "All bcrypt usage must be replaced with _hash_password_pbkdf2."
-    )
-
-
-@pytest.mark.unit
-def test_provision_trino_no_bcrypt_import() -> None:
-    """_provision_trino must not reference bcrypt anywhere in its source."""
-    source = inspect.getsource(handler._provision_trino)
-    assert "bcrypt" not in source, (
-        "_provision_trino still references 'bcrypt' in its source code. "
         "All bcrypt usage must be replaced with _hash_password_pbkdf2."
     )
 

@@ -218,7 +218,7 @@ The `deploy.yml` platform job performs these steps in order:
 10. Wait for services in phases: Infrastructure → Schema/Config → Application → Data Pipeline → UI
 11. Report each service ready status to the `rideshare-auth-deploy` Lambda
 12. Ensure auto-teardown session exists
-13. Re-provision visitor Trino/Grafana/Airflow accounts from DynamoDB
+13. Re-provision visitor Grafana/Airflow/MinIO/Simulation API accounts from DynamoDB
 14. Create Route 53 wildcard ALIAS record
 
 ---

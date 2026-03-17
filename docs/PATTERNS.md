@@ -491,22 +491,21 @@ Middleware is registered at app creation time. Two middleware classes are applie
 
 All credentials are sourced from Secrets Manager (LocalStack in dev, AWS Secrets Manager in production). No credentials are hardcoded in `.env` files.
 
-In local development: `localstack` starts first; `secrets-init` seeds LocalStack Secrets Manager and writes credential files to a shared Docker volume. All other services mount this volume read-only at `/secrets/` and source environment-specific `.env` files in their entrypoints. `seed-secrets.py` also generates bcrypt hashes at seed time for `rideshare/trino-admin-password-hash` and `rideshare/trino-visitor-password-hash` using the `bcrypt` library (requires `bcrypt` installed in the `secrets-init` container alongside `boto3`).
+In local development: `localstack` starts first; `secrets-init` seeds LocalStack Secrets Manager and writes credential files to a shared Docker volume. All other services mount this volume read-only at `/secrets/` and source environment-specific `.env` files in their entrypoints.
 
 In production: External Secrets Operator bridges AWS Secrets Manager to Kubernetes Secrets. The `SecretStore` YAML is identical between dev and prod; only the ESO controller's endpoint env var differs (pointing at LocalStack vs. real AWS). All workload IAM roles use EKS Pod Identity (`pods.eks.amazonaws.com` trust) rather than IRSA.
 
 **Visitor credential flow (two-phase)**: When a visitor registers via `provision-visitor` (Phase 1, pre-deploy), the Lambda:
-1. Stores a PBKDF2 password hash in Secrets Manager at `rideshare/trino-visitor-password-hash-*` for Trino FILE authentication.
-2. Encrypts the plaintext password with a KMS CMK (`rideshare-visitor-passwords`) and stores the ciphertext in DynamoDB (`rideshare-visitors` table, keyed on email hash).
-3. Sends a SES welcome email.
+1. Encrypts the plaintext password with a KMS CMK (`rideshare-visitor-passwords`) and stores the ciphertext in DynamoDB (`rideshare-visitors` table, keyed on email hash).
+2. Sends a SES welcome email.
 
 Phase 2 (`reprovision-visitors`, post-deploy): scans DynamoDB, decrypts each KMS ciphertext, and creates ephemeral accounts in Grafana, Airflow, MinIO, and the Simulation API via co-located provisioning sub-modules. If SES delivery fails after DynamoDB write succeeds, the response is `{"provisioned": true, "email_sent": false}` with HTTP 500 — the visitor record is durable and Phase 2 will still succeed.
 
-**Trino FILE-based passwords**: Trino uses a `password.db` file generated at pod/container startup by substituting `TRINO_ADMIN_PASSWORD_HASH` and `TRINO_VISITOR_PASSWORD_HASH` (bcrypt hashes, `$2b$10$` prefix) into `password.db.template` via `sed`/`envsubst`. The file is written with `chmod 600` to a shared `emptyDir` volume and never stored in a ConfigMap or Git. Password changes require a container restart — Trino reads `password.db` only at startup (`file.refresh-period=5s` applies to in-process polling after startup).
+**Trino FILE-based passwords**: Trino uses a `password.db` file generated at pod/container startup. The admin bcrypt hash is computed from the `ADMIN_PASSWORD` in the `data-pipeline` secret (via `bcrypt` in Docker dev, via `htpasswd` in K8s). Only the `admin` account is defined. The file is written with `chmod 600` to a shared `emptyDir` volume and never stored in a ConfigMap or Git. Password changes require a container restart.
 
 ### Locations
 
-- `infrastructure/scripts/` — `seed-secrets.py` (LocalStack seeding with bcrypt hash generation), `fetch-secrets.py` (credential retrieval), `generate_trino_password_hash.py`
+- `infrastructure/scripts/` — `seed-secrets.py` (LocalStack seeding), `fetch-secrets.py` (credential retrieval)
 - `infrastructure/scripts/provision_visitor_cli.py` — CLI orchestration of multi-service visitor provisioning
 - `infrastructure/kubernetes/` — External Secrets Operator `SecretStore` and `ExternalSecret` manifests
 - `infrastructure/terraform/foundation/modules/secrets_manager/` — Terraform module for AWS Secrets Manager resources

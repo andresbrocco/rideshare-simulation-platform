@@ -21,8 +21,8 @@ How modules within this codebase depend on each other.
 | `schemas/api` | OpenAPI specification for the simulation REST/WebSocket API | services/control-panel, services/simulation/tests |
 | `tools/dbt` | Silver and Gold medallion layer transformations | services/airflow, tools/great-expectations |
 | `tools/great-expectations` | Data quality validation for Silver and Gold tables | services/airflow |
-| `infrastructure/scripts` | Operational scripts: secrets bootstrap, Delta table registration, Glue table registration, visitor account provisioning (Grafana/Airflow/MinIO/Trino/Simulation API), Trino password hash generation | services/airflow/dags |
-| `services/auth-deploy` | Serverless control-plane Lambda for deploy/teardown lifecycle, visitor self-registration (two-phase: DynamoDB durable records + KMS-encrypted credentials + SES welcome email + post-deploy service account creation via Grafana, Airflow, MinIO, Simulation API) | services/control-panel/src/services, infrastructure/terraform/foundation |
+| `infrastructure/scripts` | Operational scripts: secrets bootstrap, Delta table registration, Glue table registration, visitor account provisioning (Grafana/Airflow/MinIO/Simulation API) | services/airflow/dags |
+| `services/auth-deploy` | Serverless control-plane Lambda for deploy/teardown lifecycle, visitor self-registration (two-phase: DynamoDB durable records + KMS-encrypted credentials + SES welcome email + post-deploy service account creation via Grafana, Airflow, MinIO, and Simulation API) | services/control-panel/src/services, infrastructure/terraform/foundation |
 | `infrastructure/docker` | Docker Compose local dev environment (four composable profiles) | all services |
 | `infrastructure/kubernetes` | Kubernetes manifests, Kustomize overlays, ArgoCD GitOps for production | infrastructure/terraform |
 | `infrastructure/terraform` | AWS production infrastructure (EKS, RDS, S3, ECR, Lambda, Glue, IAM) | infrastructure/kubernetes, services/auth-deploy |
@@ -190,7 +190,7 @@ bootstrap  ──>  foundation  ──>  platform
 - The `session:expired` custom DOM event is dispatched by `apiFetch` on any 401 response, decoupling the HTTP layer from React auth state
 
 #### services/auth-deploy → DynamoDB / KMS / SES
-- Phase 1 `provision-visitor`: writes a durable visitor record to the `rideshare-visitors` DynamoDB table (keyed by email hash), encrypts the plaintext password with the `rideshare-visitor-passwords` KMS CMK, stores the PBKDF2 hash in Secrets Manager (`rideshare/trino-visitor-password-hash-*`), and sends a welcome email via SES
+- Phase 1 `provision-visitor`: writes a durable visitor record to the `rideshare-visitors` DynamoDB table (keyed by email hash), encrypts the plaintext password with the `rideshare-visitor-passwords` KMS CMK, and sends a welcome email via SES
 - Phase 2 `reprovision-visitors`: scans DynamoDB, decrypts each password with KMS, and creates ephemeral accounts in Grafana, Airflow, MinIO, and the Simulation API
 
 ---

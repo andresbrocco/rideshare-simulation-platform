@@ -12,9 +12,9 @@ Holds all Trino server-level configuration files: coordinator settings, JVM tuni
 
 ## Key Concepts
 
-**Two-path file layout**: Static files (`config.properties`, `node.properties`, `jvm.config`, `event-listener.properties`, `rules.json`) are mounted directly into `/etc/trino/`. Credential files (`password.db`) are generated at container startup from `password.db.template` with bcrypt hashes substituted for `${TRINO_ADMIN_PASSWORD_HASH}` and `${TRINO_VISITOR_PASSWORD_HASH}`, and placed in `/tmp/trino-etc/`. The `access-control.properties` and `password-authenticator.properties` reference `/tmp/trino-etc/` (not `/etc/trino/`) specifically to point at these runtime-generated files.
+**Two-path file layout**: Static files (`config.properties`, `node.properties`, `jvm.config`, `event-listener.properties`, `rules.json`) are mounted directly into `/etc/trino/`. The credential file (`password.db`) is generated at container startup by computing the admin bcrypt hash from `ADMIN_PASSWORD` (via `bcrypt` in Docker dev, via `htpasswd` in K8s) and placed in `/tmp/trino-etc/`. The `access-control.properties` and `password-authenticator.properties` reference `/tmp/trino-etc/` (not `/etc/trino/`) specifically to point at these runtime-generated files.
 
-**Two-user security model**: `password.db.template` defines exactly two users — `admin` (full access) and `visitor` (read-only). `rules.json` enforces this via an ordered catalog ACL: `admin` gets `all` on every catalog; all other users are blocked from `system` (preventing schema enumeration), granted `read-only` on `delta`, and `read-only` as a catch-all fallback.
+**Single-user security model**: Only the `admin` account is defined. `rules.json` enforces access control via an ordered catalog ACL: `admin` gets `all` on every catalog; all other users are blocked from `system` (preventing schema enumeration), granted `read-only` on `delta`, and `read-only` as a catch-all fallback.
 
 ## Non-Obvious Details
 

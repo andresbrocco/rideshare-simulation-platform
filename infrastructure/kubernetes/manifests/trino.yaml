@@ -25,7 +25,6 @@ data:
 
   password.db.template: |
     admin:${TRINO_ADMIN_PASSWORD_HASH}
-    visitor:${TRINO_VISITOR_PASSWORD_HASH}
 
   rules.json: |
     {
@@ -49,6 +48,15 @@ data:
           "user": ".*",
           "catalog": ".*",
           "allow": "read-only"
+        }
+      ],
+      "procedures": [
+        {
+          "user": "admin",
+          "catalog": "delta",
+          "schema": "system",
+          "procedure": "register_table|unregister_table",
+          "privileges": ["EXECUTE", "GRANT_EXECUTE"]
         }
       ]
     }
@@ -81,6 +89,7 @@ data:
     hive.s3.aws-access-key=${MINIO_ROOT_USER}
     hive.s3.aws-secret-key=${MINIO_ROOT_PASSWORD}
     delta.enable-non-concurrent-writes=true
+    delta.register-table-procedure.enabled=true
 
 ---
 apiVersion: apps/v1
@@ -123,7 +132,7 @@ spec:
           done
           echo "MinIO is ready"
       - name: setup-config
-        image: busybox:1.36
+        image: httpd:2.4-alpine
         command:
         - sh
         - -c
@@ -139,9 +148,9 @@ spec:
             -e "s|\${MINIO_ROOT_USER}|${MINIO_ROOT_USER}|g" \
             -e "s|\${MINIO_ROOT_PASSWORD}|${MINIO_ROOT_PASSWORD}|g" \
             /config-source/delta.properties.template > /etc/trino/catalog/delta.properties
+          TRINO_ADMIN_PASSWORD_HASH=$(htpasswd -nbBC 10 admin "$ADMIN_PASSWORD" | cut -d: -f2)
           sed \
             -e "s|\${TRINO_ADMIN_PASSWORD_HASH}|${TRINO_ADMIN_PASSWORD_HASH}|g" \
-            -e "s|\${TRINO_VISITOR_PASSWORD_HASH}|${TRINO_VISITOR_PASSWORD_HASH}|g" \
             /config-source/password.db.template > /etc/trino/password.db
           chown 1000:1000 /etc/trino/password.db
           chmod 600 /etc/trino/password.db
@@ -156,16 +165,11 @@ spec:
             secretKeyRef:
               name: app-credentials
               key: MINIO_ROOT_PASSWORD
-        - name: TRINO_ADMIN_PASSWORD_HASH
+        - name: ADMIN_PASSWORD
           valueFrom:
             secretKeyRef:
               name: app-credentials
-              key: TRINO_ADMIN_PASSWORD_HASH
-        - name: TRINO_VISITOR_PASSWORD_HASH
-          valueFrom:
-            secretKeyRef:
-              name: app-credentials
-              key: TRINO_VISITOR_PASSWORD_HASH
+              key: AIRFLOW_ADMIN_PASSWORD
         volumeMounts:
         - name: config-source
           mountPath: /config-source

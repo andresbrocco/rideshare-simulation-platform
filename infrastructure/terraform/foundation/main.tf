@@ -183,10 +183,7 @@ module "lambda_auth_deploy" {
     module.secrets_manager.secret_arns["admin_user"],
   ]
 
-  # Grant write access for Trino visitor password hash storage
-  writable_secrets_arns = [
-    "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:rideshare/trino-visitor-password-hash-*",
-  ]
+  writable_secrets_arns = []
 
   ssm_parameter_arns = [
     "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/rideshare/session/*"

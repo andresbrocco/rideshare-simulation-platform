@@ -196,28 +196,21 @@ Credentials are never hardcoded in `.env` files. No static AWS credentials are c
 | `{project}/monitoring` | Grafana admin credentials | `ADMIN_USER`, `ADMIN_PASSWORD` |
 | `{project}/rds` | RDS master credentials and endpoint | `PASSWORD`, `USERNAME`, `ENDPOINT` |
 | `{project}/github-pat` | GitHub PAT for workflow dispatch | `GITHUB_PAT` |
-| `{project}/trino-admin-password-hash` | Bcrypt hash for Trino `admin` account | (plain string) — created by deploy workflow, not Terraform |
-| `{project}/trino-visitor-password-hash` | Bcrypt hash for Trino `visitor` account | (plain string) — created on demand by Lambda visitor provisioning |
 
 Terraform-generated production credentials: API key uses 32-character random string; all other passwords use configurable `password_length` (default 16). Module: `infrastructure/terraform/foundation/modules/secrets_manager/`.
-
-The two Trino password-hash secrets are not managed by Terraform. Do not attempt to import or manage them in Terraform state.
 
 ### Visitor Credential Storage (Lambda)
 
 Visitor records stored in the DynamoDB `rideshare-visitors` table contain:
 - Email (partition key), display name, consent timestamp
-- PBKDF2 password hash — written to `{project}/trino-visitor-password-hash` in Secrets Manager for the Trino FILE authenticator
 - KMS-encrypted plaintext password — enables the Lambda to decrypt and replay the password after platform deploy without ever storing it in plaintext; KMS key ARN is in `infrastructure/terraform/foundation/`
 - List of provisioned services — used by Phase 2 (`reprovision-visitors`) to determine which service accounts to (re)create
 
-If SES email delivery fails after DynamoDB write and Trino hash storage succeed, the visitor record is still durable and `reprovision-visitors` will recreate service accounts after the next deploy.
+If SES email delivery fails after DynamoDB write succeeds, the visitor record is still durable and `reprovision-visitors` will recreate service accounts after the next deploy.
 
 ### Individual Secret Override (Dev)
 
 `seed-secrets.py` supports `OVERRIDE_<KEY>` environment variables to replace default local values (e.g., `OVERRIDE_API_KEY=mykey`) without modifying the script.
-
-`seed-secrets.py` also generates bcrypt hashes at seed time for `rideshare/trino-admin-password-hash` and `rideshare/trino-visitor-password-hash` using the `bcrypt` Python library (cost factor 10, `$2b$` format). Trino's FILE authenticator accepts both `$2b$` and `$2y$` variants.
 
 ### GitHub PAT
 
@@ -263,8 +256,7 @@ Profile schemas (`driver_profile_event`, `rider_profile_event`) carry PII fields
 ### Password Hashing
 
 - **Simulation API user accounts**: Visitor passwords are hashed using `bcrypt` and stored in the in-memory `UserStore` (`services/simulation/src/api/user_store.py`). The bcrypt hash is used for `POST /auth/login` credential verification. The static admin API key is not password-hashed — comparison is done with string equality.
-- **Trino FILE authenticator**: Bcrypt hashes (cost factor 10) are stored in `password.db` (rendered from `password.db.template` at container startup). Two accounts: `admin` and `visitor`. Hashes are sourced from Secrets Manager (`{project}/trino-admin-password-hash`, `{project}/trino-visitor-password-hash`) and substituted by the `setup-config` initContainer or the Trino entrypoint script.
-- **Visitor PBKDF2 hash**: `provision-visitor` (Lambda Phase 1) derives a PBKDF2 hash of the visitor password and stores it as the Trino password hash in Secrets Manager. The bcrypt-equivalent is generated separately for the Trino FILE authenticator.
+- **Trino FILE authenticator**: The admin bcrypt hash is computed at container startup from the `ADMIN_PASSWORD` in the `{project}/data-pipeline` secret (via `bcrypt` in Docker dev, via `htpasswd` in K8s) and written to `password.db`. Only the `admin` account is defined.
 - **KMS envelope encryption**: Visitor plaintext passwords are encrypted with a KMS key before storage in DynamoDB. `Encrypt`/`Decrypt`/`GenerateDataKey` permissions are granted to the Lambda execution role.
 
 ### Airflow Fernet Key
@@ -335,7 +327,7 @@ An admin-only Grafana dashboard (`services/grafana/dashboards/admin/visitor-acti
 ## Known Security Considerations
 
 - **`/health` is unauthenticated**: The `GET /health` and `GET /health/detailed` endpoints are intentionally unauthenticated for Kubernetes probes and load balancer health checks.
-- **Trino FILE-based auth (both local and production)**: Trino uses `http-server.authentication.type=PASSWORD` with the `file` authenticator in all environments. Two accounts are defined: `admin` (full access via `rules.json`) and `visitor` (read-only on the `delta` catalog; no access to `system`). The `rules.json` ACL is evaluated in order — the `system` deny rule must appear before the read-only catch-all or it would be shadowed. Password hashes reload every 5 seconds; access control rules reload every 60 seconds, so a brief gap exists between a rules change and enforcement.
+- **Trino FILE-based auth (both local and production)**: Trino uses `http-server.authentication.type=PASSWORD` with the `file` authenticator in all environments. Only the `admin` account is defined (full access via `rules.json`). The admin bcrypt hash is computed at container startup from the `ADMIN_PASSWORD` in the `data-pipeline` secret. Access control rules reload every 60 seconds.
 - **Prometheus has no auth**: The Prometheus HTTP API (port 9090) runs without authentication in both local and production environments.
 - **Intentional data corruption**: The simulation supports `MALFORMED_EVENT_RATE` (float 0.0-1.0) that publishes additional corrupted event copies to exercise the Bronze DLQ pipeline. Disabled by default (0.0).
 - **Public-only subnets (Production)**: The production VPC uses a public-subnet-only design with no NAT gateways; all EKS nodes have public IPs but are controlled by security groups.
@@ -345,5 +337,5 @@ An admin-only Grafana dashboard (`services/grafana/dashboards/admin/visitor-acti
 - **Session-based viewer keys**: Session keys returned by `POST /auth/login` carry a `sess_` prefix and are persisted as Redis hashes at `session:{api_key}` with TTL-based auto-eviction. Explicit invalidation is provided by `delete_session`. The static admin key bypasses Redis entirely and is never stored in the session store.
 - **`LoginDialog` replaces raw API key entry for visitors**: The frontend `LoginDialog` calls `POST /auth/login` with `{email, password}` and receives a session key. Visitors never interact with the raw simulation API key.
 - **Single shared API key**: The simulation API admin key grants full access with no scope restrictions. All admin callers (Control Panel admin mode, Performance Controller, CI scripts) share the same key. Viewer-role visitors receive scoped session keys.
-- **Trino password changes require container restart**: `password.db` is generated at container startup from the template. Although Trino's FILE authenticator has `file.refresh-period=5s`, visitor password changes from provisioning require the container to restart to re-run the template substitution that writes `password.db`.
+- **Trino password changes require container restart**: `password.db` is generated at container startup by computing the bcrypt hash from `ADMIN_PASSWORD`. Password changes require the container to restart to re-run the hash generation step.
 - **IMDS hop limit of 2 on EKS nodes**: The EKS launch template sets `http_put_response_hop_limit = 2` (not the IMDSv2-hardened default of 1) to allow containers inside pods to reach the instance metadata service. Checkov rule `CKV_AWS_341` is explicitly skipped with this justification.

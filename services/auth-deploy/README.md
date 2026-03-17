@@ -35,7 +35,6 @@
 | `rideshare/github-pat` | GitHub Personal Access Token for workflow dispatch and status polling. Stored as plain string or `{"GITHUB_PAT": "..."}`. |
 | `rideshare/monitoring` | JSON-encoded secret containing `ADMIN_PASSWORD` for Grafana admin auth during visitor provisioning. |
 | `rideshare/data-pipeline` | JSON-encoded secret containing `AIRFLOW_ADMIN_PASSWORD`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` for visitor provisioning. |
-| `rideshare/trino-visitor-password-hash` | JSON blob `{"hash": "<PBKDF2>"}` written by the Lambda; read by Trino's `password.db` entrypoint script at pod startup. |
 
 ### SSM Parameter Store
 
@@ -91,7 +90,7 @@ The Lambda supports two invocation modes:
 | `report-deploy-progress` | `service` (string), `ready` (bool) | Mark a named service as ready/not-ready in the session. Called by the deploy workflow. |
 | `set-teardown-run-id` | `run_id` (int) | Cache the teardown workflow run ID in SSM. Called by `teardown-platform.yml`. |
 | `complete-teardown` | — | Delete the session from SSM. Called by `teardown-platform.yml` on completion. |
-| `reprovision-visitors` | — | Scan DynamoDB visitors table, decrypt passwords, and recreate ephemeral service accounts in Grafana, Airflow, MinIO, Trino, and the Simulation API. Called by the deploy workflow after services are healthy. Requires API key. |
+| `reprovision-visitors` | — | Scan DynamoDB visitors table, decrypt passwords, and recreate ephemeral service accounts in Grafana, Airflow, MinIO, and the Simulation API. Called by the deploy workflow after services are healthy. Requires API key. |
 
 #### Actions requiring no API key
 
@@ -102,7 +101,7 @@ The Lambda supports two invocation modes:
 | `teardown-status` | — | Return step-level teardown progress (5 UI steps mapped from GitHub Actions job steps). |
 | `get-deploy-progress` | — | Return per-service deploy readiness and `all_ready` flag. |
 | `auto-teardown` | — | Internal — called by EventBridge Scheduler. Triggers teardown unless a deploy is in progress (in which case it reschedules 5 min later). |
-| `provision-visitor` | `email` (string), `password` (string, optional — auto-generated if absent), `name` (string) | Phase 1: store Trino hash in Secrets Manager, KMS-encrypt password in DynamoDB, send SES welcome email. Returns `{ provisioned, email_sent, services }`. |
+| `provision-visitor` | `email` (string), `password` (string, optional — auto-generated if absent), `name` (string) | Phase 1: KMS-encrypt password in DynamoDB, send SES welcome email. Returns `{ provisioned, email_sent, services }`. |
 | `extend-session` | — | Add 15 minutes to the deadline (max 2 hours remaining). |
 | `shrink-session` | — | Remove 15 minutes from the deadline (min 0 minutes remaining). |
 
@@ -144,9 +143,8 @@ Visitor accounts are created in two phases to tolerate a cold-start where the pl
 **Phase 1 — `provision-visitor` (unauthenticated, pre-deploy)**
 
 1. Validates `email` and `password` (auto-generates a 12-char password if omitted).
-2. Stores a PBKDF2 hash in `rideshare/trino-visitor-password-hash` (Secrets Manager) so Trino can authenticate the visitor at container startup.
-3. Stores the KMS-encrypted password and record in DynamoDB.
-4. Sends a welcome email via SES with login credentials for all services.
+2. Stores the KMS-encrypted password and record in DynamoDB.
+3. Sends a welcome email via SES with login credentials for all services.
 
 **Phase 2 — `reprovision-visitors` (authenticated, post-deploy)**
 
@@ -154,7 +152,7 @@ Called by the deploy workflow via `POST {"action": "reprovision-visitors", "api_
 
 1. Scans DynamoDB for all visitor records.
 2. Decrypts each password using KMS.
-3. Calls provisioning sub-modules for Grafana, Airflow, MinIO, Trino, and the Simulation API.
+3. Calls provisioning sub-modules for Grafana, Airflow, MinIO, and the Simulation API.
 4. Returns `{ provisioned: N, failed: M, results: [...] }` with HTTP 200 (all success) or 207 (partial failure).
 
 #### Provisioning sub-modules

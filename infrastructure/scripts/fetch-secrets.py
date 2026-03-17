@@ -30,6 +30,7 @@ import os
 import sys
 from pathlib import Path
 
+import bcrypt
 import boto3
 from botocore.exceptions import ClientError
 from mypy_boto3_secretsmanager import SecretsManagerClient
@@ -196,6 +197,13 @@ def main() -> int:
         for secret_name in secret_names:
             transformed = transform_keys(secret_name, fetched[secret_name])
             env_vars.update(transformed)
+
+        # Compute Trino admin bcrypt hash from the admin password for data-pipeline
+        if profile_name == "data-pipeline.env":
+            admin_pw = env_vars.get("AIRFLOW_ADMIN_PASSWORD", "")
+            if admin_pw:
+                admin_hash = bcrypt.hashpw(admin_pw.encode(), bcrypt.gensalt(rounds=10)).decode()
+                env_vars["TRINO_ADMIN_PASSWORD_HASH"] = admin_hash
 
         if not write_env_file(output_dir / profile_name, env_vars):
             write_failed += 1

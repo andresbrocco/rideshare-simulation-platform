@@ -29,7 +29,7 @@ Services fall into four categories:
 - `localstack` — AWS service emulation (Secrets Manager, S3) for local development
 - `postgres-airflow` + `postgres-metastore` — Postgres instances for Airflow metadata and Hive Metastore
 - `hive-metastore` — Stores Delta Lake table metadata for Trino query federation
-- `trino` — Distributed SQL query engine over Delta Lake tables; FILE-based password authentication with `admin` (full access) and `visitor` (read-only) accounts
+- `trino` — Distributed SQL query engine over Delta Lake tables; FILE-based password authentication with `admin` account
 - `osrm` — Open Source Routing Machine; provides real road geometry for driver route interpolation
 
 **Observability services** (third-party, configuration-only):

@@ -176,7 +176,7 @@ Gold layer star schema includes:
 
 **Control Panel** provides real-time geospatial visualization via deck.gl with WebSocket-driven map updates, agent inspection popups, and simulation lifecycle controls. The SPA serves three runtime modes (landing page, control-panel, dev) determined by hostname. Authentication uses a cross-subdomain cookie handoff from the landing page to the control-panel subdomain, after which the session key is stored in `sessionStorage`. Role-based UI hides admin-only controls from `viewer` role users. The `VisitorAccessForm` allows unauthenticated users to request access credentials (calls `provision-visitor` Lambda action). `LoginDialog` authenticates via `POST /auth/login` against the simulation API using email and password.
 
-**Trino** provides SQL access to all Delta Lake layers (Bronze, Silver, Gold) via the Hive Metastore catalog. FILE-based password authentication defines two accounts: `admin` (full access) and `visitor` (read-only on `delta` catalog, blocked from `system` catalog). Hashes are injected at container startup via environment variables and rendered from `password.db.template`; `file.refresh-period=5s` allows rotation without restart. Query audit events are captured via a query event listener plugin.
+**Trino** provides SQL access to all Delta Lake layers (Bronze, Silver, Gold) via the Hive Metastore catalog. FILE-based password authentication defines a single `admin` account (full access). The bcrypt hash is computed at container startup from the admin password and rendered into `password.db`; `file.refresh-period=5s` allows rotation without restart. Access control rules grant the `admin` user full catalog access while restricting other users to read-only on the `delta` catalog and blocking the `system` catalog. Query audit events are captured via a query event listener plugin.
 
 ## Data Flow
 
@@ -279,7 +279,7 @@ The composite headroom metric combines: Kafka consumer lag, SimPy event queue de
 | Driver matching | RiderAgent -> MatchingServer (H3 spatial index, composite score) -> OfferTimeoutManager -> DriverAgent | In-process matching with DNA-based accept/reject decisions |
 | Medallion pipeline | Bronze Delta -> Airflow -> DBT Silver (incremental) -> DBT Gold (full refresh) -> Trino -> Grafana | Hourly Silver, daily Gold, 15-min DLQ monitoring |
 | Deploy lifecycle | Control Panel -> Lambda auth-deploy -> GitHub Actions -> Terraform + ArgoCD -> EKS | On-demand cluster provisioning with session time-boxing |
-| Visitor provisioning (Phase 1) | Visitor form -> Control Panel -> Lambda `provision-visitor` -> DynamoDB (record) + KMS (encrypted password) + Secrets Manager (Trino hash) + SES (welcome email) | Pre-deploy durable visitor record creation |
+| Visitor provisioning (Phase 1) | Visitor form -> Control Panel -> Lambda `provision-visitor` -> DynamoDB (record) + KMS (encrypted password) + SES (welcome email) | Pre-deploy durable visitor record creation |
 | Visitor provisioning (Phase 2) | GitHub Actions deploy workflow -> Lambda `reprovision-visitors` -> DynamoDB scan -> Grafana API + Airflow REST + MinIO Admin SDK + Simulation `POST /auth/register` | Post-deploy ephemeral service account creation for stored visitors |
 | Frontend auth | Control Panel landing page -> `POST /auth/login` -> Simulation API (bcrypt verify + Redis session) -> session key -> sessionStorage | Email+password login yielding role-scoped API access |
 
@@ -363,7 +363,7 @@ Tempo generates derived metrics (service-graphs, span-metrics) and remote-writes
 | Simulation WebSocket | WS (port 8000) | `Sec-WebSocket-Protocol: apikey.<key>` | Real-time state streaming |
 | Grafana | HTTP (port 3001) | Basic auth (admin/admin) | Dashboard access |
 | Airflow | HTTP (port 8082) | JWT auth (Airflow 3.x) | DAG management |
-| Trino | HTTP (port 8084) | FILE auth (admin/visitor accounts, bcrypt hashes) | SQL queries |
+| Trino | HTTP (port 8084) | FILE auth (admin account, bcrypt hash) | SQL queries |
 | Prometheus | HTTP (port 9090) | None | PromQL queries, remote-write ingestion |
 | Lambda Function URL | HTTP | API key in request body (some actions unauthenticated) | Deploy/teardown lifecycle, visitor self-registration |
 | Control Panel | HTTP (port 5173) | Cookie-based auth handoff from landing page | Operator SPA |
@@ -524,11 +524,11 @@ The simulation supports configurable corruption injection (`MALFORMED_EVENT_RATE
 
 ### Two-Phase Visitor Provisioning
 
-Visitor self-registration is split into two phases to decouple the public form from the ephemeral EKS platform. Phase 1 (`provision-visitor`) runs before any infrastructure exists: it stores a durable DynamoDB record with a KMS-encrypted password, writes the Trino bcrypt hash to Secrets Manager, and sends a welcome email via SES. Phase 2 (`reprovision-visitors`) is called by the deploy workflow after all services are healthy: it scans DynamoDB, decrypts each password, and creates ephemeral accounts in Grafana, Airflow, MinIO, and the Simulation API. This design means visitors can register at any time regardless of whether the platform is running.
+Visitor self-registration is split into two phases to decouple the public form from the ephemeral EKS platform. Phase 1 (`provision-visitor`) runs before any infrastructure exists: it stores a durable DynamoDB record with a KMS-encrypted password and sends a welcome email via SES. Phase 2 (`reprovision-visitors`) is called by the deploy workflow after all services are healthy: it scans DynamoDB, decrypts each password, and creates ephemeral accounts in Grafana, Airflow, MinIO, and the Simulation API. This design means visitors can register at any time regardless of whether the platform is running.
 
 ### Role-Based Access Control
 
-The simulation API enforces two roles: `admin` (full mutation access) and `viewer` (read-only). The static API key always yields `admin`. Email+password login via `POST /auth/login` issues a `sess_`-prefixed Redis-backed session key carrying the stored role. The Control Panel hides all mutation controls when the session role is `viewer`, matching server-side enforcement. Trino mirrors this split with two FILE-based accounts (`admin` and `visitor`) enforced via access control `rules.json`.
+The simulation API enforces two roles: `admin` (full mutation access) and `viewer` (read-only). The static API key always yields `admin`. Email+password login via `POST /auth/login` issues a `sess_`-prefixed Redis-backed session key carrying the stored role. The Control Panel hides all mutation controls when the session role is `viewer`, matching server-side enforcement. Trino uses a single `admin` FILE-based account; access control `rules.json` restricts non-admin users to read-only on the `delta` catalog.
 
 ### `deploy` Branch as Materialized Artifact
 

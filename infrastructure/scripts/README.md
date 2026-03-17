@@ -111,19 +111,6 @@ SIMULATION_API_URL=https://api.example.com \
     --email visitor@example.com \
     --password "Str0ngP@ssword!" \
     --name "Jane Visitor"
-
-# Note: After provisioning, restart Trino to apply the new password hash:
-docker compose -f infrastructure/docker/compose.yml restart trino
-```
-
-**Generate a bcrypt password hash for Trino's FILE authenticator:**
-```bash
-# Pass password as argument:
-./venv/bin/python3 infrastructure/scripts/generate_trino_password_hash.py "mypassword"
-
-# Interactive prompt (avoids password in shell history):
-./venv/bin/python3 infrastructure/scripts/generate_trino_password_hash.py
-# Output: $2b$10$... (paste into password.db as: username:<hash>)
 ```
 
 **Deploy auth Lambda to LocalStack:**
@@ -146,8 +133,6 @@ These secrets are seeded by `seed-secrets.py` and fetched by `fetch-secrets.py`:
 | `rideshare/data-pipeline` | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `POSTGRES_AIRFLOW_*`, `POSTGRES_METASTORE_*`, Airflow crypto keys, `ADMIN_USERNAME/PASSWORD` | `data-pipeline.env` |
 | `rideshare/monitoring` | `ADMIN_USER`, `ADMIN_PASSWORD` (becomes `GF_SECURITY_*`) | `monitoring.env` |
 | `rideshare/github-pat` | `GITHUB_PAT` | _(not written to env files)_ |
-| `rideshare/trino-admin-password-hash` | `hash` (bcrypt) | _(used by Trino container to build password.db)_ |
-| `rideshare/trino-visitor-password-hash` | `hash` (bcrypt) | _(used by Trino container to build password.db)_ |
 
 ### Delta Table Inventory
 
@@ -228,7 +213,6 @@ AWS_ENDPOINT_URL=http://localhost:4566 \
 
 **`deploy-lambda.py` warns `AWS_ENDPOINT_URL not set — targeting real AWS Lambda`** — This is expected only in production. Always set `AWS_ENDPOINT_URL` for local development.
 
-**`provision_visitor_cli.py` Trino credentials not accepted after provisioning** — Trino reads `password.db` only at startup. After visitor provisioning updates the hash secrets, restart Trino: `docker compose -f infrastructure/docker/compose.yml restart trino`.
 
 **`provision_minio_visitor.py` raises `MinioAdminException` with policy error** — The `visitor-readonly` policy document must be present at `infrastructure/policies/minio-visitor-readonly.json`. If running from a Lambda deployment, the JSON file must be bundled alongside `provision_minio_visitor.py`.
 

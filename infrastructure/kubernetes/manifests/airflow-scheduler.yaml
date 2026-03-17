@@ -54,6 +54,11 @@ spec:
             secretKeyRef:
               name: app-credentials
               key: AIRFLOW_JWT_SECRET
+        - name: TRINO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: AIRFLOW_ADMIN_PASSWORD
         - name: AIRFLOW__CORE__EXECUTOR
           value: LocalExecutor
         - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN

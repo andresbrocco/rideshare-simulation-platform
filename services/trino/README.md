@@ -18,8 +18,7 @@ Credentials are not passed as Docker environment variables. The entrypoint sourc
 |----------|--------|---------|
 | `MINIO_ROOT_USER` | `/secrets/data-pipeline.env` | `delta.properties` — MinIO S3 access key |
 | `MINIO_ROOT_PASSWORD` | `/secrets/data-pipeline.env` | `delta.properties` — MinIO S3 secret key |
-| `TRINO_ADMIN_PASSWORD_HASH` | Container environment / secrets | `password.db` — bcrypt hash for the `admin` Trino account |
-| `TRINO_VISITOR_PASSWORD_HASH` | Container environment / secrets | `password.db` — bcrypt hash for the `visitor` Trino account |
+| `ADMIN_PASSWORD` | `/secrets/data-pipeline.env` | Used to compute the admin bcrypt hash for `password.db` at container startup |
 | `TRINO_ENVIRONMENT` | Docker compose environment | Node environment label (set to `docker`) |
 | `TRINO_HOST` | `delta-table-init` container env | Registration script target host |
 | `TRINO_PORT` | `delta-table-init` container env | Registration script target port |
@@ -33,9 +32,9 @@ Credentials are not passed as Docker environment variables. The entrypoint sourc
 | `etc/node.properties` | Node identity — environment label, data directory |
 | `etc/catalog/delta.properties.template` | Delta Lake catalog template with `${MINIO_ROOT_USER}` / `${MINIO_ROOT_PASSWORD}` placeholders |
 | `etc/catalog/delta.properties` | Dev-time rendered catalog file with placeholder credentials — **not used at runtime** (entrypoint renders a fresh copy) |
-| `etc/password.db.template` | Password database template with `${TRINO_ADMIN_PASSWORD_HASH}` / `${TRINO_VISITOR_PASSWORD_HASH}` placeholders |
+| `etc/password.db.template` | Password database template — the admin bcrypt hash is computed at startup from `ADMIN_PASSWORD` |
 | `etc/password-authenticator.properties` | Configures FILE-based authenticator pointing at `/tmp/trino-etc/password.db` with a 5s refresh period |
-| `entrypoint.sh` | Custom startup: copies config to `/tmp/trino-etc`, renders `delta.properties` and `password.db` from templates, launches Trino launcher |
+| `entrypoint.sh` | Custom startup: copies config to `/tmp/trino-etc`, renders `delta.properties` from template, computes admin bcrypt hash and writes `password.db`, launches Trino launcher |
 
 ### Catalog
 
@@ -111,7 +110,7 @@ Tables are registered by the `delta-table-init` one-shot container (`infrastruct
 http://localhost:8084
 ```
 
-Log in with the `admin` or `visitor` credentials (passwords set via `TRINO_ADMIN_PASSWORD_HASH` / `TRINO_VISITOR_PASSWORD_HASH`).
+Log in with the `admin` credentials (password from `ADMIN_PASSWORD` in the `data-pipeline` secret).
 
 ### Run a query via Trino CLI
 
@@ -218,15 +217,13 @@ docker compose -f infrastructure/docker/compose.yml \
 
 **Symptom:** Trino UI or CLI rejects credentials even with the correct password.
 
-**Cause:** `TRINO_ADMIN_PASSWORD_HASH` or `TRINO_VISITOR_PASSWORD_HASH` was not set, is empty, or contains a malformed bcrypt hash. The entrypoint renders `password.db` from the template at startup using `envsubst`/`sed` — an unset variable produces a literal empty string in the file.
+**Cause:** `ADMIN_PASSWORD` was not set or is empty in the `data-pipeline` secret. The entrypoint computes the bcrypt hash from this password at startup — a missing variable produces an empty or invalid `password.db`.
 
 **Fix:**
 ```bash
 # Inspect the rendered password file inside the container:
 docker exec rideshare-trino cat /tmp/trino-etc/password.db
-# Regenerate a bcrypt hash (cost factor 10):
-htpasswd -bnBC 10 "" <plaintext_password> | tr -d ':\n' | sed 's/$2y/$2b/'
-# Then restart Trino after setting the corrected hash in the secrets source.
+# Verify the ADMIN_PASSWORD is set in the data-pipeline secret, then restart Trino.
 ```
 
 ### Out of memory errors

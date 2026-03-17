@@ -26,9 +26,9 @@ spec:
               cp /config-source/rules.json /etc/trino/rules.json
               mkdir -p /etc/trino/catalog
               cp /config-source/delta.properties.template /etc/trino/catalog/delta.properties
+              TRINO_ADMIN_PASSWORD_HASH=$(htpasswd -nbBC 10 admin "$ADMIN_PASSWORD" | cut -d: -f2)
               sed \
                 -e "s|\${TRINO_ADMIN_PASSWORD_HASH}|${TRINO_ADMIN_PASSWORD_HASH}|g" \
-                -e "s|\${TRINO_VISITOR_PASSWORD_HASH}|${TRINO_VISITOR_PASSWORD_HASH}|g" \
                 /config-source/password.db.template > /etc/trino/password.db
               chmod 600 /etc/trino/password.db
               echo 'http-server.process-forwarded=true' >> /etc/trino/config.properties

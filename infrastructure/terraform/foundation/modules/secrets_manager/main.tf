@@ -269,7 +269,3 @@ resource "aws_secretsmanager_secret_version" "llm_api_keys" {
     ignore_changes = [secret_string]
   }
 }
-
-# Note: rideshare/trino-admin-password-hash and rideshare/trino-visitor-password-hash
-# are managed outside Terraform. The admin hash is created by the deploy workflow
-# and the visitor hash is created by the provisioning Lambda on first visitor signup.

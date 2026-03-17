@@ -123,8 +123,6 @@ Secrets are managed by External Secrets Operator (ESO), synced from LocalStack S
 | `KAFKA_SASL_USERNAME` | `rideshare/core` | `KAFKA_SASL_USERNAME` |
 | `KAFKA_SASL_PASSWORD` | `rideshare/core` | `KAFKA_SASL_PASSWORD` |
 | `KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO` | `rideshare/core` | `SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO` |
-| `TRINO_ADMIN_PASSWORD_HASH` | `rideshare/trino-admin-password-hash` | `hash` |
-| `TRINO_VISITOR_PASSWORD_HASH` | `rideshare/trino-visitor-password-hash` | `hash` |
 
 #### Secret: `api-keys`
 
@@ -173,7 +171,7 @@ StorageClass: `rancher.io/local-path` provisioner (`standard`), reclaim policy `
 | `httproute-web-services.yaml` | HTTPRoute | Routes Airflow, Grafana, Prometheus, Trino UIs |
 | `pv-static.yaml` | PersistentVolume | hostPath PVs with node affinity (local only) |
 | `storageclass.yaml` | StorageClass | `rancher.io/local-path` provisioner |
-| `trino.yaml` (ConfigMap `trino-config`) | ConfigMap | Includes `password-authenticator.properties`, `access-control.properties`, `rules.json`, `event-listener.properties`, and `password.db.template` for FILE-based auth and visitor access control |
+| `trino.yaml` (ConfigMap `trino-config`) | ConfigMap | Includes `password-authenticator.properties`, `access-control.properties`, `rules.json`, and `event-listener.properties` for FILE-based auth and access control |
 | `grafana.yaml` (ConfigMap `grafana-dashboards-admin`) | ConfigMap | Admin folder dashboard: `visitor-activity.json` — aggregates Airflow login history and Loki audit events |
 
 ## Commands
