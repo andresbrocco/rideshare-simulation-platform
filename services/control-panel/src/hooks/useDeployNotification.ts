@@ -137,7 +137,7 @@ export function useDeployNotification(): UseDeployNotificationReturn {
   const notifySuccess = useCallback(() => {
     if (!enabled) return;
 
-    if (permission === 'granted' && document.hidden) {
+    if (permission === 'granted') {
       new Notification('Deploy Complete', {
         body: 'All services are ready. Your platform is live.',
         icon: '/favicon.svg',
@@ -152,7 +152,7 @@ export function useDeployNotification(): UseDeployNotificationReturn {
     (message: string) => {
       if (!enabled) return;
 
-      if (permission === 'granted' && document.hidden) {
+      if (permission === 'granted') {
         new Notification('Deployment Failed', {
           body: message,
           icon: '/favicon.svg',
