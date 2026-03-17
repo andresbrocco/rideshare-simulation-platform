@@ -1256,67 +1256,155 @@ class TestHandleStartSimulation:
         assert status == 401
         assert "error" in body
 
-    def test_start_success(self, mock_secrets: object) -> None:
+    def test_resume_from_paused(self, mock_secrets: object) -> None:
         with patch("handler._simulation_api_request") as mock_api:
-            mock_api.return_value = (200, {"status": "ok"})
+            mock_api.side_effect = [
+                (200, {"state": "paused", "drivers_total": 200, "riders_total": 2000}),
+                (200, {}),  # resume
+                (200, {}),  # controller
+            ]
             status, body = handle_start_simulation("test-api-key")
         assert status == 200
+        assert body["decision"] == "resumed_from_checkpoint"
+        assert body["agents_spawned"] is False
+        assert body["controller_activated"] is True
         assert body["simulation_started"] is True
         assert body["success"] is True
-        for key in SIMULATION_START_DEFAULTS:
-            assert key in body["agents"]
-            assert body["agents"][key]["status"] == "ok"
 
     def test_already_running(self, mock_secrets: object) -> None:
         with patch("handler._simulation_api_request") as mock_api:
             mock_api.side_effect = [
-                (400, {"message": "Simulation is already running"}),
-                (200, {}),  # immediate_drivers
-                (200, {}),  # immediate_riders
-                (200, {}),  # scheduled_drivers batch 1
-                (200, {}),  # scheduled_drivers batch 2
-                (200, {}),  # scheduled_riders
+                (200, {"state": "running", "drivers_total": 200, "riders_total": 2000}),
+                (200, {}),  # controller
             ]
             status, body = handle_start_simulation("test-api-key")
         assert status == 200
+        assert body["decision"] == "already_running"
+        assert body["agents_spawned"] is False
         assert body["simulation_started"] is True
 
-    def test_start_failure(self, mock_secrets: object) -> None:
+    def test_fresh_start_no_agents(self, mock_secrets: object) -> None:
         with patch("handler._simulation_api_request") as mock_api:
             mock_api.side_effect = [
-                (500, {"message": "Internal Server Error"}),
+                (200, {"state": "stopped", "drivers_total": 0, "riders_total": 0}),
+                (200, {}),  # /simulation/start
                 (200, {}),  # immediate_drivers
                 (200, {}),  # immediate_riders
                 (200, {}),  # scheduled_drivers batch 1
                 (200, {}),  # scheduled_drivers batch 2
                 (200, {}),  # scheduled_riders
+                (200, {}),  # controller
+            ]
+            status, body = handle_start_simulation("test-api-key")
+        assert status == 200
+        assert body["decision"] == "fresh_start"
+        assert body["agents_spawned"] is True
+        assert "agents" in body
+        assert body["simulation_started"] is True
+
+    def test_start_with_existing_agents(self, mock_secrets: object) -> None:
+        with patch("handler._simulation_api_request") as mock_api:
+            mock_api.side_effect = [
+                (200, {"state": "stopped", "drivers_total": 200, "riders_total": 2000}),
+                (200, {}),  # /simulation/start
+                (200, {}),  # controller
+            ]
+            status, body = handle_start_simulation("test-api-key")
+        assert status == 200
+        assert body["decision"] == "started_with_existing_agents"
+        assert body["agents_spawned"] is False
+        assert body["simulation_started"] is True
+
+    def test_draining_waits_then_resumes(self, mock_secrets: object) -> None:
+        with (
+            patch("handler._simulation_api_request") as mock_api,
+            patch("handler.time.sleep"),
+        ):
+            mock_api.side_effect = [
+                (200, {"state": "draining", "drivers_total": 200, "riders_total": 2000}),
+                (200, {"state": "paused", "drivers_total": 200, "riders_total": 2000}),
+                (200, {}),  # resume
+                (200, {}),  # controller
+            ]
+            status, body = handle_start_simulation("test-api-key")
+        assert status == 200
+        assert body["decision"] == "resumed_after_drain"
+        assert body["simulation_started"] is True
+
+    def test_status_query_failure(self, mock_secrets: object) -> None:
+        with patch("handler._simulation_api_request") as mock_api:
+            mock_api.side_effect = [
+                (502, {"message": "Failed to connect"}),
             ]
             status, body = handle_start_simulation("test-api-key")
         assert status == 502
-        assert body["simulation_started"] is False
         assert body["success"] is False
+        assert mock_api.call_count == 1
 
-    def test_partial_agent_failure(self, mock_secrets: object) -> None:
+    def test_controller_activation_failure_non_fatal(self, mock_secrets: object) -> None:
         with patch("handler._simulation_api_request") as mock_api:
             mock_api.side_effect = [
-                (200, {}),  # start
-                (200, {}),  # immediate_drivers
-                (500, {"message": "fail"}),  # immediate_riders fails
-                (200, {}),  # scheduled_drivers batch 1
-                (200, {}),  # scheduled_drivers batch 2
-                (200, {}),  # scheduled_riders
+                (200, {"state": "paused", "drivers_total": 200, "riders_total": 2000}),
+                (200, {}),  # resume succeeds
+                (502, {"message": "Controller unreachable"}),  # controller fails
             ]
             status, body = handle_start_simulation("test-api-key")
         assert status == 200
-        assert body["agents"]["immediate_drivers"]["status"] == "ok"
-        assert body["agents"]["immediate_riders"]["status"] == "error"
-        assert body["agents"]["scheduled_drivers"]["status"] == "ok"
+        assert body["success"] is True
+        assert body["controller_activated"] is False
 
-    def test_driver_batching(self, mock_secrets: object) -> None:
+    def test_fresh_start_default_counts(self, mock_secrets: object) -> None:
         with patch("handler._simulation_api_request") as mock_api:
-            mock_api.return_value = (200, {})
+            mock_api.side_effect = [
+                (200, {"state": "stopped", "drivers_total": 0, "riders_total": 0}),
+                (200, {}),  # /simulation/start
+                (200, {}),  # immediate_drivers (50)
+                (200, {}),  # immediate_riders (50)
+                (200, {}),  # scheduled_drivers batch 1 (100)
+                (200, {}),  # scheduled_drivers batch 2 (50)
+                (200, {}),  # scheduled_riders (1950)
+                (200, {}),  # controller
+            ]
+            status, body = handle_start_simulation("test-api-key")
+        assert status == 200
+        for key, default_count in SIMULATION_START_DEFAULTS.items():
+            assert body["agents"][key]["queued"] == default_count
+
+    def test_fresh_start_custom_counts(self, mock_secrets: object) -> None:
+        with patch("handler._simulation_api_request") as mock_api:
+            mock_api.side_effect = [
+                (200, {"state": "stopped", "drivers_total": 0, "riders_total": 0}),
+                (200, {}),  # /simulation/start
+                (200, {}),  # immediate_drivers (10)
+                (200, {}),  # immediate_riders (5)
+                (200, {}),  # scheduled_drivers batch 1 (100)
+                (200, {}),  # scheduled_drivers batch 2 (50)
+                (200, {}),  # scheduled_riders (1950)
+                (200, {}),  # controller
+            ]
+            status, body = handle_start_simulation(
+                "test-api-key", {"immediate_drivers": 10, "immediate_riders": 5}
+            )
+        assert status == 200
+        assert body["agents"]["immediate_drivers"]["queued"] == 10
+        assert body["agents"]["immediate_riders"]["queued"] == 5
+        assert body["agents"]["scheduled_drivers"]["queued"] == 150
+        assert body["agents"]["scheduled_riders"]["queued"] == 1950
+
+    def test_fresh_start_driver_batching(self, mock_secrets: object) -> None:
+        with patch("handler._simulation_api_request") as mock_api:
+            mock_api.side_effect = [
+                (200, {"state": "stopped", "drivers_total": 0, "riders_total": 0}),
+                (200, {}),  # /simulation/start
+                (200, {}),  # immediate_drivers (50)
+                (200, {}),  # immediate_riders (50)
+                (200, {}),  # scheduled_drivers batch 1 (100)
+                (200, {}),  # scheduled_drivers batch 2 (100)
+                (200, {}),  # scheduled_drivers batch 3 (50) — but defaults are 150, so 2 batches
+                (200, {}),  # scheduled_riders
+                (200, {}),  # controller
+            ]
             handle_start_simulation("test-api-key", {"scheduled_drivers": 150})
-        # Find the scheduled driver calls: /agents/drivers?mode=scheduled
         driver_calls = [
             c
             for c in mock_api.call_args_list
@@ -1326,36 +1414,22 @@ class TestHandleStartSimulation:
         assert driver_calls[0].args[3] == {"count": 100}
         assert driver_calls[1].args[3] == {"count": 50}
 
-    def test_custom_counts(self, mock_secrets: object) -> None:
-        with patch("handler._simulation_api_request") as mock_api:
-            mock_api.return_value = (200, {})
-            status, body = handle_start_simulation(
-                "test-api-key", {"immediate_drivers": 10, "immediate_riders": 5}
-            )
-        assert status == 200
-        assert body["agents"]["immediate_drivers"]["queued"] == 10
-        assert body["agents"]["immediate_riders"]["queued"] == 5
-        # Remaining categories use defaults
-        assert body["agents"]["scheduled_drivers"]["queued"] == 150
-        assert body["agents"]["scheduled_riders"]["queued"] == 1950
-
-    def test_default_counts(self, mock_secrets: object) -> None:
-        with patch("handler._simulation_api_request") as mock_api:
-            mock_api.return_value = (200, {})
-            status, body = handle_start_simulation("test-api-key")
-        assert status == 200
-        for key, default_count in SIMULATION_START_DEFAULTS.items():
-            assert body["agents"][key]["queued"] == default_count
-
     def test_routing_direct_invocation(self, mock_secrets: object) -> None:
         with patch("handler._simulation_api_request") as mock_api:
-            mock_api.return_value = (200, {})
+            mock_api.side_effect = [
+                (200, {"state": "running", "drivers_total": 200, "riders_total": 2000}),
+                (200, {}),  # controller
+            ]
             result = lambda_handler({"action": "start-simulation", "api_key": "test-api-key"}, {})
         assert result["simulation_started"] is True
+        assert result["success"] is True
 
     def test_routing_function_url(self, mock_secrets: object) -> None:
         with patch("handler._simulation_api_request") as mock_api:
-            mock_api.return_value = (200, {})
+            mock_api.side_effect = [
+                (200, {"state": "running", "drivers_total": 200, "riders_total": 2000}),
+                (200, {}),  # controller
+            ]
             result = lambda_handler(
                 {
                     "body": json.dumps({"action": "start-simulation", "api_key": "test-api-key"}),

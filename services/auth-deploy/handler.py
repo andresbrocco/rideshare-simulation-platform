@@ -2306,106 +2306,170 @@ def handle_reprovision_visitors(api_key: str) -> tuple[int, dict[str, Any]]:
     }
 
 
+DRAINING_POLL_INTERVAL = 5  # seconds
+DRAINING_POLL_TIMEOUT = 60  # seconds
+
+
 def handle_start_simulation(
     api_key: str, agent_counts: dict[str, int] | None = None
 ) -> tuple[int, dict[str, Any]]:
-    """Handle start-simulation action.
-
-    Validates the caller, starts the simulation engine, then spawns agents
-    according to the resolved counts (defaults merged with any overrides).
-
-    Args:
-        api_key: Caller's API key for authorization
-        agent_counts: Optional overrides for any of the four agent count keys
-
-    Returns:
-        Tuple of (status_code, response_data)
-    """
     print("Action: start-simulation")
     if not validate_api_key(api_key):
         print("Action start-simulation completed: 401")
         return 401, {"error": "Invalid API key"}
 
-    counts = {**SIMULATION_START_DEFAULTS, **(agent_counts or {})}
-    print(f"  Resolved agent counts: {counts}")
-
     admin_key = get_secret(SECRET_API_KEY)
 
-    # Start the simulation engine
-    sim_status, sim_body = _simulation_api_request("POST", "/simulation/start", admin_key, {})
-    message = sim_body.get("message", "") if isinstance(sim_body, dict) else ""
-    if sim_status == 200:
-        simulation_started = True
-        print("  Simulation started successfully")
-    elif sim_status == 400 and "already running" in message.lower():
-        simulation_started = True
-        print("  Simulation already running — treating as success")
-    else:
-        simulation_started = False
-        print(f"  Failed to start simulation: {sim_status} {sim_body}")
-
-    # Spawn agent categories in order
-    categories = [
-        ("immediate_drivers", "driver", "immediate"),
-        ("immediate_riders", "rider", "immediate"),
-        ("scheduled_drivers", "driver", "scheduled"),
-        ("scheduled_riders", "rider", "scheduled"),
-    ]
-    agents: dict[str, dict[str, Any]] = {}
-    for category_key, agent_type, mode in categories:
-        count = counts[category_key]
-        endpoint = "drivers" if agent_type == "driver" else "riders"
-        max_per_request = 100 if agent_type == "driver" else 2000
-        total_queued = 0
-        category_error: str | None = None
-
-        remaining = count
-        while remaining > 0:
-            batch_size = min(remaining, max_per_request)
-            batch_status, batch_body = _simulation_api_request(
-                "POST",
-                f"/agents/{endpoint}?mode={mode}",
-                admin_key,
-                {"count": batch_size},
-            )
-            if batch_status not in (200, 201, 202):
-                batch_message = (
-                    batch_body.get("message", str(batch_body))
-                    if isinstance(batch_body, dict)
-                    else str(batch_body)
-                )
-                category_error = f"HTTP {batch_status}: {batch_message}"
-                print(f"  Error spawning {category_key}: {category_error}")
-                break
-            total_queued += batch_size
-            remaining -= batch_size
-
-        if category_error is not None:
-            agents[category_key] = {
-                "status": "error",
-                "queued": total_queued,
-                "error": category_error,
-            }
-        else:
-            agents[category_key] = {"status": "ok", "queued": total_queued}
-        print(f"  {category_key}: {agents[category_key]}")
-
-    if not simulation_started:
-        error_msg = f"HTTP {sim_status}: {message}" if message else f"HTTP {sim_status}"
+    # Query current simulation state to make a smart decision
+    status_code, status_body = _simulation_api_request("GET", "/simulation/status", admin_key)
+    if status_code != 200:
+        print(f"  Failed to query simulation state: {status_code} {status_body}")
         print("Action start-simulation completed: 502")
-        return 502, {
-            "simulation_started": False,
-            "error": error_msg,
-            "agents": agents,
-            "success": False,
-        }
+        return 502, {"error": "Could not query simulation state", "success": False}
 
-    print("Action start-simulation completed: 200")
-    return 200, {
+    state = status_body.get("state", "")
+    drivers_total = status_body.get("drivers_total", 0)
+    riders_total = status_body.get("riders_total", 0)
+    print(f"  Simulation state: {state}, drivers: {drivers_total}, riders: {riders_total}")
+
+    decision: str
+    agents_spawned = False
+    agents: dict[str, dict[str, Any]] = {}
+
+    if state == "running":
+        decision = "already_running"
+        print("  Simulation already running — skipping start")
+
+    elif state == "paused":
+        decision = "resumed_from_checkpoint"
+        resume_status, resume_body = _simulation_api_request(
+            "POST", "/simulation/resume", admin_key, {}
+        )
+        if resume_status != 200:
+            print(f"  Failed to resume simulation: {resume_status} {resume_body}")
+            print("Action start-simulation completed: 502")
+            return 502, {"error": "Failed to resume simulation", "success": False}
+        print("  Simulation resumed from checkpoint")
+
+    elif state == "draining":
+        decision = "resumed_after_drain"
+        elapsed = 0
+        resumed = False
+        while elapsed < DRAINING_POLL_TIMEOUT:
+            time.sleep(DRAINING_POLL_INTERVAL)
+            elapsed += DRAINING_POLL_INTERVAL
+            poll_status, poll_body = _simulation_api_request("GET", "/simulation/status", admin_key)
+            if poll_status == 200 and poll_body.get("state") == "paused":
+                resume_status, resume_body = _simulation_api_request(
+                    "POST", "/simulation/resume", admin_key, {}
+                )
+                if resume_status != 200:
+                    print(f"  Failed to resume after drain: {resume_status} {resume_body}")
+                    print("Action start-simulation completed: 502")
+                    return 502, {"error": "Failed to resume after draining", "success": False}
+                print("  Simulation resumed after draining completed")
+                resumed = True
+                break
+        if not resumed:
+            print("  Timed out waiting for simulation to finish draining")
+            print("Action start-simulation completed: 504")
+            return 504, {"error": "Simulation stuck in draining state", "success": False}
+
+    elif state == "stopped" and drivers_total > 0:
+        decision = "started_with_existing_agents"
+        start_status, start_body = _simulation_api_request(
+            "POST", "/simulation/start", admin_key, {}
+        )
+        if start_status != 200:
+            print(f"  Failed to start simulation: {start_status} {start_body}")
+            print("Action start-simulation completed: 502")
+            return 502, {"error": "Failed to start simulation", "success": False}
+        print("  Simulation started — agents restored from checkpoint")
+
+    else:
+        # stopped with no existing agents — full fresh start
+        decision = "fresh_start"
+        start_status, start_body = _simulation_api_request(
+            "POST", "/simulation/start", admin_key, {}
+        )
+        if start_status != 200:
+            print(f"  Failed to start simulation: {start_status} {start_body}")
+            print("Action start-simulation completed: 502")
+            return 502, {"error": "Failed to start simulation", "success": False}
+        print("  Simulation started — spawning agents")
+
+        counts = {**SIMULATION_START_DEFAULTS, **(agent_counts or {})}
+        print(f"  Resolved agent counts: {counts}")
+        categories = [
+            ("immediate_drivers", "driver", "immediate"),
+            ("immediate_riders", "rider", "immediate"),
+            ("scheduled_drivers", "driver", "scheduled"),
+            ("scheduled_riders", "rider", "scheduled"),
+        ]
+        for category_key, agent_type, mode in categories:
+            count = counts[category_key]
+            endpoint = "drivers" if agent_type == "driver" else "riders"
+            max_per_request = 100 if agent_type == "driver" else 2000
+            total_queued = 0
+            category_error: str | None = None
+
+            remaining = count
+            while remaining > 0:
+                batch_size = min(remaining, max_per_request)
+                batch_status, batch_body = _simulation_api_request(
+                    "POST",
+                    f"/agents/{endpoint}?mode={mode}",
+                    admin_key,
+                    {"count": batch_size},
+                )
+                if batch_status not in (200, 201, 202):
+                    batch_message = (
+                        batch_body.get("message", str(batch_body))
+                        if isinstance(batch_body, dict)
+                        else str(batch_body)
+                    )
+                    category_error = f"HTTP {batch_status}: {batch_message}"
+                    print(f"  Error spawning {category_key}: {category_error}")
+                    break
+                total_queued += batch_size
+                remaining -= batch_size
+
+            if category_error is not None:
+                agents[category_key] = {
+                    "status": "error",
+                    "queued": total_queued,
+                    "error": category_error,
+                }
+            else:
+                agents[category_key] = {"status": "ok", "queued": total_queued}
+            print(f"  {category_key}: {agents[category_key]}")
+
+        agents_spawned = True
+
+    # Activate performance controller — best-effort, never blocks success
+    controller_activated = False
+    ctrl_status, ctrl_body = _simulation_api_request(
+        "PUT", "/controller/mode", admin_key, {"mode": "on"}
+    )
+    if ctrl_status == 200:
+        controller_activated = True
+        print("  Performance controller activated")
+    else:
+        print(f"  Performance controller activation failed (non-fatal): {ctrl_status} {ctrl_body}")
+
+    print(f"Action start-simulation completed: 200 (decision={decision})")
+    response: dict[str, Any] = {
+        "decision": decision,
+        "previous_state": state,
+        "agents_found": {"drivers": drivers_total, "riders": riders_total},
+        "agents_spawned": agents_spawned,
+        "controller_activated": controller_activated,
         "simulation_started": True,
-        "agents": agents,
         "success": True,
     }
+    if decision == "fresh_start":
+        response["agents"] = agents
+    return 200, response
 
 
 def get_response_headers() -> dict[str, str]:
