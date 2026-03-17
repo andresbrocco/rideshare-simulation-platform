@@ -278,10 +278,10 @@ Expected results:
 
 ### Option 1: GitHub Actions (Recommended)
 
-Trigger the `deploy.yml` workflow with the `deploy-frontend` action:
+Trigger the `deploy-landing-page.yml` workflow (also auto-triggers on push to `main` when `services/control-panel/**` changes):
 
 ```
-GitHub Actions -> Deploy -> Run workflow -> action: deploy-frontend
+GitHub Actions -> Deploy Landing Page -> Run workflow
 ```
 
 ### Option 2: Manual Deployment
@@ -318,7 +318,7 @@ open https://ridesharing.portfolio.andresbrocco.com
 ### GitHub Actions (Recommended)
 
 ```
-GitHub Actions -> Deploy -> Run workflow -> action: deploy-all
+GitHub Actions -> Deploy Platform -> Run workflow
 ```
 
 **What the workflow does:**

@@ -136,7 +136,7 @@ cd tools/dbt && ./venv/bin/dbt test
 
 | Module | Purpose | CONTEXT.md |
 |--------|---------|------------|
-| `.github/workflows` | CI/CD lifecycle: static gates, ECR image builds, EKS deploy/teardown, soft-reset, GitOps via ArgoCD | [->](.github/workflows/CONTEXT.md) |
+| `.github/workflows` | CI/CD lifecycle: static gates, ECR image builds, EKS deploy/teardown, platform reset, GitOps via ArgoCD | [->](.github/workflows/CONTEXT.md) |
 | `infrastructure/docker` | Docker Compose with 4 composable profiles for local dev | [->](infrastructure/docker/CONTEXT.md) |
 | `infrastructure/kubernetes` | K8s manifests, Kustomize overlays, ArgoCD GitOps | [->](infrastructure/kubernetes/CONTEXT.md) |
 | `infrastructure/terraform` | Three-layer AWS provisioning (bootstrap, foundation, platform) | [->](infrastructure/terraform/CONTEXT.md) |
@@ -218,4 +218,4 @@ AWS infrastructure splits into persistent `foundation` (VPC, S3, IAM, DNS, Lambd
 - **Session-based auth vs static key**: Keys prefixed `sess_` trigger Redis lookups via `session_store.get_session`; all other keys compare against the static admin key. Never store the raw admin key in the browser — the frontend uses session keys from `POST /auth/login` for visitor sessions.
 - **`LoginDialog` replaces `PasswordDialog`**: The control panel login dialog now posts `{ email, password }` to `POST /auth/login` and stores `{ api_key, role, email }` in `sessionStorage` via `storeSession()`. The old raw-API-key flow via `PasswordDialog` is superseded.
 - **Trino `etc/` two-path layout**: Static config files (`config.properties`, `jvm.config`, `rules.json`, `event-listener.properties`) are bind-mounted into `/etc/trino/`; credential files (`password.db`) are rendered at startup from `password.db.template` into `/tmp/trino-etc/`. The `password-authenticator.properties` and `access-control.properties` reference `/tmp/trino-etc/` — do not edit the template paths.
-- **CI/CD workflows are now documented**: `.github/workflows/CONTEXT.md` describes the full lifecycle — `build-images.yml`, `deploy.yml`, `teardown-platform.yml`, `soft-reset.yml`, and `deploy-lambda.yml`. The `deploy` branch is a materialized artifact (resolved placeholders force-pushed with `[skip ci]`); `main` always retains placeholder tokens.
+- **CI/CD workflows are now documented**: `.github/workflows/CONTEXT.md` describes the full lifecycle — `build-images.yml`, `deploy-platform.yml`, `deploy-landing-page.yml`, `teardown-platform.yml`, `reset-platform.yml`, `deploy-lambda-auth.yml`, and `deploy-lambda-chat.yml`. The `deploy` branch is a materialized artifact (resolved placeholders force-pushed with `[skip ci]`); `main` always retains placeholder tokens.

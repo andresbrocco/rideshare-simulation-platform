@@ -175,7 +175,7 @@ kubectl run rds-init --rm -i --restart=Never --namespace=default \
 
 | Workflow | File | What it does |
 |----------|------|-------------|
-| Deploy | `.github/workflows/deploy.yml` | Applies platform, resolves K8s placeholders, installs ArgoCD, deploys all services |
+| Deploy | `.github/workflows/deploy-platform.yml` | Applies platform, resolves K8s placeholders, installs ArgoCD, deploys all services |
 | Teardown | `.github/workflows/teardown-platform.yml` | Gracefully stops simulation, destroys platform root, cleans DNS |
 
 The Deploy workflow runs `terraform apply` on the platform root, then pipes outputs (`cluster_name`, `rds_endpoint`) into downstream Kubernetes deployment steps. It also reconciles orphaned EKS addons and Helm releases before planning.
@@ -281,5 +281,5 @@ terraform state rm 'module.eks.aws_eks_addon.ebs_csi'
 - [CONTEXT.md](CONTEXT.md) — Architecture context for three-root deployment model
 - [infrastructure/kubernetes](../kubernetes/) — What runs on the EKS cluster
 - [services/auth-deploy](../../services/auth-deploy/) — Lambda function source packaged by the foundation root
-- [.github/workflows/deploy.yml](../../.github/workflows/deploy.yml) — Full platform deploy pipeline
+- [.github/workflows/deploy-platform.yml](../../.github/workflows/deploy-platform.yml) — Full platform deploy pipeline
 - [.github/workflows/teardown-platform.yml](../../.github/workflows/teardown-platform.yml) — Platform teardown pipeline

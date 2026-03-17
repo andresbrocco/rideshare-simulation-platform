@@ -1,4 +1,4 @@
-name: Soft Reset
+name: Reset Platform
 
 on:
   workflow_dispatch:

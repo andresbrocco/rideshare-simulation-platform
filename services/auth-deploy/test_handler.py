@@ -71,7 +71,7 @@ class TestHandleDeploy:
             status, body = handle_deploy("test-api-key")
         assert status == 200
         assert body["triggered"] is True
-        assert body["workflow"] == "deploy.yml"
+        assert body["workflow"] == "deploy-platform.yml"
 
         # Verify GitHub API was called correctly
         mock_github_api.assert_called_once()

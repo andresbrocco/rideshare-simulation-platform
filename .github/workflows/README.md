@@ -10,10 +10,12 @@
 |------|------|---------|---------|
 | `ci.yml` | CI | Push/PR to `main` | Lint, type-check, unit tests, frontend build, API contract validation |
 | `build-images.yml` | Build Images | Push to `main` (path-filtered) or `workflow_dispatch` | Build and push Docker images to ECR |
-| `deploy.yml` | Deploy | `workflow_dispatch` | Full platform deploy to EKS + optional frontend to S3/CloudFront |
-| `deploy-lambda.yml` | Deploy Lambda | Push to `main` (`services/auth-deploy/**`, `services/ai-chat/**`) or `workflow_dispatch` | Package and deploy `rideshare-auth-deploy` Lambda |
+| `deploy-platform.yml` | Deploy Platform | `workflow_dispatch` | Full platform deploy to EKS via Terraform + ArgoCD |
+| `deploy-landing-page.yml` | Deploy Landing Page | Push to `main` (`services/control-panel/**`) or `workflow_dispatch` | Build React app, sync to S3, invalidate CloudFront |
+| `deploy-lambda-auth.yml` | Deploy Lambda Auth | Push to `main` (`services/auth-deploy/**`) or `workflow_dispatch` | Package and deploy `rideshare-auth-deploy` Lambda |
+| `deploy-lambda-chat.yml` | Deploy Lambda Chat | Push to `main` (`services/ai-chat/**`) or `workflow_dispatch` | Package and deploy `rideshare-ai-chat` Lambda |
 | `integration-tests.yml` | Integration Tests | Weekly (Monday 02:00 UTC) or `workflow_dispatch` | Full-stack integration tests with Docker Compose |
-| `soft-reset.yml` | Soft Reset | `workflow_dispatch` | Wipe all runtime data without destroying infrastructure |
+| `reset-platform.yml` | Reset Platform | `workflow_dispatch` | Wipe all runtime data without destroying infrastructure |
 | `teardown-platform.yml` | Teardown Platform | `workflow_dispatch` | Destroy EKS platform (preserves foundation resources) |
 
 ---
@@ -23,8 +25,8 @@
 | Secret | Used By | Purpose |
 |--------|---------|---------|
 | `AWS_ACCOUNT_ID` | All workflows | AWS account number for OIDC role ARN and resource naming |
-| `GH_DEPLOY_PAT` | `deploy.yml` | GitHub PAT synced to Secrets Manager for Lambda to trigger future deploys |
-| `OWNER_REPLY_TO_EMAIL` | `deploy.yml` | Email address used in Terraform foundation plan |
+| `GH_DEPLOY_PAT` | `deploy-platform.yml` | GitHub PAT synced to Secrets Manager for Lambda to trigger future deploys |
+| `OWNER_REPLY_TO_EMAIL` | `deploy-platform.yml` | Email address used in Terraform foundation plan |
 
 ### AWS OIDC Role
 
@@ -40,11 +42,10 @@ Region: `us-east-1` for all workflows.
 
 ### Workflow Inputs
 
-#### Deploy (`deploy.yml`)
+#### Deploy Platform (`deploy-platform.yml`)
 
 | Input | Type | Options | Default | Description |
 |-------|------|---------|---------|-------------|
-| `action` | choice | `deploy-all`, `deploy-platform`, `deploy-frontend` | — | What to deploy |
 | `dbt_runner` | choice | `duckdb`, `glue` | `duckdb` | Controls Kustomize overlay and Airflow target |
 
 #### Build Images (`build-images.yml`)
@@ -53,7 +54,7 @@ Region: `us-east-1` for all workflows.
 |-------|------|---------|---------|-------------|
 | `scope` | choice | `all`, `simulation`, `stream-processor`, `control-panel`, `bronze-ingestion`, `hive-metastore`, `performance-controller`, `osrm`, `otel-collector` | — | Which service(s) to build |
 
-#### Soft Reset (`soft-reset.yml`)
+#### Reset Platform (`reset-platform.yml`)
 
 | Input | Type | Description |
 |-------|------|-------------|
@@ -111,7 +112,7 @@ DNS: Route 53 wildcard ALIAS `*.ridesharing.portfolio.andresbrocco.com` → ALB.
 ### Deploy the full platform
 
 1. Ensure all service images are built (run `Build Images` workflow with `scope: all` if needed)
-2. Run the `Deploy` workflow with `action: deploy-all` and `dbt_runner: duckdb`
+2. Run the `Deploy Platform` workflow with `dbt_runner: duckdb`
 3. Wait ~30-60 minutes for EKS convergence
 4. Activate the simulation manually after deploy:
 
@@ -129,7 +130,7 @@ curl -X POST https://api.ridesharing.portfolio.andresbrocco.com/agents/riders \
 
 ### Deploy only the frontend
 
-Run the `Deploy` workflow with `action: deploy-frontend`. This builds the React app and syncs to S3, then invalidates CloudFront.
+Trigger the `Deploy Landing Page` workflow (also auto-triggers on push to `main` when `services/control-panel/**` changes). This builds the React app and syncs to S3, then invalidates CloudFront.
 
 ### Build and push a single service image
 
@@ -137,7 +138,7 @@ Run the `Build Images` workflow with `workflow_dispatch`, selecting the target `
 
 ### Reset all runtime data without destroying infrastructure
 
-Run the `Soft Reset` workflow:
+Run the `Reset Platform` workflow:
 - Input `confirmation`: `RESET`
 - Input `dbt_runner`: must match what was used in the last deploy
 
@@ -155,7 +156,7 @@ Estimated cost at foundation-only state: ~$8/month.
 
 ### Deploy Lambda only
 
-Push changes to `services/auth-deploy/**` or `services/ai-chat/**` on `main`, or run the `Deploy Lambda` workflow manually. The workflow packages dependencies flat at the zip root (not nested under `auth-deploy/`) so Lambda imports work correctly.
+Push changes to `services/auth-deploy/**` on `main` to trigger `Deploy Lambda Auth`, or push to `services/ai-chat/**` to trigger `Deploy Lambda Chat`. Both can also be run manually via `workflow_dispatch`. Each workflow packages dependencies flat at the zip root (not nested under the service directory) so Lambda imports work correctly.
 
 ---
 
@@ -204,7 +205,7 @@ Credentials are loaded dynamically from LocalStack Secrets Manager after `secret
 
 ## Deploy Pipeline Internals
 
-The `deploy.yml` platform job performs these steps in order:
+The `deploy-platform.yml` platform job performs these steps in order:
 
 1. Verify Foundation State (Terraform plan must show no drift)
 2. Reconcile Terraform state (safe imports of pre-existing resources)
@@ -250,7 +251,7 @@ kubectl patch application rideshare-platform -n argocd \
 ```
 
 **GH_DEPLOY_PAT not set warning**
-The `deploy.yml` job will print a warning but continue. The Lambda-triggered auto-teardown feature requires this PAT to call back into GitHub Actions.
+The `deploy-platform.yml` job will print a warning but continue. The Lambda-triggered auto-teardown feature requires this PAT to call back into GitHub Actions.
 
 ---
 

@@ -6,7 +6,7 @@
 
 ### Platform
 
-GitHub Actions. Eight workflow files in `.github/workflows/`.
+GitHub Actions. Nine workflow files in `.github/workflows/`.
 
 ### Workflows
 
@@ -14,10 +14,12 @@ GitHub Actions. Eight workflow files in `.github/workflows/`.
 |----------|---------|---------|
 | `ci.yml` | push/PR to `main` | Lint, type-check, unit tests, frontend build, API contract validation |
 | `build-images.yml` | push to `main` (path-filtered), `workflow_dispatch` | Build and push Docker images to ECR per changed service; OSRM `.pbf` sourced from S3 build-assets (fallback to Git LFS) |
-| `deploy.yml` | `workflow_dispatch` | Provision EKS platform via Terraform, push `deploy` branch, install ArgoCD, wait for phased convergence (5 phases, 15 services), report readiness to Lambda |
+| `deploy-platform.yml` | `workflow_dispatch` | Provision EKS platform via Terraform, push `deploy` branch, install ArgoCD, wait for phased convergence (5 phases, 15 services), report readiness to Lambda |
+| `deploy-landing-page.yml` | push to `main` (`services/control-panel/**`), `workflow_dispatch` | Build React app, sync to S3 frontend bucket, invalidate CloudFront |
+| `deploy-lambda-auth.yml` | push to `main` (`services/auth-deploy/**`), `workflow_dispatch` | Package and deploy `rideshare-auth-deploy` Lambda function code (Linux-compatible wheels via `--platform manylinux2014_x86_64`) |
+| `deploy-lambda-chat.yml` | push to `main` (`services/ai-chat/**`), `workflow_dispatch` | Package and deploy `rideshare-ai-chat` Lambda function code |
 | `teardown-platform.yml` | `workflow_dispatch` | Graceful simulation shutdown (drain to 16× speed, poll up to 5 min), delete Route 53 record, `terraform destroy` on platform layer |
-| `soft-reset.yml` | `workflow_dispatch` | Wipe Kafka, S3 lakehouse, RDS databases, Redis, monitoring data — suspends ArgoCD auto-sync during reset, then restores; keeps EKS cluster intact |
-| `deploy-lambda.yml` | push to `main` (`services/auth-deploy/**`, `services/ai-chat/**`), `workflow_dispatch` | Package and deploy `rideshare-auth-deploy` Lambda function code (Linux-compatible wheels via `--platform manylinux2014_x86_64`) |
+| `reset-platform.yml` | `workflow_dispatch` | Wipe Kafka, S3 lakehouse, RDS databases, Redis, monitoring data — suspends ArgoCD auto-sync during reset, then restores; keeps EKS cluster intact |
 | `integration-tests.yml` | `schedule` (weekly Monday 02:00 UTC), `workflow_dispatch` | Spin up Docker Compose, run `tests/integration/`, upload results |
 | `visitor-login.yml` | `workflow_dispatch` | Visitor authentication workflow for pre-deploy Lambda validation |
 
@@ -34,7 +36,7 @@ GitHub Actions. Eight workflow files in `.github/workflows/`.
 
 ### Deploy Phased Convergence
 
-The `deploy.yml` "Wait for EKS convergence" step waits for services in dependency order across five phases:
+The `deploy-platform.yml` "Wait for EKS convergence" step waits for services in dependency order across five phases:
 
 | Phase | Services |
 |-------|---------|
@@ -303,7 +305,7 @@ Method: Terraform (infrastructure) + ArgoCD GitOps (workloads).
 
 Region: `us-east-1`.
 
-Deployment is triggered by the `deploy.yml` GitHub Actions workflow via `workflow_dispatch`.
+Deployment is triggered by the `deploy-platform.yml` GitHub Actions workflow via `workflow_dispatch`.
 
 ### Environments
 
@@ -427,7 +429,7 @@ DNS: wildcard Route 53 ALIAS record `*.ridesharing.portfolio.andresbrocco.com` p
 `rideshare-auth-deploy` Lambda (Python 3.13, Function URL with no AWS-layer auth, timeout 60s):
 
 - Validates API key against Secrets Manager
-- Dispatches `deploy.yml` or `teardown-platform.yml` via GitHub Actions REST API
+- Dispatches `deploy-platform.yml` or `teardown-platform.yml` via GitHub Actions REST API
 - Tracks session state in SSM Parameter Store (`/rideshare/session/deadline`)
 - Manages auto-teardown via EventBridge one-time schedule
 - Aggregates per-service deploy readiness from the deploy workflow's progress reports (15 services)
@@ -587,7 +589,7 @@ To wipe all data while keeping the EKS cluster running:
 
 ```bash
 # Via GitHub Actions UI:
-# Trigger: soft-reset.yml workflow_dispatch
+# Trigger: reset-platform.yml workflow_dispatch
 # Input: confirmation="RESET", dbt_runner=<duckdb|glue>
 
 # Wipes: Kafka PVCs, S3 lakehouse buckets, RDS airflow/metastore DBs,

@@ -358,7 +358,7 @@ resource "aws_iam_role_policy" "github_actions_acm" {
   })
 }
 
-# CloudFront Invalidation Policy (required by deploy.yml deploy-frontend job)
+# CloudFront Invalidation Policy (required by deploy-landing-page.yml)
 resource "aws_iam_role_policy" "github_actions_cloudfront" {
   name = "cloudfront-invalidation"
   role = aws_iam_role.github_actions.id
@@ -379,7 +379,7 @@ resource "aws_iam_role_policy" "github_actions_cloudfront" {
   })
 }
 
-# S3 Frontend Bucket Policy (required by deploy.yml deploy-frontend job)
+# S3 Frontend Bucket Policy (required by deploy-landing-page.yml)
 resource "aws_iam_role_policy" "github_actions_s3_frontend" {
   name = "s3-frontend-sync"
   role = aws_iam_role.github_actions.id
@@ -404,7 +404,7 @@ resource "aws_iam_role_policy" "github_actions_s3_frontend" {
   })
 }
 
-# Lambda Deploy Policy (required by deploy-lambda.yml to update code, and deploy.yml/build-images.yml to fetch function URL)
+# Lambda Deploy Policy (required by deploy-lambda-auth.yml/deploy-lambda-chat.yml to update code, and deploy-platform.yml/build-images.yml to fetch function URL)
 resource "aws_iam_role_policy" "github_actions_lambda" {
   name = "lambda-deploy"
   role = aws_iam_role.github_actions.id
@@ -426,7 +426,7 @@ resource "aws_iam_role_policy" "github_actions_lambda" {
   })
 }
 
-# S3 Lakehouse Reset Policy (required by soft-reset.yml to empty bronze/silver/gold/checkpoints)
+# S3 Lakehouse Reset Policy (required by reset-platform.yml to empty bronze/silver/gold/checkpoints)
 resource "aws_iam_role_policy" "github_actions_s3_lakehouse" {
   name = "s3-lakehouse-reset"
   role = aws_iam_role.github_actions.id

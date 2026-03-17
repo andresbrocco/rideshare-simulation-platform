@@ -84,8 +84,8 @@ The Lambda supports two invocation modes:
 | Action | Extra fields | Description |
 |---|---|---|
 | `validate` | — | Check whether the API key is valid. |
-| `deploy` | `dbt_runner` (`duckdb`\|`glue`, default `duckdb`) | Dispatch `deploy.yml` GitHub Actions workflow and create a deploying session. Returns 409 if a session already exists. |
-| `status` | — | Return the latest `deploy.yml` run status from GitHub. |
+| `deploy` | `dbt_runner` (`duckdb`\|`glue`, default `duckdb`) | Dispatch `deploy-platform.yml` GitHub Actions workflow and create a deploying session. Returns 409 if a session already exists. |
+| `status` | — | Return the latest `deploy-platform.yml` run status from GitHub. |
 | `activate-session` | — | Set the session deadline (starts countdown). Idempotent — safe to call multiple times. |
 | `report-deploy-progress` | `service` (string), `ready` (bool) | Mark a named service as ready/not-ready in the session. Called by the deploy workflow. |
 | `set-teardown-run-id` | `run_id` (int) | Cache the teardown workflow run ID in SSM. Called by `teardown-platform.yml`. |
@@ -307,7 +307,7 @@ The teardown workflow was just dispatched and has not been picked up by GitHub y
 - SSM Parameter Store path: `/rideshare/session/*` (read/write/delete)
 - EventBridge Scheduler group: `default`
 - IAM role for scheduler invocation: `rideshare-scheduler-exec`
-- GitHub PAT with `workflow` scope (to dispatch `deploy.yml` and `teardown-platform.yml`)
+- GitHub PAT with `workflow` scope (to dispatch `deploy-platform.yml` and `teardown-platform.yml`)
 
 ## Related
 

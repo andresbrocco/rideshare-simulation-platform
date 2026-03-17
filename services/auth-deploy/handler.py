@@ -18,7 +18,7 @@ from botocore.exceptions import ClientError
 # Constants
 GITHUB_API_BASE = "https://api.github.com"
 GITHUB_REPO = "andresbrocco/rideshare-simulation-platform"
-GITHUB_WORKFLOW = "deploy.yml"
+GITHUB_WORKFLOW = "deploy-platform.yml"
 GITHUB_API_VERSION = "2022-11-28"
 REQUEST_TIMEOUT = 10  # seconds
 
@@ -850,7 +850,7 @@ def handle_deploy(api_key: str, dbt_runner: str = "duckdb") -> tuple[int, dict[s
         return 500, {"error": "Failed to retrieve GitHub credentials"}
 
     path = f"/repos/{GITHUB_REPO}/actions/workflows/{GITHUB_WORKFLOW}/dispatches"
-    body = {"ref": "main", "inputs": {"action": "deploy-platform", "dbt_runner": dbt_runner}}
+    body = {"ref": "main", "inputs": {"dbt_runner": dbt_runner}}
 
     status_code, response_data = github_api_request("POST", path, github_pat, body)
 

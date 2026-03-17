@@ -43,10 +43,27 @@ jobs:
       - name: Init TFLint plugins
         run: tflint --init --config .tflint.hcl
 
+      - name: Cache Python venvs
+        uses: actions/cache@v4
+        id: venv-cache
+        with:
+          path: |
+            services/simulation/venv
+            services/stream-processor/venv
+            tools/dbt/venv
+            services/airflow/venv
+            tools/great-expectations/venv
+            schemas/lakehouse/venv
+            services/ai-chat/venv
+          key: lint-venvs-${{ runner.os }}-py3.13-${{ hashFiles('services/simulation/pyproject.toml', 'services/stream-processor/pyproject.toml', 'tools/great-expectations/requirements.txt', 'services/ai-chat/requirements.txt') }}
+          restore-keys: |
+            lint-venvs-${{ runner.os }}-py3.13-
+
       - name: Install pre-commit
         run: pip install pre-commit
 
       - name: Create venvs and install dependencies for all services
+        if: steps.venv-cache.outputs.cache-hit != 'true'
         run: |
           # simulation - install full dev dependencies for type stubs
           python -m venv services/simulation/venv
@@ -101,6 +118,17 @@ jobs:
         with:
           python-version: '3.13'
 
+      - name: Cache Python venvs
+        uses: actions/cache@v4
+        id: test-venv-cache
+        with:
+          path: |
+            services/simulation/venv
+            services/stream-processor/venv
+          key: test-venvs-${{ runner.os }}-py3.13-${{ hashFiles('services/simulation/pyproject.toml', 'services/stream-processor/pyproject.toml') }}
+          restore-keys: |
+            test-venvs-${{ runner.os }}-py3.13-
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -115,15 +143,19 @@ jobs:
       - name: Install simulation dependencies and run tests
         working-directory: services/simulation
         run: |
-          python -m venv venv
-          ./venv/bin/pip install --quiet -e ".[dev]"
+          if [ ! -d venv ]; then
+            python -m venv venv
+            ./venv/bin/pip install --quiet -e ".[dev]"
+          fi
           ./venv/bin/pytest -v --tb=short
 
       - name: Install stream-processor dependencies and run tests
         working-directory: services/stream-processor
         run: |
-          python -m venv venv
-          ./venv/bin/pip install --quiet -e ".[dev]"
+          if [ ! -d venv ]; then
+            python -m venv venv
+            ./venv/bin/pip install --quiet -e ".[dev]"
+          fi
           ./venv/bin/pytest -v --tb=short
 
   frontend-build:

@@ -1,5 +1,5 @@
 # Production patch: Override BRONZE_BUCKET for bronze-init CronJob
-# Replace <account-id> with AWS account ID during deploy (handled by deploy.yml sed)
+# Replace <account-id> with AWS account ID during deploy (handled by deploy-platform.yml sed)
 apiVersion: batch/v1
 kind: CronJob
 metadata:
