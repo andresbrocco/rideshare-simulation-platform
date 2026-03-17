@@ -2,6 +2,7 @@ import { IconLayer, PathLayer, LineLayer } from '@deck.gl/layers';
 import type { Driver, Rider, Trip, TripStateValue } from '../types/api';
 import { STAGE_RGB, STAGE_TRAIL } from '../theme';
 import type { RgbTuple } from '../utils/colorUtils';
+import { withAlpha } from '../utils/colorUtils';
 
 // Monochrome white icons — deck.gl getColor tinting provides phase-based colors
 const CAR_ICON = '/icons/car.png';
@@ -227,7 +228,7 @@ export function createOfflineDriversLayer(drivers: Driver[], scaleFactor: number
 
     getPosition: (d: Driver) => [d.longitude, d.latitude],
     getAngle: (d: Driver) => 90 - (d.heading ?? 0),
-    getColor: [...STAGE_RGB.idle.base, 200],
+    getColor: withAlpha(STAGE_RGB.idle.base, 128),
   });
 }
 
@@ -306,7 +307,7 @@ export function createOfflineRidersLayer(riders: Rider[], scaleFactor: number = 
     getSize: 30 * scaleFactor,
 
     getPosition: (d: Rider) => [d.longitude, d.latitude],
-    getColor: STAGE_RGB.idle.light,
+    getColor: withAlpha(STAGE_RGB.idle.light, 128),
   });
 }
 
@@ -776,8 +777,12 @@ export function createRiderLayer(riders: Rider[], scaleFactor: number = 1) {
           getSize: 18 * scaleFactor,
 
           getPosition: (d: Rider) => [d.longitude, d.latitude],
-          getColor:
-            RIDER_TRIP_STATE_COLORS[state as TripStateValue] || RIDER_TRIP_STATE_COLORS.default,
+          getColor: ACTIVE_TRIP_STATES.has(state)
+            ? RIDER_TRIP_STATE_COLORS[state as TripStateValue] || RIDER_TRIP_STATE_COLORS.default
+            : withAlpha(
+                RIDER_TRIP_STATE_COLORS[state as TripStateValue] || RIDER_TRIP_STATE_COLORS.default,
+                128
+              ),
         })
       );
     }
