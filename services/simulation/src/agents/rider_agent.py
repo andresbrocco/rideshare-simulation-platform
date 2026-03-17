@@ -75,8 +75,8 @@ class RiderAgent(EventEmitter):
         self._is_puppet = puppet
         self._is_ephemeral = False  # Can be set True for non-persisted puppet agents
 
-        # Runtime state
-        self._status = "idle"
+        # Runtime state — puppet agents start 'offline' (all transitions via API)
+        self._status = "offline" if puppet else "idle"
         # Set initial location from DNA home_location for immediate visibility
         self._location: tuple[float, float] | None = dna.home_location
         self._active_trip: str | None = None
