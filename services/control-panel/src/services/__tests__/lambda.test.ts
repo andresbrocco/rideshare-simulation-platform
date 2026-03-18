@@ -63,10 +63,11 @@ describe('Lambda Service', () => {
       }
     });
 
-    it('throws LAMBDA_ERROR for non-200 responses', async () => {
+    it('throws LAMBDA_ERROR for non-200 responses with server message', async () => {
       (global.fetch as Mock).mockResolvedValueOnce({
         ok: false,
         status: 500,
+        json: async () => ({ error: 'Server error' }),
       });
 
       try {
@@ -75,6 +76,7 @@ describe('Lambda Service', () => {
       } catch (error) {
         expect(error).toBeInstanceOf(LambdaServiceError);
         expect((error as LambdaServiceError).code).toBe('LAMBDA_ERROR');
+        expect((error as LambdaServiceError).message).toBe('Server error');
       }
     });
 
@@ -354,10 +356,11 @@ describe('Lambda Service', () => {
       }
     });
 
-    it('throws LAMBDA_ERROR for non-200 responses', async () => {
+    it('throws LAMBDA_ERROR for non-200 responses with server message', async () => {
       (global.fetch as Mock).mockResolvedValueOnce({
         ok: false,
         status: 400,
+        json: async () => ({ error: 'Cannot extend beyond maximum' }),
       });
 
       try {
@@ -366,6 +369,7 @@ describe('Lambda Service', () => {
       } catch (error) {
         expect(error).toBeInstanceOf(LambdaServiceError);
         expect((error as LambdaServiceError).code).toBe('LAMBDA_ERROR');
+        expect((error as LambdaServiceError).message).toBe('Cannot extend beyond maximum');
       }
     });
   });
@@ -401,10 +405,11 @@ describe('Lambda Service', () => {
       expect(result).toEqual({ provisioned: true, email_sent: true, failures: [] });
     });
 
-    it('throws LAMBDA_ERROR on HTTP 500', async () => {
+    it('throws LAMBDA_ERROR on HTTP 500 with server message', async () => {
       (global.fetch as Mock).mockResolvedValueOnce({
         ok: false,
         status: 500,
+        json: async () => ({ error: 'Internal provisioning error' }),
       });
 
       try {
@@ -413,6 +418,7 @@ describe('Lambda Service', () => {
       } catch (error) {
         expect(error).toBeInstanceOf(LambdaServiceError);
         expect((error as LambdaServiceError).code).toBe('LAMBDA_ERROR');
+        expect((error as LambdaServiceError).message).toBe('Internal provisioning error');
       }
     });
 
@@ -428,7 +434,7 @@ describe('Lambda Service', () => {
       }
     });
 
-    it('throws LAMBDA_ERROR on HTTP 207', async () => {
+    it('throws LAMBDA_ERROR on HTTP 207 without error field falls back to status', async () => {
       (global.fetch as Mock).mockResolvedValueOnce({
         ok: false,
         status: 207,
@@ -495,10 +501,11 @@ describe('Lambda Service', () => {
       }
     });
 
-    it('throws LAMBDA_ERROR for non-200 responses', async () => {
+    it('throws LAMBDA_ERROR for non-200 responses with server message', async () => {
       (global.fetch as Mock).mockResolvedValueOnce({
         ok: false,
         status: 400,
+        json: async () => ({ error: 'Cannot shrink below 0 minutes remaining' }),
       });
 
       try {
@@ -507,6 +514,9 @@ describe('Lambda Service', () => {
       } catch (error) {
         expect(error).toBeInstanceOf(LambdaServiceError);
         expect((error as LambdaServiceError).code).toBe('LAMBDA_ERROR');
+        expect((error as LambdaServiceError).message).toBe(
+          'Cannot shrink below 0 minutes remaining'
+        );
       }
     });
   });
@@ -567,7 +577,7 @@ describe('Lambda Service', () => {
       }
     });
 
-    it('throws LAMBDA_ERROR on 500', async () => {
+    it('throws LAMBDA_ERROR on 500 with server message', async () => {
       (global.fetch as Mock).mockResolvedValueOnce({
         ok: false,
         status: 500,
@@ -580,6 +590,7 @@ describe('Lambda Service', () => {
       } catch (error) {
         expect(error).toBeInstanceOf(LambdaServiceError);
         expect((error as LambdaServiceError).code).toBe('LAMBDA_ERROR');
+        expect((error as LambdaServiceError).message).toBe('Internal error');
       }
     });
 
@@ -593,6 +604,44 @@ describe('Lambda Service', () => {
         expect(error).toBeInstanceOf(LambdaServiceError);
         expect((error as LambdaServiceError).code).toBe('NETWORK_ERROR');
         expect((error as LambdaServiceError).message).toBe('Authentication service unavailable');
+      }
+    });
+  });
+
+  describe('error response parsing', () => {
+    it('falls back to status code when response is not JSON', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        json: async () => {
+          throw new SyntaxError('Unexpected token');
+        },
+      });
+
+      try {
+        await validateApiKey('test-key');
+        expect.fail('should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(LambdaServiceError);
+        expect((error as LambdaServiceError).code).toBe('LAMBDA_ERROR');
+        expect((error as LambdaServiceError).message).toBe('Lambda returned 502');
+      }
+    });
+
+    it('falls back to status code when error field is missing', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        json: async () => ({ message: 'Bad Gateway' }),
+      });
+
+      try {
+        await validateApiKey('test-key');
+        expect.fail('should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(LambdaServiceError);
+        expect((error as LambdaServiceError).code).toBe('LAMBDA_ERROR');
+        expect((error as LambdaServiceError).message).toBe('Lambda returned 502');
       }
     });
   });

@@ -116,6 +116,42 @@ NO_AUTH_ACTIONS = {
     "shrink-session",
 }
 
+SENSITIVE_FIELDS = {"api_key", "password"}
+
+
+def _mask_event(event: dict[str, Any]) -> dict[str, Any]:
+    """Return a copy of the event with sensitive fields masked for logging."""
+    masked = dict(event)
+    for field in SENSITIVE_FIELDS:
+        if field in masked and isinstance(masked[field], str):
+            val = masked[field]
+            masked[field] = f"***{val[-4:]}" if len(val) >= 4 else "***"
+    # Function URL events carry the payload inside a JSON-encoded "body" field
+    if "body" in masked and isinstance(masked["body"], str):
+        try:
+            body_dict = json.loads(masked["body"])
+            for field in SENSITIVE_FIELDS:
+                if field in body_dict and isinstance(body_dict[field], str):
+                    val = body_dict[field]
+                    body_dict[field] = f"***{val[-4:]}" if len(val) >= 4 else "***"
+            masked["body"] = json.dumps(body_dict)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return masked
+
+
+def _log_response(action: str, status_code: int, response_body: dict[str, Any]) -> None:
+    """Emit a structured JSON log line for the Lambda response."""
+    entry: dict[str, Any] = {
+        "level": "ERROR" if status_code >= 400 else "INFO",
+        "action": action,
+        "status": status_code,
+    }
+    if "error" in response_body:
+        entry["error"] = response_body["error"]
+    print(json.dumps(entry))
+
+
 TEARDOWN_STEP_RANGES = [
     (0, 5),  # UI step 0: Saving simulation checkpoint
     (5, 6),  # UI step 1: Cleaning up DNS
@@ -2504,7 +2540,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
     Returns:
         Response dict (format depends on invocation type)
     """
-    print(f"Received event: {json.dumps(event)}")
+    print(f"Received event: {json.dumps(_mask_event(event))}")
 
     # Direct invocation: action/api_key are top-level fields in the event.
     # The raw /invocations endpoint passes the request payload directly as the
@@ -2514,9 +2550,13 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         api_key = event.get("api_key")
 
         if not action:
-            return {"error": "Missing required field: action"}
+            response_body = {"error": "Missing required field: action"}
+            _log_response("unknown", 400, response_body)
+            return response_body
         if action not in NO_AUTH_ACTIONS and not api_key:
-            return {"error": "Missing required field: api_key"}
+            response_body = {"error": "Missing required field: api_key"}
+            _log_response(action, 400, response_body)
+            return response_body
 
         no_auth_handlers: dict[str, Any] = {
             "session-status": handle_session_status,
@@ -2538,37 +2578,47 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         }
 
         if action in no_auth_handlers:
-            _, response_body = no_auth_handlers[action]()
+            status_code, response_body = no_auth_handlers[action]()
+            _log_response(action, status_code, response_body)
             return response_body
         if action == "deploy":
             dbt_runner = event.get("dbt_runner", "duckdb")
             if dbt_runner not in ("duckdb", "glue"):
-                return {"error": "Invalid dbt_runner: must be 'duckdb' or 'glue'"}
-            _, response_body = handle_deploy(api_key, dbt_runner)
+                response_body = {"error": "Invalid dbt_runner: must be 'duckdb' or 'glue'"}
+                _log_response(action, 400, response_body)
+                return response_body
+            status_code, response_body = handle_deploy(api_key, dbt_runner)
+            _log_response(action, status_code, response_body)
             return response_body
         if action == "report-deploy-progress":
             service = event.get("service", "")
             ready = event.get("ready", True)
-            _, response_body = handle_report_deploy_progress(api_key, service, ready)
+            status_code, response_body = handle_report_deploy_progress(api_key, service, ready)
+            _log_response(action, status_code, response_body)
             return response_body
         if action == "set-teardown-run-id":
             run_id = event.get("run_id")
             if run_id is None:
-                return {"error": "Missing required field: run_id"}
-            _, response_body = handle_set_teardown_run_id(api_key, run_id)
+                response_body = {"error": "Missing required field: run_id"}
+                _log_response(action, 400, response_body)
+                return response_body
+            status_code, response_body = handle_set_teardown_run_id(api_key, run_id)
+            _log_response(action, status_code, response_body)
             return response_body
         if action == "provision-visitor":
             visitor_email = event.get("email", "")
             visitor_password = event.get("password") or None
             visitor_name = event.get("name", "")
-            _, response_body = handle_provision_visitor(
+            status_code, response_body = handle_provision_visitor(
                 visitor_email, visitor_password, visitor_name
             )
+            _log_response(action, status_code, response_body)
             return response_body
         if action == "visitor-login":
             status_code, response_body = handle_visitor_login(
                 event.get("email", ""), event.get("password", "")
             )
+            _log_response(action, status_code, response_body)
             return response_body
         if action == "start-simulation":
             agent_counts_override: dict[str, int] = {}
@@ -2576,10 +2626,14 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 val = event.get(key)
                 if val is not None:
                     agent_counts_override[key] = int(val)
-            _, response_body = handle_start_simulation(api_key, agent_counts_override or None)
+            status_code, response_body = handle_start_simulation(
+                api_key, agent_counts_override or None
+            )
+            _log_response(action, status_code, response_body)
             return response_body
         if action in auth_handlers:
-            _, response_body = auth_handlers[action](api_key)
+            status_code, response_body = auth_handlers[action](api_key)
+            _log_response(action, status_code, response_body)
             return response_body
 
         return {
@@ -2615,10 +2669,12 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
     try:
         body = json.loads(event.get("body", "{}"))
     except json.JSONDecodeError:
+        response_body = {"error": "Invalid JSON in request body"}
+        _log_response("unknown", 400, response_body)
         return {
             "statusCode": 400,
             "headers": response_headers,
-            "body": json.dumps({"error": "Invalid JSON in request body"}),
+            "body": json.dumps(response_body),
         }
 
     # Extract action and api_key
@@ -2627,17 +2683,21 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
 
     # Validate required fields
     if not action:
+        response_body = {"error": "Missing required field: action"}
+        _log_response("unknown", 400, response_body)
         return {
             "statusCode": 400,
             "headers": response_headers,
-            "body": json.dumps({"error": "Missing required field: action"}),
+            "body": json.dumps(response_body),
         }
 
     if action not in NO_AUTH_ACTIONS and not api_key:
+        response_body = {"error": "Missing required field: api_key"}
+        _log_response(action, 400, response_body)
         return {
             "statusCode": 400,
             "headers": response_headers,
-            "body": json.dumps({"error": "Missing required field: api_key"}),
+            "body": json.dumps(response_body),
         }
 
     # Route to appropriate handler
@@ -2730,6 +2790,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
             ],
         }
 
+    _log_response(action, status_code, response_body)
     return {
         "statusCode": status_code,
         "headers": response_headers,

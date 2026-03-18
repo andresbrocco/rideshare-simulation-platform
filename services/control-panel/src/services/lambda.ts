@@ -31,6 +31,14 @@ export class LambdaServiceError extends Error {
   }
 }
 
+function isErrorResponse(data: unknown): data is { error: string } {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    typeof (data as { error: string }).error === 'string'
+  );
+}
+
 async function callLambda<T>(
   payload: Record<string, string>,
   validateResponse: (data: unknown) => data is T,
@@ -50,6 +58,15 @@ async function callLambda<T>(
     });
 
     if (!response.ok) {
+      let errorData: unknown;
+      try {
+        errorData = await response.json();
+      } catch {
+        throw new LambdaServiceError(`Lambda returned ${response.status}`, 'LAMBDA_ERROR');
+      }
+      if (isErrorResponse(errorData)) {
+        throw new LambdaServiceError(errorData.error, 'LAMBDA_ERROR');
+      }
       throw new LambdaServiceError(`Lambda returned ${response.status}`, 'LAMBDA_ERROR');
     }
 
@@ -252,6 +269,15 @@ export async function provisionVisitor(email: string): Promise<ProvisionVisitorR
   }
 
   if (!response.ok) {
+    let errorData: unknown;
+    try {
+      errorData = await response.json();
+    } catch {
+      throw new LambdaServiceError(`Lambda returned ${response.status}`, 'LAMBDA_ERROR');
+    }
+    if (isErrorResponse(errorData)) {
+      throw new LambdaServiceError(errorData.error, 'LAMBDA_ERROR');
+    }
     throw new LambdaServiceError(`Lambda returned ${response.status}`, 'LAMBDA_ERROR');
   }
 
@@ -308,6 +334,15 @@ export async function visitorLogin(email: string, password: string): Promise<Vis
   }
 
   if (!response.ok) {
+    let errorData: unknown;
+    try {
+      errorData = await response.json();
+    } catch {
+      throw new LambdaServiceError(`Lambda returned ${response.status}`, 'LAMBDA_ERROR');
+    }
+    if (isErrorResponse(errorData)) {
+      throw new LambdaServiceError(errorData.error, 'LAMBDA_ERROR');
+    }
     throw new LambdaServiceError(`Lambda returned ${response.status}`, 'LAMBDA_ERROR');
   }
 

@@ -5,8 +5,11 @@ import pytest
 
 from handler import (
     DEPLOY_PROGRESS_SERVICES,
+    SESSION_STEP_MINUTES,
     SIMULATION_START_DEFAULTS,
     TEARDOWN_UI_LABELS,
+    _log_response,
+    _mask_event,
     get_response_headers,
     handle_auto_teardown,
     handle_complete_teardown,
@@ -372,10 +375,12 @@ class TestHandleEnsureSession:
         assert status == 200
         assert body["success"] is True
         assert body["created"] is True
-        assert body["remaining_seconds"] == 45 * 60
+        assert body["remaining_seconds"] == SESSION_STEP_MINUTES * 60
         mock_create.assert_called_once()
         call_kwargs = mock_create.call_args
-        assert call_kwargs[1]["deployed_at"] == call_kwargs[1]["deadline"] - 45 * 60
+        assert (
+            call_kwargs[1]["deployed_at"] == call_kwargs[1]["deadline"] - SESSION_STEP_MINUTES * 60
+        )
 
     def test_deploying_session_activates(self, mock_secrets: object) -> None:
         deploying_session = {"deployed_at": 1000000}
@@ -388,9 +393,9 @@ class TestHandleEnsureSession:
         assert status == 200
         assert body["success"] is True
         assert body["created"] is False
-        assert body["remaining_seconds"] == 45 * 60
+        assert body["remaining_seconds"] == SESSION_STEP_MINUTES * 60
         mock_update.assert_called_once()
-        # Deadline should be now + 45 minutes
+        # Deadline should be now + SESSION_STEP_MINUTES
         actual_deadline = mock_update.call_args[0][0]
         assert body["deadline"] == actual_deadline
 
@@ -408,7 +413,7 @@ class TestHandleEnsureSession:
         assert status == 200
         assert body["success"] is True
         assert body["created"] is False
-        assert body["remaining_seconds"] == 45 * 60
+        assert body["remaining_seconds"] == SESSION_STEP_MINUTES * 60
         mock_update.assert_called_once()
         actual_deadline = mock_update.call_args[0][0]
         assert body["deadline"] == actual_deadline
@@ -1440,3 +1445,96 @@ class TestHandleStartSimulation:
         assert result["statusCode"] == 200
         body = json.loads(result["body"])
         assert body["simulation_started"] is True
+
+
+class TestMaskEvent:
+    def test_masks_api_key(self) -> None:
+        event = {"action": "validate", "api_key": "test-key-abcd"}
+        masked = _mask_event(event)
+        assert masked["api_key"] == "***abcd"
+        assert masked["action"] == "validate"
+
+    def test_masks_password(self) -> None:
+        event = {"action": "visitor-login", "email": "a@b.com", "password": "supersecret"}
+        masked = _mask_event(event)
+        assert masked["password"] == "***cret"
+        assert masked["email"] == "a@b.com"
+
+    def test_masks_short_values(self) -> None:
+        event = {"api_key": "ab", "password": "x"}
+        masked = _mask_event(event)
+        assert masked["api_key"] == "***"
+        assert masked["password"] == "***"
+
+    def test_masks_body_field(self) -> None:
+        body = json.dumps({"action": "validate", "api_key": "long-secret-key"})
+        event = {"body": body, "requestContext": {}}
+        masked = _mask_event(event)
+        parsed_body = json.loads(masked["body"])
+        assert parsed_body["api_key"] == "***-key"
+        assert parsed_body["action"] == "validate"
+
+    def test_preserves_non_sensitive_fields(self) -> None:
+        event = {"action": "status", "extra": "data"}
+        masked = _mask_event(event)
+        assert masked == {"action": "status", "extra": "data"}
+
+    def test_does_not_modify_original(self) -> None:
+        event = {"api_key": "secret-key-value"}
+        _mask_event(event)
+        assert event["api_key"] == "secret-key-value"
+
+
+class TestLogResponse:
+    def test_error_response(self, capsys: pytest.CaptureFixture[str]) -> None:
+        _log_response("shrink-session", 400, {"error": "Cannot shrink below 0"})
+        captured = json.loads(capsys.readouterr().out.strip())
+        assert captured["level"] == "ERROR"
+        assert captured["action"] == "shrink-session"
+        assert captured["status"] == 400
+        assert captured["error"] == "Cannot shrink below 0"
+
+    def test_success_response(self, capsys: pytest.CaptureFixture[str]) -> None:
+        _log_response("session-status", 200, {"active": True})
+        captured = json.loads(capsys.readouterr().out.strip())
+        assert captured["level"] == "INFO"
+        assert captured["action"] == "session-status"
+        assert captured["status"] == 200
+        assert "error" not in captured
+
+
+class TestDispatcherLogging:
+    def test_missing_action_logs(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Direct invocation with missing action emits structured log."""
+        result = lambda_handler({"api_key": "some-key"}, {})
+        assert result["error"] == "Missing required field: action"
+        output = capsys.readouterr().out
+        # Find the structured log line (not the event dump line)
+        log_lines = [line for line in output.strip().split("\n") if '"level"' in line]
+        assert len(log_lines) >= 1
+        log_entry = json.loads(log_lines[0])
+        assert log_entry["level"] == "ERROR"
+        assert log_entry["action"] == "unknown"
+
+    def test_missing_api_key_logs(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Direct invocation with missing api_key emits structured log."""
+        result = lambda_handler({"action": "validate"}, {})
+        assert result["error"] == "Missing required field: api_key"
+        output = capsys.readouterr().out
+        log_lines = [line for line in output.strip().split("\n") if '"level"' in line]
+        assert len(log_lines) >= 1
+        log_entry = json.loads(log_lines[0])
+        assert log_entry["level"] == "ERROR"
+        assert log_entry["action"] == "validate"
+
+    def test_function_url_missing_action_logs(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Function URL invocation with missing action emits structured log."""
+        event = {"body": json.dumps({"api_key": "some-key"}), "requestContext": {"http": {}}}
+        result = lambda_handler(event, {})
+        assert result["statusCode"] == 400
+        output = capsys.readouterr().out
+        log_lines = [line for line in output.strip().split("\n") if '"level"' in line]
+        assert len(log_lines) >= 1
+        log_entry = json.loads(log_lines[0])
+        assert log_entry["level"] == "ERROR"
+        assert log_entry["error"] == "Missing required field: action"
