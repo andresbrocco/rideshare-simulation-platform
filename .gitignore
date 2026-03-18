@@ -40,7 +40,7 @@ node_modules/
 *.tfstate.backup
 *.tfplan
 tfplan
-infrastructure/terraform/**/lambda_function.zip
+infrastructure/terraform/**/modules/lambda/*.zip
 
 # Data
 # Ignore OSM files except the pre-processed Sao Paulo metro file tracked via Git LFS

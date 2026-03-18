@@ -297,7 +297,7 @@ module "lambda_rds_reset" {
 
   archive_exclude_patterns = [
     "requirements.txt", "build.sh", "__pycache__/**",
-    "*.dist-info/**", ".mypy_cache/**"
+    ".mypy_cache/**"
   ]
 
   # VPC config — Lambda needs to reach private RDS
