@@ -516,7 +516,7 @@ jobs:
           API_KEY: ${{ steps.lambda-config.outputs.api_key }}
         run: |
           echo "Ensuring auto-teardown session exists..."
-          RESPONSE=$(curl -sf -w "\n%{http_code}" -X POST "${LAMBDA_URL}" \
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${LAMBDA_URL}" \
             -H "Content-Type: application/json" \
             -d "{\"action\":\"ensure-session\",\"api_key\":\"${API_KEY}\"}")
 
@@ -569,7 +569,7 @@ jobs:
           API_KEY: ${{ steps.lambda-config.outputs.api_key }}
         run: |
           echo "Starting simulation and spawning agents..."
-          RESPONSE=$(curl -sf -w "\n%{http_code}" -X POST "${LAMBDA_URL}" \
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${LAMBDA_URL}" \
             -H "Content-Type: application/json" \
             --max-time 130 \
             -d "{\"action\":\"start-simulation\",\"api_key\":\"${API_KEY}\"}")
