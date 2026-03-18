@@ -77,7 +77,7 @@ const DEPLOY_TO_HEALTH: Record<string, keyof ServiceHealthMap> = {
   'control-panel': 'control_panel',
 };
 
-const SESSION_STEP_SECONDS = 15 * 60;
+const SESSION_STEP_SECONDS = 30 * 60;
 const MAX_REMAINING_SECONDS = 2 * 3600;
 const WARNING_THRESHOLD_SECONDS = 5 * 60;
 
@@ -954,17 +954,17 @@ export default function DeployPanel({
                 className={styles.timerButton}
                 onClick={handleShrink}
                 disabled={!canShrink || shrinking}
-                title="Remove 15 minutes"
+                title="Remove 30 minutes"
               >
-                {shrinking ? '...' : '-15m'}
+                {shrinking ? '...' : '-30m'}
               </button>
               <button
                 className={styles.timerButton}
                 onClick={handleExtend}
                 disabled={!canExtend || extending}
-                title="Add 15 minutes"
+                title="Add 30 minutes"
               >
-                {extending ? '...' : '+15m'}
+                {extending ? '...' : '+30m'}
               </button>
             </div>
           </div>
