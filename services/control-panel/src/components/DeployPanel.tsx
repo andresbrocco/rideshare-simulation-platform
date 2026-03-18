@@ -405,7 +405,7 @@ export default function DeployPanel({
   useEffect(() => {
     clearSessionPoll();
 
-    if (panelState === 'active' || panelState === 'tearing-down') {
+    if (panelState === 'active' || panelState === 'deploying' || panelState === 'tearing-down') {
       const poll = async () => {
         try {
           const data = await getSessionStatus();
@@ -415,6 +415,31 @@ export default function DeployPanel({
             if (panelState !== 'tearing-down') {
               setTeardownStartedAt(data.tearing_down_at ?? null);
               setPanelState('tearing-down');
+            }
+            if (data.cost_so_far != null) {
+              setCostSoFar(data.cost_so_far);
+            }
+            return;
+          }
+
+          // Deploying: detect stale session cleared or activated externally
+          if (panelState === 'deploying') {
+            if (data.tearing_down) {
+              clearDeployPolling();
+              setTeardownStartedAt(data.tearing_down_at ?? null);
+              setPanelState('tearing-down');
+              return;
+            }
+            if (data.active && data.deadline != null) {
+              // Another tab activated the session
+              transitionToActive(data.deadline, data.deployed_at ?? deployedAtRef.current);
+              return;
+            }
+            if (!data.active && !data.deploying) {
+              // Backend cleaned up stale session (timeout or workflow failure)
+              clearDeployPolling();
+              setPanelState('idle');
+              return;
             }
             if (data.cost_so_far != null) {
               setCostSoFar(data.cost_so_far);
@@ -453,7 +478,7 @@ export default function DeployPanel({
     }
 
     return () => clearSessionPoll();
-  }, [panelState, clearSessionPoll, onServiceHealthChange]);
+  }, [panelState, clearSessionPoll, clearDeployPolling, transitionToActive, onServiceHealthChange]);
 
   // ── Teardown progress polling ──────────────────────────────────
   useEffect(() => {
