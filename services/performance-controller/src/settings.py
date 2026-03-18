@@ -46,32 +46,32 @@ class ControllerSettings(BaseSettings):
         description="Infrastructure headroom setpoint — stable equilibrium target",
     )
     k_up: float = Field(
-        default=0.15,
+        default=0.08,
         gt=0.0,
         description="Gain for speed increases (small = gentle ramp-up)",
     )
     k_down: float = Field(
-        default=1.5,
+        default=0.5,
         gt=0.0,
         description="Gain for speed decreases (large = aggressive cut-down)",
     )
     smoothness: float = Field(
-        default=12.0,
+        default=4.0,
         gt=0.0,
         description="Sigmoid steepness blending k_up and k_down",
     )
     ki: float = Field(
-        default=0.02,
+        default=0.01,
         ge=0.0,
         description="Integral gain for steady-state error correction",
     )
     kd: float = Field(
-        default=0.1,
+        default=0.03,
         ge=0.0,
         description="Derivative gain for oscillation dampening",
     )
     integral_max: float = Field(
-        default=5.0,
+        default=3.0,
         gt=0.0,
         description="Anti-windup clamp for error integral (error-seconds)",
     )
