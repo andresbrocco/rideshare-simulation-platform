@@ -265,6 +265,57 @@ module "lambda_ai_chat" {
 }
 
 # -----------------------------------------------------------------------------
+# Lambda — RDS database reset (runs in VPC to reach private RDS)
+# -----------------------------------------------------------------------------
+resource "aws_security_group" "lambda_rds_reset" {
+  name        = "${var.project_name}-lambda-rds-reset-sg"
+  description = "Security group for RDS reset Lambda"
+  vpc_id      = module.vpc.vpc_id
+
+  egress {
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [module.vpc.rds_sg_id]
+    description     = "Allow PostgreSQL to RDS"
+  }
+
+  tags = {
+    Name = "${var.project_name}-lambda-rds-reset-sg"
+  }
+}
+
+module "lambda_rds_reset" {
+  source = "./modules/lambda"
+
+  function_name = "rideshare-rds-reset"
+  source_dir    = "${path.root}/../../../services/rds-reset"
+  handler       = "handler.lambda_handler"
+  runtime       = "python3.13"
+  timeout       = 60
+  memory_size   = 128
+
+  archive_exclude_patterns = [
+    "requirements.txt", "build.sh", "__pycache__/**",
+    "*.dist-info/**", ".mypy_cache/**"
+  ]
+
+  # VPC config — Lambda needs to reach private RDS
+  vpc_subnet_ids         = module.vpc.public_subnet_ids
+  vpc_security_group_ids = [aws_security_group.lambda_rds_reset.id]
+
+  # No function URL — invoked only via aws lambda invoke
+  enable_function_url = false
+
+  log_retention_days = 14
+
+  tags = {
+    Project   = var.project_name
+    Component = "rds-reset"
+  }
+}
+
+# -----------------------------------------------------------------------------
 # IAM
 # -----------------------------------------------------------------------------
 module "iam" {

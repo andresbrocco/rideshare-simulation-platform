@@ -43,27 +43,49 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rideshare-github-actions
           aws-region: us-east-1
 
-      - name: Update kubeconfig
-        run: aws eks update-kubeconfig --name rideshare-eks --region us-east-1
+      # ── Phase 2: Cluster Detection ─────────────────────────────────
 
-      - name: Verify cluster health
+      - name: Detect EKS cluster state
+        id: check-cluster
         run: |
-          echo "Checking EKS nodes..."
-          kubectl wait --for=condition=Ready nodes --all --timeout=120s
-          echo "Cluster nodes:"
-          kubectl get nodes
+          echo "=== Checking EKS cluster API ==="
+          if aws eks describe-cluster --name rideshare-eks --region us-east-1 \
+            --query 'cluster.status' --output text 2>/dev/null | grep -q ACTIVE; then
+            echo "cluster_api_available=true" >> "$GITHUB_OUTPUT"
+            echo "Cluster API is available (ACTIVE)"
 
-      # ── Phase 2: Suspend ArgoCD ──────────────────────────────────────
+            aws eks update-kubeconfig --name rideshare-eks --region us-east-1
+
+            echo "=== Checking for Ready nodes ==="
+            READY_NODES=$(kubectl get nodes --no-headers 2>/dev/null \
+              | grep -c ' Ready' || echo "0")
+            if [ "$READY_NODES" -gt 0 ]; then
+              echo "nodes_available=true" >> "$GITHUB_OUTPUT"
+              echo "Found ${READY_NODES} Ready node(s)"
+              kubectl get nodes
+            else
+              echo "nodes_available=false" >> "$GITHUB_OUTPUT"
+              echo "::warning::Cluster API reachable but no Ready nodes (scaled to 0?)"
+            fi
+          else
+            echo "cluster_api_available=false" >> "$GITHUB_OUTPUT"
+            echo "nodes_available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::EKS cluster not reachable or not ACTIVE — running in cluster-down mode"
+          fi
+
+      # ── Phase 3: Suspend ArgoCD ──────────────────────────────────────
 
       - name: Suspend ArgoCD auto-sync
+        if: steps.check-cluster.outputs.cluster_api_available == 'true'
         run: |
           kubectl patch application rideshare-platform -n argocd \
             --type merge -p '{"spec":{"syncPolicy":{"automated":null}}}'
           echo "ArgoCD auto-sync suspended"
 
-      # ── Phase 3: Stop Services ───────────────────────────────────────
+      # ── Phase 4: Stop Services ───────────────────────────────────────
 
       - name: Scale down all application services
+        if: steps.check-cluster.outputs.nodes_available == 'true'
         run: |
           echo "=== Scaling down producers ==="
           kubectl scale deployment simulation stream-processor bronze-ingestion \
@@ -84,6 +106,7 @@ jobs:
             -n rideshare-prod --replicas=0
 
       - name: Wait for pods to terminate
+        if: steps.check-cluster.outputs.nodes_available == 'true'
         run: |
           for LABEL in simulation stream-processor bronze-ingestion \
                        hive-metastore airflow-webserver airflow-scheduler trino \
@@ -99,13 +122,13 @@ jobs:
           done
           echo "All application pods terminated or confirmed absent"
 
-      # ── Phase 4: Wipe Kafka ──────────────────────────────────────────
+      # ── Phase 5: Wipe Kafka ──────────────────────────────────────────
 
-      - name: Scale Kafka to 0
-        run: kubectl scale statefulset kafka -n rideshare-prod --replicas=0
-
-      - name: Wait for Kafka pod to terminate
+      - name: Wipe Kafka (nodes available)
+        if: steps.check-cluster.outputs.nodes_available == 'true'
         run: |
+          echo "=== Scaling Kafka to 0 ==="
+          kubectl scale statefulset kafka -n rideshare-prod --replicas=0
           if kubectl get pod kafka-0 -n rideshare-prod --no-headers 2>/dev/null | grep -q .; then
             echo "Waiting for kafka-0 to terminate..."
             kubectl wait --for=delete pod/kafka-0 -n rideshare-prod --timeout=120s 2>/dev/null \
@@ -114,24 +137,17 @@ jobs:
             echo "kafka-0 already absent"
           fi
 
-      - name: Delete Kafka PVC
-        run: |
+          echo "=== Deleting Kafka PVC ==="
           kubectl delete pvc kafka-data-kafka-0 -n rideshare-prod --ignore-not-found
           echo "Kafka PVC deleted (EBS volume released)"
 
-      - name: Scale Kafka back to 1
-        run: kubectl scale statefulset kafka -n rideshare-prod --replicas=1
-
-      - name: Wait for Kafka ready
-        run: |
+          echo "=== Scaling Kafka back to 1 ==="
+          kubectl scale statefulset kafka -n rideshare-prod --replicas=1
           echo "Waiting for Kafka pod (EBS provisioning ~30-60s)..."
           kubectl wait --for=condition=ready pod/kafka-0 -n rideshare-prod --timeout=300s
 
-      - name: Delete old kafka-init Job
-        run: kubectl delete job kafka-init -n rideshare-prod --ignore-not-found
-
-      - name: Create Kafka topics
-        run: |
+          echo "=== Creating Kafka topics ==="
+          kubectl delete job kafka-init -n rideshare-prod --ignore-not-found
           cat <<'EOF' | kubectl apply -n rideshare-prod -f -
           apiVersion: batch/v1
           kind: Job
@@ -179,11 +195,40 @@ jobs:
                     echo 'Kafka topics created successfully'
                     kafka-topics --bootstrap-server kafka-0.kafka:29092 --list
           EOF
+          kubectl wait --for=condition=complete job/kafka-init -n rideshare-prod --timeout=120s
 
-      - name: Wait for kafka-init Job
-        run: kubectl wait --for=condition=complete job/kafka-init -n rideshare-prod --timeout=120s
+      - name: Wipe Kafka PVC (API only, no nodes)
+        if: steps.check-cluster.outputs.cluster_api_available == 'true' && steps.check-cluster.outputs.nodes_available != 'true'
+        run: |
+          echo "Cluster API available but no nodes — deleting Kafka PVC via kubectl"
+          echo "EBS CSI driver will delete the underlying volume when a node comes back"
+          kubectl delete pvc kafka-data-kafka-0 -n rideshare-prod --ignore-not-found
+          echo "Kafka PVC deleted"
+          echo "::notice::kafka-init Job will recreate topics when Kafka next starts"
 
-      # ── Phase 5: Wipe S3 ────────────────────────────────────────────
+      - name: Wipe Kafka EBS volumes (cluster down)
+        if: steps.check-cluster.outputs.cluster_api_available != 'true'
+        run: |
+          echo "Cluster not reachable — deleting orphaned Kafka EBS volumes via AWS API"
+          VOLUME_IDS=$(aws ec2 describe-volumes \
+            --filters \
+              "Name=tag:kubernetes.io/cluster/rideshare-eks,Values=owned" \
+              "Name=status,Values=available" \
+              "Name=tag:kubernetes.io/created-for/pvc/name,Values=kafka-data-kafka-0" \
+            --query 'Volumes[].VolumeId' --output text)
+
+          if [ -z "$VOLUME_IDS" ] || [ "$VOLUME_IDS" = "None" ]; then
+            echo "No orphaned Kafka EBS volumes found"
+          else
+            for VOL_ID in $VOLUME_IDS; do
+              echo "Deleting volume ${VOL_ID}..."
+              aws ec2 delete-volume --volume-id "$VOL_ID"
+              echo "Deleted ${VOL_ID}"
+            done
+          fi
+          echo "::warning::When the cluster returns, delete stale PVC if it exists: kubectl delete pvc kafka-data-kafka-0 -n rideshare-prod --ignore-not-found"
+
+      # ── Phase 6: Wipe S3 ────────────────────────────────────────────
 
       - name: Empty S3 lakehouse buckets
         run: |
@@ -194,7 +239,7 @@ jobs:
           done
           echo "S3 lakehouse buckets emptied"
 
-      # ── Phase 5.5: Wipe Glue Catalog ─────────────────────────────
+      # ── Phase 7: Wipe Glue Catalog ─────────────────────────────────
 
       - name: Wipe Glue Catalog tables
         if: github.event.inputs.dbt_runner == 'glue'
@@ -214,9 +259,9 @@ jobs:
           done
           echo "Glue Catalog tables deleted (databases preserved)"
 
-      # ── Phase 6: Wipe RDS ───────────────────────────────────────────
+      # ── Phase 8: Wipe RDS via Lambda ───────────────────────────────
 
-      - name: Drop and recreate airflow database
+      - name: Reset RDS databases via Lambda
         run: |
           MASTER_PASSWORD=$(aws secretsmanager get-secret-value \
             --secret-id rideshare/rds --query SecretString --output text | jq -r '.MASTER_PASSWORD')
@@ -226,67 +271,53 @@ jobs:
           AIRFLOW_PASSWORD=$(aws secretsmanager get-secret-value \
             --secret-id rideshare/data-pipeline --query SecretString --output text | jq -r '.POSTGRES_AIRFLOW_PASSWORD')
 
-          echo "Resetting airflow database..."
-          echo "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'airflow' AND pid <> pg_backend_pid(); DROP DATABASE IF EXISTS airflow; CREATE DATABASE airflow;" | \
-            kubectl run rds-reset-airflow --rm -i --restart=Never --namespace=default \
-              --image=postgres:16 --env="PGPASSWORD=${MASTER_PASSWORD}" -- \
-              psql -h "${RDS_HOST}" -p 5432 -U postgres -d postgres
+          DATABASES="[{\"name\":\"airflow\",\"role\":\"airflow\",\"password\":\"${AIRFLOW_PASSWORD}\"}]"
+          if [ "$DBT_RUNNER" != "glue" ]; then
+            METASTORE_PASSWORD=$(aws secretsmanager get-secret-value \
+              --secret-id rideshare/data-pipeline --query SecretString --output text | jq -r '.POSTGRES_METASTORE_PASSWORD')
+            DATABASES="[{\"name\":\"airflow\",\"role\":\"airflow\",\"password\":\"${AIRFLOW_PASSWORD}\"},{\"name\":\"metastore\",\"role\":\"metastore\",\"password\":\"${METASTORE_PASSWORD}\"}]"
+          fi
 
-          echo "Recreating airflow role..."
-          echo "DROP ROLE IF EXISTS airflow; CREATE ROLE airflow WITH LOGIN PASSWORD '${AIRFLOW_PASSWORD}'; GRANT ALL PRIVILEGES ON DATABASE airflow TO airflow; GRANT ALL PRIVILEGES ON SCHEMA public TO airflow;" | \
-            kubectl run rds-airflow-user --rm -i --restart=Never --namespace=default \
-              --image=postgres:16 --env="PGPASSWORD=${MASTER_PASSWORD}" -- \
-              psql -h "${RDS_HOST}" -p 5432 -U postgres -d airflow
+          PAYLOAD=$(jq -n \
+            --arg host "$RDS_HOST" \
+            --arg password "$MASTER_PASSWORD" \
+            --argjson databases "$DATABASES" \
+            '{host: $host, port: 5432, master_password: $password, databases: $databases}')
 
-          echo "Airflow database and role recreated"
+          aws lambda invoke \
+            --function-name rideshare-rds-reset \
+            --payload "$PAYLOAD" \
+            --cli-binary-format raw-in-base64-out \
+            /tmp/rds-reset-response.json
 
-      - name: Drop and recreate metastore database
-        if: github.event.inputs.dbt_runner != 'glue'
+          cat /tmp/rds-reset-response.json
+          BODY=$(jq -r '.body' /tmp/rds-reset-response.json)
+          ERRORS=$(echo "$BODY" | jq '[.results[] | select(.status == "error")] | length')
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "::error::RDS reset failed"
+            echo "$BODY" | jq '.results[] | select(.status == "error")'
+            exit 1
+          fi
+          echo "RDS databases reset successfully"
+
+      # ── Phase 9: Redis & Monitoring ────────────────────────────────
+
+      - name: Redis & monitoring data wiped (emptyDir)
+        if: steps.check-cluster.outputs.nodes_available == 'true'
         run: |
-          MASTER_PASSWORD=$(aws secretsmanager get-secret-value \
-            --secret-id rideshare/rds --query SecretString --output text | jq -r '.MASTER_PASSWORD')
-          RDS_FULL_ENDPOINT=$(aws secretsmanager get-secret-value \
-            --secret-id rideshare/rds --query SecretString --output text | jq -r '.ENDPOINT')
-          RDS_HOST="${RDS_FULL_ENDPOINT%%:*}"
-          METASTORE_PASSWORD=$(aws secretsmanager get-secret-value \
-            --secret-id rideshare/data-pipeline --query SecretString --output text | jq -r '.POSTGRES_METASTORE_PASSWORD')
-
-          echo "Resetting metastore database..."
-          echo "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'metastore' AND pid <> pg_backend_pid(); DROP DATABASE IF EXISTS metastore; CREATE DATABASE metastore;" | \
-            kubectl run rds-reset-metastore --rm -i --restart=Never --namespace=default \
-              --image=postgres:16 --env="PGPASSWORD=${MASTER_PASSWORD}" -- \
-              psql -h "${RDS_HOST}" -p 5432 -U postgres -d postgres
-
-          echo "Recreating metastore role..."
-          echo "DROP ROLE IF EXISTS metastore; CREATE ROLE metastore WITH LOGIN PASSWORD '${METASTORE_PASSWORD}'; GRANT ALL PRIVILEGES ON DATABASE metastore TO metastore; GRANT ALL PRIVILEGES ON SCHEMA public TO metastore;" | \
-            kubectl run rds-metastore-user --rm -i --restart=Never --namespace=default \
-              --image=postgres:16 --env="PGPASSWORD=${MASTER_PASSWORD}" -- \
-              psql -h "${RDS_HOST}" -p 5432 -U postgres -d metastore
-
-          echo "Metastore database and role recreated"
-
-      # ── Phase 7: Wipe Redis ──────────────────────────────────────────
-
-      - name: Redis data wiped (emptyDir)
-        run: |
-          echo "Redis uses emptyDir volume — data was destroyed when pod terminated in Phase 3"
-          echo "Fresh Redis will start with empty dataset in Phase 9"
-
-      # ── Phase 8: Reset Monitoring ────────────────────────────────────
-
-      - name: Monitoring data wiped (emptyDir)
-        run: |
-          echo "All monitoring services use emptyDir volumes — data destroyed on scale-down:"
+          echo "Redis uses emptyDir volume — data was destroyed when pod terminated in Phase 4"
+          echo "Monitoring services use emptyDir volumes — data destroyed on scale-down:"
           echo "  - Prometheus (/prometheus) — TSDB wiped"
           echo "  - Loki (/loki) — local cache wiped (S3 backend retained)"
           echo "  - Tempo (/var/tempo) — WAL wiped (S3 backend retained)"
           echo "  - Grafana — dashboards restored from ConfigMaps on startup"
           echo "  - OTel Collector — stateless, no persistent data"
-          echo "Fresh monitoring pods will start in Phase 9"
+          echo "Fresh pods will start in the next phase"
 
-      # ── Phase 9: Restart & Scale Up ──────────────────────────────────
+      # ── Phase 10: Restart & Scale Up ────────────────────────────────
 
       - name: Scale up monitoring
+        if: steps.check-cluster.outputs.nodes_available == 'true'
         run: |
           for SVC in prometheus loki tempo grafana; do
             echo "Scaling up ${SVC}..."
@@ -315,6 +346,7 @@ jobs:
           fi
 
       - name: Restart schema-registry
+        if: steps.check-cluster.outputs.nodes_available == 'true'
         run: |
           kubectl scale deployment schema-registry -n rideshare-prod --replicas=0
           kubectl wait --for=delete pod -l app=schema-registry \
@@ -332,6 +364,7 @@ jobs:
           fi
 
       - name: Scale up Redis
+        if: steps.check-cluster.outputs.nodes_available == 'true'
         run: |
           kubectl scale deployment redis -n rideshare-prod --replicas=1
           echo "Waiting for Redis (up to 2 min)..."
@@ -345,7 +378,7 @@ jobs:
           fi
 
       - name: Scale up hive-metastore
-        if: github.event.inputs.dbt_runner != 'glue'
+        if: steps.check-cluster.outputs.nodes_available == 'true' && github.event.inputs.dbt_runner != 'glue'
         run: |
           kubectl scale deployment hive-metastore -n rideshare-prod --replicas=1
           echo "Waiting for Hive Metastore (runs schematool -initSchema, up to 5 min)..."
@@ -359,6 +392,7 @@ jobs:
           fi
 
       - name: Scale up trino
+        if: steps.check-cluster.outputs.nodes_available == 'true'
         run: |
           kubectl scale deployment trino -n rideshare-prod --replicas=1
           echo "Waiting for Trino (up to 5 min)..."
@@ -372,6 +406,7 @@ jobs:
           fi
 
       - name: Scale up airflow
+        if: steps.check-cluster.outputs.nodes_available == 'true'
         run: |
           kubectl scale deployment airflow-webserver -n rideshare-prod --replicas=1
           echo "Waiting for Airflow webserver (runs airflow db migrate, up to 10 min)..."
@@ -396,13 +431,15 @@ jobs:
           fi
 
       - name: Scale up data producers
+        if: steps.check-cluster.outputs.nodes_available == 'true'
         run: |
           kubectl scale deployment simulation stream-processor bronze-ingestion \
             -n rideshare-prod --replicas=1
 
-      # ── Phase 10: Health Checks ──────────────────────────────────────
+      # ── Phase 11: Health Checks ────────────────────────────────────
 
       - name: Wait for deployments available
+        if: steps.check-cluster.outputs.nodes_available == 'true'
         run: |
           FAILED=0
 
@@ -456,17 +493,17 @@ jobs:
             echo "All deployments available"
           fi
 
-      # ── Phase 11: Restore ArgoCD ─────────────────────────────────────
+      # ── Phase 12: Restore ArgoCD ───────────────────────────────────
 
       - name: Restore ArgoCD auto-sync
-        if: always()
+        if: always() && steps.check-cluster.outputs.cluster_api_available == 'true'
         run: |
           kubectl patch application rideshare-platform -n argocd \
             --type merge -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true,"allowEmpty":false}}}}'
           echo "ArgoCD auto-sync restored"
 
       - name: Trigger ArgoCD hard refresh
-        if: always()
+        if: always() && steps.check-cluster.outputs.cluster_api_available == 'true'
         run: |
           kubectl annotate application rideshare-platform -n argocd \
             argocd.argoproj.io/refresh=hard --overwrite
@@ -477,21 +514,42 @@ jobs:
       - name: Reset Summary
         if: always()
         run: |
+          CLUSTER_API="${{ steps.check-cluster.outputs.cluster_api_available }}"
+          NODES="${{ steps.check-cluster.outputs.nodes_available }}"
+
           echo "================================"
           echo "Soft Reset Complete"
           echo "================================"
           echo ""
+          echo "CLUSTER STATE:"
+          if [ "$NODES" = "true" ]; then
+            echo "  Cluster API: available | Nodes: available"
+            echo "  Mode: Full reset (all phases executed)"
+          elif [ "$CLUSTER_API" = "true" ]; then
+            echo "  Cluster API: available | Nodes: NOT available"
+            echo "  Mode: Partial (kubectl service steps skipped, PVC deleted)"
+          else
+            echo "  Cluster API: NOT available | Nodes: NOT available"
+            echo "  Mode: AWS-only (S3, RDS Lambda, Kafka EBS cleanup)"
+          fi
+          echo ""
           echo "WIPED:"
-          echo "  - Kafka topics + data (PVC deleted and recreated)"
+          if [ "$NODES" = "true" ]; then
+            echo "  - Kafka topics + data (PVC deleted and recreated)"
+          elif [ "$CLUSTER_API" = "true" ]; then
+            echo "  - Kafka PVC deleted (topics will be recreated by kafka-init on next startup)"
+          else
+            echo "  - Kafka orphaned EBS volumes deleted (if any found)"
+          fi
           echo "  - S3 lakehouse (bronze, silver, gold, checkpoints)"
-          echo "  - RDS airflow database (schema auto-initialized)"
+          echo "  - RDS databases reset via Lambda"
           if [ "$DBT_RUNNER" = "glue" ]; then
             echo "  - Glue Catalog tables (rideshare_bronze, rideshare_silver, rideshare_gold)"
-          else
-            echo "  - RDS metastore database (schema auto-initialized by Hive Metastore)"
           fi
-          echo "  - Redis (emptyDir volume destroyed on scale-down)"
-          echo "  - Monitoring data (Prometheus, Loki, Tempo metrics/logs/traces)"
+          if [ "$NODES" = "true" ]; then
+            echo "  - Redis (emptyDir volume destroyed on scale-down)"
+            echo "  - Monitoring data (Prometheus, Loki, Tempo metrics/logs/traces)"
+          fi
           echo ""
           echo "PRESERVED:"
           echo "  - EKS Cluster + nodes"
@@ -502,6 +560,16 @@ jobs:
           echo "  - S3 build-assets bucket (OSRM map data)"
           echo "  - S3 frontend bucket"
           echo ""
+          if [ "$NODES" != "true" ]; then
+            echo "POST-RESET ACTIONS (cluster was not fully available):"
+            if [ "$CLUSTER_API" != "true" ]; then
+              echo "  - When cluster returns, clean up stale PVC:"
+              echo "    kubectl delete pvc kafka-data-kafka-0 -n rideshare-prod --ignore-not-found"
+            fi
+            echo "  - Redis and monitoring data will be wiped on next pod restart (emptyDir)"
+            echo "  - ArgoCD self-heal will reconcile desired state on next sync"
+            echo ""
+          fi
           echo "NEXT STEPS:"
           echo "  Simulation must be activated manually:"
           echo "    POST https://api.ridesharing.portfolio.andresbrocco.com/simulation/start"

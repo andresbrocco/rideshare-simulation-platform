@@ -247,6 +247,14 @@ resource "aws_lambda_function" "function" {
     variables = var.environment_variables
   }
 
+  dynamic "vpc_config" {
+    for_each = length(var.vpc_subnet_ids) > 0 ? [1] : []
+    content {
+      subnet_ids         = var.vpc_subnet_ids
+      security_group_ids = var.vpc_security_group_ids
+    }
+  }
+
   depends_on = [
     aws_cloudwatch_log_group.lambda,
     aws_iam_role_policy.lambda_logs
@@ -255,8 +263,16 @@ resource "aws_lambda_function" "function" {
   tags = var.tags
 }
 
+# VPC ENI permissions (required when Lambda runs inside a VPC)
+resource "aws_iam_role_policy_attachment" "lambda_vpc" {
+  count      = length(var.vpc_subnet_ids) > 0 ? 1 : 0
+  role       = aws_iam_role.lambda.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+}
+
 # Lambda Function URL
 resource "aws_lambda_function_url" "function_url" {
+  count              = var.enable_function_url ? 1 : 0
   function_name      = aws_lambda_function.function.function_name
   authorization_type = "NONE" # Public access, auth handled in function
 

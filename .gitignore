@@ -56,6 +56,12 @@ tests/performance/results/
 # Generated at runtime (contains resolved credentials from template)
 services/trino/etc/catalog/delta.properties
 
+# Lambda RDS-reset packaged dependencies
+services/rds-reset/pg8000/
+services/rds-reset/scramp/
+services/rds-reset/asn1crypto/
+services/rds-reset/*.dist-info/
+
 HUMAN-CURATED-PREFERENCES.md
 CLAUDE-old.md
 todo.md

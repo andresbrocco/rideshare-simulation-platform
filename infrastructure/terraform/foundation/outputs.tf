@@ -129,6 +129,11 @@ output "lambda_ai_chat_function_name" {
   value       = module.lambda_ai_chat.function_name
 }
 
+output "lambda_rds_reset_function_name" {
+  description = "Name of the Lambda RDS reset function"
+  value       = module.lambda_rds_reset.function_name
+}
+
 # -----------------------------------------------------------------------------
 # Secrets Manager
 # -----------------------------------------------------------------------------

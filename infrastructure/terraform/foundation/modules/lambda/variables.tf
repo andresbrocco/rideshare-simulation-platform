@@ -160,3 +160,21 @@ variable "archive_exclude_patterns" {
   type        = list(string)
   default     = []
 }
+
+variable "vpc_subnet_ids" {
+  description = "Subnet IDs for Lambda VPC config. Empty = no VPC."
+  type        = list(string)
+  default     = []
+}
+
+variable "vpc_security_group_ids" {
+  description = "Security group IDs for Lambda VPC config."
+  type        = list(string)
+  default     = []
+}
+
+variable "enable_function_url" {
+  description = "Whether to create a Lambda Function URL."
+  type        = bool
+  default     = true
+}
