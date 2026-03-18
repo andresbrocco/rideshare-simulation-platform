@@ -261,7 +261,20 @@ jobs:
 
       # ── Phase 8: Wipe RDS via Lambda ───────────────────────────────
 
+      - name: Check RDS instance exists
+        id: check-rds
+        run: |
+          if aws rds describe-db-instances --db-instance-identifier rideshare-postgres \
+            --query 'DBInstances[0].DBInstanceStatus' --output text 2>/dev/null | grep -q .; then
+            echo "rds_available=true" >> "$GITHUB_OUTPUT"
+            echo "RDS instance found"
+          else
+            echo "rds_available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::RDS instance not found — skipping database reset"
+          fi
+
       - name: Reset RDS databases via Lambda
+        if: steps.check-rds.outputs.rds_available == 'true'
         run: |
           MASTER_PASSWORD=$(aws secretsmanager get-secret-value \
             --secret-id rideshare/rds --query SecretString --output text | jq -r '.MASTER_PASSWORD')
@@ -516,6 +529,7 @@ jobs:
         run: |
           CLUSTER_API="${{ steps.check-cluster.outputs.cluster_api_available }}"
           NODES="${{ steps.check-cluster.outputs.nodes_available }}"
+          RDS="${{ steps.check-rds.outputs.rds_available }}"
 
           echo "================================"
           echo "Soft Reset Complete"
@@ -542,7 +556,11 @@ jobs:
             echo "  - Kafka orphaned EBS volumes deleted (if any found)"
           fi
           echo "  - S3 lakehouse (bronze, silver, gold, checkpoints)"
-          echo "  - RDS databases reset via Lambda"
+          if [ "$RDS" = "true" ]; then
+            echo "  - RDS databases reset via Lambda"
+          else
+            echo "  - RDS: skipped (instance not found)"
+          fi
           if [ "$DBT_RUNNER" = "glue" ]; then
             echo "  - Glue Catalog tables (rideshare_bronze, rideshare_silver, rideshare_gold)"
           fi
