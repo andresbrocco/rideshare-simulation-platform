@@ -7,14 +7,6 @@ on:
         description: 'Type RESET to confirm data wipe (keeps infrastructure intact)'
         required: true
         type: string
-      dbt_runner:
-        description: 'DBT runner backend (must match deploy)'
-        required: true
-        type: choice
-        options:
-          - duckdb
-          - glue
-        default: duckdb
 
 permissions:
   id-token: write
@@ -24,8 +16,6 @@ jobs:
   soft-reset:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    env:
-      DBT_RUNNER: ${{ github.event.inputs.dbt_runner }}
 
     steps:
       # ── Phase 1: Guards & Setup ──────────────────────────────────────
@@ -92,9 +82,7 @@ jobs:
             -n rideshare-prod --replicas=0
 
           echo "=== Scaling down pipeline ==="
-          if [ "$DBT_RUNNER" != "glue" ]; then
-            kubectl scale deployment hive-metastore -n rideshare-prod --replicas=0
-          fi
+          kubectl scale deployment hive-metastore -n rideshare-prod --replicas=0 2>/dev/null || true
           kubectl scale deployment airflow-webserver airflow-scheduler trino \
             -n rideshare-prod --replicas=0
 
@@ -242,7 +230,6 @@ jobs:
       # ── Phase 7: Wipe Glue Catalog ─────────────────────────────────
 
       - name: Wipe Glue Catalog tables
-        if: github.event.inputs.dbt_runner == 'glue'
         run: |
           for DB in rideshare_bronze rideshare_silver rideshare_gold; do
             echo "Deleting tables from ${DB}..."
@@ -283,13 +270,10 @@ jobs:
           RDS_HOST="${RDS_FULL_ENDPOINT%%:*}"
           AIRFLOW_PASSWORD=$(aws secretsmanager get-secret-value \
             --secret-id rideshare/data-pipeline --query SecretString --output text | jq -r '.POSTGRES_AIRFLOW_PASSWORD')
+          METASTORE_PASSWORD=$(aws secretsmanager get-secret-value \
+            --secret-id rideshare/data-pipeline --query SecretString --output text | jq -r '.POSTGRES_METASTORE_PASSWORD')
 
-          DATABASES="[{\"name\":\"airflow\",\"role\":\"airflow\",\"password\":\"${AIRFLOW_PASSWORD}\"}]"
-          if [ "$DBT_RUNNER" != "glue" ]; then
-            METASTORE_PASSWORD=$(aws secretsmanager get-secret-value \
-              --secret-id rideshare/data-pipeline --query SecretString --output text | jq -r '.POSTGRES_METASTORE_PASSWORD')
-            DATABASES="[{\"name\":\"airflow\",\"role\":\"airflow\",\"password\":\"${AIRFLOW_PASSWORD}\"},{\"name\":\"metastore\",\"role\":\"metastore\",\"password\":\"${METASTORE_PASSWORD}\"}]"
-          fi
+          DATABASES="[{\"name\":\"airflow\",\"role\":\"airflow\",\"password\":\"${AIRFLOW_PASSWORD}\"},{\"name\":\"metastore\",\"role\":\"metastore\",\"password\":\"${METASTORE_PASSWORD}\"}]"
 
           PAYLOAD=$(jq -n \
             --arg host "$RDS_HOST" \
@@ -391,17 +375,21 @@ jobs:
           fi
 
       - name: Scale up hive-metastore
-        if: steps.check-cluster.outputs.nodes_available == 'true' && github.event.inputs.dbt_runner != 'glue'
+        if: steps.check-cluster.outputs.nodes_available == 'true'
         run: |
-          kubectl scale deployment hive-metastore -n rideshare-prod --replicas=1
-          echo "Waiting for Hive Metastore (runs schematool -initSchema, up to 5 min)..."
-          if ! kubectl wait --for=condition=available deployment/hive-metastore \
-            -n rideshare-prod --timeout=300s; then
-            echo "::warning::hive-metastore not ready within timeout — dumping diagnostics"
-            kubectl get pods -l app=hive-metastore -n rideshare-prod -o wide
-            kubectl describe pod -l app=hive-metastore -n rideshare-prod | tail -40
-            kubectl logs -l app=hive-metastore -n rideshare-prod --all-containers --tail=30 || true
-            echo "Continuing — ArgoCD self-heal will reconcile"
+          if kubectl get deployment hive-metastore -n rideshare-prod &>/dev/null; then
+            kubectl scale deployment hive-metastore -n rideshare-prod --replicas=1
+            echo "Waiting for Hive Metastore (runs schematool -initSchema, up to 5 min)..."
+            if ! kubectl wait --for=condition=available deployment/hive-metastore \
+              -n rideshare-prod --timeout=300s; then
+              echo "::warning::hive-metastore not ready within timeout — dumping diagnostics"
+              kubectl get pods -l app=hive-metastore -n rideshare-prod -o wide
+              kubectl describe pod -l app=hive-metastore -n rideshare-prod | tail -40
+              kubectl logs -l app=hive-metastore -n rideshare-prod --all-containers --tail=30 || true
+              echo "Continuing — ArgoCD self-heal will reconcile"
+            fi
+          else
+            echo "hive-metastore deployment not found (glue mode) — skipping"
           fi
 
       - name: Scale up trino
@@ -557,13 +545,11 @@ jobs:
           fi
           echo "  - S3 lakehouse (bronze, silver, gold, checkpoints)"
           if [ "$RDS" = "true" ]; then
-            echo "  - RDS databases reset via Lambda"
+            echo "  - RDS databases reset via Lambda (airflow + metastore)"
           else
             echo "  - RDS: skipped (instance not found)"
           fi
-          if [ "$DBT_RUNNER" = "glue" ]; then
-            echo "  - Glue Catalog tables (rideshare_bronze, rideshare_silver, rideshare_gold)"
-          fi
+          echo "  - Glue Catalog tables (rideshare_bronze, rideshare_silver, rideshare_gold)"
           if [ "$NODES" = "true" ]; then
             echo "  - Redis (emptyDir volume destroyed on scale-down)"
             echo "  - Monitoring data (Prometheus, Loki, Tempo metrics/logs/traces)"
