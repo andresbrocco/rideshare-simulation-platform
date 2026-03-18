@@ -22,5 +22,5 @@ variable "repository_names" {
 variable "image_retention_count" {
   description = "Number of images to retain"
   type        = number
-  default     = 10
+  default     = 3
 }
