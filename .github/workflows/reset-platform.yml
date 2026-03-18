@@ -494,7 +494,52 @@ jobs:
             echo "All deployments available"
           fi
 
-      # ── Phase 12: Restore ArgoCD ───────────────────────────────────
+      # ── Phase 12: Re-provision visitor accounts ───────────────────
+
+      - name: Get Lambda URL and API key
+        if: steps.check-cluster.outputs.nodes_available == 'true'
+        id: lambda-config
+        run: |
+          URL=$(aws lambda get-function-url-config \
+            --function-name rideshare-auth-deploy \
+            --query 'FunctionUrl' --output text)
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+          SECRET_RAW=$(aws secretsmanager get-secret-value \
+            --secret-id "rideshare/api-key" \
+            --query "SecretString" --output text)
+          API_KEY=$(echo "$SECRET_RAW" | jq -r '.API_KEY // .' 2>/dev/null) || API_KEY="$SECRET_RAW"
+          echo "::add-mask::$API_KEY"
+          echo "api_key=$API_KEY" >> "$GITHUB_OUTPUT"
+
+      - name: Re-provision visitor accounts
+        if: steps.check-cluster.outputs.nodes_available == 'true'
+        env:
+          LAMBDA_URL: ${{ steps.lambda-config.outputs.url }}
+          API_KEY: ${{ steps.lambda-config.outputs.api_key }}
+        run: |
+          echo "Re-provisioning visitor accounts from DynamoDB..."
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${LAMBDA_URL}" \
+            -H "Content-Type: application/json" \
+            -d "{\"action\":\"reprovision-visitors\",\"api_key\":\"${API_KEY}\"}")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+
+          echo "Re-provisioning response: ${HTTP_CODE}"
+          echo "${BODY}" | jq . 2>/dev/null || echo "${BODY}"
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            PROVISIONED=$(echo "$BODY" | jq -r '.provisioned // 0' 2>/dev/null || echo "0")
+            echo "Re-provisioned ${PROVISIONED} visitor account(s)"
+          elif [ "$HTTP_CODE" = "207" ]; then
+            FAILED=$(echo "$BODY" | jq -r '.failed // 0' 2>/dev/null || echo "unknown")
+            echo "::warning::Re-provisioning completed with ${FAILED} failure(s) — some visitor accounts may need manual re-provisioning"
+          else
+            echo "::warning::Re-provisioning returned HTTP ${HTTP_CODE} — visitor accounts may need manual re-provisioning after reset"
+          fi
+
+      # ── Phase 13: Restore ArgoCD ───────────────────────────────────
 
       - name: Restore ArgoCD auto-sync
         if: always() && steps.check-cluster.outputs.cluster_api_available == 'true'
@@ -510,7 +555,7 @@ jobs:
             argocd.argoproj.io/refresh=hard --overwrite
           echo "ArgoCD hard refresh triggered"
 
-      # ── Summary ──────────────────────────────────────────────────────
+      # ── Phase 14: Summary ────────────────────────────────────────────
 
       - name: Reset Summary
         if: always()
@@ -555,12 +600,20 @@ jobs:
             echo "  - Monitoring data (Prometheus, Loki, Tempo metrics/logs/traces)"
           fi
           echo ""
+          echo "RESTORED:"
+          if [ "$NODES" = "true" ]; then
+            echo "  - Visitor accounts re-provisioned from DynamoDB"
+          else
+            echo "  - Visitor accounts: deferred (services not running)"
+          fi
+          echo ""
           echo "PRESERVED:"
           echo "  - EKS Cluster + nodes"
           echo "  - RDS Instance (databases recreated, not instance)"
           echo "  - ALB + DNS records"
           echo "  - ECR images"
           echo "  - Secrets Manager credentials"
+          echo "  - DynamoDB visitor records"
           echo "  - S3 build-assets bucket (OSRM map data)"
           echo "  - S3 frontend bucket"
           echo ""
