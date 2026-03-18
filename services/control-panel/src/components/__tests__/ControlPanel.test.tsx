@@ -160,6 +160,17 @@ describe('ControlPanel', () => {
     expect(mockResetSimulation).toHaveBeenCalled();
   });
 
+  it('test_reset_button_hidden_in_production', () => {
+    setRole('admin');
+    vi.stubEnv('PROD', true);
+
+    render(<ControlPanel status={mockStatus} />);
+
+    expect(screen.queryByRole('button', { name: /reset/i })).not.toBeInTheDocument();
+
+    vi.unstubAllEnvs();
+  });
+
   it('test_speed_selector_changes', async () => {
     setRole('admin');
     const user = userEvent.setup();

@@ -172,16 +172,18 @@ export default function ControlPanel({
               Pause
             </button>
           </Tooltip>
-          <Tooltip text={isAdmin ? 'Stop and reset to initial state' : 'Admin only'}>
-            <button
-              onClick={() => setShowResetConfirm(true)}
-              disabled={!isAdmin}
-              title={isAdmin ? undefined : 'Admin only'}
-              className={styles.button}
-            >
-              Reset
-            </button>
-          </Tooltip>
+          {!import.meta.env.PROD && (
+            <Tooltip text={isAdmin ? 'Stop and reset to initial state' : 'Admin only'}>
+              <button
+                onClick={() => setShowResetConfirm(true)}
+                disabled={!isAdmin}
+                title={isAdmin ? undefined : 'Admin only'}
+                className={styles.button}
+              >
+                Reset
+              </button>
+            </Tooltip>
+          )}
         </div>
       </div>
 
@@ -396,19 +398,21 @@ export default function ControlPanel({
         onRefresh={refreshPerf}
       />
 
-      <ConfirmModal
-        isOpen={showResetConfirm}
-        title="Reset Simulation?"
-        message="This will clear ALL simulation data including agents, trips, and route cache. This action cannot be undone."
-        confirmText="Reset Everything"
-        cancelText="Cancel"
-        variant="danger"
-        onConfirm={() => {
-          setShowResetConfirm(false);
-          resetSimulation();
-        }}
-        onCancel={() => setShowResetConfirm(false)}
-      />
+      {!import.meta.env.PROD && (
+        <ConfirmModal
+          isOpen={showResetConfirm}
+          title="Reset Simulation?"
+          message="This will clear ALL simulation data including agents, trips, and route cache. This action cannot be undone."
+          confirmText="Reset Everything"
+          cancelText="Cancel"
+          variant="danger"
+          onConfirm={() => {
+            setShowResetConfirm(false);
+            resetSimulation();
+          }}
+          onCancel={() => setShowResetConfirm(false)}
+        />
+      )}
     </div>
   );
 }
