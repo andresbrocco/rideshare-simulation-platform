@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { InfrastructureResponse } from '../types/api';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-const POLL_INTERVAL = 1000; // 1 second (1Hz refresh rate)
+const POLL_INTERVAL = 5000;
 
 interface UseInfrastructureReturn {
   data: InfrastructureResponse | null;
@@ -16,11 +16,12 @@ export function useInfrastructure(): UseInfrastructureReturn {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Abort controller ref for cleanup
   const abortControllerRef = useRef<AbortController | null>(null);
+  const isFetchingRef = useRef(false);
 
-  // Fetch infrastructure metrics from API
   const fetchInfrastructure = useCallback(async (signal?: AbortSignal) => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     try {
       const apiKey = sessionStorage.getItem('apiKey') || '';
       const response = await fetch(`${API_BASE}/metrics/infrastructure`, {
@@ -41,38 +42,59 @@ export function useInfrastructure(): UseInfrastructureReturn {
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
-        return; // Ignore abort errors
+        return;
       }
       if (!signal?.aborted) {
         setError(err instanceof Error ? err.message : 'Failed to fetch infrastructure metrics');
       }
     } finally {
+      isFetchingRef.current = false;
       if (!signal?.aborted) {
         setLoading(false);
       }
     }
   }, []);
 
-  // Poll for infrastructure metrics
   useEffect(() => {
     const controller = new AbortController();
     abortControllerRef.current = controller;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
 
     const doFetch = () => fetchInfrastructure(controller.signal);
 
-    doFetch();
-    const interval = setInterval(doFetch, POLL_INTERVAL);
+    const startPolling = () => {
+      doFetch();
+      intervalId = setInterval(doFetch, POLL_INTERVAL);
+    };
+
+    const stopPolling = () => {
+      if (intervalId !== null) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopPolling();
+      } else {
+        startPolling();
+      }
+    };
+
+    startPolling();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       controller.abort();
-      clearInterval(interval);
+      stopPolling();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [fetchInfrastructure]);
 
-  // Manual refresh function
   const refresh = useCallback(() => {
-    // Cancel any in-flight request before starting a new one
     abortControllerRef.current?.abort();
+    isFetchingRef.current = false;
     const controller = new AbortController();
     abortControllerRef.current = controller;
     fetchInfrastructure(controller.signal);

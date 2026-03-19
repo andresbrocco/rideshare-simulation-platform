@@ -16,8 +16,11 @@ interface UsePerformanceControllerReturn {
 export function usePerformanceController(): UsePerformanceControllerReturn {
   const [status, setStatus] = useState<PerformanceControllerStatus | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const isFetchingRef = useRef(false);
 
   const fetchStatus = useCallback(async (signal?: AbortSignal) => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     try {
       const apiKey = sessionStorage.getItem('apiKey') || '';
       const response = await fetch(`${API_BASE}/controller/status`, {
@@ -38,21 +41,45 @@ export function usePerformanceController(): UsePerformanceControllerReturn {
       if (!signal?.aborted) {
         setStatus(null);
       }
+    } finally {
+      isFetchingRef.current = false;
     }
   }, []);
 
   useEffect(() => {
     const controller = new AbortController();
     abortControllerRef.current = controller;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
 
     const doFetch = () => fetchStatus(controller.signal);
 
-    doFetch();
-    const interval = setInterval(doFetch, POLL_INTERVAL);
+    const startPolling = () => {
+      doFetch();
+      intervalId = setInterval(doFetch, POLL_INTERVAL);
+    };
+
+    const stopPolling = () => {
+      if (intervalId !== null) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopPolling();
+      } else {
+        startPolling();
+      }
+    };
+
+    startPolling();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       controller.abort();
-      clearInterval(interval);
+      stopPolling();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [fetchStatus]);
 
