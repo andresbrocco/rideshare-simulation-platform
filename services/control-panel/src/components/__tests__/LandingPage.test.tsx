@@ -138,7 +138,7 @@ describe('LandingPage', () => {
     renderLandingPage({ serviceHealth: ALL_SERVICES_UP });
 
     const expectedServices = [
-      { name: 'Airflow', url: 'https://airflow.ridesharing.portfolio.andresbrocco.com/login' },
+      { name: 'Airflow', url: 'https://airflow.ridesharing.portfolio.andresbrocco.com/' },
       { name: 'Grafana', url: 'https://grafana.ridesharing.portfolio.andresbrocco.com' },
     ];
 
