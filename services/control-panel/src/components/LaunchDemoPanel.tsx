@@ -6,6 +6,7 @@ import {
   LambdaServiceError,
 } from '../services/lambda';
 import type { StatusResponse } from '../services/lambda';
+import { getSessionEmail } from '../utils/auth';
 import styles from './LaunchDemoPanel.module.css';
 
 interface LaunchDemoPanelProps {
@@ -206,7 +207,7 @@ export default function LaunchDemoPanel({ apiKey, onApiReady }: LaunchDemoPanelP
   const handleLaunch = async () => {
     setLaunching(true);
     try {
-      const result = await triggerDeploy(apiKey);
+      const result = await triggerDeploy(apiKey, 'duckdb', getSessionEmail() ?? undefined);
       if (!mountedRef.current) return;
 
       if (!result.triggered) {

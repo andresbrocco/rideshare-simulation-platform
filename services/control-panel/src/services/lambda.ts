@@ -118,13 +118,16 @@ export async function validateApiKey(apiKey: string): Promise<ValidateResponse> 
 
 export async function triggerDeploy(
   apiKey: string,
-  dbtRunner: string = 'duckdb'
+  dbtRunner: string = 'duckdb',
+  email?: string
 ): Promise<DeployResponse> {
-  return callLambda(
-    { action: 'deploy', api_key: apiKey, dbt_runner: dbtRunner },
-    isDeployResponse,
-    'Deployment service'
-  );
+  const payload: Record<string, string> = {
+    action: 'deploy',
+    api_key: apiKey,
+    dbt_runner: dbtRunner,
+  };
+  if (email) payload.email = email;
+  return callLambda(payload, isDeployResponse, 'Deployment service');
 }
 
 export async function checkDeployStatus(apiKey: string): Promise<StatusResponse> {
@@ -218,20 +221,22 @@ export async function activateSession(apiKey: string): Promise<SessionAdjustResp
   );
 }
 
-export async function extendSession(apiKey: string): Promise<SessionAdjustResponse> {
-  return callLambda(
-    { action: 'extend-session', api_key: apiKey },
-    isSessionAdjustResponse,
-    'Session extend service'
-  );
+export async function extendSession(
+  apiKey: string,
+  email?: string
+): Promise<SessionAdjustResponse> {
+  const payload: Record<string, string> = { action: 'extend-session', api_key: apiKey };
+  if (email) payload.email = email;
+  return callLambda(payload, isSessionAdjustResponse, 'Session extend service');
 }
 
-export async function shrinkSession(apiKey: string): Promise<SessionAdjustResponse> {
-  return callLambda(
-    { action: 'shrink-session', api_key: apiKey },
-    isSessionAdjustResponse,
-    'Session shrink service'
-  );
+export async function shrinkSession(
+  apiKey: string,
+  email?: string
+): Promise<SessionAdjustResponse> {
+  const payload: Record<string, string> = { action: 'shrink-session', api_key: apiKey };
+  if (email) payload.email = email;
+  return callLambda(payload, isSessionAdjustResponse, 'Session shrink service');
 }
 
 export interface ProvisionVisitorResponse {

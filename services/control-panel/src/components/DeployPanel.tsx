@@ -19,6 +19,7 @@ import {
   playErrorTone,
 } from '../hooks/useDeployNotification';
 import { showToast } from '../lib/toast';
+import { getSessionEmail } from '../utils/auth';
 import styles from './DeployPanel.module.css';
 
 interface DeployPanelProps {
@@ -651,7 +652,7 @@ export default function DeployPanel({
 
     setLaunching(true);
     try {
-      const result = await triggerDeploy(apiKey, dbtRunner);
+      const result = await triggerDeploy(apiKey, dbtRunner, getSessionEmail() ?? undefined);
       if (!mountedRef.current) return;
 
       if (!result.triggered) {
@@ -697,7 +698,7 @@ export default function DeployPanel({
     setExtending(true);
     setActionError(null);
     try {
-      const data = await extendSession(apiKey);
+      const data = await extendSession(apiKey, getSessionEmail() ?? undefined);
       setDeadline(data.deadline);
       setRemainingSeconds(data.remaining_seconds);
     } catch (e) {
@@ -716,7 +717,7 @@ export default function DeployPanel({
     setShrinking(true);
     setActionError(null);
     try {
-      const data = await shrinkSession(apiKey);
+      const data = await shrinkSession(apiKey, getSessionEmail() ?? undefined);
       setDeadline(data.deadline);
       setRemainingSeconds(data.remaining_seconds);
     } catch (e) {

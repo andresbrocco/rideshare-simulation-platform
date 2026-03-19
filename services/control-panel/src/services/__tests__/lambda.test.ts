@@ -127,6 +127,39 @@ describe('Lambda Service', () => {
       );
     });
 
+    it('includes email in payload when provided', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ triggered: true }),
+      });
+
+      await triggerDeploy('admin-key', 'duckdb', 'user@example.com');
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://lambda.example.com',
+        expect.objectContaining({
+          body: JSON.stringify({
+            action: 'deploy',
+            api_key: 'admin-key',
+            dbt_runner: 'duckdb',
+            email: 'user@example.com',
+          }),
+        })
+      );
+    });
+
+    it('omits email from payload when not provided', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ triggered: true }),
+      });
+
+      await triggerDeploy('admin-key');
+
+      const callBody = JSON.parse((global.fetch as Mock).mock.calls[0][1].body as string);
+      expect(callBody).not.toHaveProperty('email');
+    });
+
     it('throws NETWORK_ERROR for fetch failures', async () => {
       (global.fetch as Mock).mockRejectedValueOnce(new Error('Network error'));
 
@@ -343,6 +376,38 @@ describe('Lambda Service', () => {
       );
     });
 
+    it('includes email in payload when provided', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, remaining_seconds: 1500, deadline: 1700001500 }),
+      });
+
+      await extendSession('admin-key', 'user@example.com');
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://lambda.example.com',
+        expect.objectContaining({
+          body: JSON.stringify({
+            action: 'extend-session',
+            api_key: 'admin-key',
+            email: 'user@example.com',
+          }),
+        })
+      );
+    });
+
+    it('omits email from payload when not provided', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, remaining_seconds: 1500, deadline: 1700001500 }),
+      });
+
+      await extendSession('admin-key');
+
+      const callBody = JSON.parse((global.fetch as Mock).mock.calls[0][1].body as string);
+      expect(callBody).not.toHaveProperty('email');
+    });
+
     it('throws NETWORK_ERROR for fetch failures', async () => {
       (global.fetch as Mock).mockRejectedValueOnce(new Error('Network error'));
 
@@ -486,6 +551,38 @@ describe('Lambda Service', () => {
           body: JSON.stringify({ action: 'shrink-session', api_key: 'admin-key' }),
         })
       );
+    });
+
+    it('includes email in payload when provided', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, remaining_seconds: 300, deadline: 1700000300 }),
+      });
+
+      await shrinkSession('admin-key', 'user@example.com');
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://lambda.example.com',
+        expect.objectContaining({
+          body: JSON.stringify({
+            action: 'shrink-session',
+            api_key: 'admin-key',
+            email: 'user@example.com',
+          }),
+        })
+      );
+    });
+
+    it('omits email from payload when not provided', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, remaining_seconds: 300, deadline: 1700000300 }),
+      });
+
+      await shrinkSession('admin-key');
+
+      const callBody = JSON.parse((global.fetch as Mock).mock.calls[0][1].body as string);
+      expect(callBody).not.toHaveProperty('email');
     });
 
     it('throws NETWORK_ERROR for fetch failures', async () => {

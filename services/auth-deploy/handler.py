@@ -2799,8 +2799,6 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
             "service-health": handle_service_health,
             "teardown-status": handle_teardown_status,
             "get-deploy-progress": handle_get_deploy_progress,
-            "extend-session": handle_extend_session,
-            "shrink-session": handle_shrink_session,
             "get-login-history": handle_get_login_history,
         }
         auth_handlers: dict[str, Any] = {
@@ -2817,6 +2815,18 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
             status_code, response_body = no_auth_handlers[action]()
             _log_response(action, status_code, response_body)
             return response_body
+        if action == "extend-session":
+            status_code, response_body = handle_extend_session()
+            if status_code == 200:
+                _record_login_event(event.get("email", ""), "extend-session", "visitor")
+            _log_response(action, status_code, response_body)
+            return response_body
+        if action == "shrink-session":
+            status_code, response_body = handle_shrink_session()
+            if status_code == 200:
+                _record_login_event(event.get("email", ""), "shrink-session", "visitor")
+            _log_response(action, status_code, response_body)
+            return response_body
         if action == "deploy":
             dbt_runner = event.get("dbt_runner", "duckdb")
             if dbt_runner not in ("duckdb", "glue"):
@@ -2824,6 +2834,8 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 _log_response(action, 400, response_body)
                 return response_body
             status_code, response_body = handle_deploy(api_key, dbt_runner)
+            if status_code == 200:
+                _record_login_event(event.get("email", ""), "deploy", "visitor")
             _log_response(action, status_code, response_body)
             return response_body
         if action == "report-deploy-progress":
@@ -2944,8 +2956,6 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         "service-health": handle_service_health,
         "teardown-status": handle_teardown_status,
         "get-deploy-progress": handle_get_deploy_progress,
-        "extend-session": handle_extend_session,
-        "shrink-session": handle_shrink_session,
         "get-login-history": handle_get_login_history,
     }
     auth_handlers: dict[str, Any] = {
@@ -2960,6 +2970,14 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
 
     if action in no_auth_handlers:
         status_code, response_body = no_auth_handlers[action]()
+    elif action == "extend-session":
+        status_code, response_body = handle_extend_session()
+        if status_code == 200:
+            _record_login_event(body.get("email", ""), "extend-session", "visitor")
+    elif action == "shrink-session":
+        status_code, response_body = handle_shrink_session()
+        if status_code == 200:
+            _record_login_event(body.get("email", ""), "shrink-session", "visitor")
     elif action == "deploy":
         dbt_runner = body.get("dbt_runner", "duckdb")
         if dbt_runner not in ("duckdb", "glue"):
@@ -2969,6 +2987,8 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "body": json.dumps({"error": "Invalid dbt_runner: must be 'duckdb' or 'glue'"}),
             }
         status_code, response_body = handle_deploy(api_key, dbt_runner)
+        if status_code == 200:
+            _record_login_event(body.get("email", ""), "deploy", "visitor")
     elif action == "report-deploy-progress":
         service = body.get("service", "")
         ready = body.get("ready", True)

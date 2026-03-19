@@ -6,6 +6,7 @@ import {
   LambdaServiceError,
 } from '../services/lambda';
 import type { SessionStatusResponse } from '../services/lambda';
+import { getSessionEmail } from '../utils/auth';
 import styles from './SessionTimer.module.css';
 
 const POLL_INTERVAL_MS = 30_000;
@@ -131,7 +132,7 @@ export default function SessionTimer({ apiKey }: SessionTimerProps) {
     setExtending(true);
     setActionError(null);
     try {
-      const data = await extendSession(apiKey);
+      const data = await extendSession(apiKey, getSessionEmail() ?? undefined);
       setDeadline(data.deadline);
       setRemainingSeconds(data.remaining_seconds);
       setActive(true);
@@ -148,7 +149,7 @@ export default function SessionTimer({ apiKey }: SessionTimerProps) {
     setShrinking(true);
     setActionError(null);
     try {
-      const data = await shrinkSession(apiKey);
+      const data = await shrinkSession(apiKey, getSessionEmail() ?? undefined);
       setDeadline(data.deadline);
       setRemainingSeconds(data.remaining_seconds);
     } catch (e) {
