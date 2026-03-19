@@ -43,15 +43,3 @@ models:
         +tags:
           - gold
           - aggregates
-
-seeds:
-  rideshare:
-    test_data:
-      seed_gps_outlier_test:
-        +column_types:
-          trip_id: string
-          trip_state: string
-      seed_impossible_speed_test:
-        +column_types:
-          trip_id: string
-          trip_state: string
