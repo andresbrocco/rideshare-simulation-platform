@@ -1,0 +1,104 @@
+name: Deploy Lambda RDS Reset
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'services/rds-reset/**'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rideshare-github-actions
+          aws-region: us-east-1
+
+      - name: Create deployment package
+        working-directory: services/rds-reset
+        run: |
+          # Dependencies are vendored in the repo — no pip install needed.
+          # Zip the directory excluding build artifacts, caches, bytecode,
+          # and dist-info metadata.
+          zip -r /tmp/lambda.zip . \
+            -x "requirements.txt" \
+            -x "build.sh" \
+            -x "__pycache__/*" \
+            -x "*/__pycache__/*" \
+            -x ".mypy_cache/*" \
+            -x "*.pyc" \
+            -x "*.dist-info/*"
+
+      - name: Verify package contents
+        run: |
+          echo "=== Package contents ==="
+          unzip -l /tmp/lambda.zip
+
+          verify_present() {
+            local file="$1"
+            if unzip -l /tmp/lambda.zip | grep -q "  ${file}$"; then
+              echo "OK: ${file}"
+            else
+              echo "MISSING: ${file}"
+              exit 1
+            fi
+          }
+
+          verify_absent() {
+            local pattern="$1"
+            if unzip -l /tmp/lambda.zip | awk '{print $NF}' | grep -qE "${pattern}"; then
+              echo "UNEXPECTED match for pattern '${pattern}':"
+              unzip -l /tmp/lambda.zip | awk '{print $NF}' | grep -E "${pattern}"
+              exit 1
+            else
+              echo "OK (absent): ${pattern}"
+            fi
+          }
+
+          # Required files
+          verify_present handler.py
+          verify_present six.py
+          verify_present pg8000/__init__.py
+          verify_present asn1crypto/__init__.py
+          verify_present scramp/__init__.py
+          verify_present dateutil/__init__.py
+
+          # Excluded files
+          verify_absent "requirements\.txt"
+          verify_absent "build\.sh"
+          verify_absent "__pycache__"
+          verify_absent "\.pyc$"
+          verify_absent "\.dist-info"
+
+          echo "=== All verification checks passed ==="
+
+      # Note: update-function-code causes Terraform to detect drift on next plan.
+      # This is acceptable — Terraform uses the same source directory, so the next
+      # terraform apply is a no-op if no further code changes occurred.
+      - name: Deploy function code
+        run: |
+          aws lambda update-function-code \
+            --function-name rideshare-rds-reset \
+            --zip-file fileb:///tmp/lambda.zip
+
+      - name: Wait for stabilization
+        run: |
+          aws lambda wait function-updated \
+            --function-name rideshare-rds-reset
+
+      - name: Verify deployment
+        run: |
+          aws lambda get-function \
+            --function-name rideshare-rds-reset \
+            --query '{State: Configuration.State, LastModified: Configuration.LastModified, CodeSha256: Configuration.CodeSha256}' \
+            --output table
