@@ -15,12 +15,14 @@ repos:
     hooks:
       - id: black
         language_version: python3.13
+        exclude: '^services/rds-reset/(?!handler\.py$)'
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.8.4
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
+        exclude: '^services/rds-reset/(?!handler\.py$)'
 
   # Terraform formatting + linting
   - repo: https://github.com/antonbabenko/pre-commit-terraform

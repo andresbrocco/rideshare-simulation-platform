@@ -114,6 +114,7 @@ NO_AUTH_ACTIONS = {
     "visitor-login",
     "extend-session",
     "shrink-session",
+    "get-login-history",
 }
 
 SENSITIVE_FIELDS = {"api_key", "password"}
@@ -250,6 +251,238 @@ def _store_visitor_dynamodb(
 
     client = _get_dynamodb_client()
     client.put_item(TableName=table_name, Item=item)
+
+
+def _record_login_event(email: str, service: str, role: str) -> None:
+    """Record a login event to the visitor-logins DynamoDB table.
+
+    Non-fatal: failures are logged but do not affect the calling operation.
+    """
+    try:
+        table_name = os.environ.get("LOGIN_TABLE_NAME", "rideshare-visitor-logins")
+        client = _get_dynamodb_client()
+        now = datetime.now(timezone.utc).isoformat()
+        client.put_item(
+            TableName=table_name,
+            Item={
+                "email": {"S": email},
+                "sk": {"S": f"{now}#{service}"},
+                "service": {"S": service},
+                "role": {"S": role},
+                "timestamp": {"S": now},
+            },
+        )
+    except Exception as exc:
+        print(f"Failed to record login event (non-fatal): {exc}")
+
+
+_POLL_INTERVAL_SECONDS = 300  # 5 minutes
+
+
+def _poll_service_logins() -> None:
+    """Poll Airflow and Grafana APIs for login events, rate-limited to once per 5 min.
+
+    Uses a sentinel item (email="#system", sk="last-poll") in the logins table
+    to track when the last poll occurred. Non-fatal: all errors are caught and logged.
+    """
+    try:
+        table_name = os.environ.get("LOGIN_TABLE_NAME", "rideshare-visitor-logins")
+        client = _get_dynamodb_client()
+
+        # Check rate-limit sentinel
+        try:
+            sentinel = client.get_item(
+                TableName=table_name,
+                Key={"email": {"S": "#system"}, "sk": {"S": "last-poll"}},
+            ).get("Item")
+            if sentinel:
+                last_poll = sentinel.get("timestamp", {}).get("S", "")
+                if last_poll:
+                    last_dt = datetime.fromisoformat(last_poll)
+                    elapsed = (datetime.now(timezone.utc) - last_dt).total_seconds()
+                    if elapsed < _POLL_INTERVAL_SECONDS:
+                        return
+        except Exception as exc:
+            print(f"Sentinel check failed (proceeding with poll): {exc}")
+
+        _poll_airflow_logins(client, table_name)
+        _poll_grafana_logins(client, table_name)
+
+        # Update sentinel
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            client.put_item(
+                TableName=table_name,
+                Item={
+                    "email": {"S": "#system"},
+                    "sk": {"S": "last-poll"},
+                    "timestamp": {"S": now},
+                },
+            )
+        except Exception as exc:
+            print(f"Failed to update poll sentinel (non-fatal): {exc}")
+
+    except Exception as exc:
+        print(f"Service login polling failed (non-fatal): {exc}")
+
+
+def _poll_airflow_logins(client: Any, table_name: str) -> None:
+    """Poll Airflow API for user login timestamps."""
+    try:
+        airflow_url = os.environ.get("AIRFLOW_URL", "http://localhost:8082")
+        admin_user = os.environ.get("AIRFLOW_ADMIN_USER", "admin")
+        admin_password = os.environ.get("AIRFLOW_ADMIN_PASSWORD")
+        if not admin_password:
+            try:
+                secret_value = get_secret(SECRET_DATA_PIPELINE)
+                data = json.loads(secret_value)
+                admin_password = data.get("AIRFLOW_ADMIN_PASSWORD", "admin")
+            except Exception:
+                admin_password = "admin"
+
+        credentials = base64.b64encode(f"{admin_user}:{admin_password}".encode()).decode()
+        req = urllib.request.Request(
+            f"{airflow_url}/api/v1/users",
+            headers={
+                "Authorization": f"Basic {credentials}",
+                "Accept": "application/json",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
+            data = json.loads(resp.read().decode())
+
+        for user in data.get("users", []):
+            user_email = user.get("email", "")
+            last_login = user.get("last_login")
+            if not user_email or not last_login:
+                continue
+            # Check if we already have a newer or equal event for this user+airflow
+            _record_if_newer(client, table_name, user_email, "airflow", "viewer", last_login)
+
+    except Exception as exc:
+        print(f"Airflow login polling failed (non-fatal): {exc}")
+
+
+def _poll_grafana_logins(client: Any, table_name: str) -> None:
+    """Poll Grafana API for user login timestamps."""
+    try:
+        grafana_url = os.environ.get("GRAFANA_URL", "http://localhost:3001")
+        admin_password = os.environ.get("GRAFANA_ADMIN_PASSWORD")
+        if not admin_password:
+            try:
+                secret_value = get_secret(SECRET_GRAFANA_ADMIN_PASSWORD)
+                data = json.loads(secret_value)
+                admin_password = data.get("ADMIN_PASSWORD", "admin")
+            except Exception:
+                admin_password = "admin"
+
+        credentials = base64.b64encode(f"admin:{admin_password}".encode()).decode()
+        req = urllib.request.Request(
+            f"{grafana_url}/api/org/users?perpage=500",
+            headers={
+                "Authorization": f"Basic {credentials}",
+                "Accept": "application/json",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
+            data = json.loads(resp.read().decode())
+
+        for user in data if isinstance(data, list) else []:
+            user_email = user.get("email", "")
+            last_seen = user.get("lastSeenAt", "")
+            if not user_email or not last_seen or last_seen < "2001":
+                continue
+            _record_if_newer(client, table_name, user_email, "grafana", "viewer", last_seen)
+
+    except Exception as exc:
+        print(f"Grafana login polling failed (non-fatal): {exc}")
+
+
+def _record_if_newer(
+    client: Any,
+    table_name: str,
+    email: str,
+    service: str,
+    role: str,
+    login_time: str,
+) -> None:
+    """Record a login event only if no existing event is newer for this user+service."""
+    try:
+        # Query for latest event for this email with sk starting with the service
+        # We look for all events for this user, then filter by service
+        result = client.query(
+            TableName=table_name,
+            KeyConditionExpression="email = :email",
+            FilterExpression="service = :service",
+            ExpressionAttributeValues={
+                ":email": {"S": email},
+                ":service": {"S": service},
+            },
+            ScanIndexForward=False,
+            Limit=1,
+        )
+        items = result.get("Items", [])
+        if items:
+            existing_ts = items[0].get("timestamp", {}).get("S", "")
+            if existing_ts >= login_time:
+                return  # Already have a newer or equal record
+
+        client.put_item(
+            TableName=table_name,
+            Item={
+                "email": {"S": email},
+                "sk": {"S": f"{login_time}#{service}"},
+                "service": {"S": service},
+                "role": {"S": role},
+                "timestamp": {"S": login_time},
+            },
+        )
+    except Exception as exc:
+        print(f"Failed to record {service} login for {email} (non-fatal): {exc}")
+
+
+def handle_get_login_history() -> tuple[int, dict[str, Any]]:
+    """Handle get-login-history action.
+
+    Returns all login events from the visitor-logins DynamoDB table,
+    sorted by timestamp descending, limited to 500 entries.
+    Triggers a rate-limited poll of Airflow/Grafana before returning.
+    """
+    print("Action: get-login-history")
+
+    _poll_service_logins()
+
+    table_name = os.environ.get("LOGIN_TABLE_NAME", "rideshare-visitor-logins")
+    client = _get_dynamodb_client()
+
+    try:
+        result = client.scan(
+            TableName=table_name,
+            FilterExpression="email <> :system",
+            ExpressionAttributeValues={":system": {"S": "#system"}},
+        )
+        items = result.get("Items", [])
+
+        logins = []
+        for item in items:
+            logins.append(
+                {
+                    "email": item.get("email", {}).get("S", ""),
+                    "service": item.get("service", {}).get("S", ""),
+                    "role": item.get("role", {}).get("S", ""),
+                    "timestamp": item.get("timestamp", {}).get("S", ""),
+                }
+            )
+
+        logins.sort(key=lambda x: x["timestamp"], reverse=True)
+        logins = logins[:500]
+
+        print(f"Action get-login-history completed: 200 ({len(logins)} events)")
+        return 200, {"logins": logins}
+
+    except ClientError as exc:
+        print(f"Action get-login-history completed: 500 (DynamoDB error: {exc})")
+        return 500, {"error": "Failed to retrieve login history"}
 
 
 def _get_kms_client() -> boto3.client:
@@ -888,6 +1121,7 @@ def handle_visitor_login(email: str, password: str) -> tuple[int, dict[str, Any]
         admin_password = admin_secret.get("PASSWORD", "")
         if email == admin_email and hmac.compare_digest(password, admin_password):
             api_key = get_secret(SECRET_API_KEY)
+            _record_login_event(email, "control-panel", "admin")
             print("Action visitor-login completed: 200 (admin)")
             return 200, {"api_key": api_key, "role": "admin", "email": email}
     except Exception as exc:
@@ -921,6 +1155,7 @@ def handle_visitor_login(email: str, password: str) -> tuple[int, dict[str, Any]
         print(f"Action visitor-login completed: 500 (secret retrieval error: {exc})")
         return 500, {"error": "Internal error retrieving credentials"}
 
+    _record_login_event(email, "control-panel", "viewer")
     print("Action visitor-login completed: 200")
     return 200, {"api_key": api_key, "role": "viewer", "email": email}
 
@@ -2566,6 +2801,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
             "get-deploy-progress": handle_get_deploy_progress,
             "extend-session": handle_extend_session,
             "shrink-session": handle_shrink_session,
+            "get-login-history": handle_get_login_history,
         }
         auth_handlers: dict[str, Any] = {
             "validate": handle_validate,
@@ -2657,6 +2893,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "visitor-login",
                 "reprovision-visitors",
                 "start-simulation",
+                "get-login-history",
             ],
         }
 
@@ -2709,6 +2946,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         "get-deploy-progress": handle_get_deploy_progress,
         "extend-session": handle_extend_session,
         "shrink-session": handle_shrink_session,
+        "get-login-history": handle_get_login_history,
     }
     auth_handlers: dict[str, Any] = {
         "validate": handle_validate,
@@ -2787,6 +3025,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "visitor-login",
                 "reprovision-visitors",
                 "start-simulation",
+                "get-login-history",
             ],
         }
 

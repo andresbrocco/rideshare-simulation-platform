@@ -54,17 +54,10 @@ datasources:
       serviceMap:
         datasourceUid: prometheus
 
-  # Airflow metadata DB — queries ab_user.last_login for visitor activity dashboard
-  - name: Airflow Postgres
-    uid: airflow-postgres
-    type: postgres
+  # Lambda — Infinity JSON datasource for visitor login history
+  - name: Lambda
+    uid: lambda
+    type: yesoreyeram-infinity-datasource
     access: proxy
-    url: postgres-airflow:5432
-    database: airflow
     isDefault: false
     editable: false
-    jsonData:
-      sslmode: disable
-    secureJsonData:
-      password: ${POSTGRES_AIRFLOW_PASSWORD}
-    user: ${POSTGRES_AIRFLOW_USER}

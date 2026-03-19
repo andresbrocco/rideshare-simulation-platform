@@ -971,7 +971,7 @@ services:
       GF_PATHS_PROVISIONING: /etc/grafana/provisioning
       GF_SERVER_ROOT_URL: http://localhost:3001
       GF_AUTH_ANONYMOUS_ENABLED: "false"
-      GF_INSTALL_PLUGINS: trino-datasource
+      GF_INSTALL_PLUGINS: trino-datasource,yesoreyeram-infinity-datasource
       GF_AUDIT_ENABLED: "true"
     entrypoint:
       - /bin/sh

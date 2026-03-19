@@ -95,10 +95,10 @@ variable "scheduler_config" {
   default = null
 }
 
-variable "dynamodb_table_arn" {
-  description = "ARN of DynamoDB table the function needs read/write access to. Leave empty to skip policy."
-  type        = string
-  default     = ""
+variable "dynamodb_table_arns" {
+  description = "ARNs of DynamoDB tables the function needs read/write access to."
+  type        = list(string)
+  default     = []
 }
 
 variable "enable_dynamodb_policy" {

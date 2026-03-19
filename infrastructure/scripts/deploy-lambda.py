@@ -34,6 +34,7 @@ from botocore.exceptions import ClientError
 if TYPE_CHECKING:
     from mypy_boto3_lambda import LambdaClient
     from mypy_boto3_lambda.type_defs import EnvironmentTypeDef
+    from mypy_boto3_dynamodb import DynamoDBClient
     from mypy_boto3_s3 import S3Client
 
 logging.basicConfig(
@@ -85,7 +86,7 @@ FUNCTIONS: list[FunctionConfig] = [
 AI_CHAT_BUCKET = "rideshare-ai-chat"
 
 
-def create_clients() -> tuple[LambdaClient, S3Client]:
+def create_clients() -> tuple[LambdaClient, S3Client, DynamoDBClient]:
     endpoint_url = os.environ.get("AWS_ENDPOINT_URL")
     region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
     if endpoint_url:
@@ -103,7 +104,12 @@ def create_clients() -> tuple[LambdaClient, S3Client]:
         region_name=region,
         endpoint_url=endpoint_url,
     )
-    return lambda_client, s3_client
+    dynamodb_client: DynamoDBClient = boto3.client(
+        "dynamodb",
+        region_name=region,
+        endpoint_url=endpoint_url,
+    )
+    return lambda_client, s3_client, dynamodb_client
 
 
 def _install_requirements(requirements_files: list[str], target_dir: str) -> None:
@@ -205,6 +211,27 @@ def ensure_s3_bucket(s3_client: S3Client, bucket_name: str) -> None:
             raise
 
 
+def ensure_dynamodb_table(
+    dynamodb_client: DynamoDBClient,
+    table_name: str,
+    key_schema: list[dict[str, str]],
+    attribute_definitions: list[dict[str, str]],
+) -> None:
+    try:
+        dynamodb_client.create_table(
+            TableName=table_name,
+            KeySchema=key_schema,
+            AttributeDefinitions=attribute_definitions,
+            BillingMode="PAY_PER_REQUEST",
+        )
+        logger.info("[CREATED] DynamoDB table: %s", table_name)
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "ResourceInUseException":
+            logger.info("[EXISTS] DynamoDB table: %s", table_name)
+        else:
+            raise
+
+
 def deploy_function(
     lambda_client: LambdaClient,
     config: FunctionConfig,
@@ -254,10 +281,30 @@ def main() -> int:
     logger.info("Lambda Deploy Script")
     logger.info("=" * 60)
 
-    lambda_client, s3_client = create_clients()
+    lambda_client, s3_client, dynamodb_client = create_clients()
 
     # Create S3 buckets needed by Lambda functions
     ensure_s3_bucket(s3_client, AI_CHAT_BUCKET)
+
+    # Create DynamoDB tables needed by Lambda functions
+    ensure_dynamodb_table(
+        dynamodb_client,
+        "rideshare-visitors",
+        [{"AttributeName": "email", "KeyType": "HASH"}],
+        [{"AttributeName": "email", "AttributeType": "S"}],
+    )
+    ensure_dynamodb_table(
+        dynamodb_client,
+        "rideshare-visitor-logins",
+        [
+            {"AttributeName": "email", "KeyType": "HASH"},
+            {"AttributeName": "sk", "KeyType": "RANGE"},
+        ],
+        [
+            {"AttributeName": "email", "AttributeType": "S"},
+            {"AttributeName": "sk", "AttributeType": "S"},
+        ],
+    )
 
     # Deploy each function
     for config in FUNCTIONS:

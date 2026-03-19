@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "Admin-only unified visitor activity view. Aggregates per-service access timestamps across Airflow, Grafana, Simulation API, Trino, and MinIO. Shows most recent login/request per visitor for each platform service.",
+  "description": "Persistent visitor login tracking backed by DynamoDB. Shows who logged in, when, to which service, and how many times — data survives platform resets.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -24,24 +24,11 @@
   "liveNow": false,
   "panels": [
     {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 0
-      },
-      "id": null,
-      "panels": [],
-      "title": "Service Login History",
-      "type": "row"
-    },
-    {
       "datasource": {
-        "type": "postgres",
-        "uid": "airflow-postgres"
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "lambda"
       },
-      "description": "Airflow login records from the ab_user table. Shows each user's login count and most recent login timestamp. Requires the airflow-postgres datasource (provisioned in ticket 004).",
+      "description": "All visitor login events from DynamoDB, sorted by most recent first. Includes control-panel direct logins and polled Airflow/Grafana login timestamps.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -65,13 +52,50 @@
             ]
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "timestamp"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 220
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "service"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 150
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "role"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 12,
+        "w": 24,
         "x": 0,
-        "y": 1
+        "y": 0
       },
       "id": null,
       "options": {
@@ -82,254 +106,339 @@
           "reducer": ["sum"],
           "show": false
         },
-        "showHeader": true
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "timestamp"
+          }
+        ]
       },
-      "pluginVersion": "10.0.0",
       "targets": [
         {
+          "columns": [
+            { "selector": "timestamp", "text": "timestamp", "type": "string" },
+            { "selector": "email", "text": "email", "type": "string" },
+            { "selector": "service", "text": "service", "type": "string" },
+            { "selector": "role", "text": "role", "type": "string" }
+          ],
           "datasource": {
-            "type": "postgres",
-            "uid": "airflow-postgres"
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "lambda"
           },
+          "filters": [],
           "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT username, last_login, login_count FROM ab_user ORDER BY last_login DESC",
-          "refId": "A"
+          "global_query_id": "",
+          "refId": "A",
+          "root_selector": "logins",
+          "source": "url",
+          "type": "json",
+          "url": "http://localstack:4566/_aws/lambda/auth-deploy/url",
+          "url_options": {
+            "body_content_type": "application/json",
+            "body_type": "raw-body",
+            "data": "{\"action\":\"get-login-history\"}",
+            "method": "POST"
+          }
         }
       ],
-      "title": "Airflow Last Login",
+      "title": "Login History",
       "type": "table"
     },
     {
       "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "lambda"
       },
-      "description": "Grafana audit log events from Loki. Shows user login and dashboard access events captured via GF_AUDIT_ENABLED=true (ticket 001). Newest entries at top.",
+      "description": "Login count breakdown by service (control-panel, airflow, grafana).",
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 1
+        "w": 8,
+        "x": 0,
+        "y": 12
       },
       "id": null,
       "options": {
-        "dedupStrategy": "none",
-        "enableLogDetails": true,
-        "prettifyLogMessage": false,
-        "showCommonLabels": false,
-        "showLabels": false,
-        "showTime": true,
-        "sortOrder": "Descending",
-        "wrapLogMessage": false
+        "displayLabels": ["name", "value"],
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
       },
       "targets": [
         {
+          "columns": [
+            { "selector": "timestamp", "text": "timestamp", "type": "string" },
+            { "selector": "email", "text": "email", "type": "string" },
+            { "selector": "service", "text": "service", "type": "string" },
+            { "selector": "role", "text": "role", "type": "string" }
+          ],
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "lambda"
           },
-          "expr": "{container=\"rideshare-grafana\"} |= \"action=\" | json",
-          "queryType": "range",
-          "refId": "A"
+          "filters": [],
+          "format": "table",
+          "global_query_id": "",
+          "refId": "A",
+          "root_selector": "logins",
+          "source": "url",
+          "type": "json",
+          "url": "http://localstack:4566/_aws/lambda/auth-deploy/url",
+          "url_options": {
+            "body_content_type": "application/json",
+            "body_type": "raw-body",
+            "data": "{\"action\":\"get-login-history\"}",
+            "method": "POST"
+          }
         }
       ],
-      "title": "Grafana Last Login",
-      "type": "logs"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 9
-      },
-      "id": null,
-      "panels": [],
-      "title": "API & Query Access",
-      "type": "row"
+      "transformations": [
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "service": {
+                "aggregations": ["count"],
+                "operation": "groupby"
+              }
+            }
+          }
+        }
+      ],
+      "title": "Logins by Service",
+      "type": "piechart"
     },
     {
       "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "lambda"
       },
-      "description": "Simulation API HTTP request logs captured by RequestLoggerMiddleware (ticket 005). Shows method, path, status code, and client IP for each incoming request. Newest entries at top.",
+      "description": "Count of distinct visitor email addresses across all services.",
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 20
+              }
+            ]
+          }
+        },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 10
+        "w": 8,
+        "x": 8,
+        "y": 12
       },
       "id": null,
       "options": {
-        "dedupStrategy": "none",
-        "enableLogDetails": true,
-        "prettifyLogMessage": false,
-        "showCommonLabels": false,
-        "showLabels": false,
-        "showTime": true,
-        "sortOrder": "Descending",
-        "wrapLogMessage": false
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
       },
       "targets": [
         {
+          "columns": [
+            { "selector": "email", "text": "email", "type": "string" }
+          ],
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "lambda"
           },
-          "expr": "{container=\"rideshare-simulation\"} |= \"request_log\" | json",
-          "queryType": "range",
-          "refId": "A"
+          "filters": [],
+          "format": "table",
+          "global_query_id": "",
+          "refId": "A",
+          "root_selector": "logins",
+          "source": "url",
+          "type": "json",
+          "url": "http://localstack:4566/_aws/lambda/auth-deploy/url",
+          "url_options": {
+            "body_content_type": "application/json",
+            "body_type": "raw-body",
+            "data": "{\"action\":\"get-login-history\"}",
+            "method": "POST"
+          }
         }
       ],
-      "title": "Simulation API Last Request",
-      "type": "logs"
+      "transformations": [
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "email": {
+                "aggregations": ["distinctCount"],
+                "operation": "aggregate"
+              }
+            }
+          }
+        }
+      ],
+      "title": "Unique Visitors",
+      "type": "stat"
     },
     {
       "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "lambda"
       },
-      "description": "Trino query completion events from the event listener plugin (ticket 002). Shows QueryCompletedEvent entries including query text, user, and execution time. Newest entries at top.",
+      "description": "Login events over time, grouped by service. Each point represents a login event.",
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "points",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 8,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "always",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 10
+        "w": 8,
+        "x": 16,
+        "y": 12
       },
       "id": null,
       "options": {
-        "dedupStrategy": "none",
-        "enableLogDetails": true,
-        "prettifyLogMessage": false,
-        "showCommonLabels": false,
-        "showLabels": false,
-        "showTime": true,
-        "sortOrder": "Descending",
-        "wrapLogMessage": false
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
       },
       "targets": [
         {
+          "columns": [
+            { "selector": "timestamp", "text": "timestamp", "type": "timestamp" },
+            { "selector": "email", "text": "email", "type": "string" },
+            { "selector": "service", "text": "service", "type": "string" }
+          ],
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "lambda"
           },
-          "expr": "{container=\"rideshare-trino\"} |= \"QueryCompletedEvent\" | json",
-          "queryType": "range",
-          "refId": "A"
+          "filters": [],
+          "format": "table",
+          "global_query_id": "",
+          "refId": "A",
+          "root_selector": "logins",
+          "source": "url",
+          "type": "json",
+          "url": "http://localstack:4566/_aws/lambda/auth-deploy/url",
+          "url_options": {
+            "body_content_type": "application/json",
+            "body_type": "raw-body",
+            "data": "{\"action\":\"get-login-history\"}",
+            "method": "POST"
+          }
         }
       ],
-      "title": "Trino Last Query",
-      "type": "logs"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 18
-      },
-      "id": null,
-      "panels": [],
-      "title": "Storage & Cross-Service Activity",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "description": "MinIO audit log events from Loki. Captures S3-compatible object storage access (GET, PUT, DELETE) once MINIO_AUDIT_CONSOLE_ENABLE=on is set (ticket 003). Newest entries at top.",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 19
-      },
-      "id": null,
-      "options": {
-        "dedupStrategy": "none",
-        "enableLogDetails": true,
-        "prettifyLogMessage": false,
-        "showCommonLabels": false,
-        "showLabels": false,
-        "showTime": true,
-        "sortOrder": "Descending",
-        "wrapLogMessage": false
-      },
-      "targets": [
+      "transformations": [
         {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "expr": "{container=\"rideshare-minio\"} |= \"audit\" | json",
-          "queryType": "range",
-          "refId": "A"
+          "id": "prepareTimeSeries",
+          "options": {
+            "format": "many"
+          }
         }
       ],
-      "title": "MinIO Last Access",
-      "type": "logs"
-    },
-    {
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "description": "Combined activity stream from all monitored services (Grafana, Simulation API, Trino, MinIO). Provides a unified chronological view of all visitor actions across the platform. Newest entries at top.",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 19
-      },
-      "id": null,
-      "options": {
-        "dedupStrategy": "none",
-        "enableLogDetails": true,
-        "prettifyLogMessage": false,
-        "showCommonLabels": false,
-        "showLabels": true,
-        "showTime": true,
-        "sortOrder": "Descending",
-        "wrapLogMessage": false
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "expr": "{container=~\"rideshare-grafana|rideshare-simulation|rideshare-trino|rideshare-minio\"} | json",
-          "queryType": "range",
-          "refId": "A"
-        }
-      ],
-      "title": "Cross-Service Activity Stream",
-      "type": "logs"
+      "title": "Login Timeline",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",
@@ -339,7 +448,7 @@
     "list": []
   },
   "time": {
-    "from": "now-24h",
+    "from": "now-7d",
     "to": "now"
   },
   "timepicker": {},

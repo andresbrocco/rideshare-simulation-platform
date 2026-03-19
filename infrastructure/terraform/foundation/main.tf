@@ -172,6 +172,7 @@ module "lambda_auth_deploy" {
     GRAFANA_URL              = "https://grafana.${var.domain_name}"
     AIRFLOW_URL              = "https://airflow.${var.domain_name}"
     SIMULATION_API_URL       = "https://api.${var.domain_name}"
+    LOGIN_TABLE_NAME         = aws_dynamodb_table.visitor_logins.name
   }
 
   # Grant read access to API key, GitHub PAT, monitoring, and data pipeline secrets
@@ -204,7 +205,7 @@ module "lambda_auth_deploy" {
   cors_allowed_headers = ["Content-Type", "X-Requested-With"]
   cors_max_age         = 86400
 
-  dynamodb_table_arn     = aws_dynamodb_table.visitors.arn
+  dynamodb_table_arns    = [aws_dynamodb_table.visitors.arn, aws_dynamodb_table.visitor_logins.arn]
   enable_dynamodb_policy = true
   ses_identity_arn       = aws_ses_domain_identity.main.arn
   enable_ses_policy      = true
@@ -419,6 +420,37 @@ resource "aws_dynamodb_table" "visitors" {
   }
 
   tags = { Project = var.project_name, Component = "visitor-provisioning" }
+}
+
+# -----------------------------------------------------------------------------
+# DynamoDB — visitor login event tracking (persist across platform resets)
+# -----------------------------------------------------------------------------
+resource "aws_dynamodb_table" "visitor_logins" {
+  name         = "${var.project_name}-visitor-logins"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "email"
+  range_key    = "sk"
+
+  attribute {
+    name = "email"
+    type = "S"
+  }
+
+  attribute {
+    name = "sk"
+    type = "S"
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  server_side_encryption {
+    enabled     = true
+    kms_key_arn = aws_kms_key.visitors.arn
+  }
+
+  tags = { Project = var.project_name, Component = "visitor-login-tracking" }
 }
 
 # -----------------------------------------------------------------------------

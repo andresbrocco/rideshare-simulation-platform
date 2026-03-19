@@ -126,9 +126,10 @@ resource "aws_iam_role_policy" "lambda_dynamodb" {
           "dynamodb:PutItem",
           "dynamodb:GetItem",
           "dynamodb:Scan",
-          "dynamodb:UpdateItem"
+          "dynamodb:UpdateItem",
+          "dynamodb:Query"
         ]
-        Resource = var.dynamodb_table_arn
+        Resource = var.dynamodb_table_arns
       }
     ]
   })
