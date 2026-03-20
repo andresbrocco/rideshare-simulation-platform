@@ -40,7 +40,7 @@ function isErrorResponse(data: unknown): data is { error: string } {
 }
 
 async function callLambda<T>(
-  payload: Record<string, string>,
+  payload: Record<string, string | number>,
   validateResponse: (data: unknown) => data is T,
   serviceName: string
 ): Promise<T> {
@@ -223,10 +223,12 @@ export async function activateSession(apiKey: string): Promise<SessionAdjustResp
 
 export async function extendSession(
   apiKey: string,
-  email?: string
+  email?: string,
+  minutes?: number
 ): Promise<SessionAdjustResponse> {
-  const payload: Record<string, string> = { action: 'extend-session', api_key: apiKey };
+  const payload: Record<string, string | number> = { action: 'extend-session', api_key: apiKey };
   if (email) payload.email = email;
+  if (minutes !== undefined) payload.minutes = minutes;
   return callLambda(payload, isSessionAdjustResponse, 'Session extend service');
 }
 

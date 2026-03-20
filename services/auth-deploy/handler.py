@@ -38,6 +38,7 @@ PLATFORM_COST_PER_HOUR = 0.31
 RESCHEDULE_DELAY_SECONDS = 300  # 5 min
 TEARDOWN_TIMEOUT_SECONDS = 15 * 60  # 15 min — auto-clear stale tearing_down flag
 DEPLOYING_TIMEOUT_SECONDS = 30 * 60  # 30 min — auto-clear stale deploying session
+VISITOR_MIN_REMAINING_SECONDS = 15 * 60  # guaranteed minimum when a visitor arrives
 
 SIMULATION_START_DEFAULTS: dict[str, int] = {
     "immediate_drivers": 50,
@@ -1716,7 +1717,7 @@ def handle_ensure_session(api_key: str) -> tuple[int, dict[str, Any]]:
     }
 
 
-def handle_extend_session() -> tuple[int, dict[str, Any]]:
+def handle_extend_session(minutes: int | None = None) -> tuple[int, dict[str, Any]]:
     """Handle extend-session action."""
     print("Action: extend-session")
 
@@ -1731,7 +1732,7 @@ def handle_extend_session() -> tuple[int, dict[str, Any]]:
 
     now = int(time.time())
     remaining = session["deadline"] - now
-    step = SESSION_STEP_MINUTES * 60
+    step = (minutes if minutes is not None else SESSION_STEP_MINUTES) * 60
 
     if remaining + step > MAX_REMAINING_SECONDS:
         print("Action extend-session completed: 400")
@@ -2481,6 +2482,25 @@ def handle_provision_visitor(
         except Exception as exc:
             print(f"DynamoDB services update failed (non-fatal): {exc}")
 
+    # Step 5: Ensure minimum session time for new visitor (best-effort, non-fatal)
+    session_extended = False
+    try:
+        session = get_session()
+        if (
+            session is not None
+            and session.get("deadline") is not None
+            and not session.get("tearing_down")
+        ):
+            now = int(time.time())
+            remaining = session["deadline"] - now
+            if 0 < remaining < VISITOR_MIN_REMAINING_SECONDS:
+                new_deadline = now + VISITOR_MIN_REMAINING_SECONDS
+                update_session_deadline(new_deadline)
+                session_extended = True
+                print(f"Session extended for new visitor (was {remaining}s remaining)")
+    except Exception as exc:
+        print(f"Session minimum guarantee failed (non-fatal): {exc}")
+
     print("Action provision-visitor completed: 200")
     return 200, {
         "provisioned": True,
@@ -2488,6 +2508,7 @@ def handle_provision_visitor(
         "email": email,
         "failures": [],
         "services_provisioned": services_provisioned,
+        "session_extended": session_extended,
     }
 
 
@@ -2842,7 +2863,18 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
             _log_response(action, status_code, response_body)
             return response_body
         if action == "extend-session":
-            status_code, response_body = handle_extend_session()
+            raw_minutes = event.get("minutes")
+            minutes_int: int | None = None
+            if raw_minutes is not None:
+                try:
+                    minutes_int = int(raw_minutes)
+                    if minutes_int <= 0:
+                        raise ValueError("must be positive")
+                except (TypeError, ValueError):
+                    response_body = {"error": "minutes must be a positive integer"}
+                    _log_response(action, 400, response_body)
+                    return response_body
+            status_code, response_body = handle_extend_session(minutes_int)
             if status_code == 200:
                 _record_login_event(event.get("email", ""), "extend-session", "visitor")
             _log_response(action, status_code, response_body)
@@ -2997,7 +3029,20 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
     if action in no_auth_handlers:
         status_code, response_body = no_auth_handlers[action]()
     elif action == "extend-session":
-        status_code, response_body = handle_extend_session()
+        raw_minutes = body.get("minutes")
+        minutes_int: int | None = None
+        if raw_minutes is not None:
+            try:
+                minutes_int = int(raw_minutes)
+                if minutes_int <= 0:
+                    raise ValueError("must be positive")
+            except (TypeError, ValueError):
+                return {
+                    "statusCode": 400,
+                    "headers": response_headers,
+                    "body": json.dumps({"error": "minutes must be a positive integer"}),
+                }
+        status_code, response_body = handle_extend_session(minutes_int)
         if status_code == 200:
             _record_login_event(body.get("email", ""), "extend-session", "visitor")
     elif action == "shrink-session":
