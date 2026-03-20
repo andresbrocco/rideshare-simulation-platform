@@ -24,12 +24,18 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rideshare-github-actions
           aws-region: us-east-1
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        working-directory: services/rds-reset
+        run: pip install -r requirements.txt -t . --upgrade --quiet
+
       - name: Create deployment package
         working-directory: services/rds-reset
         run: |
-          # Dependencies are vendored in the repo — no pip install needed.
-          # Zip the directory excluding build artifacts, caches, bytecode,
-          # and dist-info metadata.
           zip -r /tmp/lambda.zip . \
             -x "requirements.txt" \
             -x "build.sh" \
