@@ -9,7 +9,7 @@ with zone_count as (
 validation_failure as (
     select
         total_zones,
-        'Expected 96 zones but found ' || total_zones::string as error_message
+        CONCAT('Expected 96 zones but found ', CAST(total_zones AS STRING)) as error_message
     from zone_count
     where total_zones != 96
 )
