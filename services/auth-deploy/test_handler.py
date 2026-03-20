@@ -7,6 +7,7 @@ from handler import (
     DEPLOY_PROGRESS_SERVICES,
     SESSION_STEP_MINUTES,
     SIMULATION_START_DEFAULTS,
+    TEARDOWN_TIMEOUT_SECONDS,
     TEARDOWN_UI_LABELS,
     _log_response,
     _mask_event,
@@ -538,7 +539,9 @@ class TestHandleSessionStatus:
             patch("handler.time") as mock_time,
             patch("handler.delete_session") as mock_delete,
         ):
-            mock_time.time.return_value = 1001000 + 45 * 60 + 1  # just past timeout
+            mock_time.time.return_value = (
+                1001000 + TEARDOWN_TIMEOUT_SECONDS + 1
+            )  # just past timeout
             status, body = handle_session_status()
         assert status == 200
         assert body == {"active": False}
@@ -594,7 +597,7 @@ class TestHandleSessionStatus:
             patch("handler.time") as mock_time,
             patch("handler.delete_session") as mock_delete,
         ):
-            mock_time.time.return_value = 1001000 + 45 * 60 + 1
+            mock_time.time.return_value = 1001000 + TEARDOWN_TIMEOUT_SECONDS + 1
             status, body = handle_session_status()
         assert status == 200
         assert body == {"active": False}
