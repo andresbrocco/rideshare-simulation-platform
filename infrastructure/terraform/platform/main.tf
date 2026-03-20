@@ -19,6 +19,38 @@ resource "aws_eks_access_policy_association" "deploy_user" {
   }
 }
 
+resource "aws_iam_group" "deploy" {
+  name = "${var.project_name}-deploy"
+}
+
+resource "aws_iam_group_membership" "deploy" {
+  name  = "${var.project_name}-deploy"
+  group = aws_iam_group.deploy.name
+  users = [element(split("/", var.deploy_user_arn), 1)]
+}
+
+resource "aws_iam_group_policy" "deploy_logs_readonly" {
+  name  = "airflow-logs-readonly"
+  group = aws_iam_group.deploy.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          data.terraform_remote_state.foundation.outputs.logs_bucket_arn,
+          "${data.terraform_remote_state.foundation.outputs.logs_bucket_arn}/*"
+        ]
+      }
+    ]
+  })
+}
+
 # EKS Module
 module "eks" {
   source = "./modules/eks"

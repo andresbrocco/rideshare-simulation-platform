@@ -78,6 +78,8 @@ skip-check:
   - CKV2_AWS_32   # Secrets Manager auto-rotation
   - CKV2_AWS_38   # IAM policy condition keys
   - CKV2_AWS_39   # IAM policy version
+  - CKV2_AWS_14   # IAM group includes at least one user — user is external
+  - CKV2_AWS_21   # IAM user in at least one group — user is external
   - CKV2_AWS_47   # IAM customer-managed policy for admin
   - CKV2_AWS_57   # Secrets Manager lifecycle
 
