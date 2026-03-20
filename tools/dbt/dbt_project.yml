@@ -28,18 +28,21 @@ models:
       dimensions:
         +schema: gold
         +materialized: table
+        +file_format: delta
         +tags:
           - gold
           - dimensions
       facts:
         +schema: gold
         +materialized: table
+        +file_format: delta
         +tags:
           - gold
           - facts
       aggregates:
         +schema: gold
         +materialized: table
+        +file_format: delta
         +tags:
           - gold
           - aggregates
