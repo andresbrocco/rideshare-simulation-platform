@@ -253,6 +253,23 @@ def _store_visitor_dynamodb(
     client.put_item(TableName=table_name, Item=item)
 
 
+def _update_visitor_services(email: str, services: list[str]) -> None:
+    """Update the provisioned_services attribute on an existing visitor record.
+
+    Uses DynamoDB ``update_item`` so only the services list is modified —
+    the rest of the item (password hash, consent timestamp, etc.) is left
+    intact.
+    """
+    table_name = os.environ.get("VISITOR_TABLE_NAME", "rideshare-visitors")
+    client = _get_dynamodb_client()
+    client.update_item(
+        TableName=table_name,
+        Key={"email": {"S": email}},
+        UpdateExpression="SET provisioned_services = :svcs",
+        ExpressionAttributeValues={":svcs": {"SS": services}},
+    )
+
+
 def _record_login_event(email: str, service: str, role: str) -> None:
     """Record a login event to the visitor-logins DynamoDB table.
 
@@ -591,7 +608,7 @@ def _build_welcome_email(email: str, name: str, password: str) -> tuple[str, str
         f"  2. Check Grafana dashboards — Kafka throughput, driver utilization,\n"
         f"     pipeline health\n"
         f"  3. Run SQL in Trino against the Gold star schema\n\n"
-        f"Note: Your accounts are active now. If the platform is currently "
+        f"Note: Your credentials will work once the platform is running. If the platform is currently "
         f'offline, hit "Deploy" on the landing page — services typically start '
         f"within about 20 minutes.\n\n"
         f"If you have questions or just want to chat about the architecture, "
@@ -697,7 +714,7 @@ def _build_welcome_email(email: str, name: str, password: str) -> tuple[str, str
         f'<table width="100%" bgcolor="#1a1d1c" cellpadding="0" cellspacing="0" '
         f'style="border-left:4px solid #00ff88;border-radius:4px;">'
         f'<tr><td style="padding:12px 16px;font-family:{font};font-size:13px;color:#c5cac8;">'
-        f"<strong>Note:</strong> Your accounts are active now. If the platform is currently "
+        f"<strong>Note:</strong> Your credentials will work once the platform is running. If the platform is currently "
         f'offline, hit "Deploy" on the landing page — services typically start '
         f"within about 20 minutes."
         f"</td></tr></table></td></tr>"
@@ -2379,18 +2396,19 @@ def handle_provision_visitor(
     password: str | None,
     name: str,
 ) -> tuple[int, dict[str, Any]]:
-    """Handle provision-visitor action (immediate provisioning).
+    """Handle provision-visitor action.
 
-    Provisions visitor accounts across all services — Grafana, Airflow,
-    MinIO, and Simulation API — then stores the record in DynamoDB and
-    sends a welcome email.
+    Prioritises durable operations so visitors receive credentials even when
+    the EKS platform is offline:
 
-    When ``password`` is ``None`` or an empty string, a secure random password
-    is generated automatically via :func:`secrets.token_urlsafe`.  Credentials
-    are delivered exclusively via the SES welcome email — they are never
-    included in the HTTP response body.  If the welcome email cannot be sent,
-    the entire provisioning request fails with HTTP 500 so the visitor can
-    retry rather than being left without credentials.
+    1. **DynamoDB** — store visitor record (FATAL on failure; without this
+       record ``reprovision-visitors`` cannot recreate accounts later).
+    2. **Welcome email** — deliver credentials via SES (FATAL on failure;
+       credentials are never in the HTTP response).
+    3. **Service provisioning** — best-effort creation of Grafana / Airflow /
+       MinIO / Simulation API accounts.  Failures are logged but do not
+       affect the HTTP status code.  When the platform starts,
+       ``reprovision-visitors`` recreates any missing accounts from DynamoDB.
 
     Args:
         email: Visitor email address.
@@ -2400,8 +2418,8 @@ def handle_provision_visitor(
 
     Returns:
         Tuple of (HTTP status code, response body dict).  Status 200 when
-        all services and email succeed; 207 when some services fail; 500 if
-        all services fail or the welcome email fails.
+        DynamoDB + email succeed (regardless of service provisioning); 500 if
+        DynamoDB storage or email delivery fails.
     """
     print("Action: provision-visitor")
 
@@ -2423,27 +2441,19 @@ def handle_provision_visitor(
 
     consent_timestamp = datetime.now(timezone.utc).isoformat()
 
-    result = _provision_visitor(email, effective_password, name, durable_only=False)
-    successes = result["successes"]
-    failures = result["failures"]
-
+    # Step 1: Store visitor record in DynamoDB (FATAL — reprovision depends on it)
     try:
-        _store_visitor_dynamodb(
-            email, effective_password, [s["service"] for s in successes], consent_timestamp
-        )
+        _store_visitor_dynamodb(email, effective_password, [], consent_timestamp)
     except Exception as exc:
-        print(f"DynamoDB visitor record storage failed (non-fatal): {exc}")
-
-    all_failed = not successes and failures
-    if all_failed:
-        print("Action provision-visitor completed: 500")
+        print(f"Action provision-visitor completed: 500 (DynamoDB storage failed: {exc})")
         return 500, {
             "provisioned": False,
             "email_sent": False,
-            "error": "All service provisioning failed",
-            "failures": [f["service"] + ": " + f.get("error", "unknown") for f in failures],
+            "error": "Visitor record storage failed",
+            "failures": [],
         }
 
+    # Step 2: Send welcome email (FATAL — credentials delivered only via email)
     email_sent = _send_welcome_email(email, name, effective_password)
     if not email_sent:
         print("Action provision-visitor completed: 500 (email delivery failed)")
@@ -2454,14 +2464,30 @@ def handle_provision_visitor(
             "failures": [],
         }
 
-    has_failures = bool(failures)
-    status_code = 207 if has_failures else 200
-    print(f"Action provision-visitor completed: {status_code}")
-    return status_code, {
+    # Step 3: Service provisioning (best-effort — platform may be offline)
+    result = _provision_visitor(email, effective_password, name, durable_only=False)
+    successes = result["successes"]
+    services_provisioned = [s["service"] for s in successes]
+
+    for f in result["failures"]:
+        print(
+            f"Service provisioning failed (non-fatal): {f['service']}: {f.get('error', 'unknown')}"
+        )
+
+    # Step 4: Update DynamoDB with any successfully provisioned services
+    if services_provisioned:
+        try:
+            _update_visitor_services(email, services_provisioned)
+        except Exception as exc:
+            print(f"DynamoDB services update failed (non-fatal): {exc}")
+
+    print("Action provision-visitor completed: 200")
+    return 200, {
         "provisioned": True,
         "email_sent": True,
         "email": email,
-        "failures": [f["service"] + ": " + f.get("error", "unknown") for f in failures],
+        "failures": [],
+        "services_provisioned": services_provisioned,
     }
 
 

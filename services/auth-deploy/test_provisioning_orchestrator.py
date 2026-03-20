@@ -3,11 +3,12 @@
 Tests cover the provision-visitor action in handler.py:
 - Request body validation (missing fields, short explicit password)
 - Password auto-generation when no password is supplied
-- Successful provisioning returns 200 with durable-only credential storage
-- All services failing returns 500
+- Successful provisioning returns 200 when DynamoDB + email succeed
+- DynamoDB failure returns 500 (FATAL — reprovision depends on this record)
 - SES email failure returns 500 (credentials delivered only via email)
+- Service provisioning failures are best-effort (200 still returned)
 - Response bodies never include the plaintext password
-- DynamoDB visitor record storage (happy-path and non-fatal failure)
+- _update_visitor_services updates DynamoDB after service provisioning
 - durable_only flag: no services provisioned (Trino was removed)
 - Each individual provisioning helper (_provision_grafana, _provision_airflow,
   _provision_minio, _provision_simulation_api) is tested
@@ -43,6 +44,7 @@ from handler import (
     _provision_simulation_api,
     _provision_visitor,
     _send_welcome_email,
+    _update_visitor_services,
     _verify_password_pbkdf2,
     handle_provision_visitor,
     handle_reprovision_visitors,
@@ -83,6 +85,7 @@ def mock_provision_visitor():
         patch("handler._provision_visitor") as mock_pv,
         patch("handler._store_visitor_dynamodb"),
         patch("handler._send_welcome_email", return_value=True),
+        patch("handler._update_visitor_services"),
     ):
         mock_pv.return_value = {
             "successes": [
@@ -129,10 +132,11 @@ class TestHandleProvisionVisitorResponseCodes:
         assert "password" not in body
         assert body["email_sent"] is True
         assert body["failures"] == []
+        assert body["services_provisioned"] == ["grafana"]
 
     @pytest.mark.unit
-    def test_500_all_services_fail(self) -> None:
-        """handle_provision_visitor returns 500 when all services fail."""
+    def test_200_when_all_services_fail_but_email_succeeds(self) -> None:
+        """handle_provision_visitor returns 200 when DynamoDB + email succeed but all services fail."""
         all_failed = {
             "successes": [],
             "failures": [
@@ -145,14 +149,33 @@ class TestHandleProvisionVisitorResponseCodes:
         with (
             patch("handler._provision_visitor", return_value=all_failed),
             patch("handler._store_visitor_dynamodb"),
+            patch("handler._send_welcome_email", return_value=True),
+            patch("handler._update_visitor_services"),
+        ):
+            status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
+
+        assert status == 200
+        assert body["provisioned"] is True
+        assert body["email_sent"] is True
+        assert body["services_provisioned"] == []
+
+    @pytest.mark.unit
+    def test_500_when_dynamodb_storage_fails(self) -> None:
+        """handle_provision_visitor returns 500 when DynamoDB storage fails."""
+        with (
+            patch(
+                "handler._store_visitor_dynamodb",
+                side_effect=Exception("DynamoDB unavailable"),
+            ),
             patch("handler._send_welcome_email") as mock_email,
+            patch("handler._provision_visitor") as mock_pv,
         ):
             status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
 
         assert status == 500
-        assert body["error"] == "All service provisioning failed"
-        # Email must not be attempted when all services fail
+        assert body["error"] == "Visitor record storage failed"
         mock_email.assert_not_called()
+        mock_pv.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -559,6 +582,7 @@ class TestPasswordGeneration:
             patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
             patch("handler._store_visitor_dynamodb"),
             patch("handler._send_welcome_email", side_effect=capture_email),
+            patch("handler._update_visitor_services"),
         ):
             status, body = handle_provision_visitor(_EMAIL, None, _NAME)
 
@@ -580,6 +604,7 @@ class TestPasswordGeneration:
             patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
             patch("handler._store_visitor_dynamodb"),
             patch("handler._send_welcome_email", side_effect=capture_email),
+            patch("handler._update_visitor_services"),
         ):
             status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
 
@@ -600,6 +625,7 @@ class TestPasswordGeneration:
             patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
             patch("handler._store_visitor_dynamodb"),
             patch("handler._send_welcome_email", side_effect=capture_email),
+            patch("handler._update_visitor_services"),
         ):
             handle_provision_visitor(_EMAIL, None, _NAME)
             handle_provision_visitor(_EMAIL, None, _NAME)
@@ -622,68 +648,71 @@ class TestPasswordGeneration:
 
 class TestDynamoDBStorage:
     @pytest.mark.unit
-    def test_stores_record_after_successful_provisioning(self) -> None:
-        """_store_visitor_dynamodb is called with the correct email and password hash."""
-        mock_dynamo_client = MagicMock()
-        # Capture the password forwarded to the email function so we can verify
-        # the DynamoDB hash without relying on the HTTP response body.
-        captured_passwords: list[str] = []
+    def test_stores_record_before_provisioning(self) -> None:
+        """DynamoDB storage is called before service provisioning (ordering test)."""
+        call_order: list[str] = []
 
-        def capture_email(email: str, name: str, password: str) -> bool:
-            captured_passwords.append(password)
-            return True
+        def track_dynamo(*args: object, **kwargs: object) -> None:
+            call_order.append("dynamodb")
+
+        def track_provision(*args: object, **kwargs: object) -> dict[str, list[object]]:
+            call_order.append("provision")
+            return _FULL_SUCCESS_RESULT
 
         with (
-            patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
-            patch("handler._get_dynamodb_client", return_value=mock_dynamo_client),
-            patch("handler._send_welcome_email", side_effect=capture_email),
+            patch("handler._store_visitor_dynamodb", side_effect=track_dynamo),
+            patch("handler._provision_visitor", side_effect=track_provision),
+            patch("handler._send_welcome_email", return_value=True),
+            patch("handler._update_visitor_services"),
         ):
             status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
 
         assert status == 200
         assert "password" not in body
-        mock_dynamo_client.put_item.assert_called_once()
-
-        call_kwargs = mock_dynamo_client.put_item.call_args.kwargs
-        item = call_kwargs["Item"]
-        assert item["email"]["S"] == _EMAIL
+        assert call_order.index("dynamodb") < call_order.index("provision")
 
     @pytest.mark.unit
-    def test_dynamodb_failure_is_non_fatal(self) -> None:
-        """A DynamoDB error does not roll back provisioning or change the status code."""
+    def test_500_when_dynamodb_fails(self) -> None:
+        """DynamoDB failure is now FATAL — returns 500 and skips email + provisioning."""
         mock_dynamo_client = MagicMock()
         mock_dynamo_client.put_item.side_effect = Exception("DynamoDB unavailable")
 
         with (
-            patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
             patch("handler._get_dynamodb_client", return_value=mock_dynamo_client),
-            patch("handler._send_welcome_email", return_value=True),
+            patch("handler._send_welcome_email") as mock_email,
+            patch("handler._provision_visitor") as mock_pv,
         ):
             status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
 
-        assert status == 200
-        assert "password" not in body
+        assert status == 500
+        assert body["error"] == "Visitor record storage failed"
+        mock_email.assert_not_called()
+        mock_pv.assert_not_called()
 
     @pytest.mark.unit
-    def test_stores_grafana_as_succeeded_service(self) -> None:
-        """_store_visitor_dynamodb receives ["grafana"] when grafana provisioning succeeds."""
+    def test_initial_store_has_empty_services_then_update(self) -> None:
+        """Initial DynamoDB store has empty services; _update_visitor_services called with ["grafana"]."""
         mock_dynamo_client = MagicMock()
 
         with (
-            patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
             patch("handler._get_dynamodb_client", return_value=mock_dynamo_client),
+            patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
             patch("handler._send_welcome_email", return_value=True),
+            patch("handler._update_visitor_services") as mock_update,
         ):
             status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
 
         assert status == 200
+        # Initial put_item stores empty services list
         call_kwargs = mock_dynamo_client.put_item.call_args.kwargs
         item = call_kwargs["Item"]
-        assert item["provisioned_services"]["SS"] == ["grafana"]
+        assert item["provisioned_services"]["L"] == []
+        # _update_visitor_services called with the successfully provisioned services
+        mock_update.assert_called_once_with(_EMAIL, ["grafana"])
 
     @pytest.mark.unit
-    def test_stores_empty_services_on_all_failure(self) -> None:
-        """_store_visitor_dynamodb is called even when all services fail."""
+    def test_update_not_called_on_all_service_failure(self) -> None:
+        """_update_visitor_services is NOT called when all services fail."""
         all_failed = {
             "successes": [],
             "failures": [
@@ -693,19 +722,16 @@ class TestDynamoDBStorage:
                 {"service": "simulation_api", "error": "timeout"},
             ],
         }
-        mock_dynamo_client = MagicMock()
 
         with (
+            patch("handler._store_visitor_dynamodb"),
             patch("handler._provision_visitor", return_value=all_failed),
-            patch("handler._get_dynamodb_client", return_value=mock_dynamo_client),
             patch("handler._send_welcome_email", return_value=True),
+            patch("handler._update_visitor_services") as mock_update,
         ):
             handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
 
-        # DynamoDB does not support empty SS sets — the handler stores an
-        # empty list marker or skips the attribute.  What matters is that
-        # it was called (non-fatal path) — verify that.
-        mock_dynamo_client.put_item.assert_called_once()
+        mock_update.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -811,6 +837,7 @@ class TestSesWelcomeEmail:
             patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
             patch("handler._store_visitor_dynamodb"),
             patch("handler._send_welcome_email", return_value=True),
+            patch("handler._update_visitor_services"),
         ):
             status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
 
@@ -882,17 +909,18 @@ class TestSesWelcomeEmail:
 
     @pytest.mark.unit
     def test_email_failure_returns_500(self) -> None:
-        """Provisioning succeeds but email fails — entire request must return 500."""
+        """DynamoDB succeeds but email fails — returns 500, provisioning NOT called."""
         with (
-            patch("handler._provision_visitor", return_value=_FULL_SUCCESS_RESULT),
             patch("handler._store_visitor_dynamodb"),
             patch("handler._send_welcome_email", return_value=False),
+            patch("handler._provision_visitor") as mock_pv,
         ):
             status, body = handle_provision_visitor(_EMAIL, _PASSWORD, _NAME)
 
         assert status == 500
         assert "error" in body
         assert "password" not in body
+        mock_pv.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -982,6 +1010,28 @@ class TestKmsHelpers:
             recovered = _decrypt_password(ciphertext_b64)
 
         assert recovered == _PASSWORD
+
+
+# ---------------------------------------------------------------------------
+# _update_visitor_services
+# ---------------------------------------------------------------------------
+
+
+class TestUpdateVisitorServices:
+    @pytest.mark.unit
+    def test_calls_update_item_with_correct_key_and_services(self) -> None:
+        """_update_visitor_services calls DynamoDB update_item with correct params."""
+        mock_dynamo_client = MagicMock()
+
+        with patch("handler._get_dynamodb_client", return_value=mock_dynamo_client):
+            _update_visitor_services(_EMAIL, ["grafana", "airflow"])
+
+        mock_dynamo_client.update_item.assert_called_once_with(
+            TableName="rideshare-visitors",
+            Key={"email": {"S": _EMAIL}},
+            UpdateExpression="SET provisioned_services = :svcs",
+            ExpressionAttributeValues={":svcs": {"SS": ["grafana", "airflow"]}},
+        )
 
 
 # ---------------------------------------------------------------------------

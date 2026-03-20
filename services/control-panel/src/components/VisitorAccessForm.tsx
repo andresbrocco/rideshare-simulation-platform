@@ -61,8 +61,8 @@ export default function VisitorAccessForm() {
           </p>
         )}
         <p className={styles.noteMessage}>
-          Your accounts are active now. If the platform is offline, click &quot;Deploy&quot; below
-          to get started.
+          Your credentials will work once the platform is running. If the platform is offline, click
+          &quot;Deploy&quot; below to get started.
         </p>
       </div>
     );

@@ -243,6 +243,7 @@ export interface ProvisionVisitorResponse {
   provisioned: boolean;
   email_sent: boolean;
   failures: string[];
+  services_provisioned?: string[];
 }
 
 function isProvisionVisitorResponse(data: unknown): data is ProvisionVisitorResponse {
