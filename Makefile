@@ -155,16 +155,31 @@ build-frontend:	## Build frontend production bundle
 # Diagram paths
 D2_SRC := docs/diagrams/src
 D2_OUT := docs/diagrams/out
+D2_OUT_DARK := docs/diagrams/out-dark
 D2_SHARED := $(D2_SRC)/_shared.d2
-D2_SOURCES := $(filter-out $(D2_SHARED),$(wildcard $(D2_SRC)/*.d2))
+D2_SHARED_DARK := $(D2_SRC)/_shared-dark.d2
+D2_SOURCES := $(filter-out $(D2_SHARED) $(D2_SHARED_DARK),$(wildcard $(D2_SRC)/*.d2))
 D2_SVGS := $(patsubst $(D2_SRC)/%.d2,$(D2_OUT)/%.svg,$(D2_SOURCES))
+D2_SVGS_DARK := $(patsubst $(D2_SRC)/%.d2,$(D2_OUT_DARK)/%.svg,$(D2_SOURCES))
 
 ##@ Diagrams
 
-diagrams: diagrams-styles $(D2_SVGS)	## Generate shared styles + render all SVGs
+diagrams: diagrams-light diagrams-dark	## Generate both light and dark diagram sets
 	@echo "✅ All diagrams rendered"
 
-diagrams-styles:	## Regenerate _shared.d2 from tokens.json
+diagrams-light: diagrams-styles $(D2_SVGS)	## Render light-theme SVGs
+
+diagrams-dark: diagrams-styles	## Render dark-theme SVGs (swaps shared styles)
+	@mkdir -p $(D2_OUT_DARK)
+	@cp $(D2_SHARED) $(D2_SHARED).bak
+	@cp $(D2_SHARED_DARK) $(D2_SHARED)
+	@for f in $(D2_SOURCES); do \
+		d2 --layout=elk --theme=201 $$f $(D2_OUT_DARK)/$$(basename $${f%.d2}).svg; \
+	done
+	@cp $(D2_SHARED).bak $(D2_SHARED)
+	@rm $(D2_SHARED).bak
+
+diagrams-styles:	## Regenerate _shared.d2 and _shared-dark.d2 from tokens.json
 	$(PYTHON) design/generate_d2.py
 
 $(D2_OUT)/%.svg: $(D2_SRC)/%.d2 $(D2_SHARED)
