@@ -1,0 +1,42 @@
+...@_shared
+
+direction: down
+
+DOCKER: "Local: Docker Compose" {
+  class: compute
+
+  D_HOST: "Host Machine\nlocalhost" { class: compute }
+  D_PORTS: "Host Port Mapping\n:8000 → simulation\n:5173 → control-panel\n:3001 → grafana\n:9092 → kafka\n:8082 → airflow\n:8084 → trino" { class: compute }
+  D_NET: "Docker Bridge Network\nrideshare-network\nall services on same network" { class: compute }
+  D_DNS: "Service Discovery\ncontainer name = DNS hostname\nkafka:29092, redis:6379,\nosrm:5000, minio:9000" { class: compute }
+
+  D_HOST -> D_PORTS
+  D_PORTS -> D_NET
+  D_NET -> D_DNS
+}
+
+KIND: "Local: Kind Cluster" {
+  class: monitoring
+
+  K_HOST: "Host Machine\nlocalhost:80" { class: monitoring }
+  K_GW: "Envoy Gateway\nGatewayClass: eg\nGateway: rideshare-gateway" { class: monitoring }
+  K_ROUTE: "HTTPRoute Rules\n/api/* → simulation:8000\n/airflow/* → airflow:8082\n/grafana/* → grafana:3001\n/prometheus/* → prometheus:9090\n/trino/* → trino:8080\n/ → frontend:80" { class: monitoring }
+  K_SVC: "ClusterIP Services\nin-cluster DNS:\nsimulation.default.svc:8000" { class: monitoring }
+
+  K_HOST -> K_GW
+  K_GW -> K_ROUTE: "URLRewrite:\nstrip path prefix"
+  K_ROUTE -> K_SVC
+}
+
+EKS: "Production: AWS EKS" {
+  class: data
+
+  P_DNS: "Route 53\n*.ridesharing.portfolio\n.andresbrocco.com\nwildcard ALIAS → ALB" { class: data }
+  P_ALB: "AWS ALB\nIngressGroup: rideshare\n(single ALB for all services)\nHTTPS :443 with ACM cert\ntarget-type: ip" { class: data }
+  P_ING: "6 Ingress Resources\napi.* → simulation:8000\ncontrol-panel.* → frontend:80\ngrafana.* → grafana:3001\nairflow.* → airflow:8082\ntrino.* → trino:8080\nprometheus.* → prometheus:9090" { class: data }
+  P_SVC: "ClusterIP Services\nVPC CNI: real pod IPs\nsimulation.rideshare-prod.svc:8000" { class: data }
+
+  P_DNS -> P_ALB
+  P_ALB -> P_ING
+  P_ING -> P_SVC
+}

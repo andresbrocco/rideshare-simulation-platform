@@ -1,0 +1,70 @@
+...@_shared
+
+direction: down
+
+EXT: "External Traffic" {
+  class: external
+
+  GW: "Gateway + HTTPRoute\nlocal: Envoy Gateway, path-based" { class: external }
+  ING: "Ingress\nprod: 6 ALB rules, subdomain-based" { class: external }
+}
+
+NS: "Namespace: rideshare-prod" {
+  class: neutral
+
+  WL: "Workload Controllers → create Pods" {
+    class: compute
+
+    DEP: "Deployments (17)\nsimulation, stream-processor, redis,\ngrafana, prometheus, minio, trino..." { class: compute }
+    STS: "StatefulSets (3)\nkafka (stable identity for KRaft),\nairflow-postgres, postgres-metastore" { class: compute }
+    DS: "DaemonSets (2)\ncadvisor (every node, reads Docker socket),\notel-collector-logs (reads /var/log/pods)" { class: compute }
+    CJ: "CronJob (1)\nbronze-init: register Delta tables\nevery 10min, concurrencyPolicy: Replace" { class: compute }
+    JOB: "Jobs (2)\nkafka-init, minio-init\nrun-to-completion, no restart" { class: compute }
+  }
+
+  NET: "Networking" {
+    class: data
+
+    SVC: "Services (ClusterIP)\nstable DNS name + IP\nload balances across pod replicas" { class: data }
+    HL: "Headless Service\nkafka: clusterIP=None\nDNS resolves to pod IPs directly\nenables kafka-0.kafka:29092" { class: data }
+  }
+
+  CFG: "Configuration" {
+    class: config
+
+    CM: "ConfigMaps (12+)\ncore-config, prometheus-config,\ngrafana-dashboards-*, loki-config,\notel-collector-config, airflow-dags..." { class: config }
+    SEC: "Secrets (2)\napi-keys (API_KEY)\napp-credentials (14 keys)\nmanaged by ESO" { class: config }
+  }
+
+  STR: "Storage" {
+    class: monitoring
+
+    ED: "emptyDir\nephemeral, lost on pod restart\nused by most services" { class: monitoring }
+    PVC: "PersistentVolumeClaim\nkafka-data: 10Gi EBS gp3 (prod)\nsurvives pod restarts" { class: monitoring }
+    HP: "hostPath\nDaemonSets only:\n/var/log, /sys, /var/run/docker.sock" { class: monitoring }
+  }
+
+  PODS: "Pods\ninit containers (wait-for-X polls)\n→ main container" { class: compute }
+}
+
+ESO_NS: "Namespace: external-secrets" {
+  class: teal
+
+  ESO: "External Secrets Operator\nHelm chart v0.11.0" { class: teal }
+}
+
+EXT.GW -> NS.NET.SVC
+EXT.ING -> NS.NET.SVC
+NS.WL.DEP -> NS.PODS
+NS.WL.STS -> NS.PODS
+NS.WL.DS -> NS.PODS
+NS.WL.CJ -> NS.WL.JOB
+NS.WL.JOB -> NS.PODS
+NS.NET.SVC -> NS.PODS
+NS.NET.HL -> NS.PODS
+NS.CFG.CM -> NS.PODS: "volumeMounts /\nenvFrom"
+NS.CFG.SEC -> NS.PODS: "env.valueFrom.\nsecretKeyRef"
+NS.STR.ED -> NS.PODS
+NS.STR.PVC -> NS.PODS
+NS.STR.HP -> NS.PODS
+ESO_NS.ESO -> NS.CFG.SEC: "syncs AWS SM\n→ K8s Secrets"

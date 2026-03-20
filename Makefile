@@ -2,7 +2,7 @@
 # Mirrors GitHub Actions workflows for local execution
 # IMPORTANT: This file uses TABS for indentation, not spaces
 
-.PHONY: ci lint test build help clean venvs install-deps lint-python lint-frontend lint-terraform test-unit test-integration test-fast test-api-contract test-coverage build-frontend
+.PHONY: ci lint test build help clean venvs install-deps lint-python lint-frontend lint-terraform test-unit test-integration test-fast test-api-contract test-coverage build-frontend diagrams diagrams-styles diagrams-check
 
 # Default target
 .DEFAULT_GOAL := help
@@ -151,6 +151,32 @@ build-frontend:	## Build frontend production bundle
 	@echo "Building frontend..."
 	cd $(FRONTEND_DIR) && npm run build
 	@echo "✅ Frontend build completed"
+
+# Diagram paths
+D2_SRC := docs/diagrams/src
+D2_OUT := docs/diagrams/out
+D2_SHARED := $(D2_SRC)/_shared.d2
+D2_SOURCES := $(filter-out $(D2_SHARED),$(wildcard $(D2_SRC)/*.d2))
+D2_SVGS := $(patsubst $(D2_SRC)/%.d2,$(D2_OUT)/%.svg,$(D2_SOURCES))
+
+##@ Diagrams
+
+diagrams: diagrams-styles $(D2_SVGS)	## Generate shared styles + render all SVGs
+	@echo "✅ All diagrams rendered"
+
+diagrams-styles:	## Regenerate _shared.d2 from tokens.json
+	$(PYTHON) design/generate_d2.py
+
+$(D2_OUT)/%.svg: $(D2_SRC)/%.d2 $(D2_SHARED)
+	@mkdir -p $(D2_OUT)
+	d2 --layout=elk --theme=0 $< $@
+
+diagrams-check:	## Validate all D2 files compile (for CI)
+	@echo "Validating D2 diagrams..."
+	@for f in $(D2_SOURCES); do \
+		d2 validate $$f || exit 1; \
+	done
+	@echo "✅ All D2 diagrams valid"
 
 ##@ Cleanup
 

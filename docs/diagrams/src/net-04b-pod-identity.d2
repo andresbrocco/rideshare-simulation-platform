@@ -1,0 +1,91 @@
+...@_shared
+
+direction: right
+
+SA: "Kubernetes ServiceAccounts" {
+  class: compute
+
+  SA_SIM: "simulation" {
+    class: compute
+  }
+  SA_BI: "bronze-ingestion" {
+    class: compute
+  }
+  SA_AF: "airflow-scheduler\nairflow-webserver" {
+    class: compute
+  }
+  SA_TR: "trino" {
+    class: compute
+  }
+  SA_HM: "hive-metastore" {
+    class: compute
+  }
+  SA_LO: "loki" {
+    class: compute
+  }
+  SA_TE: "tempo" {
+    class: compute
+  }
+  SA_ESO: "external-secrets" {
+    class: compute
+  }
+  SA_ALB: "aws-load-balancer-controller" {
+    class: compute
+  }
+}
+
+PI: "EKS Pod Identity Agent\nDaemonSet on every node\ntrust: pods.eks.amazonaws.com" {
+  class: config
+}
+
+ROLES: "IAM Roles" {
+  class: data
+
+  R_SIM: "simulation-role" {
+    class: data
+  }
+  R_BI: "bronze-ingestion-role" {
+    class: data
+  }
+  R_AF: "airflow-role" {
+    class: data
+  }
+  R_TR: "trino-role" {
+    class: data
+  }
+  R_HM: "hive-metastore-role" {
+    class: data
+  }
+  R_LO: "loki-role" {
+    class: data
+  }
+  R_TE: "tempo-role" {
+    class: data
+  }
+  R_ESO: "external-secrets-role" {
+    class: data
+  }
+  R_ALB: "alb-controller-role" {
+    class: data
+  }
+}
+
+SA.SA_SIM -> PI
+SA.SA_BI -> PI
+SA.SA_AF -> PI
+SA.SA_TR -> PI
+SA.SA_HM -> PI
+SA.SA_LO -> PI
+SA.SA_TE -> PI
+SA.SA_ESO -> PI
+SA.SA_ALB -> PI
+
+PI -> ROLES.R_SIM
+PI -> ROLES.R_BI
+PI -> ROLES.R_AF
+PI -> ROLES.R_TR
+PI -> ROLES.R_HM
+PI -> ROLES.R_LO
+PI -> ROLES.R_TE
+PI -> ROLES.R_ESO
+PI -> ROLES.R_ALB

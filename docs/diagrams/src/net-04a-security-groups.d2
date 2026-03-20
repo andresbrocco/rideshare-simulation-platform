@@ -1,0 +1,28 @@
+...@_shared
+
+direction: right
+
+INET: "Internet\n0.0.0.0/0" {
+  shape: circle
+}
+
+ALBSG: "ALB Security Group\nIN: TCP 443, 80 from anywhere\nOUT: all" {
+  class: compute
+}
+
+EKSSG: "EKS Nodes Security Group\nIN: all TCP from 10.0.0.0/16\nIN: all protocols from self\nOUT: all" {
+  class: data
+}
+
+RDSSG: "RDS Security Group\nIN: TCP 5432 from EKS Nodes SG\nIN: TCP 5432 from 10.0.0.0/16\nOUT: all" {
+  class: config
+}
+
+LAMBDASG: "Lambda Security Group\nIN: none\nOUT: TCP 5432 to RDS SG only" {
+  class: external
+}
+
+INET -> ALBSG: "HTTPS :443\nHTTP :80"
+ALBSG -> EKSSG: "any TCP port\nwithin VPC CIDR"
+EKSSG -> RDSSG: "PostgreSQL :5432"
+LAMBDASG -> RDSSG: "PostgreSQL :5432"

@@ -6,10 +6,14 @@
  *   2. Unified palette (4 hues + neutral) — PALETTE, NEUTRAL, GREEN, BLUE, AMBER, RED
  *   3. UI palette                     — CSS variables for control panel components
  *   4. Offline palette                — CSS variables for landing/demo page
+ *
+ * Regions 2-4 derive hex values from design/tokens.json (shared design tokens).
+ * Region 1 stays hardcoded — simulation-specific, not design tokens.
  */
 
 import { hexToRgb, rgbToCss, rgbToComponents, withAlpha } from './utils/colorUtils';
 import type { RgbTuple, RgbaQuad } from './utils/colorUtils';
+import tokens from '../../../design/tokens.json';
 
 // ============================================================================
 // Region 1 — Stage Colors (trip lifecycle)
@@ -75,71 +79,72 @@ export const STAGE_TRAIL: Record<string, RgbaQuad> = {
 
 // ============================================================================
 // Region 2 — Unified Palette (4 hues + neutral)
+// Hex values derived from design/tokens.json
 // ============================================================================
 
 /** 13-step neutral scale from near-black (950) to near-white (50) */
 export const NEUTRAL: Record<number, string> = {
-  950: '#0A0C0B',
-  900: '#131716',
-  800: '#1C2120',
-  700: '#2A2F2E',
-  600: '#3B413F',
-  500: '#4E5553',
-  400: '#6B7371',
-  300: '#949B99',
-  200: '#C5CAC8',
-  150: '#D8DCDB',
-  100: '#E8ECEA',
-  75: '#EFF2F1',
-  50: '#F5F7F6',
+  950: tokens.scales.neutral.values['950'].hex,
+  900: tokens.scales.neutral.values['900'].hex,
+  800: tokens.scales.neutral.values['800'].hex,
+  700: tokens.scales.neutral.values['700'].hex,
+  600: tokens.scales.neutral.values['600'].hex,
+  500: tokens.scales.neutral.values['500'].hex,
+  400: tokens.scales.neutral.values['400'].hex,
+  300: tokens.scales.neutral.values['300'].hex,
+  200: tokens.scales.neutral.values['200'].hex,
+  150: tokens.scales.neutral.values['150'].hex,
+  100: tokens.scales.neutral.values['100'].hex,
+  75: tokens.scales.neutral.values['75'].hex,
+  50: tokens.scales.neutral.values['50'].hex,
 };
 
 /** Brand green scale — headings, CTAs, brand accent */
 export const GREEN: Record<number, string> = {
-  500: '#00FF88',
-  400: '#33FFA0',
-  300: '#66FFB8',
-  200: '#99FFD0',
-  100: '#CCFFE8',
+  500: tokens.scales.green.values['500'].hex,
+  400: tokens.scales.green.values['400'].hex,
+  300: tokens.scales.green.values['300'].hex,
+  200: tokens.scales.green.values['200'].hex,
+  100: tokens.scales.green.values['100'].hex,
 };
 
 /** Interactive blue scale — buttons, links, in-transit stage */
 export const BLUE: Record<number, string> = {
-  600: '#2563EB',
-  500: '#3B82F6',
-  400: '#60A5FA',
+  600: tokens.scales.blue.values['600'].hex,
+  500: tokens.scales.blue.values['500'].hex,
+  400: tokens.scales.blue.values['400'].hex,
 };
 
 /** Warning amber scale — warnings, pickup stage, pending */
 export const AMBER: Record<number, string> = {
-  500: '#F59E0B',
-  400: '#FBBF24',
+  500: tokens.scales.amber.values['500'].hex,
+  400: tokens.scales.amber.values['400'].hex,
 };
 
 /** Danger red scale — errors, cancelled states, destructive actions */
 export const RED: Record<number, string> = {
-  600: '#DC2626',
-  500: '#EF4444',
-  400: '#F87171',
+  600: tokens.scales.red.values['600'].hex,
+  500: tokens.scales.red.values['500'].hex,
+  400: tokens.scales.red.values['400'].hex,
 };
 
 /** Success green (distinct from brand green) */
 export const SUCCESS: Record<number, string> = {
-  600: '#16A34A',
-  500: '#22C55E',
+  600: tokens.scales.success.values['600'].hex,
+  500: tokens.scales.success.values['500'].hex,
 };
 
 /** Medallion pipeline colors (semantic, unchanged) */
 export const MEDALLION = {
-  bronze: '#CD7F32',
-  silver: '#9EACB4',
-  gold: '#D4AF37',
+  bronze: tokens.semantic.medallion.values.bronze.hex,
+  silver: tokens.semantic.medallion.values.silver.hex,
+  gold: tokens.semantic.medallion.values.gold.hex,
 } as const;
 
 /** Map layer colors */
 export const MAP = {
-  zoneStroke: '#FFFFFF',
-  surgeLabel: '#FFFF00',
+  zoneStroke: tokens.semantic.map.values.zoneStroke.hex,
+  surgeLabel: tokens.semantic.map.values.surgeLabel.hex,
 } as const;
 
 /** Composite palette export */
@@ -178,7 +183,7 @@ export const UI = {
   accentBlue: BLUE[500],
   accentBlueDark: BLUE[600],
   accentBlueLight: BLUE[400],
-  accentGreen: '#10B981',
+  accentGreen: tokens.standalone.accentGreen.hex,
   accentOrange: AMBER[500],
   accentRed: RED[500],
   accentRedDark: RED[600],
@@ -204,7 +209,7 @@ export const OFFLINE = {
   textDimmer: NEUTRAL[300],
   textDimmest: NEUTRAL[400],
   subtitle: NEUTRAL[300],
-  techBadgeText: '#4DAA6E',
+  techBadgeText: tokens.standalone.techBadgeText.hex,
   statusRed: RED[500],
   statusRedLight: RED[400],
   // Medallion pipeline colors

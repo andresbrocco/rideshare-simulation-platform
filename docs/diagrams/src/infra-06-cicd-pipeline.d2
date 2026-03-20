@@ -1,0 +1,50 @@
+...@_shared
+
+direction: down
+
+PUSH: "Push to main" {
+  shape: circle
+}
+
+CI: "ci.yml — Automated on push/PR" {
+  class: compute
+  LINT: "lint-and-typecheck\npre-commit --all-files\nruff, mypy ×7, black, TFLint,\nhadolint, shellcheck, actionlint,\ngitleaks, checkov, kubeconform"
+  TEST: "unit-tests\npytest: simulation,\nstream-processor"
+  FE: "frontend-build\nnpm run build"
+  API: "api-contract\nOpenAPI export →\nTypeScript type parity"
+
+  LINT -> TEST
+  LINT -> FE
+  LINT -> API
+}
+
+AUTO: "Automated on CI success" {
+  class: data
+  BUILD: "build-images.yml\npath-filter per service →\ndynamic build matrix\ndocker buildx → ECR\ntags: git-sha + latest\nlayer cache in ECR"
+  LAND: "deploy-landing-page.yml\nnpm build → S3 sync\n→ CloudFront invalidation\n(only if control-panel changed)"
+}
+
+LAMBDA: "Automated on path change" {
+  class: monitoring
+  L_AUTH: "deploy-lambda-auth\nservices/auth-deploy/**"
+  L_CHAT: "deploy-lambda-chat\nservices/ai-chat/**"
+  L_RDS: "deploy-lambda-rds-reset\nservices/rds-reset/**"
+}
+
+MANUAL: "Manual Triggers — workflow_dispatch" {
+  class: config
+  DEPLOY: "deploy-platform.yml\nterraform apply (EKS, RDS, ALB, ESO)\n→ resolve YAML placeholders\n→ git push --force deploy\n→ install ArgoCD\n→ 5-phase convergence wait"
+  TEAR: "teardown-platform.yml\ngraceful simulation shutdown\n→ delete Route 53 record\n→ terraform destroy\n→ clean orphaned EBS"
+  RESET: "reset-platform.yml\nsuspend ArgoCD auto-sync\n→ wipe Kafka/S3/RDS/Redis\n→ restore ArgoCD\n(keeps EKS cluster intact)"
+}
+
+ARGO: "ArgoCD\npolls deploy branch\nkustomize build → apply\nself-heal within 3 min"
+
+PUSH -> CI
+CI -> AUTO.BUILD: "success"
+CI -> AUTO.LAND: "control-panel/**"
+PUSH -> LAMBDA: "Lambda paths"
+AUTO.BUILD -> MANUAL.DEPLOY: "images in ECR" {
+  style.stroke-dash: 3
+}
+MANUAL.DEPLOY -> ARGO: "force-push\ndeploy branch"

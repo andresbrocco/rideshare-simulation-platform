@@ -1,0 +1,64 @@
+...@_shared
+
+direction: down
+
+INET: "Internet" {
+  shape: circle
+}
+
+VPC: "VPC: rideshare-vpc | 10.0.0.0/16" {
+  class: neutral
+
+  IGW: "Internet Gateway\nrideshare-igw" {
+    class: compute
+  }
+
+  RT: "Route Table\n0.0.0.0/0 -> IGW\n10.0.0.0/16 -> local" {
+    class: compute
+  }
+
+  AZA: "Availability Zone: us-east-1a" {
+    class: neutral
+
+    SUBA: "Public Subnet: 10.0.1.0/24" {
+      class: compute
+
+      NODE: "EKS Node\nt3.xlarge, 1 node" {
+        class: compute
+      }
+      RDS: "RDS PostgreSQL\ndb.t4g.micro\npublicly_accessible = false" {
+        class: data
+      }
+      LRDS: "Lambda: rds-reset\nin-VPC, egress to RDS only" {
+        class: compute
+      }
+    }
+  }
+
+  AZB: "Availability Zone: us-east-1b" {
+    class: neutral
+
+    SUBB: "Public Subnet: 10.0.2.0/24" {
+      class: compute
+
+      HA: "Standby\nALB requires min 2 AZs" {
+        class: compute
+      }
+    }
+  }
+
+  NONAT: "No NAT Gateway\ncost optimization: all subnets\nare public instead" {
+    class: config
+    style.stroke-dash: 5
+  }
+}
+
+INET <-> VPC.IGW: "public traffic"
+VPC.IGW <-> VPC.AZA.SUBA
+VPC.IGW <-> VPC.AZB.SUBB
+VPC.RT -> VPC.AZA.SUBA: "" {
+  style.stroke-dash: 3
+}
+VPC.RT -> VPC.AZB.SUBB: "" {
+  style.stroke-dash: 3
+}

@@ -1,0 +1,49 @@
+...@_shared
+
+direction: down
+
+BASE: "manifests/ — Base Resources" {
+  class: compute
+  B_WL: "17 Deployments, 3 StatefulSets,\n2 DaemonSets, 1 CronJob, 2 Jobs"
+  B_SVC: "20+ Services (all ClusterIP)"
+  B_CFG: "12+ ConfigMaps, 2 ExternalSecrets"
+  B_IMG: "Images: rideshare-*:local\nimagePullPolicy: Never"
+  B_STORE: "Storage: mostly emptyDir"
+  B_LOCAL: "Endpoints: LocalStack, MinIO"
+}
+
+COMP: "components/aws-production/ — Shared Patches (~20 patches)" {
+  class: config
+  C_IMG: "Images → ECR URIs\nimagePullPolicy: IfNotPresent"
+  C_ING: "+ 6 ALB Ingress resources\n(subdomain routing, ACM cert)"
+  C_SA: "+ 9 ServiceAccounts\n(for Pod Identity)"
+  C_STORE: "Kafka: emptyDir → EBS PVC\n+ EBS gp3 StorageClass"
+  C_EP: "Remove LocalStack endpoints\nInject real AWS endpoints"
+  C_RBAC: "+ Prometheus ClusterRole/Binding\n(K8s service discovery)"
+  C_PKG: "+ airflow-dbt-project ConfigMap\n+ airflow-ge-project ConfigMap\n(packaged tarballs)"
+}
+
+OVL_D: "overlays/production-duckdb/" {
+  class: data
+  D_INC: "Includes: base + aws-production"
+  D_HIVE: "+ Hive Metastore Deployment\n+ postgres-metastore StatefulSet"
+  D_CAT: "Trino catalog: thrift://hive-metastore:9083"
+  D_NS: "namespace: rideshare-prod"
+}
+
+OVL_G: "overlays/production-glue/" {
+  class: monitoring
+  G_INC: "Includes: base + aws-production"
+  G_NO: "Hive Metastore omitted\npostgres-metastore omitted"
+  G_CAT: "Trino catalog: AWS Glue Data Catalog"
+  G_DBT: "Airflow: DBT_RUNNER=glue"
+}
+
+RESOLVED_D: "Resolved YAML\nkustomize build → ~60 resources\nwith Hive Metastore"
+RESOLVED_G: "Resolved YAML\nkustomize build → ~55 resources\nwith Glue catalog"
+
+BASE -> COMP
+COMP -> OVL_D
+COMP -> OVL_G
+OVL_D -> RESOLVED_D
+OVL_G -> RESOLVED_G
