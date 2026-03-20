@@ -60,7 +60,7 @@ SERVICE_INFO: dict[str, dict[str, str]] = {
         "desc": "Real-time simulation map — watch drivers and riders move across São Paulo",
     },
     "Airflow": {
-        "url": "https://airflow.ridesharing.portfolio.andresbrocco.com/login",
+        "url": "https://airflow.ridesharing.portfolio.andresbrocco.com/auth/login/",
         "desc": "4 DAGs orchestrating Bronze → Silver → Gold transformations",
     },
     "Grafana": {

@@ -533,7 +533,7 @@ function getExternalServices(isLocal: boolean): ExternalService[] {
     {
       name: 'Airflow',
       url: isLocal
-        ? 'http://localhost:8082/login'
+        ? 'http://localhost:8082/auth/login/'
         : 'https://airflow.ridesharing.portfolio.andresbrocco.com/',
       desc: '4 DAGs orchestrating Bronze → Silver → Gold transformations',
       icon: SiApacheairflow,

@@ -154,7 +154,7 @@ describe('LandingPage', () => {
     renderLandingPage({ isLocal: true, serviceHealth: ALL_SERVICES_UP });
 
     const expectedServices = [
-      { name: 'Airflow', url: 'http://localhost:8082/login' },
+      { name: 'Airflow', url: 'http://localhost:8082/auth/login/' },
       { name: 'Grafana', url: 'http://localhost:3001' },
     ];
 
