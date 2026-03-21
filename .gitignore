@@ -65,3 +65,6 @@ services/rds-reset/*.dist-info/
 HUMAN-CURATED-PREFERENCES.md
 CLAUDE-old.md
 todo.md
+
+# Diagram iteration artifacts
+docs/diagrams/.iterations/
