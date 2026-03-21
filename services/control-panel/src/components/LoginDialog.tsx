@@ -6,6 +6,7 @@ interface LoginDialogProps {
   open: boolean;
   onClose: () => void;
   onLogin: (apiKey: string) => void;
+  onGetAccess?: () => void;
 }
 
 interface LoginSuccessResponse {
@@ -28,7 +29,7 @@ function isValidEmail(value: string): boolean {
   return value.includes('@');
 }
 
-export default function LoginDialog({ open, onClose, onLogin }: LoginDialogProps) {
+export default function LoginDialog({ open, onClose, onLogin, onGetAccess }: LoginDialogProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -174,7 +175,17 @@ export default function LoginDialog({ open, onClose, onLogin }: LoginDialogProps
           Sign In
         </h2>
         <p id="login-dialog-desc" className="dialog-label">
-          Enter your credentials to access the control panel.
+          {onGetAccess ? (
+            <>
+              Enter your credentials (
+              <button type="button" className="dialog-inline-link" onClick={onGetAccess}>
+                get them for free here
+              </button>
+              ).
+            </>
+          ) : (
+            'Enter your credentials to access the control panel.'
+          )}
         </p>
         <form onSubmit={handleSubmit}>
           <div className="dialog-form-group">

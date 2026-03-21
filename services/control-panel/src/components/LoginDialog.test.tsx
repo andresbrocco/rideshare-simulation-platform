@@ -278,6 +278,48 @@ describe('LoginDialog', () => {
     });
   });
 
+  describe('onGetAccess link', () => {
+    it('does not render link when onGetAccess is omitted', () => {
+      render(<LoginDialog open={true} onClose={mockOnClose} onLogin={mockOnLogin} />);
+      expect(
+        screen.getByText('Enter your credentials to access the control panel.')
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: /get them for free here/i })
+      ).not.toBeInTheDocument();
+    });
+
+    it('renders link when onGetAccess is provided', () => {
+      const mockGetAccess = vi.fn();
+      render(
+        <LoginDialog
+          open={true}
+          onClose={mockOnClose}
+          onLogin={mockOnLogin}
+          onGetAccess={mockGetAccess}
+        />
+      );
+      expect(screen.getByRole('button', { name: /get them for free here/i })).toBeInTheDocument();
+    });
+
+    it('calls onGetAccess when link is clicked', async () => {
+      const user = userEvent.setup();
+      const mockGetAccess = vi.fn();
+      render(
+        <LoginDialog
+          open={true}
+          onClose={mockOnClose}
+          onLogin={mockOnLogin}
+          onGetAccess={mockGetAccess}
+        />
+      );
+
+      await user.click(screen.getByRole('button', { name: /get them for free here/i }));
+
+      expect(mockGetAccess).toHaveBeenCalledOnce();
+    });
+  });
+
   describe('Lambda authentication (VITE_LAMBDA_URL set)', () => {
     beforeEach(() => {
       vi.stubEnv('VITE_LAMBDA_URL', 'https://lambda.example.com');

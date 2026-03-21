@@ -3,6 +3,7 @@ import { LandingPage } from './components/LandingPage';
 import { ALL_SERVICES_DOWN } from './services/lambda';
 import type { ServiceHealthMap } from './services/lambda';
 import LoginDialog from './components/LoginDialog';
+import VisitorAccessDialog from './components/VisitorAccessDialog';
 import Map from './components/Map';
 import MapErrorBoundary from './components/MapErrorBoundary';
 import ControlPanel from './components/ControlPanel';
@@ -60,6 +61,7 @@ function usePageRefresh(intervalMs: number) {
  */
 function LandingApp() {
   const [showLoginDialog, setShowLoginDialog] = useState(false);
+  const [showAccessDialog, setShowAccessDialog] = useState(false);
   const [apiKey, setApiKey] = useState<string | null>(() => getApiKey());
   const [serviceHealth, setServiceHealth] = useState<ServiceHealthMap>(ALL_SERVICES_DOWN);
 
@@ -83,7 +85,12 @@ function LandingApp() {
         open={showLoginDialog}
         onClose={() => setShowLoginDialog(false)}
         onLogin={setApiKey}
+        onGetAccess={() => {
+          setShowLoginDialog(false);
+          setShowAccessDialog(true);
+        }}
       />
+      <VisitorAccessDialog open={showAccessDialog} onClose={() => setShowAccessDialog(false)} />
     </div>
   );
 }
@@ -94,6 +101,7 @@ function LandingApp() {
  */
 function ControlPanelApp() {
   const [apiKey, setApiKey] = useState<string | null>(() => getApiKey());
+  const [showAccessDialog, setShowAccessDialog] = useState(false);
 
   useSessionExpiry(
     useCallback(() => {
@@ -107,13 +115,18 @@ function ControlPanelApp() {
     return (
       <div className="App landing-mode">
         <Toaster position="top-right" />
-        <LoginDialog
-          open={true}
-          onClose={() => {
-            /* login required — cannot dismiss */
-          }}
-          onLogin={setApiKey}
-        />
+        {showAccessDialog ? (
+          <VisitorAccessDialog open={true} onClose={() => setShowAccessDialog(false)} />
+        ) : (
+          <LoginDialog
+            open={true}
+            onClose={() => {
+              /* login required — cannot dismiss */
+            }}
+            onLogin={setApiKey}
+            onGetAccess={() => setShowAccessDialog(true)}
+          />
+        )}
       </div>
     );
   }
@@ -161,6 +174,7 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
   const [apiKey, setApiKey] = useState<string | null>(() => getApiKey());
 
   const [showLoginDialog, setShowLoginDialog] = useState(false);
+  const [showAccessDialog, setShowAccessDialog] = useState(false);
 
   const handleSignOut = useCallback(() => {
     clearSession();
@@ -324,7 +338,12 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
             open={showLoginDialog}
             onClose={() => setShowLoginDialog(false)}
             onLogin={handleLogin}
+            onGetAccess={() => {
+              setShowLoginDialog(false);
+              setShowAccessDialog(true);
+            }}
           />
+          <VisitorAccessDialog open={showAccessDialog} onClose={() => setShowAccessDialog(false)} />
         </>
       ) : showLaunchDemo ? (
         <>
