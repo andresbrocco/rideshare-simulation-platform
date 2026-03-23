@@ -52,8 +52,8 @@ namespace: rideshare-prod
 
 images:
   - name: rideshare-hive-metastore
-    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/hive-metastore
-    newTag: <image-tag>
+    newName: 962393283188.dkr.ecr.us-east-1.amazonaws.com/rideshare/hive-metastore
+    newTag: 82fcce783f459efa9d2b0e73d3158ee13bacf3e2
 
 patches:
   # Hive Metastore: RDS endpoint, remove MinIO initContainer and credentials

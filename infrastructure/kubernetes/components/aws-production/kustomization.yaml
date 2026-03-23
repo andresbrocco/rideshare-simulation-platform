@@ -52,28 +52,28 @@ configMapGenerator:
 
 images:
   # Custom service images from ECR (placeholders resolved during deploy)
-  # <account-id> → AWS account ID, <image-tag> → git SHA for immutable deploys
+  # 962393283188 → AWS account ID, 82fcce783f459efa9d2b0e73d3158ee13bacf3e2 → git SHA for immutable deploys
   - name: rideshare-simulation
-    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/simulation
-    newTag: <image-tag>
+    newName: 962393283188.dkr.ecr.us-east-1.amazonaws.com/rideshare/simulation
+    newTag: 82fcce783f459efa9d2b0e73d3158ee13bacf3e2
   - name: rideshare-stream-processor
-    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/stream-processor
-    newTag: <image-tag>
+    newName: 962393283188.dkr.ecr.us-east-1.amazonaws.com/rideshare/stream-processor
+    newTag: 82fcce783f459efa9d2b0e73d3158ee13bacf3e2
   - name: rideshare-performance-controller
-    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/performance-controller
-    newTag: <image-tag>
+    newName: 962393283188.dkr.ecr.us-east-1.amazonaws.com/rideshare/performance-controller
+    newTag: 82fcce783f459efa9d2b0e73d3158ee13bacf3e2
   - name: rideshare-control-panel
-    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/control-panel
-    newTag: <image-tag>
+    newName: 962393283188.dkr.ecr.us-east-1.amazonaws.com/rideshare/control-panel
+    newTag: 82fcce783f459efa9d2b0e73d3158ee13bacf3e2
   - name: rideshare-bronze-ingestion
-    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/bronze-ingestion
-    newTag: <image-tag>
+    newName: 962393283188.dkr.ecr.us-east-1.amazonaws.com/rideshare/bronze-ingestion
+    newTag: 82fcce783f459efa9d2b0e73d3158ee13bacf3e2
   - name: rideshare-osrm
-    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/osrm
-    newTag: <image-tag>
+    newName: 962393283188.dkr.ecr.us-east-1.amazonaws.com/rideshare/osrm
+    newTag: 82fcce783f459efa9d2b0e73d3158ee13bacf3e2
   - name: otel/opentelemetry-collector-contrib
-    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/otel-collector
-    newTag: <image-tag>
+    newName: 962393283188.dkr.ecr.us-east-1.amazonaws.com/rideshare/otel-collector
+    newTag: 82fcce783f459efa9d2b0e73d3158ee13bacf3e2
 
 patches:
   # Override imagePullPolicy from Never (local dev) to IfNotPresent (SHA tags are immutable)

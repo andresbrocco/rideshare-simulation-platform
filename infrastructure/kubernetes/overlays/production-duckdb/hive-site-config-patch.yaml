@@ -3,7 +3,7 @@
 # IRSA injects temporary credentials via projected service account token;
 # the default AWS credential chain picks them up automatically.
 #
-# Replace <rds-endpoint> with Terraform output during deploy.
+# Replace rideshare-postgres.c8zsec64gwhw.us-east-1.rds.amazonaws.com with Terraform output during deploy.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -20,8 +20,8 @@ data:
 
       <property>
         <name>metastore.warehouse.dir</name>
-        <!-- Replace <account-id> with AWS account ID during deploy -->
-        <value>s3a://rideshare-<account-id>-silver/warehouse/</value>
+        <!-- Replace 962393283188 with AWS account ID during deploy -->
+        <value>s3a://rideshare-962393283188-silver/warehouse/</value>
       </property>
 
       <!-- PostgreSQL Backend (RDS) -->
@@ -32,7 +32,7 @@ data:
 
       <property>
         <name>javax.jdo.option.ConnectionURL</name>
-        <value>jdbc:postgresql://<rds-endpoint>:5432/metastore</value>
+        <value>jdbc:postgresql://rideshare-postgres.c8zsec64gwhw.us-east-1.rds.amazonaws.com:5432/metastore</value>
       </property>
 
       <!-- Credentials passed via SERVICE_OPTS JVM properties to avoid
