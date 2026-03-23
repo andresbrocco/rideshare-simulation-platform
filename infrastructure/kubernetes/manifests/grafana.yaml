@@ -11041,7 +11041,7 @@ data:
               "root_selector": "logins",
               "source": "url",
               "type": "json",
-              "url": "LAMBDA_FUNCTION_URL_PLACEHOLDER",
+              "url": "<lambda-auth-url>",
               "url_options": {
                 "body_content_type": "application/json",
                 "body_type": "raw-body",
@@ -11120,7 +11120,7 @@ data:
               "root_selector": "logins",
               "source": "url",
               "type": "json",
-              "url": "LAMBDA_FUNCTION_URL_PLACEHOLDER",
+              "url": "<lambda-auth-url>",
               "url_options": {
                 "body_content_type": "application/json",
                 "body_type": "raw-body",
@@ -11212,7 +11212,7 @@ data:
               "root_selector": "logins",
               "source": "url",
               "type": "json",
-              "url": "LAMBDA_FUNCTION_URL_PLACEHOLDER",
+              "url": "<lambda-auth-url>",
               "url_options": {
                 "body_content_type": "application/json",
                 "body_type": "raw-body",
@@ -11328,7 +11328,7 @@ data:
               "root_selector": "logins",
               "source": "url",
               "type": "json",
-              "url": "LAMBDA_FUNCTION_URL_PLACEHOLDER",
+              "url": "<lambda-auth-url>",
               "url_options": {
                 "body_content_type": "application/json",
                 "body_type": "raw-body",

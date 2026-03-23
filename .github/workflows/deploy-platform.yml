@@ -191,13 +191,17 @@ jobs:
           ALB_SG_ID=$(aws ec2 describe-security-groups --region us-east-1 \
             --filters "Name=group-name,Values=rideshare-alb-sg" \
             --query 'SecurityGroups[0].GroupId' --output text)
+          LAMBDA_AUTH_URL=$(aws lambda get-function-url-config \
+            --function-name rideshare-auth-deploy \
+            --query 'FunctionUrl' --output text)
 
           echo "Account ID: $ACCOUNT_ID"
           echo "RDS Endpoint: $RDS_ENDPOINT"
           echo "ACM Cert ARN: $ACM_CERT_ARN"
           echo "ALB SG ID: $ALB_SG_ID"
+          echo "Lambda Auth URL: $LAMBDA_AUTH_URL"
 
-          if [ -z "$ACCOUNT_ID" ] || [ -z "$RDS_ENDPOINT" ] || [ -z "$ACM_CERT_ARN" ] || [ -z "$ALB_SG_ID" ]; then
+          if [ -z "$ACCOUNT_ID" ] || [ -z "$RDS_ENDPOINT" ] || [ -z "$ACM_CERT_ARN" ] || [ -z "$ALB_SG_ID" ] || [ -z "$LAMBDA_AUTH_URL" ]; then
             echo "Error: One or more production values could not be resolved"
             exit 1
           fi
@@ -216,6 +220,10 @@ jobs:
           find infrastructure/kubernetes/overlays infrastructure/kubernetes/components -name "*.yaml" \
             -exec sed -i "s|<alb-sg-id>|$ALB_SG_ID|g" {} +
 
+          # Replace Lambda auth URL in manifests (Grafana Infinity datasource)
+          find infrastructure/kubernetes/manifests -name "*.yaml" \
+            -exec sed -i "s|<lambda-auth-url>|$LAMBDA_AUTH_URL|g" {} +
+
           # Resolve Glue role ARN (only exists if Glue runner is configured)
           GLUE_ROLE_ARN=$(aws iam get-role --role-name rideshare-glue-job \
             --query 'Role.Arn' --output text 2>/dev/null || true)
@@ -229,8 +237,8 @@ jobs:
             infrastructure/kubernetes/argocd/app-rideshare-platform.yaml
 
           # Verify no placeholders remain in deployment files (skip documentation)
-          REMAINING=$(grep -r --include='*.yaml' '<account-id>\|<acm-cert-arn>\|<rds-endpoint>\|<image-tag>\|<alb-sg-id>\|<glue-role-arn>\|<dbt-runner>' \
-            infrastructure/kubernetes/overlays/ infrastructure/kubernetes/components/ infrastructure/kubernetes/argocd/ || true)
+          REMAINING=$(grep -r --include='*.yaml' '<account-id>\|<acm-cert-arn>\|<rds-endpoint>\|<image-tag>\|<alb-sg-id>\|<glue-role-arn>\|<dbt-runner>\|<lambda-auth-url>' \
+            infrastructure/kubernetes/overlays/ infrastructure/kubernetes/components/ infrastructure/kubernetes/argocd/ infrastructure/kubernetes/manifests/ || true)
           if [ -n "$REMAINING" ]; then
             echo "Error: Unresolved placeholders remain:"
             echo "$REMAINING"
@@ -257,7 +265,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -B deploy
-          git add infrastructure/kubernetes/overlays/ infrastructure/kubernetes/components/ infrastructure/kubernetes/argocd/
+          git add infrastructure/kubernetes/overlays/ infrastructure/kubernetes/components/ infrastructure/kubernetes/argocd/ infrastructure/kubernetes/manifests/
           git commit -m "deploy: resolve production values [skip ci]"
           git push --force origin deploy
 
