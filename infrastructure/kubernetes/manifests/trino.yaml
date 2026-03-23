@@ -10,21 +10,12 @@ data:
     node-scheduler.include-coordinator=true
     http-server.http.port=8080
     discovery.uri=http://localhost:8080
-    http-server.authentication.type=PASSWORD
     internal-communication.shared-secret=dev-local-shared-secret-000000000000
-
-  password-authenticator.properties: |
-    password-authenticator.name=file
-    file.password-file=/etc/trino/password.db
-    file.refresh-period=5s
 
   access-control.properties: |
     access-control.name=file
     security.config-file=/etc/trino/rules.json
     security.refresh-period=60s
-
-  password.db.template: |
-    admin:${TRINO_ADMIN_PASSWORD_HASH}
 
   rules.json: |
     {
@@ -132,7 +123,7 @@ spec:
           done
           echo "MinIO is ready"
       - name: setup-config
-        image: httpd:2.4-alpine
+        image: busybox:1.36
         command:
         - sh
         - -c
@@ -140,7 +131,6 @@ spec:
           cp /config-source/config.properties /etc/trino/config.properties
           cp /config-source/jvm.config /etc/trino/jvm.config
           cp /config-source/node.properties /etc/trino/node.properties
-          cp /config-source/password-authenticator.properties /etc/trino/password-authenticator.properties
           cp /config-source/access-control.properties /etc/trino/access-control.properties
           cp /config-source/rules.json /etc/trino/rules.json
           mkdir -p /etc/trino/catalog
@@ -148,12 +138,6 @@ spec:
             -e "s|\${MINIO_ROOT_USER}|${MINIO_ROOT_USER}|g" \
             -e "s|\${MINIO_ROOT_PASSWORD}|${MINIO_ROOT_PASSWORD}|g" \
             /config-source/delta.properties.template > /etc/trino/catalog/delta.properties
-          TRINO_ADMIN_PASSWORD_HASH=$(htpasswd -nbBC 10 admin "$ADMIN_PASSWORD" | cut -d: -f2)
-          sed \
-            -e "s|\${TRINO_ADMIN_PASSWORD_HASH}|${TRINO_ADMIN_PASSWORD_HASH}|g" \
-            /config-source/password.db.template > /etc/trino/password.db
-          chown 1000:1000 /etc/trino/password.db
-          chmod 600 /etc/trino/password.db
         env:
         - name: MINIO_ROOT_USER
           valueFrom:
@@ -165,11 +149,6 @@ spec:
             secretKeyRef:
               name: app-credentials
               key: MINIO_ROOT_PASSWORD
-        - name: ADMIN_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: app-credentials
-              key: AIRFLOW_ADMIN_PASSWORD
         volumeMounts:
         - name: config-source
           mountPath: /config-source

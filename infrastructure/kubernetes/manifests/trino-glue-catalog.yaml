@@ -10,7 +10,6 @@ data:
     node-scheduler.include-coordinator=true
     http-server.http.port=8080
     discovery.uri=http://localhost:8080
-    http-server.authentication.type=PASSWORD
     internal-communication.shared-secret=dev-local-shared-secret-000000000000
 
   jvm.config: |
@@ -41,18 +40,10 @@ data:
     delta.enable-non-concurrent-writes=true
     delta.register-table-procedure.enabled=true
 
-  password-authenticator.properties: |
-    password-authenticator.name=file
-    file.password-file=/etc/trino/password.db
-    file.refresh-period=5s
-
   access-control.properties: |
     access-control.name=file
     security.config-file=/etc/trino/rules.json
     security.refresh-period=60s
-
-  password.db.template: |
-    admin:${TRINO_ADMIN_PASSWORD_HASH}
 
   rules.json: |
     {

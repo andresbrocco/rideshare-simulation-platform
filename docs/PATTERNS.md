@@ -501,8 +501,6 @@ In production: External Secrets Operator bridges AWS Secrets Manager to Kubernet
 
 Phase 2 (`reprovision-visitors`, post-deploy): scans DynamoDB, decrypts each KMS ciphertext, and creates ephemeral accounts in Grafana, Airflow, MinIO, and the Simulation API via co-located provisioning sub-modules. If SES delivery fails after DynamoDB write succeeds, the response is `{"provisioned": true, "email_sent": false}` with HTTP 500 — the visitor record is durable and Phase 2 will still succeed.
 
-**Trino FILE-based passwords**: Trino uses a `password.db` file generated at pod/container startup. The admin bcrypt hash is computed from the `ADMIN_PASSWORD` in the `data-pipeline` secret (via `bcrypt` in Docker dev, via `htpasswd` in K8s). Only the `admin` account is defined. The file is written with `chmod 600` to a shared `emptyDir` volume and never stored in a ConfigMap or Git. Password changes require a container restart.
-
 ### Locations
 
 - `infrastructure/scripts/` — `seed-secrets.py` (LocalStack seeding), `fetch-secrets.py` (credential retrieval)
@@ -511,7 +509,7 @@ Phase 2 (`reprovision-visitors`, post-deploy): scans DynamoDB, decrypts each KMS
 - `infrastructure/terraform/foundation/modules/secrets_manager/` — Terraform module for AWS Secrets Manager resources
 - `infrastructure/terraform/foundation/` — KMS CMK `rideshare-visitor-passwords`, DynamoDB `rideshare-visitors` table
 - `services/auth-deploy/` — `get_secret()` helper normalizing plain-string and JSON-encoded secrets; two-phase visitor provisioning sub-modules
-- `services/trino/etc/` — `password.db.template`, `rules.json`, `password-authenticator.properties`
+- `services/trino/etc/` — `rules.json`, `access-control.properties`
 
 ---
 

@@ -256,7 +256,6 @@ Profile schemas (`driver_profile_event`, `rider_profile_event`) carry PII fields
 ### Password Hashing
 
 - **Simulation API user accounts**: Visitor passwords are hashed using `bcrypt` and stored in the in-memory `UserStore` (`services/simulation/src/api/user_store.py`). The bcrypt hash is used for `POST /auth/login` credential verification. The static admin API key is not password-hashed — comparison is done with string equality.
-- **Trino FILE authenticator**: The admin bcrypt hash is computed at container startup from the `ADMIN_PASSWORD` in the `{project}/data-pipeline` secret (via `bcrypt` in Docker dev, via `htpasswd` in K8s) and written to `password.db`. Only the `admin` account is defined.
 - **KMS envelope encryption**: Visitor plaintext passwords are encrypted with a KMS key before storage in DynamoDB. `Encrypt`/`Decrypt`/`GenerateDataKey` permissions are granted to the Lambda execution role.
 
 ### Airflow Fernet Key
@@ -327,7 +326,7 @@ An admin-only Grafana dashboard (`services/grafana/dashboards/admin/visitor-acti
 ## Known Security Considerations
 
 - **`/health` is unauthenticated**: The `GET /health` and `GET /health/detailed` endpoints are intentionally unauthenticated for Kubernetes probes and load balancer health checks.
-- **Trino FILE-based auth (both local and production)**: Trino uses `http-server.authentication.type=PASSWORD` with the `file` authenticator in all environments. Only the `admin` account is defined (full access via `rules.json`). The admin bcrypt hash is computed at container startup from the `ADMIN_PASSWORD` in the `data-pipeline` secret. Access control rules reload every 60 seconds.
+- **Trino uses header-based identity**: Trino identifies callers via the `X-Trino-User` header with no password authentication. Access control is enforced by file-based catalog ACL (`rules.json`) — `admin` has full access; all other users are read-only on `delta` and blocked from `system`. Rules reload every 60 seconds.
 - **Prometheus has no auth**: The Prometheus HTTP API (port 9090) runs without authentication in both local and production environments.
 - **Intentional data corruption**: The simulation supports `MALFORMED_EVENT_RATE` (float 0.0-1.0) that publishes additional corrupted event copies to exercise the Bronze DLQ pipeline. Disabled by default (0.0).
 - **Public-only subnets (Production)**: The production VPC uses a public-subnet-only design with no NAT gateways; all EKS nodes have public IPs but are controlled by security groups.
@@ -337,5 +336,5 @@ An admin-only Grafana dashboard (`services/grafana/dashboards/admin/visitor-acti
 - **Session-based viewer keys**: Session keys returned by `POST /auth/login` carry a `sess_` prefix and are persisted as Redis hashes at `session:{api_key}` with TTL-based auto-eviction. Explicit invalidation is provided by `delete_session`. The static admin key bypasses Redis entirely and is never stored in the session store.
 - **`LoginDialog` replaces raw API key entry for visitors**: The frontend `LoginDialog` calls `POST /auth/login` with `{email, password}` and receives a session key. Visitors never interact with the raw simulation API key.
 - **Single shared API key**: The simulation API admin key grants full access with no scope restrictions. All admin callers (Control Panel admin mode, Performance Controller, CI scripts) share the same key. Viewer-role visitors receive scoped session keys.
-- **Trino password changes require container restart**: `password.db` is generated at container startup by computing the bcrypt hash from `ADMIN_PASSWORD`. Password changes require the container to restart to re-run the hash generation step.
+- **Trino `rules.json` changes take up to 60 seconds**: The file-based access control rules reload every 60 seconds. A brief window exists after modifying `rules.json` before the change takes effect; a container restart applies the change immediately.
 - **IMDS hop limit of 2 on EKS nodes**: The EKS launch template sets `http_put_response_hop_limit = 2` (not the IMDSv2-hardened default of 1) to allow containers inside pods to reach the instance metadata service. Checkov rule `CKV_AWS_341` is explicitly skipped with this justification.

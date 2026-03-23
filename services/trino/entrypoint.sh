@@ -25,21 +25,6 @@ fi
 
 echo "Trino: delta.properties generated successfully"
 
-# Render password.db from template (requires TRINO_ADMIN_PASSWORD_HASH)
-echo "Trino: Rendering password.db from template"
-
-if command -v envsubst > /dev/null 2>&1; then
-  envsubst < "$TRINO_ETC/password.db.template" > "$TRINO_ETC/password.db"
-else
-  sed \
-    -e "s|\${TRINO_ADMIN_PASSWORD_HASH}|${TRINO_ADMIN_PASSWORD_HASH}|g" \
-    "$TRINO_ETC/password.db.template" > "$TRINO_ETC/password.db"
-fi
-
-chmod 600 "$TRINO_ETC/password.db"
-chown 1000:1000 "$TRINO_ETC/password.db" 2>/dev/null || true
-echo "Trino: password.db generated successfully"
-
 # Start Trino with writable config directory
 # (replicates /usr/lib/trino/bin/run-trino logic with custom etc-dir)
 launcher_opts=(--etc-dir "$TRINO_ETC")

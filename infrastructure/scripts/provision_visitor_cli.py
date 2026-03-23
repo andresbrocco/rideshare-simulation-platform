@@ -2,7 +2,7 @@
 """CLI wrapper for the multi-service visitor provisioning orchestrator.
 
 Provisions a visitor account across all platform services — Grafana, Airflow,
-MinIO, Trino, and the Simulation API — using the same logic that runs in the
+MinIO, and the Simulation API — using the same logic that runs in the
 Lambda ``provision-visitor`` action.
 
 Service URLs and admin credentials are read from environment variables so that
@@ -201,11 +201,6 @@ def main() -> int:
     if not successes:
         print("All services failed — no accounts were provisioned.", file=sys.stderr)
         return 1
-
-    print(
-        "Note: Trino requires a container restart to apply the new password hash:\n"
-        "  docker compose -f infrastructure/docker/compose.yml restart trino"
-    )
 
     return 0 if not failures else 0  # partial success is still exit 0
 

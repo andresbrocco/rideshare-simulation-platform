@@ -114,7 +114,7 @@ cd tools/dbt && ./venv/bin/dbt test
 | `services/prometheus` | Metrics collection and recording rules including composite headroom score | [->](services/prometheus/CONTEXT.md) |
 | `services/osrm` | Road-network routing for Sao Paulo | [->](services/osrm/CONTEXT.md) |
 | `services/otel-collector` | Central telemetry gateway (metrics, logs, traces) | [->](services/otel-collector/CONTEXT.md) |
-| `services/trino` | SQL query engine over Delta Lake layers; FILE-based password auth with admin-only account; `etc/` holds all server configuration files | [->](services/trino/CONTEXT.md) |
+| `services/trino` | SQL query engine over Delta Lake layers; header-based identity (`X-Trino-User`) with file-based catalog ACL (`rules.json`); `etc/` holds all server configuration files | [->](services/trino/CONTEXT.md) |
 | `services/hive-metastore` | Delta table metadata catalog for Trino | [->](services/hive-metastore/CONTEXT.md) |
 
 ### Data Transformation Tools
@@ -217,5 +217,5 @@ AWS infrastructure splits into persistent `foundation` (VPC, S3, IAM, DNS, Lambd
 - **Production domain**: `*.ridesharing.portfolio.andresbrocco.com` (not `rideshare`).
 - **Session-based auth vs static key**: Keys prefixed `sess_` trigger Redis lookups via `session_store.get_session`; all other keys compare against the static admin key. Never store the raw admin key in the browser — the frontend uses session keys from `POST /auth/login` for visitor sessions.
 - **`LoginDialog` replaces `PasswordDialog`**: The control panel login dialog now posts `{ email, password }` to `POST /auth/login` and stores `{ api_key, role, email }` in `sessionStorage` via `storeSession()`. The old raw-API-key flow via `PasswordDialog` is superseded.
-- **Trino `etc/` two-path layout**: Static config files (`config.properties`, `jvm.config`, `rules.json`, `event-listener.properties`) are bind-mounted into `/etc/trino/`; credential files (`password.db`) are rendered at startup from `password.db.template` into `/tmp/trino-etc/`. The `password-authenticator.properties` and `access-control.properties` reference `/tmp/trino-etc/` — do not edit the template paths.
+- **Trino `etc/` config layout**: Static config files (`config.properties`, `jvm.config`, `rules.json`, `event-listener.properties`, `access-control.properties`) are bind-mounted into `/etc/trino/`. Trino uses header-based identity (`X-Trino-User`) with file-based catalog ACL (`rules.json`) — no password authentication is required.
 - **CI/CD workflows are now documented**: `.github/workflows/CONTEXT.md` describes the full lifecycle — `build-images.yml`, `deploy-platform.yml`, `deploy-landing-page.yml`, `teardown-platform.yml`, `reset-platform.yml`, `deploy-lambda-auth.yml`, and `deploy-lambda-chat.yml`. The `deploy` branch is a materialized artifact (resolved placeholders force-pushed with `[skip ci]`); `main` always retains placeholder tokens.

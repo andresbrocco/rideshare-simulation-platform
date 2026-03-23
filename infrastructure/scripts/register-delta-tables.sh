@@ -84,6 +84,7 @@ execute_trino() {
     local sql="$1"
     local schema="${2:-default}"
     trino --server "http://${TRINO_HOST}:${TRINO_PORT}" \
+          --user admin \
           --catalog delta \
           --schema "$schema" \
           --execute "$sql" 2>&1

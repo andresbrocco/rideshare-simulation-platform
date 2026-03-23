@@ -21,16 +21,10 @@ spec:
               cp /config-source/config.properties /etc/trino/config.properties
               cp /config-source/jvm.config /etc/trino/jvm.config
               cp /config-source/node.properties /etc/trino/node.properties
-              cp /config-source/password-authenticator.properties /etc/trino/password-authenticator.properties
               cp /config-source/access-control.properties /etc/trino/access-control.properties
               cp /config-source/rules.json /etc/trino/rules.json
               mkdir -p /etc/trino/catalog
               cp /config-source/delta.properties.template /etc/trino/catalog/delta.properties
-              TRINO_ADMIN_PASSWORD_HASH=$(htpasswd -nbBC 10 admin "$ADMIN_PASSWORD" | cut -d: -f2)
-              sed \
-                -e "s|\${TRINO_ADMIN_PASSWORD_HASH}|${TRINO_ADMIN_PASSWORD_HASH}|g" \
-                /config-source/password.db.template > /etc/trino/password.db
-              chmod 600 /etc/trino/password.db
               echo 'http-server.process-forwarded=true' >> /etc/trino/config.properties
               SHARED_SECRET=$(cat /proc/sys/kernel/random/uuid | tr -d '-')
               sed -i "s|internal-communication.shared-secret=.*|internal-communication.shared-secret=${SHARED_SECRET}|" /etc/trino/config.properties

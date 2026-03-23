@@ -176,7 +176,7 @@ Gold layer star schema includes:
 
 **Control Panel** provides real-time geospatial visualization via deck.gl with WebSocket-driven map updates, agent inspection popups, and simulation lifecycle controls. The SPA serves three runtime modes (landing page, control-panel, dev) determined by hostname. Authentication uses a cross-subdomain cookie handoff from the landing page to the control-panel subdomain, after which the session key is stored in `sessionStorage`. Role-based UI hides admin-only controls from `viewer` role users. The `VisitorAccessForm` allows unauthenticated users to request access credentials (calls `provision-visitor` Lambda action). `LoginDialog` authenticates via `POST /auth/login` against the simulation API using email and password.
 
-**Trino** provides SQL access to all Delta Lake layers (Bronze, Silver, Gold) via the Hive Metastore catalog. FILE-based password authentication defines a single `admin` account (full access). The bcrypt hash is computed at container startup from the admin password and rendered into `password.db`; `file.refresh-period=5s` allows rotation without restart. Access control rules grant the `admin` user full catalog access while restricting other users to read-only on the `delta` catalog and blocking the `system` catalog. Query audit events are captured via a query event listener plugin.
+**Trino** provides SQL access to all Delta Lake layers (Bronze, Silver, Gold) via the Hive Metastore catalog. Trino uses header-based identity (`X-Trino-User`) with file-based catalog ACL (`rules.json`) — no password authentication required. Access control rules grant the `admin` user full catalog access while restricting other users to read-only on the `delta` catalog and blocking the `system` catalog. Query audit events are captured via a query event listener plugin.
 
 ## Data Flow
 
@@ -363,7 +363,7 @@ Tempo generates derived metrics (service-graphs, span-metrics) and remote-writes
 | Simulation WebSocket | WS (port 8000) | `Sec-WebSocket-Protocol: apikey.<key>` | Real-time state streaming |
 | Grafana | HTTP (port 3001) | Basic auth (admin/admin) | Dashboard access |
 | Airflow | HTTP (port 8082) | JWT auth (Airflow 3.x) | DAG management |
-| Trino | HTTP (port 8084) | FILE auth (admin account, bcrypt hash) | SQL queries |
+| Trino | HTTP (port 8084) | Header-based identity (X-Trino-User) with catalog ACL (rules.json) | SQL queries |
 | Prometheus | HTTP (port 9090) | None | PromQL queries, remote-write ingestion |
 | Lambda Function URL | HTTP | API key in request body (some actions unauthenticated) | Deploy/teardown lifecycle, visitor self-registration |
 | Control Panel | HTTP (port 5173) | Cookie-based auth handoff from landing page | Operator SPA |
@@ -425,7 +425,7 @@ Four composable profiles partition the stack:
 
 Services that appear in multiple profiles: `localstack` and `secrets-init` (all profiles, for secrets); `minio` and `minio-init` (`data-pipeline` and `monitoring`, for storage).
 
-**Secrets bootstrap sequence**: `localstack` starts first, then `secrets-init` seeds LocalStack Secrets Manager and writes credential files to a shared Docker volume. All other services mount this volume read-only at `/secrets/` and source environment-specific `.env` files in their entrypoints. `secrets-init` also generates bcrypt hashes for Trino's `password.db` at seed time.
+**Secrets bootstrap sequence**: `localstack` starts first, then `secrets-init` seeds LocalStack Secrets Manager and writes credential files to a shared Docker volume. All other services mount this volume read-only at `/secrets/` and source environment-specific `.env` files in their entrypoints.
 
 **`lambda-init`**: Deploys the auth-deploy Lambda to LocalStack and injects visitor-provisioning sub-modules (`provision_grafana_viewer.py`, `provision_airflow_viewer.py`, `provision_minio_visitor.py`) and the MinIO IAM policy file into the Lambda package. Sets service endpoint environment variables so the Lambda can call local services at runtime.
 
@@ -528,7 +528,7 @@ Visitor self-registration is split into two phases to decouple the public form f
 
 ### Role-Based Access Control
 
-The simulation API enforces two roles: `admin` (full mutation access) and `viewer` (read-only). The static API key always yields `admin`. Email+password login via `POST /auth/login` issues a `sess_`-prefixed Redis-backed session key carrying the stored role. The Control Panel hides all mutation controls when the session role is `viewer`, matching server-side enforcement. Trino uses a single `admin` FILE-based account; access control `rules.json` restricts non-admin users to read-only on the `delta` catalog.
+The simulation API enforces two roles: `admin` (full mutation access) and `viewer` (read-only). The static API key always yields `admin`. Email+password login via `POST /auth/login` issues a `sess_`-prefixed Redis-backed session key carrying the stored role. The Control Panel hides all mutation controls when the session role is `viewer`, matching server-side enforcement. Trino uses header-based identity (`X-Trino-User`) with no password authentication; `rules.json` restricts non-admin users to read-only on the `delta` catalog.
 
 ### `deploy` Branch as Materialized Artifact
 

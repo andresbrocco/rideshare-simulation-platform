@@ -29,7 +29,6 @@ _raw_port = os.getenv("TRINO_PORT", "8080")
 TRINO_PORT = _raw_port.rsplit(":", 1)[-1] if _raw_port.startswith("tcp://") else _raw_port
 TRINO_URL = f"http://{TRINO_HOST}:{TRINO_PORT}"
 TRINO_USER = os.getenv("TRINO_USER", "admin")
-TRINO_PASSWORD = os.getenv("TRINO_PASSWORD") or os.getenv("AIRFLOW_ADMIN_PASSWORD", "")
 
 # Silver tables created by DBT and exported via export-dbt-to-s3.py
 # NOTE: anomalies_gps_outliers and anomalies_zombie_drivers are DBT views
@@ -97,17 +96,13 @@ def execute_trino_sql(sql: str, schema: str = "default") -> List[List[str]]:
         "X-Trino-User": TRINO_USER,
         "X-Trino-Catalog": "delta",
         "X-Trino-Schema": schema,
-        # Trino PASSWORD auth requires HTTPS. In-cluster requests are HTTP,
-        # but Trino trusts X-Forwarded-Proto when process-forwarded=true.
         "X-Forwarded-Proto": "https",
     }
-    auth = (TRINO_USER, TRINO_PASSWORD) if TRINO_PASSWORD else None
 
     resp = requests.post(
         f"{TRINO_URL}/v1/statement",
         data=sql,
         headers=headers,
-        auth=auth,
         timeout=30,
     )
     resp.raise_for_status()
@@ -120,7 +115,7 @@ def execute_trino_sql(sql: str, schema: str = "default") -> List[List[str]]:
     while "nextUri" in result:
         time.sleep(0.3)
         next_url = result["nextUri"].replace("https://", "http://", 1)
-        resp = requests.get(next_url, headers=headers, auth=auth, timeout=30)
+        resp = requests.get(next_url, headers=headers, timeout=30)
         resp.raise_for_status()
         result = resp.json()
 

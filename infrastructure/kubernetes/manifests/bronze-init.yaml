@@ -15,8 +15,6 @@ data:
 
     TRINO_HOST="${TRINO_HOST:-trino}"
     TRINO_PORT="${TRINO_PORT:-8080}"
-    TRINO_PASSWORD="${TRINO_PASSWORD:-${AIRFLOW_ADMIN_PASSWORD:-}}"
-
     BRONZE_TABLES=(
         bronze_gps_pings
         bronze_trips
@@ -45,14 +43,8 @@ data:
 
     execute_trino() {
         local sql="$1"
-        local auth_args=()
-        if [ -n "$TRINO_PASSWORD" ]; then
-            auth_args=(-u "admin:${TRINO_PASSWORD}")
-        fi
-        # Use curl REST API with X-Forwarded-Proto so Trino accepts
-        # password auth over in-cluster HTTP (process-forwarded=true).
         local response
-        response=$(curl -sf "${auth_args[@]}" \
+        response=$(curl -sf \
             -X POST "http://${TRINO_HOST}:${TRINO_PORT}/v1/statement" \
             -H "X-Trino-User: admin" \
             -H "X-Trino-Catalog: delta" \
@@ -66,7 +58,7 @@ data:
         while [ -n "$next_uri" ]; do
             sleep 0.3
             next_uri=$(echo "$next_uri" | sed 's|^https://|http://|')
-            response=$(curl -sf "${auth_args[@]}" \
+            response=$(curl -sf \
                 -H "X-Trino-User: admin" \
                 -H "X-Forwarded-Proto: https" \
                 "$next_uri" 2>&1) || return 1
@@ -202,11 +194,6 @@ spec:
               value: trino
             - name: TRINO_PORT
               value: "8080"
-            - name: TRINO_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: app-credentials
-                  key: AIRFLOW_ADMIN_PASSWORD
             - name: BRONZE_BUCKET
               value: rideshare-bronze
             volumeMounts:

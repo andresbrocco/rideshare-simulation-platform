@@ -101,7 +101,7 @@ Four named profiles partition the stack:
 ### Notable Compose Service Behaviors
 
 - **`lambda-init`**: In addition to deploying the auth Lambda, mounts three visitor-provisioning modules (`provision_grafana_viewer.py`, `provision_airflow_viewer.py`, `provision_minio_visitor.py`) and a MinIO policy file (`minio-visitor-readonly.json`) into the Lambda package path. Injects service endpoint environment variables (`GRAFANA_URL`, `AIRFLOW_URL`, `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `SIMULATION_API_URL`) so the deployed Lambda can call those services at runtime.
-- **`secrets-init`**: Installs `bcrypt` alongside `boto3` so Trino's entrypoint can compute the admin password hash at container startup.
+- **`secrets-init`**: Installs `bcrypt` alongside `boto3` for visitor password hashing operations.
 - **Simulation**: The entrypoint conditionally sources `/secrets/data-pipeline.env` before sourcing MinIO credentials — allows the simulation to start under `core`-only profile without MinIO.
 - **Grafana**: Also conditionally sources `/secrets/data-pipeline.env` (same pattern as simulation) to access Trino connection details without requiring the `data-pipeline` profile.
 
@@ -370,12 +370,10 @@ All production workloads run in namespace `rideshare-prod`.
 
 Ingress is not used. The platform uses `GatewayClass` (named `eg`, backed by Envoy Gateway) and `HTTPRoute` resources. All path-based routing strips the path prefix before forwarding — e.g., `/api/` rewrites to `/`. Two HTTPRoute files split responsibilities: `httproute-api.yaml` (simulation API, frontend root) and `httproute-web-services.yaml` (Airflow, Grafana, Prometheus, Trino UIs).
 
-### Kubernetes Trino: Password File Bootstrap
+### Kubernetes Trino: Config Bootstrap
 
 In Kubernetes, the Trino pod runs a `setup-config` initContainer (image: `httpd:2.4-alpine`) that:
-1. Reads `ADMIN_PASSWORD` from the `app-credentials` Kubernetes Secret (synced from the `data-pipeline` secret by ESO)
-2. Computes the bcrypt hash via `htpasswd` and writes `password.db` to `/tmp/trino-etc/` with `chmod 600`
-3. Renders `delta.properties.template` → `/tmp/trino-etc/catalog/delta.properties` with MinIO credentials
+1. Renders `delta.properties.template` → `/tmp/trino-etc/catalog/delta.properties` with MinIO credentials
 
 ### Grafana Admin Dashboard
 
@@ -472,13 +470,7 @@ Note: DBT views (`anomalies_gps_outliers`, `anomalies_zombie_drivers`) have no `
 
 ### Trino Authentication and Access Control
 
-Trino uses FILE-based password authentication (`http-server.authentication.type=PASSWORD`). Only the `admin` account is defined:
-
-| Account | Role | Access |
-|---------|------|--------|
-| `admin` | Full | All catalogs |
-
-The admin bcrypt hash is computed at container startup from the `ADMIN_PASSWORD` in the `data-pipeline` secret (via `bcrypt` in Docker dev, via `htpasswd` in K8s). The entrypoint copies `/etc/trino` to `/tmp/trino-etc/` (writability workaround), then writes `password.db` with `chmod 600`. Access control rules reload every 60s.
+Trino uses header-based identity (`X-Trino-User`) with file-based catalog ACL (`rules.json`) — no password authentication required. Access control rules reload every 60s.
 
 ### Visitor Account Provisioning
 
