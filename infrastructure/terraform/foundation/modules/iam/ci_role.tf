@@ -209,6 +209,33 @@ resource "aws_iam_role_policy" "github_actions_iam" {
             ]
           }
         }
+      },
+      {
+        Sid    = "ManageDeployUserPolicies"
+        Effect = "Allow"
+        Action = [
+          "iam:GetUserPolicy",
+          "iam:PutUserPolicy",
+          "iam:DeleteUserPolicy",
+          "iam:ListUserPolicies"
+        ]
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/${var.project_name}-*"
+      },
+      {
+        Sid    = "ManageDeployGroups"
+        Effect = "Allow"
+        Action = [
+          "iam:CreateGroup",
+          "iam:DeleteGroup",
+          "iam:GetGroup",
+          "iam:AddUserToGroup",
+          "iam:RemoveUserFromGroup",
+          "iam:GetGroupPolicy",
+          "iam:PutGroupPolicy",
+          "iam:DeleteGroupPolicy",
+          "iam:ListGroupPolicies"
+        ]
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:group/${var.project_name}-*"
       }
     ]
   })
